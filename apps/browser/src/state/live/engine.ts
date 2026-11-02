@@ -4,7 +4,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
-import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
+import { LiveError, PartialFetch, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
@@ -43,10 +43,14 @@ async function run(folderId: string) {
 
   const fetched: LiveItem[] = [];
   const failed: { source: LiveSourceId; error: unknown }[] = [];
+  const partlyFailed: { source: LiveSourceId; error: unknown }[] = [];
   results.forEach((r, i) => {
     const source = folder.sources[i]!;
     if (r.status === "fulfilled") fetched.push(...r.value);
-    else failed.push({ source, error: r.reason });
+    else if (r.reason instanceof PartialFetch) {
+      fetched.push(...r.reason.items);
+      partlyFailed.push({ source, error: r.reason.failure });
+    } else failed.push({ source, error: r.reason });
   });
   if (!live().folders[folderId]) return;
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
@@ -78,7 +82,8 @@ async function run(folderId: string) {
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
   fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
-  if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
+  const firstProblem = firstFailure ?? partlyFailed[0];
+  if (firstProblem) setStatus(folderId, { state: "error", error: describe(firstProblem.source, firstProblem.error) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
 }

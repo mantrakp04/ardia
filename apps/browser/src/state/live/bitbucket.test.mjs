@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 const { SOURCES, connectBitbucket } = await import("./sources.ts");
-const { errorText } = await import("./engine.ts");
-const { useLive } = await import("./store.ts");
+const { errorText, refreshFolder } = await import("./engine.ts");
+const { createFolder, live, useLive } = await import("./store.ts");
+const { PartialFetch } = await import("./types.ts");
 
 const API = "https://api.bitbucket.org/2.0";
 const ACCOUNT = "712020:abc";
@@ -66,15 +67,36 @@ test("a 404 and a 403 from Bitbucket each get their own message instead of the g
   }
 });
 
-test("a workspace that fails doesn't hide the pull requests of the others", async () => {
+const partly = (fetching) =>
+  fetching.then(
+    () => assert.fail("expected a partial fetch"),
+    (e) => (assert.ok(e instanceof PartialFetch, String(e)), e),
+  );
+
+test("a workspace that fails doesn't hide the pull requests of the others, and says it failed", async () => {
   serve({
     [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
     [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
     [workspacePRs("locked")]: 403,
   });
   await connectBitbucket("me@example.com", "token");
-  const items = await SOURCES.bitbucket.fetch(authored);
-  assert.deepEqual(items.map((it) => it.id), ["bitbucket:acme/web#1"]);
+  const partial = await partly(SOURCES.bitbucket.fetch(authored));
+  assert.deepEqual(partial.items.map((it) => it.id), ["bitbucket:acme/web#1"]);
+  assert.equal(partial.failure.kind, "forbidden");
+});
+
+test("a folder shows the pull requests that loaded and the error of the workspace that didn't", async () => {
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
+    [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
+    [workspacePRs("locked")]: 403,
+  });
+  await connectBitbucket("me@example.com", "token");
+  const id = createFolder("p", "pullRequests", ["bitbucket"]);
+  await refreshFolder(id);
+  assert.deepEqual(live().items[id].map((it) => it.id), ["bitbucket:acme/web#1"]);
+  assert.equal(live().status[id].state, "error");
+  assert.equal(live().status[id].error.kind, "forbidden");
 });
 
 test("when every workspace fails, the folder shows that error", async () => {
@@ -113,9 +135,9 @@ test("a workspace that fails keeps the pull requests the folder already showed f
     [workspacePRs("locked")]: 503,
   });
   await connectBitbucket("me@example.com", "token");
-  const items = await SOURCES.bitbucket.fetch(authored);
+  const partial = await partly(SOURCES.bitbucket.fetch(authored));
   useLive.setState({ items: {} });
-  assert.deepEqual(items.map((it) => it.id), ["bitbucket:acme/web#1", "bitbucket:locked/app#9"]);
+  assert.deepEqual(partial.items.map((it) => it.id), ["bitbucket:acme/web#1", "bitbucket:locked/app#9"]);
 });
 
 test("workspaces and statuses are asked at most ten at a time", async () => {

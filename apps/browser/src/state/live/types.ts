@@ -80,4 +80,14 @@ export class LiveError extends Error {
   }
 }
 
+export class PartialFetch extends Error {
+  items: LiveItem[];
+  failure: unknown;
+  constructor(items: LiveItem[], failure: unknown) {
+    super("Part of the source couldn't be loaded");
+    this.items = items;
+    this.failure = failure;
+  }
+}
+
 export type LiveAccount = { login: string; name: string | null; avatar: string | null; connectedAt: number };

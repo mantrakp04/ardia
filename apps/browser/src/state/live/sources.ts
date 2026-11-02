@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
-import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
+import { LiveError, PartialFetch, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
 
 export type LiveSource = {
@@ -137,7 +137,9 @@ const bitbucket: LiveSource = {
     }
     const itemFailure = items.find((result): result is PromiseRejectedResult => result.status === "rejected");
     if (itemFailure) throw itemFailure.reason;
-    return [...fulfilled(items), ...keptFromFailedWorkspaces];
+    const listed = [...fulfilled(items), ...keptFromFailedWorkspaces];
+    if (failure) throw new PartialFetch(listed, failure.reason);
+    return listed;
   },
   async resolveGone(items) {
     const auth = await bitbucketAuth();
