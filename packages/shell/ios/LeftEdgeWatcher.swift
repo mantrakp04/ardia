@@ -69,7 +69,8 @@ final class LeftEdgeWatcher {
       let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: point))
       return hit === window || hit?.parent === window
     }
-    guard point.x < frame.minX, point.x >= max(screen.frame.minX, frame.minX - Self.reach) else { return false }
+    let outsideMinX = hold > 0 ? screen.frame.minX : max(screen.frame.minX, frame.minX - Self.reach)
+    guard point.x < frame.minX, point.x >= outsideMinX else { return false }
     guard live else { return true }
     let edge = NSPoint(x: frame.minX + 1, y: point.y)
     guard Self.windowNumber(at: edge) == window.windowNumber else { return false }
