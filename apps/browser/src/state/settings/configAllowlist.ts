@@ -11,7 +11,7 @@ export const CONFIG_SETTING_KEYS: readonly SettingKey[] = [
   "glassTintAmount", "pageScrollBars", "fadeUnloadedTabs", "warnBeforeClosingTabGroup", "batterySaverWhen", "memorySaver",
   "memorySaverMode", "keepActiveSites", "extensionSidePanelWidth", "showFullUrl", "bookmarksBar", "bookmarksBarSize",
   "hideBookmarksBarImport", "appearance", "addressBar", "compactToolbar", "commandBarPlacement", "spacesFollowAppearance",
-  "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaSize",
+  "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaOpensNewTabLinks", "littleArdiaSize",
 ];
 
 export const CONFIG_EXCLUDED_KEYS: readonly SettingKey[] = [
