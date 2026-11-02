@@ -13,7 +13,7 @@ import { groupLabel } from "../pins/tabGrouping";
 import { sharingProfiles } from "../profiles/profiles";
 import { closeWindowAnimated } from "../windows/closeAnimated";
 import { applyHeldReports } from "../../platform/nativeEvents";
-import { closeWindowDialog, lostOnClose } from "../windows/windowClose";
+import { confirmLostTabs, lostOnClose } from "../windows/windowClose";
 import { menuCommandAlternate, menuShortcut } from "../commands/commandShortcuts";
 import { openSettings } from "../settings/settingsWindows";
 import { profileAccentOf } from "../profiles/looks";
@@ -43,11 +43,14 @@ export async function closeTab(tabId: string) {
   const w = tab && s.windows[tab.windowId];
   if (!tab || !w) return;
   const last = closesWindow(s, tabId) && !leavesEmptyWindow(s, tabId);
-  if (last && s.settings.warnBeforeClosingLastTab && w.kind !== "private") {
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(w.id, [...new Set([tabId, ...lostOnClose(w.id)])]), suppression: "Don’t ask me again", windowId: w.id });
-    if (suppressed) store().updateSettings({ warnBeforeClosingLastTab: false });
+  if (last && w.kind !== "private") {
+    const lostNow = () => {
+      const now = store();
+      return closesWindow(now, tabId) && !leavesEmptyWindow(now, tabId) ? [tabId, ...lostOnClose(w.id)] : [];
+    };
+    const { confirmed, asked } = await confirmLostTabs(w.id, "warnBeforeClosingLastTab", lostNow);
     if (!confirmed) return;
-    applyHeldReports();
+    if (asked) applyHeldReports();
   }
   const now = store();
   const closesItsWindow = now.tabs[tabId]?.windowId === w.id && now.peeks[w.id]?.tabId !== tabId && closesWindow(now, tabId) && !leavesEmptyWindow(now, tabId);

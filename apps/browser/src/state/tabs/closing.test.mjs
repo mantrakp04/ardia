@@ -148,3 +148,105 @@ test("closing a window warns about the tabs it loses: none while another window 
   assert.equal(lostOnClose(a).length, 4, "the last window loses them all");
   assert.equal(closeWindowDialog(a).title, "Close 4 tabs?");
 });
+
+test("the last-tab sheet re-asked mid-close counts a replaced tab once and drops the forced ID that is gone", async () => {
+  const { confirmLostTabs } = await import("../windows/windowClose.ts");
+  const { nativeModule } = await import("@ardia/shell");
+  const { w, ids: [x] } = windowWith("only");
+  S().updateSettings({ warnBeforeClosingLastTab: true });
+  const other = S().createProfile({ name: "Other" });
+  const dialogs = nativeModule("ArdiaDialogs");
+  const original = dialogs.confirm;
+  const titles = [];
+  dialogs.confirm = async ({ title }) => {
+    titles.push(title);
+    if (titles.length === 1) {
+      S().newTab(w, { url: "https://elsewhere.com/", profileId: other, background: true });
+      const holder = S().newTab(w, { url: "https://only.com/", background: true });
+      const twin = S().newTab(w, { url: "https://only.com/", background: true });
+      const { [x]: gone, ...tabs } = S().tabs;
+      const pinKey = gone.pinKey ?? gone.id;
+      tabs[holder] = { ...tabs[holder], pinKey };
+      tabs[twin] = { ...tabs[twin], pinKey };
+      const win = S().windows[w];
+      useBrowser.setState({ tabs, windows: { ...S().windows, [w]: { ...win, tabIds: win.tabIds.filter((id) => id !== x), activeTabIds: { ...win.activeTabIds, [win.profileId]: holder } } } });
+    }
+    return { confirmed: true, suppressed: false };
+  };
+  try {
+    const { lostOnClose } = await import("../windows/windowClose.ts");
+    const { confirmed } = await confirmLostTabs(w, "warnBeforeClosingLastTab", () => [x, ...lostOnClose(w)]);
+    assert.ok(confirmed);
+    assert.deepEqual(titles, ["Close 1 tab?", "Close 2 tabs?"], "the holder and the twin are one tab, the stale forced ID none");
+  } finally {
+    dialogs.confirm = original;
+  }
+});
+
+const askingDialogs = async () => {
+  const { nativeModule } = await import("@ardia/shell");
+  const dialogs = nativeModule("ArdiaDialogs");
+  const original = dialogs.confirm;
+  const titles = [];
+  dialogs.confirm = async ({ title }) => (titles.push(title), { confirmed: false, suppressed: false });
+  return { titles, restore: () => (dialogs.confirm = original) };
+};
+
+test("closing a window asks when it has several unpinned tabs and loses one, and closes quietly when nothing is lost or only one tab is", async () => {
+  const { startWindowCloseGuard, lostOnClose } = await import("../windows/windowClose.ts");
+  const stub = await import("../../test-native/index.ts");
+  S().hydrate({});
+  startWindowCloseGuard();
+  S().updateSettings({ shareTabsAcrossWindows: false, warnBeforeClosingWindow: true });
+  const request = async (id) => {
+    stub.windows.emit({ type: "closeRequest", id });
+    await new Promise((r) => setTimeout(r, 50));
+  };
+  const asked = await askingDialogs();
+  try {
+    const single = S().createWindow({ url: "https://single.com" });
+    await request(single);
+    assert.ok(!S().windows[single], "one unpinned tab: closes without a question, as before");
+    const a = S().createWindow({ url: "https://a1.com" });
+    S().newTab(a, { url: "https://a2.com" });
+    const b = S().createWindow({ url: "https://b1.com" });
+    S().newTab(b, { url: "https://b2.com" });
+    S().updateSettings({ shareTabsAcrossWindows: true });
+    assert.deepEqual(lostOnClose(b), []);
+    await request(b);
+    assert.ok(!S().windows[b], "several tabs, all kept by the other window: no question, the window closes");
+    assert.deepEqual(asked.titles, []);
+    const c = S().createWindow({ url: "https://c1.com" });
+    S().openSplitPane(c, { anchorTabId: S().windows[c].tabIds[0], url: "https://c-only.com/" });
+    const lost = lostOnClose(c);
+    assert.ok(lost.length >= 1 && lost.length < S().windows[c].tabIds.length, `the split pane is lost, the shared tabs are not: ${lost.length} of ${S().windows[c].tabIds.length}`);
+    await request(c);
+    assert.ok(S().windows[c], "the declined question keeps the window");
+    assert.deepEqual(asked.titles, [lost.length === 1 ? "Close 1 tab?" : `Close ${lost.length} tabs?`]);
+  } finally {
+    asked.restore();
+  }
+});
+
+test("a last-tab sheet doesn't ask again for a tab that arrived while it was up, since the window then stays", async () => {
+  const { nativeModule } = await import("@ardia/shell");
+  const { w, ids: [x] } = windowWith("only");
+  S().updateSettings({ warnBeforeClosingLastTab: true });
+  const dialogs = nativeModule("ArdiaDialogs");
+  const original = dialogs.confirm;
+  const titles = [];
+  dialogs.confirm = async ({ title }) => {
+    titles.push(title);
+    S().newTab(w, { url: "https://arrived.com/", background: true });
+    return { confirmed: true, suppressed: false };
+  };
+  try {
+    await closeTab(x);
+    assert.deepEqual(titles, ["Close 1 tab?"]);
+    assert.equal(S().tabs[x], undefined, "the asked-for tab closed");
+    assert.ok(S().windows[w], "the window stays with the tab that arrived");
+    assert.equal(S().windows[w].tabIds.length, 1);
+  } finally {
+    dialogs.confirm = original;
+  }
+});
