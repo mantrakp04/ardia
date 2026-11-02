@@ -257,6 +257,7 @@ class ACBrowserWindow : public BrowserWindow,
   void SetContentsSize(const gfx::Size& size) override {}
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override;
   LocationBar* GetLocationBar() const override;
+  PinnedToolbarActions* GetPinnedToolbarActions() override { return nullptr; }
   void SetFocusToLocationBar(bool is_user_initiated) override {}
   void UpdateReloadStopState(bool is_loading, bool force) override {}
   void UpdateToolbar(content::WebContents* contents) override {}

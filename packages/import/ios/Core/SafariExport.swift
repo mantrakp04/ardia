@@ -98,7 +98,7 @@ public struct SafariExport: Codable, Equatable, Sendable {
       } catch let error as ImportError where error == .cancelled {
         throw error
       } catch {
-        out.warnings.append(ImportWarning(nil, "unreadableFile", "Couldn't read \(file.name): \(error)"))
+        out.warnings.append(ImportWarning(nil, .unreadableFile, "Couldn't read \(file.name): \(error)"))
       }
     }
     guard recognised else { throw ImportError.unreadable("This doesn't look like a Safari export. Choose the .zip file Safari saved.") }

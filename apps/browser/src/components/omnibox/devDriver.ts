@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { perfProbeEnabled } from "../../lib/perfProbe";
+import { perfProbeEnabled } from "../../state/app/perfProbe";
 
 type OmniboxDriver = {
   type(text: string): void;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { MenuItem } from "@ardia-real/shell";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { Symbol } from "./Symbol";
 
 type OpenMenu = { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void };

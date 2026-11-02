@@ -1,91 +1,68 @@
-import { breadcrumb } from "@ardia/core";
-import { FadeLabel, Symbol } from "@ardia/shell";
-import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { useTabLive } from "../../store/hooks";
-import { usePageProgress } from "../../store/pageProgress";
-import type { Tab } from "../../store/types";
-import { usePage } from "../layout/pageState";
-import { Favicon, IconButton, useHover } from "../primitives";
+import { Button, FadeLabel, Symbol, Text, ToolbarRowContext } from "../ui";
+import type { ReactNode } from "react";
+import { View } from "react-native";
+import { layout, useTheme } from "../ui/theme";
+import { pageHostLabel } from "../../lib/url";
+import { useTabLive } from "../../state/browser/hooks";
+import type { Tab } from "../../state/browser/types";
+import { usePage } from "../../state/tabs/pageState";
+import { font, radius, space } from "../ui/tokens";
+import { SMALL_BAR_BUTTON, SMALL_BAR_ROW, SMALL_PROGRESS } from "./tokens";
+import { Favicon } from "../favicon/Favicon";
+import { TabProgressBar } from "../toolbar/ProgressBar";
+import { insecureLevel } from "../toolbar/Toolbar";
+import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 
-export const SMALL_BAR_HEIGHT = 38;
-export const SMALL_INSET = 6;
-export const SMALL_LIGHTS_CENTER: [number, number] = [20, SMALL_BAR_HEIGHT / 2];
-export const SMALL_WINDOW_RADIUS = 16;
-export const SMALL_WINDOW_FRAME = {
-  dark: { outerRim: "rgba(0,0,0,0.95)", innerRim: "rgba(255,255,255,0.1)", shadowOpacity: 0.66, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },
-  light: { outerRim: "rgba(0,0,0,0.15)", innerRim: "rgba(255,255,255,0)", shadowOpacity: 0.38, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },
-};
+export const SMALL_INSET = layout.cardInset;
+export { SMALL_BAR_BUTTON, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS } from "./tokens";
 const MID = SMALL_BAR_HEIGHT / 2;
 const FIELD_HEIGHT = 28;
-const BUTTON = 28;
-const BUTTON_GAP = 2;
-const FIELD_GAP = 6;
+export const SMALL_BAR_GAP = 2;
+export const SMALL_FIELD_GAP = 6;
+const HOST = { flexShrink: 0, maxWidth: "60%" } as const;
+const FLEX = { flex: 1 } as const;
+const PROGRESS_PLACE = { position: "absolute", left: SMALL_PROGRESS.left, width: SMALL_PROGRESS.share, top: 0, bottom: 0 } as const;
 
-export type SmallBarButton = { icon: string; size: number; tooltip: string; onPress: () => void; disabled?: boolean };
+export type SmallBarButton = { icon: string; tooltip: string; onPress: () => void; disabled?: boolean };
 
 export function SmallBar({
   fieldLeft,
+  fieldMaxWidth,
   field,
   buttons,
   trailing,
   children,
 }: {
   fieldLeft: number;
+  fieldMaxWidth?: number;
   field: ReactNode;
   buttons: SmallBarButton[];
   trailing?: ReactNode;
   children?: ReactNode;
 }) {
   const count = buttons.length + (trailing ? 1 : 0);
-  const buttonsWidth = count * BUTTON + Math.max(0, count - 1) * BUTTON_GAP;
+  const buttonsWidth = count * SMALL_BAR_BUTTON + Math.max(0, count - 1) * SMALL_BAR_GAP;
   return (
-    <View style={{ height: SMALL_BAR_HEIGHT }}>
-      {children}
-      <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + FIELD_GAP, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
-      <View style={{ position: "absolute", right: SMALL_INSET, top: MID - BUTTON / 2, flexDirection: "row", gap: BUTTON_GAP }}>
-        {buttons.map((b) => (
-          <IconButton key={b.tooltip} icon={b.icon} size={b.size} box={BUTTON} radius={7} disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
-        ))}
-        {trailing}
+    <ToolbarRowContext.Provider value={SMALL_BAR_ROW}>
+      <View style={{ height: SMALL_BAR_HEIGHT }}>
+        {children}
+        <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + SMALL_FIELD_GAP, maxWidth: fieldMaxWidth, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
+        <View style={{ position: "absolute", right: SMALL_INSET, top: MID - SMALL_BAR_BUTTON / 2, flexDirection: "row", gap: SMALL_BAR_GAP }}>
+          {buttons.map((b) => (
+            <Button variant="icon" key={b.tooltip} icon={b.icon} look="row" disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
+          ))}
+          {trailing}
+        </View>
       </View>
-    </View>
-  );
-}
-
-export function SmallBarBadgeButton({ tooltip, onPress, children }: { tooltip: string; onPress: () => void; children: ReactNode }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View tooltip={tooltip} {...hoverProps}>
-      <Pressable accessibilityRole="button" accessibilityLabel={tooltip} onPress={onPress}>
-        {({ pressed }) => (
-          <View
-            style={{
-              width: BUTTON,
-              height: BUTTON,
-              borderRadius: 7,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : undefined,
-            }}
-          >
-            {children}
-          </View>
-        )}
-      </Pressable>
-    </View>
+    </ToolbarRowContext.Provider>
   );
 }
 
 export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?: boolean; label?: string }) {
   const theme = useTheme();
   const live = useTabLive(tab.id);
-  const progress = usePageProgress(tab.id);
-  const insecure = usePage(tab.id, (p) => !!p.security && (p.security.level === "insecure" || p.security.level === "certificateError"));
-  const isFile = tab.url.startsWith("file:");
-  const host = !tab.url ? "" : isFile ? "File" : breadcrumb(tab.url).host;
+  const insecure = usePage(tab.id, (p) => !!insecureLevel(p)) && !!tab.url;
+  const host = tab.url ? pageHostLabel(tab.url) : "";
   const title = tab.customTitle || tab.title;
 
   return (
@@ -94,10 +71,10 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        paddingLeft: 8,
-        paddingRight: 8,
-        borderRadius: 8,
+        gap: space.m,
+        paddingLeft: space.m,
+        paddingRight: space.m,
+        borderRadius: radius.tile,
         backgroundColor: hovered ? theme.toolbarHover : undefined,
       }}
     >
@@ -110,43 +87,22 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       )}
       {tab.url ? (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-          <Text
-            accessible={!!label}
-            accessibilityLabel={label}
-            numberOfLines={1}
-            style={{ flexShrink: 0, maxWidth: "60%", fontSize: 13, fontWeight: "500", color: theme.textPrimary }}
-          >
+          <Text accessible={!!label} accessibilityLabel={label} lines={1} ellipsizeMode="head" weight="medium" style={HOST}>
             {host}
           </Text>
-          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={13} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
+          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={font.body.fontSize} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
         </View>
       ) : (
-        <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: theme.placeholder }}>
+        <Text lines={1} tone="placeholder" style={FLEX}>
           Search or enter address
         </Text>
       )}
-      {live.isLoading ? <Progress progress={progress} color={theme.accent} /> : null}
+      {live.isLoading ? (
+        <View pointerEvents="none" style={PROGRESS_PLACE}>
+          <TabProgressBar tabId={tab.id} color={theme.accent} />
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function Progress({ progress, color }: { progress: number; color: string }) {
-  const width = useRef(new Animated.Value(Math.max(progress, 0.08))).current;
-  useEffect(() => {
-    Animated.timing(width, { toValue: Math.max(progress, 0.08), duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
-  }, [progress]);
-  return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        left: 8,
-        bottom: 0,
-        height: 1.5,
-        borderRadius: 1,
-        width: width.interpolate({ inputRange: [0, 1], outputRange: ["0%", "96%"] }),
-        backgroundColor: color,
-        opacity: 0.85,
-      }}
-    />
-  );
-}

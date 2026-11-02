@@ -1,0 +1,25 @@
+export {
+  clearSiteData,
+  getSiteSettings,
+  removeExternalAppAllowance,
+  resetSiteSettings,
+  resolveExternalApp,
+  setSiteSetting,
+  setZoom,
+  WEBKIT_SITE_SETTINGS,
+  type ClearSiteDataResult,
+  type SiteSettings,
+  type SiteSettingType,
+  type SiteSettingValue,
+} from "../../platform/siteSettings";
+export {
+  getContentBlocker,
+  isContentBlockerAllowed,
+  onContentBlockerChange,
+  setContentBlockerAllowed,
+  setContentBlockerEnabled,
+  setFilterListEnabled,
+  type ContentBlockerState,
+  type FilterList,
+  type FilterListCategory,
+} from "../../platform/contentBlocker";

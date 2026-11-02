@@ -1,6 +1,5 @@
 const st = () => ac.store.getState();
 const W = st().windowOrder[0];
-const C = globalThis.expo.modules.ArdiaCEF;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const events = [];
 let N = null;
@@ -8,8 +7,8 @@ let px = null;
 let py = null;
 let flags = 0;
 const ease = (k) => 0.5 - 0.5 * Math.cos(Math.PI * k);
-const mainWindow = () => C.chromeWindows().then((ws) => ws.filter((w) => w.hasRoot)[0].window);
-const dw = (action) => Promise.resolve(N === null ? mainWindow().then((n) => (N = n)) : N).then((n) => C.devWindow(n, action));
+const mainWindow = () => ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot)[0].window);
+const dw = (action) => Promise.resolve(N === null ? mainWindow().then((n) => (N = n)) : N).then((n) => ac.engine.call("windows.dev", { window: n, action }));
 const mark = (name) => events.push({ t: Date.now(), mark: name });
 let hover = false;
 const at = (x, y) => {

@@ -11,7 +11,7 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
  #include "content/public/common/url_constants.h"
  #include "services/metrics/public/cpp/metrics_utils.h"
  #include "services/metrics/public/cpp/ukm_builders.h"
-@@ -102,6 +105,37 @@
+@@ -106,6 +109,37 @@ bool IsPageCapturingDisplay(const PageNode* page_node) {
        ->IsCapturingDisplay();
  }
  
@@ -49,7 +49,7 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
  }  // namespace
  
  struct FreezingPolicy::PageFreezingState
-@@ -128,12 +162,10 @@
+@@ -132,12 +166,10 @@ struct FreezingPolicy::PageFreezingState
    // counted, to avoid a thundering herd of tabs being unfrozen on resume.
    std::pair<base::LiveTicks, base::LiveTicks>
    GetCurrentOrNextUnfreezePeriodStart(base::LiveTicks now) const {
@@ -65,17 +65,17 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
      CHECK_LT(previous_unfreeze_time, now);
  
      if ((previous_unfreeze_time +
-@@ -177,6 +209,9 @@
-   // are unfrozen at different tabs as much as possible, but also cannot learn
+@@ -182,6 +214,9 @@ struct FreezingPolicy::PageFreezingState
    // anything about other unrelated tabs.
    std::optional<base::LiveTicks> periodic_unfreeze_phase;
-+
+ 
 +  base::TimeDelta unfreeze_interval =
 +      features::kInfiniteTabsFreezing_UnfreezeInterval.Get();
- 
++
    // Reasons not to freeze the page.
    CannotFreezeReasonSet cannot_freeze_reasons;
-@@ -443,6 +478,7 @@
+ 
+@@ -463,6 +498,7 @@ void FreezingPolicy::UpdateFrozenState(
    bool eligible_for_freezing_on_battery_saver = false;
    bool is_in_periodic_unfreeze = false;
    bool all_pages_have_freeze_vote = true;
@@ -83,7 +83,7 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
  
    const double high_cpu_proportion = features::kFreezingHighCPUProportion.Get();
  
-@@ -456,6 +492,11 @@
+@@ -477,6 +513,11 @@ void FreezingPolicy::UpdateFrozenState(
        all_pages_have_freeze_vote = false;
      }
  
@@ -92,10 +92,10 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
 +    has_live_connection = has_live_connection || page_has_live_connection;
 +    page_freezing_state.unfreeze_interval =
 +        ArdiaUnfreezeInterval(page_has_live_connection);
-     if (page_freezing_state.IsInUnfreezePeriod(now)) {
+     if (is_periodic_unfreezing_active &&
+         page_freezing_state.IsInUnfreezePeriod(now)) {
        is_in_periodic_unfreeze = true;
-     }
-@@ -485,7 +526,7 @@
+@@ -507,7 +548,7 @@ void FreezingPolicy::UpdateFrozenState(
    } else if (is_freezing_enabled_by_user_ &&
               can_freeze_per_type_tracker.CanFreeze(
                   FreezingType::kInfiniteTabs) &&
@@ -104,7 +104,7 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
               base::FeatureList::IsEnabled(features::kInfiniteTabsFreezing)) {
      should_be_frozen = true;
    } else if (is_freezing_enabled_by_user_ &&
-@@ -1301,6 +1342,8 @@
+@@ -1334,6 +1375,8 @@ void FreezingPolicy::StartPeriodicUnfreezeTimer(const PageNode* page_node,
    }
    auto& state = GetFreezingState(page_node);
    CHECK(!state.periodic_unfreeze_timer.IsRunning(), base::NotFatalUntil::M141);

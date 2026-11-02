@@ -1,7 +1,6 @@
 let tabId;
-const C = globalThis.expo.modules.ArdiaCEF;
-const nativeWindow = () => C.chromeWindows().then((ws) => ws.filter((w) => w.hasRoot)[0].window);
-const act = (a) => nativeWindow().then((n) => C.devWindow(n, a));
+const nativeWindow = () => ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot)[0].window);
+const act = (a) => nativeWindow().then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const TEXT = "ardia.dev";
 then(() => { unsplit(); return goProfile("default"); });
 then(() => { st().clearHistory("default"); return sleep(300); });

@@ -60,7 +60,11 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
 - **What the iPhone writes.** `dev:<id>` (its name), `tabs:<id>` (its 30 most recent open tabs, as the Mac does),
   history visits as `h:<url>` (the union rule the Mac uses), and `send:` records (below). It never writes settings,
   profiles, pins or passwords, and it keeps every record it doesn't use in its replica untouched, so its snapshots
-  would be as complete as a Mac's. It doesn't compact; Macs do.
+  would be as complete as a Mac's. It doesn't compact; Macs do. `companion.test.ts` holds it to that against a fake
+  Mac writing every kind of record today's Macs write (settings, profiles and their themes, shared data, devices, pins
+  with their rows, tile folders, homes, order and looks, bookmarks, history, passwords, extensions and their approvals,
+  sends between Macs, tombstones) and a kind no build knows yet: after its cycles the Mac's records are the same bytes,
+  and the iPhone wrote only its own `dev:`, `tabs:` and `h:` records and deleted only the send addressed to it.
 - **What it reads.** Device names, profiles (`prof:`, `pth:`), the search engine settings (`set:searchEngine`,
   `set:customSearchUrl`, `set:customSearchEngines`), and per profile the other devices' tabs, pinned tabs and groups,
   bookmarks and history.

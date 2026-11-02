@@ -1,7 +1,7 @@
 import { Symbol } from "@ardia/shell";
 import { StyleSheet, Text, View } from "react-native";
-import { PromptButton } from "../../../../browser/src/components/layout/controls";
-import { useTheme } from "../../../../browser/src/lib/theme";
+import { Button } from "../../../../browser/src/components/ui/Button";
+import { useTheme } from "../../../../browser/src/components/ui/theme";
 import type { PageTheme } from "../../pages";
 
 export const REFUSED_PAGE_THEME: { light: PageTheme; dark: PageTheme } = {
@@ -20,7 +20,7 @@ export function RefusedPage({ host }: { host: string }) {
       <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", maxWidth: 340, marginBottom: 18 }}>
         {host} won't load inside another web page. In Ardia it's a tab like any other.
       </Text>
-      <PromptButton title="Download Ardia" primary onPress={() => void window.open(DOWNLOAD_URL, "_blank", "noopener")} />
+      <Button variant="pill" title="Download Ardia" primary onPress={() => void window.open(DOWNLOAD_URL, "_blank", "noopener")} />
     </View>
   );
 }

@@ -5,7 +5,7 @@
 
 Writes <home>/Library/Application Support/Google/Chrome/{Local State, Default/{Preferences, Network/Cookies, Web Data}}
 (<home> is wiped first). Cookie values and the card number are encrypted the way Chrome does on macOS (v10,
-AES-128-CBC, key = PBKDF2(secret, "saltysalt", 1003)), with the secret the app gets as ARDIA_IMPORT_TEST_SECRET,
+AES-128-CBC, key = PBKDF2(secret, "saltysalt", 1003)), with the secret the app gets as ARDIA_TEST importSecret,
 so no Keychain item is ever read. The localhost cookies carry the fixture server's port. The card is Visa's published test number.
 """
 

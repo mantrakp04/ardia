@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { View, type ViewProps } from "react-native";
-import { useBrowser } from "../../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../../browser/src/state/browser/store";
 
 const LINE_WIDTH = 1.5;
 const ARC = 0.72;

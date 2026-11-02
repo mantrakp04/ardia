@@ -175,6 +175,7 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/calculator.ts"));
   __exportAll(exports, __require("packages/core/src/cleanUrl.ts"));
   __exportAll(exports, __require("packages/core/src/engines.ts"));
+  __exportAll(exports, __require("packages/core/src/errors.ts"));
   __exportAll(exports, __require("packages/core/src/extensionRows.ts"));
   __exportAll(exports, __require("packages/core/src/fuzzy.ts"));
   __exportAll(exports, __require("packages/core/src/idn.ts"));
@@ -184,7 +185,14 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/siteSearch.ts"));
   __exportAll(exports, __require("packages/core/src/suggest.ts"));
   __exportAll(exports, __require("packages/core/src/suggestFetcher.ts"));
+  __exportAll(exports, __require("packages/core/src/tabGroups.ts"));
   __exportAll(exports, __require("packages/core/src/textFragment.ts"));
+  __exportAll(exports, __require("packages/core/src/theme.ts"));
+  __exportAll(exports, __require("packages/core/src/webStore.ts"));
+
+
+
+
 
 
 
@@ -928,7 +936,6 @@ __define("packages/core/src/engines.ts", function (exports, __require) {
   __export(exports, "allEngines", () => allEngines);
   __export(exports, "extensionEngineId", () => extensionEngineId);
   __export(exports, "controllingExtensionEngine", () => controllingExtensionEngine);
-  __export(exports, "extensionEnginesFromChrome", () => extensionEnginesFromChrome);
   __export(exports, "engineById", () => engineById);
   __export(exports, "searchUrl", () => searchUrl);
   __export(exports, "suggestRequestUrl", () => suggestRequestUrl);
@@ -1048,33 +1055,6 @@ function controllingExtensionEngine(extension                                  )
   return extension.find((e) => e.isDefault);
 }
 
-const withoutPlaceholders = (url        ) => url.replace(/\{[^{}%]*\}/g, "");
-
-function extensionEnginesFromChrome(profile        , list         )                          {
-  const groups = list && typeof list === "object" ? Object.values(list                           ) : [];
-  const out                          = [];
-  for (const group of groups) {
-    if (!Array.isArray(group)) continue;
-    for (const e of group                             ) {
-      const ext = e?.extension                                                ;
-      if (!ext || typeof ext.id !== "string" || e.isOmniboxExtension) continue;
-      if (typeof e.url !== "string" || !e.url.includes("%s") || out.some((o) => o.extensionId === ext.id)) continue;
-      out.push({
-        profile,
-        extensionId: ext.id,
-        extensionName: typeof ext.name === "string" ? ext.name : "",
-        name: typeof e.name === "string" && e.name ? e.name : String(ext.name ?? ""),
-        keyword: typeof e.keyword === "string" ? e.keyword : "",
-        url: withoutPlaceholders(e.url),
-        suggestUrl:
-          typeof e.suggestionsUrl === "string" && e.suggestionsUrl.includes("%s") ? withoutPlaceholders(e.suggestionsUrl) : undefined,
-        isDefault: e.default === true,
-      });
-    }
-  }
-  return out;
-}
-
 function engineById(engines                         , id                    )               {
   return engines.find((e) => e.id === id) ?? BUILT_IN_ENGINES[0] ;
 }
@@ -1113,18 +1093,19 @@ function makeCustomEngine(input             , id        )                     {
 });
 __define("packages/core/src/omnibox.ts", function (exports, __require) {
   __export(exports, "hostOf", () => hostOf);
+  __export(exports, "isJavaScriptUrl", () => isJavaScriptUrl);
+  __export(exports, "withoutJavaScriptScheme", () => withoutJavaScriptScheme);
   __export(exports, "fixupUrl", () => fixupUrl);
   __export(exports, "searchUrlFor", () => searchUrlFor);
   __export(exports, "resolveInput", () => resolveInput);
   __export(exports, "classifyPaste", () => classifyPaste);
+  __export(exports, "sanitizePaste", () => sanitizePaste);
   __export(exports, "breadcrumb", () => breadcrumb);
   __export(exports, "urlForDisplay", () => urlForDisplay);
 const { appUrlOrigin, toAppUrl } = __require("packages/core/src/appUrls.ts");
 const { cleanUrl } = __require("packages/core/src/cleanUrl.ts");
 const { displayHost } = __require("packages/core/src/idn.ts");
 const { PSL_TLDS } = __require("packages/core/src/tlds.ts");
-
-const SEARCH_URL = "https://www.google.com/search?q=";
 
                                                                                                                   
 
@@ -1146,29 +1127,9 @@ const KNOWN_SCHEMES = new Set([
   "cursor", "notion", "figma", "spotify", "linear", "obsidian", "raycast",
 ]);
 
-const KNOWN_TLDS = new Set(
-  (
-    "com net org edu gov mil int info biz name pro mobi app dev io ai co me tv cc gg sh fm ly so to xyz online site tech store " +
-    "blog shop cloud page news live art design studio agency media digital network systems solutions services software " +
-    "email chat social link click space website world today life fun games game zone wiki tools codes run build host " +
-    "rocks ninja guru expert academy school university health care money finance bank capital fund law legal travel " +
-    "photos photo pics gallery video music film movie radio audio events social group team community church city " +
-    "london nyc paris berlin tokyo africa asia eu aero coop museum jobs cat post tel travel moe onl one top vip win " +
-    "work works company business center global plus inc ltd llc gmbh srl cafe restaurant pizza bar pub coffee wine beer " +
-    "fashion style shoes clothing jewelry watch camera computer phone mobile download security domains hosting " +
-    "google youtube gmail android chrome amazon apple microsoft windows office azure aws netflix meta search " +
-    "local localhost test internal lan arpa onion " +
-    "ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bm bn bo br bs bt bw by bz ca cc " +
-    "cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg er es et eu fi fj fk fm fo fr ga " +
-    "gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp " +
-    "ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mg mh mk ml mm mn mo mp mq mr ms " +
-    "mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro " +
-    "rs ru rw sa sb sc sd se sg sh si sk sl sm sn so sr ss st su sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt " +
-    "tv tw tz ua ug uk us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw"
-  ).split(" "),
-);
+const LOCAL_TLDS = new Set(["meta", "local", "localhost", "test", "internal", "lan"]);
 let registries                         ;
-const knownTld = (tld        ) => KNOWN_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS.split(/\s+/))).has(tld);
+const knownTld = (tld        ) => LOCAL_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS.split(/\s+/))).has(tld);
 
 function isLocalHost(host        )          {
   return (
@@ -1187,9 +1148,20 @@ const HOST = new RegExp(
   "i",
 );
 
+const JAVASCRIPT_URL = /^(?:view-source:)?javascript:/i;
+const JAVASCRIPT_PREFIX = /^[\u0000-\u0020\u007f]*javascript:/i;
+
+const isJavaScriptUrl = (url        ) => JAVASCRIPT_URL.test(url.replace(/^[\u0000-\u0020]+/, "").replace(/[\t\n\r]/g, ""));
+
+function withoutJavaScriptScheme(text        )         {
+  let out = text;
+  while (JAVASCRIPT_PREFIX.test(out)) out = out.replace(JAVASCRIPT_PREFIX, "");
+  return out;
+}
+
 function fixupUrl(raw        )                {
   const url = fixup(raw);
-  return url && toAppUrl(url);
+  return url && !isJavaScriptUrl(url) ? toAppUrl(url) : null;
 }
 
 function fixup(raw        )                {
@@ -1229,7 +1201,7 @@ function searchUrlFor(template        , query        )         {
   return template.includes("%s") ? template.replace(/%s/g, q) : template + q;
 }
 
-function resolveInput(raw        , search = SEARCH_URL)         {
+function resolveInput(raw        , search        )         {
   const input = raw.trim();
   if (!input) return "";
   if (input.startsWith("?")) return input.length > 1 ? searchUrlFor(search, input.slice(1)) : "";
@@ -1239,17 +1211,28 @@ function resolveInput(raw        , search = SEARCH_URL)         {
                                                                                           
 
 function classifyPaste(text        )                     {
-  const trimmed = text.trim();
+  const trimmed = withoutJavaScriptScheme(text.trim()).trim();
   if (!trimmed) return null;
   const url = /\s/.test(trimmed) ? null : fixupUrl(trimmed);
   if (url && !/^(about|data):/i.test(url)) return { kind: "go", url: cleanUrl(url) };
   return { kind: "search", query: trimmed.replace(/\s+/g, " ").slice(0, 2000) };
 }
 
+function sanitizePaste(text        )         {
+  if (!text) return "";
+  const parts = text.trim().split(/(\s+)/);
+  if (parts.length === 1 && !parts[0]) return " ";
+  const spaced = parts.some((part, i) => i % 2 === 1 && !/[\r\n]/.test(part));
+  return withoutJavaScriptScheme(parts.map((part, i) => (i % 2 === 0 || !/[\r\n]/.test(part) ? part : spaced ? " " : "")).join("")).trimStart();
+}
+
+const DEFAULT_PORTS                         = { http: "80", https: "443", ws: "80", wss: "443", ftp: "21" };
+
 function breadcrumb(url        , title         )                                    {
   const parsed = parseUrl(url);
   const app = appUrlOrigin(url);
-  const host = app ?? (parsed ? displayHost(parsed.host).replace(/^www\./, "") : url);
+  const port = parsed?.port && parsed.port !== DEFAULT_PORTS[parsed.scheme] ? `:${parsed.port}` : "";
+  const host = app ?? (parsed ? displayHost(parsed.host).replace(/^www\./, "") + port : url);
   const seen = new Set([host.toLowerCase(), ...(app && parsed ? [parsed.host] : [])]);
   const trail = (title ?? "")
     .split(/\s[|/·–—-]\s/)
@@ -1265,7 +1248,8 @@ function breadcrumb(url        , title         )                                
 
 function urlForDisplay(url        )         {
   if (appUrlOrigin(url)) return toAppUrl(url).replace(/^([^/]*\/\/[^/?#]*)\/(?=[?#]|$)/, "$1");
-  const rest = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  const authority = /^[a-z][a-z0-9+.-]*:\/\//i.exec(url);
+  const rest = authority ? url.slice(authority[0].length).replace(/^[^/?#]*@/, "") : url;
   const host = /^[^/?#:]*/.exec(rest) [0];
   return (displayHost(host) + rest.slice(host.length)).replace(/^www\./i, "");
 }
@@ -1557,7 +1541,12 @@ const TOP_DOMAINS = (
   "epicgames.com roblox.com playstation.com xbox.com nintendo.com ea.com battle.net salesforce.com atlassian.com " +
   "trello.com asana.com canva.com docusign.com okta.com cloudflare.com godaddy.com squarespace.com wix.com " +
   "mozilla.org duckduckgo.com proton.me protonmail.com gmail.com googledrive.com fedex.com ups.com usps.com dhl.com " +
-  "irs.gov gov.uk"
+  "fidelity.com schwab.com vanguard.com robinhood.com etrade.com morganstanley.com goldmansachs.com jpmorgan.com " +
+  "usbank.com pnc.com truist.com tdbank.com citibank.com discover.com ally.com sofi.com chime.com usaa.com " +
+  "navyfederal.org ameriprise.com edwardjones.com merrilledge.com interactivebrokers.com webull.com " +
+  "intuit.com turbotax.com creditkarma.com experian.com equifax.com transunion.com zellepay.com klarna.com " +
+  "affirm.com gemini.com crypto.com bitstamp.net okx.com bybit.com kucoin.com ledger.com trezor.io " +
+  "irs.gov ssa.gov gov.uk"
 ).split(" ");
 
 const CONFUSABLES                         = {
@@ -1624,8 +1613,6 @@ function hostSpoofReason(host        )                     {
 });
 __define("packages/core/src/tlds.ts", function (exports, __require) {
   __export(exports, "PSL_TLDS", () => PSL_TLDS);
-// Generated from Chromium's net/base/registry_controlled_domains/effective_tld_names.dat (ICANN section, the last label of every
-// rule): the registries Chrome's AutocompleteInput::Parse counts as a "known TLD". Unicode TLDs are as the PSL spells them.
 const PSL_TLDS =
 `aaa aarp abb abbott abbvie abc able abogado abudhabi ac academy accenture accountant accountants aco actor ad ads
 adult ae aeg aero aetna af afl africa ag agakhan agency ai aig airbus airforce airtel akdn al alibaba alipay allfinanz
@@ -1699,6 +1686,25 @@ vermögensberater vermögensberatung ελ ευ бг бел дети ею кат�
 இலங்கை சிங்கப்பூர் భారత్ ಭಾರತ ഭാരതം ලංකා คอม ไทย ລາວ გე みんな アマゾン クラウド グーグル コム ストア セール ファッション ポイント 世界 中信 中国 中國 中文网 亚马逊
 企业 佛山 信息 健康 八卦 公司 公益 台湾 台灣 商城 商店 商标 嘉里 嘉里大酒店 在线 大拿 天主教 娱乐 家電 广东 微博 慈善 我爱你 手机 招聘 政务 政府 新加坡 新闻 时尚 書籍 机构 淡马锡 游戏 澳門 澳门 点看
 移动 组织机构 网址 网店 网站 网络 联通 臺灣 谷歌 购物 通販 集团 電訊盈科 飞利浦 食品 餐厅 香格里拉 香港 닷넷 닷컴 삼성 한국`;
+
+});
+__define("packages/core/src/errors.ts", function (exports, __require) {
+  __export(exports, "ArdiaError", () => ArdiaError);
+  __export(exports, "ardiaError", () => ardiaError);
+class ArdiaError extends Error {
+           code        ;
+
+  constructor(code        , message        ) {
+    super(message);
+    this.code = code;
+    this.name = "ArdiaError";
+  }
+}
+
+const ardiaError = (error         )             =>
+  error instanceof ArdiaError
+    ? error
+    : new ArdiaError(String((error                             )?.code ?? "ERR_UNKNOWN"), String((error                                )?.message ?? error));
 
 });
 __define("packages/core/src/extensionRows.ts", function (exports, __require) {
@@ -2034,395 +2040,30 @@ function siteSearchKey(key        , modifiers                        , state    
 
 });
 __define("packages/core/src/suggest.ts", function (exports, __require) {
-  __export(exports, "displayUrl", () => displayUrl);
-  __export(exports, "prepareSuggestions", () => prepareSuggestions);
-  __export(exports, "suggestionKey", () => suggestionKey);
   __export(exports, "buildSuggestions", () => buildSuggestions);
+  __export(exports, "displayUrl", () => __require("packages/core/src/pageText.ts")["displayUrl"]);
+  __export(exports, "prepareSuggestions", () => __require("packages/core/src/candidatePool.ts")["prepareSuggestions"]);
+  __export(exports, "suggestionKey", () => __require("packages/core/src/suggestionRows.ts")["suggestionKey"]);
 const { findBang } = __require("packages/core/src/bangs.ts");
 const { calculate } = __require("packages/core/src/calculator.ts");
+const { NO_BOOKMARKS, poolFor, tabsOver } = __require("packages/core/src/candidatePool.ts");
 const { extensionSuggestions } = __require("packages/core/src/extensionRows.ts");
 const { BUILT_IN_ENGINES, searchUrl } = __require("packages/core/src/engines.ts");
 const { matchActions } = __require("packages/core/src/fuzzy.ts");
-const { fixupUrl, hostOf, urlForDisplay } = __require("packages/core/src/omnibox.ts");
+const { fixupUrl, hostOf } = __require("packages/core/src/omnibox.ts");
+const { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList } = __require("packages/core/src/pageMatch.ts");
+const { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey } = __require("packages/core/src/pageText.ts");
 const { matchQuickCreate } = __require("packages/core/src/quickCreate.ts");
 const { scopedSearchUrl } = __require("packages/core/src/siteSearch.ts");
-
-                                
-                                                                                      
-                                                                                                                
-                                                                                
-  
-
-                                                                               
-
-                        
-     
-                   
-                  
-                    
-                             
-                     
-                           
-                        
-     
-                                                                                                    
-                                                                    
-                                                                               
-                                                                            
                                                                                                       
+const { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion } = __require("packages/core/src/suggestionRows.ts");
 
-                                
-                      
-                     
-  
+                                                                                                                     
 
-                              
-                 
-               
-                                              
-                                    
-                             
-                                     
-                                             
-                        
-                      
-                             
-                          
-                           
-  
 
-function displayUrl(url        )         {
-  return urlForDisplay(url).replace(/\/$/, "");
-}
+
 
 const DAY = 86_400_000;
-const pageKey = (url        ) => url.replace(/#.*$/, "").replace(/\/$/, "");
-
-                                                      
-                                                                      
-                                               
-
-                 
-              
-              
-                
-                     
-                     
-                     
-                      
-                       
-                
-                         
-                     
-  
-
-const pageTexts = new WeakMap                  ();
-
-const logVisitsOf           = [];
-const logVisits = (visits        ) => (visits >= 0 && visits < 1024 && (visits | 0) === visits ? (logVisitsOf[visits] ??= Math.log2(1 + visits) * 8) : Math.log2(1 + visits) * 8);
-
-const NOT_WORD = /[^a-z0-9]+/g;
-const PLAIN_WORDS = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
-const wordsOf = (lower        ) => (PLAIN_WORDS.test(lower) ? ` ${lower}` : ` ${lower}`.replace(NOT_WORD, " "));
-const shownWordsOf = (t          ) => (t.shownWords ??= wordsOf(t.shownLower));
-
-function pageText(row                                )           {
-  let text = pageTexts.get(row);
-  if (!text) {
-    const shown = displayUrl(row.url);
-    const shownLower = shown.toLowerCase();
-    const titleLower = row.title.toLowerCase();
-    text = { url: row.url, key: pageKey(row.url), shown, shownLower, titleLower, titleWords: wordsOf(titleLower) };
-    pageTexts.set(row, text);
-  }
-  return text;
-}
-
-const hostOfPage = (t          ) => (t.host ??= hostOf(t.url));
-const hostPart = (shown        ) => /^[^/?#]*/.exec(shown) [0];
-const hostLowerOfPage = (t          ) => (t.hostLower ??= hostPart(t.shownLower));
-const originOfPage = (t          ) => (t.origin === undefined ? (t.origin = /^https?:\/\/[^/?#]+/i.exec(t.url)?.[0] ?? null) : t.origin);
-
-                  
-              
-                
-                         
-                 
-                    
-                    
-                      
-                 
-                  
-                 
-  
-
-                                                                                     
-                                                 
-
-                                                                                                                           
-                
-                     
-                                 
-                    
-                                
-                        
-                         
-                    
-  
-
-const bases = new WeakMap                                      ();
-const builders = new WeakMap                                                                 ();
-const NO_BOOKMARKS                         = [];
-const historyCandidates = new WeakMap                       ();
-const SLICE_CHECK = 64;
-
-function baseFor(bookmarks                        )               {
-  let base = bases.get(bookmarks);
-  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), keys: new Set(), cursor: 0, done: false }));
-  return base;
-}
-
-function advance(b         , bookmarks                        , deadline        )          {
-  if (b.pool) return true;
-  let n = 0;
-  const late = () => ++n % SLICE_CHECK === 0 && Date.now() > deadline;
-  const base = b.base;
-  while (!base.done && base.cursor < bookmarks.length) {
-    const row = bookmarks[base.cursor++] ;
-    const text = pageText(row);
-    base.keys.add(text.key);
-    if (!base.byKey.has(text.key)) {
-      const c            = { url: row.url, title: row.title, favicon: row.favicon, visits: 0, lastVisit: 0, logVisits: 0, bookmarked: true, text };
-      base.list.push(c);
-      base.byKey.set(text.key, c);
-    }
-    if (late()) return false;
-  }
-  base.done = true;
-  while (b.historyCursor < b.history.length) {
-    const h = b.history[b.historyCursor++] ;
-    const text = pageText(h);
-    if (!b.byKey.has(text.key)) {
-      const bookmarked = base.keys.has(text.key);
-      let c = historyCandidates.get(h);
-      if (!c || c.bookmarked !== bookmarked) {
-        c = { url: h.url, title: h.title, favicon: h.favicon, visits: h.visits, lastVisit: h.lastVisit, logVisits: logVisits(h.visits), bookmarked, text };
-        historyCandidates.set(h, c);
-      }
-      b.list.push(c);
-      b.byKey.set(text.key, c);
-    }
-    if (late()) return false;
-  }
-  while (b.bookmarkCursor < base.list.length) {
-    const c = base.list[b.bookmarkCursor++] ;
-    if (!b.byKey.has(c.text.key)) b.list.push(c);
-    if (late()) return false;
-  }
-  const history = b.byKey;
-  b.pool = {
-    list: b.list,
-    byKey: { get: (key) => history.get(key) ?? base.byKey.get(key), has: (key) => history.has(key) || base.byKey.has(key) },
-  };
-  return true;
-}
-
-function builderFor(history                       , bookmarks                        )          {
-  let byBookmarks = builders.get(history);
-  if (!byBookmarks) builders.set(history, (byBookmarks = new WeakMap()));
-  let b = byBookmarks.get(bookmarks);
-  if (!b) byBookmarks.set(bookmarks, (b = { base: baseFor(bookmarks), history, list: [], byKey: new Map(), historyCursor: 0, bookmarkCursor: 0, pool: null }));
-  return b;
-}
-
-function poolFor(history                       , bookmarks                        )       {
-  const b = builderFor(history, bookmarks);
-  advance(b, bookmarks, Infinity);
-  return b.pool ;
-}
-
-function prepareSuggestions(source                  , deadline        )          {
-  const bookmarks = source.bookmarks ?? NO_BOOKMARKS;
-  const b = builderFor(source.history, bookmarks);
-  if (b.pool) return true;
-  for (const rows of [source.history, bookmarks]) {
-    let n = 0;
-    for (const row of rows) {
-      if (pageTexts.has(row)) continue;
-      pageText(row);
-      if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
-    }
-  }
-  return advance(b, bookmarks, deadline);
-}
-
-                                                                                                                                  
-const tabsOverCache = new WeakMap                             ();
-
-function tabsOver(pool      , tabs                   , currentTabId         )           {
-  const cached = tabsOverCache.get(tabs);
-  if (cached && cached.pool === pool && cached.currentTabId === currentTabId && cached.rows.length === tabs.length) {
-    let same = true;
-    for (let i = 0; same && i < tabs.length; i++) same = cached.rows[i] === tabs[i];
-    if (same) return cached;
-  }
-  const tabIds = new Map                ();
-  const extra              = [];
-  for (const t of tabs) {
-    if (!t.url || t.id === currentTabId) continue;
-    const text = pageText(t);
-    if (tabIds.has(text.key)) continue;
-    tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
-  }
-  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra };
-  tabsOverCache.set(tabs, result);
-  return result;
-}
-
-              
-            
-                                         
-                
-                 
-                                                            
-                 
-  
-
-const WORD = /^[a-z0-9]+$/;
-
-function parseQuery(q        , tokens                   )        {
-  return {
-    q,
-    segmentStarts: /[./]/.test(q) ? null : [`.${q}`, `/${q}`],
-    word: WORD.test(q),
-    spaced: ` ${q}`,
-    tokens: tokens.map((text) => ({ text, word: WORD.test(text), spaced: ` ${text}` })),
-    needle: tokens.reduce((a, b) => (b.length > a.length ? b : a), ""),
-  };
-}
-
-function matchScore(t          , query       )         {
-  const shown = t.shownLower;
-  const title = t.titleLower;
-  const { q } = query;
-  if (!shown.includes(query.needle) && !title.includes(query.needle)) return 0;
-  let s = 0;
-  if ((t.shownBlank ??= /\s/.test(shown))) {
-    const seg = query.segmentStarts;
-    if (shown.startsWith(q)) s = 100;
-    else if (seg && (shown.includes(seg[0]) || shown.includes(seg[1]))) s = 60;
-    else if (shown.includes(q)) s = 30;
-  }
-  const ti = title.indexOf(q);
-  if (ti === 0) s += 40;
-  else if (ti > 0) s += 20;
-  if (s > 0) return s;
-  for (const token of query.tokens) {
-    if (token.word && t.titleWords.includes(token.spaced)) s += 15;
-    else if (token.word && shownWordsOf(t).includes(token.spaced)) s += 10;
-    else if (token.text.length >= 3 && (title.includes(token.text) || shown.includes(token.text))) s += 5;
-    else return 0;
-  }
-  return s;
-}
-
-function matchScoreWord(t          , query       )         {
-  const shown = t.shownLower;
-  const title = t.titleLower;
-  const q = query.q;
-  const si = shown.indexOf(q);
-  const ti = title.indexOf(q);
-  if (si < 0 && ti < 0) return 0;
-  let s = 0;
-  if (si === 0) s = 100;
-  else if (si > 0) {
-    const seg = query.segmentStarts;
-    if (seg && (shown.includes(seg[0]) || shown.includes(seg[1]))) s = 60;
-    else if (q.length >= 2) s = 30;
-  }
-  if (ti === 0) s += 40;
-  else if (q.length >= 2 ? ti > 0 : query.word && t.titleWords.includes(query.spaced)) s += 20;
-  return s;
-}
-
-                                                                                     
-const MATCHED_KEPT = 8;
-let matchedChain                                  = { pool: null                   , list: [] };
-
-function narrowing(pool      , q        , tokens                   )                 {
-  const chain = matchedChain;
-  if (chain.pool !== pool) return null;
-  for (let k = chain.list.length - 1; k >= 0; k--) {
-    const last = chain.list[k] ;
-    if (!q.startsWith(last.q)) continue;
-    const i = last.tokens.length - 1;
-    const word = last.tokens[i] ;
-    if (i === 0 || word === tokens[i] || word.length >= 3) return last;
-  }
-  return null;
-}
-
-function remember(pool      , q        , tokens          , pages             , scores          ) {
-  let chain = matchedChain;
-  if (chain.pool !== pool) matchedChain = chain = { pool, list: [] };
-  const list = chain.list;
-  while (list.length && !q.startsWith(list[list.length - 1] .q)) list.pop();
-  if (q.length < 2) {
-    list.length = 0;
-    return;
-  }
-  if (list.length && list[list.length - 1] .q === q) list.pop();
-  list.push({ q, tokens, pages, scores });
-  if (list.length > MATCHED_KEPT) list.shift();
-}
-
-                                                                                
-
-class TopList {
-           items           = [];
-  floor = -Infinity;
-                   size        ;
-  constructor(size        ) {
-    this.size = size;
-  }
-  offer(r        ) {
-    const items = this.items;
-    if (items.length === this.size && items[items.length - 1] .s >= r.s) return;
-    let i = items.length;
-    while (i > 0 && items[i - 1] .s < r.s) i--;
-    items.splice(i, 0, r);
-    if (items.length > this.size) items.pop();
-    if (items.length === this.size) this.floor = items[items.length - 1] .s;
-  }
-}
-
-const pageSuggestion = (c           , tabId                            = c.tabId)             => ({
-  kind: "page",
-  url: c.url,
-  title: c.title,
-  favicon: c.favicon,
-  ...(tabId ? { tabId } : {}),
-  ...(c.bookmarked ? { bookmarked: true } : {}),
-  ...(c.visits > 0 ? { visited: true } : {}),
-});
-
-function suggestionKey(s            )         {
-  switch (s.kind) {
-    case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
-    case "search":
-      return `search:${s.url}`;
-    case "calc":
-      return `calc:${s.expression}`;
-    case "action":
-      return `action:${s.id}`;
-    case "create":
-      return `create:${s.id}`;
-    case "extension":
-      return `extension:${s.open}:${s.id}`;
-  }
-}
 
 function buildSuggestions(raw        , source                  , options                 = {})                   {
   const { limit = 8, now = Date.now(), engine = BUILT_IN_ENGINES[0] , preference = "website", remote = [], actions = [], scope, preventInline = false } = options;
@@ -2587,6 +2228,256 @@ function bangSuggestions(match           , source                  , options    
   return { items: out.items, completion: "" };
 }
 
+});
+__define("packages/core/src/pageText.ts", function (exports, __require) {
+  __export(exports, "displayUrl", () => displayUrl);
+  __export(exports, "pageKey", () => pageKey);
+  __export(exports, "pageTexts", () => pageTexts);
+  __export(exports, "logVisits", () => logVisits);
+  __export(exports, "shownWordsOf", () => shownWordsOf);
+  __export(exports, "pageText", () => pageText);
+  __export(exports, "hostOfPage", () => hostOfPage);
+  __export(exports, "hostPart", () => hostPart);
+  __export(exports, "hostLowerOfPage", () => hostLowerOfPage);
+  __export(exports, "originOfPage", () => originOfPage);
+const { hostOf, urlForDisplay } = __require("packages/core/src/omnibox.ts");
+
+function displayUrl(url        )         {
+  return urlForDisplay(url).replace(/\/$/, "");
+}
+
+const pageKey = (url        ) => url.replace(/#.*$/, "").replace(/\/$/, "");
+
+                        
+              
+              
+                
+                     
+                     
+                     
+                      
+                       
+                
+                         
+                     
+  
+
+const pageTexts = new WeakMap                  ();
+
+const logVisitsOf           = [];
+const logVisits = (visits        ) => (visits >= 0 && visits < 1024 && (visits | 0) === visits ? (logVisitsOf[visits] ??= Math.log2(1 + visits) * 8) : Math.log2(1 + visits) * 8);
+
+const NOT_WORD = /[^a-z0-9]+/g;
+const PLAIN_WORDS = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
+const wordsOf = (lower        ) => (PLAIN_WORDS.test(lower) ? ` ${lower}` : ` ${lower}`.replace(NOT_WORD, " "));
+const shownWordsOf = (t          ) => (t.shownWords ??= wordsOf(t.shownLower));
+
+function pageText(row                                )           {
+  let text = pageTexts.get(row);
+  if (!text) {
+    const shown = displayUrl(row.url);
+    const shownLower = shown.toLowerCase();
+    const titleLower = row.title.toLowerCase();
+    text = { url: row.url, key: pageKey(row.url), shown, shownLower, titleLower, titleWords: wordsOf(titleLower) };
+    pageTexts.set(row, text);
+  }
+  return text;
+}
+
+const hostOfPage = (t          ) => (t.host ??= hostOf(t.url));
+const hostPart = (shown        ) => /^[^/?#]*/.exec(shown) [0];
+const hostLowerOfPage = (t          ) => (t.hostLower ??= hostPart(t.shownLower));
+const originOfPage = (t          ) => (t.origin === undefined ? (t.origin = /^https?:\/\/[^/?#]+/i.exec(t.url)?.[0] ?? null) : t.origin);
+
+});
+__define("packages/core/src/candidatePool.ts", function (exports, __require) {
+  __export(exports, "NO_BOOKMARKS", () => NO_BOOKMARKS);
+  __export(exports, "poolFor", () => poolFor);
+  __export(exports, "prepareSuggestions", () => prepareSuggestions);
+  __export(exports, "tabsOver", () => tabsOver);
+const { logVisits, pageText, pageTexts } = __require("packages/core/src/pageText.ts");
+                                                        
+
+                                                      
+                                                                      
+                                               
+
+                         
+              
+                
+                         
+                 
+                    
+                    
+                      
+                 
+                  
+                 
+  
+
+                                                                                     
+                                                        
+
+                                                                                                                           
+                
+                     
+                                 
+                    
+                                
+                        
+                         
+                    
+  
+
+const bases = new WeakMap                                      ();
+const builders = new WeakMap                                                                 ();
+const NO_BOOKMARKS                         = [];
+const historyCandidates = new WeakMap                       ();
+const SLICE_CHECK = 64;
+
+function baseFor(bookmarks                        )               {
+  let base = bases.get(bookmarks);
+  if (!base) bases.set(bookmarks, (base = { list: [], byKey: new Map(), keys: new Set(), cursor: 0, done: false }));
+  return base;
+}
+
+function advance(b         , bookmarks                        , deadline        )          {
+  if (b.pool) return true;
+  let n = 0;
+  const late = () => ++n % SLICE_CHECK === 0 && Date.now() > deadline;
+  const base = b.base;
+  while (!base.done && base.cursor < bookmarks.length) {
+    const row = bookmarks[base.cursor++] ;
+    const text = pageText(row);
+    base.keys.add(text.key);
+    if (!base.byKey.has(text.key)) {
+      const c            = { url: row.url, title: row.title, favicon: row.favicon, visits: 0, lastVisit: 0, logVisits: 0, bookmarked: true, text };
+      base.list.push(c);
+      base.byKey.set(text.key, c);
+    }
+    if (late()) return false;
+  }
+  base.done = true;
+  while (b.historyCursor < b.history.length) {
+    const h = b.history[b.historyCursor++] ;
+    const text = pageText(h);
+    if (!b.byKey.has(text.key)) {
+      const bookmarked = base.keys.has(text.key);
+      let c = historyCandidates.get(h);
+      if (!c || c.bookmarked !== bookmarked) {
+        c = { url: h.url, title: h.title, favicon: h.favicon, visits: h.visits, lastVisit: h.lastVisit, logVisits: logVisits(h.visits), bookmarked, text };
+        historyCandidates.set(h, c);
+      }
+      b.list.push(c);
+      b.byKey.set(text.key, c);
+    }
+    if (late()) return false;
+  }
+  while (b.bookmarkCursor < base.list.length) {
+    const c = base.list[b.bookmarkCursor++] ;
+    if (!b.byKey.has(c.text.key)) b.list.push(c);
+    if (late()) return false;
+  }
+  const history = b.byKey;
+  b.pool = {
+    list: b.list,
+    byKey: { get: (key) => history.get(key) ?? base.byKey.get(key), has: (key) => history.has(key) || base.byKey.has(key) },
+  };
+  return true;
+}
+
+function builderFor(history                       , bookmarks                        )          {
+  let byBookmarks = builders.get(history);
+  if (!byBookmarks) builders.set(history, (byBookmarks = new WeakMap()));
+  let b = byBookmarks.get(bookmarks);
+  if (!b) byBookmarks.set(bookmarks, (b = { base: baseFor(bookmarks), history, list: [], byKey: new Map(), historyCursor: 0, bookmarkCursor: 0, pool: null }));
+  return b;
+}
+
+function poolFor(history                       , bookmarks                        )       {
+  const b = builderFor(history, bookmarks);
+  advance(b, bookmarks, Infinity);
+  return b.pool ;
+}
+
+function prepareSuggestions(source                  , deadline        )          {
+  const bookmarks = source.bookmarks ?? NO_BOOKMARKS;
+  const b = builderFor(source.history, bookmarks);
+  if (b.pool) return true;
+  for (const rows of [source.history, bookmarks]) {
+    let n = 0;
+    for (const row of rows) {
+      if (pageTexts.has(row)) continue;
+      pageText(row);
+      if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
+    }
+  }
+  return advance(b, bookmarks, deadline);
+}
+
+                                                                                                                                  
+const tabsOverCache = new WeakMap                             ();
+
+function tabsOver(pool      , tabs                   , currentTabId         )           {
+  const cached = tabsOverCache.get(tabs);
+  if (cached && cached.pool === pool && cached.currentTabId === currentTabId && cached.rows.length === tabs.length) {
+    let same = true;
+    for (let i = 0; same && i < tabs.length; i++) same = cached.rows[i] === tabs[i];
+    if (same) return cached;
+  }
+  const tabIds = new Map                ();
+  const extra              = [];
+  for (const t of tabs) {
+    if (!t.url || t.id === currentTabId) continue;
+    const text = pageText(t);
+    if (tabIds.has(text.key)) continue;
+    tabIds.set(text.key, t.id);
+    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+  }
+  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra };
+  tabsOverCache.set(tabs, result);
+  return result;
+}
+
+});
+__define("packages/core/src/suggestionRows.ts", function (exports, __require) {
+  __export(exports, "pageSuggestion", () => pageSuggestion);
+  __export(exports, "suggestionKey", () => suggestionKey);
+  __export(exports, "Output", () => Output);
+  __export(exports, "createRow", () => createRow);
+  __export(exports, "actionRow", () => actionRow);
+  __export(exports, "dedupeSuggestions", () => dedupeSuggestions);
+                                                    
+const { pageKey } = __require("packages/core/src/pageText.ts");
+                                                                 
+
+const pageSuggestion = (c           , tabId                            = c.tabId)             => ({
+  kind: "page",
+  url: c.url,
+  title: c.title,
+  favicon: c.favicon,
+  ...(tabId ? { tabId } : {}),
+  ...(c.bookmarked ? { bookmarked: true } : {}),
+  ...(c.visits > 0 ? { visited: true } : {}),
+});
+
+function suggestionKey(s            )         {
+  switch (s.kind) {
+    case "page":
+      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+    case "search":
+      return `search:${s.url}`;
+    case "calc":
+      return `calc:${s.expression}`;
+    case "action":
+      return `action:${s.id}`;
+    case "create":
+      return `create:${s.id}`;
+    case "extension":
+      return `extension:${s.open}:${s.id}`;
+  }
+}
+
 class Output {
            items               = [];
                    seen = new Set        ();
@@ -2622,6 +2513,134 @@ function dedupeSuggestions(remote                   , query        )           {
     seen.add(key);
     return true;
   });
+}
+
+});
+__define("packages/core/src/pageMatch.ts", function (exports, __require) {
+  __export(exports, "parseQuery", () => parseQuery);
+  __export(exports, "matchScore", () => matchScore);
+  __export(exports, "matchScoreWord", () => matchScoreWord);
+  __export(exports, "narrowing", () => narrowing);
+  __export(exports, "remember", () => remember);
+  __export(exports, "TopList", () => TopList);
+                                                          
+const { shownWordsOf } = __require("packages/core/src/pageText.ts");
+
+                     
+            
+                                         
+                
+                 
+                                                            
+                 
+  
+
+const WORD = /^[a-z0-9]+$/;
+
+function parseQuery(q        , tokens                   )        {
+  return {
+    q,
+    segmentStarts: /[./]/.test(q) ? null : [`.${q}`, `/${q}`],
+    word: WORD.test(q),
+    spaced: ` ${q}`,
+    tokens: tokens.map((text) => ({ text, word: WORD.test(text), spaced: ` ${text}` })),
+    needle: tokens.reduce((a, b) => (b.length > a.length ? b : a), ""),
+  };
+}
+
+function matchScore(t          , query       )         {
+  const shown = t.shownLower;
+  const title = t.titleLower;
+  const { q } = query;
+  if (!shown.includes(query.needle) && !title.includes(query.needle)) return 0;
+  let s = 0;
+  if ((t.shownBlank ??= /\s/.test(shown))) {
+    const seg = query.segmentStarts;
+    if (shown.startsWith(q)) s = 100;
+    else if (seg && (shown.includes(seg[0]) || shown.includes(seg[1]))) s = 60;
+    else if (shown.includes(q)) s = 30;
+  }
+  const ti = title.indexOf(q);
+  if (ti === 0) s += 40;
+  else if (ti > 0) s += 20;
+  if (s > 0) return s;
+  for (const token of query.tokens) {
+    if (token.word && t.titleWords.includes(token.spaced)) s += 15;
+    else if (token.word && shownWordsOf(t).includes(token.spaced)) s += 10;
+    else if (token.text.length >= 3 && (title.includes(token.text) || shown.includes(token.text))) s += 5;
+    else return 0;
+  }
+  return s;
+}
+
+function matchScoreWord(t          , query       )         {
+  const shown = t.shownLower;
+  const title = t.titleLower;
+  const q = query.q;
+  const si = shown.indexOf(q);
+  const ti = title.indexOf(q);
+  if (si < 0 && ti < 0) return 0;
+  let s = 0;
+  if (si === 0) s = 100;
+  else if (si > 0) {
+    const seg = query.segmentStarts;
+    if (seg && (shown.includes(seg[0]) || shown.includes(seg[1]))) s = 60;
+    else if (q.length >= 2) s = 30;
+  }
+  if (ti === 0) s += 40;
+  else if (q.length >= 2 ? ti > 0 : query.word && t.titleWords.includes(query.spaced)) s += 20;
+  return s;
+}
+
+                                                                                     
+const MATCHED_KEPT = 8;
+let matchedChain                                  = { pool: null                   , list: [] };
+
+function narrowing(pool      , q        , tokens                   )                 {
+  const chain = matchedChain;
+  if (chain.pool !== pool) return null;
+  for (let k = chain.list.length - 1; k >= 0; k--) {
+    const last = chain.list[k] ;
+    if (!q.startsWith(last.q)) continue;
+    const i = last.tokens.length - 1;
+    const word = last.tokens[i] ;
+    if (i === 0 || word === tokens[i] || word.length >= 3) return last;
+  }
+  return null;
+}
+
+function remember(pool      , q        , tokens          , pages             , scores          ) {
+  let chain = matchedChain;
+  if (chain.pool !== pool) matchedChain = chain = { pool, list: [] };
+  const list = chain.list;
+  while (list.length && !q.startsWith(list[list.length - 1] .q)) list.pop();
+  if (q.length < 2) {
+    list.length = 0;
+    return;
+  }
+  if (list.length && list[list.length - 1] .q === q) list.pop();
+  list.push({ q, tokens, pages, scores });
+  if (list.length > MATCHED_KEPT) list.shift();
+}
+
+                                                                                       
+
+class TopList {
+           items           = [];
+  floor = -Infinity;
+                   size        ;
+  constructor(size        ) {
+    this.size = size;
+  }
+  offer(r        ) {
+    const items = this.items;
+    if (items.length === this.size && items[items.length - 1] .s >= r.s) return;
+    let i = items.length;
+    while (i > 0 && items[i - 1] .s < r.s) i--;
+    items.splice(i, 0, r);
+    if (items.length > this.size) items.pop();
+    if (items.length === this.size) this.floor = items[items.length - 1] .s;
+  }
 }
 
 });
@@ -2705,6 +2724,13 @@ function createSuggestFetcher({
     },
   };
 }
+
+});
+__define("packages/core/src/tabGroups.ts", function (exports, __require) {
+  __export(exports, "TAB_GROUP_COLORS", () => TAB_GROUP_COLORS);
+const TAB_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"]         ;
+
+                                                              
 
 });
 __define("packages/core/src/textFragment.ts", function (exports, __require) {
@@ -2795,6 +2821,107 @@ function withTextFragment(url        , fragment              )         {
   if (directive !== -1) ref = ref.slice(0, directive);
   return `${base}#${ref}:~:${textDirective(fragment)}`;
 }
+
+});
+__define("packages/core/src/theme.ts", function (exports, __require) {
+  __export(exports, "THEME_TEXTURES", () => THEME_TEXTURES);
+const THEME_TEXTURES = ["grain", "sand", "denim", "tweed"]         ;
+
+                                                           
+
+                                                  
+
+                                  
+                        
+                       
+                         
+                     
+                             
+                             
+                     
+  
+
+});
+__define("packages/core/src/webStore.ts", function (exports, __require) {
+  __export(exports, "isExtensionId", () => isExtensionId);
+  __export(exports, "webStoreExtensionId", () => webStoreExtensionId);
+  __export(exports, "permissionWarnings", () => permissionWarnings);
+                                                                                        
+
+const isExtensionId = (s        ) => /^[a-p]{32}$/.test(s);
+
+function webStoreExtensionId(urlOrId        )                {
+  const s = urlOrId.trim();
+  if (isExtensionId(s)) return s;
+  try {
+    const url = new URL(s);
+    const store =
+      url.hostname === "chromewebstore.google.com" ||
+      (url.hostname === "chrome.google.com" && url.pathname.startsWith("/webstore/"));
+    if (!store) return null;
+    const id = url.pathname.split("/").find(isExtensionId);
+    return id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function permissionWarnings(pkg                      )           {
+  const warnings           = [];
+  const perms = new Set(pkg.permissions);
+  const hosts = pkg.hostPermissions.filter((h) => !/^(chrome|chrome-extension|about|data):/.test(h));
+  const allHosts = hosts.some((h) => h === "<all_urls>" || /^(\*|https?|wss?):\/\/\*\//.test(h)) || perms.has("debugger");
+  if (allHosts || perms.has("proxy") || perms.has("pageCapture") || perms.has("debugger")) {
+    warnings.push("Read and change all your data on all websites");
+  } else if (hosts.length) {
+    const names = [...new Set(hosts.map(hostLabel).filter(Boolean))]            ;
+    if (names.length === 1) warnings.push(`Read and change your data on ${names[0]}`);
+    else if (names.length === 2) warnings.push(`Read and change your data on ${names[0]} and ${names[1]}`);
+    else if (names.length === 3) warnings.push(`Read and change your data on ${names[0]}, ${names[1]}, and ${names[2]}`);
+    else if (names.length > 3) warnings.push(`Read and change your data on a number of websites`);
+  }
+  const clipboard = perms.has("clipboardRead") && perms.has("clipboardWrite");
+  if (clipboard) warnings.push("Read and modify data you copy and paste");
+  for (const [permission, message] of PERMISSION_WARNINGS) {
+    if (clipboard && permission.startsWith("clipboard")) continue;
+    if (perms.has(permission)) warnings.push(message);
+  }
+  if (perms.has("declarativeNetRequest") && !allHosts && !perms.has("declarativeNetRequestWithHostAccess"))
+    warnings.push("Block content on any page");
+  const browsing = perms.has("history") ? "Read and change your browsing history on all your signed-in devices" : null;
+  if (!browsing && (perms.has("tabs") || perms.has("webNavigation")) && !allHosts) warnings.push("Read your browsing history");
+  if (browsing) warnings.push(browsing);
+  return [...new Set(warnings)];
+}
+
+function hostLabel(pattern        )                {
+  const m = /^[^:]+:\/\/(\*\.)?([^/]+)/.exec(pattern);
+  if (!m) return null;
+  return m[1] ? `all ${m[2]} sites` : m[2] ;
+}
+
+const PERMISSION_WARNINGS                     = [
+  ["bookmarks", "Read and change your bookmarks"],
+  ["clipboardRead", "Read data you copy and paste"],
+  ["clipboardWrite", "Modify data you copy and paste"],
+  ["contentSettings", "Change your settings that control websites' access to features such as cookies, JavaScript, plugins, geolocation, microphone, camera etc."],
+  ["desktopCapture", "Capture content of your screen"],
+  ["downloads", "Manage your downloads"],
+  ["downloads.open", "Open downloaded files"],
+  ["geolocation", "Detect your physical location"],
+  ["management", "Manage your apps, extensions, and themes"],
+  ["nativeMessaging", "Communicate with cooperating native applications"],
+  ["notifications", "Display notifications"],
+  ["privacy", "Change your privacy-related settings"],
+  ["readingList", "Read and change entries in the reading list"],
+  ["sessions", "Read your browsing history on all your signed-in devices"],
+  ["system.storage", "Identify and eject storage devices"],
+  ["tabCapture", "Capture content of your screen"],
+  ["tabGroups", "View and manage your tab groups"],
+  ["topSites", "Read a list of your most frequently visited websites"],
+  ["ttsEngine", "Read all text spoken using synthesized speech"],
+  ["webAuthenticationProxy", "Read and change all your data on all websites"],
+];
 
 });
 __define("packages/core/src/bangList.ts", function (exports, __require) {

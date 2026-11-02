@@ -1,0 +1,62 @@
+{
+  "id": "fixes-0243",
+  "segments": [
+    {
+      "scene": "flash0243",
+      "title": "No blank page after ⌘W",
+      "body": "Close two tabs with ⌘W, at quarter speed. 0.2.42 blanked the page area for a frame or two on 5 of the 9 presses filmed, like the first one here; 0.2.43 blanked on none of 9. The page you leave stays up until the next one has drawn.",
+      "layout": "side",
+      "cam": [0, 0, 1360, 860],
+      "cursor": false,
+      "note": "One of several presses",
+      "rate": 0.25,
+      "lead": 0.3,
+      "tail": 1.25
+    },
+    {
+      "scene": "style0243",
+      "title": "Glass or Classic",
+      "body": "Open Settings › Appearance, choose Classic, then Glass. 0.2.43 has Interface Style: Glass puts clear liquid glass on the pinned tiles, the address field, the buttons and the panels; Classic gives Dia's flat look. 0.2.42 had no such section: Address Bar came straight after the theme.",
+      "layout": "side",
+      "cam": [0, 30, 1100, 700],
+      "lead": 1.0,
+      "tail": 6.6
+    },
+    {
+      "scene": "player0243",
+      "title": "The sidebar player opens up on hover",
+      "body": "A video plays in a background tab. Rest the pointer on the sidebar player. 0.2.43 is one row at rest and opens into the full player: time played and total, a seek bar, skip back and forward, play/pause, mute, Picture in Picture and close. 0.2.42 kept its two rows and only added mute and close above the corner.",
+      "layout": "side",
+      "cam": [0, 650, 340, 210],
+      "lead": 1.0,
+      "tail": 4.0
+    },
+    {
+      "scene": "mute0243",
+      "title": "Mute one tab, not the site",
+      "body": "Two tabs on the same site are playing. Click the speaker on the first: on 0.2.43 only that tab goes quiet, and the second keeps playing. On 0.2.42 the same click muted both.",
+      "layout": "side",
+      "cam": [0, 206, 280, 180],
+      "lead": 1.0,
+      "tail": 3.2
+    },
+    {
+      "scene": "zoom0243",
+      "title": "Zoom shows its level",
+      "body": "Press ⌘+ twice, then ⌘− twice. 0.2.43 opens a small panel under the magnifier with the new level after each press, and it closes on its own after the last one. 0.2.42 zoomed the page and showed nothing.",
+      "layout": "side",
+      "cam": [600, 0, 760, 684],
+      "lead": 0.5,
+      "tail": 6.3
+    },
+    {
+      "scene": "fold0243",
+      "title": "Fold the pinned tabs",
+      "body": "Point at the line between the pinned tabs and the rest and click “Pinned” at its left end. On 0.2.43 the pinned rows fold away, leaving “› Pinned” on the line. On 0.2.42 the line showed only Clear, and the same click did nothing.",
+      "layout": "side",
+      "cam": [0, 0, 280, 400],
+      "lead": 1.7,
+      "tail": 3.2
+    }
+  ]
+}

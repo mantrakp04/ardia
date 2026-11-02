@@ -1,10 +1,10 @@
-#include "../ios/ArdiaCorePiPThrow.h"
+#include "../ios/ArdiaPiPThrowMath.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
 
-using namespace ardiacore_pip_throw;
+using namespace ardia_pip_throw;
 
 static int failures = 0;
 #define CHECK(cond)                                                \

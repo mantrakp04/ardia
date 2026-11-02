@@ -1,13 +1,14 @@
-import { Surface, Symbol } from "@ardia/shell";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { hex, useTheme } from "../../lib/theme";
-import { useLive } from "../../live/store";
-import { useBrowser } from "../../store/browser";
-import { setIcon } from "./actions";
-import { setSidebarUi, useSidebarUi } from "./state";
-import { NO_GROUP_ICON, NO_GROUP_ICON_INK, SYMBOL_PREFIX } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
+import { Pressable, ScrollView, View } from "react-native";
+import { Button, Panel, radius, SearchField, space, Symbol, Text } from "../ui";
+import { useTheme } from "../ui/theme";
+import { useLive } from "../../state/live/store";
+import { setIcon } from "../../state/sidebar/actions";
+import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
+import { useIconPickerCurrent } from "../../state/sidebar/hooks";
+import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
+import { iconSymbol, symbolIcon } from "../../lib/customIcon";
+import { SIDEBAR_SHADOW, SIDEBAR_TYPE, useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
   ["⭐️", "star favorite"], ["🔥", "fire hot"], ["❤️", "heart love"], ["✅", "check done"], ["📌", "pin"], ["🚀", "rocket launch ship"],
@@ -42,7 +43,11 @@ const SYMBOLS = [
 
 const COLUMNS = 8;
 const CELL = 30;
-const WIDTH = COLUMNS * CELL + 16;
+const PAD = space.m;
+const WIDTH = COLUMNS * CELL + PAD * 2;
+const FILL = { flex: 1 } as const;
+const NO_MATCHES = { padding: space.m } as const;
+const EMOJI_TEXT = { fontSize: SIDEBAR_TYPE.emoji } as const;
 
 export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sidebarWidth: number }) {
   const picker = useSidebarUi((u) => (u.iconPicker?.windowId === windowId ? u.iconPicker : null));
@@ -55,14 +60,14 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
-  const current = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
-  const [tab, setTab] = useState<"emoji" | "symbols">(current?.startsWith(SYMBOL_PREFIX) ? "symbols" : "emoji");
+  const current = useIconPickerCurrent(picker.kind, picker.id, liveIcon);
+  const [tab, setTab] = useState<"emoji" | "symbols">(iconSymbol(current) ? "symbols" : "emoji");
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tab === "emoji"
       ? EMOJI.filter(([, words]) => !q || words.includes(q)).map(([e]) => e)
-      : SYMBOLS.filter((name) => !q || name.includes(q)).map((name) => SYMBOL_PREFIX + name);
+      : SYMBOLS.filter((name) => !q || name.includes(q)).map(symbolIcon);
   }, [tab, query]);
   const close = () => setSidebarUi({ iconPicker: null });
   const choose = (icon: string | null) => {
@@ -75,36 +80,28 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   return (
     <>
       <Pressable onPress={close} style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }} />
-      <Surface
-        fill={hex(theme.panel)}
-        cornerRadius={14}
-        borderColor={hex(theme.panelBorder)}
-        borderWidth={0.5}
-        shadowColor="#000000"
-        shadowOpacity={theme.panelShadowOpacity}
-        shadowRadius={20}
-        shadowOffset={[0, 8]}
-        style={{ position: "absolute", top, left, width: WIDTH, padding: 8, gap: 8 }}
+      <Panel
+        fill={theme.panel}
+        radius={radius.sheet}
+        border={theme.panelBorder}
+        shadow={SIDEBAR_SHADOW.iconPicker}
+        style={{ position: "absolute", top, left, width: WIDTH, padding: PAD, gap: space.m }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <View style={{ flex: 1, height: 26, borderRadius: 8, backgroundColor: theme.urlPill, flexDirection: "row", alignItems: "center", paddingHorizontal: 7 }}>
-            <Symbol name="magnifyingglass" size={11} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-            <TextInput
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
+          <View style={FILL}>
+            <SearchField
               autoFocus
+              width="100%"
               value={query}
               onChangeText={setQuery}
               placeholder={tab === "emoji" ? "Search emoji" : "Search icons"}
-              placeholderTextColor={theme.placeholder}
-              enableFocusRing={false}
-              keyDownEvents={[{ key: "Escape" }]}
-              onKeyDown={(e) => e.nativeEvent.key === "Escape" && close()}
-              onSubmitEditing={() => items[0] && choose(items[0])}
-              style={{ flex: 1, fontSize: 12, marginLeft: 5, color: theme.textPrimary, paddingVertical: 0 }}
+              onEscape={close}
+              onSubmit={() => items[0] && choose(items[0])}
             />
           </View>
           {(["emoji", "symbols"] as const).map((t) => (
             <Pressable key={t} onPress={() => setTab(t)}>
-              <View style={{ width: 28, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: tab === t ? tokens.pickerCellHover : undefined }}>
+              <View style={{ width: 28, height: 26, borderRadius: radius.tile, alignItems: "center", justifyContent: "center", backgroundColor: tab === t ? tokens.pickerCellHover : undefined }}>
                 <Symbol name={t === "emoji" ? "face.smiling" : "star.square.on.square"} size={13} color={theme.icon} style={{ width: 16, height: 16 }} />
               </View>
             </Pressable>
@@ -115,46 +112,29 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
             {items.map((icon) => (
               <Cell key={icon} icon={icon} selected={icon === current} onPress={() => choose(icon)} />
             ))}
-            {items.length === 0 ? <Text style={{ padding: 8, fontSize: 12, color: theme.textTertiary }}>No matches</Text> : null}
+            {items.length === 0 ? (
+              <Text size="small" tone="textTertiary" style={NO_MATCHES}>
+                No matches
+              </Text>
+            ) : null}
           </View>
         </ScrollView>
         {picker.kind === "group" || current ? (
-          <View style={{ flexDirection: "row", gap: 6 }}>
+          <View style={{ flexDirection: "row", gap: space.s }}>
             {picker.kind === "group" ? (
-              <FooterButton label="No Icon" selected={current === NO_GROUP_ICON} onPress={() => choose(NO_GROUP_ICON)}>
-                <Symbol name="square.stack.fill" size={11} weight="medium" color={theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light} style={{ width: 14, height: 14 }} />
-              </FooterButton>
+              <View style={FILL}>
+                <Button variant="pill" tone="chip" icon="square.stack.fill" primary={current === NO_GROUP_ICON} title="No Icon" onPress={() => choose(NO_GROUP_ICON)} />
+              </View>
             ) : null}
-            {current ? <FooterButton label="Reset Icon" selected={false} onPress={() => choose(null)} /> : null}
+            {current ? (
+              <View style={FILL}>
+                <Button variant="pill" tone="chip" title="Reset Icon" onPress={() => choose(null)} />
+              </View>
+            ) : null}
           </View>
         ) : null}
-      </Surface>
+      </Panel>
     </>
-  );
-}
-
-function FooterButton({ label, selected, onPress, children }: { label: string; selected: boolean; onPress(): void; children?: React.ReactNode }) {
-  const theme = useTheme();
-  const tokens = useSidebarTokens();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} style={{ flex: 1 }}>
-      {({ pressed }) => (
-        <View
-          style={{
-            height: 26,
-            borderRadius: 8,
-            flexDirection: "row",
-            gap: 5,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: pressed || selected ? tokens.pickerCellHover : theme.urlPill,
-          }}
-        >
-          {children}
-          <Text style={{ fontSize: 12, color: theme.textPrimary }}>{label}</Text>
-        </View>
-      )}
-    </Pressable>
   );
 }
 
@@ -162,6 +142,7 @@ function Cell({ icon, selected, onPress }: { icon: string; selected: boolean; on
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const [hovered, setHovered] = useState(false);
+  const symbol = iconSymbol(icon);
   return (
     <Pressable onPress={onPress}>
       <View
@@ -170,16 +151,16 @@ function Cell({ icon, selected, onPress }: { icon: string; selected: boolean; on
         style={{
           width: CELL,
           height: CELL,
-          borderRadius: 8,
+          borderRadius: radius.tile,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: hovered || selected ? tokens.pickerCellHover : undefined,
         }}
       >
-        {icon.startsWith(SYMBOL_PREFIX) ? (
-          <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
+        {symbol ? (
+          <Symbol name={symbol} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
         ) : (
-          <Text style={{ fontSize: 18 }}>{icon}</Text>
+          <Text style={EMOJI_TEXT}>{icon}</Text>
         )}
       </View>
     </Pressable>

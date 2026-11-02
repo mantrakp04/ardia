@@ -6,15 +6,17 @@ import monaLatin from "../assets/fonts/mona-sans-core.woff2?url";
 import martianLatin from "../assets/fonts/martian-mono-core.woff2?url";
 import "../styles/global.css";
 import Device from "../components/Device.astro";
+import { colour } from "../data/press";
+import { base } from "../data/site";
 
 interface Props {
   title: string;
   description: string;
   jsonLd?: object[];
   noindex?: boolean;
+  article?: { published: string };
 }
-const { title, description, jsonLd = [], noindex = false } = Astro.props;
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const { title, description, jsonLd = [], noindex = false, article } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogVersion = createHash("sha256").update(readFileSync(`${process.cwd()}/public/og.png`)).digest("hex").slice(0, 10);
 const og = new URL(`${base}/og.png?v=${ogVersion}`, Astro.site);
@@ -30,13 +32,14 @@ const OG_ALT =
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <meta name="theme-color" content="#f1ece2" />
+    <meta name="theme-color" content={colour("Paper").toLowerCase()} />
     <meta name="color-scheme" content="light" />
     <link rel="icon" href={`${base}/favicon.ico`} sizes="48x48" />
     <link rel="icon" href={`${base}/favicon.png`} type="image/png" sizes="64x64" />
     <link rel="apple-touch-icon" href={`${base}/apple-touch-icon.png`} />
-    {noindex && <meta name="robots" content="noindex" />}
-    <meta property="og:type" content="website" />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <meta property="og:type" content={article ? "article" : "website"} />
+    {article && <meta property="article:published_time" content={article.published} />}
     <meta property="og:site_name" content="Ardia" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:url" content={canonical} />
@@ -47,6 +50,8 @@ const OG_ALT =
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={OG_ALT} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
     <meta name="twitter:image:alt" content={OG_ALT} />
     {jsonLd.map((data) => <script type="application/ld+json" set:html={JSON.stringify(data)} />)}
     <link rel="preload" href={monaLatin} as="font" type="font/woff2" crossorigin />

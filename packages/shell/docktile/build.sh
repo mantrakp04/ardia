@@ -9,7 +9,7 @@ work="${DERIVED_FILE_DIR:-$here/build}/docktile"
 identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 [ -z "$identity" ] && identity="-"
 min_os="${MACOSX_DEPLOYMENT_TARGET:-14.0}"
-sources=("$here/DockTilePlugIn.swift" "$here/../ios/AppIcon.swift")
+sources=("$here/DockTilePlugIn.swift" "$here/../ios/AppIcons.swift")
 binary="$work/$name"
 mkdir -p "$work" "$plugin/Contents/MacOS"
 
@@ -44,7 +44,7 @@ cat > "$plugin/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>${MARKETING_VERSION:-1.0}</string>
   <key>CFBundleVersion</key><string>${CURRENT_PROJECT_VERSION:-1}</string>
   <key>LSMinimumSystemVersion</key><string>$min_os</string>
-  <key>NSPrincipalClass</key><string>ACDockTilePlugIn</string>
+  <key>NSPrincipalClass</key><string>ArdiaDockTilePlugIn</string>
 </dict>
 </plist>
 PLIST

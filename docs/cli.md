@@ -8,7 +8,7 @@ While it's connected, a pill floats over the bottom centre of the page ("ardia i
 the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after the
 last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
 window: the focused pane of a split, the full screen page, or the Peek while one is open
-(`apps/browser/src/components/CliControlPill.tsx`, `useCliIndicator` in `lib/cliControl.ts`).
+(`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`).
 
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13
@@ -25,7 +25,8 @@ the pins into `pyproject.toml`).
   the New Tab's prewarmed `about:blank`: on the token path every `about:blank` that isn't the active page, on test
   servers the hidden ones),
   `new_tab(url, background=True)`, `js(expression, tab=None)` (default: `tab`, else the last `new_tab`), `await pinned()`,
-  `await history(days=1, limit=200, profile=None, domains=False)` (see Browsing data), `By`, `Key`,
+  `await history(days=1, limit=200, profile=None, domains=False)` (see Browsing data), `await run(command, arg=None,
+  window=None)`, `await windows()` and `async for e in events(*names)` (see `docs/automation.md`), `By`, `Key`,
   `asyncio`, pydoll's exports and its common exceptions. It prints the last expression's value. Exit 0 done, 1 the
   code raised or timed out (default 300 s), 2 Ardia can't be reached or closed the browser socket (it watches the
   socket, so turning the setting off ends an idle run at once), 130 interrupted.
@@ -34,7 +35,20 @@ the pins into `pyproject.toml`).
   `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
   `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It replaces only its own `ardia` folder.
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
-- `ardia --version`, `ardia --help`, `ardia exec --help`, `ardia scripts <command> --help`.
+- `ardia config path|init|get|set|unset|list|edit|check` reads, writes and checks `config.json` (see
+  `docs/config.md`, The ardia command). Never needs Ardia running.
+- `ardia theme new|use|list|check` makes, picks and checks colour themes (see `docs/config.md`).
+- `ardia run COMMAND [ARG]` runs one of Ardia's commands over `<data dir>/ArdiaControl.sock` (see
+  `docs/automation.md`).
+- `ardia commands` lists the commands `run` takes (see `docs/automation.md`).
+- `ardia windows` lists the windows and their tabs (see `docs/automation.md`).
+- `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
+- `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
+- `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
+  `docs/automation.md`).
+- `ardia --version`, `ardia --help`, `ardia exec --help`, `ardia scripts <command> --help`,
+  `ardia config <command> --help`, `ardia theme <command> --help`, `ardia hooks <command> --help` and `--help` on
+  each of `run`, `commands`, `windows`, `events` and `on`.
 
 `exec` never quits Ardia: it refuses `browser.stop()`, and every WebSocket it opens checks each outgoing message (and
 refuses fragmented sends), so
@@ -57,7 +71,7 @@ then deletes any temp folder still registered. The data dir is the token path's
 `ArdiaControl.json` checks as the token path first (regular file, owned, 0600, live pid), so they work only while
 Ardia runs with control on. Neither reads cookies, passwords, Login Data or Web Data.
 
-- `await pinned()` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/lib/persist.ts`) and returns
+- `await pinned()` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/state/session/persist.ts`) and returns
   one dict per pin: `title` (custom title first), `url` (else the pinned URL), `pinned_url`, `kind` (`favorite` for a
   tile, `pinned` for a tab in a pinned folder), `folder`, `profile` (its name) and `parked` (pins of a profile no
   window shows, from `parkedPins`). Pins mirrored across windows count once. Incognito profiles are skipped.
@@ -201,10 +215,15 @@ two parts with an explicit flush between them gets through; that gap is accepted
 
 ## Install and upgrade
 
+The app runs `install.sh` with its own environment minus every `ARDIA_*` variable, plus `ARDIA_CLI_HOME`,
+`ARDIA_CLI_BIN_DIR` and `ARDIA_CLI_URL` from its `ARDIA_INSTANCE` keys `cliHome`, `cliBinDir` and `cliUrl`
+(`CliInstaller.swift`).
+
 `install.sh [--version V] [--sha256 DIGEST] [--uninstall]` (run with `/bin/sh`; `--help`):
 
 - Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
-  into a private temp dir. Without `--version` it takes the latest release that has the asset. `--sha256` is the only
+  into a private temp dir; it runs on Apple silicon only and stops with an error anywhere else. Without `--version` it
+  takes the latest release that has the asset. `--sha256` is the only
   digest it trusts (the app passes `Ardia.app/Contents/Resources/ardia-cli.sha256`, which the signed bundle pins), and
   a download needs it: a `.sha256` from the same release would only prove the tarball came from wherever the tarball
   came from. Only a `file://` `ARDIA_CLI_URL` (tests) may go without it, reading `<url>.sha256`. A Debug build has no
@@ -242,8 +261,8 @@ esbuild (the npm `@esbuild/darwin-arm64` tarball, version, sha256 and sha512 pin
 bytecode cache, later ones about 0.15 s.
 
 `scripts/release.sh` builds it into the release's dist dir after the export and writes its digest to
-`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. `publish-nightly.sh` and the stable
-`gh release create` in the release skill upload the tarball and its `.sha256`.
+`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. The release skill's `publish.sh` uploads the
+tarball and its `.sha256`.
 
 ## Test
 
@@ -269,5 +288,6 @@ HOME=/tmp/ardia-cli-home ardia skills install --target claude-code
 helpers need the token path: an instance launched without `ARDIA_REMOTE_DEBUGGING_PORT` (the app doesn't start its
 control server when the port switch is set) and with control on, for example a scratch dir whose `session.json` has
 `"settings": {"cliControl": true}`, opened with `open -g -n --env ARDIA_BACKGROUND=1 --env ARDIA_DATA_DIR=<dir>`.
-Unit tests (matching parity with node, import confinement, store rollback and recovery, symlink refusal):
+Unit tests (matching parity with node, import confinement, store rollback and recovery, symlink refusal; config
+and theme commands against hand-written schemas in `tests/fixtures` that use every keyword of the subset):
 `python -m unittest discover -s apps/cli/tests` with the locked dependencies installed.

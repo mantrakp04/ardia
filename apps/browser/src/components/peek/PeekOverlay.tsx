@@ -1,31 +1,21 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop } from "@ardia/shaders";
-import { MagnifyArea, Surface, type MagnifyUpdate } from "@ardia/shell";
+import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnown, type MagnifyUpdate } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from "react-native";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useTab } from "../../store/hooks";
-import type { Peek } from "../../store/peek";
-import { MAX_SPLIT_PANES, splitOf } from "../../store/splits";
-import { springConfig } from "../layout/dockMotion";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { layout, useTheme } from "../ui/theme";
+import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
+import { useTab } from "../../state/browser/hooks";
+import type { Peek } from "../../state/peek/peek";
+import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
-import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "./actions";
+import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
 import { pinchFollow, pinchOutcome } from "./pinch";
 
 const INSET_FRACTION = 0.055;
 const MIN_INSET = 16;
 const START_SCALE = 0.12;
-const GROW = springConfig({ response: 0.22, damping: 0.9 });
-const CLOSE_MS = 150;
-const EXPAND_MS = 170;
+const GROW = PEEK_MOTION.grow;
 
-let reduceMotion: boolean | null = null;
-const reduceMotionKnown = AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => (reduceMotion = false),
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 export function peekFrame(width: number, height: number) {
   const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
@@ -48,7 +38,7 @@ export function PeekOverlay({
   fullscreen: boolean;
   page: (tabId: string, sourceId: string, width: number) => ReactNode;
 }) {
-  const peek = useBrowser((s) => s.peeks[windowId]);
+  const peek = usePeeks((p) => p[windowId]);
   if (!peek || width <= 0 || height <= 0) return null;
   return <PeekCard key={peek.tabId} windowId={windowId} peek={peek} width={width} height={height} origin={origin} fullscreen={fullscreen} page={page} />;
 }
@@ -73,7 +63,10 @@ function PeekCard({
   const theme = useTheme();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const frame = peekFrame(width, height);
-  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => (reduceMotion === null ? null : reduceMotion ? "fade" : "grow"));
+  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
+    const reduce = reduceMotion();
+    return reduce === null ? null : reduce ? "fade" : "grow";
+  });
   const fade = motion === "fade";
   const [progress] = useState(() => new Animated.Value(0));
   const [expand] = useState(() => new Animated.Value(0));
@@ -88,21 +81,21 @@ function PeekCard({
   useEffect(() => {
     if (motion) return;
     let live = true;
-    void reduceMotionKnown.then(() => live && setMotion(reduceMotion ? "fade" : "grow"));
+    void reduceMotionKnown.then((reduce) => live && setMotion(reduce ? "fade" : "grow"));
     return () => void (live = false);
   }, []);
 
   useEffect(() => {
     if (!motion) return;
     const grow = fade
-      ? Animated.timing(progress, { toValue: 1, duration: CLOSE_MS, easing: Easing.out(Easing.quad), useNativeDriver: true })
+      ? Animated.timing(progress, { toValue: 1, ...PEEK_MOTION.fadeIn, useNativeDriver: true })
       : Animated.spring(progress, { toValue: 1, ...GROW, overshootClamping: true, restDisplacementThreshold: 0.001, restSpeedThreshold: 0.01, useNativeDriver: true });
     grow.start();
     const close = () => {
       if (leaving.current) return;
       leaving.current = "close";
       progress.stopAnimation();
-      Animated.timing(progress, { toValue: 0, duration: CLOSE_MS, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+      Animated.timing(progress, { toValue: 0, ...PEEK_MOTION.close, useNativeDriver: true }).start(({ finished }) => {
         if (finished) finishPeek(windowId, peek.tabId);
       });
     };
@@ -112,7 +105,7 @@ function PeekCard({
       progress.stopAnimation();
       progress.setValue(1);
       if (fade) return done();
-      Animated.timing(expand, { toValue: 1, duration: EXPAND_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(done);
+      Animated.timing(expand, { toValue: 1, ...PEEK_MOTION.expand, useNativeDriver: true }).start(done);
     };
     pinch.current = ({ phase, magnification }) => {
       if (leaving.current) return;
@@ -160,7 +153,7 @@ function PeekCard({
         <Pressable
           accessibilityLabel="Close Peek"
           onPress={() => dismissPeek(windowId)}
-          style={{ flex: 1, borderRadius: layout.cardRadius, backgroundColor: theme.dark ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.25)" }}
+          style={{ flex: 1, borderRadius: layout.cardRadius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
         />
       </Animated.View>
       <Animated.View
@@ -171,14 +164,11 @@ function PeekCard({
         }
       >
         {!fullscreen && (
-          <Surface
-          fill={hex(theme.panel)}
-          cornerRadius={SMALL_WINDOW_RADIUS}
-          shadowColor="#000000"
-          shadowOpacity={windowFrame.shadowOpacity}
-          shadowRadius={windowFrame.shadowRadius}
-          shadowOffset={windowFrame.shadowOffset}
-          style={StyleSheet.absoluteFill}
+          <Panel
+            radius={SMALL_WINDOW_RADIUS}
+            border={null}
+            shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
+            style={StyleSheet.absoluteFill}
           />
         )}
         <MagnifyArea enabled={!fullscreen && !!motion} onMagnify={(update) => pinch.current(update)} style={{ flex: 1 }}>
@@ -219,10 +209,7 @@ function PeekCard({
 
 function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
   const tab = useTab(tabId);
-  const splitFull = useBrowser((s) => {
-    const source = s.peeks[windowId]?.sourceId;
-    return (splitOf(s, source)?.tabIds.length ?? 0) >= MAX_SPLIT_PANES;
-  });
+  const splitFull = usePeekSplitFull(windowId);
   if (!tab) return null;
   const host = tab.url ? breadcrumb(tab.url).host : "";
   return (
@@ -230,9 +217,9 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
       fieldLeft={SMALL_INSET}
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
       buttons={[
-        { icon: "rectangle.split.2x1", size: 14, disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-        { icon: "arrow.up.left.and.arrow.down.right", size: 13, tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
-        { icon: "xmark", size: 13, tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
+        { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
+        { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+        { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
       ]}
     />
   );

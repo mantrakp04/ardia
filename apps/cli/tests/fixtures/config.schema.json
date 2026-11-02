@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "theme": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "default": null,
+      "description": "A theme in themes/<name>.json, or null for Ardia's own palette."
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tabLayout": { "enum": ["sidebar", "top"], "default": "sidebar", "description": "Where tabs go." },
+        "selectedTabGlow": { "enum": ["full", "soft", "off"], "default": "full" },
+        "warnBeforeQuitting": { "type": "boolean", "default": false },
+        "glassTintAmount": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.8 },
+        "sidebarWidth": { "type": "number", "exclusiveMinimum": 0, "default": 240 },
+        "searchEngine": { "type": "string", "default": "google" },
+        "schemaVersion": { "const": 1, "default": 1 },
+        "cleanUpInactiveTabsAfterMinutes": {
+          "anyOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "type": "null" }],
+          "default": null
+        },
+        "mutedSites": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "keepActiveSites": { "type": "array", "items": { "type": "string" }, "maxItems": 3, "default": [] },
+        "littleArdiaSize": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0 }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "default": [900, 640]
+        },
+        "neverTranslateSites": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } },
+          "default": {}
+        },
+        "sitePermissions": {
+          "type": "object",
+          "properties": { "camera": { "type": "boolean" } },
+          "required": ["camera"],
+          "default": { "camera": false }
+        },
+        "shortcuts": {
+          "type": "object",
+          "propertyNames": { "enum": ["newTab", "newWindow", "reopenClosedTab", "toggleSidebar"] },
+          "additionalProperties": { "type": "string" },
+          "default": {}
+        }
+      }
+    }
+  }
+}

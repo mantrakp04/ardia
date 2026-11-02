@@ -17,7 +17,11 @@ __define("packages/sync/src/companion/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/sync/src/hlc.ts"));
   __exportAll(exports, __require("packages/sync/src/order.ts"));
   __exportAll(exports, __require("packages/sync/src/scope.ts"));
+  __exportAll(exports, __require("packages/sync/src/scopeState.ts"));
+  __exportAll(exports, __require("packages/sync/src/companion/state.ts"));
   __exportAll(exports, __require("packages/sync/src/companion/cycle.ts"));
+
+
 
 
 
@@ -165,11 +169,9 @@ function assignPositions(existing                        )           {
 
 });
 __define("packages/sync/src/scope.ts", function (exports, __require) {
-  __export(exports, "emptyScope", () => emptyScope);
   __export(exports, "covered", () => covered);
   __export(exports, "ingestSnapshot", () => ingestSnapshot);
   __export(exports, "visible", () => visible);
-  __export(exports, "publish", () => publish);
   __export(exports, "flush", () => flush);
   __export(exports, "restoreJournal", () => restoreJournal);
   __export(exports, "writtenSeq", () => writtenSeq);
@@ -178,6 +180,398 @@ __define("packages/sync/src/scope.ts", function (exports, __require) {
   __export(exports, "syncScope", () => syncScope);
 const { canonical } = __require("packages/sync/src/canon.ts");
 const { hlcWall } = __require("packages/sync/src/hlc.ts");
+const { holdsBack, noteFileHealth } = __require("packages/sync/src/fileHealth.ts");
+                                                                                                                                         
+
+const DEFAULTS                                                        = {
+  expired: () => false,
+  tombstoneTTL: 45 * 86_400_000,
+  compactAfterFiles: 40,
+  compactInterval: 10 * 60_000,
+  pruneGrace: 60 * 60_000,
+  damagedGiveUp: 86_400_000,
+};
+
+const isObject = (v         )                               => typeof v === "object" && v !== null && !Array.isArray(v);
+const isCount = (v         )              => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const isTime = (v         )              => typeof v === "number" && Number.isFinite(v);
+const isMapOf = (v         , item                         ) => isObject(v) && Object.values(v).every(item);
+const isOrigin = (v         ) => Array.isArray(v) && v.length === 2 && typeof v[0] === "string" && isCount(v[1]);
+const isValue = (o                         ) => Object.prototype.hasOwnProperty.call(o, "v") && o.v !== undefined;
+const isOp = (v         ) => isObject(v) && typeof v.k === "string" && typeof v.h === "string" && isValue(v);
+const isRecord = (v         ) => isObject(v) && typeof v.h === "string" && isOrigin(v.o) && isValue(v);
+
+function parseSyncFile(payload        )                  {
+  let file         ;
+  try {
+    file = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  if (!isObject(file) || file.v !== 1 || typeof file.device !== "string" || !isTime(file.at)) return null;
+  if (file.kind === "log") return isCount(file.seq) && Array.isArray(file.ops) && file.ops.every(isOp) ? (file           ) : null;
+  if (file.kind === "snapshot") {
+    return isMapOf(file.vv, isCount) && isMapOf(file.seen, isTime) && isMapOf(file.records, isRecord) ? (file                ) : null;
+  }
+  return null;
+}
+
+const covered = (vv                        , [device, seq]        ) => (vv[device] ?? 0) >= seq;
+
+function markApplied(state            , device        , seq        ) {
+  if (covered(state.vv, [device, seq])) return;
+  const extra = new Set(state.extra[device] ?? []);
+  extra.add(seq);
+  let top = state.vv[device] ?? 0;
+  while (extra.delete(top + 1)) top++;
+  state.vv[device] = top;
+  if (extra.size) state.extra[device] = [...extra].sort((a, b) => a - b);
+  else delete state.extra[device];
+}
+
+const isApplied = (state            , [device, seq]        ) =>
+  covered(state.vv, [device, seq]) || (state.extra[device]?.includes(seq) ?? false);
+
+function see(state            , device        , at        ) {
+  if (!(device in state.seen) || at > state.seen[device] ) state.seen[device] = at;
+}
+
+function mergeRecord(state            , key        , record            , clock       )          {
+  clock.observe(record.h);
+  const current = state.records[key];
+  if (current && current.h >= record.h) return false;
+  state.records[key] = record;
+  return true;
+}
+
+function ingestLog(state            , file         , clock       , changed             ) {
+  see(state, file.device, file.at);
+  if (isApplied(state, [file.device, file.seq])) return;
+  for (const op of file.ops) {
+    if (mergeRecord(state, op.k, { h: op.h, v: op.v, o: [file.device, file.seq] }, clock)) changed.add(op.k);
+  }
+  markApplied(state, file.device, file.seq);
+}
+
+function ingestSnapshot(state            , file              , clock       , changed             ) {
+  for (const [device, at] of Object.entries(file.seen)) see(state, device, at);
+  see(state, file.device, file.at);
+  for (const [key, record] of Object.entries(file.records)) {
+    if (!(key in state.records) && isApplied(state, record.o)) continue;
+    if (mergeRecord(state, key, record, clock)) changed.add(key);
+  }
+  for (const [key, record] of Object.entries(state.records)) {
+    if (!(key in file.records) && covered(file.vv, record.o)) {
+      delete state.records[key];
+      changed.add(key);
+    }
+  }
+  for (const [device, seq] of Object.entries(file.vv)) {
+    if (seq > (state.vv[device] ?? 0)) {
+      state.vv[device] = seq;
+      const extra = (state.extra[device] ?? []).filter((s) => s > seq);
+      for (let top = seq; extra[0] === top + 1; top++) state.vv[device] = extra.shift() ;
+      if (extra.length) state.extra[device] = extra;
+      else delete state.extra[device];
+    }
+  }
+}
+
+function visible(state            , prefix        )                       {
+  const out = new Map                 ();
+  for (const [key, record] of Object.entries(state.records)) {
+    if (record.v !== null && key.startsWith(prefix)) out.set(key, record.v);
+  }
+  return out;
+}
+
+const parseBase = (json                    ) => (json === undefined ? undefined : (JSON.parse(json)           ));
+
+const settling = new WeakMap                            ();
+
+function settleWhenDurable(state            , settle            ) {
+  const queue = settling.get(state);
+  if (queue) queue.push(settle);
+  else settling.set(state, [settle]);
+}
+
+function settleDurable(state            ) {
+  const queue = settling.get(state);
+  if (!queue) return;
+  settling.delete(state);
+  for (const settle of queue) settle();
+}
+
+                                                            
+                                                    
+
+async function changesOf(state            , adapter         , now        ) {
+  if (adapter.adoptRemoteOnJoin && !state.joined) return null;
+  let pending                     = null;
+  const queued = (key        ) => (pending ??= new Set([...state.outbox, ...(state.journal ?? []).flatMap((f) => f.ops)].map((op) => op.k))).has(key);
+  const extraction = await adapter.extract((key) => parseBase(state.base[key]), queued, now, (key) => key in state.records, (key) => state.records[key]?.v, (key) => state.records[key]?.h);
+  if (!extraction) return null;
+  const changes           = [];
+  for (const [key, value] of extraction.values) {
+    if (value === null || value === undefined) throw new Error(`[sync] ${key}: a live value can't be null`);
+    const json = canonical(value);
+    if (state.base[key] === json && !extraction.republish?.(key)) continue;
+    changes.push({ key, value, json });
+  }
+  for (const key of Object.keys(state.base)) {
+    if (!key.startsWith(adapter.prefix) || extraction.values.has(key) || extraction.ignore?.(key)) continue;
+    changes.push({ key, value: null, json: "null" });
+  }
+  return { changes, settle: extraction.published };
+}
+
+function stampOf(state            , adapter         , clock       , { key, value }        )      {
+  const editedAt = !state.records[key] && value !== null ? adapter.editedAt?.(value) : undefined;
+  return editedAt !== undefined ? clock.at(editedAt) : clock.tick();
+}
+
+async function candidateStamps(state            , adapter         , clock       , now        )                  {
+  const found = await changesOf(state, adapter, now);
+  return new Map((found?.changes ?? []).map((change) => [change.key, { json: change.json, h: stampOf(state, adapter, clock, change) }]));
+}
+
+async function publishAdapter(state            , adapter         , clock       , device        , now        , stamps         )                       {
+  const published = new Set        ();
+  const found = await changesOf(state, adapter, now);
+  if (!found) return published;
+  for (const change of found.changes) {
+    const { key, value, json } = change;
+    if (value === null) delete state.base[key];
+    else state.base[key] = json;
+    const candidate = stamps?.get(key);
+    const h = candidate?.json === json ? candidate.h : stampOf(state, adapter, clock, change);
+    const known = state.records[key];
+    if (known && known.h >= h) continue;
+    state.records[key] = { h, v: value, o: [device, state.seq + 1] };
+    state.outbox.push({ k: key, h, v: value });
+    published.add(key);
+  }
+  const { settle } = found;
+  if (settle && published.size) settleWhenDurable(state, () => settle(published));
+  return published;
+}
+
+async function flush(state            , transport           , scope        , device        , now        , options               = {}) {
+  if (state.outbox.length) {
+    state.seq++;
+    (state.journal ??= []).push({ v: 1, kind: "log", device, seq: state.seq, at: now, ops: state.outbox });
+    state.outbox = [];
+  }
+  if (!state.journal?.length) return;
+  if (options.persist) {
+    await options.persist(state.journal);
+    settleDurable(state);
+  }
+  while (state.journal.length) {
+    const file = state.journal[0] ;
+    const id = await transport.write(scope, JSON.stringify(file));
+    state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
+    state.journal.shift();
+    markApplied(state, file.device, file.seq);
+    see(state, file.device, now);
+  }
+  delete state.journal;
+  settleDurable(state);
+}
+
+function restoreJournal(state            , batches           , clock       , written = 0) {
+  const saved = state.seq;
+  for (const file of [...batches].sort((a, b) => a.seq - b.seq)) {
+    if (file.seq <= state.seq) continue;
+    if (file.seq === saved + 1) state.outbox = [];
+    for (const op of file.ops) {
+      mergeRecord(state, op.k, { h: op.h, v: op.v, o: [file.device, file.seq] }, clock);
+      if (op.v === null) delete state.base[op.k];
+      else state.base[op.k] = canonical(op.v);
+    }
+    state.seq = file.seq;
+    if (file.seq <= written) markApplied(state, file.device, file.seq);
+    else (state.journal ??= []).push(file);
+  }
+  state.seq = Math.max(state.seq, written);
+}
+
+const writtenSeq = (state            ) => state.seq - (state.journal?.length ?? 0);
+
+async function pull(state            , transport           , scope        , clock       , now        , options               = {}) {
+  const { damagedGiveUp } = { ...DEFAULTS, ...options };
+  const listing = await transport.read(scope, Object.keys(state.files));
+  const changed = new Set        ();
+  const parsed                                   = [];
+  const unreadable = listing.damaged.map(({ id }) => id);
+  for (const { id, payload } of listing.files) {
+    const file = parseSyncFile(payload);
+    if (file) parsed.push({ id, file });
+    else unreadable.push(id);
+  }
+  parsed.sort((a, b) => (a.file.kind === b.file.kind ? 0 : a.file.kind === "snapshot" ? -1 : 1));
+  for (const { id, file } of parsed) {
+    if (file.kind === "snapshot") {
+      ingestSnapshot(state, file, clock, changed);
+      state.files[id] = { d: file.device, k: "snapshot", vv: file.vv, at: file.at };
+    } else {
+      ingestLog(state, file, clock, changed);
+      state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
+    }
+  }
+  const present = new Set(listing.present);
+  for (const id of Object.keys(state.files)) if (!present.has(id)) delete state.files[id];
+  noteFileHealth(state, { read: parsed.map(({ id }) => id), unreadable, pending: listing.pending, present }, now, damagedGiveUp);
+  return changed;
+}
+
+async function applyAdapter(state            , adapter         , keys             , now        , horizon        , held               )                   {
+  const mine = new Set([...keys].filter((k) => k.startsWith(adapter.prefix)));
+  if (!mine.size) return true;
+  const view = visible(state, adapter.prefix);
+  const applyAs = (state.applyAs ??= {});
+  applyAs[adapter.prefix] ??= state.joined ? "joined" : "joining";
+  const settle = (key        ) => {
+    if (view.has(key)) state.base[key] = canonical(view.get(key));
+    else delete state.base[key];
+  };
+  const landed = new Set        ();
+  let ok                 = false;
+  try {
+    const records = { known: (key        ) => key in state.records, now, horizon, joined: applyAs[adapter.prefix] === "joined", held, landed: (key        ) => void landed.add(key) };
+    ok = await adapter.apply(view, mine, (key) => parseBase(state.base[key]), records);
+  } catch (error) {
+    console.warn(`[sync] applying ${adapter.prefix} failed`, error);
+  }
+  if (ok === false || held()) {
+    for (const key of landed) {
+      if (!mine.has(key)) continue;
+      settle(key);
+      keys.delete(key);
+    }
+    return false;
+  }
+  applyAs[adapter.prefix] = "joined";
+  for (const key of mine) settle(key);
+  return true;
+}
+
+async function compact(state            , transport           , scope        , device        , now        , options               = {}, force = false) {
+  const o = { ...DEFAULTS, ...options };
+  const count = Object.keys(state.files).length;
+  const newestSnapshot = Math.max(state.snapshotAt, ...Object.values(state.files).filter((f) => f.k === "snapshot").map((f) => f.at));
+  if (!force && (count <= o.compactAfterFiles || now - newestSnapshot < o.compactInterval)) return false;
+  await flush(state, transport, scope, device, now, options);
+  const records                             = {};
+  const tombstoneTTL = Object.keys(state.extra).length ? 2 * o.tombstoneTTL : o.tombstoneTTL;
+  for (const [key, record] of Object.entries(state.records)) {
+    const drop = record.v === null ? now - hlcWall(record.h) > tombstoneTTL : o.expired(key, record.v, now);
+    if (drop) delete state.records[key];
+    else records[key] = record;
+  }
+  const vv = { ...state.vv };
+  const file               = { v: 1, kind: "snapshot", device, at: now, vv, seen: { ...state.seen }, records };
+  const id = await transport.write(scope, JSON.stringify(file));
+  state.files[id] = { d: device, k: "snapshot", vv, at: now };
+  state.snapshotAt = now;
+  const dominated = (other                        ) => Object.entries(other).every(([d, s]) => (vv[d] ?? 0) >= s);
+  const prune = Object.entries(state.files)
+    .filter(([fileId, f]) => {
+      if (fileId === id || now - f.at < o.pruneGrace) return false;
+      if (f.k === "log") return covered(vv, [f.d, f.s ?? Infinity]);
+      if (f.k === "snapshot") return dominated(f.vv ?? {});
+      return false;
+    })
+    .map(([fileId]) => fileId);
+  if (prune.length) {
+    await transport.remove(scope, prune);
+    for (const fileId of prune) delete state.files[fileId];
+  }
+  return true;
+}
+
+                                                                                                      
+
+async function syncScope(args   
+                
+                    
+                       
+                      
+               
+                 
+                     
+                         
+ )                       {
+  const { scope, state, transport, adapters, clock, device, options } = args;
+  const now = args.now ?? Date.now;
+  let published = 0;
+  const stamps = new Map                 ();
+  for (const adapter of adapters) {
+    if (adapter.publishAfterPull) stamps.set(adapter, await candidateStamps(state, adapter, clock, now()));
+    else published += (await publishAdapter(state, adapter, clock, device, now())).size;
+  }
+  await flush(state, transport, scope, device, now(), options);
+  const changed = await pull(state, transport, scope, clock, now(), options);
+  const held = holdsBack(state, now(), options?.damagedGiveUp ?? DEFAULTS.damagedGiveUp);
+  const keys = new Set([...state.unapplied, ...changed]);
+  const unapplied           = [];
+  let heldApply = false;
+  const applyHeld = () => !!options?.holdApply?.();
+  for (const adapter of adapters) {
+    const late = adapter.publishAfterPull && held ? new Set        () : await publishAdapter(state, adapter, clock, device, now(), stamps.get(adapter));
+    published += late.size;
+    for (const key of late) keys.delete(key);
+    heldApply ||= applyHeld();
+    const applied = !heldApply && (await applyAdapter(state, adapter, keys, now(), 2 * (options?.tombstoneTTL ?? DEFAULTS.tombstoneTTL), applyHeld));
+    heldApply ||= applyHeld();
+    if (!applied) unapplied.push(...[...keys].filter((k) => k.startsWith(adapter.prefix)));
+  }
+  state.unapplied = [...unapplied, ...[...keys].filter((k) => !adapters.some((a) => k.startsWith(a.prefix)))];
+  if (!heldApply && (!state.awaitRemote || Object.keys(state.seen).some((d) => d !== device))) {
+    state.joined = true;
+    delete state.awaitRemote;
+  }
+  await flush(state, transport, scope, device, now(), options);
+  const compacted = await compact(state, transport, scope, device, now(), options);
+  return { published, changed: changed.size, pending: state.pending, compacted };
+}
+
+});
+__define("packages/sync/src/fileHealth.ts", function (exports, __require) {
+  __export(exports, "noteFileHealth", () => noteFileHealth);
+  __export(exports, "holdsBack", () => holdsBack);
+  __export(exports, "pullSettled", () => pullSettled);
+                                                  
+
+                                                                                                            
+
+function noteFileHealth(state            , files             , now        , giveUp        ) {
+  for (const id of files.read) delete state.damaged[id];
+  for (const id of files.unreadable) {
+    const since = Math.min(state.damaged[id] ?? now, now);
+    if (now - since > giveUp) {
+      state.files[id] = { d: "", k: "bad", at: now };
+      delete state.damaged[id];
+    } else {
+      state.damaged[id] = since;
+    }
+  }
+  for (const id of Object.keys(state.damaged)) if (!files.present.has(id)) delete state.damaged[id];
+  state.pending = files.pending.length;
+  if (files.pending.length) state.pendingSince = Object.fromEntries(files.pending.map((id) => [id, Math.min(state.pendingSince?.[id] ?? now, now)]));
+  else delete state.pendingSince;
+}
+
+const holdsBack = (state            , now        , window        ) =>
+  Object.keys(state.damaged).length > 0 || Object.values(state.pendingSince ?? {}).some((at) => now - at <= window);
+
+const pullSettled = (state            ) =>
+  state.pending === 0 && Object.keys(state.damaged).length === 0 && !Object.values(state.files).some((f) => f.k === "bad");
+
+});
+__define("packages/sync/src/scopeState.ts", function (exports, __require) {
+  __export(exports, "emptyScope", () => emptyScope);
+                                    
 
                                                    
                                                            
@@ -258,6 +652,8 @@ const emptyScope = ()             => ({
               
                   
                   
+                  
+                            
   
 
                           
@@ -284,340 +680,22 @@ const emptyScope = ()             => ({
                       
                          
                                                   
+                            
   
 
-const DEFAULTS                                          = {
-  expired: () => false,
-  tombstoneTTL: 45 * 86_400_000,
-  compactAfterFiles: 40,
-  compactInterval: 10 * 60_000,
-  pruneGrace: 60 * 60_000,
-  damagedGiveUp: 86_400_000,
-};
-
-const covered = (vv                        , [device, seq]        ) => (vv[device] ?? 0) >= seq;
-
-function markApplied(state            , device        , seq        ) {
-  if (covered(state.vv, [device, seq])) return;
-  const extra = new Set(state.extra[device] ?? []);
-  extra.add(seq);
-  let top = state.vv[device] ?? 0;
-  while (extra.delete(top + 1)) top++;
-  state.vv[device] = top;
-  if (extra.size) state.extra[device] = [...extra].sort((a, b) => a - b);
-  else delete state.extra[device];
-}
-
-const isApplied = (state            , [device, seq]        ) =>
-  covered(state.vv, [device, seq]) || (state.extra[device]?.includes(seq) ?? false);
-
-function see(state            , device        , at        ) {
-  if (!(device in state.seen) || at > state.seen[device] ) state.seen[device] = at;
-}
-
-function mergeRecord(state            , key        , record            , clock       )          {
-  clock.observe(record.h);
-  const current = state.records[key];
-  if (current && current.h >= record.h) return false;
-  state.records[key] = record;
-  return true;
-}
-
-function ingestLog(state            , file         , clock       , changed             ) {
-  see(state, file.device, file.at);
-  if (isApplied(state, [file.device, file.seq])) return;
-  for (const op of file.ops) {
-    if (mergeRecord(state, op.k, { h: op.h, v: op.v, o: [file.device, file.seq] }, clock)) changed.add(op.k);
-  }
-  markApplied(state, file.device, file.seq);
-}
-
-function ingestSnapshot(state            , file              , clock       , changed             ) {
-  for (const [device, at] of Object.entries(file.seen)) see(state, device, at);
-  see(state, file.device, file.at);
-  for (const [key, record] of Object.entries(file.records)) {
-    if (!(key in state.records) && isApplied(state, record.o)) continue;
-    if (mergeRecord(state, key, record, clock)) changed.add(key);
-  }
-  for (const [key, record] of Object.entries(state.records)) {
-    if (!(key in file.records) && covered(file.vv, record.o)) {
-      delete state.records[key];
-      changed.add(key);
-    }
-  }
-  for (const [device, seq] of Object.entries(file.vv)) {
-    if (seq > (state.vv[device] ?? 0)) {
-      state.vv[device] = seq;
-      const extra = (state.extra[device] ?? []).filter((s) => s > seq);
-      for (let top = seq; extra[0] === top + 1; top++) state.vv[device] = extra.shift() ;
-      if (extra.length) state.extra[device] = extra;
-      else delete state.extra[device];
-    }
-  }
-}
-
-function visible(state            , prefix        )                       {
-  const out = new Map                 ();
-  for (const [key, record] of Object.entries(state.records)) {
-    if (record.v !== null && key.startsWith(prefix)) out.set(key, record.v);
-  }
-  return out;
-}
-
-const parseBase = (json                    ) => (json === undefined ? undefined : (JSON.parse(json)           ));
-
-const settling = new WeakMap                            ();
-const waitingAfterPull = new WeakMap                     ();
-
-function settleWhenDurable(state            , settle            ) {
-  const queue = settling.get(state);
-  if (queue) queue.push(settle);
-  else settling.set(state, [settle]);
-}
-
-function settleDurable(state            ) {
-  const queue = settling.get(state);
-  if (!queue) return;
-  settling.delete(state);
-  for (const settle of queue) settle();
-}
-
-async function publishAdapter(state            , adapter         , clock       , device        , now        )                       {
-  const published = new Set        ();
-  if (adapter.adoptRemoteOnJoin && !state.joined) return published;
-  if (adapter.publishAfterPull && waitingAfterPull.get(state) !== false) return published;
-  let pending                     = null;
-  const queued = (key        ) => (pending ??= new Set([...state.outbox, ...(state.journal ?? []).flatMap((f) => f.ops)].map((op) => op.k))).has(key);
-  const extraction = await adapter.extract((key) => parseBase(state.base[key]), queued, now, (key) => key in state.records, (key) => state.records[key]?.v, (key) => state.records[key]?.h);
-  if (!extraction) return published;
-  const put = (key        , value         ) => {
-    const known = state.records[key];
-    const editedAt = !known && value !== null ? adapter.editedAt?.(value) : undefined;
-    const h = editedAt !== undefined ? clock.at(editedAt) : clock.tick();
-    if (known && known.h >= h) return;
-    state.records[key] = { h, v: value, o: [device, state.seq + 1] };
-    state.outbox.push({ k: key, h, v: value });
-    published.add(key);
-  };
-  for (const [key, value] of extraction.values) {
-    if (value === null || value === undefined) throw new Error(`[sync] ${key}: a live value can't be null`);
-    const json = canonical(value);
-    if (state.base[key] === json && !extraction.republish?.(key)) continue;
-    state.base[key] = json;
-    put(key, value);
-  }
-  for (const key of Object.keys(state.base)) {
-    if (!key.startsWith(adapter.prefix) || extraction.values.has(key) || extraction.ignore?.(key)) continue;
-    delete state.base[key];
-    put(key, null);
-  }
-  const { published: settle } = extraction;
-  if (settle && published.size) settleWhenDurable(state, () => settle(published));
-  return published;
-}
-
-async function publish(state            , adapters           , clock       , device        , now = Date.now())                       {
-  const published = new Set        ();
-  for (const adapter of adapters) for (const key of await publishAdapter(state, adapter, clock, device, now)) published.add(key);
-  return published;
-}
-
-async function flush(state            , transport           , scope        , device        , now        , options               = {}) {
-  if (state.outbox.length) {
-    state.seq++;
-    (state.journal ??= []).push({ v: 1, kind: "log", device, seq: state.seq, at: now, ops: state.outbox });
-    state.outbox = [];
-  }
-  if (!state.journal?.length) return;
-  if (options.persist) {
-    await options.persist(state.journal);
-    settleDurable(state);
-  }
-  while (state.journal.length) {
-    const file = state.journal[0] ;
-    const id = await transport.write(scope, JSON.stringify(file));
-    state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
-    state.journal.shift();
-    markApplied(state, file.device, file.seq);
-    see(state, file.device, now);
-  }
-  delete state.journal;
-  settleDurable(state);
-}
-
-function restoreJournal(state            , batches           , clock       , written = 0) {
-  const saved = state.seq;
-  for (const file of [...batches].sort((a, b) => a.seq - b.seq)) {
-    if (file.seq <= state.seq) continue;
-    if (file.seq === saved + 1) state.outbox = [];
-    for (const op of file.ops) {
-      mergeRecord(state, op.k, { h: op.h, v: op.v, o: [file.device, file.seq] }, clock);
-      if (op.v === null) delete state.base[op.k];
-      else state.base[op.k] = canonical(op.v);
-    }
-    state.seq = file.seq;
-    if (file.seq <= written) markApplied(state, file.device, file.seq);
-    else (state.journal ??= []).push(file);
-  }
-  state.seq = Math.max(state.seq, written);
-}
-
-const writtenSeq = (state            ) => state.seq - (state.journal?.length ?? 0);
-
-async function pull(state            , transport           , scope        , clock       , now        , options               = {}) {
-  const { damagedGiveUp } = { ...DEFAULTS, ...options };
-  const listing = await transport.read(scope, Object.keys(state.files));
-  const changed = new Set        ();
-  const parsed                                   = [];
-  const bad = (id        ) => {
-    state.damaged[id] = Math.min(state.damaged[id] ?? now, now);
-    if (now - state.damaged[id]  > damagedGiveUp) {
-      state.files[id] = { d: "", k: "bad", at: now };
-      delete state.damaged[id];
-    }
-  };
-  for (const { id, payload } of listing.files) {
-    try {
-      const file = JSON.parse(payload)            ;
-      if (file.v !== 1 || (file.kind !== "log" && file.kind !== "snapshot")) throw new Error("unknown file");
-      parsed.push({ id, file });
-    } catch {
-      bad(id);
-    }
-  }
-  for (const { id } of listing.damaged) bad(id);
-  parsed.sort((a, b) => (a.file.kind === b.file.kind ? 0 : a.file.kind === "snapshot" ? -1 : 1));
-  for (const { id, file } of parsed) {
-    if (file.kind === "snapshot") {
-      ingestSnapshot(state, file, clock, changed);
-      state.files[id] = { d: file.device, k: "snapshot", vv: file.vv, at: file.at };
-    } else {
-      ingestLog(state, file, clock, changed);
-      state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
-    }
-    delete state.damaged[id];
-  }
-  const present = new Set(listing.present);
-  for (const id of Object.keys(state.files)) if (!present.has(id)) delete state.files[id];
-  for (const id of Object.keys(state.damaged)) if (!present.has(id)) delete state.damaged[id];
-  state.pending = listing.pending.length;
-  const pendingSince                         = {};
-  for (const id of listing.pending) pendingSince[id] = Math.min(state.pendingSince?.[id] ?? now, now);
-  if (listing.pending.length) state.pendingSince = pendingSince;
-  else delete state.pendingSince;
-  const downloading = Object.values(pendingSince).some((at) => now - at <= damagedGiveUp);
-  waitingAfterPull.set(state, downloading || Object.keys(state.damaged).length > 0);
-  return changed;
-}
-
-async function applyAdapter(state            , adapter         , keys             , now        , horizon        )                   {
-  const mine = new Set([...keys].filter((k) => k.startsWith(adapter.prefix)));
-  if (!mine.size) return true;
-  const view = visible(state, adapter.prefix);
-  const applyAs = (state.applyAs ??= {});
-  applyAs[adapter.prefix] ??= state.joined ? "joined" : "joining";
-  let ok                 = false;
-  try {
-    ok = await adapter.apply(view, mine, (key) => parseBase(state.base[key]), { known: (key) => key in state.records, now, horizon, joined: applyAs[adapter.prefix] === "joined" });
-  } catch (error) {
-    console.warn(`[sync] applying ${adapter.prefix} failed`, error);
-  }
-  if (ok === false) return false;
-  applyAs[adapter.prefix] = "joined";
-  for (const key of mine) {
-    if (view.has(key)) state.base[key] = canonical(view.get(key));
-    else delete state.base[key];
-  }
-  return true;
-}
-
-async function compact(state            , transport           , scope        , device        , now        , options               = {}, force = false) {
-  const o = { ...DEFAULTS, ...options };
-  const count = Object.keys(state.files).length;
-  const newestSnapshot = Math.max(state.snapshotAt, ...Object.values(state.files).filter((f) => f.k === "snapshot").map((f) => f.at));
-  if (!force && (count <= o.compactAfterFiles || now - newestSnapshot < o.compactInterval)) return false;
-  await flush(state, transport, scope, device, now, options);
-  const records                             = {};
-  const tombstoneTTL = Object.keys(state.extra).length ? 2 * o.tombstoneTTL : o.tombstoneTTL;
-  for (const [key, record] of Object.entries(state.records)) {
-    const drop = record.v === null ? now - hlcWall(record.h) > tombstoneTTL : o.expired(key, record.v, now);
-    if (drop) delete state.records[key];
-    else records[key] = record;
-  }
-  const vv = { ...state.vv };
-  const file               = { v: 1, kind: "snapshot", device, at: now, vv, seen: { ...state.seen }, records };
-  const id = await transport.write(scope, JSON.stringify(file));
-  state.files[id] = { d: device, k: "snapshot", vv, at: now };
-  state.snapshotAt = now;
-  const dominated = (other                        ) => Object.entries(other).every(([d, s]) => (vv[d] ?? 0) >= s);
-  const prune = Object.entries(state.files)
-    .filter(([fileId, f]) => {
-      if (fileId === id || now - f.at < o.pruneGrace) return false;
-      if (f.k === "log") return covered(vv, [f.d, f.s ?? Infinity]);
-      if (f.k === "snapshot") return dominated(f.vv ?? {});
-      return false;
-    })
-    .map(([fileId]) => fileId);
-  if (prune.length) {
-    await transport.remove(scope, prune);
-    for (const fileId of prune) delete state.files[fileId];
-  }
-  return true;
-}
-
-                                                                                                      
-
-async function syncScope(args   
-                
-                    
-                       
-                      
-               
-                 
-                     
-                         
- )                       {
-  const { scope, state, transport, adapters, clock, device, options } = args;
-  const now = args.now ?? Date.now;
-  let published = (await publish(state, adapters, clock, device, now())).size;
-  await flush(state, transport, scope, device, now(), options);
-  const changed = await pull(state, transport, scope, clock, now(), options);
-  const keys = new Set([...state.unapplied, ...changed]);
-  const unapplied           = [];
-  for (const adapter of adapters) {
-    const late = await publishAdapter(state, adapter, clock, device, now());
-    published += late.size;
-    for (const key of late) keys.delete(key);
-    if (!(await applyAdapter(state, adapter, keys, now(), 2 * (options?.tombstoneTTL ?? DEFAULTS.tombstoneTTL)))) unapplied.push(...[...keys].filter((k) => k.startsWith(adapter.prefix)));
-  }
-  state.unapplied = [...unapplied, ...[...keys].filter((k) => !adapters.some((a) => k.startsWith(a.prefix)))];
-  if (!state.awaitRemote || Object.keys(state.seen).some((d) => d !== device)) {
-    state.joined = true;
-    delete state.awaitRemote;
-  }
-  await flush(state, transport, scope, device, now(), options);
-  const compacted = await compact(state, transport, scope, device, now(), options);
-  return { published, changed: changed.size, pending: state.pending, compacted };
-}
-
 });
-__define("packages/sync/src/companion/cycle.ts", function (exports, __require) {
+__define("packages/sync/src/companion/state.ts", function (exports, __require) {
+  __export(exports, "host", () => host);
+  __export(exports, "loaded", () => loaded);
   __export(exports, "companionLoad", () => companionLoad);
   __export(exports, "companionUnload", () => companionUnload);
   __export(exports, "companionStateUnsaved", () => companionStateUnsaved);
-  __export(exports, "runCompanionCycle", () => runCompanionCycle);
-  __export(exports, "companionView", () => companionView);
-  __export(exports, "companionSend", () => companionSend);
-  __export(exports, "companionRemovalsDone", () => companionRemovalsDone);
-  __export(exports, "companionAcknowledge", () => companionAcknowledge);
-  __export(exports, "companionAddBookmark", () => companionAddBookmark);
-  __export(exports, "companionRemoveBookmark", () => companionRemoveBookmark);
+  __export(exports, "save", () => save);
+  __export(exports, "viewIsNew", () => viewIsNew);
 const { Clock } = __require("packages/sync/src/hlc.ts");
-const { emptyScope, restoreJournal, syncScope, visible } = __require("packages/sync/src/scope.ts");
-const { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, historyExpired, HISTORY_WINDOW_MS, isWebUrl, sendsAdapter } = __require("packages/sync/src/companion/adapters.ts");
-const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("packages/sync/src/companion/view.ts");
-
-                                                           
+const { restoreJournal } = __require("packages/sync/src/scope.ts");
+const { emptyScope } = __require("packages/sync/src/scopeState.ts");
+                                                                  
 
                     
                         
@@ -643,44 +721,6 @@ const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("pack
                                       
                                            
   
-
-                          
-               
-               
-                     
-                           
-                               
-                        
-  
-
-                                                                                                                                 
-                                                                               
-
-                           
-                      
-              
-                       
-                            
-                      
-                    
-                  
-                  
-                 
-  
-
-const APP = "app";
-const GHOST_MS = 30 * 86_400_000;
-
-function removalsOf(c                )            {
-  const fallback = defaultProfileId(liveProfiles(c.scopes[APP]));
-  return Object.entries(c.removals ?? {})
-    .filter(([, urls]) => urls.length)
-    .sort(([a], [z]) => (a < z ? -1 : 1))
-    .map(([profile, urls]) => ({ profile, urls: [...urls].sort(), unassigned: profile === fallback }));
-}
-
-const dueOf = (c                ) => [...new Set(Object.values(c.due ?? {}).flatMap((urls) => Object.keys(urls)))].sort();
-const profileScope = (syncId        ) => `p:${syncId}`;
 
 let companion                        = null;
 let savedJSON = "";
@@ -772,6 +812,68 @@ function save(force = false)          {
   savedPrint = print;
   return true;
 }
+
+function viewIsNew(json        )          {
+  if (json === viewJSON) return false;
+  viewJSON = json;
+  return true;
+}
+
+});
+__define("packages/sync/src/companion/cycle.ts", function (exports, __require) {
+  __export(exports, "runCompanionCycle", () => runCompanionCycle);
+  __export(exports, "companionView", () => companionView);
+  __export(exports, "companionSend", () => companionSend);
+  __export(exports, "companionRemovalsDone", () => companionRemovalsDone);
+  __export(exports, "companionAcknowledge", () => companionAcknowledge);
+  __export(exports, "companionAddBookmark", () => companionAddBookmark);
+  __export(exports, "companionRemoveBookmark", () => companionRemoveBookmark);
+const { Clock } = __require("packages/sync/src/hlc.ts");
+const { syncScope, visible } = __require("packages/sync/src/scope.ts");
+const { emptyScope } = __require("packages/sync/src/scopeState.ts");
+const { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, historyExpired, HISTORY_WINDOW_MS, isWebUrl, sendsAdapter } = __require("packages/sync/src/companion/adapters.ts");
+const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("packages/sync/src/companion/view.ts");
+const { host, loaded, save, viewIsNew } = __require("packages/sync/src/companion/state.ts");
+
+                                                           
+
+                          
+               
+               
+                     
+                           
+                               
+                        
+  
+
+                                                                                                                                 
+                                                                               
+
+                           
+                      
+              
+                       
+                            
+                      
+                    
+                  
+                  
+                 
+  
+
+const APP = "app";
+const GHOST_MS = 30 * 86_400_000;
+
+function removalsOf(c                )            {
+  const fallback = defaultProfileId(liveProfiles(c.scopes[APP]));
+  return Object.entries(c.removals ?? {})
+    .filter(([, urls]) => urls.length)
+    .sort(([a], [z]) => (a < z ? -1 : 1))
+    .map(([profile, urls]) => ({ profile, urls: [...urls].sort(), unassigned: profile === fallback }));
+}
+
+const dueOf = (c                ) => [...new Set(Object.values(c.due ?? {}).flatMap((urls) => Object.keys(urls)))].sort();
+const profileScope = (syncId        ) => `p:${syncId}`;
 
 const transport            = {
   read: async (scope, known) => JSON.parse(host().read(scope, JSON.stringify(known)))           ,
@@ -944,11 +1046,7 @@ async function runCompanionCycle(input            )                       {
   };
   if (!retiring) {
     const view = buildView(c.scopes, device);
-    const json = JSON.stringify(view);
-    if (json !== viewJSON) {
-      viewJSON = json;
-      out.view = view;
-    }
+    if (viewIsNew(JSON.stringify(view))) out.view = view;
   }
   return out;
 }
@@ -956,7 +1054,7 @@ async function runCompanionCycle(input            )                       {
 function companionView()       {
   const c = loaded();
   const view = buildView(c.scopes, c.device);
-  viewJSON = JSON.stringify(view);
+  viewIsNew(JSON.stringify(view));
   return view;
 }
 
@@ -1031,6 +1129,7 @@ __define("packages/sync/src/companion/adapters.ts", function (exports, __require
 const { assignPositions } = __require("packages/sync/src/order.ts");
 const { hlcWall } = __require("packages/sync/src/hlc.ts");
 const { visible } = __require("packages/sync/src/scope.ts");
+                                                            
 
 const DAY_MS = 86_400_000;
 const HISTORY_WINDOW_MS = 90 * DAY_MS;
@@ -1311,6 +1410,7 @@ __define("packages/sync/src/companion/view.ts", function (exports, __require) {
   __export(exports, "historyList", () => historyList);
   __export(exports, "buildView", () => buildView);
 const { visible } = __require("packages/sync/src/scope.ts");
+                                                   
 const { fromLegacy } = __require("packages/sync/src/companion/legacy.ts");
 const { lastVisitOf } = __require("packages/sync/src/companion/adapters.ts");
 

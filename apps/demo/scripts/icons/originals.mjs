@@ -142,6 +142,7 @@ export const ORIGINALS = {
     make: (p) => `<path fill-rule="evenodd" d="${rrPath(C, C, p.W, p.H, p.r)}${circlePath(C + p.W / 2 - p.dx, C, p.dr)}"/>`,
   },
   "solid.frame": { paint: "fill", params: FRAME, make: (p) => rr(C, C, p.W, p.H, p.r) },
+  "solid.square": { paint: "fill", params: SQUARE, make: (p) => rr(C, C, p.S, p.S, p.r) },
   "pip.arrow": {
     paint: "stroke",
     params: { L: P(5.2, 0.3, 2, 9), h: P(2.6, 0.2, 1, 5) },

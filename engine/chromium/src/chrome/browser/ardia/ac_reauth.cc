@@ -2,62 +2,23 @@
 
 #include "chrome/browser/ardia/ac_reauth.h"
 
-#include <Security/Security.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <memory>
 #include <utility>
 
-#include "base/apple/scoped_cftyperef.h"
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/utf_string_conversions.h"
+#include "ardia/core/ac_launch_switches.h"
 #include "chrome/browser/device_reauth/chrome_device_authenticator_factory.h"
 #include "chrome/browser/ardia/ac_engine.h"
 #include "components/device_reauth/device_authenticator.h"
-#include "components/os_crypt/common/os_crypt_switches.h"
 
 namespace ardia {
 namespace {
 
-bool HiddenTestInstance() {
-  const char* background = getenv("ARDIA_BACKGROUND");
-  return background && !strcmp(background, "1");
-}
-
-bool SignedForDistribution() {
-  base::apple::ScopedCFTypeRef<SecCodeRef> self;
-  if (SecCodeCopySelf(kSecCSDefaultFlags, self.InitializeInto()) !=
-      errSecSuccess) {
-    return true;
-  }
-  base::apple::ScopedCFTypeRef<SecRequirementRef> distribution;
-  if (SecRequirementCreateWithString(
-          CFSTR("anchor apple generic and "
-                "(certificate leaf[field.1.2.840.113635.100.6.1.9] exists or "
-                "certificate 1[field.1.2.840.113635.100.6.2.6] exists and "
-                "certificate leaf[field.1.2.840.113635.100.6.1.13] exists)"),
-          kSecCSDefaultFlags, distribution.InitializeInto()) != errSecSuccess) {
-    return true;
-  }
-  return SecCodeCheckValidity(self.get(), kSecCSDefaultFlags,
-                              distribution.get()) == errSecSuccess;
-}
-
-bool TestGrantHonoured() {
-  static const bool honoured =
-      !SignedForDistribution() &&
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          os_crypt::switches::kUseMockKeychain);
-  return honoured;
-}
-
 bool TestGrant() {
-  const char* grant = getenv("ARDIA_TEST_REAUTH");
-  return grant && !strcmp(grant, "granted") && TestGrantHonoured();
+  return ardiacore::TestValue("reauth") == "granted";
 }
 
 const char* Histogram(device_reauth::DeviceAuthSource source) {
@@ -124,7 +85,7 @@ void Reauth(Profile* profile,
             const std::u16string& purpose,
             base::TimeDelta validity,
             base::OnceCallback<void(bool)> done) {
-  if (HiddenTestInstance()) {
+  if (ardiacore::BackgroundInstance()) {
     const bool granted = TestGrant();
     LOG(WARNING) << "[ardia] OS reauth (" << purpose
                  << ") in a hidden test instance, no prompt: "

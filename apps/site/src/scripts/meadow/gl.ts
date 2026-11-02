@@ -40,6 +40,16 @@ export class Program {
     return this;
   }
 
+  vec4s(name: string, values: Float32Array, count: number) {
+    if (count > 0) this.gl.uniform4fv(this.at(name), values, 0, count * 4);
+    return this;
+  }
+
+  ivec2(name: string, x: number, y: number) {
+    this.gl.uniform2i(this.at(name), x, y);
+    return this;
+  }
+
   int(name: string, value: number) {
     this.gl.uniform1i(this.at(name), value);
     return this;

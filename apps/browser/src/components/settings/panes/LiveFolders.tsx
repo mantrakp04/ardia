@@ -1,53 +1,37 @@
-import { copyText, focusWindow } from "@ardia/shell";
+import { copyText } from "../../../state/app/system";
+import { focusWindow } from "../../../state/windows/nativeWindow";
 import { useEffect, useState, type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useTheme } from "../../../lib/theme";
-import { deleteLiveFolder, manualRefresh, statusText } from "../../../live/engine";
-import { connectGoogleDrive } from "../../../live/googleAuth";
-import { isMocked } from "../../../live/net";
-import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../live/sources";
-import { live, updateConfig, updateFolder, useLive } from "../../../live/store";
-import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../live/types";
-import { useBrowser } from "../../../store/browser";
-import { Favicon } from "../../primitives";
-import { Button, Group, Row, SectionHeader, Sheet, TextField, Toggle } from "../controls";
-import { setting } from "../settingsIndex";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
-
-const DESCRIPTIONS: Record<LiveSourceId, string> = {
-  github: "Your open pull requests and the ones waiting for your review, with checks and conflicts.",
-  bitbucket: "Your open pull requests on Bitbucket Cloud, with build status.",
-  notion: "Pages recently edited in your workspace.",
-  confluence: "Pages you created, edited or watch.",
-  gdrive: "Documents recently changed in your Drive.",
-};
-
-const ANCHORS: Record<LiveSourceId, string> = {
-  github: "liveFolders.github",
-  bitbucket: "liveFolders.bitbucket",
-  notion: "liveFolders.notion",
-  confluence: "liveFolders.confluence",
-  gdrive: "liveFolders.gdrive",
-};
+import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
+import { connectGoogleDrive } from "../../../state/live/googleAuth";
+import { isMocked } from "../../../state/live/net";
+import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
+import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
+import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
+import { useProfileRecords } from "../../../state/profiles/hooks";
+import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
+import { Box, Button, DialogActions, DialogTitle, Divider, proseLineHeight, Sheet, space, Text, TextField, Toggle } from "../../ui";
+import { Favicon } from "../../favicon/Favicon";
+import { FormField, Group, Row, SectionHeader } from "../Form";
+import { setting, type SettingId } from "../settingsIndex";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { settingsType } from "../tokens";
 
 export function LiveFoldersPane() {
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
-  const profiles = useBrowser((s) => s.profiles);
+  const profiles = useProfileRecords();
   useLive((s) => s.status);
   useLive((s) => s.hidden);
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
   return (
     <View>
-      <SectionHeader
-        anchor="liveFolders.folders"
-        description="Right-click empty space in the sidebar and choose New Live Folder to add one. Live folders refresh every few minutes; items open as tabs that stay in the folder."
-      />
-      <View style={{ gap: 14 }}>
+      <SectionHeader anchor="liveFolders.folders" />
+      <Box gap="xl">
         {folders.map((f) => (
           <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
         ))}
-      </View>
+      </Box>
 
       <SectionHeader title="Pull Requests" />
       <Group>
@@ -61,7 +45,11 @@ export function LiveFoldersPane() {
         <SourceRow id="confluence" />
         <SourceRow id="gdrive" />
       </Group>
-      {isMocked ? <Text style={{ marginTop: 10, fontSize: 11, color: "#D29922" }}>Development build: services are served by ARDIA_LIVE_MOCK.</Text> : null}
+      {isMocked ? (
+        <Text size="caption" tone="warning" style={NOTE_TOP}>
+          Development build: services are served by ARDIA_TEST liveMock.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -70,10 +58,10 @@ function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; 
   return (
     <Group>
       <Row title={folder.name} description={`${profileName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
-        <View style={{ flexDirection: "row", gap: 6 }}>
+        <Box row gap="s">
           <Button title="Refresh" onPress={() => void manualRefresh(folder.id)} />
           <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(folder.id)} />
-        </View>
+        </Box>
       </Row>
       {folder.kind === "pullRequests"
         ? [
@@ -85,7 +73,7 @@ function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; 
   );
 }
 
-function FolderOption({ id, searchable, value, onChange }: { id: string; searchable: boolean; value: boolean; onChange(value: boolean): void }) {
+function FolderOption({ id, searchable, value, onChange }: { id: SettingId; searchable: boolean; value: boolean; onChange(value: boolean): void }) {
   const { title, description } = setting(id);
   return (
     <Row anchor={searchable ? id : undefined} title={title} description={description}>
@@ -104,10 +92,10 @@ function SourceRow({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
   return (
     <Row
-      anchor={ANCHORS[id]}
+      anchor={`liveFolders.${id}`}
       icon={<Favicon url={source.site} size={18} />}
       title={source.name}
-      description={account ? `Connected as ${connectedAs(id, account)}` : DESCRIPTIONS[id]}
+      description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
     >
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />
@@ -118,20 +106,8 @@ function SourceRow({ id }: { id: LiveSourceId }) {
   );
 }
 
-function browserWindow(): string | null {
-  const s = useBrowser.getState();
-  return s.ui.focusOrder.find((id) => s.windows[id] && !s.windows[id]!.incognito) ?? s.windowOrder.find((id) => !s.windows[id]!.incognito) ?? null;
-}
-
-function openInBrowser(url: string) {
-  const windowId = browserWindow();
-  if (!windowId) return;
-  useBrowser.getState().newTab(windowId, { url });
-  void focusWindow(windowId);
-}
 
 function ConnectSheet({ id }: { id: LiveSourceId }) {
-  const theme = useTheme();
   const source = SOURCES[id];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,40 +142,35 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       break;
   }
   return (
-    <Sheet width={460} onClose={closeSettingsSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <Favicon url={source.site} size={22} />
-        <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Connect {source.name}</Text>
-      </View>
-      {body}
-      {error ? <Text style={{ marginTop: 10, fontSize: 12, color: "#E5534B" }}>{error}</Text> : null}
+    <Sheet size="l" onClose={closeSettingsSheet}>
+      <DialogTitle icon={<Favicon url={source.site} size={20} />}>Connect {source.name}</DialogTitle>
+      <View style={BODY_TOP}>{body}</View>
+      {error ? (
+        <Text size="caption" tone="destructive" style={NOTE_TOP}>
+          {error}
+        </Text>
+      ) : null}
     </Sheet>
   );
 }
 
 type ConnectProps = { busy: boolean; run(task: () => Promise<void>): Promise<void> };
 
-function Help({ children }: { children: ReactNode }) {
-  const theme = useTheme();
-  return <Text style={{ fontSize: 12, lineHeight: 17, color: theme.textSecondary, marginBottom: 10 }}>{children}</Text>;
-}
+const NOTE_TOP = { marginTop: space.ml } as const;
+const BODY_TOP = { marginTop: space.l } as const;
+const HELP = { lineHeight: proseLineHeight.small } as const;
+const CODE = { ...settingsType.code, textAlign: "center", marginTop: space.xl } as const;
+const SPLIT = { marginVertical: space.xl } as const;
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  const theme = useTheme();
+function Help({ children }: { children: ReactNode }) {
   return (
-    <View style={{ gap: 4, marginBottom: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{label}</Text>
+    <Text size="small" tone="textSecondary" style={HELP}>
       {children}
-    </View>
+    </Text>
   );
 }
 
-function Actions({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>{children}</View>;
-}
-
 function GithubConnect({ busy, run }: ConnectProps) {
-  const theme = useTheme();
   const [token, setToken] = useState("");
   const [clientId, setClientId] = useState(live().config.githubClientId);
   const [flow, setFlow] = useState<DeviceFlow | null>(null);
@@ -211,7 +182,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
       const f = await startGithubDeviceFlow(clientId.trim());
       setFlow(f);
       copyText(f.userCode);
-      openInBrowser(f.verificationUri);
+      openUrlFromSettings(f.verificationUri);
       await f.done;
     });
 
@@ -219,13 +190,13 @@ function GithubConnect({ busy, run }: ConnectProps) {
     return (
       <View>
         <Help>Enter this code on GitHub (it's on your clipboard), then approve Ardia. This sheet closes when you're signed in.</Help>
-        <Text selectable style={{ fontSize: 26, fontWeight: "600", letterSpacing: 3, fontFamily: "Menlo", color: theme.textPrimary, textAlign: "center", marginVertical: 8 }}>
+        <Text selectable weight="semibold" style={CODE}>
           {flow.userCode}
         </Text>
-        <Actions>
+        <DialogActions>
           <Button title="Cancel" onPress={() => (flow.cancel(), setFlow(null))} />
-          <Button title="Open GitHub" kind="primary" onPress={() => openInBrowser(flow.verificationUri)} />
-        </Actions>
+          <Button title="Open GitHub" kind="primary" onPress={() => openUrlFromSettings(flow.verificationUri)} />
+        </DialogActions>
       </View>
     );
   }
@@ -234,21 +205,21 @@ function GithubConnect({ busy, run }: ConnectProps) {
       <Help>
         Paste a personal access token (classic: "repo" and "read:org" scopes; fine-grained: read access to pull requests, checks and metadata).
       </Help>
-      <Field label="Personal access token">
+      <FormField label="Personal access token">
         <TextField value={token} onChangeText={setToken} placeholder="ghp_…" secure onSubmit={() => token && void run(() => connectGithub(token))} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!token.trim() || busy} onPress={() => void run(() => connectGithub(token))} />
-      </Actions>
-      <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 14 }} />
+      </DialogActions>
+      <Divider thick style={SPLIT} />
       <Help>Or sign in with your own GitHub OAuth app (Settings › Developer settings › OAuth Apps, with Device Flow enabled).</Help>
-      <Field label="OAuth app client ID">
+      <FormField label="OAuth app client ID">
         <TextField value={clientId} onChangeText={setClientId} placeholder="Iv1.…" />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Sign In with GitHub…" disabled={!clientId.trim() || busy} onPress={() => void signIn()} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }
@@ -260,16 +231,16 @@ function BitbucketConnect({ busy, run }: ConnectProps) {
   return (
     <View>
       <Help>Create an API token (bitbucket.org › Personal settings › API tokens, with read access to pull requests and repositories), then enter your Atlassian account email with it. Bitbucket can't search review requests across repositories, so the folder lists your own pull requests.</Help>
-      <Field label="Email or username">
+      <FormField label="Email or username">
         <TextField value={user} onChangeText={setUser} placeholder="you@example.com" />
-      </Field>
-      <Field label="API token">
+      </FormField>
+      <FormField label="API token">
         <TextField value={token} onChangeText={setToken} secure onSubmit={go} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!user.trim() || !token.trim() || busy} onPress={go} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }
@@ -280,13 +251,13 @@ function NotionConnect({ busy, run }: ConnectProps) {
   return (
     <View>
       <Help>Create an internal integration at notion.so/my-integrations (read content; read user information for editor names), copy its secret, and share the pages or teamspaces you want with it (••• › Connections).</Help>
-      <Field label="Internal integration secret">
+      <FormField label="Internal integration secret">
         <TextField value={token} onChangeText={setToken} placeholder="ntn_…" secure onSubmit={go} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!token.trim() || busy} onPress={go} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }
@@ -300,19 +271,19 @@ function ConfluenceConnect({ busy, run }: ConnectProps) {
   return (
     <View>
       <Help>Create an API token at id.atlassian.com › Security › API tokens, then enter your Confluence Cloud site and account email.</Help>
-      <Field label="Site">
+      <FormField label="Site">
         <TextField value={site} onChangeText={setSite} placeholder="https://your-team.atlassian.net" />
-      </Field>
-      <Field label="Email">
+      </FormField>
+      <FormField label="Email">
         <TextField value={email} onChangeText={setEmail} placeholder="you@example.com" />
-      </Field>
-      <Field label="API token">
+      </FormField>
+      <FormField label="API token">
         <TextField value={token} onChangeText={setToken} secure onSubmit={go} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!site.trim() || !email.trim() || !token.trim() || busy} onPress={go} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }
@@ -322,7 +293,7 @@ function GoogleConnect({ busy, run }: ConnectProps) {
   const [secret, setSecret] = useState("");
   const go = () =>
     void run(async () => {
-      const windowId = browserWindow();
+      const windowId = settingsBrowserWindow();
       if (!windowId) throw new Error("Open a browser window first");
       void focusWindow(windowId);
       await connectGoogleDrive(windowId, clientId, secret);
@@ -332,16 +303,16 @@ function GoogleConnect({ busy, run }: ConnectProps) {
       <Help>
         In Google Cloud Console, enable the Drive API and create an OAuth client of type "Desktop app" (add yourself as a test user). Ardia opens Google's consent page in a tab and reads the result from its redirect; it asks only to see your files' names and dates.
       </Help>
-      <Field label="Client ID">
+      <FormField label="Client ID">
         <TextField value={clientId} onChangeText={setClientId} placeholder="…apps.googleusercontent.com" />
-      </Field>
-      <Field label="Client secret">
+      </FormField>
+      <FormField label="Client secret">
         <TextField value={secret} onChangeText={setSecret} secure />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Waiting for Google…" : "Sign In with Google…"} kind="primary" disabled={!clientId.trim() || !secret.trim() || busy} onPress={go} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }

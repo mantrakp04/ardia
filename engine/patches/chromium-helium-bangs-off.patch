@@ -2,26 +2,24 @@ SPDX-License-Identifier: GPL-3.0-only
 Changes code from Helium's helium/core/add-native-bangs.patch (GPL-3.0, The Helium Authors).
 
 Helium's !bangs come from its services (<services base>/bangs.json, behind consent). Ardia never turns the services
-on, and its address bar is its own (packages/core), so Chromium's omnibox never uses bangs; yet BangManager still
-made a cache-only request to the services-disabled placeholder host at every launch. LoadBangs now answers at once
-with no bangs: no loader is made and nothing is requested. The rest of the bangs code stays and compiles.
+on, and its address bar is its own (packages/core), so Chromium's omnibox never uses bangs. LoadBangs now answers at
+once with an empty catalogue whatever the prefs say: no loader is made, no retry is armed and nothing is requested.
+The rest of the bangs code stays and compiles.
 
 --- a/components/search_engines/template_url_bang_manager.cc
 +++ b/components/search_engines/template_url_bang_manager.cc
-@@ -72,15 +72,7 @@
-     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-     PrefService& prefs,
-     base::OnceClosure callback) {
--    if (bangs_.empty() && !load_pending_) {
--        load_pending_ = true;
--        DoStartFileFetch(url_loader_factory, prefs);
--    } else if (!load_pending_) {
--        std::move(callback).Run();
--        return;
--    }
+@@ -184,13 +184,7 @@
+   weak_ptr_factory_.InvalidateWeakPtrs();
+   backoff_.Reset();
+   callback_ = std::move(callback);
 -
--    callbacks_.push_back(std::move(callback));
-+    std::move(callback).Run();
+-  if (!helium::ShouldFetchBangs(*prefs_)) {
+-    OnBangsLoaded(base::MakeRefCounted<Catalogue>(std::vector<Bang>()));
+-    return;
+-  }
+-
+-  StartFetch();
++  OnBangsLoaded(base::MakeRefCounted<Catalogue>(std::vector<Bang>()));
  }
  
- void BangManager::DoStartFileFetch(
+ void BangManager::StartFetch() {

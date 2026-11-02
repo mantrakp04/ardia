@@ -42,6 +42,6 @@ function icon(size = 128) {
 writeFileSync(join(dir, "icon.png"), icon());
 
 export default {
-  setup: `st().activate("t3"); const X = globalThis.expo.modules.ArdiaExtensions; return X.install(${JSON.stringify(dir)}, "").then((r) => ac.extensions.refreshExtensions("").then(() => sleep(2500)).then(() => done({ installed: r })));`,
+  setup: `st().activate("t3"); return ac.engine.call("extensions.install", { profile: "", path: ${JSON.stringify(dir)} }).catch((e) => ({ error: e.message })).then((r) => ac.extensions.refreshExtensions("").then(() => sleep(2500)).then(() => done({ installed: r })));`,
   act: `return sleep(500).then(() => { mark("⌘T"); return dw("keys:" + CMD + ":t:17"); }).then(() => sleep(900)).then(() => { mark("go"); mark("color"); return typeText("color", 160); }).then(() => sleep(3200)).then(() => done());`,
 };

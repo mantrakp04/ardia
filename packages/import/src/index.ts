@@ -1,3 +1,4 @@
+import { ArdiaError, ardiaError, type TabGroupColor } from "@ardia/core";
 import { requireNativeModule, type EventSubscription } from "expo-modules-core";
 
 export type ImportKind =
@@ -11,7 +12,7 @@ export type ImportKind =
   | "pinnedTabs"
   | "favorites";
 
-export type BrowserFamily = "chromium" | "firefox" | "safari" | "arc" | "automation";
+export type BrowserFamily = "chromium" | "firefox" | "safari" | "arc";
 
 export type SpaceSummary = {
   id: string;
@@ -49,6 +50,7 @@ export type BrowserSource = {
   keychainService?: string;
   profiles: BrowserProfile[];
   sidebar?: "arc" | "zen";
+  asksAppForTabs?: boolean;
 };
 
 export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests";
@@ -76,7 +78,6 @@ export type ImportedTab = {
   lastActive?: number;
 };
 
-export type TabGroupColor = "grey" | "blue" | "red" | "yellow" | "green" | "pink" | "purple" | "cyan" | "orange";
 export type ImportedTabGroup = { id: string; title: string; color: TabGroupColor | (string & {}); collapsed: boolean };
 
 export type Credential = {
@@ -107,11 +108,9 @@ export type SpaceSuggestion = {
 
 export type ProfileSuggestion = { name: string; color?: string; avatarPath?: string };
 
-export type ImportWarning = {
-  kind?: ImportKind;
-  code: string;
-  message: string;
-};
+export type ImportWarning =
+  | { kind: ImportKind; code: "empty" | "undecryptable" | "skipped" | "locked" | "unreadable" | "unsupported" | "notRunning"; message: string }
+  | { kind?: undefined; code: "unreadableBookmarks" | "unreadableHistory" | "unreadableTabs" | "unreadableCookies" | "unreadableFile"; message: string };
 
 export type ImportedFavicon = { page: string; icon: string; png: string };
 
@@ -167,6 +166,8 @@ export type ImportProgress = {
   total?: number;
 };
 
+type NativeImportOptions = { historyLimit?: number; historySince?: number; spaceIds?: string[]; chunkSize?: number; streamHistory: boolean };
+
 export type ImportOptions = {
   historyLimit?: number;
   historySince?: number;
@@ -193,18 +194,6 @@ export type DiaTabsResult = {
   favicons: ImportedFavicon[];
 };
 
-export type DiaAutomationStatus = "granted" | "denied" | "notDetermined" | "notRunning" | "notInstalled";
-
-export class ImportError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.code = code;
-    this.name = "ImportError";
-  }
-}
-
 type ImportEvent =
   | ({ jobId: string; type: "progress" } & ImportProgress)
   | { jobId: string; type: "history"; entries: string };
@@ -212,12 +201,12 @@ type ImportEvent =
 const Native = requireNativeModule<{
   addListener(name: "onImportEvent", listener: (e: ImportEvent) => void): EventSubscription;
   listBrowsers(): Promise<string>;
-  importData(jobId: string, browserId: string, profileId: string, kinds: ImportKind[], options: object): Promise<string>;
+  importData(jobId: string, browserId: string, profileId: string, kinds: ImportKind[], options: NativeImportOptions): Promise<string>;
   cancelImport(jobId: string): void;
   unlockBrowser(browserId: string, primaryPassword: string | null): Promise<null>;
   isBrowserUnlocked(browserId: string): boolean;
   forgetUnlockedKeys(): void;
-  writeImported(token: string, profile: string, kinds: string[]): Promise<string>;
+  writeImported(token: string, profile: string, kinds: ("cookies" | "autofill")[]): Promise<string>;
   discardImported(token: string): void;
   listExtensions(browserId: string, profileId: string): Promise<string>;
   importSafariExport(jobId: string, path: string): Promise<string>;
@@ -227,10 +216,6 @@ const Native = requireNativeModule<{
   importBookmarksHTML(path: string): Promise<string>;
   importPasswordsCSV(path: string): Promise<string>;
   chooseImportFile(kind: "safariExport" | "bookmarksHTML" | "passwordsCSV"): Promise<string | null>;
-  diaAutomationStatus(): Promise<string>;
-  requestDiaAutomation(): Promise<string>;
-  openAutomationSettings(): Promise<null>;
-  openDia(): Promise<null>;
   readDiaTabs(): Promise<string>;
 }>("ArdiaImport");
 
@@ -241,14 +226,13 @@ async function call<T>(promise: Promise<string | null>): Promise<T> {
     const json = await promise;
     return (json == null ? undefined : JSON.parse(json)) as T;
   } catch (e) {
-    const err = e as { code?: string; message?: string };
-    throw new ImportError(err.code ?? "unreadable", err.message ?? String(e));
+    throw ardiaError(e);
   }
 }
 
 async function job<T>(options: ImportOptions, start: (jobId: string) => Promise<string>): Promise<T> {
   const jobId = `import-${++jobSeq}`;
-  if (options.signal?.aborted) throw new ImportError("cancelled", "Import cancelled");
+  if (options.signal?.aborted) throw new ArdiaError("cancelled", "Import cancelled");
   const sub = Native.addListener("onImportEvent", (e) => {
     if (e.jobId !== jobId) return;
     if (e.type === "history") options.onHistoryChunk?.(JSON.parse(e.entries) as ImportedHistoryEntry[]);
@@ -267,7 +251,7 @@ async function job<T>(options: ImportOptions, start: (jobId: string) => Promise<
 export const listBrowsers = () => call<BrowserSource[]>(Native.listBrowsers());
 
 export function importData(browserId: string, profileId: string, kinds: ImportKind[], options: ImportOptions = {}) {
-  const native = {
+  const native: NativeImportOptions = {
     historyLimit: options.historyLimit,
     historySince: options.historySince,
     spaceIds: options.spaceIds,
@@ -306,13 +290,5 @@ export const importBookmarksHTML = (path: string) => call<BookmarkNode>(Native.i
 export const importPasswordsCSV = (path: string) => call<Credential[]>(Native.importPasswordsCSV(path));
 
 export const chooseImportFile = (kind: "safariExport" | "bookmarksHTML" | "passwordsCSV") => Native.chooseImportFile(kind);
-
-export const diaAutomationStatus = () => call<DiaAutomationStatus>(Native.diaAutomationStatus());
-
-export const requestDiaAutomation = () => call<DiaAutomationStatus>(Native.requestDiaAutomation());
-
-export const openAutomationSettings = () => call<void>(Native.openAutomationSettings());
-
-export const openDia = () => call<void>(Native.openDia());
 
 export const readDiaTabs = () => call<DiaTabsResult>(Native.readDiaTabs());

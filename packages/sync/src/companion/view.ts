@@ -1,4 +1,5 @@
-import { visible, type ScopeState } from "../scope.ts";
+import { visible } from "../scope.ts";
+import type { ScopeState } from "../scopeState.ts";
 import { fromLegacy } from "./legacy.ts";
 import { lastVisitOf, type BookmarkValue, type DeviceTabsValue, type DeviceValue, type HistoryValue } from "./adapters.ts";
 

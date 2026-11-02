@@ -4,11 +4,11 @@ import type { PagerSnapshot, SwipeAreaHandle, SwipeAreaProps } from "@ardia-real
 import { Pager, type PagerArea } from "./motion/pager";
 import { addSwipeTarget, simulate, type SwipeTarget } from "./motion/swipe";
 
-export const switchPager = async (key: string, index: number, order?: string) => Pager.existing(key)?.switchTo(index, order) ?? false;
+export const switchPager = async (key: string, index: number, order?: readonly string[]) => Pager.existing(key)?.switchTo(index, order) ?? false;
 
-export const stepPager = async (key: string, delta: -1 | 1, wrap = false, order?: string) => Pager.existing(key)?.step(delta, wrap, order) ?? false;
+export const stepPager = async (key: string, delta: -1 | 1, wrap = false, order?: readonly string[]) => Pager.existing(key)?.step(delta, wrap, order) ?? false;
 
-export const selectPager = async (key: string, profileId: string, order: string) => Pager.existing(key)?.select(profileId, order) ?? false;
+export const selectPager = async (key: string, profileId: string, order: readonly string[]) => Pager.existing(key)?.select(profileId, order) ?? false;
 
 export const pagerState = (key: string): PagerSnapshot | null => Pager.existing(key)?.snapshot() ?? null;
 

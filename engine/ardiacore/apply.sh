@@ -1428,10 +1428,8 @@ PY
 
 hook "$src/device/bluetooth/bluetooth_adapter_mac.h" "the Bluetooth adapter polls on demand" <<'PY'
 old = """  void PollAdapter();
-  void OnBackgroundPollComplete(AdapterState state);
 """
 new = """  void PollAdapter();
-  void OnBackgroundPollComplete(AdapterState state);
   void PollAdapterOnDemand();
   void OnLowEnergyCentralManagerStateUpdated() override;
 
@@ -1463,13 +1461,14 @@ edits = [
   }
 """),
     ("""void BluetoothAdapterMac::PollAdapter() {
-  base::ThreadPool::PostTaskAndReplyWithResult(
+  const bool was_present = IsPresent();
 """, """void BluetoothAdapterMac::PollAdapter() {
   poll_pending_ = true;
   poll_dirty_ = false;
-  base::ThreadPool::PostTaskAndReplyWithResult(
+  const bool was_present = IsPresent();
 """),
     ("""  RemoveTimedOutDevices();
+  AddPairedDevices();
 
   ui_task_runner_->PostDelayedTask(
       FROM_HERE,
@@ -1477,6 +1476,7 @@ edits = [
                      weak_ptr_factory_.GetWeakPtr()),
       base::Milliseconds(kPollIntervalMs));
 """, """  RemoveTimedOutDevices();
+  AddPairedDevices();
 
   if (g_ardia_bluetooth_poll_on_demand && !IsDiscovering()) {
     poll_pending_ = false;
@@ -1492,7 +1492,7 @@ edits = [
         base::Milliseconds(kPollIntervalMs));
   }
 """),
-    ("""void BluetoothAdapterMac::OnConnectedDeviceStateRetrieved(
+    ("""void BluetoothAdapterMac::ClassicDeviceAdded(
 """, """void BluetoothAdapterMac::PollAdapterOnDemand() {
   if (poll_pending_) {
     return;
@@ -1523,7 +1523,17 @@ void BluetoothAdapterMac::OnLowEnergyCentralManagerStateUpdated() {
   PollAdapterOnDemand();
 }
 
-void BluetoothAdapterMac::OnConnectedDeviceStateRetrieved(
+void BluetoothAdapterMac::ClassicDeviceAdded(
+"""),
+    ("""  for (auto& observer : observers_)
+    observer.AdapterDiscoveringChanged(this, true);
+  DCHECK(callback);
+""", """  for (auto& observer : observers_)
+    observer.AdapterDiscoveringChanged(this, true);
+  if (g_ardia_bluetooth_poll_on_demand) {
+    PollAdapterOnDemand();
+  }
+  DCHECK(callback);
 """),
 ]
 def edit(s):
@@ -1539,7 +1549,8 @@ hook(["bool g_ardia_bluetooth_poll_on_demand = false;\n",
       "  if (g_ardia_bluetooth_poll_on_demand && !IsDiscovering()) {\n",
       "void BluetoothAdapterMac::PollAdapterOnDemand() {\n",
       "void BluetoothAdapterMac::OnLowEnergyCentralManagerStateUpdated() {\n",
-      "    poll_dirty_ = true;\n"], edit)
+      "    poll_dirty_ = true;\n",
+      "  if (g_ardia_bluetooth_poll_on_demand) {\n    PollAdapterOnDemand();\n  }\n  DCHECK(callback);\n"], edit)
 PY
 
 hook "$src/chrome/browser/extensions/extension_action_storage_manager.cc" "restored browser action defaults notify" <<'PY'

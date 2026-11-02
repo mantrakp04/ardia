@@ -14,7 +14,8 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
   Helium's wiki);
 - screenshots save as ardia_screenshot*.png; the Web Store's button says "Add to Ardia";
 - chrome://flags: descriptions say Ardia, Helium's flag ids are ardia-*, and the updater channel and update server
-  flags are gone (the app has its own updater);
+  flags are gone (the app has its own updater), as are the Proxy server and Proxy bypass list flags (on a real profile
+  ArdiaCore drops --proxy-server from the browser's command line, after chrome://flags apply);
 - cr:chrome-product is Ardia's mark (traced from docs/brand/ardia/source/mark-small.png), as are the product
   vector icons and logos ardia_resources.txt copies in;
 - Helium's indigo palette is undone (helium-color-scheme.patch reversed): chrome:// pages and dialogs use
@@ -25,15 +26,15 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
 
 --- a/chrome/app/chrome_crash_reporter_client.cc
 +++ b/chrome/app/chrome_crash_reporter_client.cc
-@@ -134,7 +134,7 @@ bool ChromeCrashReporterClient::GetCrashDumpLocation(
+@@ -136,7 +136,7 @@ bool ChromeCrashReporterClient::GetCrashDumpLocation(
  void ChromeCrashReporterClient::GetProductInfo(ProductInfo* product_info) {
    CHECK(product_info);
  
 -  const char* product_name = "Helium";
 +  const char* product_name = "Ardia";
-   *product_info =
-       ProductInfo(product_name, version_info::GetHeliumVersionNumber(),
-                   chrome::GetChannelName(chrome::WithExtendedStable(true)));
+ 
+ #if BUILDFLAG(IS_ANDROID)
+   std::string_view version = version_info::GetVersionNumber();
 --- a/chrome/app/theme/chromium/BRANDING
 +++ b/chrome/app/theme/chromium/BRANDING
 @@ -1,10 +1,10 @@
@@ -78,6 +79,23 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
    return downloader;
  }
  
+--- a/chrome/browser/existing_switch_flag_entries.h
++++ b/chrome/browser/existing_switch_flag_entries.h
+@@ -36,14 +36,6 @@
+      "No Pings",
+      "Don't send hyperlink auditing pings. Chromium feature, ungoogled-chromium flag.",
+      kOsAll, SINGLE_VALUE_TYPE("no-pings")},
+-    {"proxy-bypass-list",
+-     "Proxy bypass list",
+-     "Bypass proxy specified in the \"Proxy server\" flag for the given list of hosts. Only has an effect when the \"Proxy server\" flag is set. Chromium feature, ungoogled-chromium flag.",
+-     kOsAll, STRING_VALUE_TYPE("proxy-bypass-list", "")},
+-    {"proxy-server",
+-     "Proxy server",
+-     "Specify a custom proxy configuration, overriding system proxy settings. Chromium feature, ungoogled-chromium flag.",
+-     kOsAll, STRING_VALUE_TYPE("proxy-server", "")},
+     {"start-maximized",
+      "Start Maximized",
+      "Starts the browser maximized, regardless of any previous settings. Chromium feature, ungoogled-chromium flag.",
 --- a/chrome/browser/helium_flag_choices.h
 +++ b/chrome/browser/helium_flag_choices.h
 @@ -32,20 +32,20 @@ constexpr const char kUpdateServerUrlCommandLine[] = "custom-update-server-url";

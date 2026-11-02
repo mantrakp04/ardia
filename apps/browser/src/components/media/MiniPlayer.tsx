@@ -1,26 +1,18 @@
-import { Symbol } from "@ardia/shell";
+import { Dot, Symbol, Text, useHover } from "../ui";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Pressable, Text, View, type GestureResponderEvent, type TextStyle } from "react-native";
-import { toggleMute } from "../../lib/actions";
-import { hex } from "../../lib/theme";
-import { useTab } from "../../store/hooks";
-import { Favicon, useHover } from "../primitives";
-import { useArtwork } from "./artwork";
+import { Animated, Image, Pressable, View, type GestureResponderEvent, type TextStyle } from "react-native";
+import { toggleMute } from "../../state/browser/actions";
+import { hex } from "../ui/theme";
+import { duration as motionDuration } from "../ui/motion";
+import { font, ink, radius, space, weight } from "../ui/tokens";
+import { useTab } from "../../state/browser/hooks";
+import { useMuteState } from "../../state/tabs/hooks";
+import { Favicon } from "../favicon/Favicon";
+import { useArtwork } from "../../state/media/artwork";
 import { useMarqueeGroup, Marquee } from "./Marquee";
-import {
-  formatTime,
-  hasTrackControls,
-  hostOf,
-  isPlaying,
-  mediaCommand,
-  positionOf,
-  setNowPlaying,
-  SKIP_SECONDS,
-  useSession,
-  useTicker,
-  type Session,
-} from "./state";
-import { useMediaTokens, type MediaTokens } from "./tokens";
+import { formatTime, hasTrackControls, isPlaying, mediaCommand, positionOf, seekTo, skipOrTrack, transportIcons, useSession, useTicker, type Session } from "../../state/media/media";
+import { hostOf } from "@ardia/core";
+import { ART_HOVER_SCRIM, useMediaTokens, type MediaTokens } from "./tokens";
 
 export const MINI_PLAYER_WIDTH = 320;
 export const MINI_PLAYER_HEIGHT = 76;
@@ -33,6 +25,7 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
   const tokens = useMediaTokens();
   const session = useSession(tabId);
   const tab = useTab(tabId);
+  const mute = useMuteState(tabId);
   const playing = isPlaying(session);
   useTicker(playing);
   const group = useMarqueeGroup(`${session?.title}|${session?.artist}`);
@@ -41,27 +34,28 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
   const textWidth = width - TEXT_X - CONTROLS_WIDTH - 8 - INSET;
   const controlsX = width - INSET - CONTROLS_WIDTH;
   const tracks = hasTrackControls(session);
+  const icons = transportIcons(session);
   const artist = session.artist || hostOf(tab.url);
   const title = session.title || tab.title;
 
   return (
     <View style={{ width, height: MINI_PLAYER_HEIGHT }}>
-      <AlbumArt tabId={tabId} profileId={tab.profileId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={tab.muted} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
+      <AlbumArt tabId={tabId} profileId={tab.profileId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={!!mute} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
       <View style={{ position: "absolute", left: TEXT_X, top: 10, width: textWidth }}>
-        <Marquee id="title" text={title} group={group} height={18} background={tokens.backgroundRgb} style={{ fontSize: 13, fontWeight: "600", color: tokens.label }} />
+        <Marquee id="title" text={title} group={group} height={18} background={tokens.backgroundRgb} style={{ ...font.body, fontWeight: weight.semibold, color: tokens.label }} />
       </View>
       <View style={{ position: "absolute", left: TEXT_X, top: 30, width: textWidth }}>
-        <Marquee id="artist" text={artist} group={group} height={16} background={tokens.backgroundRgb} style={{ fontSize: 11, color: tokens.secondary }} />
+        <Marquee id="artist" text={artist} group={group} height={16} background={tokens.backgroundRgb} style={{ ...font.caption, color: tokens.secondary }} />
       </View>
 
       <TransportButton
         left={controlsX}
         width={16}
-        icon={tracks ? "backward.end.fill" : `gobackward.${SKIP_SECONDS}`}
+        icon={icons.back}
         size={tracks ? 14 : 15}
-        tooltip={tracks ? "Play Previous Track" : `Skip back ${SKIP_SECONDS} seconds`}
+        tooltip={icons.backTip}
         tokens={tokens}
-        onPress={() => (tracks ? mediaCommand(tabId, "previous") : skip(tabId, session, -SKIP_SECONDS))}
+        onPress={() => skipOrTrack(tabId, session, "back")}
       />
       <TransportButton
         left={controlsX + 32}
@@ -75,11 +69,11 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
       <TransportButton
         left={controlsX + 72}
         width={16}
-        icon={tracks ? "forward.end.fill" : `goforward.${SKIP_SECONDS}`}
+        icon={icons.ahead}
         size={tracks ? 14 : 15}
-        tooltip={tracks ? "Play Next Track" : `Skip ahead ${SKIP_SECONDS} seconds`}
+        tooltip={icons.aheadTip}
         tokens={tokens}
-        onPress={() => (tracks ? mediaCommand(tabId, "next") : skip(tabId, session, SKIP_SECONDS))}
+        onPress={() => skipOrTrack(tabId, session, "ahead")}
       />
 
       <View style={{ position: "absolute", left: TEXT_X, right: INSET, top: 50, height: 18 }}>
@@ -87,18 +81,6 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
       </View>
     </View>
   );
-}
-
-export function skip(tabId: string, session: Session, seconds: number) {
-  const now = Date.now();
-  const position = Math.max(0, Math.min(session.duration ?? Infinity, positionOf(session, now) + seconds));
-  setNowPlaying(tabId, { ...session, position, timestamp: now });
-  mediaCommand(tabId, "seekBy", seconds);
-}
-
-export function seekTo(tabId: string, session: Session, seconds: number) {
-  setNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
-  mediaCommand(tabId, "seekTo", seconds);
 }
 
 function TransportButton({
@@ -163,14 +145,14 @@ function AlbumArt({
   return (
     <View {...hoverProps} style={{ position: "absolute", left: INSET, top: INSET, width: ART, height: ART }}>
       <Pressable onPress={onPress} tooltip="Back to Tab">
-        <View style={{ width: ART, height: ART, borderRadius: 6, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: ART, height: ART, borderRadius: radius.tile, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
           {art ? (
             <Animated.View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, opacity: fade }}>
               <Image
                 key={art}
                 source={{ uri: art }}
                 resizeMode="cover"
-                onLoad={() => Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }).start()}
+                onLoad={() => Animated.timing(fade, { toValue: 1, duration: motionDuration.base, useNativeDriver: true }).start()}
                 onError={() => setFailed(art)}
                 style={{ width: ART, height: ART }}
               />
@@ -181,31 +163,48 @@ function AlbumArt({
             </View>
           )}
           {hovered ? (
-            <View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" }}>
-              <Symbol name="arrow.up.left" size={16} weight="semibold" color="#FFFFFF" style={{ width: 22, height: 22 }} />
+            <View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, backgroundColor: ART_HOVER_SCRIM, alignItems: "center", justifyContent: "center" }}>
+              <Symbol name="arrow.up.left" size={16} weight="semibold" color={ink.white} style={{ width: 22, height: 22 }} />
             </View>
           ) : null}
         </View>
       </Pressable>
       {muted ? (
         <Pressable onPress={onUnmute} tooltip="Unmute Site" style={{ position: "absolute", right: -5, bottom: -5 }}>
-          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: tokens.background, alignItems: "center", justifyContent: "center" }}>
+          <Dot size={20} color={tokens.background}>
             <Symbol name="speaker.slash.fill" size={10} color={hex(tokens.label)} style={{ width: 16, height: 16 }} />
-          </View>
+          </Dot>
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-function TimeBar({ tabId, session, tokens }: { tabId: string; session: Session; tokens: MediaTokens }) {
-  const [drag, setDrag] = useState<number | null>(null);
+export function TimeBar({
+  tabId,
+  session,
+  tokens,
+  trailing = "remaining",
+  onDragging,
+}: {
+  tabId: string;
+  session: Session;
+  tokens: MediaTokens;
+  trailing?: "remaining" | "total";
+  onDragging?: (dragging: boolean) => void;
+}) {
+  const [drag, setDragState] = useState<number | null>(null);
+  const setDrag = (p: number | null) => {
+    setDragState(p);
+    onDragging?.(p !== null);
+  };
   const duration = session.duration;
   const shownPosition = drag !== null && duration ? drag * duration : positionOf(session);
-  const label: TextStyle = { fontSize: 10, fontVariant: ["tabular-nums"], color: tokens.secondary };
   return (
-    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Text style={label}>{formatTime(shownPosition)}</Text>
+    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.s }}>
+      <Text size="tiny" color={tokens.secondary} style={TIME_LABEL}>
+        {formatTime(shownPosition)}
+      </Text>
       {duration ? (
         <>
           <SeekBar
@@ -219,7 +218,9 @@ function TimeBar({ tabId, session, tokens }: { tabId: string; session: Session; 
               seekTo(tabId, session, p * duration);
             }}
           />
-          <Text style={label}>-{formatTime(duration - shownPosition)}</Text>
+          <Text size="tiny" color={tokens.secondary} style={TIME_LABEL}>
+            {trailing === "total" ? formatTime(duration) : `-${formatTime(duration - shownPosition)}`}
+          </Text>
         </>
       ) : (
         <View style={{ flex: 1 }} />
@@ -228,9 +229,10 @@ function TimeBar({ tabId, session, tokens }: { tabId: string; session: Session; 
   );
 }
 
+const TIME_LABEL: TextStyle = { fontVariant: ["tabular-nums"] };
 const HOVER_SEGMENTS = 40;
 
-export function SeekBar({
+function SeekBar({
   session,
   tokens,
   height,
@@ -250,14 +252,14 @@ export function SeekBar({
   const [hover, setHover] = useState<number | null>(null);
   const [drag, setDrag] = useState<number | null>(null);
   const duration = session.duration ?? 0;
-  const progress = drag ?? (duration ? positionOf(session) / duration : 0);
+  const progress = drag ?? (!duration ? 0 : positionOf(session) / duration);
   const measure = () => ref.current?.measureInWindow((x, _y, width) => (frame.current = { x, width: Math.max(1, width) }));
   const at = (e: GestureResponderEvent) => Math.min(1, Math.max(0, (e.nativeEvent.pageX - frame.current.x) / frame.current.width));
   const update = (p: number | null) => {
     setDrag(p);
     onDrag?.(p);
   };
-  const radius = barHeight / 2;
+  const barRadius = barHeight / 2;
   const top = (height - barHeight) / 2;
   return (
     <View
@@ -276,10 +278,10 @@ export function SeekBar({
       }}
       onResponderTerminate={() => update(null)}
     >
-      <View style={{ position: "absolute", left: 0, right: 0, top, height: barHeight, borderRadius: radius, backgroundColor: tokens.track, overflow: "hidden" }}>
-        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${progress * 100}%`, borderRadius: radius, backgroundColor: tokens.fill }} />
+      <View style={{ position: "absolute", left: 0, right: 0, top, height: barHeight, borderRadius: barRadius, backgroundColor: tokens.track, overflow: "hidden" }}>
+        <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${progress * 100}%`, borderRadius: barRadius, backgroundColor: tokens.fill }} />
         {hover !== null && drag === null ? (
-          <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${hover * 100}%`, borderRadius: radius, backgroundColor: tokens.hoverFill }} />
+          <View style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${hover * 100}%`, borderRadius: barRadius, backgroundColor: tokens.hoverFill }} />
         ) : null}
       </View>
       <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row" }}>

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 
 const DEFAULT_CENTER: [number, number] = [25, 27];
 const SPACING = 23;

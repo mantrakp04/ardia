@@ -1,0 +1,79 @@
+import { useEffect, useRef } from "react";
+import { ActivityIndicator, Animated, View } from "react-native";
+import { Button, curve, space, Symbol, Text, useTheme } from "../../ui";
+import { SelectableCard } from "../../settings/SelectableCard";
+import { cancelImport, type ImportFlow, type KindStatus } from "../../../state/import/flow";
+import { KINDS } from "../model";
+import { Spacer, Title } from "../Parts";
+import { importLayout, importMotion } from "../tokens";
+
+export function ProgressBody({ flow }: { flow: ImportFlow }) {
+  const { step, source } = flow;
+  if (step.name !== "progress") return null;
+  const { status, preparing } = step;
+  return (
+    <>
+      <Title title={`Importing from ${source?.name ?? "file"}`} subtitle={preparing > 1 ? `Preparing ${preparing} profiles` : "Preparing your profile"} spinner />
+      <Text size="small" tone="textSecondary" style={{ marginBottom: space.l }}>
+        Hold on while we fetch your data...
+      </Text>
+      <View style={{ gap: space.s }}>
+        {KINDS.filter((k) => status[k.kind]).map((k, i) => (
+          <CategoryRow key={k.kind} title={k.title} icon={k.icon} status={status[k.kind]!} index={i} />
+        ))}
+      </View>
+    </>
+  );
+}
+
+export function ProgressFooter() {
+  return (
+    <>
+      <Spacer />
+      <Button title="Cancel" onPress={cancelImport} />
+    </>
+  );
+}
+
+function CategoryRow({ title, icon, status, index }: { title: string; icon: string; status: KindStatus; index: number }) {
+  const theme = useTheme();
+  const appear = useRef(new Animated.Value(0)).current;
+  const check = useRef(new Animated.Value(0)).current;
+  const { rowAppear } = importMotion;
+  useEffect(() => {
+    Animated.timing(appear, { toValue: 1, duration: rowAppear.duration, delay: index * rowAppear.stagger, easing: curve.enter, useNativeDriver: true }).start();
+  }, []);
+  useEffect(() => {
+    if (status === "done" || status === "failed") Animated.spring(check, { toValue: 1, ...importMotion.check, useNativeDriver: true }).start();
+  }, [status]);
+  const active = status === "active";
+  return (
+    <Animated.View
+      style={{
+        opacity: appear,
+        transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [rowAppear.rise, 0] }) }],
+      }}
+    >
+      <SelectableCard selected={active} style={CATEGORY_ROW}>
+        <Symbol name={icon} size={13} color={status === "pending" ? theme.textTertiary : theme.icon} style={{ width: 20, height: 20 }} />
+        <Text tone={status === "pending" ? "textSecondary" : "textPrimary"} style={{ flex: 1 }}>
+          {title}
+        </Text>
+        {active ? (
+          <ActivityIndicator size="small" />
+        ) : status === "pending" ? null : (
+          <Animated.View style={{ transform: [{ scale: check }] }}>
+            <Symbol
+              name={status === "done" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"}
+              size={15}
+              color={status === "done" ? theme.success : theme.warning}
+              style={{ width: 20, height: 20 }}
+            />
+          </Animated.View>
+        )}
+      </SelectableCard>
+    </Animated.View>
+  );
+}
+
+const CATEGORY_ROW = { height: importLayout.categoryRow, paddingHorizontal: space.l, flexDirection: "row", alignItems: "center", gap: space.l } as const;

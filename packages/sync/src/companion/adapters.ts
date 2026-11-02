@@ -1,6 +1,7 @@
 import { assignPositions } from "../order.ts";
 import { hlcWall } from "../hlc.ts";
-import { visible, type Adapter, type ScopeState } from "../scope.ts";
+import { visible } from "../scope.ts";
+import type { Adapter, ScopeState } from "../scopeState.ts";
 
 export const DAY_MS = 86_400_000;
 export const HISTORY_WINDOW_MS = 90 * DAY_MS;

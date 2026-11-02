@@ -9,32 +9,23 @@
 #include <vector>
 
 #include "base/functional/bind.h"
-#include "base/json/json_reader.h"
-#include "base/json/json_writer.h"
-#include "base/values.h"
 #include "base/task/bind_post_task.h"
-#include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/navigation_throttle.h"
-#include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/media_session.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/permission_controller.h"
 #include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "ipc/ipc_channel_proxy.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_page_limits.h"
@@ -50,31 +41,6 @@
 namespace ardiacore {
 
 namespace {
-
-std::string& Script() {
-  static base::NoDestructor<std::string> script;
-  return *script;
-}
-
-constexpr size_t kMaxHeld = 64;
-constexpr size_t kMaxHeldBytes = 16 * 1024;
-constexpr size_t kMaxHeldTotalBytes = 256 * 1024;
-
-
-const std::vector<std::string_view>* HeldFields(const std::string& kind) {
-  static const base::NoDestructor<std::map<std::string, std::vector<std::string_view>>>
-      fields({
-          {"hello", {"top", "url"}},
-          {"theme", {"color", "source"}},
-          {"media", {"frame", "playing"}},
-          {"nowPlaying",
-           {"frame", "title", "artist", "album", "artwork", "playbackState",
-            "position", "duration", "playbackRate", "hasVideo", "actions",
-            "controllable", "timestamp"}},
-      });
-  auto it = fields->find(kind);
-  return it == fields->end() ? nullptr : &it->second;
-}
 
 bool MayShowNotification(content::RenderFrameHost& frame) {
   return frame.GetBrowserContext()
@@ -100,91 +66,6 @@ mojo::AssociatedRemote<mojom::ACPage> PageOf(content::RenderFrameHost* frame) {
   return page;
 }
 
-class AppSchemeThrottle : public content::NavigationThrottle {
- public:
-  explicit AppSchemeThrottle(content::NavigationThrottleRegistry& registry)
-      : content::NavigationThrottle(registry) {}
-
-  ThrottleCheckResult WillStartRequest() override { return Check(); }
-  ThrottleCheckResult WillRedirectRequest() override { return Check(); }
-  const char* GetNameForLogging() override { return "ACAppSchemeThrottle"; }
-
- private:
-  ThrottleCheckResult Check() {
-    content::NavigationHandle* navigation = navigation_handle();
-    if (!IsAppURL(navigation->GetURL())) {
-      return PROCEED;
-    }
-    content::WebContents* contents = navigation->GetWebContents();
-    const std::optional<url::Origin>& initiator =
-        navigation->GetInitiatorOrigin();
-    content::NavigationEntry* committed =
-        contents->GetController().GetLastCommittedEntry();
-    const bool popup_start = !committed || committed->IsInitialEntry();
-    if (navigation->IsInPrimaryMainFrame() && !popup_start &&
-        !navigation->WasServerRedirect() && initiator &&
-        IsWebUIURL(initiator->GetURL()) &&
-        IsWebUIURL(contents->GetPrimaryMainFrame()->GetLastCommittedURL())) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, base::BindOnce(
-                         [](base::WeakPtr<content::WebContents> contents, GURL url,
-                            bool user_gesture) {
-                           if (contents) {
-                             ReportAppURLRequest(contents.get(), url, user_gesture);
-                           }
-                         },
-                         contents->GetWeakPtr(), navigation->GetURL(),
-                         navigation->HasUserGesture()));
-    }
-    return CANCEL_AND_IGNORE;
-  }
-};
-
-}
-
-bool IsAppURL(const GURL& url) {
-  return url.SchemeIs("ardia");
-}
-
-bool IsWebUIURL(const GURL& url) {
-  return url.SchemeIs("chrome") || url.SchemeIs("devtools");
-}
-
-void ReportAppURLRequest(content::WebContents* contents,
-                         const GURL& url,
-                         bool user_gesture) {
-  ArdiaCoreTab* tab = TabBridge::GetOrCreate(contents)->tab();
-  id<ArdiaCoreTabDelegate> delegate = tab.delegate;
-  if ([delegate respondsToSelector:@selector(tab:didRequestAppURL:userGesture:)]) {
-    [delegate tab:tab
-        didRequestAppURL:base::SysUTF8ToNSString(url.spec())
-             userGesture:user_gesture];
-  }
-}
-
-void SetPageScript(const std::string& script) {
-  Script() = script;
-  for (auto it = content::RenderProcessHost::AllHostsIterator(); !it.IsAtEnd();
-       it.Advance()) {
-    content::RenderProcessHost* host = it.GetCurrentValue();
-    if (host->IsInitializedAndNotDead()) {
-      SendPageScript(host);
-    }
-  }
-}
-
-const std::string& GetPageScript() {
-  return Script();
-}
-
-void SendPageScript(content::RenderProcessHost* host) {
-  IPC::ChannelProxy* channel = host->GetChannel();
-  if (!channel) {
-    return;
-  }
-  mojo::AssociatedRemote<mojom::ACRendererConfig> config;
-  channel->GetRemoteAssociatedInterface(&config);
-  config->SetPageScript(Script());
 }
 
 void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,
@@ -199,10 +80,6 @@ void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,
         }
       },
       &render_frame_host));
-}
-
-void AddAppSchemeThrottle(content::NavigationThrottleRegistry& registry) {
-  registry.AddThrottle(std::make_unique<AppSchemeThrottle>(registry));
 }
 
 PageChannel::PageChannel(content::WebContents* contents)
@@ -366,104 +243,7 @@ bool PageChannel::Deliver(content::RenderFrameHost& frame,
                                   frame.GetLastCommittedOrigin().Serialize())];
     return true;
   }
-  if ([delegate respondsToSelector:@selector
-                (tab:didReceivePageMessage:json:frame:main:)]) {
-    [delegate tab:tab
-        didReceivePageMessage:ns_kind
-                         json:ns_json
-                        frame:base::SysUTF8ToNSString(FrameId(&frame))
-                         main:main];
-    return true;
-  }
-  if (main && [delegate respondsToSelector:@selector
-                        (tab:didReceivePageMessage:json:)]) {
-    [delegate tab:tab didReceivePageMessage:ns_kind json:ns_json];
-    return true;
-  }
   return false;
-}
-
-void PageChannel::Hold(content::RenderFrameHost& frame,
-                       const std::string& kind,
-                       const std::string& json) {
-  if (!frame.GetPage().IsPrimary()) {
-    return;
-  }
-  const std::vector<std::string_view>* fields = HeldFields(kind);
-  if (!fields || json.size() > kMaxHeldBytes) {
-    return;
-  }
-  std::optional<base::Value> value =
-      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
-  if (kind == "nowPlaying" && value && value->is_none()) {
-    const std::string cleared = base::StrCat({FrameId(&frame), "|", kind});
-    if (auto it = held_.find(cleared); it != held_.end()) {
-      held_bytes_ -= it->second.json.size();
-      held_.erase(it);
-    }
-    return;
-  }
-  if (!value || !value->is_dict()) {
-    return;
-  }
-  base::DictValue kept;
-  for (std::string_view field : *fields) {
-    if (const base::Value* found = value->GetDict().Find(field)) {
-      kept.Set(field, found->Clone());
-    }
-  }
-  std::string kept_json;
-  if (!base::JSONWriter::Write(kept, &kept_json) ||
-      kept_json.size() > kMaxHeldBytes) {
-    return;
-  }
-  const std::string frame_id = FrameId(&frame);
-  std::string key = base::StrCat({frame_id, "|", kind});
-  if (kind == "media") {
-    const std::string* media_frame = kept.FindString("frame");
-    if (!media_frame || media_frame->size() > 64) {
-      return;
-    }
-    key = base::StrCat({key, "|", *media_frame});
-  }
-  auto it = held_.find(key);
-  const size_t replaced = it == held_.end() ? 0 : it->second.json.size();
-  if (it == held_.end() && held_.size() >= kMaxHeld) {
-    return;
-  }
-  if (held_bytes_ - replaced + kept_json.size() > kMaxHeldTotalBytes) {
-    return;
-  }
-  held_bytes_ = held_bytes_ - replaced + kept_json.size();
-  held_[key] = Held{frame_id, kind, std::move(kept_json)};
-}
-
-void PageChannel::ForgetHeld(const std::string& frame_id) {
-  std::erase_if(held_, [&](const auto& entry) {
-    if (entry.second.frame_id != frame_id) {
-      return false;
-    }
-    held_bytes_ -= entry.second.json.size();
-    return true;
-  });
-}
-
-void PageChannel::DeliverHeld() {
-  std::map<std::string, Held> held = std::move(held_);
-  held_.clear();
-  held_bytes_ = 0;
-  for (const char* kind : {"hello", "theme", "media", "nowPlaying"}) {
-    for (const auto& [key, entry] : held) {
-      if (entry.kind != kind) {
-        continue;
-      }
-      content::RenderFrameHost* frame = FindFrame(entry.frame_id);
-      if (frame && frame->IsRenderFrameLive() && frame->GetPage().IsPrimary() &&
-          !Deliver(*frame, entry.kind, entry.json)) {
-        Hold(*frame, entry.kind, entry.json);
-      }
-    }
-  }
 }
 
 void PageChannel::RenderFrameDeleted(content::RenderFrameHost* frame) {
@@ -531,6 +311,16 @@ void PageChannel::ExecuteInFrame(const std::string& frame_id,
     Execute(code);
   } else if (auto page = PageOf(target)) {
     page->Execute(code);
+  }
+}
+
+void PageChannel::GrantUserActivation(const std::string& frame_id) {
+  content::RenderFrameHost* target =
+      frame_id.empty() ? GetWebContents().GetPrimaryMainFrame()
+                       : FindFrame(frame_id);
+  if (target && target->IsRenderFrameLive()) {
+    target->NotifyUserActivation(
+        blink::mojom::UserActivationNotificationType::kInteraction);
   }
 }
 

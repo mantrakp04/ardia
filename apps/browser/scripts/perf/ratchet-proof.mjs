@@ -18,9 +18,9 @@ const out = resolve(flags.out ?? join(process.env.TMPDIR ?? "/tmp", "ac-ratchet-
 const micro = readFileSync(join(here, "micro-bench.mjs"), "utf8");
 const bigSession = /\/\/ One window with `count` tabs.*?\n}\n/s.exec(micro)[0];
 const workload = `
-const { useBrowser } = await import("../../src/store/browser.ts");
-const { sidebarEntries } = await import("../../src/components/sidebar/entries.ts");
-await import("../../src/test-native-stub.mjs");
+const { useBrowser } = await import("../../src/state/browser/store.ts");
+const { sidebarEntries } = await import("../../src/state/sidebar/entries.ts");
+await import("../../src/test-native/index.ts");
 const { countOps } = await import("./ops.mjs");
 const S = () => useBrowser.getState();
 const median = (xs) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
@@ -50,7 +50,8 @@ for (const [name, rev] of [["before", beforeRev], ["after", afterRev]]) {
   execFileSync("tar", ["-x", "-C", dir], { input: tar });
   symlinkSync(join(repo, "node_modules"), join(dir, "node_modules"));
   symlinkSync(join(appDir, "node_modules"), join(dir, "apps/browser/node_modules"));
-  for (const f of ["test-loader.mjs", "test-native-stub.mjs"]) copyFileSync(join(appDir, "src", f), join(dir, "apps/browser/src", f));
+  copyFileSync(join(appDir, "src/test-loader.mjs"), join(dir, "apps/browser/src/test-loader.mjs"));
+  cpSync(join(appDir, "src/test-native"), join(dir, "apps/browser/src/test-native"), { recursive: true });
   const perf = join(dir, "apps/browser/scripts/perf");
   mkdirSync(perf, { recursive: true });
   copyFileSync(join(here, "ops.mjs"), join(perf, "ops.mjs"));

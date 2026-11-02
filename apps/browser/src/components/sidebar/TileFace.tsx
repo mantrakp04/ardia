@@ -1,18 +1,18 @@
-import { DockSelection, Surface } from "@ardia/shell";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
-import { useSettings, useTab } from "../../store/hooks";
-import { GlassFill, liquidGlass } from "../glass";
-import { SLIDE } from "../layout/stripReorder";
+import { DockSelection, radius, Surface } from "../ui";
+import { hex, layout, useTheme } from "../ui/theme";
+import { useTileTheme, type TileTheme } from "../../state/favicons/tileTheme";
+import { useTab } from "../../state/browser/hooks";
+import { GlassFill, useGlass } from "../ui/Glass";
+import { SLIDE } from "../tabstrip/tokens";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
+import { sidebarTokens, TILE_GLOW, TILE_RIM, useSidebarTokens } from "./tokens";
 
 const SELECTION_STROKE = 3;
-const GLASS_RIM = 1;
-export const TILE_RADIUS = 10;
+const GLASS_RING = 2;
+export const TILE_RADIUS = radius.chrome;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
@@ -20,7 +20,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
-  const iconRing = useSettings((s) => s.pinnedTabIconRing);
+  const glass = useGlass();
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -29,7 +29,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       <TabBadges tabId={tabId} />
     </View>
   );
-  if (liquidGlass && !(iconRing && active && tileTheme))
+  if (glass)
     return (
       <GlassTile {...state} tileTheme={tileTheme}>
         {icon}
@@ -65,16 +65,16 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       <Surface
         fill={hex(theme.pinnedSelectedRim)}
         cornerRadius={TILE_RADIUS}
-        shadowColor={theme.dark ? "#FFFFFF" : "#000000"}
-        shadowOpacity={theme.dark ? 0.15 : 0.12}
-        shadowRadius={1.5}
-        shadowOffset={[0, 0.5]}
-        style={{ width, height: layout.pinnedHeight, padding: 1 }}
+        shadowColor={sidebarTokens(theme).tileGlow}
+        shadowOpacity={theme.dark ? TILE_GLOW.opacity.dark : TILE_GLOW.opacity.light}
+        shadowRadius={TILE_GLOW.radius}
+        shadowOffset={TILE_GLOW.offset}
+        style={{ width, height: layout.pinnedHeight, padding: TILE_RIM }}
       >
         <View
           style={{
             flex: 1,
-            borderRadius: TILE_RADIUS - 1,
+            borderRadius: TILE_RADIUS - TILE_RIM,
             backgroundColor: theme.pinnedSelectedFill,
             borderTopWidth: 1,
             borderColor: theme.pinnedSelectedOutline,
@@ -98,7 +98,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
 export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  if (liquidGlass)
+  if (useGlass())
     return (
       <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null}>
         {children}
@@ -110,7 +110,7 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
         width,
         height: layout.pinnedHeight,
         borderRadius: TILE_RADIUS,
-        borderWidth: selected ? 1 : 0.5,
+        borderWidth: selected ? 1 : StyleSheet.hairlineWidth,
         borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
         backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
         alignItems: "center",
@@ -125,10 +125,9 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
 function GlassTile({ width, active, selected, hovered, pressed, tileTheme, children }: FaceState & { tileTheme: TileTheme | null; children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  const fill = active ? theme.pinnedSelectedFill : pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
   return (
     <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
-      <GlassFill radius={TILE_RADIUS} fill={fill} raised={active && !pressed} />
+      <GlassFill radius={TILE_RADIUS} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"} />
       {active ? (
         <DockSelection
           image={tileTheme?.image}
@@ -136,9 +135,10 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
           theme={tileTheme?.theme.kind}
           fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
           cornerRadius={TILE_RADIUS}
-          strokeWidth={GLASS_RIM}
+          strokeWidth={GLASS_RING}
           dark={theme.dark}
           glass
+          colorRing
           style={StyleSheet.absoluteFill}
         />
       ) : selected ? (
@@ -171,7 +171,7 @@ export function FolderDropRing({ on }: { on: boolean }) {
         borderRadius: TILE_RADIUS + RING_OUTSET,
         borderWidth: 2,
         borderColor: theme.accent,
-        backgroundColor: theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+        backgroundColor: sidebarTokens(theme).folderDropFill,
         opacity: shown,
         transform: [{ scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
       }}

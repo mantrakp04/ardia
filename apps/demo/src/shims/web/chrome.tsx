@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { View, type ViewProps, type ViewStyle } from "react-native";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { StyleSheet, View, type ViewProps, type ViewStyle } from "react-native";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { edgeGain, fallbackRadius, highlightMask, maskStyle, peakGain, SHADE_OUTSET, shadeMask, shapeMask, type RimCurve, type RimProfile, type ShadeProfile } from "./glassRim";
 
 type Style = ViewStyle & Record<string, unknown>;
@@ -198,14 +198,16 @@ export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", da
   const shade = scrolled ? shadeMask(cornerRadius, g.shade, theme) : null;
   const clip: React.CSSProperties = shape ? {} : { borderRadius: fallbackRadius(cornerRadius), overflow: "hidden" };
   const shaped = shape ? maskStyle(shape) : {};
+  const { opacity, ...rest } = StyleSheet.flatten(style) ?? {};
+  const fade: React.CSSProperties = opacity === undefined ? {} : { opacity: Number(opacity) };
   return (
-    <View pointerEvents="none" {...props} style={style}>
+    <View pointerEvents="none" {...props} style={rest}>
       <div ref={host} style={{ ...layer, ...clip }}>
-        <div style={backdrop(filter, shaped)} />
-        {tint ? <div style={{ ...layer, ...shaped, background: tint }} /> : null}
-        <div style={backdrop(`brightness(${1 + peakGain(g.rim)})`, highlight ? maskStyle(highlight) : { mask: fallbackBands(g.rim), WebkitMask: fallbackBands(g.rim) })} />
+        <div style={{ ...backdrop(filter, shaped), ...fade }} />
+        {tint ? <div style={{ ...layer, ...shaped, background: tint, ...fade }} /> : null}
+        <div style={{ ...backdrop(`brightness(${1 + peakGain(g.rim)})`, highlight ? maskStyle(highlight) : { mask: fallbackBands(g.rim), WebkitMask: fallbackBands(g.rim) }), ...fade }} />
       </div>
-      {shade ? <div style={{ ...layer, inset: -SHADE_OUTSET, background: "#000", ...maskStyle(shade) }} /> : null}
+      {shade ? <div style={{ ...layer, inset: -SHADE_OUTSET, background: "#000", ...maskStyle(shade), ...fade }} /> : null}
     </View>
   );
 }

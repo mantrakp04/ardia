@@ -84,6 +84,11 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
 ## Content card
 
 - Frame: x = sidebar width, top 6, right 7, bottom 7. Radius 10.
+- Ours: 9 pt on every side, in every layout, by the owner's choice (2026-10-27): top, right, bottom and left at the
+  window's edge, between split panes and beside an extension's side panel, and in Little Ardia (below its bar). Docked
+  beside the sidebar the card starts 3 pt past it, so its rows (6 pt in) sit 9 pt from the card. The traffic lights
+  and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
+  `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
 - Fill: `WindowContent/BaseTint`, #121212 at 60% (dark) or white at 80% (light), over the window
   tint. Samples: `#1B1416` at the top, `#1F1C1D` at the bottom. Web content is opaque and sits
   below the toolbar; the toolbar itself is translucent card.
@@ -129,7 +134,7 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
 
 - Owner's capture of our 0.2.32 Site Controls (2x): the header favicon 13.5 pt from the left edge, 17 pt from the top;
   row glyphs 16.5–19.5 pt in, separators 13.5 pt in. Rows were 5 + 8 in, the header 13 in, so nothing shared a line.
-- Now one grid for every panel there (`PANEL` in `apps/browser/src/components/layout/controls.tsx`): content inset
+- Now one grid for every panel there (`PANEL` in `apps/browser/src/components/ui/Controls.tsx`): content inset
   **16** from every edge; corner radius 12; rows 32 tall, hover fill 6 in (radius 6, concentric), contents 10 further in;
   a 20 pt icon slot (13 pt glyphs, the header's 20 pt favicon), 10 to the text, so titles start at 46; separators 16
   in, 5 above and below; the first and last rows' icon slots 16 from the top and bottom (list padding 10); a header's
@@ -177,16 +182,19 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
   Titles fade out at the trailing edge instead of using an ellipsis.
   - Hover: `TabBackgroundHovered` white 16% (dark) or white 55% (light). An `xmark` close button
     appears on the right, with its own ~22pt hover square.
-  - Pressed: white 31% (dark) or 70% (light). Dia has no pressed colour for the selected tab.
-    Ours also eases the pressed row to scale 0.99 and opacity 0.95 (80 ms in, 180 ms out, ease-out cubic; no scale
-    with Reduce Motion), the selected row and split panes included, so a click on the selected tab shows too
-    (`sidebar/PressFeedback.tsx`, issue #232).
+  - Pressed: white 31% (dark) or 70% (light). Dia has no pressed colour for the selected tab, and no row scales or
+    bounces when pressed (2026-10-28 recording); ours matches.
   - Selected (regular): dark fill ≈ black 40% (sample `#1B1618` on `#2A1E23`), white title.
   - Audio: a `speaker.wave.2` glyph after the favicon.
 - "+ New Tab" row: label in `secondaryLabelColor` (white 0.55 dark), the `plus` in `tertiaryLabelColor` (white 0.25
   dark); hover as above. Measured on a 2× capture of 1.50.1 (2026-09-30, dark, hovered): label peak α 0.547, plus 0.24,
   over a 0.16 hover fill. It sits one row gap (3 pt) under the tab above it, background to background.
 - Pinned tile hover: a custom tooltip showing the title and URL.
+- Groups (GitHub issue #154's Dia capture): at rest no box; the header sits on the sidebar like a row (icon at x 15) and
+  the group's tabs 16 pt further in (icon at x 31), their right edge with the other rows'. The box appears while the pointer
+  is over the group: `TabGroupNeutralBackground` (white 0.10 dark / black 0.05 light), edge `TabGroupSidebarStroke`
+  (white / black 0.10), header hover `TabGroupNeutralBackgroundHovered` (white 0.12 dark / 0.40 light). Fade time not
+  recovered; Ardia uses the hover card's 0.1 s curve.
 
 ### Tab hover card motion (Dia's binary, 2026-10-20)
 
@@ -253,9 +261,9 @@ Arc, not Dia: what our Arc layout (Settings › address bar in the sidebar) does
 screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edges traced on rows of the page at 2x.
 
 - Hidden: the page card fills the window; no toolbar row, no traffic lights, no back/forward/address. Arc's card inset is
-  10 pt on every side, docked or hidden (ours keeps Dia's 6/7).
+  10 pt on every side, docked or hidden (ours is 9 on every side, see "Content card").
 - Peek (pointer at the window's left edge): a floating panel over the page, which doesn't move. Inset 5 pt from the
-  window's left, top and bottom edges (ours keeps Dia's 6/6/7), 227.5 pt wide (= the docked sidebar's width), rounded,
+  window's left, top and bottom edges (ours is 5 from the left and 9 from the top and bottom, so its ends line up with the 9 pt card), 227.5 pt wide (= the docked sidebar's width), rounded,
   dark, a 0.5 pt light border; it holds the traffic lights, the sidebar button, back/forward/reload, the URL field and the
   tabs. It slides in from past the window's edge with no fade, on a spring: response 0.185 s, damping 0.77 (three peeks,
   rms 2.1 % of the travel): 93 % in 66 ms, a 1.5 % (3.5 pt) overshoot at ~0.12 s, at rest by ~0.22 s. It leaves the same
@@ -521,7 +529,7 @@ what the macOS 26 SDK gives standard AppKit controls, menus and popovers. Our bu
 
 ### Profile paging (ARCUI PageSwipeController, TabSidebar space switcher; 1.50.1)
 
-Implemented in `apps/browser/src/components/layout/profilePager.ts` (+ `swipeMotion.ts`, `profiles/ProfileDots.tsx`).
+Implemented in `apps/browser/src/components/window/profilePager.ts` (+ `swipeMotion.ts`, `profiles/ProfileDots.tsx`).
 - **Tracking** (trackpad loop `0x10059733c`, a `nextEventMatchingMask:` loop on phased scroll events): each event
   adds `scrollingDeltaX × −0.5` to the position in points (`0x100597ba0`: `fmul d0, d0, d8` with d8 = −0.5), so the
   pages move at half the scroll distance. No check of System Settings › Swipe between pages anywhere in ARCUI's
@@ -793,7 +801,7 @@ right split"; the numbers are from the pixels.
   tab-shaped pill in ~0.05 s (1.758 → 1.808 s) and that strip makes room for it; let go there, the tab joins it.
 - **The pill** (rec1027, 1.483 s): for a frame or two before the card, the tab itself (its strip look, title and ✕)
   follows the pointer; then it becomes the card (1.508 s).
-- **Ardia** (`layout/splitDrop.ts`, `SplitChrome.tsx`; the picture is `DragPreview` in `packages/shell/ios/Windows.swift`):
+- **Ardia** (`layout/splitDrop.ts`, `SplitChrome.tsx`; the picture is `DragPreview` in `packages/shell/ios/DragPreview.swift`):
   the same target stages as fractions of the pane's card, the same lean, 0.11 s slide, a 0.2 s / 0.9 spring for the
   sizes; the dashes are React Native's (3 × the width: 2 pt → 6 / 6, 2.33 pt → 7 / 7). The picture is a borderless,
   non-activating panel that takes no mouse: the tab's own strip look as the pill (30 ms, then 60 ms into the card),
@@ -871,7 +879,7 @@ to these numbers (`chrome/browser/ardia/pip/` (`engine/chromium`)); a same-crop 
   of white **17 %** just inside the edge (content + 32…40 levels) and a faint shadow that follows the rounded corners
   (the backdrop is 3–4 levels darker next to the window, with a 1 px dark contact line). No title, host label or badge.
   Ardia: Chrome's square, transparent window gets its content view clipped to 6 pt, the rim drawn over it and its
-  shadow invalidated (`ArdiaCorePictureInPicture.mm`); measured on a window capture: 6.0 pt radius, rim + 32…36 levels.
+  shadow invalidated (`ArdiaPiPController.mm`); measured on a window capture: 6.0 pt radius, rim + 32…36 levels.
 - **Appears** about 125 ms after the tab switch, at full opacity (one black frame, then the video): no fade, no slide.
 - **Hover**: an even black scrim at **35 %** over the whole video (content × 0.645, same pixels before and after),
   fading in over **200 ms**, ease-in-out (2, 7, 14, 24, 40, 55, 69, 80, 90, 96, 99 % at 60 fps).
@@ -943,7 +951,7 @@ on its window.
   `LastVideoPIPPosition`. A thrown window is remembered by its corner and a dropped one by its frame.
 - **Tilt**: Dia also tilts the window while it's dragged (`dragAngleAnimation`, 0.005 × speed).
 
-**Ardia** (`ArdiaCorePictureInPicture.mm`, the maths in `ArdiaCorePiPThrow.h`, tested by `pnpm -C packages/ardiacore test`)
+**Ardia** (`ArdiaPiPController.mm`, the maths in `ArdiaPiPThrowMath.h`, tested by `pnpm -C packages/ardiacore test`)
 does the same on Chrome's video PiP window, using the same thresholds, corner rule, 10 pt inset and spring. It
 differs in a few places:
 - Chrome's window can't tilt.

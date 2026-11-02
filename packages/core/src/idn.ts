@@ -280,7 +280,12 @@ const TOP_DOMAINS = (
   "epicgames.com roblox.com playstation.com xbox.com nintendo.com ea.com battle.net salesforce.com atlassian.com " +
   "trello.com asana.com canva.com docusign.com okta.com cloudflare.com godaddy.com squarespace.com wix.com " +
   "mozilla.org duckduckgo.com proton.me protonmail.com gmail.com googledrive.com fedex.com ups.com usps.com dhl.com " +
-  "irs.gov gov.uk"
+  "fidelity.com schwab.com vanguard.com robinhood.com etrade.com morganstanley.com goldmansachs.com jpmorgan.com " +
+  "usbank.com pnc.com truist.com tdbank.com citibank.com discover.com ally.com sofi.com chime.com usaa.com " +
+  "navyfederal.org ameriprise.com edwardjones.com merrilledge.com interactivebrokers.com webull.com " +
+  "intuit.com turbotax.com creditkarma.com experian.com equifax.com transunion.com zellepay.com klarna.com " +
+  "affirm.com gemini.com crypto.com bitstamp.net okx.com bybit.com kucoin.com ledger.com trezor.io " +
+  "irs.gov ssa.gov gov.uk"
 ).split(" ");
 
 const CONFUSABLES: Record<string, string> = {

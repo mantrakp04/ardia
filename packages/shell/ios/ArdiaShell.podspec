@@ -9,6 +9,7 @@ Pod::Spec.new do |s|
   s.source         = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
+  s.dependency 'ArdiaCore'
   s.dependency 'Sparkle', '~> 2.9'
   s.frameworks     = 'AppKit', 'LocalAuthentication', 'ServiceManagement', 'UniformTypeIdentifiers', 'UserNotifications', 'CoreImage', 'EventKit', 'Security', 'NaturalLanguage', 'SwiftUI'
   s.weak_frameworks = 'Translation'

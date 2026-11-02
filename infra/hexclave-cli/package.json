@@ -1,0 +1,8 @@
+{
+  "name": "ardia-hexclave-cli",
+  "private": true,
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@hexclave/cli": "1.0.133"
+  }
+}

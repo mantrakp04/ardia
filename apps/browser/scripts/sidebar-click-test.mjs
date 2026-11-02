@@ -38,11 +38,10 @@ const fixture = session({
 
 let app = null;
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
-const win = () => C.chromeWindows().then((ws) => ws.find((w) => w.hasRoot).window);
-const act = (a) => win().then((n) => C.devWindow(n, a));
+const win = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.hasRoot).window);
+const act = (a) => win().then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const shown = () => st().windows.w1.activeTabIds[st().windows.w1.profileId];
 const center = (id) => new Promise((r) => {
   const item = [...globalThis.sidebarDrag.items.values()].find((i) => i.view && i.tabIds.includes(id));
@@ -61,9 +60,9 @@ const clickAsCardMounts = (hoverId, clickId) => Promise.all([center(hoverId), ce
       const before = shown();
       if (u.hover.id !== hoverId) return done({ card: u.hover.id, before, shown: before });
       const set = Date.now();
-      C.devWindow(n, "mouse:down:" + cx + "," + cy).then((hit) => {
+      ac.engine.call("windows.dev", { window: n, action: "mouse:down:" + cx + "," + cy }).then((hit) => {
         const downMs = Date.now() - set;
-        return settle(70).then(() => C.devWindow(n, "mouse:up:" + cx + "," + cy)).then(() => settle(450))
+        return settle(70).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:" + cx + "," + cy })).then(() => settle(450))
           .then(() => done({ card: u.hover.id, before, downMs, fading: downMs < fadeMs, hit, shown: shown() }));
       });
     });

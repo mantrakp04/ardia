@@ -7,8 +7,8 @@ once, drops what's in flight (a launch that saw it off is never sent), and a JS 
 state, while the old bridge going away turns native timing off. Everything sent is a duration, a count or a rough
 range: never a URL, a title, or what was typed.
 
-Code: `apps/browser/src/telemetry/journeys.ts` (journeys, aggregation, events), `packages/ardiacore/ios/ArdiaCoreFieldTiming.mm`
-(native marks), hooks in `Omnibox.tsx`, `main.tsx`, `ArdiaCoreWebView.mm` and `page_script.js` (› Field timing).
+Code: `apps/browser/src/state/telemetry/journeys.ts` (journeys, aggregation, events), `packages/ardiacore/ios/ArdiaFieldTiming.mm`
+(native marks), hooks in `Omnibox.tsx`, `main.tsx`, `ArdiaWebView+Navigation.mm` and `page_script.js` (› Field timing).
 
 ## How a journey is timed
 
@@ -20,7 +20,7 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 - **On screen** means the Core Animation transaction carrying the change has committed (a post-commit handler); the
   display shows it at the next refresh, ≤ 1 frame later. A JS step's frame is marked through the UI manager's queue
   (`ACFieldTiming.markFrame`), so it rides the same batch as the commit's view updates.
-- **Engine steps** come from `ArdiaCoreWebView`: `request` (we asked the engine to load), `start` (Chrome's loading
+- **Engine steps** come from `ArdiaWebView`: `request` (we asked the engine to load), `start` (Chrome's loading
   began), `commit` (`tabDidCommitDocument:`), `fcp` (the page's first-contentful-paint entry, Chrome's presentation
   time) and `shown` (a page that was hidden: two `requestAnimationFrame`s after it became visible, as native-bench's
   tab switch).
@@ -31,7 +31,7 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 
 | Journey | Step | From → to |
 |---|---|---|
-| J1 launch (`perf_launch`, one per launch) | `js_ms` | process start → the bundle's first module runs (`telemetry/jsStart.ts`) |
+| J1 launch (`perf_launch`, one per launch) | `js_ms` | process start → the bundle's first module runs (`state/telemetry/jsStart.ts`) |
 | | `commit_ms` | → the first window's first React commit |
 | | `launch_ms` | → the first window's root effect (**unchanged** since 0.2.x, so old data stays comparable) |
 | | `content_ms` | → that first commit on screen |
@@ -60,23 +60,28 @@ summary). Counts: `j3_cold` (the page was hidden), `j3_warm` (it was still paint
 `perf_journeys` goes hourly and at quit, like `perf_omnibox`; `perf_launch` once its steps are in (≤ 30 s after the first
 window, or at quit), not at the first window as before.
 
-`perf_launch` context, all ranges: `tabs` (0, 1, 2-5, 6-20, 21-50, 51-100, 101-200, 200+ restored), `windows`
+`perf_launch` context: `tabs` (the restored tabs, an exact count since 0.2.42; before, ranges 0, 1, 2-5, 6-20, 21-50,
+51-100, 101-200, 200+, which a numeric query reads as 0), `windows`
 (1…10), `history` (0, <100, <1k, <5k, <20k, 20k+ entries), `cold` (the first launch since the Mac started, by
 `kern.boottime` against this copy's last launch; null until a second launch with sharing on), `first_of_version` (the
 first launch after the app's version or build changed, or the first this copy recorded: macOS's Gatekeeper scans the new
-bundle before `main`, so these launches are slower; a copy from before this field compares versions only), `since_quit` (<1m, <10m,
+bundle before `main`, so these launches are slower; a copy from before this field compares versions only),
+`update_prewarm` (on a first launch of a version: `done` when the previous copy ran this build hidden before installing it,
+`failed` when that run was stopped, didn't finish, failed to start, or was refused because the staged copy isn't signed like the running app, `none` when nothing ran; null otherwise) and `update_prewarm_ago` (how long
+before this launch that run ended, in `since_quit`'s ranges), `since_quit` (<1m, <10m,
 <1h, <8h, <1d, <7d, 7d+, `unclean` when the last session didn't end, `unknown`), `since_boot` (<2m, <10m, <1h, <1d, 1d+).
 
 ### A session's payload
 
 A Debug build with Metro (so slower than a release), in a hidden instance, with every journey driven by posted key
-events (`expo.modules.ArdiaApp.devPostKey`): ⌘1–4 between four restored tabs, ⌘T and an address typed into the
+events (`expo.modules.ArdiaDev.devPostKey`): ⌘1–4 between four restored tabs, ⌘T and an address typed into the
 new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties are left out.
 
 ```json
 { "event": "perf_launch", "launch_ms": 1638, "js_ms": 1227, "commit_ms": 1589, "content_ms": 1683, "usable_ms": 1683,
   "tab_request_ms": 1759, "tab_commit_ms": 1846, "tab_paint_ms": 1916,
-  "tabs": "2-5", "windows": 1, "history": "<100", "cold": true, "first_of_version": false, "since_quit": "<1h", "since_boot": "<1h" }
+  "tabs": 3, "windows": 1, "history": "<100", "cold": true, "first_of_version": false, "update_prewarm": null, "update_prewarm_ago": null,
+  "since_quit": "<1h", "since_boot": "<1h" }
 { "event": "perf_journeys",
   "j2_js_p50": 4, "j2_commit_p50": 44, "j2_shown_p50": 67, "j2_typeable_p50": 84, "j2_suggest_p50": 62, "j2_typeable_n": 2,
   "j3_js_p50": 4, "j3_frame_p50": 47, "j3_view_p50": 40, "j3_page_p50": 52, "j3_total_p50": 58, "j3_total_p75": 134,

@@ -1,36 +1,30 @@
-import { Surface } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
-import { hex, useTheme } from "../../../lib/theme";
-import { useWindowId } from "../../../store/hooks";
-import type { Rect } from "../../layout/geometry";
-import { useHover } from "../../primitives";
-import { useOnboardingColors } from "../ui";
+import { Animated, StyleSheet, View } from "react-native";
+import { useWindowId } from "../../../state/browser/hooks";
+import type { Rect } from "../../window/geometry";
+import { Button, Panel, Surface, Text, usePresence } from "../../ui";
+import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
-import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "./state";
+import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
+import { curve, springs } from "../../ui/motion";
+import { proseLineHeight, radius, shadow, space } from "../../ui/tokens";
+import { onboardingMotion, onboardingType, tourRing } from "../tokens";
 
 const CARD_WIDTH = 296;
 const GAP = 14;
-const MARGIN = 12;
+const MARGIN = space.l;
 const SCRIM_REACH = 6000;
+
+const TOUR_PRESENCE = {
+  show: { duration: onboardingMotion.tourIn, easing: curve.enter },
+  hide: { duration: onboardingMotion.tourOut, easing: curve.exit },
+};
 
 export function ToolTour() {
   const windowId = useWindowId();
   const active = useTour((s) => s.windowId === windowId && s.stops.length > 0);
   const session = useTour((s) => s.session);
-  const [shown, setShown] = useState<number | null>(null);
-  const presence = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (active) {
-      setShown(session);
-      Animated.timing(presence, { toValue: 1, duration: 240, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-    } else if (shown !== null) {
-      Animated.timing(presence, { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setShown(null);
-      });
-    }
-  }, [active, session]);
+  const { shown, appear: presence } = usePresence(active ? session : null, TOUR_PRESENCE);
 
   if (shown === null) return null;
   return (
@@ -43,7 +37,7 @@ export function ToolTour() {
 type Hole = Rect & { radius: number };
 
 function Tour({ windowId }: { windowId: string }) {
-  const theme = useTheme();
+  const colors = useOnboardingColors();
   const stops = useTour((s) => s.stops);
   const index = useTour((s) => s.index);
   const stop = stops[Math.min(index, stops.length - 1)];
@@ -83,7 +77,7 @@ function Tour({ windowId }: { windowId: string }) {
       card.y.setValue(cardTo.y);
       return;
     }
-    const spring = (v: Animated.Value, toValue: number) => Animated.spring(v, { toValue, friction: 10, tension: 70, useNativeDriver: false });
+    const spring = (v: Animated.Value, toValue: number) => Animated.spring(v, { toValue, ...springs.smooth, useNativeDriver: false });
     Animated.parallel([
       ...(Object.keys(to) as (keyof typeof to)[]).map((k) => spring(hole[k], to[k])),
       spring(card.x, cardTo.x),
@@ -92,7 +86,7 @@ function Tour({ windowId }: { windowId: string }) {
   }, [spot.x, spot.y, spot.width, spot.height, spot.radius, cardAt.x, cardAt.y, size.width, !!stop]);
 
   if (!stop) return null;
-  const scrim = theme.dark ? "#00000080" : "#0000004D";
+  const scrim = colors.tourScrim;
   const holeRight = Animated.add(hole.x, hole.w);
   const holeBottom = Animated.add(hole.y, hole.h);
 
@@ -136,8 +130,8 @@ function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Anima
     const id = hole.r.addListener(({ value }) => setR(Math.max(0, value)));
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: onboardingMotion.tourPulse, easing: curve.pulse, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: onboardingMotion.tourPulse, easing: curve.pulse, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -159,79 +153,32 @@ function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Anima
       }}
     >
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }]}>
-        <Surface style={StyleSheet.absoluteFill} cornerRadius={r + out} borderWidth={1.5} borderColor="#FFFFFFB3" />
+        <Surface style={StyleSheet.absoluteFill} cornerRadius={r + out} borderWidth={1.5} borderColor={tourRing} />
       </Animated.View>
     </Animated.View>
   );
 }
 
 function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: number; count: number; windowId: string }) {
-  const theme = useTheme();
   const last = index === count - 1;
   const video = last ? videoTourUrl() : null;
   return (
-    <Surface
-      fill={hex(theme.panel)}
-      cornerRadius={14}
-      borderColor={hex(theme.panelBorder)}
-      borderWidth={0.5}
-      shadowColor="#000000"
-      shadowOpacity={theme.panelShadowOpacity}
-      shadowRadius={24}
-      shadowOffset={[0, 10]}
-    >
-      <View style={{ paddingHorizontal: 18, paddingTop: 15, paddingBottom: 14, gap: 7 }} accessibilityRole="none">
-        <Text style={{ fontSize: 10.5, fontWeight: "600", letterSpacing: 0.4, color: theme.textTertiary }}>
-          {`${index + 1} OF ${count}`}
+    <Panel radius={radius.sheet} shadow={shadow.dialog}>
+      <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.xl, gap: space.m }} accessibilityRole="none">
+        <Text tone="textTertiary" style={onboardingType.coachCount}>{`${index + 1} OF ${count}`}</Text>
+        <Text style={onboardingType.coachTitle}>{stop.title}</Text>
+        <Text size="small" tone="textSecondary" style={{ lineHeight: proseLineHeight.small }}>
+          {stop.body}
         </Text>
-        <Text style={{ fontSize: 15, fontWeight: "600", letterSpacing: -0.1, color: theme.textPrimary }}>{stop.title}</Text>
-        <Text style={{ fontSize: 12.5, lineHeight: 18, color: theme.textSecondary }}>{stop.body}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 7, gap: 6 }}>
-          {last ? null : <TextButton title="Skip Tour" onPress={endToolTour} />}
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: space.m, gap: space.s }}>
+          {last ? null : <Button variant="text" look="link" tone="textTertiary" label="Skip Tour" title="Skip Tour" onPress={endToolTour} />}
           <View style={{ flex: 1 }} />
-          {video ? <PillButton title="Watch Video Tour" onPress={() => (endToolTour(), openVideoTour(windowId))} /> : null}
-          {index > 0 && !last ? <PillButton title="Back" onPress={() => stepToolTour(-1)} /> : null}
-          <PillButton title={last ? "Done" : "Next"} primary onPress={() => stepToolTour(1)} />
+          {video ? <Button variant="pill" title="Watch Video Tour" onPress={() => (endToolTour(), openVideoTour(windowId))} /> : null}
+          {index > 0 && !last ? <Button variant="pill" title="Back" onPress={() => stepToolTour(-1)} /> : null}
+          <Button variant="pill" title={last ? "Done" : "Next"} primary onPress={() => stepToolTour(1)} />
         </View>
       </View>
-    </Surface>
-  );
-}
-
-function PillButton({ title, onPress, primary }: { title: string; onPress: () => void; primary?: boolean }) {
-  const colors = useOnboardingColors();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
-        {({ pressed }) => (
-          <View
-            style={{
-              height: 28,
-              borderRadius: 14,
-              paddingHorizontal: 13,
-              justifyContent: "center",
-              backgroundColor: primary ? (hovered ? colors.primaryHover : colors.primary) : hovered ? colors.buttonHover : colors.button,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "600", color: primary ? colors.primaryText : colors.buttonText }}>{title}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
-
-function TextButton({ title, onPress }: { title: string; onPress: () => void }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
-        <Text style={{ fontSize: 12, fontWeight: "500", color: hovered ? theme.textPrimary : theme.textTertiary, paddingVertical: 6 }}>{title}</Text>
-      </Pressable>
-    </View>
+    </Panel>
   );
 }
 
@@ -241,7 +188,7 @@ const sameRect = (a: Rect | null, b: Rect | null) =>
 function spotlight(stop: TourStop | undefined, target: Rect | null, size: { width: number; height: number }): Hole {
   if (!stop?.anchor || !target) return { x: size.width / 2, y: size.height / 2, width: 0, height: 0, radius: 0 };
   const pad = stop.pad ?? 4;
-  return { x: target.x - pad, y: target.y - pad, width: target.width + pad * 2, height: target.height + pad * 2, radius: (stop.radius ?? 8) + Math.max(0, pad) };
+  return { x: target.x - pad, y: target.y - pad, width: target.width + pad * 2, height: target.height + pad * 2, radius: (stop.radius ?? radius.tile) + Math.max(0, pad) };
 }
 
 function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number; height: number }, height: number) {

@@ -1,0 +1,289 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+globalThis.__DEV__ = false;
+const dm = { ...(await import("./dockMotion.ts")), ...(await import("./tokens.ts")), ...(await import("../../state/windows/dockMotion.ts")) };
+const motion = await import("../ui/motion.ts");
+const { toolbarGeometry } = await import("./geometry.ts");
+const { useBrowser } = await import("../../state/browser/store.ts");
+const { flushPersistence, loadSession, startPersistence } = await import("../../state/session/persist.ts");
+const stub = await import("../../test-native/index.ts");
+
+const S = () => useBrowser.getState();
+
+const DIA = [
+  [0.0337, 0.303], [0.0629, 0.616], [0.0837, 0.805], [0.1212, 0.968], [0.1379, 1.011], [0.1629, 1.011], [0.1837, 1.003],
+  [0.0263, 0.246], [0.0596, 0.524], [0.0805, 0.8], [0.1055, 0.951], [0.1305, 1.008], [0.1555, 1.011], [0.1805, 1.003],
+  [0.0324, 0.316], [0.0657, 0.586], [0.0949, 0.846], [0.1032, 0.973], [0.1365, 1.011], [0.1532, 1.011], [0.1782, 1.005],
+];
+
+test("the spring follows Dia's measured motion (rms under 4 % of the travel, the recorder's own timing jitter)", () => {
+  const rms = Math.sqrt(DIA.reduce((sum, [t, x]) => sum + (dm.springAt(t) - x) ** 2, 0) / DIA.length);
+  assert.ok(rms < 0.04, `rms ${rms.toFixed(3)}`);
+  assert.ok(dm.springAt(0.1) > 0.88);
+  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => dm.springAt(i / 120)));
+  assert.ok(peak > 1.005 && peak < 1.03, `peak ${peak}`);
+  assert.ok(Math.abs(dm.springAt(0.3) - 1) < 0.003);
+});
+
+test("React Native's spring parameters are the same spring", () => {
+  const { stiffness, damping, mass } = motion.spring(dm.DOCK_SPRING);
+  assert.equal(mass, 1);
+  const omega = Math.sqrt(stiffness);
+  assert.ok(Math.abs(omega - (2 * Math.PI) / 0.215) < 1e-9);
+  assert.ok(Math.abs(damping / (2 * omega) - 0.79) < 1e-9);
+});
+
+test("the traffic lights go with the sidebar: at their place when it's shown, past the window's edge when it's hidden", () => {
+  assert.deepEqual(dm.lightsCenter(0), [25, 30], "shown: on the toolbar's row, 9 pt card top + 21");
+  assert.deepEqual(dm.lightsCenter(0.2), [25, 30], "a rounding hair from shown: still their place");
+  assert.deepEqual(dm.lightsCenter(95), [25 - 95, 30], "half way out");
+  const [px, py] = dm.PEEK_ORIGIN;
+  assert.deepEqual(dm.lightsCenter(-px, py), [25 + px, 30 + py], "in the peek panel: as far in as the panel");
+  for (const width of [160, 190, 400]) {
+    const [x] = dm.lightsCenter(width);
+    assert.ok(x + 46 + 7 < 0, `width ${width}: all three past the left edge`);
+  }
+});
+
+test("the peek panel's ends line up with the card's and its corners cover the card's, so no sliver of the page shows round its own", async () => {
+  const { layout } = await import("../ui/theme.ts");
+  const [px, py] = dm.PEEK_ORIGIN;
+  const height = 860;
+  const panel = { left: px, top: py, bottom: height - dm.PEEK_BOTTOM, r: dm.PEEK_RADIUS };
+  const card = { left: layout.cardInset, top: layout.cardInset, bottom: height - layout.cardInset, r: layout.cardRadius };
+  assert.equal(panel.top, card.top, "the panel's top lines up with the card's");
+  assert.equal(panel.bottom, card.bottom, "the panel's bottom lines up with the card's");
+  assert.ok(panel.left <= card.left, "the panel's left edge reaches past the card's");
+  const insidePanel = (x, y) => {
+    const cx = Math.max(panel.left + panel.r, x);
+    const cy = Math.min(Math.max(panel.top + panel.r, y), panel.bottom - panel.r);
+    return x >= panel.left && y >= panel.top && y <= panel.bottom && Math.hypot(x - cx, y - cy) <= panel.r + 1e-9;
+  };
+  for (const [cy, sy] of [[card.top + card.r, -1], [card.bottom - card.r, 1]]) {
+    for (let a = 0; a <= 90; a += 1) {
+      const t = (a * Math.PI) / 180;
+      const x = card.left + card.r - card.r * Math.cos(t);
+      const y = cy + sy * card.r * Math.sin(t);
+      assert.ok(insidePanel(x, y), `the card's corner arc at ${a}° (${x.toFixed(2)}, ${y.toFixed(2)}) stays inside the panel`);
+    }
+  }
+});
+
+test("with the address field in the sidebar the lights sit on Arc's header row, docked, sliding and in the peek", () => {
+  const arc = dm.ARC_LIGHTS_CENTER;
+  assert.deepEqual(arc, [dm.LIGHTS_CENTER[0], 24]);
+  assert.deepEqual(dm.lightsCenter(0, 0, arc), [25, 24], "docked: placed, not left at AppKit's default");
+  assert.deepEqual(dm.lightsCenter(95, 0, arc), [25 - 95, 24], "half way out on the same row");
+  const [px, py] = dm.PEEK_ORIGIN;
+  assert.deepEqual(dm.lightsCenter(-px, py, arc), [25 + px, 24 + py], "in the peek panel");
+});
+
+test("the card's left edge runs from the window inset to 9 pt past the sidebar's rows, the same air as on every other side", async () => {
+  const { layout } = await import("../ui/theme.ts");
+  assert.equal(layout.cardInset, 9);
+  assert.equal(dm.dockedCardLeft(190) - (190 - layout.sidebarInset), layout.cardInset);
+  assert.equal(dm.cardLeft(1, 190, 9), 193);
+  assert.equal(dm.cardLeft(0, 190, 9), 9);
+  assert.equal(dm.cardLeft(0.5, 190, 9), 101);
+});
+
+test("the motion flag is per window, and ending it twice is harmless", () => {
+  dm.setDockMoving("a", true);
+  assert.equal(dm.dockMoving("a"), true);
+  assert.equal(dm.dockMoving("b"), false);
+  const before = dm.useDockMotion.getState();
+  dm.setDockMoving("a", true);
+  assert.equal(dm.useDockMotion.getState(), before, "no store update for no change");
+  dm.setDockMoving("a", false);
+  dm.setDockMoving("a", false);
+  assert.equal(dm.dockMoving("a"), false);
+  assert.deepEqual(dm.useDockMotion.getState().moving, {});
+});
+
+test("the toolbar's buttons don't move with the sidebar: the hidden sidebar's toolbar starts at the card's edge, as Dia's", () => {
+  const g = toolbarGeometry({ sidebarButton: true });
+  assert.deepEqual([g.sidebarButton, g.back, g.forward, g.reload], [21, 56, 92, 127]);
+});
+
+test("the sidebar's own button (address bar in the sidebar) always fits; back, forward and reload as there's room, never overlapping", () => {
+  assert.deepEqual(dm.navButtonsFitting(160).buttons, ["back"]);
+  const narrow = dm.navButtonsFitting(190);
+  assert.deepEqual(narrow.buttons, ["back", "forward"], "the default width keeps the back and forward pair, as Arc and Dia show it; reload gives way first");
+  assert.equal(narrow.step, 35, "Dia's pitch");
+  assert.deepEqual(dm.navButtonsFitting(209.5).buttons, ["back", "forward"]);
+  const tightest = dm.navButtonsFitting(210);
+  assert.deepEqual(tightest.buttons, ["back", "forward", "reload"], "reload is back from 210 pt, the buttons 30 pt apart");
+  assert.ok(tightest.step >= 30 && tightest.step < 30.5);
+  const closing = dm.navButtonsFitting(220);
+  assert.deepEqual(closing.buttons, ["back", "forward", "reload"]);
+  assert.ok(closing.step >= 30 && closing.step < 35, "closed up, plates apart");
+  assert.deepEqual(dm.navButtonsFitting(224.75), { buttons: ["back", "forward", "reload"], step: 35 });
+  assert.deepEqual(dm.navButtonsFitting(400), { buttons: ["back", "forward", "reload"], step: 35 });
+  assert.equal(dm.navButtonsFitting(100).buttons.length, 0);
+  for (let w = 150; w <= 400; w += 0.5) {
+    const { buttons, step } = dm.navButtonsFitting(w);
+    const last = w - dm.HEADER_TOOLS.edge - 15;
+    const centres = [dm.HEADER_TOOLS.toggleX, ...buttons.map((_, i) => last - (buttons.length - 1 - i) * step)];
+    for (let i = 1; i < centres.length; i++) assert.ok(centres[i] - centres[i - 1] >= 30 - 1e-9, `${w}: ${centres}`);
+  }
+});
+
+test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open with it shown", () => {
+  stub.docs.clear();
+  S().hydrate({});
+  const stop = startPersistence();
+  const a = S().createWindow({ url: "a.com" });
+  const b = S().createWindow({ url: "b.com" });
+  S().toggleSidebar(a);
+  assert.equal(S().windows[a].sidebarOpen, false);
+  assert.equal(S().windows[b].sidebarOpen, true, "the other window keeps its sidebar");
+  flushPersistence();
+  S().hydrate(loadSession());
+  assert.equal(S().windows[a].sidebarOpen, false, "relaunch: still hidden");
+  assert.equal(S().windows[b].sidebarOpen, true, "relaunch: still shown");
+
+  S().toggleSidebar(a);
+  flushPersistence();
+  S().hydrate(loadSession());
+  assert.equal(S().windows[a].sidebarOpen, true);
+
+  S().toggleSidebar(a);
+  S().closeWindow(a);
+  flushPersistence();
+  S().hydrate(loadSession());
+  assert.equal(S().windows[a], undefined, "closed: gone after a relaunch");
+  S().reopenClosedWindow();
+  const reopened = S().windowOrder.find((id) => id !== b);
+  assert.ok(reopened, "the closed window came back");
+  assert.equal(S().windows[reopened].sidebarOpen, false, "reopened as it was closed");
+  const c = S().createWindow({ url: "c.com" });
+  assert.equal(S().windows[c].sidebarOpen, true);
+  stop();
+});
+
+const springAt = (t, s) => dm.springAt(t, s);
+const fitT0 = (points, curve) => {
+  let best = Infinity;
+  for (let t0 = -0.04; t0 <= 0.04; t0 += 0.001) {
+    const err = points.reduce((sum, [t, x]) => sum + (curve(t - t0) - x) ** 2, 0);
+    best = Math.min(best, err);
+  }
+  return Math.sqrt(best / points.length);
+};
+const ARC_PEEK_IN = [
+  [[0, 0.219], [0.025, 0.473], [0.041, 0.686], [0.066, 0.931], [0.083, 0.983], [0.1, 1.006], [0.116, 1.015], [0.133, 1.015], [0.15, 1.013], [0.166, 1.009], [0.183, 1.004], [0.2, 1.002], [0.216, 1]],
+  [[0, 0.09], [0.034, 0.462], [0.042, 0.677], [0.059, 0.832], [0.092, 0.959], [0.109, 0.998], [0.117, 1.013], [0.134, 1.015], [0.15, 1.013], [0.184, 1.006], [0.2, 1.004], [0.217, 1.002], [0.234, 1]],
+  [[0, 0.254], [0.017, 0.503], [0.033, 0.71], [0.05, 0.903], [0.067, 0.968], [0.083, 1], [0.1, 1.013], [0.117, 1.015], [0.133, 1.013], [0.158, 1.009], [0.175, 1.004], [0.2, 1.002], [0.217, 1]],
+];
+const ARC_HIDE = [
+  [[0, 0], [0.017, 0.452], [0.042, 0.83], [0.059, 0.945], [0.075, 1]],
+  [[0, 0], [0.017, 0.328], [0.034, 0.654], [0.05, 0.853], [0.075, 0.956], [0.092, 1]],
+];
+
+test("Arc's peek slides in on its measured spring and leaves on its ease-in-out; its hide is a 100 ms ease-out", () => {
+  for (const motion of ARC_PEEK_IN) {
+    const rms = fitT0(motion, (t) => springAt(t, dm.ARC_PEEK_SPRING));
+    assert.ok(rms < 0.04, `peek in rms ${rms.toFixed(3)}`);
+  }
+  const hide = (t) => (t <= 0 ? 0 : t >= dm.ARC_HIDE_MS / 1000 ? 1 : dm.easeOutCubic(t / (dm.ARC_HIDE_MS / 1000)));
+  for (const motion of ARC_HIDE) {
+    const rms = fitT0(motion, hide);
+    assert.ok(rms < 0.05, `hide rms ${rms.toFixed(3)}`);
+  }
+  const dia = Math.max(...ARC_HIDE.map((m) => fitT0(m, (t) => dm.springAt(t))));
+  assert.ok(dia > 0.06, `Dia's spring against Arc's hide: rms ${dia.toFixed(3)}`);
+  assert.equal(dm.easeInOutCubic(0), 0);
+  assert.equal(dm.easeInOutCubic(0.5), 0.5);
+  assert.equal(dm.easeInOutCubic(1), 1);
+  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => springAt(i / 120, dm.ARC_PEEK_SPRING)));
+  assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
+});
+
+test("a peek that's out is remembered per window (Arc docks from it at once)", () => {
+  assert.equal(dm.peekShown("w1"), false);
+  dm.setPeekShown("w1", true);
+  assert.equal(dm.peekShown("w1"), true);
+  assert.equal(dm.peekShown("w2"), false);
+  dm.setPeekShown("w1", false);
+  assert.equal(dm.peekShown("w1"), false);
+});
+
+test("the peek panel covers the page up to its right edge, only while it's out", () => {
+  assert.equal(dm.overPeek("w1", 0), false);
+  dm.setPeekShown("w1", true, 5 + 240);
+  assert.equal(dm.overPeek("w1", 120), true);
+  assert.equal(dm.overPeek("w1", 244.5), true);
+  assert.equal(dm.overPeek("w1", 245), false);
+  assert.equal(dm.overPeek("w2", 120), false);
+  dm.setPeekShown("w1", false);
+  assert.equal(dm.overPeek("w1", 120), false);
+});
+
+test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the card); Dia's layout and the switch off don't", async () => {
+  const { addressBarInSidebar } = await import("../../state/windows/layout.ts");
+  const { reloadSwitches } = await import("../../platform/killSwitches.ts");
+  stub.docs.clear();
+  reloadSwitches();
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  S().updateSettings({ addressBar: "sidebar", tabLayout: "sidebar" });
+  assert.equal(addressBarInSidebar(S(), w), true, "shown");
+  S().toggleSidebar(w);
+  assert.equal(addressBarInSidebar(S(), w), true, "hidden: still in the sidebar (Arc)");
+  S().updateSettings({ addressBar: "toolbar" });
+  assert.equal(addressBarInSidebar(S(), w), false, "Dia's layout: the toolbar's");
+  S().updateSettings({ addressBar: "sidebar" });
+  stub.docs.set("switches-cache.json", JSON.stringify({ version: 1, switches: { sidebarSlide: false } }));
+  reloadSwitches();
+  assert.equal(addressBarInSidebar(S(), w), false, "switch off: a hidden sidebar's bar moves to the card, as before");
+  S().toggleSidebar(w);
+  assert.equal(addressBarInSidebar(S(), w), true, "switch off, shown: in the sidebar");
+  stub.docs.clear();
+  reloadSwitches();
+});
+
+test("the dock is fullscreen, docked, peeking, hiding or away, and only a still, undocked sidebar watches the left edge", () => {
+  const st = (o) => dm.dockState({ open: false, fullscreen: false, moving: false, peekLive: false, ...o });
+  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "fullscreen");
+  assert.equal(st({ open: true, moving: true }), "docked");
+  assert.equal(st({ peekLive: true }), "peeking");
+  assert.equal(st({ peekLive: true, moving: true }), "peeking");
+  assert.equal(st({ moving: true }), "hiding");
+  assert.equal(st({}), "away");
+  assert.deepEqual(["fullscreen", "docked", "peeking", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "away", "away"]);
+  assert.equal(dm.watchesLeftEdge("away", false), true);
+  assert.equal(dm.watchesLeftEdge("peeking", false), true);
+  assert.equal(dm.watchesLeftEdge("peeking", true), false);
+  assert.equal(dm.watchesLeftEdge("hiding", true), false);
+  assert.equal(dm.watchesLeftEdge("docked", false), false);
+  assert.equal(dm.watchesLeftEdge("fullscreen", false), false);
+});
+
+test("the peek stays out within 24 pt of its right edge, the window's full height", () => {
+  const hold = dm.peekHoldWidth(240);
+  assert.equal(hold, 5 + 240 + 24);
+  assert.equal(dm.inPeekHold(hold - 1, 10, hold, 700), true);
+  assert.equal(dm.inPeekHold(hold, 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(10, 699, hold, 700), true);
+  assert.equal(dm.inPeekHold(10, 700, hold, 700), false);
+  assert.equal(dm.inPeekHold(-1, 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(10, 10, hold, Infinity), true, "before the hold zone has laid out");
+});
+
+test("the native left-edge watch spans the hold while peeking, the edge strip during a tab drag, nothing otherwise", () => {
+  assert.equal(dm.leftEdgeWatchWidth(true, true, 269), 269);
+  assert.equal(dm.leftEdgeWatchWidth(false, true, 269), 8);
+  assert.equal(dm.leftEdgeWatchWidth(false, false, 269), 0);
+});
+
+test("the dock jumps when it can't animate or Arc docks from an open peek, Arc hides on its ease-out, and otherwise springs", () => {
+  const mv = (o) => dm.dockMove({ open: true, animated: true, arc: false, peekOut: false, ...o });
+  assert.equal(mv({ animated: false }), "jump");
+  assert.equal(mv({ animated: false, open: false, arc: true }), "jump");
+  assert.equal(mv({ arc: true, peekOut: true }), "jump");
+  assert.equal(mv({ arc: true }), "spring");
+  assert.equal(mv({ arc: true, open: false, peekOut: true }), "arcHide");
+  assert.equal(mv({ open: false }), "spring");
+  assert.equal(mv({ peekOut: true }), "spring");
+});

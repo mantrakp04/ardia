@@ -3,15 +3,16 @@ import { createRoot } from "react-dom/client";
 import { unstable_batchedUpdates } from "react-native";
 import { emitCommand } from "@ardia/shell";
 import { WindowRoot } from "../../browser/src/App";
-import { startNativeSync } from "../../browser/src/lib/native";
-import { startTabPages } from "../../browser/src/lib/tabPages";
-import { setStoreBatching, useBrowser } from "../../browser/src/store/browser";
-import { Controls } from "./Controls";
+import { startNativeSync } from "../../browser/src/state/app/nativeSync";
+import { startTabPages } from "../../browser/src/state/tabs/tabPages";
+import { setStoreBatching, useBrowser } from "../../browser/src/state/browser/store";
+import { Customize } from "./Customize";
+import { demoSettings } from "./customizeFlow";
 import { startEmbed } from "./embed";
 import { isFrameable } from "./frameable";
 import { pageTitle } from "./pages";
 import { installLocalSuggestions } from "./localSuggest";
-import { demoSession } from "./seed";
+import { demoHistory, demoSession } from "./seed";
 import { warmFrame } from "./shims/web/framePool";
 import { MenuHost } from "./shims/web/menus";
 import "./shims/web/motion/shortcuts";
@@ -19,7 +20,8 @@ import { TrafficLights } from "./shims/web/windowChrome";
 
 installLocalSuggestions();
 setStoreBatching(unstable_batchedUpdates);
-useBrowser.getState().hydrate(demoSession());
+useBrowser.getState().hydrate({ ...demoSession(), settings: demoSettings() });
+useBrowser.setState((s) => ({ history: demoHistory(s) }));
 startTabPages();
 startNativeSync();
 
@@ -39,7 +41,7 @@ function warmOtherProfiles() {
 }
 
 const idle = (run: () => void) => ("requestIdleCallback" in window ? requestIdleCallback(run, { timeout: 1500 }) : setTimeout(run, 300));
-idle(warmOtherProfiles);
+if (!embed || params.has("warm")) idle(warmOtherProfiles);
 
 function DemoWindow() {
   return (
@@ -48,7 +50,7 @@ function DemoWindow() {
         <WindowRoot />
         <TrafficLights />
       </div>
-      {bare ? null : <Controls />}
+      {bare ? null : <Customize />}
       <MenuHost />
     </div>
   );

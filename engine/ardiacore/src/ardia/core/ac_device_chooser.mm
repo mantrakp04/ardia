@@ -8,13 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/bluetooth/chrome_bluetooth_chooser_controller.h"
 #include "components/permissions/bluetooth_chooser_controller.h"
 #include "components/permissions/chooser_controller.h"
@@ -23,6 +21,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_external_apps.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
@@ -224,8 +223,6 @@ DeviceChooser* Adopt(std::unique_ptr<permissions::ChooserController> controller,
   return raw;
 }
 
-constexpr char kTestBluetoothChooserSwitch[] = "ardia-test-bluetooth-chooser";
-
 NSMutableArray<NSDictionary*>* TestEvents() {
   static NSMutableArray<NSDictionary*>* events = [NSMutableArray array];
   return events;
@@ -277,11 +274,8 @@ bool HandleDeviceChooser(content::WebContents* contents,
                          std::unique_ptr<permissions::ChooserController>* controller,
                          base::ScopedClosureRunner* fullscreen_blocker,
                          base::OnceClosure* close_closure) {
-  BrowserWindowInterface* browser =
-      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents)
-               : nullptr;
-  if (!browser || !WindowHost::ForBrowser(browser) || !controller || !*controller ||
-      !fullscreen_blocker || !close_closure || !HostWantsDeviceChoosers()) {
+  if (!WindowHost::ForContents(contents) || !controller || !*controller ||
+      !fullscreen_blocker || !close_closure) {
     return false;
   }
   DeviceChooser* raw =
@@ -298,8 +292,7 @@ bool HandleDeviceChooser(content::WebContents* contents,
 
 bool ShowTestBluetoothChooser(content::WebContents* contents, bool unauthorized) {
   if (!contents || !contents->GetPrimaryMainFrame() ||
-      !base::CommandLine::ForCurrentProcess()->HasSwitch(kTestBluetoothChooserSwitch) ||
-      !HostWantsDeviceChoosers()) {
+      !TestFlag("bluetoothChooser")) {
     return false;
   }
   auto chooser_id = std::make_shared<int>(0);

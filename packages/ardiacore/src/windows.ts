@@ -1,0 +1,20 @@
+export type ChromeWindowState = {
+  profile: string;
+  window: number;
+  frame: string;
+  alpha: number;
+  key: boolean;
+  canBecomeKey: boolean;
+  visible: boolean;
+  parentWindow: number;
+  chromeWindows: number;
+  anchorBrowserId: number;
+  anyTabBrowserId: number;
+  ready: boolean;
+  active: boolean;
+  pageInsets: [number, number, number, number];
+  hosting: boolean;
+  group: string;
+  hasRoot: boolean;
+  translucent: boolean;
+};

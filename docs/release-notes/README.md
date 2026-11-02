@@ -29,10 +29,15 @@ headline: Chrome makes no further unscheduled appearances.
   still zooms.
 ```
 
-Frontmatter, both required:
+Frontmatter, one `key: value` per line (`scripts/lib/release-note.mjs` reads it for `release.sh` and refuses anything
+else; quote a headline that holds `: `):
 
 - `date`: the day the release is published, `YYYY-MM-DD`.
 - `headline`: one line, the deadpan part (below).
+- `video` (optional): the release's before-and-after film, by the name of its files in
+  `apps/site/public/release-videos/` (`fixes-0243n1` for `fixes-0243n1.mp4` and `fixes-0243n1.jpg`). The site plays
+  it above the notes under Watch, and the GitHub release body links it. Every release gets one (the release skill's
+  step 6b); nightlies that share a film name the same one.
 
 Body:
 
@@ -53,14 +58,13 @@ Body:
   moved in the release's perf gate (columns old version, new version, change; plain-language row names), then one
   sentence on what moved most. The site renders it as a table that scrolls inside its own box on a phone; GitHub and
   Sparkle render it as Markdown.
-- Nothing else: no images, no other tables, no nested lists, no links unless the item is about a page. The site
+- Nothing else: no images (the film goes in `video`), no other tables, no nested lists, no links unless the item is about a page. The site
   numbers the items and puts the section names in the margin.
 
 ## Nightlies
 
-A nightly's file is `docs/release-notes/<next stable>-nightly.<n>.md` (`0.2.37-nightly.1.md`) and carries a third
-frontmatter key, `channel: nightly`; `release.sh --channel nightly` refuses notes without it, and a stable release
-refuses notes with it. Keep it short: the headline and the one to three bullets for what the nightly fixed, in
+A nightly's file is `docs/release-notes/<next stable>-nightly.<n>.md` (`0.2.37-nightly.1.md`); the version says it's a
+nightly, so the frontmatter is the same as a stable's. Keep it short: the headline and the one to three bullets for what the nightly fixed, in
 `## Fixed` or `## New`, written exactly like a stable item. No `## Faster` (nightlies aren't perf-gated). The site
 lists nightlies only in its "Nightlies too" view, tagged Nightly; `#<version>` links open that view. When the next
 stable ships, its notes cover everything since the previous stable, nightlies included, written fresh for people who
@@ -70,7 +74,6 @@ never ran a nightly.
 ---
 date: 2026-10-16
 headline: Sites can share a tab without a second click.
-channel: nightly
 ---
 
 ## Fixed

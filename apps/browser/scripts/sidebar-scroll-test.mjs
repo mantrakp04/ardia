@@ -35,17 +35,16 @@ const fixture = session({
 
 let app = null;
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
-const win = () => C.chromeWindows().then((ws) => ws.find((w) => w.hasRoot).window);
-const act = (a) => win().then((n) => C.devWindow(n, a));
+const win = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.hasRoot).window);
+const act = (a) => win().then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const drag = () => globalThis.sidebarDrag;
 const frame = (view) => new Promise((r) => (view ? view.measureInWindow((x, y, w, h) => r({ x, y, w, h })) : r(null)));
 const itemOf = (id) => [...drag().items.values()].find((i) => i.view && i.kind !== "tail" && i.tabIds.includes(id));
 const frameOf = (id) => frame(itemOf(id) && itemOf(id).view);
 const scrollTo = (y) => { drag().scroll.scrollTo({ y, animated: false }); return settle(400).then(() => drag().scrollY); };
-const tiles = () => st().windows.w1.tabIds.filter((id) => st().tabs[id].pinned && !st().tabs[id].pinnedAsRow);
+const tiles = () => st().windows.w1.tabIds.filter((id) => !!st().tabs[id].pin && !(st().tabs[id].pin?.as === "row"));
 const viewport = () => frame(drag().scroll);
 `;
 const run = (body) => app.eval(`${HELPERS}\n${body}`, { timeout: 30000 });
@@ -56,7 +55,7 @@ async function layoutWith(addressBar) {
 
 async function rowInView(min = 0) {
   return run(`return viewport().then((v) => Promise.all(${JSON.stringify(LOOSE)}.map((id) => frameOf(id).then((f) => f && { id, ...f }))).then((fs) =>
-    fs.filter((f) => f && !st().tabs[f.id].pinned && f.y >= v.y + 20 && f.y + f.h <= v.y + v.h - 20 && f.y >= ${min})[2]));`);
+    fs.filter((f) => f && !st().tabs[f.id].pin && f.y >= v.y + 20 && f.y + f.h <= v.y + v.h - 20 && f.y >= ${min})[2]));`);
 }
 
 async function dragRowOntoTile(addressBar) {

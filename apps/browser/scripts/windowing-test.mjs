@@ -46,10 +46,9 @@ const fixture = () => session({
 
 let app = null;
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
-const win = (id) => C.chromeWindows().then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
-const act = (id, a) => win(id).then((n) => C.devWindow(n, a));
+const win = (id) => ac.engine.call("windows.list").then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
+const act = (id, a) => win(id).then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
 `;
 const run = (body) => app.eval(`${HELPERS}\n${body}`);
@@ -62,6 +61,8 @@ let noScreen = null;
 
 const screenLocked = () =>
   /<key>CGSSessionScreenIsLocked<\/key>\s*<true\/>/.test(spawnSync("ioreg", ["-n", "Root", "-d1", "-a"], { encoding: "utf8", timeout: 5000 }).stdout ?? "");
+
+const ENTRANCE_FRAMES = 20;
 
 async function record(seconds, during) {
   const file = join(data, `frames-${Date.now()}.jsonl`);
@@ -171,12 +172,12 @@ async function newWindowInProcess(ids) {
   const shots = [join(data, "new-window-shown.png"), join(data, "new-window-settled.png")];
   const shown = await run(`
     let before, t0, id, at = null;
-    const poll = () => C.chromeWindows().then((ws) => {
+    const poll = () => ac.engine.call("windows.list").then((ws) => {
       const w = ws.find((w) => !before.has(w.window));
       if (w && w.alpha === 1) { at = Date.now() - t0; return ac.shell.devSnapshotWindow(id, ${JSON.stringify(shots[0])}); }
       return Date.now() - t0 > 3000 ? false : poll();
     });
-    return C.chromeWindows().then((ws) => { before = new Set(ws.map((w) => w.window)); t0 = Date.now(); return ac.actions.openWindow(); })
+    return ac.engine.call("windows.list").then((ws) => { before = new Set(ws.map((w) => w.window)); t0 = Date.now(); return ac.actions.openWindow(); })
       .then((created) => { id = created; return poll(); })
       .then((saved) => saved && settle(1500).then(() => ac.shell.devSnapshotWindow(id, ${JSON.stringify(shots[1])})))
       .then((saved) => ({ id, at, saved, frame: st().windows[id] && st().windows[id].frame }));`);
@@ -241,12 +242,15 @@ try {
       const crops = frames.map((f) => crop(f, r));
       const first = crops.findIndex((c, i) => i > 0 && diff(c, crops[0]) > 4);
       assert.ok(first > 0, "the window never showed");
-      const off = diff(crops[first], crops.at(-1));
-      if (off >= 6) {
-        rep.log(`frame ${first} of ${crops.length} first differs (${diff(crops[first], crops[0]).toFixed(1)} from the one before the window); then ${crops.slice(first, first + 8).map((c) => diff(c, crops.at(-1)).toFixed(1)).join(", ")} from the settled one`);
-        dump("new-window", [crops[0], ...crops.slice(Math.max(1, first - 2), first + 8), crops.at(-1)], r);
+      const entrance = crops.slice(first, first + ENTRANCE_FRAMES).map((c) => diff(c, crops.at(-1)));
+      const settled = entrance.findIndex((d) => d < 1);
+      const backwards = entrance.findIndex((d, i) => i > 0 && d > entrance[i - 1] + 1.5);
+      if (settled < 0 || backwards > 0) {
+        rep.log(`frame ${first} of ${crops.length} first differs (${diff(crops[first], crops[0]).toFixed(1)} from the one before the window); then ${entrance.map((d) => d.toFixed(1)).join(", ")} from the settled one`);
+        dump("new-window", [crops[0], ...crops.slice(Math.max(1, first - 2), first + ENTRANCE_FRAMES), crops.at(-1)], r);
       }
-      assert.ok(off < 6, `first frame ${off.toFixed(1)} levels from the settled window`);
+      assert.ok(settled >= 0, `still ${entrance.at(-1)?.toFixed(1)} levels from the settled window ${ENTRANCE_FRAMES} frames after it showed`);
+      assert.ok(backwards < 0, `frame ${backwards} of the entrance moved away from the settled window (a blank or half-drawn frame)`);
     } finally {
       await closeWindowsBut(ids);
     }
@@ -285,7 +289,7 @@ try {
 
   let drop = null;
   await check("a window's last tab dropped onto another window: the tab keeps its live page", async () => {
-    const strips = () => run(`return C.tabStrips().then((tx) => tx.strips.flatMap((s) => s.tabs).filter((t) => t.key === "m1").map((t) => t.browser));`);
+    const strips = () => run(`return ac.engine.call("tabs.strips").then((tx) => tx.strips.flatMap((s) => s.tabs).filter((t) => t.key === "m1").map((t) => t.browser));`);
     const [browser] = await strips();
     assert.ok(browser, "m1 is live");
     const w2 = await run(`return st().windows.w2.frame;`);

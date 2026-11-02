@@ -1,14 +1,24 @@
 import type { APIRoute } from "astro";
-import { getCollection } from "astro:content";
+import { bench } from "../data/bench";
+import { isoDate, releasePath, releases } from "../data/releaseNotes";
+import { PAGES, homeUrl } from "../data/site";
 
 export const GET: APIRoute = async ({ site }) => {
-  const home = new URL(import.meta.env.BASE_URL, site);
-  const notes = await getCollection("releaseNotes");
-  const lastmod = notes.map((n) => n.data.date.toISOString().slice(0, 10)).sort().at(-1);
+  const home = homeUrl(site);
+  const all = await releases();
+  const stable = all.filter((r) => !r.nightly);
+  const newest = stable.map((r) => isoDate(r.date)).sort().at(-1);
+  const newestNote = all.map((r) => isoDate(r.date)).sort().at(-1);
   const pages: [string, string | undefined][] = [
-    ["", lastmod],
-    ["release-notes/", lastmod],
-    ["press/", undefined],
+    [PAGES.home, newest],
+    [PAGES.try, undefined],
+    [PAGES.arc, undefined],
+    [PAGES.benchmarks, bench && !bench.sample ? bench.measured : undefined],
+    [PAGES.notes, newestNote],
+    ...stable.map((r): [string, string] => [releasePath(r.version), isoDate(r.date)]),
+    [PAGES.press, undefined],
+    [PAGES.privacy, undefined],
+    [PAGES.terms, undefined],
   ];
   const urls = pages.map(
     ([path, modified]) => `  <url><loc>${new URL(path, home)}</loc>${modified ? `<lastmod>${modified}</lastmod>` : ""}</url>`,

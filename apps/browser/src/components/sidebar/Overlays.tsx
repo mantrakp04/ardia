@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useWindowId } from "../../store/hooks";
-import { startSidebarEffects } from "./effects";
+import { useWindowId } from "../../state/browser/hooks";
+import { startSidebarEffects } from "../../state/sidebar/effects";
 import { MeetingAlert } from "../live/MeetingAlert";
 import { HoverCard } from "./HoverCard";
 import { IconPicker } from "./IconPicker";
 import { SearchTabs } from "./SearchTabs";
 import { TabSwitcher } from "./TabSwitcher";
-import { useSidebarWidth } from "./tokens";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 
 export function SidebarOverlays({ windowWidth }: { windowWidth: number }) {
   const windowId = useWindowId();

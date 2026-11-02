@@ -3,10 +3,7 @@
 #ifndef CHROME_BROWSER_ARDIA_AC_SENSITIVE_ARGS_H_
 #define CHROME_BROWSER_ARDIA_AC_SENSITIVE_ARGS_H_
 
-#include <cstddef>
-#include <optional>
 #include <string>
-#include <string_view>
 
 #include "base/values.h"
 
@@ -33,23 +30,6 @@ class Secret {
  private:
   std::string value_;
   bool present_ = false;
-};
-
-class SensitiveArgs {
- public:
-  SensitiveArgs(const char* json, size_t max_bytes);
-  SensitiveArgs(const SensitiveArgs&) = delete;
-  SensitiveArgs& operator=(const SensitiveArgs&) = delete;
-  ~SensitiveArgs();
-
-  bool too_large() const { return too_large_; }
-  base::DictValue* dict();
-  std::string String(std::string_view key);
-  std::optional<Secret> SecretAt(std::string_view key);
-
- private:
-  std::optional<base::Value> value_;
-  bool too_large_ = false;
 };
 
 }

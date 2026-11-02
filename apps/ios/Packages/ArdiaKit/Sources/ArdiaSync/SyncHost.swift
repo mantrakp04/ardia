@@ -64,7 +64,7 @@ final class SyncHost {
       try timing { try vault.write(scope: argument(arguments, 0), payload: Data(argument(arguments, 1).utf8)) }
     }
     script.register("remove") { [unowned self] arguments in
-      vault.remove(scope: try argument(arguments, 0), ids: try decode([String].self, argument(arguments, 1)))
+      try vault.remove(scope: argument(arguments, 0), ids: decode([String].self, argument(arguments, 1)))
       return ""
     }
     script.register("persistJournal") { [unowned self] arguments in
@@ -93,7 +93,7 @@ final class SyncHost {
       timedOut = true
       throw SyncCoordination.TimedOut()
     }
-    let listing = vault.read(scope: scope, skipping: Set(known))
+    let listing = try vault.read(scope: scope, skipping: Set(known))
     if listing.timedOut {
       timedOut = true
       throw SyncCoordination.TimedOut()

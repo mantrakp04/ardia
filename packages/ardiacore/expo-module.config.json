@@ -1,6 +1,26 @@
 {
   "platforms": ["apple"],
   "apple": {
-    "modules": ["CefModule", "ExtensionsModule", "SwipeModule", "ChromeUIModule", "WebKitModule"]
+    "modules": [
+      "EngineModule",
+      "WebViewModule",
+      "TabsModule",
+      "WindowsModule",
+      "DownloadsModule",
+      "PermissionsModule",
+      "ProfilesModule",
+      "SitesModule",
+      "PasswordsModule",
+      "AutofillModule",
+      "ExtensionsModule",
+      "SearchModule",
+      "MediaModule",
+      "ContentBlockerModule",
+      "HistoryModule",
+      "BookmarksModule",
+      "FaviconsModule",
+      "SwipeModule",
+      "WebKitModule"
+    ]
   }
 }

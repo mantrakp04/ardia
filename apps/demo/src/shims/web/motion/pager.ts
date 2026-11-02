@@ -32,12 +32,13 @@ const next = () => ++counter;
 
 const pagers = new Map<string, Pager>();
 
+const sameOrder = (a: readonly string[], b: readonly string[] | null) => !!b && a.length === b.length && a.every((id, i) => id === b[i]);
+
 export class Pager {
   private areas = new Set<PagerArea>();
   private configured = false;
   private count = 1;
-  private order: string | null = null;
-  private orderIds: string[] | null = null;
+  private order: readonly string[] | null = null;
   private selected = 0;
   private position = 0;
   private velocity = 0;
@@ -91,13 +92,13 @@ export class Pager {
       this.emitPosition();
       return;
     }
-    if (count !== this.count || (newOrder !== null && newOrder !== this.order)) {
+    if (count !== this.count || (newOrder !== null && !sameOrder(newOrder, this.order))) {
       let index = this.propSelected;
-      const old = this.orderIds;
+      const old = this.order;
       this.count = count;
       this.setOrder(newOrder);
       if (this.propAck < this.selectionSequence && old && this.selected < old.length) {
-        const moved = this.orderIds?.indexOf(old[this.selected]!) ?? -1;
+        const moved = this.order?.indexOf(old[this.selected]!) ?? -1;
         if (moved >= 0) index = moved;
       }
       this.cancelMotion();
@@ -107,9 +108,8 @@ export class Pager {
     this.reconcile();
   }
 
-  private setOrder(order: string | null) {
+  private setOrder(order: readonly string[] | null) {
     this.order = order;
-    this.orderIds = order === null ? null : order.split("\n");
   }
 
   private reconcile() {
@@ -212,7 +212,7 @@ export class Pager {
     return d !== 0 && v !== 0 && d > 0 === v > 0 ? v : 0;
   }
 
-  switchTo(index: number, order?: string) {
+  switchTo(index: number, order?: readonly string[]) {
     if (!this.configured) return false;
     this.sync(order);
     const target = clamp(index, 0, this.count - 1);
@@ -222,18 +222,18 @@ export class Pager {
     return true;
   }
 
-  private sync(order?: string) {
-    if (order === undefined || order === this.order) return;
-    const ids = order.split("\n");
+  private sync(order?: readonly string[]) {
+    if (order === undefined || sameOrder(order, this.order)) return;
+    const ids = order;
     if (!ids.length) return;
-    const current = this.orderIds && this.selected < this.orderIds.length ? this.orderIds[this.selected] : undefined;
+    const current = this.order && this.selected < this.order.length ? this.order[this.selected] : undefined;
     const id = current !== undefined && ids.includes(current) ? current : ids[clamp(this.propSelected, 0, ids.length - 1)]!;
     this.select(id, order);
   }
 
-  select(profileId: string, order: string) {
+  select(profileId: string, order: readonly string[]) {
     if (!this.configured) return false;
-    const ids = order.split("\n");
+    const ids = order;
     const index = ids.indexOf(profileId);
     if (index < 0) return false;
     this.cancelMotion();
@@ -244,7 +244,7 @@ export class Pager {
     return true;
   }
 
-  step(delta: number, wrap: boolean, order?: string) {
+  step(delta: number, wrap: boolean, order?: readonly string[]) {
     if (!this.configured) return false;
     this.sync(order);
     const target = wrap ? (((this.selected + delta) % this.count) + this.count) % this.count : clamp(this.selected + delta, 0, this.count - 1);
@@ -317,12 +317,12 @@ export class Pager {
 
   private emitState(phase: PagerStateEvent["phase"]) {
     const event: PagerStateEvent = { phase, sequence: this.sequence, position: this.position, selected: this.selected, velocity: this.velocity };
-    if (this.orderIds) event.profileId = this.selectedId();
+    if (this.order) event.profileId = this.selectedId();
     for (const area of [...this.areas]) area.onState(event);
   }
 
   private selectedId() {
-    const ids = this.orderIds;
+    const ids = this.order;
     return ids && this.selected >= 0 && this.selected < ids.length ? ids[this.selected]! : null;
   }
 
@@ -336,7 +336,7 @@ export class Pager {
       velocity: this.velocity,
       count: this.count,
     };
-    if (this.orderIds) snapshot.profileId = this.selectedId();
+    if (this.order) snapshot.profileId = this.selectedId();
     return snapshot;
   }
 

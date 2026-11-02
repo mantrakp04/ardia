@@ -1,3 +1,4 @@
+import { EXTENSION_FRAME } from "../../data/telemetry";
 import { capture, log, type Props } from "./core";
 
 interface Frame {
@@ -31,7 +32,7 @@ function frames(stack: string | undefined): Frame[] {
       function: m[1] || "?",
       lineno: Number(m[3]),
       colno: Number(m[4]),
-      in_app: !/^(chrome|moz|safari(-web)?)-extension:/.test(filename),
+      in_app: !EXTENSION_FRAME.test(filename),
     });
     if (out.length >= 50) break;
   }

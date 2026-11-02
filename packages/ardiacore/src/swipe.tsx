@@ -1,6 +1,7 @@
-import { requireNativeModule, requireNativeViewManager } from "expo-modules-core";
+import { requireNativeViewManager } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { Animated, type NativeSyntheticEvent, type ViewProps } from "react-native";
+import { nativeModule } from "./nativeModules";
 
 export type SwipeEvent = {
   phase: "began" | "changed" | "ended" | "cancelled" | "swipe" | "wheel";
@@ -20,7 +21,7 @@ export type SwipeStep = {
   delayMs?: number;
 };
 
-export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: string };
+export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: readonly string[] };
 
 export type PagerStateEvent = {
   phase: "began" | "selected" | "settled";
@@ -64,28 +65,28 @@ type NativeProps = Omit<SwipeAreaProps, "onSwipe" | "onPagerState"> & {
 };
 type NativeHandle = { devLocate(): Promise<{ windowNumber: number; x: number; y: number; width: number; height: number } | null> };
 
-type SwipeModule = {
+export type SwipeModule = {
   haptic(pattern: string): void;
-  switchPager(key: string, index: number, order?: string): Promise<boolean>;
-  stepPager(key: string, delta: number, wrap: boolean, order?: string): Promise<boolean>;
-  selectPager(key: string, profileId: string, order: string): Promise<boolean>;
+  switchPager(key: string, index: number, order?: readonly string[]): Promise<boolean>;
+  stepPager(key: string, delta: number, wrap: boolean, order?: readonly string[]): Promise<boolean>;
+  selectPager(key: string, profileId: string, order: readonly string[]): Promise<boolean>;
   pagerState(key: string): PagerSnapshot | null;
   devPagerState(key: string): Promise<unknown>;
   devSimulate(x: number, y: number, windowNumber: number, steps: SwipeStep[], ignorePreference: boolean): Promise<unknown>;
 };
 type NativeComponent = React.ComponentType<NativeProps & { ref?: React.Ref<NativeHandle> }>;
 
-const Module = requireNativeModule<SwipeModule>("ArdiaSwipe");
+const Module = nativeModule("ArdiaSwipe");
 const Native = requireNativeViewManager<NativeProps>("ArdiaSwipe") as unknown as NativeComponent;
 let AnimatedNative: NativeComponent | undefined;
 const animatedNative = () => (AnimatedNative ??= Animated.createAnimatedComponent(Native) as unknown as NativeComponent);
 
 export const swipeHaptic = (pattern: "levelChange" | "alignment" | "generic") => Module.haptic(pattern);
 
-export const switchPager = (key: string, index: number, order?: string): Promise<boolean> => Module.switchPager(key, index, order);
-export const stepPager = (key: string, delta: -1 | 1, wrap = false, order?: string): Promise<boolean> =>
+export const switchPager = (key: string, index: number, order?: readonly string[]): Promise<boolean> => Module.switchPager(key, index, order);
+export const stepPager = (key: string, delta: -1 | 1, wrap = false, order?: readonly string[]): Promise<boolean> =>
   Module.stepPager(key, delta, wrap, order);
-export const selectPager = (key: string, profileId: string, order: string): Promise<boolean> =>
+export const selectPager = (key: string, profileId: string, order: readonly string[]): Promise<boolean> =>
   Module.selectPager(key, profileId, order);
 export const pagerState = (key: string): PagerSnapshot | null => Module.pagerState(key);
 export const devPagerState = (key: string): Promise<unknown> => Module.devPagerState(key);

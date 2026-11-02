@@ -101,7 +101,7 @@ final class FakeMac {
     }
     script.register("write") { arguments in try vault.write(scope: arguments[0], payload: Data(arguments[1].utf8)) }
     script.register("remove") { arguments in
-      vault.remove(scope: arguments[0], ids: try JSONDecoder().decode([String].self, from: Data(arguments[1].utf8)))
+      try vault.remove(scope: arguments[0], ids: JSONDecoder().decode([String].self, from: Data(arguments[1].utf8)))
       return ""
     }
   }
@@ -129,7 +129,7 @@ final class FakeMac {
   }
 
   func logs(_ scope: String, device: String) -> [(seq: Int, json: String)] {
-    vault.read(scope: scope, skipping: []).files.compactMap { file in
+    ((try? vault.read(scope: scope, skipping: []))?.files ?? []).compactMap { file in
       guard let object = try? JSONSerialization.jsonObject(with: file.payload) as? [String: Any],
             object["kind"] as? String == "log", object["device"] as? String == device, let seq = object["seq"] as? Int
       else { return nil }

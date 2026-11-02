@@ -2,19 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canonical } from "../canon.ts";
 import { Clock } from "../hlc.ts";
-import { compact, emptyScope, syncScope, visible, type Adapter, type Listing, type LogFile, type ScopeState, type Transport } from "../scope.ts";
-import {
-  companionAcknowledge,
-  companionAddBookmark,
-  companionLoad,
-  companionRemoveBookmark,
-  companionRemovalsDone,
-  companionSend,
-  runCompanionCycle,
-  type CompanionState,
-  type CycleInput,
-  type Host,
-} from "./cycle.ts";
+import { compact, syncScope, visible } from "../scope.ts";
+import { emptyScope, type Adapter, type Listing, type LogFile, type ScopeState, type Transport } from "../scopeState.ts";
+import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, runCompanionCycle, type CycleInput } from "./cycle.ts";
+import { companionLoad, type CompanionState, type Host } from "./state.ts";
 import type { LocalTab, LocalVisit } from "./adapters.ts";
 
 const DAY = 86_400_000;
@@ -164,6 +155,7 @@ class Phone {
   stateJSON: string | null = null;
   journal: Record<string, LogFile[]> = {};
   failWrite: "before" | "after" | null = null;
+  removed: string[] = [];
   tabs: LocalTab[] = [];
   visits: LocalVisit[] = [];
   name = "iPhone";
@@ -183,7 +175,10 @@ class Phone {
         if (this.failWrite === "after") throw new Error("crashed after the move");
         return id;
       },
-      remove: () => "",
+      remove: (_scope, ids) => {
+        this.removed.push(...(JSON.parse(ids) as string[]));
+        return "";
+      },
       persistJournal: (scope, batches) => {
         const list = (this.journal[scope] ??= []);
         for (const f of (JSON.parse(batches) as string[]).map((raw) => JSON.parse(raw) as LogFile)) if (!list.some((x) => x.seq === f.seq)) list.push(f);
@@ -260,7 +255,7 @@ function seedMac(mac: Mac) {
   mac.put(s1, "bm:c1", { k: "f", p: "c2", t: "Loop A", a: 5, pos: "1" });
   mac.put(s1, "bm:c2", { k: "f", p: "c1", t: "Loop B", a: 6, pos: "1" });
   mac.put(s1, "bm:legacy", { k: "u", p: "bar", t: "Game", u: "netnyahoo://yahu", a: 7, pos: "2" });
-  mac.put(s1, "pw:https://bank.example\nluke", { o: "https://bank.example", u: "luke", p: "hunter2" });
+  mac.put(s1, "pws:https://bank.example\nluke", { o: "https://bank.example", u: "luke", s: "sealed-login" });
   mac.put(s1, "ext:abc", { on: true, inc: false, pin: true });
   mac.visit(s1, "https://read.example/", "Reading", START - 2 * DAY);
   mac.put(s2, `tabs:${MAC}`, { n: "MacBook Pro", tabs: [{ u: "https://work.example/", t: "Work" }] });
@@ -298,6 +293,123 @@ test("the iPhone never tombstones or rewrites a record it doesn't own", async ()
   const written = new Set(folder.logs(PHONE).flatMap((f) => f.ops.map((op) => op.k)));
   assert.deepEqual([...written].sort(), own);
   assert.ok(folder.logs(PHONE).every((f) => f.ops.every((op) => op.v !== null)));
+});
+
+const MAC2 = "mac2000000000000000000000000";
+const OLD_MAC = "oldmac00000000000000000000";
+const SEND_ELSEWHERE = "send:44444444-4444-4444-8444-444444444444";
+const SEND_TO_MAC = "send:55555555-5555-4555-8555-555555555555";
+const SEND_OLD = "send:66666666-6666-4666-8666-666666666666";
+const SEND_TO_PHONE = "send:77777777-7777-4777-8777-777777777777";
+
+function seedEveryKind(mac: Mac) {
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"] });
+  mac.put("app", `dev:${MAC2}`, { n: "Mac mini", k: "mac", f: ["send"] });
+  mac.put("app", `dev:${OLD_MAC}`, { n: "iMac" });
+  mac.put("app", `prof:${P2}`, { n: "Work", c: "green", i: "briefcase", th: { stops: [], intensity: 0.2 } });
+  mac.put("app", `pth:${P2}`, { preset: true });
+  mac.put("app", `pth:${P3}`, { t: { stops: [{ color: { r: 0, g: 1, b: 0, a: 1 }, x: 0.5, y: 0.5 }], intensity: 1, grain: 0.3, texture: "paper", translucency: 0.5, mode: "light", dark: { stops: [], intensity: 0 } } });
+  mac.put("app", `pth:${P3}:angle`, { a: 10, d: 200 });
+  mac.put("app", "set:tabLayout", { v: "top" });
+  mac.put("app", "set:cleanUpInactiveTabsAfterMinutes", { v: 720 });
+  mac.put("app", "set:windowStyle", { v: { glass: true, tint: [0.1, 0.2] } });
+  mac.put("app", "set:retired", { v: true });
+  mac.put("app", "future:kind", ["any", 1, { nested: [null, true] }]);
+  mac.put("app", "zz", 42);
+  mac.put(s1, `tabs:${MAC2}`, { n: "Mac mini", tabs: [{ u: "https://mini.example/", t: "Mini" }] });
+  mac.put(s1, `tabs:${OLD_MAC}`, { n: "iMac", tabs: [] });
+  mac.put(s1, "pin:t:gone", { g: null, u: "https://gone.example/", t: null, i: null, ti: "Gone", pos: "9" });
+  mac.put(s1, "pin:g:G2", { n: "Nested only", i: "folder", c: null, pos: "7" });
+  mac.put(s1, "pin:t:n1", { g: "G2", u: "https://n1.example/", t: null, i: null, ti: "Nested one", pos: "1" });
+  mac.put(s1, "pinn:g:N2", { n: "Inner", i: null, c: null, p: "G2" });
+  mac.put(s1, "pinn:t:n1", { g: "N2" });
+  mac.put(s1, "pgc:G2", "none");
+  mac.put(s1, "pgc:N2", "none");
+  mac.put(s1, "pgh:m1", "https://home.example/start");
+  mac.put(s1, "pgh:n1", "https://n1.example/home");
+  mac.put(s1, "pord:g:G2", { a: null });
+  mac.put(s1, "pinrow:gone", 1);
+  mac.put(s1, "tilefold:n:Empty", { n: "" });
+  mac.put(s1, "pws:https://shop.example\nada", { o: "https://shop.example", u: "ada", s: "sealed-two" });
+  mac.put(s1, "ext:v:abc", { v: "1.2.3", fps: ["ab12"] });
+  mac.put(s1, "ext:removedone", { removed: true });
+  mac.put(s1, "bm:deleted", { k: "u", p: "other", t: "Deleted", u: "https://deleted.example/", a: 8, pos: "9" });
+  mac.put(s1, SEND_ELSEWHERE, { u: "https://elsewhere.example/", t: "Elsewhere", to: MAC2, from: MAC, at: START });
+  mac.put(s1, SEND_TO_MAC, { u: "https://to-mac.example/", t: "To Mac", to: MAC, from: MAC2, at: START });
+  mac.put(s1, SEND_OLD, { u: "https://old.example/", t: "Old", to: OLD_MAC, from: MAC, at: START - 30 * DAY });
+  mac.put(s1, SEND_TO_PHONE, { u: "https://to-phone.example/", t: "To iPhone", to: PHONE, from: MAC, at: START });
+  mac.put(s1, "future:profile", { anything: "goes" });
+  mac.visit(s1, "https://both.example/", "Both", START - DAY);
+  mac.visit(s1, "https://mac-only.example/", "Mac only", START - 3 * DAY);
+  mac.visit(s1, "https://stale.example/", "Stale", START - 80 * DAY);
+  mac.put(s2, "pin:t:w1", { g: null, u: "https://w1.example/", t: null, i: null, ti: "W1", pos: "1" });
+  mac.put(s2, "pinrow:w1", 0);
+  mac.put(s2, "tilefold:w1", { f: "W" });
+  mac.put(s2, "tilefold:n:W", { n: "Work folder" });
+  mac.put(s2, "pws:https://work.example\nme", { o: "https://work.example", u: "me", s: "sealed-three" });
+  mac.put(s2, "ext:xyz", { on: false, inc: true, pin: false });
+}
+
+test("the iPhone keeps every record kind the Mac writes byte for byte, and writes only its own", async () => {
+  const folder = new Folder();
+  const mac = new Mac(folder);
+  seedMac(mac);
+  seedEveryKind(mac);
+  await mac.sync();
+  folder.now += 1000;
+  mac.remove("app", "set:retired");
+  mac.remove(s1, "pin:t:gone");
+  mac.remove(s1, "pinrow:gone");
+  mac.remove(s1, "bm:deleted");
+  mac.remove(s1, "ext:removedone");
+  mac.history[s1]!.delete("https://stale.example/");
+  await mac.sync();
+  const own = [`dev:${PHONE}`, `tabs:${PHONE}`, "h:https://phone-only.example/", SEND_TO_PHONE];
+  const storeBefore = canonical(Object.fromEntries(Object.entries(mac.store).map(([scope, map]) => [scope, Object.fromEntries([...map].filter(([k]) => !own.includes(k)))])));
+  const before = recordsWithout(mac.scopes, own);
+  const tombstones = Object.values(mac.scopes).flatMap((scope) => Object.entries(scope.records).filter(([, r]) => r.v === null).map(([k]) => k));
+  assert.deepEqual(tombstones.sort(), ["bm:deleted", "ext:removedone", "h:https://stale.example/", "pin:t:gone", "pinrow:gone", "set:retired"]);
+
+  folder.now += 1000;
+  const phone = new Phone(folder).launch();
+  phone.tabs = [{ u: "https://phone.example/", t: "Phone", at: START }];
+  phone.visits = [
+    { u: "https://both.example/", t: "Both", vt: [START - DAY], p: P1 },
+    { u: "https://phone-only.example/", t: "Phone only", vt: [START], p: P1 },
+  ];
+  let received: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    folder.now += i === 6 ? 40 * DAY : 15_000;
+    const out = await phone.cycle();
+    received.push(...out.received.map((r) => r.key));
+    if (i === 2) companionAcknowledge({ items: [{ profile: P1, key: SEND_TO_PHONE }] });
+    if (i === 4) {
+      phone.launch();
+      await mac.sync();
+    }
+  }
+  await mac.sync();
+  assert.deepEqual([...new Set(received)], [SEND_TO_PHONE]);
+
+  assert.equal(recordsWithout(mac.scopes, own), before);
+  const phoneScopes = phone.state().scopes;
+  for (const [name, scope] of Object.entries(mac.scopes)) {
+    for (const [key, record] of Object.entries(scope.records)) {
+      if (own.includes(key)) continue;
+      assert.equal(canonical(phoneScopes[name]?.records[key]), canonical(record), `the iPhone holds ${name} ${key} as the Mac wrote it`);
+    }
+  }
+  const storeAfter = Object.fromEntries(Object.entries(mac.store).map(([scope, map]) => [scope, Object.fromEntries([...map].filter(([k]) => !own.includes(k)))]));
+  assert.equal(canonical(storeAfter), storeBefore);
+  assert.equal(mac.store[s1]!.has(SEND_TO_PHONE), false, "the send the iPhone took is gone");
+  assert.deepEqual([...mac.history[s1]!.keys()].sort(), ["https://both.example/", "https://mac-only.example/", "https://phone-only.example/", "https://read.example/"]);
+
+  const ops = folder.logs(PHONE).flatMap((f) => f.ops);
+  assert.deepEqual([...new Set(ops.map((op) => op.k))].sort(), [...own].sort());
+  assert.deepEqual(ops.filter((op) => op.v === null).map((op) => op.k), [SEND_TO_PHONE]);
+  const phoneFiles = [...folder.scopes.values()].flatMap((scope) => [...scope.values()]).map((e) => JSON.parse(e.payload) as { device: string; kind: string }).filter((f) => f.device === PHONE);
+  assert.ok(phoneFiles.every((f) => f.kind === "log"), "the iPhone never writes a snapshot");
+  assert.deepEqual(phone.removed, [], "the iPhone never removes a file");
 });
 
 test("unchanged tabs and an idle iPhone write no files", async () => {

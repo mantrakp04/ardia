@@ -2,14 +2,11 @@ diff --git a/ios/EXConstantsService.m b/ios/EXConstantsService.m
 index f79eaae77b93b49bed5ded8498b64db71f3dd7dc..6d447c1918cbfe108fd66a6fe2d8a9cba56c88e3 100644
 --- a/ios/EXConstantsService.m
 +++ b/ios/EXConstantsService.m
-@@ -93,6 +93,10 @@ - (CGFloat)statusBarHeight
+@@ -93,6 +93,6 @@ - (CGFloat)statusBarHeight
    // Remove duplicates and sort alphabetically
    return [[[NSSet setWithArray:fontNames] allObjects] sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
  #elif TARGET_OS_OSX
-+  // [Ardia: enumerating every font family costs 15-40 ms of the main thread at launch and nothing reads systemFonts;
-+  // ARDIA_SYSTEM_FONTS=on lists them again. Ardia]
-+  const char *listFonts = getenv("ARDIA_SYSTEM_FONTS");
-+  if (!listFonts || strcmp(listFonts, "on") != 0) return @[];
-   return [[NSFontManager sharedFontManager] availableFontFamilies];
+-  return [[NSFontManager sharedFontManager] availableFontFamilies];
++  return @[];
  #endif
  }

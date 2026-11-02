@@ -32,6 +32,9 @@ lookup() {
   fi
   echo "$line"
 }
+release_tag() {
+  case "$1" in engine-*) echo "$1" ;; *) echo "v$1" ;; esac
+}
 
 entry=$(lookup "$tree")
 if [ -z "$entry" ]; then
@@ -45,8 +48,9 @@ if [ -z "$entry" ]; then
   [ -n "$found" ] || die "no prebuilt engine for this checkout or any earlier one: build the engine (docs/engine-build.md)"
   version=$(awk '{ print $2 }' <<<"$found")
   if [ "$nearest" = 0 ]; then
-    die "no prebuilt engine for this checkout's engine/ ($skipped engine commits since $version's). Check out v$version, \
-or run packages/ardiacore/scripts/fetch-engine.sh --nearest to build against $version's engine anyway, or build the engine"
+    die "no prebuilt engine for this checkout's engine/ ($skipped engine commits since $version's). Check out \
+$(release_tag "$version"), or run packages/ardiacore/scripts/fetch-engine.sh --nearest to build against \
+$version's engine anyway, or build the engine"
   fi
   echo "warning: using $version's engine; engine/ changed in $skipped commits since, and the app may not match it" >&2
   entry=$found
@@ -56,7 +60,7 @@ short=${tree:0:12}
 dest="$store/$short"
 if [ ! -f "$dest/.complete" ]; then
   file="ArdiaCore-$short.tar.xz"
-  url="$assets/v$version/$file"
+  url="$assets/$(release_tag "$version")/$file"
   tmp="$store/.tmp-$$"
   rm -rf "$tmp" && mkdir -p "$tmp"
   trap 'rm -rf "$tmp"' EXIT

@@ -1,0 +1,146 @@
+import { useEffect, useMemo, useRef } from "react";
+import { Animated, View } from "react-native";
+import { allArcHolders, restoreArcFolders } from "../../../state/bookmarks/bookmarkGroups";
+import { useBookmarks } from "../../../state/bookmarks/hooks";
+import { plural } from "../../../state/browser/model";
+import { useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import type { ImportCounts } from "../../../state/import/apply";
+import { backTo, closeImport, openFoundExtensions, type ImportFlow } from "../../../state/import/flow";
+import { useOnboarding } from "../../../state/onboarding/onboarding";
+import { Button, space, Symbol, Text, useTheme } from "../../ui";
+import { APP, kindTitle } from "../model";
+import { Spacer, Title } from "../Parts";
+import { importLayout, importMotion, importType } from "../tokens";
+
+function summaryOf(counts: ImportCounts) {
+  return [
+    counts.bookmarks && plural(counts.bookmarks, "bookmark"),
+    counts.history && plural(counts.history, "history item"),
+    counts.passwords && plural(counts.passwords, "password"),
+    counts.cookies && plural(counts.cookies, "cookie"),
+    counts.addresses && `${counts.addresses} ${counts.addresses === 1 ? "address" : "addresses"}`,
+    counts.cards && plural(counts.cards, "card"),
+    counts.tabs && plural(counts.tabs, "tab"),
+  ].filter(Boolean) as string[];
+}
+
+function ExtensionList({ flow }: { flow: ImportFlow }) {
+  const { source, step } = flow;
+  const onboarding = useOnboarding((s) => s.windowId !== null);
+  if (step.name !== "done" || !step.extensions.list.length) return null;
+  const { extensions } = step;
+  const centered = { textAlign: "center" } as const;
+  return (
+    <View style={{ alignSelf: "stretch", marginTop: space.xl, gap: space.m }}>
+      <Text size="small" tone="textSecondary" style={centered}>
+        {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
+      </Text>
+      <Text size="small" style={centered} numberOfLines={3}>
+        {extensions.list.map((e) => e.name).join(", ")}
+      </Text>
+      {extensions.opened ? (
+        <Text size="small" tone="textSecondary" style={centered}>
+          {`${extensions.list.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
+        </Text>
+      ) : (
+        <View style={{ alignItems: "center" }}>
+          <Button
+            title={extensions.list.length === 1 ? "Open in Chrome Web Store" : `Open ${extensions.list.length} in Chrome Web Store`}
+            onPress={openFoundExtensions}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
+  if (!notes.length) return null;
+  return (
+    <Text size="caption" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml, textAlign: failed ? "left" : "center" }}>
+      {notes.join(" ")}
+    </Text>
+  );
+}
+
+function RestoreArcFolders() {
+  const bookmarks = useBookmarks((b) => b);
+  const profiles = useProfileRecords();
+  const profileOrder = useProfileOrder();
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks, profiles, profileOrder }), [bookmarks, profiles, profileOrder]);
+  if (!arcHolders.length) return null;
+  return (
+    <Button
+      title="Restore Arc Folders as Groups"
+      onPress={() => {
+        for (const id of arcHolders) restoreArcFolders(id, null);
+      }}
+    />
+  );
+}
+
+export function DoneBody({ flow }: { flow: ImportFlow }) {
+  const { step } = flow;
+  if (step.name !== "done") return null;
+  const { counts, failures, notes } = step;
+  const summary = summaryOf(counts);
+  if (failures.length)
+    return (
+      <>
+        <Title title={summary.length ? "Partially imported" : "Import failed"} subtitle="Only some of your data imported. Please try again!" />
+        <Text weight="semibold" style={{ marginBottom: space.s }}>
+          Some import steps failed:
+        </Text>
+        {failures.map((f) => (
+          <Text key={f.kind} tone="textSecondary" style={{ marginBottom: space.xs }}>
+            {f.profiles.length ? `${kindTitle(f.kind)} import failed for profiles ${f.profiles.join(", ")}` : `${kindTitle(f.kind)} import failed`}
+          </Text>
+        ))}
+        {summary.length > 0 && <Text size="small" tone="textSecondary" style={{ marginTop: space.l }}>{`Imported ${summary.join(", ")}.`}</Text>}
+        <LeftBehind notes={notes} failed />
+        <ExtensionList flow={flow} />
+        <Text size="small" tone="textTertiary" style={{ marginTop: space.l }}>
+          You can retry the import later from the app menu.
+        </Text>
+      </>
+    );
+  return (
+    <View style={{ alignItems: "center", marginTop: importLayout.doneTop, gap: space.l }}>
+      <SuccessMark />
+      <Text weight="semibold" style={importType.done}>
+        You're all set
+      </Text>
+      <Text tone="textSecondary" style={{ textAlign: "center" }}>
+        {summary.length ? `Imported ${summary.join(", ")}.` : "There was nothing new to import."}
+      </Text>
+      <LeftBehind notes={notes} failed={false} />
+      <ExtensionList flow={flow} />
+      <RestoreArcFolders />
+    </View>
+  );
+}
+
+export function DoneFooter({ flow }: { flow: ImportFlow }) {
+  const failed = flow.step.name === "done" && flow.step.failures.length > 0;
+  return (
+    <>
+      <Spacer />
+      {failed && <Button title="Try Again" onPress={() => backTo("choose")} />}
+      <Button title={failed ? "Continue" : "Finish importing"} kind="primary" onPress={closeImport} />
+    </>
+  );
+}
+
+function SuccessMark() {
+  const theme = useTheme();
+  const { success } = importMotion;
+  const scale = useRef(new Animated.Value(success.from)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, ...success.spring, useNativeDriver: true }).start();
+  }, []);
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Symbol name="checkmark.circle.fill" size={46} color={theme.success} style={{ width: 60, height: 60 }} />
+    </Animated.View>
+  );
+}

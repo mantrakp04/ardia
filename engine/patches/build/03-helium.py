@@ -8,7 +8,7 @@ entirely: no stage fetches them, and the hunks of Helium's patches that edit the
   pins           the Helium checkouts are at the pinned commits, unmodified, made for this Chromium; deps.ini
                  downloads nothing Ardia doesn't omit
   guard          every skipped patch is still in Helium's series, and no applied patch's added lines touch what a
-                 skip protects (Safe Storage, passwords, Sparkle, the product dir, mDNS) beyond the 0.19.4 allowlist
+                 skip protects (Safe Storage, passwords, Sparkle, the product dir, mDNS) beyond the reviewed allowlist
   patches        helium-chromium's series, then helium-macos's, minus SKIP and minus the omitted downloads' files;
                  patch -p1 -l -N with no fuzz (Helium allows 2; a patch that needs it fails here instead)
   fixups         saving passwords, addresses and cards on by default
@@ -49,7 +49,6 @@ SKIP = {
     'helium/ui/remove-autofill-link-to-password-manager.patch': 'drops "Manage passwords" from the fill dropdown',
     'ungoogled-chromium/fix-building-without-mdns-and-service-discovery.patch':
         'empties DnsSdDeviceLister; the Cast dialog needs mDNS (enable_mdns stays true)',
-    'helium/core/memory-saving-by-default.patch': 'Memory Saver would fight Ardia\'s own tab sleeping',
     'helium/macos/change-keychain-name.patch':
         'renames the Safe Storage item; every user\'s passwords and cookies are encrypted with "Ardia Safe Storage"',
     'helium/macos/change-product-dir-name.patch': 'moves the fallback product dir to net.imput.helium',
@@ -303,7 +302,7 @@ def stage_patches(ctx):
         applied += 1
     write_report(ctx, rows)
     partial = [r[1] for r in rows if r[2] == 'partial']
-    leftovers = [d for d in OMITTED if (ctx.tree / d).exists()]
+    leftovers = [d for d in OMITTED if (ctx.tree / d).is_file() or (ctx.tree / d).is_dir() and any((ctx.tree / d).iterdir())]
     if leftovers:
         raise StageError(f'omitted downloads are in the tree: {", ".join(leftovers)}')
     print(f'applied {applied} with no fuzz, skipped {len(skipped)}; '

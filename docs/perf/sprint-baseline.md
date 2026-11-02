@@ -110,7 +110,7 @@ after the commit), so the lab and the field agree. Each key renders 63 component
 
 native-bench `--only newtabkey`: a real ⌘T posted to the instance's pid (nnperf `postkeys`, `CGEventPostToPid`), one
 real key `n` once the bar is focused, 10 per run, 3 runs. Rows start at the key down's own timestamp (what the field's
-`perf_journeys` starts from) and end at the app's field-timing marks (`ArdiaCoreFieldTiming.mm`: a post-commit handler on
+`perf_journeys` starts from) and end at the app's field-timing marks (`ArdiaFieldTiming.mm`: a post-commit handler on
 the Core Animation transaction carrying the change). Cumulative from the key, n=30, median, p75, min–max:
 
 | Step (`perf_journeys` name) | All 3 runs | Run 1 (load 15 to 55) | Run 2 (load 55 to 5) | Run 3 (load 5 to 12) |

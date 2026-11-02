@@ -1,37 +1,38 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 
 public class ImportModule: Module {
   private let importer: Importer = {
-    let env = ProcessInfo.processInfo.environment
-    let support = env["ARDIA_IMPORT_SOURCE_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+    let support = LaunchConfig.shared.instance("importSourceDir").map { URL(fileURLWithPath: $0, isDirectory: true) }
       ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     let icons = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "Ardia")/ImportIcons", isDirectory: true)
     return Importer(discovery: BrowserDiscovery(
       applicationSupport: support,
+      diaApp: ImportModule.diaBundleId,
       locateApp: AppIcons.locate,
       iconFor: { app, id in AppIcons.png(for: app, id: id, directory: icons) }
     ))
   }()
 
   private static let safariHome: URL = {
-    let env = ProcessInfo.processInfo.environment
-    if let home = env["ARDIA_IMPORT_SAFARI_HOME"] { return URL(fileURLWithPath: home, isDirectory: true) }
-    if let support = env["ARDIA_IMPORT_SOURCE_DIR"] {
+    let config = LaunchConfig.shared
+    if let home = config.instance("importSafariHome") { return URL(fileURLWithPath: home, isDirectory: true) }
+    if let support = config.instance("importSourceDir") {
       return URL(fileURLWithPath: support, isDirectory: true).deletingLastPathComponent().deletingLastPathComponent()
     }
     return FileManager.default.homeDirectoryForCurrentUser
   }()
 
   private static let secret: Importer.SecretProvider = {
-    if let fixed = ProcessInfo.processInfo.environment["ARDIA_IMPORT_TEST_SECRET"] {
+    if let fixed = LaunchConfig.shared.testValue("importSecret") {
       return { _, _ in Data(fixed.utf8) }
     }
     return SafeStorageKeychain.secret
   }()
 
-  private static let diaBundleId = ProcessInfo.processInfo.environment["ARDIA_IMPORT_DIA_BUNDLE_ID"] ?? DiaAutomation.bundleIdentifier
+  private static let diaBundleId = LaunchConfig.shared.testValue("importDiaBundleId") ?? DiaAutomation.bundleIdentifier
 
   private let jobs = ImportJobs()
   private let vault = ImportVault()
@@ -45,13 +46,12 @@ public class ImportModule: Module {
       self.run(promise) { try Self.json(self.importer.discovery.list()) }
     }
 
-    AsyncFunction("importData") { (jobId: String, browserId: String, profileId: String, kinds: [String], options: [String: Any], promise: Promise) in
+    AsyncFunction("importData") { (jobId: String, browserId: String, profileId: String, kinds: [ImportKind], options: ImportRequestOptions, promise: Promise) in
       let cancellation = self.jobs.start(jobId)
       let observer = self.observer(jobId: jobId, options: options)
-      let parsed = kinds.compactMap(ImportKind.init(rawValue:))
       self.run(promise, job: jobId) {
-        var result = try self.importer.importData(browserId: browserId, profileId: profileId, kinds: parsed,
-                                                  options: Self.options(options), observer: observer, cancellation: cancellation)
+        var result = try self.importer.importData(browserId: browserId, profileId: profileId, kinds: kinds,
+                                                  options: options.importOptions, observer: observer, cancellation: cancellation)
         result.vaultToken = self.vault.keep(cookies: result.cookies, addresses: result.addresses, cards: result.cards)
         return try Self.json(result)
       }
@@ -72,7 +72,7 @@ public class ImportModule: Module {
       self.vault.discardAll()
     }
 
-    AsyncFunction("writeImported") { (token: String, profile: String, kinds: [String], promise: Promise) in
+    AsyncFunction("writeImported") { (token: String, profile: String, kinds: [ImportKind], promise: Promise) in
       guard let entry = self.vault.take(token) else { return promise.reject("notFound", "Nothing to write; import again") }
       Task { @MainActor in
         promise.resolve(await ImportWriter.write(entry, profile: profile, kinds: Set(kinds)))
@@ -114,34 +114,12 @@ public class ImportModule: Module {
       }
     }
 
-    AsyncFunction("diaAutomationStatus") { (promise: Promise) in
-      self.run(promise) { try Self.json(DiaAutomation.status(Self.diaBundleId, ask: false)) }
-    }
-
-    AsyncFunction("requestDiaAutomation") { (promise: Promise) in
-      self.run(promise) { try Self.json(DiaAutomation.status(Self.diaBundleId, ask: true)) }
-    }
-
-    AsyncFunction("openAutomationSettings") { (promise: Promise) in
-      NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
-      promise.resolve(nil)
-    }.runOnQueue(.main)
-
-    AsyncFunction("openDia") { (promise: Promise) in
-      guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.diaBundleId) else {
-        return promise.reject("notFound", "Dia isn't installed")
-      }
-      let config = NSWorkspace.OpenConfiguration()
-      config.activates = false
-      NSWorkspace.shared.openApplication(at: app, configuration: config) { _, error in
-        if let error { promise.reject("unreadable", error.localizedDescription) } else { promise.resolve(nil) }
-      }
-    }.runOnQueue(.main)
-
     AsyncFunction("readDiaTabs") { (promise: Promise) in
       self.run(promise) {
-        guard DiaAutomation.isRunning(Self.diaBundleId) else { throw ImportError.notRunning("Dia isn't running") }
-        var result = try DiaTabsImport.read(from: DiaAppleEvents(bundleIdentifier: Self.diaBundleId))
+        let fixture = LaunchConfig.shared.testValue("importDiaWindows").map { URL(fileURLWithPath: $0) }
+        let app = WorkspaceDiaApp(bundleIdentifier: Self.diaBundleId, consent: fixture.map { _ in { .granted } })
+        let source: DiaScriptingSource = fixture.map(DiaFixtureWindows.init(url:)) ?? DiaAppleEvents(bundleIdentifier: Self.diaBundleId)
+        var result = try DiaTabsFetch.read(app: app, source: source)
         result.favicons = self.importer.favicons(browserId: "dia", pages: result.profiles.flatMap { $0.pinned.map(\.url) + $0.tabs.map(\.url) })
         return try Self.json(result)
       }
@@ -155,16 +133,16 @@ public class ImportModule: Module {
       self.run(promise) { try Self.json(PasswordsCSV.load(Self.fileURL(path))) }
     }
 
-    AsyncFunction("chooseImportFile") { (kind: String, promise: Promise) in
+    AsyncFunction("chooseImportFile") { (kind: ImportFileKind, promise: Promise) in
       let panel = NSOpenPanel()
       panel.allowsMultipleSelection = false
       switch kind {
-      case "safariExport":
+      case .safariExport:
         panel.canChooseDirectories = true
         panel.allowedContentTypes = [.zip]
-      case "bookmarksHTML":
+      case .bookmarksHTML:
         panel.allowedContentTypes = [.html]
-      default:
+      case .passwordsCSV:
         panel.allowedContentTypes = [.commaSeparatedText]
       }
       panel.begin { response in promise.resolve(response == .OK ? panel.url?.path : nil) }
@@ -184,8 +162,8 @@ public class ImportModule: Module {
     }
   }
 
-  private func observer(jobId: String, options: [String: Any]) -> ImportObserver {
-    let stream = options["streamHistory"] as? Bool ?? false
+  private func observer(jobId: String, options: ImportRequestOptions) -> ImportObserver {
+    let stream = options.streamHistory
     let emit: @Sendable ([String: Any?]) -> Void = { [weak self] body in self?.sendEvent("onImportEvent", body) }
     let progress: @Sendable (ImportProgress) -> Void = { p in
       var body: [String: Any?] = ["jobId": jobId, "type": "progress", "kind": p.kind.rawValue,
@@ -197,16 +175,7 @@ public class ImportModule: Module {
     if stream {
       history = { chunk in emit(["jobId": jobId, "type": "history", "entries": (try? Self.json(chunk)) ?? "[]"]) }
     }
-    return ImportObserver(chunkSize: options["chunkSize"] as? Int ?? 1000, progress: progress, history: history)
-  }
-
-  static func options(_ o: [String: Any]) -> ImportOptions {
-    ImportOptions(
-      historyLimit: (o["historyLimit"] as? NSNumber)?.intValue,
-      historySince: (o["historySince"] as? NSNumber)?.doubleValue,
-      spaceIds: (o["spaceIds"] as? [String]).map(Set.init),
-      streamHistory: o["streamHistory"] as? Bool ?? false
-    )
+    return ImportObserver(chunkSize: options.chunkSize ?? 1000, progress: progress, history: history)
   }
 
   static func fileURL(_ path: String) -> URL {

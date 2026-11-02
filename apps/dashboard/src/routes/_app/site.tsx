@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CircleAlert, CircleCheck, CircleDot } from "lucide-react";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { CircleAlert, CircleCheck, CircleDot, Play } from "lucide-react";
 import { BarList } from "@/components/bar-list";
-import { Delta, Funnel, PageHeader, Panel, Stat } from "@/components/blocks";
+import { Delta, PageHeader, Panel, Stat } from "@/components/blocks";
 import { TimeSeriesChart } from "@/components/charts";
 import { DataTable } from "@/components/data-table";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { SourceBadge } from "@/components/source-badge";
 import { compareLabel, compareSentence, rangeSentence } from "@/lib/compare";
 import { formatAgo, formatExact, formatMs, formatPercent } from "@/lib/format";
 import { windowFor } from "@/lib/range";
+import { THRESHOLDS } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/site")({
@@ -19,15 +20,7 @@ export const Route = createFileRoute("/_app/site")({
 });
 
 type Clicks = SectionData<"site.clicks">;
-
-const OUTCOME: Record<string, string> = {
-  "": "Opened the panel",
-  shared: "Shared",
-  copied: "Copied the link",
-  blocked: "Share blocked",
-  failed: "Share failed",
-  cancelled: "Share cancelled",
-};
+type FrictionData = SectionData<"site.friction">;
 
 function SitePage() {
   const range = useRange();
@@ -36,6 +29,7 @@ function SitePage() {
   const traffic = useSection("site.traffic");
   const breakdowns = useSection("site.breakdowns");
   const clicks = useSection("site.clicks");
+  const friction = useSection("site.friction");
   const experiment = useSection("site.experiment");
   const vitals = useSection("site.vitals");
 
@@ -74,31 +68,9 @@ function SitePage() {
             {(d) => <TimeSeriesChart buckets={d.window.buckets} series={d.trend} step={d.window.step} height={260} />}
           </Loaded>
         </Panel>
-        <Panel source="site" className="xl:col-span-2" title="Download funnel" description="Distinct people in the range. The Download button only ships a Mac app, so the funnel follows Macs.">
-          <Loaded query={clicks} skeleton={<ListSkeleton rows={4} />}>
-            {(d) => {
-              const mac = traffic.data?.kpis.mac.value ?? null;
-              return (
-                <>
-                  <Funnel
-                    steps={[
-                      { key: "visitors", label: "Visitors", value: traffic.data?.kpis.visitors.value ?? null },
-                      { key: "mac", label: "Mac visitors", value: mac },
-                      { key: "mac-clicked", label: "Mac download clicked", value: d.macClicked },
-                    ]}
-                    note={
-                      <>
-                        Mac download rate <span className="font-semibold text-foreground tnum">{formatPercent(mac ? d.macClicked / mac : null)}</span>. {formatExact(d.clickersAll)} people
-                        clicked Download on any device.
-                      </>
-                    }
-                  />
-                  <div className="mt-5 border-t pt-4">
-                    <BarList items={d.locations} dimension="Where they clicked" valueLabel="People" secondaryLabel="Clicks" color="var(--chart-2)" limit={6} />
-                  </div>
-                </>
-              );
-            }}
+        <Panel source="site" className="xl:col-span-2" title="Where they clicked Download" description="Download clicks by the button's place on the page. The Mac funnel is on Funnels.">
+          <Loaded query={clicks} skeleton={<ListSkeleton rows={6} />}>
+            {(d) => <BarList items={d.locations} dimension="Location" valueLabel="People" secondaryLabel="Clicks" color="var(--chart-2)" limit={8} />}
           </Loaded>
         </Panel>
       </div>
@@ -122,28 +94,25 @@ function SitePage() {
         ))}
       </div>
 
+      <Panel
+        source={["site", "replay"]}
+        title="Rage and dead clicks"
+        description={`Rage clicks, dead clicks and dead swipes by element and page, per 100 visitors of that page. A click followed by a tracked event within ${THRESHOLDS.frictionWindowMs / 1000} s did something, so it's left out.`}
+      >
+        <Loaded query={friction} skeleton={<TableSkeleton rows={8} columns={7} />}>
+          {(d) => <Friction data={d} />}
+        </Loaded>
+      </Panel>
+
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
         <Panel source="site" title="Clicks" description={`Tracked clicks. Change compares people with ${compare || "the period before"}.`}>
           <Loaded query={clicks} skeleton={<TableSkeleton rows={8} columns={4} />}>
             {(d) => <ClicksTable rows={d.clicks} />}
           </Loaded>
         </Panel>
-        <Panel source="site" title="Rage and dead clicks" description="Grouped by the element's text and the page. Images have no text.">
-          <Loaded query={clicks} skeleton={<TableSkeleton rows={8} columns={6} />}>
-            {(d) => <DeadClicks rows={d.deadClicks} />}
-          </Loaded>
-        </Panel>
-      </div>
-
-      <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
         <Panel source="site" title="Experiment: download-band" description="Mac visitors exposed to each variant in the range, and how many clicked Download after exposure. Stop at 300+ per variant and 7+ days.">
           <Loaded query={experiment} skeleton={<TableSkeleton rows={2} columns={5} />}>
             {(d) => <Experiment data={d} />}
-          </Loaded>
-        </Panel>
-        <Panel source="site" title="Send to my Mac" description="The phone panel: taps, how the link got out, and Macs that opened a sent link.">
-          <Loaded query={clicks} skeleton={<ListSkeleton rows={4} />}>
-            {(d) => <SendToMac rows={d.sendToMac} />}
           </Loaded>
         </Panel>
       </div>
@@ -183,32 +152,6 @@ function Vitals({ rows }: { rows: SectionData<"site.vitals"> }) {
         );
       })}
     </div>
-  );
-}
-
-function DeadClicks({ rows }: { rows: Clicks["deadClicks"] }) {
-  return (
-    <DataTable
-      dense
-      rows={rows}
-      rowKey={(r) => `${r.kind}|${r.text}|${r.path}`}
-      initialSort={{ key: "count", desc: true }}
-      limit={10}
-      empty="No rage or dead clicks in this range"
-      columns={[
-        {
-          key: "kind",
-          header: "Kind",
-          sort: (r) => r.kind,
-          cell: (r) => <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", r.kind === "Rage" ? "bg-bad/12 text-bad" : "bg-muted text-muted-foreground")}>{r.kind}</span>,
-        },
-        { key: "text", header: "Element text", sort: (r) => r.text, cell: (r) => <span className="line-clamp-1 max-w-52 break-all">{r.text || <span className="text-muted-foreground">no text</span>}</span> },
-        { key: "path", header: "Page", sort: (r) => r.path, cell: (r) => <span className="font-mono text-[11px] text-muted-foreground">{r.path}</span> },
-        { key: "count", header: "Clicks", align: "right", sort: (r) => r.count, cell: (r) => formatExact(r.count) },
-        { key: "people", header: "People", align: "right", sort: (r) => r.people, cell: (r) => formatExact(r.people) },
-        { key: "last", header: "Last", align: "right", sort: (r) => r.lastSeen, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatAgo(r.lastSeen)}</span> },
-      ]}
-    />
   );
 }
 
@@ -261,22 +204,68 @@ function Experiment({ data }: { data: SectionData<"site.experiment"> }) {
   );
 }
 
-function SendToMac({ rows }: { rows: Clicks["sendToMac"] }) {
-  const taps = rows.filter((r) => r.event === "send_to_mac_clicked");
-  const fallback = rows.filter((r) => r.event === "send_to_mac_fallback");
-  const visits = rows.filter((r) => r.event === "mac_link_visit");
-  const people = (list: typeof rows) => list.reduce((s, r) => s + r.people, 0);
+function Friction({ data }: { data: FrictionData }) {
+  const rate = (n: number | null) => (n === null ? "–" : n.toFixed(n >= 10 ? 0 : 1));
   return (
-    <>
-      <div className="grid grid-cols-3 gap-4 border-b pb-4">
-        <Stat label="Taps" value={formatExact(taps.reduce((s, r) => s + r.count, 0))} sub={`${formatExact(people(taps))} people`} />
-        <Stat label="Fallbacks" value={formatExact(fallback.reduce((s, r) => s + r.count, 0))} sub={`${formatExact(people(fallback))} people`} />
-        <Stat label="Macs opened" value={formatExact(people(visits))} sub="sent links" />
+    <div className="grid gap-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,15rem)_1fr]">
+        <div className="grid grid-cols-2 content-start gap-x-4 gap-y-5 lg:grid-cols-1">
+          <Stat label="People hit one" value={formatExact(data.people)} sub={`${rate(data.visitors ? (100 * data.people) / data.visitors : null)} per 100 visitors`} />
+          <Stat label="Left out" value={formatExact(data.explained)} sub={`of ${formatExact(data.events + data.explained)} events led to a tracked click`} />
+        </div>
+        <div className="min-w-0">
+          <div className="mb-2 label-mono text-muted-foreground">People per 100 visitors, per {data.window.step}</div>
+          <TimeSeriesChart buckets={data.window.buckets} step={data.window.step} height={170} format={(n) => n.toFixed(1)} series={[{ key: "rate", label: "Per 100 visitors", values: data.series, color: "var(--chart-3)" }]} />
+        </div>
       </div>
-      <div className="mt-4 grid gap-5 sm:grid-cols-2">
-        <BarList dimension="Outcome" valueLabel="People" items={taps.map((r) => ({ key: r.outcome, label: OUTCOME[r.outcome] ?? r.outcome, value: r.people, secondary: r.count }))} color="var(--chart-3)" empty="No taps" />
-        <BarList dimension="Fallback" valueLabel="People" items={fallback.map((r) => ({ key: r.action, label: r.action || "other", value: r.people }))} color="var(--chart-3)" empty="No fallbacks" />
-      </div>
-    </>
+      <DataTable
+        dense
+        rows={data.spots}
+        rowKey={(r) => `${r.kind}|${r.text}|${r.path}`}
+        initialSort={{ key: "people", desc: true }}
+        limit={12}
+        empty="No rage or dead clicks in this range"
+        columns={[
+          {
+            key: "kind",
+            header: "Kind",
+            sort: (r) => r.kind,
+            cell: (r) => <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", r.kind === "Rage" ? "bg-bad/12 text-bad" : "bg-muted text-muted-foreground")}>{r.kind}</span>,
+          },
+          { key: "text", header: "Element", sort: (r) => r.text, cell: (r) => <span className="line-clamp-1 max-w-64 break-all">{r.text || <span className="text-muted-foreground">no text</span>}</span> },
+          { key: "path", header: "Page", sort: (r) => r.path, cell: (r) => <span className="font-mono text-[11px] whitespace-nowrap text-muted-foreground">{r.path}</span> },
+          { key: "people", header: "People", align: "right", sort: (r) => r.people, cell: (r) => <span className="font-medium">{formatExact(r.people)}</span> },
+          {
+            key: "rate",
+            header: "Per 100",
+            align: "right",
+            sort: (r) => r.rate ?? -1,
+            cell: (r) => (
+              <span className="inline-flex items-center gap-1.5">
+                {r.previousRate !== null && r.rate !== null && r.previousPeople ? <Delta value={r.rate} previous={r.previousRate} format="count" goodWhenUp={false} /> : null}
+                {rate(r.rate)}
+              </span>
+            ),
+          },
+          { key: "count", header: "Events", align: "right", sort: (r) => r.count, cell: (r) => formatExact(r.count) },
+          { key: "explained", header: "Left out", align: "right", sort: (r) => r.explained, cell: (r) => <span className="text-muted-foreground">{formatExact(r.explained)}</span> },
+          {
+            key: "replay",
+            header: "Replay",
+            align: "right",
+            cell: (r) =>
+              r.session ? (
+                <Link to="/replays/$sessionId" params={{ sessionId: r.session }} className="inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap text-primary hover:underline">
+                  <Play className="size-3" aria-hidden />
+                  {formatAgo(r.lastSeen)}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">–</span>
+              ),
+          },
+        ]}
+      />
+      {data.hidden > 0 ? <p className="text-xs text-muted-foreground">{formatExact(data.hidden)} smaller spots aren't listed.</p> : null}
+    </div>
   );
 }
