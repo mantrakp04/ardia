@@ -179,6 +179,25 @@ void InstallTrafficLightsOrigin(Class frameClass) {
   });
 }
 
+void InstallTitlebarReachingLights(Class frameClass) {
+  static NSMutableSet<Class> *installed = [NSMutableSet set];
+  if (!frameClass || [installed containsObject:frameClass]) return;
+  [installed addObject:frameClass];
+  const SEL sel = NSSelectorFromString(@"_titlebarHeight");
+  ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+    return ^CGFloat(NSView *frameView) {
+      const CGFloat height = ((CGFloat (*)(id, SEL))standard)(frameView, sel);
+      NSWindow *window = frameView.window;
+      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen)) return height;
+      NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey);
+      if (!center) return height;
+      NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+      const CGFloat lightsBottom = center.pointValue.y + (close ? NSHeight(close.frame) : 14) / 2;
+      return MAX(height, ceil(lightsBottom));
+    };
+  });
+}
+
 const void *kSharingIndicatorTuckedKey = &kSharingIndicatorTuckedKey;
 
 void KeepSharingIndicatorInWindow(NSView *frameView, CGFloat dx) {
@@ -278,7 +297,7 @@ namespace ardia_window {
 
 void RetileTrafficLights(NSWindow *window) {
   NSView *frameView = window.contentView.superview;
-  for (NSString *name in @[ @"_updateButtonPositions", @"_positionSharingIndicator" ]) {
+  for (NSString *name in @[ @"_updateTitlebarContainerViewFrameIfNecessary", @"_updateButtonPositions", @"_updateMouseTracking", @"_positionSharingIndicator" ]) {
     const SEL sel = NSSelectorFromString(name);
     if ([frameView respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(frameView, sel);
   }
@@ -324,6 +343,7 @@ void SettleTrafficLights(NSWindow *window) {
 void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   InstallTrafficLightsOrigin([window.contentView.superview class]);
+  InstallTitlebarReachingLights([window.contentView.superview class]);
   InstallSharingIndicatorBounds([window.contentView.superview class]);
   InstallSharingWindowBounds();
   RetileTrafficLights(window);
