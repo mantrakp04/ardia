@@ -1,33 +1,31 @@
 import AppIntents
-import ArdiaDesign
 import SwiftUI
 import WidgetKit
 
-nonisolated protocol ArdiaLinkControlIntent: AppIntent {
-  static var link: SystemLink { get }
-}
+nonisolated protocol ArdiaControlIntent: AppIntent {}
 
-nonisolated extension ArdiaLinkControlIntent {
-  static var isDiscoverable: Bool { false }
-
-  func perform() async throws -> some IntentResult & OpensIntent {
-    .result(opensIntent: OpenURLIntent(Self.link.url))
+nonisolated extension ArdiaControlIntent {
+  func perform() async throws -> some IntentResult {
+    .result()
   }
 }
 
-nonisolated struct SearchControlIntent: ArdiaLinkControlIntent {
+nonisolated struct SearchControlIntent: ArdiaControlIntent {
   static let title: LocalizedStringResource = "Search"
-  static let link = SystemLink.search(query: nil)
+  static let isDiscoverable = false
+  static let supportedModes: IntentModes = .foreground
 }
 
-nonisolated struct VoiceSearchControlIntent: ArdiaLinkControlIntent {
+nonisolated struct VoiceSearchControlIntent: ArdiaControlIntent {
   static let title: LocalizedStringResource = "Voice Search"
-  static let link = SystemLink.voiceSearch
+  static let isDiscoverable = false
+  static let supportedModes: IntentModes = .foreground
 }
 
-nonisolated struct IncognitoControlIntent: ArdiaLinkControlIntent {
+nonisolated struct IncognitoControlIntent: ArdiaControlIntent {
   static let title: LocalizedStringResource = "New Incognito Tab"
-  static let link = SystemLink.incognito
+  static let isDiscoverable = false
+  static let supportedModes: IntentModes = .foreground
 }
 
 struct SearchControl: ControlWidget {
