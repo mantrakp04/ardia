@@ -183,17 +183,22 @@ void InstallTitlebarReachingLights(Class frameClass) {
   static NSMutableSet<Class> *installed = [NSMutableSet set];
   if (!frameClass || [installed containsObject:frameClass]) return;
   [installed addObject:frameClass];
-  const SEL sel = NSSelectorFromString(@"_titlebarHeight");
+  const SEL sel = NSSelectorFromString(@"_currentTitlebarContainerViewFrame");
   ReplaceMethod(frameClass, sel, ^id(IMP standard) {
-    return ^CGFloat(NSView *frameView) {
-      const CGFloat height = ((CGFloat (*)(id, SEL))standard)(frameView, sel);
+    return ^NSRect(NSView *frameView) {
+      NSRect frame = ((NSRect (*)(id, SEL))standard)(frameView, sel);
       NSWindow *window = frameView.window;
-      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen)) return height;
+      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen)) return frame;
       NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey);
-      if (!center) return height;
+      if (!center) return frame;
       NSButton *close = [window standardWindowButton:NSWindowCloseButton];
-      const CGFloat lightsBottom = center.pointValue.y + (close ? NSHeight(close.frame) : 14) / 2;
-      return MAX(height, ceil(lightsBottom));
+      const CGFloat reach = ceil(center.pointValue.y + (close ? NSHeight(close.frame) : 14) / 2);
+      const CGFloat top = frameView.isFlipped ? NSMinY(frame) : NSHeight(frameView.bounds) - NSMaxY(frame);
+      const CGFloat grow = reach - top - NSHeight(frame);
+      if (grow <= 0) return frame;
+      frame.size.height += grow;
+      if (!frameView.isFlipped) frame.origin.y -= grow;
+      return frame;
     };
   });
 }
