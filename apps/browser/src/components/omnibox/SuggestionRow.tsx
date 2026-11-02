@@ -1,11 +1,14 @@
 import { displayUrl, type Suggestion } from "@ardia/core";
 import { memo } from "react";
 import { Image, Pressable, Text as NativeText, View } from "react-native";
-import { Button, Symbol, Text, useHover, useTheme } from "../ui";
+import { Button, Symbol, Text, useHover, useTheme, withAlpha, type Theme } from "../ui";
 import { Favicon } from "../favicon/Favicon";
-import { SUGGESTION } from "./tokens";
+import { SELECTED_SUGGESTION_ALPHA, SUGGESTION } from "./tokens";
 
 const ICON_BOX = { width: SUGGESTION.iconBox, height: SUGGESTION.iconBox } as const;
+
+const selectedFill = (theme: Theme) =>
+  theme.powerUpColor ? withAlpha(theme.powerUpColor, theme.dark ? SELECTED_SUGGESTION_ALPHA.dark : SELECTED_SUGGESTION_ALPHA.light) : theme.commandBarSelected;
 
 export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestion; color?: string }) {
   const theme = useTheme();
@@ -119,7 +122,7 @@ const SuggestionRow = memo(
               alignItems: "center",
               paddingHorizontal: SUGGESTION.padX,
               gap: SUGGESTION.gap,
-              backgroundColor: selected ? theme.commandBarSelected : hovered ? theme.commandBarHover : undefined,
+              backgroundColor: selected ? selectedFill(theme) : hovered ? theme.commandBarHover : undefined,
             }}
           >
             <SuggestionIcon suggestion={s} />
@@ -135,7 +138,7 @@ const SuggestionRow = memo(
             <View style={{ flex: 1 }} />
             {hint && !removable ? <Text size="small" tone="textTertiary">{hint}</Text> : null}
             {removable ? (
-              <Button variant="icon" icon="xmark" size={SUGGESTION.remove.glyph} box={SUGGESTION.remove.box} radius={SUGGESTION.remove.radius} color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
+              <Button variant="icon" icon="xmark" size="s" color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
             ) : null}
           </View>
         </Pressable>

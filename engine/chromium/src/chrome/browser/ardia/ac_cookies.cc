@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_cookies.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <cmath>
 #include <map>
@@ -251,45 +251,25 @@ void WriteNew(base::WeakPtr<Profile> profile,
 }
 }
 
-AC_ENGINE_CALL(ac_cookies_import) {
-  ardia::Call call(profile_dir, nullptr, reply, context);
-  if (!call) {
-    return;
-  }
-  if (call.profile()->IsOffTheRecord()) {
-    return call.TakeReply().Error("private profile");
-  }
-
+AC_PROFILE_CALL(ac_cookies_import, ardia::Sensitive{ardia::kMaxArgsBytes}) {
   std::vector<ardia::Imported> cookies;
   ardia::Counts counts;
-  {
-    ardia::SensitiveArgs args(args_json, ardia::kMaxArgsBytes);
-    if (args.too_large()) {
-      return call.TakeReply().Error("arguments too large");
-    }
-    if (!args.dict()) {
-      return call.TakeReply().Error("arguments are not a JSON object");
-    }
-    if (args.dict()->FindBool("offTheRecord").value_or(false)) {
-      return call.TakeReply().Error("not for a private session");
-    }
-    const base::ListValue* list = args.dict()->FindList("cookies");
-    if (!list) {
-      return call.TakeReply().Error("cookies must be a list");
-    }
-    if (list->size() > ardia::kMaxCookies) {
-      return call.TakeReply().Error("too many cookies in one call");
-    }
-    const base::Time now = base::Time::Now();
-    cookies.reserve(list->size());
-    for (const base::Value& entry : *list) {
-      std::optional<ardia::Imported> cookie =
-          ardia::ToCookie(entry, now);
-      if (cookie) {
-        cookies.push_back(std::move(*cookie));
-      } else {
-        ++counts.rejected;
-      }
+  const base::ListValue* list = call.args().FindList("cookies");
+  if (!list) {
+    return call.TakeReply().Error("cookies must be a list");
+  }
+  if (list->size() > ardia::kMaxCookies) {
+    return call.TakeReply().Error("too many cookies in one call");
+  }
+  const base::Time now = base::Time::Now();
+  cookies.reserve(list->size());
+  for (const base::Value& entry : *list) {
+    std::optional<ardia::Imported> cookie =
+        ardia::ToCookie(entry, now);
+    if (cookie) {
+      cookies.push_back(std::move(*cookie));
+    } else {
+      ++counts.rejected;
     }
   }
 

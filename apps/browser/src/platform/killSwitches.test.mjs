@@ -148,3 +148,16 @@ test("a slow answer is dropped after the timeout", async (t) => {
   assert.equal(await result, "failed");
   assert.equal(ks.switchOn("sidebarSlide"), true);
 });
+
+test("every switch and experiment native and engine code read by name is in the registry", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const root = new URL("../../../../", import.meta.url).pathname;
+  const pattern = String.raw`(switchOn|experimentOn|SwitchOn|ExperimentOn)\("[A-Za-z]+"\)`;
+  const hits = execFileSync("git", ["grep", "-hoE", pattern, "--", ":(glob)packages/*/ios/**", "engine", "apps/browser/macos"], { cwd: root, encoding: "utf8" });
+  const read = hits.trim().split("\n").map((hit) => hit.match(/^(\w+)\("(\w+)"\)$/));
+  assert.ok(read.length >= 4, "found the native reads");
+  for (const [, kind, name] of read) {
+    const registry = /^[sS]witchOn$/.test(kind) ? ks.SWITCHES : ks.EXPERIMENTS;
+    assert.ok(Object.hasOwn(registry, name), `${kind}("${name}") reads a name the registry in platform/killSwitches.ts doesn't have`);
+  }
+});

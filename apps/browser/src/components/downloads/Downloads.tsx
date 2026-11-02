@@ -5,90 +5,51 @@ import {
   PopoverBubble,
   Symbol,
   Button,
+  GlassFill,
   hex,
   HoverSlot,
   layout,
   MenuSeparator,
+  menuRowFill,
   PANEL,
+  ProgressTrack,
   Text,
+  useGlass,
+  useGlassLook,
   useHover,
   usePopoverMotion,
   usePopoverMotionStyle,
   usePopoverPresence,
   useTheme,
+  type Theme,
 } from "../ui";
-import { copyText, fileExists, fileIcon, moveToTrash, openFile, revealFile, showMenu, type MenuItem } from "../../state/app/system";
-import { memo, useEffect, useRef, useState } from "react";
+import { fileIcon, openFile, revealFile } from "../../state/app/system";
+import { downloadMenu } from "../../state/downloads/downloadMenu";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useSidebarOpen, useWindowId, useWindowUi } from "../../state/browser/hooks";
-import { clearDownloads, removeDownload, setDownloadsOpen } from "../../state/windows/actions";
-import { onDownloadsChanged, opensWhenDone, toggleOpenWhenDone, watchNewDownloads, watchOpenWhenDone } from "../../state/windows/downloadWatch";
+import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
+import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
-import { useAddressBarInSidebar, useTabLayout } from "../../state/windows/layout";
+import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
 import { openInternalPage } from "../../state/pages/urls";
-import { useSidebarWidth } from "../sidebar/tokens";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { hairline, shadow } from "../ui/tokens";
+import { panelGlassTint } from "../ui/Glass";
 import { DOWNLOADS_PANEL, type DownloadsPlacement } from "./downloadsPlacement";
-import { awaitsKeep, dangerWarning, downloadStatus } from "./downloadStatus";
+import { dangerWarning, downloadStatus } from "../../state/downloads/status";
+import { useDownloadView } from "./useDownloadView";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
-import { DOWNLOADS_LIST as L, downloadsRowFill, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
 
-export { awaitsKeep, downloadStatus } from "./downloadStatus";
-export { DownloadsButton } from "./DownloadsButton";
-
-const g = globalThis as { __acDownloadsWatch?: () => void };
-g.__acDownloadsWatch?.();
-g.__acDownloadsWatch = watchOpenWhenDone((path) => void openFile(path));
-
-export async function downloadMenu(d: Download, windowId: string) {
-  const exists = d.state === "finished" && fileExists(d.path);
-  const items: MenuItem[] = awaitsKeep(d)
-    ? [
-        { id: "keep", title: "Keep" },
-        { id: "cancel", title: "Discard" },
-      ]
-    : d.state === "downloading"
-      ? [
-          { id: "whenDone", title: "Open When Done", checked: opensWhenDone(d.id) },
-          { id: d.paused ? "resume" : "pause", title: d.paused ? "Resume" : "Pause" },
-          { id: "cancel", title: "Cancel" },
-        ]
-      : [
-          { id: "open", title: "Open", enabled: exists },
-          { id: "reveal", title: "Show in Finder", enabled: exists },
-        ];
-  items.push(
-    { separator: true },
-    { id: "copy", title: "Copy Download Link" },
-    { id: "page", title: "Show All Downloads" },
-    { separator: true },
-    ...(exists ? [{ id: "trash", title: "Move to Trash" }] : []),
-    { id: "remove", title: "Remove from List", enabled: d.state !== "downloading" },
-  );
-  const choice = await showMenu(items);
-  if (choice === "whenDone") toggleOpenWhenDone(d.id);
-  if (choice === "pause") void pauseDownload(d.id);
-  if (choice === "resume") void resumeDownload(d.id);
-  if (choice === "keep") void keepDownload(d.id);
-  if (choice === "cancel") void cancelDownload(d.id);
-  if (choice === "open") void openFile(d.path);
-  if (choice === "reveal") void revealFile(d.path);
-  if (choice === "copy") copyText(d.url);
-  if (choice === "page") openInternalPage("downloads", windowId);
-  if (choice === "trash") void trashDownload(d);
-  if (choice === "remove") removeDownload(d.id);
-}
-
-async function trashDownload(d: Download) {
-  if (await moveToTrash(d.path)) removeDownload(d.id);
-}
+const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
 
 const iconCache = new Map<string, string | null>();
-export const FileIcon = memo(function FileIcon({ path, size = 28 }: { path: string; size?: number }) {
+export const FileIcon = memo(function FileIcon({ path, size = L.fileIcon }: { path: string; size?: number }) {
   const theme = useTheme();
   const key = `${path}@${size}`;
   const [uri, setUri] = useState(() => iconCache.get(key) ?? null);
@@ -130,7 +91,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const appear = usePopoverMotion(closing, onClosed, placed);
 
   const upward = p?.bottom !== undefined;
-  const motion = usePopoverMotionStyle(appear, p ? `${p.arrowX}px ${upward ? "bottom" : "top"}` : "top", upward);
+  const arrowX = p?.arrowX;
+  const origin = useMemo(() => (arrowX === undefined ? "top" : ([arrowX, upward ? "100%" : 0, 0] as [number, string | number, number])), [arrowX, upward]);
+  const motion = usePopoverMotionStyle(appear, origin, upward);
   const arrowRoom = p && p.arrow !== "none" ? DOWNLOADS_PANEL.arrowHeight : 0;
   const listMax = p ? Math.max(L.row, Math.min(L.visibleRows * L.row, p.room - L.chrome)) : L.visibleRows * L.row;
 
@@ -156,11 +119,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
               {clearable && (
                 <Button
                   variant="text"
-                  plate="hover"
-                  height={L.clearHeight}
-                  pad="sm"
-                  weight="regular"
-                  tone="textSecondary"
+                  look="panel"
                   title="Clear"
                   onPress={() => {
                     setOpen(false);
@@ -174,7 +133,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
                 <Text tone="textSecondary">No downloads yet</Text>
               </View>
             ) : (
-              <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
+              <ScrollView style={{ maxHeight: listMax }} showsVerticalScrollIndicator={ids.length * L.row > listMax} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
                 {ids.map((id) => (
                   <DownloadRowItem key={id} id={id} windowId={windowId} />
                 ))}
@@ -199,6 +158,7 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
   const theme = useTheme();
   const colors = useDownloadsColors();
   const level = shadow.popover;
+  const glass = useGlassLook();
   return (
     <PopoverBubble
       material="popover"
@@ -208,9 +168,10 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
       arrowX={placement.arrowX}
       arrowWidth={DOWNLOADS_PANEL.arrowWidth}
       arrowHeight={DOWNLOADS_PANEL.arrowHeight}
-      tint={hex(colors.bubbleTint)}
+      glass={glass.panes}
+      tint={glass.panes ? panelGlassTint(theme, theme.panel, glass.tint) : hex(colors.bubbleTint)}
       edgeColor={hex(theme.popoverBorder)}
-      edgeWidth={hairline.panel}
+      edgeWidth={glass.panes ? 0 : hairline.panel}
       shadowOpacity={theme.dark ? level.opacity.dark : level.opacity.light}
       shadowRadius={level.radius}
       shadowOffsetY={level.offset[1]}
@@ -220,7 +181,7 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
 }
 
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
-  return <Button variant="icon" icon={icon} size={PANEL.iconSize} box={L.rowButton} radius={L.rowButtonRadius} onPress={onPress} tooltip={tooltip} />;
+  return <Button variant="icon" icon={icon} size="s" glyph={PANEL.iconSize} onPress={onPress} tooltip={tooltip} />;
 }
 
 const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: string; windowId: string }) {
@@ -232,24 +193,9 @@ const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: st
 
 function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();
-  const colors = useDownloadsColors();
   const { hovered, hoverProps } = useHover();
-  const exists = d.state !== "finished" || fileExists(d.path);
-  const shown = useRef(exists);
-  shown.current = exists;
-  const [, recheck] = useState(0);
-  const finishedPath = d.state === "finished" ? d.path : null;
-  useEffect(() => {
-    if (finishedPath === null) return;
-    const check = () => {
-      if (fileExists(finishedPath) !== shown.current) recheck((n) => n + 1);
-    };
-    check();
-    return onDownloadsChanged(check);
-  }, [finishedPath]);
-  const progress = d.total > 0 ? d.received / d.total : 0;
-  const done = d.state === "finished" && exists;
-  const blocked = awaitsKeep(d);
+  const { exists, done, progress, blocked } = useDownloadView(d);
+  const glass = useGlass();
   return (
     <View {...hoverProps}>
       <MouseArea path={done ? d.path : null}>
@@ -264,9 +210,10 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                   paddingHorizontal: PANEL.rowPadding,
                   height: L.row,
                   borderRadius: PANEL.rowRadius,
-                  backgroundColor: downloadsRowFill(theme, hovered, pressed && done),
+                  backgroundColor: glass ? undefined : rowFill(theme, hovered, pressed && done),
                 }}
               >
+                <DownloadsRowGlass fill={rowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
                 <View style={{ opacity: exists ? 1 : L.missingOpacity }}>
                   <FileIcon path={d.path || d.filename} size={L.fileIcon} />
                 </View>
@@ -279,11 +226,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     {d.filename || "Preparing…"}
                   </Text>
                   {d.state === "downloading" && !blocked ? (
-                    <View style={{ height: L.progressHeight, borderRadius: L.progressRadius, marginTop: L.progressAbove, marginBottom: L.progressBelow, backgroundColor: colors.progressTrack }}>
-                      <View
-                        style={{ width: `${Math.max(progress, L.progressMin) * 100}%`, height: L.progressHeight, borderRadius: L.progressRadius, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
-                      />
-                    </View>
+                    <ProgressTrack value={Math.max(progress, L.progressMin)} height={L.progressHeight} tone={d.paused ? "textTertiary" : "accent"} style={PROGRESS_GAP} />
                   ) : null}
                   <Text lines={1} size="caption" tone={blocked ? "destructive" : "textSecondary"} style={{ lineHeight: PANEL.subtitleLine }}>
                     {blocked ? dangerWarning(d, true) : downloadStatus(d, exists)}
@@ -291,8 +234,8 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                 </View>
                 {blocked ? (
                   <View style={{ flexDirection: "row", marginRight: -L.textButtonPad }}>
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" weight="regular" tone="textSecondary" title="Keep" onPress={() => void keepDownload(d.id)} />
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" title="Discard" onPress={() => void cancelDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Keep" onPress={() => void keepDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Discard" onPress={() => void cancelDownload(d.id)} />
                   </View>
                 ) : d.state === "downloading" ? (
                   <View style={{ flexDirection: "row", marginRight: -L.rowButtonBearing }}>
@@ -326,6 +269,7 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const t = useRef(new Animated.Value(0)).current;
@@ -345,7 +289,7 @@ export function DownloadMagnet() {
     : addressBar
       ? footer
       : sidebarOpen
-        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: MAGNET.sidebarTarget.y }
+        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
         : MAGNET.closedTarget;
   const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
   const icon = MAGNET.icon;
@@ -373,3 +317,10 @@ export function DownloadMagnet() {
     </View>
   );
 }
+
+function DownloadsRowGlass({ fill, pressed }: { fill: string | undefined; pressed: boolean }) {
+  if (!useGlass() || !fill) return null;
+  return <GlassFill radius={PANEL.rowRadius} state={pressed ? "pressed" : "lit"} />;
+}
+
+const PROGRESS_GAP = { marginTop: L.progressAbove, marginBottom: L.progressBelow } as const;

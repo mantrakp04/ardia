@@ -128,10 +128,10 @@ const pageTarget = (urlPart) => until(urlPart, async () => (await targets()).fin
 const engine = (name, args = {}, ms) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`, ms);
 
 const appState = () => evalApp(`const s = ac.store.getState();
-  return { focused: s.ui.focusedWindowId, windows: Object.fromEntries(Object.values(s.windows).map((w) => {
+  return { focused: s.ui.focusOrder[0] ?? null, windows: Object.fromEntries(Object.values(s.windows).map((w) => {
     const shown = w.activeTabIds[w.profileId] ?? null;
-    const split = Object.values(s.splits ?? {}).find((x) => x.tabIds.includes(shown));
-    return [w.id, { profile: w.profileId, shown, url: s.tabs[shown]?.url ?? null, panes: split ? split.tabIds : shown ? [shown] : [] }];
+    const split = Object.values(s.splits ?? {}).find((x) => x.slots.flatMap((x) => x.stack ?? [x.tabId]).includes(shown));
+    return [w.id, { profile: w.profileId, shown, url: s.tabs[shown]?.url ?? null, panes: split ? split.slots.flatMap((x) => x.stack ?? [x.tabId]) : shown ? [shown] : [] }];
   })) };`);
 const activationLog = () => (existsSync(join(data, "activation.log")) ? readFileSync(join(data, "activation.log"), "utf8") : "");
 const focusRequests = (from = 0) =>

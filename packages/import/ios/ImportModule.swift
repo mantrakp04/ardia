@@ -46,13 +46,12 @@ public class ImportModule: Module {
       self.run(promise) { try Self.json(self.importer.discovery.list()) }
     }
 
-    AsyncFunction("importData") { (jobId: String, browserId: String, profileId: String, kinds: [String], options: [String: Any], promise: Promise) in
+    AsyncFunction("importData") { (jobId: String, browserId: String, profileId: String, kinds: [ImportKind], options: ImportRequestOptions, promise: Promise) in
       let cancellation = self.jobs.start(jobId)
       let observer = self.observer(jobId: jobId, options: options)
-      let parsed = kinds.compactMap(ImportKind.init(rawValue:))
       self.run(promise, job: jobId) {
-        var result = try self.importer.importData(browserId: browserId, profileId: profileId, kinds: parsed,
-                                                  options: Self.options(options), observer: observer, cancellation: cancellation)
+        var result = try self.importer.importData(browserId: browserId, profileId: profileId, kinds: kinds,
+                                                  options: options.importOptions, observer: observer, cancellation: cancellation)
         result.vaultToken = self.vault.keep(cookies: result.cookies, addresses: result.addresses, cards: result.cards)
         return try Self.json(result)
       }
@@ -73,7 +72,7 @@ public class ImportModule: Module {
       self.vault.discardAll()
     }
 
-    AsyncFunction("writeImported") { (token: String, profile: String, kinds: [String], promise: Promise) in
+    AsyncFunction("writeImported") { (token: String, profile: String, kinds: [ImportKind], promise: Promise) in
       guard let entry = self.vault.take(token) else { return promise.reject("notFound", "Nothing to write; import again") }
       Task { @MainActor in
         promise.resolve(await ImportWriter.write(entry, profile: profile, kinds: Set(kinds)))
@@ -134,16 +133,16 @@ public class ImportModule: Module {
       self.run(promise) { try Self.json(PasswordsCSV.load(Self.fileURL(path))) }
     }
 
-    AsyncFunction("chooseImportFile") { (kind: String, promise: Promise) in
+    AsyncFunction("chooseImportFile") { (kind: ImportFileKind, promise: Promise) in
       let panel = NSOpenPanel()
       panel.allowsMultipleSelection = false
       switch kind {
-      case "safariExport":
+      case .safariExport:
         panel.canChooseDirectories = true
         panel.allowedContentTypes = [.zip]
-      case "bookmarksHTML":
+      case .bookmarksHTML:
         panel.allowedContentTypes = [.html]
-      default:
+      case .passwordsCSV:
         panel.allowedContentTypes = [.commaSeparatedText]
       }
       panel.begin { response in promise.resolve(response == .OK ? panel.url?.path : nil) }
@@ -163,8 +162,8 @@ public class ImportModule: Module {
     }
   }
 
-  private func observer(jobId: String, options: [String: Any]) -> ImportObserver {
-    let stream = options["streamHistory"] as? Bool ?? false
+  private func observer(jobId: String, options: ImportRequestOptions) -> ImportObserver {
+    let stream = options.streamHistory
     let emit: @Sendable ([String: Any?]) -> Void = { [weak self] body in self?.sendEvent("onImportEvent", body) }
     let progress: @Sendable (ImportProgress) -> Void = { p in
       var body: [String: Any?] = ["jobId": jobId, "type": "progress", "kind": p.kind.rawValue,
@@ -176,16 +175,7 @@ public class ImportModule: Module {
     if stream {
       history = { chunk in emit(["jobId": jobId, "type": "history", "entries": (try? Self.json(chunk)) ?? "[]"]) }
     }
-    return ImportObserver(chunkSize: options["chunkSize"] as? Int ?? 1000, progress: progress, history: history)
-  }
-
-  static func options(_ o: [String: Any]) -> ImportOptions {
-    ImportOptions(
-      historyLimit: (o["historyLimit"] as? NSNumber)?.intValue,
-      historySince: (o["historySince"] as? NSNumber)?.doubleValue,
-      spaceIds: (o["spaceIds"] as? [String]).map(Set.init),
-      streamHistory: o["streamHistory"] as? Bool ?? false
-    )
+    return ImportObserver(chunkSize: options.chunkSize ?? 1000, progress: progress, history: history)
   }
 
   static func fileURL(_ path: String) -> URL {

@@ -113,10 +113,10 @@ test("browser: a flush's page reports are heard together, after its address", ()
   let updates = 0;
   const off = useBrowser.subscribe(() => updates++);
   storeTransaction(() => {
-    S().navigated(id, { url: "https://a.com/x", title: "X" }, { isLoading: true, canGoBack: true });
+    S().updateTab(id, { url: "https://a.com/x", title: "X" }, { isLoading: true, canGoBack: true });
     S().updateLive(id, { canGoForward: true });
     S().updateLive(id, { themeColor: "#123456" });
-    S().faviconChanged(id, "data:icon");
+    S().updateTab(id, { favicon: "data:icon" });
     S().updateTab(id, { title: "X!" });
   });
   off();
@@ -133,7 +133,7 @@ test("browser: a load that starts and ends in one flush is heard starting and en
     if (prev.live[id]?.isLoading !== s.live[id]?.isLoading) ends.push(`${prev.live[id]?.isLoading}>${s.live[id]?.isLoading}`);
   });
   storeTransaction(() => {
-    S().navigated(id, { url: "https://a.com/y", title: "" }, { isLoading: true });
+    S().updateTab(id, { url: "https://a.com/y", title: "" }, { isLoading: true });
     S().updateLive(id, { canGoBack: true });
     S().updateLive(id, { isLoading: false });
     S().updateTab(id, { title: "Y" });
@@ -151,9 +151,9 @@ test("browser: a listener that closes a tab as its address lands isn't undone by
     if (s.tabs[auth]?.url.startsWith("https://app/redirect")) S().closeTab(auth);
   });
   storeTransaction(() => {
-    S().navigated(auth, { url: "https://app/redirect?code=1", title: "" }, { isLoading: true });
+    S().updateTab(auth, { url: "https://app/redirect?code=1", title: "" }, { isLoading: true });
     S().updateLive(auth, { isLoading: false, canGoBack: true });
-    S().faviconChanged(auth, "data:icon");
+    S().updateTab(auth, { favicon: "data:icon" });
     S().updateTab(auth, { title: "Done" });
   });
   off();
@@ -164,15 +164,15 @@ test("browser: a listener that closes a tab as its address lands isn't undone by
 
 test("browser: an address that goes A → B → A in one flush is heard going to B and back", () => {
   const id = tabSetup();
-  S().navigated(id, { url: "https://a.com/A", title: "" }, { isLoading: false });
+  S().updateTab(id, { url: "https://a.com/A", title: "" }, { isLoading: false });
   const urls = [];
   const off = useBrowser.subscribe((s, prev) => {
     if (s.tabs[id]?.url !== prev.tabs[id]?.url) urls.push(s.tabs[id]?.url.slice(-1));
   });
   storeTransaction(() => {
-    S().navigated(id, { url: "https://a.com/B", title: "" }, { isLoading: false });
+    S().updateTab(id, { url: "https://a.com/B", title: "" }, { isLoading: false });
     S().updateTab(id, { title: "B" });
-    S().navigated(id, { url: "https://a.com/A", title: "" }, { isLoading: false });
+    S().updateTab(id, { url: "https://a.com/A", title: "" }, { isLoading: false });
   });
   off();
   assert.deepEqual(urls, ["B", "A"]);

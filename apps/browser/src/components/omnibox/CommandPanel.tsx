@@ -1,6 +1,6 @@
-import { OutsidePressArea, Surface } from "../ui";
+import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, View, type LayoutChangeEvent } from "react-native";
+import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../ui/theme";
 import { useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
@@ -12,28 +12,23 @@ import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
-import { PANEL_TEXT_LEFT, GROW } from "./tokens";
+import { BAR, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
-import { insecureLevel, URL_FIELD, urlTextLeft } from "../toolbar/Toolbar";
-import { hairline, shadow } from "../ui/tokens";
+import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
+import { useToolbarRow } from "../toolbar/useToolbarRow";
+import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
+import { radius, shadow, space } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = 17;
+const PANEL_RADIUS = radius.hero;
 const MIN_WIDTH = 420;
-const WINDOW_MARGIN = 12;
+const WINDOW_MARGIN = space.l;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = 12;
+const DROPDOWN_RADIUS = radius.panel;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
-
-let reduceMotion = false;
-AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => {},
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 type Box = { left: number; top: number; width: number; height: number };
 
@@ -47,6 +42,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
   const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
+  const toolbarRow = useToolbarRow();
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -89,11 +85,13 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const top = Math.max(0.5, anchor.top - ABOVE_PANE);
   const covering = anchor.left + anchor.width + RIGHT_OF_URL - left;
   const width = Math.min(Math.max(covering, MIN_WIDTH), room(left, covering));
-  const from = hasField ? { left: anchor.left, top: anchor.top + URL_FIELD.top, width: anchor.width, height: URL_FIELD.height } : null;
+  const field = urlFieldOf(toolbarRow);
+  const lift = compactLift(toolbarRow);
+  const from = hasField ? { left: anchor.left, top: anchor.top + field.top, width: anchor.width, height: field.height } : null;
   return (
-    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
+    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT - 2 * lift} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
       <OutsidePressArea onOutsidePress={onCancel}>
-        <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} onCancel={onCancel} onDone={onDone} />
+        <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} fieldRowHeight={BAR.panel.height - 2 * lift} onCancel={onCancel} onDone={onDone} />
       </OutsidePressArea>
     </Grow>
   );
@@ -101,10 +99,10 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
 
 function panelSurface(theme: ReturnType<typeof useTheme>, radius: number) {
   return {
-    fill: hex(theme.panel),
+    fill: hex(theme.ntpBarSolid),
     cornerRadius: radius,
-    borderColor: hex(theme.panelBorder),
-    borderWidth: hairline.panel,
+    borderColor: hex(theme.ntpBarBorder),
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: shadow.dialog.color,
     shadowOpacity: theme.panelShadowOpacity,
     shadowRadius: shadow.dialog.radius,
@@ -153,7 +151,7 @@ function Grow({
   surface: Omit<ComponentProps<typeof Surface>, "style">;
   children: ReactNode;
 }) {
-  const fade = !!from && reduceMotion;
+  const fade = !!from && !!reduceMotion();
   const [progress] = useState(() => new Animated.Value(from ? 0 : 1));
   const start = useRef(fade ? null : from);
   const [height, setHeight] = useState<number | null>(null);

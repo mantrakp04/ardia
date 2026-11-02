@@ -116,6 +116,7 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)runSelfTest;
 - (void)runButtonSelfTest:(NSString *)button;
 - (void)runHoverSelfTest;
+- (void)devMouse:(NSArray<NSString *> *)args;
 @end
 
 @interface ArdiaPiPZoom : NSObject

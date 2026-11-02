@@ -72,81 +72,9 @@ NSHashTable<ArdiaCoreTab *> *Watched() {
 
 namespace {
 
-NSString *ParsedOrigin(NSString *url) {
-  for (NSString *wrapper in @[ @"blob:", @"filesystem:" ])
-    if ([url.lowercaseString hasPrefix:wrapper]) url = [url substringFromIndex:wrapper.length];
-  const NSRange colon = [url rangeOfString:@":"];
-  if (colon.location == NSNotFound || colon.location == 0) return nil;
-  NSString *scheme = [url substringToIndex:colon.location].lowercaseString;
-  NSCharacterSet *schemeChars = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyz0123456789+.-"];
-  if ([scheme rangeOfCharacterFromSet:schemeChars.invertedSet].location != NSNotFound) return nil;
-  NSString *rest = [url substringFromIndex:NSMaxRange(colon)];
-  if (![rest hasPrefix:@"//"]) return @"";
-  rest = [rest substringFromIndex:2];
-  const NSRange end = [rest rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"/?#"]];
-  NSString *authority = end.location == NSNotFound ? rest : [rest substringToIndex:end.location];
-  const NSRange user = [authority rangeOfString:@"@" options:NSBackwardsSearch];
-  if (user.location != NSNotFound) authority = [authority substringFromIndex:NSMaxRange(user)];
-  return [NSString stringWithFormat:@"%@://%@", scheme, authority.lowercaseString];
-}
-
-NSString *EngineOrigin(NSString *url, BOOL *failed) {
-  @try {
-    id origin = [ArdiaCoreTab originForURL:url];
-    if (!origin || [origin isKindOfClass:NSString.class]) return origin;
-  } @catch (id) {
-  }
-  *failed = YES;
-  return nil;
-}
-
-BOOL EngineOriginsWork() {
-  static BOOL works;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    NSDictionary<NSString *, NSString *> *known = @{
-      @"https://a.test/x" : @"https://a.test",
-      @"http://EXAMPLE.com:80/" : @"http://example.com",
-      @"http://[0:0:0:0:0:0:0:1]:8080/" : @"http://[::1]:8080",
-      @"chrome://version/" : @"chrome://version",
-      @"blob:https://a.test/id" : @"https://a.test",
-      @"data:text/html,a://b" : @"",
-    };
-    works = YES;
-    for (NSString *url in known) {
-      BOOL failed = NO;
-      if (![EngineOrigin(url, &failed) isEqual:known[url]] || failed) works = NO;
-    }
-    NSLog(works ? @"[ardiacore] page veil: the engine's originForURL: passed its self-check"
-                : @"[ardiacore] page veil: the engine's originForURL: failed its self-check; origins are parsed instead");
-  });
-  return works;
-}
-
 NSString *OriginOfURL(NSString *url) {
-  if (!url.length) return nil;
   if ([url.lowercaseString hasPrefix:@"view-source:"]) url = [url substringFromIndex:12];
-  NSString *parsed = ParsedOrigin(url);
-  if (!EngineOriginsWork()) return parsed;
-  BOOL failed = NO;
-  NSString *engine = EngineOrigin(url, &failed);
-  if (failed) return parsed;
-  static NSSet<NSString *> *const network = [NSSet setWithArray:@[ @"http", @"https", @"ws", @"wss" ]];
-  NSString *scheme = parsed.length ? [parsed substringToIndex:[parsed rangeOfString:@":"].location] : nil;
-  if (!engine || (!engine.length && scheme && [network containsObject:scheme])) return parsed;
-  return engine;
-}
-
-}
-
-namespace ardia_early_window {
-
-}
-
-namespace {
-
-NSString *LiveOrigin(ArdiaCoreTab *tab) {
-  return tab.committedOrigin;
+  return ardia_web_view::OriginOf(url);
 }
 
 BOOL Untitled(NSString *url) {
@@ -160,7 +88,7 @@ BOOL IsFile(NSString *url) {
 
 BOOL ShownMatches(NSString *shownURL, ArdiaCoreTab *tab) {
   if (shownURL.length && [[Emits() objectForKey:tab].current containsObject:shownURL]) return YES;
-  NSString *shown = OriginOfURL(shownURL), *live = LiveOrigin(tab);
+  NSString *shown = OriginOfURL(shownURL), *live = tab.committedOrigin;
   if (shown.length && live.length && !IsFile(shownURL) && !IsFile(tab.url)) return [shown isEqualToString:live];
   NSString *url = tab.url;
   return Untitled(shownURL) ? Untitled(url) : [shownURL isEqualToString:url];

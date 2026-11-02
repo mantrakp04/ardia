@@ -1,3 +1,4 @@
+import { devRegister } from "../dev/devRegister";
 import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, WindowBackdrop } from "../ui";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
@@ -7,7 +8,7 @@ import { currentWindow } from "../../state/browser/current";
 import { useProfileLooks } from "../../state/profiles/hooks";
 import { useProfileNeighbours } from "../../state/windows/hooks";
 import { useWindowId } from "../../state/browser/hooks";
-import { pagerFor, usePagerNativeConfig, usePagerPages, usePagerSurface } from "../../state/windows/profilePager";
+import { pagerFor, useNativePagerPosition, usePagerNativeConfig, usePagerPages, usePagerSurface } from "../../state/windows/profilePager";
 
 
 export function ProfileSwipe({ children }: { children: ReactNode }) {
@@ -65,7 +66,8 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
 export function ProfileTint() {
   const windowId = useWindowId();
   const { pages, paging, pager } = usePagerPages(windowId);
-  const themes = useProfileLooks(pages, (profile, appDark, settings) => profileTheme(profile, appDark, spaceLookSource(settings)));
+  useNativePagerPosition(windowId);
+  const themes = useProfileLooks(pages, (profile, appDark, settings, palette) => profileTheme(profile, appDark, spaceLookSource(settings), palette));
   const opacities = useMemo(
     () => pages.map((page, k) => (k === 0 ? 1 : pager.pos.interpolate({ inputRange: [pages[k - 1]!.slot, page.slot], outputRange: [0, 1], extrapolate: "clamp" }))),
     [pages, pager],
@@ -88,12 +90,6 @@ export function ProfileTint() {
 
 const devAreas = new Map<string, React.RefObject<SwipeAreaHandle | null>>();
 const received: object[] = [];
-if (__DEV__) {
-  const g = globalThis as { acSwipe?: Record<string, unknown> };
-  g.acSwipe = {
-    ...g.acSwipe,
-    received: () => received.splice(0),
-    sidebar: (windowId: string) => devAreas.get(`sidebar:${windowId}`)?.current ?? null,
-    strip: (windowId: string) => devAreas.get(`strip:${windowId}`)?.current ?? null,
-  };
-}
+devRegister("acSwipe", "received", () => received.splice(0));
+devRegister("acSwipe", "sidebar", (windowId: string) => devAreas.get(`sidebar:${windowId}`)?.current ?? null);
+devRegister("acSwipe", "strip", (windowId: string) => devAreas.get(`strip:${windowId}`)?.current ?? null);

@@ -1,8 +1,8 @@
 # Building the engine from source
 
 Ardia runs on ArdiaCore: Chrome's own framework (`//chrome:chrome_framework`) built from our Chromium tree, with our
-layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 156.0.8078.47** (`CHROMIUM_VERSION` in
-`env.sh`), plus **Helium** 0.20.1 (helium-chromium) and 0.20.1.1 (helium-macos) minus a short skip list, then our
+layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 156.0.8078.79** (`CHROMIUM_VERSION` in
+`env.sh`), plus **Helium** 0.20.3 (helium-chromium) and 0.20.3.1 (helium-macos) minus a short skip list, then our
 patch series. Nothing of CEF's is checked out or built. CEF left the tree
 on 2026-10-09: its 117 patches to Chrome are gone, except a few kept as `chromium-cef-carryover.patch`
 ([below](#cefs-117-patches)), and the seams of theirs ArdiaCore used are our own hooks H1–H6
@@ -27,11 +27,12 @@ What the build adds:
 | `chromium-cef-carryover.patch` | The CEF patches we keep ([CEF's 117 patches](#cefs-117-patches)): `BrowserManagerService::DeleteBrowser`'s destruction order, no `NOTREACHED` for unmapped Mac key codes, bubbles kept on screen on the Mac (`kAdjustBubbleIfOffscreen`), a window with a child-modal sheet resizable and the sheet's focus back after the resize, the ResourceBundle delegate parameter H5 passes to `LoadLocalState`, the tab strip API's colour provider without an active tab, and `browser_tests` building without background mode (for `enable_background_mode=false`) |
 | `chromium-extension-window-hidden.patch` | The windows of ArdiaCore's own pages are invisible to chrome.windows/tabs (`g_ardia_hidden_from_extensions`, also read by the next patch and apply.sh's `browser_window_util` hook): not listed, not found by id (`ExtensionTabUtil::GetTabById` and `GetControllerInProfileWithId`, so tabs.get/update/remove, scripting and tabs.sendMessage on a leaked id fail as for a closed tab), no tabs events (`TabsEventRouter::ShouldTrackBrowser`) and no webNavigation events for their tabs, or for tabs they open |
 | `chromium-component-extension-restricted-urls.patch` | Chrome lets every `kComponent` extension script any page (`PermissionsData::CanExecuteScriptEverywhere`), Web Store included. For the component extensions Ardia bundles (`g_ardia_restricted_component_extension`, set in every process by `ACMainDelegate`: uBlock Origin's id), `IsRestrictedUrl` makes Chrome's usual checks anyway: no scripts on the Web Store, chrome:// pages or other extensions' pages. Nothing else about `kComponent` changes |
+| `chromium-component-extension-disk-messages.patch` | Helium's `add-component-l10n-support` reads a `kComponent` extension's `_locales` only from the resource packs, so uBlock Origin, a component Ardia loads from `Contents/Resources/Extensions/ublock`, got an empty catalog and every `chrome.i18n.getMessage` was `""` in every language (its pages and its blocked-page text blank). `RendererStartupHelper::GetMessageBundle` takes Helium's packed path only when the default locale's `messages.json` is a component resource, and reads the rest from disk as for any extension, so they follow the UI locale with Chrome's fallbacks (#488) |
 | `chromium-helium-ublock-off.patch` | Helium's uBlock Origin component (`blockjmkbacgjkknlgpkjjiijinjdanf`) is neither built nor loaded, and isn't pinned by default: no `AddUBlock`, no `//third_party/ublock` deps, grit headers or resource entries (the branding patch drops its pak). Ardia runs its own uBO (`fajbdaomknpkicfjcpipdmcpoamdmilh`), so users keep their filters and two engines don't filter every request |
 | `chromium-helium-onboarding-off.patch` | Helium's onboarding page (chrome://setup) isn't built: no WebUI target, resources, strings, chrome://chrome-urls entry or first-run opener (the branding patch drops its pak and registration), so Helium's services consent stays off. chrome://credits keeps Helium's GPL-3.0 entry with its licence text in `third_party/helium/LICENSE`, and leaves out the onboarding font |
 | `chromium-helium-services-page-off.patch` | Settings has no Helium services page: no route, no view, no "set up services" button opening chrome://setup. Helium services stay off in Ardia (the branding patch, which also removes its row), so it only offered switches that do nothing |
 | `chromium-helium-search-assets-off.patch` | Built-in search provider assets are on only for Chrome-branded builds again (Helium turns them on; `enable_builtin_search_provider_assets` in `chrome_build.gni` isn't a GN argument): the build doesn't fetch Helium's non-free search engine assets |
-| `chromium-helium-bangs-off.patch` | Helium's `BangManager` (add-native-bangs) never fetches: `LoadBangs` answers at once with no bangs, so no loader is made and nothing is requested (it made a cache-only request to the services-disabled placeholder at every launch). Chromium's omnibox never uses bangs in Ardia; the address bar is the app's own (`packages/core`) |
+| `chromium-helium-bangs-off.patch` | Helium's `BangManager` (add-native-bangs) never fetches: `LoadBangs` answers at once with an empty catalogue whatever the prefs say, so no loader is made, no retry is armed and nothing is requested (before Helium 0.20.2 it made a cache-only request to the services-disabled placeholder at every launch). Chromium's omnibox never uses bangs in Ardia; the address bar is the app's own (`packages/core`) |
 | `chromium-helium-rlz-for-cdm-storage-id.patch` | `enable_rlz` can be true again (`gn_defines.sh` sets it): it reverts the `rlz/buildflags/buildflags.gni` hunk of the `disable-rlz` patch Helium applies, as our ungoogled build did. Widevine's CDM storage id (`enable_cdm_storage_id`) hashes RLZ's machine id on the Mac, so every user's storage ids and licences stay the same. RLZ itself stays inert: there's no brand code |
 | `chromium-helium-ntp-third-party.patch` | chrome://newtab opens the New Tab page Ardia 0.2.39 did: chrome://new-tab-page-third-party unless Google is the default search engine. It reverts the `search.cc` hunks of Helium's `always-use-better-ntp`, which sent every engine to Chrome's WebUI NTP (it needs a BrowserView, which ArdiaCore's browsers lack), and puts back the `search.cc` part of ungoogled's `0008-restore-classic-ntp`, which Helium leaves out |
 | `chromium-helium-context-menu-cast.patch` | The page's context menu keeps Cast…, as in 0.2.39: it reverts the `AppendPageItems` hunk of Helium's `degoogle-context-menu`. Cast works through `chromium-cast-dialog-hook.patch`, with mDNS on |
@@ -63,6 +64,8 @@ What the build adds:
 | `chromium-neterror-game.patch` | "Where's the lamb?" replaces the dino: the offline page and chrome://game (below) |
 | `chromium-autofill-address-bubble-window.patch` | Chrome's offers to save or update an address (and its address sign-in promo) look the `AutofillBubbleHandler` up on the tab's Browser (`AutofillBubbleHandler::Get` on its unowned user data, as the save-card bubble already does), so they reach ArdiaCore's handler (`ACBrowserWindow::AttachBrowser` registers it): `FindBrowserWindowWithWebContents` finds BrowserViews only. It also carries CEF's `chrome_autofill_bubble_3796`: a tab with no window, or a handler that shows nothing, gets no address or card bubble instead of a crash |
 | `chromium-password-generation-local.patch` | Chrome offers "Suggest strong password" without password sync (`PasswordFeatureManagerImpl::IsGenerationEnabled`); generated passwords save to the profile's local store like any other. With no account, its popup says "Passwords are saved to Password Manager on this device." instead of "…saved to Google Password Manager for ." |
+| `chromium-password-string-erase.patch` | A `PasswordString` that holds its password as a plain `std::u16string` (Chrome's default; the process-bound backing, `kUseProcessBoundPasswordString`, is off) zeroes it, every byte of its capacity, when it is destroyed, cleared or assigned over. Chrome only cleared it, so every saved password a store read decrypted stayed in freed memory, including the results Chrome drops when their consumer has gone (`ConsumerReplyConverter`). Only `password_string.cc` changes, so the header and its ~180 includers don't rebuild. `ac_passwords_logins` (sync's read) refuses to run with the process-bound backing on, since that backing's buffer isn't erased |
+| `chromium-os-crypt-decrypt-erase.patch` | `os_crypt_async::Encryptor`'s decrypt paths zero their plaintext temporaries, every byte of their capacity, before they're freed: the byte vector a key decrypts into (`DecryptData`), the string `DecryptString` copies from (it now assigns straight into the caller's string, with no temporary in between) and `DecryptString16`'s UTF-8 copy. What they return is unchanged; cookies and every other os_crypt user decrypt exactly as before. Without it a saved password's plaintext stayed in freed memory twice on every read, before it reached the `PasswordString` that `chromium-password-string-erase.patch` erases |
 | `chromium-extension-installed-bubble.patch` | Chrome's "<extension> has been added" bubble (`ShowInfoDialog`): a window without Chrome's toolbar (every client window) gets it as a bubble under the top-right corner of the window, with a close button, closing on Esc and when the window is clicked. Chrome fell back to a browser-modal sheet there, with no buttons and no way to dismiss it. The app renames "Chromium" in Chrome's strings itself (`ac_strings.cc`) |
 | `chromium-tab-sharing-capturer.patch` | Each tab-sharing infobar remembers the frame whose capture it's for (`TabSharingInfoBarDelegate::capturer_id()`): a tab shows one infobar per share, and "Share this tab instead" moves only that share, never another call's |
 | `chromium-desktop-capture-window-audio.patch` | A desktop getUserMedia of a window gets audio when its `DesktopMediaID` carries a `window_audio_type` (`ShouldCaptureAudio` in `desktop_capture_access_handler.cc`, which allowed audio only for screens and tabs). Only ArdiaCore's grant sets one (`ac_desktop_capture.mm`, from the share picker's audio checkbox); Chrome's own picker sets it only for getDisplayMedia, which doesn't take this path, so extensions' desktopCapture is unchanged |
@@ -81,7 +84,7 @@ What the build adds:
 | `chromium-background-instance-no-default-handlers.patch` | A hidden test instance (`ARDIA_BACKGROUND=1`, which the app passes as `--ardia-background`; ArdiaCore sets `g_ardia_background_instance`) never sets a system default: `shell_integration`'s `SetAsDefaultBrowser`, `SetAsDefaultClientForScheme` and `SetAsDefaultHandlerForUTType` log a line and return false, so chrome://settings' Make default, the default browser prompt or a default protocol handler in a scratch copy can't change the owner's defaults. The app's own Set as Default goes through `ArdiaSystem.setAsDefaultBrowser`, which does the same |
 | `chromium-apple-passwords-host-skipped.patch` | Native messaging never starts Apple Passwords' helper (`com.apple.passwordmanager`): its launch constraint kills it at exec under any browser it doesn't know, which left a crash report at every connectNative of the iCloud Passwords extension once Helium's `scan-chrome-native-messaging-hosts` found its manifest in `/Library/Google/Chrome/NativeMessagingHosts`. `FindManifest` answers "Can't find native messaging host" for it |
 | `chromium-ardia-layer.patch` | The macOS `//chrome:chrome_dll` (ArdiaCore's framework) links `//chrome/browser/ardia` and exports its `ac_*` calls |
-| `chromium-pip-overlay-window.patch` | Chrome makes our `ArdiaVideoOverlayWindow` (`chrome/browser/ardia/pip/`, a `VideoOverlayWindowViews` subclass with its own buttons, progress bar, fade and bounds memory; the hook makes six methods virtual): Dia's video Picture in Picture window (measured in `docs/dia-spec.md` › Picture in Picture): nothing but the video at rest (the origin shows only with the controls); on hover a 35 % black scrim, back to tab (top left) and close (top right) as 28 pt rounded squares with 1 pt line glyphs, the origin centred in 13 pt, a bare play/pause glyph between bare ±10 s buttons (Chrome's, restyled; ← and → seek while they show), and a 5 pt progress bar that seeks; no previous/next track, time, mute, captions or minimize controls. The idle fade (Chrome's 2.5 s timer, rebound) skips while the pointer rests on a control. Controls fade in 200 ms ease-in-out. The window shows at once and fades out in Core Animation (100 ms from the close button, 70 ms otherwise, smooth while the tab is being shown), and a new window opens where the last one was left, sized to the new video and kept on screen (`ArdiaPictureInPicture.plist` in the user data dir). Closing it, by its button or by the window going away any other way, never pauses the video, which keeps playing in its tab, as in Dia and Arc (`OnCloseButtonPressed` asks for `kCloseWindowOnly`, and the subclass's `OnNativeWidgetDestroyed` tells the controller not to pause; Chrome paused whenever the window had a play/pause button) |
+| `chromium-pip-overlay-window.patch` | Chrome makes our `ArdiaVideoOverlayWindow` (`chrome/browser/ardia/pip/`, a `VideoOverlayWindowViews` subclass with its own buttons, progress bar, fade and bounds memory; the hook makes six methods virtual): Dia's video Picture in Picture window (measured in `docs/dia-spec.md` › Picture in Picture): nothing but the video at rest (the origin shows only with the controls); on hover a 35 % black scrim, back to tab (top left) and close (top right) as 28 pt rounded squares with 1 pt line glyphs (the window can hand each one's frame, hover, press and fade opacity to a presenter set on the NSWindow, `presentArdiaPictureInPictureControls:` in `ac_pip_mac.mm`; the app sets none since its liquid glass was removed (2026-10-29), so Chrome paints them), the origin centred in 13 pt, a bare play/pause glyph between bare ±10 s buttons (Chrome's, restyled; ← and → seek while they show), and a 5 pt progress bar that seeks; no previous/next track, time, mute, captions or minimize controls. The idle fade (Chrome's 2.5 s timer, rebound) skips while the pointer rests on a control. Controls fade in 200 ms ease-in-out. The window shows at once and fades out in Core Animation (100 ms from the close button, 70 ms otherwise, smooth while the tab is being shown), and a new window opens where the last one was left, sized to the new video and kept on screen (`ArdiaPictureInPicture.plist` in the user data dir). Closing it, by its button or by the window going away any other way, never pauses the video, which keeps playing in its tab, as in Dia and Arc (`OnCloseButtonPressed` asks for `kCloseWindowOnly`, and the subclass's `OnNativeWidgetDestroyed` tells the controller not to pause; Chrome paused whenever the window had a play/pause button) |
 
 Removed, all in git history:
 
@@ -117,13 +120,21 @@ and the next app build picks it up.
 Where our patches and `engine/ardiacore/apply.sh` let ArdiaCore decide something in Chrome's code, the hook is a
 `g_ardia_*` function pointer (or flag) defined in the Chrome file that calls it; unset, Chrome behaves as stock. Each is
 declared once, in `//ardia/core`'s `ac_hooks.h` (hooks in `chrome/`) or `ac_content_hooks.h` (in `content/`,
-`components/`, `extensions/`, which can't see `chrome/`'s headers), and both the Chrome file and ArdiaCore include that
-header (`// nogncheck`), so a signature that drifts on either side is a compile error, not a crash at the first call.
+`components/`, `extensions/`, which can't see `chrome/`'s headers), and both the Chrome file (`// nogncheck`) and our
+layers include that header (ArdiaCore and `chrome/browser/ardia` through the header-only `//ardia/core:hooks` target), so
+a signature that drifts on either side is a compile error, not a crash at the first call.
 (Some changes are direct instead: `ChromeMain` making ArdiaCore's main delegate, the PiP window factory, the `CHECK`s made tolerant of a Browser without a `BrowserView`.) ArdiaCore sets the patches' hooks as
 the browser process starts (`ACMainDelegate::PreSandboxStartup`), in `ardiacore::InstallChromeHooks` (`ac_seams.mm`: the
-password bubble, the extension install prompt, device choosers, the Cast dialog, extension side panels, hidden
-windows, windows without tabs, docked DevTools' changes, the WebContentsDelegate (H2), and `g_ardia_viewless_browsers`, which apply.sh's toast and
-reading mode hooks read); apply.sh's other hooks are set next to the code they serve.
+browser window factory (H1), reserved and global accelerators, history eligibility, DNR rule matches, the extension
+installed bubble, action popups, the password bubble, the extension install prompt, device choosers, the Cast dialog,
+extension side panels, hidden windows, windows without tabs, docked DevTools' changes, the WebContentsDelegate (H2), and
+`g_ardia_viewless_browsers`, which apply.sh's toast and reading mode hooks read). Hooks that need a started browser are
+installed in one list, `ardiacore::OnEngineStarted` (`ardiacore_engine.mm`: permission prompts, external apps, host
+visibility…). `ACMainDelegate` sets the process-wide switches (idle timers, storage, Bluetooth) in
+`BasicStartupComplete`, and a few hooks are still set by the object that serves them when it is first made
+(`ac_navigation_hold.mm`, `ac_tab_bridge.mm`'s opacity flag, the extension sync installer, the scripts policy, the CLI
+control server). A new hook goes into the patch series (`engine/patches/`), not into `apply.sh`, and is installed in
+`InstallChromeHooks` unless it needs a started browser.
 
 `apply.sh` also adds H1–H6, which stand where CEF's patches had seams ArdiaCore used. "Is this Browser ours" is
 `WindowHost::ForBrowser`: ArdiaCore's record (`ac_browser_window.h`), made when a Browser gets one of ArdiaCore's
@@ -273,14 +284,22 @@ framework.
   Chromium's at the same path (`apply.sh --paths` lists them; `series.py` counts each as the layer's). Only Chromium's
   logo, by Ardia's (`docs/brand/ardia/build.py` writes them): binary files a patch can't carry.
 - **How it links.** One `source_set("ardia")` in `chrome/browser/ardia/BUILD.gn`: add your
-  `ac_<domain>.{h,cc}` to its sources (sorted) and its deps.
+  `ac_<domain>.cc` to its sources (sorted) and its deps. A header only when another file calls into the domain
+  (`ac_tab_restore.h`, `ac_scripts_policy.h`, `ac_external_apps.h`…); exports need none. `//ardia/core` depends on
+  this target, so ArdiaCore includes those headers through a real GN dependency.
   `chromium-ardia-layer.patch` links it into the macOS `//chrome:chrome_dll` (ArdiaCore's framework), through the
   `:exports` group that exports `_ac_*`.
 - **The C surface.** `public/ac_engine.h` is plain C with the rules: exports are `ac_<domain>_<verb>`, all with one
   signature `void (const char* profile_dir, const char* args_json, ac_engine_reply_t reply, void* context)`; JSON
   object in, JSON object out (`{"error": …}` on failure); UI thread only; the reply runs once, maybe before the
   call returns. Events go to one sink (`ac_engine_set_event_sink`) as `("<domain>.<what>", {profile, …})`.
-  `ac_engine.h` has the C++ side (`AC_ENGINE_CALL`, `ardia::Call`, `Reply`, `Emit`).
+  `ac_engine.h` has the C++ side: `AC_PROFILE_CALL(name, …)` defines an export whose body gets a resolved
+  `ardia::Call& call` (args parsed, profile found; the export has already replied with the error otherwise),
+  `AC_ARGS_CALL(name)` one that needs no profile (`ardia::ArgsCall&`), and `Reply`, `Emit`, `StateFor`, `TabWithId`.
+  Args are cleansed when the call ends; a call taking secrets passes `ardia::Sensitive{max_bytes}` and reads them with
+  `call.SecretAt`. A private window's call carries `offTheRecord: true`; `Call` refuses it ("no engine data for a
+  private profile") unless the call passes `ardia::OffTheRecord::kAllow`, so the engine is the one place that says which
+  calls serve a private session.
 - **The app** includes `public/ac_engine.h` from the repo and looks each export up with `dlsym` on the engine
   framework (`packages/ardiacore/ios/ArdiaEngineBridge.mm`). A missing export aborts: the app bundles an engine it wasn't built
   for. Add each new call to `docs/ardiacore-parity.md`.
@@ -355,7 +374,7 @@ order 1, 3, 4, 2, 5 on a fresh checkout (`gn gen` once the tree is patched). Hel
 `~/chromium-build/helium` and `~/chromium-build/helium-macos` (`HELIUM_DIR`, `HELIUM_MACOS_DIR`), at the commits
 `helium-pins.ini` names.
 
-The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25.
+The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, and on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31.
 
 | Step | Script | Time (M5 Pro, shared machine) |
 |---|---|---|
@@ -405,7 +424,7 @@ Rules for editing the tree after the first build:
      checkout first and syncing again took 3.5 minutes in all, so do that up front.
   5. Step 3's `guard` stage fails when a skipped patch has left Helium's series (check what replaced it) or an
      applied one now touches what a skip protects (Safe Storage, password saving, Sparkle, the product dir, mDNS);
-     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged for 0.20.1). A patch that no longer applies without
+     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.20.3). A patch that no longer applies without
      fuzz fails `patches`, and names any skipped patch that shares its files.
   6. Our patches and the hooks may need their context refreshed; `series.py check` and `apply.sh --check` say
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
@@ -414,7 +433,7 @@ Rules for editing the tree after the first build:
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies
-helium-chromium 0.20.1's series and then helium-macos 0.20.1.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
+helium-chromium 0.20.3's series and then helium-macos 0.20.3.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
 Helium's build-time downloads (its uBlock Origin, the onboarding page, the non-free search engine data) are never
 fetched, and the hunks of its patches that edit them are left out.
 
@@ -425,7 +444,6 @@ fetched, and the hunks of its patches that edit them are left out.
 | `helium/core/disable-password-manager` | forces password saving and passkeys off as managed prefs; Ardia uses Chrome's password manager |
 | `helium/ui/remove-autofill-link-to-password-manager` | drops "Manage passwords" from the fill dropdown |
 | `ungoogled-chromium/fix-building-without-mdns-and-service-discovery` | empties `DnsSdDeviceLister`; the Cast dialog needs mDNS |
-| `helium/core/memory-saving-by-default` | Memory Saver would fight Ardia's own tab sleeping |
 | `helium/macos/change-keychain-name` | renames the Safe Storage item; every user's passwords and cookies are encrypted with "Ardia Safe Storage" (`chromium-safe-storage-name.patch`) |
 | `helium/macos/change-product-dir-name` | moves the fallback product dir to `net.imput.helium` |
 | `rebel/macos/sparkle-integration`, `helium/macos/updater/{fixup-sparkle-glue,sparkle2-integration,disable-default-updater}` | Sparkle inside the framework; the app has its own updater |
@@ -502,6 +520,25 @@ applied them before Helium): `0005-disable-default-extensions` (without its `web
 leaves out stay out, as before: `disable-download-quarantine` (Chrome quarantines every download itself, with
 `com.apple.quarantine` and its source URL in `kMDItemWhereFroms`), `prefs-always-prompt-for-download-directory`
 (Chrome's default, save to Downloads without asking, is Ardia's) and `enable-extra-locales`.
+
+### 0.20.1 → 0.20.3 (Chromium 156.0.8078.79, 2026-10-31)
+
+Two Chromium patch releases (156.0.8078.73 and .79, Chrome's stable updates of 2026-10-28 and 2026-10-29). What changed
+in Helium, and what we did:
+
+- **Series.** Both series are unchanged: the same 369 patches in the same order (355 applied, 14 skipped); `flags.gn`, `deps.ini` and the resources are unchanged. Helium
+  refreshed context for each Chromium release, and reworked its native !bangs loading (a shared cache per URL, a retry
+  with backoff, nothing fetched while the pref is off). helium-macos only refreshed context.
+- **Skips and guards.** Every `SKIP` entry is still in the series and still a leaf, the `guard` stage finds the same
+  four reviewed hits, `domsub-keep-store.txt` keeps the same 16 store files, and both resource lists copy 56 files.
+- **Our series.** Every patch and both layers applied, but two needed work. `chromium-helium-bangs-off`: `LoadBangs` is
+  rewritten for the new loader and answers with an empty catalogue before any fetch or retry. `chromium-extension-omaha-attributes`
+  applied and then failed to compile: ungoogled's `fix-building-without-safebrowsing` now also deletes
+  `UpdateService::OnCrxStateChange`'s `should_perform_action_on_omaha_attributes`, so the patch declares it and sets it
+  for up-to-date and update-found results again, as Chromium does.
+- **Toolchain.** Xcode 27.2 ships without the Metal Toolchain, which ANGLE's Metal shaders need: the first build failed
+  with "cannot execute tool 'metal'" until `xcodebuild -downloadComponent MetalToolchain` installed it (840 MB, once per
+  Xcode).
 
 ### 0.19.4 → 0.20.1 (Chromium 156.0.8078.47, 2026-10-25)
 
@@ -658,7 +695,7 @@ own API, Views or build, or crash upload.
 | `linux_gtk_theme_3610` | dropped (Linux) |
 | `linux_gwp_asan_3803` | dropped (Linux) |
 | `linux_printing_context` | dropped (Linux) |
-| `mac_chrome_locale_3623` | folded (`chromium-cef-carryover`: only `LoadLocalState`'s ResourceBundle delegate, for H5); its Mac UI locale from Local State dropped (Chrome's own on the Mac: Cocoa's, `en-US` for Ardia's bundle either way) |
+| `mac_chrome_locale_3623` | folded (`chromium-cef-carryover`: only `LoadLocalState`'s ResourceBundle delegate, for H5); its Mac UI locale from Local State dropped (Chrome's own on the Mac: Cocoa's, the first of the app's `CFBundleLocalizations`, Chromium's desktop locales, that the Mac's preferred languages match; extensions get it through `chrome.i18n`) |
 | `mac_event_observer_2539` | dropped (CEF's own `NSApplication`; ArdiaCore runs Chrome's) |
 | `mac_fling_scheduler_2540` | dropped (OSR) |
 | `mac_keyboard_conversion_1467329` | folded (`chromium-cef-carryover`) |

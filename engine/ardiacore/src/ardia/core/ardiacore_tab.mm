@@ -330,10 +330,9 @@ using ardiacore::NS;
 }
 
 - (void)closeNow {
-  if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self closeNow];
-    });
+  if (ardiacore::DeferWhileAnyNotifies(^{
+        [self closeNow];
+      })) {
     return;
   }
   if (!_contents || ardiacore::CloseExtensionView(_contents)) {
@@ -362,10 +361,9 @@ using ardiacore::NS;
 }
 
 - (void)close {
-  if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self close];
-    });
+  if (ardiacore::DeferWhileAnyNotifies(^{
+        [self close];
+      })) {
     return;
   }
   if (!_contents || ardiacore::CloseExtensionView(_contents)) {

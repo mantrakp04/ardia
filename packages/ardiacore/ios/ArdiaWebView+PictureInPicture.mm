@@ -1,10 +1,12 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 #import "ArdiaLaunchConfig.h"
 #import "ArdiaPictureInPicture.h"
 
 #import <objc/runtime.h>
 
 using namespace ardia_web_view;
+using namespace ardia_runtime;
 
 static const NSUInteger kControlPressesKept = 8;
 static const NSTimeInterval kControlClickLifetime = 10;
@@ -110,10 +112,10 @@ BOOL TracingPictureInPicture() {
 
 - (void)traceAutoPictureInPicture:(NSString *)what {
   if (!TracingPictureInPicture() || !_tab) return;
-  NSDictionary *np = _nowPlaying[_nowPlayingFrame ?: @""];
+  NSDictionary *np = _reports.nowPlaying.selected;
   [_tab tracePictureInPicture:[NSString stringWithFormat:@"%@ (%@): autoPictureInPicture=%d capturing=%d nowPlaying=%@ actions=%@",
-                                                         what, _tab.url, _autoPictureInPicture, _capturing,
-                                                         np[@"playbackState"] ?: @"none", JSONString(np[@"actions"] ?: @[])]
+                                                         what, _tab.url, _autoPictureInPicture, _reports.capturing,
+                                                         np[@"playbackState"] ?: @"none", JSONText(np[@"actions"] ?: @[])]
                    withInputs:YES];
   ArdiaCoreTab *tab = _tab;
   [_tab evaluate:@"post('result', JSON.stringify({ documentPictureInPicture: 'documentPictureInPicture' in window, "
@@ -145,7 +147,7 @@ BOOL TracingPictureInPicture() {
 }
 
 - (void)requestPictureInPictureForClickAt:(double)clickMs control:(NSInteger)target completion:(void (^)(BOOL))completion {
-  if (_inPictureInPicture) return completion(YES);
+  if (_reports.inPictureInPicture) return completion(YES);
   if (!_tab) return completion(NO);
   const NSTimeInterval clickAt = TakeControlPress(clickMs, target, self.window);
   [self traceManualPictureInPicture:[NSString stringWithFormat:@"%@ %@ (control %ld)", clickMs > 0 ? @"click" : @"key or accessibility press", clickAt > 0 ? @"verified" : @"not verified", (long)target]];
@@ -157,13 +159,13 @@ BOOL TracingPictureInPicture() {
                                ArdiaWebView *view = weakSelf;
                                if (!view) return completion(NO);
                                [view traceManualPictureInPicture:[NSString stringWithFormat:@"route %@ opened=%d", route, opened]];
-                               if (![route isEqualToString:@"session"]) return completion(opened || view->_inPictureInPicture);
+                               if (![route isEqualToString:@"session"]) return completion(opened || view->_reports.inPictureInPicture);
                                [view awaitPictureInPicture:8 completion:completion];
                              }];
 }
 
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion {
-  if (_inPictureInPicture || tries <= 0) return completion(_inPictureInPicture);
+  if (_reports.inPictureInPicture || tries <= 0) return completion(_reports.inPictureInPicture);
   __weak ArdiaWebView *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
@@ -174,12 +176,12 @@ BOOL TracingPictureInPicture() {
 
 - (void)updateAutoPictureInPicture {
   if (!_tab) return;
-  NSDictionary *np = _nowPlaying[_nowPlayingFrame ?: @""];
-  const BOOL playing = [np[@"playbackState"] isEqual:@"playing"] || _capturing;
-  if (!_seenByUser && _autoPictureInPicture && playing) {
+  NSDictionary *np = _reports.nowPlaying.selected;
+  const BOOL playing = [np[@"playbackState"] isEqual:@"playing"] || _reports.capturing;
+  if (!_reports.seenByUser && _autoPictureInPicture && playing) {
     [self traceAutoPictureInPicture:@"app: auto PiP left to Chrome"];
-  } else if (_seenByUser && (_autoPictureInPictureActive || _inPictureInPicture)) {
-    _autoPictureInPictureActive = NO;
+  } else if (_reports.seenByUser && (_reports.autoPictureInPictureActive || _reports.inPictureInPicture)) {
+    _reports.autoPictureInPictureActive = NO;
     [self exitPictureInPicture];
   }
 }
@@ -191,15 +193,15 @@ BOOL TracingPictureInPicture() {
 - (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:(NSDictionary<NSString *, id> *)state {
   if (![state[@"kind"] isEqual:@"document"]) {
     const BOOL active = [state[@"active"] boolValue];
-    if (!active && !_inPictureInPicture) return;
-    _inPictureInPicture = active;
+    if (!active && !_reports.inPictureInPicture) return;
+    _reports.inPictureInPicture = active;
     [self emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @(active)}];
     if (!active) return;
     ardia_pip::WatchZoom();
     ardia_pip::VideoEntered(self, [NSURL URLWithString:tab.url ?: @""].host ?: @"");
     return;
   }
-  _inPictureInPicture = [state[@"active"] boolValue];
+  _reports.inPictureInPicture = [state[@"active"] boolValue];
   [self emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @([state[@"active"] boolValue])}];
 }
 

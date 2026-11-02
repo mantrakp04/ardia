@@ -66,8 +66,9 @@ if [[ -z "${AC_ENGINE_BUILD_LOCKED:-}" ]]; then
 fi
 unset AC_ENGINE_BUILD_LOCKED
 
-src=${CHROMIUM_SRC:-$HOME/chromium-build/chromium_git/chromium/src}
-out=out/Release_GN_arm64
+. "$repo/scripts/lib/paths.sh"
+src=$chromium_src
+out=$chromium_out
 
 step() {
   local what="$1"

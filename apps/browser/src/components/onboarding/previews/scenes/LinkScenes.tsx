@@ -4,18 +4,19 @@ import { at, atRect, fill, type Geo, hairline, type Rect, rowY, TOOLBAR_H } from
 import { NOTES, tab, TRIP } from "../content";
 import { type Look, pick } from "../look";
 import { linear, tracker } from "../timeline";
-import { Crumb, Highlight, Label, Lights } from "../Kit";
+import { Crumb, Highlight, Label, Lights, ToolbarBand } from "../Kit";
 import { Page } from "../MockPages";
 import { Cursor } from "../Floating";
-import { mockInk, sceneMs } from "../tokens";
+import { mockArt, mockInk, sceneMs } from "../tokens";
+import { font, radius, space } from "../../../ui/tokens";
 import type { Scene } from "../scene";
 import { Desktop, MINI_SIDE, MiniArdia, Window } from "./SceneParts";
 
 function Bubble({ g, look, mine, children, style }: { g: Geo; look: Look; mine?: boolean; children: ReactNode; style?: object }) {
   return (
-    <Animated.View style={[{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "82%", borderRadius: 16 * g.s, paddingHorizontal: 12 * g.s, paddingVertical: 7 * g.s, backgroundColor: mine ? mockInk.bubbleMine : pick(look, [mockInk.bubble.light, mockInk.bubble.dark]) }, style]}>
+    <Animated.View style={[{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "82%", borderRadius: radius.sheet * g.s, paddingHorizontal: space.l * g.s, paddingVertical: space.m * g.s, backgroundColor: mine ? mockInk.bubbleMine : pick(look, [mockInk.bubble.light, mockInk.bubble.dark]) }, style]}>
       {typeof children === "string" ? (
-        <Label g={g} size={12.5} color={mine ? mockInk.bubbleMineText : look.t.textPrimary} lines={3}>
+        <Label g={g} size={font.small.fontSize} color={mine ? mockInk.bubbleMineText : look.t.textPrimary} lines={3}>
           {children}
         </Label>
       ) : (
@@ -62,23 +63,23 @@ export function links(little: boolean): Scene {
           <View style={[fill, { backgroundColor: pick(look, [mockInk.chat.light, mockInk.chat.dark]) }]} />
           <Lights g={g} y={20} x={20} />
           <View style={[at(g, 0, 38, chat.w, 1), { height: hairline, backgroundColor: look.t.divider }]} />
-          <Label g={g} size={13} color={look.t.textPrimary} weight="600" style={{ position: "absolute", top: 13 * g.s, left: 0, right: 0, textAlign: "center" }}>
+          <Label g={g} size={font.body.fontSize} color={look.t.textPrimary} weight="600" style={{ position: "absolute", top: 13 * g.s, left: 0, right: 0, textAlign: "center" }}>
             Sam
           </Label>
-          <View style={{ position: "absolute", left: 14 * g.s, right: 14 * g.s, top: 54 * g.s, gap: 8 * g.s }}>
+          <View style={{ position: "absolute", left: 14 * g.s, right: 14 * g.s, top: 54 * g.s, gap: space.m * g.s }}>
             <Bubble g={g} look={look}>Found the trail we talked about</Bubble>
             <Bubble g={g} look={look} mine>
               Send it!
             </Bubble>
             <Bubble g={g} look={look} style={{ padding: 0, paddingHorizontal: 0, paddingVertical: 0, overflow: "hidden", width: 210 * g.s }}>
               <View style={{ height: 70 * g.s, backgroundColor: NOTES.hero.far[look.dark ? 1 : 0] }}>
-                <View style={{ position: "absolute", left: "30%", right: "-20%", top: 28 * g.s, height: 120 * g.s, borderRadius: 80 * g.s, backgroundColor: NOTES.hero.near[look.dark ? 1 : 0] }} />
+                <View style={{ position: "absolute", left: "30%", right: "-20%", top: 28 * g.s, height: 120 * g.s, borderRadius: mockArt.blobRadius * g.s, backgroundColor: NOTES.hero.near[look.dark ? 1 : 0] }} />
               </View>
-              <View style={{ padding: 9 * g.s, gap: 2 * g.s }}>
-                <Label g={g} size={12} color={look.t.textPrimary} weight="600">
+              <View style={{ padding: space.m * g.s, gap: space.xxs * g.s }}>
+                <Label g={g} size={font.small.fontSize} color={look.t.textPrimary} weight="600">
                   A slow morning on the coast trail
                 </Label>
-                <Label g={g} size={11} color={look.t.textSecondary}>
+                <Label g={g} size={font.caption.fontSize} color={look.t.textSecondary}>
                   fieldnotes.blog
                 </Label>
               </View>
@@ -90,10 +91,10 @@ export function links(little: boolean): Scene {
           <Animated.View style={[atRect(g, float), { opacity: t.in(560, 220), transform: [{ translateY: t([[560, 14 * g.s], [900, 0]]) }, { scale: t([[560, 0.9], [900, 1]]) }] }]}>
             <Window g={g} look={look} rect={{ x: 0, y: 0, w: float.w, h: float.h }}>
               <View style={[fill, { backgroundColor: look.page }]} />
-              <View style={[at(g, 0, 0, float.w, 38), { backgroundColor: look.card, borderBottomWidth: hairline, borderColor: look.t.divider }]}>
+              <ToolbarBand g={g} h={38} fill={look.card} divider={look.t.divider}>
                 <Lights g={g} y={19} x={19} />
                 <Crumb g={g} look={look} t={tab(0)} style={at(g, 84, 10, float.w - 100, 18)} />
-              </View>
+              </ToolbarBand>
               <Page g={g} look={look} top={38} />
             </Window>
           </Animated.View>

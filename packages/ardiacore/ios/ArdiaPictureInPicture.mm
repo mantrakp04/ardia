@@ -3,6 +3,7 @@
 #import "ArdiaChromeWindowHost.h"
 #import "ArdiaPiPThrowMath.h"
 
+#import <dlfcn.h>
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -136,6 +137,20 @@ bool Attach(ArdiaWebView *view, NSString *host) {
 
 }
 
+namespace {
+
+NSString *DevShowAlpha(NSWindow *window, float alpha) {
+  using MainConnection = int (*)(void);
+  using SetAlpha = int (*)(int, int, float);
+  auto connection = (MainConnection)dlsym(RTLD_DEFAULT, "CGSMainConnectionID");
+  auto set = (SetAlpha)dlsym(RTLD_DEFAULT, "CGSSetWindowAlpha");
+  if (!ArdiaLaunchConfig.shared.testInstance) return @"test instances only";
+  if (!connection || !set) return @"no CGSSetWindowAlpha";
+  return set(connection(), (int)window.windowNumber, alpha) == 0 ? @"started" : @"refused";
+}
+
+}
+
 namespace ardia_pip {
 
 void WatchZoom() { InstallZoomMonitor(); }
@@ -188,6 +203,7 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"rim" : @(controller.overlay.layer.borderWidth),
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
+      @"key" : @(window.keyWindow),
       @"host" : controller.host ?: @"",
       @"backToTab" : @(controller.view != nil),
       @"minSize" : NSStringFromSize(window.contentMinSize),
@@ -209,6 +225,10 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   else if ([action isEqual:@"menu"]) return [[controller.menu.itemArray valueForKey:@"title"] componentsJoinedByString:@"|"];
   else if ([action hasPrefix:@"snapshot:"]) return [controller snapshot:[action substringFromIndex:9]];
   else if ([action hasPrefix:@"frame:"]) [controller.window setFrame:NSRectFromString([action substringFromIndex:6]) display:YES];
+  else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
+  else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
+  else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];
   else if ([action isEqual:@"throw"]) {

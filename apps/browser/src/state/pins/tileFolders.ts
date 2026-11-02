@@ -1,21 +1,20 @@
 import type { BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
-import { newId, pinSection } from "../browser/model";
-import { placing } from "./organize";
+import { newId, pinSection, TILE_PIN } from "../browser/model";
+import { placing } from "./placing";
 import type { ParkedPins, Tab, TileFolder } from "../browser/types";
 
 export const FOLDER_CELL = "folder:";
 export const folderCell = (folderId: string) => `${FOLDER_CELL}${folderId}`;
 export const folderIdOfCell = (key: string): string | null => (key.startsWith(FOLDER_CELL) ? key.slice(FOLDER_CELL.length) : null);
 
-export const tileFolderOf = (t: Tab | undefined): TileFolder | undefined => (t?.tileFolder && pinSection(t) === "tile" ? t.tileFolder : undefined);
+export const tileFolderOf = (t: Pick<Tab, "pin"> | undefined): TileFolder | undefined => (t?.pin?.as === "tile" ? t.pin.folder : undefined);
 
 export const folderLabel = (folder: TileFolder | undefined) => folder?.name.trim() || "Folder";
 
-export function withTileFolder(t: Tab, folder: TileFolder | undefined): Tab {
-  if (t.tileFolder === folder) return t;
-  const { tileFolder: _, ...rest } = t;
-  return folder ? { ...rest, tileFolder: folder } : rest;
+export function withTileFolder<T extends Pick<Tab, "pin">>(t: T, folder: TileFolder | undefined): T {
+  if (t.pin?.as !== "tile" || t.pin.folder === folder) return t;
+  return { ...t, pin: folder ? { as: "tile", folder } : TILE_PIN };
 }
 
 export function tileCells(tabs: Record<string, Tab>, tiles: string[]): string[] {
@@ -65,7 +64,7 @@ export function addToTileFolder(s: BrowserState, ids: string[], ontoId: string, 
   if (pinSection(onto) !== "tile") return s;
   const folder = tileFolderOf(onto) ?? { id: newId("tf"), name: "" };
   const moving = sameWindow(s, ids, onto!).filter((id) => id !== ontoId);
-  const next = onto!.tileFolder === folder ? s : { ...s, tabs: { ...s.tabs, [ontoId]: withTileFolder(onto!, folder) } };
+  const next = tileFolderOf(onto) === folder ? s : { ...s, tabs: { ...s.tabs, [ontoId]: withTileFolder(onto!, folder) } };
   if (!moving.length) return next;
   const last = folderMembers(next, onto!.windowId, folder.id).filter((id) => !moving.includes(id)).at(-1);
   const at = beforeId && !moving.includes(beforeId) ? beforeId : after(next, onto!.windowId, last, moving);
@@ -124,7 +123,10 @@ function membersByWindow(tabs: Record<string, Tab>, windows: BrowserState["windo
 
 const parkedFolders = (park: ParkedPins | undefined) => {
   const count = new Map<string, number>();
-  for (const p of park?.tabs ?? []) if (p.tileFolder && !p.groupId && !p.pinnedAsRow) count.set(p.tileFolder.id, (count.get(p.tileFolder.id) ?? 0) + 1);
+  for (const p of park?.tabs ?? []) {
+    const folder = p.groupId ? undefined : tileFolderOf(p);
+    if (folder) count.set(folder.id, (count.get(folder.id) ?? 0) + 1);
+  }
   return count;
 };
 
@@ -137,7 +139,7 @@ function settleParked(s: BrowserState, prev: BrowserState): BrowserState["parked
     const before = parkedFolders(prev.parkedPins[profileId]);
     const alone = new Set([...now].filter(([id, n]) => n === 1 && (before.get(id) ?? 0) >= 2).map(([id]) => id));
     if (!alone.size) continue;
-    const tabs = park.tabs.map((p) => (p.tileFolder && alone.has(p.tileFolder.id) ? (({ tileFolder: _, ...rest }) => rest)(p) : p));
+    const tabs = park.tabs.map((p) => (alone.has(tileFolderOf(p)?.id ?? "") ? withTileFolder(p, undefined) : p));
     (out ??= { ...s.parkedPins })[profileId] = { ...park, tabs };
   }
   return out;
@@ -154,7 +156,7 @@ export function settleTileFolders(s: BrowserState, prev: BrowserState): BrowserS
     const wasIn = tileFolderOf(was)?.id;
     const otherProfile = !!now && !!was && now.profileId !== was.profileId;
     const moved = otherProfile || (!!now && !!was && now.windowId !== was.windowId);
-    if (now?.tileFolder && (!tileFolderOf(now) || otherProfile)) (tabs ??= { ...s.tabs })[id] = withTileFolder(now, undefined);
+    if (tileFolderOf(now) && otherProfile) (tabs ??= { ...s.tabs })[id] = withTileFolder(now!, undefined);
     const isIn = tileFolderOf((tabs ?? s.tabs)[id])?.id;
     if (wasIn && (isIn !== wasIn || moved)) shrunk.add(wasIn);
   }

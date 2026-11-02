@@ -6,6 +6,7 @@ globalThis.clearTimeout = () => {};
 globalThis.__DEV__ = false;
 
 const folder = new Map();
+const downloading = new Set();
 let ids = 0;
 globalThis.acTestNativeModules = {
   ArdiaSync: {
@@ -24,8 +25,8 @@ globalThis.acTestNativeModules = {
     },
     read: async (_folder, scope, known) => {
       const here = [...folder].filter(([, f]) => f.scope === scope);
-      const files = here.filter(([id]) => !known.includes(id)).map(([id, f]) => ({ id, payload: f.payload }));
-      return { files, pending: [], damaged: [], present: here.map(([id]) => id) };
+      const files = here.filter(([id]) => !known.includes(id) && !downloading.has(id)).map(([id, f]) => ({ id, payload: f.payload }));
+      return { files, pending: here.map(([id]) => id).filter((id) => downloading.has(id)), damaged: [], present: here.map(([id]) => id) };
     },
     remove: async (_folder, _scope, list) => list.forEach((id) => folder.delete(id)),
     sealLocal: async (text) => `sealed:${text}`,
@@ -43,7 +44,7 @@ class Mac {
   constructor(name) {
     this.name = name;
     S().hydrate({});
-    useBrowser.setState({ bookmarksReady: { default: true } });
+    useBrowser.setState({ bookmarksReady: { "": true } });
     this.browser = S();
     this.docs = new Map();
   }
@@ -492,4 +493,166 @@ test("a pending or damaged file first seen while the clock ran ahead still stops
   await run(b, restored);
   assert.equal(restored.damaged[file], undefined, "the damaged file is given up a day after now");
   damaged.delete(file);
+});
+
+test("a Mac that joins is offered every profile it lacks, and Add All brings them over with their look", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?offerA");
+  const engineB = await import("./engine.ts?offerB");
+  await a.with(() => {
+    S().createProfile({ name: "Work", color: "blue", icon: "briefcase" });
+    S().createProfile({ name: "Side Project", color: "orange", icon: "hammer" });
+  });
+  await turnOn(a, engineA);
+  await join(b, engineB);
+  await b.with(async () => {
+    assert.equal(engineB.useSync.getState().profiles.default?.enabled, true, "Personal pairs with the synced default profile");
+    assert.deepEqual(
+      engineB.useSync.getState().remoteProfiles.map((p) => [p.name, p.color, p.icon]),
+      [
+        ["Work", "blue", "briefcase"],
+        ["Side Project", "orange", "hammer"],
+      ],
+    );
+    for (const p of engineB.useSync.getState().remoteProfiles) assert.ok(engineB.addRemoteProfile(p.syncId));
+    assert.deepEqual(engineB.useSync.getState().remoteProfiles, []);
+    assert.deepEqual(
+      S().profileOrder.map((id) => [S().profiles[id].name, S().profiles[id].color, S().profiles[id].icon]),
+      [
+        ["Personal", S().profiles.default.color, S().profiles.default.icon],
+        ["Work", "blue", "briefcase"],
+        ["Side Project", "orange", "hammer"],
+      ],
+    );
+    await engineB.syncNow();
+    assert.deepEqual(engineB.useSync.getState().remoteProfiles, [], "the added profiles pair with the synced ones instead of being offered again");
+  });
+  await a.with(async () => {
+    await engineA.syncNow();
+    assert.deepEqual(engineA.useSync.getState().remoteProfiles, [], "the first Mac isn't offered B's copies as new profiles");
+  });
+});
+
+const syncIdOf = (engine, name) => engine.useSync.getState().profiles[named(name)]?.syncId;
+
+test("a Mac that joins before the other Mac's profiles reach the folder waits for them, then pairs Personal", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?earlyA");
+  const engineB = await import("./engine.ts?earlyB");
+  await a.with(async () => {
+    S().createProfile({ name: "Work" });
+    engineA.startSync();
+    assert.ok("ok" in (await engineA.turnOnSync("/sync")));
+    await engineA.syncNow();
+  });
+  assert.equal(published("prof:").length, 0, "the first Mac's first batch has its device but no profiles yet");
+
+  await join(b, engineB);
+  await b.with(() => {
+    const ui = engineB.useSync.getState();
+    assert.deepEqual(ui.profiles, {}, "no profile is paired from a folder with no profiles in it");
+    assert.equal(ui.joining, true);
+    assert.deepEqual(ui.remoteProfiles, []);
+  });
+
+  await a.with(() => engineA.syncNow());
+  await b.with(() => engineB.syncNow());
+  const personalOnA = await a.with(() => syncIdOf(engineA, "Personal"));
+  await b.with(() => {
+    const ui = engineB.useSync.getState();
+    assert.equal(syncIdOf(engineB, "Personal"), personalOnA, "Personal pairs with the synced default profile");
+    assert.equal(ui.joining, false);
+    assert.deepEqual(ui.remoteProfiles.map((p) => p.name), ["Work"]);
+  });
+  await a.with(async () => {
+    await engineA.syncNow();
+    assert.deepEqual(engineA.useSync.getState().remoteProfiles, [], "the first Mac isn't offered a second Personal");
+  });
+});
+
+test("a Mac that joins while the file with the profiles is still downloading pairs once it arrives", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?downloadA");
+  const engineB = await import("./engine.ts?downloadB");
+  await a.with(() => S().createProfile({ name: "Work" }));
+  await turnOn(a, engineA);
+  const withProfiles = [...folder].find(([, f]) => f.scope === "app" && f.payload.includes('"prof:'))?.[0];
+  assert.ok(withProfiles);
+  downloading.add(withProfiles);
+  try {
+    await join(b, engineB);
+    await b.with(() => {
+      assert.deepEqual(engineB.useSync.getState().profiles, {}, "B has read A's device but not its profiles, so it doesn't pair yet");
+      assert.equal(engineB.useSync.getState().pending, 1);
+    });
+  } finally {
+    downloading.delete(withProfiles);
+  }
+  await b.with(() => engineB.syncNow());
+  const personalOnA = await a.with(() => syncIdOf(engineA, "Personal"));
+  await b.with(() => {
+    assert.equal(syncIdOf(engineB, "Personal"), personalOnA);
+    assert.deepEqual(engineB.useSync.getState().remoteProfiles.map((p) => p.name), ["Work"]);
+  });
+});
+
+test("a Mac that joins while every file from the other devices is still downloading pairs on its own after a day", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?stuckA");
+  const engineB = await import("./engine.ts?stuckB");
+  await turnOn(a, engineA);
+  for (const id of folder.keys()) downloading.add(id);
+  try {
+    await join(b, engineB);
+    await b.with(async () => {
+      assert.equal(engineB.useSync.getState().joining, true);
+      const realNow = Date.now;
+      Date.now = () => realNow() + 86_400_001;
+      try {
+        await engineB.syncNow();
+      } finally {
+        Date.now = realNow;
+      }
+      assert.equal(engineB.useSync.getState().joining, false);
+      assert.ok(syncIdOf(engineB, "Personal"), "Personal syncs under its own id");
+    });
+  } finally {
+    downloading.clear();
+  }
+});
+
+test("a Mac that joins a folder whose other devices sync no profiles pairs on its own after a day", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?noneA");
+  const engineB = await import("./engine.ts?noneB");
+  await a.with(async () => {
+    engineA.startSync();
+    assert.ok("ok" in (await engineA.turnOnSync("/sync")));
+    await engineA.syncNow();
+    engineA.setProfileSynced("default", false);
+    await engineA.syncNow();
+  });
+  await join(b, engineB);
+  await b.with(async () => {
+    assert.equal(engineB.useSync.getState().joining, true);
+    const realNow = Date.now;
+    Date.now = () => realNow() + 86_400_001;
+    try {
+      await engineB.syncNow();
+    } finally {
+      Date.now = realNow;
+    }
+    assert.equal(engineB.useSync.getState().joining, false);
+    assert.ok(syncIdOf(engineB, "Personal"), "Personal syncs under its own id");
+  });
 });

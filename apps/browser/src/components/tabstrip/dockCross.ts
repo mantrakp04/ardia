@@ -1,7 +1,8 @@
 import { Animated } from "react-native";
-import { CELL_STEP, dropAt, type Cross, type Dock, type Strip } from "./model";
-import type { DragGeometry } from "./stripGroups";
-import { settleRoom, shiftRoom, SLIDE } from "./stripReorder";
+import { dropAt, type Cross, type Dock, type Strip } from "./model";
+import { CELL_STEP, type DragGeometry } from "./stripGroups";
+import { settleRoom, shiftRoom } from "./stripReorder";
+import { SLIDE } from "./tokens";
 import { DOCK_GAP, GAP, PINNED_CELL } from "./tokens";
 
 const growTargets = new WeakMap<Animated.Value, number>();

@@ -1,7 +1,8 @@
 import type { BrowserState } from "../browser/store";
 import { rootOf } from "../groups/groups";
-import { pinKeyOf } from "./pinMirror";
 import type { BrowserWindow, ParkedPins, TabGroup } from "../browser/types";
+import { entryKey, parseEntry } from "../sidebar/entryKey";
+import { isPinnedRow, pinKeyOf } from "../browser/model";
 
 type Block = { key: string; row: boolean; ids: string[] };
 
@@ -17,8 +18,8 @@ function pinnedBlocks(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow
   for (const id of w.tabIds) {
     const t = s.tabs[id];
     if (!t || t.profileId !== profileId) continue;
-    if (t.pinned) {
-      if (t.pinnedAsRow) blocks.push({ key: `t:${pinKeyOf(t)}`, row: true, ids: [id] });
+    if (t.pin) {
+      if (isPinnedRow(t)) blocks.push({ key: entryKey("tab", pinKeyOf(t)), row: true, ids: [id] });
       continue;
     }
     const root = pinnedRoot.get(id);
@@ -26,7 +27,7 @@ function pinnedBlocks(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow
     const known = byRoot.get(root.id);
     if (known) known.ids.push(id);
     else {
-      const block = { key: `g:${pinKeyOf(root)}`, row: false, ids: [id] };
+      const block = { key: entryKey("group", pinKeyOf(root)), row: false, ids: [id] };
       byRoot.set(root.id, block);
       blocks.push(block);
     }
@@ -40,8 +41,9 @@ export function anchorsOf(keys: string[]): Anchors {
   const anchors: Anchors = new Map();
   let row: string | null = null;
   for (const key of keys) {
-    if (key.startsWith("t:")) row = key.slice(2);
-    else anchors.set(key.slice(2), row);
+    const { kind, id } = parseEntry(key);
+    if (kind === "tab") row = id;
+    else anchors.set(id, row);
   }
   return anchors;
 }
@@ -60,7 +62,7 @@ function parkedBlocks(park: ParkedPins): Block[] {
   const blocks: Block[] = [];
   const byKey = new Map<string, Block>();
   for (const t of park.tabs) {
-    const key = t.groupId ? `g:${rootOf(t.groupId)}` : t.pinnedAsRow ? `t:${t.id}` : null;
+    const key = t.groupId ? entryKey("group", rootOf(t.groupId)) : isPinnedRow(t) ? entryKey("tab", t.id) : null;
     if (!key) continue;
     const known = byKey.get(key);
     if (known) known.ids.push(t.id);
@@ -96,16 +98,16 @@ export const pinnedAnchors = (s: Pick<BrowserState, "tabs" | "groups">, w: Brows
 function orderBlocks(blocks: Block[], anchorOf: (groupKey: string) => string | null | undefined): string[] | null {
   const rows = blocks.filter((b) => b.row);
   const groups = blocks.filter((b) => !b.row);
-  const rowKeys = new Set(rows.map((r) => r.key.slice(2)));
+  const rowKeys = new Set(rows.map((r) => parseEntry(r.key).id));
   const placed = new Map<string | null, Block[]>();
   const last: Block[] = [];
   for (const g of groups) {
-    const anchor = anchorOf(g.key.slice(2));
+    const anchor = anchorOf(parseEntry(g.key).id);
     if (anchor === null || (anchor !== undefined && rowKeys.has(anchor))) placed.get(anchor)?.push(g) ?? placed.set(anchor, [g]);
     else last.push(g);
   }
-  if (!groups.some((g) => anchorOf(g.key.slice(2)) !== undefined)) return null;
-  return [...(placed.get(null) ?? []), ...rows.flatMap((r) => [r, ...(placed.get(r.key.slice(2)) ?? [])]), ...last].flatMap((b) => b.ids);
+  if (!groups.some((g) => anchorOf(parseEntry(g.key).id) !== undefined)) return null;
+  return [...(placed.get(null) ?? []), ...rows.flatMap((r) => [r, ...(placed.get(parseEntry(r.key).id) ?? [])]), ...last].flatMap((b) => b.ids);
 }
 
 function rearranged(ids: string[], order: string[]): string[] | null {

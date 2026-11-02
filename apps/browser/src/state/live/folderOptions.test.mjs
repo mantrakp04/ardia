@@ -7,7 +7,7 @@ docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, fol
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, liveTabPlace } = await import("./rows.ts");
-const { applyFetch, createFolder, finishCompleting, hideItems, live, setLive, updateFolder } = await import("./store.ts");
+const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
   id,
@@ -48,7 +48,8 @@ test("a folder saved before these options existed loads with stacks grouped and 
 test("a hidden pull request stays out of the folder through later fetches until a manual refresh", async () => {
   const id = createFolder("p", "pullRequests", []);
   applyFetch(id, stacked, {});
-  setLive((s) => ({ unread: { ...s.unread, [id]: ["a", "c"] } }));
+  markUnread(id, "a");
+  markUnread(id, "c");
   const shown = () => live().items[id].map((it) => it.id);
   hideItems(id, [stacked[0]]);
   assert.deepEqual(shown(), ["b", "c"]);
@@ -176,4 +177,19 @@ test("an open tab of a hidden pull request stays out of the folder instead of co
   assert.equal(liveTabPlace("a", shown, hidden), "hidden");
   assert.equal(liveTabPlace("b", shown, hidden), "row");
   assert.equal(liveTabPlace("gone", shown, hidden), "stray", "a tab whose pull request left the fetch still shows as its own row");
+});
+
+test("removing a folder forgets its Show More choices and the stacks only it showed", () => {
+  const id = createFolder("default", "pullRequests");
+  const other = createFolder("default", "pullRequests");
+  const inStack = (itemId, n, stack) => ({ ...pr(itemId, n, `h${n}`, "main"), pr: { ...pr(itemId, n, `h${n}`, "main").pr, stack: { id: stack, position: 1, size: 2 } } });
+  applyFetch(id, [inStack("x1", 11, "mine"), inStack("x2", 12, "shared")], {});
+  applyFetch(other, [inStack("x3", 13, "shared")], {});
+  showAllIn(id, "authored");
+  showAllIn(other, "authored");
+  toggleStack("mine");
+  toggleStack("shared");
+  removeFolder(id);
+  assert.deepEqual(Object.keys(live().showAll), [`${other}:authored`]);
+  assert.deepEqual(Object.keys(live().expandedStacks), ["shared"]);
 });

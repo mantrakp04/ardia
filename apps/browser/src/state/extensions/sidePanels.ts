@@ -1,6 +1,6 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
-import { shownReadyTab, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -54,7 +54,7 @@ export async function syncSidePanel(windowId: string): Promise<void> {
     : readyTab
       ? await extensionSidePanelUrl(readyTab, extensionId)
       : !isPrivate(useBrowser.getState(), windowId) && ext.sidePanel
-        ? `chrome-extension://${extensionId}/${ext.sidePanel.replace(/^\//, "")}`
+        ? extensionPageUrl(extensionId, ext.sidePanel)
         : null;
   if (fetches.get(windowId) !== ticket) return;
   if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);

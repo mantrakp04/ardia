@@ -5,12 +5,13 @@ final class WebKitWebView: WKWebView {
   var onFocus: (() -> Void)?
   var mediaFrames: [String: WKFrameInfo] = [:]
   var playingFrames = Set<String>()
-  var nowPlayingFrame: String?
+  let nowPlaying = ArdiaNowPlaying()
   var captureOrigins: [String: Set<String>] = [:]
 
   override init(frame: CGRect, configuration: WKWebViewConfiguration) {
     super.init(frame: frame, configuration: configuration)
     if WebKitHub.silenced { mutePageAudio() }
+    if LaunchConfig.shared.background && !LaunchConfig.shared.instanceFlag("allowOcclusion") { treatWindowAsVisible() }
   }
 
   required init?(coder: NSCoder) {
@@ -25,9 +26,16 @@ final class WebKitWebView: WKWebView {
     unsafeBitCast(method(for: setPageMuted), to: SetPageMuted.self)(self, setPageMuted, audioMuted)
   }
 
+  private func treatWindowAsVisible() {
+    let setDetection = NSSelectorFromString("_setWindowOcclusionDetectionEnabled:")
+    guard responds(to: setDetection) else { return NSLog("[webkit] window occlusion can't be ignored in background mode") }
+    typealias SetDetection = @convention(c) (AnyObject, Selector, Bool) -> Void
+    unsafeBitCast(method(for: setDetection), to: SetDetection.self)(self, setDetection, false)
+  }
+
   func stopCapture(_ kind: String) {
-    if kind == "camera" { setCameraCaptureState(.none, completionHandler: nil) }
-    if kind == "microphone" { setMicrophoneCaptureState(.none, completionHandler: nil) }
+    if kind == "camera" { setCameraCaptureState(.none, completionHandler: {}) }
+    if kind == "microphone" { setMicrophoneCaptureState(.none, completionHandler: {}) }
   }
 
   override func becomeFirstResponder() -> Bool {
@@ -38,7 +46,7 @@ final class WebKitWebView: WKWebView {
 
   override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
     super.willOpenMenu(menu, with: event)
-    if WebKitHub.background {
+    if LaunchConfig.shared.background {
       NSLog("[webkit] context menu (background mode, not shown): %@", menu.items.map(\.title).joined(separator: ", "))
       menu.removeAllItems()
       return

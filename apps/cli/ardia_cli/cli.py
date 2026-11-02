@@ -19,6 +19,11 @@ In scope:
                  last_visit (ISO, local time), profile; domains=True rolls it up per domain.
                  profile is a profile name or its folder under Chromium/ (default: all). Only http(s) pages.
                  Both read Ardia's data dir (the token path's, or --data-dir/$ARDIA_DATA_DIR) and need control on.
+  await run(command, arg=None, window=None)   run one of Ardia's commands (see ardia commands); CommandError if refused
+  await windows()                             Ardia's windows and their tabs
+  async for e in events(*names)               Ardia's events as they happen (default: all)
+                 These three use <data dir>/ArdiaControl.sock; with --port, --ws or $ARDIA_CDP_URL they need
+                 --data-dir or $ARDIA_DATA_DIR.
   By, Key, asyncio and pydoll's exports (Tab, WebElement, PageEvent, NetworkEvent, ...)
 
 The value of the last expression is printed (strings as is, other values as repr, or JSON with --json).
@@ -87,6 +92,14 @@ def build_parser():
     from ardia_cli import scripts_cli
 
     scripts_cli.add_parser(commands, argparse.RawDescriptionHelpFormatter)
+
+    from ardia_cli import config_cli
+
+    config_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
+    from ardia_cli import automation_cli
+
+    automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
     return parser
 
 
@@ -95,8 +108,12 @@ def main(argv: list[str] | None = None) -> int:
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
+    from ardia_cli.automation_cli import split_program
+
+    argv, program = split_program(argv)
     parser = build_parser()
     args = parser.parse_args(argv)
+    args.program = program
     if args.command == "exec":
         return run_exec(args, parser)
     if args.command == "skills":
@@ -109,6 +126,14 @@ def main(argv: list[str] | None = None) -> int:
         from ardia_cli import scripts_cli
 
         return scripts_cli.run(args, parser)
+    if args.command in ("run", "commands", "windows", "events", "on", "hooks"):
+        from ardia_cli import automation_cli
+
+        return automation_cli.dispatch(args, parser)
+    if args.command in ("config", "theme"):
+        from ardia_cli import config_cli
+
+        return (config_cli.run_config if args.command == "config" else config_cli.run_theme)(args, parser)
     parser.print_help()
     return 0
 

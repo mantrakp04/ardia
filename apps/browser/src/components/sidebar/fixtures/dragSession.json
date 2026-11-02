@@ -1,0 +1,1765 @@
+{
+ "begin pending": [
+  {
+   "step": "measuring",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "ended while measuring"
+  },
+  {
+   "step": "measurements arrived"
+  },
+  {
+   "ghosts": [
+    null
+   ]
+  }
+ ],
+ "external": [
+  {
+   "step": "enter 2 files",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 71,
+   "into": null,
+   "external": 2,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [],
+   "gaps": {
+    "tail:list": 71
+   }
+  },
+  {
+   "step": "move 60,207",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 71
+   }
+  },
+  {
+   "step": "move 60,80",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": false,
+     "beforeId": "t2",
+     "tileFolder": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:t2",
+   "pitch": 47,
+   "gridGrowth": 47,
+   "pins": true,
+   "pinCount": 2,
+   "pinBefore": "t:t2",
+   "gaps": {}
+  },
+  {
+   "step": "enter again with 3",
+   "external": 3,
+   "pinCount": 3
+  },
+  {
+   "step": "move 60,244",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:c",
+   "pitch": 105,
+   "gridGrowth": 0,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "gaps": {
+    "t:c": 105
+   }
+  },
+  {
+   "step": "finished",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "external": 0,
+   "gaps": {}
+  },
+  {
+   "placed": {
+    "pinned": false,
+    "beforeId": "c"
+   },
+   "ghosts": [
+    null,
+    null
+   ]
+  }
+ ],
+ "external lifecycle": [
+  {
+   "step": "move 60,207",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 1,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "cancelled",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "external": 0,
+   "gaps": {}
+  },
+  {
+   "step": "finished before measuring"
+  },
+  {
+   "step": "external over an internal drag",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:c",
+   "pitch": 37,
+   "sources": [
+    "t:b"
+   ],
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "end false",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "t1",
+     "t2",
+     "p1",
+     "a",
+     "b",
+     "c",
+     "d"
+    ],
+    "tabs": {
+     "t1": {
+      "pinned": true,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "t2": {
+      "pinned": true,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "d": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {},
+    "pinnedArea": [
+     "t:p1"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:p1",
+     "place:t1",
+     "place:t2",
+     "p1",
+     "t1",
+     "t2"
+    ],
+    "liveOrder": []
+   }
+  },
+  {
+   "cancelled": null,
+   "early": null,
+   "ghosts": [
+    null,
+    null,
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": false,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    null
+   ]
+  }
+ ],
+ "hover and escape": [
+  {
+   "during": {
+    "card": null,
+    "shows": false,
+    "escape": [
+     true
+    ]
+   },
+   "after": {
+    "shows": true,
+    "escape": [
+     true,
+     false
+    ]
+   }
+  },
+  {
+   "during": {
+    "card": null,
+    "shows": false,
+    "escape": [
+     true
+    ]
+   },
+   "after": {
+    "shows": true,
+    "escape": [
+     true,
+     false
+    ]
+   }
+  },
+  {
+   "external": {
+    "shows": false,
+    "escape": []
+   },
+   "after": {
+    "shows": true,
+    "escape": []
+   }
+  }
+ ],
+ "landing cases": [
+  {
+   "label": "row to the list",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "d"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "landing": "t:a",
+   "landed": {
+    "key": "t:a",
+    "x": 6,
+    "y": 242
+   },
+   "ghosts": [
+    {
+     "item": "t:a",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 242
+     }
+    },
+    null
+   ]
+  },
+  {
+   "label": "row onto a row",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "landing": null,
+   "landed": null,
+   "ghosts": [
+    null
+   ]
+  },
+  {
+   "label": "row into the pinned rows",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:c",
+     "t:p1"
+    ]
+   },
+   "landing": "t:c",
+   "landed": {
+    "key": "t:c",
+    "x": 6,
+    "y": 84
+   },
+   "ghosts": [
+    {
+     "item": "t:c",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 84
+     }
+    },
+    null
+   ]
+  },
+  {
+   "label": "row into the tiles",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": false,
+     "beforeId": null,
+     "tileFolder": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "landing": null,
+   "landed": null,
+   "ghosts": [
+    null
+   ]
+  },
+  {
+   "label": "tile along the grid",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": false,
+     "beforeId": null,
+     "tileFolder": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "landing": null,
+   "landed": null,
+   "ghosts": [
+    null
+   ]
+  },
+  {
+   "label": "row to its own place",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "landing": "t:b",
+   "landed": {
+    "key": "t:b",
+    "x": 6,
+    "y": 205
+   },
+   "ghosts": [
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    null
+   ]
+  },
+  {
+   "label": "row cancelled",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "landing": "t:b",
+   "landed": {
+    "key": "t:b",
+    "x": 6,
+    "y": 205
+   },
+   "ghosts": [
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    null
+   ]
+  }
+ ],
+ "landing token": [
+  {
+   "step": "begin t:b 26,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:c",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:b"
+   ],
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,309",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "cancelled, landing",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "landing": "t:b",
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "begin t:a 26,178",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "landing": null,
+   "sources": [
+    "t:a"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "old landing finished"
+  },
+  {
+   "step": "move 60,272",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "d"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:d",
+   "gaps": {
+    "t:d": 37
+   }
+  },
+  {
+   "step": "committed, landing",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "landing": "t:a",
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "landed",
+   "landing": null,
+   "gaps": {
+    "t:a": 10
+   }
+  },
+  {
+   "ghosts": [
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": false,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    {
+     "item": "t:b",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 205
+     }
+    },
+    {
+     "item": "t:a",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": false,
+     "at": {
+      "x": 6,
+      "y": 242
+     }
+    },
+    {
+     "item": "t:a",
+     "count": 1,
+     "width": 180,
+     "height": 34,
+     "landing": true,
+     "at": {
+      "x": 6,
+      "y": 242
+     }
+    },
+    null
+   ],
+   "committed": [
+    "t1",
+    "t2",
+    "p1",
+    "b",
+    "c",
+    "a",
+    "d"
+   ]
+  }
+ ],
+ "persistence": [
+  {
+   "label": "row into pinned rows",
+   "steps": [
+    {
+     "step": "begin t:c 26,614",
+     "drop": {
+      "type": "tabs",
+      "placement": {
+       "pinned": false,
+       "beforeId": null
+      },
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "tail:list",
+     "pitch": 37,
+     "into": null,
+     "external": 0,
+     "gridGrowth": 0,
+     "hold": null,
+     "dropInto": null,
+     "onto": null,
+     "pins": false,
+     "pinCount": 0,
+     "pinBefore": null,
+     "folderTarget": null,
+     "folderAway": false,
+     "folded": null,
+     "landing": null,
+     "sources": [
+      "t:c"
+     ],
+     "gaps": {
+      "tail:list": 37
+     }
+    },
+    {
+     "step": "move 60,226",
+     "drop": {
+      "type": "tabs",
+      "placement": {
+       "pinned": true,
+       "row": true,
+       "beforeId": "pg1"
+      },
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "t:c",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "g:G(PG)",
+     "gaps": {
+      "g:G(PG)": 37
+     }
+    },
+    {
+     "step": "end true",
+     "drop": {
+      "type": "none"
+     },
+     "gapKey": null,
+     "pitch": 0,
+     "sources": [],
+     "gaps": {}
+    },
+    {
+     "step": "committed",
+     "committed": {
+      "tabIds": [
+       "p1",
+       "p2",
+       "c",
+       "pg1",
+       "a",
+       "b",
+       "g1",
+       "h1",
+       "g2",
+       "s1",
+       "s2"
+      ],
+      "tabs": {
+       "p1": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "p2": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "c": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "pg1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "a": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "b": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "h1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       }
+      },
+      "groups": {
+       "G(PG)": {
+        "tabIds": [
+         "pg1"
+        ],
+        "parent": null,
+        "pinned": true,
+        "collapsed": false
+       },
+       "G(G)": {
+        "tabIds": [
+         "g1",
+         "h1",
+         "g2"
+        ],
+        "parent": null,
+        "pinned": false,
+        "collapsed": false
+       },
+       "G(H)": {
+        "tabIds": [
+         "h1"
+        ],
+        "parent": "G(G)",
+        "pinned": false,
+        "collapsed": false
+       }
+      },
+      "pinnedArea": [
+       "t:p1",
+       "t:p2",
+       "t:c",
+       "g:G(PG)"
+      ],
+      "anchors": [
+       [
+        "G(PG)",
+        "c"
+       ]
+      ],
+      "orderChoices": [
+       "place:c",
+       "place:p1",
+       "place:p2",
+       "c",
+       "p1",
+       "p2"
+      ],
+      "liveOrder": [
+       [
+        "LF(Pull Requests)",
+        "g:G(PG)"
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "label": "pinned row to the list",
+   "steps": [
+    {
+     "step": "begin t:p1 26,160",
+     "drop": {
+      "type": "tabs",
+      "placement": {
+       "pinned": true,
+       "row": true,
+       "beforeId": "p2"
+      },
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "t:p2",
+     "pitch": 37,
+     "into": null,
+     "external": 0,
+     "gridGrowth": 0,
+     "hold": null,
+     "dropInto": null,
+     "onto": null,
+     "pins": false,
+     "pinCount": 0,
+     "pinBefore": null,
+     "folderTarget": null,
+     "folderAway": false,
+     "folded": null,
+     "landing": null,
+     "sources": [
+      "t:p1"
+     ],
+     "gaps": {
+      "t:p2": 37
+     }
+    },
+    {
+     "step": "move 60,606",
+     "drop": {
+      "type": "tabs",
+      "placement": {
+       "pinned": false,
+       "beforeId": "c"
+      },
+      "sequence": [
+       "t:p2",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "t:c",
+     "gaps": {
+      "t:c": 37
+     }
+    },
+    {
+     "step": "end true",
+     "drop": {
+      "type": "none"
+     },
+     "gapKey": null,
+     "pitch": 0,
+     "sources": [],
+     "gaps": {}
+    },
+    {
+     "step": "committed",
+     "committed": {
+      "tabIds": [
+       "p2",
+       "pg1",
+       "a",
+       "b",
+       "p1",
+       "c",
+       "g1",
+       "h1",
+       "g2",
+       "s1",
+       "s2"
+      ],
+      "tabs": {
+       "p2": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "pg1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "a": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "b": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "p1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "c": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "h1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       }
+      },
+      "groups": {
+       "G(PG)": {
+        "tabIds": [
+         "pg1"
+        ],
+        "parent": null,
+        "pinned": true,
+        "collapsed": false
+       },
+       "G(G)": {
+        "tabIds": [
+         "g1",
+         "h1",
+         "g2"
+        ],
+        "parent": null,
+        "pinned": false,
+        "collapsed": false
+       },
+       "G(H)": {
+        "tabIds": [
+         "h1"
+        ],
+        "parent": "G(G)",
+        "pinned": false,
+        "collapsed": false
+       }
+      },
+      "pinnedArea": [
+       "t:p2",
+       "g:G(PG)"
+      ],
+      "anchors": [
+       [
+        "G(PG)",
+        "p2"
+       ]
+      ],
+      "orderChoices": [
+       "place:p2",
+       "p2"
+      ],
+      "liveOrder": [
+       [
+        "LF(Pull Requests)",
+        "g:G(PG)"
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "label": "live folder above a pinned row",
+   "steps": [
+    {
+     "step": "begin lf:LF(Pull Requests) 26,234",
+     "drop": {
+      "type": "live",
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "lf:LF(Pull Requests)",
+       "g:G(PG)"
+      ]
+     },
+     "gapKey": "g:G(PG)",
+     "pitch": 37,
+     "into": null,
+     "external": 0,
+     "gridGrowth": 0,
+     "hold": null,
+     "dropInto": null,
+     "onto": null,
+     "pins": false,
+     "pinCount": 0,
+     "pinBefore": null,
+     "folderTarget": null,
+     "folderAway": false,
+     "folded": null,
+     "landing": null,
+     "sources": [
+      "lf:LF(Pull Requests)"
+     ],
+     "gaps": {
+      "g:G(PG)": 37
+     }
+    },
+    {
+     "step": "move 60,152",
+     "drop": {
+      "type": "live",
+      "sequence": [
+       "lf:LF(Pull Requests)",
+       "t:p1",
+       "t:p2",
+       "g:G(PG)"
+      ]
+     },
+     "gapKey": "t:p1",
+     "gaps": {
+      "t:p1": 37
+     }
+    },
+    {
+     "step": "end true",
+     "drop": {
+      "type": "none"
+     },
+     "gapKey": null,
+     "pitch": 0,
+     "sources": [],
+     "gaps": {}
+    },
+    {
+     "step": "committed",
+     "committed": {
+      "tabIds": [
+       "p1",
+       "p2",
+       "pg1",
+       "a",
+       "b",
+       "c",
+       "g1",
+       "h1",
+       "g2",
+       "s1",
+       "s2"
+      ],
+      "tabs": {
+       "p1": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "p2": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "pg1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "a": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "b": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "c": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "h1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       }
+      },
+      "groups": {
+       "G(PG)": {
+        "tabIds": [
+         "pg1"
+        ],
+        "parent": null,
+        "pinned": true,
+        "collapsed": false
+       },
+       "G(G)": {
+        "tabIds": [
+         "g1",
+         "h1",
+         "g2"
+        ],
+        "parent": null,
+        "pinned": false,
+        "collapsed": false
+       },
+       "G(H)": {
+        "tabIds": [
+         "h1"
+        ],
+        "parent": "G(G)",
+        "pinned": false,
+        "collapsed": false
+       }
+      },
+      "pinnedArea": [
+       "t:p1",
+       "t:p2",
+       "g:G(PG)"
+      ],
+      "anchors": [
+       [
+        "G(PG)",
+        "p2"
+       ]
+      ],
+      "orderChoices": [
+       "place:p1",
+       "place:p2",
+       "p1",
+       "p2"
+      ],
+      "liveOrder": [
+       [
+        "LF(Pull Requests)",
+        null
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "label": "group into the pinned area",
+   "steps": [
+    {
+     "step": "begin g:G(G) 26,355",
+     "drop": {
+      "type": "group",
+      "groupId": "G(G)",
+      "placement": {
+       "pinned": false,
+       "parentId": null,
+       "beforeId": "b"
+      },
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "t:b",
+     "pitch": 37,
+     "into": null,
+     "external": 0,
+     "gridGrowth": 0,
+     "hold": null,
+     "dropInto": null,
+     "onto": null,
+     "pins": false,
+     "pinCount": 0,
+     "pinBefore": null,
+     "folderTarget": null,
+     "folderAway": false,
+     "folded": "g:G(G)",
+     "landing": null,
+     "sources": [
+      "g:G(G)"
+     ],
+     "gaps": {
+      "t:b": 37
+     }
+    },
+    {
+     "step": "move 60,226",
+     "drop": {
+      "type": "group",
+      "groupId": "G(G)",
+      "placement": {
+       "pinned": true,
+       "parentId": null,
+       "beforeId": "pg1"
+      },
+      "sequence": [
+       "t:p1",
+       "t:p2",
+       "g:G(G)",
+       "g:G(PG)",
+       "lf:LF(Pull Requests)"
+      ]
+     },
+     "gapKey": "g:G(PG)",
+     "gaps": {
+      "g:G(PG)": 37
+     }
+    },
+    {
+     "step": "end true",
+     "drop": {
+      "type": "none"
+     },
+     "gapKey": null,
+     "pitch": 0,
+     "folded": null,
+     "sources": [],
+     "gaps": {}
+    },
+    {
+     "step": "committed",
+     "committed": {
+      "tabIds": [
+       "p1",
+       "p2",
+       "g1",
+       "h1",
+       "g2",
+       "pg1",
+       "a",
+       "b",
+       "c",
+       "s1",
+       "s2"
+      ],
+      "tabs": {
+       "p1": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "p2": {
+        "pinned": true,
+        "row": true,
+        "group": null,
+        "folder": null
+       },
+       "g1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "h1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "g2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "pg1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "a": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "b": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "c": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s1": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       },
+       "s2": {
+        "pinned": false,
+        "row": false,
+        "group": null,
+        "folder": null
+       }
+      },
+      "groups": {
+       "G(PG)": {
+        "tabIds": [
+         "pg1"
+        ],
+        "parent": null,
+        "pinned": true,
+        "collapsed": false
+       },
+       "G(G)": {
+        "tabIds": [
+         "g1",
+         "h1",
+         "g2"
+        ],
+        "parent": null,
+        "pinned": true,
+        "collapsed": false
+       },
+       "G(H)": {
+        "tabIds": [
+         "h1"
+        ],
+        "parent": "G(G)",
+        "pinned": true,
+        "collapsed": false
+       }
+      },
+      "pinnedArea": [
+       "t:p1",
+       "t:p2",
+       "g:G(G)",
+       "g:G(PG)"
+      ],
+      "anchors": [
+       [
+        "G(G)",
+        "p2"
+       ],
+       [
+        "G(PG)",
+        "p2"
+       ]
+      ],
+      "orderChoices": [
+       "group:G(G)",
+       "place:g1",
+       "place:h1",
+       "place:g2",
+       "place:p1",
+       "place:p2",
+       "p1",
+       "p2"
+      ],
+      "liveOrder": [
+       [
+        "LF(Pull Requests)",
+        "g:G(PG)"
+       ]
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "tiles laid out token": [
+  {
+   "step": "begin t:b 26,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:c",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:b"
+   ],
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "end false",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "t1",
+     "t2",
+     "p1",
+     "a",
+     "b",
+     "c",
+     "d"
+    ],
+    "tabs": {
+     "t1": {
+      "pinned": true,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "t2": {
+      "pinned": true,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "d": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {},
+    "pinnedArea": [
+     "t:p1"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:p1",
+     "place:t1",
+     "place:t2",
+     "p1",
+     "t1",
+     "t2"
+    ],
+    "liveOrder": []
+   }
+  },
+  {
+   "step": "begin t:a 26,178",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": false,
+     "beforeId": "t1",
+     "tileFolder": null
+    },
+    "sequence": [
+     "t:p1"
+    ]
+   },
+   "gapKey": "t:t1",
+   "pitch": 47,
+   "pins": true,
+   "pinCount": 1,
+   "pinBefore": "t:t1",
+   "sources": [
+    "t:a"
+   ]
+  },
+  {
+   "step": "old tilesLaidOut arrived"
+  },
+  {
+   "step": "own tilesLaidOut"
+  },
+  {
+   "step": "move 60,410"
+  },
+  {
+   "step": "end false",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "sources": []
+  },
+  {
+   "step": "committed"
+  }
+ ]
+}

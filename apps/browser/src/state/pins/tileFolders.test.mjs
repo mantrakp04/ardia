@@ -16,8 +16,8 @@ const cells = (w, profileId) =>
     const f = folders.folderIdOfCell(c);
     return f ? `[${folders.folderMembers(S(), w, f).map(host).join(",")}]` : host(c);
   });
-const folderOf = (id) => S().tabs[id].tileFolder;
-const tileOf = (w, h) => model.viewTabIds(S(), w).find((id) => S().tabs[id].pinned && host(id) === h);
+const folderOf = (id) => S().tabs[id].pin?.folder;
+const tileOf = (w, h) => model.viewTabIds(S(), w).find((id) => !!S().tabs[id].pin && host(id) === h);
 
 function windowWith(...hosts) {
   const w = S().createWindow({ url: `https://${hosts[0]}.com/` });
@@ -44,15 +44,15 @@ test("a tile dropped on another makes a folder of the two in the target's place;
   assert.deepEqual(cells(w), ["[b,d,a]", "c"]);
   act((s) => folders.addToTileFolder(s, [c], b, a));
   assert.deepEqual(cells(w), ["[b,d,c,a]"], "a drop inside the folder lands before the member it was dropped on");
-  assert.ok(Object.values(S().tabs).every((t) => t.pinned === (t.id !== model.viewTabIds(S(), w)[4])), "every member is still a plain pinned tab");
+  assert.ok(Object.values(S().tabs).every((t) => !!t.pin === (t.id !== model.viewTabIds(S(), w)[4])), "every member is still a plain pinned tab");
 });
 
 test("a list tab dropped on a tile is pinned into the folder", () => {
   reset();
   const { w, ids: [a, , , , e] } = pinnedWindow();
   act((s) => folders.addToTileFolder(s, [e], a));
-  assert.equal(S().tabs[e].pinned, true);
-  assert.equal(S().tabs[e].pinnedAsRow, undefined);
+  assert.equal(!!S().tabs[e].pin, true);
+  assert.equal((S().tabs[e].pin?.as === "row"), false);
   assert.deepEqual(cells(w), ["[a,e]", "b", "c", "d"]);
 });
 
@@ -92,7 +92,7 @@ test("closing a member unloads it and keeps it in its folder", () => {
   S().activate(b);
   S().closeTab(b);
   assert.ok(S().tabs[b], "kept");
-  assert.equal(!!S().tabs[b].navigation || !!S().tabs[b].adoptId, false, "unloaded");
+  assert.equal(!!S().tabs[b].page.nav || !!S().tabs[b].page.adopt, false, "unloaded");
   assert.deepEqual(cells(w), ["[a,b]", "c", "d"]);
 });
 
@@ -108,7 +108,7 @@ test("rename and remove a folder; dragging the folder moves its members together
   assert.deepEqual(cells(w), ["a", "d", "[b,c]"], "placed as one, still a folder");
   act((s) => folders.dissolveTileFolder(s, w, id));
   assert.deepEqual(cells(w), ["a", "d", "b", "c"]);
-  assert.ok([a, b, c, d].every((t) => !S().tabs[t].tileFolder));
+  assert.ok([a, b, c, d].every((t) => !S().tabs[t].pin?.folder));
 });
 
 test("folders are the profile's: a second window mirrors them, a change in either shows in the other", () => {
@@ -123,7 +123,7 @@ test("folders are the profile's: a second window mirrors them, a change in eithe
   assert.equal(folderOf(tileOf(other, "b")).name, "Daily");
   S().pinTabs([tileOf(w, "b"), tileOf(w, "d")], false);
   assert.deepEqual(cells(other), ["a", "c"], "unpinned in one window, the folder of one left is gone in both");
-  assert.equal(S().tabs[tileOf(other, "a")].tileFolder, undefined);
+  assert.equal(S().tabs[tileOf(other, "a")].pin?.folder, undefined);
 });
 
 test("folders park with the last window, come back from it, and survive a relaunch", () => {
@@ -139,28 +139,30 @@ test("folders park with the last window, come back from it, and survive a relaun
   assert.deepEqual(cells(w), ["[a,c]", "b", "d"]);
   assert.equal(folderOf(a).name, "Mail & Cal");
   S().closeWindow(w);
-  assert.deepEqual(S().parkedPins.default.tabs.map((t) => t.tileFolder?.name ?? null), ["Mail & Cal", "Mail & Cal", null, null]);
+  assert.deepEqual(S().parkedPins.default.tabs.map((t) => t.pin?.folder?.name ?? null), ["Mail & Cal", "Mail & Cal", null, null]);
   const n = S().createWindow();
   assert.deepEqual(cells(n), ["[a,c]", "b", "d"]);
   assert.ok(b);
 });
 
-test("older data: a folder field on a tab that isn't a tile is dropped at launch", () => {
-  const tab = (id, u, pinned, extra = {}) => ({ id, windowId: "w", profileId: "default", url: u, title: "", favicon: null, pinned, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? u : null, navigation: null, openerId: null, createdAt: 0, lastActiveAt: 0, ...extra });
+test("older data: a version 5 session's folder field on a tab that isn't a tile is dropped at launch", () => {
+  const tab = (id, u, pinned, extra = {}) => ({ id, windowId: "w", profileId: "default", url: u, title: "", favicon: null, pinned, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? u : null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0, ...extra });
   const folder = { id: "tf-1", name: "" };
-  S().hydrate({
-    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: ["t", "r", "u"], activeTabIds: { default: "u" }, sidebarOpen: true, frame: null, createdAt: 0 } },
+  stub.docs.clear();
+  stub.docs.set("session.json", JSON.stringify({
+    version: 5,
+    profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } },
+    profileOrder: ["default"],
+    windows: [{ id: "w", profileId: "default", incognito: false, tabIds: ["t", "r", "u"], activeTabIds: { default: "u" }, sidebarOpen: true, frame: null, createdAt: 0 }],
     windowOrder: ["w"],
-    tabs: {
-      t: tab("t", "https://t.com/", true, { tileFolder: folder }),
-      r: tab("r", "https://r.com/", true, { pinnedAsRow: true, tileFolder: folder }),
-      u: tab("u", "https://u.com/", false, { tileFolder: folder }),
-    },
-  });
-  assert.deepEqual(S().tabs.t.tileFolder, folder);
-  assert.equal(S().tabs.r.tileFolder, undefined);
-  assert.equal(S().tabs.u.tileFolder, undefined);
-  assert.equal(model.snapshotTab(S().tabs.t).tileFolder, folder);
+    tabs: [tab("t", "https://t.com/", true, { tileFolder: folder }), tab("r", "https://r.com/", true, { pinnedAsRow: true, tileFolder: folder }), tab("u", "https://u.com/", false, { tileFolder: folder })],
+    groups: [],
+    splits: [],
+  }));
+  S().hydrate(loadSession());
+  assert.deepEqual(S().tabs.t.pin, { as: "tile", folder });
+  assert.deepEqual(S().tabs.r.pin, { as: "row" });
+  assert.equal(S().tabs.u.pin, null);
 });
 
 test("the top strip's pinned dock shows a folder as one cell, the active member right after it, and its menu lists the members", async () => {
@@ -169,12 +171,15 @@ test("the top strip's pinned dock shows a folder as one cell, the active member 
   const { w, ids: [a, b, c, d] } = pinnedWindow();
   act((s) => folders.addToTileFolder(s, [c, d], b));
   const fid = folderOf(b).id;
-  const dock = () => stripEntries(S(), w, "default").filter((e) => e.startsWith("pinned:") || e.startsWith("tilefolder:"));
+  const dock = () =>
+    stripEntries(S(), w, "default").flatMap((e) =>
+      e.kind === "dock" ? e.ids.map((cell) => (e.members.has(cell) ? `tilefolder:${folders.folderIdOfCell(cell)}:${e.members.get(cell).join(",")}` : `pinned:${cell}`)) : [],
+    );
   assert.deepEqual(dock(), [`pinned:${a}`, `tilefolder:${fid}:${b},${c},${d}`]);
   S().activate(c);
   assert.deepEqual(dock(), [`pinned:${a}`, `tilefolder:${fid}:${b},${c},${d}`, `pinned:${c}`]);
   const items = tileFolderMenuItems(S(), w, fid, c);
-  assert.deepEqual(items.slice(0, 3).map((i) => [i.id, !!i.checked]), [[`t:${b}`, false], [`t:${c}`, true], [`t:${d}`, false]]);
+  assert.deepEqual(items.slice(0, 3).map((i) => [i.value.tabId, !!i.checked]), [[b, false], [c, true], [d, false]]);
   assert.equal(items.at(-1).id, "rename");
 });
 
@@ -202,7 +207,7 @@ test("a parked folder that drops to one tab is that tile when it comes back", ()
   const park = S().parkedPins.default;
   const key = S().tabs[b]?.pinKey ?? b;
   useBrowser.setState({ parkedPins: { ...S().parkedPins, default: { ...park, tabs: park.tabs.filter((p) => p.id !== key) } } });
-  assert.ok(S().parkedPins.default.tabs.every((p) => !p.tileFolder), JSON.stringify(S().parkedPins.default.tabs.map((p) => p.tileFolder ?? null)));
+  assert.ok(S().parkedPins.default.tabs.every((p) => !p.pin?.folder), JSON.stringify(S().parkedPins.default.tabs.map((p) => p.pin?.folder ?? null)));
   const n = S().createWindow();
   assert.deepEqual(cells(n), ["a", "c", "d"]);
 });

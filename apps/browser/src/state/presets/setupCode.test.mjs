@@ -15,7 +15,7 @@ const ARC = {
     newTabOpens: "commandBar",
     newTabPosition: "top",
     newTabButtonPosition: "top",
-    cleanUpInactiveTabsAfterHours: 12,
+    cleanUpInactiveTabsAfterMinutes: 720,
     restoreSession: true,
     shareTabsAcrossWindows: true,
     balancedTopApps: true,

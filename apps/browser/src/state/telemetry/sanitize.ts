@@ -3,8 +3,6 @@ const FILE_EXTENSIONS =
   "json|jsonl|js|mjs|cjs|jsx|ts|tsx|map|bundle|jsbundle|hbc|html?|css|txt|md|rtf|csv|log|ips|plist|xml|ya?ml|pdf|docx?|xlsx?|pptx?|key|pages|numbers|png|jpe?g|gif|webp|heic|svg|ico|icns|mp[34]|m4[av]|mov|avi|mkv|webm|wav|aac|flac|zip|gz|tgz|tar|7z|rar|dmg|pkg|app|crx|xpi|db|sqlite|sqlite3|ldb|sst";
 
 const RULES: [RegExp, string][] = [
-  [/"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’|`[^`\n]*`/g, "<text>"],
-  [/(^|[\s(\[{=:,])'[^'\n]*'(?=$|[\s)\]},.:;!?])/g, "$1<text>"],
   [/\b(?:about|data|blob|javascript|mailto|file|chrome|ardia|chrome-extension|devtools|view-source):\S+/gi, "<url>"],
   [/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>)\]}]*/gi, "<url>"],
   [/[\w.%+-]+@[\w-]+(?:\.[\w-]+)+/g, "<email>"],
@@ -20,12 +18,37 @@ const RULES: [RegExp, string][] = [
   [/\b(?:0x)?[0-9a-f]{12,}\b/gi, "<hex>"],
 ];
 
+const QUOTES = new Set(['"', "“", "”", "‘", "’", "`"]);
+
+function isAsciiWordCharacter(character: string | undefined): boolean {
+  return !!character && /^[A-Za-z0-9]$/.test(character);
+}
+
+function untilFirstQuote(line: string): string {
+  for (let i = 0; i < line.length; i++) {
+    const character = line[i]!;
+    if (QUOTES.has(character) || (character === "'" && !isAsciiWordCharacter(line[i - 1]))) return `${line.slice(0, i)}<text>`;
+  }
+  return line;
+}
+
+function withoutPartialLastWord(text: string): string {
+  for (let i = text.length - 1; i >= 0; i--) if (/^\s$/.test(text[i]!)) return text.slice(0, i);
+  return "";
+}
+
 export function scrubText(input: unknown, max = 200): string {
   if (typeof input !== "string") return "";
   let text = input.split(/\r?\n/, 1)[0] ?? "";
+  const capped = text.length > max;
+  if (capped) text = text.slice(0, max - 1);
+  const beforeQuote = untilFirstQuote(text);
+  const endsAtQuote = beforeQuote !== text;
+  text = endsAtQuote ? beforeQuote : capped ? withoutPartialLastWord(text) : text;
   for (const [pattern, placeholder] of RULES) text = text.replace(pattern, placeholder);
   text = text.replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+  if (text.length >= max) return `${text.slice(0, max - 1)}…`;
+  return capped && !endsAtQuote ? `${text}…` : text;
 }
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]{0,60}$/;
@@ -67,6 +90,7 @@ export type ExceptionFrame = {
   colno: number | null;
   resolved: boolean;
   in_app: boolean;
+  image_offset?: string;
 };
 
 function frameFunction(name: string | undefined): string {
@@ -119,50 +143,84 @@ export function parseStack(stack: unknown, limit = 50): ExceptionFrame[] {
   return frames.reverse();
 }
 
-export type NativeFrame = { image: string; symbol?: string; offset?: number };
+export type NativeFrame = { image: string; symbol?: string; symbolOffset?: number; offset?: number };
+export type NativeImage = { name: string; uuid: string };
 
-const OUR_IMAGES = /^(Ardia|ArdiaCore|ArdiaShell|Chromium Framework|Expo|ExpoModulesCore|React|hermes|RCT)/;
+const OUR_IMAGES = /^(Ardia|ArdiaCore|ArdiaShell|Chromium Framework|Expo|ExpoModulesCore|React|hermes|RCT|Sparkle)/;
+const STRIPPED_EXPORT = /^(?:ArdiaCoreMain|ChromeMain|ChromeWebAppShortcutCopierMain|ac_[a-z0-9_]+)$/;
+const NEAREST_EXPORT_DISTANCE = 0x4000;
+
+function nativeImageName(image: unknown): string {
+  return typeof image === "string" ? frameFile(image.replace(/\s/g, "_")).replace(/_/g, " ") : "<unknown>";
+}
+
+function realSymbol(f: NativeFrame, inApp: boolean): string | null {
+  if (typeof f.symbol !== "string" || !f.symbol) return null;
+  if (inApp) {
+    if (typeof f.symbolOffset === "number" ? f.symbolOffset >= NEAREST_EXPORT_DISTANCE : STRIPPED_EXPORT.test(f.symbol)) return null;
+  }
+  return f.symbol.replace(/\S*\/\S*/g, "<path>").replace(/"[^"]*"/g, "<text>").slice(0, 200);
+}
 
 export function nativeFrames(frames: NativeFrame[], limit = 64): ExceptionFrame[] {
   return frames.slice(0, limit).map((f): ExceptionFrame => {
-    const image = frameFile(f.image.replace(/\s/g, "_")).replace(/_/g, " ");
-    const symbol =
-      typeof f.symbol === "string" && f.symbol
-        ? f.symbol.replace(/\S*\/\S*/g, "<path>").replace(/"[^"]*"/g, "<text>").slice(0, 200)
-        : null;
+    const image = nativeImageName(f.image);
+    const inApp = OUR_IMAGES.test(image);
+    const symbol = realSymbol(f, inApp);
+    const offset = typeof f.offset === "number" && Number.isSafeInteger(f.offset) && f.offset >= 0 ? `0x${f.offset.toString(16)}` : null;
     return {
       platform: "custom",
       lang: "native",
-      function: symbol ?? `${image} + 0x${(f.offset ?? 0).toString(16)}`,
+      function: symbol ?? `${image} + ${offset ?? "0x0"}`,
       module: image,
       filename: image,
       lineno: null,
       colno: null,
       resolved: !!symbol,
-      in_app: OUR_IMAGES.test(image),
+      in_app: inApp,
+      ...(offset ? { image_offset: offset } : {}),
     };
   }).reverse();
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function nativeImages(images: unknown, limit = 24): NativeImage[] {
+  if (!Array.isArray(images)) return [];
+  return images.flatMap((i: Partial<NativeImage>) => {
+    const uuid = typeof i?.uuid === "string" ? i.uuid.toLowerCase() : "";
+    const name = nativeImageName(i?.name);
+    return UUID.test(uuid) && OUR_IMAGES.test(name) ? [{ name, uuid }] : [];
+  }).slice(0, limit);
+}
+
 const SYSTEM_NAME = /^[A-Z][A-Z0-9_ ()]{1,40}$/;
 const EXCEPTION_NAME = /^[A-Z]{2,4}[A-Z][a-z][A-Za-z0-9]{1,60}$/;
+const SUBTYPE = /^[A-Z][A-Z0-9_]{2,40}$/;
 
 type NativeCrash = {
   exceptionType?: string;
   signal?: string;
   exceptionName?: string;
+  exceptionReason?: string;
+  exceptionSubtype?: string;
   frames: NativeFrame[];
   exceptionFrames?: NativeFrame[];
+  images?: NativeImage[];
 };
 
 export function nativeCrashExceptions(report: NativeCrash) {
   const machType = report.exceptionType && SYSTEM_NAME.test(report.exceptionType) ? report.exceptionType : "Crash";
   const signal = report.signal && SYSTEM_NAME.test(report.signal) ? report.signal : null;
   const name = report.exceptionName && EXCEPTION_NAME.test(report.exceptionName) ? report.exceptionName : null;
+  const subtype = report.exceptionSubtype && SUBTYPE.test(report.exceptionSubtype) ? report.exceptionSubtype : null;
+  const images = nativeImages(report.images);
+  const reason = scrubText(report.exceptionReason, 300) || null;
   const crash = { type: machType, value: signal ? `${machType} (${signal})` : machType, frames: nativeFrames(report.frames) };
-  if (!report.exceptionFrames?.length) return { name, signal, exceptions: [crash] };
-  const thrown = { type: name ?? "NSException", value: `Uncaught ${name ?? "NSException"}`, frames: nativeFrames(report.exceptionFrames) };
-  return { name, signal, exceptions: [thrown, crash] };
+  if (!report.exceptionFrames?.length && !name && !reason) return { name, signal, reason, subtype, images, exceptions: [crash] };
+  const type = name ?? "NSException";
+  const thrown = { type, value: reason ?? `Uncaught ${type}`, frames: nativeFrames(report.exceptionFrames ?? []) };
+  return { name, signal, reason, subtype, images, exceptions: [thrown, crash] };
 }
 
 type PropertyValue = string | number | boolean | null;

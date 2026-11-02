@@ -23,7 +23,7 @@ export function useMeetingCountdown(groupId: string) {
     if (!due.length) return;
     due.forEach((m) => wiggled.add(`${groupId}:${m}`));
     wiggle.setValue(0);
-    Animated.sequence(liveMotion.wiggle.map(({ to, duration }) => Animated.timing(wiggle, { toValue: to, duration, easing: curve.inOutQuad, useNativeDriver: true }))).start();
+    Animated.sequence(liveMotion.wiggle.map(({ to, duration }) => Animated.timing(wiggle, { toValue: to, duration, easing: curve.move, useNativeDriver: true }))).start();
   }, [minutesLeft === null ? null : Math.ceil(minutesLeft * 12)]);
 
   const label = end && minutesLeft !== null && minutesLeft <= SHOW_WITHIN_MIN ? timeRemaining(end, now) : null;

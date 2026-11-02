@@ -1,28 +1,25 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { useHover } from "../ui";
+import { TextInput, View } from "react-native";
+import { Button, Text } from "../ui";
 import { goToStep } from "../../state/onboarding/onboarding";
 import { applySetupCodeInOnboarding } from "../../state/presets/actions";
 import { SETUP_CODE_PREFIX } from "../../state/presets/setupCode";
 import { StepLayout } from "./StepLayout";
 import { BackButton, PrimaryButton, SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
-import { MONO } from "./tokens";
-import { font } from "../ui/tokens";
+import { MONO, onboardingButton } from "./tokens";
+import { font, proseLineHeight, radius, space } from "../ui/tokens";
+import { ChoiceCard } from "./ChoiceCard";
 import { SetupLines } from "./SetupLines";
+
+const CODE_FIELD_HEIGHT = 44;
 
 const BRINGS = ["Where your tabs and address bar go", "What ⌘T and ⌘L open", "Light or dark, and your color", "The apps you pinned"];
 
 export function SetupCodeLink({ onPress }: { onPress: () => void }) {
-  const colors = useOnboardingColors();
-  const { hovered, hoverProps } = useHover();
   return (
-    <View {...hoverProps} style={{ marginLeft: "auto" }}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Have a setup code from ardia.dev?">
-        <View mouseDownCanMoveWindow={false} style={{ height: 36, justifyContent: "center" }}>
-          <Text style={{ ...font.small, color: hovered ? colors.title : colors.subtitle, textDecorationLine: hovered ? "underline" : "none" }}>Have a setup code?</Text>
-        </View>
-      </Pressable>
+    <View mouseDownCanMoveWindow={false} style={{ marginLeft: "auto", height: onboardingButton.height, justifyContent: "center" }}>
+      <Button variant="text" look="link" tone="textSecondary" label="Have a setup code from ardia.dev?" title="Have a setup code?" onPress={onPress} />
     </View>
   );
 }
@@ -68,17 +65,7 @@ export function SetupCodeStep({ onBack }: { onBack: () => void }) {
       }
       preview={<SetupLines heading="A code brings over:" lines={BRINGS} />}
     >
-      <View
-        style={{
-          height: 44,
-          paddingHorizontal: 14,
-          borderRadius: 12,
-          justifyContent: "center",
-          backgroundColor: colors.row,
-          borderWidth: error ? 1.5 : StyleSheet.hairlineWidth * 2,
-          borderColor: error ? colors.title : colors.rowBorder,
-        }}
-      >
+      <ChoiceCard plain selected={!!error} fill={colors.row} radius={radius.panel} style={{ height: CODE_FIELD_HEIGHT, paddingHorizontal: space.xl, justifyContent: "center" }}>
         <TextInput
           value={code}
           onChangeText={(text) => {
@@ -96,8 +83,8 @@ export function SetupCodeStep({ onBack }: { onBack: () => void }) {
           accessibilityLabel="Setup code"
           style={{ fontFamily: MONO, ...font.body, color: colors.title, paddingVertical: 0 }}
         />
-      </View>
-      <Text style={{ ...font.small, lineHeight: 17, color: error ? colors.title : colors.rowSubtitle }}>
+      </ChoiceCard>
+      <Text size="small" color={error ? colors.title : colors.rowSubtitle} style={{ lineHeight: proseLineHeight.small }}>
         {error ?? "Search, privacy and default browser stay yours to pick here."}
       </Text>
     </StepLayout>

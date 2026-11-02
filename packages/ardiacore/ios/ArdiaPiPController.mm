@@ -53,8 +53,7 @@ BOOL ShowsPage(NSView *view) {
 namespace ardia_pip {
 
 BOOL IsChromeFloatingWindow(NSWindow *window) {
-  static Class frameless = NSClassFromString(@"NativeWidgetMacFramelessNSWindow");
-  return frameless && [window isKindOfClass:frameless] && window.visible && window.level >= NSFloatingWindowLevel &&
+  return [ArdiaCoreWindow isChromeFramelessWindow:window] && window.visible && window.level >= NSFloatingWindowLevel &&
          (window.collectionBehavior & NSWindowCollectionBehaviorCanJoinAllSpaces);
 }
 
@@ -63,8 +62,7 @@ BOOL IsChromeVideoPictureInPicture(NSWindow *window) {
 }
 
 BOOL IsChromeDocumentPictureInPicture(NSWindow *window) {
-  static Class frameless = NSClassFromString(@"NativeWidgetMacFramelessNSWindow");
-  return frameless && [window isKindOfClass:frameless] && ShowsPage(window.contentView);
+  return [ArdiaCoreWindow isChromeFramelessWindow:window] && ShowsPage(window.contentView);
 }
 
 }

@@ -14,7 +14,7 @@ import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
-import { splitOf } from "../splits/splits";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
 
 export type { AutofillPrompt, AutofillPromptAnswer, PasswordPrompt, PasswordPromptAnswer } from "../../platform/tabs";
 
@@ -114,7 +114,7 @@ export function useFullscreenTab(windowId: string): string | undefined {
     if (!fullscreen) return undefined;
     const active = activeTabId(s, windowId);
     const peek = peekTabId(s, windowId);
-    const shown = [...(peek ? [peek] : []), ...(active ? (splitOf(s, active)?.tabIds ?? [active]) : [])];
+    const shown = [...(peek ? [peek] : []), ...(active ? (splitTabIdsOf(splitOf(s, active)) ?? [active]) : [])];
     return shown.find((id) => fullscreen.split("\n").includes(id));
   });
 }

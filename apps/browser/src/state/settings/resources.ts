@@ -28,6 +28,8 @@ export function load<A extends unknown[], T>(r: Resource<A, T>, args: A, { fresh
   return tracked;
 }
 
+export const cached = <A extends unknown[], T>(r: Resource<A, T>, args: A): T | undefined => useCache.getState()[keyOf(r.name, args)] as T | undefined;
+
 export function store<A extends unknown[], T>(r: Resource<A, T>, args: A, value: T) {
   const key = keyOf(r.name, args);
   generations.set(key, (generations.get(key) ?? 0) + 1);

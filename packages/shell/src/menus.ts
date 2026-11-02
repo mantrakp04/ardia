@@ -1,5 +1,7 @@
-import { Shell } from "./shellNative";
-import type { MenuBookmarkKey } from "./shellNative";
+import type { EventSubscription } from "expo-modules-core";
+import type { CommandEvent } from "./commands";
+import { nativeModule } from "./nativeModules";
+import type { MenuShortcut, ShortcutModifier } from "./system";
 
 export type MenuItem =
   | { separator: true }
@@ -38,7 +40,19 @@ export type MenuState = {
   undoReopensClosedTab?: boolean;
   downloadsInProgress?: number;
   extensions?: { id: string; title: string; icon?: string | null; enabled: boolean }[];
-  shortcuts?: Record<string, string[]>;
+  shortcuts?: Record<string, string[][]>;
+};
+
+export type MenuBookmarkKey = "bookmarkFolders" | "recentBookmarks" | "bookmarksBar" | "otherBookmarks";
+
+export type MenusNative = {
+  addListener(name: "onCommand", listener: (e: CommandEvent) => void): EventSubscription;
+  showMenu(items: MenuItem[]): Promise<string | null>;
+  setMenuState(state: Omit<MenuState, MenuBookmarkKey>): Promise<void>;
+  setMenuBookmarks(bookmarks: Pick<MenuState, MenuBookmarkKey>): Promise<void>;
+  menuShortcuts(): Promise<MenuShortcut[]>;
+  recordShortcut(): Promise<{ key: string; modifiers: ShortcutModifier[] } | null>;
+  cancelRecording(): Promise<void>;
 };
 
 let menusShown = 0;
@@ -55,11 +69,5 @@ export function watchMenus(watcher: () => void): () => void {
 
 export function showMenu(items: MenuItem[]): Promise<string | null> {
   menusChanged(1);
-  return Promise.resolve(Shell.showMenu(items)).finally(() => menusChanged(-1));
-}
-
-export function setMenuStateParts(state: MenuState, bookmarksChanged: boolean) {
-  const { bookmarkFolders, recentBookmarks, bookmarksBar, otherBookmarks, ...rest } = state;
-  if (bookmarksChanged) void Shell.setMenuBookmarks({ bookmarkFolders, recentBookmarks, bookmarksBar, otherBookmarks });
-  return Shell.setMenuState(rest);
+  return Promise.resolve(nativeModule("ArdiaMenus").showMenu(items)).finally(() => menusChanged(-1));
 }

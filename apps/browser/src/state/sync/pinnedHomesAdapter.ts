@@ -1,11 +1,9 @@
 import type { Adapter, Extraction } from "../../platform/sync";
-import { useBrowser } from "../browser/store";
-import { fromSync } from "../pins/pinOrderChoices";
-import { pinnedGroupMembers } from "../pins/pinHomes";
-import { pinKeyOf } from "../pins/pinMirror";
+import { pinnedGroupMembers } from "../browser/structure";
 import type { Tab } from "../browser/types";
-import { PIN_HOME, syncedHome, syncedHomeIn } from "./pinRecords";
-import { homeWindow, openWindows, store } from "./pinnedSyncState";
+import { PIN_TAB, PIN_HOME, syncedHome, syncedHomeIn } from "./pinRecords";
+import { commitPinnedEdit, homeWindow, store, unpinnedRemotely, windowsHomeFirst } from "./pinnedSyncState";
+import { pinKeyOf } from "../browser/model";
 
 function parkedAt<T extends { url: string; pinnedUrl?: string | null; restoreFrom?: string }>(p: T, home: string): T {
   if (p.url === home) return { ...p, pinnedUrl: home };
@@ -31,19 +29,19 @@ export function pinnedHomesAdapter(profileId: string): Adapter {
         if (!home) held.add(key);
         else if (base(k) !== undefined || (remote(k) ?? null) === null) values.set(k, home);
       };
-      const members = pinnedGroupMembers(s);
+      const members = pinnedGroupMembers(s.groups);
       const home = homeWindow(s, profileId);
-      for (const w of home ? [home, ...openWindows(s).filter((w) => w.id !== home.id)] : openWindows(s)) {
+      for (const w of windowsHomeFirst(s, home)) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (t?.profileId === profileId && (t.pinned || members.has(id))) offer(pinKeyOf(t), !t.pinned, t.pinnedUrl);
+          if (t?.profileId === profileId && (t.pin || members.has(id))) offer(pinKeyOf(t), !t.pin, t.pinnedUrl);
         }
       }
       for (const p of s.parkedPins[profileId]?.tabs ?? []) offer(p.id, !!p.groupId, p.pinnedUrl || p.url);
-      const unpinned = (key: string) => recorded(`pin:t:${key}`) && remote(`pin:t:${key}`) === null;
+      const unpinned = unpinnedRemotely(recorded, remote);
       return {
         values,
-        ignore: (k) => held.has(keyOf(k)) || (!known.has(keyOf(k)) && base(`pin:t:${keyOf(k)}`) === undefined && !unpinned(keyOf(k))),
+        ignore: (k) => held.has(keyOf(k)) || (!known.has(keyOf(k)) && base(`${PIN_TAB}${keyOf(k)}`) === undefined && !unpinned(keyOf(k))),
       } satisfies Extraction;
     },
     apply: (visible, changed, base) => {
@@ -61,9 +59,9 @@ export function pinnedHomesAdapter(profileId: string): Adapter {
       };
       const s = store();
       let tabs: Record<string, Tab> | null = null;
-      for (const id of pinnedGroupMembers(s)) {
+      for (const id of pinnedGroupMembers(s.groups)) {
         const t = s.tabs[id];
-        if (!t || t.profileId !== profileId || t.pinned) continue;
+        if (!t || t.profileId !== profileId || t.pin) continue;
         const home = wanted(pinKeyOf(t), t.pinnedUrl);
         if (home) (tabs ??= { ...s.tabs })[id] = { ...t, pinnedUrl: home };
       }
@@ -74,12 +72,7 @@ export function pinnedHomesAdapter(profileId: string): Adapter {
       });
       const parkEdited = !!park && parked!.some((p, i) => p !== park.tabs[i]);
       if (!tabs && !parkEdited) return true;
-      fromSync(() =>
-        useBrowser.setState({
-          ...(tabs ? { tabs } : {}),
-          ...(parkEdited ? { parkedPins: { ...s.parkedPins, [profileId]: { ...park!, tabs: parked! } } } : {}),
-        }),
-      );
+      commitPinnedEdit(s, profileId, tabs ? { tabs } : {}, parkEdited ? { tabs: parked! } : null);
       return true;
     },
   };

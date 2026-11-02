@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
-const { bookmarkUuidFor } = await import("./bookmarks.ts");
+const { bookmarkRoots, bookmarkUuidFor, isBookmarked, ownerOfBookmark } = await import("./bookmarks.ts");
+const { allArcHolders, restoreArcFolders } = await import("./bookmarkGroups.ts");
 const { migrateBookmarksFile, reloadBookmarks, startBookmarks } = await import("./engineSync.ts");
 const stub = await import("../../test-native/index.ts");
 
@@ -18,7 +19,7 @@ function chromeTree(profile = "") {
 }
 function storeTree(profileId = "default") {
   const b = S().bookmarks;
-  const roots = b.roots[profileId];
+  const roots = bookmarkRoots(S(), profileId);
   const walk = (id) => {
     const n = b.nodes[id];
     return n.kind === "url" ? `${n.title}=${n.url}` : { [n.title]: n.children.map(walk) };
@@ -71,7 +72,7 @@ test("the store's tree and Chrome's stay alike: the app's edits go as ops, an ex
   const stop = startBookmarks();
   await settle();
   await reloadBookmarks();
-  assert.ok(S().bookmarksReady.default);
+  assert.ok(S().bookmarksReady[""]);
   const same = () => assert.deepEqual(chromeTree(), storeTree());
 
   const a = S().addBookmark({ profileId: "default", url: "https://a.example/", title: "A" });
@@ -81,11 +82,11 @@ test("the store's tree and Chrome's stay alike: the app's edits go as ops, an ex
   await settle();
   same();
   S().moveBookmark(a, f, 0);
-  S().moveBookmark(g, S().bookmarks.roots.default.other);
+  S().moveBookmark(g, bookmarkRoots(S(), "default").other);
   S().updateBookmark(b, { title: "B, renamed", url: "https://b2.example/" });
   await settle();
   same();
-  S().moveBookmark(a, S().bookmarks.roots.default.bar, 0);
+  S().moveBookmark(a, bookmarkRoots(S(), "default").bar, 0);
   S().removeBookmark(f);
   await settle();
   same();
@@ -107,7 +108,8 @@ test("the store's tree and Chrome's stay alike: the app's edits go as ops, an ex
 });
 
 test("an edit made at launch, before Chrome's tree is read, reaches Chrome and stays", async () => {
-  S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  S().hydrate({});
   stub.docs.clear();
   stub.bookmarkDbs.clear();
   stub.chromeBookmarkEdit("", [{ op: "add", id: "0f0f0f0f-0000-4000-8000-0000000000a1", k: "u", t: "In Chrome", u: "https://chrome.example/", a: 1, parent: "bar" }]);
@@ -120,7 +122,8 @@ test("an edit made at launch, before Chrome's tree is read, reaches Chrome and s
 });
 
 test("ops Chrome can't apply (an extension moved things meanwhile) stop there: nothing the store kept is removed", async () => {
-  S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  S().hydrate({});
   stub.docs.clear();
   stub.bookmarkDbs.clear();
   const stop = startBookmarks();
@@ -142,7 +145,8 @@ test("ops Chrome can't apply (an extension moved things meanwhile) stop there: n
 });
 
 test("at launch the bar shows the last tree read from Chrome until Chrome's loads, and nothing of it is written back", async () => {
-  S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  S().hydrate({});
   stub.docs.clear();
   stub.bookmarkDbs.clear();
   stub.chromeBookmarkEdit("", [{ op: "add", id: "0f0f0f0f-0000-4000-8000-0000000000c1", k: "u", t: "Now", u: "https://now.example/", a: 1, parent: "bar" }]);
@@ -155,7 +159,7 @@ test("at launch the bar shows the last tree read from Chrome until Chrome's load
   ] } }));
   const stop = startBookmarks();
   assert.deepEqual(storeTree().bar, { "Bookmarks Bar": ["Deleted since=https://gone.example/"] }, "the cache shows at once");
-  assert.ok(!S().bookmarksReady.default, "sync waits for Chrome's tree");
+  assert.ok(!S().bookmarksReady[""], "sync waits for Chrome's tree");
   await reloadBookmarks();
   assert.deepEqual(storeTree(), chromeTree(), "then Chrome's tree");
   assert.ok(!stub.chromeBookmarks("").has(gone), "the cache's stale bookmark isn't written back");
@@ -175,4 +179,42 @@ test("a launch with bookmarks.json shows its tree at once, then moves it into Ch
   await reloadBookmarks();
   assert.deepEqual(storeTree(), expected);
   stop();
+});
+
+test("profiles that share data share one tree, owned by whichever comes first in the profile order, Arc holders included", () => {
+  S().hydrate({});
+  const a = S().createProfile({ name: "A" });
+  const b = S().createProfile({ name: "B", shareWith: a });
+  assert.deepEqual(bookmarkRoots(S(), b), bookmarkRoots(S(), a), "one tree for both");
+  const x = S().addBookmark({ profileId: b, url: "https://x.example/", title: "X" });
+  assert.ok(isBookmarked(S(), a, "https://x.example/"), "added through B, bookmarked in A");
+  assert.equal(ownerOfBookmark(S(), x), a, "A comes first");
+  S().reorderProfiles(["default", b, a]);
+  assert.equal(ownerOfBookmark(S(), x), b, "after a reorder, B does");
+
+  const holder = S().addBookmarkFolder({ profileId: a, title: "Home (Arc)" });
+  const reading = S().addBookmarkFolder({ profileId: a, title: "Reading", parentId: holder });
+  S().addBookmark({ profileId: a, url: "https://r.example/", title: "R", parentId: reading });
+  const second = S().addBookmarkFolder({ profileId: a, title: "Work (Arc)" });
+  const dev = S().addBookmarkFolder({ profileId: a, title: "Dev", parentId: second });
+  S().addBookmark({ profileId: a, url: "https://d.example/", title: "D", parentId: dev });
+  assert.deepEqual(allArcHolders(S()), [holder, second]);
+  const inA = S().createWindow({ profileId: a });
+  assert.deepEqual(restoreArcFolders(holder, null).map((g) => S().groups[g].profileId), [b], "with no window, the first profile in the order");
+  assert.deepEqual(restoreArcFolders(second, inA).map((g) => S().groups[g].profileId), [a], "from A's window, A");
+});
+
+test("deleting one of two sharing profiles keeps the tree; deleting the last drops it and its ready mark", () => {
+  S().hydrate({});
+  const a = S().createProfile({ name: "A" });
+  const b = S().createProfile({ name: "B", shareWith: a });
+  useBrowser.setState({ bookmarksReady: { [a]: true } });
+  const x = S().addBookmark({ profileId: b, url: "https://x.example/", title: "X" });
+  S().deleteProfile(a);
+  assert.ok(S().bookmarks.nodes[x], "B still has it");
+  assert.ok(S().bookmarksReady[a], "and the engine stays ready");
+  S().deleteProfile(b);
+  assert.equal(S().bookmarks.nodes[x], undefined);
+  assert.equal(S().bookmarks.nodes[`bar@${a}`], undefined);
+  assert.equal(S().bookmarksReady[a], undefined);
 });

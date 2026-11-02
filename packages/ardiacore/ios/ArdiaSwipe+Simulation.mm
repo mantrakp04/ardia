@@ -2,31 +2,21 @@
 #import "ArdiaChromeWindowHost.h"
 
 #import <dlfcn.h>
-#import <objc/message.h>
-#import <objc/runtime.h>
 
 using namespace ardia_swipe;
 
 namespace {
 
 NSDictionary *ResponderReport(NSView *hit) {
-  static Ivar ivar = class_getInstanceVariable(NSClassFromString(@"RenderWidgetHostViewCocoa"), "_responderDelegate");
-  NSView *page = hit;
-  while (page && !IsRenderWidgetView(page)) page = page.superview;
-  if (!page || !ivar) return @{};
-  id delegate = object_getIvar(page, ivar);
-  NSObject *original = [delegate isKindOfClass:ArdiaRendererScrollObserver.class] ? ((ArdiaRendererScrollObserver *)delegate)->_original : nil;
+  NSView *page = PageViewOf(hit);
+  if (!page) return @{};
   NSMutableDictionary *valid = [NSMutableDictionary dictionary];
   for (NSString *action in @[ @"checkSpelling:", @"showGuessPanel:", @"toggleContinuousSpellChecking:", @"toggleGrammarChecking:",
                               @"startSpeaking:", @"stopSpeaking:" ]) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:action action:NSSelectorFromString(action) keyEquivalent:@""];
     valid[action] = @([(id<NSUserInterfaceValidations>)page validateUserInterfaceItem:item]);
   }
-  return @{
-    @"delegate" : delegate ? NSStringFromClass([delegate class]) : @"",
-    @"chainedTo" : original ? NSStringFromClass(original.class) : @"",
-    @"valid" : valid,
-  };
+  return @{@"takesSwipes" : @([ArdiaCorePageView takesSwipes:page]), @"valid" : valid};
 }
 
 NSPoint LocalPoint(NSWindow *window, NSPoint point) {

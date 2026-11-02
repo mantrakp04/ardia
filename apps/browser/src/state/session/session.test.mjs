@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
+const { bookmarkRoots } = await import("../bookmarks/bookmarks.ts");
 const model = await import("../browser/model.ts");
 const { migrateHistoryFile, reloadHistory, startHistory } = await import("../history/engineSync.ts");
+const { historyOf } = await import("../history/history.ts");
+const { reloadBookmarks, startBookmarks } = await import("../bookmarks/engineSync.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("./persist.ts");
 const { firstWindowCommitted } = await import("../../lib/afterFirstWindow.ts");
 const stub = await import("../../test-native/index.ts");
@@ -35,12 +38,12 @@ test("hydrate repairs dangling references", () => {
   S().hydrate({
     profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } },
     windows: {
-      w1: { id: "w1", profileId: "gone", incognito: false, tabIds: ["t1", "missing"], activeTabIds: { gone: "missing" }, sidebarOpen: true, frame: null, createdAt: 0 },
-      w2: { id: "w2", profileId: "default", incognito: false, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 },
+      w1: { id: "w1", profileId: "gone", kind: "main", tabIds: ["t1", "missing"], activeTabIds: { gone: "missing" }, sidebarOpen: true, frame: null, createdAt: 0 },
+      w2: { id: "w2", profileId: "default", kind: "main", tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 },
     },
     tabs: {
-      t1: { id: "t1", windowId: "w1", profileId: "default", url: "https://a.com", title: "", favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, navigation: null, openerId: null, createdAt: 0, lastActiveAt: 0 },
-      t2: { id: "t2", windowId: "nowhere", profileId: "default", url: "https://b.com", title: "", favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, navigation: null, openerId: null, createdAt: 0, lastActiveAt: 0 },
+      t1: { id: "t1", windowId: "w1", profileId: "default", url: "https://a.com", title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0 },
+      t2: { id: "t2", windowId: "nowhere", profileId: "default", url: "https://b.com", title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0 },
     },
     groups: { g: { id: "g", windowId: "w1", profileId: "default", name: "", icon: null, color: null, collapsed: false, pinned: false, tabIds: ["missing"], createdAt: 0 } },
   });
@@ -58,32 +61,45 @@ test("a reopened window's tabs wake with their back/forward list", () => {
   const [a] = S().windows[w].tabIds;
   const b = S().newTab(w, { url: "b.com", background: true });
   const lazy = S().newTab(w, { url: "c.com", background: true, snapshot: { url: "https://c.com" } });
-  S().updateTab(lazy, { navigation: null });
+  S().updateTab(lazy, { page: { kind: "idle" } });
   S().closeWindow(w);
   S().reopenClosedWindow();
   const w2 = S().windowOrder.at(-1);
   const [ra, rb, rc] = S().windows[w2].tabIds.map((id) => S().tabs[id]);
-  assert.match(ra.adoptId, new RegExp(`^restore:${a}$`), "the shown tab loads with its history");
-  assert.match(rb.wakeAdoptId, new RegExp(`^restore:${b}$`), "the others keep it until they wake");
-  assert.equal(rb.navigation, null);
-  assert.equal(rc.wakeAdoptId, undefined, "a tab that never loaded has none");
+  assert.match(ra.page.adopt, new RegExp(`^restore:${a}$`), "the shown tab loads with its history");
+  assert.match(rb.page.wake, new RegExp(`^restore:${b}$`), "the others keep it until they wake");
+  assert.equal(rb.page.nav, undefined);
+  assert.equal(rc.page.wake, undefined, "a tab that never loaded has none");
   S().activate(rb.id);
-  assert.match(S().tabs[rb.id].adoptId, new RegExp(`^restore:${b}$`));
-  assert.equal(S().tabs[rb.id].wakeAdoptId, undefined);
+  assert.match(S().tabs[rb.id].page.adopt, new RegExp(`^restore:${b}$`));
+  assert.equal(S().tabs[rb.id].page.wake, undefined);
 });
 
-test("profiles sharing data still share it after a save and reload", () => {
+test("profiles sharing data read one engine's history and bookmarks after the session is saved and loaded again", async () => {
   reset();
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const stopSaving = startPersistence();
   const a = S().createProfile({ name: "A" });
   const b = S().createProfile({ name: "B", shareWith: a });
-  S().importHistory(b, [{ url: "https://a.com/", title: "A", visits: 1, lastVisit: Date.now() }]);
-  const saved = JSON.parse(JSON.stringify({ profiles: S().profiles, profileOrder: S().profileOrder, history: S().history, bookmarks: S().bookmarks }));
+  stub.chromeVisit(a, "https://a.com/", "A");
+  stub.chromeBookmarkEdit(a, [{ op: "add", id: "0f0f0f0f-0000-4000-8000-0000000000b1", k: "u", t: "Shared", u: "https://shared.example/", a: 1, parent: "bar" }]);
+  flushPersistence();
+  stopSaving();
   reset();
-  assert.equal(model.engineProfile(b), b, "registry follows the loaded profiles");
-  S().hydrate(saved);
-  assert.equal(model.engineProfile(b), a);
-  assert.equal(S().history[a], S().history[b]);
-  assert.deepEqual(S().bookmarks.roots[a], S().bookmarks.roots[b]);
+  useBrowser.setState({ bookmarks: { nodes: {} }, history: {} });
+  assert.equal(model.engineProfile(S(), b), b, "registry follows the loaded profiles");
+  S().hydrate(loadSession());
+  assert.equal(model.engineProfile(S(), b), a);
+  const stops = [startHistory(), startBookmarks()];
+  await reloadHistory();
+  await reloadBookmarks();
+  const barOf = (profileId) => S().bookmarks.nodes[bookmarkRoots(S(), profileId).bar].children.map((id) => S().bookmarks.nodes[id].title);
+  assert.deepEqual(historyOf(S(), b).map((h) => h.url), ["https://a.com/"]);
+  assert.equal(historyOf(S(), a), historyOf(S(), b));
+  assert.deepEqual(barOf(b), ["Shared"]);
+  assert.deepEqual(bookmarkRoots(S(), a), bookmarkRoots(S(), b));
+  stops.forEach((stop) => stop());
 });
 
 const flushEvents = () => new Promise((r) => setTimeout(r, 0));
@@ -138,10 +154,10 @@ test("history.json's move goes before watching Chrome's history; the view then h
   assert.ok(stub.docs.has("history.json"));
   assert.equal(stub.chromeHistory("").size, 0, "nothing moved before the first window");
   firstWindowCommitted();
-  for (let i = 0; i < 50 && !S().history.default?.length; i++) await new Promise((r) => setTimeout(r, 10));
+  for (let i = 0; i < 50 && !historyOf(S(), "default").length; i++) await new Promise((r) => setTimeout(r, 10));
   assert.deepEqual(stub.historyWatches, [""], "watched once it's in");
-  assert.equal(S().history.default?.[0]?.url, "https://moved.com/");
-  assert.equal(S().history.default[0].visits, 2);
+  assert.equal(historyOf(S(), "default")[0]?.url, "https://moved.com/");
+  assert.equal(historyOf(S(), "default")[0].visits, 2);
   stop();
 });
 
@@ -151,12 +167,12 @@ test("history is a view of Chrome's: visits, deletions and a relaunch all read b
   stub.historyDbs.clear();
   const stop = startHistory();
   await reloadHistory();
-  const urls = () => (S().history.default ?? []).map((h) => h.url);
+  const urls = () => historyOf(S(), "default").map((h) => h.url);
   stub.chromeVisit("", "https://a.com/", "A");
   stub.chromeVisit("", "https://b.com/", "B");
   await flushEvents();
   assert.deepEqual(urls(), ["https://b.com/", "https://a.com/"]);
-  assert.ok(S().historyReady.default);
+  assert.ok(S().history[""].ready);
 
   S().removeHistory("default", ["https://a.com/"]);
   assert.deepEqual(urls(), ["https://b.com/"], "gone from the view at once");
@@ -165,9 +181,9 @@ test("history is a view of Chrome's: visits, deletions and a relaunch all read b
   await reloadHistory();
   assert.deepEqual(urls(), ["https://b.com/"], "a relaunch doesn't bring it back");
 
-  const before = S().history.default;
+  const before = historyOf(S(), "default");
   await reloadHistory();
-  assert.deepEqual(S().history.default, before);
+  assert.deepEqual(historyOf(S(), "default"), before);
   stop();
 });
 
@@ -180,13 +196,13 @@ test("⌘W on a pinned tab unloads its page; the tile stays with its title, icon
   S().closeTab(p);
   const tile = S().tabs[p];
   assert.ok(tile, "the pinned tab still exists");
-  assert.equal(tile.pinned, true);
+  assert.equal(!!tile.pin, true);
   assert.equal(tile.url, "https://mail.com");
   assert.equal(tile.title, "Inbox");
   assert.equal(tile.favicon, "data:mail");
-  assert.equal(tile.navigation, null, "no page: its web view unmounts");
-  assert.equal(tile.adoptId, undefined);
-  assert.equal(tile.unloaded, true);
+  assert.equal(tile.page.nav, undefined, "no page: its web view unmounts");
+  assert.equal(tile.page.adopt, undefined);
+  assert.equal(tile.page.kind, "asleep");
   assert.deepEqual(view(w), ["https://mail.com", "https://a.com"]);
   assert.equal(active(w), a);
 });
@@ -198,9 +214,9 @@ test("holding ⌘W over pinned tiles ends by closing the window: no unloaded pag
   select(x);
   const wakes = [];
   for (let i = 0; i < 10 && S().windows[w]; i++) {
-    const before = S().tabs[x].navigation;
+    const before = S().tabs[x].page.nav;
     S().closeTab(active(w));
-    if (S().windows[w] && !before && S().tabs[x].navigation) wakes.push(i);
+    if (S().windows[w] && !before && S().tabs[x].page.nav) wakes.push(i);
   }
   assert.deepEqual(wakes, [], "x.com never loads again");
   assert.equal(S().windows[w], undefined, "the window closed, as in Dia");
@@ -211,7 +227,7 @@ const sidebar = (w) =>
   model.viewTabIds(S(), w).filter((id) => model.inPinnedContainer(S(), id)).map((id) => {
     const t = S().tabs[id];
     const g = Object.values(S().groups).find((g) => g.tabIds.includes(id));
-    return `${g ? `${g.name}/` : ""}${t.url}${t.navigation || t.adoptId ? " (loaded)" : ""}`;
+    return `${g ? `${g.name}/` : ""}${t.url}${t.page.nav || t.page.adopt ? " (loaded)" : ""}`;
   });
 
 function pinnedWindow() {
@@ -247,7 +263,7 @@ test("⇧⌘T after the close, then ⌘N: no second set of pinned tabs", () => {
   const { w } = pinnedWindow();
   S().closeWindow(w);
   S().reopenClosed(null);
-  const restored = S().ui.focusedWindowId;
+  const restored = (S().ui.focusOrder[0] ?? null);
   assert.notEqual(restored, w);
   assert.deepEqual(sidebar(restored), PINS, "the reopened window has them");
   assert.deepEqual(model.viewTabIds(S(), restored).filter((id) => !model.inPinnedContainer(S(), id)).map((id) => S().tabs[id].url), ["https://a.com"]);
@@ -268,4 +284,24 @@ test("quit and relaunch after the window closed: the next window has the pinned 
   assert.equal(S().windowOrder.length, 0, "no window restored");
   const n = S().createWindow();
   assert.deepEqual(sidebar(n), PINS);
+});
+
+test("a session.json with the right version but broken lists loads what is whole and drops the rest", () => {
+  reset();
+  const tab = { id: "t1", windowId: "w1", profileId: "default", url: "https://kept.example/", title: "Kept", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, openerId: null, createdAt: 0, lastActiveAt: 0 };
+  const window = { id: "w1", profileId: "default", incognito: false, tabIds: ["t1"], activeTabIds: { default: "t1" }, sidebarOpen: true, frame: null, createdAt: 0 };
+  for (const broken of [
+    { windows: {}, tabs: {}, groups: "no", splits: 7, closedTabs: null },
+    { windows: [{ id: "w2", profileId: "default" }, window, 3, null], tabs: [tab, { id: "t2" }, "x"], groups: [{ id: "g", tabIds: "t1" }], closedTabs: [{ id: "c" }], closedWindows: [{ id: "cw", tabs: [null] }] },
+  ]) {
+    stub.docs.set("session.json", JSON.stringify({ version: 4, profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"], ...broken }));
+    reset();
+    assert.doesNotThrow(() => S().hydrate(loadSession() ?? {}));
+  }
+  assert.deepEqual(Object.keys(S().windows), ["w1"]);
+  assert.equal(S().tabs.t1.url, "https://kept.example/");
+  assert.deepEqual(S().groups, {});
+  assert.deepEqual(S().closedTabs, []);
+  assert.deepEqual(S().closedWindows, []);
+  stub.docs.delete("session.json");
 });

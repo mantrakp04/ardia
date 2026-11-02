@@ -1,11 +1,15 @@
+import type { GroupPlacement } from "../pins/tabGrouping";
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { newId } from "../browser/model";
-import { closingGroup } from "../pins/organize";
+import { bookmarkProfileId, isPinnedRow, newId, snapshotTab, tabTitle } from "../browser/model";
+import { closingGroup, nestedSnapshot, rebuildNested, restoreSnapshots } from "../pins/closedTabs";
+import { groupLabel, movingGroup, withGroup, withRowsGrouped } from "../pins/tabGrouping";
 import { withSplitRows } from "../splits/splits";
 import { withNewTab } from "../tabs/tabs";
-import type { BrowserWindow, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
+import type { BrowserWindow, ClosedGroup, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
 import { depthOf, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
+import { pinnedGroupMembers } from "../browser/structure";
+import { groupingOnto } from "../pins/placing";
 
 export { ancestorIds, canNest, commonGroup, depthOf, descendantIds, groupPath, innermostGroupOf, nestGroups, reparent, rootOf, withParent } from "./groupNesting";
 
@@ -20,6 +24,14 @@ export type GroupsSlice = {
   newNestedGroup(parentId: string): string;
   closeGroup(groupId: string): void;
   deleteGroup(groupId: string): void;
+  closedGroups: ClosedGroup[];
+  deletedGroups: ClosedGroup[];
+  groupTabs(ids: string[], options?: { pinned?: boolean; name?: string }): string;
+  groupOnto(ids: string[], targetId: string): string;
+  moveGroup(groupId: string, placement: GroupPlacement): void;
+  duplicateGroup(groupId: string): string;
+  newTabInGroup(groupId: string): string;
+  moveGroupToBookmarksBar(groupId: string): void;
 };
 
 export function syncGroupOrder(groups: Record<string, TabGroup>, window: BrowserWindow): Record<string, TabGroup> {
@@ -36,8 +48,8 @@ export function syncGroupOrder(groups: Record<string, TabGroup>, window: Browser
 }
 
 export function orderSections(ids: string[], tabs: Record<string, Tab>, groups: Record<string, TabGroup>): string[] {
-  const pinnedGroup = new Set(Object.values(groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
-  const rank = (id: string) => (tabs[id]?.pinned ? (tabs[id]!.pinnedAsRow ? 1 : 0) : pinnedGroup.has(id) ? 1 : 2);
+  const pinnedGroup = pinnedGroupMembers(groups);
+  const rank = (id: string) => (tabs[id]?.pin ? (isPinnedRow(tabs[id]) ? 1 : 0) : pinnedGroup.has(id) ? 1 : 2);
   const out = [0, 1, 2].flatMap((r) => ids.filter((id) => rank(id) === r));
   return out.every((id, i) => id === ids[i]) ? ids : out;
 }
@@ -123,49 +135,28 @@ export function withGroupsPlaced<S extends Pick<BrowserState, "groups" | "window
   const w = s.windows[windowId]!;
   const tabIds = orderSections(placeGroups(w.tabIds, groups, windowId), s.tabs, groups);
   const window = tabIds.every((id, i) => id === w.tabIds[i]) ? w : { ...w, tabIds };
-  return { ...s, windows: { ...s.windows, [windowId]: window }, groups: syncGroupOrder(groups, window) };
+  return { ...s, windows: window === w ? s.windows : { ...s.windows, [windowId]: window }, groups: syncGroupOrder(groups, window) };
 }
 
 export function settleNesting(s: Pick<BrowserState, "groups" | "windows" | "tabs">): Pick<BrowserState, "groups" | "windows"> | null {
   if (!Object.values(s.groups).some((g) => g.parentId)) return null;
-  let groups = nestGroups(s.groups);
-  let windows = s.windows;
-  for (const windowId of new Set(Object.values(groups).filter((g) => g.parentId).map((g) => g.windowId))) {
-    const w = windows[windowId];
-    if (!w) continue;
-    const tabIds = orderSections(placeGroups(w.tabIds, groups, windowId), s.tabs, groups);
-    const window = tabIds.every((id, i) => id === w.tabIds[i]) ? w : { ...w, tabIds };
-    if (window !== w) windows = { ...windows, [windowId]: window };
-    groups = syncGroupOrder(groups, window);
+  let next = { groups: nestGroups(s.groups), windows: s.windows, tabs: s.tabs };
+  for (const windowId of new Set(Object.values(next.groups).filter((g) => g.parentId).map((g) => g.windowId))) {
+    if (next.windows[windowId]) next = withGroupsPlaced(next, windowId, next.groups);
   }
-  return groups === s.groups && windows === s.windows ? null : { groups, windows };
+  return next.groups === s.groups && next.windows === s.windows ? null : { groups: next.groups, windows: next.windows };
 }
 
 export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> = (set, get) => ({
   groups: {},
+  closedGroups: [],
+  deletedGroups: [],
 
   createGroup(tabIds, options = {}) {
-    const s = get();
-    const tabs = withSplitRows(s, tabIds).map((id) => s.tabs[id]).filter((t) => t && !t.pinned);
-    const first = tabs[0];
-    if (!first || tabs.some((t) => t!.windowId !== first.windowId || t!.profileId !== first.profileId)) return "";
-    const w = s.windows[first.windowId]!;
-    const members = new Set(tabs.map((t) => t!.id));
-    const window = { ...w, tabIds: placeBlock(w.tabIds, w.tabIds.filter((id) => members.has(id))) };
-    const group: TabGroup = {
-      id: newId("g"),
-      windowId: w.id,
-      profileId: first.profileId,
-      name: options.name ?? "",
-      icon: options.icon ?? null,
-      color: options.color ?? null,
-      collapsed: false,
-      pinned: false,
-      tabIds: window.tabIds.filter((id) => members.has(id)),
-      createdAt: Date.now(),
-    };
-    set({ groups: { ...leaveGroups(s.groups, members), [group.id]: group }, windows: { ...s.windows, [w.id]: window } });
-    return group.id;
+    const [next, id] = withGroup(get(), tabIds, { name: options.name, parentId: null });
+    if (!id) return "";
+    set({ groups: { ...next.groups, [id]: { ...next.groups[id]!, icon: options.icon ?? null, color: options.color ?? null } }, windows: next.windows });
+    return id;
   },
 
   updateGroup(id, patch) {
@@ -186,7 +177,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!group) return {};
       const adding = withSplitRows(s, tabIds).filter((id) => {
         const t = s.tabs[id];
-        return t && !t.pinned && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
+        return t && !t.pin && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
       });
       if (!adding.length) return {};
       const w = s.windows[group.windowId]!;
@@ -266,5 +257,78 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
 
   deleteGroup(groupId) {
     set(closingGroup(get(), groupId, true));
+  },
+
+  groupTabs(ids, { pinned = true, name } = {}) {
+    const [next, id] = withRowsGrouped(get(), ids, { pinned, name });
+    if (id) set({ ...next, selection: { ...next.selection, [next.groups[id]!.windowId]: [] } });
+    return id;
+  },
+
+  groupOnto(ids, targetId) {
+    const [next, id] = groupingOnto(get(), ids, targetId);
+    if (id) set(next);
+    return id;
+  },
+
+  moveGroup(groupId, p) {
+    set((s) => movingGroup(s, groupId, p));
+  },
+
+  duplicateGroup(groupId) {
+    let s = get();
+    const g = s.groups[groupId];
+    const w = g && s.windows[g.windowId];
+    if (!g || !w) return "";
+    const after = w.tabIds.indexOf(g.tabIds.at(-1)!) + 1;
+    const [restored, ids] = restoreSnapshots(
+      s,
+      w.id,
+      g.tabIds.map((id, i) => ({ tab: { ...snapshotTab(s.tabs[id]!), pin: null }, index: after + i })),
+    );
+    let groupId2: string;
+    [s, groupId2] = withGroup(restored, ids, { name: g.name, pinned: g.pinned, parentId: g.parentId ?? null });
+    if (groupId2) {
+      s = { ...s, groups: { ...s.groups, [groupId2]: { ...s.groups[groupId2]!, icon: g.icon, color: g.color } } };
+      s = rebuildNested(s, groupId2, g.id, ids, nestedSnapshot(get(), g));
+    }
+    set(s);
+    return groupId2;
+  },
+
+  newTabInGroup(groupId) {
+    const s = get();
+    const g = s.groups[groupId];
+    const w = g && s.windows[g.windowId];
+    if (!g || !w) return "";
+    const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
+    const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
+    set(withGroupsPlaced(next, w.id, groups));
+    return id;
+  },
+
+  moveGroupToBookmarksBar(groupId) {
+    const s = get();
+    const g = s.groups[groupId];
+    if (!g) return;
+    const profileId = bookmarkProfileId(s, s.windows[g.windowId]);
+    const file = (group: TabGroup, parentId?: string) => {
+      const folder = get().addBookmarkFolder({ profileId, title: groupLabel(s, group), ...(parentId ? { parentId } : {}) });
+      const children = Object.values(s.groups).filter((c) => c.parentId === group.id);
+      const filed = new Set<string>();
+      for (const id of group.tabIds) {
+        const child = children.find((c) => c.tabIds.includes(id));
+        if (child) {
+          if (filed.has(child.id)) continue;
+          filed.add(child.id);
+          file(child, folder);
+          continue;
+        }
+        const t = s.tabs[id];
+        if (t?.url) get().addBookmark({ profileId, url: t.url, title: tabTitle(t), favicon: t.favicon, parentId: folder });
+      }
+    };
+    file(g);
+    set(closingGroup(get(), groupId));
   },
 });

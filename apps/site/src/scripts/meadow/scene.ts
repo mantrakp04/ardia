@@ -30,10 +30,12 @@ export interface MeadowOptions {
   hint: HTMLElement | null;
   reducedMotion: boolean;
   onFirstFrame: () => void;
+  opening?: [from: number, to: number];
 }
 
 export interface Meadow {
   dispose(): void;
+  travelTo(cycle: number): void;
 }
 
 interface Tier {
@@ -134,8 +136,8 @@ const MOON_MIN_SUM = 520;
 const MOB_COMPILE_AFTER_FRAMES = 2;
 const STROKE_CELL_PX = 16;
 const CELL_MARGIN = 7;
-const KEEP_OUT_TITLE = ".hero-title .line > span";
-const KEEP_OUT_COPY = ".lede, .welcome, .cta-row > *, .send-more, [data-send-panel], .note";
+const KEEP_OUT_TITLE = '[data-meadow-keep-out="title"]';
+const KEEP_OUT_COPY = '[data-meadow-keep-out="copy"], [data-meadow-keep-out="row"] > *';
 const TERRAIN_READ_SIZE: [number, number] = [384, 768];
 const INTERACTIVE = "a, button, input, textarea, select, label, summary, [data-send-panel]";
 const SLIVER_PX = 48;
@@ -175,7 +177,8 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   const pointer = { x: 0, y: 0, active: false, touch: false, downX: 0, downY: 0, downAt: 0, down: false, drag: null as Body | null, lastX: 0, lastY: 0 };
   const windOn = !reducedMotion;
   const look = { x: 0, y: 0, settled: true };
-  const startCycle = reducedMotion ? SUNRISE_TO : SUNRISE_FROM;
+  const [openFrom, openTo] = options.opening ?? [SUNRISE_FROM, SUNRISE_TO];
+  const startCycle = reducedMotion ? openTo : openFrom;
   const day = { c: startCycle, target: startCycle, mode: (reducedMotion ? "rest" : "sunrise") as DayMode, from: 0, to: 0, start: 0, ramp: 0 };
   const bodies = { sun: { x: -999, y: -999, up: false }, moon: { x: -999, y: -999, up: false }, radius: 40 };
   const projection: Mat4 = new Float32Array(16);
@@ -642,6 +645,21 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     day.start = performance.now();
   };
 
+  const travelTo = (cycle: number) => {
+    const delta = wrapCycle(cycle - day.c);
+    if (reducedMotion) {
+      day.c = day.target = wrapCycle(cycle);
+      day.mode = "rest";
+      needsRender = true;
+    } else if (delta > 1e-4) {
+      day.mode = "settle";
+      day.from = day.c;
+      day.to = day.c + delta;
+      day.start = performance.now();
+    }
+    wake();
+  };
+
   const release = (x: number, y: number) => {
     pointer.drag = null;
     if (Math.hypot(x - pointer.downX, y - pointer.downY) < TAP_PX) advanceToNextStop();
@@ -653,7 +671,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   const updateDay = (now: number, dt: number) => {
     if (day.mode === "sunrise") {
       const elapsed = sunriseElapsed(now);
-      day.c = day.target = mix(SUNRISE_FROM, SUNRISE_TO, sunriseProgress(elapsed));
+      day.c = day.target = mix(openFrom, openTo, sunriseProgress(elapsed));
       if (elapsed > SUNRISE_HOLD_MS + DAY_MOVE_MS) resumeCycle();
       return;
     }
@@ -1377,6 +1395,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   wake();
 
   return {
+    travelTo,
     dispose() {
       cancelAnimationFrame(raf);
       raf = 0;

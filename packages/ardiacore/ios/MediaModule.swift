@@ -2,19 +2,16 @@ import ExpoModulesCore
 
 public class MediaModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaMedia")
-    Events("media")
+    Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
-    OnCreate { EngineCall.listen("media", self) }
-
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      MediaModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static func chooser(_ action: String) -> CallHandler {
     { args, reply in
-      ArdiaHost.deviceChooser(Int32(args.int("id") ?? 0), action: action)
+      ArdiaHost.deviceChooser(try args.int32("id"), action: action)
       reply.ok()
     }
   }
@@ -22,27 +19,27 @@ public class MediaModule: Module {
   static let calls = CallTable(domain: "media", handlers: [
     "displayMediaSources": { _, reply in reply.ok(ArdiaHost.displayMediaSources) },
     "selectDevice": { args, reply in
-      ArdiaHost.deviceChooser(Int32(args.int("id") ?? 0), select: Int32(args.int("index") ?? 0))
+      ArdiaHost.deviceChooser(try args.int32("id"), select: try args.int32("index"))
       reply.ok()
     },
     "cancelDeviceChooser": chooser("cancel"),
     "refreshDeviceChooser": chooser("refresh"),
     "openBluetoothSettings": chooser("settings"),
     "devShowBluetoothChooser": { args, reply in
-      reply.ok(ArdiaHost.devShowBluetoothChooser(tabId: args.text("tabId"), unauthorized: args.bool("unauthorized") ?? false))
+      reply.ok(ArdiaHost.devShowBluetoothChooser(tabId: try args.text("tabId"), unauthorized: try args.bool("unauthorized")))
     },
     "devChooserEvents": { _, reply in reply.ok(ArdiaHost.testChooserEvents()) },
-    "showCastDialog": { args, reply in reply.ok(ArdiaHost.showCastDialog(tabId: args.text("tabId"))) },
+    "showCastDialog": { args, reply in reply.ok(ArdiaHost.showCastDialog(tabId: try args.text("tabId"))) },
     "startCasting": { args, reply in
-      ArdiaHost.castDialog(Int32(args.int("id") ?? 0), start: args.text("sink"), mode: Int32(args.int("mode") ?? 0))
+      ArdiaHost.castDialog(try args.int32("id"), start: try args.text("sink"), mode: try args.int32("mode"))
       reply.ok()
     },
     "stopCasting": { args, reply in
-      ArdiaHost.castDialog(Int32(args.int("id") ?? 0), stop: args.text("route"))
+      ArdiaHost.castDialog(try args.int32("id"), stop: try args.text("route"))
       reply.ok()
     },
     "closeCastDialog": { args, reply in
-      ArdiaHost.closeCastDialog(Int32(args.int("id") ?? 0))
+      ArdiaHost.closeCastDialog(try args.int32("id"))
       reply.ok()
     },
     "watchCastRoutes": { args, reply in
@@ -50,12 +47,12 @@ public class MediaModule: Module {
       reply.ok()
     },
     "terminateCastRoute": { args, reply in
-      ArdiaHost.terminateCastRoute(args.text("route"))
+      ArdiaHost.terminateCastRoute(try args.text("route"))
       reply.ok()
     },
     "changeCaptureSource": { args, reply in
-      reply.ok(ArdiaHost.shareTabInstead(capturer: args.text("capturer"), target: args.text("target")))
+      reply.ok(ArdiaHost.shareTabInstead(capturer: try args.text("capturer"), target: try args.text("target")))
     },
-    "stopCapture": { args, reply in reply.ok(ArdiaHost.stopCapture(tabId: args.text("tabId"))) },
+    "stopCapture": { args, reply in reply.ok(ArdiaHost.stopCapture(tabId: try args.text("tabId"))) },
   ])
 }

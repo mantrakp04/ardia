@@ -1,9 +1,10 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds } from "../groups/groups";
 import { inPinnedContainer } from "../browser/model";
-import { groupOf, pinnedChildGroup } from "../pins/organize";
-import { splitOf } from "../splits/splits";
+import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
+import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import type { BrowserWindow, Tab } from "../browser/types";
+import { isAsleep } from "./pageSession";
 
 const regular = (s: BrowserState, id: string) => !inPinnedContainer(s, id);
 
@@ -11,7 +12,7 @@ export function insertionIndex(s: BrowserState, w: BrowserWindow, tab: Tab, back
   const opener = tab.openerId ? s.tabs[tab.openerId] : undefined;
   let index: number;
   if (opener && opener.windowId === w.id && opener.profileId === tab.profileId && regular(s, opener.id)) {
-    const panes = splitOf(s, opener.id)?.tabIds ?? [opener.id];
+    const panes = splitTabIdsOf(splitOf(s, opener.id)) ?? [opener.id];
     const at = Math.max(...panes.map((id) => w.tabIds.indexOf(id))) + 1;
     index = background ? afterFamily(s, w, tab, at, opener.id) : at;
   } else if (opener && opener.windowId === w.id && opener.profileId === tab.profileId) {
@@ -35,12 +36,12 @@ export function nextToActive(s: BrowserState, windowId: string, profileId: strin
   if (s.settings.newTabPosition !== "nextToCurrent") return undefined;
   const w = s.windows[windowId];
   if (!w) return undefined;
-  const profile = !w.incognito && profileId && s.profiles[profileId] ? profileId : w.profileId;
+  const profile = w.kind !== "private" && profileId && s.profiles[profileId] ? profileId : w.profileId;
   const activeId = w.activeTabIds[profile];
   const active = activeId ? s.tabs[activeId] : undefined;
   if (!active || active.windowId !== w.id) return undefined;
   if (!regular(s, active.id)) return { openerId: active.id, index: firstRegular(s, w, active) };
-  const panes = splitOf(s, active.id)?.tabIds ?? [active.id];
+  const panes = splitTabIdsOf(splitOf(s, active.id)) ?? [active.id];
   return { openerId: active.id, index: outsideSplit(s, w, Math.max(...panes.map((id) => w.tabIds.indexOf(id))) + 1) };
 }
 
@@ -64,8 +65,8 @@ function afterFamily(s: BrowserState, w: BrowserWindow, tab: Tab, from: number, 
 function outsideSplit(s: BrowserState, w: BrowserWindow, index: number): number {
   const before = w.tabIds[index - 1], after = w.tabIds[index];
   const split = before && after ? splitOf(s, before) : undefined;
-  if (!split?.tabIds.includes(after!)) return index;
-  return Math.max(...split.tabIds.map((id) => w.tabIds.indexOf(id))) + 1;
+  if (!split || !splitTabIds(split).includes(after!)) return index;
+  return Math.max(...splitTabIds(split).map((id) => w.tabIds.indexOf(id))) + 1;
 }
 
 export function forgetOpeners(s: BrowserState, windowId: string, keep?: string): BrowserState {
@@ -90,7 +91,7 @@ const hiddenInGroup = (s: BrowserState, id: string) => {
 export function openerSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
   const at = order.indexOf(closed);
   const candidates = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()].filter(
-    (id) => !s.tabs[id]!.unloaded && !hiddenInGroup(s, id),
+    (id) => !isAsleep(s.tabs[id]) && !hiddenInGroup(s, id),
   );
   const opener = s.tabs[closed]?.openerId;
   return (

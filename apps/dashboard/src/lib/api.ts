@@ -9,7 +9,7 @@ const noStore = createMiddleware({ type: "function" }).server(async ({ next }) =
   return next();
 });
 
-const requireAllowed = createMiddleware({ type: "function" })
+export const requireAllowed = createMiddleware({ type: "function" })
   .middleware([noStore])
   .server(async ({ next }) => {
     const { currentViewer } = await import("../server/auth");

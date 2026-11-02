@@ -19,8 +19,8 @@ function setup() {
   useBrowser.setState((s) => ({
     history: {
       ...s.history,
-      default: [entry("https://zebra.example/one", "Zebra one"), entry("https://zebra.example/two", "Zebra two", 2 * DAY)],
-      [work]: [entry("https://zebra.work/", "Zebra at work")],
+      "": { list: [entry("https://zebra.example/one", "Zebra one"), entry("https://zebra.example/two", "Zebra two", 2 * DAY)], floor: -Infinity, ready: true },
+      [work]: { list: [entry("https://zebra.work/", "Zebra at work")], floor: -Infinity, ready: true },
     },
   }));
   return { w, work };
@@ -82,7 +82,9 @@ test("the bar's actions and known hosts follow the store: bookmark, mute, pin, p
   S().toggleBookmark("default", { url: "https://start.example/", title: "Start", favicon: null });
   assert.ok(titles().includes("Bookmark This Page"), "unbookmarked");
   S().updateTab(tab, { muted: true });
-  assert.ok(titles().includes("Unmute Site"), "muted");
+  assert.ok(titles().includes("Unmute Tab"), "muted");
+  S().setSiteMuted(tab, true);
+  assert.ok(titles().includes("Unmute Site"), "site muted");
   S().togglePin(tab);
   assert.ok(titles().includes("Unpin from Top Apps"), "pinned");
   S().updateProfile(work, { name: "Office" });

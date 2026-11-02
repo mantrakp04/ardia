@@ -196,27 +196,84 @@ enum WebKitPageScript {
   addEventListener("load", sendIcons, { once: true });
 
   if (isTop) {
-    let anchor = 0;
-    let sent = null;
+    const scrollDirection = () => {
+      const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
+      let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false;
+      const resized = (viewport, now) => {
+        if (now >= settleUntil) budget = 0;
+        if (height && viewport !== height) {
+          settleUntil = now + SETTLE;
+          budget += Math.abs(viewport - height) + 2;
+        }
+        height = viewport;
+      };
+      return {
+        resized,
+        rebase(y) {
+          anchor = last = y;
+        },
+        scrolled(y, range, viewport, now, user) {
+          resized(viewport, now);
+          if (now - lastAt > GESTURE) {
+            gestureSent = false;
+            anchor = last;
+          }
+          lastAt = now;
+          const moved = y - last;
+          last = y;
+          if (budget > 0 && moved) {
+            const absorbed = Math.min(budget, Math.abs(moved));
+            budget -= absorbed;
+            anchor += moved > 0 ? absorbed : -absorbed;
+          }
+          let state = null;
+          if (y <= 2) state = "top";
+          else if (!user) anchor = y;
+          else if (y - anchor >= DOWN) {
+            if (range >= MIN_RANGE) state = "down";
+            else anchor = y;
+          } else if (anchor - y >= UP) state = "up";
+          else if (sent === "down" ? gestureSent && y > anchor : y < anchor) anchor = y;
+          if (state) anchor = y;
+          if (!state || (state === sent && (state !== "down" || gestureSent))) return null;
+          sent = state;
+          if (state === "down") gestureSent = true;
+          return state;
+        },
+      };
+    };
+    const direction = scrollDirection();
+    let scroller = null;
+    let scrollTarget = null;
     let inputAt = -1e9;
-    const noteInput = () => (inputAt = performance.now());
-    for (const type of ["wheel", "keydown", "mousedown"]) addEventListener(type, noteInput, { passive: true, capture: true });
+    const noteInput = () => {
+      inputAt = performance.now();
+      if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
+    };
+    for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
+    addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+    const measureScroll = () => {
+      try {
+        const target = scrollTarget;
+        scrollTarget = null;
+        const doc = document.scrollingElement || document.documentElement;
+        const el = target === document || target === doc ? doc : target;
+        if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
+        if (el !== scroller) direction.rebase((scroller = el).scrollTop);
+        const now = performance.now();
+        const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
+        if (state) post("scroll", { state });
+      } catch (e) {}
+    };
     addEventListener(
       "scroll",
-      () => {
-        const y = window.scrollY;
-        let state = null;
-        if (y <= 2) state = "top";
-        else if (performance.now() - inputAt > 1000) anchor = y;
-        else if (y - anchor >= 24 && document.documentElement.scrollHeight - innerHeight >= 120) state = "down";
-        else if (anchor - y >= 12) state = "up";
-        if (state) anchor = y;
-        if (!state || state === sent) return;
-        sent = state;
-        post("scroll", { state });
+      (e) => {
+        if (!scrollTarget) requestAnimationFrame(measureScroll);
+        scrollTarget = e.target;
       },
-      { passive: true },
+      { passive: true, capture: true },
     );
+    addEventListener("resize", () => direction.resized(innerHeight, performance.now()));
   }
 
   window.__ardia = {

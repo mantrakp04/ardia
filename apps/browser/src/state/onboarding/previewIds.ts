@@ -19,8 +19,12 @@ export type PreviewId =
   | "appearance-auto"
   | "appearance-light"
   | "appearance-dark"
+  | "style-glass"
+  | "style-classic"
   | "sitecolor-on"
   | "sitecolor-off"
+  | "switcher-dots"
+  | "switcher-icons"
   | "typed-website"
   | "typed-search"
   | "block-on"
@@ -49,8 +53,12 @@ export const PREVIEW_IDS: readonly PreviewId[] = [
   "appearance-auto",
   "appearance-light",
   "appearance-dark",
+  "style-glass",
+  "style-classic",
   "sitecolor-on",
   "sitecolor-off",
+  "switcher-dots",
+  "switcher-icons",
   "typed-website",
   "typed-search",
   "block-on",

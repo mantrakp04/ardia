@@ -295,3 +295,43 @@ ms from `open`): window 269 vs 295, navigation start 270 vs 254, request 290 vs 
 341 vs 347, and the off arm's slow launches (386 to 390) are gone. Looked at and dropped: starting React Native 100 ms
 later (first paint unchanged) and the old navigation-first order with the engine fixes on (same first paint, later
 window).
+
+## First launch after an update (2026-10-27, #505)
+
+Field `perf_launch` (7 days to 2026-10-27): the first launch of a version reaches JS at a median of 2.2 s against 0.7 s
+for the launches after it, and all of the gap is before JS (JS to window is ~150 ms either way). Lab, macOS 27.2,
+0.2.41 → 0.2.42-nightly.1 release builds on one data dir with 5 tabs, hidden instances, interleaved, n=4 per row, load
+9 to 27, medians, ms from process start:
+
+| | before `ChromeMain` | `ChromeMain` → JS | window | its second launch's window |
+|---|---|---|---|---|
+| notarized update, Sparkle-style (`gktool scan`, then moved into place) | 2330 | 572 | 2995 | 680 |
+| the same, after a hidden run of the staged copy | 53 | 565 | 713 | 674 |
+| fresh copy of the notarized bundle, same path / new path | 3610 / 3125 | 781 / 588 | 4574 / 3812 | 886 / 760 |
+| same bundle, only the data from 0.2.41 | 84 | 822 | 1011 | 782 |
+
+- **The cost is Gatekeeper's evaluation of a bundle macOS hasn't run.** syspolicyd burns 1.6 to 3.4 s of CPU during
+  it (`GK evaluateScanResult: 3`, then ~1.7 s before the process goes on); Chrome's own version-change work and React
+  Native's add ~35 ms.
+- **`gktool scan` no longer pre-pays a notarized bundle.** On an Apple Development re-signed copy it does (97 to 130
+  ms before `ChromeMain` against 1566 to 1602 without it, n=2); on the notarized copy it doesn't (1766, 1790). So
+  Sparkle's own scan, which the lab runs with re-signed copies made look sufficient, does nothing for real updates.
+  A real Sparkle 2.9.6 install of the notarized nightly: 2059 ms before `ChromeMain` on its first launch.
+- **The hidden run does, through every Sparkle path.** Install on quit with the prewarm from
+  `willInstallUpdateOnQuit`: 52 ms. The resumed "Install and Relaunch" alert installs the same, prewarmed files (same
+  inode): 51 ms. A user-initiated check (Check for Updates…, Settings › Check Now) never calls `willInstallUpdateOnQuit`:
+  1465 ms (median, n=4; window 2019 ms); with a hidden run at `showReady(toInstallAndRelaunch:)`: 51 ms (window 552 ms),
+  interleaved.
+- **The hidden run's effect doesn't last.** On a quiet Mac a prewarmed copy was still warm 30 minutes later (63 ms), and
+  re-running an already-evaluated copy takes ~52 ms; on a busy one (an app build and dozens of other fresh copies in
+  between) two prewarmed copies were back to 2047 and 1775 ms after 40 minutes (untouched: 2549, 2406). The run from
+  `willInstallUpdateOnQuit` happens when Sparkle stages the update, often hours before the install, so it rarely
+  helps by itself.
+- **Shipped:** `UpdatePrewarm` also runs the staged copy when Sparkle shows a staged update (`showReady`, a resumed
+  alert) and holds the Install choice until that run ends (15 s at most), so every Install and Relaunch gets it, and
+  a resumed one re-runs it (an already-evaluated copy takes ~60 ms). The run is recorded and the next `perf_launch`
+  says `update_prewarm` (`done`, `failed`, `none`) and `update_prewarm_ago`, which tells field launches with and
+  without it apart.
+- **What stays the OS's:** a copy nothing ran before (a DMG install, a manual copy) pays the evaluation once, 2 to 5 s
+  here and more on a loaded Mac; a cold first launch adds the page cache. A run killed at quit (the user quits while it
+  runs) leaves the rest to the first launch.

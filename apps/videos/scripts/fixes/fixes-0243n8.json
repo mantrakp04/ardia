@@ -1,0 +1,104 @@
+{
+  "id": "fixes-0243n8",
+  "segments": [
+    {
+      "scene": "glassfield",
+      "title": "Quieter glass, and the URL field's rim",
+      "body": "With the address bar in the sidebar, in dark mode, point at a pinned tile, then at the URL field. 0.2.43-nightly.8 tints the glass darker at rest, so the tiles glow far less and light up when you point at them, and the URL field shows the same glass rim as the tiles. 0.2.43-nightly.7 drew brighter tiles and clipped the field's rim, so it read flatter.",
+      "layout": "side",
+      "cam": [
+        0,
+        34,
+        270,
+        150
+      ],
+      "lead": 1.0,
+      "tail": 7.0
+    },
+    {
+      "scene": "sitecontrols",
+      "title": "Site controls in liquid glass",
+      "body": "Click the site controls button and point at the tiles. 0.2.43-nightly.8 draws the panel in liquid glass like Downloads, glass tiles and buttons included. 0.2.43-nightly.7 drew it flat.",
+      "layout": "side",
+      "cam": [
+        1010,
+        0,
+        350,
+        400
+      ],
+      "lead": 1.2,
+      "tail": 7.2
+    },
+    {
+      "scene": "topstrip",
+      "title": "Glass on the top strip's pinned tabs",
+      "body": "With tabs along the top, point at two pinned tabs, then at the address field. 0.2.43-nightly.8 puts the box behind the pinned tabs in glass, and a pointed-at pinned tab takes the glass hover the sidebar tiles have. The glass stays neutral grey unless you turn on the profile tint. 0.2.43-nightly.7 drew a flat box and a flat hover.",
+      "layout": "stack",
+      "cam": [
+        0,
+        0,
+        900,
+        90
+      ],
+      "lead": 1.0,
+      "tail": 8.2
+    },
+    {
+      "scene": "playergrow",
+      "title": "The player grows smoothly",
+      "body": "Rest the pointer on the sidebar player, at quarter speed. 0.2.43-nightly.8 grows the full player a little every frame. 0.2.43-nightly.7 lost the first frames and jumped half open at once.",
+      "layout": "side",
+      "cam": [
+        0,
+        600,
+        270,
+        250
+      ],
+      "rate": 0.25,
+      "lead": 0.4,
+      "tail": 1.3
+    },
+    {
+      "scene": "newwindow",
+      "title": "⌘N stays on your profile",
+      "body": "In a window on the Work profile, press ⌘N. 0.2.43-nightly.8 opens the new window on Work too. 0.2.43-nightly.7 opened it on the first profile, Personal, with its own colour and pinned tiles.",
+      "layout": "side",
+      "cam": [
+        0,
+        0,
+        620,
+        420
+      ],
+      "lead": 1.2,
+      "tail": 3.7
+    },
+    {
+      "scene": "onboardstyle",
+      "title": "Glass or classic? in setup",
+      "body": "In setup, after Light or dark, click Continue, point at the second choice and click it, then click the first. 0.2.43-nightly.8 asks “Glass or classic?”, plays a close-up of the sidebar while you point at a choice, and switches its own cards between glass and flat as you pick. 0.2.43-nightly.7 had no such question and went on to the tab bar colour.",
+      "layout": "side",
+      "cam": [
+        230,
+        140,
+        900,
+        580
+      ],
+      "lead": 1.2,
+      "tail": 9.8
+    },
+    {
+      "scene": "stylesetting",
+      "title": "Interface Style in Settings",
+      "body": "Open Settings › Appearance, choose Classic, then Glass, then turn on “Tint glass with the profile colour”. 0.2.43-nightly.8 has Interface Style: Glass or the flat Classic look, with switches for the profile tint and for glass panels. 0.2.43-nightly.7 had no such section: Address Bar came straight after the theme.",
+      "layout": "side",
+      "cam": [
+        262,
+        46,
+        828,
+        644
+      ],
+      "lead": 1.0,
+      "tail": 8.4
+    }
+  ]
+}

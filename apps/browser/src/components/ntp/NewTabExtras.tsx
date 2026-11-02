@@ -11,7 +11,7 @@ export type Frame = { x: number; y: number; width: number; height: number };
 
 export function NewTabExtras({ size, bar }: { size: { width: number; height: number }; bar: Frame }) {
   const windowId = useWindowId();
-  const incognito = useWindow(windowId, (w) => !!w?.incognito);
+  const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const pending = usePendingReleaseNotes();
   const page = useReleaseNotesPage(windowId);
 

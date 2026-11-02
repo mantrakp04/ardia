@@ -30,7 +30,6 @@ void OpenDeviceChooserSettings(int chooser_id);
 bool ShowTestBluetoothChooser(content::WebContents* contents, bool unauthorized);
 NSArray<NSDictionary*>* TestChooserEvents();
 
-bool HostWantsDeviceChoosers();
 void HostDeviceChooser(content::WebContents* contents, NSDictionary* state);
 
 }

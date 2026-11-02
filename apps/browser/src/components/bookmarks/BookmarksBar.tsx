@@ -1,22 +1,41 @@
-import { memo, useState } from "react";
-import { StyleSheet, View, type LayoutRectangle } from "react-native";
-import { folderChildren } from "../../state/bookmarks/bookmarks";
+import { memo, useEffect, useId, useRef, useState } from "react";
+import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
-import { useBookmarkProfileId, useBookmarks } from "../../state/bookmarks/hooks";
+import { useBookmarkProfileId, useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
-import { moveBookmark } from "../../state/bookmarks/actions";
+import { dropLinksAt, linkDragAt, linkDragLeft, registerDropZone, useBarDrag } from "../../state/bookmarks/barDrag";
+import { roomOffsets, zoneHitAt } from "../../state/bookmarks/barDrop";
+import { openFolderMenu, toggleFolderMenu, useFolderMenus, type MenuRect } from "../../state/bookmarks/folderMenus";
 import type { Settings } from "../../state/settings/settings";
-import { ContextMenuArea, space, Text, useTheme } from "../ui";
+import { ContextMenuArea, FileDropArea, space, Text, useTheme, type DropUpdate } from "../ui";
+import { ThemeContext } from "../ui/theme";
+import { siteScopedTheme, useEasedColor } from "../ui/toolbarColors";
+import { useSitePalette } from "../toolbar/useSitePalette";
 import { BarButton, BarItem, ImportButton } from "./BarItem";
-import { openBarMenu, openFolderMenu } from "../../state/bookmarks/barMenus";
-import { bookmarksBar } from "./tokens";
+import { measureRect, useEased, useSlide } from "./barMotion";
+import { openBarMenu } from "../../state/bookmarks/barMenus";
+import { useBarSize, useBookmarksBarHeight } from "./barSize";
+import { bookmarksBar, type BarSize } from "./tokens";
 
-export const BOOKMARKS_BAR_HEIGHT = bookmarksBar.height;
-
-export const BookmarksBar = memo(function BookmarksBar({ placeholder }: { placeholder?: boolean }) {
+export const BookmarksBar = memo(function BookmarksBar({ tabId, placeholder }: { tabId: string; placeholder?: boolean }) {
   const windowId = useWindowId();
-  return placeholder ? <View style={{ height: BOOKMARKS_BAR_HEIGHT }} /> : <Bar windowId={windowId} />;
+  const height = useBookmarksBarHeight();
+  return placeholder ? <View style={{ height }} /> : <SiteColoredBar windowId={windowId} tabId={tabId} />;
 });
+
+function SiteColoredBar({ windowId, tabId }: { windowId: string; tabId: string }) {
+  const theme = useTheme();
+  const palette = useSitePalette(tabId);
+  const band = useEasedColor(palette.background);
+  return (
+    <ThemeContext.Provider value={siteScopedTheme(theme, palette)}>
+      <View>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
+        <Bar windowId={windowId} />
+      </View>
+    </ThemeContext.Provider>
+  );
+}
 
 export function bookmarksBarShown(mode: BookmarksBarMode, tab: { url: string } | undefined): boolean {
   if (!tab || mode === "never") return false;
@@ -25,11 +44,16 @@ export function bookmarksBarShown(mode: BookmarksBarMode, tab: { url: string } |
 
 export type BookmarksBarMode = Settings["bookmarksBar"];
 
+type Frames = Record<string, LayoutRectangle>;
+
 function Bar({ windowId }: { windowId: string }) {
   const theme = useTheme();
+  const size = useBarSize();
+  const zone = useId();
   const profileId = useBookmarkProfileId(windowId);
-  const barId = useBookmarks((b) => b.roots[profileId]?.bar);
-  const otherId = useBookmarks((b) => b.roots[profileId]?.other);
+  const roots = useBookmarkRoots(profileId);
+  const barId = roots?.bar;
+  const otherId = roots?.other;
   const children = useBookmarks((b) => {
     const bar = barId ? b.nodes[barId] : undefined;
     return bar?.kind === "folder" ? bar.children : EMPTY;
@@ -39,62 +63,98 @@ function Bar({ windowId }: { windowId: string }) {
     return other?.kind === "folder" && other.children.length > 0;
   });
   const hideImport = useSettings((s) => s.hideBookmarksBarImport);
+  const source = useBarDrag((s) => (s.windowId === windowId ? s.source : null));
+  const spot = useBarDrag((s) => (s.windowId === windowId ? s.spot : null));
+  const otherOpen = useFolderMenus((s) => s.windowId === windowId && !!otherId && s.panels.some((p) => p.level === 0 && !p.retained && p.key === otherId));
 
+  const root = useRef<View | null>(null);
+  const origin = useRef({ x: 0, y: 0 });
+  const otherButton = useRef<View | null>(null);
+  const overflowButton = useRef<View | null>(null);
   const [width, setWidth] = useState(0);
-  const [frames, setFrames] = useState<Record<string, LayoutRectangle>>({});
-  const [drop, setDrop] = useState<{ index: number; into: string | null } | null>(null);
+  const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 });
+  const [frames, setFrames] = useState<Frames>({});
+  const [otherX, setOtherX] = useState<number | null>(null);
 
   const reserved = hasOther ? bookmarksBar.otherReserve : 0;
   const available = width - reserved;
+  const lastFrame = frames[children.at(-1) ?? ""];
+  const overflowing = !!lastFrame && lastFrame.x + lastFrame.width > available;
   const fits = (id: string) => {
     const f = frames[id];
-    return !f || f.x + f.width <= available - (overflowing() ? bookmarksBar.overflowWidth : 0);
+    return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
   };
-  function overflowing() {
-    const last = children.at(-1);
-    const f = last ? frames[last] : undefined;
-    return !!f && f.x + f.width > available;
-  }
-  const hidden = children.filter((id) => !fits(id));
+  const visible = children.filter(fits);
+  const hiddenFrom = visible.length;
 
-  const dropAt = (id: string, dx: number): { index: number; into: string | null } | null => {
-    const f = frames[id];
-    if (!f || !barId) return null;
-    const x = f.x + f.width / 2 + dx;
-    const visible = children.filter((c) => frames[c] && fits(c));
-    for (let i = 0; i < visible.length; i++) {
-      const c = visible[i]!;
-      const r = frames[c]!;
-      const node = currentBookmarks().nodes[c];
-      if (c !== id && node?.kind === "folder" && x > r.x + r.width * 0.25 && x < r.x + r.width * 0.75) return { index: -1, into: c };
-      if (x < r.x + r.width / 2) return { index: children.indexOf(c), into: null };
+  const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
+  const slotHere = spot && "slot" in spot && spot.zone === zone ? spot.slot : null;
+  const roomWidth = draggedHere ? (frames[draggedHere]?.width ?? 0) + size.itemGap : size.item * 2;
+  const offsets = source ? roomOffsets(visible, draggedHere, slotHere, roomWidth) : visible.map(() => 0);
+  const lineX = slotHere === null ? null : dropLineX(visible, frames, offsets, draggedHere, slotHere, roomWidth);
+
+  const measureOrigin = () => root.current?.measureInWindow((x, y) => (origin.current = { x, y }));
+  useEffect(() => {
+    if (source) measureOrigin();
+  }, [!!source]);
+
+  const latest = useRef({ barId, otherId, visible, frames, itemsFrame, otherX, width, size });
+  latest.current = { barId, otherId, visible, frames, itemsFrame, otherX, width, size };
+  useEffect(
+    () =>
+      registerDropZone(zone, {
+        windowId,
+        depth: 0,
+        resolve: (x, y, draggedId) => {
+          const { x: ox, y: oy } = origin.current;
+          const L = latest.current;
+          if (!L.barId || x < ox || x > ox + L.width || y < oy || y > oy + L.size.height) return undefined;
+          const local = x - ox;
+          if (L.otherId && L.otherX !== null && local >= L.otherX) {
+            const otherId = L.otherId;
+            return { spot: { into: otherId }, springOpen: () => void openFrom(windowId, otherButton.current, otherId, 0) };
+          }
+          const nodes = currentBookmarks().nodes;
+          const items = L.visible.flatMap((id) => {
+            const f = L.frames[id];
+            return f ? [{ id, start: L.itemsFrame.x + f.x, size: f.width, folder: nodes[id]?.kind === "folder" }] : [];
+          });
+          const hit = zoneHitAt(items, local, draggedId && L.visible.includes(draggedId) ? draggedId : null, L.size.itemGap);
+          if (!("into" in hit)) return { spot: { parentId: L.barId, slot: Math.min(hit.slot, L.visible.length), zone } };
+          const f = L.frames[hit.into]!;
+          const anchor = { x: ox + L.itemsFrame.x + f.x, y: oy + L.itemsFrame.y + f.y, width: f.width, height: f.height };
+          return { spot: hit, springOpen: () => openFolderMenu(windowId, { parentId: hit.into, fromIndex: 0, anchor, level: 0 }, { sprung: true }) };
+        },
+      }),
+    [windowId, zone],
+  );
+
+  const onDropUpdate = (e: DropUpdate) => {
+    const point = (o: { x: number; y: number }) => [o.x + e.x, o.y + e.y] as const;
+    if (e.phase === "exit") return linkDragLeft();
+    if (e.phase === "drop") {
+      const [x, y] = point(origin.current);
+      const urls = e.items.flatMap((i) => (i.kind === "text" ? [] : [i.url]));
+      const text = e.items.find((i) => i.kind === "text")?.text ?? null;
+      dropLinksAt(windowId, x, y, urls.map((url) => ({ url, text: urls.length === 1 ? text : null })));
+      return;
     }
-    return { index: children.length, into: null };
+    if (e.phase === "enter") return void measureRect(root.current).then((r) => r && ((origin.current = r), linkDragAt(windowId, ...point(r))));
+    linkDragAt(windowId, ...point(origin.current));
   };
-
-  const onDrop = (id: string, target: { index: number; into: string | null } | null) => {
-    setDrop(null);
-    if (!target || !barId) return;
-    if (target.into) return moveBookmark(id, target.into);
-    const from = children.indexOf(id);
-    moveBookmark(id, barId, target.index > from ? target.index - 1 : target.index);
-  };
-
-  const indicatorX = (() => {
-    if (!drop || drop.into) return null;
-    const id = children[drop.index];
-    const f = id ? frames[id] : frames[children.at(-1) ?? ""];
-    if (!f) return bookmarksBar.dropLineStart;
-    return id ? f.x - bookmarksBar.dropLineGap : f.x + f.width + bookmarksBar.dropLineGap;
-  })();
 
   return (
-    <View
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      style={BAR}
+    <FileDropArea
+      ref={root}
+      onLayout={(e) => {
+        setWidth(e.nativeEvent.layout.width);
+        measureOrigin();
+      }}
+      onDropUpdate={onDropUpdate}
+      style={{ height: size.height, flexDirection: "row", alignItems: "center", paddingHorizontal: space.m }}
     >
       <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, profileId, null)} style={StyleSheet.absoluteFill} />
-      <View style={ITEMS}>
+      <View onLayout={(e) => setItemsFrame(e.nativeEvent.layout)} style={{ flex: 1, height: size.item, flexDirection: "row", alignItems: "center", overflow: "hidden" }}>
         {children.length === 0 && !hideImport ? (
           <ImportButton />
         ) : children.length === 0 ? (
@@ -109,52 +169,85 @@ function Bar({ windowId }: { windowId: string }) {
               windowId={windowId}
               profileId={profileId}
               hidden={!fits(id)}
-              highlighted={drop?.into === id}
+              offset={offsets[visible.indexOf(id)] ?? 0}
               onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
-              onDragMove={(dx) => setDrop(Number.isFinite(dx) ? dropAt(id, dx) : null)}
-              onDragEnd={(dx) => onDrop(id, dropAt(id, dx))}
             />
           ))
         )}
-        {indicatorX !== null && (
-          <View style={[DROP_LINE, { left: indicatorX, backgroundColor: theme.accent }]} />
-        )}
+        <DropLine x={lineX} size={size} color={theme.accent} />
       </View>
-      {hidden.length > 0 && (
+      {hiddenFrom < children.length && barId && (
         <BarButton
+          ref={overflowButton}
           icon="chevron.right.2"
           tooltip="More bookmarks"
-          onPress={(e) => void openFolderMenu(windowId, hidden, e)}
+          onPress={() => void openFrom(windowId, overflowButton.current, barId, hiddenFrom, true)}
           width={bookmarksBar.overflowWidth}
         />
       )}
       {hasOther && otherId && (
-        <View style={OTHER}>
+        <View style={OTHER} onLayout={(e) => setOtherX(e.nativeEvent.layout.x)}>
           <View style={[DIVIDER, { backgroundColor: theme.divider }]} />
           <BarButton
+            ref={otherButton}
             icon="folder"
             title="Other Bookmarks"
-            onPress={(e) => void openFolderMenu(windowId, folderChildren(currentBookmarks(), otherId).map((n) => n.id), e, otherId)}
+            active={otherOpen}
+            dropRing={!!spot && "into" in spot && spot.into === otherId}
+            onPress={() => void openFrom(windowId, otherButton.current, otherId, 0, true)}
           />
         </View>
       )}
-    </View>
+    </FileDropArea>
+  );
+}
+
+async function openFrom(windowId: string, view: View | null, parentId: string, fromIndex: number, toggle = false) {
+  const anchor: MenuRect | null = await measureRect(view);
+  if (!anchor) return;
+  if (toggle) toggleFolderMenu(windowId, { parentId, fromIndex, anchor });
+  else openFolderMenu(windowId, { parentId, fromIndex, anchor, level: 0 }, { sprung: true });
+}
+
+function dropLineX(ids: string[], frames: Frames, offsets: number[], dragged: string | null, slot: number, room: number): number {
+  for (let i = slot; i < ids.length; i++) {
+    if (ids[i] === dragged) continue;
+    const f = frames[ids[i]!];
+    if (f) return f.x + offsets[i]! - room / 2;
+  }
+  for (let i = Math.min(slot, ids.length) - 1; i >= 0; i--) {
+    if (ids[i] === dragged) continue;
+    const f = frames[ids[i]!];
+    if (f) return f.x + f.width + offsets[i]! + room / 2;
+  }
+  return room / 2;
+}
+
+function DropLine({ x, size, color }: { x: number | null; size: BarSize; color: string }) {
+  const shown = useEased(x !== null);
+  const left = useSlide(x ?? 0);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: bookmarksBar.dropLineInset,
+        height: size.item - bookmarksBar.dropLineInset * 2,
+        width: bookmarksBar.dropLine,
+        marginLeft: -bookmarksBar.dropLine / 2,
+        borderRadius: bookmarksBar.dropLineRadius,
+        backgroundColor: color,
+        opacity: shown,
+        transform: [{ translateX: left }],
+      }}
+    />
   );
 }
 
 const EMPTY: string[] = [];
 
-const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && a.x === b.x && a.width === b.width;
+const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
-const BAR = { height: bookmarksBar.height, flexDirection: "row", alignItems: "center", paddingHorizontal: space.m } as const;
-const ITEMS = { flex: 1, height: bookmarksBar.item, flexDirection: "row", alignItems: "center", overflow: "hidden" } as const;
 const HINT = { marginLeft: space.xs } as const;
-const DROP_LINE = {
-  position: "absolute",
-  top: bookmarksBar.dropLineInset,
-  bottom: bookmarksBar.dropLineInset,
-  width: bookmarksBar.dropLine,
-  borderRadius: bookmarksBar.dropLineRadius,
-} as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;
 const DIVIDER = { width: StyleSheet.hairlineWidth * 2, height: bookmarksBar.dividerHeight, marginHorizontal: space.s } as const;

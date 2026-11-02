@@ -8,75 +8,39 @@ import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
-import { chipKey, dockWidth, folderKey, holds, parseEntries, tabsOf, units, type DropTarget, type GroupEntry, type Member, type Strip } from "./model";
+import { chipKey, folderKey, type Strip } from "./model";
 import { NewTabButton } from "./NewTabButton";
 import { PinnedDock } from "./PinnedDock";
 import { SplitChip } from "./SplitChip";
-import { dockCellOf, dragGeometry, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, groupLayout, MEMBERS_INSET, revealOffset, stripTabWidth, type DragSlot } from "./stripGroups";
+import { layoutDock, layoutStrip, revealOffset, tabsOf } from "./stripGroups";
 import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
-import { DOCK_GAP, FLARE, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
+import { FLARE, GAP } from "./tokens";
 
 export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
-  const entries = useStripEntries(windowId, profileId);
+  const parsed = useStripEntries(windowId, profileId);
   const activeId = useShownTabIdFor(windowId, profileId);
-  const parsed = useMemo(() => parseEntries(entries), [entries]);
   const groupIds = parsed.flatMap((e) => (e.kind === "group" ? [e.id] : []));
   const chipWidths = useMeasuredWidths(groupIds.map(chipKey));
-  const chipOf = (groupId: string) => chipWidths[groupIds.indexOf(groupId)];
-  const visible = parsed.flatMap((e): Member[] => (e.kind === "group" ? (e.collapsed ? e.members.filter((m) => holds(m, activeId)) : e.members) : e.kind === "dock" ? [] : [e]));
   const folderIds = parsed.flatMap((e) => (e.kind === "group" ? e.members.flatMap((m) => (m.kind === "folder" ? [m.id] : [])) : []));
   const folderWidths = useMeasuredWidths(folderIds.map(folderKey));
+  const chipOf = (groupId: string) => chipWidths[groupIds.indexOf(groupId)];
   const folderChip = (groupId: string) => folderWidths[folderIds.indexOf(groupId)];
-  const pinnedCount = parsed.reduce((n, e) => n + (e.kind === "dock" ? e.ids.length : 0), 0);
-  const chip = stripTabWidth({
-    pageWidth,
-    dockWidth: pinnedCount ? pinnedCount * (PINNED_CELL + PINNED_SPACING) - PINNED_SPACING + DOCK_GAP : 0,
-    groups: parsed.flatMap((e) => (e.kind === "group" ? [{ chip: chipOf(e.id) ?? 0, expanded: !e.collapsed, shown: e.members.some((m) => holds(m, activeId)) }] : [])),
-    tabUnits: visible.reduce((n, m) => n + units(m, activeId), 0),
-    fixed: visible.reduce((n, m) => n + (m.kind === "folder" ? (folderChip(m.id) ?? 0) + (holds(m, activeId) ? MEMBERS_INSET : GAP) : 0), 0),
-    gap: GAP,
-    plus: ITEM_HEIGHT,
-    min: MIN_CHIP,
-    max: MAX_CHIP,
-  });
-  const memberWidth = (m: Member) => (m.kind === "folder" ? (folderChip(m.id) ?? 0) + (holds(m, activeId) ? MEMBERS_INSET + chip : 0) : chip * units(m, activeId));
-  const top = dragGeometry(
-    parsed.flatMap((e): DragSlot[] => {
-      if (e.kind === "dock") return [];
-      if (e.kind !== "group") return [{ tabIds: tabsOf(e), width: chip * units(e, activeId) }];
-      const widths = e.members.map(memberWidth);
-      const shown = e.members.findIndex((m) => holds(m, activeId));
-      const width = groupLayout(chipOf(e.id) ?? 0, widths, GAP, !e.collapsed, shown).width;
-      return [{ tabIds: e.members.flatMap(tabsOf), width, marginLeft: GROUP_MARGIN_LEFT, marginRight: GROUP_MARGIN_RIGHT }];
-    }),
-    GAP,
-  );
-  const targets = parsed.flatMap((e): (DropTarget | null)[] => (e.kind === "dock" ? [] : e.kind === "group" || e.kind === "tab" ? [{ kind: e.kind, id: e.id }] : [null]));
+  const dockEntry = parsed.find((e) => e.kind === "dock");
+  const dock = useMemo(() => layoutDock(dockEntry), [dockEntry]);
+  const { chip, top, targets, memberWidth, spanOf: spanInStrip } = layoutStrip(parsed, activeId, pageWidth, { groupChip: chipOf, folderChip }, dock);
   const slotOf = (id: string) => top.slots.findIndex((slot) => slot.tabIds[0] === id);
-  const dockIds = parsed.flatMap((e) => (e.kind === "dock" ? e.ids : []));
-  const dockTabs = (cell: string) => parsed.find((e) => e.kind === "dock")?.members.get(cell) ?? [cell];
   const grow = useRef(new Animated.Value(0)).current;
-  const dockGeometry = useMemo(() => dragGeometry(dockIds.map((id) => ({ tabIds: dockTabs(id), width: PINNED_CELL })), PINNED_SPACING), [entries.filter((e) => e.startsWith("pinned:") || e.startsWith("tilefolder:")).join()]);
-  const strip: Strip = { top, targets, chip, grow, dock: dockIds.length ? { ids: dockIds, left: -(dockWidth(dockIds.length) + DOCK_GAP), geometry: dockGeometry } : null };
+  const strip: Strip = { top, targets, chip, grow, dock };
   const incoming = useIncomingTab(windowId, current, top);
   const scroll = useRef<ScrollView>(null);
   const scrolled = useRef(0);
   const spanOf = (tabId: string): [number, number] | null => {
-    const cell = dockCellOf(dockIds, dockTabs, tabId);
-    if (cell >= 0) return [flare + (dockGeometry.lefts[cell] ?? 0), PINNED_CELL];
-    const i = top.slots.findIndex((slot) => slot.tabIds.includes(tabId));
-    if (i < 0) return null;
-    const left = flare + (dockIds.length ? dockWidth(dockIds.length) + DOCK_GAP : 0) + top.lefts[i]!;
-    const group = parsed.find((e): e is GroupEntry => e.kind === "group" && e.members.some((m) => holds(m, tabId)));
-    if (!group) return [left, top.slots[i]!.width];
-    const at = group.members.findIndex((m) => holds(m, tabId));
-    const widths = group.members.map(memberWidth);
-    const { offsets } = groupLayout(chipOf(group.id) ?? 0, widths, GAP, !group.collapsed, at);
-    return [left + (chipOf(group.id) ?? 0) + MEMBERS_INSET + (group.collapsed ? 0 : offsets[at]!), widths[at]!];
+    const span = spanInStrip(tabId);
+    return span && [flare + span[0], span[1]];
   };
   const latestSpan = useRef(spanOf);
   latestSpan.current = spanOf;

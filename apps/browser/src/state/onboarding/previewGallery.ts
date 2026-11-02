@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { Settings } from "../settings/settings";
 import type { PreviewId } from "./previewIds";
 
-export { devSnapshotWindow } from "../../platform/app";
+export { devSnapshotWindow } from "../../platform/dev";
 
 export type GalleryMock = { label: string; settings: Partial<Settings>; accent: string; focus: PreviewId | null };
 

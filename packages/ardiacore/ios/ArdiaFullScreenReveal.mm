@@ -1,5 +1,6 @@
 #import "ArdiaChromeWindowInternal.h"
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <objc/message.h>
@@ -9,6 +10,7 @@
 #include <cmath>
 
 using namespace ardia_window;
+using namespace ardia_runtime;
 
 @interface ArdiaFullScreenReveal : NSObject {
  @public
@@ -178,15 +180,13 @@ void InstallTitlebarHeights(Class frameClass) {
   [installed addObject:frameClass];
   for (NSString *name in @[ @"fullScreenTitlebarMaxHeight", @"fullScreenTitlebarMinHeight" ]) {
     const SEL sel = NSSelectorFromString(name);
-    Method method = class_getInstanceMethod(frameClass, sel);
-    if (!method) continue;
-    const IMP standard = method_getImplementation(method);
-    const IMP ours = imp_implementationWithBlock(^double(NSView *frameView) {
-      NSWindow *window = frameView.window;
-      if (window && objc_getAssociatedObject(window, kSuppressesTitlebarKey) && IsWindowFullScreen(window)) return 0;
-      return ((double (*)(id, SEL))standard)(frameView, sel);
+    ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+      return ^double(NSView *frameView) {
+        NSWindow *window = frameView.window;
+        if (window && objc_getAssociatedObject(window, kSuppressesTitlebarKey) && IsWindowFullScreen(window)) return 0;
+        return ((double (*)(id, SEL))standard)(frameView, sel);
+      };
     });
-    if (!class_addMethod(frameClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
   }
 }
 

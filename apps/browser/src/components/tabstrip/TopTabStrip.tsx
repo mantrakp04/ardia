@@ -6,9 +6,9 @@ import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../stat
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/profilePager";
-import { DownloadsButton } from "../downloads/Downloads";
+import { DownloadsButton } from "../downloads/DownloadsButton";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
-import { Panel, WindowDragRegion } from "../ui";
+import { Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { radius } from "../ui/tokens";
 import { ProfileSwipeArea } from "../window/ProfileSwipe";
@@ -30,7 +30,6 @@ import {
   PEEK_HOVER_HEIGHT,
   PEEK_LEFT,
   PEEK_PAD,
-  PEEK_SHADOW,
   PEEK_TOP,
   PROFILE_ROOM,
   TAB_RADIUS,
@@ -38,7 +37,7 @@ import {
 } from "./tokens";
 import { WindowDropGlow } from "./WindowDropGlow";
 
-export { TOP_CARD_INSET, TOP_STRIP_HEIGHT } from "./tokens";
+export { TOP_STRIP_HEIGHT } from "./tokens";
 
 export function TopTabStrip({ width, floating = false, hidden = false, swipe = true }: { width: number; floating?: boolean; hidden?: boolean; swipe?: boolean }) {
   const windowId = useWindowId();
@@ -105,7 +104,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
   const theme = useTheme();
   const windowId = useWindowId();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
-  const { slide, live, show, hide, recheck } = usePeek(enabled, false, () => downloadsOpenIn(windowId));
+  const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => downloadsOpenIn(windowId));
   useEffect(() => {
     if (!downloadsOpen) recheck();
   }, [downloadsOpen]);
@@ -116,6 +115,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
   }, [enabled, windowId]);
   const leaveStrip = (e: { nativeEvent: { clientY: number } }) => {
     if (live && e.nativeEvent.clientY < PEEK_HOVER_HEIGHT) hide();
+    else cancelPending();
   };
   const leavePanel = (e: { nativeEvent: { clientX: number; clientY: number } }) => {
     const x = e.nativeEvent.clientX + PEEK_LEFT;
@@ -145,7 +145,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
           transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [-PEEK_HEIGHT - 8, 0] }) }],
         }}
       >
-        <Panel fill={theme.windowTint[0]} radius={radius.panel} border={theme.panelBorder} borderWidth={PEEK_BORDER} shadow={PEEK_SHADOW} style={{ flex: 1 }}>
+        <Panel fill={theme.windowTint[0]} radius={radius.panel} borderWidth={PEEK_BORDER} shadow={shadow.peek} style={{ flex: 1 }}>
           <View style={{ position: "absolute", left: 0, right: 0, top: PEEK_PAD - ITEM_TOP, height: TOP_STRIP_HEIGHT }}>
             <TopTabStrip floating swipe={live} width={windowWidth - 12 - PEEK_BORDER * 2} />
           </View>

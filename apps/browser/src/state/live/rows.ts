@@ -1,4 +1,5 @@
 import type { LiveFolder, LiveItem, PullRequestSection } from "./types";
+import { showAllKey } from "./store";
 
 export type FolderRow =
   | { kind: "item"; key: string; item: LiveItem }
@@ -43,7 +44,7 @@ export function folderRows(folder: Pick<LiveFolder, "id" | "kind" | "groupStacks
       const inStack = members.filter((m) => m.pr?.stack?.id === stack.id).sort((a, b) => a.pr!.stack!.position - b.pr!.stack!.position);
       entries.push({ kind: "stack", key: stack.id, id: stack.id, repo: it.pr!.repo, items: inStack });
     }
-    const all = showAll[`${folder.id}:${section}`];
+    const all = showAll[showAllKey(folder.id, section)];
     rows.push(...(all ? entries : entries.slice(0, page)));
     if (!all && entries.length > page) rows.push({ kind: "more", key: `m:${section}`, section, count: entries.length - page });
   }

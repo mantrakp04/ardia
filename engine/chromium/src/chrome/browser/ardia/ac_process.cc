@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_process.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <cmath>
 #include <optional>
@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "base/functional/bind.h"
-#include "base/json/json_reader.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
@@ -34,20 +33,6 @@
 
 namespace ardia {
 namespace {
-
-std::optional<base::DictValue> ArgsOf(const char* args_json, Reply& reply) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!args_json || !*args_json) {
-    return base::DictValue();
-  }
-  std::optional<base::Value> parsed =
-      base::JSONReader::Read(args_json, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
-  if (!parsed || !parsed->is_dict()) {
-    reply.Error("arguments are not a JSON object");
-    return std::nullopt;
-  }
-  return std::move(*parsed).TakeDict();
-}
 
 const char* TypeName(task_manager::Task::Type type) {
   using task_manager::Task;
@@ -145,11 +130,8 @@ Sampler& TheSampler() {
 }
 }
 
-AC_ENGINE_CALL(ac_tasks_list) {
-  ardia::Reply out(reply, context);
-  if (!ardia::ArgsOf(args_json, out)) {
-    return;
-  }
+AC_ARGS_CALL(ac_tasks_list) {
+  ardia::Reply out = call.TakeReply();
   task_manager::TaskManagerInterface* manager = ardia::TheSampler().Use();
   const int processors = base::SysInfo::NumberOfProcessors();
   base::ListValue tasks;
@@ -183,13 +165,9 @@ AC_ENGINE_CALL(ac_tasks_list) {
   out.Send(base::DictValue().Set("tasks", std::move(tasks)));
 }
 
-AC_ENGINE_CALL(ac_task_manager_open) {
-  ardia::Reply out(reply, context);
-  std::optional<base::DictValue> args = ardia::ArgsOf(args_json, out);
-  if (!args) {
-    return;
-  }
-  if (args->FindBool("hide").value_or(false)) {
+AC_ARGS_CALL(ac_task_manager_open) {
+  ardia::Reply out = call.TakeReply();
+  if (call.Bool("hide")) {
     chrome::HideTaskManager();
   } else {
     chrome::OpenTaskManager(
@@ -199,13 +177,9 @@ AC_ENGINE_CALL(ac_task_manager_open) {
   out.Send(base::DictValue().Set("ok", true));
 }
 
-AC_ENGINE_CALL(ac_battery_saver) {
-  ardia::Reply out(reply, context);
+AC_ARGS_CALL(ac_battery_saver) {
   ardia::HoldFullFrameRateDuringInput();
-  std::optional<base::DictValue> args = ardia::ArgsOf(args_json, out);
-  if (!args) {
-    return;
-  }
+  ardia::Reply out = call.TakeReply();
   PrefService* local_state =
       g_browser_process ? g_browser_process->local_state() : nullptr;
   if (!local_state) {
@@ -214,7 +188,7 @@ AC_ENGINE_CALL(ac_battery_saver) {
   using performance_manager::user_tuning::prefs::BatterySaverModeState;
   const char* pref =
       performance_manager::user_tuning::prefs::kBatterySaverModeState;
-  if (const std::string* mode = args->FindString("mode")) {
+  if (const std::string* mode = call.args().FindString("mode")) {
     if (*mode == "on") {
       local_state->SetInteger(pref,
                               static_cast<int>(BatterySaverModeState::kEnabled));
@@ -237,11 +211,8 @@ AC_ENGINE_CALL(ac_battery_saver) {
                .Set("active", manager && manager->IsBatterySaverActive()));
 }
 
-AC_ENGINE_CALL(ac_components_list) {
-  ardia::Reply out(reply, context);
-  if (!ardia::ArgsOf(args_json, out)) {
-    return;
-  }
+AC_ARGS_CALL(ac_components_list) {
+  ardia::Reply out = call.TakeReply();
   base::ListValue components;
   component_updater::ComponentUpdateService* updater =
       g_browser_process ? g_browser_process->component_updater() : nullptr;

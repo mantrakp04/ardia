@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { acceptEngineOffer, stayOnPage, useEngineOffers, type EngineOffer } from "../../state/engines/actions";
-import { Button, PanelCloseButton, Popover } from "../ui";
+import { Button, PanelCloseButton, Popover, POPOVER_WIDTH } from "../ui";
 import { CheckRow } from "./PromptParts";
 import { PromptBody } from "./Prompts";
+
+export const ENGINE_OFFER_WIDTH = POPOVER_WIDTH.s;
 
 export function EngineOfferPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const offer = useEngineOffers((offers) => offers[tabId]);
@@ -13,7 +15,7 @@ export function EngineOfferPrompt({ tabId, left, top }: { tabId: string; left: n
 function OfferPopover({ tabId, offer, left, top }: { tabId: string; offer: EngineOffer; left: number; top: number }) {
   const [remember, setRemember] = useState(false);
   return (
-    <Popover width={320} top={top} left={left} modal={false}>
+    <Popover width={ENGINE_OFFER_WIDTH} top={top} left={left} modal={false}>
       <View>
         <PromptBody
           icons={["play.circle.fill", "safari"]}

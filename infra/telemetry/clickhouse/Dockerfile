@@ -1,4 +1,4 @@
-FROM docker.io/clickhouse/clickhouse-server@sha256:95f7cbf466dba734947775eb74808a13a3558e4398666ea6b1d992af85b9740d
+FROM docker.io/clickhouse/clickhouse-server:26.10.3@sha256:739e099abd1157390960a59e4532d21781d8fde57e6e4151cb920ea02c30b1ce
 COPY --chmod=0644 clickhouse/config.d/ardia.xml /etc/clickhouse-server/config.d/ardia.xml
 COPY --chmod=0644 clickhouse/users.d/ardia.xml /etc/clickhouse-server/users.d/ardia.xml
 COPY --chmod=0644 clickhouse/schema.sql /etc/ac/schema.sql

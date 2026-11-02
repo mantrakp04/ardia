@@ -1,5 +1,6 @@
 #import "ArdiaChromeWindowInternal.h"
 #import "ArdiaLaunchConfig.h"
+#import "ArdiaRuntime.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <objc/message.h>
@@ -8,6 +9,7 @@
 #include <initializer_list>
 
 using namespace ardia_window;
+using namespace ardia_runtime;
 
 namespace ardia_window {
 
@@ -77,12 +79,6 @@ void LogLights(NSWindow *window, NSString *what) {
   if (![gLightsLog writeData:[line dataUsingEncoding:NSUTF8StringEncoding] error:nil]) gLightsLog = nil;
 }
 
-void Swizzle(Class cls, SEL sel, id (^make)(IMP original)) {
-  Method method = class_getInstanceMethod(cls, sel);
-  IMP original = method_getImplementation(method);
-  method_setImplementation(method, imp_implementationWithBlock(make(original)));
-}
-
 void InstallTrafficLightsLog() {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
@@ -96,7 +92,7 @@ void InstallTrafficLightsLog() {
       return;
     }
     auto logged = ^NSWindow *(NSView *view) { return objc_getAssociatedObject(view, kLoggedKey) ? view.window : nil; };
-    Swizzle(NSView.class, @selector(setFrameOrigin:), ^id(IMP original) {
+    ReplaceMethod(NSView.class, @selector(setFrameOrigin:), ^id(IMP original) {
       return ^(NSView *self, NSPoint origin) {
         const NSRect before = self.frame;
         ((void (*)(id, SEL, NSPoint))original)(self, @selector(setFrameOrigin:), origin);
@@ -104,7 +100,7 @@ void InstallTrafficLightsLog() {
           LogLights(window, [NSString stringWithFormat:@"%@ setFrameOrigin %@", self.className, NSStringFromPoint(origin)]);
       };
     });
-    Swizzle(NSView.class, @selector(setFrameSize:), ^id(IMP original) {
+    ReplaceMethod(NSView.class, @selector(setFrameSize:), ^id(IMP original) {
       return ^(NSView *self, NSSize size) {
         const NSRect before = self.frame;
         ((void (*)(id, SEL, NSSize))original)(self, @selector(setFrameSize:), size);
@@ -112,7 +108,7 @@ void InstallTrafficLightsLog() {
           LogLights(window, [NSString stringWithFormat:@"%@ setFrameSize %@", self.className, NSStringFromSize(size)]);
       };
     });
-    Swizzle(NSView.class, @selector(setFrame:), ^id(IMP original) {
+    ReplaceMethod(NSView.class, @selector(setFrame:), ^id(IMP original) {
       return ^(NSView *self, NSRect frame) {
         const NSRect before = self.frame;
         ((void (*)(id, SEL, NSRect))original)(self, @selector(setFrame:), frame);
@@ -120,7 +116,7 @@ void InstallTrafficLightsLog() {
           LogLights(window, [NSString stringWithFormat:@"%@ setFrame %@", self.className, NSStringFromRect(frame)]);
       };
     });
-    Swizzle(NSView.class, @selector(setHidden:), ^id(IMP original) {
+    ReplaceMethod(NSView.class, @selector(setHidden:), ^id(IMP original) {
       return ^(NSView *self, BOOL hidden) {
         const BOOL before = self.hidden;
         ((void (*)(id, SEL, BOOL))original)(self, @selector(setHidden:), hidden);
@@ -128,7 +124,7 @@ void InstallTrafficLightsLog() {
           LogLights(window, [NSString stringWithFormat:@"%@ setHidden %d", self.className, hidden]);
       };
     });
-    Swizzle(NSView.class, @selector(setAlphaValue:), ^id(IMP original) {
+    ReplaceMethod(NSView.class, @selector(setAlphaValue:), ^id(IMP original) {
       return ^(NSView *self, CGFloat alpha) {
         const CGFloat before = self.alphaValue;
         ((void (*)(id, SEL, CGFloat))original)(self, @selector(setAlphaValue:), alpha);
@@ -138,13 +134,13 @@ void InstallTrafficLightsLog() {
     });
     const SEL layout = NSSelectorFromString(@"_updateButtonPositions");
     if (Class themeFrame = NSClassFromString(@"NSThemeFrame"); class_getInstanceMethod(themeFrame, layout))
-      Swizzle(themeFrame, layout, ^id(IMP original) {
+      ReplaceMethod(themeFrame, layout, ^id(IMP original) {
         return ^(NSView *self) {
           ((void (*)(id, SEL))original)(self, layout);
           if (objc_getAssociatedObject(self.window, kLoggedKey)) LogLights(self.window, @"layout");
         };
       });
-    Swizzle(NSWindow.class, @selector(setStyleMask:), ^id(IMP original) {
+    ReplaceMethod(NSWindow.class, @selector(setStyleMask:), ^id(IMP original) {
       return ^(NSWindow *self, NSWindowStyleMask mask) {
         const NSWindowStyleMask before = self.styleMask;
         ((void (*)(id, SEL, NSWindowStyleMask))original)(self, @selector(setStyleMask:), mask);
@@ -168,21 +164,19 @@ void InstallTrafficLightsOrigin(Class frameClass) {
   if (!frameClass || [installed containsObject:frameClass]) return;
   [installed addObject:frameClass];
   const SEL sel = NSSelectorFromString(@"_closeButtonOrigin");
-  Method method = class_getInstanceMethod(frameClass, sel);
-  if (!method) return;
-  const IMP standard = method_getImplementation(method);
-  const IMP ours = imp_implementationWithBlock(^NSPoint(NSView *frameView) {
-    NSWindow *window = frameView.window;
-    if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen))
-      return ((NSPoint (*)(id, SEL))standard)(frameView, sel);
-    NSButton *close = [window standardWindowButton:NSWindowCloseButton];
-    const NSSize size = close ? close.frame.size : NSMakeSize(14, 14);
-    const CGFloat height = NSHeight(frameView.bounds);
-    if (NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey))
-      return NSMakePoint(center.pointValue.x - size.width / 2, height - center.pointValue.y - size.height / 2);
-    return NSMakePoint(kTrafficLightInsetX, height - kTrafficLightTop - size.height);
+  ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+    return ^NSPoint(NSView *frameView) {
+      NSWindow *window = frameView.window;
+      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen))
+        return ((NSPoint (*)(id, SEL))standard)(frameView, sel);
+      NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+      const NSSize size = close ? close.frame.size : NSMakeSize(14, 14);
+      const CGFloat height = NSHeight(frameView.bounds);
+      if (NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey))
+        return NSMakePoint(center.pointValue.x - size.width / 2, height - center.pointValue.y - size.height / 2);
+      return NSMakePoint(kTrafficLightInsetX, height - kTrafficLightTop - size.height);
+    };
   });
-  if (!class_addMethod(frameClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
 }
 
 const void *kSharingIndicatorTuckedKey = &kSharingIndicatorTuckedKey;
@@ -205,17 +199,15 @@ void InstallSharingIndicatorBounds(Class frameClass) {
   if (!frameClass || [installed containsObject:frameClass]) return;
   [installed addObject:frameClass];
   const SEL sel = NSSelectorFromString(@"_positionSharingIndicator");
-  Method method = class_getInstanceMethod(frameClass, sel);
-  if (!method) return;
-  const IMP standard = method_getImplementation(method);
-  const IMP ours = imp_implementationWithBlock(^(NSView *frameView) {
-    ((void (*)(id, SEL))standard)(frameView, sel);
-    NSWindow *window = frameView.window;
-    if (!objc_getAssociatedObject(window, kInsetLightsKey)) return;
-    NSButton *close = [window standardWindowButton:NSWindowCloseButton];
-    KeepSharingIndicatorInWindow(frameView, close.layer ? close.layer.affineTransform.tx : 0);
+  ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+    return ^(NSView *frameView) {
+      ((void (*)(id, SEL))standard)(frameView, sel);
+      NSWindow *window = frameView.window;
+      if (!objc_getAssociatedObject(window, kInsetLightsKey)) return;
+      NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+      KeepSharingIndicatorInWindow(frameView, close.layer ? close.layer.affineTransform.tx : 0);
+    };
   });
-  if (!class_addMethod(frameClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
 }
 
 const void *kSharingWindowPlacedKey = &kSharingWindowPlacedKey;
@@ -261,16 +253,13 @@ void KeepSharingWindowOnHost(NSWindow *pill) {
 void InstallSharingWindowBounds() {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    Class pillClass = NSClassFromString(@"NSLocalWindowSharingWindow");
     const SEL sel = NSSelectorFromString(@"_syncToWindowControls");
-    Method method = pillClass ? class_getInstanceMethod(pillClass, sel) : nullptr;
-    if (!method) return;
-    const IMP standard = method_getImplementation(method);
-    const IMP ours = imp_implementationWithBlock(^(NSWindow *pill) {
-      ((void (*)(id, SEL))standard)(pill, sel);
-      KeepSharingWindowOnHost(pill);
+    ReplaceMethod(NSClassFromString(@"NSLocalWindowSharingWindow"), sel, ^id(IMP standard) {
+      return ^(NSWindow *pill) {
+        ((void (*)(id, SEL))standard)(pill, sel);
+        KeepSharingWindowOnHost(pill);
+      };
     });
-    if (!class_addMethod(pillClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
   });
 }
 

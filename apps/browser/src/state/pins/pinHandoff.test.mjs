@@ -7,7 +7,7 @@ const { webviews, webviewRef } = await import("../../platform/webviews.ts");
 const { withLivePage } = await import("../tabs/livePage.ts");
 
 const S = () => useBrowser.getState();
-const tileOf = (w, url) => model.viewTabIds(S(), w).find((id) => S().tabs[id].pinned && S().tabs[id].pinnedUrl === url);
+const tileOf = (w, url) => model.viewTabIds(S(), w).find((id) => !!S().tabs[id].pin && S().tabs[id].pinnedUrl === url);
 const until = async (test, ms = 2000) => {
   const end = Date.now() + ms;
   while (!test() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
@@ -62,7 +62,7 @@ test("Back, Forward or Reload on a frozen copy pull the page back, then run on i
   S().activate(tileOf(b, "https://mail.com"));
   assert.ok(await until(() => S().tabs[mail].windowId === b));
   const frozen = S().windows[a].activeTabIds.default;
-  assert.equal(S().tabs[frozen].pageIn, mail);
+  assert.equal(S().tabs[frozen].page.holderId, mail);
   S().updateLive(mail, { canGoBack: true });
   const calls = [];
   withLivePage(frozen, (p) => p.goBack());
@@ -79,7 +79,7 @@ test("Back on a frozen copy is dropped for good if its pull-back is cancelled, e
   S().activate(tileOf(b, "https://mail.com"));
   assert.ok(await until(() => S().tabs[mail].windowId === b));
   const frozen = S().windows[a].activeTabIds.default;
-  const other = model.viewTabIds(S(), a).find((id) => !S().tabs[id].pinned);
+  const other = model.viewTabIds(S(), a).find((id) => !S().tabs[id].pin);
   const calls = [];
   webviewRef(mail)(page(calls, 80));
   void withLivePage(frozen, (p) => p.goBack());

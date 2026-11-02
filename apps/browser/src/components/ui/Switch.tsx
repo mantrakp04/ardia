@@ -16,19 +16,17 @@ export type SwitchLook = {
   easing: EasingFunction;
 };
 
-export function Switch({
+function Switch({
   value,
   onChange,
   disabled,
   look,
-  hitSlop = 6,
   animateExternalChanges = true,
 }: {
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
   look: SwitchLook;
-  hitSlop?: number;
   animateExternalChanges?: boolean;
 }) {
   const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
@@ -55,7 +53,7 @@ export function Switch({
   return (
     <Pressable
       disabled={disabled}
-      hitSlop={hitSlop}
+      hitSlop={SWITCH_HIT_SLOP}
       onPress={() => {
         const next = !target.current;
         pressedAt.current = Date.now();
@@ -86,6 +84,7 @@ export function Switch({
 }
 
 const USER_CHANGE_WINDOW_MS = 2000;
+const SWITCH_HIT_SLOP = 6;
 
 export function Toggle({ value, onChange, disabled, look = "form" }: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean; look?: "form" | "panel" }) {
   const theme = useTheme();
@@ -95,7 +94,7 @@ export function Toggle({ value, onChange, disabled, look = "form" }: { value: bo
         value={value}
         onChange={onChange}
         disabled={disabled}
-        look={{ width: 30, height: 17, knob: 14, inset: 1.5, offColor: theme.toggleOff, onColor: theme.accent, duration: duration.quick, easing: curve.outQuad }}
+        look={{ width: 30, height: 17, knob: 14, inset: 1.5, offColor: theme.toggleOff, onColor: theme.accent, duration: duration.base, easing: curve.enter }}
       />
     );
   return (
@@ -104,7 +103,7 @@ export function Toggle({ value, onChange, disabled, look = "form" }: { value: bo
       onChange={onChange}
       disabled={disabled}
       animateExternalChanges={false}
-      look={{ width: 32, height: 18, knob: 15, inset: 1.5, offColor: theme.switchOff, onColor: theme.formAccent, knobBorder: theme.knobBorder, duration: duration.toggle, easing: curve.outCubic }}
+      look={{ width: 32, height: 18, knob: 15, inset: 1.5, offColor: theme.switchOff, onColor: theme.formAccent, knobBorder: theme.knobBorder, duration: duration.base, easing: curve.enter }}
     />
   );
 }

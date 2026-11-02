@@ -4,48 +4,81 @@ import ArdiaCore
 enum SharePicker {
   private static var current: NSSharingServicePicker?
   private static let delegate = ShareDelegate()
-  private static let background = LaunchConfig.shared.background
 
   static func show(url: String, title: String?, windowId: String?, anchor: [Double]?, done: @escaping () -> Void) {
-    let window = windowId.flatMap { WindowManager.shared.windows[$0] } ?? NSApp.keyWindow
-    guard let link = URL(string: url), let window, let view = window.contentView else { return done() }
+    let window = windowId.flatMap { WindowManager.shared.window($0) } ?? NSApp.keyWindow
+    guard let link = URL(string: url) else { return done() }
+    guard let window, let view = window.contentView else {
+      if link.isFileURL { ArdiaWebView.removeSharedImage(link) }
+      return done()
+    }
     var rect = NSRect(x: view.bounds.midX - 1, y: view.isFlipped ? 40 : view.bounds.maxY - 42, width: 2, height: 2)
     var edge = NSRectEdge.minY
     if let a = anchor, a.count == 4 {
       rect = view.convert(NSRect(x: a[0], y: view.frame.height - a[1] - a[3], width: a[2], height: a[3]), from: nil)
       edge = rect.midX < view.bounds.midX ? .maxX : .minX
     }
-    if background {
+    let item: Any =
+      link.isFileURL
+      ? link as NSURL
+      : NSPreviewRepresentingActivityItem(item: link as NSURL, title: title?.isEmpty == false ? title : link.host, image: nil, icon: nil)
+    if LaunchConfig.shared.background {
       log("share sheet (not shown): \(describe(url, title)) window=#\(window.windowNumber) anchor=\(NSStringFromRect(rect))"
-        + " services=\(services().map(\.title).joined(separator: "|"))")
+        + " services=\(services(for: [link as NSURL]).map(\.title).joined(separator: "|"))")
+      if link.isFileURL { ArdiaWebView.removeSharedImage(link) }
       return done()
     }
     delegate.finish()
     delegate.window = window
     delegate.done = done
-    let item = NSPreviewRepresentingActivityItem(
-      item: link as NSURL, title: title?.isEmpty == false ? title : link.host, image: nil, icon: nil)
+    delegate.file = link.isFileURL ? link : nil
     let picker = NSSharingServicePicker(items: [item])
     picker.delegate = delegate
     current = picker
     picker.show(relativeTo: rect, of: view, preferredEdge: edge)
   }
 
+  static func show(text: String, windowId: String?, anchor: [Double]?, done: @escaping () -> Void) {
+    let window = windowId.flatMap { WindowManager.shared.window($0) } ?? NSApp.keyWindow
+    guard !text.isEmpty, let window, let view = window.contentView else { return done() }
+    let (rect, edge) = placement(in: view, anchor: anchor)
+    if LaunchConfig.shared.background {
+      log("share sheet (not shown): text of \(text.count) characters window=#\(window.windowNumber) anchor=\(NSStringFromRect(rect))"
+        + " services=\(services(for: [text as NSString]).map(\.title).joined(separator: "|"))")
+      return done()
+    }
+    delegate.finish()
+    delegate.window = window
+    delegate.done = done
+    delegate.file = nil
+    let picker = NSSharingServicePicker(items: [text as NSString])
+    picker.delegate = delegate
+    current = picker
+    picker.show(relativeTo: rect, of: view, preferredEdge: edge)
+  }
+
+  private static func placement(in view: NSView, anchor: [Double]?) -> (NSRect, NSRectEdge) {
+    guard let a = anchor, a.count == 4 else {
+      return (NSRect(x: view.bounds.midX - 1, y: view.isFlipped ? 40 : view.bounds.maxY - 42, width: 2, height: 2), .minY)
+    }
+    let rect = view.convert(NSRect(x: a[0], y: view.frame.height - a[1] - a[3], width: a[2], height: a[3]), from: nil)
+    return (rect, rect.midX < view.bounds.midX ? .maxX : .minX)
+  }
+
   static func perform(service: String, url: String, title: String?, windowId: String?) {
     guard let link = URL(string: url), let match = services().first(where: { $0.title == service }) else { return }
-    if background {
+    if LaunchConfig.shared.background {
       return log("share via \(service) (not performed): \(describe(url, title))")
     }
     delegate.finish()
-    delegate.window = windowId.flatMap { WindowManager.shared.windows[$0] } ?? NSApp.keyWindow
+    delegate.window = windowId.flatMap { WindowManager.shared.window($0) } ?? NSApp.keyWindow
     match.delegate = delegate
     match.subject = title
     match.perform(withItems: [link])
   }
 
-  static func services() -> [NSSharingService] {
-    let probe: [Any] = [NSURL(string: "https://ardia.dev")!]
-    let listed = (NSSharingService.self as AnyObject).perform(NSSelectorFromString("sharingServicesForItems:"), with: probe)
+  static func services(for items: [Any] = [NSURL(string: "https://ardia.dev")!]) -> [NSSharingService] {
+    let listed = (NSSharingService.self as AnyObject).perform(NSSelectorFromString("sharingServicesForItems:"), with: items)
     let all = listed?.takeUnretainedValue() as? [NSSharingService] ?? []
     let skipped = Set([NSSharingService.Name.composeEmail, .addToSafariReadingList].compactMap { NSSharingService(named: $0)?.title })
     return all.filter { !skipped.contains($0.title) }
@@ -93,6 +126,7 @@ enum SharePicker {
 private final class ShareDelegate: NSObject, NSSharingServicePickerDelegate, NSSharingServiceDelegate {
   weak var window: NSWindow?
   var done: (() -> Void)?
+  var file: URL?
 
   func finish() {
     let done = done
@@ -104,7 +138,21 @@ private final class ShareDelegate: NSObject, NSSharingServicePickerDelegate, NSS
     self
   }
 
-  func sharingServicePicker(_ picker: NSSharingServicePicker, didChoose service: NSSharingService?) { finish() }
+  func sharingServicePicker(_ picker: NSSharingServicePicker, didChoose service: NSSharingService?) {
+    if service == nil, let file { ArdiaWebView.removeSharedImage(file) }
+    file = nil
+    finish()
+  }
+
+  func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) { removeSharedImages(in: items) }
+
+  func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) {
+    removeSharedImages(in: items)
+  }
+
+  private func removeSharedImages(in items: [Any]) {
+    items.compactMap { $0 as? URL }.filter(\.isFileURL).forEach(ArdiaWebView.removeSharedImage)
+  }
 
   func sharingService(
     _ sharingService: NSSharingService, sourceWindowForShareItems items: [Any],

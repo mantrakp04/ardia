@@ -1,3 +1,4 @@
+import ArdiaCore
 import ExpoModulesCore
 import MetalKit
 
@@ -24,7 +25,7 @@ final class WindowBackdropView: MetalSurface {
   }
 
   func setColors(_ hex: [String]) {
-    let rgba = hex.compactMap { SIMD4<Float>(hex: $0) }
+    let rgba = hex.compactMap { RGBA(hex: $0)?.simd }
     guard let first = rgba.first else { return }
     uniforms.labA = Self.oklab(first)
     uniforms.labB = Self.oklab(rgba.last ?? first)

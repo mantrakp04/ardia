@@ -1,10 +1,9 @@
 import { layout } from "../ui/theme";
-import { slotsOf } from "../../state/splits/splits";
 import type { SplitView } from "../../state/browser/types";
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
-const PANE_GAP = 7;
+const PANE_GAP = layout.cardInset;
 const MIN_PANE = 220;
 
 export type Divider = { kind: "root"; index: number; rect: Rect; vertical: boolean } | { kind: "stack"; rect: Rect; vertical: boolean };
@@ -14,28 +13,30 @@ type SplitGeometry = { panes: Record<string, Rect>; dividers: Divider[] };
 function cut(total: number, sizes: number[], gap: number): { start: number; size: number }[] {
   const free = Math.max(0, total - gap * (sizes.length - 1));
   let at = 0;
-  return sizes.map((f) => {
-    const size = Math.round(free * f);
+  let used = 0;
+  return sizes.map((f, i) => {
+    const size = i === sizes.length - 1 ? free - used : Math.round(free * f);
     const out = { start: at, size };
     at += size + gap;
+    used += size;
     return out;
   });
 }
 
 export function splitGeometry(split: SplitView, width: number, height: number, gap = PANE_GAP): SplitGeometry {
   const horizontal = split.orientation === "horizontal";
-  const slots = slotsOf(split);
-  const sizes = split.sizes.length === slots.length ? split.sizes : slots.map(() => 1 / slots.length);
+  const slots = split.slots;
+  const sizes = slots.map((slot) => slot.size);
   const panes: Record<string, Rect> = {};
   const dividers: Divider[] = [];
   const main = cut(horizontal ? width : height, sizes, gap);
   slots.forEach((slot, i) => {
     const { start, size } = main[i]!;
     const slotRect: Rect = horizontal ? { x: start, y: 0, width: size, height } : { x: 0, y: start, width, height: size };
-    if (slot.length === 1) panes[slot[0]!] = slotRect;
+    if (!("stack" in slot)) panes[slot.tabId] = slotRect;
     else {
-      const inner = cut(horizontal ? slotRect.height : slotRect.width, split.stack?.sizes ?? [0.5, 0.5], gap);
-      slot.forEach((id, j) => {
+      const inner = cut(horizontal ? slotRect.height : slotRect.width, slot.stackSizes, gap);
+      slot.stack.forEach((id, j) => {
         const { start: s, size: z } = inner[j]!;
         panes[id] = horizontal ? { ...slotRect, y: s, height: z } : { ...slotRect, x: s, width: z };
       });

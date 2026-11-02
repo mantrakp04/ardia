@@ -48,7 +48,7 @@ test("the default profile's cookies go to its WebKit store, whose key is the emp
 test("closing the private window while the cookies are read imports nothing", async () => {
   S().hydrate({});
   imports.length = 0;
-  const w = S().createWindow({ incognito: true, url: "https://video.example/title/1" });
+  const w = S().createWindow({ kind: "private", url: "https://video.example/title/1" });
   const tabId = model.activeTabId(S(), w);
   const page = pageWithCookies();
   webviews.set(tabId, page.handle);

@@ -4,7 +4,6 @@ export {
   DockSelection,
   FadeLabel,
   FileDropArea,
-  GlassEffect,
   MagnifyArea,
   MouseArea,
   OutsidePressArea,
@@ -23,4 +22,4 @@ export {
 
 export { SwipeArea, WebView, type SwipeAreaHandle, type SwipeEvent, type WebViewHandle } from "@ardia/ardiacore";
 
-export { DIA_SPECTRUM, PowerUp, ThemeSwatch, WindowBackdrop } from "@ardia/shaders";
+export { DIA_SPECTRUM, Meadow, meadowTextStyle, PowerUp, ThemeSwatch, WindowBackdrop, type MeadowTone } from "@ardia/shaders";

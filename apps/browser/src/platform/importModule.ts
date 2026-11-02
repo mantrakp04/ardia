@@ -17,15 +17,6 @@ export type {
   SpaceSummary,
 } from "@ardia/import";
 
-let api: typeof ImportApi | null | undefined;
+let api: typeof ImportApi | undefined;
 
-export function importModule(): typeof ImportApi | null {
-  if (api === undefined) {
-    try {
-      api = require("@ardia/import") as typeof ImportApi;
-    } catch {
-      api = null;
-    }
-  }
-  return api;
-}
+export const importModule = (): typeof ImportApi => (api ??= require("@ardia/import") as typeof ImportApi);

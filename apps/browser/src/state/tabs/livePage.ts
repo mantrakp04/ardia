@@ -3,6 +3,7 @@ import { requestPinHandOff } from "../pins/pinHandoff";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { webviewMount, webviews } from "../../platform/webviews";
+import { holderOfPage } from "./pageSession";
 
 const ARRIVAL_DEADLINE_MS = 3000;
 const ARRIVAL_POLL_MS = 30;
@@ -10,11 +11,11 @@ const SETTLE_MS = 60;
 
 const store = () => useBrowser.getState();
 
-export const livePageId = (tabId: string) => store().tabs[tabId]?.pageIn ?? tabId;
+export const livePageId = (tabId: string) => holderOfPage(store().tabs[tabId]) ?? tabId;
 
 export async function withLivePage(tabId: string, act: (page: WebViewHandle, pageId: string) => unknown) {
   const tab = store().tabs[tabId];
-  const holderId = tab?.pageIn;
+  const holderId = holderOfPage(tab);
   if (!tab || !holderId) {
     const page = webviews.get(tabId);
     if (page) act(page, tabId);
@@ -25,7 +26,7 @@ export async function withLivePage(tabId: string, act: (page: WebViewHandle, pag
   if (!(await requestPinHandOff(tabId))) return;
   const shownHere = () => {
     const holder = store().tabs[holderId];
-    return holder?.windowId === windowId && !holder.pageIn && activeTabId(store(), windowId) === holderId;
+    return holder?.windowId === windowId && !holderOfPage(holder) && activeTabId(store(), windowId) === holderId;
   };
   const until = Date.now() + ARRIVAL_DEADLINE_MS;
   while (Date.now() < until && shownHere()) {

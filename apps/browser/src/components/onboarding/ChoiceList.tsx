@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import type { PreviewId } from "./previews";
-import { ChoiceRow } from "./Parts";
-
-export const CONTENT_WIDTH = 368;
+import { space } from "../ui/tokens";
+import { OptionCard } from "./OptionCard";
 
 const REPLAY_GAP = 280;
 const REPLAY_LENGTH = 1700;
@@ -53,10 +52,11 @@ export function ChoiceList<T extends string | number | boolean | null>({
   mock: MockFocus;
 }) {
   return (
-    <View style={{ gap: 8 }} accessibilityRole="radiogroup">
+    <View style={{ gap: space.m }} accessibilityRole="radiogroup">
       {options.map((o) => (
-        <ChoiceRow
+        <OptionCard
           key={String(o.value)}
+          control="radio"
           title={o.title}
           subtitle={o.subtitle}
           selected={o.value === value}

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { Image, Pressable, Text as NativeText, View } from "react-native";
 import { plural } from "../../state/browser/model";
-import { Box, Checkbox, ink, Radio, Symbol, Text, useHover, useTheme } from "../ui";
+import { capsule, Checkbox, Dot, ink, Radio, Row, space, Symbol, Text, useTheme } from "../ui";
+import { SelectableCard } from "../settings/SelectableCard";
 import type { BrowserSource, SpaceSummary } from "./model";
-import { accentAlpha, importColors, importLayout, importType } from "./tokens";
+import { importColors, importLayout, importType } from "./tokens";
 
 function browserDetail(browser: BrowserSource) {
   const spaces = browser.profiles.reduce((n, p) => n + (p.spaces?.length ?? 0), 0);
@@ -20,72 +21,54 @@ function browserDetail(browser: BrowserSource) {
 
 export function BrowserRow({ browser, selected, onPress }: { browser: BrowserSource; selected: boolean; onPress: () => void }) {
   const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
   const detail = browserDetail(browser);
   return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <Box
-          row
-          center
-          padX="l"
-          gap="l"
-          radius="card"
-          fill={hovered ? "rowHover" : "groupFill"}
-          border="groupBorder"
-          style={{
-            height: importLayout.browserRow,
-            ...(selected ? { backgroundColor: `${theme.formAccent}${accentAlpha.selected}`, borderWidth: importLayout.selectedBorder, borderColor: theme.formAccent } : null),
-          }}
-        >
-          <Radio on={selected} look="form" />
-          {browser.iconPath ? (
-            <Image source={{ uri: `file://${browser.iconPath}` }} style={{ width: 32, height: 32 }} />
-          ) : (
-            <Symbol name="globe" size={22} color={theme.icon} style={{ width: 32, height: 32 }} />
-          )}
-          <Text size="title" weight="medium" style={{ flex: 1 }}>
-            {browser.name}
-          </Text>
-          {detail ? (
-            <Text size="small" tone="textSecondary">
-              {detail}
-            </Text>
-          ) : null}
-          {browser.needsKeychain && <Symbol name="lock" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />}
-        </Box>
-      </Pressable>
-    </View>
+    <SelectableCard selected={selected} onPress={onPress} style={BROWSER_ROW}>
+      <Radio on={selected} look="form" />
+      {browser.iconPath ? (
+        <Image source={{ uri: `file://${browser.iconPath}` }} style={{ width: 32, height: 32 }} />
+      ) : (
+        <Symbol name="globe" size={22} color={theme.icon} style={{ width: 32, height: 32 }} />
+      )}
+      <Text size="title" weight="medium" style={{ flex: 1 }}>
+        {browser.name}
+      </Text>
+      {detail ? (
+        <Text size="small" tone="textSecondary">
+          {detail}
+        </Text>
+      ) : null}
+      {browser.needsKeychain && <Symbol name="lock" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />}
+    </SelectableCard>
   );
 }
+
+const BROWSER_ROW = { height: importLayout.browserRow, flexDirection: "row", alignItems: "center", paddingHorizontal: space.l, gap: space.l } as const;
 
 export function SelectRow({ selected, onToggle, icon, title, subtitle }: { selected: boolean; onToggle: (v: boolean) => void; icon: ReactNode; title: string; subtitle?: string }) {
   return (
     <Pressable onPress={() => onToggle(!selected)}>
-      <Box row center padX="l" gap="l" radius="card" fill="groupFill" border="groupBorder" style={{ minHeight: importLayout.selectRow }}>
-        <Checkbox value={selected} onChange={onToggle} />
-        {icon}
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: importType.rowTitle }}>{title}</Text>
-          {subtitle ? (
-            <Text size="footnote" tone="textSecondary" style={{ marginTop: 1 }}>
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-      </Box>
+      <Row
+        title={title}
+        description={subtitle}
+        icon={
+          <>
+            <Checkbox value={selected} onChange={onToggle} />
+            {icon}
+          </>
+        }
+      />
     </Pressable>
   );
 }
 
 export function Monogram({ name, color }: { name: string; color?: string }) {
-  const size = importLayout.avatar;
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color ?? importColors.monogramFallback, alignItems: "center", justifyContent: "center" }}>
-      <Text weight="semibold" style={{ color: ink.white }}>
+    <Dot size={importLayout.avatar} color={color ?? importColors.monogramFallback}>
+      <Text weight="semibold" color={ink.white}>
         {(name.trim()[0] ?? "?").toUpperCase()}
       </Text>
-    </View>
+    </Dot>
   );
 }
 
@@ -113,5 +96,5 @@ export function SpaceIcon({ space: summary }: { space: SpaceSummary }) {
 
 export function ProfileAvatar({ path, name, color }: { path?: string; name: string; color?: string }) {
   const size = importLayout.avatar;
-  return path ? <Image source={{ uri: `file://${path}` }} style={{ width: size, height: size, borderRadius: size / 2 }} /> : <Monogram name={name} color={color} />;
+  return path ? <Image source={{ uri: `file://${path}` }} style={{ width: size, height: size, borderRadius: capsule(size) }} /> : <Monogram name={name} color={color} />;
 }

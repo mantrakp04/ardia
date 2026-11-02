@@ -1,10 +1,13 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeGroups, reparent, syncGroupOrder } from "../groups/groups";
-import { isIncognitoProfile, isPinnedRow } from "../browser/model";
+import { isIncognitoProfile, isPinnedRow, pinKeyOf, ROW_PIN, samePin, TILE_PIN } from "../browser/model";
 import { splitOf, splitRowHead, splitRowPanes, withSplitRows } from "../splits/splits";
-import { nextPinChoice, placeChoiceKey } from "./pinChoices";
+import { markPinned } from "./pinChoices";
 import { groupOf, withRowsGrouped } from "./tabGrouping";
-import type { BrowserWindow, TileFolder } from "../browser/types";
+import type { BrowserWindow, TabPin, TileFolder } from "../browser/types";
+import { pinnedGroupMembers } from "../browser/structure";
+import { pinHome } from "./pinHomes";
+import { tileFolderOf } from "./tileFolders";
 
 export type TabPlacement = {
   pinned: boolean;
@@ -30,7 +33,7 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   const movingSet = new Set(moving);
 
   const tabs = { ...s.tabs };
-  let chosen: Record<string, number> | null = null;
+  let pinChoices = s.pinChoices;
   let pinSync = s.pinSync;
   const pinnedGroupOf = (id: string) => {
     const g = innermostGroupOf(s.groups, id);
@@ -39,27 +42,21 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   const intoPinnedGroup = target?.pinned ? target.id : null;
   for (const id of moving) {
     const t = tabs[id]!;
-    if (t.pinned !== p.pinned) tabs[id] = { ...t, pinned: p.pinned, pinnedUrl: p.pinned || intoPinnedGroup ? t.pinnedUrl || t.url || null : null };
-    const row = p.pinned && (paired.has(id) || (p.row ?? (t.pinned && !!t.pinnedAsRow)));
-    const placed = t.pinned !== p.pinned || (!p.pinned && pinnedGroupOf(id) !== intoPinnedGroup);
-    if (placed || !!t.pinnedAsRow !== row) {
-      const { pinnedAsRow: _, ...rest } = tabs[id]!;
-      tabs[id] = row ? { ...rest, pinnedAsRow: true } : rest;
-      const entry = placed ? pinSync[t.profileId]?.[t.pinKey ?? t.id] : undefined;
+    const flips = !!t.pin !== p.pinned;
+    const row = p.pinned && (paired.has(id) || (p.row ?? isPinnedRow(t)));
+    const folder = p.pinned && !row ? (p.tileFolder === undefined ? tileFolderOf(t) : (p.tileFolder ?? undefined)) : undefined;
+    const pin: TabPin | null = !p.pinned ? null : row ? ROW_PIN : folder ? { as: "tile", folder } : TILE_PIN;
+    if (flips || !samePin(t.pin, pin)) tabs[id] = { ...t, pin, ...(flips ? { pinnedUrl: pinHome(t, p.pinned || !!intoPinnedGroup) } : {}) };
+    const placed = flips || (!p.pinned && pinnedGroupOf(id) !== intoPinnedGroup);
+    if (placed || isPinnedRow(t) !== row) {
+      const entry = placed ? pinSync[t.profileId]?.[pinKeyOf(t)] : undefined;
       if (entry?.g) {
         const { g: __, w: ___, ...kept } = entry;
-        pinSync = { ...pinSync, [t.profileId]: { ...pinSync[t.profileId], [t.pinKey ?? t.id]: kept } };
+        pinSync = { ...pinSync, [t.profileId]: { ...pinSync[t.profileId], [pinKeyOf(t)]: kept } };
       }
       if ((p.pinned || intoPinnedGroup) && !isIncognitoProfile(t.profileId)) {
-        chosen ??= { ...s.pinChoices[t.profileId] };
-        if (p.pinned) chosen[t.pinKey ?? t.id] = nextPinChoice();
-        if (placed) chosen[placeChoiceKey(t.pinKey ?? t.id)] = nextPinChoice();
+        pinChoices = markPinned(pinChoices, t.profileId, { tabs: p.pinned ? [pinKeyOf(t)] : [], placed: placed ? [pinKeyOf(t)] : [] });
       }
-    }
-    const folder = p.pinned && !row ? (p.tileFolder === undefined ? tabs[id]!.tileFolder : (p.tileFolder ?? undefined)) : undefined;
-    if (tabs[id]!.tileFolder !== folder) {
-      const { tileFolder: _, ...kept } = tabs[id]!;
-      tabs[id] = folder ? { ...kept, tileFolder: folder } : kept;
     }
   }
   const rest = w.tabIds.filter((id) => !movingSet.has(id));
@@ -69,9 +66,9 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
     const kept = target.tabIds.filter((id) => !movingSet.has(id));
     at = kept.length ? rest.indexOf(kept.at(-1)!) + 1 : Math.min(order.get(target.tabIds[0]!)!, rest.length);
   } else if (p.pinned) {
-    const toRow = !!tabs[moving[0]!]!.pinnedAsRow;
-    const pinnedGroup = toRow && p.last ? new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds)) : null;
-    at = rest.reduce((last, id, i) => ((tabs[id]?.pinned && (toRow || !tabs[id]!.pinnedAsRow)) || pinnedGroup?.has(id) ? i + 1 : last), 0);
+    const toRow = isPinnedRow(tabs[moving[0]!]);
+    const pinnedGroup = toRow && p.last ? pinnedGroupMembers(s.groups) : null;
+    at = rest.reduce((last, id, i) => ((tabs[id]?.pin && (toRow || !isPinnedRow(tabs[id]))) || pinnedGroup?.has(id) ? i + 1 : last), 0);
   } else at = rest.length;
   insertAll(rest, at, moving);
 
@@ -87,7 +84,6 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   let tabIds = placeGroups(rest, groups, w.id);
   tabIds = orderSections(tabIds, tabs, groups);
   const window: BrowserWindow = { ...w, tabIds };
-  const pinChoices = chosen ? { ...s.pinChoices, [first.profileId]: chosen } : s.pinChoices;
   return { ...s, tabs, pinChoices, pinSync, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
 }
 
@@ -102,7 +98,7 @@ function withHomesOf(s: BrowserState, before: BrowserState, ids: string[]): Brow
 export function groupingOnto(s: BrowserState, ids: string[], targetId: string): [BrowserState, string] {
   const target = s.tabs[targetId];
   const w = target && s.windows[target.windowId];
-  if (!w || (target.pinned && !isPinnedRow(target)) || groupOf(s, targetId)) return [s, ""];
+  if (!w || (target.pin && !isPinnedRow(target)) || groupOf(s, targetId)) return [s, ""];
   const moving = ids.filter((id) => id !== targetId && s.tabs[id]?.windowId === w.id && s.tabs[id]?.profileId === target.profileId);
   if (!moving.length) return [s, ""];
   const after = w.tabIds.slice(w.tabIds.indexOf(targetId) + 1).find((id) => !moving.includes(id)) ?? null;

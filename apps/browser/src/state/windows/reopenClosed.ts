@@ -1,13 +1,15 @@
 import type { BrowserState } from "../browser/store";
 import { rejoinGroups } from "../groups/groups";
-import { findLast, IDLE_LIVE, isIncognitoProfile, makeTab, newId, pinnedFirst, resolveWindowId, restoreId } from "../browser/model";
-import { hasPage } from "../tabs/pageSession";
+import { findLast, IDLE_LIVE, isIncognitoProfile, makeTab, newId, resolveWindowId } from "../browser/model";
+import { restoreId } from "../tabs/adoptIds";
+import { adoptedPage, hasPage } from "../tabs/pageSession";
 import { adoptParkedPins } from "../pins/parkedPins";
 import { holderOf, swapPinPage } from "../pins/pinShare";
 import { lastActiveProfile } from "./small";
 import { activated, apply, withNewTab } from "../tabs/tabs";
 import type { ClosedTab, ClosedWindow, TabGroup } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
+import { orderSections } from "../groups/groups";
 
 function restoreGroup(groups: Record<string, TabGroup>, g: Omit<TabGroup, "tabIds">, tabIds: string[]): [Record<string, TabGroup>, string] {
   const id = groups[g.id] ? newId("g") : g.id;
@@ -25,21 +27,32 @@ export function lastClosedTab(s: BrowserState, windowId: string | undefined): Cl
   );
 }
 
+export function lastClosedEntry(s: BrowserState, windowId: string | null | undefined): { id: string; closedAt: number } | undefined {
+  const target = resolveWindowId(s, windowId);
+  const regular = (p: string | undefined) => s.windows[target ?? ""]?.kind !== "private" && shownProfile(s, target, p);
+  const lastWindow = findLast(s.closedWindows, (c) => regular(c.window.profileId));
+  const lastGroup = findLast(s.closedGroups, (c) => regular(c.tabs[0]?.profileId));
+  return [lastWindow, lastGroup, lastClosedTab(s, target)].reduce<{ id: string; closedAt: number } | undefined>(
+    (latest, e) => (e && (!latest || e.closedAt > latest.closedAt) ? e : latest),
+    undefined,
+  );
+}
+
 function canRestoreTabInto(s: BrowserState, c: ClosedTab, windowId: string | undefined): boolean {
   const w = windowId ? s.windows[windowId] : undefined;
   if (isIncognitoProfile(c.tab.profileId)) return c.windowId === windowId;
-  return !w?.incognito;
+  return w?.kind !== "private";
 }
 
 export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string | null): BrowserState {
   const owner = entry.tab.profileId;
   if (entry.pinnedTile && entry.tabId && !s.tabs[entry.tabId] && s.parkedPins[owner]?.tabs.some((p) => p.id === entry.tabId)) {
     const target = resolveWindowId(s, requested);
-    let windowId = target && !s.windows[target]!.incognito && s.windows[target]!.profileId === owner ? target : undefined;
+    let windowId = target && s.windows[target]!.kind !== "private" && s.windows[target]!.profileId === owner ? target : undefined;
     let next = s;
     if (!windowId) {
       windowId = newId("w");
-      next = withWindow(next, emptyWindow(windowId, owner, false));
+      next = withWindow(next, emptyWindow(windowId, owner, "main"));
     }
     next = adoptParkedPins(next, windowId, owner);
     if (next.tabs[entry.tabId]) return restoreTab(next, entry, windowId);
@@ -52,7 +65,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
     return withNewTab(next, id, {
       url: entry.tab.url || undefined,
       profileId,
-      snapshot: { ...entry.tab, pinned: false, profileId },
+      snapshot: { ...entry.tab, pin: null, profileId },
       adoptId: entry.tabId && entry.tab.url ? restoreId(entry.restoreFrom ?? entry.tabId) : undefined,
     })[0];
   }
@@ -62,7 +75,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
   if (tile) {
     const unloaded = !hasPage(tile);
     const tabs = unloaded
-      ? { ...s.tabs, [tile.id]: { ...tile, url: entry.tab.url, title: entry.tab.title, favicon: entry.tab.favicon, muted: entry.tab.muted, adoptId: restoreId(entry.restoreFrom ?? tile.id) } }
+      ? { ...s.tabs, [tile.id]: { ...tile, url: entry.tab.url, title: entry.tab.title, favicon: entry.tab.favicon, muted: entry.tab.muted, page: adoptedPage(restoreId(entry.restoreFrom ?? tile.id)) } }
       : s.tabs;
     const next: BrowserState = { ...s, closedTabs, tabs };
     return apply(next, activated(next, tile.id));
@@ -73,7 +86,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
   if (!windowId || !canRestoreTabInto(s, entry, windowId)) {
     if (isIncognitoProfile(entry.tab.profileId)) return next;
     windowId = newId("w");
-    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, false));
+    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, "main"));
   }
   const w = next.windows[windowId]!;
   const profileId = isIncognitoProfile(entry.tab.profileId) || s.profiles[entry.tab.profileId] ? entry.tab.profileId : w.profileId;
@@ -92,20 +105,20 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
 export function restoreWindow(s: BrowserState, entry: ClosedWindow): BrowserState {
   const id = newId("w");
   const profileOk = (p: string) => (s.profiles[p] ? p : s.settings.defaultProfileId);
-  const w = emptyWindow(id, profileOk(entry.window.profileId), false, entry.window.frame);
+  const w = emptyWindow(id, profileOk(entry.window.profileId), "main", entry.window.frame);
   w.sidebarOpen = entry.window.sidebarOpen;
   const tabs = { ...s.tabs };
   const live = { ...s.live };
   const ids: string[] = [];
   for (const { active, tabId, ...snap } of entry.tabs) {
     const t = makeTab(id, profileOk(snap.profileId), "", { ...snap, profileId: profileOk(snap.profileId) });
-    if (tabId && snap.url) t.wakeAdoptId = restoreId(tabId);
+    if (tabId && snap.url) t.page = { kind: "idle", wake: restoreId(tabId) };
     tabs[t.id] = t;
     live[t.id] = IDLE_LIVE;
     ids.push(t.id);
     if (active || !w.activeTabIds[t.profileId]) w.activeTabIds[t.profileId] = t.id;
   }
-  w.tabIds = pinnedFirst(ids, tabs);
+  w.tabIds = orderSections(ids, tabs, {});
   let groups = s.groups;
   const restored = new Map<string, string>();
   for (const { tabIndexes, parentId: _, ...g } of entry.groups) {

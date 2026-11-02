@@ -1,30 +1,13 @@
 import { showMenu, type MenuItem } from "../../platform/menus";
-import { create } from "zustand";
+import { showToast } from "../app/toasts";
 import { closeTab } from "../browser/actions";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { storeAction, useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { MAX_SPLIT_PANES, slotsOf, splitOf, type OpenPaneOptions, type SplitSide } from "./splits";
+import { isStacked, MAX_SPLIT_PANES, type OpenPaneOptions, splitOf, type SplitSide, splitTabIds, splitTabIdsOf } from "./splits";
+import type { AdoptId } from "../browser/types";
 
 const store = () => useBrowser.getState();
-
-type Toast = { id: number; title: string; message?: string } & ToastOptions;
-export type ToastOptions = { icon?: string; action?: { title: string; run(): void }; key?: string; sticky?: boolean };
-export const useToasts = create<{ toasts: Record<string, Toast | null> }>()(() => ({ toasts: {} }));
-let toastSeq = 0;
-export function showToast(windowId: string, title: string, message?: string, options?: ToastOptions) {
-  useToasts.setState((s) => {
-    const current = s.toasts[windowId];
-    const id = options?.key && current?.key === options.key ? current.id : ++toastSeq;
-    return { toasts: { ...s.toasts, [windowId]: { id, title, message, ...options } } };
-  });
-}
-export function hideToast(windowId: string, id: number) {
-  useToasts.setState((s) => (s.toasts[windowId]?.id === id ? { toasts: { ...s.toasts, [windowId]: null } } : s));
-}
-export function hideKeyedToast(windowId: string, key: string) {
-  useToasts.setState((s) => (s.toasts[windowId]?.key === key ? { toasts: { ...s.toasts, [windowId]: null } } : s));
-}
 
 const maxedOut = (windowId: string) =>
   showToast(windowId, "Cannot Add New Pane", `Split View can show up to ${MAX_SPLIT_PANES} tabs at once.`);
@@ -48,13 +31,14 @@ export function openInSplit(tabId: string, side: SplitSide = "right") {
   openSplitPane(tab.windowId, { tabId, anchorTabId: active, side });
 }
 
-export function openLinkInSplit(sourceTabId: string, url: string, adoptId?: string) {
+export function openLinkInSplit(sourceTabId: string, url: string, adoptId?: AdoptId) {
   const s = store();
   const source = s.tabs[sourceTabId];
   if (!source) return;
   const split = splitOf(s, sourceTabId);
-  const next = split?.tabIds[split.tabIds.indexOf(sourceTabId) + 1];
-  const target = split && (next || split.tabIds.length >= MAX_SPLIT_PANES) ? (next ?? split.tabIds.at(-1)) : undefined;
+  const panes = splitTabIdsOf(split);
+  const next = panes?.[panes.indexOf(sourceTabId) + 1];
+  const target = panes && (next || panes.length >= MAX_SPLIT_PANES) ? (next ?? panes.at(-1)) : undefined;
   const inPlaceOf = target !== sourceTabId ? target : undefined;
   openSplitPane(source.windowId, { anchorTabId: sourceTabId, url, side: "right", background: true, adoptId, inPlaceOf });
 }
@@ -75,15 +59,15 @@ export async function showSplitMenu(tabId: string) {
   const tab = s.tabs[tabId];
   if (!split || !tab) return;
   const horizontal = split.orientation === "horizontal";
-  const index = split.tabIds.indexOf(tabId);
-  const full = split.tabIds.length >= MAX_SPLIT_PANES;
-  const stacked = slotsOf(split).some((slot) => slot.length === 2 && slot.includes(tabId));
+  const index = splitTabIds(split).indexOf(tabId);
+  const full = splitTabIds(split).length >= MAX_SPLIT_PANES;
+  const stacked = isStacked(split, tabId);
   const items: MenuItem[] = [
     { id: "add", title: horizontal ? "Add Vertical Split View" : "Add Horizontal Split View", symbol: horizontal ? "rectangle.split.2x1" : "rectangle.split.1x2", enabled: !full, ...menuShortcut("openSplitPane") },
     { id: "bottom", title: horizontal ? "Add Bottom Split" : "Add Right Split", symbol: horizontal ? "rectangle.bottomhalf.inset.filled" : "rectangle.righthalf.inset.filled", enabled: !full && !stacked },
     { separator: true },
     { id: "left", title: horizontal ? "Move Pane Left" : "Move Pane Up", symbol: "rectangle.lefthalf.inset.filled.arrow.left", enabled: index > 0 },
-    { id: "right", title: horizontal ? "Move Pane Right" : "Move Pane Down", symbol: "rectangle.righthalf.inset.filled.arrow.right", enabled: index < split.tabIds.length - 1 },
+    { id: "right", title: horizontal ? "Move Pane Right" : "Move Pane Down", symbol: "rectangle.righthalf.inset.filled.arrow.right", enabled: index < splitTabIds(split).length - 1 },
     { id: "flip", title: "Flip Split View", symbol: horizontal ? "arrow.left.arrow.right" : "arrow.up.arrow.down" },
     { id: "convert", title: horizontal ? "Convert to Vertical Split View" : "Convert to Horizontal Split View", symbol: horizontal ? "rectangle.split.1x2" : "rectangle.split.2x1" },
     { separator: true },

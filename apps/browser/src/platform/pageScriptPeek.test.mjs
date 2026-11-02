@@ -11,7 +11,7 @@ const source = `${script.slice(start, end)}  } catch (e) {\n    throw e;\n  }\n`
 const XHTML = "http://www.w3.org/1999/xhtml";
 const BASE = "https://page.example/dir/";
 
-function environment() {
+function environment({ top = true, page = "https://page.example", selection = null } = {}) {
   const sent = [];
   const opened = [];
   const clicked = [];
@@ -127,9 +127,25 @@ function environment() {
       return this.kept;
     }
   }
+  class Selection {
+    get isCollapsed() {
+      return !this.text;
+    }
+  }
+  const selected = new Selection();
+  selected.text = selection;
   class Document {
+    constructor() {
+      this.base = null;
+    }
     createElement(name) {
       return name === "a" ? new HTMLAnchorElement("a") : new HTMLElement(name);
+    }
+    querySelector(selector) {
+      return selector === "base[target]" && this.base && this.base.hasAttribute("target") ? this.base : null;
+    }
+    getSelection() {
+      return selected;
     }
   }
   const document = new Document();
@@ -158,7 +174,9 @@ function environment() {
     PageTransitionEvent,
     Document,
     URL,
-    location: { origin: "https://page.example" },
+    Selection,
+    isTop: top,
+    location: { origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
   };
   new Function(...Object.keys(env), source)(...Object.values(env));
   const fire = (type, path, init = {}) => {
@@ -174,6 +192,8 @@ function environment() {
   };
   const transition = (type, init) => listeners[type](new PageTransitionEvent(type, init));
   return {
+    document,
+    selected,
     transition,
     handlers,
     sent,
@@ -379,4 +399,127 @@ test("a press that moves a few points still splits on ⌥ (Blink sends no click 
   env.fire("mousedown", [a], ALT);
   env.fire("mouseup", [a], { ...ALT, x: 20 });
   assert.deepEqual(peeks(env).map((p) => p.key), ["alt"]);
+});
+
+const siteConfig = (extra = {}) => ({ modifier: "shift", split: "altShift", otherSites: true, ...extra });
+
+test("with links to other sites on, a plain click on another site's link peeks and cancels the navigation", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const click = env.gesture([env.link("https://other.example/story")], {});
+  assert.deepEqual(peeks(env).map((p) => [p.url, p.key]), [["https://other.example/story", "site"]]);
+  assert.ok(click.defaultPrevented && click.stopped);
+  env.gesture([env.link("https://sub.page.example/x")], {});
+  assert.deepEqual(peeks(env).map((p) => p.url).at(-1), "https://sub.page.example/x");
+});
+
+test("links on the same host navigate: relative links, the www. twin, another port", () => {
+  const env = environment({ page: "https://www.page.example" });
+  env.handlers.peekConfig(siteConfig());
+  for (const href of ["/inbox", "https://page.example/a", "https://www.page.example/b", "https://WWW.Page.Example:8443/c", "#top"]) {
+    const click = env.gesture([env.link(href)], {});
+    assert.equal(click.defaultPrevented, false, href);
+  }
+  assert.equal(peeks(env).length, 0);
+});
+
+test("with links to other sites off (a regular tab, or the setting off), a plain click never peeks", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig({ otherSites: false }));
+  const click = env.gesture([env.link("https://other.example/")], {});
+  assert.equal(peeks(env).length, 0);
+  assert.equal(click.defaultPrevented, false);
+  env.handlers.peekConfig(siteConfig());
+  env.gesture([env.link("https://other.example/")], {});
+  env.handlers.peekConfig(siteConfig({ otherSites: "yes" }));
+  env.gesture([env.link("https://other.example/")], {});
+  assert.equal(peeks(env).length, 1);
+});
+
+test("modifier clicks keep their meaning: ⌘, ⌃ and ⌥ aren't other-site peeks, ⇧ is still the Peek key", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const a = env.link("https://other.example/");
+  for (const keys of [{ meta: true }, { ctrl: true }, { meta: true, shift: true }, ALT]) {
+    const click = env.gesture([a], keys);
+    assert.equal(click.defaultPrevented, false);
+  }
+  assert.equal(peeks(env).length, 0);
+  env.gesture([a], SHIFT);
+  assert.deepEqual(peeks(env).map((p) => p.key), ["shift"]);
+  env.gesture([a], { button: 1 });
+  assert.equal(peeks(env).length, 1);
+});
+
+test("links that open elsewhere or download, non-http(s) links and editable content are left to the page", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const clicks = [
+    env.gesture([env.link("https://other.example/", { target: "_blank" })], {}),
+    env.gesture([env.link("https://other.example/", { target: "reader" })], {}),
+    env.gesture([env.link("https://other.example/file.zip", { download: "" })], {}),
+    env.gesture([env.link("mailto:x@other.example")], {}),
+    env.gesture([env.link("ftp://other.example/")], {}),
+  ];
+  const editable = env.link("https://other.example/");
+  editable.editable = true;
+  clicks.push(env.gesture([editable], {}));
+  assert.equal(peeks(env).length, 0);
+  assert.ok(clicks.every((c) => !c.defaultPrevented));
+  for (const target of [" _self ", " ", "_blank"]) env.gesture([env.link("https://other.example/", { target })], {});
+  env.gesture([env.link(`https://other.example/${"x".repeat(8200)}`)], {});
+  assert.equal(peeks(env).length, 0);
+  for (const target of ["_self", "_top", "_parent", "", "_SELF"]) env.gesture([env.link("https://other.example/", { target })], {});
+  assert.equal(peeks(env).length, 5);
+});
+
+test("a <base target> applies to links without their own target", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const Anchor = env.link("/").constructor;
+  env.document.base = new Anchor("base", { target: "_blank" });
+  env.gesture([env.link("https://other.example/")], {});
+  assert.equal(peeks(env).length, 0);
+  env.gesture([env.link("https://other.example/", { target: "_self" })], {});
+  assert.equal(peeks(env).length, 1);
+});
+
+test("a click that belongs to a text selection, a drag, a subframe or a file page doesn't peek", () => {
+  const selecting = environment({ selection: "selected words" });
+  selecting.handlers.peekConfig(siteConfig());
+  selecting.gesture([selecting.link("https://other.example/")], {});
+  assert.equal(peeks(selecting).length, 0);
+  selecting.selected.text = null;
+  selecting.gesture([selecting.link("https://other.example/")], {});
+  assert.equal(peeks(selecting).length, 1);
+  selecting.gesture([selecting.link("https://other.example/")], {}, { move: 12 });
+  assert.equal(peeks(selecting).length, 1);
+  const frame = environment({ top: false });
+  frame.handlers.peekConfig(siteConfig());
+  const framed = frame.gesture([frame.link("https://other.example/")], {});
+  assert.equal(peeks(frame).length, 0);
+  assert.equal(framed.defaultPrevented, false);
+  frame.gesture([frame.link("https://other.example/")], SHIFT);
+  assert.equal(peeks(frame).length, 1);
+  const file = environment({ page: "file:///Users/me/page.html" });
+  file.handlers.peekConfig(siteConfig());
+  file.gesture([file.link("https://other.example/")], {});
+  assert.equal(peeks(file).length, 0);
+});
+
+test("when native refuses an other-site peek, the page follows the link it swallowed, once", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const a = env.link("https://other.example/story");
+  env.gesture([a], {});
+  env.handlers.peekRefused({ url: "https://other.example/else", reason: "x", follow: true });
+  assert.equal(env.clicked.length, 0);
+  env.handlers.peekRefused({ url: "https://other.example/story", reason: "x", follow: true });
+  env.handlers.peekRefused({ url: "https://other.example/story", reason: "x", follow: true });
+  assert.deepEqual(env.clicked, [a]);
+  const svg = env.svgLink("https://other.example/svg");
+  env.gesture([svg], {});
+  env.handlers.peekRefused({ url: "https://other.example/svg", reason: "x", follow: true });
+  assert.equal(env.clicked.length, 2);
+  assert.deepEqual(env.clicked[1].attrs, { href: "https://other.example/svg", target: "_self" });
 });

@@ -1,60 +1,79 @@
 import { GlassEffect, isLiquidGlass } from "@ardia/shell";
-import { memo } from "react";
+import { createContext, memo, useContext } from "react";
 import { useTheme, type Theme } from "./theme";
+import { parseColor, toHex } from "../../lib/color";
 
 export const liquidGlass = isLiquidGlass();
 
 const PROFILE_SHARE = 0.15;
-export const FIELD_GLASS_OPACITY = 0.45;
-export const FIELD_GLASS_HOVER_OPACITY = 0.75;
+const TINT_LIFT_PER_SHARE = 0.125;
+const CONTROL_FILL_SHARE = 0.15;
+const CONTROL_GLASS_STRENGTH = 0.5;
+const PANEL_TINT_SHARE = 0.85;
+const PANEL_GLASS_STRENGTH = 0.5;
+const GLASS_STYLE = { control: "clear", panel: "regular" } as const;
+const STATE_GAIN = { rest: 1, lit: 2, pressed: 3, active: 6 } as const;
 
-function glassTint(theme: Theme, fill: string, raised = false, dark = theme.dark): string {
-  const [r, g, b, a] = rgba(fill);
-  const [pr, pg, pb] = rgba(theme.backdrop.tintColor);
-  const lightening = r + g + b > 3 * 127;
-  const alpha = a * (!lightening ? 1 : dark ? (raised ? 0.9 : 0.6) : raised ? 0.8 : 0.55);
-  const mix = (c: number, p: number) => c + (p - c) * PROFILE_SHARE;
-  return toHex([mix(r, pr), mix(g, pg), mix(b, pb), alpha * 255]);
+export type GlassKind = keyof typeof GLASS_STYLE;
+export type GlassState = keyof typeof STATE_GAIN;
+export type GlassLook = { controls: boolean; panes: boolean; tint: number };
+
+export const GlassLookContext = createContext<GlassLook>({ controls: liquidGlass, panes: liquidGlass, tint: 0 });
+
+export const useGlassLook = () => useContext(GlassLookContext);
+
+export function useGlass(surface: "controls" | "panes" = "controls"): boolean {
+  return useGlassLook()[surface];
+}
+
+function profileTinted(theme: Theme, color: string, tinted: boolean, share = PROFILE_SHARE): string {
+  const [r, g, b, a] = parseColor(color);
+  if (!tinted) return toHex([r, g, b, a * 255]);
+  const [pr, pg, pb] = parseColor(theme.backdrop.tintColor);
+  const mix = (c: number, p: number) => c + (p - c) * share;
+  return toHex([mix(r, pr), mix(g, pg), mix(b, pb), a * 255]);
+}
+
+export function controlGlassTint(theme: Theme, state: GlassState, tint: number): string {
+  const [r, g, b, a] = parseColor(theme.pinnedResting);
+  const alpha = Math.min(1, a * CONTROL_FILL_SHARE * STATE_GAIN[state] + tint * TINT_LIFT_PER_SHARE);
+  return profileTinted(theme, toHex([r, g, b, alpha * 255]), tint > 0, tint);
+}
+
+export function panelGlassTint(theme: Theme, fill: string, tint: number): string {
+  const [r, g, b, a] = parseColor(fill);
+  const glassy = 1 - Math.min(1, a * PANEL_TINT_SHARE);
+  return profileTinted(theme, toHex([r, g, b, (1 - glassy * PANEL_GLASS_STRENGTH) * 255]), tint > 0);
 }
 
 export const GlassFill = memo(function GlassFill({
-  fill,
-  tint,
   radius,
   border = 0,
-  raised,
+  state = "rest",
+  panelFill,
   dark,
-  opacity = 1,
+  theme: shownTheme,
 }: {
-  fill: string;
-  tint?: string | null;
   radius: number;
   border?: number;
-  raised?: boolean;
+  state?: GlassState;
+  panelFill?: string;
   dark?: boolean;
-  opacity?: number;
+  theme?: Theme;
 }) {
-  const theme = useTheme();
+  const contextTheme = useTheme();
+  const theme = shownTheme ?? contextTheme;
+  const { tint } = useGlassLook();
+  const shownDark = dark ?? theme.dark;
+  const frame = { position: "absolute", top: -border, left: -border, right: -border, bottom: -border } as const;
   return (
     <GlassEffect
       pointerEvents="none"
+      glassStyle={GLASS_STYLE[panelFill ? "panel" : "control"]}
       cornerRadius={radius}
-      tint={tint === null ? undefined : (tint ?? glassTint(theme, fill, raised, dark ?? theme.dark))}
-      dark={dark ?? theme.dark}
-      style={{ position: "absolute", top: -border, left: -border, right: -border, bottom: -border, opacity }}
+      tint={panelFill ? panelGlassTint(theme, panelFill, tint) : controlGlassTint(theme, state, tint)}
+      dark={shownDark}
+      style={[frame, panelFill ? null : { opacity: CONTROL_GLASS_STRENGTH }]}
     />
   );
 });
-
-function rgba(color: string): [number, number, number, number] {
-  const m = color.match(/rgba?\(([^)]+)\)/);
-  if (m) {
-    const [r = 0, g = 0, b = 0, a = 1] = m[1]!.split(",").map((v) => Number(v.trim()));
-    return [r, g, b, a];
-  }
-  const h = color.replace("#", "");
-  const ch = (i: number) => parseInt(h.slice(2 * i, 2 * i + 2), 16);
-  return [ch(0), ch(1), ch(2), h.length >= 8 ? ch(3) / 255 : 1];
-}
-
-const toHex = (c: number[]) => `#${c.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("").toUpperCase()}`;

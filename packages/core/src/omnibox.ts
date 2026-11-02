@@ -3,8 +3,6 @@ import { cleanUrl } from "./cleanUrl.ts";
 import { displayHost } from "./idn.ts";
 import { PSL_TLDS } from "./tlds.ts";
 
-const SEARCH_URL = "https://www.google.com/search?q=";
-
 export type ParsedUrl = { scheme: string; host: string; port: string; path: string; query: string; hash: string };
 
 const URL_PARTS = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/?#]*@)?(\[[^\]]*\]|[^:/?#]*)(?::(\d+))?([^?#]*)(\?[^#]*)?(#.*)?$/i;
@@ -25,29 +23,9 @@ const KNOWN_SCHEMES = new Set([
   "cursor", "notion", "figma", "spotify", "linear", "obsidian", "raycast",
 ]);
 
-const KNOWN_TLDS = new Set(
-  (
-    "com net org edu gov mil int info biz name pro mobi app dev io ai co me tv cc gg sh fm ly so to xyz online site tech store " +
-    "blog shop cloud page news live art design studio agency media digital network systems solutions services software " +
-    "email chat social link click space website world today life fun games game zone wiki tools codes run build host " +
-    "rocks ninja guru expert academy school university health care money finance bank capital fund law legal travel " +
-    "photos photo pics gallery video music film movie radio audio events social group team community church city " +
-    "london nyc paris berlin tokyo africa asia eu aero coop museum jobs cat post tel travel moe onl one top vip win " +
-    "work works company business center global plus inc ltd llc gmbh srl cafe restaurant pizza bar pub coffee wine beer " +
-    "fashion style shoes clothing jewelry watch camera computer phone mobile download security domains hosting " +
-    "google youtube gmail android chrome amazon apple microsoft windows office azure aws netflix meta search " +
-    "local localhost test internal lan arpa onion " +
-    "ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bm bn bo br bs bt bw by bz ca cc " +
-    "cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg er es et eu fi fj fk fm fo fr ga " +
-    "gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp " +
-    "ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mg mh mk ml mm mn mo mp mq mr ms " +
-    "mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro " +
-    "rs ru rw sa sb sc sd se sg sh si sk sl sm sn so sr ss st su sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt " +
-    "tv tw tz ua ug uk us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw"
-  ).split(" "),
-);
+const LOCAL_TLDS = new Set(["meta", "local", "localhost", "test", "internal", "lan"]);
 let registries: Set<string> | undefined;
-const knownTld = (tld: string) => KNOWN_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS.split(/\s+/))).has(tld);
+const knownTld = (tld: string) => LOCAL_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS.split(/\s+/))).has(tld);
 
 function isLocalHost(host: string): boolean {
   return (
@@ -119,7 +97,7 @@ export function searchUrlFor(template: string, query: string): string {
   return template.includes("%s") ? template.replace(/%s/g, q) : template + q;
 }
 
-export function resolveInput(raw: string, search = SEARCH_URL): string {
+export function resolveInput(raw: string, search: string): string {
   const input = raw.trim();
   if (!input) return "";
   if (input.startsWith("?")) return input.length > 1 ? searchUrlFor(search, input.slice(1)) : "";

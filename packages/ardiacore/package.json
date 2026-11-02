@@ -7,7 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "clang++ -std=c++20 -Wall -Werror tests/pip-zoom.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && clang++ -std=c++20 -Wall -Werror tests/pip-throw.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\""
+    "test": "node --test src/engine/api.test.mjs src/pageEvents.test.mjs tests/webkit-page-script.test.mjs && clang++ -std=c++20 -Wall -Werror tests/pip-zoom.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && clang++ -std=c++20 -Wall -Werror tests/pip-throw.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && clang++ -std=c++20 -fobjc-arc -Wall -Werror -framework Foundation ios/ArdiaLaunchSequence.mm tests/launch-sequence.test.mm -o \"${TMPDIR:-/tmp}/ardiacore-launch-sequence-test\" && \"${TMPDIR:-/tmp}/ardiacore-launch-sequence-test\" && clang++ -std=c++20 -fobjc-arc -fsanitize=thread -g -Wall -Werror -framework Foundation ios/ArdiaTransferLedger.mm tests/transfer-ledger.test.mm -o \"${TMPDIR:-/tmp}/ardiacore-transfer-ledger-test\" && TSAN_OPTIONS=halt_on_error=1 \"${TMPDIR:-/tmp}/ardiacore-transfer-ledger-test\" && clang++ -std=c++20 -fobjc-arc -Wall -Werror -framework Foundation tests/tab-lifecycle.test.mm -o \"${TMPDIR:-/tmp}/ardiacore-tab-lifecycle-test\" && \"${TMPDIR:-/tmp}/ardiacore-tab-lifecycle-test\""
   },
   "dependencies": {
     "@ardia/core": "workspace:*"

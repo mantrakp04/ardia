@@ -1,7 +1,8 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
-import UniformTypeIdentifiers
 import ServiceManagement
+import UniformTypeIdentifiers
 
 final class FileDragView: ExpoView, NSDraggingSource {
   var path: String?
@@ -27,7 +28,7 @@ final class FileDragView: ExpoView, NSDraggingSource {
     guard hypot(p.x - start.x, p.y - start.y) > 4 else { return }
     downAt = nil
     let url = URL(fileURLWithPath: path)
-    if FileDropView.background {
+    if LaunchConfig.shared.background {
       FileDropView.lastFileDrag = [url]
       return
     }

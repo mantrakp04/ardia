@@ -5,7 +5,6 @@
 #import "ArdiaStartup.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
-#import "ArdiaNotifications.h"
 
 #import <Security/Security.h>
 #import <objc/runtime.h>
@@ -203,13 +202,6 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *)) {
 ArdiaCoreProfile *PersonalIfLoaded(ArdiaCoreEngine *engine) {
   ArdiaCoreProfile *profile = engine.defaultProfile;
   return [profile.name isEqualToString:@"Default"] ? profile : nil;
-}
-
-NSString *ProfileNameOfDirectory(NSString *directory) {
-  for (ArdiaCoreProfile *profile in LoadedProfiles())
-    if (!profile.offTheRecord && [profile.name isEqualToString:directory])
-      return ProfileName(profile);
-  return ProfileNameOfDirectoryName(directory);
 }
 
 NSString *ProfileName(ArdiaCoreProfile *profile) {

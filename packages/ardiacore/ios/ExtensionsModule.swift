@@ -3,17 +3,15 @@ import ExpoModulesCore
 
 public class ExtensionsModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaExtensions")
-    Events("extensions")
+    Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
     OnCreate {
-      EngineCall.listen("extensions", self)
       ArdiaHost.replayInstallPrompts()
     }
 
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      ExtensionsModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static func chooseFolder(_ args: CallArgs, _ reply: CallReply) {
@@ -26,8 +24,8 @@ public class ExtensionsModule: Module {
     panel.begin { response in reply.ok(response == .OK ? panel.url?.path : nil) }
   }
 
-  static func inspectUnpacked(_ args: CallArgs, _ reply: CallReply) {
-    let info = ArdiaServices.inspectUnpacked(args.text("path"))
+  static func inspectUnpacked(_ args: CallArgs, _ reply: CallReply) throws {
+    let info = ArdiaServices.inspectUnpacked(try args.text("path"))
     if let error = info["error"] { return reply.fail("ERR_ENGINE", error as? String ?? "\(error)") }
     reply.ok(info)
   }
@@ -35,26 +33,26 @@ public class ExtensionsModule: Module {
   static let calls = CallTable(domain: "extensions", handlers: [
     "list": { args, reply in ArdiaServices.listExtensions(profile: args.profile) { reply.service($0, $1) } },
     "inspectUnpacked": inspectUnpacked,
-    "install": { args, reply in ArdiaServices.installExtension(path: args.text("path"), profile: args.profile) { reply.service($0, $1) } },
-    "installCrx": { args, reply in ArdiaServices.installCrx(path: args.text("path"), profile: args.profile) { reply.service($0, $1) } },
+    "install": { args, reply in ArdiaServices.installExtension(path: try args.text("path"), profile: args.profile) { reply.service($0, $1) } },
+    "installCrx": { args, reply in ArdiaServices.installCrx(path: try args.text("path"), profile: args.profile) { reply.service($0, $1) } },
     "setEnabled": { args, reply in
-      ArdiaServices.setExtension(args.text("id"), enabled: args.bool("enabled") ?? false, profile: args.profile) { reply.service($0, $1) }
+      ArdiaServices.setExtension(try args.text("id"), enabled: try args.bool("enabled"), profile: args.profile) { reply.service($0, $1) }
     },
-    "uninstall": { args, reply in ArdiaServices.uninstallExtension(args.text("id"), profile: args.profile) { reply.service($0, $1) } },
-    "reload": { args, reply in ArdiaServices.reloadExtension(args.text("id"), profile: args.profile) { reply.service($0, $1) } },
+    "uninstall": { args, reply in ArdiaServices.uninstallExtension(try args.text("id"), profile: args.profile) { reply.service($0, $1) } },
+    "reload": { args, reply in ArdiaServices.reloadExtension(try args.text("id"), profile: args.profile) { reply.service($0, $1) } },
     "configure": { args, reply in
-      ArdiaServices.configureExtension(args.text("id"), profile: args.profile, options: args.dict("options") ?? [:]) { reply.service($0, $1) }
+      ArdiaServices.configureExtension(try args.text("id"), profile: args.profile, options: try args.dict("options")) { reply.service($0, $1) }
     },
     "chooseFolder": chooseFolder,
     "resolveInstallPrompt": { args, reply in
-      ArdiaHost.resolveExtensionInstallPrompt(args.text("requestId"), accepted: args.bool("accepted") ?? false)
+      ArdiaHost.resolveExtensionInstallPrompt(try args.text("requestId"), accepted: try args.bool("accepted"))
       reply.ok()
     },
     "actionStates": { args, reply in
-      reply.ok(ArdiaHost.actionStates(tabId: args.text("tabId"), extensions: args.strings("ids")))
+      reply.ok(ArdiaHost.actionStates(tabId: try args.text("tabId"), extensions: try args.strings("ids")))
     },
     "sidePanelUrl": { args, reply in
-      reply.ok(ArdiaHost.sidePanelURL(tabId: args.text("tabId"), extension: args.text("extensionId")))
+      reply.ok(ArdiaHost.sidePanelURL(tabId: try args.text("tabId"), extension: try args.text("extensionId")))
     },
     "watchActions": EngineCall.passing("ac_extensions_watch_actions"),
     "syncState": EngineCall.passing("ac_extensions_sync_state"),

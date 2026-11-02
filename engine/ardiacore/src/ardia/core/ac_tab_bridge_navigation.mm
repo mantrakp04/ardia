@@ -25,8 +25,7 @@
 namespace ardiacore {
 
 void TabBridge::DidStartNavigation(content::NavigationHandle* handle) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   if (handle->IsInPrimaryMainFrame() && !handle->IsSameDocument()) {
     rule_blocked_urls_.clear();
   }
@@ -38,22 +37,19 @@ void TabBridge::DidStartNavigation(content::NavigationHandle* handle) {
 }
 
 void TabBridge::TitleWasSet(content::NavigationEntry* entry) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeTitle:)];
 }
 
 void TabBridge::DidStartLoading() {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   EnsureFaviconObserved();
   EnsurePopupsObserved();
   [tab_ notify:@selector(tabDidChangeLoading:)];
 }
 
 void TabBridge::DidStopLoading() {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   base::WeakPtr<TabBridge> alive = weak_factory_.GetWeakPtr();
   [tab_ notify:@selector(tabDidChangeLoading:)];
   if (alive) {
@@ -62,8 +58,7 @@ void TabBridge::DidStopLoading() {
 }
 
 void TabBridge::LoadProgressChanged(double progress) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeProgress:)];
 }
 
@@ -158,8 +153,7 @@ void TabBridge::ReportBlocked() {
 }
 
 void TabBridge::DidFinishNavigation(content::NavigationHandle* handle) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   EnsureFaviconObserved();
   EnsureZoomObserved();
   if (made_ahead_ && handle->IsInPrimaryMainFrame() && handle->HasCommitted() &&
@@ -214,21 +208,18 @@ void TabBridge::DidFinishNavigation(content::NavigationHandle* handle) {
 
 void TabBridge::NavigationEntryCommitted(
     const content::LoadCommittedDetails& load_details) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeNavigationState:)];
 }
 
 void TabBridge::NavigationListPruned(
     const content::PrunedDetails& pruned_details) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeNavigationState:)];
 }
 
 void TabBridge::NavigationEntriesDeleted() {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeNavigationState:)];
 }
 

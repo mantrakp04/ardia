@@ -1,4 +1,6 @@
 CREATE DATABASE IF NOT EXISTS telemetry;
+CREATE DATABASE IF NOT EXISTS sandbox ENGINE = Atomic SETTINGS max_tables = 32;
+ALTER DATABASE sandbox MODIFY SETTING max_tables = 32;
 
 CREATE TABLE IF NOT EXISTS telemetry.otel_logs
 (

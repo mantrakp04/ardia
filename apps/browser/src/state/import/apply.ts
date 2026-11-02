@@ -13,19 +13,22 @@ import {
   type SpaceSuggestion,
 } from "../../platform/importModule";
 import { addGroupsFromDrafts } from "../bookmarks/bookmarkGroups";
-import { adoptFavicons, pageKey as faviconPage } from "../favicons/favicons";
-import type { BookmarkDraft } from "../bookmarks/bookmarks";
+import { adoptFavicons } from "../favicons/favicons";
+import { bookmarkRoots, type BookmarkDraft } from "../bookmarks/bookmarks";
 import type { GroupDraft } from "../groups/draftGroups";
 import { useBrowser } from "../browser/store";
-import { engineProfile, isIncognitoProfile } from "../browser/model";
+import { engineProfile, isIncognitoProfile, ROW_PIN } from "../browser/model";
 import { openPages, pageKey, pinnedPages, tilePages } from "../tabs/pageKeys";
 import { withNewTab } from "../tabs/tabs";
 import type { ProfileColor } from "../browser/types";
-import { adoptProfileTheme } from "../sync/engine";
+import { setProfileTheme } from "../profiles/themeActions";
 import { parseArcTheme } from "./arcTheme";
 import { newProfileLiveFolder } from "../live/engine";
 import { live } from "../live/store";
 import type { LiveSourceId } from "../live/types";
+import { isWebPageUrl, withoutFragment } from "../../lib/url";
+import { focusedWindowOf } from "../windows/ui";
+import { IDLE } from "../tabs/pageSession";
 
 export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "../../platform/importModule";
 
@@ -64,16 +67,16 @@ const linksOf = (nodes: ImportedNode[]): string[] => nodes.flatMap((n) => (n.typ
 
 function importFavicons(profileId: string, favicons: ImportedFavicon[] | undefined, urls: string[]) {
   if (!favicons?.length || !urls.length) return;
-  const wanted = new Set(urls.map(faviconPage));
-  adoptFavicons(profileId, favicons.filter((f) => wanted.has(faviconPage(f.page))));
+  const wanted = new Set(urls.map(withoutFragment));
+  adoptFavicons(profileId, favicons.filter((f) => wanted.has(withoutFragment(f.page))));
 }
 
 const linkCount = (nodes: ImportedNode[]): number => nodes.reduce((n, c) => n + (c.type === "url" ? 1 : linkCount(c.children ?? [])), 0);
 
 export function importBookmarks(profileId: string, root: ImportedNode | undefined, browserName: string): number {
   if (!root?.children?.length) return 0;
-  if (!useBrowser.getState().bookmarks.roots[profileId]) useBrowser.getState().addBookmarkTree(profileId, []);
-  const roots = useBrowser.getState().bookmarks.roots[profileId]!;
+  if (!bookmarkRoots(useBrowser.getState(), profileId)) useBrowser.getState().addBookmarkTree(profileId, []);
+  const roots = bookmarkRoots(useBrowser.getState(), profileId)!;
   const toolbar = root.children.filter((c) => c.role === "toolbar").flatMap((c) => c.children ?? []);
   const rest = root.children.filter((c) => c.role !== "toolbar");
   const other = rest.flatMap((c) => (c.role === "other" || !c.role ? (c.type === "folder" ? (c.children ?? []) : [c]) : [c]));
@@ -90,14 +93,8 @@ export function importBookmarks(profileId: string, root: ImportedNode | undefine
   return linkCount([...toolbar, ...other]);
 }
 
-function importSafariBookmarks(profileId: string, root: ImportedNode | undefined): number {
-  return importBookmarks(profileId, root, "Safari");
-}
-
 export function importHistory(profileId: string, entries: { url: string; title: string; visits: number; lastVisit: number }[]): number {
-  const before = useBrowser.getState().history[profileId]?.length ?? 0;
-  useBrowser.getState().importHistory(profileId, entries);
-  return (useBrowser.getState().history[profileId]?.length ?? 0) - before;
+  return useBrowser.getState().importHistory(profileId, entries);
 }
 
 async function importPasswords(profileId: string, credentials: Credential[]): Promise<number> {
@@ -105,7 +102,7 @@ async function importPasswords(profileId: string, credentials: Credential[]): Pr
   for (const c of credentials) {
     const origin = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(c.realm?.startsWith("http") ? c.realm : c.url)?.[1];
     if (!origin || !c.password) continue;
-    if (await savePassword(engineProfile(profileId), origin, c.username, c.password).catch(orWarn(false))) saved++;
+    if (await savePassword(engineProfile(useBrowser.getState(), profileId), origin, c.username, c.password).catch(orWarn(false))) saved++;
   }
   return saved;
 }
@@ -117,14 +114,14 @@ export async function importNative(
   onFailed?: (kind: ImportKind) => void,
 ): Promise<Pick<ImportCounts, "cookies" | "addresses" | "cards">> {
   const none = { cookies: 0, addresses: 0, cards: 0 };
+  if (!token) return none;
   const api = importModule();
-  if (!api || !token) return none;
   if (!kinds.length || isIncognitoProfile(profileId) || useBrowser.getState().profiles[profileId] === undefined) {
     api.discardImported(token);
     return none;
   }
   try {
-    const w = await api.writeImported(token, engineProfile(profileId), kinds);
+    const w = await api.writeImported(token, engineProfile(useBrowser.getState(), profileId), kinds);
     if (w.cookiesFailed) onFailed?.("cookies");
     if (w.autofillFailed) onFailed?.("autofill");
     return { cookies: w.cookies, addresses: w.addresses, cards: w.cards };
@@ -136,7 +133,7 @@ export async function importNative(
 
 function windowFor(profileId: string): string {
   const s = useBrowser.getState();
-  const regular = s.ui.focusOrder.find((id) => s.windows[id] && !s.windows[id]!.incognito) ?? s.windowOrder.find((id) => !s.windows[id]!.incognito);
+  const regular = s.ui.focusOrder.find((id) => s.windows[id] && s.windows[id]!.kind !== "private") ?? s.windowOrder.find((id) => s.windows[id]!.kind !== "private");
   return regular ?? s.createWindow({ profileId });
 }
 
@@ -156,7 +153,7 @@ export function importTabs(
   const pinned = pinnedAgainst === "tiles" ? tilePages(s, profileId) : pinnedPages(s, profileId);
   const open = openPages(s, profileId);
   const usable = tabs.filter((t) => {
-    if (!/^(https?|file):/i.test(t.url)) return false;
+    if (!isWebPageUrl(t.url)) return false;
     const seen = t.pinned ? pinned : open;
     const key = pageKey(t.url);
     if (seen.has(key)) return false;
@@ -174,11 +171,11 @@ export function importTabs(
       profileId,
       background: true,
       pinned: t.pinned,
-      snapshot: { title: t.title, customTitle: t.customTitle ?? null, ...(t.pinned && t.row ? { pinnedAsRow: true as const } : {}) },
+      snapshot: { title: t.title, customTitle: t.customTitle ?? null, ...(t.pinned && t.row ? { pin: ROW_PIN } : {}) },
       index: after ? next.windows[windowId]!.tabIds.indexOf(after) + 1 : undefined,
     });
     if (!id) continue;
-    next = { ...made, tabs: { ...made.tabs, [id]: { ...made.tabs[id]!, navigation: null } } };
+    next = { ...made, tabs: { ...made.tabs, [id]: { ...made.tabs[id]!, page: IDLE } } };
     if (!t.pinned) unpinned.push(id);
   }
   useBrowser.setState(next);
@@ -198,10 +195,7 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, favico
   );
   tabs += importTabs(profileId, space.tabs.map((t) => ({ ...t, pinned: false })), "Imported");
   const theme = space.theme ? parseArcTheme(space.theme) : null;
-  if (theme) {
-    adoptProfileTheme(profileId);
-    useBrowser.getState().updateProfile(profileId, { theme });
-  }
+  if (theme) setProfileTheme(profileId, theme);
   if (!folders.length) return { tabs, bookmarks: 0, skipped: 0 };
   const { made, skipped } = addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId));
   const groups = useBrowser.getState().groups;
@@ -240,7 +234,7 @@ export async function applyResult(
 
 export async function applySafari(profileId: string, data: SafariExport, cookies = true, onFailed?: (kind: ImportKind) => void): Promise<ImportCounts> {
   const counts = emptyCounts();
-  counts.bookmarks = importSafariBookmarks(profileId, data.bookmarks);
+  counts.bookmarks = importBookmarks(profileId, data.bookmarks, "Safari");
   const history = data.profiles.find((p) => !p.name)?.history ?? data.profiles[0]?.history ?? [];
   counts.history = importHistory(profileId, history);
   Object.assign(counts, await importNative(profileId, data.vaultToken, cookies ? ["cookies", "autofill"] : ["autofill"], onFailed));
@@ -277,8 +271,8 @@ export function profileColorFor(hex: string | undefined): ProfileColor | undefin
 
 export function defaultTarget(): string {
   const s = useBrowser.getState();
-  const w = s.windows[s.ui.focusedWindowId ?? ""];
-  return w && !w.incognito ? w.profileId : s.settings.defaultProfileId;
+  const w = s.windows[focusedWindowOf(s) ?? ""];
+  return w && w.kind !== "private" ? w.profileId : s.settings.defaultProfileId;
 }
 
 export function profileNamed(name: string): string | undefined {

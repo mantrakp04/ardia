@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)embedRootView:(NSView *)root inWindow:(NSWindow *)window;
 
 + (nullable NSView *)rootViewOfWindow:(NSWindow *)window;
++ (nullable NSView *)embeddedRootOfWindow:(NSWindow *)window;
+@property(class, nonatomic, readonly) Class contentViewClass;
 
 + (void)removeRootViewOfWindow:(NSWindow *)window;
 
