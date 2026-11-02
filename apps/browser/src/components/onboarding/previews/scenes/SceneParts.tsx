@@ -45,7 +45,7 @@ export function Std({ g, look, opts, n = 4, sel = 0, rows, page, card, a = NOTES
   );
 }
 
-export function KeyPress({ g, look, t, label, ms = 0 }: { g: Geo; look: Look; t: Tracker; label: string; ms?: number }) {
+export function KeyPress({ g, t, label, ms = 0 }: { g: Geo; look: Look; t: Tracker; label: string; ms?: number }) {
   return (
     <Keycap
       g={g}

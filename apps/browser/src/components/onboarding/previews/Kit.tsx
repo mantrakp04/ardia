@@ -27,7 +27,7 @@ export function Glyph({ g, name, size, color, weight, box }: { g: Geo; name: str
   return <Symbol name={name} size={size * g.s} weight={weight} color={color} style={{ width: b, height: b }} />;
 }
 
-export function Backdrop({ g, look }: { g: Geo; look: Look }) {
+export function Backdrop({ look }: { g: Geo; look: Look }) {
   const bands = 10;
   return (
     <View style={[fill, { backgroundColor: look.tint[0] }]} pointerEvents="none">

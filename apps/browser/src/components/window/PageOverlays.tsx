@@ -26,7 +26,6 @@ export function PageOverlays({
   width,
   geometry,
   toolbar,
-  fullscreen,
   newTabShown,
   statusStyle,
   popovers = true,
