@@ -68,11 +68,8 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
 
   private func install(answering choice: PendingChoice, with answer: (SPUUserUpdateChoice) -> Void, resettingStandard: Bool) {
     installPending = true
-    choice.whenAnswered { [weak self] in
-      guard let self else { return }
-      self.installPending = false
-      if resettingStandard { self.standard.dismissUpdateInstallation() }
-    }
+    choice.whenAnswered { [weak self] in self?.installPending = false }
+    if resettingStandard { standard.dismissUpdateInstallation() }
     answer(.install)
   }
 
@@ -101,6 +98,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   private func awaiting(_ reply: @escaping (SPUUserUpdateChoice) -> Void, staged: Bool = false) -> (SPUUserUpdateChoice) -> Void {
     let choice = PendingChoice(reply)
     let answer: (SPUUserUpdateChoice) -> Void = { [weak self] picked in
+      if let self, self.installPending, picked != .install { return }
       if let self, case .asking(let item, let asked, _, _) = self.showing, asked === choice { self.showing = .shown(item) }
       guard picked == .install, let self, let item = self.showing.item else { return choice.answer(picked) }
       guard self.isOnChannel(item) else { return self.drop(item, staged: staged, answering: choice.answer) }
