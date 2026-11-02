@@ -59,6 +59,7 @@ chromium chromium-pip-overlay-window.patch
 chromium chromium-tab-sharing-capturer.patch
 chromium chromium-desktop-capture-window-audio.patch
 chromium chromium-video-super-resolution.patch
+chromium chromium-page-color-matrix.patch
 chromium chromium-begin-frame-warm-up.patch
 chromium chromium-main-frame-throttle-after-show.patch
 chromium chromium-main-frame-full-rate-on-input.patch

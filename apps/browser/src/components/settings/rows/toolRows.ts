@@ -2,6 +2,19 @@ import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 
 export const toolRows = {
+  boosts: [
+    {
+      section: "Boosts",
+      rows: {
+        list: {
+          title: "Boosts",
+          description: "Colours, fonts, hidden elements, CSS and JavaScript that restyle a site. Create one from Site Controls or the tab menu.",
+          keywords: ["boost", "restyle", "theme site", "zap", "custom css", "userscript"],
+        },
+      },
+    },
+    { section: "Import", rows: { import: { title: "Import a Boost", description: "Paste a share code to add someone's Boost.", keywords: ["share code", "paste", "install boost"] } } },
+  ],
   shortcuts: [
     {
       section: "Keyboard Shortcuts",
@@ -207,4 +220,4 @@ export const toolRows = {
       },
     },
   ],
-} satisfies Pick<Record<SettingsPane, SettingSection[]>, "shortcuts" | "liveFolders" | "calendar" | "engines" | "advanced">;
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "boosts" | "shortcuts" | "liveFolders" | "calendar" | "engines" | "advanced">;

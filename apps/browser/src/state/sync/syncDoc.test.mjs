@@ -5,7 +5,7 @@ const { DATA_TYPES, defaultTypes, typeSyncedFor } = await import("./syncDoc.ts")
 test("every sync type is listed once, on by default, in the Sync pane's order", () => {
   assert.deepEqual(
     DATA_TYPES.map((t) => t.id),
-    ["bookmarks", "history", "tabs", "pinned", "passwords", "extensions", "settings"],
+    ["bookmarks", "history", "tabs", "pinned", "passwords", "extensions", "boosts", "settings"],
   );
   assert.deepEqual(Object.keys(defaultTypes()), DATA_TYPES.map((t) => t.id));
   assert.ok(Object.values(defaultTypes()).every((on) => on));

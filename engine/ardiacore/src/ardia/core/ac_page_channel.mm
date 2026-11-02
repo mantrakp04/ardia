@@ -58,14 +58,14 @@ bool MayRequestDisplayMedia(content::RenderFrameHost& frame) {
          frame.HasTransientUserActivation();
 }
 
+}
+
 mojo::AssociatedRemote<mojom::ACPage> PageOf(content::RenderFrameHost* frame) {
   mojo::AssociatedRemote<mojom::ACPage> page;
   if (frame && frame->IsRenderFrameLive()) {
     frame->GetRemoteAssociatedInterfaces()->GetInterface(&page);
   }
   return page;
-}
-
 }
 
 void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,

@@ -38,6 +38,7 @@ protocol PageTab: NSView {
   func print()
   func runPageCommand(_ name: String)
   func showDevTools(panel: String?)
+  func zap(_ action: String, level: Int)
   func executeJavaScript(_ code: String)
   func evaluate(_ code: String, completion: @escaping (String?) -> Void)
   func navigationEntries(_ completion: @escaping ([[String: Any]]) -> Void)

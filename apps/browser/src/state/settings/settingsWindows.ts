@@ -18,6 +18,7 @@ export const SETTINGS_PANES = [
   "passwords",
   "autofill",
   "extensions",
+  "boosts",
   "search",
   "engines",
   "shortcuts",

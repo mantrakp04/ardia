@@ -6,6 +6,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -55,6 +56,13 @@ std::string& PageScript() {
   static base::NoDestructor<std::string> script;
   return *script;
 }
+
+constexpr char kBoostSheetKey[] = "ardia-boost";
+
+struct BoostState {
+  std::string css;
+  std::vector<std::string> scripts;
+};
 
 constexpr char kPictureInPictureCandidates[] =
     "const videos = [...document.querySelectorAll('video')].filter((v) => "
@@ -121,6 +129,7 @@ class ACPageObserver : public content::RenderFrameObserver,
   }
 
   void RunAtDocumentStart() {
+    RunBoostAtDocumentStart();
     if (installed_for_web_ || !IsWebDocument()) {
       return;
     }
@@ -133,6 +142,46 @@ class ACPageObserver : public content::RenderFrameObserver,
       return;
     }
     InstallPageScript(context);
+  }
+
+  void RunBoostAtDocumentStart() {
+    boost_sheet_inserted_ = false;
+    BoostState next = pending_boost_.value_or(BoostState());
+    pending_boost_.reset();
+    boost_css_ = std::move(next.css);
+    boost_scripts_ = std::move(next.scripts);
+    ApplyBoostStyle();
+    document_started_ = true;
+  }
+
+  void RunBoostAtDocumentEnd() {
+    std::vector<std::string> scripts = std::move(boost_scripts_);
+    boost_scripts_.clear();
+    blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+    base::WeakPtr<ACPageObserver> alive = weak_factory_.GetWeakPtr();
+    for (const std::string& script : scripts) {
+      v8::HandleScope handle_scope(frame->GetAgentGroupScheduler()->Isolate());
+      frame->ExecuteScriptInIsolatedWorldAndReturnValue(
+          ISOLATED_WORLD_ID_CHROME_INTERNAL, Source(script, "ardia://boost"),
+          blink::BackForwardCacheAware::kAllow);
+      if (!alive) {
+        return;
+      }
+    }
+  }
+
+  void SetBoost(const std::string& css,
+                const std::vector<std::string>& scripts,
+                bool next_document) override {
+    if (next_document) {
+      document_started_ = false;
+      pending_boost_ = BoostState{css, scripts};
+      return;
+    }
+    boost_css_ = css;
+    if (document_started_) {
+      ApplyBoostStyle();
+    }
   }
 
   bool IsWebDocument() {
@@ -345,6 +394,21 @@ class ACPageObserver : public content::RenderFrameObserver,
     return set + " window.dispatchEvent(new Event(\"ardiapagecolor\"));";
   }
 
+  void ApplyBoostStyle() {
+    blink::WebDocument document = render_frame()->GetWebFrame()->GetDocument();
+    const blink::WebString key = blink::WebString::FromUtf8(kBoostSheetKey);
+    if (boost_sheet_inserted_) {
+      document.RemoveInsertedStyleSheet(key, blink::WebCssOrigin::kUser);
+      boost_sheet_inserted_ = false;
+    }
+    if (boost_css_.empty()) {
+      return;
+    }
+    document.InsertStyleSheet(blink::WebString::FromUtf8(boost_css_), &key,
+                              blink::WebCssOrigin::kUser);
+    boost_sheet_inserted_ = true;
+  }
+
   void BindPage(mojo::PendingAssociatedReceiver<mojom::ACPage> receiver) {
     page_receivers_.Add(this, std::move(receiver));
   }
@@ -417,6 +481,11 @@ class ACPageObserver : public content::RenderFrameObserver,
   std::map<int, EvaluateCallback> evaluations_;
   int last_evaluation_ = 0;
   std::string page_color_;
+  std::optional<BoostState> pending_boost_;
+  std::string boost_css_;
+  std::vector<std::string> boost_scripts_;
+  bool boost_sheet_inserted_ = false;
+  bool document_started_ = false;
   bool installed_for_web_ = false;
   bool installing_ = false;
   raw_ptr<content::RenderFrame> registered_frame_;
@@ -472,6 +541,14 @@ void ACContentRendererClient::RunScriptsAtDocumentStart(
     observer->RunAtDocumentStart();
   }
   ChromeContentRendererClient::RunScriptsAtDocumentStart(render_frame);
+}
+
+void ACContentRendererClient::RunScriptsAtDocumentEnd(
+    content::RenderFrame* render_frame) {
+  if (ACPageObserver* observer = ACPageObserver::For(render_frame)) {
+    observer->RunBoostAtDocumentEnd();
+  }
+  ChromeContentRendererClient::RunScriptsAtDocumentEnd(render_frame);
 }
 
 }

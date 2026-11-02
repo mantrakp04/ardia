@@ -26,6 +26,12 @@ interface CaptureOptions {
 const LIB_VERSION = "1.0.0";
 
 const production = PRODUCTION_HOSTS.includes(location.hostname);
+export const pageUrl = () => {
+  const url = new URL(location.href);
+  if (url.pathname.startsWith("/boost")) url.hash = "";
+  return url.href;
+};
+
 export const enabled = production || read(DEV_OPT_IN_KEY) === "dev";
 const environment = production ? "production" : "development";
 
@@ -169,7 +175,7 @@ interface Session {
 
 function entryProps(): Props {
   const out: Props = {
-    $session_entry_url: location.href,
+    $session_entry_url: pageUrl(),
     $session_entry_host: location.host,
     $session_entry_pathname: location.pathname,
     $session_entry_referrer: referrer,
@@ -351,7 +357,7 @@ export function capture(event: TelemetryEvent, props: Props = {}, options: Captu
     const uuid = options.uuid ?? uuidv7(now);
     const all: Props = {
       ...constant,
-      $current_url: location.href,
+      $current_url: pageUrl(),
       $host: location.host,
       $pathname: location.pathname,
       $viewport_width: window.innerWidth,
@@ -401,7 +407,7 @@ export function log(level: keyof typeof SEVERITY, message: string, props: Props 
         distinct_id: distinctId,
         $session_id: session?.id,
         $window_id: windowId,
-        $current_url: location.href,
+        $current_url: pageUrl(),
         $pathname: location.pathname,
         $browser: device.$browser,
         $browser_version: device.$browser_version,

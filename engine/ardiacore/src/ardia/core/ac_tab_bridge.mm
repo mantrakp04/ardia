@@ -17,6 +17,7 @@
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/result_codes.h"
+#include "ardia/core/ac_boost_tab.h"
 #include "ardia/core/ac_browser_internal.h"
 #include "ardia/core/ac_hooks.h"
 #include "ardia/core/ac_page_channel.h"
@@ -41,6 +42,7 @@ TabBridge::TabBridge(content::WebContents* contents)
   content::g_ardia_opacity_from_default_color = true;
   tab_ = [[ArdiaCoreTab alloc] initWithContents:contents];
   PageChannel::GetOrCreate(contents);
+  AttachBoosts(contents);
 }
 
 TabBridge::~TabBridge() = default;

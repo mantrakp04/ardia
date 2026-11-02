@@ -17,6 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<NSDictionary *> *)testChooserEvents;
 + (BOOL)shareTabInstead:(NSString *)capturerTabId target:(NSString *)targetTabId NS_SWIFT_NAME(shareTabInstead(capturer:target:));
 + (BOOL)showCastDialog:(NSString *)tabId NS_SWIFT_NAME(showCastDialog(tabId:));
++ (void)setProfileBoosts:(NSString *)profile json:(NSString *)json completion:(void (^)(BOOL accepted))completion
+    NS_SWIFT_NAME(setProfileBoosts(profile:json:completion:));
++ (BOOL)previewBoost:(NSString *)tabId json:(NSString *)json NS_SWIFT_NAME(previewBoost(tabId:json:));
++ (BOOL)clearBoostPreview:(NSString *)tabId NS_SWIFT_NAME(clearBoostPreview(tabId:));
 + (void)castDialog:(int)dialogId start:(NSString *)sink mode:(int)mode NS_SWIFT_NAME(castDialog(_:start:mode:));
 + (void)castDialog:(int)dialogId stop:(NSString *)route NS_SWIFT_NAME(castDialog(_:stop:));
 + (void)closeCastDialog:(int)dialogId NS_SWIFT_NAME(closeCastDialog(_:));

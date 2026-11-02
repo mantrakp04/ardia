@@ -20,7 +20,7 @@ test("every setting is either on the config allowlist or deliberately left out, 
   for (const key of SETTING_KEYS) assert.ok(allowed.has(key) !== excluded.has(key), `${key} must be in exactly one list`);
   assert.equal(allowed.size + excluded.size, SETTING_KEYS.length, "no stale names in either list");
   assert.deepEqual([...excluded].sort(), [
-    "allowJavaScriptFromAppleEvents", "cliControl", "customSearchEngines", "customSearchUrl", "defaultProfileId", "extensionSearchEngines",
+    "allowJavaScriptFromAppleEvents", "boostJavaScriptWarned", "cliControl", "customSearchEngines", "customSearchUrl", "defaultProfileId", "extensionSearchEngines",
     "pageEngine", "protectedVideoInWebKit", "websiteEngines",
   ]);
 });
