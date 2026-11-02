@@ -224,6 +224,28 @@ test("a receipt outlives 90 days while its send still waits to be deleted, so a 
   assert.equal(mac.record(key).v, null, "and deleted on its return");
 });
 
+test("a receipt saved before a crash that lost the send survives 90 days with the sender away, so the send doesn't open again when it's pulled back", async () => {
+  const folder = new Folder();
+  const time = timeline();
+  const phone = new Device("P", folder, { now: time.now });
+  const mac = new Device("A", folder, { now: time.now });
+  const key = phone.send("A", "https://example.com/away");
+  await phone.sync();
+  const before = structuredClone(mac.state);
+  await mac.sync();
+  assert.equal(mac.delivered.length, 1);
+
+  const restored = new Device("A", folder, { now: time.now });
+  restored.state = before;
+  restored.ledger = structuredClone(mac.ledger);
+  restored.clock = new Clock("A", mac.clock.last);
+  time.at += 91 * DAY;
+  await restored.sync();
+  await restored.sync();
+  assert.deepEqual(restored.delivered, [], "the saved receipt still knows it's open");
+  assert.equal(restored.record(key).v, null, "and the receiver deletes it");
+});
+
 test("a sender that crashed after its send went out, with the send still queued, never sends it again over the receiver's deletion", async () => {
   const folder = new Folder();
   const time = timeline();

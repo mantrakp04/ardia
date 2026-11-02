@@ -22,7 +22,7 @@ export function sentTabsAdapter(deviceId: string, ledger: () => SendLedger, deli
         } else if (now - send.at >= SEND_KEPT_MS) delete outgoing[key];
         else values.set(key, send);
       }
-      const awaitsReceipt = (key: string) => sendRecord(base(key))?.to === deviceId;
+      const awaitsReceipt = (key: string) => !known(key) || [base(key), remote(key)].some((value) => sendRecord(value)?.to === deviceId);
       for (const [key, at] of Object.entries(received)) {
         if ((known(key) && remote(key) === null && !queued(key)) || (now - at > RECEIVED_KEPT_MS && !awaitsReceipt(key))) delete received[key];
       }
