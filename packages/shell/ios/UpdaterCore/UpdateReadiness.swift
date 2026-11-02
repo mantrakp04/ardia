@@ -79,7 +79,7 @@ public struct UpdateReadiness {
   }
 
   public mutating func checkFailed() {
-    if restarting != nil { staged = nil }
+    if let restarting, staged?.build == restarting { staged = nil }
     request = nil
     restarting = nil
   }

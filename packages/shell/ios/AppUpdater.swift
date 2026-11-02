@@ -255,8 +255,7 @@ public final class AppUpdater: NSObject {
     if userDriver.retryTermination() { return }
     guard readiness.requestInstall(allowed: allowedChannels, at: Date()) else { return }
     guard updater.canCheckForUpdates else {
-      readiness.checkEnded()
-      return NSLog("Ardia: an update session is busy; not restarting to update yet")
+      return NSLog("Ardia: an update check is under way; it resumes the staged update and restarts")
     }
     updater.checkForUpdates()
   }

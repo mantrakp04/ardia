@@ -124,6 +124,24 @@ final class UpdateReadinessTests: XCTestCase {
     XCTAssertNil(readiness.ready(allowed: []))
   }
 
+  func testAFailedRestartLeavesABuildStagedSinceAlone() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    let newer = Update(build: "246", version: "0.2.46", channel: nil)
+    readiness.stage(newer)
+    readiness.checkFailed()
+    XCTAssertEqual(readiness.ready(allowed: []), newer)
+  }
+
+  func testASecondRequestKeepsTheFirstOnesRestartGoing() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start.addingTimeInterval(1)))
+    XCTAssertTrue(readiness.installsAtOnce(build: "245", staged: true, at: start.addingTimeInterval(2)))
+  }
+
   func testAFailedCheckNobodyAskedForKeepsTheStagedUpdate() {
     var readiness = UpdateReadiness()
     readiness.stage(stable)
