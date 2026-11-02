@@ -9,10 +9,11 @@ export {
   type SystemInfo,
   type UpdaterState,
   type UpdateChannel,
+  type ReadyUpdate,
   type AppIcon,
 } from "@ardia/shell";
 import { call } from "@ardia/ardiacore";
-import { nativeModule, type AppEvent, type AppearanceMode, type UpdateChannel } from "@ardia/shell";
+import { nativeModule, type AppEvent, type AppearanceMode, type ReadyUpdate, type UpdateChannel } from "@ardia/shell";
 
 export { replyToTerminate } from "./windows";
 
@@ -45,3 +46,5 @@ export const checkForUpdates = () => Updater.checkForUpdates();
 export const setAutomaticUpdateChecks = (on: boolean) => Updater.setAutomaticUpdateChecks(on);
 export const setAutomaticUpdateDownloads = (on: boolean) => Updater.setAutomaticUpdateDownloads(on);
 export const setUpdateChannel = (channel: UpdateChannel) => Updater.setUpdateChannel(channel);
+export const restartToUpdate = () => Updater.restartToUpdate();
+export const onReadyUpdate = (listener: (ready: ReadyUpdate | null) => void) => Updater.addListener("onReadyUpdate", (e) => listener(e.ready ?? null));

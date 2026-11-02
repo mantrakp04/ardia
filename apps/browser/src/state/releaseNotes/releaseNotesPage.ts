@@ -7,8 +7,8 @@ function releaseNotesUrl(version = systemInfo().appVersion): string | null {
   return version ? `${page}#${version}` : page;
 }
 
-export function openReleaseNotesPage(windowId?: string | null) {
-  const url = releaseNotesUrl();
+export function openReleaseNotesPage(windowId?: string | null, version?: string) {
+  const url = releaseNotesUrl(version);
   if (url) openUrls([url], windowId);
 }
 

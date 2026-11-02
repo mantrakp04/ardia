@@ -1,17 +1,26 @@
 import AppKit
 import Sparkle
 
+protocol ReadyUpdateButton: AnyObject {
+  var checksQuietly: Bool { get }
+  func staged(_ item: SUAppcastItem)
+  func dropped(_ item: SUAppcastItem)
+  func installsAtOnce(_ item: SUAppcastItem, staged: Bool) -> Bool
+  func checkEnded(nothingFound: Bool)
+  func checkFailed()
+}
+
 final class ChannelUserDriver: NSObject, SPUUserDriver {
   private enum Showing {
     case nothing
-    case asking(SUAppcastItem, PendingChoice, staged: Bool)
+    case asking(SUAppcastItem, PendingChoice, staged: Bool, answer: (SPUUserUpdateChoice) -> Void)
     case downloading(SUAppcastItem, cancel: () -> Void)
     case shown(SUAppcastItem)
 
     var item: SUAppcastItem? {
       switch self {
       case .nothing: return nil
-      case .asking(let item, _, _), .downloading(let item, _), .shown(let item): return item
+      case .asking(let item, _, _, _), .downloading(let item, _), .shown(let item): return item
       }
     }
   }
@@ -19,13 +28,17 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   private let standard: SPUStandardUserDriver
   private let isOnChannel: (SUAppcastItem) -> Bool
   private let cancelledInstaller: (SUAppcastItem) -> Void
+  private weak var button: ReadyUpdateButton?
   private var showing = Showing.nothing
+  private var retryTerminating: (() -> Void)?
+  private(set) var installPending = false
 
   init(standard: SPUStandardUserDriver, isOnChannel: @escaping (SUAppcastItem) -> Bool,
-       cancelledInstaller: @escaping (SUAppcastItem) -> Void) {
+       cancelledInstaller: @escaping (SUAppcastItem) -> Void, button: ReadyUpdateButton) {
     self.standard = standard
     self.isOnChannel = isOnChannel
     self.cancelledInstaller = cancelledInstaller
+    self.button = button
   }
 
   override func responds(to aSelector: Selector!) -> Bool {
@@ -40,14 +53,30 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
     guard isOnChannel(appcastItem) else { return drop(appcastItem, staged: state.stage == .installing, answering: reply) }
     showing = .shown(appcastItem)
     let staged = state.stage == .installing
-    if staged { UpdatePrewarm.warm(version: appcastItem.versionString) }
-    standard.showUpdateFound(with: appcastItem, state: state, reply: awaiting(reply, staged: staged))
+    if staged {
+      UpdatePrewarm.warm(version: appcastItem.versionString)
+      button?.staged(appcastItem)
+    } else {
+      button?.dropped(appcastItem)
+    }
+    let answer = awaiting(reply, staged: staged)
+    if button?.installsAtOnce(appcastItem, staged: staged) == true, case .asking(_, let choice, _, _) = showing {
+      return install(answering: choice, with: answer, resettingStandard: false)
+    }
+    standard.showUpdateFound(with: appcastItem, state: state, reply: answer)
+  }
+
+  private func install(answering choice: PendingChoice, with answer: (SPUUserUpdateChoice) -> Void, resettingStandard: Bool) {
+    installPending = true
+    choice.whenAnswered { [weak self] in self?.installPending = false }
+    if resettingStandard { standard.dismissUpdateInstallation() }
+    answer(.install)
   }
 
   func leaveOffChannelUpdate() {
     guard let item = showing.item, !isOnChannel(item) else { return }
     switch showing {
-    case .asking(_, let choice, let staged):
+    case .asking(_, let choice, let staged, _):
       showing = .shown(item)
       drop(item, staged: staged, answering: choice.answer)
     case .downloading(_, let cancel):
@@ -61,15 +90,16 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   private func drop(_ item: SUAppcastItem, staged: Bool, answering reply: (SPUUserUpdateChoice) -> Void) {
     NSLog("Ardia: dropping update \(item.displayVersionString) (build \(item.versionString)): its channel isn't this copy's any more")
     UpdatePrewarm.stop()
+    button?.dropped(item)
     if staged { cancelledInstaller(item) }
     SkippedUpdateDefaults.unchanged { reply(.skip) }
   }
 
   private func awaiting(_ reply: @escaping (SPUUserUpdateChoice) -> Void, staged: Bool = false) -> (SPUUserUpdateChoice) -> Void {
     let choice = PendingChoice(reply)
-    if let item = showing.item { showing = .asking(item, choice, staged: staged) }
-    return { [weak self] picked in
-      if let self, case .asking(let item, let asked, _) = self.showing, asked === choice { self.showing = .shown(item) }
+    let answer: (SPUUserUpdateChoice) -> Void = { [weak self] picked in
+      if let self, self.installPending, picked != .install { return }
+      if let self, case .asking(let item, let asked, _, _) = self.showing, asked === choice { self.showing = .shown(item) }
       guard picked == .install, let self, let item = self.showing.item else { return choice.answer(picked) }
       guard self.isOnChannel(item) else { return self.drop(item, staged: staged, answering: choice.answer) }
       guard staged else { return choice.answer(.install) }
@@ -78,6 +108,8 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
         choice.answer(.install)
       }
     }
+    if let item = showing.item { showing = .asking(item, choice, staged: staged, answer: answer) }
+    return answer
   }
 
   func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
@@ -85,6 +117,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
+    guard button?.checksQuietly != true else { return }
     standard.showUserInitiatedUpdateCheck(cancellation: cancellation)
   }
 
@@ -97,10 +130,12 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUpdateNotFoundWithError(_ error: Error, acknowledgement: @escaping () -> Void) {
+    button?.checkEnded(nothingFound: true)
     standard.showUpdateNotFoundWithError(error, acknowledgement: acknowledgement)
   }
 
   func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
+    button?.checkFailed()
     standard.showUpdaterError(error, acknowledgement: acknowledgement)
   }
 
@@ -127,12 +162,16 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
-    if let item = showing.item, isOnChannel(item) { UpdatePrewarm.warm(version: item.versionString) }
+    if let item = showing.item, isOnChannel(item) {
+      UpdatePrewarm.warm(version: item.versionString)
+      button?.staged(item)
+    }
     standard.showReady(toInstallAndRelaunch: awaiting(reply, staged: true))
     leaveOffChannelUpdate()
   }
 
   func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
+    retryTerminating = applicationTerminated ? nil : retryTerminatingApplication
     standard.showInstallingUpdate(withApplicationTerminated: applicationTerminated, retryTerminatingApplication: retryTerminatingApplication)
   }
 
@@ -141,11 +180,24 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUpdateInFocus() {
+    guard !installPending else { return }
+    if case .asking(let item, let choice, let staged, let answer) = showing, button?.installsAtOnce(item, staged: staged) == true {
+      return install(answering: choice, with: answer, resettingStandard: true)
+    }
     standard.showUpdateInFocus()
+  }
+
+  func retryTermination() -> Bool {
+    guard let retryTerminating else { return false }
+    retryTerminating()
+    return true
   }
 
   func dismissUpdateInstallation() {
     showing = .nothing
+    retryTerminating = nil
+    installPending = false
+    button?.checkEnded(nothingFound: false)
     standard.dismissUpdateInstallation()
   }
 }
