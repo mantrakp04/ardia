@@ -104,6 +104,12 @@ export const generalRows = {
           description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
           keywords: ["spaces", "space icons", "profile dots", "switcher", "emoji", "symbol", "sidebar footer", "arc"],
         },
+        switcherIconSize: {
+          title: "Icon size",
+          description: "Large draws the switcher's icons at 13 pt instead of 11, in the same cells. When they don't fit, the switcher shows dots.",
+          keywords: ["spaces", "space icons", "bigger", "larger", "large", "icon size", "switcher", "sidebar footer", "arc"],
+          shown: (s) => s.profileSwitcherIcons,
+        },
       },
     },
     { section: "Profiles", rows: { list: { title: "Profiles", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },

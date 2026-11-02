@@ -59,7 +59,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how many closed pinned tabs it left out, summed up once an hour",
-      "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
+      "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots and at which icon size, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, and how much tint) and which app icon you picked, each with its default. Never addresses, names, search engines or anything you typed",

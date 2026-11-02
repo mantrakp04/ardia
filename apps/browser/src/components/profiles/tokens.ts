@@ -11,9 +11,14 @@ export const profileSwitcher = {
   band: 28,
   dotCell: 12,
   dot: 6,
-  iconCell: 26,
-  icon: 11,
   dotTooltipLift: 18.25,
   dots: { selected: 0.85, hovered: 0.4, idle: 0.2 },
   icons: { selected: 1, hovered: 0.7, idle: 0.42 },
 } as const;
+
+export const switcherIconSizes = {
+  default: { icon: 11, gap: 15 },
+  large: { icon: 13, gap: 13 },
+} as const;
+
+export type SwitcherIconSize = keyof typeof switcherIconSizes;
