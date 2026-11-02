@@ -1,15 +1,16 @@
 import { setBoostEnabled } from "../../state/boosts/actions";
 import { useSiteBoosts } from "../../state/boosts/hooks";
 import { editBoostForTab, showBoostMenu } from "../../state/boostUi/actions";
-import { Button, MenuRow, Toggle } from "../ui";
-import { SectionTitle } from "./SiteControlsParts";
+import { SectionLabel } from "../sidebar/SectionLabel";
+import { Button, MenuRow, PANEL, Toggle } from "../ui";
+import { SITE_PANEL } from "./SiteControlsParts";
 
 export function SiteBoosts({ windowId, tabId, profileId, host, onClose }: { windowId: string; tabId: string; profileId: string; host: string; onClose: () => void }) {
   const boosts = useSiteBoosts(profileId, host);
   if (!boosts.length) return null;
   return (
     <>
-      <SectionTitle title="Boosts" />
+      <SectionLabel title="Boosts" inset={PANEL.inset} top={SITE_PANEL.sectionTop} bottom={SITE_PANEL.sectionGap - (SITE_PANEL.settingHeight - SITE_PANEL.settingBadge) / 2} />
       {boosts.map((boost) => (
         <MenuRow
           key={boost.id}
@@ -22,7 +23,7 @@ export function SiteBoosts({ windowId, tabId, profileId, host, onClose }: { wind
           }}
           accessory={
             <>
-              <Button variant="icon" icon="ellipsis" size={12} box={24} tooltip="Boost Options" onPress={() => void showBoostMenu(profileId, boost, windowId)} />
+              <Button variant="icon" icon="ellipsis" size="m" tooltip="Boost Options" onPress={() => void showBoostMenu(profileId, boost, windowId)} />
               <Toggle look="panel" value={boost.enabled} onChange={(on) => setBoostEnabled(profileId, boost.id, on)} />
             </>
           }

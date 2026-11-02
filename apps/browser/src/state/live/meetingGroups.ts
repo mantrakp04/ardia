@@ -6,6 +6,7 @@ import { groupOf } from "../pins/tabGrouping";
 import { everySlowly } from "../../platform/slowTimers";
 import { connectCalendar, useCalendar } from "./calendar";
 import { eventForCall, isCalendarUrl, meetingOf, relatedLinks, type CalendarEvent } from "./meetings";
+import { groupKeptOpen } from "../groups/closeGuard";
 import { live, setMeetingGroup, updateCalendarSettings, useLive } from "./store";
 
 export const MEETING_FALLBACK_TITLE = "Meeting";
@@ -112,7 +113,7 @@ export function tick(s: BrowserState, now: number) {
     const lastUse = Math.max(m.endedAt, ...g.tabIds.map((id) => s.tabs[id]?.lastActiveAt ?? 0));
     if (!busy && now - lastUse >= CLEANUP_IDLE_MS) {
       setMeetingGroup(null, m.groupId);
-      store().closeGroup(m.groupId);
+      if (!groupKeptOpen(m.groupId)) store().closeGroup(m.groupId);
     }
   }
 }

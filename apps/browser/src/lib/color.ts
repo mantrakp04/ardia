@@ -12,7 +12,8 @@ export function parseColor(color: string): Rgba {
     const [r = 0, g = 0, b = 0, a = 1] = m[1]!.split(",").map((v) => Number(v.trim()));
     return [r, g, b, a];
   }
-  const h = color.trim().replace("#", "");
+  const short = color.trim().replace("#", "");
+  const h = short.length === 3 || short.length === 4 ? Array.from(short, (c) => c + c).join("") : short;
   const ch = (i: number) => parseInt(h.slice(2 * i, 2 * i + 2), 16);
   return [ch(0), ch(1), ch(2), h.length >= 8 ? ch(3) / 255 : 1];
 }

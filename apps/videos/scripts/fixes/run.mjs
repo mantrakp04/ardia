@@ -13,6 +13,8 @@ const recorder = join(scratch, "demo-rec");
 const sitesPort = Number(process.env.FIXES_SITES_PORT ?? 47231);
 const portBase = process.env.FIXES_PORT_BASE ? Number(process.env.FIXES_PORT_BASE) : null;
 const hoverLib = process.env.FIXES_HOVER ? join(scratch, "hover.dylib") : null;
+const inputLib = process.env.FIXES_INPUT ? join(scratch, "input.dylib") : null;
+const injected = [hoverLib, inputLib].filter(Boolean).join(":");
 const fps = process.env.FIXES_FPS ?? "60";
 const apps = {
   before: { app: process.env.BEFORE_APP ?? join(scratch, "before/Ardia.app"), js: "none", probe: true },
@@ -27,6 +29,11 @@ const prelude = readFileSync(join(here, "prelude.js"), "utf8");
 if (hoverLib && !existsSync(hoverLib)) {
   const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-o", hoverLib, join(here, "hover.m")], { stdio: "inherit" });
   if (built.status !== 0) throw new Error("hover.dylib didn't build");
+}
+
+if (inputLib && !existsSync(inputLib)) {
+  const built = spawnSync("clang", ["-dynamiclib", "-fobjc-arc", "-framework", "AppKit", "-o", inputLib, join(here, "input.m")], { stdio: "inherit" });
+  if (built.status !== 0) throw new Error("input.dylib didn't build");
 }
 
 if (!existsSync(recorder)) {
@@ -94,7 +101,7 @@ async function shoot(scene, name, side) {
     data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(scene.switches ?? [])],
     instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads, ...(scene.instance ?? {}) },
-    env: { ...(hoverLib ? { DYLD_INSERT_LIBRARIES: hoverLib } : {}), ...(scene.env ?? {}) },
+    env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(scene.env ?? {}) },
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
   let instance = await start(app, options);
@@ -118,7 +125,7 @@ async function shoot(scene, name, side) {
     for (let attempt = 0; attempt < 6 && !started; attempt++) {
       rec = record(instance.pid, out);
       const got = await rec.started;
-      if (got.rect[2] >= 1000) started = got;
+      if (got.rect[2] >= (scene.minWidth ?? 1000)) started = got;
       else {
         console.log(`${name} ${side}: the recorder picked ${got.rect}, retrying`);
         await rec.stop();

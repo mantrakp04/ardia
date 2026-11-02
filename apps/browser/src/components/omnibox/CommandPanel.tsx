@@ -17,16 +17,16 @@ import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barS
 import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
-import { shadow } from "../ui/tokens";
+import { radius, shadow, space } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = 20;
+const PANEL_RADIUS = radius.hero;
 const MIN_WIDTH = 420;
-const WINDOW_MARGIN = 12;
+const WINDOW_MARGIN = space.l;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = 12;
+const DROPDOWN_RADIUS = radius.panel;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
 

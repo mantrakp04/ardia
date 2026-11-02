@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, Text as Span, View } from "react-native";
+import { Pressable, Text as Span, View } from "react-native";
 import { FadeLabel } from "../ui/native";
 import { joinEvent } from "../../state/live/alerts";
 import { connectCalendar, refreshCalendar, useCalendar, useNow } from "../../state/live/calendar";
@@ -7,10 +6,11 @@ import { isCalendarUrl, isMeeting, joinLink, joinTitle, relativeTime, timeRange,
 import { useLive } from "../../state/live/store";
 import { useTab } from "../../state/browser/hooks";
 import { activate } from "../../state/tabs/actions";
-import { Box, Button, curve, duration, font, radius, space, Text, useHover, useTheme, weight } from "../ui";
+import { Box, Button, capsule, font, radius, space, Text, useHover, useTheme, weight } from "../ui";
+import { RefreshSpinner } from "../sidebar/RefreshSpinner";
 import { dismissHover } from "../../state/sidebar/hover";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
-import { Avatar, HoverSurface } from "./LiveItemCard";
+import { Avatar, AVATAR_SIZE, HoverSurface } from "./LiveItemCard";
 import { liveType, useLiveColors } from "./tokens";
 import { UI_LOCALE } from "../../lib/uiLocale";
 
@@ -73,19 +73,13 @@ const FILL = { flex: 1 } as const;
 const HEADER = { flexDirection: "row", alignItems: "center", marginBottom: space.m, marginTop: -space.xxs } as const;
 const DATE = { marginLeft: space.s } as const;
 
+const REFRESH = { marginRight: -space.s, marginVertical: -space.xs } as const;
+
 function Refresh({ spinning }: { spinning: boolean }) {
-  const turn = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!spinning) return;
-    turn.setValue(0);
-    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: duration.spinnerTurn, easing: curve.linear, useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, [spinning]);
   return (
-    <Animated.View style={{ marginRight: -space.s, marginVertical: -space.xs, transform: [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }] }}>
-      <Button variant="icon" icon="arrow.clockwise" size={10} weight="semibold" box={22} radius={radius.m} onPress={() => void refreshCalendar()} tooltip="Refresh" />
-    </Animated.View>
+    <RefreshSpinner spinning={spinning} style={REFRESH}>
+      <Button variant="icon" icon="arrow.clockwise" size="s" weight="semibold" onPress={() => void refreshCalendar()} tooltip="Refresh" />
+    </RefreshSpinner>
   );
 }
 
@@ -128,7 +122,7 @@ function SignIn({ denied }: { denied: boolean }) {
 function AllDayRow({ event }: { event: CalendarEvent }) {
   const theme = useTheme();
   return (
-    <Box row gap="sm" padX="xs" style={ALL_DAY}>
+    <Box row gap="m" padX="xs" style={ALL_DAY}>
       <View style={[ALL_DAY_DOT, { backgroundColor: event.color }]} />
       <FadeLabel text={event.title || "Untitled event"} fontSize={font.small.fontSize} color={theme.textSecondary} style={ALL_DAY_LABEL} />
       <Text size="caption" tone="textTertiary">
@@ -139,7 +133,7 @@ function AllDayRow({ event }: { event: CalendarEvent }) {
 }
 
 const ALL_DAY = { height: 22, alignItems: "center" } as const;
-const ALL_DAY_DOT = { width: 7, height: 7, borderRadius: 2 } as const;
+const ALL_DAY_DOT = { width: 7, height: 7, borderRadius: radius.hair } as const;
 const ALL_DAY_LABEL = { flex: 1, height: 16 } as const;
 
 function EventRow({ event, now, windowId, tabId }: { event: CalendarEvent; now: number; windowId: string; tabId: string }) {
@@ -159,11 +153,11 @@ function EventRow({ event, now, windowId, tabId }: { event: CalendarEvent; now: 
           activate(tabId);
         }}
       >
-        <Box row gap="m" padY="s" padX="xs" radius="l" fill={hovered ? "rowHover" : undefined} style={past ? EVENT_PAST : EVENT}>
+        <Box row gap="m" padY="s" padX="xs" radius="tile" fill={hovered ? "rowHover" : undefined} style={past ? EVENT_PAST : EVENT}>
           <View style={[EVENT_BAR, { backgroundColor: event.color }]} />
           <Box gap="xxs" style={FILL}>
             <FadeLabel text={event.title || "Untitled event"} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={EVENT_TITLE} />
-            <Text lines={1} size="footnote" tone="textSecondary">
+            <Text lines={1} size="caption" tone="textSecondary">
               {timeRange(event)}
               <Span style={{ fontWeight: weight.medium, color: running ? colors.now : theme.textSecondary }}> · {running ? "Now" : relativeTime(event.start, now)}</Span>
             </Text>
@@ -182,11 +176,13 @@ function EventRow({ event, now, windowId, tabId }: { event: CalendarEvent; now: 
 
 const EVENT = { alignItems: "center", opacity: 1 } as const;
 const EVENT_PAST = { alignItems: "center", opacity: 0.5 } as const;
-const EVENT_BAR = { width: 3, alignSelf: "stretch", borderRadius: 1.5 } as const;
+const EVENT_BAR_WIDTH = 3;
+const EVENT_BAR = { width: EVENT_BAR_WIDTH, alignSelf: "stretch", borderRadius: capsule(EVENT_BAR_WIDTH) } as const;
 const EVENT_TITLE = { height: 17 } as const;
 const AVATAR_RING = 1.5;
 
-export function OverlappingAvatars({ people, size = 18 }: { people: CalendarEvent["attendees"]; size?: number }) {
+export function OverlappingAvatars({ people }: { people: CalendarEvent["attendees"] }) {
+  const size = AVATAR_SIZE;
   const theme = useTheme();
   const shown = people.slice(0, 3);
   const more = people.length - shown.length;
@@ -194,7 +190,7 @@ export function OverlappingAvatars({ people, size = 18 }: { people: CalendarEven
     <View style={AVATARS}>
       {shown.map((p, i) => (
         <View key={p.email || i} style={{ marginLeft: i ? -size * 0.35 : 0, borderRadius: size / 2 + 1, borderWidth: AVATAR_RING, borderColor: theme.panel }}>
-          <Avatar uri={null} name={p.name || p.email} size={size} />
+          <Avatar uri={null} name={p.name || p.email} />
         </View>
       ))}
       {more > 0 ? (
@@ -206,6 +202,5 @@ export function OverlappingAvatars({ people, size = 18 }: { people: CalendarEven
   );
 }
 
-
 const AVATARS = { flexDirection: "row", alignItems: "center" } as const;
-const MORE = { ...liveType.more, marginLeft: 3 } as const;
+const MORE = { ...liveType.more, marginLeft: space.xs } as const;

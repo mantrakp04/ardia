@@ -1,21 +1,19 @@
 import type { ReactNode } from "react";
 import { Animated, View } from "react-native";
-import { Surface } from "../../../ui";
 import { at, fill, type Geo, hairline, sideCard, TOOLBAR_H } from "../geometry";
 import { type Look, pick } from "../look";
 import { tracker } from "../timeline";
-import { Glyph, Label } from "../Kit";
+import { Glyph, Label, MockSurface } from "../Kit";
 import { Page } from "../MockPages";
-import { mockInk, sceneMs } from "../tokens";
-import { hex } from "../../../ui/theme";
-import { ink } from "../../../ui/tokens";
+import { mockInk, mockShadow, sceneMs } from "../tokens";
+import { font, radius, space } from "../../../ui/tokens";
 import type { Scene } from "../scene";
 import { Std } from "./SceneParts";
 
 function AdBox({ g, look, style, h, children }: { g: Geo; look: Look; style?: object; h: number; children?: ReactNode }) {
   return (
-    <Animated.View style={[{ height: h * g.s, borderRadius: 8 * g.s, backgroundColor: pick(look, [mockInk.ad.fill.light, mockInk.ad.fill.dark]), borderWidth: hairline, borderColor: pick(look, [mockInk.ad.border.light, mockInk.ad.border.dark]), alignItems: "center", justifyContent: "center" }, style]}>
-      <Label g={g} size={10} color={pick(look, [mockInk.ad.label.light, mockInk.ad.label.dark])} weight="600">
+    <Animated.View style={[{ height: h * g.s, borderRadius: radius.tile * g.s, backgroundColor: pick(look, [mockInk.ad.fill.light, mockInk.ad.fill.dark]), borderWidth: hairline, borderColor: pick(look, [mockInk.ad.border.light, mockInk.ad.border.dark]), alignItems: "center", justifyContent: "center" }, style]}>
+      <Label g={g} size={font.tiny.fontSize} color={pick(look, [mockInk.ad.label.light, mockInk.ad.label.dark])} weight="600">
         AD
       </Label>
       {children}
@@ -55,23 +53,23 @@ export function block(on: boolean): Scene {
                 },
               ]}
             >
-              <Surface fill={hex(look.t.panel)} cornerRadius={12 * g.s} borderColor={hex(look.t.panelBorder)} borderWidth={0.5} shadowColor={ink.black} shadowOpacity={look.dark ? 0.5 : 0.14} shadowRadius={16 * g.s} shadowOffset={[0, 4 * g.s]} style={{ height: 52 * g.s, flexDirection: "row", alignItems: "center", paddingHorizontal: 16 * g.s, gap: 12 * g.s }}>
+              <MockSurface g={g} look={look} radius={radius.panel} shadow={mockShadow.banner} style={{ height: 52 * g.s, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xl * g.s, gap: space.l * g.s }}>
                 <View style={{ flex: 1 }}>
-                  <Label g={g} size={12.5} color={look.t.textPrimary}>
+                  <Label g={g} size={font.small.fontSize} color={look.t.textPrimary}>
                     We use cookies to personalise ads and measure traffic.
                   </Label>
                 </View>
-                <View style={{ height: 28 * g.s, paddingHorizontal: 12 * g.s, borderRadius: 8 * g.s, backgroundColor: look.t.goButton, justifyContent: "center" }}>
-                  <Label g={g} size={12} color={look.t.onPrimary} weight="600">
+                <View style={{ height: 28 * g.s, paddingHorizontal: space.l * g.s, borderRadius: radius.tile * g.s, backgroundColor: look.t.goButton, justifyContent: "center" }}>
+                  <Label g={g} size={font.small.fontSize} color={look.t.onPrimary} weight="600">
                     Accept all
                   </Label>
                 </View>
-              </Surface>
+              </MockSurface>
             </Animated.View>
             {on ? (
-              <Animated.View style={[at(g, c.w - 64, 8, 52, 26), { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3 * g.s, opacity: t.in(700, 200), transform: [{ scale: t([[700, 0.6], [960, 1]]) }] }]}>
+              <Animated.View style={[at(g, c.w - 64, 8, 52, 26), { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space.xs * g.s, opacity: t.in(700, 200), transform: [{ scale: t([[700, 0.6], [960, 1]]) }] }]}>
                 <Glyph g={g} name="checkmark.shield.fill" size={14} color={look.t.accent} weight="medium" box={18} />
-                <Label g={g} size={11} color={look.t.textSecondary} weight="600">
+                <Label g={g} size={font.caption.fontSize} color={look.t.textSecondary} weight="600">
                   3
                 </Label>
               </Animated.View>

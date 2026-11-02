@@ -3,8 +3,7 @@ import { TextInput, View } from "react-native";
 import { boostChanges, siteLine } from "../../state/boostUi/describe";
 import { installBoost, previewImport } from "../../state/boostUi/importCode";
 import { closeSettingsSheet } from "../../state/settings/sheet";
-import { Box, Button, hairline, radius, Sheet, Text, useTheme } from "../ui";
-import { SheetActions, SheetTitle } from "../settings/Form";
+import { Box, Button, DialogActions, DialogTitle, font, hairline, radius, Sheet, space, Text, useTheme } from "../ui";
 import { CODE_FONT, IMPORT_SHEET } from "./tokens";
 
 export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: string; initialCode?: string }) {
@@ -15,9 +14,9 @@ export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: s
   const boost = result && !("error" in result) ? result : null;
   const changes = boost ? boostChanges(boost) : [];
   return (
-    <Sheet width={IMPORT_SHEET.width} onClose={closeSettingsSheet}>
-      <SheetTitle>Import Boost</SheetTitle>
-      <Text size="small" tone="textSecondary" style={{ marginTop: 6, marginBottom: 12 }}>
+    <Sheet size="s" onClose={closeSettingsSheet}>
+      <DialogTitle>Import Boost</DialogTitle>
+      <Text size="small" tone="textSecondary" style={{ marginTop: space.s, marginBottom: space.l }}>
         Paste a share code or a link from ardia.dev. You'll see what it changes before it's added.
       </Text>
       <TextInput
@@ -33,23 +32,23 @@ export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: s
         spellCheck={false}
         style={{
           height: IMPORT_SHEET.codeHeight,
-          padding: 8,
-          borderRadius: radius.field,
+          padding: space.m,
+          borderRadius: radius.control,
           borderWidth: hairline.ring,
           borderColor: theme.fieldBorder,
           backgroundColor: theme.field,
           color: theme.textPrimary,
           fontFamily: CODE_FONT,
-          fontSize: 12,
+          fontSize: font.small.fontSize,
         }}
       />
       {result && "error" in result ? (
-        <Text size="small" tone="destructive" style={{ marginTop: 10 }}>
+        <Text size="small" tone="destructive" style={{ marginTop: space.ml }}>
           {result.error}
         </Text>
       ) : null}
       {boost ? (
-        <Box gap="xs" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="l" style={{ marginTop: 12 }}>
+        <Box gap="xs" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="panel" style={{ marginTop: space.l }}>
           <Text weight="semibold">{boost.name}</Text>
           {boost.author ? (
             <Text size="small" tone="textSecondary">
@@ -59,7 +58,7 @@ export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: s
           <Text size="small" tone="textSecondary">
             {`Applies to ${siteLine(boost)}`}
           </Text>
-          <View style={{ marginTop: 4, gap: 2 }}>
+          <View style={{ marginTop: space.xs, gap: space.xxs }}>
             {(changes.length ? changes : ["Doesn't change anything"]).map((line) => (
               <Text key={line} size="small">
                 {`• ${line}`}
@@ -68,7 +67,7 @@ export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: s
           </View>
         </Box>
       ) : null}
-      <SheetActions>
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button
           title="Add Boost"
@@ -80,7 +79,7 @@ export function ImportBoostSheet({ profileId, initialCode = "" }: { profileId: s
             closeSettingsSheet();
           }}
         />
-      </SheetActions>
+      </DialogActions>
     </Sheet>
   );
 }

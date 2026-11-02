@@ -28,7 +28,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { useIsActiveTab, useTab, useTabLive, WindowContext } = await import("../browser/hooks.ts");
 const { useTabValue, useStoreWhile, shallowEqual } = await import("./tabWatch.ts");
 const { usePageProgress, setPageProgress } = await import("./pageProgress.ts");
-const { useRowState, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
+const { useRowState, mutedBy, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
 const { useSidebarUi, setSidebarUi } = await import("../sidebar/sidebarUi.ts");
 const { useIsSleeping, noteDiscarded, noteReady } = await import("./tabLifecycle.ts");
 const { useMedia, setPictureInPictureState } = await import("../media/media.ts");
@@ -61,6 +61,7 @@ const row = (tabId, windowId) =>
         selected: !!(flags & SELECTED),
         playing: !!(flags & PLAYING),
         loading: !!(flags & LOADING),
+        mute: mutedBy(flags),
         renaming: useSidebarUi((u) => u.renaming?.kind === "tab" && u.renaming.id === tabId),
         sleeping: useIsSleeping(tabId),
         pip: useMedia((m) => !!m.pipOpen[tabId]),
@@ -95,6 +96,14 @@ test("a sidebar row: created, renamed, re-iconed, pinned, flagged, badged, slept
   assert.equal(rb.value.pinned, true, "pinned");
   S().togglePin(b);
   assert.equal(rb.value.pinned, false, "unpinned");
+
+  S().updateTab(b, { muted: true });
+  assert.deepEqual([ra.value.mute, rb.value.mute], [null, "tab"], "tab muted: its row only");
+  S().updateSettings({ mutedSites: ["b.com"] });
+  assert.equal(rb.value.mute, "site", "site muted");
+  S().updateSettings({ mutedSites: [] });
+  S().updateTab(b, { muted: false });
+  assert.equal(rb.value.mute, null, "unmuted");
 
   S().activate(b);
   assert.deepEqual([ra.value.active, rb.value.active], [false, true], "switch: both rows");

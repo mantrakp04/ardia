@@ -1,5 +1,5 @@
 import { devRegister } from "../dev/devRegister";
-import { Panel } from "../ui";
+import { HoverCard } from "../ui";
 import { layout } from "../ui/theme";
 import { clickTab } from "../../state/sidebar/actions";
 import { dismissHover } from "../../state/sidebar/hover";
@@ -9,7 +9,6 @@ import { measureRow, setSidebarUi, type Anchor } from "../../state/sidebar/sideb
 import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { MINI_PLAYER_HEIGHT, MINI_PLAYER_WIDTH, MiniPlayer } from "./MiniPlayer";
 import { useMedia, usePinnedWithMediaControls } from "../../state/media/media";
-import { HOVER_CARD, useMediaTokens } from "./tokens";
 
 export function useShowsMiniPlayer(tabId: string | undefined): boolean {
   const pinned = usePinnedWithMediaControls(tabId);
@@ -26,17 +25,9 @@ export function usePlayerEdge(windowId: string, anchor: Anchor | undefined): num
 }
 
 export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
-  const tokens = useMediaTokens();
   const edge = usePlayerEdge(windowId, anchor);
   return (
-    <Panel
-      {...cardHoverProps}
-      fill={tokens.background}
-      radius={HOVER_CARD.radius}
-      border={tokens.border}
-      shadow={HOVER_CARD.shadow}
-      style={{ position: "absolute", ...hoverCardOrigin(anchor, edge), width: MINI_PLAYER_WIDTH, height: MINI_PLAYER_HEIGHT }}
-    >
+    <HoverCard {...cardHoverProps} width={MINI_PLAYER_WIDTH} pad="none" style={{ position: "absolute", ...hoverCardOrigin(anchor, edge), height: MINI_PLAYER_HEIGHT }}>
       <MiniPlayer
         tabId={tabId}
         onBackToTab={() => {
@@ -44,7 +35,7 @@ export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; window
           clickTab(windowId, tabId);
         }}
       />
-    </Panel>
+    </HoverCard>
   );
 }
 

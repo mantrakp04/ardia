@@ -1,8 +1,8 @@
 import { displayUrl, fuzzyScore, hostOf } from "@ardia/core";
 import { useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, View, type TextInput } from "react-native";
 import { switchToTab } from "../../state/browser/actions";
-import { FadeLabel, font, Panel, radius, Symbol, weight } from "../ui";
+import { Divider, FadeLabel, font, ListRow, Panel, radius, SearchField, space, Symbol, Text } from "../ui";
 import { useTheme } from "../ui/theme";
 import { useTabs } from "../../state/tabs/hooks";
 import { restoreClosed } from "../../state/windows/actions";
@@ -10,12 +10,17 @@ import { useClosedGroups, useClosedTabs } from "../../state/sidebar/hooks";
 import { searchCandidates, type Row } from "../../state/sidebar/searchTabs";
 import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
-import { SIDEBAR_SHADOW, SIDEBAR_TYPE } from "./tokens";
+import { SIDEBAR_SHADOW } from "./tokens";
+import { SectionLabel } from "./SectionLabel";
 
 const WIDTH = 560;
 const ROW = 36;
 const MAX_ROWS = 10;
-const SEARCH_RADIUS = 16;
+const SEARCH_RADIUS = radius.sheet;
+const FIELD_ROW = { height: 50, justifyContent: "center", paddingHorizontal: space.xl } as const;
+const NO_MATCH = { paddingHorizontal: space.xl, paddingVertical: space.xl } as const;
+const SECTION = { paddingHorizontal: space.s, paddingTop: space.s } as const;
+const URL_LABEL_GAP = space.xs;
 
 export function SearchTabs({ windowId, windowWidth }: { windowId: string; windowWidth: number }) {
   const open = useSidebarUi((u) => u.searchTabs === windowId);
@@ -72,13 +77,12 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
         radius={SEARCH_RADIUS}
         border={theme.panelBorder}
         shadow={SIDEBAR_SHADOW.searchTabs}
-        style={{ position: "absolute", top: 56, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: 6 }}
+        style={{ position: "absolute", top: 56, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: space.s }}
       >
-        <View style={{ height: 50, flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 }}>
-          <Symbol name="magnifyingglass" size={15} weight="medium" color={theme.textPrimary} style={{ width: 18, height: 18 }} />
-          <TextInput
-            ref={field}
-            onLayout={focusOnce}
+        <View style={FIELD_ROW} onLayout={focusOnce}>
+          <SearchField
+            look="bare"
+            inputRef={field}
             value={query}
             onChangeText={(text) => {
               setQuery(text);
@@ -86,30 +90,23 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
               scroll.current?.scrollTo({ y: 0, animated: false });
             }}
             placeholder="Search Tabs"
-            placeholderTextColor={theme.placeholder}
-            selectionColor={theme.selection}
-            enableFocusRing={false}
-            onSubmitEditing={() => choose(rows[selected])}
+            onSubmit={() => choose(rows[selected])}
+            onEscape={close}
+            onArrow={move}
             onBlur={close}
-            keyDownEvents={[{ key: "Escape" }, { key: "ArrowUp" }, { key: "ArrowDown" }]}
-            onKeyDown={(e) => {
-              const key = e.nativeEvent.key;
-              if (key === "Escape") close();
-              if (key === "ArrowDown") move(1);
-              if (key === "ArrowUp") move(-1);
-            }}
-            style={{ flex: 1, fontSize: SIDEBAR_TYPE.searchField, color: theme.textPrimary, paddingVertical: 0 }}
           />
         </View>
-        <View style={{ height: 0.5, backgroundColor: theme.divider }} />
+        <Divider />
         <ScrollView ref={scroll} style={{ maxHeight: ROW * MAX_ROWS + 60 }} showsVerticalScrollIndicator={false}>
           {rows.length === 0 ? (
-            <Text style={{ paddingHorizontal: 16, paddingVertical: 14, ...font.body, color: theme.textTertiary }}>No tabs match “{query.trim()}”</Text>
+            <Text tone="textTertiary" style={NO_MATCH}>
+              No tabs match “{query.trim()}”
+            </Text>
           ) : null}
           {sections.map((section) =>
             section.rows.length ? (
-              <View key={section.title} style={{ paddingHorizontal: 6, paddingTop: 6 }}>
-                <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTertiary, paddingHorizontal: 10, paddingVertical: 4 }}>{section.title}</Text>
+              <View key={section.title} style={SECTION}>
+                <SectionLabel title={section.title} inset={space.ml} top={space.xs} bottom={space.xs} />
                 {section.rows.map((row) => {
                   index++;
                   const i = index;
@@ -128,19 +125,18 @@ function ResultRow({ row, selected, onHover, onPress }: { row: Row; selected: bo
   const theme = useTheme();
   const detail = row.kind === "tab" ? (row.current && !row.where ? "Current Tab" : row.where) : row.detail;
   return (
-    <Pressable onPress={onPress}>
-      <View
-        onMouseEnter={onHover}
-        style={{ height: ROW, borderRadius: radius.card, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10, backgroundColor: selected ? theme.rowSelected : undefined }}
-      >
+    <ListRow height={ROW} selected={selected} onPress={onPress} onHover={(hovered) => hovered && onHover()}>
         <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
           <FadeLabel text={row.title} fontSize={font.title.fontSize} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
-          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={font.title.fontSize} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: 5 }} /> : null}
+          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={font.title.fontSize} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: URL_LABEL_GAP }} /> : null}
         </View>
-        {detail ? <Text style={{ ...font.small, color: theme.textTertiary }}>{detail}</Text> : null}
+        {detail ? (
+          <Text size="small" tone="textTertiary">
+            {detail}
+          </Text>
+        ) : null}
         {row.kind === "closed" ? <Symbol name="clock.arrow.circlepath" size={12} color={theme.textTertiary} style={{ width: 16, height: 16 }} /> : null}
-      </View>
-    </Pressable>
+    </ListRow>
   );
 }

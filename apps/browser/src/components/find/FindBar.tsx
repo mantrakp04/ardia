@@ -1,7 +1,7 @@
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { claimFocusTag, findFocus } from "../../state/focus/focusClaims";
 import { useEffect, useRef, useState } from "react";
-import { Animated, findNodeHandle, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, findNodeHandle, TextInput, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { useFind, useTab } from "../../state/browser/hooks";
@@ -9,9 +9,9 @@ import { currentTab } from "../../state/browser/current";
 import { setFind as setTabFind } from "../../state/windows/actions";
 import { closeFind, findStep, takeFindFocusRequest } from "../../state/find/actions";
 import type { FindState } from "../../state/browser/types";
-import { Button, font, Panel, radius, space, Symbol } from "../ui";
+import { Button, Divider, font, Panel, radius, shadow, space, Symbol, Text } from "../ui";
 import { replaceInField } from "../../state/site/selection";
-import { FIND_APPEAR, FIND_SHADOW } from "./tokens";
+import { FIND_APPEAR, FIND_WIDTH } from "./tokens";
 
 export function FindBar({ tabId }: { tabId: string }) {
   const hasPage = useTab(tabId, (t) => !!t?.url);
@@ -68,7 +68,6 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
     run(false, find.query, false);
   };
   const none = find.count === 0 && !!find.query;
-  const separator = theme.divider;
 
   return (
     <Animated.View
@@ -80,9 +79,9 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
       }}
     >
-      <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
-        <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.xs, gap: space.xxs }}>
-          <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 5 }} />
+      <Panel radius={radius.panel} shadow={shadow.card} style={{ width: FIND_WIDTH }}>
+        <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: space.l, paddingRight: space.xs, gap: space.xxs }}>
+          <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: space.xs }} />
           <TextInput
             ref={input}
             autoFocus
@@ -105,23 +104,29 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
             style={{ flex: 1, ...font.title, color: theme.textPrimary, paddingVertical: 0 }}
           />
           {none ? (
-            <Text style={{ ...font.small, color: theme.destructive, marginRight: space.s }}>No results</Text>
+            <Text size="small" tone="destructive" style={{ marginRight: space.s }}>
+              No results
+            </Text>
           ) : find.count !== null && !!find.query ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.s, marginRight: space.s }}>
-              <Text style={{ ...font.small, color: theme.textPrimary, fontVariant: ["tabular-nums"] }}>{find.active}</Text>
-              <View style={{ width: StyleSheet.hairlineWidth * 2, height: 12, backgroundColor: separator }} />
-              <Text style={{ ...font.small, color: theme.textSecondary, fontVariant: ["tabular-nums"] }}>{find.count}</Text>
+              <Text size="small" style={TABULAR}>
+                {find.active}
+              </Text>
+              <Divider vertical thick length={12} />
+              <Text size="small" tone="textSecondary" style={TABULAR}>
+                {find.count}
+              </Text>
             </View>
           ) : null}
-          <Button variant="icon" icon="chevron.up" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => findStep(tabId, true)} tooltip={withShortcut("Previous", previousHint)} />
-          <Button variant="icon" icon="chevron.down" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => findStep(tabId, false)} tooltip={withShortcut("Next", nextHint)} />
-          <View style={{ width: 1, height: 18, marginHorizontal: 3, backgroundColor: separator }} />
-          <Button variant="icon" icon="xmark" size={11} box={26} radius={radius.m} onPress={close} tooltip="Done (Esc)" />
+          <Button variant="icon" icon="chevron.up" size="l" disabled={!find.count} onPress={() => findStep(tabId, true)} tooltip={withShortcut("Previous", previousHint)} />
+          <Button variant="icon" icon="chevron.down" size="l" disabled={!find.count} onPress={() => findStep(tabId, false)} tooltip={withShortcut("Next", nextHint)} />
+          <Divider vertical thick length={18} style={CLOSE_GAP} />
+          <Button variant="icon" icon="xmark" size="l" onPress={close} tooltip="Done (Esc)" />
         </View>
-        {find.replace && <View style={{ height: StyleSheet.hairlineWidth * 2, backgroundColor: separator }} />}
+        {find.replace && <Divider thick />}
         {find.replace && (
-          <View style={{ height: 38, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.s, gap: space.xs }}>
-            <Symbol name="arrow.triangle.swap" size={12} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 3 }} />
+          <View style={{ height: 38, flexDirection: "row", alignItems: "center", paddingLeft: space.l, paddingRight: space.s, gap: space.xs }}>
+            <Symbol name="arrow.triangle.swap" size={12} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: space.xs }} />
             <TextInput
               value={replacement}
               onChangeText={setReplacement}
@@ -134,12 +139,19 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
               onKeyDown={(e) => e.nativeEvent.key === "Escape" && close()}
               style={{ flex: 1, ...font.title, color: theme.textPrimary, paddingVertical: 0 }}
             />
-            {note && <Text style={{ ...font.small, color: note.error ? theme.destructive : theme.textSecondary, marginRight: space.xxs }}>{note.text}</Text>}
-            <Button variant="text" height={26} title="Replace" disabled={!find.query} onPress={() => void replace(false)} />
-            <Button variant="text" height={26} title="All" disabled={!find.query} onPress={() => void replace(true)} />
+            {note && (
+              <Text size="small" tone={note.error ? "destructive" : "textSecondary"} style={{ marginRight: space.xxs }}>
+                {note.text}
+              </Text>
+            )}
+            <Button variant="text" look="toolbar" title="Replace" disabled={!find.query} onPress={() => void replace(false)} />
+            <Button variant="text" look="toolbar" title="All" disabled={!find.query} onPress={() => void replace(true)} />
           </View>
         )}
       </Panel>
     </Animated.View>
   );
 }
+
+const TABULAR = { fontVariant: ["tabular-nums"] as "tabular-nums"[] };
+const CLOSE_GAP = { marginHorizontal: space.xs } as const;

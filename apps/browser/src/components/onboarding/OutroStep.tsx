@@ -1,13 +1,12 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-import { Symbol } from "../ui";
-import { font, weight } from "../ui/tokens";
+import { StyleSheet, View } from "react-native";
+import { KeyCap, Symbol, Text } from "../ui";
+import { lineHeight, proseLineHeight, space } from "../ui/tokens";
+import { PostageStamp, PostcardPaper } from "../ntp/PostageStamp";
 import { finishOnboarding, QUESTION_ORDER, useOnboarding } from "../../state/onboarding/onboarding";
 import { SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
 import { StepActions, StepLayout } from "./StepLayout";
 import { onboardingType } from "./tokens";
-
-const ICON = require("../../../assets/app-icon.png");
 
 export function OutroStep() {
   const colors = useOnboardingColors();
@@ -25,17 +24,17 @@ export function OutroStep() {
       }
       preview={<Postcard lines={lines} />}
     >
-      <View style={{ gap: 10 }}>
-        {[
-          ["⌘T", "Open a new tab"],
-          ["⌘L", "Go anywhere from the command bar"],
-          ["⌘S", "Hide the sidebar for more room"],
-        ].map(([keys, label]) => (
-          <View key={keys} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ minWidth: 38, height: 24, paddingHorizontal: 7, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: colors.button }}>
-              <Text style={{ ...font.small, fontWeight: weight.medium, color: colors.title }}>{keys}</Text>
-            </View>
-            <Text style={{ ...font.body, color: colors.subtitle }}>{label}</Text>
+      <View style={{ gap: space.ml }}>
+        {(
+          [
+            ["⌘T", "Open a new tab"],
+            ["⌘L", "Go anywhere from the command bar"],
+            ["⌘S", "Hide the sidebar for more room"],
+          ] as const
+        ).map(([keys, label]) => (
+          <View key={keys} style={{ flexDirection: "row", alignItems: "center", gap: space.l }}>
+            <KeyCap keys={[keys]} />
+            <Text color={colors.subtitle}>{label}</Text>
           </View>
         ))}
       </View>
@@ -47,67 +46,50 @@ function Postcard({ lines }: { lines: string[] }) {
   const colors = useOnboardingColors();
   const shown = lines.slice(0, 8);
   return (
-    <View
-      style={{
-        width: 340,
-        minHeight: 210,
-        borderRadius: 6,
-        padding: 18,
-        flexDirection: "row",
-        backgroundColor: colors.card,
-        borderWidth: StyleSheet.hairlineWidth * 2,
-        borderColor: colors.rowBorder,
-        transform: [{ rotate: "-3deg" }],
-      }}
+    <PostcardPaper
+      fill={colors.card}
+      border={colors.rowBorder}
+      borderWidth={StyleSheet.hairlineWidth * 2}
+      style={{ width: 340, minHeight: 210, padding: space.xl, flexDirection: "row", transform: [{ rotate: "-3deg" }] }}
     >
-      <View style={{ flex: 1, gap: 10, paddingRight: 14 }}>
-        <Text style={{ ...onboardingType.postcardHello, color: colors.title }}>Hello!</Text>
+      <View style={{ flex: 1, gap: space.ml, paddingRight: space.xl }}>
+        <Text color={colors.title} style={onboardingType.postcardHello}>
+          Hello!
+        </Text>
         {shown.length ? (
-          <View style={{ gap: 4 }}>
-            <Text style={{ ...font.caption, lineHeight: 15, color: colors.subtitle }}>{"You picked:"}</Text>
+          <View style={{ gap: space.xs }}>
+            <Text size="caption" color={colors.subtitle} style={CAPTION_LINE}>
+              {"You picked:"}
+            </Text>
             {shown.map((line) => (
-              <View key={line} style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
-                <Symbol name="checkmark" size={8} weight="bold" color={colors.title} style={{ width: 10, height: 15 }} />
-                <Text style={{ flex: 1, ...font.caption, lineHeight: 15, color: colors.title }}>{line}</Text>
+              <View key={line} style={{ flexDirection: "row", gap: space.s, alignItems: "flex-start" }}>
+                <Symbol name="checkmark" size={8} weight="bold" color={colors.title} style={{ width: 10, height: lineHeight.caption }} />
+                <Text size="caption" color={colors.title} style={PICKED_LINE}>
+                  {line}
+                </Text>
               </View>
             ))}
           </View>
         ) : (
-          <Text style={{ ...font.small, lineHeight: 17, color: colors.subtitle }}>
+          <Text size="small" color={colors.subtitle} style={GREETING}>
             {"Glad you're here. Make yourself at home. Your tabs, bookmarks and pins are ready."}
           </Text>
         )}
       </View>
       <View style={{ width: StyleSheet.hairlineWidth * 2, backgroundColor: colors.separator }} />
-      <View style={{ width: 96, paddingLeft: 14, justifyContent: "space-between", alignItems: "flex-end" }}>
-        <View style={{ padding: 4, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.rowBorder, borderRadius: 3 }}>
-          <Image source={ICON} style={{ width: 46, height: 46 }} />
-        </View>
-        <View style={{ alignSelf: "stretch", gap: 12 }}>
+      <View style={{ width: 96, paddingLeft: space.xl, justifyContent: "space-between", alignItems: "flex-end" }}>
+        <PostageStamp icon={WELCOME_STAMP.icon} ring={WELCOME_STAMP.ring} label="WELCOME" tilt={WELCOME_STAMP.tilt} ink={{ frame: colors.rowBorder, ring: colors.steps, label: colors.steps }} ringAt={WELCOME_STAMP.ringAt} />
+        <View style={{ alignSelf: "stretch", gap: space.l }}>
           {[0, 1, 2].map((i) => (
             <View key={i} style={{ height: 1, backgroundColor: colors.separator }} />
           ))}
         </View>
       </View>
-      <View
-        style={{
-          position: "absolute",
-          right: 50,
-          top: 52,
-          width: 44,
-          height: 44,
-          borderRadius: 22,
-          borderWidth: 1,
-          borderColor: colors.steps,
-          alignItems: "center",
-          justifyContent: "center",
-          transform: [{ rotate: "-12deg" }],
-        }}
-      >
-        <Text numberOfLines={1} style={{ ...onboardingType.stamp, color: colors.steps }}>
-          WELCOME
-        </Text>
-      </View>
-    </View>
+    </PostcardPaper>
   );
 }
+
+const WELCOME_STAMP = { icon: 46, ring: 44, tilt: -12, ringAt: { right: 32, top: 34 } } as const;
+const CAPTION_LINE = { lineHeight: lineHeight.caption } as const;
+const PICKED_LINE = { flex: 1, lineHeight: lineHeight.caption } as const;
+const GREETING = { lineHeight: proseLineHeight.small } as const;

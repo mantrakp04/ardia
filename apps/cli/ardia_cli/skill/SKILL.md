@@ -1,6 +1,6 @@
 ---
 name: ardia
-description: Drive the user's running Ardia browser from the terminal with `ardia exec` (Python and pydoll over the Chrome DevTools Protocol). Use when a task needs a real browser with the user's logins, to read the page the user is looking at, open pages, click, type, take screenshots or run JavaScript; to write, test and install userscripts that change how sites look or behave; or to set up and run a daily report built from the sites the user pins and visits.
+description: Drive the user's running Ardia browser from the terminal with `ardia exec` (Python and pydoll over the Chrome DevTools Protocol). Use when a task needs a real browser with the user's logins, to read the page the user is looking at, open pages, click, type, take screenshots or run JavaScript; to write, test and install userscripts that change how sites look or behave; to change Ardia's settings, shortcuts or colour theme through its config files; to run Ardia's own commands or react to its tab and window events with hooks; or to set up and run a daily report built from the sites the user pins and visits.
 ---
 
 # Driving Ardia with `ardia exec`
@@ -129,6 +129,64 @@ so existing `.user.js` files work too. `ardia scripts --help` and each command's
 - Iterate with `ardia scripts test` until it passes cleanly on the pages it targets. It runs in a tab of its own and
   reports what ran, what logged and what threw.
 - Install only once the user is happy with it. `ardia scripts list` and `uninstall` manage what's installed.
+
+## Config and themes
+
+When the user wants a setting changed for good, or set up from their dotfiles, edit `~/.config/ardia/config.json`
+with `ardia config` instead of clicking through Settings. Ardia reads the file at launch and whenever it changes,
+and never writes it; these commands don't need Ardia running.
+
+```sh
+ardia config init
+ardia config list
+ardia config set tabLayout top
+ardia config set shortcuts.newTab cmd+shift+n
+ardia config unset tabLayout
+ardia config check
+```
+
+`init` creates the folder, `config.json` and the schemas; `list` shows every setting with its allowed values,
+default and file value; shortcuts are one per command (`''` unbinds); `unset` leaves Ardia's current value in place;
+`check` reports what Ardia would complain about.
+
+Themes are colour overrides in `~/.config/ardia/themes/NAME.json`. `ardia theme new NAME` writes every dark and light
+role with Ardia's values, so change only the ones the user asked about and delete the rest if they like;
+`ardia theme use NAME` (or `none`) picks one, and `ardia theme check` checks it. Ask before replacing the user's
+own theme or config values. Settings that grant control or send data somewhere (`cliControl`, custom search URLs,
+page engines) can't go in the file; tell the user where they are in Settings instead.
+
+## Commands and events
+
+Ardia's own commands (new tab, toggle sidebar, select tab 3, split view and the rest of its menus) run with
+`ardia run`, without CDP. `ardia commands` lists them with their variants; `ardia windows` lists the windows and
+their tabs, private windows never included. Prefer these to clicking through a page when the user asks Ardia to do
+something to itself.
+
+```sh
+ardia commands
+ardia run newTab
+ardia run selectTab 3
+ardia windows --json
+ardia events tab.navigated
+```
+
+To react to the browser (a tab opening, a page loading, a window taking focus), write a hook: a program that gets the
+event's JSON on stdin and `ARDIA_EVENT`, `ARDIA_URL`, `ARDIA_TITLE`, `ARDIA_TAB_ID`, `ARDIA_WINDOW_ID` and
+`ARDIA_PROFILE` in its environment. Try it with `ardia on tab.navigated --match 'https://*.youtube.com/*' --
+~/bin/yt-hook`, then put it in `~/.config/ardia/hooks.json`:
+
+```json
+{
+  "hooks": [
+    { "name": "yt-to-media", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"], "timeout": 30 }
+  ]
+}
+```
+
+`run` is argv, not a shell line; use `["/bin/sh", "-c", "…"]` when you need one, and never paste event values
+into it. `ardia hooks list` checks the file, `ardia hooks install` (ask first) runs the hooks at every login, and
+their output goes to `~/Library/Logs/Ardia/hooks.log`. Inside `ardia exec` the same is `await run(...)`,
+`await windows()` and `async for e in events(...)`.
 
 ## Daily reports
 

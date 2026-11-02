@@ -1,6 +1,6 @@
-import { Symbol, VisualEffect, WindowDragRegion, Button, font, Toggle, useHover } from "../ui";
+import { Box, Button, ListRow, space, Symbol, Text, Toggle, VisualEffect, WindowDragRegion } from "../ui";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useProfile, useSettings } from "../../state/browser/hooks";
 import { updateSettings } from "../../state/settings/actions";
@@ -9,7 +9,8 @@ import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
 import { clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { anchorView } from "./anchors";
 import { ADVANCED_PANES, findSetting, PANES } from "./settingsIndex";
-import { SettingsPaneContext, SheetTitle } from "./Form";
+import { SettingsPaneContext } from "./Form";
+import { PageToolbar } from "../pages/PageLayout";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
 import { AppearancePane } from "./panes/Appearance";
@@ -28,13 +29,16 @@ import { ShortcutsPane } from "./panes/Shortcuts";
 import { SyncPane } from "./panes/Sync";
 import { TabsPane } from "./panes/Tabs";
 import { useSettingsSheet } from "../../state/settings/sheet";
-import { goToSettingsPane, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { goToSettingsPane, SETTINGS_WINDOW_ID, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { closeProfileIconPickerIn } from "../../state/profiles/iconPicker";
+import { ProfileIconPicker } from "../profiles/ProfileIconPicker";
 import { settingsProfileFor } from "../../state/extensions/store";
 import { useSettingsColors } from "./useSettingsColors";
+import { settingsLayout } from "./tokens";
+import { pageToolbar } from "../pages/tokens";
 
-
-const SIDEBAR = 214;
-const TOOLBAR = 52;
+const SIDEBAR = settingsLayout.sidebarWidth;
+const TOOLBAR = pageToolbar.window.height;
 const HOLD_CAP_MS = 250;
 const REVEAL_MARGIN = 16;
 
@@ -79,6 +83,7 @@ export function SettingsWindow() {
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
+  useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key]);
   const content = useRef<View>(null);
   const scrollTop = useRef(0);
   const viewport = useRef(0);
@@ -126,7 +131,7 @@ export function SettingsWindow() {
         {query.trim() ? (
           <SettingsSearchResults query={query} />
         ) : (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12, gap: 1 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={SIDEBAR_LIST}>
             {panes.map((p) => (
               <SidebarItem key={p.id} title={p.title} icon={p.icon} selected={nav.pane === p.id} onPress={() => goToSettingsPane(p.id, settingsProfileFor(p.id, nav))} />
             ))}
@@ -136,19 +141,20 @@ export function SettingsWindow() {
       </View>
       <View style={{ width: StyleSheet.hairlineWidth * 2, backgroundColor: look.sidebarDivider }} />
       <View style={{ flex: 1 }}>
-        <View style={{ height: TOOLBAR, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, gap: 2 }}>
-          <WindowDragRegion style={StyleSheet.absoluteFill} />
-          <Button variant="icon" toolbar icon="chevron.left" size={13} box={28} radius={6} disabled={!nav.back.length} onPress={() => settingsBack()} tooltip="Back" />
-          <Button variant="icon" toolbar icon="chevron.right" size={13} box={28} radius={6} disabled={!nav.forward.length} onPress={() => settingsForward()} tooltip="Forward" />
-          <SheetTitle style={{ marginLeft: 8 }}>{title}</SheetTitle>
-        </View>
+        <PageToolbar size="window" drag>
+          <Button variant="icon" toolbar icon="chevron.left" size="l" disabled={!nav.back.length} onPress={() => settingsBack()} tooltip="Back" />
+          <Button variant="icon" toolbar icon="chevron.right" size="l" disabled={!nav.forward.length} onPress={() => settingsForward()} tooltip="Forward" />
+          <Text size="title" weight="semibold" style={WINDOW_TITLE}>
+            {title}
+          </Text>
+        </PageToolbar>
         <ScrollView
           ref={scroller}
           scrollEventThrottle={16}
           onScroll={(e) => void (scrollTop.current = e.nativeEvent.contentOffset.y)}
           onLayout={(e) => void (viewport.current = e.nativeEvent.layout.height)}
-          contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}>
-          <View key={key} ref={content} collapsable={false} style={{ width: "100%", maxWidth: 600, paddingHorizontal: 24 }}>
+          contentContainerStyle={PANE_SCROLL}>
+          <View key={key} ref={content} collapsable={false} style={PANE_COLUMN}>
             {shown ? (
               <SettingsPaneContext.Provider value={shown.pane}>
                 <Pane {...shown} />
@@ -157,10 +163,18 @@ export function SettingsWindow() {
           </View>
         </ScrollView>
       </View>
+      <ProfileIconPicker windowId={SETTINGS_WINDOW_ID} />
       {sheet}
     </View>
   );
 }
+
+const SIDEBAR_LIST = { paddingHorizontal: space.ml, paddingBottom: space.l } as const;
+const WINDOW_TITLE = { marginLeft: space.m } as const;
+const PANE_SCROLL = { alignItems: "center", paddingBottom: settingsLayout.paneBottom } as const;
+const PANE_COLUMN = { width: "100%", maxWidth: settingsLayout.paneMaxWidth, paddingHorizontal: space.xxxl } as const;
+const ADVANCED = { alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth * 2 } as const;
+const FILL = { flex: 1 } as const;
 
 const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   general: () => <GeneralPane />,
@@ -187,36 +201,26 @@ function Pane(place: SettingsPlace): ReactNode {
 
 function SidebarItem({ title, icon, selected, onPress }: { title: string; icon: string; selected: boolean; onPress: () => void }) {
   const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
   return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <View
-          style={{
-            height: 30,
-            borderRadius: 7,
-            flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: 8,
-            gap: 9,
-            backgroundColor: selected ? theme.formAccent : hovered ? theme.rowHover : undefined,
-          }}
-        >
-          <Symbol name={icon} size={13} color={selected ? theme.onAccent : theme.icon} style={{ width: 20, height: 20 }} />
-          <Text style={{ ...font.body, color: selected ? theme.onAccent : theme.textPrimary }}>{title}</Text>
-        </View>
-      </Pressable>
-    </View>
+    <ListRow height={SIDEBAR_ITEM_HEIGHT} selected={selected} selectedTone="accent" onPress={onPress}>
+      <Symbol name={icon} size={13} color={selected ? theme.onAccent : theme.icon} style={SIDEBAR_ICON} />
+      <Text tone={selected ? "onAccent" : "textPrimary"}>{title}</Text>
+    </ListRow>
   );
 }
+
+const SIDEBAR_ITEM_HEIGHT = 30;
+const SIDEBAR_ICON = { width: 20, height: 20 } as const;
 
 function AdvancedToggle() {
   const theme = useTheme();
   const shown = useSettings((s) => s.showAdvancedSettings);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: theme.divider }}>
-      <Text style={{ flex: 1, ...font.small, color: theme.textSecondary }}>Show advanced settings</Text>
+    <Box row gap="m" padX="xl" padY="l" style={[ADVANCED, { borderTopColor: theme.divider }]}>
+      <Text size="small" tone="textSecondary" style={FILL}>
+        Show advanced settings
+      </Text>
       <Toggle value={shown} onChange={(v) => updateSettings({ showAdvancedSettings: v })} />
-    </View>
+    </Box>
   );
 }

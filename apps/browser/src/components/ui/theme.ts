@@ -5,7 +5,8 @@ import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../l
 import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
-import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, type ColorRoles, type ProfileColorSpec } from "./tokens";
+import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
+import type { BasePalette } from "../../lib/themeFile";
 
 export { PROFILE_COLORS } from "./tokens";
 
@@ -16,7 +17,24 @@ export type Theme = ColorRoles & {
   powerUpColor: string | null;
   powerUpPalette: string[] | null;
   custom: ProfileTheme | null;
+  palettes: Palettes;
 };
+
+type Palettes = { readonly dark: ColorRoles; readonly light: ColorRoles; readonly revision: number };
+type Layer = { palettes: Palettes; themes: Map<string, Theme>; custom: WeakMap<ProfileTheme, Map<string, Theme>> };
+
+const OWN_PALETTE: BasePalette = { revision: 0, dark: colorRoles.dark, light: colorRoles.light };
+const layers = new WeakMap<BasePalette, Layer>();
+
+function layerOf(base: BasePalette | null | undefined): Layer {
+  const palette = base ?? OWN_PALETTE;
+  let layer = layers.get(palette);
+  if (!layer) {
+    const palettes = { dark: palette.dark as unknown as ColorRoles, light: palette.light as unknown as ColorRoles, revision: palette.revision };
+    layers.set(palette, (layer = { palettes, themes: new Map(), custom: new WeakMap() }));
+  }
+  return layer;
+}
 
 export function hex(color: string): string {
   if (!isRgbFunction(color)) return color;
@@ -30,13 +48,12 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
-const cache = new Map<string, Theme>();
-
-export function themeFor(key: string): Theme {
-  let theme = cache.get(key);
+export function themeFor(key: string, palette?: BasePalette | null): Theme {
+  const layer = layerOf(palette);
+  let theme = layer.themes.get(key);
   if (!theme) {
     const [color, mode] = key.split(":") as [ProfileColor | "incognito", string];
-    const base = color === "incognito" || mode === "dark" ? colorRoles.dark : colorRoles.light;
+    const base = color === "incognito" || mode === "dark" ? layer.palettes.dark : layer.palettes.light;
     const spec = color === "incognito" ? null : (PROFILE_COLORS[color] ?? PROFILE_COLORS.plum);
     const powerUpColor = !spec ? null : spec.palette ? (spec.powerUp ?? spec.swatch) : ink.neutralGrey;
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
@@ -48,8 +65,9 @@ export function themeFor(key: string): Theme {
       powerUpColor,
       powerUpPalette: powerUpColor ? [powerUpColor] : null,
       custom: null,
+      palettes: layer.palettes,
     };
-    cache.set(key, theme);
+    layer.themes.set(key, theme);
   }
   return theme;
 }
@@ -72,16 +90,15 @@ export function nearestPreset(hexColor: string): ProfileColor {
   return best;
 }
 
-const customCache = new WeakMap<ProfileTheme, Map<string, Theme>>();
-
-function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean, source: LookSource): Theme {
+function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean, source: LookSource, base: BasePalette | null | undefined): Theme {
   const key = `${color}:${requestedDarkFor(custom, appDark, source) ? "dark" : "light"}:${source}`;
-  let byKey = customCache.get(custom);
-  if (!byKey) customCache.set(custom, (byKey = new Map()));
+  const layer = layerOf(base);
+  let byKey = layer.custom.get(custom);
+  if (!byKey) layer.custom.set(custom, (byKey = new Map()));
   let theme = byKey.get(key);
   if (!theme) {
     const { look, dark, requestedDark } = shownLook(custom, appDark, source);
-    const preset = themeFor(`${color}:${dark ? "dark" : "light"}`);
+    const preset = themeFor(`${color}:${dark ? "dark" : "light"}`, base);
     const accent = themeAccent(look);
     const palette = themePalette(look);
     theme = {
@@ -102,10 +119,10 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
   return theme;
 }
 
-export function profileTheme(profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource = "own"): Theme {
+export function profileTheme(profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource = "own", palette?: BasePalette | null): Theme {
   const color = profile?.color ?? "plum";
-  if (profile?.theme) return customTheme(profile.theme, color, appDark, source);
-  return themeFor(`${color}:${appDark ? "dark" : "light"}`);
+  if (profile?.theme) return customTheme(profile.theme, color, appDark, source, palette);
+  return themeFor(`${color}:${appDark ? "dark" : "light"}`, palette);
 }
 
 export function profileAccent(profile: ProfileLookFields | undefined): string {
@@ -113,8 +130,14 @@ export function profileAccent(profile: ProfileLookFields | undefined): string {
   return (PROFILE_COLORS[profile?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch;
 }
 
-export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource): Theme {
-  return incognito ? themeFor("incognito") : profileTheme(profile, appDark, source);
+export function scopedTheme(incognito: boolean, profile: ProfileLookFields | undefined, appDark: boolean, source: LookSource, palette?: BasePalette | null): Theme {
+  return incognito ? themeFor("incognito", palette) : profileTheme(profile, appDark, source, palette);
+}
+
+export function shadowOpacityOf(level: Omit<ShadowLevel, "opacity"> & { opacity: ShadowLevel["opacity"] | number }, theme: Theme): number {
+  if (typeof level.opacity === "number") return level.opacity;
+  if (level.panelShare !== undefined) return theme.panelShadowOpacity * level.panelShare;
+  return theme.dark ? level.opacity.dark : level.opacity.light;
 }
 
 export const ThemeContext = createContext<Theme | null>(null);
@@ -127,16 +150,16 @@ export function useTheme(): Theme {
 }
 
 const SELECTED_TAB_GLOW = {
-  full: { opacity: 1, radius: 1 },
-  soft: { opacity: 0.45, radius: 0.6 },
-  off: { opacity: 0, radius: 1 },
+  full: { opacity: 1, spread: 1 },
+  soft: { opacity: 0.45, spread: 0.6 },
+  off: { opacity: 0, spread: 1 },
 };
 
 export type SelectedTabGlowLevel = keyof typeof SELECTED_TAB_GLOW;
 
 export function selectedTabGlow(theme: Theme, setting: SelectedTabGlowLevel) {
   const level = SELECTED_TAB_GLOW[setting] ?? SELECTED_TAB_GLOW.full;
-  return { shadowColor: hex(theme.tabSelectedShadow), shadowOpacity: level.opacity, shadowRadius: theme.tabSelectedShadowRadius * level.radius };
+  return { shadowColor: hex(theme.tabSelectedShadow), shadowOpacity: level.opacity, shadowRadius: theme.tabSelectedShadowRadius * level.spread };
 }
 
 const SIDEBAR_INSET = 6;
@@ -151,7 +174,7 @@ export const layout = {
   rowGap: SIDEBAR_ROW.gap,
   cardInset: CARD_INSET,
   sidebarCardGap: CARD_INSET - SIDEBAR_INSET,
-  cardRadius: 10,
+  cardRadius: radius.chrome,
   toolbarButton: 30,
   toolbarIconCenters: [21, 56, 92, 127],
   breadcrumbX: 153,
@@ -192,8 +215,11 @@ const formColorsOf = (roles: ColorRoles): FormColors => ({
   flash: roles.searchFlash,
 });
 
-const FORM_COLORS = { dark: formColorsOf(colorRoles.dark), light: formColorsOf(colorRoles.light) };
+const formColors = new WeakMap<Theme, FormColors>();
 
 export function useFormColors(): FormColors {
-  return useTheme().dark ? FORM_COLORS.dark : FORM_COLORS.light;
+  const theme = useTheme();
+  let colors = formColors.get(theme);
+  if (!colors) formColors.set(theme, (colors = formColorsOf(theme)));
+  return colors;
 }

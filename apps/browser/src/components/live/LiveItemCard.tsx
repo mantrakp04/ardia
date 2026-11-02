@@ -7,40 +7,29 @@ import { ago } from "../../state/live/meetings";
 import { useLive } from "../../state/live/store";
 import type { LiveItem, PullRequestCheck } from "../../state/live/types";
 import { newTab } from "../../state/tabs/actions";
-import { Box, Button, curve, font, hairline, Panel, radius, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
+import { Badge, Box, Button, capsule, curve, Divider, font, HoverCard, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
 import { dismissHover } from "../../state/sidebar/hover";
 import { cardHoverProps } from "../sidebar/hoverController";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "../sidebar/TabIcon";
-import { liveMotion, liveShadow, liveType, useLiveColors, type LiveColors } from "./tokens";
+import { liveMotion, liveType, useLiveColors, type LiveColors } from "./tokens";
 
-const PREVIEW_GAP = 9;
+const PREVIEW_GAP = space.m;
 const CI_BAR = 6;
 const CHECK_ROW = 24;
-const CHECK_PAD = 5;
-const CHIP_HEIGHT = 17;
+const CHECK_PAD = space.xs;
+export const AVATAR_SIZE = 20;
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
-  const theme = useTheme();
   return (
-    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor), width }}>
-      <Panel
-        onMouseEnter={cardHoverProps.onMouseEnter}
-        onMouseLeave={cardHoverProps.onMouseLeave}
-        fill={theme.panel}
-        radius={radius.panel}
-        border={theme.panelBorder}
-        shadow={liveShadow.hoverCard}
-        style={HOVER_CARD}
-      >
+    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor) }}>
+      <HoverCard width={width} pad="l" onMouseEnter={cardHoverProps.onMouseEnter} onMouseLeave={cardHoverProps.onMouseLeave}>
         {children}
-      </Panel>
+      </HoverCard>
     </View>
   );
 }
-
-const HOVER_CARD = { padding: space.l } as const;
 
 export function LiveItemCard({ id, windowId, anchor }: { id: string; windowId: string; anchor: Anchor }) {
   const [, folderId = "", itemId = ""] = id.split("|");
@@ -53,7 +42,8 @@ export function LiveItemCard({ id, windowId, anchor }: { id: string; windowId: s
   );
 }
 
-export function Avatar({ uri, name, size = 20 }: { uri: string | null; name: string; size?: number }) {
+export function Avatar({ uri, name }: { uri: string | null; name: string }) {
+  const size = AVATAR_SIZE;
   const colors = useLiveColors();
   const [failed, setFailed] = useState(false);
   const initials = name
@@ -86,12 +76,12 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
   const [showAll, setShowAll] = useState(false);
   return (
     <View style={PREVIEW}>
-      <Box row gap="sm" style={CENTER}>
+      <Box row gap="m" style={CENTER}>
         <Avatar uri={pr.authorAvatar} name={pr.author} />
         <Text lines={1} size="small" tone="textSecondary" style={FILL}>
           <Span style={{ fontWeight: weight.semibold, color: theme.textPrimary }}>{pr.author}</Span> · {pr.repo} #{pr.number}
         </Text>
-        {pr.draft ? <Chip text="Draft" color={colors.draft} /> : null}
+        {pr.draft ? <Badge text="Draft" outline color={colors.draft} /> : null}
       </Box>
       <Text lines={3} style={liveType.heading}>
         {item.title}
@@ -108,7 +98,7 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
           {(showAll ? failing : failing.slice(0, 3)).map((c) => (
             <FailingCheckRow key={c.name} check={c} colors={colors} onPress={() => c.url && open(windowId, c.url)} />
           ))}
-          {failing.length > 3 && !showAll ? <LinkText text={`Show all ${failing.length} failures`} onPress={() => setShowAll(true)} /> : null}
+          {failing.length > 3 && !showAll ? <Button variant="text" look="link" title={`Show all ${failing.length} failures`} onPress={() => setShowAll(true)} /> : null}
         </Box>
       ) : null}
 
@@ -129,7 +119,7 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
         />
       ) : null}
 
-      <View style={[DIVIDER, { backgroundColor: theme.divider }]} />
+      <Divider />
       <Box row gap="ml" style={FOOTER}>
         <Pressable
           onPress={() => {
@@ -139,13 +129,13 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
           style={COMMENTS}
         >
           <Symbol name="bubble.left" size={10.5} color={theme.textSecondary} style={GLYPH_14} />
-          <Text size="footnote" tone="textSecondary" style={SHRINK}>
+          <Text size="caption" tone="textSecondary" style={SHRINK}>
             {pr.comments === 1 ? "1 comment" : `${pr.comments} comments`}
             {pr.unresolvedThreads ? ` · ${pr.unresolvedThreads} unresolved` : ""}
           </Text>
         </Pressable>
         {pr.additions || pr.deletions ? (
-          <Text size="footnote" tone="textSecondary" style={DIFF_STAT}>
+          <Text size="caption" tone="textSecondary" style={DIFF_STAT}>
             <Span style={{ color: colors.success }}>+{pr.additions}</Span> <Span style={{ color: colors.failure }}>−{pr.deletions}</Span>
             {pr.changedFiles ? ` · ${pr.changedFiles} ${pr.changedFiles === 1 ? "file" : "files"}` : ""}
           </Text>
@@ -159,7 +149,6 @@ const FILL = { flex: 1 } as const;
 const SHRINK = { flexShrink: 1 } as const;
 const CENTER = { alignItems: "center" } as const;
 const PREVIEW = { gap: PREVIEW_GAP } as const;
-const DIVIDER = { height: hairline.panel } as const;
 const FOOTER = { flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" } as const;
 const COMMENTS = { flexDirection: "row", alignItems: "center", maxWidth: "100%", gap: space.xs } as const;
 const DIFF_STAT: TextStyle = { maxWidth: "100%", fontVariant: ["tabular-nums"] };
@@ -175,8 +164,8 @@ function CIProgressBar({ checks, colors }: { checks: PullRequestCheck[]; colors:
     if (!pending) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.45, duration: liveMotion.ciPulse, easing: curve.inOutQuad, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: liveMotion.ciPulse, easing: curve.inOutQuad, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: liveMotion.ciPulse, easing: curve.move, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: liveMotion.ciPulse, easing: curve.move, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -191,7 +180,7 @@ function CIProgressBar({ checks, colors }: { checks: PullRequestCheck[]; colors:
   );
 }
 
-const CI_TRACK = { height: CI_BAR, borderRadius: CI_BAR / 2, overflow: "hidden", flexDirection: "row", gap: space.xxs } as const;
+const CI_TRACK = { height: CI_BAR, borderRadius: capsule(CI_BAR), overflow: "hidden", flexDirection: "row", gap: space.xxs } as const;
 
 function FailingCheckRow({ check, colors, onPress }: { check: PullRequestCheck; colors: LiveColors; onPress(): void }) {
   const theme = useTheme();
@@ -199,7 +188,7 @@ function FailingCheckRow({ check, colors, onPress }: { check: PullRequestCheck; 
   return (
     <View {...hoverProps}>
       <Pressable onPress={onPress}>
-        <Box row radius="m" gap="s" fill={hovered ? "rowHover" : undefined} style={CHECK}>
+        <Box row radius="control" gap="s" fill={hovered ? "rowHover" : undefined} style={CHECK}>
           <Symbol name="xmark" size={9} weight="bold" color={colors.failure} style={GLYPH_12} />
           <FadeLabel text={check.name} fontSize={font.small.fontSize} color={theme.textPrimary} style={CHECK_LABEL} />
           {hovered ? <Symbol name="arrow.up.forward" size={9} color={theme.textSecondary} style={GLYPH_12} /> : null}
@@ -222,32 +211,6 @@ function StatusLine({ symbol, color, text }: { symbol: string; color: string; te
     </Box>
   );
 }
-
-function Chip({ text, color }: { text: string; color: string }) {
-  return (
-    <View style={[CHIP, { borderColor: color }]}>
-      <Text style={{ ...liveType.chip, color }}>{text}</Text>
-    </View>
-  );
-}
-
-const CHIP = { height: CHIP_HEIGHT, borderRadius: CHIP_HEIGHT / 2, paddingHorizontal: space.sm, borderWidth: hairline.panel, justifyContent: "center" } as const;
-
-function LinkText({ text, onPress }: { text: string; onPress(): void }) {
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <Text size="small" tone="accent" style={hovered ? UNDERLINE : NO_UNDERLINE}>
-          {text}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
-const UNDERLINE = { textDecorationLine: "underline" } as const;
-const NO_UNDERLINE = { textDecorationLine: "none" } as const;
 
 function DocumentPreview({ item }: { item: LiveItem }) {
   const doc = item.doc;

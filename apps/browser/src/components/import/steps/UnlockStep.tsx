@@ -1,7 +1,6 @@
 import { Button } from "../../ui";
 import { APP } from "../model";
 import { ErrorText, Handoff, Spacer, Title } from "../Parts";
-import { importLayout } from "../tokens";
 import { backTo, importsBySpaces, type ImportFlow } from "../../../state/import/flow";
 import { skipEncryptedData, unlockAndImport } from "../../../state/import/runImport";
 
@@ -19,7 +18,6 @@ export function UnlockBody({ flow }: { flow: ImportFlow }) {
       <Handoff
         iconPath={source.iconPath}
         symbol="lock.fill"
-        maxWidth={importLayout.textMax}
         lead={
           many
             ? `Some data is encrypted, so macOS will ask for your computer password once for each selected profile.`

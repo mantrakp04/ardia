@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { Image, StyleSheet, View, type ImageSourcePropType } from "react-native";
-import { DockSelection, GlassFill, useGlass, useTheme } from "../ui";
+import { Image, StyleSheet, type ImageSourcePropType } from "react-native";
+import { DockSelection, radius, useGlass, useTheme } from "../ui";
 import { bundledSiteIcon } from "../favicon/siteIcons";
 import { useFavicon } from "../../state/favicons/favicons";
 import { useIconRing, warmIconRing } from "../../state/favicons/iconRing";
@@ -9,22 +9,7 @@ import type { TileTheme } from "../../state/favicons/tileTheme";
 export const RING_WIDTH = 2;
 const RING_WARM_DELAY_MS = 500;
 
-export function useSolidFill() {
-  const glass = useGlass();
-  return (fill: string) => (glass ? "transparent" : fill);
-}
-
-export function GlassBacking({ radius, border = 0, raised, highlight }: { radius: number; border?: number; raised?: boolean; highlight?: string | null }) {
-  if (!useGlass()) return null;
-  return (
-    <>
-      <GlassFill radius={radius} border={border} state={raised ? "active" : "rest"} />
-      {highlight ? <View pointerEvents="none" style={{ position: "absolute", top: -border, left: -border, right: -border, bottom: -border, borderRadius: radius, borderCurve: "continuous", backgroundColor: highlight }} /> : null}
-    </>
-  );
-}
-
-export function IconRing({ ring, radius }: { ring: TileTheme; radius: number }) {
+export function IconRing({ ring }: { ring: TileTheme }) {
   const theme = useTheme();
   return (
     <DockSelection
@@ -33,7 +18,7 @@ export function IconRing({ ring, radius }: { ring: TileTheme; radius: number }) 
       theme={ring.theme.kind}
       fill={ring.theme.kind === "template" ? ring.theme.fill : undefined}
       stroke={ring.theme.kind === "template" ? ring.theme.stroke : undefined}
-      cornerRadius={radius}
+      cornerRadius={radius.panel}
       strokeWidth={RING_WIDTH}
       dark={theme.dark}
       glass

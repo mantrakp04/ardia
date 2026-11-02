@@ -1,3 +1,4 @@
+import type { View } from "react-native";
 import { prompt } from "../../platform/dialogs";
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
 import { menuSections } from "../app/menuSections";
@@ -5,30 +6,28 @@ import { deleteProfile } from "../browser/actions";
 import { currentProfile, currentProfileOrder, currentSettings } from "../browser/current";
 import type { ProfileColor } from "../browser/types";
 import { goToSettingsPane, openSettings } from "../settings/settingsWindows";
-import { setDefaultProfile, setSwitcherIcon, updateProfile } from "./actions";
+import { commitProfileName, setDefaultProfile } from "./actions";
+import { openProfileIconPicker } from "./iconPicker";
 import { choosePresetColor } from "./themeActions";
 
 export type ProfileMenuPlace = "sidebar" | "settings";
 export type ProfileColorChoice = { id: ProfileColor; title: string; swatch: string };
-export type IconChoice = { icon: string | null };
-export type IconMenuItem = ChoiceItem<IconChoice, "emoji">;
-type ProfileMenuItem = ChoiceItem<IconChoice | { color: ProfileColor }, "rename" | "icon" | "color" | "settings" | "details" | "default" | "delete" | "emoji">;
+type ProfileMenuItem = ChoiceItem<{ color: ProfileColor }, "rename" | "icon" | "color" | "settings" | "details" | "default" | "delete">;
 
 export type ProfileMenuState = {
   place: ProfileMenuPlace;
   hasIcon: boolean;
-  iconItems: IconMenuItem[];
   colors: ProfileColorChoice[];
   color: ProfileColor | null;
   isDefault: boolean;
   only: boolean;
 };
 
-export function profileMenuItems({ place, hasIcon, iconItems, colors, color, isDefault, only }: ProfileMenuState): ProfileMenuItem[] {
+export function profileMenuItems({ place, hasIcon, colors, color, isDefault, only }: ProfileMenuState): ProfileMenuItem[] {
   return menuSections<ProfileMenuItem>(
     [
       { id: "rename" as const, title: "Rename…", symbol: "pencil" },
-      { id: "icon" as const, title: hasIcon ? "Change Icon" : "Add Icon", symbol: "photo", children: iconItems },
+      { id: "icon" as const, title: hasIcon ? "Change Icon…" : "Add Icon…", symbol: "photo" },
       { id: "color" as const, title: "Color", symbol: "paintpalette", children: colors.map((c) => ({ value: { color: c.id }, title: c.title, swatch: c.swatch, checked: c.id === color })) },
     ],
     place === "sidebar"
@@ -45,12 +44,12 @@ export async function renameProfile(profileId: string, windowId?: string) {
   const profile = currentProfile(profileId);
   if (!profile) return;
   const name = await prompt({ title: "Rename Profile", value: profile.name, placeholder: "Profile name", confirmTitle: "Rename", windowId });
-  if (name?.trim() && currentProfile(profileId)) updateProfile(profileId, { name: name.trim() });
+  if (name !== null) commitProfileName(profileId, name);
 }
 
 export async function showProfileMenu(
   profileId: string,
-  { place, windowId, iconItems, colors }: { place: ProfileMenuPlace; windowId?: string; iconItems: (current: string | null) => IconMenuItem[]; colors: ProfileColorChoice[] },
+  { place, windowId, anchor, colors }: { place: ProfileMenuPlace; windowId: string; anchor: View | null; colors: ProfileColorChoice[] },
 ) {
   const profile = currentProfile(profileId);
   if (!profile) return;
@@ -58,7 +57,6 @@ export async function showProfileMenu(
     profileMenuItems({
       place,
       hasIcon: !!profile.icon,
-      iconItems: iconItems(profile.icon),
       colors,
       color: profile.theme ? null : profile.color,
       isDefault: currentSettings().defaultProfileId === profileId,
@@ -66,10 +64,8 @@ export async function showProfileMenu(
     }),
   );
   if (!choice) return;
-  if (typeof choice === "object") {
-    if ("color" in choice) return choosePresetColor(profileId, choice.color);
-    return place === "sidebar" ? setSwitcherIcon(profileId, choice.icon) : updateProfile(profileId, { icon: choice.icon });
-  }
+  if (typeof choice === "object") return choosePresetColor(profileId, choice.color);
+  if (choice === "icon") return void openProfileIconPicker(profileId, windowId, place, anchor);
   if (choice === "rename") return void renameProfile(profileId, windowId);
   if (choice === "settings") return openSettings("profiles", profileId);
   if (choice === "details") return goToSettingsPane("profiles", profileId);

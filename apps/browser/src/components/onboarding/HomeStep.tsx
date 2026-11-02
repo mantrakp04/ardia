@@ -7,14 +7,15 @@ import {
   setAsDefaultBrowser,
   setLaunchAtLogin,
 } from "../../state/app/appSettings";
-import { GlassBacking, useSolidFill } from "./GlassBacking";
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
-import { Symbol } from "../ui";
-import { font, weight } from "../ui/tokens";
+import { Image, View } from "react-native";
+import { Checkbox, Symbol, Text } from "../ui";
+import { capsule, space } from "../ui/tokens";
+import { ChoiceCard } from "./ChoiceCard";
+import { OptionCard } from "./OptionCard";
 import { confirmAnswer, recordDefaultBrowserTrial, setOnboardingDraft, setOnboardingExtras, skipStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
-import { CheckMark, CheckRow, useOnboardingColors } from "./Parts";
+import { useOnboardingColors } from "./Parts";
 import { MockPanel, useScreen } from "./Screen";
 import { StepActions, StepLayout } from "./StepLayout";
 
@@ -82,22 +83,23 @@ function DefaultBrowserQuestion() {
       }
       preview={<SystemPreview isDefault={!!(defaultOn || trying)} dock={!!(system?.inDock || dock)} login={login} />}
     >
-      <View style={{ gap: 8 }}>
-        <CheckRow
+      <View style={{ gap: space.m }}>
+        <OptionCard
+          control="check"
           icon="globe"
           title="Set Ardia as default browser"
           subtitle={system?.isDefault ? "Ardia is already your default browser" : "Open links and web pages in Ardia"}
-          value={!!defaultOn}
+          selected={!!defaultOn}
           disabled={!system || system.isDefault}
-          onChange={(v) => setExtras(v ? { setDefault: true } : { setDefault: false, trial: true })}
+          onPress={() => setExtras(defaultOn ? { setDefault: false, trial: true } : { setDefault: true })}
         />
         {system && !defaultOn ? (
-          <CheckRow icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." value={trial} onChange={(v) => setExtras({ trial: v })} />
+          <OptionCard control="check" icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." selected={trial} onPress={() => setExtras({ trial: !trial })} />
         ) : null}
         {system && !system.inDock ? (
-          <CheckRow icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" value={dock} onChange={(v) => setExtras({ dock: v })} />
+          <OptionCard control="check" icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" selected={dock} onPress={() => setExtras({ dock: !dock })} />
         ) : null}
-        <CheckRow icon="power" title="Open Ardia at login" subtitle="Ready when you sign in" value={login} onChange={(v) => setExtras({ login: v })} />
+        <OptionCard control="check" icon="power" title="Open Ardia at login" subtitle="Ready when you sign in" selected={login} onPress={() => setExtras({ login: !login })} />
       </View>
     </StepLayout>
   );
@@ -127,36 +129,27 @@ function LinksQuestion() {
   );
 }
 
+const CHIP_HEIGHT = 34;
+
 function SystemPreview({ isDefault, dock, login }: { isDefault: boolean; dock: boolean; login: boolean }) {
-  const solidFill = useSolidFill();
   const colors = useOnboardingColors();
   const chip = (on: boolean, icon: string, label: string) => (
-    <View
+    <ChoiceCard
       key={label}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        height: 34,
-        paddingLeft: 12,
-        paddingRight: 10,
-        borderRadius: 17,
-        backgroundColor: solidFill(colors.row),
-        borderWidth: StyleSheet.hairlineWidth * 2,
-        borderColor: colors.rowBorder,
-        opacity: on ? 1 : 0.45,
-      }}
+      radius={capsule(CHIP_HEIGHT)}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.m, height: CHIP_HEIGHT, paddingLeft: space.l, paddingRight: space.ml, opacity: on ? 1 : 0.45 }}
     >
-      <GlassBacking radius={17} border={StyleSheet.hairlineWidth * 2} />
       <Symbol name={icon} size={13} color={colors.title} style={{ width: 16, height: 16 }} />
-      <Text style={{ ...font.small, fontWeight: weight.medium, color: colors.title }}>{label}</Text>
-      <CheckMark on={on} size={16} />
-    </View>
+      <Text size="small" weight="medium" color={colors.title}>
+        {label}
+      </Text>
+      <Checkbox look="ring" size="s" value={on} />
+    </ChoiceCard>
   );
   return (
-    <View style={{ alignItems: "center", gap: 28 }}>
+    <View style={{ alignItems: "center", gap: space.xxxl }}>
       <Image source={ICON} style={{ width: 132, height: 132 }} />
-      <View style={{ gap: 8, alignItems: "center" }}>
+      <View style={{ gap: space.m, alignItems: "center" }}>
         {chip(isDefault, "globe", "Default browser")}
         {chip(dock, "dock.rectangle", "In your Dock")}
         {chip(login, "power", "Opens at login")}

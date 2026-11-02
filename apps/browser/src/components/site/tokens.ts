@@ -1,5 +1,5 @@
 import { useTheme } from "../ui/theme";
-import { shadow, type ShadowLevel } from "../ui/tokens";
+import { font, lineHeight, tracking } from "../ui/tokens";
 
 const DARK = {
   tile: "rgba(255,255,255,0.07)",
@@ -9,8 +9,6 @@ const DARK = {
   iconTile: "rgba(255,255,255,0.1)",
   well: "rgba(255,255,255,0.06)",
   certificateWell: "rgba(255,255,255,0.05)",
-  stepper: "rgba(255,255,255,0.06)",
-  optionSelected: "rgba(255,255,255,0.14)",
 };
 
 export type SiteTokens = typeof DARK;
@@ -23,8 +21,6 @@ const LIGHT: SiteTokens = {
   iconTile: "rgba(0,0,0,0.06)",
   well: "rgba(0,0,0,0.04)",
   certificateWell: "rgba(0,0,0,0.04)",
-  stepper: "rgba(0,0,0,0.05)",
-  optionSelected: "rgba(0,0,0,0.08)",
 };
 
 export function useSiteTokens(): SiteTokens {
@@ -46,12 +42,12 @@ export const CARD_BADGES = {
 
 export const MASTERCARD_RINGS = { left: "#EB001B", right: "#F79E1B" } as const;
 
-export const cardBadgeType = { long: { fontSize: 7.5 }, short: { fontSize: 8 }, weight: "800", letterSpacing: 0.3 } as const;
+export const cardBadgeType = { long: font.badge, short: font.badge, weight: "800", letterSpacing: tracking.caps } as const;
 
-export const noticeType = { fontSize: 12.5 } as const;
+export const noticeType = font.small;
 
-export const siteLine = { section: 15, checkLabel: 16 } as const;
+export const siteLine = { checkLabel: lineHeight.body } as const;
 
-export const selectionBar = { radius: 10, shadow: { ...shadow.popover, radius: 14, offset: [0, 6] } satisfies ShadowLevel, showDelay: 150 } as const;
+export const selectionBar = { showDelay: 150 } as const;
 
 export const UNAVAILABLE_OPACITY = 0.4;

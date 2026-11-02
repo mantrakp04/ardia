@@ -24,7 +24,7 @@ export function SetupCodeRow() {
         }}
         placeholder={`${SETUP_CODE_PREFIX}…`}
         onSubmit={apply}
-        style={{ width: 170 }}
+        width={170}
       />
       <Button title="Apply" disabled={!code.trim()} onPress={apply} />
     </Row>

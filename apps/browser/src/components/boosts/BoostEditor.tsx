@@ -19,7 +19,7 @@ export function BoostEditorDock() {
   }, [editor?.tabId, activeId, tabAlive, windowId]);
   useEffect(() => {
     if (editor) setShown(editor);
-    Animated.timing(appear, { toValue: editor ? 1 : 0, duration: duration.fade, easing: curve.outCubic, useNativeDriver: false }).start(({ finished }) => {
+    Animated.timing(appear, { toValue: editor ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (finished && !editor) setShown(null);
     });
   }, [editor?.tabId, editor?.boostId]);

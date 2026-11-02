@@ -1,7 +1,6 @@
 import { Pressable, View } from "react-native";
 import { BOOST_CASES, BOOST_FONTS, BOOST_SIZES, type Boost, type BoostCase, type BoostSize } from "../../state/boosts/types";
-import { Box, hairline, Symbol, Text, useHover, useTheme } from "../ui";
-import { tileFill } from "../site/SiteControlsParts";
+import { Box, hairline, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { useSiteTokens } from "../site/tokens";
 import { BOOST_PANEL, CASE_LABELS } from "./tokens";
 
@@ -18,7 +17,7 @@ function FontTile({ family, selected, onPress }: { family: string; selected: boo
             style={{
               width: BOOST_PANEL.fontTile,
               height: BOOST_PANEL.fontTile,
-              borderRadius: 8,
+              borderRadius: radius.tile,
               alignItems: "center",
               justifyContent: "center",
               borderWidth: selected ? 1.5 : hairline.ring,
@@ -57,14 +56,14 @@ function ToolButton({ icon, title, tooltip, active, onPress }: { icon: string; t
           <View
             style={{
               height: 32,
-              borderRadius: 8,
+              borderRadius: radius.tile,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              gap: 5,
+              gap: space.xs,
               borderWidth: hairline.ring,
               borderColor: site.tileStroke,
-              backgroundColor: tileFill(site, pressed || !!active, hovered),
+              backgroundColor: pressed || active ? site.tilePressed : hovered ? site.tileHover : site.tile,
             }}
           >
             <Symbol name={icon} size={12} weight="medium" color={active ? theme.accent : theme.icon} style={{ width: 16, height: 16 }} />

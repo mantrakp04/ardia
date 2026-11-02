@@ -1,6 +1,6 @@
-import { Symbol, font, SearchField, weight } from "../ui";
+import { Box, EmptyState, ListRow, SearchField, space, Symbol, Text } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
+import { ScrollView, View, type TextInput } from "react-native";
 import { useTheme } from "../ui/theme";
 import { groupByPane, search } from "./searchMatch";
 import { currentSettingsSearch, moveSettingsSelection, revealSetting, selectSettingsResult, setSettingsQuery, useSettingsSearch } from "../../state/settings/searchState";
@@ -19,7 +19,8 @@ export function SettingsSearchField() {
     input.current?.setSelection(0, currentSettingsSearch().query.length);
   }, [focusRequest]);
   return (
-    <SearchField
+    <View style={FIELD}>
+      <SearchField
       inputRef={input}
       value={query}
       onChangeText={(text) => {
@@ -37,10 +38,12 @@ export function SettingsSearchField() {
         if (!count) return;
         moveSettingsSelection(step, count);
       }}
-      style={{ marginHorizontal: 10, marginBottom: 10 }}
-    />
+      />
+    </View>
   );
 }
+
+const FIELD = { marginHorizontal: space.ml, marginBottom: space.ml } as const;
 
 let cached: { query: string; unshown: ReadonlySet<string>; results: SettingEntry[] } = { query: "", unshown: new Set(), results: [] };
 
@@ -73,23 +76,18 @@ export function SettingsSearchResults({ query }: { query: string }) {
   }, [selected]);
 
   if (!results.length) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", paddingTop: 40, paddingHorizontal: 16 }}>
-        <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textSecondary }}>No Results</Text>
-        <Text style={{ ...font.small, marginTop: 4, textAlign: "center", color: theme.textTertiary }}>{`Nothing matches “${query.trim()}”.`}</Text>
-      </View>
-    );
+    return <EmptyState symbol="magnifyingglass" title="No Results" subtitle={`Nothing matches “${query.trim()}”.`} />;
   }
   return (
-    <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12 }}>
+    <ScrollView ref={scroller} contentContainerStyle={RESULTS}>
       {groups.map((group) => (
-        <View key={group.pane.id} onLayout={(e) => group.rows.forEach((r, i) => rowTops.set(r.index, e.nativeEvent.layout.y + 26 + i * RESULT_HEIGHT))}>
-          <View style={{ height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, marginTop: 4 }}>
-            <Symbol name={group.pane.icon} size={11} color={theme.textTertiary} style={{ width: 16, height: 16 }} />
-            <Text numberOfLines={1} style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTertiary }}>
+        <View key={group.pane.id} onLayout={(e) => group.rows.forEach((r, i) => rowTops.set(r.index, e.nativeEvent.layout.y + GROUP_HEADER + i * RESULT_HEIGHT))}>
+          <Box row gap="s" padX="m" style={GROUP_TITLE}>
+            <Symbol name={group.pane.icon} size={11} color={theme.textTertiary} style={GROUP_ICON} />
+            <Text size="caption" weight="semibold" tone="textTertiary" lines={1}>
               {group.pane.title}
             </Text>
-          </View>
+          </Box>
           {group.rows.map(({ entry, index }) => (
             <ResultRow key={entry.id} entry={entry} selected={index === selected} onHover={() => selectSettingsResult(index)} />
           ))}
@@ -100,23 +98,26 @@ export function SettingsSearchResults({ query }: { query: string }) {
 }
 
 const RESULT_HEIGHT = 40;
+const GROUP_HEADER = 26;
+const RESULTS = { paddingHorizontal: space.ml, paddingBottom: space.l } as const;
+const GROUP_TITLE = { height: GROUP_HEADER, alignItems: "center", marginTop: space.xs } as const;
+const GROUP_ICON = { width: 16, height: 16 } as const;
 
 function ResultRow({ entry, selected, onHover }: { entry: SettingEntry; selected: boolean; onHover: () => void }) {
   const theme = useTheme();
   const detail = entry.section !== entry.title ? entry.section : entry.paneTitle;
   return (
-    <Pressable onPress={() => revealSetting(entry)}>
-      <View
-        onMouseEnter={onHover}
-        style={{ height: RESULT_HEIGHT, borderRadius: 7, justifyContent: "center", paddingHorizontal: 8, backgroundColor: selected ? theme.formAccent : undefined }}
-      >
-        <Text numberOfLines={1} style={{ ...font.body, color: selected ? theme.onAccent : theme.textPrimary }}>
+    <ListRow height={RESULT_HEIGHT} selected={selected} selectedTone="accent" onHover={(hovered) => hovered && onHover()} onPress={() => revealSetting(entry)}>
+      <View style={RESULT_TEXT}>
+        <Text lines={1} tone={selected ? "onAccent" : "textPrimary"}>
           {entry.title}
         </Text>
-        <Text numberOfLines={1} style={{ ...font.caption, marginTop: 1, color: selected ? settingsInk.onAccentSecondary : theme.textSecondary }}>
+        <Text size="caption" lines={1} color={selected ? settingsInk.onAccentSecondary : theme.textSecondary}>
           {detail}
         </Text>
       </View>
-    </Pressable>
+    </ListRow>
   );
 }
+
+const RESULT_TEXT = { flex: 1 } as const;

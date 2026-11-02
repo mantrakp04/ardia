@@ -67,7 +67,7 @@ export function ProfileTint() {
   const windowId = useWindowId();
   const { pages, paging, pager } = usePagerPages(windowId);
   useNativePagerPosition(windowId);
-  const themes = useProfileLooks(pages, (profile, appDark, settings) => profileTheme(profile, appDark, spaceLookSource(settings)));
+  const themes = useProfileLooks(pages, (profile, appDark, settings, palette) => profileTheme(profile, appDark, spaceLookSource(settings), palette));
   const opacities = useMemo(
     () => pages.map((page, k) => (k === 0 ? 1 : pager.pos.interpolate({ inputRange: [pages[k - 1]!.slot, page.slot], outputRange: [0, 1], extrapolate: "clamp" }))),
     [pages, pager],

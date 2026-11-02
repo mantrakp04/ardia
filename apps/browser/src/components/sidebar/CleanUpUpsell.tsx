@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, View } from "react-native";
 import { everySlowly } from "../../state/app/slowTimers";
-import { font, radius, Symbol, weight } from "../ui";
+import { Button, hairline, radius, space, Symbol, Text } from "../ui";
 import { useTheme } from "../ui/theme";
 import { useSettings, useWindow } from "../../state/browser/hooks";
 import { cleanUpTabs } from "../../state/pins/actions";
@@ -13,6 +13,7 @@ import { useShift } from "./EntryMotion";
 import { useSidebarTokens } from "./tokens";
 
 const UPSELL_MIN = 10;
+const FILL = { flex: 1 } as const;
 let upsellDeclined = false;
 
 export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { windowId: string; shift: Animated.Value | null }) {
@@ -33,36 +34,23 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
   }, [windowId, off, tabIds, profileId, activeId]);
   const [moved, movedRef] = useShift(shift);
   if (off || count < UPSELL_MIN) return null;
-  const button = (title: string, onPress: () => void, primary = false) => (
-    <Pressable onPress={onPress}>
-      {({ pressed }) => (
-        <View
-          style={{
-            height: 24,
-            borderRadius: radius.button,
-            paddingHorizontal: 8,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: pressed ? tokens.upsellButtonHover : primary ? theme.textPrimary : tokens.upsellButton,
-          }}
-        >
-          <Text style={{ ...font.small, fontWeight: weight.medium, color: primary ? theme.onPrimary : theme.textPrimary }}>{title}</Text>
-        </View>
-      )}
-    </Pressable>
-  );
+  const button = (title: string, onPress: () => void, primary = false) => <Button variant="pill" tone="chip" size="m" primary={primary} title={title} onPress={onPress} />;
   const dismiss = () => {
     upsellDeclined = true;
     setHidden(true);
   };
   return (
-    <View {...moved} ref={movedRef} style={[{ marginTop: 10, borderRadius: radius.panel, padding: 10, backgroundColor: tokens.groupFill, borderWidth: 0.5, borderColor: tokens.groupStroke, gap: 8 }, moved.style as object]}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+    <View {...moved} ref={movedRef} style={[{ marginTop: space.ml, borderRadius: radius.panel, padding: space.ml, backgroundColor: tokens.groupFill, borderWidth: hairline.panel, borderColor: tokens.groupStroke, gap: space.m }, moved.style as object]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
         <Symbol name="wand.and.stars" size={12} color={theme.icon} style={{ width: 16, height: 16 }} />
-        <Text style={{ flex: 1, ...font.small, fontWeight: weight.semibold, color: theme.textPrimary }}>{count} tabs haven’t been touched in a while</Text>
+        <Text size="small" weight="semibold" style={FILL}>
+          {count} tabs haven’t been touched in a while
+        </Text>
       </View>
-      <Text style={{ ...font.small, color: theme.textSecondary }}>Ardia can tidy up for you. You can always reopen closed tabs from the ⌄ menu.</Text>
-      <View style={{ gap: 6 }}>
+      <Text size="small" tone="textSecondary">
+        Ardia can tidy up for you. You can always reopen closed tabs from the ⌄ menu.
+      </Text>
+      <View style={{ gap: space.s }}>
         {button("Clean Up Once", () => {
           cleanUpTabs(windowId);
           dismiss();

@@ -1,20 +1,20 @@
 import { Animated, View, type ViewStyle } from "react-native";
-import { GlassFill, Surface } from "../../../ui";
-import { hex } from "../../../ui/theme";
-import { ink } from "../../../ui/tokens";
+import { GlassFill } from "../../../ui";
+import { font, radius, space } from "../../../ui/tokens";
 import { at, fill, type Geo } from "../geometry";
 import { tab } from "../content";
 import type { Look } from "../look";
 import { tracker } from "../timeline";
-import { Backdrop, Favicon, Glyph, Label } from "../Kit";
+import { Backdrop, Favicon, Glyph, Label, MockSurface } from "../Kit";
 import { Cursor, Pill } from "../Floating";
-import { sceneMs } from "../tokens";
+import { mockShadow, sceneMs } from "../tokens";
 import type { Scene } from "../scene";
 import { Std } from "./SceneParts";
 
-const LENS = { x: 120, y: 92, w: 620, h: 360, pad: 28, radius: 34 } as const;
-const TILE = { h: 108, gap: 16, radius: 22, icon: 40 } as const;
-const FIELD = { top: 152, h: 82, radius: 22 } as const;
+const ZOOM = 2;
+const LENS = { x: 120, y: 92, w: 620, h: 360, pad: 28, radius: radius.sheet * ZOOM } as const;
+const TILE = { h: 108, gap: space.m * ZOOM, radius: radius.chrome * ZOOM, icon: 40 } as const;
+const FIELD = { top: 152, h: 82, radius: radius.chrome * ZOOM, padX: space.l * ZOOM } as const;
 const ROW_TOP = 256;
 const TILE_W = (LENS.w - LENS.pad * 2 - TILE.gap * 2) / 3;
 const HOVER_AT = 760;
@@ -69,41 +69,31 @@ export function interfaceStyle(glass: boolean): Scene {
             { opacity: t.in(60, 260), transform: [{ scale: t([[60, 0.94], [420, 1]]) }] } as ViewStyle,
           ]}
         >
-          <Surface
-            fill={hex(look.tint[0])}
-            cornerRadius={LENS.radius * s}
-            borderColor={hex(look.t.panelBorder)}
-            borderWidth={0.5}
-            shadowColor={ink.black}
-            shadowOpacity={look.dark ? 0.5 : 0.18}
-            shadowRadius={18 * s}
-            shadowOffset={[0, 6 * s]}
-            style={fill}
-          />
+          <MockSurface g={g} look={look} radius={LENS.radius} shadow={mockShadow.lens} fill={look.tint[0]} style={fill} />
           <View style={[fill, { borderRadius: LENS.radius * s, overflow: "hidden" }]}>
             <Backdrop g={g} look={look} />
             <Tile g={g} look={look} glass={glass} i={0} state="active" />
             <Tile g={g} look={look} glass={glass} i={1} state="rest" lit={t.in(HOVER_AT, 160)} />
             <Tile g={g} look={look} glass={glass} i={2} state="rest" />
-            <View style={[at(g, LENS.pad, FIELD.top, LENS.w - LENS.pad * 2, FIELD.h), { flexDirection: "row", alignItems: "center", gap: 16 * s, paddingHorizontal: 26 * s }]}>
+            <View style={[at(g, LENS.pad, FIELD.top, LENS.w - LENS.pad * 2, FIELD.h), { flexDirection: "row", alignItems: "center", gap: TILE.gap * s, paddingHorizontal: FIELD.padX * s }]}>
               <Face g={g} look={look} glass={glass} state="rest" radius={FIELD.radius} />
               <Favicon g={g} t={tab(0)} size={28} />
-              <Label g={g} size={26} color={look.t.textPrimary} weight="500">
+              <Label g={g} size={font.body.fontSize * ZOOM} color={look.t.textPrimary} weight="500">
                 {tab(0).host}
               </Label>
             </View>
-            <View style={[at(g, LENS.pad + 20, ROW_TOP, LENS.w - LENS.pad * 2 - 40, 64), { flexDirection: "row", alignItems: "center", gap: 16 * s }]}>
+            <View style={[at(g, LENS.pad + 20, ROW_TOP, LENS.w - LENS.pad * 2 - 40, 64), { flexDirection: "row", alignItems: "center", gap: TILE.gap * s }]}>
               <Favicon g={g} t={tab(4)} size={28} />
-              <Label g={g} size={26} color={look.t.textSecondary}>
+              <Label g={g} size={font.body.fontSize * ZOOM} color={look.t.textSecondary}>
                 {tab(4).title}
               </Label>
             </View>
           </View>
         </Animated.View>
         <Cursor g={g} style={{ opacity: t.in(380, 160), transform: [{ translateX: t([[380, (tileCenter + 120) * s], [HOVER_AT, tileCenter * s]]) }, { translateY: t([[380, (LENS.y + LENS.h - 40) * s], [HOVER_AT, (LENS.y + LENS.pad + TILE.h / 2) * s]]) }] }} />
-        <Pill g={g} look={look} style={{ left: 16 * s, bottom: 16 * s, opacity: t.in(520, 220), transform: [{ translateY: t([[520, 6 * s], [800, 0]]) }] }}>
+        <Pill g={g} look={look} style={{ opacity: t.in(520, 220), transform: [{ translateY: t([[520, 6 * s], [800, 0]]) }] }}>
           <Glyph g={g} name={glass ? "sparkles" : "square.on.square"} size={13} color={look.t.textPrimary} weight="medium" box={18} />
-          <Label g={g} size={13} color={look.t.textPrimary} weight="500">
+          <Label g={g} size={font.body.fontSize} color={look.t.textPrimary} weight="500">
             {glass ? "Liquid Glass" : "Classic"}
           </Label>
         </Pill>

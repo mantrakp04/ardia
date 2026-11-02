@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { TextInput, View } from "react-native";
 import { useSettings } from "../../state/browser/hooks";
 import { updateSettings } from "../../state/settings/actions";
-import { Box, Button, hairline, radius, Text, useTheme } from "../ui";
+import { Box, Button, font, hairline, radius, space, Text, useTheme } from "../ui";
 import { BOOST_PANEL, CODE_FONT } from "./tokens";
 
 type Pane = "css" | "js";
@@ -42,14 +42,14 @@ function CodeField({ value, placeholder, onPreview, onCommit }: { value: string;
       spellCheck={false}
       style={{
         height: BOOST_PANEL.codeHeight,
-        padding: 8,
-        borderRadius: radius.field,
+        padding: space.m,
+        borderRadius: radius.control,
         borderWidth: hairline.ring,
         borderColor: theme.fieldBorder,
         backgroundColor: theme.field,
         color: theme.textPrimary,
         fontFamily: CODE_FONT,
-        fontSize: 12,
+        fontSize: font.small.fontSize,
       }}
     />
   );
@@ -75,7 +75,7 @@ export function BoostCode({ css, js, onPreview, onCommit }: { css: string; js: s
           onCommit={(text) => onCommit({ js: text })}
         />
       ) : (
-        <Box gap="m" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="l">
+        <Box gap="m" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="tile">
           <Text weight="medium">JavaScript runs on every page this Boost covers</Text>
           <Text size="small" tone="textSecondary">
             Lets it run code that no one has reviewed. Add only code you trust. A Boost with JavaScript can't be shared.

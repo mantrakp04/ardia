@@ -1,5 +1,6 @@
 import { StyleSheet, type ViewStyle } from "react-native";
 import { CARD_INSET } from "../../../lib/windowLayout";
+import { space } from "../../ui/tokens";
 
 export type Geo = { s: number; W: number; H: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -17,7 +18,7 @@ export const FIELD: Rect = { x: 6, y: 46, w: 178, h: 34 };
 export const TOOLBAR_H = 41;
 export const CRUMB_X = 153;
 export const STRIP_H = 42;
-export const CHIP = { x: 76, w: 173, gap: 4, top: 5, h: 32 } as const;
+export const CHIP = { x: 76, w: 173, gap: space.xs, top: 5, h: 32 } as const;
 export const CARD = CARD_INSET;
 export const SIDE_CARD_X = SIDEBAR_W + CARD_INSET - ROW.x;
 export const LIGHTS_Y = { toolbar: CARD_INSET + 21, field: 24, strip: 20.75 } as const;

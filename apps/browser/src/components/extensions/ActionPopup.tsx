@@ -4,15 +4,13 @@ import { closeExtensionPopup } from "../../state/extensions/actions";
 import { MEASURE_POPUP_SCRIPT } from "../../state/extensions/popupSize";
 import { useShownPageId } from "../../state/peek/hooks";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
-import { curve, duration, PANEL, Panel, WebView, type WebViewHandle } from "../ui";
-import { useTheme } from "../ui/theme";
-import { EXTENSION_PAGE_BACKGROUND, POPUP_SHADOW, useExtensionColors } from "./tokens";
+import { curve, duration, PANEL, Panel, shadow, WebView, type WebViewHandle } from "../ui";
+import { EXTENSION_PAGE_BACKGROUND, useExtensionColors } from "./tokens";
 
 const MIN = { width: 25, height: 25 };
 const MAX = { width: 800, height: 600 };
 
 export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string; pageProfile: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
-  const theme = useTheme();
   const colors = useExtensionColors();
   const web = useRef<WebViewHandle>(null);
   const screen = useWindowDimensions();
@@ -41,7 +39,7 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
       height: Math.min(MAX.height, Math.max(MIN.height, Math.ceil(h))),
     };
     setSize((prev) => {
-      if (!prev) Animated.timing(appear, { toValue: 1, duration: duration.popoverOpen, easing: curve.outCubic, useNativeDriver: true }).start();
+      if (!prev) Animated.timing(appear, { toValue: 1, duration: duration.base, easing: curve.enter, useNativeDriver: true }).start();
       return prev && prev.width === next.width && prev.height === next.height ? prev : next;
     });
   };
@@ -73,7 +71,7 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
           transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }],
         }}
       >
-        <Panel fill={theme.panel} radius={PANEL.radius} border={colors.popupBorder} shadow={POPUP_SHADOW} style={{ width, height }}>
+        <Panel radius={PANEL.radius} border={colors.popupBorder} shadow={shadow.card} style={{ width, height }}>
           <View style={{ flex: 1, borderRadius: PANEL.radius, overflow: "hidden" }}>
             <WebView
               ref={web}

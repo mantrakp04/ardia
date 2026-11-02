@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { layout } from "../ui/theme";
-import { Box, Button, Symbol, Text, TextField, useTheme } from "../ui";
+import { Box, Button, space, Symbol, Text, TextField, useTheme } from "../ui";
 import { updateBoost } from "../../state/boosts/actions";
 import { closeBoostEditor, type BoostEditor } from "../../state/boosts/editor";
 import { useProfileBoosts } from "../../state/boosts/hooks";
@@ -94,10 +94,10 @@ function Panel({ windowId, tabId, profileId, stored }: { windowId: string; tabId
   const share = () => setCopied(copyShareCode({ ...stored, ...typed.current }, true));
   return (
     <View style={{ flex: 1, borderRadius: layout.cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
-      <Box row center gap="m" style={{ height: BOOST_PANEL.headerHeight, paddingLeft: BOOST_PANEL.pad, paddingRight: 8 }}>
+      <Box row center gap="m" style={{ height: BOOST_PANEL.headerHeight, paddingLeft: BOOST_PANEL.pad, paddingRight: space.m }}>
         <Symbol name="paintbrush.fill" size={13} color={theme.icon} style={{ width: 18, height: 18 }} />
         <TextField value={name} onChangeText={setName} placeholder={stored.domain} onBlur={commitName} onSubmit={commitName} style={{ flex: 1 }} />
-        <Button variant="icon" icon="ellipsis" size={13} tooltip="More" onPress={() => void showBoostMenu(profileId, stored, windowId)} />
+        <Button variant="icon" icon="ellipsis" size="l" tooltip="More" onPress={() => void showBoostMenu(profileId, stored, windowId)} />
       </Box>
       <Divider />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: BOOST_PANEL.pad, gap: BOOST_PANEL.sectionGap }}>

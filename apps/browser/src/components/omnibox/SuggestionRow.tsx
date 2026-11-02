@@ -138,7 +138,7 @@ const SuggestionRow = memo(
             <View style={{ flex: 1 }} />
             {hint && !removable ? <Text size="small" tone="textTertiary">{hint}</Text> : null}
             {removable ? (
-              <Button variant="icon" icon="xmark" size={SUGGESTION.remove.glyph} box={SUGGESTION.remove.box} radius={SUGGESTION.remove.radius} color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
+              <Button variant="icon" icon="xmark" size="s" color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
             ) : null}
           </View>
         </Pressable>

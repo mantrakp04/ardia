@@ -1,8 +1,8 @@
 import { memo, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { ContextMenuArea, Symbol, useHover, weight } from "../ui";
-import { SIDEBAR_TYPE } from "./tokens";
+import { ContextMenuArea, Divider, space, Symbol, Text, useHover } from "../ui";
+import { TAB_ROW } from "./tokens";
 import { HoverSlot } from "../ui/HoverSlot";
 import { closeAllTabs } from "../../state/sidebar/clearTabs";
 import { tidyPins } from "../../state/sidebar/tidyPinsUi";
@@ -10,7 +10,8 @@ import { openSidebarMenu } from "../../state/sidebar/menus";
 import { PINNED_FOLD_TITLES, togglePinnedFold } from "../../state/sidebar/pinnedFold";
 
 const CLEAR_DIVIDER_HEIGHT = 16;
-const PADDING = 9;
+const PADDING = TAB_ROW.contentLeft;
+const ACTIONS_DIVIDER = { marginLeft: space.m } as const;
 const SPACED_TOP = 7;
 
 type PinnedFold = { collapsed: boolean; open: Animated.Value };
@@ -52,7 +53,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
             hover={
               <>
                 {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
-                {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
+                {tidy && clear ? <Divider vertical thick length={9} style={ACTIONS_DIVIDER} /> : null}
                 {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
               </>
             }
@@ -74,11 +75,13 @@ function FoldButton({ pinned, onPress }: { pinned: PinnedFold; onPress: () => vo
         {({ pressed }) => {
           const color = pressed ? theme.textSecondary : hovered ? theme.textPrimary : theme.textTertiary;
           return (
-            <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingRight: 8 }}>
-              <Animated.View style={{ width: 10, height: 10, marginRight: 3, alignItems: "center", justifyContent: "center", transform: [{ rotate }] }}>
+            <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingRight: space.m }}>
+              <Animated.View style={{ width: 10, height: 10, marginRight: space.xs, alignItems: "center", justifyContent: "center", transform: [{ rotate }] }}>
                 <Symbol name="chevron.down" size={8} weight="semibold" color={color} style={{ width: 10, height: 10 }} />
               </Animated.View>
-              <Text style={{ fontSize: SIDEBAR_TYPE.divider, fontWeight: weight.medium, color }}>Pinned</Text>
+              <Text size="tiny" weight="medium" color={color}>
+                Pinned
+              </Text>
             </View>
           );
         }}
@@ -96,9 +99,11 @@ function DividerButton({ title, symbol, iconWidth, label, onPress }: { title: st
         {({ pressed }) => {
           const color = pressed ? theme.textSecondary : hovered ? theme.textPrimary : theme.textTertiary;
           return (
-            <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8 }}>
-              <Symbol name={symbol} size={9} weight="semibold" color={color} style={{ width: iconWidth, height: 11, marginRight: 3 }} />
-              <Text style={{ fontSize: SIDEBAR_TYPE.divider, fontWeight: weight.medium, color }}>{title}</Text>
+            <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: space.m }}>
+              <Symbol name={symbol} size={9} weight="semibold" color={color} style={{ width: iconWidth, height: 11, marginRight: space.xs }} />
+              <Text size="tiny" weight="medium" color={color}>
+                {title}
+              </Text>
             </View>
           );
         }}

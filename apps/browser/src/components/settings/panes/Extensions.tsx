@@ -14,18 +14,16 @@ import {
 } from "../../../state/extensions/actions";
 import type { InstalledExtension } from "../../../state/extensions/store";
 import { useEffect, useState } from "react";
-import { Image, Text, View } from "react-native";
-import { useTheme } from "../../ui/theme";
+import { Image, View } from "react-native";
 import { currentEngineProfile, resolvedWindowId } from "../../../state/browser/current";
 import { newTab } from "../../../state/tabs/actions";
 import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
-import { Button, font, PopUp, TextField, Toggle, weight } from "../../ui";
+import { Box, Button, PopUp, proseLineHeight, space, Text, TextField, Toggle } from "../../ui";
 import { Group, ProfilePicker, Row, SectionHeader } from "../Form";
 import { extensionList } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { replaceSettingsPlace, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
-import { settingsType } from "../tokens";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -37,7 +35,6 @@ const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
   ext.siteAccess === "ON_CLICK" ? "onClick" : ext.siteAccess === "ON_SPECIFIC_SITES" ? "specificSites" : "allSites";
 
 export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
-  const theme = useTheme();
   const [profileId] = useState(() => extensionsProfileId(chosen));
   const profile = currentEngineProfile(profileId);
   const list = useExtensionList(profile);
@@ -73,9 +70,9 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
               key={ext.id}
               icon={<Image source={{ uri: ext.icon }} style={{ width: 24, height: 24, opacity: ext.enabled ? 1 : 0.5 }} />}
               title={
-                <Text numberOfLines={1} style={{ ...font.body, color: theme.textPrimary }}>
+                <Text lines={1}>
                   {ext.name}
-                  <Text style={{ color: theme.textTertiary }}>{`  ${ext.version}${ext.fromWebStore ? "" : " · Developer"}`}</Text>
+                  <Text tone="textTertiary">{`  ${ext.version}${ext.fromWebStore ? "" : " · Developer"}`}</Text>
                 </Text>
               }
               description={ext.errors.length && !ext.enabled ? ext.errors[0] : ext.description}
@@ -103,10 +100,10 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
           />
         </Row>
         <Row anchor="extensions.addLink">
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <TextField value={link} onChangeText={setLink} placeholder="chromewebstore.google.com/detail/…" onSubmit={addLink} style={{ width: 210 }} />
+          <Box row center gap="s">
+            <TextField value={link} onChangeText={setLink} placeholder="chromewebstore.google.com/detail/…" onSubmit={addLink} width={210} />
             <Button title="Add" disabled={!link.trim()} onPress={addLink} />
-          </View>
+          </Box>
         </Row>
         <Row anchor="extensions.unpacked">
           <Button
@@ -120,27 +117,35 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
 }
 
 function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; profile: string; onBack: () => void }) {
-  const theme = useTheme();
   const openTab = (url: string) => {
     const windowId = resolvedWindowId();
     if (windowId) newTab(windowId, { url });
   };
   return (
     <View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 18 }}>
-        <Button title="All Extensions" icon="chevron.left" kind="plain" onPress={onBack} />
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 14 }}>
-        <Image source={{ uri: ext.icon }} style={{ width: 48, height: 48 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ ...settingsType.extensionTitle, fontWeight: weight.semibold, color: theme.textPrimary }}>{ext.name}</Text>
-          <Text style={{ ...font.small, color: theme.textSecondary, marginTop: 2 }}>
-            {`Version ${ext.version}${ext.fromWebStore ? " · Chrome Web Store" : " · Unpacked"}`}
-          </Text>
-        </View>
-        <Toggle value={ext.enabled} onChange={(on) => void setEnabled(profile, ext.id, on)} />
-      </View>
-      {ext.description ? <Text style={{ ...font.body, color: theme.textSecondary, marginTop: 12, lineHeight: 18 }}>{ext.description}</Text> : null}
+      <Box gap="xl" style={DETAILS_TOP}>
+        <Box row center>
+          <Button title="All Extensions" icon="chevron.left" kind="plain" onPress={onBack} />
+        </Box>
+        <Group>
+          <Row
+            icon={<Image source={{ uri: ext.icon }} style={DETAILS_ICON} />}
+            title={
+              <Text size="large" weight="semibold">
+                {ext.name}
+              </Text>
+            }
+            description={`Version ${ext.version}${ext.fromWebStore ? " · Chrome Web Store" : " · Unpacked"}`}
+          >
+            <Toggle value={ext.enabled} onChange={(on) => void setEnabled(profile, ext.id, on)} />
+          </Row>
+        </Group>
+      </Box>
+      {ext.description ? (
+        <Text tone="textSecondary" style={DETAILS_DESCRIPTION}>
+          {ext.description}
+        </Text>
+      ) : null}
 
       <SectionHeader title="Permissions" />
       <Group>
@@ -188,10 +193,10 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
           </Row>
         ) : null}
         {ext.errors.length ? <Row title="Errors" description={ext.errors.slice(0, 5).join("\n")} /> : null}
-        <Row title={<Text style={{ ...font.body, color: theme.textTertiary }}>{`ID ${ext.id}`}</Text>} />
+        <Row title={<Text tone="textTertiary">{`ID ${ext.id}`}</Text>} />
       </Group>
 
-      <View style={{ alignItems: "flex-start", marginTop: 18 }}>
+      <View style={REMOVE}>
         <Button
           title="Remove Extension…"
           kind="destructive"
@@ -202,3 +207,8 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
     </View>
   );
 }
+
+const DETAILS_TOP = { marginTop: space.xl } as const;
+const DETAILS_ICON = { width: 48, height: 48 } as const;
+const DETAILS_DESCRIPTION = { marginTop: space.l, lineHeight: proseLineHeight.body } as const;
+const REMOVE = { alignItems: "flex-start", marginTop: space.xl } as const;

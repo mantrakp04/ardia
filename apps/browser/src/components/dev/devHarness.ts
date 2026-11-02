@@ -125,8 +125,14 @@ export function startDevHarness() {
       const { WhatsSentSheet } = require("../settings/panes/ShareDiagnostics") as typeof import("../settings/panes/ShareDiagnostics");
       showSettingsSheet(createElement(WhatsSentSheet));
     },
+    get config(): typeof import("../../state/config/basePalette") & typeof import("../../state/config/configFiles") & typeof import("../../state/app/toasts") {
+      return { ...require("../../state/config/basePalette"), ...require("../../state/config/configFiles"), ...require("../../state/app/toasts") };
+    },
     get live(): { store: typeof import("../../state/live/store"); engine: typeof import("../../state/live/engine") } {
       return { store: require("../../state/live/store"), engine: require("../../state/live/engine") };
+    },
+    get sharedFolders(): typeof import("../../state/sharedFolders/store") & typeof import("../../state/sharedFolders/engine") & typeof import("../../state/sharedFolders/actions") {
+      return { ...require("../../state/sharedFolders/store"), ...require("../../state/sharedFolders/engine"), ...require("../../state/sharedFolders/actions") };
     },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;

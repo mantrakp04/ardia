@@ -1,13 +1,13 @@
 import { prompt } from "../../state/app/system";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
 import { useWindowId } from "../../state/browser/hooks";
-import { Box, Button, Dialog, layout, Text, TextField } from "../ui";
+import { Button, Dialog, DialogActions, layout, Text, TextField } from "../ui";
+import { FormField } from "../settings/Form";
 import { addBookmarkFolder, addBookmarkTree, closeBookmarkDialog, moveBookmark, profileOfBookmark, removeBookmark, updateBookmark, useBookmarkDialog, type BookmarkDialogState } from "../../state/bookmarks/actions";
 import { useBookmarks } from "../../state/bookmarks/hooks";
 import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
-import { FieldLabel, FolderPicker } from "./DialogParts";
-import { bookmarkDialog, folderPicker } from "./tokens";
+import { FolderPicker } from "./DialogParts";
+import { bookmarkDialog } from "./tokens";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { SIDEBAR_HEADER_WITH_FIELD } from "../sidebar/geometry";
@@ -62,8 +62,8 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
 
   return (
     <Dialog
-      width={bookmarkDialog.width}
-      pad="lx"
+      width="xs"
+      pad="xl"
       onDismiss={done}
       place={
         addressBar
@@ -72,18 +72,16 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
       }
     >
       <Text weight="semibold">{heading}</Text>
-      <FieldLabel text={state.kind === "allTabs" ? "Folder name" : "Name"} />
-      <TextField value={name} onChangeText={setName} autoFocus selectOnFocus placeholder={state.kind === "allTabs" ? "Tabs" : "Name"} onSubmit={done} onEscape={done} />
-      <FieldLabel text="Folder" />
-      <FolderPicker profileId={profileId} selectedId={folderId} onSelect={setFolderId} height={folderPicker.addedHeight} clip />
-      <Box row gap="m" style={BUTTONS}>
-        <Button title="New Folder" onPress={newFolder} />
-        <View style={{ flex: 1 }} />
+      <FormField label={state.kind === "allTabs" ? "Folder name" : "Name"}>
+        <TextField value={name} onChangeText={setName} autoFocus selectOnFocus placeholder={state.kind === "allTabs" ? "Tabs" : "Name"} onSubmit={done} onEscape={done} />
+      </FormField>
+      <FormField label="Folder">
+        <FolderPicker profileId={profileId} selectedId={folderId} onSelect={setFolderId} />
+      </FormField>
+      <DialogActions leading={<Button title="New Folder" onPress={newFolder} />}>
         {state.kind === "page" ? <Button title="Remove" onPress={remove} /> : <Button title="Cancel" onPress={close} />}
         <Button title={state.kind === "page" ? "Done" : "Save"} kind="primary" onPress={done} />
-      </Box>
+      </DialogActions>
     </Dialog>
   );
 }
-
-const BUTTONS = { alignItems: "center", marginTop: bookmarkDialog.buttonsTop } as const;

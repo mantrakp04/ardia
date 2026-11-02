@@ -12,6 +12,7 @@ NS_SWIFT_NAME(LaunchConfig)
 - (instancetype)init NS_UNAVAILABLE;
 
 @property(readonly, nullable) NSString *dataDirectory;
+@property(readonly) NSString *configDirectory;
 @property(readonly) BOOL background;
 @property(readonly, nullable) NSNumber *remoteDebuggingPort;
 @property(readonly) BOOL prewarm;

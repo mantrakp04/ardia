@@ -35,6 +35,10 @@ public class TabsModule: Module {
       reply.ok()
     },
     "strips": { _, reply in reply.ok(ArdiaTabStrip.allStrips) },
+    "reportCommits": { args, reply in
+      ArdiaWebView.reportsCommits = try args.bool("on")
+      reply.ok()
+    },
     "lastTabPolicy": EngineCall.passing("ac_tabs_last_tab_policy"),
     "devBrowserId": { args, reply in reply.ok(try browserId(args)) },
     "devEvents": { args, reply in reply.ok(ArdiaWebView.devEvents(browserId: try browserId(args))) },

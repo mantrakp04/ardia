@@ -36,15 +36,15 @@ export function ZapPicker({ tabId, onZap }: { tabId: string; onZap: (chip: ZapCh
     void setZapRelated(tabId, to);
   };
   return (
-    <Box gap="m" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="l">
+    <Box gap="m" padX="l" padY="l" fill="groupFill" border="groupBorder" radius="tile">
       {pick ? (
         <>
           <Box row center gap="s">
             <Text weight="medium" style={{ flex: 1 }}>
               {plural(pick.matches)}
             </Text>
-            <Button variant="icon" icon="minus" size={11} box={24} tooltip="Fewer related elements" disabled={level <= 0} onPress={() => relate(level - 1)} />
-            <Button variant="icon" icon="plus" size={11} box={24} tooltip="All related elements" disabled={level >= pick.levels - 1} onPress={() => relate(level + 1)} />
+            <Button variant="icon" icon="minus" size="m" tooltip="Fewer related elements" disabled={level <= 0} onPress={() => relate(level - 1)} />
+            <Button variant="icon" icon="plus" size="m" tooltip="All related elements" disabled={level >= pick.levels - 1} onPress={() => relate(level + 1)} />
           </Box>
           <Box row gap="s">
             <Button
@@ -77,7 +77,7 @@ export function ZapChips({ chips, onUndo }: { chips: ZapChip[]; onUndo: (chip: Z
   return (
     <Box gap="xs">
       {chips.map((chip) => (
-        <Box key={chip.selector} row center gap="s" padX="l" fill="groupFill" radius="m" style={{ height: BOOST_PANEL.chipHeight }}>
+        <Box key={chip.selector} row center gap="s" padX="l" fill="groupFill" radius="control" style={{ height: BOOST_PANEL.chipHeight }}>
           <Text size="small" lines={1} style={{ flex: 1 }}>
             {`Hid ${plural(chip.matches)}`}
           </Text>

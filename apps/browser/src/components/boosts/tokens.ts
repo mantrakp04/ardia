@@ -17,4 +17,4 @@ export const CODE_FONT = "Menlo";
 
 export const CASE_LABELS = { none: "Case", lower: "lower", upper: "UPPER", title: "Title" } as const;
 
-export const IMPORT_SHEET = { width: 420, codeHeight: 96 } as const;
+export const IMPORT_SHEET = { codeHeight: 96 } as const;

@@ -31,6 +31,7 @@ using namespace ardia_host;
   ardia_host::LoadContentBlocker(@"");
   [ArdiaWebView installScrollZoom];
   [ArdiaWebView installSwitchPrewarm];
+  [ArdiaWebView removeSharedImages];
   [ArdiaServices watchDownloads:@""];
 
   NSBundle *bundle = [NSBundle bundleForClass:ArdiaHostEngineDelegate.class];

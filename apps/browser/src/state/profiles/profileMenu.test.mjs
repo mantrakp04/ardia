@@ -13,7 +13,6 @@ const render = (items, depth = 0) =>
 const base = {
   place: "sidebar",
   hasIcon: false,
-  iconItems: [{ value: { icon: null }, title: "None", checked: true }],
   colors: [
     { id: "plum", title: "Plum", swatch: "#C07A98" },
     { id: "blue", title: "Blue", swatch: "#4691C3" },
@@ -23,11 +22,10 @@ const base = {
   only: false,
 };
 
-test("a profile's menu in the sidebar: Rename…, its icon and colour, Profile Settings…, and Delete Profile… last", () => {
+test("a profile's menu in the sidebar: Rename…, the icon picker and its colour, Profile Settings…, and Delete Profile… last", () => {
   assert.deepEqual(render(profileMenuItems(base)), [
     "Rename… [pencil]",
-    "Add Icon [photo] ›",
-    "  ✓ None",
+    "Add Icon… [photo]",
     "Color [paintpalette] ›",
     "  Plum (swatch)",
     "  ✓ Blue (swatch)",
@@ -37,12 +35,12 @@ test("a profile's menu in the sidebar: Rename…, its icon and colour, Profile S
     "Delete Profile… [trash]",
   ]);
   const custom = render(profileMenuItems({ ...base, hasIcon: true, color: null, only: true }));
-  assert.equal(custom[1], "Change Icon [photo] ›");
+  assert.equal(custom[1], "Change Icon… [photo]");
   assert.ok(!custom.some((l) => l.startsWith("  ✓") && l.includes("swatch")));
   assert.equal(custom.at(-1), "Delete Profile… [trash] (off)");
 });
 
 test("in Settings the same verbs, with the details and default choices in place of Profile Settings…", () => {
   const items = render(profileMenuItems({ ...base, place: "settings" }));
-  assert.deepEqual(items.slice(6), ["---", "Show Profile Details [info.circle]", "Make Default Profile [star] (off)", "---", "Delete Profile… [trash]"]);
+  assert.deepEqual(items.slice(5), ["---", "Show Profile Details [info.circle]", "Make Default Profile [star] (off)", "---", "Delete Profile… [trash]"]);
 });

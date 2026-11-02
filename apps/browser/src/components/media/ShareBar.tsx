@@ -1,4 +1,4 @@
-import { Symbol, Button, Text, useTheme } from "../ui";
+import { Symbol, Button, Dot, Text, useTheme } from "../ui";
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
 import { currentTab } from "../../state/browser/current";
@@ -19,7 +19,7 @@ export function ShareBar({ tabId }: { tabId: string }) {
   const height = useRef(new Animated.Value(0)).current;
   const visible = !!found;
   useEffect(() => {
-    Animated.timing(height, { toValue: visible ? SHARE_BAR_HEIGHT : 0, duration: mediaMotion.shareBarSlide, easing: curve.outCubic, useNativeDriver: false }).start();
+    Animated.timing(height, { toValue: visible ? SHARE_BAR_HEIGHT : 0, duration: mediaMotion.shareBarSlide, easing: curve.enter, useNativeDriver: false }).start();
   }, [visible]);
   const last = useRef(found);
   if (found) last.current = found;
@@ -42,9 +42,9 @@ export function ShareBar({ tabId }: { tabId: string }) {
           borderBottomColor: tokens.shareBarBorder,
         }}
       >
-        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: theme.destructive, alignItems: "center", justifyContent: "center" }}>
+        <Dot size={20} color={theme.destructive}>
           <Symbol name="rectangle.inset.filled" size={9} weight="bold" color={ink.white} style={{ width: 14, height: 14 }} />
-        </View>
+        </Dot>
         <Text lines={1} tone="textSecondary" style={FLEX}>
           {"Sharing "}
           <Text weight="semibold">{isShared ? "this tab" : "another tab"}</Text>
