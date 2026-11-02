@@ -95,7 +95,7 @@ final class VoiceDictation {
 
   private static func requestSpeech() async -> SFSpeechRecognizerAuthorizationStatus {
     await withCheckedContinuation { continuation in
-      SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+      SFSpeechRecognizer.requestAuthorization { @Sendable status in continuation.resume(returning: status) }
     }
   }
 }
