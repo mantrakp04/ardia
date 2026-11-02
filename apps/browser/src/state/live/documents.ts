@@ -119,7 +119,7 @@ export type BitbucketPR = {
   updated_on: string;
   comment_count: number;
   author: { display_name: string; links?: { avatar?: { href: string } } };
-  source: { branch: { name: string } };
+  source: { branch: { name: string }; commit?: { hash: string } };
   destination: { branch: { name: string }; repository: { full_name: string } };
   links: { html: { href: string } };
   participants?: { role: string; state: "approved" | "changes_requested" | null }[];

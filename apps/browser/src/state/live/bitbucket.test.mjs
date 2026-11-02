@@ -136,3 +136,22 @@ test("workspaces and statuses are asked at most ten at a time", async () => {
   assert.equal(items.length, 25);
   assert.equal(most, 10);
 });
+
+test("a commit's finished statuses are reused, while running ones and new commits are asked again", async () => {
+  const withCommit = (hash) => ({ ...prJson(5, "acme/ci"), source: { branch: { name: "b5" }, commit: { hash } } });
+  const statusesOf = `${API}/repositories/acme/ci/pullrequests/5/statuses?pagelen=50`;
+  const refresh = async (hash, state) => {
+    const asked = serve({
+      [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }] },
+      [workspacePRs("acme")]: { values: [withCommit(hash)] },
+      [statusesOf]: { values: [{ state, name: "build", url: "https://ci.example/1" }] },
+    });
+    await connectBitbucket("me@example.com", "token");
+    const [item] = await SOURCES.bitbucket.fetch(authored);
+    return { askedStatuses: asked.includes(statusesOf), check: item.pr.checks[0]?.state };
+  };
+  assert.deepEqual(await refresh("aaa", "INPROGRESS"), { askedStatuses: true, check: "pending" });
+  assert.deepEqual(await refresh("aaa", "SUCCESSFUL"), { askedStatuses: true, check: "success" });
+  assert.deepEqual(await refresh("aaa", "FAILED"), { askedStatuses: false, check: "success" });
+  assert.deepEqual(await refresh("bbb", "FAILED"), { askedStatuses: true, check: "failure" });
+});
