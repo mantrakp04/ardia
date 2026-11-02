@@ -31,6 +31,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   private weak var button: ReadyUpdateButton?
   private var showing = Showing.nothing
   private var retryTerminating: (() -> Void)?
+  private(set) var installPending = false
 
   init(standard: SPUStandardUserDriver, isOnChannel: @escaping (SUAppcastItem) -> Bool,
        cancelledInstaller: @escaping (SUAppcastItem) -> Void, button: ReadyUpdateButton) {
@@ -59,8 +60,20 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
       button?.dropped(appcastItem)
     }
     let answer = awaiting(reply, staged: staged)
-    if button?.installsAtOnce(appcastItem, staged: staged) == true { return answer(.install) }
+    if button?.installsAtOnce(appcastItem, staged: staged) == true, case .asking(_, let choice, _, _) = showing {
+      return install(answering: choice, with: answer, resettingStandard: false)
+    }
     standard.showUpdateFound(with: appcastItem, state: state, reply: answer)
+  }
+
+  private func install(answering choice: PendingChoice, with answer: (SPUUserUpdateChoice) -> Void, resettingStandard: Bool) {
+    installPending = true
+    choice.whenAnswered { [weak self] in
+      guard let self else { return }
+      self.installPending = false
+      if resettingStandard { self.standard.dismissUpdateInstallation() }
+    }
+    answer(.install)
   }
 
   func leaveOffChannelUpdate() {
@@ -169,9 +182,9 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showUpdateInFocus() {
+    guard !installPending else { return }
     if case .asking(let item, let choice, let staged, let answer) = showing, button?.installsAtOnce(item, staged: staged) == true {
-      choice.whenAnswered { [weak self] in self?.standard.dismissUpdateInstallation() }
-      return answer(.install)
+      return install(answering: choice, with: answer, resettingStandard: true)
     }
     standard.showUpdateInFocus()
   }
@@ -185,6 +198,7 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   func dismissUpdateInstallation() {
     showing = .nothing
     retryTerminating = nil
+    installPending = false
     button?.checkEnded(nothingFound: false)
     standard.dismissUpdateInstallation()
   }

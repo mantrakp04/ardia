@@ -29,7 +29,7 @@ public final class AppUpdater: NSObject {
     apply(channelSwitch.switched())
     userDriver.leaveOffChannelUpdate()
     refreshChannelSwitch()
-    readiness.checkEnded()
+    readiness.cancelRequest()
     announceReadyUpdate()
   }
 
@@ -223,7 +223,7 @@ public final class AppUpdater: NSObject {
       return showNotSetUp()
     }
     start()
-    readiness.checkEnded()
+    readiness.cancelRequest()
     updater.checkForUpdates()
   }
 
@@ -251,8 +251,9 @@ public final class AppUpdater: NSObject {
   }
 
   @objc public func restartToUpdate(_ sender: Any?) {
-    guard started, readiness.requestInstall(allowed: allowedChannels, at: Date()) else { return }
-    if userDriver.retryTermination() { return readiness.checkEnded() }
+    guard started, readiness.ready(allowed: allowedChannels) != nil, !userDriver.installPending else { return }
+    if userDriver.retryTermination() { return }
+    guard readiness.requestInstall(allowed: allowedChannels, at: Date()) else { return }
     guard updater.canCheckForUpdates else {
       readiness.checkEnded()
       return NSLog("Ardia: an update session is busy; not restarting to update yet")
@@ -398,7 +399,7 @@ extension AppUpdater: ReadyUpdateButton {
   }
 
   func checkFailed() {
-    readiness.checkFailed(at: Date())
+    readiness.checkFailed()
     announceReadyUpdate()
   }
 }

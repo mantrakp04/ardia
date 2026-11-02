@@ -22,6 +22,7 @@ public struct UpdateReadiness {
 
   public private(set) var staged: Update?
   private var request: InstallRequest?
+  private var restarting: String?
 
   public init() {}
 
@@ -37,16 +38,19 @@ public struct UpdateReadiness {
   public mutating func drop(build: String) {
     if staged?.build == build { staged = nil }
     if request?.build == build { request = nil }
+    if restarting == build { restarting = nil }
   }
 
   public mutating func nothingToInstall() {
     staged = nil
     request = nil
+    restarting = nil
   }
 
   public mutating func requestInstall(allowed channels: Set<String>, at now: Date) -> Bool {
     guard let ready = ready(allowed: channels) else { return false }
     request = InstallRequest(build: ready.build, until: now.addingTimeInterval(Self.installRequestLife))
+    restarting = ready.build
     return true
   }
 
@@ -58,15 +62,25 @@ public struct UpdateReadiness {
   public mutating func installsAtOnce(build: String, staged isStaged: Bool, at now: Date) -> Bool {
     guard let asked = request else { return false }
     request = nil
-    return isStaged && asked.build == build && now < asked.until
+    let goesAhead = isStaged && asked.build == build && now < asked.until
+    if !goesAhead { restarting = nil }
+    return goesAhead
+  }
+
+  public mutating func cancelRequest() {
+    guard request != nil else { return }
+    request = nil
+    restarting = nil
   }
 
   public mutating func checkEnded() {
     request = nil
+    restarting = nil
   }
 
-  public mutating func checkFailed(at now: Date) {
-    if installRequested(at: now) { staged = nil }
+  public mutating func checkFailed() {
+    if restarting != nil { staged = nil }
     request = nil
+    restarting = nil
   }
 }

@@ -102,14 +102,61 @@ final class UpdateReadinessTests: XCTestCase {
     var readiness = UpdateReadiness()
     readiness.stage(stable)
     XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
-    readiness.checkFailed(at: start.addingTimeInterval(1))
+    readiness.checkFailed()
+    XCTAssertNil(readiness.ready(allowed: []))
+  }
+
+  func testAnInstallerFailureAfterTheRestartWentAheadDropsTheStagedUpdate() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    XCTAssertTrue(readiness.installsAtOnce(build: "245", staged: true, at: start))
+    readiness.checkFailed()
+    XCTAssertNil(readiness.ready(allowed: []))
+  }
+
+  func testARestartThatFailsAfterItsRequestExpiredStillDropsTheStagedUpdate() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    XCTAssertFalse(readiness.installRequested(at: start.addingTimeInterval(UpdateReadiness.installRequestLife)))
+    readiness.checkFailed()
     XCTAssertNil(readiness.ready(allowed: []))
   }
 
   func testAFailedCheckNobodyAskedForKeepsTheStagedUpdate() {
     var readiness = UpdateReadiness()
     readiness.stage(stable)
-    readiness.checkFailed(at: start)
+    readiness.checkFailed()
+    XCTAssertEqual(readiness.ready(allowed: []), stable)
+  }
+
+  func testACancelledRequestLeavesLaterFailuresAlone() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    readiness.cancelRequest()
+    XCTAssertFalse(readiness.installsAtOnce(build: "245", staged: true, at: start))
+    readiness.checkFailed()
+    XCTAssertEqual(readiness.ready(allowed: []), stable)
+  }
+
+  func testCancellingAfterTheRestartWentAheadStillTracksItsFailure() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    XCTAssertTrue(readiness.installsAtOnce(build: "245", staged: true, at: start))
+    readiness.cancelRequest()
+    readiness.checkFailed()
+    XCTAssertNil(readiness.ready(allowed: []))
+  }
+
+  func testARestartThatFoundSomethingElseLeavesLaterFailuresAlone() {
+    var readiness = UpdateReadiness()
+    readiness.stage(stable)
+    XCTAssertTrue(readiness.requestInstall(allowed: [], at: start))
+    XCTAssertFalse(readiness.installsAtOnce(build: "250", staged: false, at: start))
+    readiness.checkFailed()
     XCTAssertEqual(readiness.ready(allowed: []), stable)
   }
 
