@@ -1,5 +1,5 @@
 import { engineHost, searchUrl, type SearchEngine } from "./engines.ts";
-import { hostOf, searchUrlFor } from "./omnibox.ts";
+import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 
 export type SiteSearch = { host: string; name: string; url: string };
 
@@ -78,7 +78,12 @@ function engineScope(e: SearchEngine): SearchScope {
   return { kind: "engine", name: e.name, host: engineHost(e), url: e.url, engineId: e.id };
 }
 
-export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine: Pick<SearchEngine, "url">): string {
+export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine: Pick<SearchEngine, "url">, from = ""): string {
+  if (!query.trim()) {
+    const address = from.trim();
+    const scopedAddress = scope.kind !== "engine" && hostOf(`https://${address}`) === scope.host;
+    return fixupUrl(address) ?? `https://${scopedAddress ? address : scope.host}`;
+  }
   if (scope.kind === "history") return searchUrl(defaultEngine, `site:${scope.host} ${query.trim()}`);
   return searchUrlFor(scope.url, query);
 }
