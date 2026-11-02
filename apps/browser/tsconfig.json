@@ -5,6 +5,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
+    "noImplicitOverride": true,
     "paths": {
       "react-native": ["../../node_modules/react-native-macos"]
     }
