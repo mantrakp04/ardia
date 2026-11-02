@@ -93,7 +93,9 @@ function describe({ source, error }: { source: LiveSourceId; error: unknown }): 
   return { kind: "other", message: String((error as Error)?.message ?? error), source };
 }
 
-export const folderErrorText = (errors: FolderError[]) => [...new Set(errors.map((e) => errorText(e.kind, e.source)))].join(" · ");
+export const folderErrorTexts = (errors: FolderError[]) => [...new Set(errors.map((e) => errorText(e.kind, e.source)))];
+
+export const folderErrorText = (errors: FolderError[]) => folderErrorTexts(errors).join(" · ");
 
 export function statusText(folderId: string, now = Date.now()): string {
   const hidden = live().hidden[folderId]?.length ?? 0;

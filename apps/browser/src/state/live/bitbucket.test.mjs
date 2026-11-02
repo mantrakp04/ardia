@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 const { SOURCES, connectBitbucket } = await import("./sources.ts");
-const { errorText, folderErrorText, refreshFolder } = await import("./engine.ts");
+const { errorText, folderErrorText, folderErrorTexts, refreshFolder } = await import("./engine.ts");
 const { applyFetch, createFolder, live, useLive } = await import("./store.ts");
 const { PartialFetch } = await import("./types.ts");
 
@@ -205,4 +205,5 @@ test("a source that fails outright doesn't hide another source's partial failure
   const errors = live().status[id].errors;
   assert.deepEqual(errors.map((e) => `${e.source}:${e.kind}`).sort(), ["bitbucket:forbidden", "github:notConfigured"]);
   assert.equal(folderErrorText(errors), "Connect GitHub in Settings · Your Bitbucket token is missing a permission. Check its scopes in Settings.");
+  assert.deepEqual(folderErrorTexts([...errors, ...errors]), ["Connect GitHub in Settings", "Your Bitbucket token is missing a permission. Check its scopes in Settings."]);
 });
