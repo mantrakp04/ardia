@@ -179,6 +179,30 @@ void InstallTrafficLightsOrigin(Class frameClass) {
   });
 }
 
+void InstallTitlebarReachingLights(Class frameClass) {
+  static NSMutableSet<Class> *installed = [NSMutableSet set];
+  if (!frameClass || [installed containsObject:frameClass]) return;
+  [installed addObject:frameClass];
+  const SEL sel = NSSelectorFromString(@"_currentTitlebarContainerViewFrame");
+  ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+    return ^NSRect(NSView *frameView) {
+      NSRect frame = ((NSRect (*)(id, SEL))standard)(frameView, sel);
+      NSWindow *window = frameView.window;
+      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen)) return frame;
+      NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey);
+      if (!center) return frame;
+      NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+      const CGFloat reach = ceil(center.pointValue.y + (close ? NSHeight(close.frame) : 14) / 2);
+      const CGFloat top = frameView.isFlipped ? NSMinY(frame) : NSHeight(frameView.bounds) - NSMaxY(frame);
+      const CGFloat grow = reach - top - NSHeight(frame);
+      if (grow <= 0) return frame;
+      frame.size.height += grow;
+      if (!frameView.isFlipped) frame.origin.y -= grow;
+      return frame;
+    };
+  });
+}
+
 const void *kSharingIndicatorTuckedKey = &kSharingIndicatorTuckedKey;
 
 void KeepSharingIndicatorInWindow(NSView *frameView, CGFloat dx) {
@@ -278,7 +302,7 @@ namespace ardia_window {
 
 void RetileTrafficLights(NSWindow *window) {
   NSView *frameView = window.contentView.superview;
-  for (NSString *name in @[ @"_updateButtonPositions", @"_positionSharingIndicator" ]) {
+  for (NSString *name in @[ @"_updateTitlebarContainerViewFrameIfNecessary", @"_updateButtonPositions", @"_updateMouseTracking", @"_positionSharingIndicator" ]) {
     const SEL sel = NSSelectorFromString(name);
     if ([frameView respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(frameView, sel);
   }
@@ -324,6 +348,7 @@ void SettleTrafficLights(NSWindow *window) {
 void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   InstallTrafficLightsOrigin([window.contentView.superview class]);
+  InstallTitlebarReachingLights([window.contentView.superview class]);
   InstallSharingIndicatorBounds([window.contentView.superview class]);
   InstallSharingWindowBounds();
   RetileTrafficLights(window);
