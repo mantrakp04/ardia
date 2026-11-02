@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
-const { canTidyPins, tidyPlan, tidyingPins, untidyingPins } = await import("./tidyPins.ts");
+const { TIDY_TABS_AFTER, canTidy, offersTidyTabs, tidyPlan, tidying, untidying } = await import("./tidy.ts");
 const { splitTabIdsOf } = await import("../splits/splits.ts");
 
 const S = () => useBrowser.getState();
@@ -17,6 +17,11 @@ const innermost = (id) => {
   return Object.values(S().groups).filter((g) => g.tabIds.includes(id)).sort((a, z) => depth(z) - depth(a))[0];
 };
 const path = (g) => (g.parentId && S().groups[g.parentId] ? `${path(S().groups[g.parentId])}/${g.name}` : g.name);
+const unpinnedList = (w) =>
+  model
+    .viewTabIds(S(), w)
+    .filter((id) => !S().tabs[id].pin && !model.inPinnedContainer(S(), id))
+    .map((id) => (innermost(id) ? `${path(innermost(id))}:${label(id)}` : `tab:${label(id)}`));
 const pinnedArea = (w) =>
   model
     .viewTabIds(S(), w)
@@ -29,17 +34,17 @@ function windowWith(...urls) {
   return { w, ids };
 }
 
-function tidy(w) {
+function tidy(w, scope = "pins") {
   let done = null;
   useBrowser.setState((s) => {
-    const [next, tidied] = tidyingPins(s, w);
+    const [next, tidied] = tidying(s, w, undefined, scope);
     done = tidied;
     return next;
   });
   return done;
 }
 
-const undo = (tidied) => useBrowser.setState((s) => untidyingPins(s, tidied));
+const undo = (tidied) => useBrowser.setState((s) => untidying(s, tidied));
 
 test("duplicate rows: the higher one stays, the same page with a fragment counts as the same", () => {
   reset();
@@ -51,7 +56,7 @@ test("duplicate rows: the higher one stays, the same page with a fragment counts
   assert.equal(!!S().tabs[a1].pin, true);
   assert.equal(S().tabs[a2], undefined);
   assert.equal(done.duplicates, 1);
-  assert.equal(done.pins, 0);
+  assert.equal(done.moved, 0);
 });
 
 test("a pin inside a folder wins over a loose one, even a higher one", () => {
@@ -106,8 +111,8 @@ test("loose pins go into the folder whose most common site is theirs, at half or
     "Mixed:ashbyhq/1",
     "Work:linkedin/3",
   ]);
-  assert.equal(done.pins, 2);
-  assert.equal(done.folders, 1);
+  assert.equal(done.moved, 2);
+  assert.equal(done.groups, 1);
   assert.equal(Object.values(S().groups).find((g) => g.tabIds.includes(j1)).name, "Jobs", "never renamed");
 });
 
@@ -147,8 +152,8 @@ test("two or more loose pins of one site make a folder where the first was, name
   const made = innermost(l1);
   assert.equal(made.pinned, true);
   assert.equal(made.name, "LinkedIn");
-  assert.equal(done.pins, 2);
-  assert.equal(done.folders, 1);
+  assert.equal(done.moved, 2);
+  assert.equal(done.groups, 1);
 });
 
 test("a new folder takes the site's own spelling from a title that is just the site's name", () => {
@@ -165,14 +170,14 @@ test("Tidy shows only with something to tidy, and a tidy sidebar has nothing lef
   reset();
   const { w, ids: [a, b, c] } = windowWith("https://a.com/1", "https://b.com/1", "https://a.com/2");
   S().pinTabs([a, b], true, true);
-  assert.equal(canTidyPins(S(), w), false, "two singles");
+  assert.equal(canTidy(S(), w), false, "two singles");
   assert.equal(tidyPlan(S(), w), null);
   S().pinTabs([c], true);
-  assert.equal(canTidyPins(S(), w), false, "Top Apps tiles are never touched");
+  assert.equal(canTidy(S(), w), false, "Top Apps tiles are never touched");
   S().placeTabs([c], { pinned: true, row: true });
-  assert.equal(canTidyPins(S(), w), true);
+  assert.equal(canTidy(S(), w), true);
   tidy(w);
-  assert.equal(canTidyPins(S(), w), false);
+  assert.equal(canTidy(S(), w), false);
 });
 
 test("Undo puts every pin back in its old place and order, removes Tidy's folders and brings back duplicates", () => {
@@ -222,8 +227,8 @@ test("private windows have nothing to tidy and write nothing", () => {
   S().newTab(p, { url: "https://secret.com/2", background: true });
   const s = S();
   assert.equal(tidyPlan(s, p), null);
-  assert.equal(canTidyPins(s, p), false);
-  assert.equal(tidyingPins(s, p)[0], s);
+  assert.equal(canTidy(s, p), false);
+  assert.equal(tidying(s, p)[0], s);
 });
 
 const splitOfTab = (id) => Object.values(S().splits).find((v) => splitTabIdsOf(v).includes(id));
@@ -274,4 +279,138 @@ test("Undo puts a pinned split back in its place, as one row", () => {
   undo(done);
   assert.deepEqual(pinnedArea(w), before);
   assert.deepEqual(splitTabIdsOf(S().splits[splitId]), [a1, b]);
+});
+
+test("the divider's Tidy leaves pinned rows, pinned folders and Top Apps alone", () => {
+  reset();
+  const { w, ids: [a1, a2, b1, b2, t, f, x1, x2] } = windowWith(
+    "https://a.com/1",
+    "https://a.com/1",
+    "https://b.com/1",
+    "https://b.com/2",
+    "https://t.com/",
+    "https://f.com/1",
+    "https://x.com/1",
+    "https://x.com/2",
+  );
+  S().pinTabs([a1, a2, b1, b2], true, true);
+  S().pinTabs([t], true);
+  S().groupTabs([f], { pinned: true, name: "F" });
+  const pinned = pinnedArea(w);
+  const tiles = model.viewTabIds(S(), w).filter((id) => model.pinSection(S().tabs[id]) === "tile");
+  assert.equal(canTidy(S(), w), true, "the pins have duplicates and a site to fold");
+  assert.equal(canTidy(S(), w, undefined, "tabs"), true);
+  const done = tidy(w, "tabs");
+  assert.deepEqual(pinnedArea(w), pinned);
+  assert.deepEqual(model.viewTabIds(S(), w).filter((id) => model.pinSection(S().tabs[id]) === "tile"), tiles);
+  assert.ok(S().tabs[a2], "a duplicate pin isn't closed");
+  assert.equal(done.duplicates, 0);
+  assert.deepEqual(unpinnedList(w).filter((row) => !row.startsWith("tab:home")), ["X:x/1", "X:x/2"]);
+  assert.equal(innermost(x1).pinned, false);
+  assert.equal(innermost(x2), innermost(x1));
+});
+
+test("with only pins to tidy, the divider has no Tidy", () => {
+  reset();
+  const { w, ids: [a1, a2, c] } = windowWith("https://a.com/1", "https://a.com/2", "https://c.com/1");
+  S().pinTabs([a1, a2], true, true);
+  assert.equal(canTidy(S(), w), true);
+  assert.equal(canTidy(S(), w, undefined, "tabs"), false);
+  assert.equal(tidy(w, "tabs"), null);
+  assert.ok(S().tabs[c]);
+});
+
+test("Tidy on tabs files loose tabs into a group of their site, groups 2 or more of one site and never closes a tab", () => {
+  reset();
+  const { w, ids: [j1, j2, l1, g1, d1, d2, m1, m2] } = windowWith(
+    "https://linkedin.com/1",
+    "https://linkedin.com/2",
+    "https://linkedin.com/9",
+    "https://github.com/1",
+    "https://docs.com/1",
+    "https://docs.com/1#a",
+    "https://figma.com/1",
+    "https://figma.com/2",
+  );
+  S().groupTabs([j1, j2], { pinned: false, name: "Jobs" });
+  const done = tidy(w, "tabs");
+  assert.deepEqual(unpinnedList(w), [
+    "tab:home",
+    "Jobs:linkedin/1",
+    "Jobs:linkedin/2",
+    "Jobs:linkedin/9",
+    "tab:github/1",
+    "Docs:docs/1",
+    "Docs:docs/1",
+    "Figma:figma/1",
+    "Figma:figma/2",
+  ]);
+  assert.ok(S().tabs[d2], "an open duplicate stays open");
+  assert.equal(innermost(m1).pinned, false);
+  assert.equal(S().tabs[l1].pin, null);
+  assert.equal(S().tabs[g1].pin, null);
+  assert.equal(done.moved, 5);
+  assert.equal(done.groups, 3);
+  assert.equal(done.duplicates, 0);
+  assert.equal(canTidy(S(), w, undefined, "tabs"), false);
+});
+
+test("Tidy on tabs files a split once, by its first pane, even when its panes match two groups", () => {
+  reset();
+  const { w, ids: [j1, f1, l9, f9] } = windowWith("https://linkedin.com/1", "https://figma.com/1", "https://linkedin.com/9", "https://figma.com/9");
+  S().groupTabs([j1], { pinned: false, name: "Jobs" });
+  S().groupTabs([f1], { pinned: false, name: "Figma" });
+  const splitId = S().createSplit([l9, f9]);
+  const done = tidy(w, "tabs");
+  assert.equal(innermost(l9)?.name, "Jobs");
+  assert.equal(innermost(f9)?.name, "Jobs", "the split moves as one row");
+  assert.deepEqual(S().groups[innermost(f1).id].tabIds, [f1], "Figma is left as it was");
+  assert.deepEqual(splitTabIdsOf(S().splits[splitId]), [l9, f9]);
+  assert.equal(done.moved, 2);
+  assert.equal(done.groups, 1);
+});
+
+test("Tidy on tabs files a flipped split by the pane it shows first", () => {
+  reset();
+  const { w, ids: [j1, f1, l9, f9] } = windowWith("https://linkedin.com/1", "https://figma.com/1", "https://linkedin.com/9", "https://figma.com/9");
+  S().groupTabs([j1], { pinned: false, name: "Jobs" });
+  S().groupTabs([f1], { pinned: false, name: "Figma" });
+  const splitId = S().createSplit([l9, f9]);
+  S().flipSplit(splitId);
+  tidy(w, "tabs");
+  assert.equal(innermost(f9)?.name, "Figma");
+  assert.equal(innermost(l9)?.name, "Figma");
+});
+
+test("Undo of Tidy on tabs puts every tab back in its place and removes Tidy's groups", () => {
+  reset();
+  const { w, ids: [j1, l1, f1, g1, f2] } = windowWith("https://linkedin.com/1", "https://linkedin.com/9", "https://figma.com/1", "https://github.com/1", "https://figma.com/2");
+  S().groupTabs([j1], { pinned: false, name: "Jobs" });
+  const before = unpinnedList(w);
+  const done = tidy(w, "tabs");
+  assert.notDeepEqual(unpinnedList(w), before);
+  undo(done);
+  assert.deepEqual(unpinnedList(w), before);
+  assert.ok(!Object.values(S().groups).some((g) => g.name === "Figma"));
+  for (const id of [l1, f1, g1, f2]) assert.equal(S().tabs[id].pin, null);
+});
+
+test("the divider offers Tidy only past six unpinned tabs, as in Arc; pins and tabs in pinned folders don't count", () => {
+  reset();
+  const { w, ids: [a1, , , , , p1, p2, p3] } = windowWith(
+    "https://a.com/1", "https://a.com/2", "https://b.com/1", "https://c.com/1", "https://d.com/1",
+    "https://e.com/1", "https://e.com/2", "https://f.com/1",
+  );
+  S().pinTabs([p1, p2], true, true);
+  S().groupTabs([p3], { pinned: true, name: "Pinned" });
+  assert.equal(TIDY_TABS_AFTER, 6);
+  assert.equal(unpinnedList(w).length, 6);
+  assert.equal(canTidy(S(), w, undefined, "tabs"), true);
+  assert.equal(offersTidyTabs(S(), w), false);
+  S().newTab(w, { url: "https://g.com/1", background: true });
+  assert.equal(offersTidyTabs(S(), w), true);
+  S().closeTabs([a1]);
+  S().newTab(w, { url: "https://h.com/1", background: true });
+  assert.equal(unpinnedList(w).length, 7);
+  assert.equal(offersTidyTabs(S(), w), false, "seven tabs of seven sites have nothing to tidy");
 });
