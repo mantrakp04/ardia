@@ -70,7 +70,7 @@ function FixedFrame({ id, at, opts }: { id: PreviewId; at: number; opts: SceneOp
 function FramesPage({ index, addressInSidebar }: { index: number; addressInSidebar: boolean }) {
   const systemDark = useTheme().dark;
   const palette = useBasePaletteValue();
-  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM, palette }), [addressInSidebar, systemDark, palette]);
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM, palette, iconSize: "default" }), [addressInSidebar, systemDark, palette]);
   const ids = PREVIEW_IDS.slice(index * FRAMES_PER_PAGE, (index + 1) * FRAMES_PER_PAGE);
   return (
     <View style={{ gap: space.s }}>
