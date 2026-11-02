@@ -7,7 +7,6 @@ import { historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
-import { fromSync } from "../pins/pinOrderChoices";
 import { fromLegacy } from "../../lib/legacy";
 import type { BookmarkNode, HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";

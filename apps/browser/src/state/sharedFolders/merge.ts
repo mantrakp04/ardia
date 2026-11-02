@@ -14,7 +14,7 @@ import {
   type TargetEntry,
   type TargetLevel,
 } from "./tree";
-import { identities, preferred, type Identities } from "./identities";
+import { identities, type Identities } from "./identities";
 
 export type Merged = { level: TargetLevel; waiting: number };
 

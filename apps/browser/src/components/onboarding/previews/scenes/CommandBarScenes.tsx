@@ -1,5 +1,5 @@
 import { Animated, View } from "react-native";
-import { at, CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
+import { CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
 import { BLANK, type Suggestion, tab } from "../content";
 import type { Look } from "../look";
 import { linear, tracker, type Tracker } from "../timeline";

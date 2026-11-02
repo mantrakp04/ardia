@@ -3,7 +3,7 @@ import { insertAll, nestGroups, orderSections, syncGroupOrder } from "./groups";
 import { markPinned } from "../pins/pinChoices";
 import { IDLE_LIVE, isIncognitoProfile, makeTab, newId } from "../browser/model";
 import { pageKey, pinnedPages } from "../tabs/pageKeys";
-import type { BookmarkFolder, Bookmarks, TabGroup } from "../browser/types";
+import type { BookmarkFolder, Bookmarks } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { pinnedGroupMembers } from "../browser/structure";
 import { ASLEEP } from "../tabs/pageSession";

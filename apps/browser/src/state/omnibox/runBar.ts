@@ -1,6 +1,5 @@
 import { tabTitle } from "../browser/model";
 import type { Suggestion } from "@ardia/core";
-import { prompt } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import type { BrowserCommand } from "../../platform/commands";
 import { moveTabToProfile } from "../browser/actions";

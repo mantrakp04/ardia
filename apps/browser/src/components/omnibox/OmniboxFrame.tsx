@@ -71,7 +71,6 @@ export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, 
 }
 
 export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { hero: boolean; addChip: ReactNode; onDictate(): void; label: string; enabled: boolean; onGo(): void }) {
-  const theme = useTheme();
   return (
     <View
       style={{
