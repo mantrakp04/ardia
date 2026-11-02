@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 const { SOURCES, connectBitbucket } = await import("./sources.ts");
-const { errorText, refreshFolder } = await import("./engine.ts");
-const { createFolder, live, useLive } = await import("./store.ts");
+const { errorText, folderErrorText, refreshFolder } = await import("./engine.ts");
+const { applyFetch, createFolder, live, useLive } = await import("./store.ts");
 const { PartialFetch } = await import("./types.ts");
 
 const API = "https://api.bitbucket.org/2.0";
@@ -96,7 +96,7 @@ test("a folder shows the pull requests that loaded and the error of the workspac
   await refreshFolder(id);
   assert.deepEqual(live().items[id].map((it) => it.id), ["bitbucket:acme/web#1"]);
   assert.equal(live().status[id].state, "error");
-  assert.equal(live().status[id].error.kind, "forbidden");
+  assert.deepEqual(live().status[id].errors.map((e) => e.kind), ["forbidden"]);
 });
 
 test("when every workspace fails, the folder shows that error", async () => {
@@ -176,4 +176,33 @@ test("a commit's finished statuses are reused, while running ones and new commit
   assert.deepEqual(await refresh("aaa", "SUCCESSFUL"), { askedStatuses: true, check: "success" });
   assert.deepEqual(await refresh("aaa", "FAILED"), { askedStatuses: false, check: "success" });
   assert.deepEqual(await refresh("bbb", "FAILED"), { askedStatuses: true, check: "failure" });
+});
+
+test("a refresh keeps a failed workspace's pull requests in the folder", async () => {
+  const cached = { id: "bitbucket:locked/app#9", source: "bitbucket", url: "https://bitbucket.org/locked/app/pull-requests/9", title: "PR 9", subtitle: "locked/app #9", icon: null, updatedAt: 0, section: "authored", pr: { repo: "locked/app", number: 9, checks: [] } };
+  const id = createFolder("p", "pullRequests", ["bitbucket"]);
+  applyFetch(id, [cached], {});
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
+    [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
+    [workspacePRs("locked")]: 503,
+  });
+  await connectBitbucket("me@example.com", "token");
+  await refreshFolder(id);
+  assert.deepEqual(live().items[id].map((it) => it.id).sort(), ["bitbucket:acme/web#1", "bitbucket:locked/app#9"]);
+  assert.deepEqual(live().status[id].errors.map((e) => e.source), ["bitbucket"]);
+});
+
+test("a source that fails outright doesn't hide another source's partial failure", async () => {
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
+    [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
+    [workspacePRs("locked")]: 403,
+  });
+  await connectBitbucket("me@example.com", "token");
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  await refreshFolder(id);
+  const errors = live().status[id].errors;
+  assert.deepEqual(errors.map((e) => `${e.source}:${e.kind}`).sort(), ["bitbucket:forbidden", "github:notConfigured"]);
+  assert.equal(folderErrorText(errors), "Connect GitHub in Settings · Your Bitbucket token is missing a permission. Check its scopes in Settings.");
 });

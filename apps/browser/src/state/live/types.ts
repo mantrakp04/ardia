@@ -66,10 +66,12 @@ export type CompletionState = "merged" | "closed" | "reviewed";
 
 export type LiveErrorKind = "signedOut" | "forbidden" | "notFound" | "sso" | "rateLimited" | "network" | "notConfigured" | "other";
 
+export type FolderError = { kind: LiveErrorKind; message: string; source: LiveSourceId };
+
 export type FolderStatus = {
   state: "initializing" | "idle" | "updating" | "error";
   lastFetch: number | null;
-  error: { kind: LiveErrorKind; message: string; source: LiveSourceId } | null;
+  errors: FolderError[];
 };
 
 export class LiveError extends Error {

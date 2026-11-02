@@ -4,7 +4,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
-import { LiveError, PartialFetch, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
+import { LiveError, PartialFetch, type CompletionState, type FolderError, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
@@ -75,23 +75,25 @@ async function run(folderId: string) {
 
   const firstFailure = failed[0];
   if (firstFailure && failed.length === folder.sources.length && !prev.length && !before.status[folderId]?.lastFetch) {
-    setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
+    setStatus(folderId, { state: "error", errors: failed.map(describe) });
     return;
   }
   const lastSources = fetchedSources.get(folderId);
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
   fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
-  const firstProblem = firstFailure ?? partlyFailed[0];
-  if (firstProblem) setStatus(folderId, { state: "error", error: describe(firstProblem.source, firstProblem.error) });
+  const problems = [...failed, ...partlyFailed];
+  if (problems.length) setStatus(folderId, { state: "error", errors: problems.map(describe) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
 }
 
-function describe(source: LiveSourceId, error: unknown) {
+function describe({ source, error }: { source: LiveSourceId; error: unknown }): FolderError {
   if (error instanceof LiveError) return { kind: error.kind, message: error.message, source };
-  return { kind: "other" as const, message: String((error as Error)?.message ?? error), source };
+  return { kind: "other", message: String((error as Error)?.message ?? error), source };
 }
+
+export const folderErrorText = (errors: FolderError[]) => [...new Set(errors.map((e) => errorText(e.kind, e.source)))].join(" · ");
 
 export function statusText(folderId: string, now = Date.now()): string {
   const hidden = live().hidden[folderId]?.length ?? 0;
@@ -102,7 +104,7 @@ function fetchText(folderId: string, now: number): string {
   const st = live().status[folderId];
   if (!st || st.state === "initializing") return "Loading…";
   if (st.state === "updating") return "Updating…";
-  if (st.error) return errorText(st.error.kind, st.error.source);
+  if (st.errors.length) return folderErrorText(st.errors);
   if (!st.lastFetch) return "Not updated yet";
   const min = Math.floor((now - st.lastFetch) / 60_000);
   return min < 1 ? "Updated just now" : min < 60 ? `Updated ${min} min ago` : `Updated ${Math.floor(min / 60)} hr ago`;

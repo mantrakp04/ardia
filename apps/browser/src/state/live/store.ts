@@ -148,7 +148,7 @@ export function createFolder(profileId: string, kind: LiveFolderKind, sources?: 
   setLive((s) => ({
     folders: { ...s.folders, [id]: folder },
     folderOrder: [...s.folderOrder, id],
-    status: { ...s.status, [id]: { state: "initializing", lastFetch: null, error: null } },
+    status: { ...s.status, [id]: { state: "initializing", lastFetch: null, errors: [] } },
   }));
   return id;
 }
@@ -246,7 +246,7 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
       unread: { ...s.unread, [folderId]: first ? [] : [...new Set([...(s.unread[folderId] ?? []), ...unreadFresh])].filter((id) => stillThere.has(id)) },
       completed: leaving.length || (s.completed[folderId] ?? []).length !== completed.length ? { ...s.completed, [folderId]: completed } : s.completed,
       completing: leaving.length ? { ...s.completing, [folderId]: [...(s.completing[folderId] ?? []), ...leaving.map((l) => l.id)] } : s.completing,
-      status: { ...s.status, [folderId]: { state: "idle", lastFetch: now, error: null } },
+      status: { ...s.status, [folderId]: { state: "idle", lastFetch: now, errors: [] } },
     };
   });
 }
@@ -261,7 +261,7 @@ export function finishCompleting(folderId: string, ids: string[]) {
 
 export function setStatus(folderId: string, status: Partial<FolderStatus>) {
   setLive((s) => {
-    const current = s.status[folderId] ?? { state: "idle" as const, lastFetch: null, error: null };
+    const current = s.status[folderId] ?? { state: "idle" as const, lastFetch: null, errors: [] };
     return { status: { ...s.status, [folderId]: { ...current, ...status } } };
   });
 }

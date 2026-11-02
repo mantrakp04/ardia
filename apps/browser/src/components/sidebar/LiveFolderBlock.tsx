@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { errorText, manualRefresh, statusText } from "../../state/live/engine";
+import { folderErrorText, manualRefresh, statusText } from "../../state/live/engine";
 import { folderRows, type FolderRow } from "../../state/live/rows";
 import { liveFolderIcon } from "../../state/live/sources";
 import { updateFolder, useLive } from "../../state/live/store";
@@ -94,7 +94,7 @@ function FolderNote({ folderId }: { folderId: string }) {
   const kind = useLive((s) => s.folders[folderId]?.kind);
   const hidden = useLive((s) => s.hidden[folderId]?.length ?? 0);
   if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return <NoteRow text="Loading…" spinner />;
-  if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
+  if (status.errors.length) return <NoteRow text={folderErrorText(status.errors)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
   if (hidden) return <NoteRow text={`${hidden} hidden until you refresh`} onPress={() => void manualRefresh(folderId)} />;
   return <NoteRow text={kind === "pullRequests" ? "No open pull requests" : "No recent documents"} />;
 }
@@ -134,8 +134,8 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
             >
               <TabIcon url={sourceSite} icon={icon} />
               <SidebarRowLabel text={folder.name} weight="medium" color={tokens.groupTitle} />
-              {status?.error ? (
-                <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: space.xxs }}>
+              {status?.errors.length ? (
+                <Pressable onPress={() => openSettings("liveFolders")} tooltip={folderErrorText(status.errors)} style={{ marginRight: space.xxs }}>
                   <Symbol name="exclamationmark.triangle.fill" size={10} color={colors.pending} style={{ width: 18, height: 18 }} />
                 </Pressable>
               ) : null}
