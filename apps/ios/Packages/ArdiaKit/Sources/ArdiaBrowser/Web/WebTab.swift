@@ -36,6 +36,7 @@ public final class WebTab: DiscardablePage, Identifiable {
   public private(set) var isScrolledToTop = true
   public private(set) var failure: PageLoadFailure?
   public private(set) var pageZoom = 1.0
+  public private(set) var isFindingInPage = false
   public var request: PageRequest?
   public let blockedResources = BlockedResourceCounter()
 
@@ -148,6 +149,11 @@ public final class WebTab: DiscardablePage, Identifiable {
     webView?.findInteraction?.presentFindNavigator(showingReplace: false)
   }
 
+  public func dismissFindInPage() {
+    guard let interaction = webView?.findInteraction, interaction.isFindNavigatorVisible else { return }
+    interaction.dismissFindNavigator()
+  }
+
   public func setPageZoom(_ zoom: Double) {
     let clamped = min(max(zoom, Self.zoomLevels.first!), Self.zoomLevels.last!)
     pageZoom = clamped
@@ -189,7 +195,8 @@ public final class WebTab: DiscardablePage, Identifiable {
     let isPopup = popupConfiguration != nil
     let configuration = popupConfiguration ?? Self.makeConfiguration(dataStore: isPrivate ? engine.privateDataStore() : .default())
     popupConfiguration = nil
-    let webView = WKWebView(frame: .zero, configuration: configuration)
+    let webView = FindReportingWebView(frame: .zero, configuration: configuration)
+    webView.onFindSessionChange = { [weak self] active in self?.isFindingInPage = active }
     let coordinator = WebTabCoordinator(tab: self)
     self.coordinator = coordinator
     webView.navigationDelegate = coordinator
@@ -225,6 +232,8 @@ public final class WebTab: DiscardablePage, Identifiable {
   public func discard() {
     guard let webView else { return }
     saveState()
+    dismissFindInPage()
+    isFindingInPage = false
     snapshotTask?.cancel()
     snapshotTask = nil
     swipeSnapshots = [:]

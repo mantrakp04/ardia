@@ -99,10 +99,29 @@ struct BrowsingView: View {
     .onChange(of: isFront) { _, front in
       if front { barHidden = false }
     }
+    .onChange(of: findScope) { old, _ in
+      endFindInPage(on: old.tabID)
+    }
     .toolbarColorScheme(isFront ? statusScheme : nil, for: .statusBar)
     .accessibilityHidden(!isFront)
     .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: foldTicks)
     .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: tabSwitchTicks)
+  }
+
+  private var isFindingInPage: Bool {
+    currentWebPage?.isFindingInPage ?? false
+  }
+
+  private var findScope: FindScope {
+    FindScope(
+      tabID: app.tabs.selectedTabID,
+      pageIsFront: isFront && app.browse.readerTabID == nil && app.browse.summaryTabID == nil
+    )
+  }
+
+  private func endFindInPage(on id: UUID?) {
+    guard let id else { return }
+    app.web.existingWebTab(id)?.dismissFindInPage()
   }
 
   private var tone: PageTone? {
@@ -220,9 +239,10 @@ struct BrowsingView: View {
     .environment(\.colorScheme, barScheme)
     .contentShape(.rect)
     .highPriorityGesture(pagerGesture)
-    .offset(y: barHidden ? BrowseLayout.barCollapseTravel : 0)
-    .opacity(barHidden ? 0 : 1)
-    .allowsHitTesting(!barHidden)
+    .offset(y: barHidden || isFindingInPage ? BrowseLayout.barCollapseTravel : 0)
+    .opacity(barHidden || isFindingInPage ? 0 : 1)
+    .allowsHitTesting(!barHidden && !isFindingInPage)
+    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse, value: isFindingInPage)
     .ignoresSafeArea(.container, edges: .bottom)
     .ignoresSafeArea(.keyboard)
   }
@@ -457,6 +477,11 @@ struct BrowsingView: View {
 struct StoredCover {
   let id: UUID
   let image: UIImage
+}
+
+struct FindScope: Equatable {
+  let tabID: UUID?
+  let pageIsFront: Bool
 }
 
 struct ReaderTarget: Identifiable {
