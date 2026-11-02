@@ -2,7 +2,7 @@ import { Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileColors, profileSwitcher } from "./tokens";
+import { profileColors, profileSwitcher, switcherIconSizes, type SwitcherIconSize } from "./tokens";
 import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
@@ -53,20 +53,24 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "bolt.fill", title: "Energy" },
 ];
 
-export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
+export const switcherCell = (size: SwitcherIconSize) => switcherIconSizes[size].icon + switcherIconSizes[size].gap;
 
-export function switcherIcons(icons: (string | null)[], shown: boolean, room: number): (string | null)[] {
-  const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon), 0) <= room;
+export const switcherCellWidth = (icon: string | null, size: SwitcherIconSize = "default") => (icon ? switcherCell(size) : profileSwitcher.dotCell);
+
+export function switcherIcons(icons: (string | null)[], shown: boolean, room: number, size: SwitcherIconSize = "default"): (string | null)[] {
+  const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon, size), 0) <= room;
   return shown && fits ? icons : icons.map(() => null);
 }
 
-export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
-  const { iconCell, icon: size, dot } = profileSwitcher;
+export function SwitcherMark({ icon, color, scale = 1, size = "default" }: { icon: string | null; color: string; scale?: number; size?: SwitcherIconSize }) {
+  const { icon: glyph } = switcherIconSizes[size];
+  const { dot } = profileSwitcher;
   const symbol = iconSymbol(icon);
-  if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: iconCell * scale, height: iconCell * scale }} />;
+  const box = switcherCell(size) * scale;
+  if (symbol) return <Symbol name={symbol} size={glyph * scale} weight="semibold" color={color} style={{ width: box, height: box }} />;
   if (icon)
     return (
-      <Text numberOfLines={1} style={{ width: iconCell * scale, fontSize: size * scale, lineHeight: iconCell * scale, textAlign: "center", color }}>
+      <Text numberOfLines={1} style={{ width: box, fontSize: glyph * scale, lineHeight: box, textAlign: "center", color }}>
         {icon}
       </Text>
     );
