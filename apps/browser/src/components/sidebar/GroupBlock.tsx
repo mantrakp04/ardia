@@ -14,7 +14,7 @@ import { commitRename, endRename, startRename } from "../../state/sidebar/action
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
-import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_RADIUS } from "./geometry";
+import { GROUP_BORDER, GROUP_INNER_RADIUS, GROUP_INDENT, GROUP_RADIUS } from "./geometry";
 import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
 import { dismissHover } from "../../state/sidebar/hover";
 import { useGroupHover, useRowHover } from "./hoverController";
@@ -105,6 +105,7 @@ export const GroupBlock = memo(function GroupBlock({
   const boxOpacity = useBoxOpacity(nested.innermost || dropInto);
 
   const { fill, stroke } = groupSurface(color, tokens);
+  const lastEntry = collapsed ? activeEntry : entries[entries.length - 1];
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
@@ -126,7 +127,7 @@ export const GroupBlock = memo(function GroupBlock({
                 : {
                     key: slot.entry,
                     node: (
-                      <SidebarEntry entry={slot.entry} section={section} parentGroup={groupId} motion={motion.motion(slot.entry)} />
+                      <SidebarEntry entry={slot.entry} section={section} parentGroup={groupId} lastInBox={slot.entry === lastEntry} motion={motion.motion(slot.entry)} />
                     ),
                   },
             )}
@@ -149,20 +150,22 @@ export const SidebarEntry = memo(function SidebarEntry({
   section,
   rowSection = section,
   parentGroup,
+  lastInBox = false,
   motion = null,
 }: {
   entry: string;
   section: "list" | "pinnedGroups";
   rowSection?: RowSection;
   parentGroup?: string;
+  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
   const { kind, id } = parseEntry(entry);
   if (kind === "live") return <LiveFolderBlock folderId={id} windowId={windowId} />;
   if (kind === "group") return <GroupBlock groupId={id} section={section} parentGroup={parentGroup} motion={motion} />;
-  if (kind === "split") return <SplitRowItem splitId={id} section={rowSection} parentGroup={parentGroup} motion={motion} />;
-  return <TabRowItem tabId={id} section={rowSection} parentGroup={parentGroup} motion={motion} />;
+  if (kind === "split") return <SplitRowItem splitId={id} section={rowSection} parentGroup={parentGroup} lastInBox={lastInBox} motion={motion} />;
+  return <TabRowItem tabId={id} section={rowSection} parentGroup={parentGroup} lastInBox={lastInBox} motion={motion} />;
 });
 
 const MEASURE_LABEL = { opacity: 0, fontVariant: TABULAR_NUMS } as const;
@@ -196,7 +199,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
           }}
         >
           {({ pressed }) => (
-            <SidebarRowSurface fill={dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear} cornerRadius={GROUP_HEADER_RADIUS}>
+            <SidebarRowSurface fill={dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear} cornerRadius={GROUP_INNER_RADIUS}>
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
               ) : (

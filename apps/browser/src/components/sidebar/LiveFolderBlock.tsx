@@ -14,7 +14,7 @@ import { layout, useTheme } from "../ui/theme";
 import { useLiveColors } from "../live/tokens";
 import { TabRow } from "./TabRow";
 import { Fold, useFold, type FoldEntry } from "./Fold";
-import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_RADIUS, LIVE_FOLDER_PAD } from "./geometry";
+import { GROUP_BORDER, GROUP_INNER_RADIUS, GROUP_RADIUS, LIVE_FOLDER_PAD } from "./geometry";
 import { useDragFolded, useDragItem } from "./DragProvider";
 import { dismissHover } from "../../state/sidebar/hover";
 import { openLiveFolderMenu } from "../../state/sidebar/liveMenus";
@@ -129,7 +129,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
           {({ pressed }) => (
             <SidebarRowSurface
               fill={pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear}
-              cornerRadius={GROUP_HEADER_RADIUS}
+              cornerRadius={GROUP_INNER_RADIUS}
               padLeft={TAB_ROW.contentLeft + PAD}
             >
               <TabIcon url={sourceSite} icon={icon} />
