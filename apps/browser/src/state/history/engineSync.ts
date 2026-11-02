@@ -7,6 +7,7 @@ import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
 import { engineProfiles } from "../profiles/engineProfiles";
+import { selectedProfileReads, startupEngineProfiles } from "../profiles/startupEngineProfiles";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
@@ -190,8 +191,8 @@ async function moveHistory(file: LegacyFile, now: number) {
 
 export function startHistory() {
   const events = onHistoryChanged(changed);
-  const loadAll = (s: Pick<BrowserState, "profiles">) => {
-    for (const engine of engineProfiles(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
+  const loadAll = (s: Pick<BrowserState, "profiles" | "windows">) => {
+    for (const engine of startupEngineProfiles(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
   };
   let moving = readDocument(LEGACY_FILE) !== null;
   let stopped = false;
@@ -210,7 +211,7 @@ export function startHistory() {
   if (moving) afterFirstWindow(migrate);
   else migrate();
   const stop = useBrowser.subscribe((s, prev) => {
-    if (s.profiles !== prev.profiles && !moving) loadAll(s);
+    if ((s.profiles !== prev.profiles || selectedProfileReads && s.windows !== prev.windows) && !moving) loadAll(s);
   });
   return () => {
     stopped = true;

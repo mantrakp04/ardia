@@ -127,3 +127,9 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   );
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
+
+test("profile startup memory setting is searchable", () => {
+  assert.ok(ids("load profiles when opened").includes("advanced.loadProfilesWhenOpened"));
+  assert.ok(ids("preload").includes("advanced.loadProfilesWhenOpened"));
+  assert.ok(ids("extensions").includes("advanced.loadProfilesWhenOpened"));
+});

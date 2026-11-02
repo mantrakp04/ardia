@@ -152,6 +152,12 @@ export const toolRows = {
     {
       section: "Performance",
       rows: {
+        loadProfilesWhenOpened: {
+          advanced: true,
+          title: "Load profiles when opened",
+          description: "Save startup memory by loading profiles and their extensions when first opened. Turn off to preload all profiles at startup. Takes effect after restarting Ardia.",
+          keywords: ["profile", "startup", "launch", "extensions", "memory", "ram", "lazy", "preload"],
+        },
         memorySaver: {
           advanced: true,
           title: "Memory Saver",

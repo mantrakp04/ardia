@@ -7,6 +7,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 import { engineProfiles } from "../profiles/engineProfiles";
+import { selectedProfileReads, startupEngineProfiles } from "../profiles/startupEngineProfiles";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "bookmarks.json";
@@ -247,11 +248,11 @@ export function startBookmarks() {
   let stopped = false;
   void migrateBookmarksFile().then((result) => {
     legacyMoved = result !== "kept";
-    if (!stopped) for (const engine of engineProfiles(store())) read(engine);
+    if (!stopped) for (const engine of startupEngineProfiles(store())) read(engine);
   });
   const stop = useBrowser.subscribe((s, prev) => {
-    if (s.profiles !== prev.profiles) {
-      for (const engine of engineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
+    if (s.profiles !== prev.profiles || selectedProfileReads && s.windows !== prev.windows) {
+      for (const engine of startupEngineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
     }
     if (s.bookmarks !== prev.bookmarks) {
       push(s);

@@ -107,6 +107,7 @@ export const SETTING_SPECS = {
   fadeUnloadedTabs: flag(false, SYNCED),
   warnBeforeClosingTabGroup: flag(true, SYNCED),
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
+  loadProfilesWhenOpened: flag(true),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
   keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),

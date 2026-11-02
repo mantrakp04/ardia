@@ -1,3 +1,4 @@
+import { configureProfileStartup } from "./state/profiles/startupEngineProfiles";
 import "./platform/nativeEvents";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { AppRegistry, unstable_batchedUpdates } from "react-native";
@@ -38,6 +39,7 @@ installErrorReporting();
 setStoreBatching(unstable_batchedUpdates);
 startPersistence({ restoreSession: configRestoreSession() });
 startConfigFiles(colorRoles);
+configureProfileStartup(useBrowser.getState().settings);
 startFavicons();
 startHistory();
 startBookmarks();

@@ -56,6 +56,7 @@ export function AdvancedPane() {
 
       <SectionHeader title="Performance" />
       <Group>
+        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
         <SettingToggle anchor="advanced.memorySaver" />
         <Row anchor="advanced.memorySaverMode" description={MEMORY_SAVER_MODES[memorySaverMode].description}>
           <PopUp
