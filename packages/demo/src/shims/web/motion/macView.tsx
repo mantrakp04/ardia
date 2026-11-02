@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, type ComponentType, type ForwardedRef, type ReactNode } from "react";
 import { Animated as WebAnimated, Pressable as WebPressable, StyleSheet, View as WebView } from "react-native-web";
-import "./leftEdge";
+import "./sidebarEdge";
 import { currentPointer, watchPointer, type PointerSample } from "./pointer";
 
 type MouseHandler = (e: MacMouseEvent) => void;

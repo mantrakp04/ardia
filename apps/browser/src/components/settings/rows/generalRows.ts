@@ -106,6 +106,12 @@ export const generalRows = {
     {
       section: "Tab layout",
       rows: {
+        sidebarSide: {
+          title: "Sidebar position",
+          description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
+          keywords: ["right", "left", "side", "position", "flip", "mirror", "sidebar on the right", "right sidebar", "arc"],
+          shown: inSidebar,
+        },
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",

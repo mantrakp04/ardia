@@ -5383,10 +5383,10 @@ try {
   await check("drag-preview-across-reload", async () => {
     const windowId = await appUp("app-drag-reload.out.log");
     const preview = () => evalApp(`return globalThis.expo.modules.ArdiaDev.devDragPreviewState()`);
-    const edges = async () => (await evalApp(`return ac.shell.devLeftEdgeStats(false)`)).watched;
+    const edges = async () => (await evalApp(`return ac.shell.devSidebarEdgeStats(false)`)).watched;
     const edgesBefore = await edges();
     await evalApp(`const d = ac.shell.dragPreview; d.begin(${JSON.stringify(windowId)}, [40, 40, 160, 28], [20, 14]);
-      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchLeftEdge(${JSON.stringify(windowId)}, true); return true`);
+      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchSidebarEdge(${JSON.stringify(windowId)}, true); return true`);
     const shown = await until("the preview", async () => {
       const p = await preview();
       return p.visible ? p : null;

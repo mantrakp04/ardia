@@ -151,6 +151,14 @@ export function tabLayoutOf(s: BrowserState, windowId?: string | null): "sidebar
   return (id && s.windows[id]!.tabLayout) || s.settings.tabLayout;
 }
 
+export type SidebarSide = "left" | "right";
+
+export function sidebarSideOf(s: BrowserState, windowId?: string | null): SidebarSide {
+  const id = resolveWindowId(s, windowId);
+  if (id && s.windows[id]!.kind === "small") return "left";
+  return tabLayoutOf(s, windowId) === "sidebar" ? s.settings.sidebarSide : "left";
+}
+
 export function merge<T extends object>(obj: T, patch: Partial<T>): T {
   for (const key in patch) {
     if (!Object.is(obj[key], patch[key])) return { ...obj, ...patch };

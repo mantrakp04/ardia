@@ -11,6 +11,7 @@ import { useEased } from "./barMotion";
 import { FolderMenu } from "./FolderMenu";
 import { useBarSize } from "./barSize";
 import { bookmarksBar } from "./tokens";
+import { overSidebar } from "../../state/bookmarks/sidebarEdge";
 
 type Shown = { panel: FolderMenuPanel; closing: boolean };
 
@@ -74,7 +75,7 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
   const node = useBookmarks((b) => (drag ? b.nodes[drag.id] : undefined));
   const shown = useEased(!!drag);
   if (!drag || !node) return null;
-  const toSidebar = node.kind === "folder" && drag.x < drag.edge;
+  const toSidebar = node.kind === "folder" && overSidebar(drag.edge, drag.x);
   return (
     <Animated.View
       pointerEvents="none"
