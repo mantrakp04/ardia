@@ -66,7 +66,15 @@ const github: LiveSource = {
   },
 };
 
-const BITBUCKET_STATE_BATCH = 10;
+const BITBUCKET_BATCH = 10;
+
+async function inBitbucketBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += BITBUCKET_BATCH) results.push(...(await Promise.allSettled(items.slice(i, i + BITBUCKET_BATCH).map(run))));
+  return results;
+}
+
+const fulfilled = <R>(results: PromiseSettledResult<R>[]) => results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
 
 const bitbucketAuth = async () => basic(live().config.bitbucketUser, await secret("bitbucket"));
 
@@ -94,37 +102,31 @@ const bitbucket: LiveSource = {
     const me = live().accounts.bitbucket;
     if (!me) throw new LiveError("signedOut", "Not signed in");
     const workspaces = await bitbucketPages<{ workspace: { slug: string } }>(`${endpoints.bitbucket}/user/workspaces?pagelen=100`, auth);
-    const results = await Promise.allSettled(
-      workspaces.map(({ workspace }) =>
-        bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
-      ),
+    const results = await inBitbucketBatches(workspaces, ({ workspace }) =>
+      bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
     );
-    const prs = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
     const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
     if (failure && results.every((result) => result.status === "rejected")) throw failure.reason;
-    return Promise.all(
-      prs.map(async (pr) => {
-        const repo = pr.destination.repository.full_name;
-        const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${pr.id}/statuses?pagelen=50`, {
-          headers: { Authorization: auth },
-        }).catch(() => null);
-        return mapBitbucket(pr, statuses);
-      }),
-    );
+    const failedWorkspaces = new Set(workspaces.filter((_, i) => results[i]?.status === "rejected").map(({ workspace }) => workspace.slug));
+    const keptFromFailedWorkspaces = (live().items[folder.id] ?? []).filter((it) => it.source === "bitbucket" && it.pr && failedWorkspaces.has(it.pr.repo.split("/")[0] ?? ""));
+    const items = await inBitbucketBatches(fulfilled(results).flat(), async (pr) => {
+      const repo = pr.destination.repository.full_name;
+      const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${pr.id}/statuses?pagelen=50`, {
+        headers: { Authorization: auth },
+      }).catch(() => null);
+      return mapBitbucket(pr, statuses);
+    });
+    return [...fulfilled(items), ...keptFromFailedWorkspaces];
   },
   async resolveGone(items) {
     const auth = await bitbucketAuth();
     const out: Record<string, CompletionState> = {};
     const prs = items.flatMap((it) => (it.pr ? [{ id: it.id, repo: it.pr.repo, number: it.pr.number }] : []));
-    for (let i = 0; i < prs.length; i += BITBUCKET_STATE_BATCH) {
-      await Promise.all(
-        prs.slice(i, i + BITBUCKET_STATE_BATCH).map(async ({ id, repo, number }) => {
-          const pr = await request<{ state: string }>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${number}`, { headers: { Authorization: auth } }).catch(() => null);
-          if (pr?.state === "MERGED") out[id] = "merged";
-          else if (pr?.state === "DECLINED" || pr?.state === "SUPERSEDED") out[id] = "closed";
-        }),
-      );
-    }
+    await inBitbucketBatches(prs, async ({ id, repo, number }) => {
+      const pr = await request<{ state: string }>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${number}`, { headers: { Authorization: auth } }).catch(() => null);
+      if (pr?.state === "MERGED") out[id] = "merged";
+      else if (pr?.state === "DECLINED" || pr?.state === "SUPERSEDED") out[id] = "closed";
+    });
     return out;
   },
 };

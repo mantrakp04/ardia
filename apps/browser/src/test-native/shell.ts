@@ -236,7 +236,10 @@ const secrets = new Map<string, string>();
 const keychain: Modules["ArdiaKeychain"] = {
   get: (account) => Promise.resolve(secrets.get(account) ?? null),
   set: (account, secret) => Promise.resolve(!!secrets.set(account, secret)),
-  delete: (account) => Promise.resolve(secrets.delete(account)),
+  delete: (account) => {
+    secrets.delete(account);
+    return Promise.resolve(true);
+  },
 };
 
 const translate: Modules["ArdiaTranslate"] = {

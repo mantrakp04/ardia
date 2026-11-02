@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 const { SOURCES, connectBitbucket } = await import("./sources.ts");
 const { errorText } = await import("./engine.ts");
+const { useLive } = await import("./store.ts");
 
 const API = "https://api.bitbucket.org/2.0";
 const ACCOUNT = "712020:abc";
@@ -32,7 +33,7 @@ function serve(routes) {
   return asked;
 }
 
-const authored = { filters: { authored: true, reviewRequests: false } };
+const authored = { id: "folder", filters: { authored: true, reviewRequests: false } };
 const workspacePRs = (slug) => `${API}/workspaces/${slug}/pullrequests/${encodeURIComponent(ACCOUNT)}?state=OPEN&pagelen=50`;
 
 test("open pull requests come from every workspace the user is in, following each page", async () => {
@@ -50,12 +51,12 @@ test("open pull requests come from every workspace the user is in, following eac
 });
 
 test("a 404 and a 403 from Bitbucket each get their own message instead of the generic one", async () => {
-  await connectBitbucket("me@example.com", "token");
   for (const [status, kind, text] of [
     [404, "notFound", "Bitbucket doesn't recognize this request. Ardia may need an update."],
     [403, "forbidden", "Your Bitbucket token is missing a permission. Check its scopes in Settings."],
   ]) {
     serve({ [`${API}/user/workspaces?pagelen=100`]: status });
+    await connectBitbucket("me@example.com", "token");
     const error = await SOURCES.bitbucket.fetch(authored).then(
       () => null,
       (e) => e,
@@ -100,4 +101,38 @@ test("a next link that points back to a page already read stops the fetch", asyn
     (e) => e,
   );
   assert.equal(error?.kind, "other");
+});
+
+test("a workspace that fails keeps the pull requests the folder already showed from it", async () => {
+  const cached = { id: "bitbucket:locked/app#9", source: "bitbucket", url: "https://bitbucket.org/locked/app/pull-requests/9", title: "PR 9", subtitle: "locked/app #9", icon: null, updatedAt: 0, section: "authored", pr: { repo: "locked/app", number: 9 } };
+  const elsewhere = { ...cached, id: "bitbucket:acme/old#8", pr: { repo: "acme/old", number: 8 } };
+  useLive.setState({ items: { folder: [cached, elsewhere] } });
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
+    [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
+    [workspacePRs("locked")]: 503,
+  });
+  await connectBitbucket("me@example.com", "token");
+  const items = await SOURCES.bitbucket.fetch(authored);
+  useLive.setState({ items: {} });
+  assert.deepEqual(items.map((it) => it.id), ["bitbucket:acme/web#1", "bitbucket:locked/app#9"]);
+});
+
+test("workspaces and statuses are asked at most ten at a time", async () => {
+  const slugs = Array.from({ length: 25 }, (_, i) => `w${i}`);
+  const routes = { [`${API}/user/workspaces?pagelen=100`]: { values: slugs.map((slug) => ({ workspace: { slug } })) } };
+  for (const slug of slugs) routes[workspacePRs(slug)] = { values: [prJson(1, `${slug}/repo`)] };
+  serve(routes);
+  await connectBitbucket("me@example.com", "token");
+  const stubbed = globalThis.fetch;
+  let inFlight = 0;
+  let most = 0;
+  globalThis.fetch = async (url) => {
+    most = Math.max(most, ++inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    return stubbed(url).finally(() => inFlight--);
+  };
+  const items = await SOURCES.bitbucket.fetch(authored);
+  assert.equal(items.length, 25);
+  assert.equal(most, 10);
 });

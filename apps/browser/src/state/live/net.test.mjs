@@ -4,7 +4,7 @@ import { test } from "node:test";
 const { request } = await import("./net.ts");
 
 const forbidden = (body, headers = {}) => {
-  globalThis.fetch = async () => new Response(JSON.stringify(body), { status: 403, headers });
+  globalThis.fetch = async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status: 403, headers });
   return request("https://www.googleapis.com/drive/v3/files").then(
     () => null,
     (e) => e.kind,
