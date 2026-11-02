@@ -129,6 +129,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Config/Open.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_CFBundleDisplayName: Open in Ardia
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SKIP_INSTALL: YES
 schemes:
   Ardia:
