@@ -25,9 +25,15 @@ export function sentTabsAdapter(deviceId: string, ledger: () => SendLedger, deli
       for (const [key, at] of Object.entries(received)) {
         if ((known(key) && remote(key) === null && !queued(key)) || now - at > RECEIVED_KEPT_MS) delete received[key];
       }
+      const receiveUnreceipted = (key: string, send: SendRecord) => {
+        if (sendableUrl(send.u) && !deliver([{ key, send }])) return false;
+        received[key] = now;
+        return true;
+      };
       const ignore = (key: string) => {
         const send = sendRecord(base(key));
         if (!send) return true;
+        if (send.to === deviceId && send.from !== deviceId) return !(key in received) && !receiveUnreceipted(key, send);
         if (send.to === deviceId) return !(key in received);
         if (send.from === deviceId) return now - send.at < SEND_KEPT_MS;
         return true;

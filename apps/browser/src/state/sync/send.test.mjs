@@ -181,6 +181,33 @@ test("a crash after a send opened but before anything was saved opens it again r
   assert.equal(ledgerSaved.record(key).v, null, "and still deletes it");
 });
 
+test("a crash after the applied send was saved but before its receipt opens it again and still deletes it", async () => {
+  const folder = new Folder();
+  const time = timeline();
+  const phone = new Device("P", folder, { now: time.now });
+  const mac = new Device("A", folder, { now: time.now });
+  const key = phone.send("A", "https://example.com/receipt");
+  await phone.sync();
+  const emptyLedger = structuredClone(mac.ledger);
+  await mac.sync();
+  assert.equal(mac.delivered.length, 1);
+
+  const restored = new Device("A", folder, { now: time.now });
+  restored.state = structuredClone(mac.state);
+  restored.ledger = structuredClone(emptyLedger);
+  restored.clock = new Clock("A", mac.clock.last);
+  time.at += 60_000;
+  for (let i = 0; i < 3; i++) {
+    await restored.sync();
+    time.at += 60_000;
+  }
+  assert.deepEqual(restored.delivered.map((d) => d.key), [key], "the lost receipt opens it again, once, rather than losing it");
+  assert.equal(restored.record(key).v, null, "and the receiver deletes it without waiting for the sender");
+  assert.deepEqual(folder.ops(key).filter((op) => op.v === null).map((op) => op.device), ["A"], "one deletion, from the receiver");
+  await phone.sync();
+  assert.equal(phone.record(key).v, null, "so the sender sees it handled");
+});
+
 test("a sender that crashed after its send went out, with the send still queued, never sends it again over the receiver's deletion", async () => {
   const folder = new Folder();
   const time = timeline();
