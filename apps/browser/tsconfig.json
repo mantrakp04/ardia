@@ -4,6 +4,7 @@
     "types": [],
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
     "paths": {
       "react-native": ["../../node_modules/react-native-macos"]
     }
