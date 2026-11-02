@@ -208,6 +208,22 @@ test("a crash after the applied send was saved but before its receipt opens it a
   assert.equal(phone.record(key).v, null, "so the sender sees it handled");
 });
 
+test("a receipt outlives 90 days while its send still waits to be deleted, so a late return doesn't open it again", async () => {
+  const folder = new Folder();
+  const time = timeline();
+  const phone = new Device("P", folder, { now: time.now });
+  const mac = new Device("A", folder, { now: time.now });
+  const key = phone.send("A", "https://example.com/late");
+  await phone.sync();
+  await mac.sync();
+  assert.equal(mac.delivered.length, 1);
+  time.at += 91 * DAY;
+  await mac.sync();
+  await mac.sync();
+  assert.deepEqual(mac.delivered.map((d) => d.key), [key], "opened once, not again after the long absence");
+  assert.equal(mac.record(key).v, null, "and deleted on its return");
+});
+
 test("a sender that crashed after its send went out, with the send still queued, never sends it again over the receiver's deletion", async () => {
   const folder = new Folder();
   const time = timeline();

@@ -145,6 +145,24 @@ test("a sync folder that can't be read reads as offline and keeps every file it 
   assert.ok(knownAtRead.flat().length > 0, "the next read still skips the files it had read");
 });
 
+test("a sent tab isn't opened while the Mac is quitting, so it can't land after the session froze", async () => {
+  reset();
+  const quit = await import("../app/quit.ts");
+  const { deliverSentTabs } = await import("./sentTabs.ts");
+  S().createWindow({ profileId: "default", url: "https://current.example/" });
+  const send = { u: "https://sent.example/while-quitting", t: "", to: "me", from: "phone", at: Date.now() };
+  const opened = () => Object.values(S().tabs).filter((t) => t.url === send.u).length;
+  quit.setQuitting(true);
+  try {
+    assert.equal(deliverSentTabs({ scopes: {} }, "default", [{ key: "send:quit", send }]), false, "refused while quitting");
+  } finally {
+    quit.setQuitting(false);
+  }
+  assert.equal(opened(), 0);
+  assert.equal(deliverSentTabs({ scopes: {} }, "default", [{ key: "send:quit", send }]), true);
+  assert.equal(opened(), 1, "and opened once the quit is off");
+});
+
 test("a tab sent to this Mac opens once, behind the current tab of the window showing its profile, and the send is deleted", async () => {
   reset();
   const { Clock } = await import("@ardia/sync");
