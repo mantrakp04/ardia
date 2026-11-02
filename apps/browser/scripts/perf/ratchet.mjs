@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isHarnessTimer } from "./js-bench.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appDir = process.env.RATCHET_APP_DIR ? resolve(process.env.RATCHET_APP_DIR) : resolve(here, "../..");
@@ -37,7 +38,7 @@ function flattenStats(into, prefix, stats) {
     if (!counter) continue;
     let total = 0;
     for (const [name, value] of Object.entries(counter)) {
-      if (name.includes("pollDevEval")) continue;
+      if (isHarnessTimer(name)) continue;
       add(into, `${prefix}.${k}.${name}`, value);
       total += value;
     }

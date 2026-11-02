@@ -1,6 +1,5 @@
-import { View } from "react-native";
 import { plural } from "../../../state/browser/model";
-import { Button, space, Text } from "../../ui";
+import { Button, Group, space, Text } from "../../ui";
 import { APP } from "../model";
 import { Spacer, TargetPicker, Title } from "../Parts";
 import { Monogram, ProfileAvatar, SelectRow, SpaceIcon } from "../Rows";
@@ -24,7 +23,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
         <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
-        <View style={{ gap: space.s }}>
+        <Group>
           {spacesOf(source).map((s) => (
             <SelectRow
               key={s.id}
@@ -47,14 +46,14 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
                   subtitle={p.isDefault ? "Default profile" : undefined}
                 />
               ))}
-        </View>
+        </Group>
       </>
     );
   return (
     <>
       <Title title="Unlock your data for import" subtitle="Select the profiles you want to import." />
       <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which profiles to bring over to ${APP}. The first goes into your selected profile; the others become new profiles.`}</Text>
-      <View style={{ gap: space.s }}>
+      <Group>
         {source.profiles.map((p) => (
           <SelectRow
             key={p.id}
@@ -65,7 +64,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
             subtitle={p.email ?? (p.isDefault ? "Default profile" : undefined)}
           />
         ))}
-      </View>
+      </Group>
     </>
   );
 }

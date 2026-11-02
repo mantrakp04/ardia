@@ -6,33 +6,38 @@ import Plate from "./Plate.astro";
 import windowShot from "../assets/shots/window.webp";
 
 const fullPage = /\/try\/?$/.test(Astro.url.pathname);
-const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${base}/demo/`}?embed${fullPage ? "&warm" : ""}`;
+const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
 ---
 
 <section class="showcase" id="demo" aria-label="The app" data-shot="office">
   <div class="wrap">
     <figure class="showcase-figure">
-      <div class="tilt" data-settle>
-        <Plate hour="morning" sun={{ x: 0.84, y: 0.16 }} still class="showcase-plate">
-          <div class="demo" data-demo data-demo-src={demoSrc}>
-            <p class="label demo-cue">
-              <span>Not a screenshot.</span>
-              <span class="demo-cue-swap">
-                <span class="demo-nudge"><span class="go-on">Go on, </span><span class="by-pointer">click</span><span class="by-touch">tap</span> a tab</span>
-                <span class="demo-told" aria-hidden="true">Told you.</span>
-              </span>
-            </p>
-            <div class="demo-poster" data-demo-poster>
-              <Shot
-                src={windowShot}
-                alt="The Ardia window in light mode: pinned tiles and tabs in the sidebar, and Wikipedia’s article on The Hay Wain, John Constable’s painting of a hay cart crossing a river, open on the right."
-                sizes="(max-width: 1440px) 88vw, 1240px"
-              />
-            </div>
-            <div class="demo-stage" data-demo-stage></div>
+      <Plate hour="morning" sun={{ x: 0.84, y: 0.16 }} still class="showcase-plate">
+        <div class="demo" data-demo>
+          <p class="label demo-cue">
+            <span>Not a screenshot.</span>
+            <span class="demo-cue-swap">
+              <span class="demo-nudge"><span class="go-on">Go on, </span><span class="by-pointer">click</span><span class="by-touch">tap</span> a tab</span>
+              <span class="demo-told" aria-hidden="true">Told you.</span>
+            </span>
+          </p>
+          <div class="demo-poster" data-demo-poster>
+            <Shot
+              src={windowShot}
+              alt="The Ardia window in light mode: pinned tiles and tabs in the sidebar, and Wikipedia’s article on The Hay Wain, John Constable’s painting of a hay cart crossing a river, open on the right."
+              sizes="(max-width: 1440px) 88vw, 1240px"
+            />
           </div>
-        </Plate>
-      </div>
+          <div class="demo-stage" data-demo-stage>
+            <iframe
+              class="demo-frame"
+              src={demoSrc}
+              title="Ardia, live: try the sidebar, split view and the command bar"
+              allow="clipboard-write"
+              loading="eager"></iframe>
+          </div>
+        </div>
+      </Plate>
       <div class="demo-controls" data-demo-controls hidden>
         <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
           <span data-demo-customize-label>Customize it</span>
@@ -78,27 +83,10 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   }
   .showcase-figure {
     margin: 0 auto;
-    perspective: 1600px;
   }
   @media (hover: hover) and (pointer: fine) and (min-width: 900px) {
     .showcase-figure {
       max-width: max(860px, calc((100svh - 170px) / 0.66));
-    }
-  }
-  .tilt {
-    transform-origin: 50% 0%;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .tilt {
-      transform: rotateX(12deg) scale(0.92) translateY(40px);
-      opacity: 0.5;
-      transition:
-        transform 1300ms var(--ease-out),
-        opacity 900ms var(--ease-out);
-    }
-    :global(.js) .tilt:global(.in) {
-      transform: none;
-      opacity: 1;
     }
   }
   .demo {
@@ -121,12 +109,8 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
     box-shadow:
       0 1px 2px rgb(22 19 15 / 0.2),
       0 8px 18px -6px rgb(22 19 15 / 0.35);
-    opacity: 0;
-    transform: translateY(6px);
+    visibility: hidden;
     pointer-events: none;
-    transition:
-      opacity 500ms var(--ease-out),
-      transform 500ms var(--ease-out);
   }
   .demo-cue::after {
     content: "";
@@ -138,8 +122,7 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
     border-bottom: 0;
   }
   .demo[data-live] .demo-cue {
-    opacity: 1;
-    transform: none;
+    visibility: visible;
   }
   .demo-cue-swap {
     display: grid;
@@ -188,9 +171,6 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
       align-items: center;
     }
   }
-  .demo-poster {
-    transition: opacity 500ms var(--ease-out);
-  }
   .demo-stage {
     position: absolute;
     inset: 0;
@@ -201,25 +181,23 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
       0 22px 44px rgb(22 19 15 / 0.2);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 500ms var(--ease-out);
-  }
-  .demo-stage:empty {
-    display: none;
   }
   .demo[data-live] .demo-stage {
     opacity: 1;
     pointer-events: auto;
   }
   .demo[data-live] .demo-poster {
-    opacity: 0;
+    visibility: hidden;
   }
-  .demo-stage :global(.demo-frame) {
+  .demo-frame {
     display: block;
+    width: 100%;
+    height: 100%;
     border: 0;
     transform-origin: 0 0;
     background: transparent;
   }
-  .demo-stage[data-far] :global(.demo-frame) {
+  .demo-stage[data-far] .demo-frame {
     content-visibility: auto;
   }
   .demo-controls {
@@ -235,11 +213,6 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   :global(.js) .demo-controls[hidden] {
     display: flex;
     visibility: hidden;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .demo-controls:not([hidden]) {
-      animation: band-in 600ms var(--ease-out) both;
-    }
   }
   .demo-customize {
     --h: 46px;

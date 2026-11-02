@@ -1,5 +1,5 @@
 import { curve } from "../ui/motion";
-import { font, radius, space } from "../ui/tokens";
+import { capsule, font, radius, space } from "../ui/tokens";
 
 export const PANEL_TEXT_LEFT = 48;
 const PANEL_ICON_LEFT = 21;
@@ -7,12 +7,12 @@ const FIELD_TEXT_INSET = 2.5;
 const ICON_SLOT = 18;
 
 export const BAR_TYPE = {
-  heroField: { fontSize: 17 },
+  heroField: font.large,
   floatingField: font.title,
   panelField: font.body,
-  goLabel: { fontSize: 15 },
-  scope: { fontSize: 14 },
-  heroScope: { fontSize: 15 },
+  goLabel: font.title,
+  scope: font.title,
+  heroScope: font.title,
 } as const;
 
 export const BAR = {
@@ -29,13 +29,13 @@ export const BAR = {
     gap: PANEL_TEXT_LEFT - FIELD_TEXT_INSET - PANEL_ICON_LEFT - ICON_SLOT,
   },
   dropdown: { height: 44, left: 13, right: 9, gap: 9 },
-  siteControls: { icon: 15, box: 26, radius: 13 },
+  siteControls: { glyph: 15 },
   bottom: { left: 14, heroLeft: 13, right: 13, heroRight: 15, height: 52, heroHeight: 43, heroBelow: space.m, mic: 14 },
 } as const;
 
 export const ADD_CHIP = {
   height: 32,
-  radius: 16,
+  radius: capsule(32),
   border: 1,
   left: 9,
   right: 12,
@@ -50,7 +50,7 @@ export const GO_BUTTON = {
   minWidth: 99,
   height: 32,
   padX: space.xl,
-  radius: 16,
+  radius: capsule(32),
   hoverOpacity: 0.9,
   gap: space.s,
   glyph: 11,
@@ -61,7 +61,7 @@ export const GO_BUTTON = {
 export const SCOPE_CHIP = {
   height: 26,
   heroHeight: 28,
-  radius: radius.l,
+  radius: radius.tile,
   left: 7,
   right: 9,
   gap: space.s,
@@ -76,13 +76,12 @@ export const SUGGESTION = {
   dropdownListBelow: space.s,
   height: 36,
   gapY: 2,
-  radius: 8,
+  radius: radius.tile,
   padX: 13,
   gap: 11,
   icon: 13,
   calcIcon: 14,
   iconBox: 16,
-  remove: { glyph: 10, box: 22, radius: radius.m },
 } as const;
 
 export const SELECTED_SUGGESTION_ALPHA = { dark: 0.56, light: 0.3 } as const;

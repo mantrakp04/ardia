@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { ScrollView, Text } from "react-native";
+import { space } from "../ui/tokens";
 import { DEV_ERROR } from "./tokens";
 
 export class DevErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -16,7 +17,7 @@ export class DevErrorBoundary extends Component<{ children: ReactNode }, { error
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: DEV_ERROR.background, padding: 24 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: DEV_ERROR.background, padding: space.xxxl }}>
         <Text style={{ color: DEV_ERROR.text, fontSize: DEV_ERROR.fontSize, fontFamily: DEV_ERROR.fontFamily }}>
           {this.state.error.message}
           {"\n\n"}

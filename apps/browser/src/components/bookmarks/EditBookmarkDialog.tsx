@@ -4,10 +4,10 @@ import { currentBookmarkRoots, currentBookmarks, currentSettings } from "../../s
 import { addBookmark, addBookmarkFolder, moveBookmark, updateBookmark } from "../../state/bookmarks/actions";
 import { useWindowId } from "../../state/browser/hooks";
 import { searchUrlPrefix } from "../../state/settings/settings";
-import { Box, Button, Dialog, Text, TextField } from "../ui";
+import { Button, Dialog, DialogActions, DialogTitle, TextField } from "../ui";
+import { FormField } from "../settings/Form";
 import { closeBookmarkEditor, useBookmarkEditor, type EditorState } from "../../state/bookmarks/edit";
-import { FieldLabel, FolderPicker } from "./DialogParts";
-import { editBookmarkDialog, folderPicker } from "./tokens";
+import { FolderPicker } from "./DialogParts";
 
 export function EditBookmarkDialog() {
   const windowId = useWindowId();
@@ -43,30 +43,25 @@ function Sheet({ state }: { state: EditorState }) {
   const heading = state.folder ? (node ? "Rename Folder" : "New Folder") : node ? "Edit Bookmark" : "Add Bookmark";
 
   return (
-    <Dialog width={editBookmarkDialog.width} pad="xlx" onDismiss={close}>
-      <Text size="heading" weight="semibold">
-        {heading}
-      </Text>
-      <FieldLabel text="Name" />
-      <TextField value={title} onChangeText={setTitle} autoFocus selectOnFocus onSubmit={save} onEscape={close} />
+    <Dialog width="s" pad="xl" onDismiss={close}>
+      <DialogTitle>{heading}</DialogTitle>
+      <FormField label="Name">
+        <TextField value={title} onChangeText={setTitle} autoFocus selectOnFocus onSubmit={save} onEscape={close} />
+      </FormField>
       {!state.folder && (
-        <>
-          <FieldLabel text="URL" />
+        <FormField label="URL">
           <TextField value={url} onChangeText={setUrl} placeholder="https://" onSubmit={save} onEscape={close} />
-        </>
+        </FormField>
       )}
       {(!state.folder || !node) && (
-        <>
-          <FieldLabel text="Folder" />
-          <FolderPicker profileId={state.profileId} selectedId={parentId} onSelect={setParentId} height={folderPicker.editHeight} />
-        </>
+        <FormField label="Folder">
+          <FolderPicker profileId={state.profileId} selectedId={parentId} onSelect={setParentId} />
+        </FormField>
       )}
-      <Box row gap="m" style={BUTTONS}>
+      <DialogActions>
         <Button title="Cancel" onPress={close} />
         <Button title="Save" kind="primary" disabled={!valid} onPress={save} />
-      </Box>
+      </DialogActions>
     </Dialog>
   );
 }
-
-const BUTTONS = { justifyContent: "flex-end", marginTop: editBookmarkDialog.buttonsTop } as const;

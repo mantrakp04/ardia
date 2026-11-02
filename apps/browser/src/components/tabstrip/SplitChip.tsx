@@ -1,12 +1,12 @@
 import { useContext } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, View } from "react-native";
 import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../state/browser/hooks";
 import { useShownTabIdFor } from "../../state/tabs/topStrip";
 import { TabIcon } from "../sidebar/TabIcon";
-import { FadeLabel, Symbol, useHover } from "../ui";
+import { Divider, FadeLabel, Symbol, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
 import type { ToolbarPalette } from "../ui/toolbarColors";
-import { font } from "../ui/tokens";
+import { font, space } from "../ui/tokens";
 import { FloatingStrip } from "./context";
 import { SelectedTab } from "./SelectedTab";
 import { dragGeometry, type DragGeometry } from "./stripGroups";
@@ -32,7 +32,7 @@ export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: st
       <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
         {active && <SelectedTab width={width} band={band} opaque={drag.dragging} />}
         <ItemRow hovered={hovered && !active} pressed={false}>
-          <Symbol name="rectangle.split.2x1" size={11} color={ink?.secondary ?? theme.textSecondary} style={{ width: 14, height: 16, marginRight: 4 }} />
+          <Symbol name="rectangle.split.2x1" size={11} color={ink?.secondary ?? theme.textSecondary} style={{ width: 14, height: 16, marginRight: space.xs }} />
           {tabIds.map((id, i) => (
             <SplitPart key={id} tabId={id} first={i === 0} ink={ink} />
           ))}
@@ -61,13 +61,16 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
         style={PART_ROW}
         pressStyle={PART_ROW}
         tooltip={tabTooltip(tab)}
-        leading={first ? null : <View style={{ width: StyleSheet.hairlineWidth, height: 16, marginHorizontal: 6, backgroundColor: ink?.divider ?? theme.textTertiary }} />}
+        leading={first ? null : <Divider vertical length={SPLIT_DIVIDER_LENGTH} color={ink?.divider ?? theme.textTertiary} style={SPLIT_DIVIDER_GAP} />}
       >
         <View pointerEvents="none">
-          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
+          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact profileId={tab.profileId} />
         </View>
         <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
       </TabPressArea>
     </Animated.View>
   );
 }
+
+const SPLIT_DIVIDER_LENGTH = 16;
+const SPLIT_DIVIDER_GAP = { marginHorizontal: space.s } as const;

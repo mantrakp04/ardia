@@ -12,13 +12,13 @@ import { NEUTRAL_GROUP_SWATCH } from "../../state/groups/tokens";
 import { ContextMenuArea, Symbol, useHover } from "../ui";
 import { curve } from "../ui/motion";
 import { useTheme } from "../ui/theme";
-import { font, weight, withAlpha } from "../ui/tokens";
+import { capsule, font, radius, space, weight, withAlpha } from "../ui/tokens";
 import { folderKey, type GroupOut } from "./model";
 import type { StripMember } from "../../state/tabs/topStrip";
 import { SplitChip } from "./SplitChip";
-import { MEMBERS_INSET, TUCK_FADE_MS, type DragGeometry } from "./stripGroups";
+import { MEMBERS_INSET, type DragGeometry } from "./stripGroups";
 import { DraggableChip, TabChip } from "./TabChip";
-import { CHIP_HAIRLINE, FOLDER_HEIGHT, FOLDER_PAD, FOLDER_RADIUS, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, MID, TOP_STRIP_HEIGHT } from "./tokens";
+import { CHIP_HAIRLINE, FOLDER_HEIGHT, FOLDER_PAD, FOLDER_RADIUS, FOLDER_TITLE_GAP, FOLDER_TITLE_MAX, GROUP_GLYPH, MID, TOP_STRIP_HEIGHT, TUCK_FADE_MS } from "./tokens";
 
 export function GroupMember({
   member,
@@ -53,7 +53,7 @@ export function GroupMember({
 }) {
   const shownValue = useRef(new Animated.Value(shown ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(shownValue, { toValue: shown ? 1 : 0, duration: TUCK_FADE_MS, easing: curve.outQuad, useNativeDriver: false }).start();
+    Animated.timing(shownValue, { toValue: shown ? 1 : 0, duration: TUCK_FADE_MS, easing: curve.enter, useNativeDriver: false }).start();
   }, [shown]);
   const left = useMemo(() => open.interpolate({ inputRange: [0, 1], outputRange: [start, start + offset] }), [start, offset]);
   const opacity = useMemo(
@@ -131,7 +131,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
               <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: ink }}>
                 {label}
               </Text>
-              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(ink, 0.6)} style={{ marginLeft: 5, width: 9, height: 9 }} />
+              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(ink, 0.6)} style={{ marginLeft: space.xs, width: 9, height: 9 }} />
             </View>
           )}
         </Pressable>
@@ -150,10 +150,10 @@ export function StripGroupIcon({ icon, tint }: { icon: string | null; tint: stri
 
 function GroupGlyph({ color }: { color: string }) {
   return (
-    <View style={{ width: 13, height: 11, flexDirection: "row", alignItems: "center" }}>
-      <View style={{ width: 1.25, height: 7, borderRadius: 0.625, backgroundColor: color, opacity: 0.5 }} />
-      <View style={{ width: 1.25, height: 9, borderRadius: 0.625, marginLeft: 0.6, backgroundColor: color, opacity: 0.75 }} />
-      <View style={{ width: 9.4, height: 10.6, borderRadius: 2.5, marginLeft: 0.5, backgroundColor: color }} />
+    <View style={{ width: GROUP_GLYPH.width, height: GROUP_GLYPH.height, flexDirection: "row", alignItems: "center" }}>
+      <View style={{ width: GROUP_GLYPH.sliver, height: GROUP_GLYPH.backHeight, borderRadius: capsule(GROUP_GLYPH.sliver), backgroundColor: color, opacity: 0.5 }} />
+      <View style={{ width: GROUP_GLYPH.sliver, height: GROUP_GLYPH.midHeight, borderRadius: capsule(GROUP_GLYPH.sliver), marginLeft: GROUP_GLYPH.midGap, backgroundColor: color, opacity: 0.75 }} />
+      <View style={{ width: GROUP_GLYPH.face.width, height: GROUP_GLYPH.face.height, borderRadius: radius.hair, marginLeft: GROUP_GLYPH.faceGap, backgroundColor: color }} />
     </View>
   );
 }

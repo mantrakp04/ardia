@@ -263,7 +263,7 @@ screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edge
 - Hidden: the page card fills the window; no toolbar row, no traffic lights, no back/forward/address. Arc's card inset is
   10 pt on every side, docked or hidden (ours is 9 on every side, see "Content card").
 - Peek (pointer at the window's left edge): a floating panel over the page, which doesn't move. Inset 5 pt from the
-  window's left, top and bottom edges (ours too, over the 9 pt card), 227.5 pt wide (= the docked sidebar's width), rounded,
+  window's left, top and bottom edges (ours is 5 from the left and 9 from the top and bottom, so its ends line up with the 9 pt card), 227.5 pt wide (= the docked sidebar's width), rounded,
   dark, a 0.5 pt light border; it holds the traffic lights, the sidebar button, back/forward/reload, the URL field and the
   tabs. It slides in from past the window's edge with no fade, on a spring: response 0.185 s, damping 0.77 (three peeks,
   rms 2.1 % of the travel): 93 % in 66 ms, a 1.5 % (3.5 pt) overshoot at ~0.12 s, at rest by ~0.22 s. It leaves the same

@@ -1,64 +1,57 @@
 import { appUrlOrigin, urlForDisplay } from "@ardia/core";
 import { displayHostOf } from "../../lib/url";
 import type { ReactNode } from "react";
-import { View } from "react-native";
-import { Box, SearchField, Text } from "../ui";
-import { emptyState, pageHeader, pageType } from "./tokens";
+import { StyleSheet, View } from "react-native";
+import { Box, display, SearchField, space, Text, useTheme, WindowDragRegion } from "../ui";
+import { pageHeader, pageToolbar } from "./tokens";
 
 export const PAGE_WIDTH = 880;
 
-export function PageHeader({
-  title,
-  query,
-  onQuery,
-  placeholder,
-  actions,
-}: {
-  title: string;
-  query: string;
-  onQuery: (q: string) => void;
-  placeholder: string;
-  actions?: ReactNode;
-}) {
+export type PageToolbarSize = keyof typeof pageToolbar;
+
+export function PageToolbar({ size, divider, drag, children }: { size: PageToolbarSize; divider?: boolean; drag?: boolean; children: ReactNode }) {
+  const theme = useTheme();
+  const bar = pageToolbar[size];
   return (
-    <Box row padX="xxxl" gap="xl" style={HEADER_ROW}>
+    <View
+      style={{
+        height: bar.height,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: space[bar.padX],
+        gap: space[bar.gap],
+        borderTopWidth: divider ? StyleSheet.hairlineWidth * 2 : undefined,
+        borderTopColor: divider ? theme.divider : undefined,
+      }}
+    >
+      {drag ? <WindowDragRegion style={StyleSheet.absoluteFill} /> : null}
+      {children}
+    </View>
+  );
+}
+
+export function PageHeader({ title, query, onQuery, actions }: { title: string; query: string; onQuery: (q: string) => void; actions?: ReactNode }) {
+  return (
+    <PageToolbar size="page">
       <Text weight="semibold" style={HEADER_TITLE}>
         {title}
       </Text>
       <View style={HEADER_SEARCH}>
-        <SearchField value={query} onChangeText={onQuery} placeholder={placeholder} style={SEARCH_FIELD} />
+        <View style={SEARCH_WIDTH}>
+          <SearchField value={query} onChangeText={onQuery} placeholder={`Search ${title.toLowerCase()}`} />
+        </View>
       </View>
       <Box row gap="m" style={HEADER_ACTIONS}>
         {actions}
       </Box>
-    </Box>
+    </PageToolbar>
   );
 }
 
-const HEADER_ROW = { height: pageHeader.height, alignItems: "center" } as const;
-const HEADER_TITLE = { width: pageHeader.sideWidth, fontSize: pageType.title } as const;
+const HEADER_TITLE = { width: pageHeader.sideWidth, ...display.title } as const;
 const HEADER_SEARCH = { flex: 1, alignItems: "center" } as const;
-const SEARCH_FIELD = { width: "100%", maxWidth: pageHeader.searchMaxWidth } as const;
+const SEARCH_WIDTH = { width: "100%", maxWidth: pageHeader.searchMaxWidth } as const;
 const HEADER_ACTIONS = { width: pageHeader.sideWidth, justifyContent: "flex-end", alignItems: "center" } as const;
-
-export function EmptyState({ icon, title, subtitle }: { icon?: ReactNode; title: string; subtitle?: string }) {
-  return (
-    <Box gap="m" center style={EMPTY}>
-      {icon}
-      <Text size="heading" weight="medium" tone="textSecondary">
-        {title}
-      </Text>
-      {subtitle ? (
-        <Text tone="textTertiary" style={EMPTY_SUBTITLE}>
-          {subtitle}
-        </Text>
-      ) : null}
-    </Box>
-  );
-}
-
-const EMPTY = { flex: 1, paddingBottom: emptyState.liftBottom } as const;
-const EMPTY_SUBTITLE = { textAlign: "center", maxWidth: emptyState.subtitleMaxWidth } as const;
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

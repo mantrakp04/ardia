@@ -35,7 +35,9 @@
       "TranslateModule",
       "WindowProfileModule",
       "CliModule",
-      "UserScriptsModule"
+      "UserScriptsModule",
+      "ConfigModule",
+      "AutomationModule"
     ]
   }
 }

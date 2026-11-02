@@ -128,7 +128,7 @@ export const COMMANDS = {
       backward: { title: "Tab Switcher (backward)", keys: ["⌃⇧⇥"] },
     },
   },
-  share: { title: "Share", symbol: "square.and.arrow.up", ...pageInLittleArdia },
+  share: { title: "Share…", symbol: "square.and.arrow.up", keys: ["⌥⌘S"], ...pageInLittleArdia },
   sendFeedback: { title: "Send Feedback…", keys: ["⌥⇧⌘I"], ...appWide },
   keyboardShortcuts: { title: "Keyboard Shortcuts", symbol: "keyboard" },
   copyDiagnostics: { title: "Copy Diagnostics", ...appWide },

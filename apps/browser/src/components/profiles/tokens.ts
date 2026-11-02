@@ -4,7 +4,7 @@ export const profileColors = {
   unknownSwatch: "#888888",
 } as const;
 
-export const profileType = { sheetTitle: 15, sheetBody: 12.5, sheetBodyLine: 17, noteLine: 15 } as const;
+export const SHARE_ROW_HEIGHT = 32;
 
 export const profileSwitcher = {
   height: 41,

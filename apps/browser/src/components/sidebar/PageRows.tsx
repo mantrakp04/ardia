@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type RefObject } from "react";
-import { Animated, Text, View } from "react-native";
-import { radius, Symbol, weight } from "../ui";
+import { Animated, View } from "react-native";
+import { radius, space, Symbol, Text } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useSettings } from "../../state/browser/hooks";
 import { isIncognitoProfile } from "../../state/browser/model";
@@ -20,7 +20,7 @@ import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
 import { ROW_PITCH, ROWS_PER_FRAME, type SidebarGeometry } from "./pageLayout";
 import { NewTabRow } from "./NewTabRow";
 import { CleanUpUpsell } from "./CleanUpUpsell";
-import { SIDEBAR_TYPE, sidebarTokens } from "./tokens";
+import { sidebarTokens, TAB_ROW } from "./tokens";
 import { tailKey } from "./dragModel";
 
 type PageRowsProps = {
@@ -84,7 +84,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             controller?.regions.set("pinnedGroups", v);
           }}
           onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
-          style={{ marginTop: tiles.length && pinnedSection ? 6 : 0, gap: pinnedGap }}
+          style={{ marginTop: tiles.length && pinnedSection ? space.s : 0, gap: pinnedGap }}
         >
           {pinnedSection ? (
             <Fold
@@ -92,7 +92,6 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
               collapsed={collapsed}
               entries={pinned.map((entry) => ({ key: entry, node: <SidebarEntry entry={entry} section="pinnedGroups" rowSection="pinnedRows" /> }))}
               keep={kept}
-              gap={layout.rowGap}
               estimate={(key) => entryHeightNow(windowId, profileId, key)}
             />
           ) : null}
@@ -145,9 +144,11 @@ function IncognitoBadge() {
   const theme = useTheme();
   if (!useAddressBarInSidebar()) return null;
   return (
-    <View style={{ height: 30, marginBottom: 4, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, borderRadius: radius.l, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
+    <View style={{ height: 30, marginBottom: space.xs, paddingHorizontal: TAB_ROW.contentLeft, flexDirection: "row", alignItems: "center", gap: space.m, borderRadius: radius.tile, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
       <Symbol name={INCOGNITO_ICON} size={13} weight="semibold" color={theme.textPrimary} style={{ width: 18, height: 16 }} />
-      <Text style={{ fontSize: SIDEBAR_TYPE.compact, fontWeight: weight.semibold, color: theme.textPrimary }}>Incognito</Text>
+      <Text size="small" weight="semibold">
+        Incognito
+      </Text>
     </View>
   );
 }

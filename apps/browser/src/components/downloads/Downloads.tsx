@@ -10,7 +10,9 @@ import {
   HoverSlot,
   layout,
   MenuSeparator,
+  menuRowFill,
   PANEL,
+  ProgressTrack,
   Text,
   useGlass,
   useGlassLook,
@@ -19,6 +21,7 @@ import {
   usePopoverMotionStyle,
   usePopoverPresence,
   useTheme,
+  type Theme,
 } from "../ui";
 import { fileIcon, openFile, revealFile } from "../../state/app/system";
 import { downloadMenu } from "../../state/downloads/downloadMenu";
@@ -41,10 +44,12 @@ import { dangerWarning, downloadStatus } from "../../state/downloads/status";
 import { useDownloadView } from "./useDownloadView";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
-import { DOWNLOADS_LIST as L, downloadsRowFill, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+
+const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
 
 const iconCache = new Map<string, string | null>();
-export const FileIcon = memo(function FileIcon({ path, size = 28 }: { path: string; size?: number }) {
+export const FileIcon = memo(function FileIcon({ path, size = L.fileIcon }: { path: string; size?: number }) {
   const theme = useTheme();
   const key = `${path}@${size}`;
   const [uri, setUri] = useState(() => iconCache.get(key) ?? null);
@@ -114,11 +119,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
               {clearable && (
                 <Button
                   variant="text"
-                  plate="hover"
-                  height={L.clearHeight}
-                  pad="sm"
-                  weight="regular"
-                  tone="textSecondary"
+                  look="panel"
                   title="Clear"
                   onPress={() => {
                     setOpen(false);
@@ -180,7 +181,7 @@ function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
 }
 
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
-  return <Button variant="icon" icon={icon} size={PANEL.iconSize} box={L.rowButton} radius={L.rowButtonRadius} onPress={onPress} tooltip={tooltip} />;
+  return <Button variant="icon" icon={icon} size="s" glyph={PANEL.iconSize} onPress={onPress} tooltip={tooltip} />;
 }
 
 const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: string; windowId: string }) {
@@ -192,7 +193,6 @@ const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: st
 
 function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();
-  const colors = useDownloadsColors();
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
   const glass = useGlass();
@@ -210,10 +210,10 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                   paddingHorizontal: PANEL.rowPadding,
                   height: L.row,
                   borderRadius: PANEL.rowRadius,
-                  backgroundColor: glass ? undefined : downloadsRowFill(theme, hovered, pressed && done),
+                  backgroundColor: glass ? undefined : rowFill(theme, hovered, pressed && done),
                 }}
               >
-                <DownloadsRowGlass fill={downloadsRowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
+                <DownloadsRowGlass fill={rowFill(theme, hovered, pressed && done)} pressed={pressed && done} />
                 <View style={{ opacity: exists ? 1 : L.missingOpacity }}>
                   <FileIcon path={d.path || d.filename} size={L.fileIcon} />
                 </View>
@@ -226,11 +226,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     {d.filename || "Preparing…"}
                   </Text>
                   {d.state === "downloading" && !blocked ? (
-                    <View style={{ height: L.progressHeight, borderRadius: L.progressRadius, marginTop: L.progressAbove, marginBottom: L.progressBelow, backgroundColor: colors.progressTrack }}>
-                      <View
-                        style={{ width: `${Math.max(progress, L.progressMin) * 100}%`, height: L.progressHeight, borderRadius: L.progressRadius, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
-                      />
-                    </View>
+                    <ProgressTrack value={Math.max(progress, L.progressMin)} height={L.progressHeight} tone={d.paused ? "textTertiary" : "accent"} style={PROGRESS_GAP} />
                   ) : null}
                   <Text lines={1} size="caption" tone={blocked ? "destructive" : "textSecondary"} style={{ lineHeight: PANEL.subtitleLine }}>
                     {blocked ? dangerWarning(d, true) : downloadStatus(d, exists)}
@@ -238,8 +234,8 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                 </View>
                 {blocked ? (
                   <View style={{ flexDirection: "row", marginRight: -L.textButtonPad }}>
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" weight="regular" tone="textSecondary" title="Keep" onPress={() => void keepDownload(d.id)} />
-                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" title="Discard" onPress={() => void cancelDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Keep" onPress={() => void keepDownload(d.id)} />
+                    <Button variant="text" look="panel" title="Discard" onPress={() => void cancelDownload(d.id)} />
                   </View>
                 ) : d.state === "downloading" ? (
                   <View style={{ flexDirection: "row", marginRight: -L.rowButtonBearing }}>
@@ -326,3 +322,5 @@ function DownloadsRowGlass({ fill, pressed }: { fill: string | undefined; presse
   if (!useGlass() || !fill) return null;
   return <GlassFill radius={PANEL.rowRadius} state={pressed ? "pressed" : "lit"} />;
 }
+
+const PROGRESS_GAP = { marginTop: L.progressAbove, marginBottom: L.progressBelow } as const;

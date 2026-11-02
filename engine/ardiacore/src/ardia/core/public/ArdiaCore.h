@@ -241,6 +241,7 @@ ARDIACORE_EXPORT
     contextMenuCommand:(NSString*)itemId
                   text:(NSString*)selection
              modifiers:(NSDictionary<NSString*, NSNumber*>*)modifiers;
+- (void)tab:(ArdiaCoreTab*)tab shareFromContextMenu:(NSDictionary<NSString*, id>*)share;
 - (void)tab:(ArdiaCoreTab*)tab didShowContextMenu:(NSArray<NSDictionary*>*)items;
 - (nullable NSDictionary<NSString*, id>*)tab:(ArdiaCoreTab*)tab
                               runContextMenu:(NSDictionary<NSString*, id>*)menu;

@@ -4,6 +4,8 @@ let config: LaunchConfig | null = null;
 
 const current = (): LaunchConfig => (config ??= nativeModule("ArdiaApp").launchConfig());
 
+export const configDirectory = (): string => current().configDirectory;
+
 export const switchOverride = (name: string): boolean | undefined => current().switches[name];
 
 const testValue = (key: string): string | null => current().test[key] ?? null;

@@ -2,13 +2,11 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 import { spring, curve } from "../ui/motion";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
-import { SIDEBAR_MOTION } from "./tokens";
+import { HOVER_CARD_IN_SPRING, HOVER_CARD_OUT_SPRING, SIDEBAR_MOTION } from "./tokens";
 
 export const HOVER_CARD_GAP = 8;
 export const HOVER_CARD_FROM_SCALE = 0.92;
 export const HOVER_CARD_FADE_MS = SIDEBAR_MOTION.hoverCardFade;
-export const HOVER_CARD_IN_SPRING = { response: 0.25, damping: 0.75 } as const;
-export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 
 const fade = curve.fade;
 

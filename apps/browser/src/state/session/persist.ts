@@ -1,5 +1,5 @@
 import { removeDownloadStaging, type Download } from "../../platform/downloads";
-import { readDocument, writeDocument } from "../../platform/documents";
+import { documentSaved, readDocument, writeDocument } from "../../platform/documents";
 import { SESSION_DOCUMENT } from "./sessionDocument";
 import { useBrowser, type BrowserState, type HydrateData } from "../browser/store";
 import { inPinnedContainer, isIncognitoProfile, snapshotTab } from "../browser/model";
@@ -165,11 +165,13 @@ function read(name: string): string | null {
   }
 }
 
-function write(name: string, json: string) {
+function write(name: string, json: string): boolean {
   try {
     writeDocument(name, json);
+    return true;
   } catch (error) {
     console.warn(`Couldn't save ${name}`, error);
+    return false;
   }
 }
 
@@ -222,22 +224,38 @@ function closedForLaunch(session: SavedSession): HydrateData {
   return { ...session, parkedPins, closedWindows, windows: {}, windowOrder: [], tabs: {} };
 }
 
-export function loadSession(): HydrateData | null {
+export type LaunchOverrides = { restoreSession?: boolean };
+
+export function loadSession({ restoreSession }: LaunchOverrides = {}): HydrateData | null {
   const session = parseSession(read(SESSION_DOCUMENT));
   if (!session) return null;
   const downloads = savedDownloads({ profiles: session.profiles ?? {} });
-  const data = session.settings?.restoreSession === false ? closedForLaunch(session) : session;
+  const restore = restoreSession ?? session.settings?.restoreSession !== false;
+  const data = restore ? session : closedForLaunch(session);
   return { ...data, downloads };
 }
 
 let flush: () => void = () => {};
+let unstaged: () => boolean = () => false;
 let resume: () => void = () => {};
 let frozen = false;
 
-export function flushPersistence({ final = false } = {}) {
+export function flushPersistence({ final = false } = {}): boolean {
+  const saving = !frozen;
   flush();
   if (final && !frozen) saveLaunchLook(useBrowser.getState());
   if (final) frozen = true;
+  return saving;
+}
+
+export async function sessionSaved(): Promise<boolean> {
+  if (!flushPersistence() || unstaged()) return false;
+  try {
+    await documentSaved(SESSION_DOCUMENT);
+    return !frozen;
+  } catch {
+    return false;
+  }
 }
 
 export function resumePersistence() {
@@ -245,8 +263,8 @@ export function resumePersistence() {
   resume();
 }
 
-export function startPersistence() {
-  useBrowser.getState().hydrate(loadSession() ?? {});
+export function startPersistence(overrides: LaunchOverrides = {}) {
+  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();
@@ -261,14 +279,15 @@ export function startPersistence() {
     const s = useBrowser.getState();
     for (const doc of DOCS.filter((d) => dirty.has(d))) {
       const json = doc.json(s);
-      if (lastJson.get(doc.name) !== json) {
+      if (lastJson.get(doc.name) === json || write(doc.name, json)) {
         lastJson.set(doc.name, json);
-        write(doc.name, json);
+        dirty.delete(doc);
       }
     }
-    dirty.clear();
+    if (dirty.size) timer = setTimeout(save, SAVE_DELAY_MS);
   };
   flush = save;
+  unstaged = () => [...dirty].some((d) => d.name === SESSION_DOCUMENT);
 
   const check = (s: BrowserState, initial = false) => {
     if (frozen) return;

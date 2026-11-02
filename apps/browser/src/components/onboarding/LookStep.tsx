@@ -1,16 +1,18 @@
 import { appIcons, currentAppIcon, setAppIcon, type AppIcon } from "../../state/app/appSettings";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { space } from "../ui/tokens";
 import { PROFILE_COLORS } from "../ui/theme";
 import { useWindowProfileValue } from "../../state/profiles/hooks";
 import type { Settings } from "../../state/settings/settings";
 import { ChoiceList, type ChoiceOption } from "./ChoiceList";
-import { ThemeColorPicker } from "./Personalize";
+import { ThemePicker } from "../settings/ThemeEditor";
 import { MockPanel, useScreen } from "./Screen";
 import { previewColor, previewLive, previewTheme, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf } from "../../state/onboarding/questions";
 import { change, Page, useQuestion } from "./LayoutSteps";
-import { CheckRow, OptionRow } from "./Parts";
+import { OptionCard } from "./OptionCard";
+import { OptionRow } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
 
 const LOOK_KEYS = keysOf("look");
@@ -81,12 +83,13 @@ export function LookStep() {
       >
         <ChoiceList options={STYLE_CHOICES} value={values.interfaceStyle} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={focus} />
         {values.interfaceStyle === "glass" ? (
-          <View style={{ gap: 10, marginTop: 18 }}>
-            <CheckRow
+          <View style={{ gap: space.ml, marginTop: space.xl }}>
+            <OptionCard
+              control="check"
               title="Tint the glass with your color"
               subtitle="Buttons and fields take on your theme color"
-              value={values.glassTintWithTheme}
-              onChange={(glassTintWithTheme) => change({ glassTintWithTheme }, true)}
+              selected={values.glassTintWithTheme}
+              onPress={() => change({ glassTintWithTheme: !values.glassTintWithTheme }, true)}
             />
             {values.glassTintWithTheme ? (
               <Slider stacked label="Tint amount" value={values.glassTintAmount} onChange={(v) => change({ glassTintAmount: Math.round(v * 100) / 100 }, true)} />
@@ -144,7 +147,7 @@ export function LookStep() {
           if (appIcon && appIcon !== icons.current) void setAppIcon(appIcon);
         }}
       >
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: space.m }}>
           {icons.list.length > 1 ? (
             <OptionRow
               title="App icon"
@@ -153,11 +156,12 @@ export function LookStep() {
               onChange={(id) => setOnboardingExtras({ appIcon: id })}
             />
           ) : null}
-          <CheckRow
+          <OptionCard
+            control="check"
             title="Hide toolbar while scrolling"
             subtitle="Scroll up to bring it back"
-            value={values.hideToolbarWhileScrolling}
-            onChange={(hideToolbarWhileScrolling) => change({ hideToolbarWhileScrolling })}
+            selected={values.hideToolbarWhileScrolling}
+            onPress={() => change({ hideToolbarWhileScrolling: !values.hideToolbarWhileScrolling })}
           />
           <OptionRow title="Bookmarks bar" value={values.bookmarksBar} options={BOOKMARKS_BAR} onChange={(bookmarksBar) => change({ bookmarksBar })} />
         </View>
@@ -166,7 +170,7 @@ export function LookStep() {
   const name = customTheme ? "Custom" : color ? PROFILE_COLORS[color]?.name : null;
   return (
     <Page id="color" title="Pick a color" subtitle="It tints the sidebar and the window." patch={{}} picked={name ? [`${name} theme`] : []} preview={preview}>
-      <ThemeColorPicker windowId={windowId} size={32} gap={5} onPick={(c) => previewColor(c)} onTheme={previewTheme} />
+      <ThemePicker windowId={windowId} size={32} gap={space.xs} onPreset={previewColor} onTheme={previewTheme} />
     </Page>
   );
 }

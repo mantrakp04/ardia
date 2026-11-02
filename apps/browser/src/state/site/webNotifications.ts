@@ -12,6 +12,7 @@ import { useBrowser } from "../browser/store";
 import { focus, switchToTab } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { withDeadline } from "../../lib/deadline";
+import { isSilenced } from "../tabs/mute";
 
 const shown = new Map<string, string>();
 
@@ -46,12 +47,14 @@ export function showWebNotification(tabId: string, n: WebNotification) {
     if (!allowed || shown.get(id) !== n.id) return;
     const icon = n.icon ? await iconFor(tabId, n.icon) : undefined;
     if (shown.get(id) !== n.id) return;
+    const now = useBrowser.getState();
+    const current = now.tabs[tabId];
     void postNotification({
       id,
       title: n.title,
       body: n.body,
       subtitle: site,
-      silent: n.silent,
+      silent: n.silent || (!!current && isSilenced(now, current)),
       icon,
       tabId,
       windowId: tab.windowId,

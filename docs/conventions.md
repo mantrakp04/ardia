@@ -93,10 +93,10 @@ lib/                    pure helpers: url, color, time, keys
 | --- | --- |
 | `theme.dark ? "rgba(…)" : "rgba(…)"` | a role on the theme (`theme.popoverBorder`, `theme.scrim`, …), added to both palettes in `tokens.ts` |
 | `useFormColors().accent` and friends | the theme role: `formAccent`, `groupFill`, `control`, `field`, `destructive`, `searchFlash`, … (`useFormColors` stays only until its callers move) |
-| `Easing.out(Easing.quad)`, `Easing.bezier(…)` | `curve.outQuad`, `curve.fade`, `curve.fold`, … from `motion.ts` |
-| a numeric `duration:` shared with another place | `duration.popoverOpen`, `duration.fade`, `duration.slide`, … |
-| `stiffness: (2π/response)²` written by hand | `spring({ response, damping })` |
-| a `View` with `padding`/`gap`/`backgroundColor`/`borderRadius` from tokens | `<Box pad="m" gap="s" fill="panel" radius="card" row>` |
+| `Easing.out(Easing.quad)`, `Easing.bezier(…)` | `curve.enter`, `curve.exit`, `curve.move`, `curve.pulse`, … from `motion.ts` |
+| a numeric `duration:` | `duration.fast`, `duration.base`, `duration.slow`, `duration.long`; a loop's period is `period.spinner` / `period.pulse` |
+| `stiffness: (2π/response)²` written by hand | `springs.snappy` / `smooth` / `bouncy`, or `spring({ response, damping })` for a measured spring |
+| a `View` with `padding`/`gap`/`backgroundColor`/`borderRadius` from tokens | `<Box pad="m" gap="s" fill="panel" radius="tile" row>` |
 | `<Text style={{ fontSize: 13, fontWeight: "600", color: theme.textSecondary }}>` | `<Text size="body" weight="semibold" tone="textSecondary">` |
 | a pressable square with an SF Symbol and a hover plate | `<Button variant="icon" icon="…">` (add `toolbar` for toolbar buttons: modifier clicks, long press, context menu, no window drag; `palette` for site-coloured toolbars) |
 | a hover-plated text link ("Replace", "Clear", "Skip Tour") | `<Button variant="text" title plate="toolbar" \| "hover" \| "none">` |
@@ -179,7 +179,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
   installed CLI's version).
 - Covered: `session.json` (10), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
-  `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `ardia-cli.json`,
+  `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `shared-folders.json`, `ardia-cli.json`,
   `bangs-state.json` and `Scripts/status.json` (all 1).
 - Native code reads through `ArdiaSavedDocument` (packages/ardiacore/ios), with the same rules: `session.json` and
   `onboarding.json` (any version up to the one JS writes; a test pins each) and `launch-layout.json` (3, written and
@@ -188,7 +188,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
   `sync.json` and its `v` doesn't cover them: the `sync-state.nns` checkpoint (`{ covers, clock, scopes }`, 1; version 0
   includes the older bare scope map) and each `sync-journal-<n>.nns` part (1). The single `sync-journal.nns` from before
   numbered parts is still read first and emptied with them.
-- Out of scope: the Keychain token JSON, logs (`dev-console.log`, `telemetry-requests.log`), dev and bench results
+- Out of scope: `config-schema/*.json` (regenerated at every launch, `docs/config.md`), the Keychain token JSON, logs (`dev-console.log`, `telemetry-requests.log`), dev and bench results
   (`dev-eval-result.json`, `layout-watch.json`), test fixtures (`calendar-fixture.json`), and the legacy
   `bookmarks.json` / `history.json`, which are migration inputs read once. The sync payload (log and snapshot files,
   `v: 1`) and `switches-cache.json` have their own versions.
@@ -198,9 +198,11 @@ writeDocument(DOC, versionedJson(data, VERSION));
 - Components are `PascalCase.tsx`; every other module is `camelCase.ts`. Tests sit next to the code as
   `camelCase.test.mjs` (or `PascalCase.test.mjs` for a component).
 - At most 400 lines per TS/TSX file (`apps/browser/src`, `packages/*/src`), 600 per native file (`packages/*/ios`,
-  `engine/ardiacore/src`, `engine/chromium/src`). Tests, fixtures and generated files (`packages/core/src/bangList.ts`)
-  are exempt, and so is `packages/ardiacore/ios/page_script.js`: it is injected as one closure into every frame, and its
-  helpers share builtins captured before page code runs, so splitting it would need a bundling step. So is
+  `engine/ardiacore/src`, `engine/chromium/src`). Tests, fixtures and generated files (`packages/core/src/bangList.ts`,
+  `packages/demo/src/shims/web/symbols/data.ts`, `apps/browser/src/lib/emojiData.ts` from `apps/browser/scripts/emoji-data.mjs`)
+  are exempt, and so is `packages/ardiacore/ios/page_script.js`: it is
+  injected as one closure into every frame, and its helpers share builtins captured before page code runs, so
+  splitting it would need a bundling step. So is
   `packages/core/src/suggest.reference.ts`, the frozen spec the suggestion code was tuned against
   (`suggest.property.test.ts` holds the live code to it, `SUGGEST_BEFORE=1` benches it): it stays as written.
 - One type per native file, named after it.
@@ -282,6 +284,7 @@ still counts:
 | `imports` | an import against the direction table, or into a file outside the folders (a component importing `platform/` included, except `components/dev/devHarness.ts`) |
 | `native-calls` | a native package, `expo-modules-core` or `NativeModules` used outside `platform/` and `components/ui/` |
 | `tokens` | a colour literal, `Easing.` curve or numeric duration outside `tokens.ts`/`motion.ts` |
+| `scale` | in `components/` and `App.tsx`, outside `tokens.ts`/`motion.ts`: a `fontSize`, `letterSpacing`, radius (`radius`, `borderRadius`, `cornerRadius`, `shadowRadius`, …), `padding*`, `margin*`, `gap`/`rowGap`/`columnGap`, or spring `damping`/`stiffness`/`friction`/`tension`/`bounciness` whose value starts with a non-zero number (`9`, `-3.5`, `10 * g.s`) or has a numeric ternary branch; use the `font`, `radius`, `space` and `springs` scales (`concentric()`, `capsule()` for derived radii). Sizes, offsets, `lineHeight`, computed values and `lib/`/`state/` geometry don't count |
 | `get-state` | `getState(` in `components/` |
 | `set-state` | `.setState(` in `components/` |
 | `store-reads` | `useBrowser(` in `components/` (read through `state/<domain>/hooks.ts`) |

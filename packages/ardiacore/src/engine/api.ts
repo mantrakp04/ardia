@@ -46,6 +46,7 @@ export type EngineCalls = {
   "tabs.stripCommand": [{ id: number; command: TabStripCommand }, null];
   "tabs.strips": [{}, TabStripTransaction];
   "tabs.lastTabPolicy": [{}, { closesWindow: boolean }];
+  "tabs.reportCommits": [{ on: boolean }, null];
   "tabs.devBrowserId": [{ tabId: string }, number];
   "tabs.devEvents": [{ tabId: string }, { name: string; payload: unknown }[]];
   "tabs.devWindowNumber": [{ tabId: string }, number];

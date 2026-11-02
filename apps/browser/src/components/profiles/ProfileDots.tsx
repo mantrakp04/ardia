@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
@@ -54,10 +54,11 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
     ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, levels.selected, rest], extrapolate: "clamp" })
     : rest;
   const cell = switcherCellWidth(icon);
+  const mark = useRef<View>(null);
   return (
-    <View {...hoverProps}>
+    <View {...hoverProps} ref={mark}>
       <TooltipAbove text={name} active={hovered && !pressed} centerX={cell / 2} bottom={BAND / 2 + dotTooltipLift} />
-      <ContextMenuArea onContextMenu={() => void openProfileItemMenu(id, "sidebar", windowId)}>
+      <ContextMenuArea onContextMenu={() => void openProfileItemMenu(id, "sidebar", windowId, mark.current)}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={name}

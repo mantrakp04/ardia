@@ -5,14 +5,14 @@ import { hex, layout, useTheme } from "../ui/theme";
 import { useTileTheme, type TileTheme } from "../../state/favicons/tileTheme";
 import { useTab } from "../../state/browser/hooks";
 import { GlassFill, useGlass } from "../ui/Glass";
-import { SLIDE } from "../tabstrip/stripReorder";
+import { SLIDE } from "../tabstrip/tokens";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "./TabIcon";
-import { sidebarTokens, TILE_GLOW, useSidebarTokens } from "./tokens";
+import { sidebarTokens, TILE_GLOW, TILE_RIM, useSidebarTokens } from "./tokens";
 
 const SELECTION_STROKE = 3;
 const GLASS_RING = 2;
-export const TILE_RADIUS = radius.card;
+export const TILE_RADIUS = radius.chrome;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
@@ -69,12 +69,12 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
         shadowOpacity={theme.dark ? TILE_GLOW.opacity.dark : TILE_GLOW.opacity.light}
         shadowRadius={TILE_GLOW.radius}
         shadowOffset={TILE_GLOW.offset}
-        style={{ width, height: layout.pinnedHeight, padding: 1 }}
+        style={{ width, height: layout.pinnedHeight, padding: TILE_RIM }}
       >
         <View
           style={{
             flex: 1,
-            borderRadius: TILE_RADIUS - 1,
+            borderRadius: TILE_RADIUS - TILE_RIM,
             backgroundColor: theme.pinnedSelectedFill,
             borderTopWidth: 1,
             borderColor: theme.pinnedSelectedOutline,

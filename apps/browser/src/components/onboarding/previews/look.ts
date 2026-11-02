@@ -4,6 +4,7 @@ import { toolbarPalette, type ToolbarPalette } from "../../ui/toolbarColors";
 import { backdropTint, opaqueTint, tintForHue } from "../../../lib/windowTint";
 import type { ProfileColor } from "../../../state/browser/types";
 import { SITE } from "./content";
+import type { BasePalette } from "../../../lib/themeFile";
 import { mockPage } from "./tokens";
 
 export type Look = {
@@ -20,14 +21,20 @@ export type Look = {
 };
 
 const looks = new Map<string, Look>();
+let looksRevision = 0;
 
-export function lookFor(dark: boolean, accent: string): Look {
+export function lookFor(dark: boolean, accent: string, palette: BasePalette | null): Look {
+  const revision = palette?.revision ?? 0;
+  if (revision !== looksRevision) {
+    looks.clear();
+    looksRevision = revision;
+  }
   const key = `${dark}|${accent}`;
   const cached = looks.get(key);
   if (cached) return cached;
   const mode = dark ? "dark" : "light";
   const exact = (Object.keys(PROFILE_COLORS) as ProfileColor[]).find((c) => PROFILE_COLORS[c].swatch.toLowerCase() === accent.toLowerCase());
-  const t = themeFor(`${exact ?? nearestPreset(accent)}:${mode}`);
+  const t = themeFor(`${exact ?? nearestPreset(accent)}:${mode}`, palette);
   const tint = exact ? t.windowTint : opaqueTint(backdropTint(tintForHue(accent), false), dark);
   const look: Look = {
     dark,

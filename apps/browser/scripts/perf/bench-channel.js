@@ -1,5 +1,5 @@
 import * as shell from "@ardia/shell";
-import { readDocument, writeDocument } from "@ardia/shell";
+import { readDocument, writeDocument } from "../../src/platform/documents";
 import * as actions from "../../src/state/browser/actions";
 import { runCommand } from "../../src/state/commands/commands";
 import { webviews } from "../../src/platform/webviews";
@@ -23,7 +23,7 @@ const ac = {
   telemetry: telemetryState,
   blockedFetches: () => globalThis.__acBlockedFetches?.() ?? [],
   get preload() {
-    return require("../../src/platform/preload");
+    return require("../../src/state/tabs/prewarm");
   },
   pause(ms) {
     pausedUntil = Date.now() + ms;

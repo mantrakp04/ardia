@@ -3,6 +3,7 @@ import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { activeTabId } = await import("../browser/model.ts");
 const { setSidebarUi } = await import("../sidebar/sidebarUi.ts");
+const { closeProfileIconPicker, useProfileIconPicker } = await import("../profiles/iconPicker.ts");
 const { usePages } = await import("../tabs/pageState.ts");
 const { useHistoryMenu } = await import("../tabs/navigation.ts");
 const { useExtensions } = await import("../extensions/store.ts");
@@ -54,6 +55,8 @@ const SURFACES = {
   renameElsewhere: { open: ({ other }) => setSidebarUi({ renaming: { kind: "tab", id: "x", windowId: other } }), close: () => setSidebarUi({ renaming: null }) },
   iconPicker: { open: ({ w }) => setSidebarUi({ iconPicker: { kind: "tab", id: "x", windowId: w, anchor: null } }), close: () => setSidebarUi({ iconPicker: null }) },
   iconPickerElsewhere: { open: ({ other }) => setSidebarUi({ iconPicker: { kind: "tab", id: "x", windowId: other, anchor: null } }), close: () => setSidebarUi({ iconPicker: null }) },
+  deletedProfileIconPicker: { open: ({ w }) => useProfileIconPicker.setState({ picker: { profileId: "gone", windowId: w, place: "sidebar", anchor: null } }), close: () => closeProfileIconPicker() },
+  profileIconPicker: { open: ({ w }) => useProfileIconPicker.setState({ picker: { profileId: "default", windowId: w, place: "sidebar", anchor: null } }), close: () => closeProfileIconPicker() },
   hoverCard: {
     open: ({ w }) => {
       setSidebarUi({ hover: { kind: "tab", id: "x", windowId: w, anchor: { x: 0, y: 0, width: 10, height: 10 } } });
@@ -82,10 +85,10 @@ async function heldWhileOpen(held, settings) {
   return out;
 }
 
-test("the floating sidebar stays out for what's anchored in it: its menus, rename, the icon picker, the hover card, Downloads and the sidebar field's popover", async () => {
+test("the floating sidebar stays out for what's anchored in it: its menus, rename, the icon pickers, the hover card, Downloads and the sidebar field's popover", async () => {
   assert.deepEqual(await heldWhileOpen(({ w }) => peekHeld(w)), {
     menuFromSidebar: true, menuFromToolbar: false, menuFromPage: false, menuElsewhere: false,
-    rename: true, renameElsewhere: false, iconPicker: true, iconPickerElsewhere: false, hoverCard: true, downloads: true,
+    rename: true, renameElsewhere: false, iconPicker: true, iconPickerElsewhere: false, deletedProfileIconPicker: false, profileIconPicker: true, hoverCard: true, downloads: true,
     popover: false, panel: false, find: false, historyMenu: false, extensionPopup: false,
   });
 });
@@ -97,7 +100,7 @@ test("a page popover holds the floating sidebar only when it hangs off the sideb
 test("the auto-hidden toolbar stays shown for what's anchored in it: its menus, the command panel, Find, a page popover, the history menu and an extension popup", async () => {
   assert.deepEqual(await heldWhileOpen(({ w, tab }) => toolbarHeld(w, tab)), {
     menuFromSidebar: false, menuFromToolbar: true, menuFromPage: false, menuElsewhere: false,
-    rename: false, renameElsewhere: false, iconPicker: false, iconPickerElsewhere: false, hoverCard: false, downloads: false,
+    rename: false, renameElsewhere: false, iconPicker: false, iconPickerElsewhere: false, deletedProfileIconPicker: false, profileIconPicker: false, hoverCard: false, downloads: false,
     popover: true, panel: true, find: true, historyMenu: true, extensionPopup: true,
   });
 });
@@ -105,7 +108,7 @@ test("the auto-hidden toolbar stays shown for what's anchored in it: its menus, 
 test("no hover card starts in a window while anything is open in it, and something open in another window doesn't stop it", async () => {
   assert.deepEqual(await heldWhileOpen(({ w }) => hoverHeld(w)), {
     menuFromSidebar: true, menuFromToolbar: true, menuFromPage: true, menuElsewhere: false,
-    rename: true, renameElsewhere: false, iconPicker: true, iconPickerElsewhere: false, hoverCard: false, downloads: true,
+    rename: true, renameElsewhere: false, iconPicker: true, iconPickerElsewhere: false, deletedProfileIconPicker: false, profileIconPicker: true, hoverCard: false, downloads: true,
     popover: true, panel: true, find: true, historyMenu: true, extensionPopup: true,
   });
 });

@@ -1,10 +1,11 @@
 import { toAppUrl, urlForDisplay } from "@ardia/core";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
-import { Button, font, Panel, radius, space, Symbol, usePresence, weight } from "../ui";
+import { Button, Dialog, DialogActions, DialogTitle, space, Symbol, Text, usePresence } from "../ui";
+import { Hud } from "./Hud";
 import { patchPage, usePage } from "../../state/tabs/pageState";
-import { SAD_TAB_TITLE_SIZE, SHADOWS, STATUS_MOTION, windowColors } from "./tokens";
+import { STATUS_MOTION, windowColors } from "./tokens";
 
 export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: number }) {
   const colors = windowColors(useTheme().dark);
@@ -13,14 +14,16 @@ export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: num
   if (!shown) return null;
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", left: space.s, bottom: space.s, maxWidth, opacity }}>
-      <Panel fill={colors.statusFill} radius={radius.button} border={colors.statusBorder} shadow={SHADOWS.status} style={{ paddingHorizontal: space.m, height: 22, justifyContent: "center" }}>
-        <Text numberOfLines={1} ellipsizeMode="middle" style={{ ...font.small, color: colors.statusText }}>
+      <Hud shape="tile" height={STATUS_HEIGHT}>
+        <Text numberOfLines={1} ellipsizeMode="middle" size="small" color={colors.statusText}>
           {displayUrl(shown)}
         </Text>
-      </Panel>
+      </Hud>
     </Animated.View>
   );
 }
+
+const STATUS_HEIGHT = 22;
 
 function displayUrl(url: string) {
   let out = /^https?:\/\//i.test(url) ? urlForDisplay(url) : toAppUrl(url);
@@ -38,9 +41,11 @@ export function SadTab({ tabId }: { tabId: string }) {
   if (crashed) {
     return (
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.crashedBackground, alignItems: "center", justifyContent: "center", padding: space.xxxl }]}>
-        <Symbol name="exclamationmark.triangle" size={30} weight="light" color={theme.textSecondary} style={{ width: 44, height: 40, marginBottom: space.lx }} />
-        <Text style={{ fontSize: SAD_TAB_TITLE_SIZE, fontWeight: weight.semibold, color: theme.textPrimary, marginBottom: space.s }}>This tab needs to reload</Text>
-        <Text style={{ ...font.body, color: theme.textSecondary, textAlign: "center", maxWidth: 340, marginBottom: space.xlx }}>
+        <Symbol name="exclamationmark.triangle" size={30} weight="light" color={theme.textSecondary} style={{ width: 44, height: 40, marginBottom: space.xl }} />
+        <Text size="large" weight="semibold" style={{ marginBottom: space.s }}>
+          This tab needs to reload
+        </Text>
+        <Text tone="textSecondary" style={{ textAlign: "center", maxWidth: 340, marginBottom: space.xl }}>
           Something went wrong with this tab. Reloading often fixes it.
         </Text>
         <Button variant="pill"
@@ -56,28 +61,25 @@ export function SadTab({ tabId }: { tabId: string }) {
   }
   if (!unresponsive) return null;
   return (
-    <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", backgroundColor: colors.unresponsiveScrim }]}>
-      <Panel fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={SHADOWS.unresponsive} style={{ width: 320, padding: space.xlx, gap: space.s }}>
-        <Text style={{ ...font.title, fontWeight: weight.semibold, color: theme.textPrimary }}>Page Unresponsive</Text>
-        <Text style={{ ...font.small, color: theme.textSecondary, marginBottom: space.ml }}>You can wait for it to become responsive or exit the page.</Text>
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: space.m }}>
-          <Button variant="pill"
-            title="Exit Page"
-            onPress={() => {
-              patchPage(tabId, { unresponsive: false });
-              void webviews.get(tabId)?.resolveUnresponsive(true);
-            }}
-          />
-          <Button variant="pill"
-            title="Wait"
-            primary
-            onPress={() => {
-              patchPage(tabId, { unresponsive: false });
-              void webviews.get(tabId)?.resolveUnresponsive(false);
-            }}
-          />
-        </View>
-      </Panel>
-    </View>
+    <Dialog width="xs" pad="xl">
+      <DialogTitle subtitle="You can wait for it to become responsive or exit the page.">Page Unresponsive</DialogTitle>
+      <DialogActions>
+        <Button variant="pill"
+          title="Exit Page"
+          onPress={() => {
+            patchPage(tabId, { unresponsive: false });
+            void webviews.get(tabId)?.resolveUnresponsive(true);
+          }}
+        />
+        <Button variant="pill"
+          title="Wait"
+          primary
+          onPress={() => {
+            patchPage(tabId, { unresponsive: false });
+            void webviews.get(tabId)?.resolveUnresponsive(false);
+          }}
+        />
+      </DialogActions>
+    </Dialog>
   );
 }

@@ -1,11 +1,12 @@
 import type { AppIcon } from "../../../state/app/appSettings";
-import { GlassFill, liquidGlass, Symbol, font, PopUp, Toggle, useHover } from "../../ui";
-import { Image, Pressable, Text, View } from "react-native";
+import { Box, GlassFill, liquidGlass, PopUp, radius, space, Toggle } from "../../ui";
+import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
 import { Group, Row, SectionHeader } from "../Form";
+import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
 import { BookmarksBarSection } from "./BookmarksBarSection";
@@ -27,16 +28,18 @@ export function AppearancePane() {
   return (
     <View>
       <SectionHeader anchor="appearance.theme" />
-      <View style={{ flexDirection: "row", gap: 14 }}>
-        {MODES.map((m) => (
-          <ModeChoice key={m.value} mode={m.value} title={m.title} description={m.description} selected={appearance === m.value} onPress={() => choose(m.value)} />
-        ))}
-      </View>
-      <Group style={{ marginTop: 14 }}>
-        <Row anchor="appearance.spacesFollowAppearance">
-          <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
-        </Row>
-      </Group>
+      <Box gap="xl">
+        <Box row gap="xl">
+          {MODES.map((m) => (
+            <ModeChoice key={m.value} mode={m.value} title={m.title} description={m.description} selected={appearance === m.value} onPress={() => choose(m.value)} />
+          ))}
+        </Box>
+        <Group>
+          <Row anchor="appearance.spacesFollowAppearance">
+            <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
+          </Row>
+        </Group>
+      </Box>
       <InterfaceStylePicker />
       <AddressBarPicker />
       <BookmarksBarSection />
@@ -62,12 +65,13 @@ function InterfaceStylePicker() {
   return (
     <>
       <SectionHeader anchor="appearance.interfaceStyle" />
-      <View style={{ flexDirection: "row", gap: 14 }}>
-        {STYLES.map((s) => (
-          <StyleChoice key={s.value} value={s.value} title={s.title} selected={style === s.value} onPress={() => updateSettings({ interfaceStyle: s.value })} />
-        ))}
-      </View>
-      <Group style={{ marginTop: 14 }}>
+      <Box gap="xl">
+        <Box row gap="xl">
+          {STYLES.map((s) => (
+            <StyleChoice key={s.value} value={s.value} title={s.title} selected={style === s.value} onPress={() => updateSettings({ interfaceStyle: s.value })} />
+          ))}
+        </Box>
+        <Group>
         <Row anchor="appearance.glassTintWithTheme">
           <Toggle value={tinted} onChange={(v) => updateSettings({ glassTintWithTheme: v })} />
         </Row>
@@ -78,7 +82,8 @@ function InterfaceStylePicker() {
             </View>
           </Row>
         ) : null}
-      </Group>
+        </Group>
+      </Box>
     </>
   );
 }
@@ -88,15 +93,22 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
   const look = stylePreview[theme.dark ? "dark" : "light"];
   const glass = value === "glass";
   return (
-    <PictureChoice title={title} selected={selected} onPress={onPress} gap={7} frame={{ height: 84, borderRadius: 9, overflow: "hidden", padding: 10, flexDirection: "row", gap: 8, backgroundColor: look.backdrop }}>
-      {[0, 1, 2].map((i) => (
-        <View key={i} style={{ flex: 1, alignSelf: "flex-start", height: 30, borderRadius: 8, backgroundColor: glass ? undefined : look.tile, borderWidth: glass ? 0 : 1, borderColor: look.tileStroke }}>
-          {glass ? <GlassFill radius={8} state={i === 0 ? "active" : "rest"} /> : null}
-        </View>
-      ))}
+    <PictureChoice title={title} selected={selected} onPress={onPress} size="m">
+      <MiniWindow layout="none" look={{ window: look.backdrop, bar: look.tile, page: look.tile }}>
+        <Box row gap="m" pad="xs" style={STYLE_TILES}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={[STYLE_TILE, glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
+              {glass ? <GlassFill radius={radius.tile} state={i === 0 ? "active" : "rest"} /> : null}
+            </View>
+          ))}
+        </Box>
+      </MiniWindow>
     </PictureChoice>
   );
 }
+
+const STYLE_TILES = { flex: 1 } as const;
+const STYLE_TILE = { flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile } as const;
 
 function AddressBarPicker() {
   const addressBar = useSettings((s) => s.addressBar);
@@ -114,11 +126,12 @@ function AddressBarPicker() {
             : "In the sidebar, the page gets the toolbar’s height. While the sidebar is hidden, the address bar is in the toolbar. Also in View › Show Address Bar in Sidebar."
         }
       />
-      <View style={{ flexDirection: "row", gap: 14 }}>
-        <AddressBarChoice value="toolbar" title="In the toolbar" selected={addressBar !== "sidebar"} onPress={() => choose("toolbar")} />
-        <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
-      </View>
-      <Group style={{ marginTop: 14 }}>
+      <Box gap="xl">
+        <Box row gap="xl">
+          <AddressBarChoice value="toolbar" title="In the toolbar" selected={addressBar !== "sidebar"} onPress={() => choose("toolbar")} />
+          <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
+        </Box>
+        <Group>
         <Row anchor="appearance.commandBarPlacement">
           <PopUp
             value={placement}
@@ -133,7 +146,8 @@ function AddressBarPicker() {
         <Row anchor="appearance.compactToolbar">
           <Toggle value={compactToolbar} onChange={(v) => updateSettings({ compactToolbar: v })} />
         </Row>
-      </Group>
+        </Group>
+      </Box>
     </>
   );
 }
@@ -186,23 +200,9 @@ function ScrollBarsPicker() {
 function AddressBarChoice({ value, title, selected, onPress }: { value: Settings["addressBar"]; title: string; selected: boolean; onPress: () => void }) {
   const theme = useTheme();
   const look = useSettingsColors();
-  const sidebar = value === "sidebar";
   return (
-    <PictureChoice title={title} selected={selected} onPress={onPress} gap={7} frame={{ height: 84, borderRadius: 9, padding: 6, flexDirection: "row", gap: 5, backgroundColor: look.miniWindow }}>
-      <View style={{ width: "28%", gap: 3, paddingTop: sidebar ? 3 : 8 }}>
-        {sidebar && <View style={{ height: 8, borderRadius: 3, marginBottom: 2, backgroundColor: look.miniField, borderWidth: 1, borderColor: theme.formAccent }} />}
-        {[0, 1, 2].map((i) => (
-          <View key={i} style={{ height: 5, borderRadius: 2.5, backgroundColor: look.miniBar }} />
-        ))}
-      </View>
-      <View style={{ flex: 1, borderRadius: 4, backgroundColor: look.miniPage, overflow: "hidden" }}>
-        {!sidebar && (
-          <View style={{ height: 13, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, gap: 5, borderBottomWidth: 1, borderBottomColor: look.miniField }}>
-            <View style={{ width: 14, height: 4, borderRadius: 2, backgroundColor: look.miniBar }} />
-            <View style={{ flex: 1, height: 7, borderRadius: 2.5, backgroundColor: look.miniField, borderWidth: 1, borderColor: theme.formAccent }} />
-          </View>
-        )}
-      </View>
+    <PictureChoice title={title} selected={selected} onPress={onPress} size="m">
+      <MiniWindow layout="side" field={value === "sidebar" ? "side" : "toolbar"} look={{ window: look.miniWindow, bar: look.miniBar, field: look.miniField, page: look.miniPage, accent: theme.formAccent }} />
     </PictureChoice>
   );
 }
@@ -215,7 +215,7 @@ function AppIconPicker() {
   return (
     <>
       <SectionHeader anchor="appearance.appIcon" />
-      <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 10 }}>
+      <View style={ICON_GRID}>
         {icons.map((icon) => (
           <IconChoice key={icon.id} icon={icon} selected={icon.id === current} onPress={() => chooseAppIcon(icon.id)} />
         ))}
@@ -224,34 +224,14 @@ function AppIconPicker() {
   );
 }
 
-const ICON_SIZE = APP_ICON_SIZE;
+const ICON_GRID = { flexDirection: "row", flexWrap: "wrap", columnGap: space.s, rowGap: space.ml } as const;
+const ICON_IMAGE = { width: APP_ICON_SIZE, height: APP_ICON_SIZE } as const;
 
 function IconChoice({ icon, selected, onPress }: { icon: AppIcon; selected: boolean; onPress: () => void }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
   return (
-    <Pressable onPress={onPress} {...hoverProps} style={{ width: 72, alignItems: "center", gap: 5 }} tooltip={icon.name}>
-      <View
-        style={{
-          width: 70,
-          height: 70,
-          borderRadius: 16,
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 2.5,
-          borderColor: selected ? theme.formAccent : "transparent",
-          backgroundColor: hovered && !selected ? theme.rowHover : "transparent",
-        }}
-      >
-        {icon.preview ? <Image source={{ uri: icon.preview }} style={{ width: ICON_SIZE, height: ICON_SIZE }} /> : null}
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-        {selected && <Symbol name="checkmark.circle.fill" size={11} color={theme.formAccent} style={{ width: 13, height: 13 }} />}
-        <Text numberOfLines={1} style={{ ...font.small, color: selected ? theme.textPrimary : theme.textSecondary }}>
-          {icon.name}
-        </Text>
-      </View>
-    </Pressable>
+    <PictureChoice title={icon.name} selected={selected} onPress={onPress} tooltip={icon.name} size="icon">
+      {icon.preview ? <Image source={{ uri: icon.preview }} style={ICON_IMAGE} /> : null}
+    </PictureChoice>
   );
 }
 
@@ -270,19 +250,10 @@ function ModeChoice({
 }) {
   const window = (dark: boolean) => {
     const look = modePreview[dark ? "dark" : "light"];
-    return (
-      <View style={{ flex: 1, backgroundColor: look.window, padding: 6, flexDirection: "row", gap: 5 }}>
-        <View style={{ width: "24%", gap: 3, paddingTop: 8 }}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={{ height: 5, borderRadius: 2.5, backgroundColor: look.line }} />
-          ))}
-        </View>
-        <View style={{ flex: 1, borderRadius: 4, backgroundColor: look.page }} />
-      </View>
-    );
+    return <MiniWindow layout="side" look={{ window: look.window, bar: look.line, page: look.page }} />;
   };
   return (
-    <PictureChoice title={title} selected={selected} onPress={onPress} tooltip={description} gap={7} frame={{ height: 84, borderRadius: 9, overflow: "hidden", flexDirection: "row" }}>
+    <PictureChoice title={title} selected={selected} onPress={onPress} tooltip={description} size="m">
       {mode === "auto" ? (
         <>
           {window(false)}

@@ -1,17 +1,19 @@
 import { engineHost } from "@ardia/core";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { searchEngines, type Settings } from "../../state/settings/settings";
 import { useSettings } from "../../state/browser/hooks";
 import { isSharing, setSharing } from "../../state/telemetry/client";
 import { SHARING_COPY } from "../../state/telemetry/copy";
-import { font, weight } from "../ui/tokens";
+import { Text } from "../ui";
+import { radius, space, tracking } from "../ui/tokens";
 import { SiteLogo } from "./SiteLogo";
-import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
+import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { Page } from "./LayoutSteps";
 import { MockPanel, useScreen } from "./Screen";
 import { setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf, useQuestions } from "../../state/onboarding/questions";
-import { CheckRow, SelectTile, useOnboardingColors } from "./Parts";
+import { OptionCard } from "./OptionCard";
+import { SelectTile, useOnboardingColors } from "./Parts";
 import { useSiteRing } from "./GlassBacking";
 import { MONO, onboardingType, receiptStamp } from "./tokens";
 
@@ -62,7 +64,7 @@ export function SearchPrivacyStep() {
         onConfirm={() => setSharing(share, "onboarding")}
         preview={<MockPanel settings={mock} focus={null} overlay={<Receipt on={share} />} />}
       >
-        <CheckRow icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} value={share} onChange={(v) => setOnboardingExtras({ share: v })} />
+        <OptionCard control="check" icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} selected={share} onPress={() => setOnboardingExtras({ share: !share })} />
       </Page>
     );
   const engine = all.find((e) => e.id === values.searchEngine);
@@ -75,7 +77,7 @@ export function SearchPrivacyStep() {
       picked={[`Search with ${engine?.name ?? "your engine"}`]}
       preview={<MockPanel settings={mock} focus={focus.focus} />}
     >
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Search engine">
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.m }} accessibilityRole="radiogroup" accessibilityLabel="Search engine">
         {engines.map((e) => (
           <EngineTile key={e.id} title={e.name} url={`https://${engineHost(e)}`} selected={e.id === values.searchEngine} onPress={() => setDraft({ searchEngine: e.id })} />
         ))}
@@ -84,12 +86,10 @@ export function SearchPrivacyStep() {
   );
 }
 
-const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
-
 function EngineTile({ title, url, selected, onPress }: { title: string; url: string; selected: boolean; onPress: () => void }) {
   const ring = useSiteRing(url, selected);
   return (
-    <SelectTile title={title} width={TILE} height={64} gap={6} checkSize={12} selected={selected} role="radio" titleLines={1} ring={ring} onPress={onPress}>
+    <SelectTile title={title} height={64} selected={selected} role="radio" titleLines={1} ring={ring} onPress={onPress}>
       {() => <SiteLogo url={url} size={18} />}
     </SelectTile>
   );
@@ -99,62 +99,73 @@ const SENT = ["Crash reports", "Error types", "Feature counts", "Speed and memor
 const ALWAYS = ["Daily open count"];
 const NEVER = ["Sites you visit", "What you type", "Your tabs", "Your name"];
 
+const RECEIPT_WIDTH = 250;
+
 function Receipt({ on }: { on: boolean }) {
   const colors = useOnboardingColors();
+  const mono = { fontFamily: MONO } as const;
   const line = (label: string, mark: string, dim: boolean) => (
-    <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: dim ? 0.35 : 1 }}>
-      <Text style={{ fontFamily: MONO, ...font.caption, color: colors.title }}>{label}</Text>
-      <Text numberOfLines={1} ellipsizeMode="clip" style={{ flex: 1, fontFamily: MONO, ...font.caption, color: colors.steps }}>
+    <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: space.s, opacity: dim ? 0.35 : 1 }}>
+      <Text size="caption" color={colors.title} style={mono}>
+        {label}
+      </Text>
+      <Text size="caption" lines={1} ellipsizeMode="clip" color={colors.steps} style={[mono, { flex: 1 }]}>
         {".".repeat(40)}
       </Text>
-      <Text style={{ fontFamily: MONO, ...font.caption, color: colors.title }}>{mark}</Text>
+      <Text size="caption" color={colors.title} style={mono}>
+        {mark}
+      </Text>
     </View>
   );
-  const rule = <View style={{ height: 1, borderBottomWidth: 1, borderStyle: "dashed", borderColor: colors.rowBorder, marginVertical: 10 }} />;
+  const rule = <View style={{ height: 1, borderBottomWidth: 1, borderStyle: "dashed", borderColor: colors.rowBorder, marginVertical: space.ml }} />;
   return (
     <View
       style={{
-        width: 250,
-        paddingHorizontal: 18,
-        paddingVertical: 16,
-        borderRadius: 4,
+        width: RECEIPT_WIDTH,
+        paddingHorizontal: space.xl,
+        paddingVertical: space.xl,
+        borderRadius: radius.control,
         backgroundColor: colors.card,
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: colors.rowBorder,
         transform: [{ rotate: "2deg" }],
       }}
     >
-      <Text style={{ fontFamily: MONO, ...font.caption, fontWeight: weight.bold, letterSpacing: 1, textAlign: "center", color: colors.title }}>
+      <Text size="caption" weight="bold" color={colors.title} style={[mono, { letterSpacing: tracking.wide, textAlign: "center" }]}>
         ARDIA
       </Text>
-      <Text style={{ fontFamily: MONO, ...onboardingType.receiptSmall, textAlign: "center", marginTop: 3, color: colors.subtitle }}>
+      <Text color={colors.subtitle} style={[mono, onboardingType.receiptSmall, { textAlign: "center", marginTop: space.xs }]}>
         ITEMIZED. UNLIKE SOME EXPENSES.
       </Text>
       {rule}
-      <View style={{ gap: 6 }}>
+      <View style={{ gap: space.s }}>
         {SENT.map((label) => line(label, on ? "SENT" : "—", !on))}
         {ALWAYS.map((label) => line(label, "SENT", false))}
       </View>
       {rule}
-      <View style={{ gap: 6 }}>{NEVER.map((label) => line(label, "NEVER", false))}</View>
+      <View style={{ gap: space.s }}>{NEVER.map((label) => line(label, "NEVER", false))}</View>
       {rule}
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ fontFamily: MONO, ...font.caption, fontWeight: weight.bold, color: colors.title }}>PERSONAL DATA</Text>
-        <Text style={{ fontFamily: MONO, ...font.caption, fontWeight: weight.bold, color: colors.title }}>0.00</Text>
+        <Text size="caption" weight="bold" color={colors.title} style={mono}>
+          PERSONAL DATA
+        </Text>
+        <Text size="caption" weight="bold" color={colors.title} style={mono}>
+          0.00
+        </Text>
       </View>
       <View
         style={{
           alignSelf: "center",
-          marginTop: 14,
-          paddingHorizontal: 8,
-          paddingVertical: 3,
+          marginTop: space.xl,
+          paddingHorizontal: space.m,
+          paddingVertical: space.xs,
           borderWidth: 1.5,
-          borderRadius: 3,
+          borderRadius: radius.hair,
           borderColor: on ? receiptStamp : colors.steps,
           transform: [{ rotate: "-6deg" }],
         }}
       >
-        <Text style={{ fontFamily: MONO, ...onboardingType.receiptStamp, color: on ? receiptStamp : colors.steps }}>
+        <Text color={on ? receiptStamp : colors.steps} style={[mono, onboardingType.receiptStamp]}>
           {on ? "THANK YOU" : "NOT SHARED"}
         </Text>
       </View>

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+globalThis.acTestNativeModules = { ArdiaSharedFolders: { location: () => ({ path: "/scratch", iCloudAvailable: true, iCloudPath: "/scratch" }) } };
 const { useBrowser } = await import("../browser/store.ts");
 const { tabMenuItems } = await import("./tabMenu.ts");
 const { multiTabMenuItems } = await import("./multiTabMenu.ts");
@@ -263,6 +264,7 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "---",
     "New Group [folder.badge.plus]",
     "New Live Folder ›",
+    "Add Shared Folder… [person.2]",
     "---",
     "New Profile… [plus]",
     "---",

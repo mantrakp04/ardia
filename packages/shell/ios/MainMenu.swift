@@ -92,7 +92,7 @@ enum MainMenu {
       cmd(.cleanUpTabs),
       .separator(),
       cmd(.savePage),
-      sub("Share", [], menu: shareMenu),
+      sub("Share", [cmd(.share), .separator()], menu: shareMenu),
       cmd(.emailPageLocation),
       cmd(.print),
       cmd(.printWithSystemDialog),

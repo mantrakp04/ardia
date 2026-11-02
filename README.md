@@ -10,11 +10,11 @@
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.42/Ardia-0.2.42.dmg">Download Ardia 0.2.42 for Mac</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.43/Ardia-0.2.43.dmg">Download Ardia 0.2.43 for Mac</a>
 </h3>
 
 <p align="center">
-  111 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
+  121 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
   Like your paint wet? <a href="https://ardia.dev/nightly">The nightly</a> has every fix the day it’s made, smudges and all.<br>
   Homebrew: <code>brew install mantrakp04/tap/ardia</code><br>
   <a href="https://ardia.dev">ardia.dev</a> · <a href="https://ardia.dev/release-notes">What’s new</a> · <a href="https://github.com/mantrakp04/ardia/releases">All releases</a> · <a href="https://discord.gg/TdhuXrbcA6">Discord</a>
@@ -85,11 +85,11 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 | Intel Macs | Apple Silicon only. | ✗ No |
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.42/Ardia-0.2.42.dmg">Download Ardia 0.2.42</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.43/Ardia-0.2.43.dmg">Download Ardia 0.2.43</a>
 </h3>
 
 <p align="center">
-  It’s 111 MB and one drag into Applications.<br>
+  It’s 121 MB and one drag into Applications.<br>
   Not on a Mac? Watch › Custom › Releases up top and GitHub tells you when it is.
 </p>
 
@@ -129,7 +129,7 @@ is newer than the last release's, work from a release tag (`v0.2.30`, say), or r
 cards need our team ID and won't work in a build signed by anyone else.
 
 To change the engine itself (anything under `engine/`), build it from source: Chrome's framework from our patched
-Chromium tree in `~/chromium-build` (Chromium 156.0.8078.47 with the patch series in `engine/patches`;
+Chromium tree in `~/chromium-build` (Chromium 156.0.8078.79 with the patch series in `engine/patches`;
 `docs/engine-build.md` › "Rebuilding", then `engine/chromium/apply.sh`,
 `engine/ardiacore/apply.sh` and `autoninja -C out/Release_GN_arm64 chrome_framework`; the first build takes about 2
 hours). The app's build stages it from there when it exists.

@@ -196,14 +196,14 @@ final class FolderWatchTests: XCTestCase {
 
   func testStoppingClosesTheDescriptor() throws {
     let installation = try folder()
-    let before = try openDescriptors()
+    XCTAssertEqual(try descriptors(on: installation), 0)
     let counter = Counter()
     let watch = watch(installation, counter)
     wait(for: [counter.expect(self, atLeast: 1)], timeout: 5)
-    XCTAssertEqual(try openDescriptors(), before + 1)
+    XCTAssertEqual(try descriptors(on: installation), 1)
     queue.sync { watch.stop() }
     queue.sync {}
-    XCTAssertEqual(try openDescriptors(), before)
+    XCTAssertEqual(try descriptors(on: installation), 0)
   }
 
   func testAnUnmountedVolumeRevokesTheWatch() throws {
@@ -223,8 +223,14 @@ final class FolderWatchTests: XCTestCase {
     XCTAssertNotEqual(binding(watch), .watching)
   }
 
-  func openDescriptors() throws -> Int {
-    try FileManager.default.contentsOfDirectory(atPath: "/dev/fd").count
+  func descriptors(on folder: URL) throws -> Int {
+    guard let resolved = realpath(folder.path, nil) else { throw POSIXError(.ENOENT) }
+    defer { free(resolved) }
+    let wanted = String(cString: resolved)
+    return try FileManager.default.contentsOfDirectory(atPath: "/dev/fd").compactMap(Int32.init).filter { descriptor in
+      var path = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+      return fcntl(descriptor, F_GETPATH, &path) == 0 && String(cString: path) == wanted
+    }.count
   }
 
   func run(_ tool: String, _ arguments: String...) -> Bool {

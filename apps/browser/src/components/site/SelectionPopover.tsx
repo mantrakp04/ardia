@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
-import { useTheme } from "../ui/theme";
+import { Animated, StyleSheet, View } from "react-native";
 import { useSettings } from "../../state/browser/hooks";
 import { defaultSearchEngine } from "../../state/settings/settings";
-import { menuRowFill, Panel, POPOVER_MOTION, Symbol, Text, useHover, VisualEffect } from "../ui";
+import { POPOVER_MOTION, PopoverSurface, space } from "../ui";
 import { searchSelection, setPageSelection, usePageSelection, type ClickModifiers, type PageSelection } from "../../state/site/selection";
 import { selectionBar } from "./tokens";
+import { ChipButton, SITE_PANEL } from "./SiteControlsParts";
 
-const HEIGHT = 32;
+const HEIGHT = SITE_PANEL.footerControl + 2 * space.xs;
 const GAP = 6;
 
 export function SelectionPopover({ tabId, zoom }: { tabId: string; zoom: number }) {
@@ -31,7 +31,6 @@ export function SelectionPopover({ tabId, zoom }: { tabId: string; zoom: number 
 }
 
 function Bar({ tabId, selection, zoom, area }: { tabId: string; selection: PageSelection; zoom: number; area: { width: number; height: number } }) {
-  const theme = useTheme();
   const [width, setWidth] = useState(0);
   const appear = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -61,41 +60,24 @@ function Bar({ tabId, selection, zoom, area }: { tabId: string; selection: PageS
         ],
       }}
     >
-      <Panel fill={theme.popoverFill} radius={selectionBar.radius} border={theme.popoverBorder} shadow={selectionBar.shadow} style={{ height: HEIGHT, padding: 3, flexDirection: "row", alignItems: "center" }}>
-        <VisualEffect material="menu" cornerRadius={selectionBar.radius} style={StyleSheet.absoluteFill} />
-        <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: selectionBar.radius, backgroundColor: theme.popoverTint }} />
+      <PopoverSurface glass style={{ height: HEIGHT, padding: space.xs, flexDirection: "row", alignItems: "center" }}>
         <SearchButton tabId={tabId} text={selection.text} />
-      </Panel>
+      </PopoverSurface>
     </Animated.View>
   );
 }
 
 function SearchButton({ tabId, text }: { tabId: string; text: string }) {
-  const theme = useTheme();
   const engine = useSettings((st) => defaultSearchEngine(st).name);
-  const { hovered, hoverProps } = useHover();
   const quoted = text.length > 40 ? `${text.slice(0, 40).trimEnd()}…` : text;
   return (
-    <View {...hoverProps} tooltip={`Search ${engine} for “${quoted.replace(/\s+/g, " ")}”`}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Search ${engine}`} onPress={(e) => searchSelection(tabId, text, e.nativeEvent as unknown as ClickModifiers)}>
-        {({ pressed }) => (
-          <View
-            style={{
-              height: HEIGHT - 6,
-              paddingLeft: 7,
-              paddingRight: 9,
-              borderRadius: 7,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 5,
-              backgroundColor: pressed || hovered ? menuRowFill(theme, pressed) : undefined,
-            }}
-          >
-            <Symbol name="magnifyingglass" size={12} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />
-            <Text weight="medium">Search</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
+    <ChipButton
+      quiet
+      icon="magnifyingglass"
+      title="Search"
+      tooltip={`Search ${engine} for “${quoted.replace(/\s+/g, " ")}”`}
+      label={`Search ${engine}`}
+      onPress={(e) => searchSelection(tabId, text, e.nativeEvent as unknown as ClickModifiers)}
+    />
   );
 }

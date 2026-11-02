@@ -1,7 +1,7 @@
 import { Animated, type View } from "react-native";
 import { layout } from "../ui/theme";
 import type { Drop as StoreDrop } from "../../state/drag/drops";
-import { SLIDE } from "../tabstrip/stripReorder";
+import { SLIDE } from "../tabstrip/tokens";
 import { TILE_GAP } from "./pinZone";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { entryKey } from "../../state/sidebar/entryKey";

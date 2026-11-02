@@ -1,18 +1,17 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { systemInfo } from "../../../state/app/system";
 import { describeCliInstall, installCliInBackground, useCli } from "../../../state/app/cliControl";
 import { openUrls } from "../../../state/browser/actions";
-import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { openInternalPage } from "../../../state/pages/urls";
 import type { BatterySaverWhen } from "../../../state/settings/settings";
 import { keepSiteActive, stopKeepingSiteActive, type MemorySaverMode } from "../../../state/tabs/memorySaver";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
-import { Button, font, PopUp, Sheet, TextField, Toggle } from "../../ui";
+import { Button, DialogActions, DialogTitle, lineHeight, PopUp, Sheet, space, Text, TextField, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, Row, SectionHeader, SettingToggle, SheetActions, SheetTitle } from "../Form";
+import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 
@@ -33,7 +32,6 @@ const MEMORY_SAVER_MODES: Record<MemorySaverMode, { title: string; description: 
 const MEMORY_SAVER_OPTIONS = Object.entries(MEMORY_SAVER_MODES).map(([value, { title }]) => ({ value: value as MemorySaverMode, title }));
 
 export function AdvancedPane() {
-  const theme = useTheme();
   const hideBookmarksBarImport = useSettings((s) => s.hideBookmarksBarImport);
   const memorySaverMode = useSettings((s) => s.memorySaverMode);
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
@@ -98,7 +96,7 @@ export function AdvancedPane() {
       <SectionHeader title="Web engine" />
       <Group>
         <Row anchor="advanced.chromium" description={info ? "ArdiaCore" : undefined}>
-          <Text selectable style={{ ...font.body, color: theme.textSecondary }}>
+          <Text selectable tone="textSecondary">
             {info?.chromiumVersion ?? "…"}
           </Text>
         </Row>
@@ -128,7 +126,6 @@ export function AdvancedPane() {
 }
 
 function CommandLineSection() {
-  const theme = useTheme();
   const on = useSettings((s) => s.cliControl);
   const cli = useCli();
   const server = cli.server;
@@ -150,7 +147,7 @@ function CommandLineSection() {
         <Row
           anchor="advanced.cliInstall"
           description={
-            <Text selectable style={{ ...font.footnote, marginTop: 2, lineHeight: 15, color: cli.error && !cli.installing ? theme.destructive : theme.textSecondary }}>
+            <Text selectable size="caption" tone={cli.error && !cli.installing ? "destructive" : "textSecondary"} style={INSTALL_NOTE}>
               {describeCliInstall(cli)}
             </Text>
           }
@@ -180,7 +177,7 @@ function KeepActiveSites({ sites }: { sites: string[] }) {
             .sort((a, b) => a.localeCompare(b))
             .map((site) => (
               <Row key={site} icon={<Favicon url={siteUrl(site)} />} title={site}>
-                <Button variant="icon" icon="trash" size={11} box={24} radius={6} onPress={() => stopKeepingSiteActive(site)} tooltip="Remove" />
+                <Button variant="icon" icon="trash" size="m" onPress={() => stopKeepingSiteActive(site)} tooltip="Remove" />
               </Row>
             ))
         )}
@@ -190,7 +187,6 @@ function KeepActiveSites({ sites }: { sites: string[] }) {
 }
 
 function KeepActiveSiteSheet() {
-  const theme = useTheme();
   const [site, setSite] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -202,18 +198,23 @@ function KeepActiveSiteSheet() {
     closeSettingsSheet();
   };
   return (
-    <Sheet width={440} onClose={closeSettingsSheet}>
-      <SheetTitle>Add Site</SheetTitle>
-      <Text style={{ ...font.small, marginTop: 6, color: theme.textSecondary }}>Sites you add will always stay active and memory won't be freed up from them.</Text>
-      <View style={{ marginTop: 12 }}>
-        <Text style={{ ...font.footnote, marginBottom: 5, color: theme.textSecondary }}>Site</Text>
+    <Sheet onClose={closeSettingsSheet}>
+      <DialogTitle subtitle="Sites you add will always stay active and memory won't be freed up from them.">Add Site</DialogTitle>
+      <FormField label="Site">
         <TextField value={site} onChangeText={setSite} placeholder="youtube.com" onSubmit={() => void add()} onEscape={closeSettingsSheet} autoFocus />
-      </View>
-      {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
-      <SheetActions>
+      </FormField>
+      {error && (
+        <Text size="caption" tone="destructive" style={ERROR}>
+          {error}
+        </Text>
+      )}
+      <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title="Add" kind="primary" disabled={saving || !site.trim()} onPress={() => void add()} />
-      </SheetActions>
+      </DialogActions>
     </Sheet>
   );
 }
+
+const INSTALL_NOTE = { marginTop: space.xxs, lineHeight: lineHeight.caption } as const;
+const ERROR = { marginTop: space.ml } as const;
