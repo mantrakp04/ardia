@@ -64,3 +64,40 @@ test("a 404 and a 403 from Bitbucket each get their own message instead of the g
     assert.equal(errorText(error.kind, "bitbucket"), text);
   }
 });
+
+test("a workspace that fails doesn't hide the pull requests of the others", async () => {
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "locked" } }] },
+    [workspacePRs("acme")]: { values: [prJson(1, "acme/web")] },
+    [workspacePRs("locked")]: 403,
+  });
+  await connectBitbucket("me@example.com", "token");
+  const items = await SOURCES.bitbucket.fetch(authored);
+  assert.deepEqual(items.map((it) => it.id), ["bitbucket:acme/web#1"]);
+});
+
+test("when every workspace fails, the folder shows that error", async () => {
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }, { workspace: { slug: "beta" } }] },
+    [workspacePRs("acme")]: 403,
+    [workspacePRs("beta")]: 403,
+  });
+  await connectBitbucket("me@example.com", "token");
+  const error = await SOURCES.bitbucket.fetch(authored).then(
+    () => null,
+    (e) => e,
+  );
+  assert.equal(error?.kind, "forbidden");
+});
+
+test("a next link that points back to a page already read stops the fetch", async () => {
+  serve({
+    [`${API}/user/workspaces?pagelen=100`]: { values: [{ workspace: { slug: "acme" } }], next: `${API}/user/workspaces?pagelen=100` },
+  });
+  await connectBitbucket("me@example.com", "token");
+  const error = await SOURCES.bitbucket.fetch(authored).then(
+    () => null,
+    (e) => e,
+  );
+  assert.equal(error?.kind, "other");
+});

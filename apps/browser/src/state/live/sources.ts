@@ -72,7 +72,10 @@ const bitbucketAuth = async () => basic(live().config.bitbucketUser, await secre
 
 async function bitbucketPages<T>(url: string, auth: string): Promise<T[]> {
   const values: T[] = [];
+  const visited = new Set<string>();
   for (let next: string | undefined = url; next; ) {
+    if (visited.has(next)) throw new LiveError("other", `Bitbucket returned the same page twice: ${next}`);
+    visited.add(next);
     const page: { values: T[]; next?: string } = await request(next, { headers: { Authorization: auth } });
     values.push(...page.values);
     next = page.next;
@@ -91,13 +94,16 @@ const bitbucket: LiveSource = {
     const me = live().accounts.bitbucket;
     if (!me) throw new LiveError("signedOut", "Not signed in");
     const workspaces = await bitbucketPages<{ workspace: { slug: string } }>(`${endpoints.bitbucket}/user/workspaces?pagelen=100`, auth);
-    const prs = await Promise.all(
+    const results = await Promise.allSettled(
       workspaces.map(({ workspace }) =>
         bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
       ),
     );
+    const prs = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure && results.every((result) => result.status === "rejected")) throw failure.reason;
     return Promise.all(
-      prs.flat().map(async (pr) => {
+      prs.map(async (pr) => {
         const repo = pr.destination.repository.full_name;
         const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${pr.id}/statuses?pagelen=50`, {
           headers: { Authorization: auth },
