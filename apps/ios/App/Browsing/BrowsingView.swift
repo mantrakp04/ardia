@@ -83,6 +83,9 @@ struct BrowsingView: View {
     .onChange(of: findScope) { old, _ in
       endFindInPage(on: old.tabID)
     }
+    .onDisappear {
+      endFindInPage(on: app.tabs.selectedTabID)
+    }
     .toolbarColorScheme(isFront ? statusScheme : nil, for: .statusBar)
     .accessibilityHidden(!isFront)
     .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: tabSwitchTicks)
@@ -95,7 +98,7 @@ struct BrowsingView: View {
   private var findScope: FindScope {
     FindScope(
       tabID: app.tabs.selectedTabID,
-      pageIsFront: isFront && app.browse.readerTabID == nil
+      pageIsFront: isFront && app.browse.readerTabID == nil && app.browse.search == nil && !app.browse.isVoicePresented
     )
   }
 
