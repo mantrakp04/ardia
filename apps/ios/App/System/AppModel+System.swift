@@ -10,10 +10,10 @@ extension AppModel {
 
   func handle(_ link: SystemLink) {
     switch link {
-    case .search(let query, let browseForMe):
+    case .search(let query):
       prepareForSystemEntry()
       if let query {
-        if browseForMe, isBrowseForMeAvailable { startBrowseForMe(query) } else { openSearch(query) }
+        openSearch(query)
       } else {
         showSearch()
       }
@@ -56,26 +56,6 @@ extension AppModel {
     return true
   }
 
-  var summarizableTabID: UUID? {
-    guard let tab = tabs.selectedTab, tab.origin != .browseForMe, BrowserURL.isSyncable(tab.url) else { return nil }
-    return tab.id
-  }
-
-  func summarizeFromSystem(_ id: UUID) {
-    let wasShowingPage = surface == .browsing && tabs.selectedTabID == id
-    prepareForSystemEntry()
-    openTab(id)
-    if wasShowingPage {
-      browse.requestSummary(for: id)
-      return
-    }
-    Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(700))
-      guard let self, self.tabs.selectedTabID == id, self.surface == .browsing else { return }
-      self.browse.requestSummary(for: id)
-    }
-  }
-
   func showSearch() {
     browse.isToolbarPresented = false
     surface = .search
@@ -101,10 +81,6 @@ extension AppModel {
     switch item.action {
     case .open:
       if let url { openWebLink(url, origin: .share) }
-    case .browseForMe(let query):
-      prepareForSystemEntry()
-      isIncognito = false
-      if isBrowseForMeAvailable { startBrowseForMe(query) } else if let url { openPage(url, origin: .share) } else { openSearch(query) }
     case .send(let target):
       guard let url else { return }
       sendFromShareSheet(url: url, title: item.title, to: target)

@@ -7,7 +7,6 @@ public enum TabOrigin: String, Codable, Sendable, CaseIterable {
   case link
   case sync
   case share
-  case browseForMe
   case sent
 }
 
@@ -65,7 +64,6 @@ public enum BrowserSchemaV1: VersionedSchema {
       position: Double,
       origin: TabOrigin,
       profileSyncId: String? = nil,
-      browseResultID: UUID? = nil,
       receivedKey: String? = nil,
       receivedFromDevice: String? = nil
     ) {
@@ -82,7 +80,7 @@ public enum BrowserSchemaV1: VersionedSchema {
       self.themeColorHex = nil
       self.snapshotFileName = nil
       self.originRawValue = origin.rawValue
-      self.browseResultID = browseResultID
+      self.browseResultID = nil
       self.receivedKey = receivedKey
       self.receivedFromDevice = receivedFromDevice
     }

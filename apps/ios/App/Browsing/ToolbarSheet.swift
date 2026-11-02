@@ -214,26 +214,19 @@ struct ToolbarSheet: View {
   }
 
   private var tileItems: [TileItem] {
-    var items = [
+    [
       TileItem(symbol: "doc.plaintext", title: "Reader") {
         app.browse.readerTabID = tabID
         dismiss()
       },
-    ]
-    if app.offersSummaries {
-      items.append(TileItem(symbol: "text.line.magnify", title: "Summarize") {
+      TileItem(symbol: "link", title: "Copy Link") {
+        if app.copyCurrentLink() { copies += 1 }
+      },
+      TileItem(symbol: "square.and.arrow.up", title: "Share") {
         dismiss()
-        app.browse.requestSummary(for: tabID)
-      })
-    }
-    items.append(TileItem(symbol: "link", title: "Copy Link") {
-      if app.copyCurrentLink() { copies += 1 }
-    })
-    items.append(TileItem(symbol: "square.and.arrow.up", title: "Share") {
-      dismiss()
-      app.shareCurrentPage()
-    })
-    return items
+        app.shareCurrentPage()
+      },
+    ]
   }
 
   private func tile(_ item: TileItem) -> some View {

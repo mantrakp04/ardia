@@ -21,11 +21,6 @@ struct SearchSuggestion: Identifiable, Hashable {
   var favicon: String? = nil
   var copyValue: String? = nil
 
-  var offersBrowseForMe: Bool {
-    if case .query = kind { return !query.trimmingCharacters(in: .whitespaces).isEmpty }
-    return false
-  }
-
   var symbol: String {
     switch kind {
     case .query: "magnifyingglass"

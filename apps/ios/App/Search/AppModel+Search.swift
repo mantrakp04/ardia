@@ -27,11 +27,7 @@ extension AppModel {
     }
   }
 
-  func activate(_ suggestion: SearchSuggestion, target: SuggestionTarget) {
-    if target == .browseForMe, offersBrowseForMe, suggestion.offersBrowseForMe {
-      startBrowseForMe(suggestion.query)
-      return
-    }
+  func activate(_ suggestion: SearchSuggestion) {
     let url = suggestion.url.flatMap(URL.init(string:))
     switch suggestion.kind {
     case .query:
@@ -63,13 +59,6 @@ extension AppModel {
     finishOpening(tab.id)
   }
 
-  func startBrowseForMe(_ query: String) {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
-    let tab = tabs.open(.browseForMe(query: trimmed, resultID: UUID()), isPrivate: isIncognito)
-    finishOpening(tab.id)
-  }
-
   func cancelSearch() {
     let request = browse.search
     browse.dismissSearch()
@@ -87,11 +76,6 @@ extension AppModel {
   }
 
   func currentQuery(for tab: BrowserTab) -> String {
-    if tab.origin == .browseForMe {
-      return intelligence.existingBrowse(forTab: tab.id)?.query
-        ?? tab.browseResultID.flatMap(savedBrowsePage)?.query
-        ?? tab.title
-    }
     return RecentSearches.query(in: tab.url) ?? tab.url
   }
 }

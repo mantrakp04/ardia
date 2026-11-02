@@ -10,10 +10,6 @@ struct BrowsingView: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var omnibox
-  @State private var pinchScale: CGFloat = 1
-  @State private var foldTicks = 0
-  @State private var summarySnapshot: UIImage?
-  @State private var pinchSnapshot: UIImage?
   @State private var pager = PagerModel()
   @State private var barHidden = false
   @State private var tabSwitchTicks = 0
@@ -28,26 +24,16 @@ struct BrowsingView: View {
       if let tab {
         pageLayer(tab)
           .overlay(alignment: .top) { statusStrip(tab) }
-          .scaleEffect(pinchScale)
           .opacity(pager.isActive ? 0 : 1)
           .ignoresSafeArea()
         if pager.isActive {
           PagerStage(pager: pager, reduceMotion: reduceMotion)
         }
       }
-      if browse.summaryTabID == nil {
-        bar
-      }
-      if let id = browse.summaryTabID, let tab = app.tabs.tab(id) {
-        SummaryStage(tabID: id, snapshot: summarySnapshot, title: tab.title, pageURL: tab.url, faviconURL: tab.faviconURL) {
-          browse.summaryTabID = nil
-          summarySnapshot = nil
-        }
-        .zIndex(2)
-      }
+      bar
     }
     .overlay(alignment: .top) {
-      if let page = currentWebPage, browse.summaryTabID == nil {
+      if let page = currentWebPage {
         LoadingLine(progress: MotionDemo.loadFreeze ?? page.progress, isLoading: MotionDemo.loadFreeze != nil || page.isLoading)
           .id(page.id)
           .ignoresSafeArea(edges: .horizontal)
@@ -79,11 +65,6 @@ struct BrowsingView: View {
       browse.stepRequest = nil
       stepTab(request.delta)
     }
-    .onChange(of: browse.summaryRequestID) { _, id in
-      guard let id else { return }
-      browse.summaryRequestID = nil
-      beginSummary(for: id)
-    }
     .onChange(of: currentWebPage?.scrollDirection) { _, direction in
       guard app.settings.collapsesBottomBar else { return }
       withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse) { barHidden = direction == .down }
@@ -91,7 +72,7 @@ struct BrowsingView: View {
     .onChange(of: app.tabs.selectedTabID, initial: true) { _, id in
       barHidden = false
       app.goBackToSearchIfEmpty()
-      if let id, app.tabs.tab(id)?.origin != .browseForMe { _ = app.web.webTab(for: id) }
+      if let id { _ = app.web.webTab(for: id) }
       warmPagerNeighbors()
     }
     .task { await freezePagerForDemo() }
@@ -104,7 +85,6 @@ struct BrowsingView: View {
     }
     .toolbarColorScheme(isFront ? statusScheme : nil, for: .statusBar)
     .accessibilityHidden(!isFront)
-    .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: foldTicks)
     .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: tabSwitchTicks)
   }
 
@@ -115,7 +95,7 @@ struct BrowsingView: View {
   private var findScope: FindScope {
     FindScope(
       tabID: app.tabs.selectedTabID,
-      pageIsFront: isFront && app.browse.readerTabID == nil && app.browse.summaryTabID == nil
+      pageIsFront: isFront && app.browse.readerTabID == nil
     )
   }
 
@@ -125,20 +105,18 @@ struct BrowsingView: View {
   }
 
   private var tone: PageTone? {
-    guard let tab = app.tabs.selectedTab, tab.origin != .browseForMe else { return nil }
+    guard let tab = app.tabs.selectedTab else { return nil }
     return app.browse.tone(for: tab, page: currentWebPage)
   }
 
   private var statusScheme: ColorScheme? {
-    guard browseSummaryHidden, app.browse.search == nil else { return nil }
+    guard app.browse.search == nil else { return nil }
     return tone?.top?.scheme
   }
 
-  private var browseSummaryHidden: Bool { app.browse.summaryTabID == nil }
-
   @ViewBuilder
   private func statusStrip(_ tab: BrowserTab) -> some View {
-    if tab.origin != .browseForMe, let top = tone?.top {
+    if let top = tone?.top {
       Color.clear
         .frame(height: 0)
         .background(alignment: .top) {
@@ -157,7 +135,7 @@ struct BrowsingView: View {
 
   @ViewBuilder
   private func pageLayer(_ tab: BrowserTab) -> some View {
-    let page = tab.origin == .browseForMe ? nil : app.web.existingWebTab(tab.id)
+    let page = app.web.existingWebTab(tab.id)
     let browse = app.browse
     ZStack {
       WebPageView(
@@ -166,20 +144,14 @@ struct BrowsingView: View {
         cover: cover(for: tab),
         swipeMode: app.preferences.swipeNavigation,
         bottomInset: BrowseLayout.barHeight - 26,
-        pinchEnabled: app.offersPinchToSummarize && app.browse.summaryTabID == nil,
-        onPinch: handlePinch,
         onTone: { id, tone in browse.setTone(tone, for: id) }
       )
-      if MotionDemo.loadFreeze != nil, tab.origin != .browseForMe {
+      if MotionDemo.loadFreeze != nil {
         PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay)
       }
       if let failure = page?.failure, let page {
         PageFailureView(failure: failure) { page.reload() }
           .transition(.opacity)
-      }
-      if tab.origin == .browseForMe {
-        BrowseForMeTabView(tabID: tab.id)
-          .id(tab.id)
       }
     }
     .task(id: tab.id) { await loadStoredCover(for: tab) }
@@ -255,57 +227,6 @@ struct BrowsingView: View {
 
   private func openSearch() {
     app.newTab()
-  }
-
-  private func handlePinch(_ event: PagePinch) {
-    guard app.offersPinchToSummarize else {
-      pinchSnapshot = nil
-      if pinchScale != 1 { withAnimation(Motion.snappy) { pinchScale = 1 } }
-      return
-    }
-    switch event {
-    case .began:
-      if let id = app.tabs.selectedTabID { pinchSnapshot = captureSnapshot(of: id) }
-    case .changed(let scale):
-      if pinchScale == 1, app.offersSummaries { app.intelligence.summaryWillOpen() }
-      let visual = max(BrowseLayout.pinchFollowFloor - 0.07, 1 - (1 - scale) * 0.3)
-      var transaction = Transaction()
-      transaction.disablesAnimations = true
-      withTransaction(transaction) { pinchScale = visual }
-    case .ended(let scale, let velocity):
-      if scale < BrowseLayout.pinchCommitScale || (velocity < -1.5 && scale < 0.93), let id = app.tabs.selectedTabID {
-        if app.offersSummaries { foldTicks += 1 }
-        beginSummary(for: id)
-      } else {
-        pinchSnapshot = nil
-        withAnimation(Motion.snappy) { pinchScale = 1 }
-      }
-    case .cancelled:
-      pinchSnapshot = nil
-      withAnimation(Motion.snappy) { pinchScale = 1 }
-    }
-  }
-
-  private func beginSummary(for id: UUID) {
-    guard app.offersSummaries else {
-      pinchSnapshot = nil
-      withAnimation(Motion.snappy) { pinchScale = 1 }
-      return
-    }
-    app.intelligence.summaryWillOpen()
-    summarySnapshot = pinchSnapshot ?? captureSnapshot(of: id)
-    pinchSnapshot = nil
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction) {
-      app.browse.summaryTabID = id
-      pinchScale = 1
-    }
-  }
-
-  private func captureSnapshot(of id: UUID) -> UIImage? {
-    guard let webView = app.web.existingWebTab(id)?.webView else { return nil }
-    return PageCoverCache.capture(webView, croppingTop: webView.safeAreaInsets.top)
   }
 
   private var pagerGesture: some Gesture {

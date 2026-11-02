@@ -41,13 +41,6 @@
       return text ?? ""
     }
 
-    public var browseQuery: String {
-      if let text, !text.isEmpty, url == nil { return text }
-      let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmed.isEmpty { return trimmed }
-      return url?.absoluteString ?? text ?? ""
-    }
-
     @MainActor
     public static func read(from context: NSExtensionContext?) async -> SharedPage {
       let items = context?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []

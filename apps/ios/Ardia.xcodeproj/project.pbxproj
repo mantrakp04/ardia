@@ -9,10 +9,9 @@
 /* Begin PBXBuildFile section */
 		1E97042909625EE3C2A8E72D /* ArdiaOpen.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1F3F2691FBF6CA7332EF59FF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C149E7851D84E010E3A99076 /* SwiftUI.framework */; };
-		1F68F3F17F9A196AE5F2DAD1 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 682694E3B8EA2A06E820A805 /* ArdiaDesign */; };
 		1F77BBD3054EC45D2D0E854E /* ArdiaShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3E3DD82057CABEECD46CCA24 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 29A8DF82757F0B98305E30AD /* ArdiaDesign */; };
-		3F352D5028B7BF2169D1F060 /* ArdiaIntelligence in Frameworks */ = {isa = PBXBuildFile; productRef = B9BFA56744264186A41A656C /* ArdiaIntelligence */; };
+		3F352D5028B7BF2169D1F060 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 682694E3B8EA2A06E820A805 /* ArdiaDesign */; };
 		462385C8073E08D7879C5C9D /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 995BCC861D01B3C0852D7F9F /* ArdiaBrowser */; };
 		596222949C2FF1F2331D3FF8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F4DDAC9D3853A29800877EF /* WidgetKit.framework */; };
 		7D1758B5C54272E018C27A5B /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 03FF5C47C4373B4E1A6DDE14 /* ArdiaBrowser */; };
@@ -130,8 +129,7 @@
 				ADAD4A961F880D7218A04967 /* ArdiaShared in Frameworks */,
 				C4765B53FAF4F47B1AC42F5F /* ArdiaSync in Frameworks */,
 				7D1758B5C54272E018C27A5B /* ArdiaBrowser in Frameworks */,
-				3F352D5028B7BF2169D1F060 /* ArdiaIntelligence in Frameworks */,
-				1F68F3F17F9A196AE5F2DAD1 /* ArdiaDesign in Frameworks */,
+				3F352D5028B7BF2169D1F060 /* ArdiaDesign in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -272,7 +270,6 @@
 				550FE966976A404B6A78EB82 /* ArdiaShared */,
 				925071C526EFF3980AB2EA8C /* ArdiaSync */,
 				03FF5C47C4373B4E1A6DDE14 /* ArdiaBrowser */,
-				B9BFA56744264186A41A656C /* ArdiaIntelligence */,
 				682694E3B8EA2A06E820A805 /* ArdiaDesign */,
 			);
 			productName = Ardia;
@@ -850,10 +847,6 @@
 		995BCC861D01B3C0852D7F9F /* ArdiaBrowser */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ArdiaBrowser;
-		};
-		B9BFA56744264186A41A656C /* ArdiaIntelligence */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ArdiaIntelligence;
 		};
 		DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */ = {
 			isa = XCSwiftPackageProductDependency;

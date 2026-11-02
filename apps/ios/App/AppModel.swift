@@ -1,5 +1,4 @@
 import ArdiaBrowser
-import ArdiaIntelligence
 import ArdiaSync
 import Foundation
 import Observation
@@ -32,7 +31,6 @@ final class AppModel {
   let web: WebEngine
   let sync: SyncService
   let preferences: BrowsingPreferences
-  let intelligence: Intelligence
   let omnibox: Omnibox
   let browse = BrowseSession()
   let toasts = ToastCenter()
@@ -65,7 +63,6 @@ final class AppModel {
     web = WebEngine(tabs: tabs, blocker: blocker, preferences: preferences)
     deck = TabDeckModel(defaults: defaults)
     sync = isDemo ? .demo : SyncService()
-    intelligence = isDemo ? .demo(arguments: ProcessInfo.processInfo.arguments) : Intelligence()
     omnibox = Omnibox()
     connectServices()
   }

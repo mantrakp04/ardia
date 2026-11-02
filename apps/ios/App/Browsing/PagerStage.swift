@@ -60,7 +60,7 @@ struct PagerCard: View {
 
   @ViewBuilder
   private var statusTone: some View {
-    if tab.origin != .browseForMe, let top = app.browse.tone(for: tab, page: app.web.existingWebTab(tab.id)).top {
+    if let top = app.browse.tone(for: tab, page: app.web.existingWebTab(tab.id)).top {
       top.color.frame(height: statusHeight)
     }
   }

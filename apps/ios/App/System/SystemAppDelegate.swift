@@ -23,14 +23,12 @@ enum QuickAction: String, CaseIterable {
   case search = "com.ardia.ios.search"
   case voiceSearch = "com.ardia.ios.voice"
   case incognito = "com.ardia.ios.incognito"
-  case browseForMe = "com.ardia.ios.browse-for-me"
 
   var link: SystemLink {
     switch self {
-    case .search: .search(query: nil, browseForMe: false)
+    case .search: .search(query: nil)
     case .voiceSearch: .voiceSearch
     case .incognito: .incognito
-    case .browseForMe: .search(query: nil, browseForMe: true)
     }
   }
 
@@ -43,7 +41,6 @@ enum QuickAction: String, CaseIterable {
     case .search: String(localized: "Search")
     case .voiceSearch: String(localized: "Voice Search")
     case .incognito: String(localized: "New Incognito Tab")
-    case .browseForMe: String(localized: "Browse for Me")
     }
   }
 
@@ -52,13 +49,11 @@ enum QuickAction: String, CaseIterable {
     case .search: "magnifyingglass"
     case .voiceSearch: "mic"
     case .incognito: "eyes"
-    case .browseForMe: "sparkle.magnifyingglass"
     }
   }
 
-  static func items(browseForMe: Bool) -> [UIApplicationShortcutItem] {
-    let actions: [QuickAction] = browseForMe ? [.search, .browseForMe, .voiceSearch, .incognito] : [.search, .voiceSearch, .incognito]
-    return actions.map(\.item)
+  static var items: [UIApplicationShortcutItem] {
+    allCases.map(\.item)
   }
 }
 

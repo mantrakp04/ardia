@@ -69,20 +69,17 @@
     private var search: some View {
       VStack(spacing: Spacing.medium) {
         HStack(spacing: Spacing.medium) {
-          tile(.small) { SearchWidgetContent(size: .small, showsBackground: true, offersBrowseForMe: true) } background: {
+          tile(.small) { SearchWidgetContent(size: .small, showsBackground: true) } background: {
             SearchWidgetBackground(showsBackground: true)
           }
-          tile(.small) { SearchWidgetContent(size: .small, showsBackground: false, offersBrowseForMe: true) } background: {
+          tile(.small) { SearchWidgetContent(size: .small, showsBackground: false) } background: {
             SearchWidgetBackground(showsBackground: false)
           }
         }
-        tile(.medium) { SearchWidgetContent(size: .medium, showsBackground: true, offersBrowseForMe: true) } background: {
+        tile(.medium) { SearchWidgetContent(size: .medium, showsBackground: true) } background: {
           SearchWidgetBackground(showsBackground: true)
         }
-        tile(.medium) { SearchWidgetContent(size: .medium, showsBackground: true, offersBrowseForMe: false) } background: {
-          SearchWidgetBackground(showsBackground: true)
-        }
-        tile(.medium) { SearchWidgetContent(size: .medium, showsBackground: false, offersBrowseForMe: true) } background: {
+        tile(.medium) { SearchWidgetContent(size: .medium, showsBackground: false) } background: {
           SearchWidgetBackground(showsBackground: false)
         }
       }
@@ -113,9 +110,7 @@
             .frame(width: 72, height: 72)
             .background(.white.opacity(0.18), in: .circle)
         }
-        SearchLockScreenRectangular(offersBrowseForMe: true)
-          .frame(width: 170, height: 72)
-        SearchLockScreenRectangular(offersBrowseForMe: false)
+        SearchLockScreenRectangular()
           .frame(width: 170, height: 72)
         SearchLockScreenInline()
       }
@@ -131,7 +126,7 @@
       let syncOff = arguments.contains("-SystemGallerySyncOff")
       model.preview(
         page: SharedPage(url: URL(string: "https://en.wikipedia.org/wiki/Lisbon"), title: "Lisbon - Wikipedia", text: nil),
-        snapshot: syncOff ? SystemSnapshot(isBrowseForMeAvailable: true) : WidgetExporter.snapshot(for: app)
+        snapshot: syncOff ? SystemSnapshot() : WidgetExporter.snapshot(for: app)
       )
       if arguments.contains("-SystemGalleryConfirm"), let device = model.sendTargets.first {
         model.send(to: device)

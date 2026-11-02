@@ -45,7 +45,6 @@ public enum AutoArchivePolicy {
 public enum TabDestination: Sendable, Equatable {
   case url(URL, origin: TabOrigin = .typed)
   case search(String)
-  case browseForMe(query: String, resultID: UUID)
   case sent(ReceivedTab)
 }
 
@@ -62,10 +61,6 @@ public struct ArchivedDay: Identifiable {
 
 public enum BrowserURL {
   public static let browseScheme = "ardia"
-
-  public static func browseForMe(_ resultID: UUID) -> String {
-    "ardia://browse/\(resultID.uuidString)"
-  }
 
   public static func isSyncable(_ url: String) -> Bool {
     let lower = url.lowercased()

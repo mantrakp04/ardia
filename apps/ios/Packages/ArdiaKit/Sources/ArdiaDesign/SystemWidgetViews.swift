@@ -28,14 +28,12 @@ public enum SystemWidgetLayout {
 public struct SearchWidgetContent: View {
   public var size: SystemWidgetSize
   public var showsBackground: Bool
-  public var offersBrowseForMe: Bool
 
   @Environment(\.widgetRenderingMode) private var renderingMode
 
-  public init(size: SystemWidgetSize, showsBackground: Bool, offersBrowseForMe: Bool) {
+  public init(size: SystemWidgetSize, showsBackground: Bool) {
     self.size = size
     self.showsBackground = showsBackground
-    self.offersBrowseForMe = offersBrowseForMe
   }
 
   private var onGradient: Bool { showsBackground && renderingMode == .fullColor }
@@ -56,15 +54,10 @@ public struct SearchWidgetContent: View {
       }
       Spacer(minLength: Spacing.tight)
       HStack(spacing: Spacing.tight) {
-        Link(destination: SystemLink.search(query: nil, browseForMe: false).url) {
+        Link(destination: SystemLink.search(query: nil).url) {
           searchCapsule
         }
         if size != .small {
-          if offersBrowseForMe {
-            Link(destination: SystemLink.search(query: nil, browseForMe: true).url) {
-              roundButton(symbol: "sparkle.magnifyingglass", label: "Browse for Me")
-            }
-          }
           Link(destination: SystemLink.voiceSearch.url) {
             roundButton(symbol: "mic.fill", label: "Voice Search")
           }
@@ -330,17 +323,13 @@ public struct SearchLockScreenCircular: View {
       Image(systemName: isVoice ? "mic.fill" : "magnifyingglass")
         .font(.system(size: 24, weight: .semibold))
     }
-    .widgetURL(isVoice ? SystemLink.voiceSearch.url : SystemLink.search(query: nil, browseForMe: false).url)
+    .widgetURL(isVoice ? SystemLink.voiceSearch.url : SystemLink.search(query: nil).url)
     .accessibilityLabel(isVoice ? Text("Voice Search") : Text("Search"))
   }
 }
 
 public struct SearchLockScreenRectangular: View {
-  public var offersBrowseForMe: Bool
-
-  public init(offersBrowseForMe: Bool) {
-    self.offersBrowseForMe = offersBrowseForMe
-  }
+  public init() {}
 
   public var body: some View {
     HStack(spacing: 8) {
@@ -352,14 +341,14 @@ public struct SearchLockScreenRectangular: View {
         Text("Ardia")
           .font(.headline)
           .widgetAccentable()
-        Text(offersBrowseForMe ? "Search or Browse for Me" : "Search the Web")
+        Text("Search the Web")
           .font(.caption)
           .lineLimit(2)
           .foregroundStyle(.secondary)
       }
       Spacer(minLength: 0)
     }
-    .widgetURL(SystemLink.search(query: nil, browseForMe: false).url)
+    .widgetURL(SystemLink.search(query: nil).url)
   }
 }
 
@@ -368,7 +357,7 @@ public struct SearchLockScreenInline: View {
 
   public var body: some View {
     Label("Search with Ardia", systemImage: "magnifyingglass")
-      .widgetURL(SystemLink.search(query: nil, browseForMe: false).url)
+      .widgetURL(SystemLink.search(query: nil).url)
   }
 }
 
@@ -394,7 +383,6 @@ public extension SystemSnapshot {
         ]
       ),
     ],
-    sendTargets: [SystemDevice(id: "mac-1", name: "Luke’s MacBook Pro", kind: .mac)],
-    isBrowseForMeAvailable: true
+    sendTargets: [SystemDevice(id: "mac-1", name: "Luke’s MacBook Pro", kind: .mac)]
   )
 }

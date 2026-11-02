@@ -119,18 +119,6 @@ struct VoiceSearchView: View {
             .frame(maxWidth: .infinity, minHeight: 50)
         }
         .buttonStyle(.glass)
-        if app.offersBrowseForMe {
-        Button {
-          finish { app.startBrowseForMe(text) }
-        } label: {
-          Text("Browse for Me")
-            .fontWeight(.semibold)
-            .foregroundStyle(Palette.indigo)
-            .frame(maxWidth: .infinity, minHeight: 50)
-        }
-        .buttonStyle(.glassProminent)
-        .tint(.white)
-        }
       } else if dictation.state != .requesting {
         Button {
           Task { await dictation.start() }

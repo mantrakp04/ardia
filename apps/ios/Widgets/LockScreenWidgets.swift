@@ -4,12 +4,11 @@ import WidgetKit
 
 nonisolated struct LockScreenEntry: TimelineEntry {
   var date: Date
-  var offersBrowseForMe: Bool
 }
 
 nonisolated struct LockScreenProvider: TimelineProvider {
   func placeholder(in context: Context) -> LockScreenEntry {
-    LockScreenEntry(date: .now, offersBrowseForMe: false)
+    LockScreenEntry(date: .now)
   }
 
   func getSnapshot(in context: Context, completion: @escaping (LockScreenEntry) -> Void) {
@@ -21,7 +20,7 @@ nonisolated struct LockScreenProvider: TimelineProvider {
   }
 
   private func entry() -> LockScreenEntry {
-    LockScreenEntry(date: .now, offersBrowseForMe: SystemStore.shared?.loadSnapshot().isBrowseForMeAvailable ?? false)
+    LockScreenEntry(date: .now)
   }
 }
 
@@ -51,11 +50,11 @@ struct SearchLockScreenFamilies: View {
 
 struct SearchLockScreenRectangularWidget: Widget {
   var body: some WidgetConfiguration {
-    StaticConfiguration(kind: "SearchLockScreenRectangular", provider: LockScreenProvider()) { entry in
-      SearchLockScreenRectangular(offersBrowseForMe: entry.offersBrowseForMe)
+    StaticConfiguration(kind: "SearchLockScreenRectangular", provider: LockScreenProvider()) { _ in
+      SearchLockScreenRectangular()
         .containerBackground(for: .widget) { Color.clear }
     }
-    .configurationDisplayName("Search or Browse for Me")
+    .configurationDisplayName("Search the Web")
     .description("Search the web from your Lock Screen.")
     .supportedFamilies([.accessoryRectangular])
   }
@@ -76,11 +75,11 @@ struct VoiceSearchLockScreenWidget: Widget {
 #Preview("Circular", as: .accessoryCircular) {
   SearchLockScreenWidget()
 } timeline: {
-  LockScreenEntry(date: .now, offersBrowseForMe: true)
+  LockScreenEntry(date: .now)
 }
 
 #Preview("Rectangular", as: .accessoryRectangular) {
   SearchLockScreenRectangularWidget()
 } timeline: {
-  LockScreenEntry(date: .now, offersBrowseForMe: true)
+  LockScreenEntry(date: .now)
 }

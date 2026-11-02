@@ -36,7 +36,6 @@ public enum Motion {
   public static let searchResults = Animation.easeOut(duration: 0.22)
   public static let modeToggle = Animation.spring(duration: 0.3, bounce: 0.15)
   public static let swipeSettle = Animation.spring(duration: 0.2, bounce: 0)
-  public static let summarySheet = Animation.easeOut(duration: 0.16)
   public static let cornerMorph = Animation.spring(response: 0.3, dampingFraction: 1)
 }
 
@@ -48,7 +47,6 @@ public enum Layout {
   public static let compactSearchRow: CGFloat = 44
   public static let searchFieldRadius: CGFloat = 22
   public static let expandedCardScale: CGFloat = 0.9
-  public static let summarizePinchScale: CGFloat = 0.3
   public static let swipeParallax: CGFloat = -0.33
   public static let swipeCommit: CGFloat = 75
   public static let swipeFlickCommit: CGFloat = 50

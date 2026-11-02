@@ -5,9 +5,8 @@ import Testing
 
 struct SystemLinkTests {
   @Test(arguments: [
-    SystemLink.search(query: nil, browseForMe: false),
-    .search(query: "pastéis de nata & coffee?", browseForMe: false),
-    .search(query: "who are the beatles", browseForMe: true),
+    SystemLink.search(query: nil),
+    .search(query: "pastéis de nata & coffee?"),
     .voiceSearch,
     .incognito,
     .open(URL(string: "https://en.wikipedia.org/wiki/Lisbon?a=1&b=2#History")!),
@@ -32,7 +31,7 @@ struct SystemLinkTests {
   }
 
   @Test func `a blank query opens an empty search`() {
-    #expect(SystemLink(URL(string: "ardia://search?q=%20%20")!) == .search(query: nil, browseForMe: false))
+    #expect(SystemLink(URL(string: "ardia://search?q=%20%20")!) == .search(query: nil))
   }
 }
 
@@ -63,8 +62,7 @@ struct SystemStoreTests {
     #expect(store.saveFavicon(Data([2]), named: dropped))
     let snapshot = SystemSnapshot(
       isSyncEnabled: true,
-      macTabs: [SystemDeviceTabs(device: SystemDevice(id: "mac", name: "Mac", kind: .mac), tabs: [SystemTab(title: "Swift", url: "https://swift.org", favicon: kept)])],
-      isBrowseForMeAvailable: true
+      macTabs: [SystemDeviceTabs(device: SystemDevice(id: "mac", name: "Mac", kind: .mac), tabs: [SystemTab(title: "Swift", url: "https://swift.org", favicon: kept)])]
     )
 
     #expect(store.save(snapshot))

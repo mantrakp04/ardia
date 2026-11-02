@@ -30,9 +30,6 @@ public enum SettingsTint {
   public static let nightShade = Color(hex: 0x5856D6)
   public static let appLinks = green
   public static let bottomBar = Color(hex: 0x30B0C7)
-  public static let intelligence = Color(hex: 0xC04FD8)
-  public static let experiments = Color(hex: 0x8E44EC)
-  public static let pinch = Color(hex: 0xFF6B9A)
   public static let defaultBrowser = Palette.indigo
   public static let clearData = red
   public static let export = Color(hex: 0x0153FF)

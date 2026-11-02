@@ -14,13 +14,12 @@ struct SearchWidgetConfiguration: WidgetConfigurationIntent {
 nonisolated struct SearchEntry: TimelineEntry {
   var date: Date
   var showsBackground: Bool
-  var offersBrowseForMe: Bool
   var gradient: [String]
 }
 
 nonisolated struct SearchProvider: AppIntentTimelineProvider {
   func placeholder(in context: Context) -> SearchEntry {
-    SearchEntry(date: .now, showsBackground: true, offersBrowseForMe: false, gradient: [])
+    SearchEntry(date: .now, showsBackground: true, gradient: [])
   }
 
   func snapshot(for configuration: SearchWidgetConfiguration, in context: Context) async -> SearchEntry {
@@ -36,7 +35,6 @@ nonisolated struct SearchProvider: AppIntentTimelineProvider {
     return SearchEntry(
       date: .now,
       showsBackground: configuration.showBackground,
-      offersBrowseForMe: snapshot.isBrowseForMeAvailable,
       gradient: snapshot.gradient
     )
   }
@@ -60,10 +58,9 @@ struct SearchWidgetView: View {
   var body: some View {
     SearchWidgetContent(
       size: family == .systemSmall ? .small : .medium,
-      showsBackground: entry.showsBackground,
-      offersBrowseForMe: entry.offersBrowseForMe
+      showsBackground: entry.showsBackground
     )
-    .widgetURL(SystemLink.search(query: nil, browseForMe: false).url)
+    .widgetURL(SystemLink.search(query: nil).url)
     .containerBackground(for: .widget) {
       SearchWidgetBackground(showsBackground: entry.showsBackground, colors: colors)
     }
@@ -78,14 +75,13 @@ struct SearchWidgetView: View {
 #Preview("Small", as: .systemSmall) {
   SearchWidget()
 } timeline: {
-  SearchEntry(date: .now, showsBackground: true, offersBrowseForMe: true, gradient: [])
-  SearchEntry(date: .now, showsBackground: false, offersBrowseForMe: true, gradient: [])
+  SearchEntry(date: .now, showsBackground: true, gradient: [])
+  SearchEntry(date: .now, showsBackground: false, gradient: [])
 }
 
 #Preview("Medium", as: .systemMedium) {
   SearchWidget()
 } timeline: {
-  SearchEntry(date: .now, showsBackground: true, offersBrowseForMe: true, gradient: [])
-  SearchEntry(date: .now, showsBackground: true, offersBrowseForMe: false, gradient: [])
-  SearchEntry(date: .now, showsBackground: false, offersBrowseForMe: true, gradient: [])
+  SearchEntry(date: .now, showsBackground: true, gradient: [])
+  SearchEntry(date: .now, showsBackground: false, gradient: [])
 }

@@ -15,7 +15,7 @@ struct SearchTray<Drag: Gesture>: View {
   @Environment(\.colorScheme) private var colorScheme
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
-  @State private var highlight: (id: String, target: SuggestionTarget)?
+  @State private var highlightedID: String?
   @State private var rowFrames: [String: CGRect] = [:]
   @State private var scrubTicks = 0
   @State private var scrubReleases = 0
@@ -49,7 +49,7 @@ struct SearchTray<Drag: Gesture>: View {
     .onChange(of: text) { _, newValue in
       guard !isSubmitting else { return }
       model?.update(newValue)
-      highlight = nil
+      highlightedID = nil
     }
     .onChange(of: app.isIncognito) { _, _ in rebuildModel() }
     .onChange(of: app.settings.isShowingOnboarding) { _, showing in
@@ -213,21 +213,14 @@ struct SearchTray<Drag: Gesture>: View {
         SuggestionRowView(
           suggestion: suggestion,
           typed: text,
-          highlight: highlight?.id == suggestion.id ? highlight?.target : nil,
-          isIncognito: isIncognito,
-          offersBrowseForMe: app.offersBrowseForMe,
-          onBrowseForMe: dynamicTypeSize.isAccessibilitySize ? { activate(suggestion, .browseForMe) } : nil
+          isHighlighted: highlightedID == suggestion.id,
+          isIncognito: isIncognito
         )
-        .gesture(TapGesture().onEnded { activate(suggestion, .row) }, isEnabled: dynamicTypeSize.isAccessibilitySize)
+        .gesture(TapGesture().onEnded { activate(suggestion) }, isEnabled: dynamicTypeSize.isAccessibilitySize)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("rows")) } action: { rowFrames[suggestion.id] = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { activate(suggestion, .row) }
-        .accessibilityActions {
-          if app.offersBrowseForMe, suggestion.offersBrowseForMe {
-            Button("Browse for Me") { activate(suggestion, .browseForMe) }
-          }
-        }
+        .accessibilityAction { activate(suggestion) }
         .contextMenu { rowMenu(suggestion) }
       }
     }
@@ -279,12 +272,12 @@ struct SearchTray<Drag: Gesture>: View {
         }
         if abs(value.translation.height) > 6 || abs(value.translation.width) > 6 { isScrubbing = true }
         guard let hit = hitTest(value.location, rows: rows) else {
-          highlight = nil
+          highlightedID = nil
           return
         }
-        if highlight?.id != hit.id || highlight?.target != hit.target {
+        if highlightedID != hit {
           if isScrubbing { scrubTicks += 1 }
-          withAnimation(Motion.press) { highlight = hit }
+          withAnimation(Motion.press) { highlightedID = hit }
         }
       }
       .onEnded { value in
@@ -292,22 +285,19 @@ struct SearchTray<Drag: Gesture>: View {
         isScrubbing = false
         scrubStart = nil
         let hit = hitTest(value.location, rows: rows)
-        withAnimation(Motion.press) { highlight = nil }
-        guard let hit, let suggestion = rows.first(where: { $0.id == hit.id }) else { return }
+        withAnimation(Motion.press) { highlightedID = nil }
+        guard let hit, let suggestion = rows.first(where: { $0.id == hit }) else { return }
         if wasScrubbing { scrubReleases += 1 }
-        activate(suggestion, hit.target)
+        activate(suggestion)
       }
   }
 
-  private func hitTest(_ point: CGPoint, rows: [SearchSuggestion]) -> (id: String, target: SuggestionTarget)? {
+  private func hitTest(_ point: CGPoint, rows: [SearchSuggestion]) -> String? {
     guard point.y <= rowsBudget else { return nil }
-    for suggestion in rows {
-      guard let frame = rowFrames[suggestion.id], frame.minY <= point.y, point.y < frame.maxY, frame.minX - 8 <= point.x, point.x <= frame.maxX + 8 else { continue }
-      let pillEdge = frame.maxX - BrowseLayout.highlightedPillSize.width - 14
-      let target: SuggestionTarget = app.offersBrowseForMe && suggestion.offersBrowseForMe && point.x >= pillEdge ? .browseForMe : .row
-      return (suggestion.id, target)
-    }
-    return nil
+    return rows.first { suggestion in
+      guard let frame = rowFrames[suggestion.id] else { return false }
+      return frame.minY <= point.y && point.y < frame.maxY && frame.minX - 8 <= point.x && point.x <= frame.maxX + 8
+    }?.id
   }
 
   private func start() {
@@ -315,7 +305,6 @@ struct SearchTray<Drag: Gesture>: View {
     text = request.initialText
     model?.update(request.initialText)
     if !app.settings.isShowingOnboarding { isFocused = true }
-    if app.offersBrowseForMe { app.intelligence.searchFieldDidBeginEditing() }
   }
 
   private func rebuildModel() {
@@ -337,9 +326,9 @@ struct SearchTray<Drag: Gesture>: View {
     }
   }
 
-  private func activate(_ suggestion: SearchSuggestion, _ target: SuggestionTarget) {
+  private func activate(_ suggestion: SearchSuggestion) {
     if case .calculation = suggestion.kind {} else { leave() }
-    app.activate(suggestion, target: target)
+    app.activate(suggestion)
   }
 
   private func leave() {

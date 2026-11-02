@@ -99,7 +99,7 @@ struct SystemIntegrationsModifier: ViewModifier {
   }
 
   private func updateQuickActions() {
-    UIApplication.shared.shortcutItems = QuickAction.items(browseForMe: app.isBrowseForMeAvailable)
+    UIApplication.shared.shortcutItems = QuickAction.items
   }
 
   private func runDebugHooks() async {

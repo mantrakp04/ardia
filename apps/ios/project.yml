@@ -35,8 +35,6 @@ targets:
       - package: ArdiaKit
         product: ArdiaBrowser
       - package: ArdiaKit
-        product: ArdiaIntelligence
-      - package: ArdiaKit
         product: ArdiaDesign
       - target: ArdiaWidgets
       - target: ArdiaShare

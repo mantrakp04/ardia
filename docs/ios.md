@@ -18,7 +18,6 @@ apps/ios/
     Sources/ArdiaShared        JavaScriptCore runtime for the TypeScript shared with the Mac
     Sources/ArdiaSync          the sync device: folder access, keys, the cycle, the synced snapshot
     Sources/ArdiaBrowser       tabs, history, archive, SwiftData models, WebKit, content blocking, omnibox
-    Sources/ArdiaIntelligence  Apple Intelligence (Foundation Models): Browse for Me, summaries
     Sources/ArdiaDesign        design tokens and shared SwiftUI components
   scripts/bundle-shared.mjs    bundles packages/sync and packages/core for JavaScriptCore
 ```
@@ -81,16 +80,13 @@ sizes, copy), on Apple's controls:
   bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs them.
 - **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
   tinted by the page. Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
-  back, forward, title, pin, reload; Reader, Summarize, Copy Link (without trackers), Share; Find on Page, Send to a
+  back, forward, title, pin, reload; Reader, Copy Link (without trackers), Share; Find on Page, Send to a
   Mac, Night Shade, Page Zoom, Request Desktop Site, Translate, Site Settings.
 - **Tabs.** An app-switcher deck of live snapshots; flick a card up to close it. Closing archives; tabs left alone
   archive after a chosen interval (24 hours by default). Private tabs live in memory with their own website data.
   The Mac's Spaces (profiles), pinned tiles, rows and groups, and its open tabs sit behind the deck's leading button.
 - **Blocking.** Ads, trackers and cookie banners: seed rules plus EasyList, EasyPrivacy and the EasyList Cookie List
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
-- **AI features** (experimental, off by default, Settings › Experiments): Browse for Me (reads the top results and writes a
-  page), Pinch to Summarize and Ask About This Page, on Apple Intelligence's on-device model. Nothing runs while they're off,
-  and every answer they show says it's experimental and can be wrong.
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
   Home Screen quick actions, and http/https link handling. The default-browser entitlement is in
@@ -99,14 +95,11 @@ sizes, copy), on Apple's controls:
 ## Demo mode and launch arguments
 
 `-ArdiaDemo YES` runs on an in-memory store with `SyncSnapshot.demo` (a MacBook Pro and a Mac Studio, two profiles)
-and never touches real data. Add `-ArdiaAIFeatures YES` for the AI features. Captures can be driven without touch:
-`-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`, `-BrowseToolbar`, `-BrowseSummary`,
-`-BrowseReader`, `-BrowseForMe <query>`, `-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`,
-`-ArdiaOnboarding YES`, `-ArdiaOpenSheet archive|spaces`, `-BrowsePlus` (taps the plus after twice the delay),
-`-BrowseOverlay <text>` (the search tray over the page), `-ArdiaRestingStart` (the start screen without the tray),
-`-BrowseForMeResults` (a Browse for Me tab on the
-search engine side), and `-BrowseForMeDemo <state>` to force a Browse for Me state (`offline`, `noResults`,
-`appleIntelligenceOff`, `deviceNotEligible`, `modelDownloading`, `writingFails`, `slow`).
+and never touches real data. Captures can be driven without touch:
+`-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`, `-BrowseToolbar`, `-BrowseReader`,
+`-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`, `-ArdiaOnboarding YES`,
+`-ArdiaOpenSheet archive|spaces`, `-BrowsePlus` (taps the plus after twice the delay),
+`-BrowseOverlay <text>` (the search tray over the page), and `-ArdiaRestingStart` (the start screen without the tray).
 Motion captures: `-BrowsePagerFreeze <fraction>` holds a tab swipe part way (negative swipes toward the
 previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit, interrupted commit), and
 `-BrowseLoadFreeze <progress>` holds a page load with its loading line and placeholder.
@@ -115,8 +108,7 @@ previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit
 
 - `swift test --package-path apps/ios/Packages/ArdiaKit` runs the package's Swift Testing suites on the Mac host:
   sync end to end over a real vault with a fake Mac, the browser layer (tabs, archive, blocking converter, omnibox,
-  reader extraction in a real WKWebView), Apple Intelligence (sources, budgeting, the state machine, the parser),
-  and the JavaScriptCore bridge.
+  reader extraction in a real WKWebView), and the JavaScriptCore bridge.
 - `pnpm --filter @ardia/sync test` includes the companion's tests and checks the bundles are current.
 - The app's own states are checked in the simulator (see the agent notes below).
 - CI (`.github/workflows/ios.yml`, on GitHub's `xcode-27` runner with Xcode 27.1) builds the `Ardia` scheme for the

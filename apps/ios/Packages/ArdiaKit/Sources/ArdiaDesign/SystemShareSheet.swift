@@ -46,8 +46,6 @@
 
     public var hasContent: Bool { page.url != nil || page.text != nil }
 
-    public var offersBrowseForMe: Bool { snapshot.isBrowseForMeAvailable && !page.browseQuery.isEmpty }
-
     public var sendTargets: [SystemDevice] {
       guard snapshot.isSyncEnabled, page.url != nil else { return [] }
       return snapshot.sendTargets
@@ -57,17 +55,8 @@
       if let url = page.url {
         hand(SystemLink.open(url).url, fallback: SystemInboxItem(action: .open, url: url.absoluteString, title: page.title))
       } else if let text = page.text {
-        hand(SystemLink.search(query: text, browseForMe: false).url, fallback: nil)
+        hand(SystemLink.search(query: text).url, fallback: nil)
       }
-    }
-
-    public func browseForMe() {
-      let query = page.browseQuery
-      guard !query.isEmpty else { return }
-      hand(
-        SystemLink.search(query: query, browseForMe: true).url,
-        fallback: SystemInboxItem(action: .browseForMe(query: query), url: page.url?.absoluteString, title: page.title)
-      )
     }
 
     public func send(to device: SystemDevice) {
@@ -211,15 +200,6 @@
             symbol: model.page.url == nil ? "magnifyingglass" : "arrow.up.forward.app",
             action: model.openInArdia
           )
-          if model.offersBrowseForMe {
-            Divider().padding(.leading, ShareActionRow.dividerInset)
-            ShareActionRow(
-              title: Text("Browse for Me"),
-              subtitle: model.page.url == nil ? Text("Get an answer from the web.") : Text("Get an answer about this page."),
-              symbol: "sparkle.magnifyingglass",
-              action: model.browseForMe
-            )
-          }
         }
         if !model.sendTargets.isEmpty {
           VStack(alignment: .leading, spacing: Spacing.tight) {

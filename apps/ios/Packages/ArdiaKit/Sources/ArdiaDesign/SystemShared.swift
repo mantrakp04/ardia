@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SystemLink: Equatable, Sendable {
-  case search(query: String?, browseForMe: Bool)
+  case search(query: String?)
   case voiceSearch
   case incognito
   case open(URL)
@@ -15,8 +15,8 @@ public enum SystemLink: Equatable, Sendable {
     var components = URLComponents()
     components.scheme = Self.scheme
     switch self {
-    case .search(let query, let browseForMe):
-      components.host = browseForMe ? "browse-for-me" : "search"
+    case .search(let query):
+      components.host = "search"
       if let query, !query.isEmpty { components.queryItems = [URLQueryItem(name: "q", value: query)] }
     case .voiceSearch:
       components.host = "voice"
@@ -45,8 +45,7 @@ public enum SystemLink: Equatable, Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines)
     let cleanQuery = query.flatMap { $0.isEmpty ? nil : $0 }
     switch host {
-    case "search": self = .search(query: cleanQuery, browseForMe: false)
-    case "browse-for-me": self = .search(query: cleanQuery, browseForMe: true)
+    case "search": self = .search(query: cleanQuery)
     case "voice": self = .voiceSearch
     case "incognito": self = .incognito
     case "mac-tabs": self = .macTabs
@@ -136,15 +135,13 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
   public var macTabs: [SystemDeviceTabs]
   public var sendTargets: [SystemDevice]
   public var gradient: [String]
-  public var isBrowseForMeAvailable: Bool
 
-  public init(isSyncEnabled: Bool = false, macTabs: [SystemDeviceTabs] = [], sendTargets: [SystemDevice] = [], gradient: [String] = [], isBrowseForMeAvailable: Bool = false) {
+  public init(isSyncEnabled: Bool = false, macTabs: [SystemDeviceTabs] = [], sendTargets: [SystemDevice] = [], gradient: [String] = []) {
     version = Self.currentVersion
     self.isSyncEnabled = isSyncEnabled
     self.macTabs = macTabs
     self.sendTargets = sendTargets
     self.gradient = gradient
-    self.isBrowseForMeAvailable = isBrowseForMeAvailable
   }
 
   public static let empty = SystemSnapshot()
@@ -157,7 +154,6 @@ public struct SystemSnapshot: Codable, Equatable, Sendable {
 public struct SystemInboxItem: Codable, Equatable, Identifiable, Sendable {
   public enum Action: Codable, Equatable, Sendable {
     case open
-    case browseForMe(query: String)
     case send(to: SystemDevice)
   }
 

@@ -21,8 +21,6 @@ final class BrowseSession {
   var trayHoldsKeyboard = false
   var isToolbarPresented = false
   var readerTabID: UUID?
-  var summaryTabID: UUID?
-  var summaryRequestID: UUID?
   var titleFeedback: String?
   var isVoicePresented = false
   var desktopTabs: Set<UUID> = []
@@ -60,10 +58,6 @@ final class BrowseSession {
     unfreezeTask?.cancel()
     unfreezeTask = nil
     frozenOrder = nil
-  }
-
-  func requestSummary(for tabID: UUID) {
-    summaryRequestID = tabID
   }
 
   func setTone(_ tone: PageTone, for id: UUID) {

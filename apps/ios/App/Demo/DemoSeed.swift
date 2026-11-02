@@ -54,8 +54,6 @@ enum DemoSeed {
       tab.archivedAt = now.addingTimeInterval(-page.minutesAgo * 60)
       tab.lastActive = now.addingTimeInterval(-page.minutesAgo * 60 - 600)
     }
-    let browse = tabs.open(.browseForMe(query: "Things to do in Lisbon", resultID: UUID()), selecting: false)
-    browse.lastActive = now.addingTimeInterval(-70 * 60)
     for page in openPages {
       guard let url = URL(string: page.url) else { continue }
       let tab = tabs.open(.url(url, origin: .typed), selecting: false)
@@ -95,9 +93,7 @@ enum DemoScenario {
       try? await Task.sleep(for: .seconds(delay))
       if arguments.contains("-BrowseToolbar") { app.browse.isToolbarPresented = true }
       if let text = value("-BrowseOverlay") { app.browse.presentSearch(from: .page, text: text, selectsAll: false) }
-      if arguments.contains("-BrowseSummary"), let id = app.tabs.selectedTabID { app.browse.requestSummary(for: id) }
       if arguments.contains("-BrowseReader"), let id = app.tabs.selectedTabID { app.browse.readerTabID = id }
-      if let query = value("-BrowseForMe") { app.startBrowseForMe(query) }
       if arguments.contains("-BrowseDeck") {
         app.browse.deckRequested = true
         if let index = value("-BrowseDeckOpen").flatMap(Int.init), app.tabs.openTabs.indices.contains(index) {

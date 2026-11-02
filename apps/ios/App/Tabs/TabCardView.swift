@@ -37,15 +37,12 @@ struct TabCardContent: View {
   private var background: Color {
     if isIncognito { return TabsPalette.incognitoCard }
     if let hex = tab.themeColorHex, let color = Color(hexString: hex) { return color }
-    if tab.origin == .browseForMe { return TabsPalette.browsePage }
     return Color(.systemBackground)
   }
 
   @ViewBuilder private var placeholder: some View {
     if isIncognito {
       IncognitoCardPlaceholder(title: TabText.title(for: tab))
-    } else if tab.origin == .browseForMe {
-      BrowseForMeCardPlaceholder(title: TabText.title(for: tab))
     } else {
       PageCardPlaceholder(tab: tab)
     }
@@ -81,26 +78,6 @@ struct PageCardPlaceholder: View {
     let host = BrowserURL.host(of: tab.url) ?? tab.url
     let value = host.unicodeScalars.reduce(UInt32(5381)) { ($0 &<< 5) &+ $0 &+ $1.value }
     return Color(hex: tints[Int(value % UInt32(tints.count))])
-  }
-}
-
-struct BrowseForMeCardPlaceholder: View {
-  let title: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Label("Browse for Me", systemImage: "sparkle.magnifyingglass")
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(.secondary)
-      Text(title)
-        .font(.system(.title3, design: .rounded, weight: .bold))
-        .foregroundStyle(Palette.indigo)
-        .lineLimit(5)
-    }
-    .padding(16)
-    .padding(.top, 44)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(TabsPalette.browsePage)
   }
 }
 
@@ -170,7 +147,7 @@ enum TabText {
   }
 
   static func host(for tab: BrowserTab) -> String {
-    BrowserURL.host(of: tab.url) ?? (tab.origin == .browseForMe ? String(localized: "Browse for Me") : String(localized: "New Tab"))
+    BrowserURL.host(of: tab.url) ?? String(localized: "New Tab")
   }
 
   static func isUnseenReceived(_ tab: BrowserTab) -> Bool {

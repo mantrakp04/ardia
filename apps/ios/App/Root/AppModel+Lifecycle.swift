@@ -9,16 +9,6 @@ extension AppModel {
     sync.source = tabs
     web.omnibox = omnibox
     tabs.onLocalChange = { [weak self] in self?.sync.localDidChange() }
-    let removed = tabs.onTabsRemoved
-    tabs.onTabsRemoved = { [weak self] tabs in
-      removed?(tabs)
-      for tab in tabs { self?.intelligence.forget(tab: tab.id) }
-    }
-    let archived = tabs.onTabsArchived
-    tabs.onTabsArchived = { [weak self] ids in
-      archived?(ids)
-      for id in ids { self?.intelligence.forget(tab: id) }
-    }
     web.openExternalURL = { url in UIApplication.shared.open(url) }
     web.openUniversalLink = { url in
       await UIApplication.shared.open(url, options: [.universalLinksOnly: true])
@@ -28,7 +18,6 @@ extension AppModel {
       await omnibox.warmUp()
       await omnibox.loadBangs()
     }
-    observeAIFeatures()
     applySyncedSearch()
     if isDemo {
       DemoSeed.seed(self)
@@ -38,15 +27,6 @@ extension AppModel {
     }
     surface = .search
     if isDemo { DemoScenario.apply(to: self) }
-  }
-
-  func observeAIFeatures() {
-    intelligence.isEnabled = settings.aiFeaturesEnabled
-    withObservationTracking {
-      _ = settings.aiFeaturesEnabled
-    } onChange: { [weak self] in
-      Task { @MainActor in self?.observeAIFeatures() }
-    }
   }
 
   func applySyncedSearch() {

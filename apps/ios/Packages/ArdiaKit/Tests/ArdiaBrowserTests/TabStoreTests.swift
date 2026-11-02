@@ -159,7 +159,7 @@ struct StoreFixture {
     let start = fixture.clock.now
     fixture.open("https://old.example/")
     fixture.clock.advance(10)
-    fixture.store.open(.browseForMe(query: "best tents", resultID: UUID()))
+    fixture.open("ardia://inbox")
     fixture.store.recordVisit(url: "https://a.example/", title: "", transition: .typed)
     fixture.clock.advance(10)
     let visit = try #require(fixture.store.recordVisit(url: "https://a.example/", title: "A", transition: .link))

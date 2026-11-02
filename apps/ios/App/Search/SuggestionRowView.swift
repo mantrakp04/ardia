@@ -2,19 +2,11 @@ import ArdiaBrowser
 import ArdiaDesign
 import SwiftUI
 
-enum SuggestionTarget: Equatable {
-  case row
-  case browseForMe
-}
-
 struct SuggestionRowView: View {
   let suggestion: SearchSuggestion
   let typed: String
-  let highlight: SuggestionTarget?
+  let isHighlighted: Bool
   let isIncognito: Bool
-  var emphasizesPill = false
-  var offersBrowseForMe = true
-  var onBrowseForMe: (() -> Void)?
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @ScaledMetric(relativeTo: .body) private var pitch = BrowseLayout.suggestionPitch
@@ -24,28 +16,15 @@ struct SuggestionRowView: View {
     HStack(spacing: Spacing.small) {
       leading
         .frame(width: iconSlot, height: iconSlot)
-      VStack(alignment: .leading, spacing: Spacing.tight) {
-        label
-        if let onBrowseForMe, offersBrowseForMe, suggestion.offersBrowseForMe, dynamicTypeSize.isAccessibilitySize {
-          Button(action: onBrowseForMe) {
-            BrowseForMePill(isHighlighted: true, isIncognito: isIncognito, fitsText: true)
-              .padding(.vertical, 6)
-          }
-          .buttonStyle(.plain)
-          .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      if offersBrowseForMe, suggestion.offersBrowseForMe, !dynamicTypeSize.isAccessibilitySize {
-        BrowseForMePill(isHighlighted: highlight != nil || emphasizesPill, isIncognito: isIncognito)
-      }
+      label
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding(.leading, 12)
     .padding(.trailing, 7)
     .frame(minHeight: pitch)
     .background {
       RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .fill(highlight != nil ? rowHighlight : .clear)
+        .fill(isHighlighted ? rowHighlight : .clear)
     }
     .contentShape(.rect)
   }
@@ -122,39 +101,14 @@ struct SuggestionRowView: View {
   }
 }
 
-struct BrowseForMePill: View {
-  let isHighlighted: Bool
-  var isIncognito = false
-  var fitsText = false
-
-  var body: some View {
-    let size = isHighlighted ? BrowseLayout.highlightedPillSize : BrowseLayout.pillSize
-    Text("Browse for Me")
-      .font(.caption.weight(.semibold))
-      .lineLimit(1)
-      .minimumScaleFactor(0.8)
-      .foregroundStyle(isHighlighted ? .white : (isIncognito ? .white.opacity(0.85) : BrowsePalette.pillLabel))
-      .padding(.horizontal, 8)
-      .frame(minWidth: size.width, minHeight: size.height)
-      .background {
-        RoundedRectangle(cornerRadius: BrowseLayout.pillRadius, style: .continuous)
-          .fill(isHighlighted ? AnyShapeStyle(BrowsePalette.highlightedPill.gradient) : AnyShapeStyle(isIncognito ? Color.white.opacity(0.12) : BrowsePalette.pillFill))
-          .shadow(color: isHighlighted ? Palette.indigo.opacity(0.35) : .clear, radius: 8, y: 3)
-      }
-      .frame(width: fitsText ? nil : BrowseLayout.highlightedPillSize.width, height: fitsText ? nil : BrowseLayout.highlightedPillSize.height, alignment: .trailing)
-      .animation(Motion.modeToggle, value: isHighlighted)
-      .accessibilityHidden(true)
-  }
-}
-
 #Preview("Rows") {
   VStack(spacing: 0) {
-    SuggestionRowView(suggestion: .query("paris olympics"), typed: "par", highlight: .browseForMe, isIncognito: false)
-    SuggestionRowView(suggestion: .query("alphonso vs kesar mangoes"), typed: "", highlight: nil, isIncognito: false)
-    SuggestionRowView(suggestion: .query("museum shows near me"), typed: "mu", highlight: .row, isIncognito: false)
+    SuggestionRowView(suggestion: .query("paris olympics"), typed: "par", isHighlighted: false, isIncognito: false)
+    SuggestionRowView(suggestion: .query("alphonso vs kesar mangoes"), typed: "", isHighlighted: false, isIncognito: false)
+    SuggestionRowView(suggestion: .query("museum shows near me"), typed: "mu", isHighlighted: true, isIncognito: false)
     SuggestionRowView(
       suggestion: SearchSuggestion(id: "r", kind: .remoteTab(deviceName: "MacBook Pro"), title: "Lisbon - Wikipedia", detail: "wikipedia.org", url: "https://en.wikipedia.org/wiki/Lisbon", query: "Lisbon"),
-      typed: "lis", highlight: nil, isIncognito: false
+      typed: "lis", isHighlighted: false, isIncognito: false
     )
   }
   .padding(.horizontal, 8)

@@ -37,7 +37,7 @@ final class SpotlightIndexer {
     let archived = (try? app.tabs.context.fetch(descriptor)) ?? []
     let openIDs = Set(open.map(\.id))
     return (open + archived.filter { !openIDs.contains($0.id) && !$0.isPrivate })
-      .filter { BrowserURL.isSyncable($0.url) || $0.origin == .browseForMe }
+      .filter { BrowserURL.isSyncable($0.url) }
       .map(TabEntity.init)
   }
 

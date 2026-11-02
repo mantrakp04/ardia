@@ -6,7 +6,7 @@ import WebKit
 
 extension AppModel {
   var currentPage: WebTab? {
-    guard let id = tabs.selectedTabID, let tab = tabs.tab(id), tab.origin != .browseForMe else { return nil }
+    guard let id = tabs.selectedTabID, tabs.tab(id) != nil else { return nil }
     return web.existingWebTab(id)
   }
 

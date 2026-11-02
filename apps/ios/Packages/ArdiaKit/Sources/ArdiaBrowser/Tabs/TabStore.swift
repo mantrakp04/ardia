@@ -97,8 +97,6 @@ public final class TabStore: LocalBrowsingSource {
       tab = BrowserTab(url: url.absoluteString, created: date, position: 0, origin: origin, profileSyncId: profileSyncId)
     case .search(let query):
       tab = BrowserTab(url: BrowserURL.searchURL(template: searchTemplate, query: query), title: query, created: date, position: 0, origin: .search, profileSyncId: profileSyncId)
-    case .browseForMe(let query, let resultID):
-      tab = BrowserTab(url: BrowserURL.browseForMe(resultID), title: query, created: date, position: 0, origin: .browseForMe, profileSyncId: profileSyncId, browseResultID: resultID)
     case .sent(let received):
       tab = BrowserTab(url: received.url, title: received.title, created: date, position: 0, origin: .sent, profileSyncId: received.profileSyncId, receivedKey: received.key, receivedFromDevice: received.fromDevice)
     }

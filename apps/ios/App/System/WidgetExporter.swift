@@ -20,7 +20,7 @@ final class WidgetExporter {
     guard let store = app.systemStore else { return }
     if last == nil { last = store.loadSnapshot() }
     guard snapshot != last else { return }
-    let searchChanged = snapshot.isBrowseForMeAvailable != last?.isBrowseForMeAvailable || snapshot.gradient != last?.gradient
+    let searchChanged = snapshot.gradient != last?.gradient
     guard store.save(snapshot) else { return }
     last = snapshot
     WidgetCenter.shared.reloadTimelines(ofKind: Self.macTabsKind)
@@ -33,7 +33,7 @@ final class WidgetExporter {
   static func snapshot(for app: AppModel) -> SystemSnapshot {
     let sync = app.sync
     guard sync.isEnabled, let profile = sync.selectedProfile ?? sync.snapshot.defaultProfile else {
-      return SystemSnapshot(isSyncEnabled: sync.isEnabled, isBrowseForMeAvailable: app.isBrowseForMeAvailable)
+      return SystemSnapshot(isSyncEnabled: sync.isEnabled)
     }
     let devices = sync.snapshot.devices
     let current = Set(devices.filter(\.isCurrent).map(\.id))
@@ -59,8 +59,7 @@ final class WidgetExporter {
       isSyncEnabled: true,
       macTabs: macs,
       sendTargets: targets,
-      gradient: profile.theme?.colors ?? [],
-      isBrowseForMeAvailable: app.isBrowseForMeAvailable
+      gradient: profile.theme?.colors ?? []
     )
   }
 

@@ -4,21 +4,12 @@ import SwiftUI
 import UIKit
 import WebKit
 
-enum PagePinch: Equatable {
-  case began
-  case changed(CGFloat)
-  case ended(scale: CGFloat, velocity: CGFloat)
-  case cancelled
-}
-
 struct WebPageView: UIViewRepresentable {
   let page: WebTab?
   var tab: BrowserTab?
   var cover: UIImage?
   var swipeMode: SwipeNavigationMode
   var bottomInset: CGFloat
-  var pinchEnabled: Bool
-  var onPinch: (PagePinch) -> Void
   var onTone: (UUID, PageTone) -> Void = { _, _ in }
 
   func makeUIView(context: Context) -> PageContainerView {
@@ -29,8 +20,6 @@ struct WebPageView: UIViewRepresentable {
 
   func updateUIView(_ view: PageContainerView, context: Context) {
     view.swipeMode = swipeMode
-    view.pinchEnabled = pinchEnabled
-    view.onPinch = onPinch
     view.onTone = onTone
     view.bottomInset = bottomInset
     guard let page else {
@@ -55,8 +44,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   }
 
   var swipeMode: SwipeNavigationMode = .anywhere
-  var pinchEnabled = true
-  var onPinch: ((PagePinch) -> Void)?
   var onTone: ((UUID, PageTone) -> Void)?
   var bottomInset: CGFloat = 0 {
     didSet { if bottomInset != oldValue { applyInsets() } }
@@ -76,9 +63,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   private var lastScroll: TimeInterval = 0
   private var wasLoading = false
   private lazy var swipePan = UIPanGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
-  private lazy var pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
   private var swipe: SwipeState?
-  private var isPinchingOut = false
   private lazy var refreshFeedback = UIImpactFeedbackGenerator(style: .light, view: self)
   private lazy var swipeFeedback = UIImpactFeedbackGenerator(style: .medium, view: self)
 
@@ -102,8 +87,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     swipePan.delegate = self
     swipePan.maximumNumberOfTouches = 1
     addGestureRecognizer(swipePan)
-    pinch.delegate = self
-    addGestureRecognizer(pinch)
     refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
     refreshControl.tintColor = UIColor(BrowsePalette.loadingBorder)
     coverView.contentMode = .scaleAspectFill
@@ -420,7 +403,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   }
 
   override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
-    if recognizer === pinch { return pinchEnabled && page?.isLive == true }
     guard recognizer === swipePan, swipeMode == .anywhere, let page, let webView else { return false }
     let velocity = swipePan.velocity(in: self)
     guard abs(velocity.x) > abs(velocity.y) * 1.6, abs(velocity.x) > 120 else { return false }
@@ -434,10 +416,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
       if canScrollHorizontally, scrollView.contentOffset.x + scrollView.bounds.width < scrollView.contentSize.width + scrollView.adjustedContentInset.right - 1 { return false }
     }
     return true
-  }
-
-  func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-    recognizer === pinch
   }
 
   @objc private func handleSwipe(_ recognizer: UIPanGestureRecognizer) {
@@ -561,35 +539,5 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     webView?.transform = .identity
     webView?.layer.shadowOpacity = 0
     self.swipe = nil
-  }
-
-  @objc private func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
-    guard let scrollView = webView?.scrollView else { return }
-    switch recognizer.state {
-    case .began:
-      isPinchingOut = scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 && recognizer.scale <= 1.02
-      if isPinchingOut { onPinch?(.began) }
-    case .changed:
-      guard isPinchingOut else { return }
-      if scrollView.zoomScale > scrollView.minimumZoomScale + 0.01, recognizer.scale > 1 {
-        isPinchingOut = false
-        onPinch?(.cancelled)
-        return
-      }
-      onPinch?(.changed(min(recognizer.scale, 1)))
-    case .ended:
-      guard isPinchingOut else { return }
-      isPinchingOut = false
-      onPinch?(.ended(scale: min(recognizer.scale, 1), velocity: recognizer.velocity))
-      if scrollView.zoomScale < scrollView.minimumZoomScale {
-        scrollView.setZoomScale(scrollView.minimumZoomScale, animated: false)
-      }
-    case .cancelled, .failed:
-      guard isPinchingOut else { return }
-      isPinchingOut = false
-      onPinch?(.cancelled)
-    default:
-      break
-    }
   }
 }

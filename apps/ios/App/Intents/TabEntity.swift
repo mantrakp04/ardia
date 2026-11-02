@@ -38,17 +38,12 @@ struct TabEntity: IndexedEntity {
     url.flatMap { BrowserURL.host(of: $0.absoluteString) }
   }
 
-  var isBrowseForMe: Bool {
-    url?.scheme?.lowercased() == BrowserURL.browseScheme
-  }
-
   var displayTitle: String {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? (host ?? String(localized: "Untitled")) : trimmed
   }
 
   var subtitle: String {
-    if isBrowseForMe { return String(localized: "Browse for Me") }
     let place = host ?? ""
     guard isArchived else { return place }
     return place.isEmpty ? String(localized: "Archived") : String(localized: "Archived · \(place)")
@@ -58,7 +53,7 @@ struct TabEntity: IndexedEntity {
     DisplayRepresentation(
       title: "\(displayTitle)",
       subtitle: "\(subtitle)",
-      image: DisplayRepresentation.Image(systemName: isBrowseForMe ? "sparkle.magnifyingglass" : (isArchived ? "archivebox" : "globe"))
+      image: DisplayRepresentation.Image(systemName: isArchived ? "archivebox" : "globe")
     )
   }
 
@@ -66,7 +61,7 @@ struct TabEntity: IndexedEntity {
     let attributes = defaultAttributeSet
     attributes.title = displayTitle
     attributes.contentDescription = subtitle
-    if let url, !isBrowseForMe {
+    if let url {
       attributes.url = url
       attributes.contentURL = url
     }

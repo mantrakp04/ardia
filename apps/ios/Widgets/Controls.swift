@@ -17,7 +17,7 @@ nonisolated extension ArdiaLinkControlIntent {
 
 nonisolated struct SearchControlIntent: ArdiaLinkControlIntent {
   static let title: LocalizedStringResource = "Search"
-  static let link = SystemLink.search(query: nil, browseForMe: false)
+  static let link = SystemLink.search(query: nil)
 }
 
 nonisolated struct VoiceSearchControlIntent: ArdiaLinkControlIntent {

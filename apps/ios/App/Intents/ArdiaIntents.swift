@@ -3,10 +3,6 @@ import ArdiaBrowser
 import ArdiaDesign
 import Foundation
 
-nonisolated enum IntentCopy {
-  static let aiFeaturesOff: IntentDialog = "Turn on AI Features in Ardia’s Settings › Experiments."
-}
-
 struct SearchWithArdiaIntent: AppIntent {
   static let title: LocalizedStringResource = "Search with Ardia"
   static let description = IntentDescription("Searches the web in Ardia, or opens Ardia ready to type.")
@@ -15,51 +11,17 @@ struct SearchWithArdiaIntent: AppIntent {
   @Parameter(title: "Search", requestValueDialog: "What do you want to search for?")
   var query: String?
 
-  @Parameter(title: "Browse for Me", default: false)
-  var browseForMe: Bool
-
   static var parameterSummary: some ParameterSummary {
-    Summary("Search the web for \(\.$query)") {
-      \.$browseForMe
-    }
+    Summary("Search the web for \(\.$query)")
   }
 
   @Dependency var app: AppModel
 
   @MainActor
   func perform() async throws -> some IntentResult {
-    let link = SystemLink.search(query: query?.trimmingCharacters(in: .whitespacesAndNewlines), browseForMe: browseForMe)
+    let link = SystemLink.search(query: query?.trimmingCharacters(in: .whitespacesAndNewlines))
     app.handle(link)
     return .result()
-  }
-}
-
-struct BrowseForMeIntent: AppIntent {
-  static let title: LocalizedStringResource = "Browse for Me"
-  static let description = IntentDescription("Reads the web for you and makes a page with the answer.")
-  static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
-
-  @Parameter(title: "Question", requestValueDialog: "What should Ardia look up for you?")
-  var query: String
-
-  static var parameterSummary: some ParameterSummary {
-    Summary("Browse for Me about \(\.$query)")
-  }
-
-  @Dependency var app: AppModel
-
-  @MainActor
-  func perform() async throws -> some IntentResult & ProvidesDialog {
-    guard app.isBrowseForMeAvailable else {
-      return .result(dialog: IntentCopy.aiFeaturesOff)
-    }
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-      throw $query.needsValueError()
-    }
-    try await continueInForeground(alwaysConfirm: false)
-    app.handle(.search(query: trimmed, browseForMe: true))
-    return .result(dialog: "Browsing for you.")
   }
 }
 
@@ -148,27 +110,6 @@ struct OpenMacTabsIntent: AppIntent {
   func perform() async throws -> some IntentResult {
     app.handle(.macTabs)
     return .result()
-  }
-}
-
-struct SummarizePageIntent: AppIntent {
-  static let title: LocalizedStringResource = "Summarize Page"
-  static let description = IntentDescription("Summarizes the page you’re reading in Ardia.")
-  static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
-
-  @Dependency var app: AppModel
-
-  @MainActor
-  func perform() async throws -> some IntentResult & ProvidesDialog {
-    guard app.isSummaryAvailable else {
-      return .result(dialog: IntentCopy.aiFeaturesOff)
-    }
-    guard let tabID = app.summarizableTabID else {
-      return .result(dialog: "Open a web page in Ardia, then try again.")
-    }
-    try await continueInForeground(alwaysConfirm: false)
-    app.summarizeFromSystem(tabID)
-    return .result(dialog: "Summarizing the page.")
   }
 }
 

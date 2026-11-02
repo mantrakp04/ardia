@@ -47,7 +47,6 @@ enum SettingsRoute: String, Hashable {
   case siteSettings
   case connect
   case searchEngine
-  case experiments
   case filterLists
   case filterListDetail
   case myFilters
@@ -64,7 +63,6 @@ enum SettingsRoute: String, Hashable {
     case .siteSettings: SiteSettingsPage()
     case .connect: SyncConnectPage()
     case .searchEngine: SearchEnginePage()
-    case .experiments: ExperimentsPage()
     case .filterLists: FilterListsPage()
     case .filterListDetail: FilterListDetailPage(listID: "ublock-filters")
     case .myFilters: MyFiltersEditor()
@@ -161,16 +159,6 @@ private struct SettingsRootList: View {
             SettingsRowLabel("Clear Browsing Data", systemImage: "eraser.fill", tint: SettingsTint.clearData)
           }
           ExportTabsRow()
-        }
-
-        Section {
-          NavigationLink(value: SettingsRoute.experiments) {
-            LabeledContent {
-              Text(settings.aiFeaturesEnabled ? "On" : "Off")
-            } label: {
-              SettingsRowLabel("Experiments", systemImage: "flask.fill", tint: SettingsTint.experiments)
-            }
-          }
         }
 
         Section {

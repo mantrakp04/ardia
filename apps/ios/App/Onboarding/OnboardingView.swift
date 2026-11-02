@@ -4,8 +4,6 @@ import UIKit
 
 enum OnboardingStep: Int, CaseIterable, Comparable {
   case welcome
-  case browseForMe
-  case pinchToSummarize
   case blocking
   case defaultBrowser
   case sync
@@ -15,12 +13,8 @@ enum OnboardingStep: Int, CaseIterable, Comparable {
     lhs.rawValue < rhs.rawValue
   }
 
-  var teachesAIFeature: Bool {
-    self == .browseForMe || self == .pinchToSummarize
-  }
-
-  func next(aiFeatures: Bool) -> OnboardingStep? {
-    Self.allCases.first { $0 > self && (aiFeatures || !$0.teachesAIFeature) }
+  var next: OnboardingStep? {
+    Self.allCases.first { $0 > self }
   }
 
   static var launchStep: OnboardingStep {
@@ -52,8 +46,6 @@ struct OnboardingView: View {
       Group {
         switch step {
         case .welcome: OnboardingWelcomeStep(onContinue: advance)
-        case .browseForMe: OnboardingBrowseStep(onContinue: advance)
-        case .pinchToSummarize: OnboardingPinchStep(onContinue: advance)
         case .blocking: OnboardingBlockingStep(onContinue: advance)
         case .defaultBrowser: OnboardingDefaultBrowserStep(onContinue: advance)
         case .sync: OnboardingSyncStep(onContinue: advance)
@@ -82,7 +74,7 @@ struct OnboardingView: View {
   }
 
   private func advance() {
-    guard let next = step.next(aiFeatures: app.settings.aiFeaturesEnabled) else { return finish() }
+    guard let next = step.next else { return finish() }
     advances += 1
     withAnimation(reduceMotion ? .easeInOut(duration: 0.25) : Motion.smooth) {
       step = next
