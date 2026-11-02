@@ -10,6 +10,7 @@ import { offerDefaultBrowserAgain } from "../onboarding/defaultBrowserOffer";
 import { openReleaseNotesAfterUpdate } from "../releaseNotes/releaseNotesPage";
 import { handleWebNotificationResponse } from "../site/webNotifications";
 import { startHandoff } from "./handoff";
+import { startReadyUpdate } from "./readyUpdate";
 import { startScripting } from "./scripting";
 
 export function startAppIntegration() {
@@ -22,6 +23,7 @@ export function startAppIntegration() {
   });
   startHandoff();
   startScripting();
+  startReadyUpdate();
   const updated = trackAppVersion();
   maybeStartOnboarding();
   if (updated) openReleaseNotesAfterUpdate();

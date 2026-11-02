@@ -6,6 +6,8 @@ import { useSettings, useWindowId, useWindowProfileId } from "../../state/browse
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
+import { UpdateButton, useReadyUpdate } from "../updates/UpdateButton";
+import { UPDATE_BUTTON } from "../updates/tokens";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
 import { usePagerPages } from "../../state/windows/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
@@ -44,8 +46,10 @@ export function Sidebar({ width }: { width: number }) {
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
+  const updateReady = !!useReadyUpdate();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footerUpdate = addressBar && updateReady;
+  const footer = dots || footerDownloads || footerUpdate ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
 
@@ -109,10 +113,15 @@ export function Sidebar({ width }: { width: number }) {
             {footer ? (
               <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
                 <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads || footerUpdate} /> : null}
                 {footerDownloads ? (
                   <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                     <DownloadsButton windowId={windowId} />
+                  </View>
+                ) : null}
+                {footerUpdate ? (
+                  <View style={{ position: "absolute", right: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                    <UpdateButton />
                   </View>
                 ) : null}
               </View>
@@ -129,9 +138,10 @@ export function Sidebar({ width }: { width: number }) {
                 </>
               ) : (
                 <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? 34 + 2 : 0)} />
+                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? 34 + 2 : 0) - (updateReady ? UPDATE_BUTTON.box + UPDATE_BUTTON.gap : 0)} />
                   <View pointerEvents="none" style={{ flex: 1 }} />
                   {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+                  <UpdateButton style={hasDownloads ? { marginLeft: UPDATE_BUTTON.gap } : undefined} />
                 </View>
               )}
             </View>

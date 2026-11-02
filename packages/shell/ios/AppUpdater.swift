@@ -29,6 +29,8 @@ public final class AppUpdater: NSObject {
     apply(channelSwitch.switched())
     userDriver.leaveOffChannelUpdate()
     refreshChannelSwitch()
+    readiness.checkEnded()
+    announceReadyUpdate()
   }
 
   private var offChannelNightly: Bool { !allowedChannels.contains(UpdateChannel.nightly.rawValue) }
@@ -118,7 +120,10 @@ public final class AppUpdater: NSObject {
   }
 
   public static var displayVersion: String {
-    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    displayVersion(of: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+  }
+
+  static func displayVersion(of version: String) -> String {
     guard let range = version.range(of: #"-nightly\.(\d+)$"#, options: .regularExpression) else { return version }
     let number = version[range].split(separator: ".").last.map(String.init) ?? ""
     return "\(version[..<range.lowerBound]) Nightly \(number)"
@@ -165,9 +170,14 @@ public final class AppUpdater: NSObject {
     cancelledInstaller: { [unowned self] item in
       self.apply(self.channelSwitch.installerCancelled(build: item.versionString))
       self.refreshChannelSwitch()
-    })
+    },
+    button: self)
   private lazy var updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: userDriver, delegate: self)
   private var deferredUpdate = false
+  private var readiness = UpdateReadiness()
+  private var announcedReady: UpdateReadiness.Update?
+  private weak var restartMenuItem: NSMenuItem?
+  public var onReadyUpdateChange: (([String: Any]?) -> Void)?
   private var channelSwitch = ChannelSwitch()
   private var installationWatch: FolderWatch?
   private var quitWaits: [Int: () -> Void] = [:]
@@ -213,6 +223,7 @@ public final class AppUpdater: NSObject {
       return showNotSetUp()
     }
     start()
+    readiness.checkEnded()
     updater.checkForUpdates()
   }
 
@@ -230,7 +241,50 @@ public final class AppUpdater: NSObject {
       "displayVersion": Self.displayVersion,
       "channel": channel.rawValue,
       "buildChannel": Self.buildChannel.rawValue,
+      "ready": readyUpdate as Any,
     ]
+  }
+
+  public var readyUpdate: [String: Any]? {
+    guard let ready = readiness.ready(allowed: allowedChannels) else { return nil }
+    return ["build": ready.build, "version": ready.version, "displayVersion": Self.displayVersion(of: ready.version)]
+  }
+
+  @objc public func restartToUpdate(_ sender: Any?) {
+    guard started, readiness.requestInstall(allowed: allowedChannels, at: Date()) else { return }
+    if userDriver.retryTermination() { return readiness.checkEnded() }
+    guard updater.canCheckForUpdates else {
+      readiness.checkEnded()
+      return NSLog("Ardia: an update session is busy; not restarting to update yet")
+    }
+    updater.checkForUpdates()
+  }
+
+  public func restartToUpdateItem() -> NSMenuItem {
+    let item = NSMenuItem(title: "", action: #selector(restartToUpdate(_:)), keyEquivalent: "")
+    item.target = self
+    restartMenuItem = item
+    showReadyInMenu()
+    return item
+  }
+
+  private func showReadyInMenu() {
+    guard let item = restartMenuItem else { return }
+    let ready = readiness.ready(allowed: allowedChannels)
+    item.isHidden = ready == nil
+    item.title = ready.map { "Restart to Update to \(Self.displayVersion(of: $0.version))" } ?? "Restart to Update"
+  }
+
+  private func announceReadyUpdate() {
+    let ready = readiness.ready(allowed: allowedChannels)
+    guard ready != announcedReady else { return }
+    announcedReady = ready
+    showReadyInMenu()
+    onReadyUpdateChange?(readyUpdate)
+  }
+
+  private func showsReadyUpdate(_ update: SUAppcastItem) -> Bool {
+    readiness.ready(allowed: allowedChannels)?.build == update.versionString
   }
 
   public func setAutomaticChecks(_ on: Bool) {
@@ -280,6 +334,8 @@ extension AppUpdater: SPUUpdaterDelegate {
 
   public func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
     NSLog("Ardia: no update on the \(channel) channel")
+    readiness.nothingToInstall()
+    announceReadyUpdate()
   }
 
   public func feedParameters(for updater: SPUUpdater, sendingSystemProfile sendingProfile: Bool) -> [[String: String]] {
@@ -290,6 +346,7 @@ extension AppUpdater: SPUUpdaterDelegate {
 
   public func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
     UpdatePrewarm.start(version: item.versionString)
+    staged(item)
     return false
   }
 }
@@ -298,11 +355,11 @@ extension AppUpdater: SPUStandardUserDriverDelegate {
   public var supportsGentleScheduledUpdateReminders: Bool { true }
 
   public func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
-    !Self.isPresentingFullScreen
+    !Self.isPresentingFullScreen && !showsReadyUpdate(update)
   }
 
   public func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
-    if !handleShowingUpdate { deferredUpdate = true }
+    if !handleShowingUpdate && !showsReadyUpdate(update) { deferredUpdate = true }
   }
 
   public func standardUserDriverWillFinishUpdateSession() {
@@ -315,5 +372,33 @@ extension AppUpdater: SPUStandardUserDriverDelegate {
     var components = URLComponents(url: page, resolvingAgainstBaseURL: false)
     components?.fragment = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     OpenURLInbox.receive([components?.url ?? page])
+  }
+}
+
+extension AppUpdater: ReadyUpdateButton {
+  var checksQuietly: Bool { readiness.installRequested(at: Date()) }
+
+  func staged(_ item: SUAppcastItem) {
+    readiness.stage(UpdateReadiness.Update(build: item.versionString, version: item.displayVersionString, channel: item.channel))
+    announceReadyUpdate()
+  }
+
+  func dropped(_ item: SUAppcastItem) {
+    readiness.drop(build: item.versionString)
+    announceReadyUpdate()
+  }
+
+  func installsAtOnce(_ item: SUAppcastItem, staged: Bool) -> Bool {
+    readiness.installsAtOnce(build: item.versionString, staged: staged, at: Date())
+  }
+
+  func checkEnded(nothingFound: Bool) {
+    if nothingFound { readiness.nothingToInstall() } else { readiness.checkEnded() }
+    announceReadyUpdate()
+  }
+
+  func checkFailed() {
+    readiness.checkFailed(at: Date())
+    announceReadyUpdate()
   }
 }

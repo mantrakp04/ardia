@@ -163,12 +163,15 @@ const app: Modules["ArdiaApp"] = {
   crashReports: () => Promise.resolve([]),
 };
 
+const updaterEvents = nativeEvents();
 const updater: Modules["ArdiaUpdater"] = {
   updaterState: () => Promise.resolve({ available: false }),
   checkForUpdates: () => Promise.resolve(),
   setAutomaticUpdateChecks: () => Promise.resolve(),
   setAutomaticUpdateDownloads: () => Promise.resolve(),
   setUpdateChannel: () => Promise.resolve(),
+  restartToUpdate: () => Promise.resolve(),
+  addListener: updaterEvents.addListener,
 };
 
 const notificationEvents = nativeEvents();

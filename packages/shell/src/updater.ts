@@ -1,3 +1,7 @@
+import type { EventSubscription } from "expo-modules-core";
+
+export type ReadyUpdate = { build: string; version: string; displayVersion: string };
+
 export type UpdaterState =
   | { available: false }
   | {
@@ -13,6 +17,7 @@ export type UpdaterState =
       displayVersion?: string;
       channel?: UpdateChannel;
       buildChannel?: UpdateChannel;
+      ready?: ReadyUpdate | null;
     };
 
 export type UpdateChannel = "stable" | "nightly";
@@ -23,4 +28,6 @@ export type UpdaterNative = {
   setAutomaticUpdateChecks(on: boolean): Promise<void>;
   setAutomaticUpdateDownloads(on: boolean): Promise<void>;
   setUpdateChannel(channel: UpdateChannel): Promise<void>;
+  restartToUpdate(): Promise<void>;
+  addListener(name: "onReadyUpdate", listener: (e: { ready: ReadyUpdate | null }) => void): EventSubscription;
 };
