@@ -7,7 +7,7 @@ import { credentialModuleMethod } from "./hostCredentials.ts";
 import { syncModuleMethod } from "./hostSync.ts";
 import { linuxSystemMethod } from "./hostFiles.ts";
 import { linuxModuleMethod } from "./hostSystem.ts";
-import { linuxShellMethod } from "./shellMethods.ts";
+import { linuxShellMethod, watchSidebarEdgeBesideNativeLeftEdge } from "./shellMethods.ts";
 import { appModuleFallback } from "./appModuleFallbacks.ts";
 
 const synchronousDefaults: Record<string, Record<string, unknown>> = {
@@ -29,6 +29,9 @@ export const reachesNativeHostUnchecked = (resolved: unknown) => typeof resolved
 
 export function resolveHostModule(host: ArdiaHost, name: string, method: string): unknown {
   if (name === "ArdiaApp" && method === "launchConfig") return () => hostLaunchConfig(host);
+  if (name === "ArdiaShell" && method === "watchSidebarEdge" && !hostSupports("ArdiaShell.watchSidebarEdge", host) && hostSupports("ArdiaShell.watchLeftEdge", host)) {
+    return watchSidebarEdgeBesideNativeLeftEdge(host);
+  }
   if (name === "ArdiaShell" && !hostSupports(`${name}.${method}`, host)) {
     const local = linuxShellMethod(method);
     if (local) return local;

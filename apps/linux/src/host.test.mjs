@@ -90,6 +90,29 @@ test("documents read back a write or removal before the native write finishes an
   assert.equal(documents.read("onboarding.json"), null);
 });
 
+test("documentSaved settles once the document's last write lands, and rejects when that write failed", async () => {
+  let land;
+  let fail;
+  const { host } = fixture(async (method, args) => {
+    if (!method.endsWith("writeDocument")) return null;
+    return new Promise((resolve, reject) => args.args[1] === "bad" ? (fail = reject) : (land = resolve));
+  });
+  const documents = createHostDocuments(host);
+  await documents.saved("session.json");
+  void documents.write("session.json", "good");
+  let settled = false;
+  const saved = documents.saved("session.json").then(() => { settled = true; });
+  await new Promise(setImmediate);
+  assert.equal(settled, false);
+  land();
+  await saved;
+  const failed = documents.write("session.json", "bad");
+  await new Promise(setImmediate);
+  fail(new Error("disk full"));
+  await assert.rejects(failed, /disk full/);
+  await assert.rejects(documents.saved("session.json"), /disk full/);
+});
+
 test("a refresh that a local write overtakes keeps the write instead of the older stored copy", async () => {
   let disk = '{"v":0}';
   let answer;

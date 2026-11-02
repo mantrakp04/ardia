@@ -15,6 +15,7 @@ const APP_FALLBACKS: Record<string, Fallback> = {
   setWindowActivity: refuse("Handoff"),
   share: refuse("The share sheet"),
   shareVia: refuse("The share sheet"),
+  shareText: refuse("The share sheet"),
   isInDock: refuse("The Dock"),
   addToDock: refuse("The Dock"),
   appIcons: answer([]),

@@ -4,19 +4,27 @@ import { currentPointer, watchPointer, type PointerSample } from "./pointer";
 const REACH = 24;
 const WINDOW_SELECTOR = ".ardia-window";
 
-const watched = new Map<string, number>();
+type Watch = { hold: number; right: boolean };
+
+const watched = new Map<string, Watch>();
 const over = new Set<string>();
 const unreported = new Set<string>();
 let stopWatching: (() => void) | null = null;
 
 const windowFrame = () => document.querySelector<HTMLElement>(WINDOW_SELECTOR)?.getBoundingClientRect() ?? null;
 
-function isOver(pointer: PointerSample | null, hold: number) {
+function isOver(pointer: PointerSample | null, { hold, right }: Watch) {
   const frame = windowFrame();
   if (!frame || !pointer || document.fullscreenElement) return false;
-  const x = pointer.clientX;
   const y = pointer.clientY;
   if (y < frame.top || y >= frame.bottom) return false;
+  const x = pointer.clientX;
+  if (right) {
+    const screenRight = window.innerWidth ?? Infinity;
+    if (x < frame.right && x >= frame.right - hold) return true;
+    if (!(x >= frame.right && x < Math.min(screenRight, frame.right + REACH))) return false;
+    return document.hasFocus() || screenRight - frame.right <= REACH;
+  }
   if (x >= frame.left && x < frame.left + hold) return true;
   if (!(x < frame.left && x >= Math.max(0, frame.left - REACH))) return false;
   return document.hasFocus() || frame.left <= REACH;
@@ -24,9 +32,9 @@ function isOver(pointer: PointerSample | null, hold: number) {
 
 function check(pointer: PointerSample | null = currentPointer()) {
   const frame = windowFrame();
-  for (const [id, hold] of [...watched]) {
+  for (const [id, watch] of [...watched]) {
     if (!watched.has(id)) continue;
-    const now = isOver(pointer, hold);
+    const now = isOver(pointer, watch);
     const fresh = unreported.delete(id);
     if (!fresh && now === over.has(id)) continue;
     if (now) over.add(id);
@@ -34,14 +42,14 @@ function check(pointer: PointerSample | null = currentPointer()) {
     const x = pointer?.clientX ?? -1;
     const y = pointer?.clientY ?? -1;
     const point: [number, number] = frame ? [x - frame.left, y - frame.top] : [x, y];
-    emitNativeEvent("ArdiaShell", "onWindowEvent", { type: "leftEdge", id, over: now, point });
+    emitNativeEvent("ArdiaShell", "onWindowEvent", { type: "sidebarEdge", id, over: now, point });
   }
 }
 
 const HOLDING_CLASS = "ardia-pointer-hold";
 
 function holdPagePointer() {
-  const holding = [...watched.values()].some((hold) => hold > 0);
+  const holding = [...watched.values()].some(({ hold }) => hold > 0);
   if (holding && !document.getElementById(HOLDING_CLASS)) {
     const style = document.createElement("style");
     style.id = HOLDING_CLASS;
@@ -60,9 +68,10 @@ function listen(on: boolean) {
   }
 }
 
-export function watchLeftEdge(id: string, on: boolean, hold: number) {
+export function watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean) {
+  if (!on && !watched.has(id)) return;
   if (on) {
-    watched.set(id, Math.max(0, hold));
+    watched.set(id, { hold: Math.max(0, hold), right });
     unreported.add(id);
   } else {
     watched.delete(id);

@@ -1,5 +1,7 @@
 import { emitNativeEvent } from "./shims/expo-modules-core";
-import { watchLeftEdge } from "./shims/web/motion/leftEdge";
+import { watchSidebarEdge } from "./shims/web/motion/sidebarEdge";
+import type { ArdiaHost } from "./host";
+import { hostModuleMethod } from "./host.ts";
 import { unavailableError } from "./hostCapabilities.ts";
 import type { BangListReply } from "../../../packages/shell/src/documents";
 
@@ -71,8 +73,8 @@ const unavailable = (feature: string) => (..._args: unknown[]): Promise<never> =
 export const fetchBangList: (etag: string | null) => Promise<BangListReply> = unavailable("Bang list fetching");
 
 const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
-  watchLeftEdge: (id: string, on: boolean, hold = 0) => {
-    watchLeftEdge(id, on, hold);
+  watchSidebarEdge: (id: string, on: boolean, hold = 0, right = false) => {
+    watchSidebarEdge(id, on, hold, right);
     return Promise.resolve();
   },
   setDragEscapeCapture,
@@ -95,6 +97,19 @@ const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
   replyToTerminate: resolved,
   readText: () => Promise.resolve(""),
 };
+
+export function watchSidebarEdgeBesideNativeLeftEdge(host: ArdiaHost) {
+  const watchLeftEdge = hostModuleMethod("ArdiaShell", "watchLeftEdge", host);
+  return (id: string, on: boolean, hold = 0, right = false) => {
+    watchSidebarEdge(id, on && right, hold, true);
+    return watchLeftEdge(id, on && !right, hold);
+  };
+}
+
+export function sidebarEdgeEvent(module: string, event: string, payload: unknown) {
+  if (module !== "ArdiaShell" || event !== "onWindowEvent" || !payload || typeof payload !== "object") return payload;
+  return (payload as { type?: unknown }).type === "leftEdge" ? { ...payload, type: "sidebarEdge" } : payload;
+}
 
 export function linuxShellMethod(method: string): ShellMethod | undefined {
   return Object.hasOwn(LINUX_SHELL_METHODS, method) ? LINUX_SHELL_METHODS[method] : undefined;
