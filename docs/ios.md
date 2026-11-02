@@ -119,6 +119,9 @@ previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit
   and the JavaScriptCore bridge.
 - `pnpm --filter @ardia/sync test` includes the companion's tests and checks the bundles are current.
 - The app's own states are checked in the simulator (see the agent notes below).
+- CI (`.github/workflows/ios.yml`, on GitHub's `xcode-27` runner with Xcode 27.1) builds the `Ardia` scheme for the
+  simulator without signing and runs the ArdiaKit and `packages/sync` Swift tests and the bundle check, on pull
+  requests and pushes to `main` that touch `apps/ios`, `packages/sync` or the workflow.
 
 ## Left for a person
 
