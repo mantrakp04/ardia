@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
@@ -338,6 +339,8 @@ class TabBridge : public content::WebContentsObserver,
   void DidChangeThemeColor() override;
   void OnWebContentsFocused(content::RenderWidgetHost* render_widget_host) override;
   void OnAudioStateChanged(bool audible) override;
+  void RecentlyAudibleChanged(bool recently_audible);
+  void ObserveRecentlyAudible();
   void DidUpdateAudioMutingState(bool muted) override;
   void TitleWasSet(content::NavigationEntry* entry) override;
   void DidStartLoading() override;
@@ -369,6 +372,7 @@ class TabBridge : public content::WebContentsObserver,
   NSDictionary* __strong security_;
   raw_ptr<zoom::ZoomController> zoom_ = nullptr;
   raw_ptr<blocked_content::PopupBlockerTabHelper> popups_ = nullptr;
+  base::CallbackListSubscription recently_audible_;
   bool host_focusing_ = false;
   bool discarded_ = false;
   bool frozen_ = false;
