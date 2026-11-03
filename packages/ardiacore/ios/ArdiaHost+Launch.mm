@@ -13,7 +13,9 @@
 #import <objc/runtime.h>
 
 #include <libproc.h>
+#include <sys/stat.h>
 
+#include <atomic>
 #include <cctype>
 #include <cstring>
 #include <set>
@@ -29,8 +31,32 @@ static bool gReplayingLaunchURLs;
 
 static NSString *const kHoldIncomingLinksDefault = @"ArdiaHoldIncomingLinks";
 
-static bool HoldsIncomingLinks() {
+static NSString *const kLinkPolicyStampDefault = @"ArdiaLinkPolicyStamp";
+static std::atomic<bool> gLinkPolicyReady{false};
+
+static NSString *LinkPolicyStamp() {
+  NSString *folder = ArdiaLaunchConfig.shared.configDirectory;
+  NSMutableArray<NSString *> *parts = [NSMutableArray array];
+  for (NSString *name in @[ @"hooks.json" ]) {
+    struct stat info;
+    if (stat([folder stringByAppendingPathComponent:name].fileSystemRepresentation, &info) != 0) {
+      [parts addObject:[NSString stringWithFormat:@"%@:missing:%d", name, errno]];
+      continue;
+    }
+    [parts addObject:[NSString stringWithFormat:@"%@:%llu:%llu:%lld:%ld.%09ld:%ld.%09ld", name, (unsigned long long)info.st_dev,
+                                                (unsigned long long)info.st_ino, (long long)info.st_size, info.st_mtimespec.tv_sec,
+                                                info.st_mtimespec.tv_nsec, info.st_ctimespec.tv_sec, info.st_ctimespec.tv_nsec]];
+  }
+  return [[@[ folder ?: @"" ] arrayByAddingObjectsFromArray:parts] componentsJoinedByString:@"|"];
+}
+
+static bool SavedLinkHold() {
   return [NSUserDefaults.standardUserDefaults boolForKey:kHoldIncomingLinksDefault];
+}
+
+static bool HoldsIncomingLinks() {
+  if (gLinkPolicyReady) return SavedLinkHold();
+  return SavedLinkHold() || ![[NSUserDefaults.standardUserDefaults stringForKey:kLinkPolicyStampDefault] isEqualToString:LinkPolicyStamp()];
 }
 
 static pid_t SenderPID(NSAppleEventDescriptor *event) {
@@ -285,14 +311,16 @@ void StartEarlyWindow() {
 @implementation ArdiaHost (Launch)
 
 + (BOOL)holdsIncomingLinks {
-  return HoldsIncomingLinks();
+  return SavedLinkHold();
 }
 
 + (void)setHoldsIncomingLinks:(BOOL)hold {
-  if (hold == HoldsIncomingLinks()) return;
-  if (hold) [NSUserDefaults.standardUserDefaults setBool:YES forKey:kHoldIncomingLinksDefault];
-  else [NSUserDefaults.standardUserDefaults removeObjectForKey:kHoldIncomingLinksDefault];
-  [NSUserDefaults.standardUserDefaults synchronize];
+  NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+  if (hold) [defaults setBool:YES forKey:kHoldIncomingLinksDefault];
+  else [defaults removeObjectForKey:kHoldIncomingLinksDefault];
+  [defaults setObject:LinkPolicyStamp() forKey:kLinkPolicyStampDefault];
+  [defaults synchronize];
+  gLinkPolicyReady = true;
 }
 
 + (NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url {
