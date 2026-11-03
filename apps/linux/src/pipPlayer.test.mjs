@@ -1,12 +1,60 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clampInto, cornerRect, flingTarget, frameOf, handleAt, parseFrame, placeFrame, resizeFrom, springSettled, springStep, PLAYER_INSET } from "./pipGeometry.ts";
-import { planHoles } from "./playerHoles.ts";
+import { nextFrameRunner, planHoles } from "./playerHoles.ts";
 import { floatingPieces, holeClipPath } from "./pageHoles.ts";
 import { positionAt, readPlayerEvent } from "./pipPlayer.ts";
 
 const area = { x: 200, y: 50, width: 1000, height: 700 };
 const aspect = 16 / 9;
+
+function fakeFrames() {
+  const queued = new Map();
+  let next = 0;
+  return {
+    queued,
+    clock: {
+      request: (run) => {
+        queued.set(++next, run);
+        return next;
+      },
+      cancel: (frame) => queued.delete(frame),
+    },
+    flush() {
+      const due = [...queued.values()];
+      queued.clear();
+      for (const run of due) run();
+    },
+  };
+}
+
+test("a player's queued hole update never runs after the player is gone, so its hole can't come back", () => {
+  const frames = fakeFrames();
+  let applied = 0;
+  const runner = nextFrameRunner(() => applied++, frames.clock);
+  runner.schedule();
+  runner.stop();
+  frames.flush();
+  assert.equal(applied, 0);
+  runner.schedule();
+  assert.equal(frames.queued.size, 0);
+  frames.flush();
+  assert.equal(applied, 0);
+});
+
+test("hole updates coalesce to one per frame and can queue again afterwards", () => {
+  const frames = fakeFrames();
+  let applied = 0;
+  const runner = nextFrameRunner(() => applied++, frames.clock);
+  runner.schedule();
+  runner.schedule();
+  assert.equal(frames.queued.size, 1);
+  frames.flush();
+  assert.equal(applied, 1);
+  runner.schedule();
+  frames.flush();
+  assert.equal(applied, 2);
+});
 
 test("the first player sits in the content card's bottom right, inset like Dia's corner rule", () => {
   const rect = placeFrame(null, area, aspect);
