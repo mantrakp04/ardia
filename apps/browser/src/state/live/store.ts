@@ -232,7 +232,8 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
     const known = new Set(s.known[folderId] ?? []);
     const first = known.size === 0 && !s.status[folderId]?.lastFetch;
     const fresh = next.filter((it) => !known.has(it.id)).map((it) => it.id);
-    const unreadFresh = fresh.filter((id) => !quiet.has(id));
+    const keptOut = new Set((s.repoHidden[folderId] ?? []).map((it) => it.id));
+    const unreadFresh = fresh.filter((id) => !quiet.has(id) && !keptOut.has(id));
     const ids = new Set(next.map((it) => it.id));
     const prev = s.items[folderId] ?? [];
     const animating = new Set(s.completing[folderId] ?? []);

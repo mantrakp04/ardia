@@ -8,7 +8,7 @@ const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, liveTabPlace } = await import("./rows.ts");
 const { liveFolderMenuItems } = await import("../sidebar/liveMenus.ts");
-const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, setRepoHidden, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
+const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, setRepoHidden, showAllIn, toggleStack, updateFolder, useLive } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
   id,
@@ -329,4 +329,16 @@ test("removing a folder keeps the open state of a stack another folder holds in 
   toggleStack("kept-stack");
   removeFolder(id);
   assert.ok("kept-stack" in live().expandedStacks);
+});
+
+test("a hidden repo's pull requests come back read when it's shown, even after the folder forgot seeing them", () => {
+  const id = createFolder("p", "pullRequests", ["github"]);
+  const other = { ...pr("x", 9, "nine", "main"), pr: { ...pr("x", 9, "nine", "main").pr, repo: "o/other" } };
+  applyFetch(id, [stacked[2], other], {});
+  setRepoHidden(id, "github:o/r", true);
+  useLive.setState((s) => ({ known: { ...s.known, [id]: s.known[id].filter((k) => k !== "c") } }));
+  setRepoHidden(id, "github:o/r", false);
+  applyFetch(id, [stacked[2], other], {});
+  assert.deepEqual(live().items[id].map((it) => it.id).sort(), ["c", "x"]);
+  assert.deepEqual(live().unread[id], [], "c was in the folder before its repo was hidden, so it isn't new");
 });
