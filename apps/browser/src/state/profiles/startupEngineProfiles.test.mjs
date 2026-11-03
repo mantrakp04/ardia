@@ -16,11 +16,13 @@ test("selected mode deduplicates three selected windows by engine data and retai
   assert.deepEqual(startupEngineProfiles({ ...state, windows }, true), ["dormant", "work"]);
 });
 
-test("selected mode excludes private and missing profiles without changing stored metadata", () => {
-  const windows = { ...state.windows, private: { profileId: "incognito@work" }, missing: { profileId: "missing" } };
-  const copy = structuredClone({ profiles, windows });
-  assert.deepEqual(startupEngineProfiles(copy, true), ["", "work"]);
-  assert.deepEqual(copy, { profiles, windows });
+test("private windows use their original profile without loading a private engine", () => {
+  const privateId = "incognito:p@work";
+  const withPrivate = { ...profiles, [privateId]: {} };
+  const windows = { private: { profileId: privateId }, missing: { profileId: "missing" } };
+  const copy = structuredClone({ profiles: withPrivate, windows });
+  assert.deepEqual(startupEngineProfiles(copy, true), ["work"]);
+  assert.deepEqual(copy, { profiles: withPrivate, windows });
 });
 
 test("startup policy follows the saved setting when configured for a launch", () => {

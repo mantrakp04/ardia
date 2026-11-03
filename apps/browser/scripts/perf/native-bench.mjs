@@ -97,6 +97,8 @@
 //                                                        app's index.js and its imports)
 //   launch → first page painted             launchRun   the seed tab's first-contentful-paint (PerformanceObserver)
 //   launch → first page's first frame       launchRun   the seed tab's first requestAnimationFrame callback
+//   profile startup memory, … configured profiles  profilesRun: descendant process phys_footprint after selected FCP + --idle
+//   profile startup memory, browser process       profilesRun: browser process only, at the same checkpoint
 //   idle CPU / idle wakeups/s (…)           sessionRun  idle: idleWindow(), acperf rusage over the process tree --idle
 //                                                        secs apart with the channel paused, at 1 tab and at 20
 //   memory (phys_footprint), …              sessionRun  memory: footprint() of the tree at 1 tab (30 s after launch,
@@ -944,7 +946,7 @@ async function profilesRun(side, i) {
     side.results.profiles.push(result);
     log(`${side.tag}profiles ${i}:`, JSON.stringify(result));
   } finally {
-    await app.quit();
+    await app.done();
   }
 }
 

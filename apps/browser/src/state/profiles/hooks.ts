@@ -3,7 +3,7 @@ import { useBrowser } from "../browser/store";
 import { plural, profileFor } from "../browser/model";
 import type { Profile } from "../browser/types";
 import { bookmarkRoots } from "../bookmarks/bookmarks";
-import { historyOf } from "../history/history";
+import { historyOf, historyViewOf } from "../history/history";
 import type { Settings } from "../settings/settings";
 import { useLookValue } from "../tabs/tabWatch";
 import { useBasePaletteValue } from "../config/hooks";
@@ -48,5 +48,6 @@ export const useProfileDataStats = (profileId: string): string =>
       if (n?.kind === "folder") n.children.forEach(walk);
     };
     if (roots) [roots.bar, roots.other].forEach(walk);
-    return `${plural(historyOf(s, profileId).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
+    const history = historyViewOf(s, profileId)?.ready ? `${plural(historyOf(s, profileId).length, "page")} in history` : "History not loaded";
+    return `${history} · ${plural(bookmarks, "bookmark")}`;
   });

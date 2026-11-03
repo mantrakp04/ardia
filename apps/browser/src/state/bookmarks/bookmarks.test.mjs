@@ -218,3 +218,34 @@ test("deleting one of two sharing profiles keeps the tree; deleting the last dro
   assert.equal(S().bookmarks.nodes[`bar@${a}`], undefined);
   assert.equal(S().bookmarksReady[a], undefined);
 });
+
+test("saving selected bookmarks retains an unopened profile's cached tree", async () => {
+  const { configureProfileStartup } = await import("../profiles/startupEngineProfiles.ts");
+  const { rootIdsFor } = await import("./bookmarks.ts");
+  S().hydrate({});
+  const work = S().createProfile({ name: "Unopened" });
+  S().createWindow({ profileId: "default" });
+  const roots = rootIdsFor(work);
+  const id = "0f0f0f0f-0000-4000-8000-0000000000d1";
+  const nodes = [
+    { id: roots.bar, parentId: null, kind: "folder", title: "Bookmarks Bar", children: [id], addedAt: 1 },
+    { id: roots.other, parentId: null, kind: "folder", title: "Other Bookmarks", children: [], addedAt: 1 },
+    { id, parentId: roots.bar, kind: "url", title: "Cached", url: "https://cached.example/", favicon: null, addedAt: 1 },
+  ];
+  stub.docs.clear();
+  stub.bookmarkDbs.clear();
+  stub.docs.set("bookmarks-cache.json", JSON.stringify({ version: 1, trees: { [work]: nodes } }));
+  configureProfileStartup({ loadProfilesWhenOpened: true });
+  const stop = startBookmarks();
+  try {
+    for (let i = 0; i < 10; i++) await settle();
+    assert.ok(!S().bookmarksReady[work], "the unopened engine was not read");
+    S().addBookmark({ profileId: "default", title: "New", url: "https://new.example/" });
+    for (let i = 0; i < 10; i++) await settle();
+  } finally {
+    stop();
+    configureProfileStartup({ loadProfilesWhenOpened: false });
+  }
+  const cache = JSON.parse(stub.docs.get("bookmarks-cache.json"));
+  assert.ok(cache.trees[work]?.some((node) => node.id === id));
+});
