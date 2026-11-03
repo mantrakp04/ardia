@@ -238,7 +238,7 @@ async def cmd_screenshot(ctx, argv):
         await page.send("DOM.scrollIntoViewIfNeeded", {"backendNodeId": element.backend_id})
         box = await rect(page, element)
         ox, oy = await frame_offset(page, element.frame)
-        vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame)
+        vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame, read=True)
         clip = {"x": box["x"] + ox + vp["scrollX"], "y": box["y"] + oy + vp["scrollY"], "width": max(1, box["width"]), "height": max(1, box["height"]), "scale": 1}
     rows = None
     if annotate:
@@ -247,7 +247,7 @@ async def cmd_screenshot(ctx, argv):
     if rows is not None:
         offset = None
         if full:
-            vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame)
+            vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame, read=True)
             offset = (vp["scrollX"], vp["scrollY"])
         data = draw_annotations(data, rows, viewport, offset)
     target = ctx.path(path) if path else default_path(ctx, "jpg" if fmt == "jpeg" else "png")
@@ -316,7 +316,7 @@ async def diff_screenshot(ctx, argv):
 
         page, element = await ctx.state.locate(options["selector"])
         box = await rect(page, element)
-        vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame)
+        vp = await page.call("() => ardiaBrowse.viewport()", frame=page.main_frame, read=True)
         clip = {"x": box["x"] + vp["scrollX"], "y": box["y"] + vp["scrollY"], "width": box["width"], "height": box["height"], "scale": 1}
     current = await capture_png(page, bool(options.get("full")), clip)
     output = ctx.path(options["output"]) if options.get("output") else default_path(ctx, "png").replace("screenshot-", "diff-")

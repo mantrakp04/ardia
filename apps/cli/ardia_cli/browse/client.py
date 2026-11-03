@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from ardia_cli.browse import paths
-from ardia_cli.browse.errors import BrowseError, Unreachable
+from ardia_cli.browse.errors import BrowseError, OutcomeUnknown, Unreachable
 
 START_TIMEOUT = 15.0
 MAX_RESPONSE = 256 * 1024 * 1024
@@ -91,13 +91,26 @@ def ensure_daemon(dir_fd: int, key: str, config: dict) -> socket.socket:
     raise Unreachable("the ardia browse daemon didn't start in 15 s")
 
 
+def gone(payload: dict) -> BrowseError:
+    from ardia_cli.browse.commands import ALIASES, MUTATING
+
+    argv = payload.get("argv") or [""]
+    name = ALIASES.get(argv[0], argv[0])
+    if name in MUTATING:
+        return OutcomeUnknown(f"`{name}`", "the ardia browse daemon went away after it took the command (see the session log)")
+    return Unreachable("the ardia browse daemon closed the connection without answering (it may have exited; see the session log)")
+
+
 def request(sock: socket.socket, payload: dict) -> dict:
     with sock:
         sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode())
         chunks = []
         size = 0
         while True:
-            chunk = sock.recv(1 << 20)
+            try:
+                chunk = sock.recv(1 << 20)
+            except ConnectionResetError:
+                raise gone(payload) from None
             if not chunk:
                 break
             chunks.append(chunk)
@@ -107,8 +120,8 @@ def request(sock: socket.socket, payload: dict) -> dict:
             if chunk.endswith(b"\n"):
                 break
     raw = b"".join(chunks)
-    if not raw:
-        raise Unreachable("the ardia browse daemon closed the connection without answering (it may have exited; see the session log)")
+    if not raw.endswith(b"\n"):
+        raise gone(payload)
     return json.loads(raw)
 
 

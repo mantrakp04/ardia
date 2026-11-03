@@ -42,6 +42,7 @@ class State:
         self.opened: set[str] = set()
         self.frames: dict[str, str] = {}
         self.refs: dict[str, Ref] = {}
+        self.issued_refs = 0
         self.generation = 0
         self.last_snapshot: str | None = None
         self.auto_dialog = not config.get("no_auto_dialog")
@@ -60,6 +61,8 @@ class State:
     async def connect(self):
         if self.connected:
             return
+        if self.browser is not None and not self.browser.closed_by_us:
+            self.lost = True
         if self.lost:
             raise ConnectionLost()
         endpoint = self.resolve_endpoint()
@@ -176,8 +179,11 @@ class State:
     def frame_for(self, page: Page) -> str | None:
         frame = self.frames.get(page.target_id)
         if frame and frame not in page.frames:
-            self.frames.pop(page.target_id, None)
-            return None
+            raise BrowseError(
+                "The frame chosen with `ardia browse frame` is gone, so commands won't fall back to another document. "
+                "Run `ardia browse frame main` or choose another frame",
+                code="frame_gone",
+            )
         return frame
 
     def set_refs(self, refs: list[Ref], snapshot_text: str | None):
@@ -188,9 +194,12 @@ class State:
         if snapshot_text is not None:
             self.last_snapshot = snapshot_text
 
+    def next_ref(self) -> str:
+        self.issued_refs += 1
+        return f"e{self.issued_refs}"
+
     def add_ref(self, page: Page, element, role: str = "", name: str = "") -> str:
-        number = 1 + max((int(key[1:]) for key in self.refs if key[1:].isdigit()), default=0)
-        ref = Ref(f"e{number}", self.instance, page.target_id, element.frame, page.loader(element.frame) or "",
+        ref = Ref(self.next_ref(), self.instance, page.target_id, element.frame, page.loader(element.frame) or "",
                   self.generation, element.backend_id, role, name)
         self.refs[ref.id] = ref
         return ref.id
@@ -198,6 +207,8 @@ class State:
     async def resolve_ref(self, ref_id: str):
         ref = self.refs.get(ref_id)
         if ref is None:
+            if ref_id[1:].isdigit() and int(ref_id[1:]) <= self.issued_refs:
+                raise StaleRef(ref_id, "it came from an earlier snapshot, and refs are never reused")
             raise BrowseError(f"Unknown ref: {ref_id}", code="unknown_ref")
         if ref.instance != self.instance:
             raise StaleRef(ref_id, "Ardia restarted since that snapshot")
@@ -230,7 +241,7 @@ class State:
         page = page or await self.page()
         frame = self.frame_for(page) or page.main_frame
         try:
-            remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False)
+            remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
         except BrowseError as error:
             raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
         element = await page.element_from(remote, frame, selector)

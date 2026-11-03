@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from ardia_cli import guard
-from ardia_cli.browse.errors import POLICY_REFUSAL, CdpError, CdpTimeout, ConnectionLost, Gated, Unreachable
+from ardia_cli.browse.errors import POLICY_REFUSAL, CdpError, CdpTimeout, ConnectionLost, Gated, OutcomeUnknown, Unreachable
 
 MAX_MESSAGE = 256 * 1024 * 1024
 CONNECT_TIMEOUT = 10
@@ -38,6 +38,19 @@ EVENTS = (
     "Browser.downloadWillBegin",
     "Browser.downloadProgress",
 )
+
+
+MUTATING_METHODS = frozenset({
+    "Page.navigate", "Page.reload", "Page.handleJavaScriptDialog", "Page.addScriptToEvaluateOnNewDocument",
+    "Page.removeScriptToEvaluateOnNewDocument", "Page.bringToFront", "DOM.setFileInputFiles", "DOM.focus", "Network.setCookie",
+    "Network.setCookies", "Network.clearBrowserCookies", "Network.setExtraHTTPHeaders", "Network.emulateNetworkConditions",
+    "Fetch.fulfillRequest", "Fetch.failRequest", "Fetch.continueRequest", "Fetch.continueWithAuth", "Overlay.highlightNode",
+    "Target.createTarget", "Target.closeTarget", "Target.activateTarget", "Browser.setDownloadBehavior", "Browser.grantPermissions",
+})
+
+
+def is_mutation(method: str) -> bool:
+    return method in MUTATING_METHODS or method.startswith(("Input.", "Emulation."))
 
 
 def link_class():
@@ -105,7 +118,7 @@ class Browser:
     def alive(self) -> bool:
         return self.link is not None and not self.link.lost.is_set()
 
-    async def send(self, method: str, params: dict | None = None, session: str | None = None, timeout: float = 30):
+    async def send(self, method: str, params: dict | None = None, session: str | None = None, timeout: float = 30, mutation: bool = False):
         from pydoll.exceptions import CommandExecutionTimeout, CommandFailed, WebSocketConnectionClosed
 
         method = getattr(method, "value", method)
@@ -124,6 +137,8 @@ class Browser:
             detail = detail.rsplit(" (code", 1)[0]
             raise CdpError(method, detail) from None
         except CommandExecutionTimeout:
+            if mutation or is_mutation(method):
+                raise OutcomeUnknown(f"`{method}`", f"Ardia didn't answer {method} in {timeout:g}s after it was sent") from None
             raise CdpTimeout(method, timeout) from None
         except WebSocketConnectionClosed:
             raise ConnectionLost() from None

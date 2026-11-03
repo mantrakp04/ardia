@@ -171,9 +171,9 @@ async def clickable_map(page, frame: str) -> dict[int, list]:
     try:
         remote = await page.call(
             "() => { const r = ardiaBrowse.clickables(); globalThis.ardiaBrowseHints = r.hints; return r.elements; }",
-            frame=frame, by_value=False,
+            frame=frame, by_value=False, read=True,
         )
-        hints = await page.call("() => globalThis.ardiaBrowseHints", frame=frame)
+        hints = await page.call("() => globalThis.ardiaBrowseHints", frame=frame, read=True)
         elements = await page.elements_from(remote, frame, "clickable")
     except BrowseError:
         return {}
@@ -225,7 +225,6 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
     if cursor:
         for used in frames_used:
             clickable[used] = await clickable_map(page, used)
-    counter = [0]
     for node in walk(nodes):
         hints = clickable.get(node.frame, {}).get(node.backend)
         if hints and node.role not in INTERACTIVE:
@@ -239,8 +238,7 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
         if node.role in REF_ROLES or node.hints:
             if node.role == "heading" and not node.name:
                 continue
-            counter[0] += 1
-            node.ref = f"e{counter[0]}"
+            node.ref = state.next_ref()
     if urls:
         for used in frames_used:
             await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)

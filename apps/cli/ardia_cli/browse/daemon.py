@@ -13,6 +13,8 @@ from ardia_cli.browse.errors import BrowseError, ConnectionLost, Unreachable, Us
 CONNECTED_IDLE = 30.0
 DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
+MAX_RESPONSE = 256 * 1024 * 1024
+SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
 log = logging.getLogger("ardia_cli.browse")
@@ -38,13 +40,13 @@ async def run_one(ctx, argv):
     from ardia_cli.browse.commands import ALIASES, Ctx
 
     if not argv:
-        return None, "No command given"
+        return None, BrowseError("No command given")
     name = ALIASES.get(argv[0], argv[0])
     sub = Ctx(ctx.state, dict(ctx.options), ctx.cwd, ctx.env, ctx.stdin, name)
     try:
         result = await dispatch(sub, name, argv[1:])
     except BrowseError as error:
-        return None, error.message
+        return None, error
     return result, None
 
 
@@ -64,7 +66,26 @@ async def dispatch(ctx, name, argv):
     return await handler(ctx, argv)
 
 
+def sanitize(value):
+    from ardia_cli.redact import redact
+
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {sanitize(key) if isinstance(key, str) else key: sanitize(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize(item) for item in value]
+    return value
+
+
 def render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
+    from ardia_cli.redact import redact
+
+    code, out, err = _render(options, result, error, name)
+    return code, redact(out), redact(err)
+
+
+def _render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
     from ardia_cli.browse.commands import MUTATING, boundary
 
     as_json = options.get("json")
@@ -76,14 +97,14 @@ def render(options: dict, result=None, error: BrowseError | None = None, name: s
             payload = {"success": False, "data": error.data, "error": message}
             if error.code:
                 payload["code"] = error.code
-            return error.exit_code, json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n", ""
+            return error.exit_code, json.dumps(sanitize(payload), ensure_ascii=False, separators=(",", ":")) + "\n", ""
         return error.exit_code, "", f"✗ {message}\n"
     batch = getattr(result, "batch", None)
     code = 1 if getattr(result, "failed", False) else 0
     if as_json:
         if batch is not None:
-            return code, json.dumps(batch, ensure_ascii=False, separators=(",", ":")) + "\n", ""
-        return code, json.dumps({"success": True, "data": result.data, "error": None}, ensure_ascii=False, separators=(",", ":")) + "\n", ""
+            return code, json.dumps(sanitize(batch), ensure_ascii=False, separators=(",", ":")) + "\n", ""
+        return code, json.dumps(sanitize({"success": True, "data": result.data, "error": None}), ensure_ascii=False, separators=(",", ":")) + "\n", ""
     text = result.text
     if text is None:
         return code, "", ""
@@ -121,6 +142,8 @@ class Daemon:
         self.pending = 0
         self.last = time.monotonic()
         self.stop = asyncio.Event()
+        self.stopping = False
+        self.active: set = set()
         self.sock_id = None
         self.idle_limit = float(config.get("idle_timeout_ms") or DEFAULT_DAEMON_IDLE * 1000) / 1000
 
@@ -156,17 +179,36 @@ class Daemon:
         })
         loop = asyncio.get_running_loop()
         for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
-            loop.add_signal_handler(signum, self.stop.set)
+            loop.add_signal_handler(signum, self.begin_stop)
         tasks = [asyncio.ensure_future(self.idle_loop()), asyncio.ensure_future(self.watch_loop())]
         try:
             await self.stop.wait()
         finally:
+            self.stopping = True
             server.close()
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            await self.settle()
             await self.cleanup()
         return 0
+
+    def begin_stop(self):
+        self.stopping = True
+        self.stop.set()
+
+    async def settle(self):
+        active = [task for task in self.active if not task.done()]
+        if active:
+            await asyncio.wait(active, timeout=SETTLE_TIMEOUT)
+        for task in active:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*active, return_exceptions=True)
+
+    def refuse_closing(self, options: dict, name: str):
+        return render(options, error=BrowseError(f"Session {self.state.session} is closing; start a new command after it ends",
+                                                 code="session_closing"), name=name)
 
     async def cleanup(self):
         try:
@@ -250,6 +292,8 @@ class Daemon:
             raw = await asyncio.wait_for(reader.readline(), 30)
             request = json.loads(raw)
             execute = asyncio.ensure_future(self.execute(request))
+            self.active.add(execute)
+            execute.add_done_callback(self.active.discard)
             gone = asyncio.ensure_future(reader.read(1))
             done, _ = await asyncio.wait({execute, gone}, return_when=asyncio.FIRST_COMPLETED)
             if execute not in done:
@@ -258,7 +302,7 @@ class Daemon:
                 return
             gone.cancel()
             code, out, err = execute.result()
-            writer.write((json.dumps({"exit": code, "out": out, "err": err}, ensure_ascii=False) + "\n").encode())
+            writer.write(encode_answer(code, out, err))
             await writer.drain()
         except Exception:
             log.exception("request failed")
@@ -281,9 +325,13 @@ class Daemon:
             self.state.auto_dialog = False
         if options.get("pin_tab") is not None:
             self.state.pin_tab = bool(options["pin_tab"])
+        if self.stopping:
+            return self.refuse_closing(options, name)
         if name == "close":
             return await self.close(ctx)
         async with self.lock:
+            if self.stopping:
+                return self.refuse_closing(options, name)
             if self.state.lost:
                 return render(options, error=ConnectionLost(), name=name)
             try:
@@ -307,6 +355,9 @@ class Daemon:
 
         closed = 0
         async with self.lock:
+            if self.stopping:
+                return self.refuse_closing(ctx.options, "close")
+            self.stopping = True
             if self.state.opened and not self.state.lost:
                 try:
                     await self.state.connect()
@@ -321,6 +372,14 @@ class Daemon:
         self.stop.set()
         text = f"✓ Session {self.state.session} closed ({closed} tab{'s' if closed != 1 else ''} it opened)"
         return render(ctx.options, result=Result({"closed": True, "tabs": closed}, text), name="close")
+
+
+def encode_answer(code: int, out: str, err: str) -> bytes:
+    data = (json.dumps({"exit": code, "out": out, "err": err}, ensure_ascii=False) + "\n").encode()
+    if len(data) <= MAX_RESPONSE:
+        return data
+    message = f"✗ The answer was too large ({len(data)} bytes, the limit is {MAX_RESPONSE}); narrow it (snapshot -s, -d, --max-output)\n"
+    return (json.dumps({"exit": 1, "out": "", "err": message}) + "\n").encode()
 
 
 def take_lease():

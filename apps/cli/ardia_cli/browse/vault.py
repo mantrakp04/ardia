@@ -234,11 +234,15 @@ async def login(ctx, argv):
                     or page.frames.get(frame, {}).get("origin") not in origins:
                 raise BrowseError(f"Stopped typing {name}'s credentials: the page navigated or the frame changed")
             focused = await page.call("(el) => document.activeElement === el || el.contains(document.activeElement)", element, frame=frame)
-            if not focused and guard.started:
+            if not focused:
                 raise BrowseError(f"Stopped typing {name}'s credentials: focus left the field")
-            guard.started = True
+            if frame != page.main_frame:
+                owner = (await page.send("DOM.getFrameOwner", {"frameId": frame}))["backendNodeId"]
+                owner_element = await page.resolve_backend(owner, page.main_frame, "the field's frame")
+                top_focus = owner_element is not None and await page.call("(el) => document.activeElement === el", owner_element, frame=page.main_frame)
+                if not top_focus:
+                    raise BrowseError(f"Stopped typing {name}'s credentials: focus left the field's frame")
 
-        guard.started = False
         return guard
 
     async def type_guarded(element, text):

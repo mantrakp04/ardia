@@ -98,11 +98,11 @@ class BrowseEndToEnd(unittest.TestCase):
             cls.server.wait(10)
 
     @classmethod
-    def browse(cls, *args, session="e2e", check=True, timeout=120):
-        env = dict(os.environ, PYTHONPATH=str(CLI))
+    def browse(cls, *args, session="e2e", check=True, timeout=120, extra_env=None, stdin=None):
+        env = dict(os.environ, PYTHONPATH=str(CLI), **(extra_env or {}))
         env.pop("AGENT_BROWSER_NO_HUMANIZE", None)
         done = subprocess.run([sys.executable, "-m", "ardia_cli", "browse", "--port", str(cls.port), "--data-dir", str(cls.data), "--session", session, *args],
-                              capture_output=True, text=True, timeout=timeout, env=env)
+                              capture_output=True, text=True, timeout=timeout, env=env, input=stdin)
         if check and done.returncode:
             raise AssertionError(f"ardia browse {' '.join(args)} exited {done.returncode}: {done.stderr}{done.stdout}")
         return done
@@ -200,6 +200,43 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(refused.returncode, 1)
         self.assertIn("background", refused.stderr)
         self.browse("scroll", "down", "200", session=session)
+
+    def scratch_keychain(self) -> str:
+        security = "/usr/bin/security"
+        if not os.path.exists(security):
+            self.skipTest("no /usr/bin/security")
+        keychain = str(SCRATCH / "e2e-vault.keychain-db")
+        subprocess.run([security, "delete-keychain", keychain], capture_output=True)
+        subprocess.run([security, "create-keychain", "-p", "scratch", keychain], check=True, capture_output=True)
+        self.addCleanup(subprocess.run, [security, "delete-keychain", keychain], capture_output=True)
+        subprocess.run([security, "unlock-keychain", "-p", "scratch", keychain], check=True, capture_output=True)
+        return keychain
+
+    def test_auth_login_types_into_the_saved_origin(self):
+        env = {"ARDIA_BROWSE_KEYCHAIN": self.scratch_keychain()}
+        session = "vault-ok"
+        self.browse("auth", "save", "site", "--url", self.url("auth.html"), "--username", "me@example.com", "--password-stdin",
+                    session=session, extra_env=env, stdin="s3cret!\n")
+        self.browse("open", self.url("auth.html"), "--show", session=session, extra_env=env)
+        self.assertEqual(self.browse("auth", "login", "site", session=session, extra_env=env).stdout, "✓ Logged in as me@example.com\n")
+        time.sleep(0.3)
+        state = json.loads(self.browse("get", "text", "#report", session=session).stdout)
+        self.assertEqual(state, {"leaked": [], "user": "me@example.com", "pw": "s3cret!"})
+
+    def test_auth_login_stops_when_focus_moves_into_another_frame(self):
+        env = {"ARDIA_BROWSE_KEYCHAIN": self.scratch_keychain()}
+        session = "vault-race"
+        self.browse("auth", "save", "race", "--url", self.url("auth.html"), "--username", "me@example.com", "--password-stdin",
+                    session=session, extra_env=env, stdin="s3cret!\n")
+        self.browse("open", self.url("auth.html#steal"), "--show", session=session, extra_env=env)
+        time.sleep(1)
+        refused = self.browse("auth", "login", "race", session=session, extra_env=env, check=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("focus left the field", refused.stderr)
+        time.sleep(0.5)
+        state = json.loads(self.browse("get", "text", "#report", session=session).stdout)
+        self.assertEqual(state["leaked"], [], "a credential character reached the cross-origin frame")
+        self.assertEqual(state["pw"], "")
 
     def test_refs_survive_idle_disconnect(self):
         session = "idle"

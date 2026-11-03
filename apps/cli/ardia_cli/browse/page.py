@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import json
 import time
 from dataclasses import dataclass, field
 
@@ -11,6 +12,10 @@ WORLD_NAME = "ardia-browse"
 CONSOLE_LIMIT = 1000
 ERROR_LIMIT = 500
 REQUEST_LIMIT = 1000
+RECORD_TEXT_LIMIT = 64 * 1024
+HEADER_VALUE_LIMIT = 8 * 1024
+HEADERS_LIMIT = 64 * 1024
+REQUEST_BYTES = 32 * 1024 * 1024
 HIDDEN_TAB = (
     "This tab is in the background, and Chrome doesn't deliver mouse or keyboard input to a hidden tab. "
     "Show it first with `ardia browse tab <id> --show` (Ardia switches its window to that tab), "
@@ -30,18 +35,50 @@ class Element:
 @dataclass
 class Ring:
     limit: int
+    max_bytes: int = 16 * 1024 * 1024
     items: collections.deque = field(default_factory=collections.deque)
+    sizes: collections.deque = field(default_factory=collections.deque)
     dropped: int = 0
+    total: int = 0
 
     def add(self, item):
-        if len(self.items) >= self.limit:
+        size = record_size(item)
+        while self.items and (len(self.items) >= self.limit or self.total + size > self.max_bytes):
             self.items.popleft()
+            self.total -= self.sizes.popleft()
             self.dropped += 1
         self.items.append(item)
+        self.sizes.append(size)
+        self.total += size
 
     def clear(self):
         self.items.clear()
+        self.sizes.clear()
+        self.total = 0
         self.dropped = 0
+
+
+def record_size(item) -> int:
+    return len(json.dumps(item, ensure_ascii=False, default=str))
+
+
+def clip(text, limit: int = RECORD_TEXT_LIMIT):
+    if not isinstance(text, str) or len(text) <= limit:
+        return text
+    return text[:limit] + f"… [{len(text) - limit} more characters]"
+
+
+def clip_headers(headers) -> dict:
+    out = {}
+    used = 0
+    for name, value in (headers or {}).items():
+        value = clip(str(value), HEADER_VALUE_LIMIT)
+        used += len(name) + len(value)
+        if used > HEADERS_LIMIT:
+            out["…"] = "more headers omitted"
+            break
+        out[name] = value
+    return out
 
 
 def remote_text(arg: dict) -> str:
@@ -82,6 +119,7 @@ class Page:
         self.console = Ring(CONSOLE_LIMIT)
         self.errors = Ring(ERROR_LIMIT)
         self.requests: collections.OrderedDict = collections.OrderedDict()
+        self.request_sizes: dict = {}
         self.requests_dropped = 0
         self.runtime_on = False
         self.network_on = False
@@ -121,12 +159,14 @@ class Page:
         self.session_id = None
         self.worlds.clear()
 
-    async def send(self, method: str, params: dict | None = None, input_event: bool = False, timeout: float = 30):
+    async def send(self, method: str, params: dict | None = None, input_event: bool = False, timeout: float = 30, mutation: bool = False):
+        from ardia_cli.browse.connection import is_mutation
+
         try:
             return await self.browser.send(method, params, self.session_id, timeout)
         except CdpTimeout:
-            if input_event:
-                raise OutcomeUnknown(method, "Ardia didn't answer the input event in time") from None
+            if input_event or mutation or is_mutation(method):
+                raise OutcomeUnknown(f"`{method}`", f"Ardia didn't answer {method} in {timeout:g}s after it was sent") from None
             raise
 
     async def refresh_frames(self) -> dict:
@@ -172,7 +212,8 @@ class Page:
         self.worlds[frame_id] = (loader, context)
         return context
 
-    async def call(self, function: str, *args, frame: str | None = None, by_value: bool = True, await_promise: bool = True, timeout: float = 30):
+    async def call(self, function: str, *args, frame: str | None = None, by_value: bool = True, await_promise: bool = True, timeout: float = 30,
+                   read: bool = False):
         frame = frame or self.state.frame_for(self)
         for attempt in (0, 1):
             context = await self.world(frame)
@@ -190,13 +231,17 @@ class Page:
                 "awaitPromise": await_promise,
             }
             try:
-                result = await self.send("Runtime.callFunctionOn", params, timeout=timeout)
+                result = await self.send("Runtime.callFunctionOn", params, timeout=timeout, mutation=not read)
             except CdpError as error:
-                if attempt == 0 and any(marker in error.cdp_message for marker in STALE_CONTEXT) and not any(isinstance(a, Element) for a in args):
-                    self.worlds.pop(frame or self.main_frame, None)
+                if not any(marker in error.cdp_message for marker in STALE_CONTEXT):
+                    raise
+                self.worlds.pop(frame or self.main_frame, None)
+                if read and attempt == 0 and not any(isinstance(a, Element) for a in args):
                     await self.refresh_frames()
                     continue
-                raise
+                if not read and "destroyed" in error.cdp_message:
+                    raise OutcomeUnknown("the page script", "the page changed document while it ran") from None
+                raise BrowseError("The page changed document before this could run, so it wasn't applied; snapshot again", code="document_changed") from None
             if "exceptionDetails" in result:
                 details = result["exceptionDetails"]
                 description = (details.get("exception") or {}).get("description") or details.get("text") or "error"
@@ -238,7 +283,7 @@ class Page:
 
     async def hidden(self) -> bool:
         try:
-            return await self.call("() => document.visibilityState === 'hidden'", frame=self.main_frame)
+            return await self.call("() => document.visibilityState === 'hidden'", frame=self.main_frame, read=True)
         except BrowseError:
             return False
 
@@ -307,16 +352,17 @@ class Page:
             kind = params.get("type", "log")
             self.console.add({
                 "type": "warning" if kind == "warn" else kind,
-                "text": " ".join(remote_text(arg) for arg in args),
-                "args": [{key: arg[key] for key in ("type", "value", "description", "className", "preview") if key in arg} for arg in args],
+                "text": clip(" ".join(remote_text(arg) for arg in args)),
+                "args": [{key: clip(arg[key]) if isinstance(arg[key], str) else arg[key]
+                          for key in ("type", "value", "description", "className", "preview") if key in arg} for arg in args[:20]],
                 "timestamp": params.get("timestamp"),
             })
         elif method == "Runtime.exceptionThrown":
             details = params.get("exceptionDetails") or {}
             exception = details.get("exception") or {}
             self.errors.add({
-                "text": exception.get("description") or details.get("text") or "Uncaught error",
-                "url": details.get("url"),
+                "text": clip(exception.get("description") or details.get("text") or "Uncaught error"),
+                "url": clip(details.get("url"), 4096),
                 "line": details.get("lineNumber"),
                 "column": details.get("columnNumber"),
                 "timestamp": params.get("timestamp"),
@@ -340,15 +386,16 @@ class Page:
             record = self.requests.get(request_id)
             if record is None:
                 if len(self.requests) >= REQUEST_LIMIT:
-                    self.requests.popitem(last=False)
+                    oldest, _ = self.requests.popitem(last=False)
+                    self.request_sizes.pop(oldest, None)
                     self.requests_dropped += 1
                 record = self.requests[request_id] = {"requestId": request_id}
             elif params.get("redirectResponse"):
                 record["redirects"] = record.get("redirects", 0) + 1
             record.update({
-                "url": request.get("url", ""),
+                "url": clip(request.get("url", ""), 16 * 1024),
                 "method": request.get("method", "GET"),
-                "headers": request.get("headers") or {},
+                "headers": clip_headers(request.get("headers")),
                 "postData": (request.get("postData") or "")[:65536] or None,
                 "resourceType": params.get("type") or "Other",
                 "timestamp": int((params.get("wallTime") or time.time()) * 1000),
@@ -364,7 +411,7 @@ class Page:
                     "status": response.get("status"),
                     "statusText": response.get("statusText", ""),
                     "mimeType": response.get("mimeType", ""),
-                    "responseHeaders": response.get("headers") or {},
+                    "responseHeaders": clip_headers(response.get("headers")),
                     "protocol": response.get("protocol", ""),
                     "remoteIPAddress": response.get("remoteIPAddress"),
                     "timing": response.get("timing"),
@@ -373,5 +420,16 @@ class Page:
                 record["finished"] = params.get("timestamp")
                 record["encodedDataLength"] = params.get("encodedDataLength")
             elif method == "Network.loadingFailed":
-                record["failed"] = params.get("errorText") or "failed"
+                record["failed"] = clip(params.get("errorText") or "failed", 1024)
                 record["finished"] = params.get("timestamp")
+        self.account_request(request_id)
+
+    def account_request(self, request_id):
+        record = self.requests.get(request_id)
+        if record is None:
+            return
+        self.request_sizes[request_id] = record_size(record)
+        while len(self.requests) > 1 and sum(self.request_sizes.values()) > REQUEST_BYTES:
+            oldest, _ = self.requests.popitem(last=False)
+            self.request_sizes.pop(oldest, None)
+            self.requests_dropped += 1

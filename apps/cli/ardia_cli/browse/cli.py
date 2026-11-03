@@ -136,9 +136,23 @@ def endpoint_choice(found: dict, env: dict) -> tuple[str | None, int | None, str
 
 
 def write(text: str, stream) -> None:
+    from ardia_cli.redact import redact
+
     if text:
-        stream.write(text)
+        stream.write(redact(text))
         stream.flush()
+
+
+def register_secrets(ws: str | None, env: dict) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    from ardia_cli.redact import add_secret
+
+    for url in (ws, env.get("ARDIA_CDP_URL"), env.get("AGENT_BROWSER_CDP")):
+        if url and "?" in str(url):
+            for values in parse_qs(urlsplit(str(url)).query).values():
+                for value in values:
+                    add_secret(value)
 
 
 def print_result(result, as_json: bool, options: dict) -> int:
@@ -296,6 +310,7 @@ def main(argv: list[str]) -> int:
         if namespace:
             paths.check_name("A namespace", namespace)
         ws, port, data_dir = endpoint_choice(found, env)
+        register_secrets(ws, env)
         root = endpoints.data_root(data_dir)
         endpoint_key, endpoint_label = client.endpoint_key(ws, port, root)
         key = paths.session_key(namespace, endpoint_key, session)

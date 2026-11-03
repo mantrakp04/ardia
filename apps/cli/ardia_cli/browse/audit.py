@@ -42,14 +42,14 @@ async def cmd_a11y(ctx, argv):
     else:
         page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
-    present = await page.call("() => typeof axe !== 'undefined'", frame=frame)
+    present = await page.call("() => typeof axe !== 'undefined'", frame=frame, read=True)
     if not present:
         context = await page.world(frame)
         result = await page.send("Runtime.evaluate", {"expression": axe_source() + "\n;true", "contextId": context, "returnByValue": True}, timeout=60)
         if "exceptionDetails" in result:
             raise BrowseError("axe-core failed to load in this page")
     tags = [tag.strip() for tag in options["tags"].split(",")] if options.get("tags") else []
-    data = await page.call(RUN, options.get("selector"), tags, frame=frame, timeout=120)
+    data = await page.call(RUN, options.get("selector"), tags, frame=frame, timeout=120, read=True)
     lines = [f"violations: {data['counts']['violations']}  incomplete: {data['counts']['incomplete']}  passes: {data['counts']['passes']}"]
     for title, items in (("Violations", data["violations"]), ("Needs review", data["incomplete"])):
         if items:

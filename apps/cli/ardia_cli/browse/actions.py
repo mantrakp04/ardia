@@ -7,17 +7,22 @@ from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
 SCROLL_DEFAULT = 300
 DELIVERY_TIMEOUT = 1.5
 NOT_DELIVERED = (
-    "{action} was sent, but the page received no {missing} event, so nothing happened there. The tab may not be on "
-    "screen in Ardia (just switched, or covered by another tab): retry, or show it with `ardia browse tab <id> --show`"
+    "{action} was sent, but the page received none of its {missing} events. The tab may not be on screen in Ardia "
+    "(just switched, or covered by another tab); check it's shown (`ardia browse tab <id> --show`) before trying again"
 )
+PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrived), so it may have had an effect"
 
 
 async def input_counts(page, frame):
     return await page.call("() => ardiaBrowse.inputWatch()", frame=frame)
 
 
+def delivered(now: dict, before: dict, name: str) -> int:
+    return sum(now.get(part, 0) - before.get(part, 0) for part in name.split("|"))
+
+
 async def expect_input(page, frame, run, needs: dict, action: str):
-    from ardia_cli.browse.errors import CdpError, ConnectionLost
+    from ardia_cli.browse.errors import ConnectionLost, OutcomeUnknown
 
     frame = frame or page.main_frame
     loader = page.loader(frame)
@@ -25,10 +30,10 @@ async def expect_input(page, frame, run, needs: dict, action: str):
         before = await input_counts(page, frame)
     except ConnectionLost:
         raise
-    except BrowseError:
-        before = None
+    except BrowseError as error:
+        raise BrowseError(f"Couldn't watch this frame for input, so {action.lower()} wasn't sent ({error.message})", code="input_unconfirmable") from None
     result = await run()
-    if before is None or not needs or before.get("activeFrame") and ("keydown" in needs or "keyup" in needs):
+    if not needs or before.get("activeFrame") and any(key in name for name in needs for key in ("keydown", "keyup", "input")):
         return result
     loop = asyncio.get_running_loop()
     deadline = loop.time() + DELIVERY_TIMEOUT
@@ -40,13 +45,16 @@ async def expect_input(page, frame, run, needs: dict, action: str):
             now = await input_counts(page, frame)
         except ConnectionLost:
             raise
-        except (CdpError, BrowseError):
-            return result
-        missing = [name for name, count in needs.items() if now.get(name, 0) - before.get(name, 0) < count]
+        except BrowseError as error:
+            raise OutcomeUnknown(action.lower(), f"it was sent, but confirming it reached the page failed ({error.message})") from None
+        missing = [name for name, count in needs.items() if delivered(now, before, name) < count]
         if not missing:
             return result
         if loop.time() >= deadline:
-            raise BrowseError(NOT_DELIVERED.format(action=action, missing=" or ".join(missing)), data={"missing": missing}, code="input_not_delivered")
+            names = " or ".join(part for name in missing for part in name.split("|"))
+            if all(delivered(now, before, name) == 0 for name in needs):
+                raise BrowseError(NOT_DELIVERED.format(action=action, missing="/".join(needs).replace("|", "/")), data={"missing": missing}, code="input_not_delivered")
+            raise OutcomeUnknown(action.lower(), PARTLY_DELIVERED.format(missing=names))
         await asyncio.sleep(0.05)
 
 
@@ -94,7 +102,7 @@ class ScrollDriver:
 
 
 async def viewport(page, frame=None):
-    return await page.call("() => ardiaBrowse.viewport()", frame=frame or page.main_frame)
+    return await page.call("() => ardiaBrowse.viewport()", frame=frame or page.main_frame, read=True)
 
 
 async def rect(page, element):
@@ -322,6 +330,8 @@ async def drag(page, source, target, humanize: bool):
     except OutcomeUnknown:
         raise
     except BrowseError as error:
+        if error.code in ("input_not_delivered", "input_unconfirmable", "tab_hidden"):
+            raise
         raise OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position") from None
 
 

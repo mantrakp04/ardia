@@ -156,9 +156,15 @@ class FocusedKeyTarget(KeyTarget):
         self.guard = guard
 
     async def focus(self):
+        await self.page.focus_element(self.element)
         if self.guard is not None:
             await self.guard()
-        await self.page.focus_element(self.element)
+
+
+class StreamMouse:
+    held = None
+    _pressed_button = None
+    _position = (0.0, 0.0)
 
 
 class Input:
@@ -224,18 +230,34 @@ class Input:
         if not allow_hidden and not self.holding:
             await self.page.require_visible()
         try:
-            return await run()
-        except (ConnectionLost, OutcomeUnknown):
-            raise
-        except asyncio.CancelledError:
-            if not keep_held:
-                await self.release_all()
-            raise
-        finally:
-            if not keep_held and self.holding:
+            result = await run()
+        except BaseException as error:
+            if self.holding:
                 released = await self.release_all()
-                if not released:
-                    raise OutcomeUnknown(action, "a held key or mouse button couldn't be released")
+                if not released and not isinstance(error, (asyncio.CancelledError, ConnectionLost, OutcomeUnknown)):
+                    raise OutcomeUnknown(action, "a held key or mouse button couldn't be released") from None
+            raise
+        if self.holding and not keep_held:
+            if not await self.release_all():
+                raise OutcomeUnknown(action, "a held key or mouse button couldn't be released")
+        return result
+
+    def track_stream_event(self, method: str, params: dict):
+        kind = params.get("type")
+        if method == "Input.dispatchKeyEvent" and params.get("key"):
+            if kind in ("keyDown", "rawKeyDown"):
+                self.held_keys[params["key"]] = dict(params)
+            elif kind == "keyUp":
+                self.held_keys.pop(params["key"], None)
+        elif method == "Input.dispatchMouseEvent":
+            if self.mouse is None:
+                self.mouse = StreamMouse()
+            if "x" in params and "y" in params:
+                self.mouse._position = (float(params["x"]), float(params["y"]))
+            if kind == "mousePressed":
+                self.mouse.held = params.get("button") or "left"
+            elif kind == "mouseReleased":
+                self.mouse.held = None
 
     async def press_combo(self, combo: str, humanize: bool, down_only: bool = False, up_only: bool = False):
         modifiers, last = parse_combo(combo)

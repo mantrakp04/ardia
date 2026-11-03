@@ -236,7 +236,7 @@ LIBRARY = r"""
     },
     inputWatch() {
       if (!globalThis.ardiaBrowseInput) {
-        const counts = { mousedown: 0, mouseup: 0, click: 0, mousemove: 0, keydown: 0, keyup: 0, wheel: 0 };
+        const counts = { mousedown: 0, mouseup: 0, click: 0, mousemove: 0, keydown: 0, keyup: 0, wheel: 0, beforeinput: 0, input: 0 };
         for (const type of Object.keys(counts)) {
           addEventListener(type, (event) => { if (event.isTrusted) counts[type] += 1; }, { capture: true, passive: true });
         }

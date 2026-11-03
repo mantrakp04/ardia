@@ -27,12 +27,13 @@ ardia browse close                       # closes only the tabs this session ope
   `open --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` (Ardia switches its window to the tab). Snapshots,
   `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in the background.
 - **Input is confirmed.** A click, key press, typing or scroll that the page never received fails with
-  `input_not_delivered` rather than reporting success; retry, or show the tab.
+  `input_not_delivered`; one it only partly received reports an unknown outcome. Check the page before retrying.
 - **Input is humanized by default**: curved mouse paths that start where the last one ended, human press timing,
   wheel scrolling with momentum, typing per character with varying gaps and no typos. `--no-humanize` on one
   command, or `AGENT_BROWSER_NO_HUMANIZE=1` for all, makes it instant. `keyboard inserttext` is always instant.
 - **Refs go stale for real.** A ref belongs to its document: after a navigation, a new document or an Ardia restart
-  it's reported as stale (`Stale ref @e4: ... Run snapshot again`), never guessed. Re-snapshot after page changes.
+  it's reported as stale (`Stale ref @e4: ... Run snapshot again`), never guessed. Numbers are never reused in a
+  session, so the second snapshot may start at `@e17`: always take refs from the latest snapshot.
 - **It doesn't change the page's main world by default.** Locating, snapshots and reads run in an isolated world or
   through the browser. The page still sees what a person would: input events, focus, scrolling and the DOM changes
   those cause. Only `eval`, `wait --fn`, init scripts (`addinitscript`, `open --init-script`) and the React hook

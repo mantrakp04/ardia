@@ -25,24 +25,39 @@ DEFAULT_CATEGORIES = [
 ]
 
 
+def held_claims(ctx) -> set:
+    return ctx.state.extras.setdefault("claims", set())
+
+
 def claim(ctx, page, kind):
     config = ctx.state.config
     claims.claim(config["browse_fd"], config["key"], ctx.state.session, page.target_id, kind)
-    ctx.state.extras.setdefault("claimed", set()).add(page.target_id)
+    held_claims(ctx).add((page.target_id, kind))
 
 
-async def capture_page(ctx, kind):
-    page = await ctx.state.page()
+def release_claim(ctx, target_id: str, kind: str):
+    config = ctx.state.config
+    held_claims(ctx).discard((target_id, kind))
+    claims.release(config["browse_fd"], config["key"], target_id, kind)
+
+
+async def activate(ctx, page, kind: str, enable):
+    fresh = (page.target_id, kind) not in held_claims(ctx)
     claim(ctx, page, kind)
-    return page
+    try:
+        return await enable()
+    except BaseException:
+        if fresh:
+            release_claim(ctx, page.target_id, kind)
+        raise
 
 
 @command("console")
 async def cmd_console(ctx, argv):
     options, _ = parse(argv, {"--clear": "bool"})
-    page = await capture_page(ctx, "console")
+    page = await ctx.state.page()
     started = not page.runtime_on
-    await page.enable_runtime()
+    await activate(ctx, page, "console", page.enable_runtime)
     ctx.state.leases.add("console")
     if started:
         await asyncio.sleep(0.2)
@@ -62,9 +77,9 @@ async def cmd_console(ctx, argv):
 @command("errors")
 async def cmd_errors(ctx, argv):
     options, _ = parse(argv, {"--clear": "bool"})
-    page = await capture_page(ctx, "console")
+    page = await ctx.state.page()
     started = not page.runtime_on
-    await page.enable_runtime()
+    await activate(ctx, page, "console", page.enable_runtime)
     ctx.state.leases.add("console")
     if started:
         await asyncio.sleep(0.2)
@@ -117,9 +132,9 @@ async def cmd_network(ctx, argv):
 
 async def network_requests(ctx, argv):
     options, _ = parse(argv, {"--clear": "bool", "--filter": "value", "--type": "value", "--method": "value", "--status": "value"})
-    page = await capture_page(ctx, "network")
+    page = await ctx.state.page()
     started = not page.network_on
-    await page.enable_network()
+    await activate(ctx, page, "network", page.enable_network)
     ctx.state.leases.add("network")
     if options.get("clear"):
         page.requests.clear()
@@ -178,12 +193,12 @@ async def network_request(ctx, argv):
 async def network_har(ctx, argv):
     options, args = parse(argv, {"--content": "value"})
     need(args, 1, "network har start|stop [path]")
-    page = await capture_page(ctx, "network")
+    page = await ctx.state.page()
     if args[0] == "start":
         mode = options.get("content") or "text"
         if mode not in ("text", "all", "none"):
             raise Usage("--content takes text, all or none")
-        await page.enable_network()
+        await activate(ctx, page, "har", page.enable_network)
         ctx.state.leases.add("har")
         ctx.state.extras["har"] = {"target": page.target_id, "since": time.time() * 1000, "mode": mode, "seen": set(page.requests)}
         return Result({"started": True, "content": mode}, "✓ HAR recording started")
@@ -193,6 +208,7 @@ async def network_har(ctx, argv):
     ctx.state.leases.discard("har")
     if not har:
         raise BrowseError("No HAR recording is running; start one with `ardia browse network har start`")
+    release_claim(ctx, har["target"], "har")
     entries = []
     total = 0
     for request_id, record in list(page.requests.items()):
@@ -239,15 +255,18 @@ def default_dir(ctx):
 async def network_route(ctx, argv):
     options, args = parse(argv, {"--abort": "bool", "--body": "value", "--resource-type": "value", "--status": "value", "--content-type": "value"})
     need(args, 1, "network route <url> [--abort | --body <json>] [--resource-type <csv>]")
-    page = await capture_page(ctx, "route")
+    page = await ctx.state.page()
     routes = ctx.state.extras.setdefault("routes", [])
     route = {"pattern": args[0], "abort": bool(options.get("abort")), "body": options.get("body"),
              "types": {value.strip().lower() for value in options["resource_type"].split(",")} if options.get("resource_type") else None,
              "status": int(options.get("status") or 200), "contentType": options.get("content_type")}
-    try:
-        await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
-    except Gated:
-        raise Gated("Fetch.enable", "network route") from None
+    async def enable():
+        try:
+            await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
+        except Gated:
+            raise Gated("Fetch.enable", "network route") from None
+
+    await activate(ctx, page, "route", enable)
     routes.append(route)
     ctx.state.leases.add("route")
     install_router(ctx, page)
@@ -255,13 +274,14 @@ async def network_route(ctx, argv):
 
 
 async def enable_credentials(ctx, page, username, password):
+    async def enable():
+        try:
+            await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}], "handleAuthRequests": True})
+        except Gated:
+            raise Gated("Fetch.enable", "set credentials", "HTTP auth answers Fetch.authRequired") from None
+
+    await activate(ctx, page, "route", enable)
     ctx.state.extras["credentials"] = {"username": username, "password": password}
-    try:
-        await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}], "handleAuthRequests": True})
-    except Gated:
-        ctx.state.extras.pop("credentials", None)
-        raise Gated("Fetch.enable", "set credentials", "HTTP auth answers Fetch.authRequired") from None
-    claim(ctx, page, "route")
     ctx.state.leases.add("route")
     install_router(ctx, page)
 
@@ -325,6 +345,9 @@ async def network_unroute(ctx, argv):
         routes.clear()
     if not routes and not ctx.state.extras.get("credentials"):
         ctx.state.leases.discard("route")
+        for target_id, kind in list(held_claims(ctx)):
+            if kind == "route":
+                release_claim(ctx, target_id, kind)
         for page in list(ctx.state.pages.values()):
             if page.session_id:
                 try:
@@ -341,7 +364,6 @@ async def tracing(ctx, argv, kind):
     if args[0] == "start":
         if ctx.state.extras.get("tracing"):
             raise BrowseError("A trace is already recording; stop it first")
-        claim(ctx, page, "trace")
         categories = options["categories"].split(",") if options.get("categories") else DEFAULT_CATEGORIES
         record = {"events": [], "done": asyncio.get_running_loop().create_future(), "target": page.target_id, "dropped": 0}
 
@@ -357,12 +379,15 @@ async def tracing(ctx, argv, kind):
             elif method == "Tracing.tracingComplete" and not record["done"].done():
                 record["done"].set_result(True)
 
-        try:
-            await page.send("Tracing.start", {"traceConfig": {"includedCategories": [c for c in categories if not c.startswith("-")],
-                                                               "excludedCategories": [c[1:] for c in categories if c.startswith("-") and c != "-*"]},
-                                               "transferMode": "ReportEvents"})
-        except Gated:
-            raise Gated("Tracing.start", f"{kind} start") from None
+        async def enable():
+            try:
+                await page.send("Tracing.start", {"traceConfig": {"includedCategories": [c for c in categories if not c.startswith("-")],
+                                                                   "excludedCategories": [c[1:] for c in categories if c.startswith("-") and c != "-*"]},
+                                                   "transferMode": "ReportEvents"})
+            except Gated:
+                raise Gated("Tracing.start", f"{kind} start") from None
+
+        await activate(ctx, page, "trace", enable)
         ctx.state.listeners.append(listener)
         record["listener"] = listener
         ctx.state.extras["tracing"] = record
@@ -379,6 +404,7 @@ async def tracing(ctx, argv, kind):
     finally:
         ctx.state.listeners.remove(record["listener"])
         ctx.state.leases.discard("trace")
+        release_claim(ctx, record["target"], "trace")
     path = ctx.path(args[1]) if len(args) > 1 else os.path.join(os.path.dirname(default_dir(ctx)), f"trace-{int(time.time())}.json")
     Path(path).write_text(json.dumps({"traceEvents": record["events"]}), encoding="utf-8")
     shown = args[1] if len(args) > 1 else path
@@ -467,19 +493,36 @@ async def cmd_record(ctx, argv):
 
         await navigate(ctx, page, normalize_url(args[2]))
     await page.require_visible()
-    claim(ctx, page, "record")
     cast = Screencast(page)
-    try:
-        await cast.start(ctx.state)
-    except Gated:
-        raise Gated("Page.startScreencast", "record start") from None
+
+    async def enable():
+        try:
+            await cast.start(ctx.state)
+        except Gated:
+            raise Gated("Page.startScreencast", "record start") from None
+
+    await activate(ctx, page, "record", enable)
     path = ctx.path(args[1])
-    process = await asyncio.create_subprocess_exec(
+    try:
+        process = await spawn_encoder(ffmpeg, path)
+    except BaseException:
+        await cast.stop(ctx.state)
+        release_claim(ctx, page.target_id, "record")
+        raise
+    recording = {"cast": cast, "process": process, "path": args[1]}
+    return await start_pump(ctx, recording)
+
+
+async def spawn_encoder(ffmpeg, path):
+    return await asyncio.create_subprocess_exec(
         ffmpeg, "-loglevel", "error", "-y", "-f", "image2pipe", "-framerate", "25", "-c:v", "mjpeg", "-i", "-",
         "-c:v", "libvpx-vp9", "-b:v", "1500k", "-deadline", "realtime", "-cpu-used", "8", "-pix_fmt", "yuv420p", path,
         stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
     )
-    recording = {"cast": cast, "process": process, "path": args[1]}
+
+
+async def start_pump(ctx, recording):
+    cast, process = recording["cast"], recording["process"]
 
     async def pump():
         try:
@@ -494,7 +537,7 @@ async def cmd_record(ctx, argv):
     recording["pump"] = asyncio.ensure_future(pump())
     ctx.state.extras["recording"] = recording
     ctx.state.leases.add("record")
-    return Result({"path": args[1], "started": True}, f"✓ Recording started ({args[1]})")
+    return Result({"path": recording["path"], "started": True}, f"✓ Recording started ({recording['path']})")
 
 
 async def stop_recording(ctx):
@@ -502,6 +545,7 @@ async def stop_recording(ctx):
     if not recording:
         return None
     ctx.state.leases.discard("record")
+    release_claim(ctx, recording["cast"].page.target_id, "record")
     recording["pump"].cancel()
     await asyncio.gather(recording["pump"], return_exceptions=True)
     await recording["cast"].stop(ctx.state)
@@ -539,18 +583,25 @@ async def cmd_stream(ctx, argv):
         raise BrowseError(f"Streaming is already on at {stream['url']}")
     page = await ctx.state.page()
     await page.require_visible()
-    claim(ctx, page, "stream")
     quality = int(ctx.env.get("AGENT_BROWSER_STREAM_QUALITY") or 80)
     cast = Screencast(page, max(0, min(100, quality)), int(ctx.env.get("AGENT_BROWSER_STREAM_MAX_WIDTH") or 0) or None,
                       int(ctx.env.get("AGENT_BROWSER_STREAM_MAX_HEIGHT") or 0) or None)
-    try:
-        await cast.start(ctx.state)
-    except Gated:
-        raise Gated("Page.startScreencast", "stream enable") from None
+    async def enable():
+        try:
+            await cast.start(ctx.state)
+        except Gated:
+            raise Gated("Page.startScreencast", "stream enable") from None
+
+    await activate(ctx, page, "stream", enable)
     port = int(options.get("port") or ctx.env.get("AGENT_BROWSER_STREAM_PORT") or 0)
     token = secrets.token_urlsafe(24)
     stream = {"cast": cast, "clients": set(), "input": bool(options.get("input")), "token": token, "page": page}
-    server = await start_stream_server(ctx, stream, port)
+    try:
+        server = await start_stream_server(ctx, stream, port)
+    except BaseException:
+        await cast.stop(ctx.state)
+        release_claim(ctx, page.target_id, "stream")
+        raise
     stream["server"] = server
     stream["port"] = server.sockets[0].getsockname()[1]
     stream["url"] = f"ws://127.0.0.1:{stream['port']}/?token={token}"
@@ -576,7 +627,7 @@ async def start_stream_server(ctx, stream, port):
         if host not in (f"127.0.0.1:{bound}", f"localhost:{bound}"):
             return refuse(403, "Forbidden host")
         origin = request.headers.get("Origin")
-        if origin is not None and origin not in (f"http://127.0.0.1:{bound}", f"http://localhost:{bound}", "null"):
+        if origin is not None and origin not in (f"http://127.0.0.1:{bound}", f"http://localhost:{bound}"):
             return refuse(403, "Forbidden origin")
         query = parse_qs(urlsplit(request.path).query)
         if not secrets.compare_digest((query.get("token") or [""])[0], stream["token"]):
@@ -625,6 +676,8 @@ async def start_stream_server(ctx, stream, port):
             stream["clients"].discard(connection)
             if waiter in stream["cast"].waiters:
                 stream["cast"].waiters.remove(waiter)
+            if stream["input"]:
+                await release_stream_input(ctx, stream["page"])
 
     return await serve(handler, "127.0.0.1", port, process_request=process_request, max_size=64 * 1024, compression=None)
 
@@ -643,10 +696,18 @@ async def stream_input(ctx, page, message):
     if "eventType" in message:
         params["type"] = message["eventType"]
     async with ctx.state.extras["command_lock"]:
+        page.input.track_stream_event(method, params)
         try:
             await page.send(method, params, input_event=True)
         except BrowseError:
-            pass
+            await page.input.release_all()
+
+
+async def release_stream_input(ctx, page):
+    if page is None or not page.input.holding:
+        return
+    async with ctx.state.extras["command_lock"]:
+        await page.input.release_all()
 
 
 async def stop_stream(ctx):
@@ -654,6 +715,7 @@ async def stop_stream(ctx):
     if not stream:
         return
     ctx.state.leases.discard("stream")
+    release_claim(ctx, stream["page"].target_id, "stream")
     stream["server"].close()
     for client in list(stream["clients"]):
         await client.close()

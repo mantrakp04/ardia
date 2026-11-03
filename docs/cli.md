@@ -94,19 +94,38 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   event loop under the command lock, so a disconnect never races a command.
 - **Connection loss is terminal.** When Ardia closes the connection itself (Stop, control turned off, Ardia quit),
   the session ends: queued commands fail, nothing reconnects and nothing is replayed. pydoll's `ConnectionHandler`
-  is subclassed so it never reconnects on its own, with a 256 MB `max_size`. A command that may already have been
-  dispatched is never retried; it reports that its outcome is unknown (exit 2 on connection loss, 1 on a timeout).
+  is subclassed so it never reconnects on its own, with a 256 MB `max_size`. A link found dead when a command
+  starts is treated the same way, before any endpoint is resolved again; only the daemon's own idle disconnect
+  reconnects. A command that may already have been dispatched is never retried; it reports that its outcome is
+  unknown (exit 2 on connection loss, 1 otherwise). That covers a timeout on any method that changes something
+  (`Page.navigate`, `Page.reload`, `Target.createTarget`/`closeTarget`/`activateTarget`, `Input.*`, `Emulation.*`,
+  cookie, Fetch and download methods, `eval`, and every isolated-world call that isn't marked as a read), a daemon
+  that goes away after taking a mutating command, and batch: after an unknown outcome the rest of the batch isn't
+  run and is reported as `not_run`. Isolated-world reads are retried once when the document changes under them;
+  writes (`history.go`, `storage set`, `select`, `pushstate`, scripted scrolls) fail with `document_changed` and are
+  never replayed on the new document.
+- `close` takes the command lock, marks the session closing, and only then closes its tabs; requests already queued
+  or arriving later get `session_closing`. On any stop the daemon lets running handlers settle (up to 5 s, then
+  cancels them) before it touches the browser. Every answer is sanitized (registered tokens and any `token=` query
+  are masked in each JSON field and in the text) before it's written, and the daemon refuses to send an answer over
+  256 MB.
 - While disconnected the daemon watches `ArdiaControl.json` every 2 s and exits when it disappears or names another
   instance. It also exits after `--idle-timeout`/`AGENT_BROWSER_IDLE_TIMEOUT_MS` (default 1 h) without commands, and
   on `close`. It takes a lease on its CLI version like `ardia` does.
 - Sessions (`--session`, `AGENT_BROWSER_SESSION`, default `default`; `--namespace`) are command-state namespaces on
   the same Ardia, not isolated browsers: cookies, storage and logins are the user's in all of them. A capture or
   route claims its tab in `Browse/claims/` (checked against the owner's lock), and a second live session is refused
-  on a tab another one owns.
+  on a tab another one owns. The claim is taken before the CDP domain is enabled (console and errors, including
+  `open --capture-console`, network, HAR, route and credentials, trace, record, stream), dropped if enabling fails,
+  and released by the matching stop (`har stop`, `unroute` of the last route, `trace`/`profiler stop`,
+  `record stop`, `stream disable`) or when the session ends.
 
 ### Refs
 
-A snapshot numbers `e1, e2, ...` in document order and keeps, per ref, the browser instance, target id, frame id,
+Refs keep agent-browser's `@eN` form, but numbers are never reused within a session: the first snapshot gives
+`e1, e2, ...` in document order and later snapshots (and `find`) continue from the last number instead of restarting
+at `e1`, so a delayed `click @e1` can't land on a different element from a newer snapshot; it fails as stale. Each
+ref keeps the browser instance, target id, frame id,
 the frame's loader id, the snapshot generation and the backend DOM node id (with role and name for display). A ref
 resolves only within that lifetime: the instance must match, the frame must still have the same loader
 (`Page.getFrameTree`), and `DOM.resolveNode` must find the node, connected, in the isolated world. Anything else is
@@ -128,10 +147,12 @@ Click points get a small random offset inside the box; a click whose point is co
 Every input command confirms the page got it. Capture listeners in the isolated world count trusted `mousedown`,
 `mouseup`, `mousemove`, `keydown`, `keyup` and `wheel` events in the target's frame; after the gesture the command
 waits up to 1.5 s for the counts it needs (a click's `mousedown` and `mouseup`, one `keydown` and `keyup` per typed
-character, a `wheel` per scroll). If they never arrive it fails with `input_not_delivered` instead of reporting `✓
-Done`. A navigation or a closed frame counts as delivered, and so do keys sent while focus is in an iframe and a
-raw `mouse` event over one, since those land in another frame. The listeners add no DOM and nothing the page's world
-can enumerate.
+character, a `wheel` per scroll, a `beforeinput` or `input` for `keyboard inserttext`). If the listeners can't be set
+up the command fails before sending anything (`input_unconfirmable`). If none of the events arrive it fails with
+`input_not_delivered`; if only some do (a `mousedown` without its `mouseup`), or confirmation fails after sending, it
+reports an unknown outcome, since part of the gesture may have landed. A navigation or a closed frame counts as
+delivered, and so do keys sent while focus is in an iframe and a raw `mouse` event over one, since those land in
+another frame. The listeners add no DOM and nothing the page's world can enumerate.
 
 Held keys and buttons are tracked before each dispatch, and a gesture that's interrupted releases them in a
 bounded (2 s), shielded `finally`; `keydown` and `mouse down` stay held across commands on purpose (and keep the
@@ -155,7 +176,8 @@ world (`Page.createIsolatedWorld`, `ardia-browse`) or through browser-side CDP. 
 PNG in Python, so nothing is added to the page. The page still sees what a person causes: trusted input events,
 focus, scrolling, and the DOM changes those lead to (`select` and `pushstate` dispatch their `input`/`change` and
 `popstate` events from the isolated world). Only `eval`, `wait --fn`, init scripts and the React hook run in the
-main world. There's no `--enable-automation` and no fingerprint spoofing.
+main world. `wait --fn` is the caller's JavaScript like `eval`, so it runs where the page's own globals are; it's
+evaluated every 100 ms until it's truthy. There's no `--enable-automation` and no fingerprint spoofing.
 
 The one deviation from agent-browser: the Runtime domain stays off until console or error capture starts (the first
 `console` or `errors`, or `open --capture-console`); from then on it's on for that tab for the rest of the session.
@@ -174,8 +196,10 @@ init scripts registered, then `Page.navigate`); later `open`s navigate the sessi
 acted on after `tab <id>` or `tab active` (the page shown in Ardia's last focused window, token path only).
 `close` and `tab close` close only tabs this session opened; the guard refuses `Browser.close` on every socket, as in
 `exec`. `tab list` shows the user's tabs too (minus prewarmed `about:blank` pages). `alert` and `beforeunload`
-dialogs are accepted, as in agent-browser, unless `--no-auto-dialog`. `get cdp-url` refuses on the token path,
-since the URL carries the token.
+dialogs are accepted, as in agent-browser, unless `--no-auto-dialog`. `get cdp-url` refuses any URL that carries a
+token or other credentials, however it was chosen (the token path, `--ws`, `$ARDIA_CDP_URL`); it prints only a
+plain `--port`/`--ws` URL. After `frame <iframe>`, if that iframe goes away, commands fail with `frame_gone` until
+`frame main` or another `frame`, instead of falling back to the main document.
 
 ### Gated by the token policy
 
@@ -218,13 +242,14 @@ fail with a message saying so. `--headers`, `--color-scheme` and `--download-pat
 
 ### Captures and bounds
 
-Console messages (1,000), errors (500) and network requests (1,000 per tab) are ring buffers that count what they
-drop. Response bodies are capped at 1 MB for `network request`, 2 MB each and 64 MB in all for a HAR, trace events at
+Console messages (1,000 and 16 MB), errors (500 and 16 MB) and network requests (1,000 and 32 MB per tab) are ring
+buffers that count what they drop; each record's text is cut at 64 KB, header values at 8 KB and a record's headers at
+64 KB. Response bodies are capped at 1 MB for `network request`, 2 MB each and 64 MB in all for a HAR, trace events at
 2 million, a request to the daemon at 16 MB and its answer at 256 MB. `network requests` and `har` start capturing
 at their first use (`Network.enable`).
 
 `stream enable [--port N] [--input]` (once allowed) binds 127.0.0.1 only, with its own random token in the URL (never
-the CDP token), checks `Host` and `Origin` exactly (localhost or 127.0.0.1 on its port, or no Origin), takes at most
+the CDP token), checks `Host` and `Origin` exactly (localhost or 127.0.0.1 on its port, or no Origin; `null` is refused), takes at most
 4 clients, and is view-only unless `--input`. Messages follow agent-browser's (`status`, `frame` with `seq` and
 `metadata`, `input_mouse`, `input_keyboard`, `input_touch`).
 
@@ -238,7 +263,10 @@ passwords come back hex-encoded, which the metadata records). The item is a gene
 selectors) is `Browse/auth/<name>.json`, 0600. Each credential is bound to https origins (http only for localhost).
 `auth login` checks the tab's committed top-level origin and the field's frame origin against them before typing,
 types per character, and stops if the page navigates, the frame's loader or origin changes, or focus leaves the
-field. Any process running as the user can read items `/usr/bin/security` created (Keychain lets that tool read its
+field. The check runs after each `DOM.focus` has returned (so a page's focus handler has already run) and right
+before that character's key events; for a field in an iframe it also checks the top document's focus is on that
+frame. `tests/fixtures/browse/auth.html#steal` moves focus into a cross-origin iframe on focus; the end-to-end test
+checks no character reaches it. Any process running as the user can read items `/usr/bin/security` created (Keychain lets that tool read its
 own items without a prompt), the same boundary as `ArdiaControl.json`. `ARDIA_BROWSE_KEYCHAIN` points it at another
 keychain file, for tests.
 
