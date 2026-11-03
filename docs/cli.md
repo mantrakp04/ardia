@@ -301,7 +301,8 @@ ARDIA_BROWSE_E2E_APP=<build>/Ardia.app python -m unittest apps/cli/tests/test_br
 It serves `tests/fixtures/browse` on 127.0.0.1, launches one hidden instance with a DevTools port (`ac launch
 --no-wait`) and one on the token path (`open -g -n`, `ARDIA_BACKGROUND=1`, control on in `session.json`), both under
 `~/ardia-scratch/browse-impl/e2e` (`ARDIA_BROWSE_E2E_DIR`), runs the core loop, the probe, `--no-humanize`, the
-hidden-tab refusal, refs across an idle disconnect and the gated errors, then closes its sessions and quits both.
+hidden-tab refusal, refs across an idle disconnect, the gated errors and a service worker starting mid-session, then
+closes its sessions and quits both.
 The a11y command needs `ardia_cli/vendor/axe.min.js`: `build.sh` adds axe-core 4.10.3 (pinned by sha256 and npm's
 sha512); from the repo it falls back to `node_modules/axe-core` in a parent folder.
 
