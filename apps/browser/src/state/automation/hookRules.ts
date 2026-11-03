@@ -8,9 +8,9 @@ import { HOOKS_FILE, parseHooksText, type HookSpec } from "./hookFile";
 import { approvalFor, isHookActive, launchActionApproval } from "./hookPolicy";
 import type { DecideEvent } from "./eventNames";
 
-type Store = { hooks: HookSpec[]; generation: number; problems: string[] };
+type Store = { hooks: HookSpec[]; generation: number; problems: string[]; stamp: string | null };
 
-export const useHookRules = create<Store>()(() => ({ hooks: [], generation: 0, problems: [] }));
+export const useHookRules = create<Store>()(() => ({ hooks: [], generation: 0, problems: [], stamp: null }));
 
 const changeListeners = new Set<() => void>();
 let unshownNotice = false;
@@ -34,17 +34,17 @@ export function showPendingNotice() {
   if (unshownNotice) noticePending(HOOKS_FILE, useHookRules.getState().hooks.map(approvalFor).filter((r): r is ApprovalRule => !!r));
 }
 
-function applyHooks(hooks: HookSpec[], problems: string[]) {
+function applyHooks(hooks: HookSpec[], problems: string[], stamp: string | null) {
   const before = useHookRules.getState();
   const same = before.hooks.length === hooks.length && before.hooks.every((h, i) => h.revision === hooks[i]!.revision && h.name === hooks[i]!.name);
-  useHookRules.setState({ hooks, problems, generation: same ? before.generation : before.generation + 1 });
+  useHookRules.setState({ hooks, problems, stamp, generation: same ? before.generation : before.generation + 1 });
   noticePending(HOOKS_FILE, offerRules(HOOKS_FILE, hooks.map(approvalFor).filter((r): r is ApprovalRule => !!r)));
   if (!same) for (const listener of changeListeners) listener();
 }
 
 export function reloadHooks() {
   const read = readConfigFile(HOOKS_FILE);
-  if (read.status === "missing") return applyHooks([], []);
+  if (read.status === "missing") return applyHooks([], [], read.stamp ?? null);
   if (read.status !== "ok") {
     useHookRules.setState({ problems: [`${HOOKS_FILE} can't be read (${read.status})`] });
     return;
@@ -55,11 +55,11 @@ export function reloadHooks() {
     useHookRules.setState({ problems: parsed.problems });
     return;
   }
-  applyHooks(parsed.hooks, []);
+  applyHooks(parsed.hooks, [], read.stamp ?? null);
 }
 
 export function setHooksForTests(hooks: HookSpec[]) {
-  applyHooks(hooks, []);
+  applyHooks(hooks, [], null);
 }
 
 export function decideHooks(event: DecideEvent): HookSpec[] {

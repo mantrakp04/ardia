@@ -51,7 +51,10 @@ NS_ASSUME_NONNULL_BEGIN
               argv:(char *_Nullable *_Nonnull)argv
           delegate:(id<NSApplicationDelegate> (^)(void))makeDelegate NS_SWIFT_NAME(run(argc:argv:delegate:));
 + (nullable NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url NS_SWIFT_NAME(senderOfOpenedURL(_:));
-@property(class) BOOL holdsIncomingLinks;
+@property(class, readonly) BOOL holdsIncomingLinks;
++ (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(nullable NSString *)hooksStamp NS_SWIFT_NAME(setHoldIncomingLinks(_:hooksStamp:));
++ (NSString *)fileStampOfDescriptor:(int)fd NS_SWIFT_NAME(fileStamp(ofDescriptor:));
+@property(class, readonly) NSString *missingFileStamp;
 
 @end
 

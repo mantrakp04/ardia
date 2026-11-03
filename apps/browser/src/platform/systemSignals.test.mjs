@@ -49,8 +49,8 @@ test("an idle threshold must be a positive number of seconds", () => {
 });
 
 test("the incoming-link hold is a native flag", () => {
-  setHoldIncomingLinks(true);
+  setHoldIncomingLinks(true, "1:2:3:4.5:6.7");
   assert.equal(holdsIncomingLinks(), true);
-  setHoldIncomingLinks(false);
+  setHoldIncomingLinks(false, null);
   assert.equal(holdsIncomingLinks(), false);
 });

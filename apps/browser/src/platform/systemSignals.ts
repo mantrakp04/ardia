@@ -67,7 +67,7 @@ export function onUserIdle(thresholdSeconds: number, listener: (idle: boolean) =
 
 export const holdsIncomingLinks = (): boolean => Signals().holdsIncomingLinks();
 
-export const setHoldIncomingLinks = (hold: boolean): void => Signals().setHoldIncomingLinks(hold);
+export const setHoldIncomingLinks = (hold: boolean, hooksStamp: string | null): void => Signals().setHoldIncomingLinks(hold, hooksStamp);
 
 export const setApprovedDownloadFolders = (folders: string[]): void => Signals().setApprovedDownloadFolders(folders);
 

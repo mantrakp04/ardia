@@ -4,7 +4,7 @@ import { setLinkGate, type LinkGateResult, type LinkSourceInfo } from "../little
 import { setPermissionGate } from "../site/permissionGate";
 import { cancelAllDecisions } from "./decideSocket";
 import { decideLink, decideOpening, decidePermission, type LinkVerdict } from "./decisions";
-import { activeHook, decideHooks, onHooksChanged, startHookRules } from "./hookRules";
+import { activeHook, decideHooks, onHooksChanged, startHookRules, useHookRules } from "./hookRules";
 import { startOmniboxApprovals } from "./omniboxApprovals";
 import { startOmniboxHooks } from "./omniboxHooks";
 import { startDownloadHooks } from "./downloadHooks";
@@ -29,7 +29,7 @@ function gateLink(url: string, source: LinkSourceInfo): LinkGateResult | Promise
 function updateLinkHold() {
   const wanted = [...decideHooks("link.opening"), ...decideHooks("tab.opening")].some(activeHook);
   try {
-    setHoldIncomingLinks(wanted);
+    setHoldIncomingLinks(wanted, useHookRules.getState().stamp);
   } catch (error) {
     console.warn("[automation] couldn't set the incoming link hold", error);
   }
@@ -50,6 +50,9 @@ export function startDecideHooks() {
   onHooksChanged(() => {
     cancelAllDecisions();
     updateLinkHold();
+  });
+  useHookRules.subscribe((s, prev) => {
+    if (s.stamp !== prev.stamp) updateLinkHold();
   });
   updateLinkHold();
 }

@@ -32,22 +32,33 @@ static bool gReplayingLaunchURLs;
 static NSString *const kHoldIncomingLinksDefault = @"ArdiaHoldIncomingLinks";
 
 static NSString *const kLinkPolicyStampDefault = @"ArdiaLinkPolicyStamp";
+static NSString *const kMissingFileStamp = @"missing";
 static std::atomic<bool> gLinkPolicyReady{false};
 
-static NSString *LinkPolicyStamp() {
-  NSString *folder = ArdiaLaunchConfig.shared.configDirectory;
-  NSMutableArray<NSString *> *parts = [NSMutableArray array];
-  for (NSString *name in @[ @"hooks.json" ]) {
-    struct stat info;
-    if (stat([folder stringByAppendingPathComponent:name].fileSystemRepresentation, &info) != 0) {
-      [parts addObject:[NSString stringWithFormat:@"%@:missing:%d", name, errno]];
-      continue;
-    }
-    [parts addObject:[NSString stringWithFormat:@"%@:%llu:%llu:%lld:%ld.%09ld:%ld.%09ld", name, (unsigned long long)info.st_dev,
-                                                (unsigned long long)info.st_ino, (long long)info.st_size, info.st_mtimespec.tv_sec,
-                                                info.st_mtimespec.tv_nsec, info.st_ctimespec.tv_sec, info.st_ctimespec.tv_nsec]];
-  }
-  return [[@[ folder ?: @"" ] arrayByAddingObjectsFromArray:parts] componentsJoinedByString:@"|"];
+static NSString *AppDataDirectory();
+
+static NSString *StatStamp(const struct stat &info) {
+  return [NSString stringWithFormat:@"%llu:%llu:%lld:%ld.%09ld:%ld.%09ld", (unsigned long long)info.st_dev, (unsigned long long)info.st_ino,
+                                    (long long)info.st_size, info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec, info.st_ctimespec.tv_sec,
+                                    info.st_ctimespec.tv_nsec];
+}
+
+static NSString *PathStamp(NSString *path) {
+  struct stat info;
+  if (stat(path.fileSystemRepresentation, &info) == 0) return StatStamp(info);
+  return errno == ENOENT ? kMissingFileStamp : [NSString stringWithFormat:@"unreadable:%d", errno];
+}
+
+static NSString *HooksFileStamp() {
+  return PathStamp([ArdiaLaunchConfig.shared.configDirectory stringByAppendingPathComponent:@"hooks.json"]);
+}
+
+static NSString *LinkPolicyFingerprint(NSString *hooksStamp) {
+  NSString *folder = ArdiaLaunchConfig.shared.configDirectory ?: @"";
+  return [@[
+    folder, hooksStamp, PathStamp([folder stringByAppendingPathComponent:@"config.json"]),
+    PathStamp([AppDataDirectory() stringByAppendingPathComponent:@"automation-approvals.json"])
+  ] componentsJoinedByString:@"|"];
 }
 
 static bool SavedLinkHold() {
@@ -56,7 +67,8 @@ static bool SavedLinkHold() {
 
 static bool HoldsIncomingLinks() {
   if (gLinkPolicyReady) return SavedLinkHold();
-  return SavedLinkHold() || ![[NSUserDefaults.standardUserDefaults stringForKey:kLinkPolicyStampDefault] isEqualToString:LinkPolicyStamp()];
+  NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:kLinkPolicyStampDefault];
+  return SavedLinkHold() || ![saved isEqualToString:LinkPolicyFingerprint(HooksFileStamp())];
 }
 
 static pid_t SenderPID(NSAppleEventDescriptor *event) {
@@ -314,13 +326,24 @@ void StartEarlyWindow() {
   return SavedLinkHold();
 }
 
-+ (void)setHoldsIncomingLinks:(BOOL)hold {
++ (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(NSString *)hooksStamp {
   NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
   if (hold) [defaults setBool:YES forKey:kHoldIncomingLinksDefault];
   else [defaults removeObjectForKey:kHoldIncomingLinksDefault];
-  [defaults setObject:LinkPolicyStamp() forKey:kLinkPolicyStampDefault];
+  NSString *current = HooksFileStamp();
+  if (hooksStamp && [hooksStamp isEqualToString:current]) [defaults setObject:LinkPolicyFingerprint(current) forKey:kLinkPolicyStampDefault];
+  else [defaults removeObjectForKey:kLinkPolicyStampDefault];
   [defaults synchronize];
   gLinkPolicyReady = true;
+}
+
++ (NSString *)fileStampOfDescriptor:(int)fd {
+  struct stat info;
+  return fstat(fd, &info) == 0 ? StatStamp(info) : [NSString stringWithFormat:@"unreadable:%d", errno];
+}
+
++ (NSString *)missingFileStamp {
+  return kMissingFileStamp;
 }
 
 + (NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url {

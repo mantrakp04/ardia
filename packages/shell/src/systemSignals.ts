@@ -7,7 +7,7 @@ export type MovedDownload = { ok: true; path: string } | { ok: false; reason: st
 export type SystemSignalsNative = {
   watchIdle(thresholds: number[]): void;
   holdsIncomingLinks(): boolean;
-  setHoldIncomingLinks(hold: boolean): void;
+  setHoldIncomingLinks(hold: boolean, hooksStamp: string | null): void;
   devPost(name: "willSleep" | "didWake"): Promise<boolean>;
   setApprovedDownloadFolders(folders: string[]): void;
   moveCompletedDownload(path: string, folder: string): Promise<MovedDownload>;

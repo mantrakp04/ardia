@@ -95,7 +95,7 @@ public class SystemSignalsModule: Module {
 
     Function("holdsIncomingLinks") { () -> Bool in ArdiaHost.holdsIncomingLinks }
 
-    Function("setHoldIncomingLinks") { (hold: Bool) in ArdiaHost.holdsIncomingLinks = hold }
+    Function("setHoldIncomingLinks") { (hold: Bool, hooksStamp: String?) in ArdiaHost.setHoldIncomingLinks(hold, hooksStamp: hooksStamp) }
 
     Function("setApprovedDownloadFolders") { (folders: [String]) in ArdiaDownloadMover.shared.setApprovedFolders(folders) }
 
