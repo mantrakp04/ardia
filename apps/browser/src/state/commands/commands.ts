@@ -75,8 +75,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     if (command === "findInPage" && requested === SETTINGS_WINDOW_ID) return focusSettingsSearch();
     requested = null;
   }
-  if (isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
-  if (runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
+  const targeted = targetTab && s.tabs[targetTab] && (!requested || s.tabs[targetTab]!.windowId === requested) ? targetTab : null;
+  if (targetTab && !targeted) throw new NoCommandWindowError(`Tab ${targetTab} isn't open in that window.`);
+  if (!targeted && isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
+  if (!targeted && runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
   const settings = settingChange(command, arg, s.settings);
   if (settings) return s.updateSettings(settings);
 
@@ -137,12 +139,12 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     }
     return;
   }
-  const tabId = (targetTab && s.tabs[targetTab]?.windowId === windowId ? targetTab : null) ?? ((LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId));
+  const tabId = targeted ?? ((LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId));
   const tab = tabId ? s.tabs[tabId] : undefined;
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;
   const ui = s.windowUi[windowId];
-  if (runSidebarCommand(command, arg, windowId)) return;
+  if (!targeted && runSidebarCommand(command, arg, windowId)) return;
 
   switch (command) {
     case "newTab":
@@ -159,6 +161,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "") : undefined;
       return ui?.panel.open ? s.closePanel(windowId) : undefined;
     case "closeTab":
+      if (targeted) return void closeTab(targeted);
       if (ui?.panel.newTab) {
         closeNewTabBar(windowId);
         if (NEW_TAB_BAR_POLICY.closeTabKeyOnlyDismissesBar || !tabId) return;

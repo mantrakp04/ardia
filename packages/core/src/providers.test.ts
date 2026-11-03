@@ -164,9 +164,13 @@ test("remote endpoints: https or loopback http in the file; requests only to pub
   assert.equal(isRemoteEndpoint("http://127.0.0.1:8123/s?q={query}"), true);
   assert.equal(isRemoteEndpoint("http://a.com/s?q={query}"), false);
   assert.equal(isRemoteEndpoint("https://a.com/s"), false);
-  for (const host of ["localhost", "127.0.0.1", "10.0.0.1", "192.168.1.2", "172.20.0.1", "169.254.169.254", "100.64.0.1", "[::1]", "[fd00::1]", "[fe80::1]", "printer.local", "intranet", "2130706433", "0x7f000001"])
+  for (const host of ["localhost", "127.0.0.1", "10.0.0.1", "192.168.1.2", "172.20.0.1", "169.254.169.254", "100.64.0.1", "[::1]", "[fd00::1]", "[fe80::1]", "printer.local", "intranet", "2130706433", "0x7f000001", "8.8.8.8", "[2606:4700::1111]", "127.1", "0177.0.0.1", "%31%32%37.0.0.1", "Example.com", "exa_mple.com", "bänk.example"])
     assert.equal(isPublicHost(host), false, host);
-  for (const host of ["example.com", "8.8.8.8", "172.32.0.1", "[2606:4700::1111]"]) assert.equal(isPublicHost(host), true, host);
+  for (const host of ["example.com", "xn--bnk-sna.example", "a.b-c.io", "example.com."]) assert.equal(isPublicHost(host), true, host);
+  for (const url of ["https://127.1/s?q=x", "https://0177.0.0.1/s?q=x", "https://%31%32%37.0.0.1/s?q=x", "https://[0:0:0:0:0:0:0:1]/s?q=x", "https://8.8.8.8/s?q=x", "https://evil.example\\@a.com/s?q=x", "https://u@a.com/s?q=x", "https://a.com:0443/s?q=x", "https://a.com:443/s?q=x"])
+    assert.equal(remoteRequestAllowed(url, { allowLoopback: true }), false, url);
+  assert.equal(remoteRequestAllowed("https://a.com:8443/s?q=x"), true);
+  assert.equal(remoteRequestAllowed("http://localhost:8123/s?q=x", { allowLoopback: true }), false);
   assert.equal(remoteRequestAllowed("https://a.com/s?q=x"), true);
   assert.equal(remoteRequestAllowed("https://192.168.1.1/s?q=x"), false);
   assert.equal(remoteRequestAllowed("http://127.0.0.1:8123/s?q=x"), false);

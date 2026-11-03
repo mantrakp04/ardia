@@ -1,35 +1,39 @@
 import { providerUrl } from "./providerRows.ts";
 
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const LOOPBACK_TEST_HOST = "127.0.0.1";
 const PRIVATE_SUFFIXES = /\.(?:localhost|local|internal|lan|home\.arpa|test|invalid|onion)$/i;
-
-function privateIpv4(host: string): boolean {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (!m) return false;
-  const [a, b] = [Number(m[1]), Number(m[2])];
-  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19));
-}
-
-function privateIpv6(host: string): boolean {
-  if (!host.startsWith("[")) return false;
-  const h = host.slice(1, -1).toLowerCase();
-  return h === "::" || h === "::1" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || h.startsWith("::ffff:") || h.startsWith("64:ff9b:");
-}
+const DNS_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\.?$/;
+const AUTHORITY = /^([a-z]+):\/\/([^/?#]*)(?:[/?#]|$)/i;
 
 export function isPublicHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, "");
-  if (!h || (!h.includes(".") && !h.startsWith("[")) || LOOPBACK_HOSTS.has(h) || PRIVATE_SUFFIXES.test(h)) return false;
-  if (/^\d+$/.test(h) || /^0x/i.test(h)) return false;
-  return !privateIpv4(h) && !privateIpv6(h);
+  const h = host.toLowerCase();
+  if (h !== host || !DNS_NAME.test(h)) return false;
+  const bare = h.replace(/\.$/, "");
+  return bare !== "localhost" && !PRIVATE_SUFFIXES.test(bare);
 }
 
-const authorityHost = (url: string) => /^[a-z]+:\/\/(\[[^\]]+\]|[^:/?#]+)/i.exec(url)?.[1]?.toLowerCase() ?? "";
+function plainAuthority(url: string): { scheme: string; host: string } | null {
+  if (/[\u0000-\u0020\u007f\\]/.test(url)) return null;
+  const found = AUTHORITY.exec(url);
+  if (!found) return null;
+  const scheme = found[1]!.toLowerCase();
+  const authority = found[2]!;
+  if (authority.includes("@") || authority.includes("%") || authority.startsWith("[")) return null;
+  const colon = authority.indexOf(":");
+  const host = colon < 0 ? authority : authority.slice(0, colon);
+  if (colon >= 0) {
+    const port = authority.slice(colon + 1);
+    if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535 || port === (scheme === "https" ? "443" : "80")) return null;
+  }
+  return { scheme, host };
+}
 
 export function remoteRequestAllowed(url: string, { allowLoopback = false }: { allowLoopback?: boolean } = {}): boolean {
   if (!providerUrl(url)) return false;
-  const host = authorityHost(url);
-  if (/^https:\/\//i.test(url) && isPublicHost(host)) return true;
-  return allowLoopback && LOOPBACK_HOSTS.has(host);
+  const parts = plainAuthority(url);
+  if (!parts) return false;
+  if (parts.scheme === "https" && isPublicHost(parts.host)) return true;
+  return allowLoopback && parts.host === LOOPBACK_TEST_HOST;
 }
 
 function canonical(value: unknown): string {

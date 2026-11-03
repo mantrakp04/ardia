@@ -79,14 +79,14 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       const gated = gateOpening(options.url, { tabId: null, windowId, profileId, via: "newTab" }, null);
       if ("verdict" in gated) {
         if (gated.verdict && "cancel" in gated.verdict) return "";
-        return get().newTab(windowId, { ...options, url: gated.verdict?.url ?? options.url, gated: true });
+        return get().newTab(windowId, { ...options, url: gated.verdict?.url ?? options.url, gated: true, replaced: !!gated.verdict });
       }
       const { url, ...blank } = options;
       const id = get().newTab(windowId, { ...blank, gated: true });
       settleOpening(gated, null, (verdict) => {
         if (!id || !get().tabs[id] || navigationOf(get().tabs[id])) return;
         if (verdict && "cancel" in verdict) return get().closeTab(id);
-        get().navigate(id, verdict?.url ?? url, { userInitiated: false, gated: true });
+        get().navigate(id, verdict?.url ?? url, { userInitiated: !verdict, gated: true });
       });
       return id;
     }
@@ -167,7 +167,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       if (!("verdict" in gate) || gate.verdict) {
         settleOpening(gate, `tab:${id}`, (verdict) => {
           if (verdict && "cancel" in verdict) return;
-          if (get().tabs[id]) get().navigate(id, verdict?.url ?? url, { userInitiated, gated: true });
+          if (get().tabs[id]) get().navigate(id, verdict?.url ?? url, { userInitiated: verdict ? false : userInitiated, gated: true });
         });
         return;
       }

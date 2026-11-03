@@ -66,7 +66,9 @@ export function safeRewriteTarget(target: string | null): string | null {
 export function rewriteOf(rewrites: readonly Rewrite[], href: string, matches: (r: Rewrite) => boolean): string | null | undefined {
   const rule = rewrites.find(matches);
   if (!rule) return undefined;
-  return safeRewriteTarget(applyTemplate(rule.to, href));
+  const target = safeRewriteTarget(applyTemplate(rule.to, href));
+  if (target && STRIPPING_TEMPLATES.has(rule.to) && !sameOrigin(href, target)) return null;
+  return target;
 }
 
 export const sameOrigin = (a: string, b: string) => {

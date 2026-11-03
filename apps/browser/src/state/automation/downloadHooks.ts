@@ -1,4 +1,4 @@
-import type { Download } from "../../platform/downloads";
+import { onDownload, type Download } from "../../platform/downloads";
 import { useBrowser } from "../browser/store";
 import { decideDownload } from "./decisions";
 import { activeHook, onHooksChanged, useHookRules } from "./hookRules";
@@ -67,6 +67,18 @@ export async function settleFinishedDownload(d: Download): Promise<MoveResult | 
 }
 
 let started = false;
+const inProgress = new Set<string>();
+const IN_PROGRESS_CAP = 500;
+
+export function noteDownloadEvent(d: Download) {
+  if (d.state === "downloading") {
+    inProgress.add(d.id);
+    if (inProgress.size > IN_PROGRESS_CAP) inProgress.delete(inProgress.values().next().value!);
+    return;
+  }
+  if (!inProgress.delete(d.id)) return;
+  if (d.state === "finished") void settleFinishedDownload(d);
+}
 
 export function startDownloadHooks(next: DownloadMover) {
   mover = next;
@@ -74,16 +86,12 @@ export function startDownloadHooks(next: DownloadMover) {
   if (started) return;
   started = true;
   onHooksChanged(pushApprovedFolders);
-  for (const d of useBrowser.getState().downloads) if (d.state === "finished") remember(d.id);
-  useBrowser.subscribe((s, prev) => {
-    if (s.downloads === prev.downloads) return;
-    const before = new Map(prev.downloads.map((d) => [d.id, d.state]));
-    for (const d of s.downloads) if (d.state === "finished" && before.get(d.id) !== "finished") void settleFinishedDownload(d);
-  });
+  onDownload(noteDownloadEvent);
 }
 
 export function resetDownloadHooksForTests() {
   mover = null;
   handled.clear();
+  inProgress.clear();
   lastApproved = null;
 }

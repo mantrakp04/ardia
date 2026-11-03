@@ -35,7 +35,8 @@ async function withAppUrl(run) {
 
 test("urls split and format without adding or losing a slash", () => {
   assert.equal(formatUrl(urlParts("http://127.0.0.1:18800/page.html")), "http://127.0.0.1:18800/page.html");
-  assert.equal(formatUrl(urlParts("HTTPS://Example.COM:443/a?b=1#c")), "https://example.com/a?b=1#c");
+  assert.equal(formatUrl(urlParts("HTTPS://Example.COM/a?b=1#c")), "https://example.com/a?b=1#c");
+  assert.equal(urlParts("HTTPS://Example.COM:443/a"), null);
   assert.equal(formatUrl(urlParts("https://example.com")), "https://example.com/");
   assert.equal(webUrl("https://user:pw@example.com/"), null);
   assert.equal(webUrl("javascript:alert(1)"), null);
@@ -54,6 +55,42 @@ test("with React Native's URL as the global, rewrites, omnibox rows and matching
     const spec = parseMatchPattern("https://example.com/zed");
     assert.equal(matchesUrl(spec, "https://example.com/zed"), true);
     assert.equal(matchesUrl(parseMatchPattern("https://*.Example.com/*"), "https://A.example.com/x"), true);
-    assert.equal(sameOrigin("https://a.example/x", "https://a.example:443/y"), true);
+    assert.equal(sameOrigin("https://a.example/x", "https://A.example/y"), true);
   });
+});
+
+test("anything urlParts can't read the way Chromium does fails closed: no match, no rewrite, no same origin", async () => {
+  const { decideOpening } = await import("../state/automation/decisions.ts");
+  const { setHooksForTests } = await import("../state/automation/hookRules.ts");
+  const { parseHooksDocument } = await import("../state/automation/hookFile.ts");
+  const ambiguous = [
+    "https://evil.example\\@bank.example/pay?tracking=1",
+    "https://evil.example\\bank.example/pay",
+    "https://user@bank.example/pay",
+    "https://%62ank.example/pay",
+    "https://bänk.example/pay",
+    "https://127.1/pay",
+    "https://0177.0.0.1/pay",
+    "https://0x7f.0.0.1/pay",
+    "https://2130706433/pay",
+    "https://1.2.3.04/pay",
+    "https://[0:0:0:0:0:0:0:1]/pay",
+    "https://[::FFFF:1]/pay",
+    "https://bank.example:0443/pay",
+    "https://bank.example:443/pay",
+    "https://bank.example:65536/pay",
+    "https://bank.example:/pay",
+    "https://bank .example/pay",
+    "https://bank.example/pa\ty",
+  ];
+  for (const href of ambiguous) assert.equal(urlParts(href), null, href);
+  for (const href of ["https://127.0.0.1/x", "https://[::1]/x", "https://[2001:db8::1]/x", "https://xn--bnk-sna.example/x", "https://bank.example:8443/x"]) assert.ok(urlParts(href), href);
+  setHooksForTests(parseHooksDocument({ hooks: [{ name: "strip", on: "tab.opening", match: "https://bank.example/*", rewrite: [{ match: "https://bank.example/*", to: "{origin}{path}" }] }] }).hooks);
+  const context = { tabId: null, windowId: null, profileId: null, via: "typed" };
+  assert.equal(decideOpening("https://evil.example\\@bank.example/pay?tracking=1", context), null);
+  assert.equal(decideOpening("https://user@bank.example/pay?tracking=1", context), null);
+  assert.deepEqual(decideOpening("https://bank.example/pay?tracking=1", context), { url: "https://bank.example/pay" });
+  assert.equal(sameOrigin("https://evil.example\\@bank.example/", "https://bank.example/"), false);
+  assert.equal(matchesUrl(parseMatchPattern("https://bank.example/*"), "https://evil.example\\@bank.example/pay"), false);
+  setHooksForTests([]);
 });

@@ -15,6 +15,7 @@ import { useBrowser } from "../browser/store";
 import { NoCommandWindowError, runCommand } from "../commands/commands";
 import { noteSocketRun, noteSocketServing } from "../app/cliControl";
 import { errorText } from "../../lib/errors";
+import { minimizedUrl } from "../../lib/urlParts";
 import { automationWindows } from "./automationWindows";
 import { TAB_IDLE_EVENTS, USER_IDLE_EVENTS, type AutomationEventName } from "./eventNames";
 import { commands, failure, hello, parseRequest, parseSubscription, planRun, type RequestId, type Subscription } from "./automationMethods";
@@ -42,11 +43,6 @@ function send(connection: number, id: RequestId, body: Body, ticket = 0) {
 
 function runWritten(tickets: readonly number[]) {
   for (const ticket of tickets) if (unwrittenRuns.delete(ticket)) noteSocketRun(-1);
-}
-
-export function minimizedUrl(url: string): string {
-  const cut = url.search(/[?#]/);
-  return cut < 0 ? url : url.slice(0, cut);
 }
 
 const minimized = (data: Record<string, unknown>) => (typeof data.url === "string" ? { ...data, url: minimizedUrl(data.url) } : data);
@@ -125,7 +121,7 @@ function subscribe(connection: number, params: Record<string, unknown>): Body {
   else subscriptions.delete(connection);
   refreshFeed();
   replayLaunch(connection);
-  return { result: { ok: true, served: served.served } };
+  return { result: { ok: true, served: served.served, ...(sub.hooks === undefined || sub.hooks === null ? {} : { revisions: served.revisions }) } };
 }
 
 function answer(connection: number, method: string, params: Record<string, unknown>): Body {

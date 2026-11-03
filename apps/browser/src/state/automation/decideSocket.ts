@@ -7,13 +7,22 @@ export const MAX_PENDING_DECISIONS = 64;
 export const MAX_PENDING_PER_CONNECTION = 16;
 export const MAX_SERVED_HOOKS = 100;
 
-type Responder = { connection: number; served: Map<string, string> };
-type Pending = { id: string; connection: number; settle: (answer: unknown) => void };
+type Responder = { connection: number; generation: number; served: Map<string, string> };
+type Pending = {
+  id: string;
+  connection: number;
+  generation: number;
+  hook: string;
+  revision: string;
+  answer: (value: unknown) => void;
+  cancel: () => void;
+};
 
 const responders = new Map<number, Responder>();
 const pending = new Map<string, Pending>();
 const servedListeners = new Set<() => void>();
 let seq = 0;
+let generations = 0;
 
 export const onServedHooksChanged = (listener: () => void) => {
   servedListeners.add(listener);
@@ -24,10 +33,15 @@ const notifyServed = () => {
   for (const listener of servedListeners) listener();
 };
 
-export function serveHooks(connection: number, raws: unknown): { served: string[] } | { error: string } {
+function cancelWhere(test: (p: Pending) => boolean) {
+  for (const p of [...pending.values()]) if (test(p)) p.cancel();
+}
+
+export function serveHooks(connection: number, raws: unknown): { served: string[]; revisions: Record<string, string> } | { error: string } {
   if (raws === undefined || raws === null) {
+    cancelWhere((p) => p.connection === connection);
     if (responders.delete(connection)) notifyServed();
-    return { served: [] };
+    return { served: [], revisions: {} };
   }
   if (!Array.isArray(raws) || raws.length > MAX_SERVED_HOOKS) return { error: `hooks must be a list of at most ${MAX_SERVED_HOOKS} hooks from hooks.json` };
   const parsed = parseHooksDocument({ hooks: raws });
@@ -41,15 +55,18 @@ export function serveHooks(connection: number, raws: unknown): { served: string[
     if (other.connection === connection) continue;
     for (const [name, revision] of served) if (other.served.get(name) === revision) served.delete(name);
   }
-  responders.set(connection, { connection, served });
+  cancelWhere((p) => p.connection === connection);
+  responders.set(connection, { connection, generation: ++generations, served });
   notifyServed();
-  return { served: [...served.keys()] };
+  return { served: [...served.keys()], revisions: Object.fromEntries(served) };
 }
 
-export function servingConnection(hook: HookSpec): number | null {
-  for (const r of responders.values()) if (r.served.get(hook.name) === hook.revision) return r.connection;
+function responderFor(hook: HookSpec): Responder | null {
+  for (const r of responders.values()) if (r.served.get(hook.name) === hook.revision) return r;
   return null;
 }
+
+export const servingConnection = (hook: HookSpec): number | null => responderFor(hook)?.connection ?? null;
 
 export const servedHooks = (): { connection: number; name: string; revision: string }[] =>
   [...responders.values()].flatMap((r) => [...r.served].map(([name, revision]) => ({ connection: r.connection, name, revision })));
@@ -63,24 +80,25 @@ function send(connection: number, line: object) {
 }
 
 export function requestDecision(hook: HookSpec, event: string, data: Record<string, unknown>, deadlineMs: number, signal?: AbortSignal): Promise<unknown> {
-  const connection = servingConnection(hook);
-  if (connection === null || pending.size >= MAX_PENDING_DECISIONS || signal?.aborted) return Promise.resolve(undefined);
+  const responder = responderFor(hook);
+  if (!responder || pending.size >= MAX_PENDING_DECISIONS || signal?.aborted) return Promise.resolve(undefined);
+  const { connection, generation } = responder;
   let mine = 0;
   for (const p of pending.values()) if (p.connection === connection) mine += 1;
   if (mine >= MAX_PENDING_PER_CONNECTION) return Promise.resolve(undefined);
   const id = `d${++seq}`;
   return new Promise((resolve) => {
-    const finish = (answer: unknown, cancelled: boolean) => {
+    const finish = (value: unknown, notify: boolean) => {
       if (!pending.delete(id)) return;
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      if (cancelled) send(connection, { decide: id, cancel: true });
-      resolve(answer);
+      if (notify) send(connection, { decide: id, cancel: true });
+      resolve(value);
     };
     const onAbort = () => finish(undefined, true);
     const timer = setTimeout(() => finish(undefined, true), deadlineMs);
     signal?.addEventListener("abort", onAbort);
-    pending.set(id, { id, connection, settle: (answer) => finish(answer, false) });
+    pending.set(id, { id, connection, generation, hook: hook.name, revision: hook.revision, answer: (value) => finish(value, false), cancel: () => finish(undefined, true) });
     send(connection, { decide: id, event, hook: hook.name, revision: hook.revision, deadline: deadlineMs, time: Date.now(), data });
   });
 }
@@ -89,22 +107,28 @@ export function answerDecision(connection: number, params: Record<string, unknow
   const id = params.decide;
   if (typeof id !== "string") return { error: "answer needs decide: the request's id" };
   const entry = pending.get(id);
-  if (!entry || entry.connection !== connection) return { error: `${id} isn't waiting for an answer from this connection (late, answered or someone else's)` };
+  const responder = responders.get(connection);
+  const current = !!entry && entry.connection === connection && responder?.generation === entry.generation && responder.served.get(entry.hook) === entry.revision;
+  if (!current) {
+    if (entry && entry.connection === connection) entry.cancel();
+    return { error: `${id} isn't waiting for an answer from this connection (late, answered, cancelled or someone else's)` };
+  }
   const answer = params.answer;
   const usable = answer === null || answer === undefined || isFields(answer) || Array.isArray(answer);
-  entry.settle(usable ? (answer ?? null) : undefined);
-  if (!usable) return { error: "answer must be an object, a list or null; Ardia used its default" };
+  if (!usable) {
+    entry.cancel();
+    return { error: "answer must be an object, a list or null; Ardia used its default" };
+  }
+  entry.answer(answer ?? null);
   return { ok: true };
 }
 
 export function dropResponder(connection: number) {
-  for (const p of [...pending.values()]) if (p.connection === connection) p.settle(undefined);
+  for (const p of [...pending.values()]) if (p.connection === connection) p.answer(undefined);
   if (responders.delete(connection)) notifyServed();
 }
 
-export function cancelAllDecisions() {
-  for (const p of [...pending.values()]) p.settle(undefined);
-}
+export const cancelAllDecisions = () => cancelWhere(() => true);
 
 export function stopResponders() {
   cancelAllDecisions();

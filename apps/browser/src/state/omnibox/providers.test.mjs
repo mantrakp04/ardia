@@ -103,14 +103,57 @@ test("config.json: a bad provider is reported and skipped, the others apply", ()
 
 function fakeFetch(handler) {
   const calls = [];
-  const before = globalThis.fetch;
-  globalThis.fetch = (url, init) => {
-    calls.push({ url, init });
-    return handler(url, init);
+  const before = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = class {
+    readyState = 0;
+    status = 0;
+    responseText = "";
+    responseURL = "";
+    headers = {};
+    sent = { headers: {} };
+    open(method, url) {
+      this.sent.method = method;
+      this.sent.url = url;
+    }
+    setRequestHeader(name, value) {
+      this.sent.headers[name] = value;
+    }
+    getResponseHeader(name) {
+      return this.headers[name.toLowerCase()] ?? null;
+    }
+    abort() {
+      this.aborted = true;
+      this.onabort?.();
+    }
+    send() {
+      const call = { url: this.sent.url, xhr: this, delivered: 0 };
+      calls.push(call);
+      void Promise.resolve(handler(this.sent.url)).then((r) => {
+        if (this.aborted) return;
+        this.status = r.status ?? 200;
+        this.responseURL = r.url || this.sent.url;
+        this.headers = r.headers ?? {};
+        this.readyState = 2;
+        this.onreadystatechange?.();
+        for (const chunk of r.chunks) {
+          if (this.aborted) return;
+          this.responseText += chunk;
+          call.delivered += 1;
+          this.onprogress?.({ loaded: this.responseText.length });
+        }
+        if (this.aborted) return;
+        this.readyState = 4;
+        this.onload?.();
+      });
+    }
   };
-  return { calls, restore: () => (globalThis.fetch = before) };
+  return { calls, restore: () => (globalThis.XMLHttpRequest = before) };
 }
-const reply = (body, { url = "", headers = {} } = {}) => Promise.resolve({ ok: true, url, headers: { get: (k) => headers[k] ?? null }, text: () => Promise.resolve(typeof body === "string" ? body : JSON.stringify(body)) });
+const reply = (body, { url = "", headers = {}, chunk = 0 } = {}) => {
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  const chunks = chunk ? Array.from({ length: Math.ceil(text.length / chunk) }, (_, i) => text.slice(i * chunk, (i + 1) * chunk)) : [text];
+  return { url, headers, chunks };
+};
 
 test("remote fetch: debounced, no cookies or referrer, cached per profile, aborted by the next key", async () => {
   forgetRemoteProviderCache();
@@ -122,8 +165,8 @@ test("remote fetch: debounced, no cookies or referrer, cached per profile, abort
     const rows = await fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}");
     assert.deepEqual(rows, [{ title: "one", url: "https://go.example.com/one" }, { title: "two", url: "https://go.example.com/two" }], "through the provider's link template, never the endpoint");
     assert.equal(f.calls[0].url, "https://s.example.com/?q=on");
-    assert.equal(f.calls[0].init.credentials, "omit");
-    assert.equal(f.calls[0].init.referrerPolicy, "no-referrer");
+    assert.equal(f.calls[0].xhr.withCredentials, false);
+    assert.equal(f.calls[0].xhr.sent.method, "GET");
     await fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}");
     assert.equal(f.calls.length, 1, "cached");
     await fetchRemoteRows(template, "on", "b|normal", new AbortController().signal, "https://go.example.com/{query}");
@@ -141,9 +184,9 @@ test("remote fetch: debounced, no cookies or referrer, cached per profile, abort
 
 test("remote fetch: private hosts, loopback outside a test instance, a redirect away, a large reply are all dropped", async () => {
   forgetRemoteProviderCache();
-  const big = "x".repeat(REMOTE_PROVIDER.maxBytes + 1);
+  const big = "x".repeat(REMOTE_PROVIDER.maxBytes * 4);
   const f = fakeFetch((url) =>
-    url.includes("big") ? reply(big) : url.includes("long") ? reply("[]", { headers: { "content-length": String(REMOTE_PROVIDER.maxBytes + 1) } }) : url.includes("hop") ? reply([{ title: "a", url: "https://a.com/" }], { url: "https://10.0.0.1/x" }) : reply([{ title: "a", url: "https://a.com/" }]),
+    url.includes("big") ? reply(big, { chunk: 16_384 }) : url.includes("long") ? reply("[]", { headers: { "content-length": String(REMOTE_PROVIDER.maxBytes + 1) } }) : url.includes("hop") ? reply([{ title: "a", url: "https://a.com/" }], { url: "https://10.0.0.1/x" }) : reply([{ title: "a", url: "https://a.com/" }]),
   );
   const signal = new AbortController().signal;
   try {
@@ -155,6 +198,9 @@ test("remote fetch: private hosts, loopback outside a test instance, a redirect 
     asTestInstance(false);
     assert.deepEqual(await fetchRemoteRows("https://hop.example.com/?q={query}", "x", "p", signal), []);
     assert.deepEqual(await fetchRemoteRows("https://big.example.com/?q={query}", "x", "p", signal), []);
+    const bigCall = f.calls.find((c) => c.url.includes("big"));
+    assert.equal(bigCall.xhr.aborted, true, "aborted while receiving");
+    assert.equal(bigCall.delivered, Math.floor(REMOTE_PROVIDER.maxBytes / 16_384) + 1, "stopped at the chunk that crossed the cap, not after the whole 512 KB");
     assert.deepEqual(await fetchRemoteRows("https://long.example.com/?q={query}", "x", "p", signal), []);
   } finally {
     asTestInstance(false);

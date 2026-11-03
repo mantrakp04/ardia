@@ -91,19 +91,23 @@ row in it) is reported and skipped, the others apply.
 
 **Approval.** A `suggest` endpoint and every global provider stay off until approved in Ardia. The approval is for
 the exact definition: editing the entry needs a new one. Static keyword lists and URL templates send nothing and
-need none. Until Settings shows them, they're listed by the app's `pendingOmniboxProviders()` and approved with
-`approveOmniboxProvider(key)` (`apps/browser/src/state/omnibox/`); approvals last until quit.
+need none. Pending ones appear in Settings › Advanced › Automation; in code they're `pendingOmniboxProviders()` and
+`approveOmniboxProvider(key)` (`apps/browser/src/state/omnibox/`); approvals are kept in the app's data dir with
+the other automation approvals and listed in Settings › Advanced › Automation (`docs/automation.md` › Approvals).
 
 **Safety.** Rows only open `http` and `https` URLs (never `javascript:`, `data:`, `file:`, `chrome:` or Ardia's own
 pages). Titles are capped at 120 characters and subtitles at 160, with control and bidi characters removed, and each
 row shows the destination's host and the provider's title, which Ardia sets. Icons are `https` URLs or
 `data:image` (png, jpeg, gif, webp, ico) up to 16 KB. Suggestion requests carry only what you typed: no cookies,
-referrer, page, history or profile. They go only to public `https` hosts (not `localhost`, private or link-local
-addresses, `.local`), wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, read at
+referrer, page, history or profile. They go only to `https` URLs on a plain DNS hostname: no IP
+literal of any form (dotted, short, octal, hex or decimal IPv4, IPv6), no percent-encoding, user info or backslash,
+a canonical port, and not `localhost` or a private suffix (`.local`, `.internal`, `.lan`, `.home.arpa`, `.test`,
+`.onion`…). A DNS name that resolves to a private or loopback address is not blocked: Ardia checks the URL, not
+what the name resolves to. They wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, read at
 most 128 KB, keep at most 4 requests in flight, and are cached for 5 minutes per profile. A reply whose final URL
 isn't allowed is dropped. Remote, program and extension providers never run in a private window; static lists and
-templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1`,
-`http://localhost` and `http://[::1]` endpoints, for fixtures; other builds refuse them.
+templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1` (written
+exactly so) endpoints, for fixtures; other builds refuse them.
 
 **Extensions' `chrome.omnibox` keywords** don't reach Ardia's bar yet. The engine lists them (`ac_search_engines.cc`,
 `isOmniboxExtension`), but Ardia's location bar has no `OmniboxController`, so nothing calls

@@ -52,7 +52,7 @@ Newline-delimited JSON, UTF-8, one object per line, `\n` terminated.
   "revision": "…", "deadline": 250, "time": …, "data": {…}}`, sent only to the connection that serves that hook. The
   client answers with an ordinary request, `{"id": 9, "method": "answer", "params": {"decide": "d17", "answer":
   {…} | [ … ] | null}}`; the reply is `{"ok": true}` or `bad_request` for an id that is unknown, already answered,
-  late or another connection's. When the deadline passes, the decision is superseded (a new navigation in that tab,
+  late, cancelled or another connection's, and for one whose hook the connection no longer serves at that revision. When the deadline passes, the decision is superseded (a new navigation in that tab,
   a closed tab, a changed hooks.json, a newly approved rule) or control stops, the server sends
   `{"decide": "d17", "cancel": true}` and uses its default; a later answer is refused. Answers are client requests
   rather than bare reply lines so the native layer's per-connection count of requests waiting for a reply stays
@@ -82,7 +82,9 @@ bookmark searches) and their fixed page title.
   it, the last focused eligible window (windows never focused come after, in window order); with no browser window
   open at all it runs with none, as the menu does (`newTab` and `newWindow` open one); otherwise `no_window`. A
   command that asks for confirmation still asks. `tab` targets one eligible tab without activating or focusing
-  it, for commands whose scope is `"page"` (`bad_request` otherwise); with `window` too, the tab must be in that
+  it, for commands whose scope is `"page"` and `closeTab`, `togglePin`, `moveTabUp`, `moveTabDown`, `duplicateTab`
+  and `bookmarkPage` (`bad_request` otherwise); a tab target is dispatched before Peek, Little Ardia, sidebar and
+  command-panel handling, so `closeTab` closes exactly that tab; with `window` too, the tab must be in that
   window. Window, tab, profile and eligibility are checked just before the command runs: a closed, moved or
   private target is `no_window`, never a fallback to the focused tab.
 - `windows` → `[{"id", "kind": "normal"|"little", "focused", "profile", "profileName", "tabs": [{"id", "url",
@@ -94,7 +96,10 @@ bookmark searches) and their fixed page title.
   each) for `tab.idle`/`tab.resumed` and `user.idle`/`user.active`; an idle event goes only to a connection that
   asked for its threshold. `hooks` are the program decide and omnibox hooks this connection serves, as written in
   hooks.json: the app takes a hook only when one with the same name and the same content (revision) is in its own
-  hooks.json and no other connection serves it; `served` lists the ones it took.
+  hooks.json and no other connection serves it; `served` lists the ones it took and `revisions` their revisions.
+  Subscribing again cancels this connection's outstanding decisions. The runner keeps the exact definitions that
+  subscription accepted and runs a decide request only when its `revision` matches one of them, so a request for an
+  approved revision never runs an edited program.
 - `answer` `{"decide", "answer"}`: see Protocol.
 
 ### Which commands
@@ -200,16 +205,29 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Defaults.** A timeout, a crash, invalid JSON, a disconnect, overload or an answer outside what is allowed all
   mean the default. One deadline per decision, from the moment Ardia intercepted it, on a monotonic timer; nothing
   waits synchronously on the main thread.
+- **URLs Ardia can't read unambiguously fail closed.** Rules and program answers work on a strict reading of the
+  URL (`lib/urlParts.ts`), not React Native's `URL`. A URL with a backslash, user info (`@` in the authority),
+  percent-encoding or non-ASCII in the host (punycode is fine), an IPv4 written any way but plain dotted-decimal
+  (`127.1`, `0177.0.0.1`, `0x7f…`, `2130706433`), an IPv6 that isn't already canonical, a non-canonical port (leading
+  zeros, the default port spelled out, above 65535) or whitespace and control characters never matches a pattern,
+  is never rewritten and never counts as the same origin. `https://evil.example\@bank.example/` is read by Chromium
+  as evil.example, so no `https://bank.example/*` rule touches it.
 - **Rewrites.** A rewrite answer must be a canonical http or https URL without credentials; `rewrite` rules build it
-  from a template with `{url}`, `{origin}`, `{host}`, `{path}`, `{query}` and `{hash}`. The replacement keeps the
-  original disposition and profile and runs through the same navigation path as any other (the typed path for
-  typed URLs, a plain renderer-style load for links: never re-issued as user-initiated). A link opened in a new tab
-  or window already has contents the engine prepared (and started loading) before JS hears of it: a rewrite
-  adopts those contents into the tab, which keeps the opener, and navigates them to the new URL with a plain GET,
-  so nothing is left behind and no POST body is replayed to the new URL. A cancelled one is never adopted; until
-  the engine gets a way to discard an offer, its contents close on the native 30 s offer expiry
-  (`ArdiaTabRegistry`, `kOfferSeconds`). While a program decides a typed navigation the tab stays where it was; for a new tab it opens empty
-  and navigates once answered (closed again on cancel).
+  from a template with `{url}`, `{origin}`, `{host}`, `{path}`, `{query}` and `{hash}`. A query-stripping template
+  (`{origin}{path}`, `{origin}{path}{hash}`) needs no approval only because the expanded target is checked to have
+  exactly the original origin; if it doesn't, Ardia uses its default. The replacement keeps the original
+  disposition and profile and always goes out as not user-initiated (a typed URL that a rule leaves alone keeps its
+  value). A link opened in a new tab or window already has contents the engine prepared and started loading before
+  JS hears of it: a rewrite adopts those contents into the tab, which keeps the opener, and navigates them to the
+  new URL with a plain GET, so nothing is left behind and no POST body is replayed to the new URL.
+- **Cancelling a link opened in a new tab** prevents the tab and closes the page the engine prepared for it at once
+  (`discardOffered`), but it can't prevent or undo that page's first request: the server has already seen it, with
+  its cookies, and whatever it did on its side stays done. A typed URL or one from another app is decided before
+  anything loads.
+- While a program decides a typed navigation the tab stays where it was; for a new tab it opens empty and navigates
+  once answered (closed again on cancel).
+- **What a program sees.** Decide data has the URL without its query and fragment unless the hook says
+  `"fullUrls": true`; a program that rewrites query parameters needs it. The runner trims again on its side.
 - **link.opening** decides before any tab exists. While an active `tab.opening` or `link.opening` hook exists the
   app sets the native link hold (`setHoldIncomingLinks`), so the next cold launch doesn't create the early Little
   Ardia tab for incoming links before JS decides. A routed or rewritten link never adopts contents loaded for it
@@ -217,9 +235,11 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
   while a program decides is never granted.
-- **Downloads.** `download.deciding` fires once per download, when it becomes finished, even if Ardia
-  never saw it in progress (a small file can arrive finished). Never for private profiles, off-the-record or
-  dangerous downloads, nor for ones already finished when the app starts. The answer moves the finished file. A `folder` rule or a program answer may only pick `~/Downloads`, its subfolders, or a folder the user
+- **Downloads.** `download.deciding` fires once per download that progresses during this launch: one
+  the engine reported in progress (on the raw `downloads.changed` stream, which also carries a small file's
+  in-progress report before it has a path) and then finished. Finished history the engine replays at launch or
+  when another profile's list loads is never decided. Never for private profiles, off-the-record or dangerous
+  downloads. The answer moves the finished file. A `folder` rule or a program answer may only pick `~/Downloads`, its subfolders, or a folder the user
   approved (a `folder` rule outside Downloads, after approval); `.` and `..` parts are refused. The app asks the
   native side (`moveCompletedDownload(path, folder)` in `platform/systemSignals.ts`) to move it; a missing folder
   is created only from an allowed root down, and a name already taken gets ` (1)`, ` (2)`… before the extension. That side only

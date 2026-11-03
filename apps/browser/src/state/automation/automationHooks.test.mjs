@@ -44,6 +44,11 @@ function setHooks(hooks) {
   return useHookRules.getState().hooks;
 }
 
+function dl(d) {
+  S().upsertDownload(d);
+  stub.emitDownload(d);
+}
+
 function fresh(hooks = []) {
   S().hydrate({});
   S().updateSettings({ cliControl: true });
@@ -283,8 +288,8 @@ test("download.deciding fires when a download finishes; a folder rule moves it, 
   assert.deepEqual(approved.at(-1), []);
   const base = { received: 10, total: 10, speed: 0, mimeType: "application/pdf", paused: false, profile: "" };
   const finish = (id, url) => {
-    S().upsertDownload({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "downloading" });
-    S().upsertDownload({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "finished" });
+    dl({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "downloading" });
+    dl({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "finished" });
   };
   finish("d1", "https://billing.example/inv.pdf");
   finish("d2", "https://bank.example/stmt.pdf");
@@ -297,7 +302,7 @@ test("download.deciding fires when a download finishes; a folder rule moves it, 
   finish("d4", "https://bank.example/stmt2.pdf");
   await wait(10);
   assert.deepEqual(moves.at(-1), ["/Users/me/Downloads/d4.pdf", "~/Documents/Finance"]);
-  S().upsertDownload({ ...S().downloads.find((d) => d.id === "d1"), received: 11 });
+  dl({ ...S().downloads.find((d) => d.id === "d1"), received: 11 });
   await wait(10);
   assert.equal(moves.length, 2);
   resetDownloadHooksForTests();
@@ -316,8 +321,8 @@ test("a program download hook that times out leaves the file where it is", async
   startDownloadHooks({ move: async (path, folder) => (moves.push([path, folder]), { ok: true, path }), approveFolders: () => {} });
   const from = stub.controlSocket.broadcasts.length;
   const d = { id: "p1", url: "https://a.example/f.zip", filename: "f.zip", path: "/Users/me/Downloads/f.zip", received: 5, total: 5, speed: 0, mimeType: "application/zip", paused: false, profile: "", state: "finished" };
-  S().upsertDownload({ ...d, state: "downloading" });
-  S().upsertDownload(d);
+  dl({ ...d, state: "downloading" });
+  dl(d);
   const request = linesFor(runner, from).find((l) => l.decide);
   assert.deepEqual(request.data, { url: d.url, origin: "https://a.example", filename: "f.zip", mime: "application/zip", size: 5, path: d.path, profile: "" });
   assert.equal(request.deadline, 2000);
@@ -349,15 +354,20 @@ test("a rewritten new-tab link reuses the engine's prepared contents; a cancelle
   assert.equal(Object.keys(S().tabs).length, count + 1);
 });
 
-test("a download first seen already finished is decided; one finished at startup is left alone", async () => {
+test("only downloads that progress during this launch are decided; history replays are left alone", async () => {
   const { resetDownloadHooksForTests, startDownloadHooks } = await import("./downloadHooks.ts");
   fresh([{ name: "all", on: "download.deciding", folder: "~/Downloads/Sorted" }]);
   resetDownloadHooksForTests();
-  const base = { url: "http://127.0.0.1:18800/x.bin", received: 2048, total: 2048, speed: 0, mimeType: "application/octet-stream", paused: false, profile: "", state: "finished" };
-  S().upsertDownload({ ...base, id: "old", filename: "old.bin", path: "/Users/me/Downloads/old.bin" });
+  const base = { url: "http://127.0.0.1:18800/x.bin", received: 2048, total: 2048, speed: 0, mimeType: "application/octet-stream", paused: false, profile: "" };
   const moves = [];
   startDownloadHooks({ move: async (path, folder) => (moves.push([path, folder]), { ok: true, path }), approveFolders: () => {} });
-  S().upsertDownload({ ...base, id: "fast", filename: "fast.bin", path: "/Users/me/Downloads/fast.bin" });
+  stub.emitDownload({ ...base, id: "history-guid", filename: "old.bin", path: "/Users/me/Downloads/old.bin", state: "finished" });
+  stub.emitDownload({ ...base, id: "other-profile", filename: "older.bin", path: "/Users/me/Downloads/older.bin", state: "finished", profile: "work" });
+  stub.emitDownload({ ...base, id: "fast", filename: "", path: "", state: "downloading", received: 0 });
+  stub.emitDownload({ ...base, id: "fast", filename: "fast.bin", path: "/Users/me/Downloads/fast.bin", state: "finished" });
+  stub.emitDownload({ ...base, id: "fast", filename: "fast.bin", path: "/Users/me/Downloads/fast.bin", state: "finished" });
+  stub.emitDownload({ ...base, id: "dropped", filename: "d.bin", path: "", state: "downloading" });
+  stub.emitDownload({ ...base, id: "dropped", filename: "d.bin", path: "", state: "cancelled" });
   await wait(10);
   assert.deepEqual(moves, [["/Users/me/Downloads/fast.bin", "~/Downloads/Sorted"]]);
   resetDownloadHooksForTests();
@@ -375,9 +385,85 @@ test("the app's download hooks use the native mover and pass it the approved fol
   stub.systemSignals.moves.length = 0;
   stub.systemSignals.moveResult = { ok: false, reason: "folderMissing" };
   const d = { id: "n1", url: "https://billing.example/a.pdf", filename: "a.pdf", path: "/Users/me/Downloads/a.pdf", received: 1, total: 1, speed: 0, mimeType: "application/pdf", paused: false, profile: "" };
-  S().upsertDownload({ ...d, state: "finished" });
+  dl({ ...d, state: "downloading" });
+  dl({ ...d, state: "finished" });
   await wait(10);
   assert.deepEqual(stub.systemSignals.moves, [{ path: d.path, folder: "~/Downloads/Invoices" }]);
   assert.equal(S().downloads.find((x) => x.id === "n1").path, d.path);
   resetDownloadHooksForTests();
+});
+
+test("decide data is trimmed per hook; invalidation sends a cancel and refuses later answers", async () => {
+  const hooks = [
+    { name: "plain", on: "tab.opening", match: "https://p.example/*", run: ["~/bin/a"] },
+    { name: "full", on: "tab.opening", match: "https://f.example/*", run: ["~/bin/b"], fullUrls: true },
+  ];
+  fresh(hooks);
+  await controlOn();
+  for (const h of useHookRules.getState().hooks) approveRule(approvalFor(h).key);
+  const runner = ++nextConnection;
+  assert.deepEqual(call("subscribe", { events: ["tab.opened"], hooks }, runner).result.revisions, Object.fromEntries(useHookRules.getState().hooks.map((h) => [h.name, h.revision])));
+  const w = S().createWindow({ url: "https://a.example/" });
+  const t = model.activeTabId(S(), w);
+  const from = stub.controlSocket.broadcasts.length;
+  S().navigate(t, "https://p.example/x?token=secret#frag");
+  const plain = linesFor(runner, from).find((l) => l.decide && l.hook === "plain");
+  assert.equal(plain.data.url, "https://p.example/x");
+  const other = S().newTab(w, { url: "https://a.example/2", gated: true });
+  const mark = stub.controlSocket.broadcasts.length;
+  S().navigate(other, "https://f.example/y?token=1");
+  const full = linesFor(runner, mark).find((l) => l.decide && l.hook === "full");
+  assert.equal(full.data.url, "https://f.example/y?token=1");
+
+  const before = stub.controlSocket.broadcasts.length;
+  call("subscribe", { events: ["tab.opened"], hooks }, runner);
+  const cancels = linesFor(runner, before).filter((l) => l.cancel === true).map((l) => l.decide).sort();
+  assert.deepEqual(cancels, [full.decide, plain.decide].sort());
+  assert.equal(call("answer", { decide: plain.decide, answer: { url: "https://z.example/" } }, runner).error.code, "bad_request");
+  await tick();
+  assert.equal(S().tabs[t].page.nav.url, "https://p.example/x?token=secret#frag");
+
+  const again = stub.controlSocket.broadcasts.length;
+  S().navigate(t, "https://p.example/again");
+  const pendingOne = linesFor(runner, again).find((l) => l.decide);
+  setHooks([...hooks, { name: "extra", on: "tab.opened", run: ["x"] }]);
+  assert.ok(linesFor(runner, again).some((l) => l.decide === pendingOne.decide && l.cancel === true));
+  assert.equal(call("answer", { decide: pendingOne.decide, answer: null }, runner).error.code, "bad_request");
+  stub.emitControlClose(runner);
+});
+
+test("an explicit tab target runs before Peek and the command panel, and a missing target is an error", async () => {
+  fresh();
+  await controlOn();
+  const conn = ++nextConnection;
+  const w = S().createWindow({ url: "https://a.example/" });
+  const shown = model.activeTabId(S(), w);
+  const background = S().newTab(w, { url: "https://b.example/", background: true });
+  const peek = S().openPeek(shown, "https://peek.example/");
+  S().openPanel(w, "");
+  assert.deepEqual(call("run", { command: "closeTab", tab: background }, conn).result, { ok: true });
+  assert.equal(S().tabs[background], undefined);
+  assert.equal(S().peeks[w]?.tabId, peek);
+  assert.equal(S().windowUi[w].panel.open, true);
+  assert.equal(call("run", { command: "closeTab", tab: background }, conn).error.code, "no_window");
+  assert.equal(call("run", { command: "closeTab", tab: peek }, conn).error.code, "no_window");
+  assert.equal(call("run", { command: "newWindow", tab: shown }, conn).error.code, "bad_request");
+  const other = S().newTab(w, { url: "https://c.example/", background: true });
+  assert.deepEqual(call("run", { command: "togglePin", tab: other }, conn).result, { ok: true });
+  assert.ok(S().tabs[other].pin);
+  assert.equal(S().tabs[shown].pin, null);
+});
+
+test("a rewritten navigation goes out as not user-initiated; an unchanged one keeps its value", async () => {
+  fresh([{ name: "strip", on: "tab.opening", match: "https://track.example/*", rewrite: [{ match: "https://track.example/*", to: "{origin}{path}" }] }]);
+  const w = S().createWindow({ url: "https://a.example/" });
+  const t = model.activeTabId(S(), w);
+  S().navigate(t, "https://track.example/p?utm=1");
+  assert.deepEqual([S().tabs[t].page.nav.url, S().tabs[t].page.nav.userInitiated], ["https://track.example/p", undefined]);
+  S().navigate(t, "https://track.example/q");
+  assert.deepEqual([S().tabs[t].page.nav.url, S().tabs[t].page.nav.userInitiated], ["https://track.example/q", true]);
+  const rewritten = S().newTab(w, { url: "https://track.example/n?utm=2" });
+  assert.deepEqual([S().tabs[rewritten].page.nav.url, S().tabs[rewritten].page.nav.userInitiated, S().tabs[rewritten].profileId], ["https://track.example/n", undefined, S().windows[w].profileId]);
+  const kept = S().newTab(w, { url: "https://track.example/m" });
+  assert.equal(S().tabs[kept].page.nav.userInitiated, true);
 });

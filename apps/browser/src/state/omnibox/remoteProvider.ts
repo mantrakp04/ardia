@@ -38,6 +38,43 @@ function remember(key: string, rows: ProviderRowInput[]) {
 
 export const forgetRemoteProviderCache = () => cache.clear();
 
+type Received = { status: number; url: string; body: string };
+
+function cappedRequest(url: string, signal: AbortSignal, maxBytes: number): Promise<Received | null> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    let done = false;
+    const finish = (value: Received | null) => {
+      if (done) return;
+      done = true;
+      signal.removeEventListener("abort", stop);
+      resolve(value);
+    };
+    const stop = () => {
+      finish(null);
+      xhr.abort();
+    };
+    const tooBig = (loaded: number) => loaded > maxBytes || (xhr.responseText?.length ?? 0) > maxBytes;
+    xhr.open("GET", url, true);
+    xhr.withCredentials = false;
+    xhr.responseType = "text";
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("Cache-Control", "no-store");
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState >= 2 && Number(xhr.getResponseHeader("content-length") ?? 0) > maxBytes) stop();
+    };
+    xhr.onprogress = (event: ProgressEvent) => {
+      if (tooBig(event.loaded ?? 0)) stop();
+    };
+    xhr.onload = () => (tooBig(0) ? stop() : finish({ status: xhr.status, url: xhr.responseURL ?? "", body: xhr.responseText ?? "" }));
+    xhr.onerror = () => finish(null);
+    xhr.ontimeout = () => finish(null);
+    xhr.onabort = () => finish(null);
+    signal.addEventListener("abort", stop, { once: true });
+    xhr.send();
+  });
+}
+
 export async function fetchRemoteRows(template: string, text: string, partition: string, signal: AbortSignal, linkTemplate?: string): Promise<ProviderRowInput[]> {
   if (text.length > REMOTE_PROVIDER.maxQuery) return [];
   const url = fillProviderTemplate(template, text);
@@ -49,19 +86,10 @@ export async function fetchRemoteRows(template: string, text: string, partition:
   if (inFlight >= REMOTE_PROVIDER.maxInFlight) return [];
   inFlight++;
   try {
-    const res = await fetch(url, {
-      signal,
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-      cache: "no-store",
-      redirect: "error",
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok || (res.url && !remoteRequestAllowed(res.url, { allowLoopback: allowLoopback() }))) return [];
-    if (Number(res.headers.get("content-length") ?? 0) > REMOTE_PROVIDER.maxBytes) return [];
-    const body = await res.text();
-    if (body.length > REMOTE_PROVIDER.maxBytes || signal.aborted) return [];
-    const rows = parseProviderReply(JSON.parse(body), linkTemplate).slice(0, PROVIDER_LIMITS.rowsPerProvider);
+    const res = await cappedRequest(url, signal, REMOTE_PROVIDER.maxBytes);
+    if (!res || res.status < 200 || res.status > 299 || (res.url && !remoteRequestAllowed(res.url, { allowLoopback: allowLoopback() }))) return [];
+    if (signal.aborted) return [];
+    const rows = parseProviderReply(JSON.parse(res.body), linkTemplate).slice(0, PROVIDER_LIMITS.rowsPerProvider);
     remember(key, rows);
     return rows;
   } catch {

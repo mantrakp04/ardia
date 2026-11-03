@@ -1,5 +1,5 @@
 import { isFields } from "../../lib/decode";
-import { originOf as urlOrigin, urlParts } from "../../lib/urlParts";
+import { minimizedUrl, originOf as urlOrigin, urlParts } from "../../lib/urlParts";
 import { anyMatches, matchesUrl } from "../../lib/matchPattern";
 import { isIncognitoProfile } from "../browser/model";
 import { useBrowser } from "../browser/store";
@@ -26,7 +26,8 @@ export function decide<A>(event: DecideEvent, data: Record<string, unknown>, pla
       return verdict;
     }
     if (servingConnection(hook) === null) return null;
-    return requestDecision(hook, event, data, DECIDE_DEADLINE_MS[event], signal).then(
+    const sent = hook.fullUrls || typeof data.url !== "string" ? data : { ...data, url: minimizedUrl(data.url) };
+    return requestDecision(hook, event, sent, DECIDE_DEADLINE_MS[event], signal).then(
       (answer) => (answer === undefined || answer === null ? null : plan.answer(answer)),
       () => null,
     );

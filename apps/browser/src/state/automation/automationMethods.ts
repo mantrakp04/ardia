@@ -54,6 +54,8 @@ const REFUSALS: Record<string, string> = {
 
 type RunState = Pick<BrowserState, "windows" | "windowOrder" | "ui" | "tabs" | "peeks">;
 
+const TAB_COMMANDS: ReadonlySet<string> = new Set(["closeTab", "togglePin", "moveTabUp", "moveTabDown", "duplicateTab", "bookmarkPage"]);
+
 const scopeOf = (command: BrowserCommand) => (COMMANDS as Readonly<Record<string, { scope?: string }>>)[command]?.scope ?? null;
 
 export function planRun(s: RunState, params: Record<string, unknown>): RunPlan | { error: MethodError } {
@@ -71,7 +73,7 @@ export function planRun(s: RunState, params: Record<string, unknown>): RunPlan |
   const given = (arg as string | null | undefined) ?? null;
   if (tab !== undefined && tab !== null) {
     if (typeof tab !== "string" || !isEligibleTab(s, tab)) return failure("no_window", `There's no tab ${String(tab)} the ardia command can use.`);
-    if (scopeOf(command) !== "page") return failure("bad_request", `${command} doesn't act on a tab, so it takes no tab.`);
+    if (scopeOf(command) !== "page" && !TAB_COMMANDS.has(command)) return failure("bad_request", `${command} doesn't act on a tab, so it takes no tab.`);
     const windowId = s.tabs[tab]!.windowId;
     if (window !== undefined && window !== null && window !== windowId) return failure("no_window", `Tab ${tab} isn't in window ${String(window)}.`);
     return { command, arg: given, windowId, tabId: tab };
