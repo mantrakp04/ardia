@@ -22,8 +22,10 @@ export function publishPaneChrome(windowId: string, chrome: PaneChrome) {
   for (const listener of listeners) listener();
 }
 
+export const usePaneChrome = (windowId: string): PaneChrome | undefined => useSyncExternalStore(subscribe, () => chromes.get(windowId));
+
 export function WindowToolbar({ windowId, tabId, geometry, autoHide }: { windowId: string; tabId: string; geometry: ToolbarGeometry; autoHide: boolean }) {
-  const chrome = useSyncExternalStore(subscribe, () => chromes.get(windowId));
+  const chrome = usePaneChrome(windowId);
   useEffect(() => () => void chromes.delete(windowId), [windowId]);
   const height = useToolbarRow().height;
   const frame = useMemo(() => ({ position: "absolute" as const, left: 0, top: 0, right: 0, height }), [height]);

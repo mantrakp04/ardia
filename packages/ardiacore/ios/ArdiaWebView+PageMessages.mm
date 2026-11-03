@@ -138,6 +138,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     PeekTrace(@{@"event" : @"page", @"main" : @(main), @"page" : dict});
   } else if ([kind isEqualToString:@"selection"] && main) {
     [self emit:@"selection" payload:@{@"selection" : SelectionState(dict) ?: NSNull.null}];
+  } else if ([kind isEqualToString:@"newTabLink"] && dict) {
+    [self noteNewTabLink:Text(dict, @"url", 8192)];
   } else if ([kind isEqualToString:@"linkDrop"] && main) {
     NSString *url = Text(dict, @"url", 8192);
     NSString *scheme = (url.length ? [NSURL URLWithString:url].scheme.lowercaseString : nil) ?: @"";

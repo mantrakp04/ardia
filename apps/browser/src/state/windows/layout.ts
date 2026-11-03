@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { tabLayoutOf } from "../browser/model";
+import { sidebarSideOf, tabLayoutOf } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
-import { ARC_LIGHTS_CENTER, lightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import { ARC_LIGHTS_CENTER, lightsCenter, rightSidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
@@ -35,6 +35,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
+  if (sidebarSideOf(s, w.id) === "right") return [...rightSidebarLightsCenter(addressBarInSidebar(s, w.id), s.settings.compactToolbar)];
   return lightsCenter(open ? 0 : s.settings.sidebarWidth, 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar));
 }
 

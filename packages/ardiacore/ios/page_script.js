@@ -756,6 +756,23 @@
       }),
       true,
     );
+    const defaultPrevented = getter(Event.prototype, "defaultPrevented");
+    const scheduleTimeout = window.setTimeout;
+    addEventListener(
+      "click",
+      guard((e) => {
+        if (!e.isTrusted || button(e) !== 0 || altKey(e) || shiftKey(e) || metaKey(e) || ctrlKey(e)) return;
+        const hit = linkAt(e);
+        if (!peekable(hit)) return;
+        const reported = () => {
+          if (defaultPrevented(e) || replacesPage(hit.link)) return;
+          const url = linkUrl(hit.link);
+          if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+        };
+        apply(scheduleTimeout, window, [guard(reported), 0]);
+      }),
+      true,
+    );
     addEventListener("pageshow", guard((e) => e.isTrusted && persisted(e) && send("peekHello", {})));
     addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
   } catch (e) {}

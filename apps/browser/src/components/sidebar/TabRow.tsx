@@ -26,28 +26,41 @@ import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
 import type { RowSection } from "./dragModel";
+import { GROUP_INNER_RADIUS } from "./geometry";
 
 export const TabRowItem = memo(function TabRowItem({
   tabId,
   section,
   parentGroup,
+  lastInBox = false,
   motion = null,
 }: {
   tabId: string;
   section: RowSection;
   parentGroup?: string;
+  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const { wrapper, handle } = useDragItem(entryKey("tab", tabId), { kind: "row", tabIds: [tabId], section, parentGroup }, motion?.clip);
   const onto = useDropOnto(entryKey("tab", tabId));
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style} {...handle}>
-      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} />
+      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} lastInBox={lastInBox} />
     </Animated.View>
   );
 });
 
-export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }: { tabId: string; onto?: boolean; shift?: Animated.Value | null }) {
+export const TabRow = memo(function TabRow({
+  tabId,
+  onto = false,
+  shift = null,
+  lastInBox = false,
+}: {
+  tabId: string;
+  onto?: boolean;
+  shift?: Animated.Value | null;
+  lastInBox?: boolean;
+}) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -85,6 +98,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
             selected={active}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
+            cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
             padLeft={TAB_ROW.contentLeft - border}
             padRight={TAB_ROW.trailing - border}
           >
@@ -191,11 +205,13 @@ export const SplitRowItem = memo(function SplitRowItem({
   splitId,
   section,
   parentGroup,
+  lastInBox = false,
   motion = null,
 }: {
   splitId: string;
   section: RowSection;
   parentGroup?: string;
+  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
@@ -215,6 +231,7 @@ export const SplitRowItem = memo(function SplitRowItem({
           fill={active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear}
           selected={active}
           border={splitBorder}
+          cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
           padLeft={space.xs - splitBorder}
           padRight={space.xs - splitBorder}
         >

@@ -8,6 +8,7 @@ import { useWindowId } from "../../state/browser/hooks";
 import { openImport } from "../../state/settings/settingsWindows";
 import { Favicon } from "../favicon/Favicon";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
+import type { SidebarEdge } from "../../state/bookmarks/sidebarEdge";
 import { ContextMenuArea, MouseArea, Symbol, Text, useHover, useTheme } from "../ui";
 import { openBarMenu, openImportButtonMenu, type ClickMods } from "../../state/bookmarks/barMenus";
 import { bookmarksBar, type BarSize } from "./tokens";
@@ -16,7 +17,7 @@ import { useBarSize } from "./barSize";
 
 export function useBookmarkDragResponder(
   view: { current: View | null },
-  source: () => { windowId: string; id: string; panel: string | null; sidebarEdge: number },
+  source: () => { windowId: string; id: string; panel: string | null; sidebarEdge: SidebarEdge },
   deps: unknown[],
 ) {
   const latest = useRef(source);

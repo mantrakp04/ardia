@@ -2,7 +2,7 @@ import type { SettingKey } from "./settings";
 
 export const CONFIG_SETTING_KEYS: readonly SettingKey[] = [
   "warnBeforeQuitting", "warnBeforeClosingWindow", "restoreSession", "searchEngine", "searchSuggestions", "showSelectionSearch",
-  "commandBarPreference", "tabLayout", "hideToolbarWhileScrolling", "newTabPosition", "newTabButtonPosition", "newTabOpens",
+  "commandBarPreference", "tabLayout", "sidebarSide", "hideToolbarWhileScrolling", "newTabPosition", "newTabButtonPosition", "newTabOpens",
   "warnBeforeClosingLastTab", "undoReopensClosedTab", "warnBeforeMovingTabsToProfile", "shareTabsAcrossWindows", "tabReorderHaptics",
   "extendWebsiteColor", "cmdClickCreatesTabGroup", "optShiftClickOpensInGroup", "peekModifier", "peekLinksToOtherSites",
   "splitLinkModifier", "autoGroupMeetingTabs", "cleanUpInactiveTabsAfterMinutes", "mutedSites", "neverTranslateSites",
@@ -11,7 +11,7 @@ export const CONFIG_SETTING_KEYS: readonly SettingKey[] = [
   "glassTintAmount", "pageScrollBars", "fadeUnloadedTabs", "warnBeforeClosingTabGroup", "batterySaverWhen", "memorySaver",
   "memorySaverMode", "keepActiveSites", "extensionSidePanelWidth", "showFullUrl", "bookmarksBar", "bookmarksBarSize",
   "hideBookmarksBarImport", "appearance", "addressBar", "compactToolbar", "commandBarPlacement", "spacesFollowAppearance",
-  "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaSize",
+  "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaOpensNewTabLinks", "littleArdiaSize",
 ];
 
 export const CONFIG_EXCLUDED_KEYS: readonly SettingKey[] = [
