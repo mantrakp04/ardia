@@ -115,7 +115,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => cancelSignIn, []);
-  const fail = (e: unknown) => setError(String((e as Error)?.message ?? e));
+  const showError = (e: unknown) => setError(e == null ? null : String((e as Error)?.message ?? e));
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
     setError(null);
@@ -123,7 +123,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       await task();
       closeSettingsSheet();
     } catch (e) {
-      fail(e);
+      showError(e);
     } finally {
       setBusy(false);
     }
@@ -134,7 +134,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       body = <GithubConnect busy={busy} run={run} />;
       break;
     case "gitea":
-      body = <GiteaConnect busy={busy} run={run} fail={fail} />;
+      body = <GiteaConnect busy={busy} run={run} showError={showError} />;
       break;
     case "bitbucket":
       body = <BitbucketConnect busy={busy} run={run} />;
@@ -234,7 +234,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function GiteaConnect({ busy, run, fail }: ConnectProps & { fail(error: unknown): void }) {
+function GiteaConnect({ busy, run, showError }: ConnectProps & { showError(error: unknown): void }) {
   const config = live().config;
   const [site, setSite] = useState(config.giteaSite);
   const [token, setToken] = useState("");
@@ -242,12 +242,13 @@ function GiteaConnect({ busy, run, fail }: ConnectProps & { fail(error: unknown)
   const hasSite = !!site.trim();
   const connect = () => void run(() => connectGitea(site, { token: token.trim() }));
   const createToken = () => {
+    showError(null);
     try {
       const page = `${httpsSiteUrl(site)}/user/settings/applications`;
       if (!settingsBrowserWindow()) throw new Error("Open a browser window first");
       openUrlFromSettings(page);
     } catch (e) {
-      fail(e);
+      showError(e);
     }
   };
   const signIn = () =>
