@@ -473,7 +473,7 @@ test("a move that fails with the file left in staging keeps the record pointing 
   fresh([{ name: "all", on: "download.deciding", folder: "~/Downloads/Sorted" }]);
   resetDownloadHooksForTests();
   const staged = "/Users/me/Downloads/.ardia-staging-1/s.bin";
-  startDownloadHooks({ move: async () => ({ ok: false, reason: "failed", stagedPath: staged }), approveFolders: () => {} });
+  startDownloadHooks({ move: async () => ({ ok: false, reason: "linked", stagedPath: staged, strayPath: "/Users/me/Downloads/Sorted/s.bin" }), approveFolders: () => {} });
   const d = { id: "st", url: "https://a.example/s.bin", filename: "s.bin", path: "/Users/me/Downloads/s.bin", received: 1, total: 1, speed: 0, mimeType: "application/octet-stream", paused: false, profile: "" };
   dl({ ...d, state: "downloading" });
   dl({ ...d, state: "finished" });
