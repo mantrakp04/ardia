@@ -54,7 +54,7 @@ export const peekHoldWidth = (sidebarWidth: number) => PEEK_ORIGIN[0] + sidebarW
 
 export const inPeekHold = (x: number, y: number, holdWidth: number, holdHeight: number) => x >= 0 && x < holdWidth && y >= 0 && y < holdHeight;
 
-export const fromSidebarEdge = (x: number, right: boolean, windowWidth: number) => (right ? windowWidth - x : x);
+export const fromSidebarEdgeInStrip = (stripX: number, right: boolean) => (right ? PEEK_EDGE_STRIP - stripX : stripX);
 
 export const peekSpan = (sidebarWidth: number, right: boolean, windowWidth: number): readonly [number, number] =>
   right ? [windowWidth - PEEK_ORIGIN[0] - sidebarWidth, Infinity] : [-Infinity, PEEK_ORIGIN[0] + sidebarWidth];

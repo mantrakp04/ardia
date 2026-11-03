@@ -118,9 +118,10 @@ test("the peek's span and hold mirror for a sidebar on the right", () => {
   assert.deepEqual(dm.peekSpan(240, false, 1200), [-Infinity, 245]);
   assert.deepEqual(dm.peekSpan(240, true, 1200), [955, Infinity]);
   const hold = dm.peekHoldWidth(240);
-  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold + 1, true, 1200), 10, hold, 700), true);
-  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold - 1, true, 1200), 10, hold, 700), false);
-  assert.equal(dm.fromSidebarEdge(30, false, 1200), 30);
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(-1, true), 10, hold, 700), true, "leaving the right strip toward the peek stays in the hold");
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(dm.PEEK_EDGE_STRIP - hold - 1, true), 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(dm.PEEK_EDGE_STRIP + 1, true), 10, hold, 700), false, "past the window's right edge");
+  assert.equal(dm.fromSidebarEdgeInStrip(30, false), 30);
 });
 
 test("the sidebar's own button (address bar in the sidebar) always fits; back, forward and reload as there's room, never overlapping", () => {
