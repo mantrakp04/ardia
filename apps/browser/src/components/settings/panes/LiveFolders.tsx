@@ -252,6 +252,7 @@ function GiteaConnect({ busy, run, fail }: ConnectProps & { fail(error: unknown)
   };
   const signIn = () =>
     void run(async () => {
+      updateConfig({ giteaClientId: clientId.trim() });
       const windowId = settingsBrowserWindow();
       if (!windowId) throw new Error("Open a browser window first");
       void focusWindow(windowId);
