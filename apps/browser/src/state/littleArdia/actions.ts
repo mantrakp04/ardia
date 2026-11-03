@@ -10,6 +10,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isSmall, lastActiveProfile, mainWindowFor } from "../windows/small";
 import { isWebPageUrl } from "../../lib/url";
+import { firstRegular } from "../tabs/openers";
 import { navigationOf } from "../tabs/pageSession";
 import { asAdoptId } from "../tabs/adoptIds";
 import type { AdoptId } from "../browser/types";
@@ -63,7 +64,8 @@ function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (str
     if (!w) target = openWindow({ url, profileId, adoptId });
     else if (intoBlank && !adoptId) s.navigate(blank.id, url);
     else {
-      s.newTab(w.id, { url, profileId, adoptId });
+      const index = s.settings.appLinksFirst ? firstRegular(s, w, profileId) + i : undefined;
+      s.newTab(w.id, { url, profileId, adoptId, index });
       if (intoBlank) store().closeTab(blank.id);
     }
   });

@@ -165,6 +165,11 @@ export const generalRows = {
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
         },
+        appLinksFirst: {
+          title: "Put links from other apps first",
+          description: "Links you open from Slack, Mail or any other app go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
+          keywords: ["external links", "other apps", "slack", "mail", "default browser", "top", "first", "left", "position"],
+        },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
