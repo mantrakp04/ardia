@@ -217,14 +217,14 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
   while a program decides is never granted.
-- **Downloads.** `download.deciding` fires once per download, when it goes from in progress to finished
-  (never for private profiles, off-the-record or dangerous downloads, nor for one that first shows up already
-  finished, like the engine's list at launch), and the answer moves the finished file. A `folder` rule or a program answer may only pick `~/Downloads`, its subfolders, or a folder the user
+- **Downloads.** `download.deciding` fires once per download, when it becomes finished, even if Ardia
+  never saw it in progress (a small file can arrive finished). Never for private profiles, off-the-record or
+  dangerous downloads, nor for ones already finished when the app starts. The answer moves the finished file. A `folder` rule or a program answer may only pick `~/Downloads`, its subfolders, or a folder the user
   approved (a `folder` rule outside Downloads, after approval); `.` and `..` parts are refused. The app asks the
   native side (`moveCompletedDownload(path, folder)` in `platform/systemSignals.ts`) to move it; a missing folder
   is created only from an allowed root down, and a name already taken gets ` (1)`, ` (2)`… before the extension. That side only
   moves a file the app itself just downloaded, only into `~/Downloads` or the folders the app passed in
-  `setApprovedDownloadFolders` (sent at startup and on every change, from the approved rules). It resolves through
+  `setApprovedDownloadFolders` (sent at startup and on every change, approvals included, from the approved rules). It resolves through
   descriptors, never overwrites and keeps the quarantine attribute. On success the download's row points at the
   new path (native also reports it, so Show in Finder keeps working after relaunch); a timeout, an error or no
   answer leaves the file where it is. Folders cross the bridge as `~/…`.

@@ -340,12 +340,27 @@ test("a rewritten new-tab link reuses the engine's prepared contents; a cancelle
   const count = Object.keys(S().tabs).length;
   openFromPage({ url: "https://blocked.example/x", disposition: "foreground", adoptId: "tab:41" }, page);
   assert.equal(Object.keys(S().tabs).length, count);
+  assert.ok(stub.discardedOffers.includes("tab:41"));
   openFromPage({ url: "https://track.example/p?utm=1", disposition: "foreground", adoptId: "tab:42" }, page);
   const opened = Object.values(S().tabs).filter((t) => t.page.kind === "adopted" && t.page.adopt === "tab:42");
   assert.equal(opened.length, 1);
   assert.equal(opened[0].page.nav.url, "https://track.example/p");
   assert.equal(opened[0].page.nav.userInitiated, undefined);
   assert.equal(Object.keys(S().tabs).length, count + 1);
+});
+
+test("a download first seen already finished is decided; one finished at startup is left alone", async () => {
+  const { resetDownloadHooksForTests, startDownloadHooks } = await import("./downloadHooks.ts");
+  fresh([{ name: "all", on: "download.deciding", folder: "~/Downloads/Sorted" }]);
+  resetDownloadHooksForTests();
+  const base = { url: "http://127.0.0.1:18800/x.bin", received: 2048, total: 2048, speed: 0, mimeType: "application/octet-stream", paused: false, profile: "", state: "finished" };
+  S().upsertDownload({ ...base, id: "old", filename: "old.bin", path: "/Users/me/Downloads/old.bin" });
+  const moves = [];
+  startDownloadHooks({ move: async (path, folder) => (moves.push([path, folder]), { ok: true, path }), approveFolders: () => {} });
+  S().upsertDownload({ ...base, id: "fast", filename: "fast.bin", path: "/Users/me/Downloads/fast.bin" });
+  await wait(10);
+  assert.deepEqual(moves, [["/Users/me/Downloads/fast.bin", "~/Downloads/Sorted"]]);
+  resetDownloadHooksForTests();
 });
 
 test("the app's download hooks use the native mover and pass it the approved folders", async () => {
@@ -360,7 +375,6 @@ test("the app's download hooks use the native mover and pass it the approved fol
   stub.systemSignals.moves.length = 0;
   stub.systemSignals.moveResult = { ok: false, reason: "folderMissing" };
   const d = { id: "n1", url: "https://billing.example/a.pdf", filename: "a.pdf", path: "/Users/me/Downloads/a.pdf", received: 1, total: 1, speed: 0, mimeType: "application/pdf", paused: false, profile: "" };
-  S().upsertDownload({ ...d, state: "downloading" });
   S().upsertDownload({ ...d, state: "finished" });
   await wait(10);
   assert.deepEqual(stub.systemSignals.moves, [{ path: d.path, folder: "~/Downloads/Invoices" }]);

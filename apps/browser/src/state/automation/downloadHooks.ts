@@ -78,7 +78,7 @@ export function startDownloadHooks(next: DownloadMover) {
   useBrowser.subscribe((s, prev) => {
     if (s.downloads === prev.downloads) return;
     const before = new Map(prev.downloads.map((d) => [d.id, d.state]));
-    for (const d of s.downloads) if (d.state === "finished" && before.get(d.id) === "downloading") void settleFinishedDownload(d);
+    for (const d of s.downloads) if (d.state === "finished" && before.get(d.id) !== "finished") void settleFinishedDownload(d);
   });
 }
 
