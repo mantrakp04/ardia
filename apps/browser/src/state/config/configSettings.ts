@@ -4,6 +4,7 @@ import { THEME_NAME } from "../../lib/themeFile";
 import { CONFIG_EXCLUDED_KEYS, isConfigSettingKey } from "../settings/configAllowlist";
 import { SETTING_SPECS, searchEngines, type SettingKey, type Settings } from "../settings/settings";
 import { configShortcuts } from "./configShortcuts";
+import { readProviderEntries } from "@ardia/core";
 
 export const CONFIG_FILE = "config.json";
 
@@ -90,6 +91,12 @@ function requested(doc: Record<string, unknown>, settings: Settings): Requested 
       const result = configShortcuts(CONFIG_FILE, value, settings.shortcuts);
       problems.push(...result.problems);
       values.shortcuts = result.overrides;
+      continue;
+    }
+    if (key === "omniboxProviders") {
+      const result = readProviderEntries(value);
+      problems.push(...result.problems.map((p) => `${CONFIG_FILE}: ${p}`));
+      values.omniboxProviders = result.entries;
       continue;
     }
     const spec = SETTING_SPECS[key];

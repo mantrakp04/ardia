@@ -10,6 +10,8 @@ import {
   type EngineInput,
   type ExtensionSearchEngine,
   type SearchEngine,
+  isProviderEntryList,
+  type ProviderEntry,
 } from "@ardia/core";
 import type { StateCreator } from "zustand";
 import { fromLegacyUrl } from "../../lib/legacy";
@@ -18,6 +20,7 @@ import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
 import type { JsonSchema } from "../../lib/jsonSchema";
+import { PROVIDERS_SCHEMA } from "../omnibox/providerSchema";
 
 export const DEFAULT_PROFILE_ID = "default";
 
@@ -132,6 +135,7 @@ export const SETTING_SPECS = {
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
   websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
   protectedVideoInWebKit: flag(true),
+  omniboxProviders: shaped<ProviderEntry[]>([], isProviderEntryList, PROVIDERS_SCHEMA),
 };
 
 type Specs = typeof SETTING_SPECS;

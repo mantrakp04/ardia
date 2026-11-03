@@ -51,6 +51,51 @@ Ardia never creates the folder. `ardia config init` does, or the user does.
   `config.json` that doesn't parse, keeps the theme that is showing.
 - Unknown keys inside `settings` are reported and ignored. Other top-level keys are ignored.
 
+### Address bar providers
+
+`settings.omniboxProviders` adds your own rows to the address bar. Each entry is one provider; a bad entry (or a bad
+row in it) is reported and skipped, the others apply.
+
+```json
+"omniboxProviders": [
+  { "keyword": "go", "title": "Linear", "url": "https://linear.app/team/issue/{query}" },
+  { "keyword": "t", "title": "Team", "rows": [{ "title": "Wiki", "url": "https://wiki.example.com" }] },
+  { "keyword": "pkg", "title": "npm", "suggest": "https://example.com/suggest?q={query}", "url": "https://www.npmjs.com/search?q={query}" },
+  { "title": "Docs", "suggest": "https://docs.example.com/suggest?q={query}", "global": true }
+]
+```
+
+- `keyword` (1–32 characters, no spaces or `/ ? # : @ . !`): typing it, then Space or Tab, enters the provider, shown
+  as a chip like a site search. Only its rows show and Enter takes the first one (if none has arrived yet, Enter
+  waits for the first). Backspace or Escape leaves it, as in a site search. A provider's keyword wins over a search
+  engine's and a site's.
+- Without a keyword a provider is **global**: its rows join the normal list in their own section, at most 3 per
+  provider and 6 in all, below the first three history, bookmark and tab rows. They are never the inline completion
+  or what Enter opens by default, and never push a built-in row out.
+- `rows`: a static list of `{ title, url, subtitle?, icon? }` (up to 200), matched against every word you type.
+- `url`: a link template; `{query}` is what you typed after the keyword, URL-encoded. Needs a keyword.
+- `suggest`: a suggestion endpoint, `https` with `{query}`. It may answer OpenSearch suggestions (`["q", [texts],
+  [descriptions], [urls]]`; a text without a URL goes through `url`, else it's dropped) or `[{ "title", "url" }]`.
+  Without a keyword it needs `"global": true`, since it then receives everything you type that doesn't look like an
+  address.
+- `title` names the provider on its chip and on each of its rows (default: the template's host).
+
+**Approval.** A `suggest` endpoint and every global provider stay off until approved in Ardia. The approval is for
+the exact definition: editing the entry needs a new one. Static keyword lists and URL templates send nothing and
+need none. Until Settings shows them, they're listed by the app's `pendingOmniboxProviders()` and approved with
+`approveOmniboxProvider(key)` (`apps/browser/src/state/omnibox/`); approvals last until quit.
+
+**Safety.** Rows only open `http` and `https` URLs (never `javascript:`, `data:`, `file:`, `chrome:` or Ardia's own
+pages). Titles are capped at 120 characters and subtitles at 160, with control and bidi characters removed, and each
+row shows the destination's host and the provider's title, which Ardia sets. Icons are `https` URLs or
+`data:image` (png, jpeg, gif, webp, ico) up to 16 KB. Suggestion requests carry only what you typed: no cookies,
+referrer, page, history or profile. They go only to public `https` hosts (not `localhost`, private or link-local
+addresses, `.local`), wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, read at
+most 128 KB, keep at most 4 requests in flight, and are cached for 5 minutes per profile. A reply whose final URL
+isn't allowed is dropped. Remote, program and extension providers never run in a private window; static lists and
+templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1`,
+`http://localhost` and `http://[::1]` endpoints, for fixtures; other builds refuse them.
+
 ### The file wins
 
 `config.json` is read-only to the app. Ardia never writes it, so there is nothing to race with.

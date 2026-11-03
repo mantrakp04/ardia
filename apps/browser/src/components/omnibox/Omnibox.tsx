@@ -31,6 +31,7 @@ import { BottomRow, DropdownFrame, PanelFrame } from "./OmniboxFrame";
 import { barKeyDown, barKeyDownEvents, type BarKeyEvent } from "./omniboxKeys";
 import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
+import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
@@ -88,6 +89,9 @@ export function Omnibox({
     tabId,
     currentUrl,
   });
+
+  useHeldSelection(items, typed, scope, selectedIndex, dispatch);
+  const waitForProvider = useProviderEnter(items, typed, scope, (s, disposition) => choose(s, disposition));
 
   const snapshot = useRef<BarSnapshot | null>(null);
   snapshot.current = { typed, edited, selection: selection.current, selected, scope, scopeFrom };
@@ -156,7 +160,7 @@ export function Omnibox({
       }
     }
     if (!s) {
-      if (scope) return;
+      if (scope) return void waitForProvider(disposition);
       const text = edited ? value : initialText || value;
       return go(resolveInput(text, engine.url), disposition);
     }
@@ -170,6 +174,7 @@ export function Omnibox({
         return go(s.url, disposition);
       case "search":
       case "create":
+      case "provider":
         return go(s.url, disposition);
       case "calc":
         if (disposition !== "current") return go(s.url, disposition);

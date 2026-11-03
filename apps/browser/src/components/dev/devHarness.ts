@@ -70,6 +70,9 @@ export function startDevHarness() {
     get bangs(): typeof import("../../state/omnibox/bangs") {
       return require("../../state/omnibox/bangs");
     },
+    get omniboxProviders(): typeof import("../../state/omnibox/activeProviders") & typeof import("../../state/omnibox/providerApproval") & typeof import("../../state/omnibox/providers") {
+      return { ...require("../../state/omnibox/activeProviders"), ...require("../../state/omnibox/providerApproval"), ...require("../../state/omnibox/providers") };
+    },
     get switcher(): typeof import("../../state/sidebar/switcher") {
       return require("../../state/sidebar/switcher");
     },
