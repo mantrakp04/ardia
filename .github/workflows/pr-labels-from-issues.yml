@@ -72,7 +72,7 @@ jobs:
                     }
                   }
                 }
-              }')
+              }') || return 1
             if ! jq -e '.data.repository.pullRequest
               | (.labels.pageInfo.hasNextPage or .closingIssuesReferences.pageInfo.hasNextPage
                  or any(.closingIssuesReferences.nodes[]; .labels.pageInfo.hasNextPage)) | not' <<<"$snapshot" >/dev/null; then
@@ -82,18 +82,18 @@ jobs:
             wanted=$(jq -r --arg repo "$REPO" --argjson types "$type_label_names" '
               .data.repository.pullRequest.closingIssuesReferences.nodes[]
               | select(.repository.nameWithOwner == $repo)
-              | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
+              | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u) || return 1
             if [ -z "$wanted" ]; then
               echo "#$pr: no type label on the issues it closes in $REPO. A 'Closes #N' only counts when the PR targets the default branch."
             fi
             current=$(jq -r --argjson types "$type_label_names" '
-              .data.repository.pullRequest.labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
+              .data.repository.pullRequest.labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u) || return 1
             for label in $(comm -13 <(echo "$current") <(echo "$wanted")); do
-              gh api -X POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$label" --silent
+              gh api -X POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$label" --silent || return 1
               echo "#$pr: added $label"
             done
             for label in $(comm -23 <(echo "$current") <(echo "$wanted")); do
-              remove_label "$pr" "$label"
+              remove_label "$pr" "$label" || return 1
               echo "#$pr: removed $label"
             done
           }
@@ -102,7 +102,12 @@ jobs:
             sync_pull_request "$PR_NUMBER"
           else
             pull_requests=$(open_pull_requests_closing_issue "$ISSUE_NUMBER")
+            failed_pull_requests=()
             for pr in $pull_requests; do
-              sync_pull_request "$pr"
+              sync_pull_request "$pr" || failed_pull_requests+=("#$pr")
             done
+            if [ ${#failed_pull_requests[@]} -gt 0 ]; then
+              echo "Failed to sync ${failed_pull_requests[*]}" >&2
+              exit 1
+            fi
           fi
