@@ -43,6 +43,8 @@ export const importHistoryRows = (profile: string, rows: { url: string; title: s
 export const deleteHistoryUrls = (profile: string, urls: string[]) =>
   urls.length ? call("history.deleteUrls", { profile, urls }) : Promise.resolve();
 
+export const expireHistoryBefore = (profile: string, before: number) => call("history.expireBefore", { profile, before });
+
 export const watchHistory = (profile: string) => call("history.watch", { profile });
 
 const historyChange = (profile: string, c: HistoryWireChange): HistoryChange =>

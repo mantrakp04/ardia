@@ -21,7 +21,7 @@ test("every setting is either on the config allowlist or deliberately left out, 
   assert.equal(allowed.size + excluded.size, SETTING_KEYS.length, "no stale names in either list");
   assert.deepEqual([...excluded].sort(), [
     "allowJavaScriptFromAppleEvents", "cliControl", "customSearchEngines", "customSearchUrl", "defaultProfileId", "extensionSearchEngines",
-    "pageEngine", "protectedVideoInWebKit", "websiteEngines",
+    "keepHistory", "pageEngine", "protectedVideoInWebKit", "websiteEngines",
   ]);
 });
 

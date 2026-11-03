@@ -29,6 +29,7 @@ import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/s
 import { updateSettings } from "../../../state/settings/actions";
 import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
+import { HistoryRetentionSection } from "./HistoryRetention";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
@@ -103,6 +104,7 @@ export function PrivacyPane() {
         </>
       )}
 
+      <HistoryRetentionSection />
       <SitePermissions />
       <AppLinks />
       <SectionHeader anchor="privacy.commandScrollZoom" description={null} />

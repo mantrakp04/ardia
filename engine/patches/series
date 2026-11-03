@@ -74,6 +74,7 @@ chromium chromium-ungoogled-disable-missing-key-warning.patch
 chromium chromium-ungoogled-mime-util-ymp.patch
 chromium chromium-background-instance-no-default-handlers.patch
 chromium chromium-apple-passwords-host-skipped.patch
+chromium chromium-history-no-expiry.patch
 chromium chromium-ardia-layer.patch
 
 layer engine/chromium

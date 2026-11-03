@@ -2204,3 +2204,35 @@ test("profiles that share data: records applied through the owner land once in t
   assert.deepEqual([...history.values.keys()].sort(), ["h:https://in.example/", "h:https://out.example/"]);
   assert.deepEqual([...bookmarks.values.values()].map((v) => v.u).sort(), ["https://in.example/", "https://out.example/"]);
 });
+
+test("history: a Mac that keeps a month drops its older history, and the other Mac keeps it", async () => {
+  const folder = new Folder();
+  const short = new Device("devKeepsMonth", folder);
+  const long = new Device("devKeepsAll", folder);
+  for (const d of [short, long]) stub.historyDbs.delete(d.id);
+  const day = 86_400_000;
+  const old = Date.now() - 45 * day;
+  const recent = Date.now() - 3_600_000;
+  short.with(() =>
+    S().importHistory("default", [
+      { url: "https://old.example/", title: "Old", visits: 1, lastVisit: old },
+      { url: "https://recent.example/", title: "Recent", visits: 1, lastVisit: recent },
+    ]),
+  );
+  await syncAll([short, long]);
+  assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"]);
+
+  short.with(() => {
+    S().updateSettings({ keepHistory: "month" });
+    S().trimHistoryBefore(Date.now() - 30 * day);
+  });
+  assert.deepEqual(todaysHistory(short), ["https://recent.example/"]);
+  await syncAll([short, long]);
+  assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"], "the other Mac's older history stays");
+  assert.deepEqual(todaysHistory(short), ["https://recent.example/"], "and doesn't come back to the Mac that dropped it");
+  assert.equal(long.with(() => S().settings.keepHistory), "forever", "the period itself stays on its Mac");
+
+  long.with(() => S().importHistory("default", [{ url: "https://older.example/", title: "Older", visits: 1, lastVisit: Date.now() - 50 * day }]));
+  await syncAll([long, short]);
+  assert.deepEqual(todaysHistory(short), ["https://recent.example/"], "visits older than its period don't arrive either");
+});

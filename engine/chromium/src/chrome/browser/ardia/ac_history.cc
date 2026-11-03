@@ -4,6 +4,7 @@
 #include <cmath>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -400,6 +401,23 @@ AC_PROFILE_CALL(ac_history_delete_urls) {
   }
   service->DeleteURLs(urls);
   call.TakeReply().Ok();
+}
+
+AC_PROFILE_CALL(ac_history_expire_before) {
+  history::HistoryService* service = ardia::HistoryFor(call.profile());
+  if (!service) {
+    return call.TakeReply().Error("no history");
+  }
+  const std::optional<double> before = call.args().FindDouble("before");
+  if (!before || !std::isfinite(*before) || *before <= 0) {
+    return call.TakeReply().Error("before isn't a time");
+  }
+  service->ExpireHistoryBetween(
+      std::set<GURL>(), std::nullopt, base::Time(),
+      base::Time::FromMillisecondsSinceUnixEpoch(*before),
+      true,
+      base::BindOnce([](Reply reply) { reply.Ok(); }, call.TakeReply()),
+      &ardia::Tracker());
 }
 
 AC_PROFILE_CALL(ac_history_watch) {

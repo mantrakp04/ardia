@@ -13,6 +13,7 @@ export type HistorySlice = {
 
   removeHistory(profileId: string, urls: string[]): void;
   clearHistory(profileId: string, since?: number): void;
+  trimHistoryBefore(before: number): void;
   importHistory(profileId: string, entries: Omit<HistoryEntry, "favicon">[]): number;
 };
 
@@ -39,6 +40,14 @@ function withoutVisitsSince(entry: HistoryEntry, since: number): HistoryEntry | 
   const kept = times.filter((t) => t < since);
   if (!kept.length) return null;
   return { ...entry, visits: entry.visits - (times.length - kept.length), lastVisit: kept[kept.length - 1]!, visitTimes: kept };
+}
+
+export function withoutVisitsBefore(entry: HistoryEntry, before: number): HistoryEntry | null {
+  if (entry.lastVisit < before) return null;
+  const times = entry.visitTimes?.length ? entry.visitTimes : [entry.lastVisit];
+  const kept = times.filter((t) => t >= before);
+  if (!kept.length || kept.length === times.length) return entry;
+  return { ...entry, visits: Math.max(1, entry.visits - (times.length - kept.length)), visitTimes: kept };
 }
 
 const failed = (what: string) => (error: unknown) => console.warn(`[history] ${what}`, error);
@@ -78,6 +87,19 @@ export const createHistorySlice: StateCreator<BrowserState, [], [], HistorySlice
       if (since === undefined) return withHistoryList(s, engine, []);
       const kept = historyOf(s, profileId).map((h) => withoutVisitsSince(h, since)).filter((h): h is HistoryEntry => !!h);
       return withHistoryList(s, engine, kept.sort((a, b) => b.lastVisit - a.lastVisit));
+    });
+  },
+
+  trimHistoryBefore(before) {
+    set((s) => {
+      let next: HistoryState = s;
+      for (const engine of engineProfiles(s)) {
+        const list = next.history[engine]?.list;
+        if (!list) continue;
+        const kept = list.map((h) => withoutVisitsBefore(h, before)).filter((h): h is HistoryEntry => !!h);
+        if (kept.length !== list.length || kept.some((h, i) => h !== list[i])) next = { ...next, ...withHistoryList(next, engine, kept) };
+      }
+      return next === s ? {} : { history: next.history };
     });
   },
 });

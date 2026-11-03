@@ -152,6 +152,7 @@ export type EngineCalls = {
   "history.add": [Profile & { pages: { u: string; t: string; v: number[] }[]; toleranceMs: number }, { added: number }];
   "history.import": [Profile & { rows: { u: string; t: string; n: number; l: number }[] }, Done];
   "history.deleteUrls": [Profile & { urls: string[] }, Done];
+  "history.expireBefore": [Profile & { before: number }, Done];
   "history.watch": [Profile, Done];
 
   "bookmarks.tree": [Profile, { bar: EngineBookmark; other: EngineBookmark }];
