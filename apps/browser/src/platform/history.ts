@@ -3,6 +3,7 @@ export {
   addHistoryVisits,
   importHistoryRows,
   deleteHistoryUrls,
+  expireHistoryBefore,
   watchHistory,
   onHistoryChanged,
   type EngineHistoryEntry,

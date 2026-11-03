@@ -18,6 +18,7 @@ import { configRestoreSession, startConfigFiles } from "./state/config/configFil
 import { colorRoles } from "./components/ui/tokens";
 import { startFavicons } from "./state/favicons/favicons";
 import { startHistory } from "./state/history/engineSync";
+import { startHistoryRetention } from "./state/history/retention";
 import { startBookmarks } from "./state/bookmarks/engineSync";
 import { startProfileDataCleanup } from "./state/profiles/profileData";
 import { startPrivateSessions } from "./state/windows/privateSessions";
@@ -40,6 +41,7 @@ startPersistence({ restoreSession: configRestoreSession() });
 startConfigFiles(colorRoles);
 startFavicons();
 startHistory();
+startHistoryRetention();
 startBookmarks();
 startProfileDataCleanup();
 startPrivateSessions();

@@ -129,7 +129,7 @@ test("history.json moves into Chrome once: Chrome's own visits aren't doubled, a
   assert.equal(visits("", "https://a.com/"), 1, "a visit Chrome has isn't added again");
   assert.equal(visits("", "https://b.com/"), 2);
   assert.equal(visits("", "https://d.com/"), 2, "one visit Chrome has accounts for one saved visit");
-  assert.equal(visits("", "https://old.com/"), 0, "Chrome has expired what's older than 90 days");
+  assert.equal(visits("", "https://old.com/"), 1, "Ardia keeps history older than 90 days by default");
   assert.equal(visits(work, "https://c.com/"), 1, "profiles sharing data add their list once");
   assert.equal(stub.historyDbs.get(null).has("gone"), false, "a deleted profile's list goes");
   assert.equal(stub.docs.has("history.json"), false, "the file is deleted");

@@ -18,6 +18,16 @@ export const privacyRows = {
       },
     },
     {
+      section: "History",
+      rows: {
+        keepHistory: {
+          title: "Keep history",
+          description: "For every profile on this Mac. Your other Macs keep their own.",
+          keywords: ["delete history", "clear history", "browsing history", "expire", "retention", "90 days", "old history"],
+        },
+      },
+    },
+    {
       section: "Site permissions",
       rows: {
         sitePermissions: {

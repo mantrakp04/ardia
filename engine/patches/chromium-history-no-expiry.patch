@@ -1,0 +1,25 @@
+diff --git a/components/history/core/browser/history_backend.cc b/components/history/core/browser/history_backend.cc
+--- a/components/history/core/browser/history_backend.cc
++++ b/components/history/core/browser/history_backend.cc
+@@ -1391,10 +1391,6 @@ void HistoryBackend::InitImpl(
+ 
+   // Get the first item in our database.
+   db_->GetStartDate(&first_recorded_time_);
+-
+-  // Start expiring old stuff.
+-  if (!base::CommandLine::ForCurrentProcess()->HasSwitch("keep-old-history"))
+-    expirer_.StartExpiringOldStuff(kHistoryExpirationThreshold);
+ }
+ 
+ void HistoryBackend::CloseAllDatabases() {
+@@ -1622,9 +1618,7 @@ void HistoryBackend::AddPagesWithDetails(const URLRows& urls,
+ }
+ 
+ bool HistoryBackend::IsExpiredVisitTime(const base::Time& time) const {
+-  if (base::CommandLine::ForCurrentProcess()->HasSwitch("keep-old-history"))
+-    return false;
+-  return time < expirer_.GetCurrentExpirationTime();
++  return false;
+ }
+ 
+ // static

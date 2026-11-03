@@ -180,7 +180,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
 - Covered: `session.json` (9), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
   `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `shared-folders.json`, `ardia-cli.json`,
-  `bangs-state.json` and `Scripts/status.json` (all 1).
+  `bangs-state.json`, `history-retention.json` and `Scripts/status.json` (all 1).
 - Native code reads through `ArdiaSavedDocument` (packages/ardiacore/ios), with the same rules: `session.json` and
   `onboarding.json` (any version up to the one JS writes; a test pins each) and `launch-layout.json` (3, written and
   read by native code only, so any other version reads as nothing).

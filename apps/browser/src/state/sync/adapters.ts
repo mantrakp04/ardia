@@ -3,7 +3,8 @@ import { deletePassword } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
 import { assignPositions, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
 import { bookmarkRoots, bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../bookmarks/bookmarks";
-import { historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
+import { historyCutoff, historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
+import { historyTrimmedBefore } from "../history/retention";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
@@ -167,6 +168,8 @@ const HISTORY_WINDOW_MS = 90 * 86_400_000;
 const lastVisitOf = (v: HistoryValue) => Math.max(0, ...v.vt);
 const SAME_VISIT_MS = 1;
 
+export const syncedHistorySince = (now: number) => Math.max(now - HISTORY_WINDOW_MS, historyCutoff(store().settings.keepHistory, now) ?? -Infinity);
+
 export function historyExpired(key: string, value: unknown, now: number) {
   const v = key.startsWith(HISTORY) ? historyValue(value) : null;
   return !!v && lastVisitOf(v) < now - HISTORY_WINDOW_MS;
@@ -178,7 +181,7 @@ export function historyAdapter(profileId: string): Adapter {
     prefix: HISTORY,
     extract: (base) => {
       if (!ready()) return null;
-      const since = Date.now() - HISTORY_WINDOW_MS;
+      const since = syncedHistorySince(Date.now());
       const values = new Map<string, unknown>();
       const older = new Set<string>();
       const { list: view, floor } = historyViewOf(store(), profileId)!;
@@ -194,10 +197,11 @@ export function historyAdapter(profileId: string): Adapter {
         const edited = !known || local.vt.some((t) => !known.vt.some((k) => Math.abs(k - t) <= SAME_VISIT_MS));
         values.set(key, edited ? local : known);
       }
+      const trimmed = historyTrimmedBefore();
       const ignore = (key: string) => {
         if (older.has(key) || !isWebPageUrl(recordId(HISTORY, key))) return true;
         const known = historyValue(base(key));
-        return !!known && (lastVisitOf(known) < since || lastVisitOf(known) <= floor);
+        return !!known && (lastVisitOf(known) < since || lastVisitOf(known) <= floor || lastVisitOf(known) < trimmed);
       };
       return { values, ignore };
     },
@@ -207,7 +211,7 @@ export function historyAdapter(profileId: string): Adapter {
     },
     apply: async (visible, changed) => {
       if (!ready()) return false;
-      const since = Date.now() - HISTORY_WINDOW_MS;
+      const since = Math.max(syncedHistorySince(Date.now()), historyTrimmedBefore());
       const byUrl = new Map(historyOf(store(), profileId).map((e) => [e.url, e]));
       const add: { url: string; title: string; visitTimes: number[] }[] = [];
       const remove: string[] = [];

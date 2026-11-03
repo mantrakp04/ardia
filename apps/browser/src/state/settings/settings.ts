@@ -93,6 +93,7 @@ export const SETTING_SPECS = {
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
+  keepHistory: oneOf(["forever", "year", "threeMonths", "month"], "forever"),
   videoUpscaling: flag(true, SYNCED),
   sidebarMediaControls: flag(true, SYNCED),
   sidebarWidth: width(DEFAULT_SIDEBAR_WIDTH),

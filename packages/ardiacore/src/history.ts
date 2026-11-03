@@ -23,16 +23,17 @@ export async function queryHistory(profile: string, maxUrls = 5000, maxVisits = 
 
 const adding = new Map<string, Promise<unknown>>();
 
-export function addHistoryVisits(profile: string, pages: { url: string; title: string; visitTimes: number[] }[], toleranceMs = 1000) {
-  if (!pages.length) return Promise.resolve(0);
-  const run = (adding.get(profile) ?? Promise.resolve())
-    .catch(() => {})
-    .then(() =>
-      call("history.add", { profile, pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
-    )
-    .then((r) => r.added);
+function afterAdding<T>(profile: string, next: () => Promise<T>): Promise<T> {
+  const run = (adding.get(profile) ?? Promise.resolve()).catch(() => {}).then(next);
   adding.set(profile, run);
   return run;
+}
+
+export function addHistoryVisits(profile: string, pages: { url: string; title: string; visitTimes: number[] }[], toleranceMs = 1000) {
+  if (!pages.length) return Promise.resolve(0);
+  return afterAdding(profile, () =>
+    call("history.add", { profile, pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
+  ).then((r) => r.added);
 }
 
 export const importHistoryRows = (profile: string, rows: { url: string; title: string; visits: number; lastVisit: number }[]) =>
@@ -42,6 +43,8 @@ export const importHistoryRows = (profile: string, rows: { url: string; title: s
 
 export const deleteHistoryUrls = (profile: string, urls: string[]) =>
   urls.length ? call("history.deleteUrls", { profile, urls }) : Promise.resolve();
+
+export const expireHistoryBefore = (profile: string, before: number) => afterAdding(profile, () => call("history.expireBefore", { profile, before }));
 
 export const watchHistory = (profile: string) => call("history.watch", { profile });
 
