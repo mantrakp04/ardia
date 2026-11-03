@@ -86,7 +86,9 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
 - Frame: x = sidebar width, top 6, right 7, bottom 7. Radius 10.
 - Ours: 9 pt on every side, in every layout, by the owner's choice (2026-10-27): top, right, bottom and left at the
   window's edge, between split panes and beside an extension's side panel, and in Little Ardia (below its bar). Docked
-  beside the sidebar the card starts 3 pt past it, so its rows (6 pt in) sit 9 pt from the card. The traffic lights
+  beside the sidebar the card starts at its edge and the sidebar's rows, field and tiles sit 9 pt in from both its
+  edges (owner, 2026-11-03: the sidebar's side matches the frame's thickness), so they're 9 pt from the window's edge and
+  9 pt from the card. Dia's own inset is 6 with the card at the sidebar's width. The traffic lights
   and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
 - Fill: `WindowContent/BaseTint`, #121212 at 60% (dark) or white at 80% (light), over the window

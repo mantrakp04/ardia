@@ -104,7 +104,7 @@ void PlaceFullScreenLights(NSWindow *window) {
   ArdiaWindowFullScreen *state = objc_getAssociatedObject(window, kWindowFullScreenKey);
   lights.hidden = state.pageFullScreen;
   const NSSize size = close.frame.size;
-  const NSPoint center = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size);
+  const NSPoint center = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size);
   const CGFloat top = center.y - size.height / 2 + FullScreenRevealHeight(window);
   [lights setFrameOrigin:NSMakePoint(center.x - size.width / 2,
                                      frameView.isFlipped ? top : NSHeight(frameView.bounds) - top - NSHeight(lights.frame))];

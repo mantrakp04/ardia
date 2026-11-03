@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
 import { useIsSmallWindow, useSplitOf } from "../../state/windows/card";
 import { usePeeks } from "../../state/peek/hooks";
-import { useActiveTabId, useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useWindowId } from "../../state/browser/hooks";
 import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import { useBookmarksBarMode } from "../../state/bookmarks/hooks";
 import { POPOVER_MARGIN } from "../ui";
@@ -34,7 +34,6 @@ export function ContentCard() {
   const split = useSplitOf(activeId);
   const fullscreenTab = useFullscreenTab(windowId);
   const tabLayout = useTabLayout();
-  const lightsOnCard = useSidebarSide(windowId) === "right";
   const addressInSidebar = useAddressBarInSidebar();
   const small = useIsSmallWindow(windowId);
   const hideWhileScrolling = useSettings((st) => st.hideToolbarWhileScrolling);
@@ -65,7 +64,7 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton, lights: leading && lightsOnCard && !fullscreenTab });
+    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;
@@ -79,7 +78,7 @@ export function ContentCard() {
         width: focusedRect.width - g.urlLeft - urlFieldRight(!!split, extensionsWidth, toolbarRow),
       });
     return watchToolbarExtensionsWidth(windowId, place);
-  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow, lightsOnCard, !!fullscreenTab]);
+  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow]);
 
   useEffect(() => {
     if (origin && size.width > 0) setCardAnchor(windowId, { left: origin.x, top: origin.y, width: size.width, height: size.height });

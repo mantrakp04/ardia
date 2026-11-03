@@ -40,7 +40,7 @@ export const launch: LaunchConfig = {
   test: {},
 };
 
-export type FakeWindow = OpenWindowOptions & { title?: string; trafficLightsCenter?: [number, number] | null };
+export type FakeWindow = OpenWindowOptions & { title?: string; trafficLightsCenter?: [number, number] | null; trafficLightsTrailing?: boolean };
 const shellEvents = nativeEvents();
 export const windows = {
   open: new Map<string, FakeWindow>(),
@@ -82,9 +82,9 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   },
   animateWindowClose: () => Promise.resolve(),
   restoreFullScreen: () => Promise.resolve(),
-  setTrafficLightsCenter: (id, center) => {
+  setTrafficLightsCenter: (id, center, trailing) => {
     const window = windows.open.get(id);
-    if (window) window.trafficLightsCenter = center;
+    if (window) Object.assign(window, { trafficLightsCenter: center, trafficLightsTrailing: trailing });
     return Promise.resolve();
   },
   setWindowTitle: (id, title) => {
