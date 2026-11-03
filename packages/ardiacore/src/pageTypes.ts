@@ -15,6 +15,7 @@ export type NavigationState = {
   committedInitial?: boolean;
   committedUrl?: string;
   committedAt?: number;
+  httpStatus?: number;
 };
 
 export type MediaState = { playing: boolean; muted: boolean };

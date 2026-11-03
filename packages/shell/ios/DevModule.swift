@@ -120,6 +120,7 @@ public class DevModule: Module {
     }
 
     AsyncFunction("devURLDelivery") { () -> [String: Any] in DevModule.urlDelivery }.runOnQueue(.main)
+    AsyncFunction("devOpenURLDeliveries") { () -> [[String: Any]] in OpenURLInbox.testDeliveries }.runOnQueue(.main)
 
     AsyncFunction("devShortcutRecording") { () -> Bool in ShortcutRecorder.shared.isRecording }.runOnQueue(.main)
 

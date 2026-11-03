@@ -34,6 +34,8 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   private var muted = false
   private var errorURL: URL?
   private var committedAt: Double = 0
+  private var respondedStatus = 0
+  private var committedStatus = 0
   private var showingError = false
   private var findText = ""
   private var findCount = 0
@@ -175,7 +177,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   private func emitNavigation() {
     guard let view = webView else { return }
     let theme = view.themeColor.flatMap(Self.hex)
-    emit("navigation", [
+    var navigation: [String: Any] = [
       "url": view.url?.absoluteString ?? "",
       "committedUrl": showingError ? "" : (view.backForwardList.currentItem?.url.absoluteString ?? ""),
       "committedAt": committedAt,
@@ -185,7 +187,9 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
       "isLoading": view.isLoading,
       "themeColor": theme ?? NSNull(),
       "themeColorSource": theme == nil ? NSNull() : "meta",
-    ])
+    ]
+    if committedStatus > 0 && !showingError { navigation["httpStatus"] = committedStatus }
+    emit("navigation", navigation)
   }
 
   static func hex(_ color: NSColor) -> String? {
@@ -465,6 +469,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
     let disposition = (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition")?.lowercased() ?? ""
     let attachment = disposition.hasPrefix("attachment")
+    if response.isForMainFrame { respondedStatus = (response.response as? HTTPURLResponse)?.statusCode ?? 0 }
     decisionHandler(!response.canShowMIMEType || (attachment && response.isForMainFrame) ? .download : .allow)
   }
 
@@ -485,6 +490,8 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
     if !showingError { errorURL = nil }
     committedAt = Date().timeIntervalSince1970 * 1000
+    committedStatus = respondedStatus
+    respondedStatus = 0
     playingFrames.removeAll()
     mediaFrames.removeAll()
     resetNowPlaying()
@@ -505,11 +512,13 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
 
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    respondedStatus = 0
     if showingError && webView.url != errorURL { showingError = false }
     emit("status", ["text": ""])
   }
 
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    respondedStatus = 0
     failed(webView, error)
   }
 

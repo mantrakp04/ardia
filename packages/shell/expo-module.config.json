@@ -37,7 +37,8 @@
       "CliModule",
       "UserScriptsModule",
       "ConfigModule",
-      "AutomationModule"
+      "AutomationModule",
+      "SystemSignalsModule"
     ]
   }
 }

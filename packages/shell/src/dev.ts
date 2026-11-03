@@ -42,5 +42,6 @@ export type DevNative = {
   devClick(windowId: string, click: Click): Promise<ClickResult>;
   devShortcutRecording(): Promise<boolean>;
   devReceiveURLsWhenDetached(urls: string[], timeoutMs: number): void;
+  devOpenURLDeliveries(): Promise<{ urls: string[]; pointer: [number, number]; source?: { bundleId: string | null; appName: string | null } }[]>;
   devURLDelivery(): Promise<{ state?: "waiting" | "received" | "neverDetached"; waitedMs?: number; attachedAfter?: boolean }>;
 };

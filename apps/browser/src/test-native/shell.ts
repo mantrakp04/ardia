@@ -6,6 +6,7 @@ import type {
   OpenWindowOptions,
   ShellNativeModules,
   SystemInfo,
+  SystemSignal,
   UserScriptsFolder,
   WindowEvent,
 } from "@ardia/shell";
@@ -49,7 +50,8 @@ export const windows = {
 };
 export const emitAppEvent = (event: AppEvent) => shellEvents.emit("onAppEvent", event);
 export const emitCommand = (event: CommandEvent) => shellEvents.emit("onCommand", event);
-export const emitOpenURLs = (urls: string[], pointer?: [number, number]) => shellEvents.emit("onOpenURLs", { urls, pointer });
+export const emitOpenURLs = (urls: string[], pointer?: [number, number], source?: { bundleId: string | null; appName: string | null }) =>
+  shellEvents.emit("onOpenURLs", { urls, pointer, source });
 
 const shell: Modules["ArdiaShell"] = {
   addListener: shellEvents.addListener,
@@ -204,6 +206,7 @@ const dev: Modules["ArdiaDev"] = {
   devClick: () => Promise.resolve({}),
   devShortcutRecording: () => Promise.resolve(false),
   devReceiveURLsWhenDetached: () => {},
+  devOpenURLDeliveries: async () => [],
   devURLDelivery: () => Promise.resolve({}),
 };
 
@@ -331,6 +334,17 @@ const automation: Modules["ArdiaAutomation"] = {
   addListener: controlEvents.addListener,
 };
 
+export const systemSignals = { idleThresholds: [] as number[], holdsIncomingLinks: false };
+const systemSignalEvents = nativeEvents();
+export const emitSystemSignal = (signal: SystemSignal) => systemSignalEvents.emit("onSystemSignal", signal);
+const systemSignalsModule: Modules["ArdiaSystemSignals"] = {
+  watchIdle: (thresholds) => void (systemSignals.idleThresholds = [...thresholds]),
+  holdsIncomingLinks: () => systemSignals.holdsIncomingLinks,
+  setHoldIncomingLinks: (hold) => void (systemSignals.holdsIncomingLinks = hold),
+  devPost: async (name) => (emitSystemSignal({ type: name === "willSleep" ? "sleep" : "wake" }), true),
+  addListener: systemSignalEvents.addListener,
+};
+
 export const shellNativeModules: Modules = {
   ArdiaShell: shell,
   ArdiaAppWindows: windowsModule,
@@ -356,4 +370,5 @@ export const shellNativeModules: Modules = {
   ArdiaUserScripts: userScripts,
   ArdiaConfig: config,
   ArdiaAutomation: automation,
+  ArdiaSystemSignals: systemSignalsModule,
 };

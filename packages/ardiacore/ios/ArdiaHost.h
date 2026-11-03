@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (int)runWithArgc:(int)argc
               argv:(char *_Nullable *_Nonnull)argv
           delegate:(id<NSApplicationDelegate> (^)(void))makeDelegate NS_SWIFT_NAME(run(argc:argv:delegate:));
++ (nullable NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url NS_SWIFT_NAME(senderOfOpenedURL(_:));
+@property(class) BOOL holdsIncomingLinks;
 
 @end
 

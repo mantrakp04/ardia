@@ -312,6 +312,8 @@ ARDIACORE_EXPORT
 - (void)reloadIgnoringCache;
 - (void)loadIfNeeded;
 @property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
+@property(readonly) int committedHTTPStatus;
+@property(readonly) int committedDocumentCount;
 @end
 
 @interface ArdiaCoreTab (Page)
