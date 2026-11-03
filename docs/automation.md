@@ -203,9 +203,12 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Rewrites.** A rewrite answer must be a canonical http or https URL without credentials; `rewrite` rules build it
   from a template with `{url}`, `{origin}`, `{host}`, `{path}`, `{query}` and `{hash}`. The replacement keeps the
   original disposition and profile and runs through the same navigation path as any other (the typed path for
-  typed URLs, a plain renderer-style load for links: never re-issued as user-initiated). A link rewritten or
-  cancelled drops the contents the engine had prepared for it, so nothing (a POST body included) is replayed to
-  the new URL. While a program decides a typed navigation the tab stays where it was; for a new tab it opens empty
+  typed URLs, a plain renderer-style load for links: never re-issued as user-initiated). A link opened in a new tab
+  or window already has contents the engine prepared (and started loading) before JS hears of it: a rewrite
+  adopts those contents into the tab, which keeps the opener, and navigates them to the new URL with a plain GET,
+  so nothing is left behind and no POST body is replayed to the new URL. A cancelled one is never adopted; until
+  the engine gets a way to discard an offer, its contents close on the native 30 s offer expiry
+  (`ArdiaTabRegistry`, `kOfferSeconds`). While a program decides a typed navigation the tab stays where it was; for a new tab it opens empty
   and navigates once answered (closed again on cancel).
 - **link.opening** decides before any tab exists. While an active `tab.opening` or `link.opening` hook exists the
   app sets the native link hold (`setHoldIncomingLinks`), so the next cold launch doesn't create the early Little

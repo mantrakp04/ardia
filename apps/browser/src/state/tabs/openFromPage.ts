@@ -19,7 +19,16 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
   settleOpening(gated, null, (verdict) => {
     if (verdict && "cancel" in verdict) return;
-    openNow(verdict ? { ...request, url: verdict.url, adoptId: undefined } : request, page, true);
+    if (!verdict) return openNow(request, page, true);
+    const adoptId = asAdoptId(request.adoptId);
+    if (!adoptId) return openNow({ ...request, url: verdict.url }, page, true);
+    openNow(request, page, true);
+    const s = useBrowser.getState();
+    const tabId = Object.keys(s.tabs).find((id) => {
+      const p = s.tabs[id]!.page;
+      return p.kind === "adopted" && p.adopt === adoptId;
+    });
+    if (tabId) s.navigate(tabId, verdict.url, { userInitiated: false, gated: true });
   });
 }
 

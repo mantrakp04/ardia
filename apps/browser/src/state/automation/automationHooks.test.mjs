@@ -327,3 +327,23 @@ test("a program download hook that times out leaves the file where it is", async
   stub.emitControlClose(runner);
   resetDownloadHooksForTests();
 });
+
+test("a rewritten new-tab link reuses the engine's prepared contents; a cancelled one opens nothing", async () => {
+  const { openFromPage } = await import("../tabs/openFromPage.ts");
+  fresh([
+    { name: "block", on: "tab.opening", match: "https://blocked.example/*", cancel: true },
+    { name: "strip", on: "tab.opening", match: "https://track.example/*", rewrite: [{ match: "https://track.example/*", to: "{origin}{path}" }] },
+  ]);
+  const w = S().createWindow({ url: "https://a.example/" });
+  const from = model.activeTabId(S(), w);
+  const page = { windowId: w, profileId: S().windows[w].profileId, tabId: from };
+  const count = Object.keys(S().tabs).length;
+  openFromPage({ url: "https://blocked.example/x", disposition: "foreground", adoptId: "tab:41" }, page);
+  assert.equal(Object.keys(S().tabs).length, count);
+  openFromPage({ url: "https://track.example/p?utm=1", disposition: "foreground", adoptId: "tab:42" }, page);
+  const opened = Object.values(S().tabs).filter((t) => t.page.kind === "adopted" && t.page.adopt === "tab:42");
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].page.nav.url, "https://track.example/p");
+  assert.equal(opened[0].page.nav.userInitiated, undefined);
+  assert.equal(Object.keys(S().tabs).length, count + 1);
+});
