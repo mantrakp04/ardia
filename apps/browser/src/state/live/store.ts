@@ -387,14 +387,8 @@ export function setAccount(profileId: string, source: LiveSourceId, account: Liv
   });
 }
 
-export function setLegacyAccount(source: LiveSourceId, account: LegacyAccount | null) {
-  setLive((s) => {
-    const rest = { ...s.legacyAccounts };
-    if (account) rest[source] = account;
-    else delete rest[source];
-    return { legacyAccounts: rest };
-  });
-}
+export const setLegacyAccount = (source: LiveSourceId, account: LegacyAccount | null) =>
+  setLive((s) => ({ legacyAccounts: account ? { ...s.legacyAccounts, [source]: account } : without(s.legacyAccounts, source) }));
 
 export const removeProfileAccounts = (profileId: string) => setLive((s) => (s.accounts[profileId] ? { accounts: without(s.accounts, profileId) } : {}));
 
