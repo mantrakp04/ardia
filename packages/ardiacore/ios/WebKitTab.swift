@@ -374,13 +374,21 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     ArdiaFavicons.fetch(url, profile: profile, name: nil) { completion($0) }
   }
 
-  func mediaCommand(_ action: String, seconds: Double) {
+  private var nowPlayingSubframe: WKFrameInfo? {
     let frame = webView?.nowPlaying.frame.flatMap { mediaFrames[$0] }
-    runInWorld("window.__ardia && window.__ardia.media(\(Self.jsString(action)), \(seconds.isFinite ? seconds : 0))", frame: frame?.isMainFrame == true ? nil : frame)
+    return frame?.isMainFrame == true ? nil : frame
+  }
+
+  func mediaCommand(_ action: String, seconds: Double) {
+    runInWorld("window.__ardia && window.__ardia.media(\(Self.jsString(action)), \(seconds.isFinite ? seconds : 0))", frame: nowPlayingSubframe)
   }
 
   func setPictureInPicture(_ on: Bool, completion: @escaping (Bool) -> Void) {
-    runInWorld("window.__ardia ? window.__ardia.pictureInPicture(\(on ? "true" : "false")) : false") { value in
+    let code = "window.__ardia ? window.__ardia.pictureInPicture(\(on ? "true" : "false")) : false"
+    if !on {
+      for frame in mediaFrames.values where !frame.isMainFrame { runInWorld(code, frame: frame) }
+    }
+    runInWorld(code, frame: on ? nowPlayingSubframe : nil) { value in
       completion((value as? NSNumber)?.boolValue ?? false)
     }
   }
