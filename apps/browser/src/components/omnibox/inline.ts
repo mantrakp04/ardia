@@ -45,6 +45,11 @@ function preventsInline(typed: string, shown: string, next: string, edit: EditCo
   return onlyRemoved(old, next) || length(next) - length(typed) > 1;
 }
 
+export function previewFieldChange(typed: string, shown: string, preview: string | null, next: string, pending: readonly PendingInline[], edit?: EditContext): FieldChange {
+  const change = fieldChange(typed, shown, next, pending, edit);
+  return preview === null || change.echo ? change : fieldChange(preview, "", next, [], edit);
+}
+
 export function acceptsCompletion(typed: string, shown: string, selection: Selection, pending: readonly PendingInline[]): boolean {
   return !!shown && pending.length === 0 && selection.start === selection.end && selection.start === typed.length + shown.length;
 }
