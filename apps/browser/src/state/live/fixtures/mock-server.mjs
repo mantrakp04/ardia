@@ -67,6 +67,7 @@ createServer(async (req, res) => {
   if (p === "/mock/gitea") {
     const key = url.searchParams.get("key");
     const to = url.searchParams.get("state");
+    if (!gitea.pulls[key]) return send(res, 404, { message: "Unknown pull request" });
     const listed = (issue) => `${issue.repository.full_name}#${issue.number}` !== key;
     gitea.authored = gitea.authored.filter(listed);
     gitea.review = gitea.review.filter(listed);
