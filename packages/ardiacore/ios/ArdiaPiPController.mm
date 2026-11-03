@@ -403,7 +403,7 @@ NSString *CornerName(int corner) {
 - (void)screensChanged {
   if (_swiping || (NSEvent.pressedMouseButtons & 1)) return;
   if (_stashedEdge != ArdiaPiPEdgeNone && ![NSScreen.screens containsObject:_stashScreen]) [self setStashedEdge:ArdiaPiPEdgeNone];
-  if (_stashedEdge != ArdiaPiPEdgeNone) return [self stashAt:_stashedEdge velocity:NSZeroPoint];
+  if (_stashedEdge != ArdiaPiPEdgeNone) return [self stashAt:_stashedEdge velocity:NSZeroPoint on:_stashScreen];
   [self rescueIfLost];
 }
 
@@ -421,8 +421,12 @@ NSString *CornerName(int corner) {
 }
 
 - (NSRect)frameStashedAt:(ArdiaPiPEdge)edge {
+  return [self frameStashedAt:edge on:[self homeScreen]];
+}
+
+- (NSRect)frameStashedAt:(ArdiaPiPEdge)edge on:(NSScreen *)screen {
   NSRect frame = _window.frame;
-  NSRect visible = [self homeScreen].visibleFrame;
+  NSRect visible = screen.visibleFrame;
   frame.origin.x = edge == ArdiaPiPEdgeRight ? NSMaxX(visible) - kPeek : NSMinX(visible) - NSWidth(frame) + kPeek;
   frame.origin.y = MIN(MAX(NSMinY(frame), NSMinY(visible)), NSMaxY(visible) - NSHeight(frame));
   return frame;
@@ -433,8 +437,12 @@ NSString *CornerName(int corner) {
 }
 
 - (void)stashAt:(ArdiaPiPEdge)edge velocity:(NSPoint)velocity {
-  _stashScreen = [self homeScreen];
-  const NSRect target = [self frameStashedAt:edge];
+  [self stashAt:edge velocity:velocity on:[self homeScreen]];
+}
+
+- (void)stashAt:(ArdiaPiPEdge)edge velocity:(NSPoint)velocity on:(NSScreen *)screen {
+  _stashScreen = screen;
+  const NSRect target = [self frameStashedAt:edge on:screen];
   [self setStashedEdge:edge];
   [self springTo:target velocity:velocity response:ardia_pip_throw::kSettleResponse record:nil];
 }

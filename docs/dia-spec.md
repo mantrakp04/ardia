@@ -962,7 +962,7 @@ including its corner rule and spring:
 - A swipe whose fingers rested more than 0.1 s before lifting doesn't throw.
 - The corner isn't Dia's ±45° heading from the grabbed spot. Ardia projects the window's centre to velocity × 0.5 s
   from where it was let go (where UIKit's normal deceleration, rate 0.998, would bring it to rest) and takes the
-  nearest corner of the display under the window's centre, so a short flick stays on its side and every fling lands
+  nearest corner of the display the window overlaps most, so a short flick stays on its side and every fling lands
   somewhere. A mostly horizontal fling toward a side the window is within half its width of, with no display beyond,
   stashes it there when that projected centre crosses the side.
 - Throws use a 0.4 s response spring (damping 0.9), not Dia's 0.9 s: 90 % of the way in 0.23 s and settled in 0.82 s
@@ -971,7 +971,7 @@ including its corner rule and spring:
   again uses the same spring. The handle fades in over 0.12 s once the window lands and out over 0.1 s as it leaves.
 - A stashed window let go while still partly hidden opens fully (16 pt from the side) when more than 25 % of its
   width shows, and tucks back in otherwise. A sideways fling decides instead: inward opens it, outward tucks it
-  back, however much shows. Let go fully on screen, it stays where it was dropped.
+  back, however much shows. Let go fully on screen without a fling, it stays where it was dropped.
 - A click on the stash handle is read in Ardia's own event monitor, so it works whatever Chrome's window does with the
   click. A press on the handle that moves 3 pt becomes a drag.
 - Its screen is the one the window overlaps most.
