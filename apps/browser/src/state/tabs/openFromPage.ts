@@ -6,10 +6,24 @@ import { peekSourceOf } from "../peek/peek";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
+import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
-export function openFromPage(request: OpenWindowRequest, page: { windowId: string; profileId: string; tabId?: string }) {
+type PageRef = { windowId: string; profileId: string; tabId?: string };
+
+const UNGATED = new Set(["current", "peek", "incognito"]);
+
+export function openFromPage(request: OpenWindowRequest, page: PageRef) {
+  if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
+  const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
+  settleOpening(gated, null, (verdict) => {
+    if (verdict && "cancel" in verdict) return;
+    openNow(verdict ? { ...request, url: verdict.url, adoptId: undefined } : request, page, true);
+  });
+}
+
+function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   const { url, disposition, profile, point } = request;
   const adoptId = asAdoptId(request.adoptId);
   const s = useBrowser.getState();
@@ -26,7 +40,7 @@ export function openFromPage(request: OpenWindowRequest, page: { windowId: strin
   }
   const from = peekSource ? { ...page, tabId: peekSource } : page;
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
-    return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true });
+    return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true, gated });
   }
   if (disposition === "split") {
     if (from.tabId) return openLinkInSplit(from.tabId, url, adoptId);
@@ -42,7 +56,7 @@ export function openFromPage(request: OpenWindowRequest, page: { windowId: strin
     return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: from.profileId, url, adoptId });
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
-  s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background });
+  s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {

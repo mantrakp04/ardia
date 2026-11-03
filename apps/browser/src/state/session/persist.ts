@@ -257,8 +257,14 @@ export function resumePersistence() {
   resume();
 }
 
+let restoredAtLaunch = false;
+
+export const sessionRestoredAtLaunch = () => restoredAtLaunch;
+
 export function startPersistence(overrides: LaunchOverrides = {}) {
-  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
+  const loaded = loadSession(overrides);
+  restoredAtLaunch = !!loaded?.windowOrder?.length;
+  useBrowser.getState().hydrate(loaded ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();

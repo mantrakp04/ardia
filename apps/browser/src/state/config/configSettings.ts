@@ -4,6 +4,7 @@ import { THEME_NAME } from "../../lib/themeFile";
 import { CONFIG_EXCLUDED_KEYS, isConfigSettingKey } from "../settings/configAllowlist";
 import { SETTING_SPECS, searchEngines, type SettingKey, type Settings } from "../settings/settings";
 import { configShortcuts } from "./configShortcuts";
+import { parseLaunchAction } from "../automation/launchActions";
 import { readProviderEntries } from "@ardia/core";
 
 export const CONFIG_FILE = "config.json";
@@ -98,6 +99,16 @@ function requested(doc: Record<string, unknown>, settings: Settings): Requested 
       problems.push(...result.problems.map((p) => `${CONFIG_FILE}: ${p}`));
       values.omniboxProviders = result.entries;
       continue;
+    }
+    if (key === "launchActions" && SETTING_SPECS.launchActions.valid(value)) {
+      const bad = (value as string[]).flatMap((entry) => {
+        const parsed = parseLaunchAction(entry);
+        return typeof parsed === "string" ? [parsed] : [];
+      });
+      if (bad.length) {
+        problems.push(`${CONFIG_FILE}: launchActions: ${bad.join("; ")}`);
+        continue;
+      }
     }
     const spec = SETTING_SPECS[key];
     if (!spec.valid(value)) {

@@ -137,6 +137,9 @@ export function startDevHarness() {
     get sharedFolders(): typeof import("../../state/sharedFolders/store") & typeof import("../../state/sharedFolders/engine") & typeof import("../../state/sharedFolders/actions") {
       return { ...require("../../state/sharedFolders/store"), ...require("../../state/sharedFolders/engine"), ...require("../../state/sharedFolders/actions") };
     },
+    get automation(): typeof import("../../state/automation/approvals") & typeof import("../../state/automation/hookRules") & typeof import("../../state/automation/hookPolicy") & typeof import("../../state/automation/decideSocket") {
+      return { ...require("../../state/automation/approvals"), ...require("../../state/automation/hookRules"), ...require("../../state/automation/hookPolicy"), ...require("../../state/automation/decideSocket") };
+    },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;
   watchDevEval(readDocument, __DEV__ ? 50 : 250, (id, source) => {

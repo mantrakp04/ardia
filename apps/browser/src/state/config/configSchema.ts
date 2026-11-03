@@ -4,6 +4,7 @@ import { THEME_NAME, themeSchema, type RolePalettes } from "../../lib/themeFile"
 import { CONFIG_SETTING_KEYS } from "../settings/configAllowlist";
 import { SETTING_SPECS } from "../settings/settings";
 import { SHORTCUT_FORMAT, shortcutCatalog, shortcutDescription } from "./configShortcuts";
+import { launchActionIds, MAX_LAUNCH_ACTIONS } from "../automation/launchActions";
 
 export const CONFIG_SCHEMA_FILE = "config.schema.json";
 export const THEME_SCHEMA_FILE = "theme.schema.json";
@@ -16,6 +17,15 @@ function shortcutsSchema(): JsonSchema {
 
 function settingSchema(key: (typeof CONFIG_SETTING_KEYS)[number]): JsonSchema {
   if (key === "shortcuts") return shortcutsSchema();
+  if (key === "launchActions") {
+    return {
+      type: "array",
+      items: { type: "string", enum: launchActionIds() },
+      maxItems: MAX_LAUNCH_ACTIONS,
+      default: [],
+      description: "Commands Ardia runs in the focused window after it restores the session, like [\"newTab\"]. Command ids, or id:variant.",
+    };
+  }
   const spec = SETTING_SPECS[key];
   const schema: JsonSchema = { ...spec.schema, default: spec.default };
   if (key === "searchEngine") schema.description = `An engine id: ${BUILT_IN_ENGINES.map((e) => e.id).join(", ")}, or one added in Settings`;

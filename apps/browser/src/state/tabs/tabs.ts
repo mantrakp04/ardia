@@ -29,6 +29,7 @@ export type NewTabOptions = {
   index?: number;
   wakeAdoptId?: AdoptId;
   newTabCommand?: boolean;
+  gated?: boolean;
 };
 
 

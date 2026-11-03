@@ -1,17 +1,24 @@
 import type { BrowserCommand } from "../../platform/commands";
 import type { BrowserState } from "../browser/store";
 import { automationCommands, automationDecision, isCatalogCommand, variantsOf } from "./automationCommands";
-import { eligibleKind, lastFocusedEligibleWindow } from "./automationWindows";
-import { AUTOMATION_EVENTS, type AutomationEventName } from "./automationEvents";
+import { COMMANDS } from "../commands/commandCatalog";
+import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow } from "./automationWindows";
+import { AUTOMATION_EVENTS, MIN_IDLE_SECONDS, NAMED_ONLY_EVENTS, type AutomationEventName } from "./eventNames";
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 
 export type ErrorCode = "bad_request" | "unknown_method" | "unknown_command" | "refused" | "no_window" | "failed";
 export type MethodError = { code: ErrorCode; message: string };
 export type RequestId = number | string | null;
 export type ParsedRequest = { id: RequestId; method: string; params: Record<string, unknown> };
-export type RunPlan = { command: BrowserCommand; arg: string | null; windowId: string | null };
-export type Subscription = ReadonlySet<AutomationEventName>;
+export type RunPlan = { command: BrowserCommand; arg: string | null; windowId: string | null; tabId: string | null };
+export type Subscription = {
+  events: ReadonlySet<AutomationEventName>;
+  fullUrls: boolean;
+  tabIdle: ReadonlySet<number>;
+  userIdle: ReadonlySet<number>;
+  hooks: unknown;
+};
 
 export const failure = (code: ErrorCode, message: string) => ({ error: { code, message } satisfies MethodError });
 
@@ -45,8 +52,12 @@ const REFUSALS: Record<string, string> = {
   needsArgument: "needs an argument the socket doesn't pass",
 };
 
-export function planRun(s: Pick<BrowserState, "windows" | "windowOrder" | "ui">, params: Record<string, unknown>): RunPlan | { error: MethodError } {
-  const { command, arg, window } = params;
+type RunState = Pick<BrowserState, "windows" | "windowOrder" | "ui" | "tabs" | "peeks">;
+
+const scopeOf = (command: BrowserCommand) => (COMMANDS as Readonly<Record<string, { scope?: string }>>)[command]?.scope ?? null;
+
+export function planRun(s: RunState, params: Record<string, unknown>): RunPlan | { error: MethodError } {
+  const { command, arg, window, tab } = params;
   if (typeof command !== "string" || !command) return failure("bad_request", "run needs a command id.");
   if (!isCatalogCommand(command)) return failure("unknown_command", `There's no command ${command}.`);
   const decision = automationDecision(command);
@@ -57,23 +68,45 @@ export function planRun(s: Pick<BrowserState, "windows" | "windowOrder" | "ui">,
       return failure("bad_request", variants ? `${command} takes one of: ${variants.join(", ")}.` : `${command} takes no argument.`);
     }
   }
+  const given = (arg as string | null | undefined) ?? null;
+  if (tab !== undefined && tab !== null) {
+    if (typeof tab !== "string" || !isEligibleTab(s, tab)) return failure("no_window", `There's no tab ${String(tab)} the ardia command can use.`);
+    if (scopeOf(command) !== "page") return failure("bad_request", `${command} doesn't act on a tab, so it takes no tab.`);
+    const windowId = s.tabs[tab]!.windowId;
+    if (window !== undefined && window !== null && window !== windowId) return failure("no_window", `Tab ${tab} isn't in window ${String(window)}.`);
+    return { command, arg: given, windowId, tabId: tab };
+  }
   if (window !== undefined && window !== null) {
     if (typeof window !== "string" || !eligibleKind(s, window)) return failure("no_window", `There's no window ${String(window)} the ardia command can use.`);
-    return { command, arg: (arg as string | null | undefined) ?? null, windowId: window };
+    return { command, arg: given, windowId: window, tabId: null };
   }
   const target = lastFocusedEligibleWindow(s);
-  if (target) return { command, arg: (arg as string | null | undefined) ?? null, windowId: target };
-  if (s.windowOrder.length === 0) return { command, arg: (arg as string | null | undefined) ?? null, windowId: null };
+  if (target) return { command, arg: given, windowId: target, tabId: null };
+  if (s.windowOrder.length === 0) return { command, arg: given, windowId: null, tabId: null };
   return failure("no_window", "No window the ardia command can use is open.");
 }
 
 const KNOWN_EVENTS: ReadonlySet<string> = new Set(AUTOMATION_EVENTS);
+const MAX_THRESHOLDS = 8;
+
+function thresholds(value: unknown): Set<number> | null {
+  if (value === undefined) return new Set();
+  if (!Array.isArray(value) || value.length > MAX_THRESHOLDS || !value.every((v) => Number.isSafeInteger(v) && v >= MIN_IDLE_SECONDS && v <= 7 * 86400)) return null;
+  return new Set(value as number[]);
+}
 
 export function parseSubscription(params: Record<string, unknown>): Subscription | { error: MethodError } {
-  const { events } = params;
+  const { events, fullUrls, idle, hooks } = params;
   if (!Array.isArray(events) || !events.every((name) => typeof name === "string")) return failure("bad_request", "subscribe needs events: a list of event names, or [\"*\"].");
-  if (events.includes("*")) return new Set(AUTOMATION_EVENTS);
-  const unknown = events.filter((name) => !KNOWN_EVENTS.has(name));
+  const unknown = events.filter((name) => name !== "*" && !KNOWN_EVENTS.has(name));
   if (unknown.length) return failure("bad_request", `Unknown events: ${unknown.join(", ")}. Events: ${AUTOMATION_EVENTS.join(", ")}.`);
-  return new Set(events as AutomationEventName[]);
+  const named = events.filter((name) => name !== "*") as AutomationEventName[];
+  const all = events.includes("*") ? AUTOMATION_EVENTS.filter((name) => !NAMED_ONLY_EVENTS.has(name)) : [];
+  if (fullUrls !== undefined && typeof fullUrls !== "boolean") return failure("bad_request", "fullUrls must be true or false.");
+  const idleFields = idle === undefined ? {} : idle;
+  if (typeof idleFields !== "object" || idleFields === null || Array.isArray(idleFields)) return failure("bad_request", "idle is {\"tab\": [seconds], \"user\": [seconds]}.");
+  const tabIdle = thresholds((idleFields as Record<string, unknown>).tab);
+  const userIdle = thresholds((idleFields as Record<string, unknown>).user);
+  if (!tabIdle || !userIdle) return failure("bad_request", `idle thresholds are lists of at most ${MAX_THRESHOLDS} whole seconds, at least ${MIN_IDLE_SECONDS}.`);
+  return { events: new Set([...all, ...named]), fullUrls: fullUrls === true, tabIdle, userIdle, hooks };
 }

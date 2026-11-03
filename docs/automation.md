@@ -33,7 +33,10 @@ At most 16 connections (more are closed at accept). Per connection: one input li
 newline, an incomplete line closes the connection after 30 s, at most 32 requests waiting for a reply, at most 4 MB of
 output buffered. Events beyond 1,000 waiting on one connection drop the oldest waiting events (never a reply, never a
 partly written line); the next event written carries a top-level `"dropped": N` with the count since the last one.
-Going over any other limit closes only that connection. Each event is serialized once and the bytes are fanned out.
+Going over any other limit closes only that connection. Each event is serialized at most twice (with and without
+full URLs) and the bytes are fanned out. Decide requests ride the event path, so a flooded runner can lose one; the
+app then uses its default at the deadline. At most 64 decisions wait at once (16 per connection); past that the
+default applies at once.
 
 ## Protocol
 
@@ -45,6 +48,15 @@ Newline-delimited JSON, UTF-8, one object per line, `\n` terminated.
   object, or has no usable `id`, gets an error with `"id": null` and the connection stays open.
 - Events: `{"event": "tab.opened", "time": 1730400000000, "data": {…}}`, in the order the store changed. Subscribing
   sends no snapshot; call `windows` for that.
+- Decide requests (server to client, protocol 2): `{"decide": "d17", "event": "tab.opening", "hook": "name",
+  "revision": "…", "deadline": 250, "time": …, "data": {…}}`, sent only to the connection that serves that hook. The
+  client answers with an ordinary request, `{"id": 9, "method": "answer", "params": {"decide": "d17", "answer":
+  {…} | [ … ] | null}}`; the reply is `{"ok": true}` or `bad_request` for an id that is unknown, already answered,
+  late or another connection's. When the deadline passes, the decision is superseded (a new navigation in that tab,
+  a closed tab, a changed hooks.json, a newly approved rule) or control stops, the server sends
+  `{"decide": "d17", "cancel": true}` and uses its default; a later answer is refused. Answers are client requests
+  rather than bare reply lines so the native layer's per-connection count of requests waiting for a reply stays
+  right.
 
 Error codes: `bad_request`, `unknown_method`, `unknown_command`, `refused`, `no_window`, `failed`.
 
@@ -60,19 +72,30 @@ bookmark searches) and their fixed page title.
 
 ### Methods
 
-- `hello` → `{"app": "Ardia", "version": "0.2.44", "protocol": 1}`.
+- `hello` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added `subscribe`'s options,
+  `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working.
 - `commands` → `[{"id", "title", "scope", "variants": [ids] | null}]`: the automatable commands. `title` is the menu
   title (else the command bar's, else the id), `scope` is `"page"`, `"window"` or `null`.
-- `run` `{"command", "arg"?, "window"?}` → `{"ok": true}` once the command was dispatched (not necessarily finished).
+- `run` `{"command", "arg"?, "window"?, "tab"?}` → `{"ok": true}` once the command was dispatched (not necessarily finished).
   `command` is a catalog id, `arg` one of its variant ids. It runs through `runCommand`, exactly as the menu or a
   shortcut would. `window` must be an eligible window id, else `no_window` (no fallback to another window); without
   it, the last focused eligible window (windows never focused come after, in window order); with no browser window
   open at all it runs with none, as the menu does (`newTab` and `newWindow` open one); otherwise `no_window`. A
-  command that asks for confirmation still asks.
+  command that asks for confirmation still asks. `tab` targets one eligible tab without activating or focusing
+  it, for commands whose scope is `"page"` (`bad_request` otherwise); with `window` too, the tab must be in that
+  window. Window, tab, profile and eligibility are checked just before the command runs: a closed, moved or
+  private target is `no_window`, never a fallback to the focused tab.
 - `windows` → `[{"id", "kind": "normal"|"little", "focused", "profile", "profileName", "tabs": [{"id", "url",
   "title", "profile", "active", "pinned", "group": id|null}]}]`. `active` is the tab in the window's focused pane.
-- `subscribe` `{"events": [names] | ["*"]}` → `{"ok": true}`, then events on that connection until it closes. Calling
-  it again replaces the list.
+- `subscribe` `{"events": [names] | ["*"], "fullUrls"?: bool, "idle"?: {"tab"?: [s], "user"?: [s]}, "hooks"?:
+  [hook objects]}` → `{"ok": true, "served": [names]}`, then events on that connection until it closes. Calling it
+  again replaces everything. `"*"` is every event except the named-only ones (below). Without `fullUrls`, URLs
+  come without their query and fragment. `idle` gives the thresholds in whole seconds (at least 60, at most 8
+  each) for `tab.idle`/`tab.resumed` and `user.idle`/`user.active`; an idle event goes only to a connection that
+  asked for its threshold. `hooks` are the program decide and omnibox hooks this connection serves, as written in
+  hooks.json: the app takes a hook only when one with the same name and the same content (revision) is in its own
+  hooks.json and no other connection serves it; `served` lists the ones it took.
+- `answer` `{"decide", "answer"}`: see Protocol.
 
 ### Which commands
 
@@ -100,16 +123,134 @@ clipboard writes, internal pages). That is the point of it, and it is opt-in beh
 | `tab.opened`, `tab.closed`, `tab.activated` | `windowId`, `tabId`, `profile`, `url`, `title` |
 | `tab.navigated` | `windowId`, `tabId`, `profile`, `url`, `title`, `sameDocument` |
 | `settings.changed` | `keys` |
+| `app.launched` | `launchId`, `restored`, `focusedWindowId`, `windows` (ids) |
+| `app.quitting` | none |
+| `app.activated`, `app.deactivated` * | none |
+| `tab.idle` | `windowId`, `tabId`, `profile`, `url`, `title`, `pinned`, `idle` (threshold, s), `idleSince` (ms) |
+| `tab.resumed` | `windowId`, `tabId`, `profile`, `url`, `title`, `pinned`, `idle` |
+| `media.started`, `media.stopped` | `windowId`, `tabId`, `profile`, `url`, `title` |
+| `tab.crashed` | `windowId`, `tabId`, `profile`, `url`, `title`, `reason`, `status` |
+| `notification.shown` * | `windowId`, `tabId`, `profile`, `origin`, `title` (≤ 200), `body` (≤ 500) |
+| `peek.opened` | `windowId`, `tabId` (the Peek's), `profile`, `url`, `title`, `sourceTabId` |
+| `peek.closed` | the same, plus `keptAsTab` |
+| `littleArdia.opened` | `windowId`, `profile`, and `tabId`, `url`, `title` when it opened a page |
+| `split.created` | `windowId`, `splitId`, `tabIds` |
+| `split.closed` | `windowId`, `splitId` |
+| `pin.added` | `windowId`, `tabId`, `profile`, `url`, `title`, `as` (`tile`/`row`) |
+| `pin.removed` | `windowId`, `tabId`, `profile`, `url`, `title` |
+| `tab.moved` | `windowId` (new), `fromWindowId`, `tabId`, `profile`, `url`, `title` |
+| `profile.switched` | `windowId`, `from`, `profile`, `profileName` |
+| `system.sleep`, `system.wake` * | none |
+| `user.idle`, `user.active` * | `idle` (threshold, s) |
+| `page.error` | `windowId`, `tabId`, `profile`, `url`, `status` |
 
-`tab.navigated` comes from a committed main-frame navigation (the page's commit signal, not a store URL change, so a
-cancelled navigation, showing New Tab or restoring a parked page send nothing). Same-document URL changes (single-page
-apps) count, with `sameDocument: true`. `title` is what the tab has at that moment and may be empty or stale. The web
-view reports the signal with each navigation update: the last committed URL (`committedUrl`) and the time of the
-last document commit (`committedAt`); a new `committedAt` is a document navigation, a new URL alone is
-same-document.
+\* Named-only: `"*"` never includes them; a subscriber names each one. Notification text never goes into a hook's
+environment (no `ARDIA_TITLE`, no `ARDIA_URL`) and the runner never logs it.
 
-Events are built from store and page subscriptions only while some connection subscribes to them, so a browser nobody
-listens to pays nothing.
+- **URLs** are minimized by default: no query, no fragment. A connection (or a hook, `"fullUrls": true`) asks for
+  full ones. Internal pages report their redacted URL either way.
+- **Eligibility** is checked when the event is built: nothing from private windows or incognito profiles. Peek
+  events carry the Peek tab, which `windows` leaves out of its window's tabs (it isn't part of the window until it
+  lands); a Peek that lands as a tab sends `peek.closed` with `keptAsTab: true` and then `tab.opened`.
+- `tab.navigated` comes from a committed main-frame navigation (the page's commit signal, not a store URL change,
+  so a cancelled navigation, showing New Tab or restoring a parked page send nothing). Same-document URL changes
+  (single-page apps) count, with `sameDocument: true`. `title` is what the tab has at that moment and may be empty or
+  stale. The web view reports the signal with each navigation update: the last committed URL (`committedUrl`), the
+  time of the last document commit (`committedAt`) and the main frame's HTTP status (`httpStatus`); a new
+  `committedAt` is a document navigation, a new URL alone is same-document.
+- `page.error` is sent once per committed main-frame document whose status is 400 to 599: never for subframes,
+  same-document changes, cancelled or stale commits. Builds whose engine doesn't report `httpStatus` send none.
+- `app.launched` is recorded once per process, after the session is restored and the first window is up, with its
+  original time. The server keeps it and replays it to a connection that subscribes to it within 2 minutes of
+  launch (monotonic clock), once per connection. The hooks runner runs a launch hook at most once per `launchId`,
+  hook and hook revision, kept in `<data dir>/ArdiaHooks.state.json` across runner restarts, so a reconnect never
+  runs launch hooks twice. A hook added after the launch doesn't get a stale launch: the connection that already
+  received it isn't sent it again.
+- `app.quitting` is sent when the app starts to quit, best effort: it is queued before the socket closes and never
+  holds the quit open.
+- `tab.idle`: a tab is touched while it is the active tab of the focused window, and when it was last activated. It
+  goes idle after the threshold without that (checked every 30 s) and fires once per idle stretch; `tab.resumed`
+  follows when it is shown again. Pinned tabs are included, with `pinned: true`.
+- `system.sleep`, `system.wake`, `user.idle` and `user.active` come from the native system signals
+  (`platform/systemSignals.ts`); an older build without them just sends none.
+
+Events are built from store and page subscriptions only while some connection subscribes to them, one family at a
+time (the core diff, the extra store diffs, crashes, tab idle, lifecycle, notifications, user idle), so a browser
+nobody listens to pays nothing.
+
+## Decide hooks
+
+Hooks that answer before something happens, with a deadline after which Ardia does its default.
+
+| Event | Asked when | `data` | Answer | Default | Program deadline |
+|---|---|---|---|---|---|
+| `tab.opening` | a top-level navigation the user starts: typed or pasted in the address bar, a link opened in a new tab or window, a URL from another app. Never redirects, subresources, same-tab link clicks, restores or reloads | `url`, `via` (`typed`, `newTab`, `link`, `external`), `windowId`, `tabId`, `profile` | `{"url"}` to rewrite, `{"cancel": true}` | open the original | 250 ms |
+| `link.opening` | a URL arrives from another app, after `tab.opening` | `url`, `source` (`bundleId`, `appName`, null when unknown) | `{"profile"?, "open"?: "tab"\|"littleArdia"\|"window", "window"?}`, `{"drop": true}` | Ardia's usual routing | 250 ms |
+| `download.deciding` | a download is about to pick its folder | `url`, `tabId`, `profile` | `{"folder"}` | the usual folder or save panel | 2 s |
+| `permission.requested` | a site asks for camera, microphone, location, notifications… | `origin`, `kinds`, `windowId`, `tabId`, `profile` | `{"permission": "deny"\|"ask"\|"allow"}` | the normal prompt | 2 s |
+
+- **Two forms.** Declarative rules in hooks.json that the app evaluates itself, in process and synchronously, with
+  no program and no deadline to speak of; they work with CLI control off, since they are config. Or a program hook
+  (`run`) served by the hooks runner: the request's JSON is its stdin (`{"decide", "event", "deadline", "data"}`),
+  its stdout JSON is the answer, and only `ARDIA_EVENT` is set. Program hooks need control on and a runner.
+- **Precedence.** Hooks are tried in file order; the first that applies (its `match` patterns, `from`, `kinds`)
+  and is active (approved where approval is needed) answers. A rewrite list where no rule matches doesn't apply, so
+  the next hook gets its turn. A program hook that applies while no runner serves it means the default; it never
+  falls through. Never "fastest answer wins".
+- **Defaults.** A timeout, a crash, invalid JSON, a disconnect, overload or an answer outside what is allowed all
+  mean the default. One deadline per decision, from the moment Ardia intercepted it, on a monotonic timer; nothing
+  waits synchronously on the main thread.
+- **Rewrites.** A rewrite answer must be a canonical http or https URL without credentials; `rewrite` rules build it
+  from a template with `{url}`, `{origin}`, `{host}`, `{path}`, `{query}` and `{hash}`. The replacement keeps the
+  original disposition and profile and runs through the same navigation path as any other (the typed path for
+  typed URLs, a plain renderer-style load for links: never re-issued as user-initiated). A link rewritten or
+  cancelled drops the contents the engine had prepared for it, so nothing (a POST body included) is replayed to
+  the new URL. While a program decides a typed navigation the tab stays where it was; for a new tab it opens empty
+  and navigates once answered (closed again on cancel).
+- **link.opening** decides before any tab exists. While an active `tab.opening` or `link.opening` hook exists the
+  app sets the native link hold (`setHoldIncomingLinks`), so the next cold launch doesn't create the early Little
+  Ardia tab for incoming links before JS decides. A routed or rewritten link never adopts contents loaded for it
+  under another profile.
+- **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
+  grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
+  while a program decides is never granted.
+- **Downloads.** Answers may only pick `~/Downloads`, its subfolders, or a folder the user approved (a `folder` rule
+  outside Downloads, after approval); `..` and `.` parts are refused. Moving the file there is the engine's job:
+  resolving through descriptors (no symlink escapes), never overwriting (collision-safe names), keeping quarantine
+  and the dangerous-download checks, and never using the save panel's replacement authority. The JS side
+  (`decideDownload`) is ready; the engine doesn't ask yet, so `download.deciding` hooks are validated and listed
+  but have no effect until it does.
+- **Floods.** At most 64 pending decisions (16 per runner connection), 200 hooks and 50 rewrite rules per hook; the
+  runner runs at most 16 decide programs at once (4 per hook) and gives up at the deadline. Command hooks run at
+  most 10 commands per 10 s each, so a hook that triggers itself stops.
+
+## Approvals
+
+config.json can't enable control, add search destinations or grant permissions (`docs/config.md`), and files
+keep that boundary: privileged automation declared in a file stays inactive until the user approves it in Settings
+› Advanced › Automation. Approvals live in the app's data dir (`automation-approvals.json`, version 1), never in
+the config folder, keyed by a hash of the exact rule, so editing a rule needs a new approval. Remove dismisses a
+pending rule (it stays off and stops asking); revoking an approved one turns it off. A one-line toast says when
+something new waits.
+
+- Privileged: rewrites to another origin, link routing, `folder` outside `~/Downloads`, every program decide hook,
+  every omnibox hook, address bar providers from config.json that send what you type somewhere
+  (`state/omnibox/providerApproval.ts`, backed by this store), and `launchActions` outside the safe list.
+- Not privileged: `cancel`, `drop`, permission rules, rewrites whose template only drops the query
+  (`{origin}{path}`, `{origin}{path}{hash}`), folders inside `~/Downloads`, and launch actions from the safe list
+  (`newTab`, `newWindow`, `newLittleArdia`, `focusCommandBar`, `toggleSidebar`, `nextTab`, `previousTab`,
+  `selectTab`, `selectLastTab`: nothing that closes, clears, writes the clipboard or opens a dialog).
+- Code: `state/automation/approvals.ts` (`isApproved`, `approveRule`, `removeRule`, `offerRules`),
+  `hookPolicy.ts` (what needs approval), `omniboxApprovals.ts` (the adapter for address bar providers).
+
+## Omnibox providers from hooks
+
+`{"name": "jira", "omnibox": {"title": "Jira", "keyword": "j"}, "run": ["~/bin/jira-suggest"]}` (or `"global": true`
+instead of a keyword) registers an address bar provider through `registerOmniboxProvider` while the runner that
+serves it is connected and the hook is approved; it is unregistered on disconnect, removal or revocation. Each
+query is a decide request (`event: "omnibox.query"`, `data: {"text", "keyword"}`, 300 ms) with the same protocol;
+an aborted query is cancelled (the program is killed). The program prints `[{"title", "url", "subtitle"?,
+"icon"?}]`; at most 8 rows are kept, only http(s) URLs, and a bad or late answer gives no rows.
 
 ### The pill
 
@@ -123,29 +264,33 @@ runner connected all day doesn't keep it up. Stop hides it at once.
 Every command finds the socket from `--data-dir` / `$ARDIA_DATA_DIR`, else the installed app's data dir, connects,
 checks the server's uid, and exits 2 with one line when Ardia isn't running, control is off or the check fails.
 
-- `ardia run COMMAND [ARG] [--window ID] [--json]` runs a command (`COMMAND:ARG` works too, as in shortcut ids).
-  Exit 1 if refused, unknown (with the closest ids) or `no_window`. A dropped connection after sending is reported,
-  never retried, with exit 2 and a line saying the command may or may not have run.
+- `ardia run COMMAND [ARG] [--window ID] [--tab ID] [--json]` runs a command (`COMMAND:ARG` works too, as in
+  shortcut ids). Exit 1 if refused, unknown (with the closest ids) or `no_window`. A dropped connection after
+  sending is reported, never retried, with exit 2 and a line saying the command may or may not have run.
 - `ardia commands [--json]` lists command ids, titles and variants.
 - `ardia windows [--json]` prints the windows and their tabs.
-- `ardia events [EVENT…] [--json]` streams events (default all) until interrupted; `--json` prints the raw lines.
-  Event names are checked against the table below (a typo fails with the closest names, exit 1); a lost connection
-  exits 2. `dropped` is reported on stderr in the text form.
-- `ardia on EVENT[,EVENT…] [--match PATTERN]… [--timeout S] -- PROGRAM [ARGS…]` runs PROGRAM for each event.
-  PROGRAM's stdout and stderr are the terminal's; the runner's own lines go to stderr. Without Ardia it waits and
-  retries like a reconnect.
+- `ardia events [EVENT…] [--json] [--full-urls] [--idle DURATION]` streams events (default all but the named-only
+  ones) until interrupted; `--json` prints the raw lines. Event names are checked against the table above (a typo
+  fails with the closest names, exit 1); a lost connection exits 2. `dropped` is reported on stderr in the text
+  form. `--idle` sets the threshold for the idle events.
+- `ardia on EVENT[,EVENT…] [--match PATTERN]… [--timeout S] [--idle DURATION] [--full-urls] -- PROGRAM [ARGS…]`
+  runs PROGRAM for each event. PROGRAM's stdout and stderr are the terminal's; the runner's own lines go to stderr.
+  Without Ardia it waits and retries like a reconnect.
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json` in the config folder (`docs/config.md`'s
-  resolver, so a scratch instance uses its own).
-- In `ardia exec`: `await run(command, arg=None, window=None)`, `await windows()`, and `async for e in events(*names)`.
-  With `--port`, `--ws` or `$ARDIA_CDP_URL` they need `--data-dir` or `$ARDIA_DATA_DIR` and raise without one, so a
-  test browser never drives the installed Ardia by accident. Errors are `CommandError` (`.code`, `.message`) and
-  `ControlUnreachable`; each call opens its own connection.
+  resolver, so a scratch instance uses its own). `list` shows each hook's kind (`event`, `command`, `decide`,
+  `scheduled`, `omnibox`), trigger and action.
+- In `ardia exec`: `await run(command, arg=None, window=None, tab=None)`, `await windows()`, and
+  `async for e in events(*names, full_urls=False)`. With `--port`, `--ws` or `$ARDIA_CDP_URL` they need
+  `--data-dir` or `$ARDIA_DATA_DIR` and raise without one, so a test browser never drives the installed Ardia by
+  accident. Errors are `CommandError` (`.code`, `.message`) and `ControlUnreachable`; each call opens its own
+  connection.
 
 ### Running a hook
 
 - The event's JSON line is the hook's stdin (authoritative). The environment gets `ARDIA_EVENT`, `ARDIA_WINDOW_ID`,
   `ARDIA_TAB_ID`, `ARDIA_PROFILE`, `ARDIA_URL`, `ARDIA_TITLE`, all set or removed for every run (never inherited from
-  the runner), NULs stripped and each cut to 4 KB.
+  the runner), NULs stripped and each cut to 4 KB. `notification.shown` sets neither `ARDIA_TITLE` nor `ARDIA_URL`.
+  A hook without `fullUrls` gets URLs without their query and fragment even when another hook asked for full ones.
 - PROGRAM runs from argv, never through a shell unless PROGRAM is one; event values are never put into the command
   line. A leading `~` in PROGRAM is expanded, nothing else is.
 - `--match`/`match` take userscript match patterns (`urlmatch.py`); several match if any does; an event without a URL
@@ -166,17 +311,59 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
 ```json
 {
   "hooks": [
-    { "name": "yt-to-media", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"], "timeout": 30 }
+    { "name": "yt-to-media", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"], "timeout": 30, "fullUrls": true },
+    { "name": "fresh-tab", "on": "app.launched", "command": "newTab" },
+    { "name": "park", "on": "tab.idle", "idle": "2h", "command": "togglePin" },
+    { "name": "standup", "at": "09:55", "days": ["mon", "tue", "wed", "thu", "fri"], "timezone": "Europe/Paris", "run": ["~/bin/standup"] },
+    { "name": "sync", "every": "1h", "run": ["~/bin/sync"] },
+    { "name": "old-reddit", "on": "tab.opening", "rewrite": [{ "match": "https://www.reddit.com/*", "to": "https://old.reddit.com{path}{query}" }] },
+    { "name": "no-tiktok", "on": "tab.opening", "match": "https://*.tiktok.com/*", "cancel": true },
+    { "name": "slack-to-work", "on": "link.opening", "from": ["com.tinyspeck.slackmacgap"], "route": { "profile": "Work", "open": "tab" } },
+    { "name": "invoices", "on": "download.deciding", "match": "https://billing.example.com/*", "folder": "~/Downloads/Invoices" },
+    { "name": "no-camera", "on": "permission.requested", "kinds": ["camera", "microphone"], "permission": "deny" },
+    { "name": "router", "on": "link.opening", "run": ["~/bin/route-link"] },
+    { "name": "jira", "omnibox": { "title": "Jira", "keyword": "j" }, "run": ["~/bin/jira-suggest"] }
   ]
 }
 ```
 
-- Keys: `name`, `on` (a list of event names or `["*"]`; a single string is taken as a list of one), `match`
-  (likewise), `run` (a non-empty list; a string is refused, with the `["/bin/sh", "-c", "…"]` form suggested) and
-  `timeout` (seconds, more than 0, at most 86400). Any other key makes the file invalid.
+- A hook has a `name` (unique), exactly one trigger and exactly one action. Any other key, or a key that doesn't go
+  with the hook's trigger, makes the file invalid.
+- Triggers: `on` (a list of event names or `["*"]`; a string is a list of one; a decide event goes alone), `at`
+  (`"HH:MM"`, local time or `timezone`, an IANA name; optional `days`, from `mon` to `sun`), `every` (a duration,
+  at least `1m`), or `omnibox` (`{"title", "keyword"}` or `{"title", "global": true}`, with `run`).
+- Actions: `run` (a non-empty list; a string is refused, with the `["/bin/sh", "-c", "…"]` form suggested; `timeout`
+  in seconds, more than 0 and at most 86400, for event and scheduled hooks only), `command` (an Ardia command id,
+  optional `arg` a variant; no process is spawned: the runner sends `run` targeting the event's window, and its tab
+  when the command acts on a page; `app.launched` targets `focusedWindowId`; a schedule targets the last focused
+  window), or a decide answer: `rewrite` (1 to 50 `{"match", "to"}`) or `cancel: true` for `tab.opening`; `route`
+  (`{"profile"?, "open"?}`) or `drop: true` for `link.opening`; `folder` (`~/…`) for `download.deciding`;
+  `permission` (`deny`, `ask` or `allow`) for `permission.requested`.
+- Filters: `match` (userscript match patterns, `urlmatch.py` in the CLI and `lib/matchPattern.ts` in the app; for
+  permissions the origin is matched as `origin/`), `from` (bundle ids or app names, `link.opening`), `kinds`
+  (permission kinds, `permission.requested`), `idle` (`"30m"`, at least `1m`, required for and only with the idle
+  events), `fullUrls`.
+- Durations are a whole number and `s`, `m`, `h` or `d`.
+- The app reads hooks.json too, from the same config folder (never the working directory or its parents), for the
+  decide rules, the program decide and omnibox hooks it lets a runner serve, and approvals. It applies the same
+  checks; an invalid file keeps the last good set in both.
 - Names are unique. `hooks run` re-reads the file when it changes (polled every second, following a symlinked file): it reads a regular file of at most 1 MB, checks the
   whole thing, and swaps in the new set at once; an invalid file keeps the last good set and logs why. A removed or
-  changed hook stops taking events and drops what was waiting; a run already going finishes.
+  changed hook stops taking events and drops what was waiting; a run already going finishes. The app re-reads it
+  through its config watcher, cancels pending decisions and asks again for anything privileged that changed.
+
+### Scheduled hooks
+
+The runner fires them and passes a `schedule.fired` event (it never comes from Ardia): `{"hook", "schedule": "at" |
+"every", "occurrence": "name@2026-11-02T09:55", "scheduledAt", "catchUp", "timezone"?}`.
+
+- `at` computes the next occurrence in its time zone and checks at least every 20 s. Occurrences missed while the
+  Mac slept (or the runner wasn't running) are not replayed: the first check after a gap fires once, with
+  `catchUp: true`, and then moves to the next occurrence after now. Times before the runner started are skipped.
+- `every` runs on the monotonic clock (which stops while the Mac sleeps). When the wall clock shows a whole missed
+  interval, it fires one catch-up and restarts the interval; it never bursts.
+- No overlapping runs: if the hook's previous run is still going or waiting, that firing is skipped and logged.
+
 - `hooks install` writes the user LaunchAgent `dev.ardia.hooks` (`ProgramArguments` = the installed `ardia` launcher's
   stable path, `$ARDIA_CLI_HOME/current/bin/ardia`, then `hooks run --log ~/Library/Logs/Ardia/hooks.log`;
   `RunAtLoad`, `KeepAlive`, `ProcessType` `Background`; `WorkingDirectory` the home folder; `EnvironmentVariables`
@@ -196,5 +383,10 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
 
 The app side: node tests for the handlers (the command classification, refusals, `no_window` without fallback, the
 eligibility rule including closes and Peek, internal-page redaction, event shapes, subscribe replacement, the
-generation check) and a hidden-instance check over the real socket. The CLI side: unit tests against a fake socket
-server speaking the protocol, and one end-to-end run against a hidden instance.
+generation check; `automationHooks.test.mjs` for launch replay, named-only events, URL minimization, tab targets,
+the new events, decide rules with control off, approvals, program decisions bound to their runner with duplicate,
+foreign and late answers refused, permissions, link routing and omnibox hooks; `hookFile.test.mjs` for the file
+checks, approval classes and rewrite safety) and a hidden-instance check over the real socket. The CLI side: unit tests against a fake socket
+server speaking the protocol (`test_hooks_more.py` covers validation, subscription options, launch dedupe across
+restarts, command hooks and their rate limit, decide programs, cancels and timeouts, and the scheduler on fake
+clocks), and one end-to-end run against a hidden instance.

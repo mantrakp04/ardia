@@ -1,0 +1,89 @@
+import { sha256 } from "../../lib/sha256";
+import { isApproved, type ApprovalRule } from "./approvals";
+import type { HookSpec, Rewrite } from "./hookFile";
+
+export const SAFE_LAUNCH_ACTIONS: ReadonlySet<string> = new Set([
+  "newTab",
+  "newWindow",
+  "newLittleArdia",
+  "focusCommandBar",
+  "toggleSidebar",
+  "nextTab",
+  "previousTab",
+  "selectTab",
+  "selectLastTab",
+]);
+
+const STRIPPING_TEMPLATES = new Set(["{origin}{path}", "{origin}{path}{hash}"]);
+
+export const DOWNLOADS_FOLDER = "~/Downloads";
+
+export const isInsideDownloads = (folder: string) => folder === DOWNLOADS_FOLDER || folder.startsWith(`${DOWNLOADS_FOLDER}/`);
+
+export function approvalFor(hook: HookSpec): ApprovalRule | null {
+  const rule = (kind: ApprovalRule["kind"], summary: string): ApprovalRule => ({ key: `${kind}:${hook.revision}`, kind, name: hook.name, summary });
+  if (hook.omnibox) {
+    const typed = hook.omnibox.global ? "everything you type in the address bar" : `what you type after “${hook.omnibox.keyword}”`;
+    return rule("omnibox", `Sends ${typed} to ${hook.program![0]} for suggestions`);
+  }
+  if (!hook.decide) return null;
+  if (hook.program) return rule("program", `${hook.program[0]} answers ${hook.decide}`);
+  const rules = hook.rules!;
+  if (rules.rewrite && !rules.rewrite.every((r) => STRIPPING_TEMPLATES.has(r.to))) {
+    return rule("rewrite", rules.rewrite.map((r) => `${r.pattern} → ${r.to}`).join("; "));
+  }
+  if (rules.route) return rule("route", `Opens links${hook.from.length ? ` from ${hook.from.join(", ")}` : ""} in ${[rules.route.profile && `profile ${rules.route.profile}`, rules.route.open].filter(Boolean).join(", ")}`);
+  if (rules.folder && !isInsideDownloads(rules.folder)) return rule("folder", `Saves downloads to ${rules.folder}`);
+  return null;
+}
+
+export const isHookActive = (hook: HookSpec) => {
+  const approval = approvalFor(hook);
+  return !approval || isApproved(approval.key);
+};
+
+const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+
+export function launchActionApproval(entry: string): ApprovalRule | null {
+  const [id] = entry.split(":");
+  if (SAFE_LAUNCH_ACTIONS.has(id!)) return null;
+  return { key: `launchAction:${hex(sha256(entry)).slice(0, 32)}`, kind: "launchAction", name: `launchActions: ${entry}`, summary: `Runs ${entry} each time Ardia starts` };
+}
+
+export function applyTemplate(template: string, href: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  const parts: Record<string, string> = { url: href, origin: url.origin, host: url.host, path: url.pathname, query: url.search, hash: url.hash };
+  return template.replace(/\{(url|origin|host|path|query|hash)\}/g, (_, key: string) => parts[key]!);
+}
+
+export function safeRewriteTarget(target: string | null): string | null {
+  if (!target) return null;
+  let url: URL;
+  try {
+    url = new URL(target);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (url.username || url.password || !url.hostname) return null;
+  return url.href;
+}
+
+export function rewriteOf(rewrites: readonly Rewrite[], href: string, matches: (r: Rewrite) => boolean): string | null | undefined {
+  const rule = rewrites.find(matches);
+  if (!rule) return undefined;
+  return safeRewriteTarget(applyTemplate(rule.to, href));
+}
+
+export const sameOrigin = (a: string, b: string) => {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+};

@@ -66,7 +66,7 @@ const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
 export class NoCommandWindowError extends Error {}
 
-export function runCommand({ command, arg, windowId: requested }: CommandEvent, { strictWindow = false } = {}) {
+export function runCommand({ command, arg, windowId: requested }: CommandEvent, { strictWindow = false, tabId: targetTab = null }: { strictWindow?: boolean; tabId?: string | null } = {}) {
   if (isAppCommand(command)) return APP_COMMAND_HANDLERS[command](requested);
   const s = useBrowser.getState();
 
@@ -137,7 +137,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     }
     return;
   }
-  const tabId = (LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId);
+  const tabId = (targetTab && s.tabs[targetTab]?.windowId === windowId ? targetTab : null) ?? ((LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId));
   const tab = tabId ? s.tabs[tabId] : undefined;
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;

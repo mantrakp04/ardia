@@ -138,8 +138,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteReady(tabId);
         void webviews.get(tabId)?.setMuted(isTabSilenced(tabId));
       }}
-      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt }) => {
-        noteCommit(tabId, committedUrl, committedAt);
+      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
+        noteCommit(tabId, committedUrl, committedAt, httpStatus);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
         const untouched = committedInitial === undefined ? reported === "" && !(tab()?.openerId && adoptId) : committedInitial && !initialDocumentAccessed;

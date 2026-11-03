@@ -12,6 +12,7 @@ sees the shell's `XDG_CONFIG_HOME`, so honouring it would make the app and the C
 ```
 ~/.config/ardia/
   config.json          settings and the theme choice
+  hooks.json           automation hooks (docs/automation.md)
   themes/<name>.json   colour overrides
   config.schema.json   written by the app
   theme.schema.json    written by the app
@@ -47,6 +48,14 @@ Ardia never creates the folder. `ardia config init` does, or the user does.
   whatever it has. Fixed commands can't be rebound. The app translates to its stored form (`[key, ...modifiers]`); a
   command's own default shortcut drops its override. Each entry stands alone: a bad one is reported and skipped, the
   others apply.
+- `launchActions` is a list of up to 20 Ardia command ids (`"newTab"`, or `"selectTab:2"` for a variant) that the app
+  runs itself, once per launch, after the session is restored and the first window is up, in the focused window: no
+  CLI control and no LaunchAgent needed. `"launchActions": ["newTab"]` keeps your tabs and lands on a new tab.
+  Only commands the ardia command may run (`docs/automation.md`) are accepted; an unknown id or variant makes the
+  whole setting invalid, with a message naming it (`config.json: launchActions: fooBar isn't a command`). Actions
+  from the safe list (`newTab`, `newWindow`, `newLittleArdia`, `focusCommandBar`, `toggleSidebar`, `nextTab`,
+  `previousTab`, `selectTab`, `selectLastTab`) run at once; any other waits for approval in Settings › Advanced ›
+  Automation. Re-reading config.json never runs them again. The setting isn't synced: it belongs to this Mac.
 - `theme` is a theme name (`^[a-z0-9][a-z0-9_-]*$`, the file `themes/<name>.json`) or `null`. A bad value, or a
   `config.json` that doesn't parse, keeps the theme that is showing.
 - Unknown keys inside `settings` are reported and ignored. Other top-level keys are ignored.
