@@ -1,3 +1,5 @@
+import { hostSpoofReason, punycodeEncode } from "@ardia/core";
+
 export type UrlParts = {
   scheme: string;
   host: string;
@@ -41,7 +43,27 @@ export function canonicalIpv6(text: string): string | null {
   return `${values.slice(0, best).join(":")}::${values.slice(best + bestLength).join(":")}`;
 }
 
-function plainHost(raw: string): string | null {
+const DEVIATIONS = /[\u00df\u03c2\u200c\u200d\u3002\uff0e\uff61]/;
+const UNICODE_LABEL = /^[\p{L}\p{M}\p{N}-]{1,63}$/u;
+
+export function asciiHost(host: string): string | null {
+  if (/^[\x00-\x7f]*$/.test(host)) return host;
+  const lower = host.normalize("NFC").toLowerCase();
+  if (DEVIATIONS.test(lower) || lower.normalize("NFKC") !== lower) return null;
+  const labels = lower.split(".").map((label) => {
+    if (/^[\x00-\x7f]*$/.test(label)) return label;
+    if (!UNICODE_LABEL.test(label) || label.startsWith("-") || label.endsWith("-")) return null;
+    const encoded = `xn--${punycodeEncode(label)}`;
+    return encoded.length <= 63 ? encoded : null;
+  });
+  if (labels.some((label) => label === null)) return null;
+  const ascii = labels.join(".");
+  return hostSpoofReason(ascii) ? null : ascii;
+}
+
+function plainHost(given: string): string | null {
+  const raw = given.startsWith("[") ? given : asciiHost(given);
+  if (raw === null) return null;
   if (raw.startsWith("[")) {
     if (!raw.endsWith("]")) return null;
     const inner = raw.slice(1, -1);
@@ -70,7 +92,8 @@ export function urlParts(href: string): UrlParts | null {
     const rawHost = colon < 0 ? hostAndPort : hostAndPort.slice(0, colon);
     if (colon >= 0) {
       port = hostAndPort.slice(colon + 1);
-      if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535 || port === DEFAULT_PORTS[scheme]) return null;
+      if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) return null;
+      if (port === DEFAULT_PORTS[scheme]) port = "";
     }
     if (rawHost) {
       const plain = plainHost(rawHost);

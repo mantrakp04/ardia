@@ -490,3 +490,27 @@ test("the incoming-link hold follows whether an active tab.opening or link.openi
   setHooks([{ name: "watch", on: "tab.opened", run: ["x"] }]);
   assert.equal(stub.systemSignals.holdsIncomingLinks, false);
 });
+
+test("a tab target in Little Ardia runs there, with or without a main window, and unsupported commands are refused", async () => {
+  fresh();
+  await controlOn();
+  S().updateSettings({ warnBeforeClosingLastTab: false });
+  const { isWindowClosing } = await import("../windows/closeAnimated.ts");
+  const closed = (windowId, tabId) => !S().tabs[tabId] || !S().windows[windowId] || isWindowClosing(windowId);
+  const conn = ++nextConnection;
+  const little = S().createWindow({ kind: "small", url: "https://l.example/" });
+  const tab = model.activeTabId(S(), little);
+  assert.equal(call("run", { command: "togglePin", tab }, conn).error.code, "bad_request");
+  assert.deepEqual(call("run", { command: "reload", tab }, conn).result, { ok: true });
+  assert.deepEqual(call("run", { command: "closeTab", tab }, conn).result, { ok: true });
+  await wait(20);
+  assert.ok(closed(little, tab));
+  const main = S().createWindow({ url: "https://m.example/" });
+  const little2 = S().createWindow({ kind: "small", url: "https://l2.example/" });
+  const tab2 = model.activeTabId(S(), little2);
+  S().setFocusedWindow(little2);
+  assert.deepEqual(call("run", { command: "closeTab", tab: tab2 }, conn).result, { ok: true });
+  await wait(20);
+  assert.ok(closed(little2, tab2));
+  assert.ok(S().windows[main]);
+});

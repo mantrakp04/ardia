@@ -207,3 +207,16 @@ test("remote fetch: private hosts, loopback outside a test instance, a redirect 
     f.restore();
   }
 });
+
+test("a request cancelled before it is sent never reaches the network", async () => {
+  const { cappedRequest } = await import("./remoteProvider.ts");
+  const f = fakeFetch(() => reply([]));
+  try {
+    const cancelled = new AbortController();
+    cancelled.abort();
+    assert.equal(await cappedRequest("https://s.example.com/?q=x", cancelled.signal, REMOTE_PROVIDER.maxBytes), null);
+    assert.equal(f.calls.length, 0);
+  } finally {
+    f.restore();
+  }
+});

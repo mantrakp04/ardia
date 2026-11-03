@@ -117,7 +117,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
   }
 
   const invokedFrom = requested;
-  if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
+  if (!targeted && isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
     if (!requested && strictWindow) throw new NoCommandWindowError(`${command} needs a main window and none is open.`);
     if (requested) focus(requested);

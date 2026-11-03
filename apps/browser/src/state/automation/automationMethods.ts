@@ -1,7 +1,7 @@
 import type { BrowserCommand } from "../../platform/commands";
 import type { BrowserState } from "../browser/store";
 import { automationCommands, automationDecision, isCatalogCommand, variantsOf } from "./automationCommands";
-import { COMMANDS } from "../commands/commandCatalog";
+import { COMMANDS, LITTLE_ARDIA_PAGE_COMMANDS } from "../commands/commandCatalog";
 import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow } from "./automationWindows";
 import { AUTOMATION_EVENTS, MIN_IDLE_SECONDS, NAMED_ONLY_EVENTS, type AutomationEventName } from "./eventNames";
 
@@ -75,6 +75,9 @@ export function planRun(s: RunState, params: Record<string, unknown>): RunPlan |
     if (typeof tab !== "string" || !isEligibleTab(s, tab)) return failure("no_window", `There's no tab ${String(tab)} the ardia command can use.`);
     if (scopeOf(command) !== "page" && !TAB_COMMANDS.has(command)) return failure("bad_request", `${command} doesn't act on a tab, so it takes no tab.`);
     const windowId = s.tabs[tab]!.windowId;
+    if (eligibleKind(s, windowId) === "little" && command !== "closeTab" && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
+      return failure("bad_request", `${command} doesn't work on a Little Ardia tab.`);
+    }
     if (window !== undefined && window !== null && window !== windowId) return failure("no_window", `Tab ${tab} isn't in window ${String(window)}.`);
     return { command, arg: given, windowId, tabId: tab };
   }

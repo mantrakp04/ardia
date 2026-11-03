@@ -206,11 +206,15 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   mean the default. One deadline per decision, from the moment Ardia intercepted it, on a monotonic timer; nothing
   waits synchronously on the main thread.
 - **URLs Ardia can't read unambiguously fail closed.** Rules and program answers work on a strict reading of the
-  URL (`lib/urlParts.ts`), not React Native's `URL`. A URL with a backslash, user info (`@` in the authority),
-  percent-encoding or non-ASCII in the host (punycode is fine), an IPv4 written any way but plain dotted-decimal
-  (`127.1`, `0177.0.0.1`, `0x7f…`, `2130706433`), an IPv6 that isn't already canonical, a non-canonical port (leading
-  zeros, the default port spelled out, above 65535) or whitespace and control characters never matches a pattern,
-  is never rewritten and never counts as the same origin. `https://evil.example\@bank.example/` is read by Chromium
+  URL (`lib/urlParts.ts`), not React Native's `URL`. Hosts are lowercased, Unicode hosts become punycode (with the
+  omnibox's `punycodeEncode`, so `https://bücher.de/` matches `https://xn--bcher-kva.de/*` and the other way
+  round) and an explicit default port (`:443`, `:80`) is dropped. A URL with a backslash, user info (`@` in the
+  authority), percent-encoding in the host, a Unicode host that can't be converted unambiguously (IDNA deviation
+  characters like `ß`, ideographic or fullwidth dots, compatibility characters NFKC would change, a lookalike the
+  omnibox would flag), an IPv4 written any way but plain dotted-decimal (`127.1`, `0177.0.0.1`, `0x7f…`,
+  `2130706433`), an IPv6 that isn't already canonical, a port with leading zeros, port 0 or one above 65535, or
+  whitespace and control characters never matches a pattern, is never rewritten and never counts as the same
+  origin. `https://evil.example\@bank.example/` is read by Chromium
   as evil.example, so no `https://bank.example/*` rule touches it.
 - **Rewrites.** A rewrite answer must be a canonical http or https URL without credentials; `rewrite` rules build it
   from a template with `{url}`, `{origin}`, `{host}`, `{path}`, `{query}` and `{hash}`. A query-stripping template

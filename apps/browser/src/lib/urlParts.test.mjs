@@ -36,7 +36,9 @@ async function withAppUrl(run) {
 test("urls split and format without adding or losing a slash", () => {
   assert.equal(formatUrl(urlParts("http://127.0.0.1:18800/page.html")), "http://127.0.0.1:18800/page.html");
   assert.equal(formatUrl(urlParts("HTTPS://Example.COM/a?b=1#c")), "https://example.com/a?b=1#c");
-  assert.equal(urlParts("HTTPS://Example.COM:443/a"), null);
+  assert.equal(formatUrl(urlParts("HTTPS://Example.COM:443/a")), "https://example.com/a");
+  assert.equal(formatUrl(urlParts("http://example.com:80/a")), "http://example.com/a");
+  assert.equal(formatUrl(urlParts("https://example.com:80/a")), "https://example.com:80/a");
   assert.equal(formatUrl(urlParts("https://example.com")), "https://example.com/");
   assert.equal(webUrl("https://user:pw@example.com/"), null);
   assert.equal(webUrl("javascript:alert(1)"), null);
@@ -68,7 +70,6 @@ test("anything urlParts can't read the way Chromium does fails closed: no match,
     "https://evil.example\\bank.example/pay",
     "https://user@bank.example/pay",
     "https://%62ank.example/pay",
-    "https://bänk.example/pay",
     "https://127.1/pay",
     "https://0177.0.0.1/pay",
     "https://0x7f.0.0.1/pay",
@@ -77,7 +78,7 @@ test("anything urlParts can't read the way Chromium does fails closed: no match,
     "https://[0:0:0:0:0:0:0:1]/pay",
     "https://[::FFFF:1]/pay",
     "https://bank.example:0443/pay",
-    "https://bank.example:443/pay",
+    "https://bank.example:0/pay",
     "https://bank.example:65536/pay",
     "https://bank.example:/pay",
     "https://bank .example/pay",
@@ -93,4 +94,15 @@ test("anything urlParts can't read the way Chromium does fails closed: no match,
   assert.equal(sameOrigin("https://evil.example\\@bank.example/", "https://bank.example/"), false);
   assert.equal(matchesUrl(parseMatchPattern("https://bank.example/*"), "https://evil.example\\@bank.example/pay"), false);
   setHooksForTests([]);
+});
+
+test("IDN hosts become punycode; anything ambiguous still fails closed", () => {
+  assert.equal(formatUrl(urlParts("https://bücher.de/x")), "https://xn--bcher-kva.de/x");
+  assert.equal(formatUrl(urlParts("https://BÜCHER.de/x")), "https://xn--bcher-kva.de/x");
+  assert.equal(formatUrl(urlParts("https://xn--bcher-kva.de/x")), "https://xn--bcher-kva.de/x");
+  assert.equal(matchesUrl(parseMatchPattern("https://bücher.de/*"), "https://xn--bcher-kva.de/x"), true);
+  assert.equal(matchesUrl(parseMatchPattern("https://*.xn--bcher-kva.de/*"), "https://shop.bücher.de/x"), true);
+  assert.equal(sameOrigin("https://bücher.de/a", "https://xn--bcher-kva.de/b"), true);
+  for (const href of ["https://straße.de/", "https://bücher。de/", "https://ｂücher.de/", "https://bü cher.de/", "https://bü%63her.de/", "https://аррӏе.com/", "https://evil.example\\@bücher.de/", "https://u@bücher.de/"])
+    assert.equal(urlParts(href), null, href);
 });

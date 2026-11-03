@@ -7,7 +7,7 @@ const AUTHORITY = /^([a-z]+):\/\/([^/?#]*)(?:[/?#]|$)/i;
 
 export function isPublicHost(host: string): boolean {
   const h = host.toLowerCase();
-  if (h !== host || !DNS_NAME.test(h)) return false;
+  if (!DNS_NAME.test(h)) return false;
   const bare = h.replace(/\.$/, "");
   return bare !== "localhost" && !PRIVATE_SUFFIXES.test(bare);
 }

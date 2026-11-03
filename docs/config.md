@@ -103,8 +103,11 @@ referrer, page, history or profile. They go only to `https` URLs on a plain DNS 
 literal of any form (dotted, short, octal, hex or decimal IPv4, IPv6), no percent-encoding, user info or backslash,
 a canonical port, and not `localhost` or a private suffix (`.local`, `.internal`, `.lan`, `.home.arpa`, `.test`,
 `.onion`…). A DNS name that resolves to a private or loopback address is not blocked: Ardia checks the URL, not
-what the name resolves to. They wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, read at
-most 128 KB, keep at most 4 requests in flight, and are cached for 5 minutes per profile. A reply whose final URL
+what the name resolves to. They wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, keep at most 4
+requests in flight, and are cached for 5 minutes per profile. A reply over 128 KB (by its Content-Length, or as soon
+as JS sees more than that arrive) is aborted and dropped. That's early cancellation, not a hard memory bound:
+React Native's network task appends the bytes it receives before JS hears about them, so a fast endpoint can
+deliver more before the abort lands. Only endpoints the user approved are ever fetched. A reply whose final URL
 isn't allowed is dropped. Remote, program and extension providers never run in a private window; static lists and
 templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1` (written
 exactly so) endpoints, for fixtures; other builds refuse them.

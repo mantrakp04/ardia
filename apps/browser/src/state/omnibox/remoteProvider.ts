@@ -40,7 +40,7 @@ export const forgetRemoteProviderCache = () => cache.clear();
 
 type Received = { status: number; url: string; body: string };
 
-function cappedRequest(url: string, signal: AbortSignal, maxBytes: number): Promise<Received | null> {
+export function cappedRequest(url: string, signal: AbortSignal, maxBytes: number): Promise<Received | null> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     let done = false;
@@ -71,6 +71,7 @@ function cappedRequest(url: string, signal: AbortSignal, maxBytes: number): Prom
     xhr.ontimeout = () => finish(null);
     xhr.onabort = () => finish(null);
     signal.addEventListener("abort", stop, { once: true });
+    if (signal.aborted) return finish(null);
     xhr.send();
   });
 }
