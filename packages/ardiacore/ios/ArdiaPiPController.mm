@@ -332,8 +332,12 @@ NSString *CornerName(int corner) {
 }
 
 - (BOOL)displayBeyond:(ArdiaPiPEdge)side {
+  return [self displayBeyond:side of:[self homeScreen]];
+}
+
+- (BOOL)displayBeyond:(ArdiaPiPEdge)side of:(NSScreen *)screen {
   const auto screens = ThrowScreens();
-  const int home = ScreenIndex([self homeScreen]);
+  const int home = ScreenIndex(screen);
   if (home < 0 || home >= (int)screens.size()) return NO;
   return ardia_pip_throw::DisplayBeyond(ThrowRect(_window.frame), home, screens.data(), (int)screens.size(),
                                         side == ArdiaPiPEdgeRight ? ardia_pip_throw::kRight : ardia_pip_throw::kLeft);
@@ -375,6 +379,7 @@ NSString *CornerName(int corner) {
   _sawDrag = NO;
   *thrown = NO;
   if (_stashedEdge != ArdiaPiPEdgeNone) {
+    _stashScreen = [self homeScreen];
     const ArdiaPiPEdge side = _stashedEdge;
     const NSRect frame = _window.frame, visible = [self homeScreen].visibleFrame;
     const CGFloat shown = side == ArdiaPiPEdgeRight ? NSMaxX(visible) - NSMinX(frame) : NSMaxX(frame) - NSMinX(visible);
@@ -403,6 +408,7 @@ NSString *CornerName(int corner) {
 - (void)screensChanged {
   if (_swiping || (NSEvent.pressedMouseButtons & 1)) return;
   if (_stashedEdge != ArdiaPiPEdgeNone && ![NSScreen.screens containsObject:_stashScreen]) [self setStashedEdge:ArdiaPiPEdgeNone];
+  if (_stashedEdge != ArdiaPiPEdgeNone && [self displayBeyond:_stashedEdge of:_stashScreen]) return [self unstash];
   if (_stashedEdge != ArdiaPiPEdgeNone) return [self stashAt:_stashedEdge velocity:NSZeroPoint on:_stashScreen];
   [self rescueIfLost];
 }
@@ -455,7 +461,7 @@ NSString *CornerName(int corner) {
   ArdiaPiPEdge edge = _stashedEdge;
   if (edge == ArdiaPiPEdgeNone) return;
   NSRect frame = _window.frame;
-  NSRect visible = [self homeScreen].visibleFrame;
+  NSRect visible = (_stashScreen ?: [self homeScreen]).visibleFrame;
   frame.origin.x = edge == ArdiaPiPEdgeRight ? NSMaxX(visible) - NSWidth(frame) - kReturnMargin : NSMinX(visible) + kReturnMargin;
   frame.origin.y = MIN(MAX(NSMinY(frame), NSMinY(visible)), NSMaxY(visible) - NSHeight(frame));
   [self setStashedEdge:ArdiaPiPEdgeNone];
