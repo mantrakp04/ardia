@@ -96,6 +96,14 @@ isn't allowed is dropped. Remote, program and extension providers never run in a
 templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1`,
 `http://localhost` and `http://[::1]` endpoints, for fixtures; other builds refuse them.
 
+**Extensions' `chrome.omnibox` keywords** don't reach Ardia's bar yet. The engine lists them (`ac_search_engines.cc`,
+`isOmniboxExtension`), but Ardia's location bar has no `OmniboxController`, so nothing calls
+`ExtensionOmniboxEventRouter::OnInputStarted/OnInputChanged/OnInputCancelled/OnInputEntered` or listens to
+`OmniboxSuggestionsWatcher`. Wiring them needs engine calls (`ac_omnibox_input_*` wrapping those statics, plus an
+`extensions.omniboxSuggestions` event from the watcher and the stored default suggestion). Accepting a row would also
+hand the input to the extension (`OnInputEntered`) instead of opening a checked URL, which this design avoids, so it
+stays off until that's decided.
+
 ### The file wins
 
 `config.json` is read-only to the app. Ardia never writes it, so there is nothing to race with.
