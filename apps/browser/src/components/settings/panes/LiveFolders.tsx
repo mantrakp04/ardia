@@ -5,7 +5,7 @@ import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
 import { cancelSignIn, connectGoogleDrive, OAUTH_REDIRECT, signInGitea } from "../../../state/live/oauth";
-import { isMocked, siteUrl } from "../../../state/live/net";
+import { httpsSiteUrl, isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGitea, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
@@ -115,6 +115,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => cancelSignIn, []);
+  const fail = (e: unknown) => setError(String((e as Error)?.message ?? e));
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
     setError(null);
@@ -122,7 +123,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       await task();
       closeSettingsSheet();
     } catch (e) {
-      setError(String((e as Error)?.message ?? e));
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -133,7 +134,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       body = <GithubConnect busy={busy} run={run} />;
       break;
     case "gitea":
-      body = <GiteaConnect busy={busy} run={run} />;
+      body = <GiteaConnect busy={busy} run={run} fail={fail} />;
       break;
     case "bitbucket":
       body = <BitbucketConnect busy={busy} run={run} />;
@@ -233,7 +234,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function GiteaConnect({ busy, run }: ConnectProps) {
+function GiteaConnect({ busy, run, fail }: ConnectProps & { fail(error: unknown): void }) {
   const config = live().config;
   const [site, setSite] = useState(config.giteaSite);
   const [token, setToken] = useState("");
@@ -241,8 +242,13 @@ function GiteaConnect({ busy, run }: ConnectProps) {
   const hasSite = !!site.trim();
   const connect = () => void run(() => connectGitea(site, { token: token.trim() }));
   const createToken = () => {
-    if (settingsBrowserWindow()) openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`);
-    else void run(() => Promise.reject(new Error("Open a browser window first")));
+    try {
+      const page = `${httpsSiteUrl(site)}/user/settings/applications`;
+      if (!settingsBrowserWindow()) throw new Error("Open a browser window first");
+      openUrlFromSettings(page);
+    } catch (e) {
+      fail(e);
+    }
   };
   const signIn = () =>
     void run(async () => {
