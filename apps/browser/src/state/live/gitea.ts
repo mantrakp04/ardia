@@ -70,7 +70,8 @@ export function giteaRefs(authored: GiteaIssue[], review: GiteaIssue[]): GiteaPu
 
 export function giteaLink(site: string, target: string | null | undefined): string | null {
   if (!target) return null;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
+  if (/^https?:\/\//i.test(target)) return target;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return null;
   if (target.startsWith("/")) return `${site.match(/^[a-z]+:\/\/[^/]+/i)?.[0] ?? site}${target}`;
   return `${site}/${target}`;
 }

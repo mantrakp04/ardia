@@ -53,6 +53,7 @@ test("Gitea Actions links are made absolute against the server", () => {
   assert.equal(giteaLink("https://example.com/git", "acme/forge"), "https://example.com/git/acme/forge");
   assert.equal(giteaLink(SITE, "https://ci.example.com/1"), "https://ci.example.com/1");
   assert.equal(giteaLink(SITE, ""), null);
+  for (const target of ["javascript:alert(1)", "data:text/html,hi", "file:///etc/hosts"]) assert.equal(giteaLink(SITE, target), null, target);
 });
 
 test("a draft's conflicts are unknown, since Gitea never reports drafts as mergeable", () => {
