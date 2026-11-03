@@ -6,7 +6,7 @@ const savedBeforeOptions = { id: "old", profileId: "p", kind: "pullRequests", na
 docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, folderOrder: ["old"] }));
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
-const { folderRows, liveTabPlace } = await import("./rows.ts");
+const { folderRows, liveTabOpen, liveTabPlace, stackMembers } = await import("./rows.ts");
 const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
@@ -166,6 +166,28 @@ test("a refresh doesn't ask about hidden pull requests from a source the folder 
   }
   assert.deepEqual(asked, []);
   assert.deepEqual(live().hidden[id].map((it) => it.id), ["x"]);
+});
+
+test("a pull request counts as open while any window has its tab, so another window never offers to hide it", () => {
+  const tabs = {
+    a: { id: "a", windowId: "w1", liveItem: { folderId: "f", itemId: "pr1" } },
+    b: { id: "b", windowId: "w2", liveItem: { folderId: "other", itemId: "pr2" } },
+    c: { id: "c", windowId: "w2" },
+  };
+  assert.equal(liveTabOpen(tabs, "f", ["pr1"]), true);
+  assert.equal(liveTabOpen(tabs, "f", ["pr2"]), false, "the same item id in another folder is a different pull request");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3", "pr1"]), true, "a stack is open when any of its pull requests is");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3"]), false);
+});
+
+test("a stack split across sections counts as open when a member in the other section has its tab open", () => {
+  const spanning = [stacked[0], { ...stacked[1], section: "review" }];
+  const header = folderRows({ id: "f", kind: "pullRequests", groupStacks: true }, spanning, {}).find((r) => r.kind === "stack");
+  assert.deepEqual(header.items.map((it) => it.id), ["a"]);
+  const tabs = { t: { id: "t", windowId: "w", liveItem: { folderId: "f", itemId: "b" } } };
+  assert.equal(liveTabOpen(tabs, "f", header.items.map((it) => it.id)), false, "the header's own section has no open tab");
+  assert.deepEqual(stackMembers(spanning, "stack:a").map((it) => it.id), ["a", "b"]);
+  assert.equal(liveTabOpen(tabs, "f", stackMembers(spanning, "stack:a").map((it) => it.id)), true);
 });
 
 test("an open tab of a hidden pull request stays out of the folder instead of coming back as a stray row", () => {

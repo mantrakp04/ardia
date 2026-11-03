@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
+import { stackMembers } from "./rows";
 
 export type LiveConfig = {
   githubClientId: string;
@@ -284,6 +285,10 @@ export function hideItems(folderId: string, hiding: LiveItem[]) {
     completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter(shown) },
     completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item.id)) },
   }));
+}
+
+export function hideStack(folderId: string, stackId: string) {
+  hideItems(folderId, stackMembers(live().items[folderId] ?? [], stackId));
 }
 
 export function unhide(folderId: string) {
