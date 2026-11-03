@@ -5,6 +5,7 @@ const model = await import("../browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 const folders = await import("./tileFolders.ts");
+const writes = await import("./syncWrites.ts");
 
 const S = () => useBrowser.getState();
 const reset = (shareTopApps = true) => {
@@ -298,4 +299,48 @@ test("a parked profile's Top App opens at the pinned URL chosen in its sibling",
   const restored = tileOf(w2, "default", "https://mail.com/new-home");
   S().activate(restored);
   assert.equal(S().tabs[restored].page.nav.url, "https://mail.com/new-home");
+});
+
+test("turning sharing back on keeps a pinned row the other profile made from a shared Top App", () => {
+  reset();
+  const { w, work } = spaces();
+  S().updateSettings({ shareTopApps: false });
+  S().placeTabs([tileOf(w, work, "https://mail.com")], { pinned: true, row: true });
+  S().updateSettings({ shareTopApps: true });
+  assert.deepEqual(rows(w, work), ["https://mail.com"], "Work keeps its row");
+  assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "Personal keeps its tile");
+});
+
+const syncRemoves = (id) => {
+  const s = S();
+  writes.fromSync(() => useBrowser.setState({ tabs: Object.fromEntries(Object.entries(s.tabs).filter(([k]) => k !== id)), windows: { ...s.windows, [s.tabs[id].windowId]: { ...s.windows[s.tabs[id].windowId], tabIds: s.windows[s.tabs[id].windowId].tabIds.filter((k) => k !== id) } } }));
+};
+
+test("a Top App edit in a profile that's behind on sync carries only that change to its sibling", () => {
+  reset();
+  const { w, work } = spaces();
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([docs], true);
+  syncRemoves(tileOf(w, work, "https://mail.com"));
+  assert.deepEqual(topApps(w, work), ["https://docs.com"], "Work hasn't got Mail back from sync yet");
+  const news = S().newTab(w, { url: "https://news.com" });
+  S().pinTabs([news], true);
+  assert.deepEqual(topApps(w, "default").sort(), ["https://docs.com", "https://mail.com", "https://news.com"], "Personal keeps Mail and gets News");
+});
+
+test("a relaunch doesn't merge the profiles' Top Apps again", () => {
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const { w, work } = spaces();
+  syncRemoves(tileOf(w, "default", "https://mail.com"));
+  assert.deepEqual(topApps(w, "default"), []);
+  flushPersistence();
+  stop();
+  const saved = loadSession();
+  S().hydrate({});
+  S().hydrate(saved);
+  const after = S().windowOrder[0];
+  assert.deepEqual(topApps(after, "default"), [], "Personal's synced unpin stays");
+  assert.deepEqual(topApps(after, work), ["https://mail.com"], "Work keeps its copy until its own sync");
 });

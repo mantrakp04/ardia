@@ -29,11 +29,18 @@ export function topAppCircles(s: Pick<BrowserState, "profiles" | "profileOrder" 
   return dataGroups(s).map((g) => g.profileIds).filter((ids) => ids.length > 1);
 }
 
-const circlesKey = (s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">) =>
-  topAppCircles(s)
+let lastCircles: { profiles: unknown; profileOrder: unknown; on: boolean; key: string } | null = null;
+
+function circlesKey(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): string {
+  const on = !!s.settings.shareTopApps;
+  if (lastCircles && lastCircles.profiles === s.profiles && lastCircles.profileOrder === s.profileOrder && lastCircles.on === on) return lastCircles.key;
+  const key = topAppCircles(s)
     .map((ids) => [...ids].sort().join(","))
     .sort()
     .join("|");
+  lastCircles = { profiles: s.profiles, profileOrder: s.profileOrder, on, key };
+  return key;
+}
 
 export function sharingChanged(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">, prev: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): boolean {
   if (s.settings.shareTopApps !== prev.settings.shareTopApps) return true;
@@ -73,6 +80,25 @@ function withParkedTiles(s: BrowserState, profileId: string, tiles: Item[]): Bro
 
 type Member = { window: string | null; profileId: string };
 
+const keyOf = (i: Item) => pinKeyOf(i.tab);
+
+function withChange(target: Item[], before: Item[], after: Item[], blocked: Set<string>): Item[] {
+  const sigBefore = new Map(before.map((i) => [keyOf(i), tileSig(i.tab)]));
+  const leftBefore = new Map(before.map((i, n) => [keyOf(i), n ? keyOf(before[n - 1]!) : null]));
+  const kept = new Set(after.map(keyOf));
+  const out = target.filter((i) => kept.has(keyOf(i)) || !sigBefore.has(keyOf(i)));
+  after.forEach((item, n) => {
+    const key = keyOf(item);
+    const left = n ? keyOf(after[n - 1]!) : null;
+    if (blocked.has(key) || (sigBefore.get(key) === tileSig(item.tab) && leftBefore.get(key) === left)) return;
+    const at = out.findIndex((i) => keyOf(i) === key);
+    if (at >= 0) out.splice(at, 1);
+    const anchor = left === null ? -1 : out.findIndex((i) => keyOf(i) === left);
+    out.splice(left === null ? 0 : anchor >= 0 ? anchor + 1 : out.length, 0, item);
+  });
+  return out;
+}
+
 const shownAnywhere = (s: BrowserState, p: string) => Object.values(s.windows).some((w) => isRegularWindow(w) && profilesOf(s, w).has(p));
 
 function keepEmptiedParks(s: BrowserState, prev: BrowserState, circles: string[][]): BrowserState | null {
@@ -83,15 +109,16 @@ function keepEmptiedParks(s: BrowserState, prev: BrowserState, circles: string[]
 }
 
 export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState | null {
+  const key = circlesKey(s);
+  if (!key) return s.topAppsMerged ? { ...s, topAppsMerged: "" } : null;
   const circles = topAppCircles(s);
-  if (!circles.length) return null;
-  const turnedOn = sharingChanged(s, prev);
+  const turnedOn = key !== s.topAppsMerged;
   if (!turnedOn && writingFromSync()) return keepEmptiedParks(s, prev, circles);
   if (!turnedOn && !pinsMayDiffer(s, prev) && s.parkedPins === prev.parkedPins) return null;
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isRegularWindow(s.windows[id]));
   const prevGroups = pinnedGroupsOf(prev);
   const hadPlace = (p: string) => shownAnywhere(prev, p);
-  let next = s;
+  let next: BrowserState = turnedOn ? { ...s, topAppsMerged: key } : s;
   for (const circle of circles) {
     const members = circle.flatMap((p): Member[] => {
       const windows = order.filter((w) => profilesOf(next, next.windows[w]!).has(p));
@@ -103,6 +130,10 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
     const sections = members.map(sectionNow);
     const sigs = sections.map(topAppSig);
     if (new Set(sigs).size === 1) continue;
+    const sectionBefore = ({ window: w, profileId: p }: Member): Section => {
+      const before = w ? prev.windows[w] : undefined;
+      return isRegularWindow(before) && profilesOf(prev, before).has(p) ? sectionOf(prev, before, p, prevGroups) : parkedSection(prev, p);
+    };
     const wasParked = (p: string) => (!hadPlace(p) && prev.parkedPins[p] ? topAppSig(parkedSection(prev, p)) : null);
     const was = ({ window: w, profileId: p }: Member) => {
       if (!w) return hadPlace(p) || !prev.parkedPins[p] ? null : topAppSig(parkedSection(prev, p));
@@ -116,19 +147,24 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
           return before !== null && before !== sigs[i];
         });
     const old = members.map((m, i) => (was(m) === null ? null : i)).filter((i): i is number => i !== null);
-    const ranked = source >= 0 ? [source] : old.length ? old : members.map((_, i) => i);
-    const tiles = topAppItems(source >= 0 ? sections[source]! : union(ranked.map((i) => ({ ...sections[i]!, items: topAppItems(sections[i]!) }))));
-    const want = tiles.map((i) => tileSig(i.tab)).join("\n");
     const receives = (i: number) => source >= 0 || turnedOn || (old.length > 0 && !old.includes(i));
+    const merged = source >= 0 ? [] : topAppItems(union((old.length ? old : members.map((_, i) => i)).map((i) => ({ ...sections[i]!, items: topAppItems(sections[i]!) }))));
+    const before = source >= 0 ? topAppItems(sectionBefore(members[source]!)) : [];
+    const after = source >= 0 ? topAppItems(sections[source]!) : [];
     members.forEach(({ window: w, profileId: p }, i) => {
-      if (i === source || sigs[i] === want || !receives(i)) return;
+      if (i === source || !receives(i)) return;
+      const blocked = new Set(sections[i]!.items.filter((x) => x.group || !isTopApp(x.tab)).map((x) => pinKeyOf(x.tab)));
+      if (!w) for (const e of next.parkedPins[p]?.tabs ?? []) if (!isParkedTile(e)) blocked.add(e.id);
+      const own = topAppItems(sections[i]!);
+      const tiles = source >= 0 ? withChange(own, before, after, blocked) : merged.filter((x) => !blocked.has(pinKeyOf(x.tab)));
+      if (tiles.map((x) => tileSig(x.tab)).join("\n") === sigs[i]) return;
       if (!w) {
         next = withParkedTiles(next, p, tiles);
         return;
       }
       if (!next.windows[w]) return;
-      const own = sectionOf(next, next.windows[w]!, p, pinnedGroupsOf(next));
-      next = conform(next, w, p, { ...own, items: [...own.items.filter((x) => x.group || !isTopApp(x.tab)), ...tiles] });
+      const section = sectionOf(next, next.windows[w]!, p, pinnedGroupsOf(next));
+      next = conform(next, w, p, { ...section, items: [...section.items.filter((x) => x.group || !isTopApp(x.tab)), ...tiles] });
     });
   }
   return next === s ? null : next;
