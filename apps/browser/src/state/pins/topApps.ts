@@ -90,18 +90,22 @@ const sameField = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON
 function withChange(target: Item[], before: Item[], after: Item[], blocked: Set<string>): Item[] {
   const beforeOf = new Map(before.map((i) => [keyOf(i), i]));
   const afterKeys = new Set(after.map(keyOf));
+  const held = new Set(target.map(keyOf));
+  const reentering = new Set(after.map(keyOf).filter((k) => !beforeOf.has(k) && held.has(k) && !blocked.has(k)));
   const out = target
     .filter((i) => afterKeys.has(keyOf(i)) || !beforeOf.has(keyOf(i)))
     .map((i) => {
       const now = after.find((a) => keyOf(a) === keyOf(i));
+      if (!now || blocked.has(keyOf(i))) return i;
+      if (reentering.has(keyOf(i))) return { ...i, tab: { ...i.tab, pin: now.tab.pin } };
       const was = beforeOf.get(keyOf(i));
-      if (!now || !was || blocked.has(keyOf(i))) return i;
+      if (!was) return i;
       const edited = EDITABLE.filter((f) => !sameField(was.tab[f], now.tab[f]));
       return edited.length ? { ...i, tab: { ...i.tab, ...Object.fromEntries(edited.map((f) => [f, now.tab[f]])) } } : i;
     });
-  const shared = (keys: string[]) => keys.filter((k) => beforeOf.has(k) && afterKeys.has(k));
+  const shared = (keys: string[]) => keys.filter((k) => (beforeOf.has(k) && afterKeys.has(k)) || reentering.has(k));
   const sourceOrder = shared(after.map(keyOf));
-  if (shared(before.map(keyOf)).join("\n") !== sourceOrder.join("\n")) {
+  if (reentering.size || shared(before.map(keyOf)).join("\n") !== sourceOrder.join("\n")) {
     const inOut = new Set(out.map(keyOf));
     const order = sourceOrder.filter((k) => inOut.has(k));
     const slots = out.map((i, n) => (order.includes(keyOf(i)) ? n : -1)).filter((n) => n >= 0);

@@ -313,7 +313,10 @@ test("turning sharing back on keeps a pinned row the other profile made from a s
 
 const syncRemoves = (id) => {
   const s = S();
-  writes.fromSync(() => useBrowser.setState({ tabs: Object.fromEntries(Object.entries(s.tabs).filter(([k]) => k !== id)), windows: { ...s.windows, [s.tabs[id].windowId]: { ...s.windows[s.tabs[id].windowId], tabIds: s.windows[s.tabs[id].windowId].tabIds.filter((k) => k !== id) } } }));
+  const windowId = s.tabs[id].windowId;
+  const tabs = Object.fromEntries(Object.entries(s.tabs).filter(([k]) => k !== id));
+  const window = { ...s.windows[windowId], tabIds: s.windows[windowId].tabIds.filter((k) => k !== id) };
+  writes.fromSync(() => useBrowser.setState({ tabs, windows: { ...s.windows, [windowId]: window } }));
 };
 
 test("a Top App edit in a profile that's behind on sync carries only that change to its sibling", () => {
@@ -387,4 +390,20 @@ test("a change to a different sharing group doesn't merge this group's Top Apps 
   S().createProfile({ name: "Other sibling", shareWith: other });
   assert.deepEqual(topApps(w, "default"), [], "Personal's synced unpin stays");
   assert.deepEqual(topApps(w, work), ["https://mail.com"]);
+});
+
+test("a pinned row dragged back into Top Apps with a tile takes its place in both profiles", () => {
+  reset();
+  const w = S().createWindow({ url: "https://a.com" });
+  const ids = [S().windows[w].tabIds[0], ...["b", "c", "d"].map((x) => S().newTab(w, { url: `https://${x}.com` }))];
+  S().pinTabs(ids, true);
+  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  S().switchProfile(w, work);
+  S().switchProfile(w, "default");
+  S().updateSettings({ shareTopApps: false });
+  S().placeTabs([ids[3]], { pinned: true, row: true });
+  S().updateSettings({ shareTopApps: true });
+  S().placeTabs([ids[1], ids[3]], { pinned: true, row: false, beforeId: ids[0] });
+  assert.equal(letters(w, "default"), "bdac");
+  assert.equal(letters(w, work), "bdac");
 });
