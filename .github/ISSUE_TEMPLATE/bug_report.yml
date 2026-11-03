@@ -67,6 +67,30 @@ body:
       placeholder: macOS 26.1
     validations:
       required: true
+  - type: dropdown
+    id: tabs
+    attributes:
+      label: Tab layout
+      description: Settings › Tabs › Tab layout.
+      default: 2
+      options:
+        - In the sidebar
+        - Across the top of the window
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: address-bar
+    attributes:
+      label: Address Bar
+      description: Settings › Appearance › Address Bar.
+      default: 2
+      options:
+        - In the toolbar
+        - In the sidebar
+        - Not sure
+    validations:
+      required: true
   - type: textarea
     id: anything-else
     attributes:

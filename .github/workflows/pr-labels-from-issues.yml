@@ -13,6 +13,7 @@ permissions:
 concurrency:
   group: pr-labels-from-issues
   cancel-in-progress: false
+  queue: max
 
 jobs:
   sync-pr-labels:
@@ -28,19 +29,27 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
+          shopt -s inherit_errexit
           type_label_names='["bug","enhancement","documentation"]'
 
           open_pull_requests_closing_issue() {
-            gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$1" -f query='
+            local references
+            references=$(gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$1" -f query='
               query($owner: String!, $name: String!, $number: Int!) {
                 repository(owner: $owner, name: $name) {
                   issue(number: $number) {
                     closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+                      pageInfo { hasNextPage }
                       nodes { number repository { nameWithOwner } }
                     }
                   }
                 }
-              }' --jq ".data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.repository.nameWithOwner == \"$REPO\") | .number"
+              }' --jq '.data.repository.issue.closedByPullRequestsReferences')
+            if jq -e '.pageInfo.hasNextPage' <<<"$references" >/dev/null; then
+              echo "Issue #$1 is closed by more than 100 open PRs; refusing to sync a partial list." >&2
+              return 1
+            fi
+            jq -r --arg repo "$REPO" '.nodes[] | select(.repository.nameWithOwner == $repo) | .number' <<<"$references"
           }
 
           remove_label() {
@@ -56,20 +65,26 @@ jobs:
               query($owner: String!, $name: String!, $number: Int!) {
                 repository(owner: $owner, name: $name) {
                   pullRequest(number: $number) {
-                    labels(first: 100) { nodes { name } }
+                    labels(first: 100) { pageInfo { hasNextPage } nodes { name } }
                     closingIssuesReferences(first: 100) {
-                      nodes { repository { nameWithOwner } labels(first: 100) { nodes { name } } }
+                      pageInfo { hasNextPage }
+                      nodes { repository { nameWithOwner } labels(first: 100) { pageInfo { hasNextPage } nodes { name } } }
                     }
                   }
                 }
               }')
+            if ! jq -e '.data.repository.pullRequest
+              | (.labels.pageInfo.hasNextPage or .closingIssuesReferences.pageInfo.hasNextPage
+                 or any(.closingIssuesReferences.nodes[]; .labels.pageInfo.hasNextPage)) | not' <<<"$snapshot" >/dev/null; then
+              echo "#$pr: more than 100 labels or closing issues; refusing to sync a partial list." >&2
+              return 1
+            fi
             wanted=$(jq -r --arg repo "$REPO" --argjson types "$type_label_names" '
               .data.repository.pullRequest.closingIssuesReferences.nodes[]
               | select(.repository.nameWithOwner == $repo)
               | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
             if [ -z "$wanted" ]; then
-              echo "#$pr: no type label on the issues it closes in $REPO, leaving it as is. A 'Closes #N' only counts when the PR targets the default branch."
-              return
+              echo "#$pr: no type label on the issues it closes in $REPO. A 'Closes #N' only counts when the PR targets the default branch."
             fi
             current=$(jq -r --argjson types "$type_label_names" '
               .data.repository.pullRequest.labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
