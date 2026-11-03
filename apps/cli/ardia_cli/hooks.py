@@ -805,6 +805,7 @@ class Service:
         self.decider = Decider(log)
         self.scheduler = Scheduler(self.fire_scheduled, log)
         self.launches = LaunchSeen(state_path)
+        self.accepted: dict[str, tuple[str, Hook]] = {}
 
     def set_hooks(self, hooks) -> None:
         wanted = {hook.name: hook for hook in hooks}
@@ -904,6 +905,7 @@ class Service:
                 delay = min(delay * 2, self.backoff_max)
             finally:
                 self.connection = None
+                self.accepted = {}
                 self.subscribed.clear()
                 await self.decider.stop()
                 await connection.close()
@@ -920,7 +922,11 @@ class Service:
 
     async def _subscribe(self, connection) -> None:
         extra = self.subscription()
+        sent = {h.name: h for h in self.hooks.values() if h.served}
+        self.accepted = {}
         reply = await connection.subscribe(self.event_names(), extra)
+        revisions = reply.get("revisions") if isinstance(reply, dict) and isinstance(reply.get("revisions"), dict) else {}
+        self.accepted = {name: (revision, sent[name]) for name, revision in revisions.items() if name in sent and isinstance(revision, str)}
         if extra.get("hooks"):
             served = reply.get("served", []) if isinstance(reply, dict) else []
             missing = [h.name for h in self.hooks.values() if h.served and h.name not in served]
@@ -947,7 +953,7 @@ class Service:
                 if deciding in done:
                     message = deciding.result()
                     deciding = None
-                    self.decider.handle(message, self.hooks, connection)
+                    self.decider.handle(message, self.accepted, connection)
                 if reading in done:
                     event = reading.result()
                     reading = None

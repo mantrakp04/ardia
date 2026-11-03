@@ -18,6 +18,11 @@ def decide_env(message: dict, base=None) -> dict:
     return env
 
 
+def minimized_url(url: str) -> str:
+    cuts = [i for i in (url.find("?"), url.find("#")) if i >= 0]
+    return url[: min(cuts)] if cuts else url
+
+
 def parse_answer(output: bytes):
     text = output.decode("utf-8", "replace").strip()
     if not text:
@@ -43,13 +48,19 @@ class Decider:
             return True
         return sum(1 for name, _ in self.running.values() if name == hook_name) >= self.per_hook
 
-    def handle(self, message: dict, hooks_by_name: dict, connection) -> None:
+    def handle(self, message: dict, accepted: dict, connection) -> None:
         ident = message.get("decide")
         if message.get("cancel") is True:
             self.cancel(ident)
             return
-        hook = hooks_by_name.get(message.get("hook"))
-        if hook is None or not hook.served or ident in self.running:
+        entry = accepted.get(message.get("hook"))
+        if entry is None or ident in self.running:
+            return
+        revision, hook = entry
+        if revision != message.get("revision"):
+            self.log.write(f"warning: hook {hook.name}: Ardia asked for a revision this runner didn't register; it uses its default")
+            return
+        if not hook.served:
             return
         if self.busy(hook.name):
             self.skipped += 1
@@ -69,7 +80,10 @@ class Decider:
 
         deadline = message.get("deadline")
         seconds = min(max(float(deadline) / 1000 if isinstance(deadline, (int, float)) and not isinstance(deadline, bool) else 0.25, 0.05), MAX_DEADLINE)
-        payload = json.dumps({"decide": ident, "event": message.get("event"), "deadline": deadline, "data": message.get("data")}, ensure_ascii=False).encode("utf-8") + b"\n"
+        data = message.get("data")
+        if not hook.full_urls and isinstance(data, dict) and isinstance(data.get("url"), str):
+            data = {**data, "url": minimized_url(data["url"])}
+        payload = json.dumps({"decide": ident, "event": message.get("event"), "deadline": deadline, "data": data}, ensure_ascii=False).encode("utf-8") + b"\n"
         argv = program_argv(hook.program)
         try:
             process = await asyncio.create_subprocess_exec(

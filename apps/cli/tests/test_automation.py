@@ -139,7 +139,10 @@ class FakeArdia:
         if method == "subscribe":
             self.subscriptions[writer] = list(params.get("events", []))
             self.subscribed.set()
-            return {"id": ident, "result": {"ok": True}}
+            hooks_served = [h["name"] for h in params.get("hooks", []) if isinstance(h, dict)]
+            if not hooks_served:
+                return {"id": ident, "result": {"ok": True}}
+            return {"id": ident, "result": {"ok": True, "served": hooks_served, "revisions": {n: f"rev-{n}" for n in hooks_served}}}
         if method == "run":
             if params.get("command") not in {c["id"] for c in COMMANDS}:
                 return {"id": ident, "error": {"code": "unknown_command", "message": f"unknown command {params.get('command')}"}}

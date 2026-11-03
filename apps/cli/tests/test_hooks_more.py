@@ -200,8 +200,8 @@ class Live(Base):
         def feed():
             server.subscribed.wait(5)
             wait_for(lambda: any(m == "subscribe" and (p or {}).get("hooks") for m, p in server.requests))
-            self.send_raw(server, {"decide": "d1", "event": "tab.opening", "hook": "rewrite", "deadline": 2000, "data": {"url": "https://www.reddit.com/r/x"}})
-            self.send_raw(server, {"decide": "d2", "event": "link.opening", "hook": "slow", "deadline": 300, "data": {"url": "https://a/"}})
+            self.send_raw(server, {"decide": "d1", "event": "tab.opening", "hook": "rewrite", "revision": "rev-rewrite", "deadline": 2000, "data": {"url": "https://www.reddit.com/r/x"}})
+            self.send_raw(server, {"decide": "d2", "event": "link.opening", "hook": "slow", "revision": "rev-slow", "deadline": 300, "data": {"url": "https://a/"}})
             self.send_raw(server, {"decide": "d3", "event": "tab.opening", "hook": "nope", "deadline": 300, "data": {}})
 
         import threading
@@ -212,6 +212,24 @@ class Live(Base):
         self.assertEqual(answers(), [{"decide": "d1", "answer": {"url": "https://old.reddit.com/r/x"}}])
         subscribe = [p for m, p in server.requests if m == "subscribe"][-1]
         self.assertEqual([h["name"] for h in subscribe["hooks"]], ["rewrite", "slow"])
+
+    def test_a_decision_for_a_revision_the_app_didnt_accept_never_runs(self):
+        server = self.serve()
+        log, _, main = self.service([{"name": "rewrite", "on": "tab.opening", "run": [sys.executable, "-I", "-c", ANSWERING]}])
+
+        def feed():
+            server.subscribed.wait(5)
+            time.sleep(0.2)
+            self.send_raw(server, {"decide": "x1", "event": "tab.opening", "hook": "rewrite", "revision": "rev-edited", "deadline": 1000, "data": {"url": "https://www.reddit.com/r/x"}})
+            self.send_raw(server, {"decide": "x2", "event": "tab.opening", "hook": "rewrite", "revision": "rev-rewrite", "deadline": 2000, "data": {"url": "https://www.reddit.com/r/x"}})
+
+        import threading
+
+        threading.Thread(target=feed, daemon=True).start()
+        answers = lambda: [p for m, p in server.requests if m == "answer"]
+        asyncio.run(main(lambda: answers(), 6))
+        self.assertEqual([a["decide"] for a in answers()], ["x2"])
+        self.assertTrue(any("didn't register" in l for l in log))
 
 
 class Deciding(unittest.TestCase):
@@ -233,16 +251,50 @@ class Deciding(unittest.TestCase):
 
         async def main():
             decider = Decider(SimpleNamespace(write=lambda _: None))
-            decider.handle({"decide": "d1", "event": "tab.opening", "hook": "slow", "deadline": 4000, "data": {}}, {"slow": hook}, Connection())
+            decider.handle({"decide": "d1", "event": "tab.opening", "hook": "slow", "revision": "r1", "deadline": 4000, "data": {}}, {"slow": ("r1", hook)}, Connection())
             await asyncio.sleep(0.2)
             started = time.monotonic()
-            decider.handle({"decide": "d1", "cancel": True}, {"slow": hook}, Connection())
+            decider.handle({"decide": "d1", "cancel": True}, {"slow": ("r1", hook)}, Connection())
             await asyncio.sleep(0.1)
             self.assertEqual(decider.running, {})
             return time.monotonic() - started
 
         self.assertLess(asyncio.run(main()), 1)
         self.assertEqual(answered, [])
+
+    def test_only_the_registered_revision_runs_and_urls_are_trimmed(self):
+        recorder = r"""
+import json, sys
+request = json.loads(sys.stdin.read())
+print(json.dumps({"seen": request["data"]["url"]}))
+"""
+        plain = parse({"name": "p", "on": "tab.opening", "run": [sys.executable, "-I", "-c", recorder]})[0]
+        full = parse({"name": "f", "on": "tab.opening", "run": [sys.executable, "-I", "-c", recorder], "fullUrls": True})[0]
+        answers = {}
+        lines = []
+
+        class Connection:
+            async def answer(self, ident, value):
+                answers[ident] = value
+                return True
+
+        async def main():
+            decider = Decider(SimpleNamespace(write=lines.append))
+            accepted = {"p": ("r-old", plain), "f": ("r-f", full)}
+            url = "https://a.example/x?token=1#h"
+            decider.handle({"decide": "edited", "event": "tab.opening", "hook": "p", "revision": "r-new", "deadline": 3000, "data": {"url": url}}, accepted, Connection())
+            decider.handle({"decide": "trimmed", "event": "tab.opening", "hook": "p", "revision": "r-old", "deadline": 3000, "data": {"url": url}}, accepted, Connection())
+            decider.handle({"decide": "full", "event": "tab.opening", "hook": "f", "revision": "r-f", "deadline": 3000, "data": {"url": url}}, accepted, Connection())
+            for _ in range(100):
+                if len(answers) >= 2:
+                    break
+                await asyncio.sleep(0.03)
+
+        asyncio.run(main())
+        self.assertNotIn("edited", answers)
+        self.assertEqual(answers["trimmed"], {"seen": "https://a.example/x"})
+        self.assertEqual(answers["full"], {"seen": "https://a.example/x?token=1#h"})
+        self.assertTrue(any("didn't register" in line for line in lines))
 
     def test_busy_limits(self):
         decider = Decider(SimpleNamespace(write=lambda _: None), max_running=2, per_hook=1)
