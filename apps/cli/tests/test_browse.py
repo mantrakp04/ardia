@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import json
 import os
+import shlex
 import shutil
 import socket
 import stat
@@ -641,7 +642,7 @@ class PluginTest(unittest.TestCase):
             "print(json.dumps({'protocol': 'agent-browser.plugin.v1', 'success': True, 'data': {'echo': request}}))\n"
         )
         launcher = root / "plugin"
-        launcher.write_text(f"#!/bin/sh\nexec {sys.executable} {script}\n")
+        launcher.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(script))}\n")
         launcher.chmod(0o755)
         plugins.save_registry(root, [{"name": "echo", "command": str(launcher), "capabilities": ["command.run", "credential.read"]}])
         data = plugins.call(root, "echo", "command.run", {"a": 1})
