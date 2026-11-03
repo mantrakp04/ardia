@@ -171,6 +171,10 @@ def socket_is_ours(name: str, dir_fd: int) -> tuple[int, int] | None:
 
 
 def peer_uid(sock: socket.socket) -> int | None:
+    from ardia_cli import control, endpoint
+
+    if endpoint.LINUX:
+        return control.linux_peer_uid(sock)
     try:
         raw = sock.getsockopt(SOL_LOCAL, LOCAL_PEERCRED, XUCRED_SIZE)
     except OSError:

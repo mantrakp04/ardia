@@ -52,6 +52,15 @@ jobs:
           fetch-depth: 0
       - id: tree
         run: echo "tree=$(git rev-parse HEAD:engine)" >> "$GITHUB_OUTPUT"
+      - name: Version
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/.*MARKETING_VERSION = "\{0,1\}\([^";]*\)"\{0,1\};/\1/p' apps/browser/macos/Ardia.xcodeproj/project.pbxproj | sort -u)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; then
+            echo "::error::MARKETING_VERSION isn't one version: '$version'"
+            exit 1
+          fi
+          { echo "VERSION=$version"; echo "CLI_NAME=ardia-cli-$version-linux-x64.tar.gz"; } >> "$GITHUB_ENV"
       - uses: ./.github/actions/linux-setup
         with:
           packages: >-
@@ -64,6 +73,10 @@ jobs:
           path: apps/browser/build-ardiacore/prebuilt-linux-x86_64
           key: engine-linux-x64-v1-${{ steps.tree.outputs.tree }}-${{ hashFiles('packages/ardiacore/prebuilt-engines-linux.tsv') }}
           restore-keys: engine-linux-x64-v1-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/ardia-cli-build
+          key: ardia-cli-build-linux-x64-${{ hashFiles('apps/cli/scripts/build.sh', 'apps/cli/requirements.lock') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: packages/ardiacore/vendor/ubo
@@ -82,6 +95,7 @@ jobs:
           selected=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["engine_tree"])' "$engine/manifest.json")
           if [ "$selected" = "$TREE" ]; then
             label="${GITHUB_SHA:0:12}"
+            echo "ENGINE_EXACT=1" >> "$GITHUB_ENV"
             echo "### Linux engine ${TREE:0:12} (exact)" >> "$GITHUB_STEP_SUMMARY"
           else
             label="${GITHUB_SHA:0:12}-engine-${selected:0:12}"
@@ -90,22 +104,31 @@ jobs:
           fi
           { echo "ENGINE=$engine"; echo "PACKAGE_NAME=Ardia-linux-x64-$label"; } >> "$GITHUB_ENV"
       - run: pnpm --filter @ardia/linux build
+      - name: uv
+        run: curl -LsSf https://astral.sh/uv/0.12.15/install.sh | sh
+      - name: ardia CLI
+        run: apps/cli/scripts/build.sh "$VERSION" "$RUNNER_TEMP/dist" --platform linux-x64
       - name: Package
         run: |
           set -euo pipefail
           blocker=$(scripts/linux/fetch-ubo.sh)
-          mkdir -p "$RUNNER_TEMP/dist"
           python3 scripts/linux/package.py --out "$ENGINE" --ui apps/linux/dist --content-blocker "$blocker" \
-            --destination "$RUNNER_TEMP/dist/$PACKAGE_NAME.tar.xz"
+            --version "$VERSION" --cli "$RUNNER_TEMP/dist/$CLI_NAME" --destination "$RUNNER_TEMP/dist/$PACKAGE_NAME.tar.xz"
           (cd "$RUNNER_TEMP/dist" && sha256sum "$PACKAGE_NAME.tar.xz" > "$PACKAGE_NAME.tar.xz.sha256")
       - name: Smoke
-        run: node scripts/linux/smoke.mjs --package "$RUNNER_TEMP/dist/$PACKAGE_NAME.tar.xz" --results "$RUNNER_TEMP/smoke"
+        run: |
+          set -euo pipefail
+          args=(--package "$RUNNER_TEMP/dist/$PACKAGE_NAME.tar.xz" --results "$RUNNER_TEMP/smoke" --timeout-ms 600000)
+          [ "${ENGINE_EXACT:-0}" = 1 ] || args+=(--allow-old-engine)
+          node scripts/linux/smoke.mjs "${args[@]}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ${{ env.PACKAGE_NAME }}
           path: |
             ${{ runner.temp }}/dist/${{ env.PACKAGE_NAME }}.tar.xz
             ${{ runner.temp }}/dist/${{ env.PACKAGE_NAME }}.tar.xz.sha256
+            ${{ runner.temp }}/dist/${{ env.CLI_NAME }}
+            ${{ runner.temp }}/dist/${{ env.CLI_NAME }}.sha256
             ${{ runner.temp }}/smoke/results.json
           if-no-files-found: error
           compression-level: 0

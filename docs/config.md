@@ -9,8 +9,15 @@ so test instances never read the owner's files. No other environment variable pi
 sees the shell's `XDG_CONFIG_HOME`, so honouring it would make the app and the CLI disagree). The app resolves it in
 `ArdiaLaunchConfig`; the CLI resolves it the same way from `--data-dir` / `$ARDIA_DATA_DIR`.
 
+On Linux, `~/.config/ardia` is Chromium's own user data dir (`Local State`, `Default/`, `ArdiaControl.json`…), so the
+config folder is always `<data dir>/config`: `${XDG_CONFIG_HOME:-~/.config}/ardia/config` by default
+(`$ARDIA_CONFIG_HOME/ardia/config` when that's set, as the engine does), `<user data dir>/config` for an instance
+started with `--user-data-dir`, and `<data dir>/config` for the CLI's `--data-dir` / `$ARDIA_DATA_DIR`. Keeping it a
+folder of its own lets a dotfiles repo own it (one symlink) without Chromium's files landing in the repo, and it is
+the same rule a macOS test instance follows. The schemas go to `<data dir>/config-schema/` beside it.
+
 ```
-~/.config/ardia/
+~/.config/ardia/            (Linux: ~/.config/ardia/config/)
   config.json          settings and the theme choice
   hooks.json           automation hooks (docs/automation.md)
   themes/<name>.json   colour overrides
@@ -157,6 +164,21 @@ you type. It has no Settings row: plugins (github.com/mantrakp04/ardia-plugins) 
 The config folder, `config.json`, `themes/` and theme files may be symlinks (a dotfiles repo); reads follow them.
 Ardia reads only regular files (checked after resolving), at most 1 MB, opened non-blocking so a FIFO can't hang the
 watcher. The watcher re-resolves the folder when it changes and notices it appearing after launch.
+
+On Linux the reads and the watcher are native (`ac_linux_config_core.cc`, `ac_linux_config.cc`): reads also refuse
+text that isn't UTF-8, and the watcher is inotify. It watches the resolved folder, the folder of each watched file and
+of its resolved target, `themes/` and its target, and the folder's parent for the folder itself appearing, going or
+being re-linked. It resolves links itself, so every link on the way (`config -> ~/dotfiles/current/ardia`,
+`current -> release-a`) and a link's missing target are watched too: re-linking `current`, or creating the target of a
+dangling theme link, applies at once. Replacing a real directory further up a link's target (renaming
+`~/dotfiles/themes`'s parent aside and putting another in its place) isn't noticed until the next change, as on
+macOS. Events for other files (the schemas, Chromium's files) are ignored. Changes are coalesced for 50 ms
+before every window hears of them, and one watcher serves all windows. The shared code reads synchronously, so each
+window keeps the last reads of `config.json` and its themes; it reads `config.json` and the theme it names before the
+UI starts, and on a change it reads them again (the newly named theme included) before the shared code reconciles.
+Only the launch window applies the file's settings at start, and so restores the session as the file says; a window
+opened later takes the theme but leaves settings changed in the app alone, as on macOS, where opening a window isn't
+a launch.
 
 ### Errors
 

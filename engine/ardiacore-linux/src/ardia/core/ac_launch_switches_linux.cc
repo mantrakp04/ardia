@@ -6,10 +6,13 @@
 #include <vector>
 
 #include "ardia/linux/ac_linux_launch_config.h"
+#include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/no_destructor.h"
+#include "base/path_service.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "chrome/common/chrome_switches.h"
@@ -18,6 +21,67 @@
 namespace ardiacore {
 
 namespace {
+
+constexpr size_t kVersionFileLimit = 256;
+constexpr char kDisableFeaturesSwitch[] = "disable-features";
+constexpr char kApprovalDebuggingFeature[] = "DevToolsAcceptDebuggingConnections";
+constexpr size_t kVersionLimit = 64;
+
+LinuxPackageInfo& PackageStorage() {
+  static base::NoDestructor<LinuxPackageInfo> package;
+  return *package;
+}
+
+LinuxCliEnvironment& CliStorage() {
+  static base::NoDestructor<LinuxCliEnvironment> cli;
+  return *cli;
+}
+
+std::optional<std::string> NonEmptyVariable(base::Environment& environment, const std::string& name) {
+  auto value = environment.GetVar(name);
+  if (!value || value->empty()) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+std::optional<std::string> AbsoluteVariable(base::Environment& environment, const std::string& name) {
+  auto value = NonEmptyVariable(environment, name);
+  if (!value || value->front() != '/') {
+    return std::nullopt;
+  }
+  return value;
+}
+
+void ReadPackage(base::Environment& environment, bool isolated) {
+  LinuxPackageInfo& package = PackageStorage();
+  base::FilePath executable_directory;
+  base::PathService::Get(base::DIR_EXE, &executable_directory);
+  package.directory = executable_directory;
+  if (isolated) {
+    if (const auto directory = AbsoluteVariable(environment, "ARDIA_PACKAGE_DIR")) {
+      package.directory = base::FilePath(*directory);
+    }
+  }
+  std::string text;
+  if (!package.directory.empty() &&
+      base::ReadFileToStringWithMaxSize(package.directory.Append("VERSION"), &text, kVersionFileLimit)) {
+    package.version = WellFormedLinuxVersion(text);
+  }
+}
+
+void ReadCliEnvironment(base::Environment& environment, bool isolated) {
+  LinuxCliEnvironment& cli = CliStorage();
+  cli.isolated = isolated;
+  cli.home = AbsoluteVariable(environment, "ARDIA_CLI_HOME");
+  cli.bin_dir = AbsoluteVariable(environment, "ARDIA_CLI_BIN_DIR");
+  cli.url = NonEmptyVariable(environment, "ARDIA_CLI_URL");
+  if (const auto data = AbsoluteVariable(environment, "XDG_DATA_HOME")) {
+    cli.default_home = *data + "/ardia/cli";
+  } else if (const auto home = AbsoluteVariable(environment, "HOME")) {
+    cli.default_home = *home + "/.local/share/ardia/cli";
+  }
+}
 
 const base::CommandLine& CommandLine() {
   return *base::CommandLine::ForCurrentProcess();
@@ -100,6 +164,41 @@ std::optional<std::string> DownloadsDirectory(std::string_view text) {
 
 }
 
+LinuxPackageInfo::LinuxPackageInfo() = default;
+LinuxPackageInfo::LinuxPackageInfo(const LinuxPackageInfo&) = default;
+LinuxPackageInfo::~LinuxPackageInfo() = default;
+LinuxCliEnvironment::LinuxCliEnvironment() = default;
+LinuxCliEnvironment::LinuxCliEnvironment(const LinuxCliEnvironment&) = default;
+LinuxCliEnvironment::~LinuxCliEnvironment() = default;
+
+std::optional<std::string> WellFormedLinuxVersion(std::string_view text) {
+  const size_t newline = text.find('\n');
+  const std::string_view rest = newline == std::string_view::npos ? std::string_view() : text.substr(newline + 1);
+  if (!base::TrimWhitespaceASCII(rest, base::TRIM_ALL).empty()) {
+    return std::nullopt;
+  }
+  const std::string_view line = base::TrimWhitespaceASCII(text.substr(0, newline), base::TRIM_ALL);
+  if (line.empty() || line.size() > kVersionLimit || line.front() < '0' || line.front() > '9') {
+    return std::nullopt;
+  }
+  for (const char c : line) {
+    const bool allowed = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                         c == '.' || c == '-' || c == '+';
+    if (!allowed) {
+      return std::nullopt;
+    }
+  }
+  return std::string(line);
+}
+
+const LinuxPackageInfo& LinuxPackage() {
+  return PackageStorage();
+}
+
+const LinuxCliEnvironment& LinuxCli() {
+  return CliStorage();
+}
+
 void InitializeLinuxLaunchConfig() {
   static bool initialized = false;
   if (std::exchange(initialized, true) ||
@@ -128,6 +227,15 @@ void InitializeLinuxLaunchConfig() {
       command->AppendSwitchNative("ardia-hyprland-runtime-dir", *runtime);
     }
   }
+  std::string disabled = command->GetSwitchValueASCII(kDisableFeaturesSwitch);
+  if (!disabled.empty()) {
+    disabled += ",";
+  }
+  disabled += kApprovalDebuggingFeature;
+  command->AppendSwitchASCII(kDisableFeaturesSwitch, disabled);
+  const bool isolated = command->HasSwitch(switches::kUserDataDir);
+  ReadPackage(*environment, isolated);
+  ReadCliEnvironment(*environment, isolated);
   if (!command->HasSwitch("ardia-downloads-dir")) {
     const auto downloads =
         DownloadsDirectory(environment->GetVar("ARDIA_INSTANCE").value_or(""));
@@ -203,6 +311,10 @@ void DecideTestGateAtStartup() {
   }
 }
 
+base::FilePath LinuxConfigFolder(const base::FilePath& user_data_directory) {
+  return user_data_directory.Append("config");
+}
+
 base::DictValue LinuxLaunchConfig(const base::FilePath& data_directory,
                                  const base::FilePath& user_data_directory) {
   base::DictValue instance;
@@ -218,6 +330,8 @@ base::DictValue LinuxLaunchConfig(const base::FilePath& data_directory,
   snapshot.Set("dataDirectory", data_directory.empty()
                                     ? base::Value()
                                     : base::Value(data_directory.value()));
+  snapshot.Set("configDirectory",
+               LinuxConfigFolder(user_data_directory).value());
   snapshot.Set("background", BackgroundInstance());
   snapshot.Set("isolated", ExplicitUserDataDirectory(user_data_directory));
   snapshot.Set("testInstance", TestInstance());

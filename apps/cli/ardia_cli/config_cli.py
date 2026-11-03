@@ -7,16 +7,17 @@ import textwrap
 from pathlib import Path
 
 from ardia_cli import config_files as files
+from ardia_cli import endpoint
 from ardia_cli.config_files import ConfigError, Places
 from ardia_cli.printable import complain, say
 from ardia_cli.schema_check import Problem, describe, did_you_mean, show, validate
 
 CONFIG_DESCRIPTION = """\
-Set Ardia up from ~/.config/ardia/config.json, dotfiles style. Ardia reads the file at launch and whenever it
+Set Ardia up from {folder}/config.json, dotfiles style. Ardia reads the file at launch and whenever it
 changes, and never writes it; these commands edit it for you and check it against the schema Ardia writes.
 None of them need Ardia running.
 
-The config folder is ~/.config/ardia, or <data dir>/config with --data-dir or $ARDIA_DATA_DIR. Keys, allowed
+The config folder is {folder}, or <data dir>/config with --data-dir or $ARDIA_DATA_DIR. Keys, allowed
 values and defaults come from config.schema.json in the config folder, else <data dir>/config-schema/ (the named
 data dir, else the installed app's).
 
@@ -27,7 +28,7 @@ Commands:
   set KEY VALUE      check VALUE and write it (KEY is a setting or shortcuts.<command id>)
   unset KEY          take a key out of the file (Ardia keeps its current value)
   list               every setting: allowed values, default and the file's value
-  edit               open config.json in $VISUAL, $EDITOR or vi, then check it
+  edit               open config.json in $VISUAL, $EDITOR or {fallback}, then check it
   check              check config.json and the theme it names
 
 Exit status: 0 done, 1 a check failed or the input is wrong.
@@ -62,7 +63,15 @@ SHORTCUT_HELP = (
     " then a character, f1-f20, space, tab, return, escape, delete, up, down, left, right, home, end, pageup or"
     " pagedown; or glyphs like ⌘⇧T; '' unbinds."
 )
-DATA_DIR_HELP = "the Ardia data dir; the config folder is <DIR>/config (default: $ARDIA_DATA_DIR, else ~/.config/ardia)"
+FOLDER_SHOWN = "${XDG_CONFIG_HOME:-~/.config}/ardia" if endpoint.LINUX else "~/.config/ardia"
+EDITOR_FALLBACK = "xdg-open" if endpoint.LINUX else "vi"
+CONFIG_DESCRIPTION = CONFIG_DESCRIPTION.replace("{folder}", FOLDER_SHOWN).replace("{fallback}", EDITOR_FALLBACK)
+EDIT_HELP = (
+    ("open config.json in $VISUAL or $EDITOR and check it, else with xdg-open", "Open config.json (created first if needed) in $VISUAL or $EDITOR, wait for the editor to exit, then\ncheck it like ardia config check. With neither set it opens the file with xdg-open, which returns at once, so\nrun ardia config check once you've saved it (vi when xdg-open isn't installed).")
+    if endpoint.LINUX
+    else ("open config.json in $VISUAL, $EDITOR, else vi, then check it", "Open config.json (created first if needed) in $VISUAL, $EDITOR, else vi, wait for the editor to exit, then\ncheck it like ardia config check.")
+)
+DATA_DIR_HELP = f"the Ardia data dir; the config folder is <DIR>/config (default: $ARDIA_DATA_DIR, else {FOLDER_SHOWN})"
 CHANNEL = r"\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\s*"
 ALPHA = r"\s*(?:0|1|0?\.[0-9]+|1\.0+)\s*"
 COLOUR = re.compile(
@@ -93,7 +102,7 @@ def add_parsers(commands, formatter):
     unset.add_argument("key", metavar="KEY", help="a setting name or shortcuts.<command id>")
     listing = command("list", "list every setting with its allowed values, default and file value")
     listing.add_argument("--json", action="store_true", help="print JSON")
-    command("edit", "open config.json in $VISUAL, $EDITOR, else vi, then check it", "Open config.json (created first if needed) in $VISUAL, $EDITOR, else vi, wait for the editor to exit, then\ncheck it like ardia config check.")
+    command("edit", *EDIT_HELP)
     check = command("check", "check config.json and the theme it names", "Check config.json and the theme it names, the way Ardia reads them. Exit 1 on any problem.")
     check.add_argument("--json", action="store_true", help="print JSON")
 
@@ -392,14 +401,19 @@ def config_list(args, where: Places) -> int:
     return 0
 
 
-def editor_command() -> list[str]:
+def editor_command(linux: bool | None = None) -> tuple[list[str], bool]:
     import shlex
+    import shutil
 
     for variable in ("VISUAL", "EDITOR"):
         value = os.environ.get(variable, "").strip()
         if value:
-            return shlex.split(value)
-    return ["vi"]
+            return shlex.split(value), True
+    if endpoint.LINUX if linux is None else linux:
+        opener = shutil.which("xdg-open")
+        if opener:
+            return [opener], False
+    return ["vi"], True
 
 
 def config_edit(args, where: Places) -> int:
@@ -408,7 +422,7 @@ def config_edit(args, where: Places) -> int:
     if not os.path.lexists(where.config):
         where.folder.mkdir(parents=True, exist_ok=True)
         create(where.config, files.dump(files.new_config()))
-    command = editor_command()
+    command, waits = editor_command()
     try:
         status = subprocess.call(command + [str(where.config)])
     except OSError as error:
@@ -416,6 +430,9 @@ def config_edit(args, where: Places) -> int:
     if status != 0:
         complain(f"ardia config: {command[0]} exited with status {status}")
         return 1
+    if not waits:
+        say(f"opened {where.config} with {os.path.basename(command[0])}; run ardia config check once you've saved it (set $VISUAL or $EDITOR to edit here)")
+        return 0
     args.json = False
     return config_check(args, where)
 

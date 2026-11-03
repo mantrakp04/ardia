@@ -20,13 +20,20 @@ import { usePages } from "../../browser/src/state/tabs/pageState";
 import { useOnboarding } from "../../browser/src/state/onboarding/onboarding";
 import { adoptParkedPins } from "../../browser/src/state/pins/parkedPins";
 import { decideLastTabClose, decideWindowClose } from "../../browser/src/state/windows/windowClose";
-import { firstWindowCommitted } from "../../browser/src/lib/afterFirstWindow";
+import { afterFirstWindow, firstWindowCommitted } from "../../browser/src/lib/afterFirstWindow";
+import { startCliControl } from "../../browser/src/state/app/cliControl";
+import { startAutomation } from "../../browser/src/state/automation/controlSocket";
+import { startUserScripts } from "../../browser/src/state/extensions/userScripts";
+import { leadUserScripts } from "./hostUserScripts";
 import { recordFreshProfile, startAppCommands, startLinuxAppServices, UTILITY_APP_COMMANDS } from "./appServices";
 import { linuxCapabilities } from "./hostCapabilities";
 import { useExtensions } from "../../browser/src/state/extensions/store";
 import { openExtensionFromMenu } from "../../browser/src/state/extensions/bridge";
 import { ardiaHost, invokeHost } from "./host";
-import { setSharedCommands } from "./shims/expo-modules-core";
+import { emitNativeEvent, setSharedCommands } from "./shims/expo-modules-core";
+import { configRestoreSession, startConfigFiles } from "../../browser/src/state/config/configFiles";
+import { colorRoles } from "../../browser/src/components/ui/tokens";
+import { startHostConfig } from "./hostConfig";
 import { COMMANDS } from "../../browser/src/state/commands/commandCatalog";
 import { linuxSessionShape, startHostPersistence } from "./hostSession";
 import { startHostData } from "./hostData";
@@ -78,16 +85,23 @@ async function start() {
   setNewTabPrewarm(false);
   const { windowId, profileId } = ardiaHost.bootstrap;
   const utility = isLinuxUtility(windowId);
+  const configReady = startHostConfig(ardiaHost, () => emitNativeEvent("ArdiaConfig", "onChange", {}));
   const stored = ardiaHost.bootstrap.session ?? await invokeHost<HydrateData | null>("session.read", {});
+  await configReady;
   const saved = stored ? linuxSessionShape(stored) : stored;
+  const launch = ardiaHost.bootstrap.startup !== false;
+  const restoreSession = launch ? configRestoreSession() : undefined;
   setStoreBatching(unstable_batchedUpdates);
-  useBrowser.getState().hydrate(initialLinuxSession(ardiaHost, saved));
+  useBrowser.getState().hydrate(initialLinuxSession(ardiaHost, saved?.settings && restoreSession !== undefined ? { ...saved, settings: { ...saved.settings, restoreSession } } : saved));
+  startConfigFiles(colorRoles, launch);
+  const capabilities = linuxCapabilities(ardiaHost);
+  if (capabilities.cliControl) startCliControl();
   await startLinuxShortcuts(ardiaHost);
   if (utility) {
     const persistence = startHostPersistence(ardiaHost, useBrowser, saved ?? {}, createUtilitySessionSnapshot(useBrowser.getState(), saved ?? {}));
     setSessionFlush(persistence.flush);
     startHostData();
-    startAppCommands(windowId, linuxCapabilities(ardiaHost), undefined, UTILITY_APP_COMMANDS);
+    startAppCommands(windowId, capabilities, undefined, UTILITY_APP_COMMANDS);
     startLinuxSync({ host: ardiaHost, candidate: false });
     followExtensionChanges(ardiaHost, settingsShowsExtensions, refreshExtensionsAfterChange);
     await startUtility(ardiaHost);
@@ -116,11 +130,13 @@ async function start() {
     });
     watchInstallPromptCancellations(ardiaHost, useExtensions);
     startLinuxSync({ host: ardiaHost, candidate: true, locks: navigator.locks });
+    if (capabilities.cliControl && !ardiaHost.bootstrap.privateWindow) afterFirstWindow(startAutomation);
+    if (capabilities.userScripts && !ardiaHost.bootstrap.privateWindow) afterFirstWindow(() => leadUserScripts({ locks: navigator.locks, start: startUserScripts }));
     startLinuxAppServices({
       host: ardiaHost,
       windowId,
       savedSession: !!saved,
-      capabilities: linuxCapabilities(ardiaHost),
+      capabilities,
       locks: navigator.locks,
       marks: sessionStorage,
     });

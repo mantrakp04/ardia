@@ -11,8 +11,10 @@ SHARED = SOURCE.parents[1] / 'ardiacore/src'
 
 FIXTURE = r'''
 #pragma once
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <new>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -29,9 +31,42 @@ class FilePath {
   explicit FilePath(std::string path) : path_(std::move(path)) {}
   bool empty() const { return path_.empty(); }
   const std::string& value() const { return path_; }
+  FilePath Append(std::string_view name) const { return FilePath(path_ + "/" + std::string(name)); }
   bool operator==(const FilePath&) const = default;
  private:
   std::string path_;
+};
+inline bool ReadFileToStringWithMaxSize(const FilePath& path, std::string* contents, size_t limit) {
+  FILE* file = std::fopen(path.value().c_str(), "rb");
+  if (!file) return false;
+  contents->clear();
+  char buffer[64];
+  size_t count = 0;
+  while ((count = std::fread(buffer, 1, sizeof(buffer), file)) > 0) contents->append(buffer, count);
+  std::fclose(file);
+  if (contents->size() > limit) {
+    contents->resize(limit);
+    return false;
+  }
+  return true;
+}
+enum BasePathKey { DIR_EXE };
+class PathService {
+ public:
+  static bool Get(int, FilePath* path) {
+    const char* directory = std::getenv("FIXTURE_EXE_DIR");
+    *path = FilePath(directory ? directory : "");
+    return directory != nullptr;
+  }
+};
+template <typename T>
+class NoDestructor {
+ public:
+  NoDestructor() { new (storage_) T(); }
+  T& operator*() { return *reinterpret_cast<T*>(storage_); }
+  T* operator->() { return reinterpret_cast<T*>(storage_); }
+ private:
+  alignas(T) unsigned char storage_[sizeof(T)];
 };
 inline FilePath MakeAbsoluteFilePath(const FilePath& path) {
   std::error_code error;
@@ -81,7 +116,7 @@ class CommandLine {
 class Environment {
  public:
   static auto Create() { return std::make_unique<Environment>(); }
-  std::optional<std::string> GetVar(const std::string& name) const {
+  std::optional<std::string> GetVar(const std::string& name) {
     const char* value = std::getenv(name.c_str());
     return value ? std::optional<std::string>(value) : std::nullopt;
   }
@@ -147,12 +182,14 @@ int main(int argc, char** argv) {
   assert(ardiacore::SwitchOn(unregistered_switch));
   assert(!ardiacore::ExperimentOn(unregistered_experiment));
   auto config = ardiacore::LinuxLaunchConfig(base::FilePath(argv[2]), base::FilePath(argv[3]));
-  assert(config.values.size() == 8);
+  assert(config.values.size() == 9);
   assert(config.At("dataDirectory").text == argv[2]);
+  assert(config.At("configDirectory").text == std::string(argv[3]) + "/config");
   assert(!config.At("testInstance").boolean);
   assert(config.At("test").dict->values.empty());
   assert(!config.At("switches").dict->At("newTabPrewarm").boolean);
   if (scenario == "defaults") {
+    assert(command->GetSwitchValueASCII("disable-features") == "DevToolsAcceptDebuggingConnections");
     assert(!ardiacore::BackgroundInstance());
     assert(!config.At("isolated").boolean);
     assert(config.At("instance").dict->values.empty());
@@ -192,7 +229,10 @@ int main(int argc, char** argv) {
     renderer.AppendSwitchASCII("type", "renderer");
     ardiacore::PassSwitchesToGpuProcess(&renderer);
     assert(!renderer.HasSwitch("ardia-switches"));
+  } else if (scenario == "approval") {
+    assert(command->GetSwitchValueASCII("disable-features") == "Example,DevToolsAcceptDebuggingConnections");
   } else if (scenario == "child") {
+    assert(!command->HasSwitch("disable-features"));
     assert(!ardiacore::BackgroundInstance());
     assert(!ardiacore::ExperimentOn(example_experiment));
     assert(config.At("instance").dict->values.empty());
@@ -203,6 +243,34 @@ int main(int argc, char** argv) {
     assert(ardiacore::InstanceValue("downloads-dir") == "/tmp/N05 downloads,review,part=two,, last");
     assert(config.At("instance").dict->At("downloadsDir").text == "/tmp/N05 downloads,review,part=two,, last");
     assert(config.At("instance").dict->values.size() == 1);
+  } else if (scenario == "package") {
+    const char* expected = std::getenv("FIXTURE_VERSION");
+    const char* directory = std::getenv("FIXTURE_PACKAGE_DIR");
+    assert(ardiacore::LinuxPackage().directory.value() == (directory ? directory : ""));
+    if (expected) assert(ardiacore::LinuxPackage().version == std::string(expected));
+    else assert(!ardiacore::LinuxPackage().version);
+  } else if (scenario == "cli") {
+    const auto& cli = ardiacore::LinuxCli();
+    const auto expect = [](const std::optional<std::string>& value, const char* name) {
+      const char* wanted = std::getenv(name);
+      if (wanted) assert(value == std::string(wanted));
+      else assert(!value);
+    };
+    expect(cli.home, "FIXTURE_CLI_HOME");
+    expect(cli.bin_dir, "FIXTURE_CLI_BIN_DIR");
+    expect(cli.url, "FIXTURE_CLI_URL");
+    expect(cli.default_home, "FIXTURE_CLI_DEFAULT_HOME");
+    assert(cli.isolated == (std::getenv("FIXTURE_ISOLATED") != nullptr));
+  } else if (scenario == "versions") {
+    assert(ardiacore::WellFormedLinuxVersion("0.2.44\n") == std::string("0.2.44"));
+    assert(ardiacore::WellFormedLinuxVersion(" 0.2.44-nightly.3 \n\n") == std::string("0.2.44-nightly.3"));
+    assert(!ardiacore::WellFormedLinuxVersion(""));
+    assert(!ardiacore::WellFormedLinuxVersion("\n"));
+    assert(!ardiacore::WellFormedLinuxVersion("v0.2.44\n"));
+    assert(!ardiacore::WellFormedLinuxVersion("0.2.44\n0.2.45\n"));
+    assert(!ardiacore::WellFormedLinuxVersion("0.2.44 beta\n"));
+    assert(!ardiacore::WellFormedLinuxVersion("0.2/44\n"));
+    assert(!ardiacore::WellFormedLinuxVersion(std::string(65, '1')));
   } else if (scenario == "null-directory") {
     assert(config.At("dataDirectory").none);
     assert(!config.At("isolated").boolean);
@@ -218,7 +286,7 @@ class LaunchSwitchTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='ardia-launch-test-')
         cls.root = pathlib.Path(cls.temp.name)
-        for header in ('base/command_line.h', 'base/environment.h', 'base/files/file_path.h', 'base/files/file_util.h', 'base/logging.h', 'base/strings/string_split.h', 'base/strings/string_util.h', 'base/values.h', 'chrome/common/chrome_switches.h', 'content/public/common/content_switches.h'):
+        for header in ('base/base_paths.h', 'base/no_destructor.h', 'base/path_service.h', 'base/command_line.h', 'base/environment.h', 'base/files/file_path.h', 'base/files/file_util.h', 'base/logging.h', 'base/strings/string_split.h', 'base/strings/string_util.h', 'base/values.h', 'chrome/common/chrome_switches.h', 'content/public/common/content_switches.h'):
             path = cls.root / header
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('#include "fixture.h"\n')
@@ -285,6 +353,53 @@ class LaunchSwitchTests(unittest.TestCase):
 
     def test_data_directory_environment_does_not_claim_native_isolation(self):
         self.run_case('defaults', environment={'ARDIA_DATA_DIR': '/unselected/scratch', 'ARDIA_TEST': 'reauth=grant', 'ARDIA_TRACE': 'profileGate'})
+
+    def package_root(self, name, version_text):
+        package = self.root / name
+        package.mkdir(exist_ok=True)
+        if version_text is not None:
+            (package / 'VERSION').write_text(version_text)
+        return package
+
+    def test_the_version_file_beside_chrome_is_the_app_version(self):
+        package = self.package_root('beside', '0.2.44-nightly.3\n')
+        self.run_case('package', environment={'FIXTURE_EXE_DIR': str(package), 'FIXTURE_PACKAGE_DIR': str(package), 'FIXTURE_VERSION': '0.2.44-nightly.3'})
+
+    def test_a_missing_or_malformed_version_file_keeps_the_engine_version(self):
+        missing = self.package_root('missing', None)
+        self.run_case('package', environment={'FIXTURE_EXE_DIR': str(missing), 'FIXTURE_PACKAGE_DIR': str(missing)})
+        malformed = self.package_root('malformed', '<html>\n')
+        self.run_case('package', environment={'FIXTURE_EXE_DIR': str(malformed), 'FIXTURE_PACKAGE_DIR': str(malformed)})
+
+    def test_the_package_directory_moves_only_for_an_instance_with_its_own_user_data(self):
+        real = self.package_root('real', '1.0.0\n')
+        scratch = self.package_root('scratch', '0.0.1\n')
+        self.run_case('package', environment={'FIXTURE_EXE_DIR': str(real), 'ARDIA_PACKAGE_DIR': str(scratch), 'FIXTURE_PACKAGE_DIR': str(real), 'FIXTURE_VERSION': '1.0.0'})
+        self.run_case('package', f'user-data-dir={self.user}', environment={'FIXTURE_EXE_DIR': str(real), 'ARDIA_PACKAGE_DIR': str(scratch), 'FIXTURE_PACKAGE_DIR': str(scratch), 'FIXTURE_VERSION': '0.0.1'})
+        self.run_case('package', f'user-data-dir={self.user}', environment={'FIXTURE_EXE_DIR': str(real), 'ARDIA_PACKAGE_DIR': 'relative/dir', 'FIXTURE_PACKAGE_DIR': str(real), 'FIXTURE_VERSION': '1.0.0'})
+
+    def test_chrome_inspect_approval_mode_never_replaces_the_control_server(self):
+        self.run_case('approval', 'disable-features=Example')
+
+    def test_well_formed_versions(self):
+        self.run_case('versions')
+
+    def test_cli_home_follows_xdg_data_home_then_home(self):
+        self.run_case('cli', environment={'HOME': '/home/someone', 'XDG_DATA_HOME': '/data', 'FIXTURE_CLI_DEFAULT_HOME': '/data/ardia/cli'})
+        self.run_case('cli', environment={'HOME': '/home/someone', 'XDG_DATA_HOME': 'relative', 'FIXTURE_CLI_DEFAULT_HOME': '/home/someone/.local/share/ardia/cli'})
+        self.run_case('cli', environment={'HOME': '/home/someone', 'XDG_DATA_HOME': '', 'FIXTURE_CLI_DEFAULT_HOME': '/home/someone/.local/share/ardia/cli'})
+
+    def test_cli_variables_pass_through_and_mark_isolated_instances(self):
+        self.run_case('cli', f'user-data-dir={self.user}', environment={
+            'HOME': '/home/someone', 'XDG_DATA_HOME': '', 'ARDIA_CLI_HOME': '/tmp/cli-home', 'ARDIA_CLI_BIN_DIR': '/tmp/cli-bin', 'ARDIA_CLI_URL': 'file:///tmp/a.tar.gz',
+            'FIXTURE_CLI_HOME': '/tmp/cli-home', 'FIXTURE_CLI_BIN_DIR': '/tmp/cli-bin', 'FIXTURE_CLI_URL': 'file:///tmp/a.tar.gz',
+            'FIXTURE_CLI_DEFAULT_HOME': '/home/someone/.local/share/ardia/cli', 'FIXTURE_ISOLATED': '1'})
+        self.run_case('cli', environment={'HOME': '/home/someone', 'XDG_DATA_HOME': '', 'ARDIA_CLI_HOME': 'relative', 'ARDIA_CLI_BIN_DIR': '', 'FIXTURE_CLI_DEFAULT_HOME': '/home/someone/.local/share/ardia/cli'})
+
+    def test_children_read_no_package_or_cli_environment(self):
+        package = self.package_root('child-package', '1.0.0\n')
+        self.run_case('package', 'type=renderer', environment={'FIXTURE_EXE_DIR': str(package)})
+        self.run_case('cli', 'type=renderer', environment={'HOME': '/home/someone', 'ARDIA_CLI_HOME': '/tmp/cli-home'})
 
     def test_missing_document_root_is_null(self):
         self.run_case('null-directory', directory='')

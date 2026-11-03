@@ -17,6 +17,12 @@ options=('!strip' '!debug')
 source=("ardia-linux-x64.tar.xz")
 sha256sums=('SKIP')
 
+pkgver() {
+  local version
+  version=$(cat "$srcdir/ardia/lib/ardia/VERSION" 2>/dev/null) || version=$pkgver
+  printf '%s\n' "${version//-/_}"
+}
+
 package() {
   "$srcdir/ardia/install.sh" --prefix /usr --destdir "$pkgdir"
 }

@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { resolveHostModule } from "./hostModules.ts";
-import { linuxCapabilities, unavailablePanes, unavailableSettingIds } from "./hostCapabilities.ts";
+import { CLI_CONTROL_METHODS, CLI_INSTALL_METHODS, USER_SCRIPTS_METHODS, linuxCapabilities, unavailablePanes, unavailableSettingIds } from "./hostCapabilities.ts";
 import { CAST_UNAVAILABLE_TITLE, linuxMediaCall } from "./hostCast.ts";
+import { USER_SCRIPTS_LOCK, leadUserScripts } from "./hostUserScripts.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { useToasts } from "../../browser/src/state/app/toasts.ts";
 
@@ -40,10 +41,10 @@ test("a host that advertises a system backend is called through instead of being
 
 test("Linux capabilities come from the host contract, and WebKit is never offered", () => {
   assert.deepEqual(linuxCapabilities(fakeHost().host), {
-    defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, externalLinks: false, performanceRecording: false, taskManager: false, videoUpscaling: false,
+    defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, cliInstall: false, userScripts: false, externalLinks: false, performanceRecording: false, taskManager: false, videoUpscaling: false,
   });
   const full = linuxCapabilities(fakeHost(["ArdiaSystem.isDefaultBrowser", "ArdiaSystem.setAsDefaultBrowser", "ArdiaSystem.launchAtLoginStatus", "ArdiaSystem.setLaunchAtLogin", "ArdiaSystem.setThinScrollBars", "engine.beginTracing", "engine.endTracing", "engine.isTracing", "engine.openTaskManager", "ArdiaApp.openExternalURL"]).host);
-  assert.deepEqual(full, { defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, webkit: false, cliControl: false, externalLinks: true, performanceRecording: true, taskManager: true, videoUpscaling: false });
+  assert.deepEqual(full, { defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, webkit: false, cliControl: false, cliInstall: false, userScripts: false, externalLinks: true, performanceRecording: true, taskManager: true, videoUpscaling: false });
   assert.equal(linuxCapabilities(undefined).taskManager, false);
 });
 
@@ -52,7 +53,165 @@ test("unavailable choices map to exact settings ids and the Engines pane", () =>
   const none = linuxCapabilities(fakeHost().host);
   assert.deepEqual([...unavailableSettingIds(none, ids)].sort(), ["advanced.cliControl", "advanced.cliInstall", "appearance.pageScrollBars", "engines.defaultEngine", "engines.protectedVideo", "general.defaultBrowser", "general.openAtLogin", "tabs.videoUpscaling"]);
   assert.deepEqual([...unavailablePanes(none)], ["engines"]);
-  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, cliControl: true, videoUpscaling: true }, ids)].sort(), ["engines.defaultEngine", "engines.protectedVideo"]);
+  assert.deepEqual([...unavailableSettingIds({ ...none, defaultBrowser: true, launchAtLogin: true, thinScrollBars: true, cliControl: true, cliInstall: true, videoUpscaling: true }, ids)].sort(), ["engines.defaultEngine", "engines.protectedVideo"]);
+  const cliRows = (capabilities) => [...unavailableSettingIds(capabilities, ids)].filter((id) => id.startsWith("advanced.cli")).sort();
+  assert.deepEqual(cliRows({ ...none, cliControl: true }), ["advanced.cliInstall"]);
+  assert.deepEqual(cliRows({ ...none, cliInstall: true }), ["advanced.cliControl", "advanced.cliInstall"]);
+  assert.deepEqual(cliRows({ ...none, cliControl: true, cliInstall: true }), []);
+});
+
+test("the ardia command's rows follow the engine: every control and install method, or the rows stay hidden", () => {
+  assert.equal(linuxCapabilities(fakeHost([...CLI_CONTROL_METHODS]).host).cliControl, true);
+  assert.equal(linuxCapabilities(fakeHost([...CLI_INSTALL_METHODS]).host).cliInstall, true);
+  for (const missing of CLI_CONTROL_METHODS) {
+    assert.equal(linuxCapabilities(fakeHost(CLI_CONTROL_METHODS.filter((method) => method !== missing)).host).cliControl, false, missing);
+  }
+  assert.equal(linuxCapabilities(fakeHost(["ArdiaCli.install"]).host).cliInstall, false);
+});
+
+function cliHost(capabilities, installedVersion) {
+  const invoked = [];
+  const listeners = [];
+  const answers = { "ArdiaCli.installedVersion": "0.2.44", "ArdiaCli.install": { ok: true, appVersion: "0.2.45", binPath: "/home/u/.local/bin/ardia", installedVersion: "0.2.45", lines: [] } };
+  return {
+    invoked,
+    emit: (module, event, payload) => listeners.forEach((listener) => listener(module, event, payload)),
+    host: {
+      bootstrap: { windowId: "w1", profileId: "default", capabilities, nativeModules: installedVersion === undefined ? {} : { ArdiaCli: { installedVersion } } },
+      invoke: async (method, args) => {
+        invoked.push([method, args.args]);
+        if (method in answers) return answers[method];
+        return undefined;
+      },
+      call: async () => "{}",
+      onEvent: (listener) => {
+        listeners.push(listener);
+        return () => {};
+      },
+    },
+  };
+}
+
+test("the installed ardia version answers synchronously from the bootstrap, then from the host's refresh, installs and announcements", async () => {
+  const { host, invoked, emit } = cliHost([...CLI_INSTALL_METHODS], "0.2.43");
+  const installedVersion = resolveHostModule(host, "ArdiaCli", "installedVersion");
+  assert.equal(installedVersion(), "0.2.43");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(invoked, [["ArdiaCli.installedVersion", []]]);
+  assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), "0.2.44");
+  const result = await resolveHostModule(host, "ArdiaCli", "install")();
+  assert.equal(result.ok, true);
+  assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), "0.2.45");
+  emit("ArdiaCli", "onInstalledVersion", { version: null });
+  assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
+  emit("ArdiaShell", "onInstalledVersion", { version: "9.9.9" });
+  assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
+  assert.equal(invoked.filter(([method]) => method === "ArdiaCli.installedVersion").length, 1);
+});
+
+test("an engine without the ardia command keeps the old answers and never reaches the host", async () => {
+  const { host, invoked } = cliHost([]);
+  assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
+  assert.equal((await resolveHostModule(host, "ArdiaCli", "install")().catch((error) => error)).code, "ERR_UNAVAILABLE");
+  assert.deepEqual(await resolveHostModule(host, "ArdiaAutomation", "start")(), { state: "off", generation: 0, path: "", reason: "the control socket is unavailable on Linux" });
+  assert.equal(resolveHostModule(host, "ArdiaAutomation", "reply")(1, "{}", 0), undefined);
+  assert.deepEqual(invoked, []);
+});
+
+test("the control socket's methods reach the host once it advertises them, and reply and broadcast stay fire and forget", async () => {
+  const { host, invoked } = cliHost([...CLI_CONTROL_METHODS]);
+  await resolveHostModule(host, "ArdiaAutomation", "start")();
+  assert.equal(resolveHostModule(host, "ArdiaAutomation", "reply")(3, "{\"id\":1}", 7), undefined);
+  assert.equal(resolveHostModule(host, "ArdiaAutomation", "broadcast")([3, 4], "{\"event\":\"tab.opened\"}"), undefined);
+  await resolveHostModule(host, "ArdiaAutomation", "stop")();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(invoked, [
+    ["ArdiaAutomation.start", []],
+    ["ArdiaAutomation.reply", [3, "{\"id\":1}", 7]],
+    ["ArdiaAutomation.broadcast", [[3, 4], "{\"event\":\"tab.opened\"}"]],
+    ["ArdiaAutomation.stop", []],
+  ]);
+});
+
+test("userscripts run only on an engine that advertises all four ArdiaUserScripts methods", () => {
+  assert.equal(linuxCapabilities(fakeHost([...USER_SCRIPTS_METHODS]).host).userScripts, true);
+  for (const missing of USER_SCRIPTS_METHODS) {
+    assert.equal(linuxCapabilities(fakeHost(USER_SCRIPTS_METHODS.filter((method) => method !== missing)).host).userScripts, false, missing);
+  }
+});
+
+test("the userscripts folder's methods reach the host, and watch stays fire and forget", async () => {
+  const { host, invoked } = cliHost([...USER_SCRIPTS_METHODS]);
+  host.invoke = async (method, args) => {
+    invoked.push([method, args.args]);
+    if (method === "ArdiaUserScripts.watch") throw new Error("not a regular window");
+    return method === "ArdiaUserScripts.read" ? { state: "ready", generation: 2, path: "/d/Scripts/extension", token: "t" } : null;
+  };
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args);
+  try {
+    assert.equal(resolveHostModule(host, "ArdiaUserScripts", "watch")(true), undefined);
+    assert.deepEqual(await resolveHostModule(host, "ArdiaUserScripts", "read")(), { state: "ready", generation: 2, path: "/d/Scripts/extension", token: "t" });
+    assert.equal(await resolveHostModule(host, "ArdiaUserScripts", "readStatus")(), null);
+    await resolveHostModule(host, "ArdiaUserScripts", "writeStatus")("{\"generation\":2}");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    console.error = original;
+  }
+  assert.equal(errors.length, 1);
+  assert.deepEqual(invoked, [
+    ["ArdiaUserScripts.watch", [true]],
+    ["ArdiaUserScripts.read", []],
+    ["ArdiaUserScripts.readStatus", []],
+    ["ArdiaUserScripts.writeStatus", ["{\"generation\":2}"]],
+  ]);
+});
+
+test("one window at a time applies userscripts: the next one takes over when the holder's lock goes", async () => {
+  const queue = [];
+  const locks = {
+    request(name, callback) {
+      assert.equal(name, USER_SCRIPTS_LOCK);
+      return new Promise((resolve) => {
+        queue.push(() => callback().then(resolve));
+        if (queue.length === 1) queue[0]();
+      });
+    },
+  };
+  const started = [];
+  leadUserScripts({ locks, start: () => started.push("w1") });
+  leadUserScripts({ locks, start: () => started.push("w2") });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(started, ["w1"]);
+  queue[1]();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(started, ["w1", "w2"]);
+});
+
+test("without web locks, or when the lock fails, the window applies userscripts itself", async () => {
+  const started = [];
+  leadUserScripts({ start: () => started.push("plain") });
+  const reported = [];
+  leadUserScripts({ locks: { request: () => Promise.reject(new Error("no locks")) }, start: () => started.push("failed"), report: (error) => reported.push(error.message) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(started, ["plain", "failed"]);
+  assert.deepEqual(reported, ["no locks"]);
+});
+
+test("a failed fire-and-forget reply is reported, never thrown at the caller", async () => {
+  const { host } = cliHost([...CLI_CONTROL_METHODS]);
+  host.invoke = async () => { throw new Error("gone"); };
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args);
+  try {
+    assert.equal(resolveHostModule(host, "ArdiaAutomation", "reply")(1, "{}", 0), undefined);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    console.error = original;
+  }
+  assert.equal(errors.length, 1);
 });
 
 test("onboarding music and external links answer locally when the host has no backend for them", async () => {

@@ -11,7 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
-from ardia_cli.endpoint import EndpointError, require_control
+from ardia_cli import endpoint
+from ardia_cli.endpoint import EndpointError, chromium_dir, require_control
 
 DEFAULT_PROFILE_ID = "default"
 WEBKIT_EPOCH_OFFSET = 11644473600
@@ -25,6 +26,11 @@ _work_dirs: set[str] = set()
 _state = threading.Lock()
 _closing = False
 MAX_SESSION_BYTES = 256 * 1024 * 1024
+MAX_LINUX_SESSION_BYTES = 8 * 1024 * 1024
+MAX_LOCAL_STATE_BYTES = 64 * 1024 * 1024
+LINUX_SESSION = ("Ardia", "linux-session.json")
+LOCAL_STATE = "Local State"
+LEGACY_PIN_KEYS = ("pinned", "pinnedAsRow", "tileFolder")
 PRIVATE_PREFIXES = ("incognito", "guest", "private", "System Profile", "Guest Profile")
 
 
@@ -86,33 +92,84 @@ def checked_root(root: Path) -> Path:
     return root
 
 
-def read_session(root: Path, deadline: float) -> dict:
-    path = root / "session.json"
+def open_beneath(root: Path, parts: tuple[str, ...]) -> int | None:
+    path = root.joinpath(*parts)
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        folder = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
     except FileNotFoundError:
-        return {}
+        return None
     except OSError as error:
         raise BrowsingDataError(f"can't read {path} ({error.strerror})") from None
+    try:
+        for part in parts[:-1]:
+            inner = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=folder)
+            os.close(folder)
+            folder = inner
+        return os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=folder)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise BrowsingDataError(f"can't read {path} ({error.strerror})") from None
+    finally:
+        os.close(folder)
+
+
+def read_json(root: Path, parts: tuple[str, ...], deadline: float, limit: int):
+    path = root.joinpath(*parts)
+    fd = open_beneath(root, parts)
+    if fd is None:
+        return None
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise BrowsingDataError(f"{path} isn't a regular file")
         chunks = []
         size = 0
         while chunk := os.read(fd, 1024 * 1024):
-            out_of_time(deadline, "reading session.json")
+            out_of_time(deadline, f"reading {parts[-1]}")
             size += len(chunk)
-            if size > MAX_SESSION_BYTES:
+            if size > limit:
                 raise BrowsingDataError(f"{path} is too big")
             chunks.append(chunk)
         raw = b"".join(chunks)
     finally:
         os.close(fd)
     try:
-        session = json.loads(raw)
+        return json.loads(raw)
     except ValueError:
         raise BrowsingDataError(f"{path} isn't valid JSON (Ardia may be writing it; try again)") from None
-    version = session.get("version") if isinstance(session, dict) else None
+
+
+def regular_profile_folder(name) -> bool:
+    if not isinstance(name, str) or "/" in name or "\0" in name:
+        return False
+    if name == "Default":
+        return True
+    if not name.startswith("Profile ") or name == "Profile ":
+        return False
+    suffix = name[len("Profile ") :]
+    return not (any(suffix.lower().startswith(p.lower()) for p in PRIVATE_PREFIXES) or "@" in suffix or ":" in suffix)
+
+
+def app_profile_folder(root: Path, deadline: float) -> str:
+    try:
+        local_state = read_json(root, (LOCAL_STATE,), deadline, MAX_LOCAL_STATE_BYTES)
+    except OutOfTime:
+        raise
+    except BrowsingDataError:
+        local_state = None
+    profile = local_state.get("profile") if isinstance(local_state, dict) else None
+    last_used = profile.get("last_used") if isinstance(profile, dict) else None
+    return last_used if regular_profile_folder(last_used) else "Default"
+
+
+def read_session(root: Path, deadline: float, linux: bool | None = None) -> dict:
+    if endpoint.LINUX if linux is None else linux:
+        session = read_json(root, (app_profile_folder(root, deadline), *LINUX_SESSION), deadline, MAX_LINUX_SESSION_BYTES)
+        return session if isinstance(session, dict) else {}
+    session = read_json(root, ("session.json",), deadline, MAX_SESSION_BYTES)
+    if not isinstance(session, dict):
+        return {}
+    version = session.get("version")
     return session if isinstance(version, int) and not isinstance(version, bool) and version >= 2 else {}
 
 
@@ -121,33 +178,75 @@ def is_private(profile_id: str) -> bool:
 
 
 def profile_names(session: dict) -> dict[str, str]:
-    profiles = session.get("profiles") or {}
+    profiles = session.get("profiles")
+    if not isinstance(profiles, dict):
+        return {}
     return {pid: (p.get("name") or pid) for pid, p in profiles.items() if isinstance(p, dict) and not is_private(pid)}
 
 
-def pin_place(tab: dict) -> tuple[str, str | None] | None:
+def entries(value) -> list[dict]:
+    if isinstance(value, dict):
+        return [{"id": key, **item} if "id" not in item else item for key, item in value.items() if isinstance(item, dict)]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def strings(value) -> list[str]:
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+
+def folder_name(folder) -> str | None:
+    return folder.get("name") or None if isinstance(folder, dict) and isinstance(folder.get("name"), str) else None
+
+
+def pin_of(tab: dict) -> tuple[str, str | None] | None:
+    if any(key in tab for key in LEGACY_PIN_KEYS) or "pin" not in tab:
+        if tab.get("pinned") is not True:
+            return None
+        return ("pinned", None) if tab.get("pinnedAsRow") is True else ("favorite", folder_name(tab.get("tileFolder")))
     pin = tab.get("pin")
-    if isinstance(pin, dict):
-        if pin.get("as") == "row":
-            return "pinned", None
-        if pin.get("as") == "tile":
-            folder = pin.get("folder")
-            return "favorite", (folder.get("name") or None) if isinstance(folder, dict) else None
+    if not isinstance(pin, dict):
         return None
-    if tab.get("pinned") is True:
-        return ("pinned", None) if tab.get("pinnedAsRow") is True else ("favorite", None)
+    if pin.get("as") == "row":
+        return "pinned", None
+    if pin.get("as") == "tile":
+        return "favorite", folder_name(pin.get("folder"))
     return None
 
 
-def pinned(root: Path, deadline: float | None = None) -> list[dict]:
+def pinned_group_of(groups: list[dict]) -> dict[str, dict]:
+    by_id = {g["id"]: g for g in groups if isinstance(g.get("id"), str)}
+
+    def depth(group: dict) -> int:
+        seen = set()
+        while isinstance(group.get("parentId"), str) and group["parentId"] in by_id and group["parentId"] not in seen:
+            seen.add(group["parentId"])
+            group = by_id[group["parentId"]]
+        return len(seen)
+
+    found: dict[str, dict] = {}
+    for group in sorted((g for g in groups if g.get("pinned") is True), key=depth):
+        for tab_id in strings(group.get("tabIds")):
+            found[tab_id] = group
+    return found
+
+
+def ordered_windows(session: dict) -> list[dict]:
+    windows = [w for w in entries(session.get("windows")) if not w.get("incognito") and w.get("kind", "main") == "main"]
+    order = {wid: index for index, wid in enumerate(strings(session.get("windowOrder")))}
+    return sorted(windows, key=lambda w: order.get(w.get("id"), len(order)))
+
+
+def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
     deadline = deadline if deadline is not None else time.monotonic() + HISTORY_BUDGET
     root = checked_root(root)
     session = read_session(root, deadline)
     names = profile_names(session)
-    order = [pid for pid in session.get("profileOrder") or [] if pid in names] + [pid for pid in names if pid not in (session.get("profileOrder") or [])]
-    tabs = {t["id"]: t for t in session.get("tabs") or [] if isinstance(t, dict) and "id" in t}
-    groups = [g for g in session.get("groups") or [] if isinstance(g, dict)]
-    pinned_groups = {tab_id: g for g in groups if g.get("pinned") for tab_id in g.get("tabIds") or []}
+    saved_order = strings(session.get("profileOrder"))
+    order = [pid for pid in saved_order if pid in names] + [pid for pid in names if pid not in saved_order]
+    tabs = {t["id"]: t for t in entries(session.get("tabs")) if isinstance(t.get("id"), str)}
+    group_of = pinned_group_of(entries(session.get("groups")))
     seen: set[tuple[str, str]] = set()
     rows: list[tuple[int, dict]] = []
 
@@ -171,34 +270,32 @@ def pinned(root: Path, deadline: float | None = None) -> list[dict]:
             )
         )
 
-    windows = [w for w in session.get("windows") or [] if isinstance(w, dict) and not w.get("incognito")]
-    for window in windows:
-        for tab_id in window.get("tabIds") or []:
+    for window in ordered_windows(session):
+        for tab_id in strings(window.get("tabIds")):
             tab = tabs.get(tab_id)
             if not tab:
                 continue
             key = tab.get("pinKey") or tab_id
-            group = pinned_groups.get(tab_id)
-            place = pin_place(tab)
-            if group and not (place and place[0] == "favorite"):
-                place = ("pinned", group.get("name") or None)
-            if place:
-                add(tab.get("profileId", ""), key, tab, *place, False)
-    for profile_id, parked in (session.get("parkedPins") or {}).items():
+            pin = pin_of(tab)
+            group = group_of.get(tab_id)
+            if group and not (pin and pin[0] == "favorite"):
+                pin = ("pinned", group.get("name") or None)
+            if pin:
+                add(tab.get("profileId", ""), key, tab, pin[0], pin[1], False)
+    parked_pins = session.get("parkedPins")
+    for profile_id, parked in (parked_pins.items() if isinstance(parked_pins, dict) else ()):
         if not isinstance(parked, dict):
             continue
-        folders = {g.get("id"): g.get("name") for g in parked.get("groups") or [] if isinstance(g, dict)}
-        for tab in parked.get("tabs") or []:
-            if not isinstance(tab, dict):
-                continue
+        folders = {g.get("id"): g.get("name") for g in entries(parked.get("groups"))}
+        for tab in entries(parked.get("tabs")):
             group_id = tab.get("groupId")
-            place = ("pinned", folders.get(group_id) or None) if group_id else pin_place(tab) or ("favorite", None)
-            add(tab.get("profileId") or profile_id, tab.get("id", ""), tab, *place, True)
+            kind, folder = ("pinned", folders.get(group_id) or None) if group_id else (pin_of(tab) or ("favorite", None))
+            add(tab.get("profileId") or profile_id, tab.get("id", ""), tab, kind, folder, True)
     return [row for _, row in sorted(rows, key=lambda item: item[0])]
 
 
 def profile_dirs(root: Path, session: dict) -> list[tuple[str, Path]]:
-    chromium = root / "Chromium"
+    chromium = chromium_dir(root)
     names = profile_names(session)
     profiles = session.get("profiles") or {}
     by_dir: dict[str, str] = {}
@@ -212,10 +309,7 @@ def profile_dirs(root: Path, session: dict) -> list[tuple[str, Path]]:
         return found
     for entry in entries:
         name = entry.name
-        if name != "Default" and not name.startswith("Profile "):
-            continue
-        suffix = name[len("Profile ") :] if name.startswith("Profile ") else ""
-        if any(suffix.lower().startswith(p.lower()) for p in PRIVATE_PREFIXES) or "@" in suffix or ":" in suffix:
+        if not regular_profile_folder(name):
             continue
         if entry.is_symlink() or not entry.is_dir():
             continue

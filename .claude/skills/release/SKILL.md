@@ -389,6 +389,17 @@ does nothing when the cask is already there. `publish.sh` runs it for both chann
 skips them, so a late tap push only delays new installs. Lint after a cask edit by hand (never `brew install` it: that
 writes `/Applications/Ardia.app`): `brew audit --cask --online ardia-browser/tap/ardia` and `brew style ardia-browser/tap`.
 
+### 5d. Linux package
+
+After the macOS release is published, on a Linux machine with the same commit checked out:
+`scripts/linux/release.sh <version>`. It needs the notes file and `MARKETING_VERSION` as `release.sh` does, a clean
+tree, and the exact Linux engine for HEAD's `engine/` (publish it first with `scripts/linux/publish-engine.sh
+--upload`). It builds `Ardia-<version>-linux-x64.tar.xz` with `lib/ardia/VERSION` and the bundled CLI, the
+`ardia-cli-<version>-linux-x64.tar.gz` tarball, their `.sha256` files and `provenance.txt` into `dist/<version>/linux/`,
+then runs the smoke gate. It never uploads: run the `gh release upload v<version> …` line it prints. Nightly and
+stable go the same way; the assets join the release the macOS flow made (a prerelease for a nightly).
+`--engine nearest` or `--allow-dirty` make test builds, never releases (`docs/linux-ci.md` › Linux releases).
+
 ## 6. Deploy the site
 
 The download buttons and the root `README.md` (the landing page on GitHub) link the DMG of one tag

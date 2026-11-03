@@ -10,10 +10,12 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ardia_cli import control, urlmatch
+from ardia_cli import control, endpoint, urlmatch
 
 HOOKS_FILE = "hooks.json"
 LABEL = "dev.ardia.hooks"
+SERVICE = f"{LABEL}.service"
+RESTART_SECONDS = 10
 QUEUE_CAP = 100
 DEFAULT_TIMEOUT = 60.0
 KILL_GRACE = 5.0
@@ -588,7 +590,11 @@ class HookRunner:
             try:
                 await asyncio.wait_for(self._feed(process, payload), self.hook.timeout)
                 status = await asyncio.wait_for(process.wait(), max(deadline - loop.time(), 0))
-                await asyncio.wait_for(asyncio.gather(*pumps), max(deadline - loop.time(), 0))
+                if pumps:
+                    _, draining = await asyncio.wait(pumps, timeout=max(deadline - loop.time(), 0))
+                    if draining:
+                        raise asyncio.TimeoutError
+                    await asyncio.gather(*pumps)
             except asyncio.TimeoutError:
                 timed_out = True
                 status = await self._stop_group(process, pumps)
@@ -1009,9 +1015,14 @@ def load(path: Path, service: Service, log: Log) -> None:
 class AgentPaths:
     home: Path
     cli_home: Path
+    linux: bool = False
+    config_home: Path | None = None
+    state_home: Path | None = None
 
     @property
     def agents(self) -> Path:
+        if self.linux:
+            return self.config_home / "systemd" / "user"
         return self.home / "Library" / "LaunchAgents"
 
     @property
@@ -1019,7 +1030,17 @@ class AgentPaths:
         return self.agents / f"{LABEL}.plist"
 
     @property
+    def unit(self) -> Path:
+        return self.agents / SERVICE
+
+    @property
+    def definition(self) -> Path:
+        return self.unit if self.linux else self.plist
+
+    @property
     def logs(self) -> Path:
+        if self.linux:
+            return self.state_home / "ardia"
         return self.home / "Library" / "Logs" / "Ardia"
 
     @property
@@ -1031,10 +1052,14 @@ class AgentPaths:
         return self.cli_home / "current" / "bin" / "ardia"
 
 
-def agent_paths() -> AgentPaths:
+def agent_paths(linux: bool | None = None) -> AgentPaths:
+    home = Path.home()
+    if endpoint.LINUX if linux is None else linux:
+        cli_home = os.environ.get("ARDIA_CLI_HOME") or str(endpoint.xdg_dir("XDG_DATA_HOME", ".local", "share", absolute=True) / "ardia" / "cli")
+        return AgentPaths(home, Path(cli_home).expanduser(), True, endpoint.config_home(absolute=True), endpoint.xdg_dir("XDG_STATE_HOME", ".local", "state", absolute=True))
     from ardia_cli import usage
 
-    return AgentPaths(Path.home(), usage.cli_home())
+    return AgentPaths(home, usage.cli_home())
 
 
 def agent_plist(paths: AgentPaths, path_env: str | None) -> dict:
@@ -1073,4 +1098,71 @@ def agent_state(run=None) -> dict:
         name = key.replace(" ", "_")
         if sep and key in ("state", "pid", "last exit code") and name not in state:
             state[name] = int(value) if value.lstrip("-").isdigit() else value
+    return state
+
+
+def systemd_text(value: str) -> str:
+    if any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise HooksError(f"{value!r} has control characters, which a systemd unit can't hold")
+    return value.replace("%", "%%")
+
+
+def systemd_quote(value: str, expands_variables: bool = True) -> str:
+    text = systemd_text(value).replace("\\", "\\\\").replace('"', '\\"')
+    if expands_variables:
+        text = text.replace("$", "$$")
+    return f'"{text}"'
+
+
+def service_unit(paths: AgentPaths, path_env: str | None) -> str:
+    command = " ".join(systemd_quote(part) for part in (str(paths.launcher), "hooks", "run", "--log", str(paths.log)))
+    environment = " ".join(systemd_quote(item, expands_variables=False) for item in (f"PATH={path_env or DEFAULT_PATH}", "ARDIA_DATA_DIR="))
+    return f"""[Unit]
+Description=Ardia hooks (ardia hooks run)
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart={command}
+WorkingDirectory={systemd_text(str(paths.home))}
+Environment={environment}
+Restart=on-failure
+RestartSec={RESTART_SECONDS}
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def systemctl(arguments: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(["systemctl", "--user", *arguments], capture_output=True, text=True, timeout=20)
+
+
+SERVICE_PROPERTIES = ("LoadState", "ActiveState", "SubState", "UnitFileState", "MainPID", "ExecMainStatus")
+
+
+def service_state(run=None) -> dict:
+    run = run or systemctl
+    try:
+        result = run(["show", SERVICE, "--property=" + ",".join(SERVICE_PROPERTIES)])
+    except (OSError, subprocess.TimeoutExpired):
+        return {"loaded": None}
+    if result.returncode != 0:
+        return {"loaded": None}
+    values = {}
+    for line in result.stdout.splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep:
+            values[key] = value
+    if values.get("LoadState") != "loaded":
+        return {"loaded": False}
+    state = {"loaded": True, "active": values.get("ActiveState") == "active", "state": values.get("ActiveState", ""), "substate": values.get("SubState", ""), "enabled": values.get("UnitFileState", "")}
+    pid = values.get("MainPID", "0")
+    if pid.isdigit() and int(pid) > 0:
+        state["pid"] = int(pid)
+    status = values.get("ExecMainStatus", "")
+    if status.lstrip("-").isdigit():
+        state["last_exit_code"] = int(status)
     return state

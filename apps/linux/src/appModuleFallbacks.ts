@@ -43,9 +43,16 @@ const MODULE_FALLBACKS: Record<string, Record<string, Fallback>> = {
   ArdiaDockSelection: { iconTheme: refuse("Icon themes") },
   ArdiaSystem: { runningAppIcon: answer(null) },
   ArdiaCli: { install: refuse("The ardia command") },
-  ArdiaUserScripts: { read: answer({ state: "empty" }), readStatus: answer(null), writeStatus: answer(undefined) },
   ArdiaConfig: { watch: answer(undefined), writeSchemas: answer([]) },
   ArdiaAutomation: { start: answer({ state: "off", generation: 0, path: "", reason: "the control socket is unavailable on Linux" }), stop: answer(undefined) },
+  ArdiaSystemSignals: {
+    watchIdle: () => undefined,
+    holdsIncomingLinks: () => false,
+    setHoldIncomingLinks: () => undefined,
+    setApprovedDownloadFolders: () => undefined,
+    moveCompletedDownload: refuse("Moving a finished download"),
+    devPost: refuse("The developer hook ArdiaSystemSignals.devPost"),
+  },
 };
 
 const DEVELOPER_MODULES = new Set(["ArdiaApp", "ArdiaMagnifyArea", "ArdiaFileDrop"]);

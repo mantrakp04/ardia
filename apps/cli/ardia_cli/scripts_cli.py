@@ -71,6 +71,10 @@ ENDPOINT_EPILOG = """\
 Endpoint: --ws, else --port (plain DevTools servers only), else $ARDIA_CDP_URL, else
 <data dir>/Chromium/ArdiaControl.json with --data-dir or $ARDIA_DATA_DIR, else the installed Ardia's.
 """
+if sys.platform.startswith("linux"):
+    ENDPOINT_EPILOG = ENDPOINT_EPILOG.replace("<data dir>/Chromium/ArdiaControl.json", "<data dir>/ArdiaControl.json").replace(
+        "the installed Ardia's.", "the installed Ardia's\n(${XDG_CONFIG_HOME:-~/.config}/ardia)."
+    )
 UNKNOWN_EXIT = 3
 
 
