@@ -81,7 +81,7 @@ ARDIACORE_EXPORT
 + (void)openDeviceChooserSettings:(int)chooserId;
 - (void)deleteProfile:(ArdiaCoreProfile*)profile
            completion:(nullable void (^)(BOOL deleted))completion;
-- (void)releaseProfile:(ArdiaCoreProfile*)profile;
+- (NSString*)releaseProfile:(ArdiaCoreProfile*)profile;
 + (void)resolveExternalApp:(NSString*)requestId open:(BOOL)open remember:(BOOL)remember;
 @property(class, readonly) NSArray<NSDictionary*>* testExternalLaunches;
 @property(class, readonly) NSArray<NSDictionary*>* testChooserEvents;

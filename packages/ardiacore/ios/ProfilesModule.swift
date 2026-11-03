@@ -9,8 +9,7 @@ public class ProfilesModule: Module {
 
   static let calls = CallTable(domain: "profiles", handlers: [
     "release": { args, reply in
-      ArdiaHost.releaseProfile(args.profile)
-      reply.ok()
+      reply.ok(["status": ArdiaHost.releaseProfile(args.profile)])
     },
     "deleteData": { args, reply in PageEngines.deleteProfileData(profile: args.profile) { reply.ok(["remaining": $0]) } },
     "clearBrowsingData": { args, reply in

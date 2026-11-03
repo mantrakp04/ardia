@@ -17,6 +17,8 @@
 #include "chrome/browser/ardia/ac_tab_restore.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/download/download_core_service.h"
+#include "chrome/browser/download/download_core_service_factory.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/delete_profile_helper.h"
 #include "chrome/browser/profiles/nuke_profile_directory_utils.h"
@@ -27,6 +29,7 @@
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -328,20 +331,66 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
   }
 }
 
-- (void)releaseProfile:(ArdiaCoreProfile*)profile {
+- (NSString*)releaseProfile:(ArdiaCoreProfile*)profile {
   Profile* chrome_profile = profile.chromeProfile;
-  if (!chrome_profile || !chrome_profile->IsOffTheRecord()) {
-    return;
+  if (!chrome_profile) {
+    return @"released";
   }
-  bool in_use = false;
-  GlobalBrowserCollection::GetInstance()->ForEach([&](BrowserWindowInterface* browser) {
-    in_use |= browser->GetProfile() == chrome_profile &&
-              !browser->capabilities()->IsAttemptingToCloseBrowser();
-    return !in_use;
-  });
-  if (!in_use) {
+  if (chrome_profile->IsOffTheRecord()) {
+    bool in_use = false;
+    GlobalBrowserCollection::GetInstance()->ForEach([&](BrowserWindowInterface* browser) {
+      in_use |= browser->GetProfile() == chrome_profile &&
+                !browser->capabilities()->IsAttemptingToCloseBrowser();
+      return !in_use;
+    });
+    if (in_use) {
+      return @"busy";
+    }
     ProfileDestroyer::DestroyOTRProfileWhenAppropriate(chrome_profile);
+    return profile.destroyed ? @"released" : @"pending";
   }
+  if (!chrome_profile->IsRegularProfile() || browser_shutdown::IsTryingToQuit() ||
+      ardiacore::IsProfileDying(chrome_profile) ||
+      ardiacore::IsProfileDeleting(chrome_profile)) {
+    return @"busy";
+  }
+  DownloadCoreService* downloads =
+      DownloadCoreServiceFactory::GetForBrowserContext(chrome_profile);
+  if (downloads && downloads->BlockingShutdownCount() > 0) {
+    return @"busy";
+  }
+  std::vector<base::WeakPtr<BrowserWindowInterface>> browsers;
+  bool in_use = false;
+  GlobalBrowserCollection::GetInstance()->ForEach([&](BrowserWindowInterface* window) {
+    if (window->GetProfile() != chrome_profile) {
+      return true;
+    }
+    ardiacore::WindowHost* host = ardiacore::WindowHost::ForBrowser(window);
+    Browser* browser = host ? host->ExistingBrowserFor(chrome_profile) : nullptr;
+    if (!host || !browser || host->IsActiveBrowser(browser) ||
+        browser->GetTabStripModel()->count() != 0) {
+      in_use = true;
+      return false;
+    }
+    browsers.push_back(browser->GetWeakPtr());
+    return true;
+  });
+  if (in_use) {
+    return @"busy";
+  }
+  base::WeakPtr<Profile> weak = chrome_profile->GetWeakPtr();
+  for (const auto& browser : browsers) {
+    if (browser) {
+      Browser* live_browser = static_cast<Browser*>(browser.get());
+      if (!live_browser->IsDeleteScheduled()) {
+        live_browser->GetWindow()->Close();
+      }
+    }
+  }
+  if (weak) {
+    g_browser_process->profile_manager()->ClearFirstBrowserWindowKeepAlive(weak.get());
+  }
+  return profile.destroyed ? @"released" : @"pending";
 }
 
 + (void)allowDesktopCapture:(NSString*)sourceId

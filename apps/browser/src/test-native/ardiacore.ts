@@ -340,7 +340,7 @@ const fakeModules = {
     removeExternalAppAllowance: () => null,
   }),
   ArdiaProfiles: domain("profiles", {
-    release: () => null,
+    release: () => ({ status: "released" }),
     deleteData: ({ profile }) => (deletedProfileData.push(profile), { remaining: profileDataLeft.get(profile) ?? [] }),
     clearBrowsingData: () => null,
   }),

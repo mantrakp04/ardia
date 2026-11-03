@@ -1,4 +1,5 @@
 import { onSystemState, setBatterySaver, systemState, type SystemState } from "../../platform/performance";
+import { idleProfiles } from "../profiles/idleProfiles";
 import { releaseProfile } from "../../platform/profiles";
 import { showToast } from "../app/toasts";
 import { openSettings } from "../settings/settingsWindows";
@@ -19,6 +20,9 @@ const RELEASE_PROFILES_MS = 60_000;
 const store = () => useBrowser.getState();
 
 const loadedProfiles = new Set<string>();
+const profileGenerations = new Map<string, number>();
+const readyToRelease = idleProfiles();
+const releasingProfiles = new Set<string>();
 
 let system: SystemState | null = null;
 let systemOverride: Partial<SystemState> | null = null;
@@ -26,7 +30,11 @@ const currentSystem = () => (system ? { ...system, ...systemOverride } : null);
 
 export function noteReady(tabId: string) {
   const tab = store().tabs[tabId];
-  if (tab) loadedProfiles.add(engineProfile(useBrowser.getState(), tab.profileId));
+  if (tab) {
+    const profile = engineProfile(useBrowser.getState(), tab.profileId);
+    loadedProfiles.add(profile);
+    profileGenerations.set(profile, (profileGenerations.get(profile) ?? 0) + 1);
+  }
   forget(tabId);
 }
 
@@ -53,10 +61,13 @@ function releaseUnusedProfiles() {
     const tab = s.tabs[id];
     if (tab) inUse.add(engineProfile(s, tab.profileId));
   }
-  for (const profile of [...loadedProfiles]) {
-    if (!profile || isIncognitoProfile(profile) || inUse.has(profile)) continue;
-    loadedProfiles.delete(profile);
-    void releaseProfile(profile);
+  for (const profile of readyToRelease(loadedProfiles, inUse, Date.now())) {
+    if (isIncognitoProfile(profile) || releasingProfiles.has(profile)) continue;
+    releasingProfiles.add(profile);
+    const generation = profileGenerations.get(profile);
+    void releaseProfile(profile).then((result) => {
+      if (result?.status === "released" && profileGenerations.get(profile) === generation) loadedProfiles.delete(profile);
+    }).catch(() => {}).finally(() => releasingProfiles.delete(profile));
   }
 }
 
@@ -101,6 +112,7 @@ export function startTabLifecycle() {
 
   startMemorySaver();
   useBrowser.subscribe((s: BrowserState, prev: BrowserState) => {
+    if (s.windows !== prev.windows || s.profiles !== prev.profiles) releaseUnusedProfiles();
     if (s.settings.batterySaverWhen !== prev.settings.batterySaverWhen) {
       lowBatteryHeld = false;
       updateBatterySaver(false);

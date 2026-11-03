@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, readonly) BOOL isTracing;
 + (void)deleteProfileData:(NSString *)profile completion:(void (^)(NSArray<NSString *> *remaining))completion
     NS_SWIFT_NAME(deleteProfileData(_:completion:));
-+ (void)releaseProfile:(NSString *)profile;
++ (NSString *)releaseProfile:(NSString *)profile;
 + (BOOL)stopCapture:(NSString *)tabId NS_SWIFT_NAME(stopCapture(tabId:));
 + (BOOL)showAutofillSuggestions:(NSString *)tabId passwords:(BOOL)passwords NS_SWIFT_NAME(showAutofillSuggestions(tabId:passwords:));
 + (int)chromeTabIdOfTab:(NSString *)tabId NS_SWIFT_NAME(chromeTabId(ofTab:));
