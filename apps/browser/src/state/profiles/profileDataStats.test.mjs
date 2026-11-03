@@ -13,6 +13,11 @@ test("unopened profile stats distinguish unknown history from a loaded empty vie
     assert.match(row.value, /^History not loaded/);
     useBrowser.setState({ history: { [profile]: { list: [], floor: -Infinity, ready: true } } });
     assert.match(row.value, /^0 pages in history/);
+    const list = ["https://example.com", "https://example.org"].map((url) => ({
+      url, title: url, favicon: null, visits: 1, lastVisit: 1,
+    }));
+    useBrowser.setState({ history: { [profile]: { list, floor: -Infinity, ready: true } } });
+    assert.match(row.value, /^2 pages in history/);
   } finally {
     row.unmount();
   }
