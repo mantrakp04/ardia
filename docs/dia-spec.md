@@ -960,6 +960,16 @@ differs in a few places:
 - The window is remembered by its frame (Chrome's `ArdiaPictureInPicture.plist`), not by its corner.
 - A drag or swipe past a screen side keeps Ardia's 28 pt peek stash rather than Dia's off-screen one.
 - A swipe whose fingers rested more than 0.1 s before lifting doesn't throw.
+- The corner isn't Dia's ±45° heading from the grabbed spot. Ardia projects the window's centre 0.5 s along the fling
+  (UIKit's normal deceleration) and takes the nearest corner of the display under the window's centre, so a short
+  flick stays on its side and every fling lands somewhere. A fling toward a side the window is within half its
+  width of, with no display beyond, stashes it there.
+- Throws use a 0.4 s response spring (damping 0.9), not Dia's 0.9 s: 90 % of the way in 0.23 s and settled in 0.82 s
+  rather than 1.74 s, which felt floaty after a two-finger swipe.
+- Stashing happens on release, carrying the release velocity, on a 0.35 s response spring (damping 0.9). Showing it
+  again uses the same spring. The handle fades in over 0.12 s once the window lands and out over 0.1 s as it leaves.
+- A click on the stash handle is read in Ardia's own event monitor, so it works whatever Chrome's window does with the
+  click. A press on the handle that moves 3 pt becomes a drag.
 - Its screen is the one the window overlaps most.
 - While a swipe or drag moves it, the window keeps at least 60 pt × 40 % on a display. It slides along an edge rather than leaving, and stays below the menu bar and above the Dock unless another display lies that way.
 - A window larger than its display stays on that display.

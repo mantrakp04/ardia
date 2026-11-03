@@ -41,6 +41,18 @@ BOOL GrabsWindowBackground(NSWindow *window, NSEvent *event) {
 
 __weak NSWindow *gDragged;
 
+__weak NSWindow *gHandlePressed;
+
+NSPoint gHandleDown;
+
+NSTimeInterval gHandleDownAt;
+
+BOOL OnHandle(NSWindow *window, NSEvent *event) {
+  ArdiaPiPHandle *handle = [ArdiaPiPController forWindow:window].overlay.handle;
+  if (!handle || handle.hidden || [ArdiaPiPController forWindow:window].stashedEdge == ArdiaPiPEdgeNone) return NO;
+  return NSPointInRect([handle convertPoint:event.locationInWindow fromView:nil], handle.bounds);
+}
+
 NSPoint gLastMouse;
 
 NSPoint gGrabLocal;
@@ -62,6 +74,13 @@ void InstallDragMonitor() {
                                    handler:^NSEvent *(NSEvent *event) {
                                      if (event.type == NSEventTypeLeftMouseDown) {
                                        NSWindow *window = event.window;
+                                       gHandlePressed = OnHandle(window, event) ? window : nil;
+                                       if (gHandlePressed) {
+                                         gDragged = nil;
+                                         gHandleDown = ScreenLocation(event);
+                                         gHandleDownAt = event.timestamp;
+                                         return nil;
+                                       }
                                        gDragged = GrabsWindowBackground(window, event) ? window : nil;
                                        if (!gDragged) return event;
                                        [ArdiaPiPController abandonSwipeOn:window];
@@ -73,6 +92,24 @@ void InstallDragMonitor() {
                                        gDragSamples.clear();
                                        SampleDrag(event, mouse);
                                        return nil;
+                                     }
+                                     if (NSWindow *pressed = gHandlePressed) {
+                                       const NSPoint mouse = ScreenLocation(event);
+                                       if (event.type == NSEventTypeLeftMouseUp) {
+                                         gHandlePressed = nil;
+                                         [[ArdiaPiPController forWindow:pressed] unstash];
+                                         return nil;
+                                       }
+                                       if (hypot(mouse.x - gHandleDown.x, mouse.y - gHandleDown.y) < 3) return nil;
+                                       gHandlePressed = nil;
+                                       gDragged = pressed;
+                                       [ArdiaPiPController abandonSwipeOn:pressed];
+                                       [[ArdiaPiPController forWindow:pressed] stopMotion];
+                                       gLastMouse = gHandleDown;
+                                       gGrabLocal = NSMakePoint(gHandleDown.x - NSMinX(pressed.frame), gHandleDown.y - NSMinY(pressed.frame));
+                                       gDragHome = [[ArdiaPiPController forWindow:pressed] gestureHome];
+                                       gDragSamples.clear();
+                                       gDragSamples.push_back({gHandleDownAt, gHandleDown.x, gHandleDown.y});
                                      }
                                      NSWindow *window = gDragged;
                                      if (!window) return event;
