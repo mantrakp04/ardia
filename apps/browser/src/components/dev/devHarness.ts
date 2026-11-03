@@ -73,6 +73,9 @@ export function startDevHarness() {
     get omniboxProviders(): typeof import("../../state/omnibox/activeProviders") & typeof import("../../state/omnibox/providerApproval") & typeof import("../../state/omnibox/providers") {
       return { ...require("../../state/omnibox/activeProviders"), ...require("../../state/omnibox/providerApproval"), ...require("../../state/omnibox/providers") };
     },
+    get automationApprovals(): typeof import("../../state/automation/approvals") {
+      return require("../../state/automation/approvals");
+    },
     get switcher(): typeof import("../../state/sidebar/switcher") {
       return require("../../state/sidebar/switcher");
     },
