@@ -41,7 +41,7 @@ final class FocusHandoff {
     init(_ window: NSWindow) { self.window = window }
   }
 
-  private static let lifetime: CFTimeInterval = 0.4
+  private static let lifetime: CFTimeInterval = 1.5
   private static let capacity = 64
   private var gates: [ObjectIdentifier: Gate] = [:]
   private var generations = 0
