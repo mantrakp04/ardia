@@ -4,7 +4,7 @@ import { test } from "node:test";
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
 const { historyOf } = await import("./history.ts");
-const { DAY_MS, expireOldHistory, historyCutoff, keepHistoryFor, shortensHistory } = await import("./retention.ts");
+const { DAY_MS, RETENTION_DOCUMENT, expireOldHistory, historyCutoff, historyTrimmedBefore, keepHistoryFor, shortensHistory } = await import("./retention.ts");
 const { DEFAULT_SETTINGS, SETTING_SPECS, parseSettings } = await import("../settings/settings.ts");
 const { SYNCED_SETTINGS } = await import("../sync/settingsAdapter.ts");
 const { isConfigSettingKey } = await import("../settings/configAllowlist.ts");
@@ -96,4 +96,23 @@ test("keep history: sync's own window shrinks to this Mac's period and stays 90 
   assert.equal(syncedHistorySince(now), now - 90 * DAY_MS);
   S().updateSettings({ keepHistory: "month" });
   assert.equal(syncedHistorySince(now), now - 30 * DAY_MS);
+});
+
+test("keep history: the cutoff it trimmed to is saved, and never moves back", async () => {
+  S().hydrate({});
+  stub.historyDbs.clear();
+  stub.docs.delete(RETENTION_DOCUMENT);
+  assert.equal(historyTrimmedBefore(), -Infinity);
+  await expireOldHistory(NOW);
+  assert.equal(historyTrimmedBefore(), -Infinity, "Forever trims nothing");
+  S().updateSettings({ keepHistory: "month" });
+  await expireOldHistory(NOW);
+  assert.equal(historyTrimmedBefore(), NOW - 30 * DAY_MS);
+  S().updateSettings({ keepHistory: "year" });
+  await expireOldHistory(NOW + DAY_MS);
+  assert.equal(historyTrimmedBefore(), NOW - 30 * DAY_MS, "a longer period doesn't move it back");
+  stub.docs.set(RETENTION_DOCUMENT, JSON.stringify({ version: 2, trimmedBefore: NOW }));
+  assert.equal(historyTrimmedBefore(), -Infinity, "a newer version reads as nothing");
+  stub.docs.set(RETENTION_DOCUMENT, JSON.stringify({ version: 1, trimmedBefore: "soon" }));
+  assert.equal(historyTrimmedBefore(), -Infinity);
 });

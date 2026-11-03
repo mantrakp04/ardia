@@ -15,6 +15,7 @@ const stub = await import("../../test-native/index.ts");
 const { loadSession } = await import("../session/persist.ts");
 const passwords = await import("../../platform/passwords.ts");
 const history = await import("../../platform/history.ts");
+const retention = await import("../history/retention.ts");
 
 const S = () => useBrowser.getState();
 
@@ -2210,6 +2211,7 @@ test("history: a Mac that keeps a month drops its older history, and the other M
   const short = new Device("devKeepsMonth", folder);
   const long = new Device("devKeepsAll", folder);
   for (const d of [short, long]) stub.historyDbs.delete(d.id);
+  stub.docs.delete(retention.RETENTION_DOCUMENT);
   const day = 86_400_000;
   const old = Date.now() - 45 * day;
   const recent = Date.now() - 3_600_000;
@@ -2222,10 +2224,8 @@ test("history: a Mac that keeps a month drops its older history, and the other M
   await syncAll([short, long]);
   assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"]);
 
-  short.with(() => {
-    S().updateSettings({ keepHistory: "month" });
-    S().trimHistoryBefore(Date.now() - 30 * day);
-  });
+  const expiring = short.with(() => retention.keepHistoryFor("month"));
+  assert.deepEqual((await expiring).sort(), [""]);
   assert.deepEqual(todaysHistory(short), ["https://recent.example/"]);
   await syncAll([short, long]);
   assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"], "the other Mac's older history stays");
@@ -2235,4 +2235,8 @@ test("history: a Mac that keeps a month drops its older history, and the other M
   long.with(() => S().importHistory("default", [{ url: "https://older.example/", title: "Older", visits: 1, lastVisit: Date.now() - 50 * day }]));
   await syncAll([long, short]);
   assert.deepEqual(todaysHistory(short), ["https://recent.example/"], "visits older than its period don't arrive either");
+
+  short.with(() => S().updateSettings({ keepHistory: "forever" }));
+  await syncAll([short, long]);
+  assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://older.example/", "https://recent.example/"], "keeping more again deletes nothing elsewhere");
 });

@@ -4,7 +4,7 @@ import { orWarn } from "../../lib/fallback";
 import { assignPositions, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
 import { bookmarkRoots, bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../bookmarks/bookmarks";
 import { historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
-import { historyCutoff } from "../history/retention";
+import { historyCutoff, historyTrimmedBefore } from "../history/retention";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
@@ -197,10 +197,11 @@ export function historyAdapter(profileId: string): Adapter {
         const edited = !known || local.vt.some((t) => !known.vt.some((k) => Math.abs(k - t) <= SAME_VISIT_MS));
         values.set(key, edited ? local : known);
       }
+      const trimmed = historyTrimmedBefore();
       const ignore = (key: string) => {
         if (older.has(key) || !isWebPageUrl(recordId(HISTORY, key))) return true;
         const known = historyValue(base(key));
-        return !!known && (lastVisitOf(known) < since || lastVisitOf(known) <= floor);
+        return !!known && (lastVisitOf(known) < since || lastVisitOf(known) <= floor || lastVisitOf(known) < trimmed);
       };
       return { values, ignore };
     },
