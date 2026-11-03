@@ -120,6 +120,7 @@ export function TabsPane() {
         <Row anchor="tabs.newTabButtonPosition">
           <PopUp value={newTabButtonPosition} options={NEW_TAB_BUTTON} onChange={(v) => updateSettings({ newTabButtonPosition: v })} minWidth={190} />
         </Row>
+        <SettingToggle anchor="tabs.appLinksFirst" />
         <SettingToggle anchor="tabs.shareTabsAcrossWindows" />
         <SettingToggle anchor="tabs.warnBeforeClosingLastTab" />
         <SettingToggle anchor="tabs.tabReorderHaptics" />

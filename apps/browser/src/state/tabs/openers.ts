@@ -27,7 +27,7 @@ export function insertionIndex(s: BrowserState, w: BrowserWindow, tab: Tab, back
   return outsideSplit(s, w, index);
 }
 
-function firstRegular(s: BrowserState, w: BrowserWindow, profileId: string): number {
+export function firstRegular(s: BrowserState, w: BrowserWindow, profileId: string): number {
   const first = w.tabIds.findIndex((id) => s.tabs[id]?.profileId === profileId && regular(s, id));
   return first >= 0 ? first : w.tabIds.length;
 }
