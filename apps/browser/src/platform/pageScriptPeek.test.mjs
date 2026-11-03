@@ -16,6 +16,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const opened = [];
   const clicked = [];
   const listeners = {};
+  const timers = [];
   let clock = 1000;
   class Node {
     get nodeType() {
@@ -78,14 +79,17 @@ function environment({ top = true, page = "https://page.example", selection = nu
       this.type = type;
       this.isTrusted = init.trusted ?? true;
       this.path = init.path ?? [];
-      this.defaultPrevented = false;
+      this.prevented = false;
       this.stopped = false;
+    }
+    get defaultPrevented() {
+      return this.prevented;
     }
     composedPath() {
       return this.path;
     }
     preventDefault() {
-      this.defaultPrevented = true;
+      this.prevented = true;
     }
     stopImmediatePropagation() {
       this.stopped = true;
@@ -149,7 +153,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     }
   }
   const document = new Document();
-  const window = { open: (...args) => opened.push(args) };
+  const window = { open: (...args) => opened.push(args), setTimeout: (fn) => timers.push(fn) };
   Object.defineProperty(window, "devicePixelRatio", { get: () => 2 });
   const handlers = Object.create(null);
   const env = {
@@ -163,7 +167,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     handlers,
     window,
     document,
-    addEventListener: (type, fn) => (listeners[type] = fn),
+    addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
     MouseEvent,
     Node,
     Element,
@@ -181,7 +185,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
   new Function(...Object.keys(env), source)(...Object.values(env));
   const fire = (type, path, init = {}) => {
     const e = new MouseEvent(type, { path: [...path, document, window], ...init });
-    listeners[type](e);
+    for (const fn of listeners[type] ?? []) fn(e);
     return e;
   };
   const gesture = (path, keys, { move = 0, release = path, between } = {}) => {
@@ -190,11 +194,15 @@ function environment({ top = true, page = "https://page.example", selection = nu
     fire("mouseup", release, { ...keys, x: 10 + move });
     return fire("click", release, { ...keys, x: 10 + move });
   };
-  const transition = (type, init) => listeners[type](new PageTransitionEvent(type, init));
+  const transition = (type, init) => {
+    for (const fn of listeners[type] ?? []) fn(new PageTransitionEvent(type, init));
+  };
+  const flush = () => timers.splice(0).forEach((fn) => fn());
   return {
     document,
     selected,
     transition,
+    flush,
     handlers,
     sent,
     opened,
@@ -204,6 +212,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     tick: (ms) => (clock += ms),
     link: (href, attrs = {}) => new HTMLAnchorElement("a", { href, ...attrs }),
     div: () => new HTMLElement("div"),
+    element: (name, attrs) => new Element(name, attrs),
     svgLink: (href) => new Element("a", { href }, "http://www.w3.org/2000/svg"),
   };
 }
@@ -522,4 +531,77 @@ test("when native refuses an other-site peek, the page follows the link it swall
   env.handlers.peekRefused({ url: "https://other.example/svg", reason: "x", follow: true });
   assert.equal(env.clicked.length, 2);
   assert.deepEqual(env.clicked[1].attrs, { href: "https://other.example/svg", target: "_self" });
+});
+
+const newTabLinks = (env) => env.sent.filter((m) => m.kind === "newTabLink").map((m) => m.url);
+
+test("a plain click on a link that opens a new tab notes it once the click is done", () => {
+  const env = environment();
+  env.gesture([env.link("https://other.example/x", { target: "_blank" })], {});
+  assert.deepEqual(newTabLinks(env), [], "nothing before dispatch ends");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/x"]);
+});
+
+test("a named target or the page's <base target> counts; _self, _top, _parent and no target don't", () => {
+  const env = environment();
+  for (const target of ["_self", "_TOP", "_parent"]) env.gesture([env.link(`/${target}`, { target })], {});
+  env.gesture([env.link("/none")], {});
+  env.flush();
+  assert.deepEqual(newTabLinks(env), []);
+  env.gesture([env.link("/named", { target: "results" })], {});
+  env.document.base = env.element("base", { target: "_blank" });
+  env.gesture([env.link("/based")], {});
+  env.gesture([env.link("/own-self", { target: "_self" })], {});
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://page.example/named", "https://page.example/based"]);
+});
+
+test("a modified, cancelled, untrusted or non-primary click isn't noted", () => {
+  const env = environment();
+  const blank = (href) => env.link(href, { target: "_blank" });
+  for (const keys of [{ meta: true }, { shift: true }, { alt: true }, { ctrl: true }, { meta: true, shift: true }]) env.gesture([blank("/mod")], keys);
+  env.fire("click", [blank("/untrusted")], { trusted: false });
+  env.fire("click", [blank("/middle")], { button: 1 });
+  const cancelled = env.gesture([blank("/cancelled")], {});
+  cancelled.preventDefault();
+  env.flush();
+  assert.deepEqual(newTabLinks(env), []);
+});
+
+test("downloads, non-http(s) links and links in editable content aren't noted", () => {
+  const env = environment();
+  env.gesture([env.link("/file.zip", { target: "_blank", download: "" })], {});
+  env.gesture([env.link("mailto:a@b.example", { target: "_blank" })], {});
+  const a = env.link("/edit", { target: "_blank" });
+  a.editable = true;
+  env.gesture([a, env.div()], {});
+  env.flush();
+  assert.deepEqual(newTabLinks(env), []);
+});
+
+test("a link its click handler rewrites is noted with the address the browser opens", () => {
+  const env = environment();
+  const a = env.link("/tracked", { target: "_blank" });
+  env.gesture([a], {});
+  a.setAttribute("href", "https://other.example/landing");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
+  const b = env.link("/to-script", { target: "_blank" });
+  env.gesture([b], {});
+  b.setAttribute("href", "javascript:void 0");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
+});
+
+test("the target is read once click handlers have run: one they add counts, one they clear doesn't", () => {
+  const env = environment();
+  const plain = env.link("/made-blank");
+  env.gesture([plain], {});
+  plain.setAttribute("target", "_blank");
+  const blank = env.link("/made-self", { target: "_blank" });
+  env.gesture([blank], {});
+  blank.setAttribute("target", "_self");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://page.example/made-blank"]);
 });

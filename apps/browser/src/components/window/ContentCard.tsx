@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { startChromeTabs } from "../../state/tabs/chromeTabs";
 import { useIsSmallWindow, useSplitOf } from "../../state/windows/card";
 import { usePeeks } from "../../state/peek/hooks";
-import { useActiveTabId, useSettings, useWindowId } from "../../state/browser/hooks";
+import { useActiveTabId, useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import { useBookmarksBarMode } from "../../state/bookmarks/hooks";
 import { POPOVER_MARGIN } from "../ui";
@@ -11,7 +11,7 @@ import { NO_TOOLBAR, toolbarGeometry, type Rect, type ToolbarGeometry } from "./
 import { startPermissionPrompts } from "../../state/site/permissions";
 import { useFullscreenTab } from "../../state/tabs/pageState";
 import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
-import { dockMoving, usePeekEdge, whenDockStill } from "../../state/windows/dockMotion";
+import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
@@ -34,6 +34,7 @@ export function ContentCard() {
   const split = useSplitOf(activeId);
   const fullscreenTab = useFullscreenTab(windowId);
   const tabLayout = useTabLayout();
+  const lightsOnCard = useSidebarSide(windowId) === "right";
   const addressInSidebar = useAddressBarInSidebar();
   const small = useIsSmallWindow(windowId);
   const hideWhileScrolling = useSettings((st) => st.hideToolbarWhileScrolling);
@@ -64,7 +65,7 @@ export function ContentCard() {
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (chrome.kind === "none") return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
-    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton });
+    return toolbarGeometry({ sidebarButton: leading && tabLayout === "sidebar" && showSidebarButton, lights: leading && lightsOnCard && !fullscreenTab });
   };
 
   const focusedRect = activeId ? panes[activeId] : undefined;
@@ -78,7 +79,7 @@ export function ContentCard() {
         width: focusedRect.width - g.urlLeft - urlFieldRight(!!split, extensionsWidth, toolbarRow),
       });
     return watchToolbarExtensionsWidth(windowId, place);
-  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow]);
+  }, [origin, focusedRect?.x, focusedRect?.y, focusedRect?.width, tabLayout, chrome.kind, !!split, showSidebarButton, toolbarRow, lightsOnCard, !!fullscreenTab]);
 
   useEffect(() => {
     if (origin && size.width > 0) setCardAnchor(windowId, { left: origin.x, top: origin.y, width: size.width, height: size.height });
@@ -100,9 +101,9 @@ export function ContentCard() {
     [windowId],
   );
 
-  const peekEdge = usePeekEdge(windowId);
+  const peek = usePeekSpan(windowId);
   const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const popoversOverCard = peek !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -151,12 +152,12 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(chrome.kind !== "none" && !chrome.autoHide ? toolbarRow.height : 0) + (barMode === "always" && !small && !hideWhileScrolling ? barHeight : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
-      {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
+      {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          left={peek[0] === -Infinity ? Math.max(activeRect.x, peek[1] - origin.x) + POPOVER_MARGIN : Infinity}
           top={activeRect.y + POPOVER_MARGIN}
-          room={size.width}
+          room={peek[0] === -Infinity ? size.width : Math.min(size.width, peek[0] - origin.x)}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}

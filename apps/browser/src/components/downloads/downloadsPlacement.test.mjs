@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { DOWNLOADS_PANEL, downloadsPlacement } from "./downloadsPlacement.ts";
 
 const WINDOW = { width: 1200, height: 800 };
-const FALLBACK = { topStrip: false, footer: false, footerBottom: 30 };
+const FALLBACK = { topStrip: false, footer: false, footerBottom: 30, sidebarRight: false };
 const { width, margin, arrowGap, arrowHeight } = DOWNLOADS_PANEL;
 
 test("sidebar header button: the panel hangs below it, its arrow on the button's centre", () => {
@@ -54,4 +54,13 @@ test("a window narrower than the panel shrinks it to fit", () => {
   const p = downloadsPlacement({ width: 260, height: 500 }, { x: 200, y: 4, width: 34, height: 34 }, FALLBACK);
   assert.equal(p.width, 260 - margin * 2);
   assert.equal(p.left, margin);
+});
+
+test("no visible button with the sidebar on the right: the fixed spot mirrors to the right edge", () => {
+  const p = downloadsPlacement(WINDOW, null, { ...FALLBACK, sidebarRight: true });
+  assert.equal(p.left + p.width, WINDOW.width - 10);
+  assert.equal(p.top, 44);
+  const footer = downloadsPlacement(WINDOW, null, { ...FALLBACK, sidebarRight: true, footer: true });
+  assert.equal(footer.left + footer.width, WINDOW.width - 10);
+  assert.equal(footer.bottom, 30);
 });

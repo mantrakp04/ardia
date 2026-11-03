@@ -174,6 +174,7 @@ enum MainMenu {
       .separator(),
       cmd(.toggleTabLayout),
       cmd(.toggleSidebar),
+      cmd(.toggleSidebarSide),
       .separator(),
       cmd(.openSplitPane),
       cmd(.focusNextPane),

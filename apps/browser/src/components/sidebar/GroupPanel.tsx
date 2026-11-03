@@ -12,7 +12,7 @@ import { clickTab, returnFocusToPage } from "../../state/sidebar/actions";
 import { byRecentUse, matchingRows, type GroupPanelTab } from "../../state/sidebar/groupPanelRows";
 import { dismissHover, holdHover } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
-import { hoverCardOrigin } from "./hoverMotion";
+import { useHoverCardOrigin } from "./hoverMotion";
 import { useSidebarUi, type Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 
@@ -58,7 +58,7 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
   const current = Math.max(0, Math.min(selected, rows.length - 1));
   const listHeight = LIST_PAD * 2 + Math.max(1, Math.min(MAX_ROWS, all.length)) * ROW;
   const panelHeight = SEARCH_ROW + SEPARATOR + listHeight;
-  const at = hoverCardOrigin(anchor);
+  const at = useHoverCardOrigin(anchor);
   const top = Math.max(EDGE, Math.min(at.top, windowHeight - panelHeight - EDGE));
 
   const takeFocus = () => {
@@ -126,7 +126,7 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
         cardHoverProps.onMouseEnter();
         if (live) takeFocus();
       }}
-      style={{ position: "absolute", left: at.left, top, width: WIDTH, height: panelHeight }}
+      style={{ position: "absolute", ...at, top, width: WIDTH, height: panelHeight }}
     >
       <View style={SEARCH_FIELD_ROW}>
         <SearchField

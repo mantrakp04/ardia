@@ -93,6 +93,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       return s.reopenClosedWindow();
     case "toggleAddressBar":
       return s.updateSettings({ addressBar: s.settings.addressBar === "sidebar" ? "toolbar" : "sidebar" });
+    case "toggleSidebarSide":
+      return s.updateSettings({ sidebarSide: s.settings.sidebarSide === "right" ? "left" : "right" });
     case "openSettings":
       return openSettings();
     case "keyboardShortcuts":

@@ -1,0 +1,47 @@
+{
+  "id": "fixes-0244n4",
+  "segments": [
+    {
+      "scene": "sideright",
+      "title": "The sidebar can sit on the right",
+      "body": "On a New Tab page, open Make it yours and pick Right under the layout cards: the sidebar moves to the window's right edge. It's also in Settings › Tabs and View › Sidebar on Right. 0.2.44-nightly.3 has no such option; its panel ends at the layout cards.",
+      "layout": "side",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 1.6,
+      "tail": 4.7
+    },
+    {
+      "scene": "littlelink",
+      "title": "New-tab links stay in Little Ardia",
+      "body": "Settings › General › “Open new-tab links inside Little Ardia” on, then click a target=_blank link in Little Ardia: the page loads right there, so Back takes you back. 0.2.44-nightly.3 has no such setting and opens the link as a tab in the main window, behind.",
+      "layout": "side",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 1.5,
+      "tail": 3.2
+    },
+    {
+      "scene": "movetop",
+      "title": "Open in Ardia lands where new tabs go",
+      "body": "“New tabs open at” is set to Top. Open in Ardia on a Little Ardia page now puts the tab at the top of the list, where ⌘T would. 0.2.44-nightly.3 always put it at the bottom.",
+      "layout": "side",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 1.5,
+      "tail": 3.0
+    }
+  ]
+}

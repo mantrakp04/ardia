@@ -21,3 +21,11 @@ export function chooseTabLayout(layout: "sidebar" | "top") {
     if (tabLayoutOf(useBrowser.getState(), id) !== layout) useBrowser.getState().toggleTabLayout(id);
   }
 }
+
+export function chooseSidebarSide(side: "left" | "right") {
+  useBrowser.getState().updateSettings({ sidebarSide: side });
+}
+
+export function toggleSidebarSide() {
+  chooseSidebarSide(useBrowser.getState().settings.sidebarSide === "right" ? "left" : "right");
+}

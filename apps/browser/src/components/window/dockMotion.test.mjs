@@ -82,10 +82,10 @@ test("with the address field in the sidebar the lights sit on Arc's header row, 
 test("the card's left edge runs from the window inset to 9 pt past the sidebar's rows, the same air as on every other side", async () => {
   const { layout } = await import("../ui/theme.ts");
   assert.equal(layout.cardInset, 9);
-  assert.equal(dm.dockedCardLeft(190) - (190 - layout.sidebarInset), layout.cardInset);
-  assert.equal(dm.cardLeft(1, 190, 9), 193);
-  assert.equal(dm.cardLeft(0, 190, 9), 9);
-  assert.equal(dm.cardLeft(0.5, 190, 9), 101);
+  assert.equal(dm.dockedCardInset(190) - (190 - layout.sidebarInset), layout.cardInset);
+  assert.equal(dm.cardInsetAt(1, 190, 9), 193);
+  assert.equal(dm.cardInsetAt(0, 190, 9), 9);
+  assert.equal(dm.cardInsetAt(0.5, 190, 9), 101);
 });
 
 test("the motion flag is per window, and ending it twice is harmless", () => {
@@ -104,6 +104,31 @@ test("the motion flag is per window, and ending it twice is harmless", () => {
 test("the toolbar's buttons don't move with the sidebar: the hidden sidebar's toolbar starts at the card's edge, as Dia's", () => {
   const g = toolbarGeometry({ sidebarButton: true });
   assert.deepEqual([g.sidebarButton, g.back, g.forward, g.reload], [21, 56, 92, 127]);
+});
+
+test("with the sidebar on the right the window buttons stay at the window's top left, and the leading toolbar starts past them where the sidebar's own button sits", async () => {
+  const { layout } = await import("../ui/theme.ts");
+  const plain = toolbarGeometry({ sidebarButton: true });
+  const lit = toolbarGeometry({ sidebarButton: true, lights: true });
+  assert.equal(lit.sidebarButton + layout.cardInset, dm.HEADER_TOOLS.toggleX, "the toggle where Arc's header puts it, past the lights");
+  assert.ok(lit.sidebarButton - 15 + layout.cardInset > dm.HEADER_TOOLS.lightsRight, "its plate clears the lights");
+  for (const k of ["back", "forward", "reload", "urlLeft"]) assert.equal(lit[k] - plain[k], lit.sidebarButton - plain.sidebarButton, k);
+  const bare = toolbarGeometry({ sidebarButton: false, lights: true });
+  assert.equal(bare.back, lit.sidebarButton, "no sidebar button: back takes its place");
+  assert.equal(lit.urlLeft - lit.sidebarButton, plain.urlLeft - plain.sidebarButton, "the tour's spotlight maths, relative to the URL, is unchanged");
+  assert.equal(dm.headerToggleX(true), dm.HEADER_TOOLS.toggleX);
+  assert.equal(dm.headerToggleX(false), 27, "no lights in the header: the toggle sits at the header's own edge");
+});
+
+test("the peek's span and hold mirror for a sidebar on the right", () => {
+  assert.deepEqual(dm.peekSpan(240, false, 1200), [-Infinity, 245]);
+  assert.deepEqual(dm.peekSpan(240, true, 1200), [955, Infinity]);
+  const hold = dm.peekHoldWidth(240);
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold + 1, true, 1200), 10, hold, 700), true);
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold - 1, true, 1200), 10, hold, 700), false);
+  assert.equal(dm.fromSidebarEdge(30, false, 1200), 30);
+  assert.deepEqual(dm.rightSidebarLightsCenter(false, false), dm.LIGHTS_CENTER, "Dia's layout: on the toolbar's row");
+  assert.deepEqual(dm.rightSidebarLightsCenter(true, false), [25, dm.LIGHTS_STRIP_HEIGHT / 2], "address bar in the sidebar: centred in the strip above the card");
 });
 
 test("the sidebar's own button (address bar in the sidebar) always fits; back, forward and reload as there's room, never overlapping", () => {
@@ -211,13 +236,23 @@ test("a peek that's out is remembered per window (Arc docks from it at once)", (
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {
   assert.equal(dm.overPeek("w1", 0), false);
-  dm.setPeekShown("w1", true, 5 + 240);
+  dm.setPeekShown("w1", true, [-Infinity, 5 + 240]);
   assert.equal(dm.overPeek("w1", 120), true);
   assert.equal(dm.overPeek("w1", 244.5), true);
   assert.equal(dm.overPeek("w1", 245), false);
   assert.equal(dm.overPeek("w2", 120), false);
   dm.setPeekShown("w1", false);
   assert.equal(dm.overPeek("w1", 120), false);
+});
+
+test("a peek from the right edge covers the page from its left edge to the window's right", () => {
+  dm.setPeekShown("w1", true, [1200 - 5 - 240, Infinity]);
+  assert.equal(dm.overPeek("w1", 120), false);
+  assert.equal(dm.overPeek("w1", 954.5), false);
+  assert.equal(dm.overPeek("w1", 955), true);
+  assert.equal(dm.overPeek("w1", 1199), true);
+  dm.setPeekShown("w1", false);
+  assert.equal(dm.overPeek("w1", 1199), false);
 });
 
 test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the card); Dia's layout and the switch off don't", async () => {
@@ -252,12 +287,12 @@ test("the dock is fullscreen, docked, peeking, hiding or away, and only a still,
   assert.equal(st({ moving: true }), "hiding");
   assert.equal(st({}), "away");
   assert.deepEqual(["fullscreen", "docked", "peeking", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "away", "away"]);
-  assert.equal(dm.watchesLeftEdge("away", false), true);
-  assert.equal(dm.watchesLeftEdge("peeking", false), true);
-  assert.equal(dm.watchesLeftEdge("peeking", true), false);
-  assert.equal(dm.watchesLeftEdge("hiding", true), false);
-  assert.equal(dm.watchesLeftEdge("docked", false), false);
-  assert.equal(dm.watchesLeftEdge("fullscreen", false), false);
+  assert.equal(dm.watchesEdge("away", false), true);
+  assert.equal(dm.watchesEdge("peeking", false), true);
+  assert.equal(dm.watchesEdge("peeking", true), false);
+  assert.equal(dm.watchesEdge("hiding", true), false);
+  assert.equal(dm.watchesEdge("docked", false), false);
+  assert.equal(dm.watchesEdge("fullscreen", false), false);
 });
 
 test("the peek stays out within 24 pt of its right edge, the window's full height", () => {
@@ -272,9 +307,9 @@ test("the peek stays out within 24 pt of its right edge, the window's full heigh
 });
 
 test("the native left-edge watch spans the hold while peeking, the edge strip during a tab drag, nothing otherwise", () => {
-  assert.equal(dm.leftEdgeWatchWidth(true, true, 269), 269);
-  assert.equal(dm.leftEdgeWatchWidth(false, true, 269), 8);
-  assert.equal(dm.leftEdgeWatchWidth(false, false, 269), 0);
+  assert.equal(dm.edgeWatchWidth(true, true, 269), 269);
+  assert.equal(dm.edgeWatchWidth(false, true, 269), 8);
+  assert.equal(dm.edgeWatchWidth(false, false, 269), 0);
 });
 
 test("the dock jumps when it can't animate or Arc docks from an open peek, Arc hides on its ease-out, and otherwise springs", () => {
