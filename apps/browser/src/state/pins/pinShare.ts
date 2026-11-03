@@ -255,11 +255,12 @@ export function settleSharedPins(next: BrowserState, prev: BrowserState): Browse
 }
 
 export function handPagesOutOfProfile(s: BrowserState, profileId: string): BrowserState {
-  if (!frozenIds(s).length) return s;
   let next = s;
   for (const t of Object.values(s.tabs)) {
-    if (t.profileId !== profileId || !hasPage(t)) continue;
-    const copy = frozenCopiesOf(next, t.id).find((c) => c.profileId !== profileId);
+    if (t.profileId !== profileId || !hasPage(t) || !isTopApp(t)) continue;
+    const key = pinKeyOf(t);
+    const heir = (c: Tab) => c.profileId !== profileId && holderOf(next, c.id)?.id === t.id;
+    const copy = frozenCopiesOf(next, t.id).find(heir) ?? Object.values(next.tabs).find((c) => pinKeyOf(c) === key && heir(c));
     const swapped = copy ? swapPinPage(next, copy.id) : null;
     if (swapped) next = swapped.state;
   }

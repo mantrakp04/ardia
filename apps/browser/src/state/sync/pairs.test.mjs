@@ -887,3 +887,33 @@ test("known residual: a log that never arrives keeps its gap and the logs after 
   const fromA = [...folder.files.values()].filter((f) => f.scope === "p:default" && JSON.parse(f.payload).kind === "log" && JSON.parse(f.payload).device === "lateA");
   assert.ok(fromA.length >= 1, "and A's later logs stay in the folder");
 });
+
+test("Top Apps shared by two profiles: an unpin synced into a profile whose pins are parked reaches its sibling and stays gone", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+    S().updateSettings({ shareTopApps: true });
+    useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "default");
+  const b = sharing("B", "work");
+  const tiles = (mac, p) => mac.with(() => Object.values(S().tabs).filter((t) => t.profileId === p && t.pin?.as === "tile").map((t) => t.pinnedUrl));
+  a.with(() => {
+    const w = S().windowOrder[0];
+    S().pinTabs([S().newTab(w, { url: "https://mail.com/" })], true);
+    S().switchProfile(w, "work");
+  });
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync());
+  assert.deepEqual(tiles(b, "work"), ["https://mail.com/"], "B's Work shows the shared Top App");
+  a.with(() => S().togglePin(Object.values(S().tabs).find((t) => t.profileId === "default" && t.pin).id));
+  await a.sync(["default"]);
+  await b.sync(["default"]);
+  assert.deepEqual(tiles(b, "work"), [], "the unpin pulled into B's parked Personal reaches B's Work");
+  b.with(() => S().switchProfile(S().windowOrder[0], "default"));
+  const sent = [];
+  for (let i = 0; i < 5; i++) sent.push((await a.sync()) + (await b.sync()));
+  assert.deepEqual(sent.slice(-3), [0, 0, 0], `the Macs settle (published per round: ${sent})`);
+  assert.deepEqual([tiles(a, "default"), tiles(a, "work"), tiles(b, "default"), tiles(b, "work")], [[], [], [], []], "gone everywhere");
+});

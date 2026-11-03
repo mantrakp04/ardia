@@ -4,6 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
+const folders = await import("./tileFolders.ts");
 
 const S = () => useBrowser.getState();
 const reset = (shareTopApps = true) => {
@@ -225,4 +226,32 @@ test("turning sharing on when both profiles have the same Top App loaded keeps o
   assert.equal(shown(w), mail, "Personal, on screen, keeps its page");
   assert.equal(loaded(mail), true);
   assert.equal(S().tabs[own].page.holderId, mail, "Work's copy is frozen on it");
+});
+
+test("deleting the profile that holds a shared page hands it to a sibling that never opened the tile", () => {
+  reset();
+  const { mail, work } = spaces();
+  S().updateTab(mail, { url: "https://mail.com/draft/unsaved" }, { isLoading: false });
+  S().deleteProfile("default");
+  assert.equal(S().tabs[mail]?.profileId, work, "the live tab moved to Work");
+  assert.equal(S().tabs[mail].url, "https://mail.com/draft/unsaved", "at the page Personal left it");
+  assert.equal(pages("https://mail.com").length, 1);
+});
+
+test("opening a shared Top App in a folder from the other profile keeps the folder in both", () => {
+  reset();
+  const { w, mail, work } = spaces();
+  S().switchProfile(w, "default");
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([docs], true);
+  useBrowser.setState(folders.newTileFolder(S(), [mail, tileOf(w, "default", "https://docs.com")], "Apps").state);
+  const folderOf = (p) => view(w, p).filter((id) => S().tabs[id].pin?.as === "tile").map((id) => S().tabs[id].pin.folder?.id ?? null);
+  const [folder] = folderOf("default");
+  assert.ok(folder);
+  assert.deepEqual(folderOf(work), [folder, folder], "Work mirrors the folder");
+  S().switchProfile(w, work);
+  S().activate(tileOf(w, work, "https://mail.com"));
+  assert.equal(shown(w), mail, "Work took Personal's page");
+  assert.deepEqual(folderOf(work), [folder, folder], "still one folder in Work");
+  assert.deepEqual(folderOf("default"), [folder, folder], "and in Personal");
 });

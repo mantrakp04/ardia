@@ -2,6 +2,7 @@ import type { BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { newId, pinSection, TILE_PIN } from "../browser/model";
 import { placing } from "./placing";
+import { sameTopApp } from "./topApps";
 import type { ParkedPins, Tab, TileFolder } from "../browser/types";
 
 export const FOLDER_CELL = "folder:";
@@ -154,7 +155,7 @@ export function settleTileFolders(s: BrowserState, prev: BrowserState): BrowserS
     const now = s.tabs[id];
     const was = prev.tabs[id];
     const wasIn = tileFolderOf(was)?.id;
-    const otherProfile = !!now && !!was && now.profileId !== was.profileId;
+    const otherProfile = !!now && !!was && now.profileId !== was.profileId && !(now.windowId === was.windowId && sameTopApp(s, now, was));
     const moved = otherProfile || (!!now && !!was && now.windowId !== was.windowId);
     if (tileFolderOf(now) && otherProfile) (tabs ??= { ...s.tabs })[id] = withTileFolder(now!, undefined);
     const isIn = tileFolderOf((tabs ?? s.tabs)[id])?.id;
