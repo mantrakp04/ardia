@@ -347,3 +347,23 @@ test("a rewritten new-tab link reuses the engine's prepared contents; a cancelle
   assert.equal(opened[0].page.nav.userInitiated, undefined);
   assert.equal(Object.keys(S().tabs).length, count + 1);
 });
+
+test("the app's download hooks use the native mover and pass it the approved folders", async () => {
+  const { resetDownloadHooksForTests, startDownloadHooks } = await import("./downloadHooks.ts");
+  const { moveCompletedDownload, setApprovedDownloadFolders } = await import("../../platform/systemSignals.ts");
+  fresh([{ name: "invoices", on: "download.deciding", match: "https://billing.example/*", folder: "~/Downloads/Invoices" }, { name: "fin", on: "download.deciding", match: "https://bank.example/*", folder: "~/Documents/Finance" }]);
+  resetDownloadHooksForTests();
+  startDownloadHooks({ move: moveCompletedDownload, approveFolders: setApprovedDownloadFolders });
+  assert.deepEqual(stub.systemSignals.approvedDownloadFolders, []);
+  approveRule(approvalFor(useHookRules.getState().hooks[1]).key);
+  assert.deepEqual(stub.systemSignals.approvedDownloadFolders, ["~/Documents/Finance"]);
+  stub.systemSignals.moves.length = 0;
+  stub.systemSignals.moveResult = { ok: false, reason: "folderMissing" };
+  const d = { id: "n1", url: "https://billing.example/a.pdf", filename: "a.pdf", path: "/Users/me/Downloads/a.pdf", received: 1, total: 1, speed: 0, mimeType: "application/pdf", paused: false, profile: "" };
+  S().upsertDownload({ ...d, state: "downloading" });
+  S().upsertDownload({ ...d, state: "finished" });
+  await wait(10);
+  assert.deepEqual(stub.systemSignals.moves, [{ path: d.path, folder: "~/Downloads/Invoices" }]);
+  assert.equal(S().downloads.find((x) => x.id === "n1").path, d.path);
+  resetDownloadHooksForTests();
+});

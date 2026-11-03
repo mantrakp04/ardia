@@ -1,4 +1,4 @@
-import { holdsIncomingLinks, setHoldIncomingLinks } from "../../platform/systemSignals";
+import { holdsIncomingLinks, moveCompletedDownload, setApprovedDownloadFolders, setHoldIncomingLinks } from "../../platform/systemSignals";
 import { setOpeningGate } from "../tabs/openingGate";
 import { setLinkGate, type LinkGateResult, type LinkSourceInfo } from "../littleArdia/linkGate";
 import { setPermissionGate } from "../site/permissionGate";
@@ -7,6 +7,7 @@ import { decideLink, decideOpening, decidePermission, type LinkVerdict } from ".
 import { activeHook, decideHooks, onHooksChanged, startHookRules } from "./hookRules";
 import { startOmniboxApprovals } from "./omniboxApprovals";
 import { startOmniboxHooks } from "./omniboxHooks";
+import { startDownloadHooks } from "./downloadHooks";
 
 function linkResult(url: string, verdict: LinkVerdict | null): LinkGateResult {
   if (!verdict) return { url, route: null, decided: true };
@@ -42,6 +43,7 @@ export function startDecideHooks() {
   startOmniboxApprovals();
   startHookRules();
   startOmniboxHooks();
+  startDownloadHooks({ move: moveCompletedDownload, approveFolders: setApprovedDownloadFolders });
   setOpeningGate((url, context, signal) => decideOpening(url, context, signal));
   setLinkGate(gateLink);
   setPermissionGate((request, signal) => decidePermission(request, signal));

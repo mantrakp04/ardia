@@ -1,8 +1,9 @@
+import { effectivePort, urlParts } from "./urlParts";
+
 export type MatchSpec = { all: boolean; schemes: string[]; host: string; sub: boolean; port: string; file: boolean; path: string };
 
 const SCRIPT_SCHEMES = ["http", "https", "file", "ftp"];
 const WILDCARD_SCHEMES = ["http", "https"];
-const DEFAULT_PORTS: Record<string, string> = { http: "80", https: "443", ftp: "21" };
 
 function checkPort(scheme: string, port: string): string | null {
   if (port === "*") return null;
@@ -49,13 +50,9 @@ export function parseMatchPattern(pattern: string): MatchSpec | { error: string 
   if (host.includes("*")) return { error: "* only works as the whole host or a *. prefix" };
   if (host.includes("%")) return { error: "hosts can't have %" };
   if (host && !host.startsWith("[")) {
-    let canonical: string;
-    try {
-      canonical = new URL(`http://${host}/`).hostname;
-    } catch {
-      return { error: "the host has characters a hostname can't have" };
-    }
-    host = canonical;
+    const parsed = urlParts(`http://${host}/`);
+    if (!parsed) return { error: "the host has characters a hostname can't have" };
+    host = parsed.host;
   }
   return { all: false, schemes, host: host.toLowerCase(), sub, port, file: false, path: rest.slice(end) };
 }
@@ -93,21 +90,12 @@ function hostMatches(spec: MatchSpec, given: string): boolean {
 }
 
 export function matchesUrl(spec: MatchSpec, href: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return false;
-  }
-  const scheme = url.protocol.slice(0, -1);
-  if (!spec.schemes.includes(scheme)) return false;
+  const url = urlParts(href);
+  if (!url || !spec.schemes.includes(url.scheme)) return false;
   if (spec.all) return true;
-  if (!spec.file && !hostMatches(spec, url.hostname.toLowerCase())) return false;
-  const port = url.port || DEFAULT_PORTS[scheme] || "-1";
-  if (spec.port !== "*" && spec.port !== port) return false;
-  const beforeFragment = href.split("#")[0]!;
-  const query = beforeFragment.includes("?") ? `?${beforeFragment.slice(beforeFragment.indexOf("?") + 1)}` : "";
-  const path = (url.pathname || "/") + query;
+  if (!spec.file && !hostMatches(spec, url.host)) return false;
+  if (spec.port !== "*" && spec.port !== effectivePort(url)) return false;
+  const path = url.path + url.query;
   if (spec.path === `${path}/*`) return true;
   let decoded = path;
   try {

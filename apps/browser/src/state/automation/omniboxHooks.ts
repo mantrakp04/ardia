@@ -1,4 +1,5 @@
 import { isFields } from "../../lib/decode";
+import { formatUrl, webUrl } from "../../lib/urlParts";
 import { registerOmniboxProvider, type ProviderRow } from "../omnibox/providers";
 import { DECIDE_DEADLINE_MS } from "./eventNames";
 import type { HookSpec } from "./hookFile";
@@ -16,16 +17,11 @@ export function providerRows(answer: unknown): ProviderRow[] {
   for (const item of answer) {
     if (rows.length >= MAX_PROVIDER_ROWS) break;
     if (!isFields(item) || typeof item.title !== "string" || !item.title.trim() || typeof item.url !== "string") continue;
-    let url: URL;
-    try {
-      url = new URL(item.url);
-    } catch {
-      continue;
-    }
-    if (url.protocol !== "https:" && url.protocol !== "http:") continue;
+    const url = webUrl(item.url);
+    if (!url) continue;
     rows.push({
       title: item.title.slice(0, 300),
-      url: url.href,
+      url: formatUrl(url),
       ...(typeof item.subtitle === "string" ? { subtitle: item.subtitle.slice(0, 300) } : {}),
       ...(typeof item.icon === "string" && /^(https?:|sf:)/.test(item.icon) ? { icon: item.icon } : {}),
     });

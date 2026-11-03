@@ -1,4 +1,5 @@
 import { isFields } from "../../lib/decode";
+import { originOf as urlOrigin, urlParts } from "../../lib/urlParts";
 import { anyMatches, matchesUrl } from "../../lib/matchPattern";
 import { isIncognitoProfile } from "../browser/model";
 import { useBrowser } from "../browser/store";
@@ -128,11 +129,8 @@ export function downloadFolderAllowed(folder: string, approvedFolders: readonly 
 export type FinishedDownload = { url: string; filename: string; mimeType: string; size: number; path: string; profile: string | null };
 
 const originOf = (url: string) => {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return null;
-  }
+  const parts = urlParts(url);
+  return parts?.authority ? urlOrigin(parts) : null;
 };
 
 export function decideDownload(download: FinishedDownload, approvedFolders: readonly string[], signal?: AbortSignal): string | null | Promise<string | null> {

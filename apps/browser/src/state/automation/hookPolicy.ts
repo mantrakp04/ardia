@@ -1,4 +1,5 @@
 import { sha256 } from "../../lib/sha256";
+import { formatUrl, hostWithPort, originOf, urlParts, webUrl } from "../../lib/urlParts";
 import { isApproved, type ApprovalRule } from "./approvals";
 import type { HookSpec, Rewrite } from "./hookFile";
 
@@ -51,27 +52,15 @@ export function launchActionApproval(entry: string): ApprovalRule | null {
 }
 
 export function applyTemplate(template: string, href: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return null;
-  }
-  const parts: Record<string, string> = { url: href, origin: url.origin, host: url.host, path: url.pathname, query: url.search, hash: url.hash };
+  const url = urlParts(href);
+  if (!url) return null;
+  const parts: Record<string, string> = { url: href, origin: originOf(url), host: hostWithPort(url), path: url.path, query: url.query, hash: url.hash };
   return template.replace(/\{(url|origin|host|path|query|hash)\}/g, (_, key: string) => parts[key]!);
 }
 
 export function safeRewriteTarget(target: string | null): string | null {
-  if (!target) return null;
-  let url: URL;
-  try {
-    url = new URL(target);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  if (url.username || url.password || !url.hostname) return null;
-  return url.href;
+  const url = target ? webUrl(target) : null;
+  return url ? formatUrl(url) : null;
 }
 
 export function rewriteOf(rewrites: readonly Rewrite[], href: string, matches: (r: Rewrite) => boolean): string | null | undefined {
@@ -81,9 +70,7 @@ export function rewriteOf(rewrites: readonly Rewrite[], href: string, matches: (
 }
 
 export const sameOrigin = (a: string, b: string) => {
-  try {
-    return new URL(a).origin === new URL(b).origin;
-  } catch {
-    return false;
-  }
+  const x = urlParts(a);
+  const y = urlParts(b);
+  return !!x && !!y && originOf(x) === originOf(y);
 };
