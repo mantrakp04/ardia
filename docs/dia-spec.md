@@ -969,6 +969,9 @@ including its corner rule and spring:
   rather than 1.74 s, which felt floaty after a two-finger swipe.
 - Stashing happens on release (carrying the release velocity when the release was a fling), on a 0.35 s response spring (damping 0.9). Showing it
   again uses the same spring. The handle fades in over 0.12 s once the window lands and out over 0.1 s as it leaves.
+- A stashed window let go while still partly hidden opens fully (16 pt from the side) when more than 25 % of its
+  width shows, and tucks back in otherwise. A sideways fling decides instead: inward opens it, outward tucks it
+  back, however much shows. Let go fully on screen, it stays where it was dropped.
 - A click on the stash handle is read in Ardia's own event monitor, so it works whatever Chrome's window does with the
   click. A press on the handle that moves 3 pt becomes a drag.
 - Its screen is the one the window overlaps most.
