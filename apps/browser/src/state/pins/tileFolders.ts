@@ -155,7 +155,8 @@ export function settleTileFolders(s: BrowserState, prev: BrowserState): BrowserS
     const now = s.tabs[id];
     const was = prev.tabs[id];
     const wasIn = tileFolderOf(was)?.id;
-    const otherProfile = !!now && !!was && now.profileId !== was.profileId && !(now.windowId === was.windowId && sameTopApp(s, now, was));
+    const handoff = !!now && !!was && (sameTopApp(s, now, was) || sameTopApp(prev, now, was));
+    const otherProfile = !!now && !!was && now.profileId !== was.profileId && !handoff;
     const moved = otherProfile || (!!now && !!was && now.windowId !== was.windowId);
     if (tileFolderOf(now) && otherProfile) (tabs ??= { ...s.tabs })[id] = withTileFolder(now!, undefined);
     const isIn = tileFolderOf((tabs ?? s.tabs)[id])?.id;

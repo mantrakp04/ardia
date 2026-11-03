@@ -255,3 +255,47 @@ test("opening a shared Top App in a folder from the other profile keeps the fold
   assert.deepEqual(folderOf(work), [folder, folder], "still one folder in Work");
   assert.deepEqual(folderOf("default"), [folder, folder], "and in Personal");
 });
+
+function foldered() {
+  reset();
+  const w = S().createWindow({ url: "https://mail.com" });
+  const [mail] = S().windows[w].tabIds;
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([mail, docs], true);
+  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  useBrowser.setState(folders.newTileFolder(S(), [mail, docs], "Apps").state);
+  return { w, mail, work, folder: S().tabs[mail].pin.folder.id };
+}
+const foldersIn = (w, p) => view(w, p).filter((id) => S().tabs[id].pin?.as === "tile").map((id) => S().tabs[id].pin.folder?.id ?? null);
+
+test("a shared Top App's page moving to the other profile's window keeps its folder in both", () => {
+  const { w, mail, work, folder } = foldered();
+  const w2 = S().createWindow({ profileId: work, url: "https://work.com" });
+  S().activate(tileOf(w2, work, "https://mail.com"));
+  assert.equal(S().tabs[mail].windowId, w2, "the page went to Work's window");
+  assert.deepEqual(foldersIn(w2, work), [folder, folder]);
+  assert.deepEqual(foldersIn(w, "default"), [folder, folder]);
+});
+
+test("deleting the profile holding a page in a folder keeps the folder in the profile that's left", () => {
+  const { w, work, folder } = foldered();
+  S().switchProfile(w, work);
+  S().deleteProfile("default");
+  assert.deepEqual(foldersIn(w, work), [folder, folder]);
+});
+
+test("a parked profile's Top App opens at the pinned URL chosen in its sibling", () => {
+  reset();
+  const { w, work } = spaces();
+  const w2 = S().createWindow({ profileId: work, url: "https://work.com" });
+  S().closeWindow(w);
+  const copy = tileOf(w2, work, "https://mail.com");
+  S().activate(copy);
+  S().updateTab(copy, { url: "https://mail.com/new-home" }, { isLoading: false });
+  S().setPinnedUrl(copy);
+  S().closeTab(copy);
+  S().switchProfile(w2, "default");
+  const restored = tileOf(w2, "default", "https://mail.com/new-home");
+  S().activate(restored);
+  assert.equal(S().tabs[restored].page.nav.url, "https://mail.com/new-home");
+});
