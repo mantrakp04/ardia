@@ -1,4 +1,4 @@
-import { holdsIncomingLinks, moveCompletedDownload, setApprovedDownloadFolders, setHoldIncomingLinks } from "../../platform/systemSignals";
+import { moveCompletedDownload, setApprovedDownloadFolders, setHoldIncomingLinks } from "../../platform/systemSignals";
 import { setOpeningGate } from "../tabs/openingGate";
 import { setLinkGate, type LinkGateResult, type LinkSourceInfo } from "../littleArdia/linkGate";
 import { setPermissionGate } from "../site/permissionGate";
@@ -29,7 +29,7 @@ function gateLink(url: string, source: LinkSourceInfo): LinkGateResult | Promise
 function updateLinkHold() {
   const wanted = [...decideHooks("link.opening"), ...decideHooks("tab.opening")].some(activeHook);
   try {
-    if (holdsIncomingLinks() !== wanted) setHoldIncomingLinks(wanted);
+    setHoldIncomingLinks(wanted);
   } catch (error) {
     console.warn("[automation] couldn't set the incoming link hold", error);
   }

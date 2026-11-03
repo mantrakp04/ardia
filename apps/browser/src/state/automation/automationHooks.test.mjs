@@ -467,3 +467,26 @@ test("a rewritten navigation goes out as not user-initiated; an unchanged one ke
   const kept = S().newTab(w, { url: "https://track.example/m" });
   assert.equal(S().tabs[kept].page.nav.userInitiated, true);
 });
+
+test("a move that fails with the file left in staging keeps the record pointing at it", async () => {
+  const { resetDownloadHooksForTests, startDownloadHooks } = await import("./downloadHooks.ts");
+  fresh([{ name: "all", on: "download.deciding", folder: "~/Downloads/Sorted" }]);
+  resetDownloadHooksForTests();
+  const staged = "/Users/me/Downloads/.ardia-staging-1/s.bin";
+  startDownloadHooks({ move: async () => ({ ok: false, reason: "failed", stagedPath: staged }), approveFolders: () => {} });
+  const d = { id: "st", url: "https://a.example/s.bin", filename: "s.bin", path: "/Users/me/Downloads/s.bin", received: 1, total: 1, speed: 0, mimeType: "application/octet-stream", paused: false, profile: "" };
+  dl({ ...d, state: "downloading" });
+  dl({ ...d, state: "finished" });
+  await wait(10);
+  assert.equal(S().downloads.find((x) => x.id === "st").path, staged);
+  resetDownloadHooksForTests();
+});
+
+test("the incoming-link hold follows whether an active tab.opening or link.opening hook exists", async () => {
+  const { startDecideHooks } = await import("./decideHooks.ts");
+  startDecideHooks();
+  fresh([{ name: "drop", on: "link.opening", match: "https://ads.example/*", drop: true }]);
+  assert.equal(stub.systemSignals.holdsIncomingLinks, true);
+  setHooks([{ name: "watch", on: "tab.opened", run: ["x"] }]);
+  assert.equal(stub.systemSignals.holdsIncomingLinks, false);
+});

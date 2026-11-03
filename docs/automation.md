@@ -228,9 +228,11 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   once answered (closed again on cancel).
 - **What a program sees.** Decide data has the URL without its query and fragment unless the hook says
   `"fullUrls": true`; a program that rewrites query parameters needs it. The runner trims again on its side.
-- **link.opening** decides before any tab exists. While an active `tab.opening` or `link.opening` hook exists the
-  app sets the native link hold (`setHoldIncomingLinks`), so the next cold launch doesn't create the early Little
-  Ardia tab for incoming links before JS decides. A routed or rewritten link never adopts contents loaded for it
+- **link.opening** decides before any tab exists. At every launch native holds incoming links (no early Little Ardia
+  tab, no parked link tabs) until JS reports its link policy with `setHoldIncomingLinks(hold)`: the app reports it
+  once its hooks are loaded and again on every change, `true` while an active `tab.opening` or `link.opening` hook
+  exists. Only when the last report said no hold and hooks.json hasn't changed since does native take its fast
+  path before JS loads. A routed or rewritten link never adopts contents loaded for it
   under another profile.
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
@@ -245,7 +247,10 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   is created only from an allowed root down, and a name already taken gets ` (1)`, ` (2)`… before the extension. That side only
   moves a file the app itself just downloaded, only into `~/Downloads` or the folders the app passed in
   `setApprovedDownloadFolders` (sent at startup and on every change, approvals included, from the approved rules). It resolves through
-  descriptors, never overwrites and keeps the quarantine attribute. On success the download's row points at the
+  descriptors, never overwrites and keeps the quarantine attribute. Native checks the engine's SHA-256 of the
+  bytes after claiming the file into a private staging folder; a download without an engine hash (WebKit) can't be
+  moved (`noIdentity`). If a failed move couldn't put the file back, it stays in that staging folder beside the
+  download and the row points there (`stagedPath`), so it's never lost. On success the download's row points at the
   new path (native also reports it, so Show in Finder keeps working after relaunch); a timeout, an error or no
   answer leaves the file where it is. Folders cross the bridge as `~/…`.
   Code: `state/automation/downloadHooks.ts`.

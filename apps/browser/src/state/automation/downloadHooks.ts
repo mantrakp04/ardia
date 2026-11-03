@@ -4,7 +4,7 @@ import { decideDownload } from "./decisions";
 import { activeHook, onHooksChanged, useHookRules } from "./hookRules";
 import { isInsideDownloads } from "./hookPolicy";
 
-export type MoveResult = { ok: true; path: string } | { ok: false; reason: string };
+export type MoveResult = { ok: true; path: string } | { ok: false; reason: string; stagedPath?: string };
 export type DownloadMover = {
   move(path: string, folder: string): Promise<MoveResult>;
   approveFolders(folders: string[]): void;
@@ -57,12 +57,10 @@ export async function settleFinishedDownload(d: Download): Promise<MoveResult | 
   } catch (error) {
     result = { ok: false, reason: String(error) };
   }
-  if (!result.ok) {
-    console.warn(`[automation] download ${d.filename} stays where it is: ${result.reason}`);
-    return result;
-  }
+  const landed = result.ok ? result.path : result.stagedPath;
+  if (!result.ok) console.warn(`[automation] download ${d.filename} wasn't moved (${result.reason})${result.stagedPath ? `; it is at ${result.stagedPath}` : ""}`);
   const current = useBrowser.getState().downloads.find((x) => x.id === d.id);
-  if (current) useBrowser.getState().upsertDownload({ ...current, path: result.path, filename: result.path.split("/").pop() || current.filename });
+  if (landed && current) useBrowser.getState().upsertDownload({ ...current, path: landed, filename: landed.split("/").pop() || current.filename });
   return result;
 }
 
