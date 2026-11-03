@@ -97,6 +97,16 @@ public class SystemSignalsModule: Module {
 
     Function("setHoldIncomingLinks") { (hold: Bool) in ArdiaHost.holdsIncomingLinks = hold }
 
+    Function("setApprovedDownloadFolders") { (folders: [String]) in ArdiaDownloadMover.shared.setApprovedFolders(folders) }
+
+    AsyncFunction("moveCompletedDownload") { (path: String, folder: String) -> [String: Any] in
+      var result = ArdiaDownloadMover.shared.moveDownload(at: path, toFolder: folder)
+      if let event = result.removeValue(forKey: "event") as? [String: Any] {
+        DispatchQueue.main.async { ArdiaEvents.emit("downloads.changed", data: event) }
+      }
+      return result
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+
     AsyncFunction("devPost") { (name: String) -> Bool in
       guard LaunchConfig.shared.isolated else { return false }
       let notification: [String: Notification.Name] = ["willSleep": NSWorkspace.willSleepNotification, "didWake": NSWorkspace.didWakeNotification]

@@ -334,13 +334,21 @@ const automation: Modules["ArdiaAutomation"] = {
   addListener: controlEvents.addListener,
 };
 
-export const systemSignals = { idleThresholds: [] as number[], holdsIncomingLinks: false };
+export const systemSignals = {
+  idleThresholds: [] as number[],
+  holdsIncomingLinks: false,
+  approvedDownloadFolders: [] as string[],
+  moves: [] as { path: string; folder: string }[],
+  moveResult: { ok: false, reason: "notADownload" } as { ok: true; path: string } | { ok: false; reason: string },
+};
 const systemSignalEvents = nativeEvents();
 export const emitSystemSignal = (signal: SystemSignal) => systemSignalEvents.emit("onSystemSignal", signal);
 const systemSignalsModule: Modules["ArdiaSystemSignals"] = {
   watchIdle: (thresholds) => void (systemSignals.idleThresholds = [...thresholds]),
   holdsIncomingLinks: () => systemSignals.holdsIncomingLinks,
   setHoldIncomingLinks: (hold) => void (systemSignals.holdsIncomingLinks = hold),
+  setApprovedDownloadFolders: (folders) => void (systemSignals.approvedDownloadFolders = [...folders]),
+  moveCompletedDownload: async (path, folder) => (systemSignals.moves.push({ path, folder }), systemSignals.moveResult),
   devPost: async (name) => (emitSystemSignal({ type: name === "willSleep" ? "sleep" : "wake" }), true),
   addListener: systemSignalEvents.addListener,
 };

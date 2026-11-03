@@ -1,5 +1,7 @@
 import type { EventSubscription } from "expo-modules-core";
-import { nativeModule, type SystemSignal } from "@ardia/shell";
+import { nativeModule, type MovedDownload, type SystemSignal } from "@ardia/shell";
+
+export type { MovedDownload };
 
 let bound: ReturnType<typeof nativeModule<"ArdiaSystemSignals">> | null = null;
 const Signals = () => (bound ??= nativeModule("ArdiaSystemSignals"));
@@ -66,5 +68,9 @@ export function onUserIdle(thresholdSeconds: number, listener: (idle: boolean) =
 export const holdsIncomingLinks = (): boolean => Signals().holdsIncomingLinks();
 
 export const setHoldIncomingLinks = (hold: boolean): void => Signals().setHoldIncomingLinks(hold);
+
+export const setApprovedDownloadFolders = (folders: string[]): void => Signals().setApprovedDownloadFolders(folders);
+
+export const moveCompletedDownload = (path: string, folder: string): Promise<MovedDownload> => Signals().moveCompletedDownload(path, folder);
 
 export const devPostSystemSignal = (name: "willSleep" | "didWake"): Promise<boolean> => Signals().devPost(name);
