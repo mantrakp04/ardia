@@ -1,21 +1,28 @@
 #import "ArdiaDownloadMover.h"
 
+#include <CommonCrypto/CommonDigest.h>
 #include <fcntl.h>
 #include <os/lock.h>
 #include <pwd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <vector>
+
 namespace {
 
 NSString *const kMovedDefault = @"ArdiaMovedDownloads";
+NSString *const kStagingPrefix = @".ardia-moving-";
 constexpr NSUInteger kMaxMoved = 200;
 constexpr NSUInteger kMaxRecords = 1000;
 constexpr int kMaxCollisions = 999;
+constexpr int kMaxStagingTries = 16;
 constexpr NSUInteger kMaxNameBytes = 255;
 constexpr NSUInteger kMaxKeptExtension = 24;
+constexpr size_t kHashChunk = 1 << 20;
 
 class ScopedFd {
  public:
@@ -36,6 +43,10 @@ class ScopedFd {
 
 NSDictionary *Failure(NSString *reason) {
   return @{@"ok" : @NO, @"reason" : reason};
+}
+
+NSDictionary *StagedFailure(NSString *reason, NSString *stagedPath) {
+  return stagedPath ? @{@"ok" : @NO, @"reason" : reason, @"stagedPath" : stagedPath} : Failure(reason);
 }
 
 NSArray<NSString *> *FolderComponents(NSString *folder) {
@@ -106,14 +117,60 @@ NSString *NameWithSuffix(NSString *name, NSString *suffix) {
   return [Truncated(stem, kMaxNameBytes - MIN(tailBytes, kMaxNameBytes - 1)) stringByAppendingString:tail];
 }
 
-bool SameFile(const struct stat &a, NSArray<NSNumber *> *identity) {
-  return identity.count == 2 && (uint64_t)a.st_dev == identity[0].unsignedLongLongValue &&
-         (uint64_t)a.st_ino == identity[1].unsignedLongLongValue;
-}
-
 NSString *DirectoryPath(int fd) {
   char path[MAXPATHLEN];
   return fcntl(fd, F_GETPATH, path) == 0 ? @(path) : nil;
+}
+
+NSString *Sha256Of(int fd) {
+  if (lseek(fd, 0, SEEK_SET) != 0) return nil;
+  CC_SHA256_CTX context;
+  CC_SHA256_Init(&context);
+  std::vector<unsigned char> buffer(kHashChunk);
+  while (true) {
+    const ssize_t count = read(fd, buffer.data(), buffer.size());
+    if (count < 0) {
+      if (errno == EINTR) continue;
+      return nil;
+    }
+    if (count == 0) break;
+    CC_SHA256_Update(&context, buffer.data(), (CC_LONG)count);
+  }
+  unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+  CC_SHA256_Final(digest, &context);
+  NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+  for (unsigned char byte : digest) [hex appendFormat:@"%02x", byte];
+  return hex;
+}
+
+bool IsSha256(id value) {
+  if (![value isKindOfClass:NSString.class] || [value length] != CC_SHA256_DIGEST_LENGTH * 2) return false;
+  NSCharacterSet *hex = [NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"];
+  return [[value stringByTrimmingCharactersInSet:hex] length] == 0;
+}
+
+bool Restore(int staging, NSString *stagedName, int source, NSString *sourceName) {
+  return renameatx_np(staging, stagedName.fileSystemRepresentation, source, sourceName.fileSystemRepresentation, RENAME_EXCL) == 0;
+}
+
+NSString *MakeStaging(int source) {
+  for (int i = 0; i < kMaxStagingTries; i++) {
+    NSString *name = [NSString stringWithFormat:@"%@%08x%08x", kStagingPrefix, arc4random(), arc4random()];
+    if (mkdirat(source, name.fileSystemRepresentation, 0700) == 0) return name;
+    if (errno != EEXIST) return nil;
+  }
+  return nil;
+}
+
+int OpenOwnStaging(int source, NSString *name) {
+  const int fd = openat(source, name.fileSystemRepresentation, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (fd < 0) return -1;
+  struct stat info;
+  if (fstat(fd, &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != getuid() || (info.st_mode & 077)) {
+    close(fd);
+    return -1;
+  }
+  return fd;
 }
 
 }
@@ -125,7 +182,7 @@ NSString *DirectoryPath(int fd) {
   NSArray<NSArray<NSString *> *> *_approved;
   NSMutableDictionary<NSString *, NSDictionary *> *_records;
   NSMutableArray<NSString *> *_recordOrder;
-  NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_finishedFiles;
+  NSMutableDictionary<NSString *, NSDictionary *> *_identities;
   NSMutableArray<NSDictionary *> *_moved;
 }
 
@@ -148,7 +205,7 @@ NSString *DirectoryPath(int fd) {
     _approved = @[];
     _records = [NSMutableDictionary dictionary];
     _recordOrder = [NSMutableArray array];
-    _finishedFiles = [NSMutableDictionary dictionary];
+    _identities = [NSMutableDictionary dictionary];
     _moved = [NSMutableArray array];
     for (id entry in [[defaults arrayForKey:kMovedDefault] ?: @[] copy])
       if ([entry isKindOfClass:NSDictionary.class] && [entry[@"id"] isKindOfClass:NSString.class] &&
@@ -182,17 +239,13 @@ NSString *DirectoryPath(int fd) {
       NSString *oldest = _recordOrder.firstObject;
       [_recordOrder removeObjectAtIndex:0];
       [_records removeObjectForKey:oldest];
-      [_finishedFiles removeObjectForKey:oldest];
+      [_identities removeObjectForKey:oldest];
     }
   }
   _records[downloadId] = event;
-  NSString *path = [event[@"path"] isKindOfClass:NSString.class] ? event[@"path"] : nil;
-  if (!_finishedFiles[downloadId] && [event[@"state"] isEqual:@"finished"] && ![event[@"dangerous"] boolValue] &&
-      ![event[@"offTheRecord"] boolValue] && path.length) {
-    struct stat info;
-    if (lstat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode))
-      _finishedFiles[downloadId] = @[ @((uint64_t)info.st_dev), @((uint64_t)info.st_ino) ];
-  }
+  if (!_identities[downloadId] && [event[@"state"] isEqual:@"finished"] && ![event[@"dangerous"] boolValue] &&
+      ![event[@"offTheRecord"] boolValue] && IsSha256(event[@"sha256"]) && [event[@"received"] isKindOfClass:NSNumber.class])
+    _identities[downloadId] = @{@"sha256" : event[@"sha256"], @"size" : @([event[@"received"] longLongValue])};
   os_unfair_lock_unlock(&_lock);
   return event;
 }
@@ -213,6 +266,10 @@ NSString *DirectoryPath(int fd) {
   return result;
 }
 
+- (void)step:(NSString *)name staging:(int)staging {
+  if (self.stepHook) self.stepHook(name, DirectoryPath(staging) ?: @"");
+}
+
 - (NSDictionary *)lockedMove:(NSString *)path toFolder:(NSString *)folder {
   if (![path isKindOfClass:NSString.class] || !path.length) return Failure(@"notADownload");
   NSString *downloadId = nil;
@@ -226,8 +283,8 @@ NSString *DirectoryPath(int fd) {
   if ([record[@"offTheRecord"] boolValue]) return Failure(@"private");
   if ([record[@"dangerous"] boolValue]) return Failure(@"dangerous");
   if (![record[@"state"] isEqual:@"finished"]) return Failure(@"notFinished");
-  NSArray<NSNumber *> *identity = _finishedFiles[downloadId];
-  if (!identity) return Failure(@"missing");
+  NSDictionary *identity = _identities[downloadId];
+  if (!identity) return Failure(@"noIdentity");
 
   NSArray<NSString *> *components = FolderComponents(folder);
   if (!components) return Failure(@"folderNotAllowed");
@@ -252,44 +309,67 @@ NSString *DirectoryPath(int fd) {
   NSString *sourceName = path.lastPathComponent;
   ScopedFd source(open(path.stringByDeletingLastPathComponent.fileSystemRepresentation, O_RDONLY | O_DIRECTORY | O_CLOEXEC));
   if (!source.valid()) return Failure(@"missing");
-  struct stat file;
-  if (fstatat(source.get(), sourceName.fileSystemRepresentation, &file, AT_SYMLINK_NOFOLLOW) != 0) return Failure(@"missing");
-  if (!S_ISREG(file.st_mode)) return Failure(@"notAFile");
-  if (!SameFile(file, identity)) return Failure(@"changed");
-
+  struct stat entry;
+  if (fstatat(source.get(), sourceName.fileSystemRepresentation, &entry, AT_SYMLINK_NOFOLLOW) != 0) return Failure(@"missing");
+  if (!S_ISREG(entry.st_mode)) return Failure(@"notAFile");
   struct stat sourceDir, destinationDir;
   if (fstat(source.get(), &sourceDir) != 0 || fstat(destination.get(), &destinationDir) != 0) return Failure(@"failed");
   if (sourceDir.st_dev == destinationDir.st_dev && sourceDir.st_ino == destinationDir.st_ino) return @{@"ok" : @YES, @"path" : path};
   if (sourceDir.st_dev != destinationDir.st_dev) return Failure(@"crossesVolumes");
 
+  NSString *stagingName = MakeStaging(source.get());
+  if (!stagingName) return Failure(@"failed");
+  ScopedFd staging(OpenOwnStaging(source.get(), stagingName));
+  if (!staging.valid()) return Failure(@"failed");
+  NSString *stagingPath = DirectoryPath(staging.get());
+  NSString *stagedPath = [stagingPath stringByAppendingPathComponent:sourceName];
+  const auto removeStaging = [&] { unlinkat(source.get(), stagingName.fileSystemRepresentation, AT_REMOVEDIR); };
+  const auto giveBack = [&](NSString *reason) -> NSDictionary * {
+    if (!Restore(staging.get(), sourceName, source.get(), sourceName)) return StagedFailure(reason, stagedPath);
+    removeStaging();
+    return Failure(reason);
+  };
+
+  if (renameatx_np(source.get(), sourceName.fileSystemRepresentation, staging.get(), sourceName.fileSystemRepresentation, RENAME_EXCL) != 0) {
+    const int error = errno;
+    removeStaging();
+    return Failure(error == ENOENT ? @"missing" : @"failed");
+  }
+  [self step:@"claimed" staging:staging.get()];
+
+  ScopedFd claimed(openat(staging.get(), sourceName.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
+  struct stat verified;
+  if (!claimed.valid() || fstat(claimed.get(), &verified) != 0 || !S_ISREG(verified.st_mode)) return giveBack(@"changed");
+  if (verified.st_size != [identity[@"size"] longLongValue] || ![Sha256Of(claimed.get()) isEqualToString:identity[@"sha256"]])
+    return giveBack(@"changed");
+  [self step:@"verified" staging:staging.get()];
+
   NSString *safe = [ArdiaDownloadMover safeFileName:sourceName];
   NSString *placed = nil;
   for (int n = 0; n <= kMaxCollisions && !placed; n++) {
     NSString *candidate = n ? NameWithSuffix(safe, [NSString stringWithFormat:@" (%d)", n]) : safe;
-    if (renameatx_np(source.get(), sourceName.fileSystemRepresentation, destination.get(), candidate.fileSystemRepresentation,
+    if (renameatx_np(staging.get(), sourceName.fileSystemRepresentation, destination.get(), candidate.fileSystemRepresentation,
                      RENAME_EXCL) == 0) {
       placed = candidate;
       break;
     }
     if (errno == EEXIST) continue;
-    if (errno == EXDEV) return Failure(@"crossesVolumes");
-    if (errno == ENOENT) return Failure(@"missing");
-    return Failure(@"failed");
+    if (errno == ENOENT) return StagedFailure(@"changed", stagingPath);
+    return giveBack(errno == EXDEV ? @"crossesVolumes" : @"failed");
   }
-  if (!placed) return Failure(@"tooManyCollisions");
+  if (!placed) return giveBack(@"tooManyCollisions");
 
-  struct stat moved;
-  if (fstatat(destination.get(), placed.fileSystemRepresentation, &moved, AT_SYMLINK_NOFOLLOW) != 0 || !SameFile(moved, identity)) {
-    renameatx_np(destination.get(), placed.fileSystemRepresentation, source.get(), sourceName.fileSystemRepresentation, RENAME_EXCL);
-    return Failure(@"changed");
+  struct stat landed;
+  if (fstatat(destination.get(), placed.fileSystemRepresentation, &landed, AT_SYMLINK_NOFOLLOW) != 0 ||
+      landed.st_dev != verified.st_dev || landed.st_ino != verified.st_ino) {
+    NSString *stray = [NSString stringWithFormat:@"not-%@", sourceName];
+    renameatx_np(destination.get(), placed.fileSystemRepresentation, staging.get(), stray.fileSystemRepresentation, RENAME_EXCL);
+    return StagedFailure(@"changed", stagingPath);
   }
 
-  NSString *directory = DirectoryPath(destination.get());
-  if (!directory) {
-    renameatx_np(destination.get(), placed.fileSystemRepresentation, source.get(), sourceName.fileSystemRepresentation, RENAME_EXCL);
-    return Failure(@"failed");
-  }
+  NSString *directory = DirectoryPath(destination.get()) ?: [_home stringByAppendingPathComponent:[components componentsJoinedByString:@"/"]];
   NSString *finalPath = [directory stringByAppendingPathComponent:placed];
+  removeStaging();
   NSDictionary *previous = [self movedEntryFor:downloadId];
   [_moved addObject:@{@"id" : downloadId, @"from" : previous[@"from"] ?: path, @"to" : finalPath}];
   if (_moved.count > kMaxMoved) [_moved removeObjectsInRange:NSMakeRange(0, _moved.count - kMaxMoved)];

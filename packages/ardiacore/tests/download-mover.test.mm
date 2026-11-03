@@ -1,5 +1,6 @@
 #import "../ios/ArdiaDownloadMover.h"
 
+#include <CommonCrypto/CommonDigest.h>
 #include <cstdio>
 #include <climits>
 #include <cstdlib>
@@ -36,10 +37,31 @@ static NSString *Text(NSString *path) {
   return [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
 }
 
+static NSString *Sha256(NSString *text) {
+  NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+  unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+  CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
+  NSMutableString *hex = [NSMutableString string];
+  for (unsigned char byte : digest) [hex appendFormat:@"%02x", byte];
+  return hex;
+}
+
+static NSMutableDictionary *FinishedEvent(NSString *path, NSString *downloaded) {
+  return [@{@"id" : [NSString stringWithFormat:@"d%d", ++gNextId], @"path" : path, @"state" : @"finished", @"dangerous" : @NO,
+            @"offTheRecord" : @NO, @"filename" : path.lastPathComponent, @"sha256" : Sha256(downloaded),
+            @"received" : @([downloaded lengthOfBytesUsingEncoding:NSUTF8StringEncoding])} mutableCopy];
+}
+
+static NSArray<NSString *> *StagingDirs() {
+  NSMutableArray *found = [NSMutableArray array];
+  for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:gSource error:nil] ?: @[])
+    if ([name hasPrefix:@".ardia-moving-"]) [found addObject:[gSource stringByAppendingPathComponent:name]];
+  return found;
+}
+
 static NSString *Finished(ArdiaDownloadMover *mover, NSString *name, NSString *text, NSDictionary *extra = @{}) {
   NSString *path = Make([@"src" stringByAppendingPathComponent:name], text);
-  NSMutableDictionary *event = [@{@"id" : [NSString stringWithFormat:@"d%d", ++gNextId], @"path" : path, @"state" : @"finished",
-                                  @"dangerous" : @NO, @"offTheRecord" : @NO, @"filename" : name} mutableCopy];
+  NSMutableDictionary *event = FinishedEvent(path, text);
   [event addEntriesFromDictionary:extra];
   [mover noteDownloadEvent:event];
   return path;
@@ -153,6 +175,76 @@ int main() {
       CHECK([Reason([mover moveDownloadAt:other toFolder:@"~/etc"]) isEqual:@"folderNotAllowed"]);
       [mover setApprovedFolders:@[]];
       CHECK([Reason([mover moveDownloadAt:other toFolder:@"~/Docs/Finance"]) isEqual:@"folderNotAllowed"]);
+    }
+    {
+      NSString *path = Make(@"src/no-hash.txt", @"webkit");
+      NSMutableDictionary *event = FinishedEvent(path, @"webkit");
+      [event removeObjectForKey:@"sha256"];
+      [mover noteDownloadEvent:event];
+      CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads"]) isEqual:@"noIdentity"]);
+      CHECK(Exists(path));
+    }
+    {
+      NSString *path = Make(@"src/invoice.pdf", @"an impostor another process put there");
+      [mover noteDownloadEvent:FinishedEvent(path, @"the bytes the browser downloaded")];
+      CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"]) isEqual:@"changed"]);
+      CHECK([Text(path) isEqual:@"an impostor another process put there"]);
+      CHECK(!Exists([gHome stringByAppendingPathComponent:@"Downloads/Bills/invoice.pdf"]));
+      CHECK(StagingDirs().count == 0);
+    }
+    {
+      NSString *path = Finished(mover, @"before-claim.txt", @"genuine");
+      unlink(path.fileSystemRepresentation);
+      Make(@"src/before-claim.txt", @"swapped in before the claim");
+      CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"]) isEqual:@"changed"]);
+      CHECK([Text(path) isEqual:@"swapped in before the claim"]);
+      CHECK(!Exists([gHome stringByAppendingPathComponent:@"Downloads/Bills/before-claim.txt"]));
+      CHECK(StagingDirs().count == 0);
+    }
+    {
+      NSString *path = Finished(mover, @"after-check.txt", @"genuine bytes");
+      mover.stepHook = ^(NSString *step, NSString *staging) {
+        if (![step isEqualToString:@"verified"]) return;
+        NSString *staged = [staging stringByAppendingPathComponent:@"after-check.txt"];
+        rename(staged.fileSystemRepresentation, [staging stringByAppendingPathComponent:@"hidden-away"].fileSystemRepresentation);
+        [@"swapped in after the check" writeToFile:staged atomically:NO encoding:NSUTF8StringEncoding error:nil];
+      };
+      NSDictionary *result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"];
+      mover.stepHook = nil;
+      CHECK([Reason(result) isEqual:@"changed"]);
+      CHECK(!Exists([gHome stringByAppendingPathComponent:@"Downloads/Bills/after-check.txt"]));
+      NSString *staging = result[@"stagedPath"];
+      CHECK(staging.length && Exists(staging));
+      CHECK([Text([staging stringByAppendingPathComponent:@"hidden-away"]) isEqual:@"genuine bytes"]);
+      CHECK([Text([staging stringByAppendingPathComponent:@"not-after-check.txt"]) isEqual:@"swapped in after the check"]);
+      [NSFileManager.defaultManager removeItemAtPath:staging error:nil];
+    }
+    {
+      NSString *path = Finished(mover, @"blocked.txt", @"genuine");
+      mover.stepHook = ^(NSString *step, NSString *staging) {
+        if (![step isEqualToString:@"claimed"]) return;
+        NSFileHandle *staged = [NSFileHandle fileHandleForWritingAtPath:[staging stringByAppendingPathComponent:@"blocked.txt"]];
+        [staged seekToEndOfFile];
+        [staged writeData:[@" and tampered" dataUsingEncoding:NSUTF8StringEncoding]];
+        [staged closeFile];
+        Make(@"src/blocked.txt", @"something new at the old name");
+      };
+      NSDictionary *result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"];
+      mover.stepHook = nil;
+      CHECK([Reason(result) isEqual:@"changed"]);
+      CHECK([Text(path) isEqual:@"something new at the old name"]);
+      NSString *staged = result[@"stagedPath"];
+      CHECK([staged.lastPathComponent isEqual:@"blocked.txt"]);
+      CHECK([Text(staged) isEqual:@"genuine and tampered"]);
+      CHECK(!Exists([gHome stringByAppendingPathComponent:@"Downloads/Bills/blocked.txt"]));
+      struct stat info;
+      CHECK(stat(staged.stringByDeletingLastPathComponent.fileSystemRepresentation, &info) == 0 && (info.st_mode & 0777) == 0700);
+      [NSFileManager.defaultManager removeItemAtPath:staged.stringByDeletingLastPathComponent error:nil];
+    }
+    {
+      NSString *path = Finished(mover, @"clean.txt", @"clean");
+      CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"]) isEqual:@"ok"]);
+      CHECK(StagingDirs().count == 0);
     }
     {
       CHECK([[ArdiaDownloadMover safeFileName:@".hidden"] isEqual:@"hidden"]);
