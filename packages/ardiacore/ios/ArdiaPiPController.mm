@@ -401,7 +401,9 @@ NSString *CornerName(int corner) {
 }
 
 - (void)screensChanged {
+  if (_swiping || (NSEvent.pressedMouseButtons & 1)) return;
   if (_stashedEdge != ArdiaPiPEdgeNone && ![NSScreen.screens containsObject:_stashScreen]) [self setStashedEdge:ArdiaPiPEdgeNone];
+  if (_stashedEdge != ArdiaPiPEdgeNone) return [self stashAt:_stashedEdge velocity:NSZeroPoint];
   [self rescueIfLost];
 }
 
@@ -544,7 +546,7 @@ NSString *CornerName(int corner) {
   const NSRect frame = _window.frame;
   const auto screens = ThrowScreens();
   const ardia_pip_throw::Point center{NSMidX(frame), NSMidY(frame)};
-  const int index = ardia_pip_throw::ScreenNearest(center, screens.data(), (int)screens.size());
+  const int index = ScreenIndex([self homeScreen]);
   if (index < 0) return NO;
   const ardia_pip_throw::Rect area = screens[index].visible;
   const ardia_pip_throw::Corner corner = ardia_pip_throw::PickCorner(center, {velocity.x, velocity.y}, area);

@@ -593,6 +593,12 @@ int main() {
     }
     CHECK(settled > 1.6 * kResponse && settled < 3.9 * kResponse);
     CHECK(std::fabs(settled - 0.82) < 0.05);
+    double stashSettled = -1;
+    for (int frame = 0; frame < 600 && stashSettled < 0; frame++) {
+      const double t = frame / 120.0;
+      if (Resolved(SpringAt(-1000, 0, t, kSettleResponse), SpringAt(0, 0, t, kSettleResponse))) stashSettled = t;
+    }
+    CHECK(stashSettled > 0 && stashSettled < settled - 0.05);
     double overshoot = 0;
     for (int frame = 0; frame < 600; frame++) overshoot = std::max(overshoot, SpringAt(-1000, 0, frame / 120.0).offset);
     CHECK(overshoot > 0 && overshoot < 2);
