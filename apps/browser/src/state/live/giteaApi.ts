@@ -58,7 +58,7 @@ export function giteaRequiredApprovals(get: <T>(path: string) => Promise<T>): Re
     const key = `${repo}:${branch}`;
     if (!branches.has(key)) {
       const path = `/repos/${repo}/branches/${branch.split("/").map(encodeURIComponent).join("/")}`;
-      branches.set(key, get<{ required_approvals?: number }>(path).then((b) => b.required_approvals ?? 0, () => null));
+      branches.set(key, get<{ required_approvals?: number }>(path).then((b) => b.required_approvals ?? 0).catch(missing));
     }
     return branches.get(key)!;
   };
