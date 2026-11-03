@@ -1,6 +1,7 @@
 import { onSystemState, setBatterySaver, systemState, type SystemState } from "../../platform/performance";
+import { profileSelected, suspendProfilePages } from "../profiles/suspendProfile";
 import { idleProfiles } from "../profiles/idleProfiles";
-import { releaseProfile } from "../../platform/profiles";
+import { releaseProfile, loadedProfiles as nativeLoadedProfiles } from "../../platform/profiles";
 import { showToast } from "../app/toasts";
 import { openSettings } from "../settings/settingsWindows";
 import { useBrowser, type BrowserState } from "../browser/store";
@@ -23,6 +24,7 @@ const loadedProfiles = new Set<string>();
 const profileGenerations = new Map<string, number>();
 const readyToRelease = idleProfiles();
 const releasingProfiles = new Set<string>();
+let readingProfiles = false;
 
 let system: SystemState | null = null;
 let systemOverride: Partial<SystemState> | null = null;
@@ -57,15 +59,13 @@ function forget(tabId: string) {
 function releaseUnusedProfiles() {
   const s = store();
   const inUse = new Set(Object.values(s.windows).map((w) => engineProfile(s, w.profileId)));
-  for (const id of webviews.keys()) {
-    const tab = s.tabs[id];
-    if (tab) inUse.add(engineProfile(s, tab.profileId));
-  }
   for (const profile of readyToRelease(loadedProfiles, inUse, Date.now())) {
     if (isIncognitoProfile(profile) || releasingProfiles.has(profile)) continue;
     releasingProfiles.add(profile);
     const generation = profileGenerations.get(profile);
-    void releaseProfile(profile).then((result) => {
+    void suspendProfilePages(profile, { state: store, handles: webviews }).then((suspended) =>
+      suspended && !profileSelected(store(), profile) ? releaseProfile(profile) : null,
+    ).then((result) => {
       if (result?.status === "released" && profileGenerations.get(profile) === generation) loadedProfiles.delete(profile);
     }).catch(() => {}).finally(() => releasingProfiles.delete(profile));
   }
@@ -138,7 +138,16 @@ export function startTabLifecycle() {
       () => {},
     );
 
-  everySlowly({ every: RELEASE_PROFILES_MS, run: releaseUnusedProfiles });
+  const pollProfiles = () => {
+    if (readingProfiles) return;
+    readingProfiles = true;
+    void nativeLoadedProfiles().then((profiles) => {
+      for (const profile of profiles) if (!isIncognitoProfile(profile)) loadedProfiles.add(profile);
+      releaseUnusedProfiles();
+    }).catch(() => {}).finally(() => { readingProfiles = false; });
+  };
+  pollProfiles();
+  everySlowly({ every: RELEASE_PROFILES_MS, run: pollProfiles });
 
   if (__DEV__) {
     (globalThis as { acLifecycle?: unknown }).acLifecycle = {

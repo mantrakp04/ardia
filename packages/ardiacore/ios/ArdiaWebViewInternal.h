@@ -150,6 +150,8 @@ struct ArdiaPageFocusState {
 - (BOOL)canTake:(ArdiaCoreTab *)tab;
 - (BOOL)takeTransferredTab;
 - (void)bindRestoreKey;
+- (BOOL)preserveHistoryForUnload;
+- (void)releaseRestoreKey;
 @end
 
 @interface ArdiaWebView (TabInternal)

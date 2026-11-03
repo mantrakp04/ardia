@@ -16,6 +16,7 @@
 #include "base/files/file_util.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
+#include "base/memory/weak_ptr.h"
 #include "base/pickle.h"
 #include "base/rand_util.h"
 #include "base/scoped_multi_source_observation.h"
@@ -251,7 +252,50 @@ class TabKeyBinding : public content::WebContentsObserver,
     SaveSoon();
   }
 
-  void DidStartNavigation(content::NavigationHandle*) override { Stamp(); }
+  bool PrepareForClose(std::string key) {
+    if (key_ != key) {
+      Bind(std::move(key));
+    }
+    if (preserve_ready_) {
+      preserve_on_close_ = true;
+      return true;
+    }
+    Profile* profile = SavingProfile();
+    if (!profile || preserve_pending_) {
+      return false;
+    }
+    std::optional<std::string> generation = TabHistoryGeneration(profile);
+    std::optional<std::string> history = generation
+        ? TabHistoryOf(web_contents(), *generation) : std::nullopt;
+    if (!history) {
+      return false;
+    }
+    save_timer_.Stop();
+    unsaved_ = false;
+    preserve_pending_ = true;
+    const int revision = ++preserve_revision_;
+    TabHistoryFiles()->PostTaskAndReplyWithResult(
+        FROM_HERE,
+        base::BindOnce([](base::FilePath path, std::string data) {
+          WriteTabHistory(path, data);
+          std::string saved;
+          return base::ReadFileToStringWithMaxSize(path, &saved, data.size()) &&
+                 saved == data;
+        }, HistoryFile(profile), std::move(*history)),
+        base::BindOnce([](base::WeakPtr<TabKeyBinding> binding, int revision,
+                          bool saved) {
+          if (binding && binding->preserve_revision_ == revision) {
+            binding->preserve_pending_ = false;
+            binding->preserve_ready_ = saved;
+          }
+        }, weak_factory_.GetWeakPtr(), revision));
+    return false;
+  }
+
+  void DidStartNavigation(content::NavigationHandle*) override {
+    InvalidatePreservation();
+    Stamp();
+  }
   void NavigationEntryCommitted(const content::LoadCommittedDetails&) override {
     Stamp();
     SaveSoon();
@@ -269,7 +313,7 @@ class TabKeyBinding : public content::WebContentsObserver,
     if (!profile) {
       return;
     }
-    if (browser_shutdown::IsTryingToQuit() ||
+    if (preserve_on_close_ || browser_shutdown::IsTryingToQuit() ||
         browser_shutdown::HasShutdownStarted() || profile->ShutdownStarted()) {
       if (unsaved_) {
         Save();
@@ -316,7 +360,15 @@ class TabKeyBinding : public content::WebContentsObserver,
     return TabHistoryDir(profile).AppendASCII(base::HexEncode(key_));
   }
 
+  void InvalidatePreservation() {
+    preserve_on_close_ = false;
+    preserve_ready_ = false;
+    preserve_pending_ = false;
+    ++preserve_revision_;
+  }
+
   void SaveSoon() {
+    InvalidatePreservation();
     unsaved_ = true;
     if (!save_timer_.IsRunning() && SavingProfile()) {
       save_timer_.Start(
@@ -348,7 +400,12 @@ class TabKeyBinding : public content::WebContentsObserver,
 
   std::string key_;
   bool unsaved_ = false;
+  bool preserve_on_close_ = false;
+  bool preserve_ready_ = false;
+  bool preserve_pending_ = false;
+  int preserve_revision_ = 0;
   base::OneShotTimer save_timer_;
+  base::WeakPtrFactory<TabKeyBinding> weak_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
@@ -470,6 +527,11 @@ AC_PROFILE_CALL(ac_tab_restore_tag) {
     ardia::PruneTabHistoryOnce(call.profile());
   }
   ardia::TabKeyBinding::CreateForWebContents(contents);
-  ardia::TabKeyBinding::FromWebContents(contents)->Bind(key);
+  auto* binding = ardia::TabKeyBinding::FromWebContents(contents);
+  if (call.Bool("preserveOnClose")) {
+    return call.TakeReply().Send(base::DictValue().Set(
+        "preserved", binding->PrepareForClose(key)));
+  }
+  binding->Bind(key);
   call.TakeReply().Ok();
 }

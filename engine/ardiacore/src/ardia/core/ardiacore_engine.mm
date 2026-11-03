@@ -367,7 +367,7 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
     }
     ardiacore::WindowHost* host = ardiacore::WindowHost::ForBrowser(window);
     Browser* browser = host ? host->ExistingBrowserFor(chrome_profile) : nullptr;
-    if (!host || !browser || host->IsActiveBrowser(browser) ||
+    if (!host || !browser || (host->IsActiveBrowser(browser) && !host->internal()) ||
         browser->GetTabStripModel()->count() != 0) {
       in_use = true;
       return false;

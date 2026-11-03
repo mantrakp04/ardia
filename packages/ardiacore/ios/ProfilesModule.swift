@@ -8,6 +8,7 @@ public class ProfilesModule: Module {
   }
 
   static let calls = CallTable(domain: "profiles", handlers: [
+    "loaded": { _, reply in reply.ok(ArdiaHost.loadedProfileNames()) },
     "release": { args, reply in
       reply.ok(["status": ArdiaHost.releaseProfile(args.profile)])
     },

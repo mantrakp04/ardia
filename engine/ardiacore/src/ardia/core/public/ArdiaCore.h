@@ -295,6 +295,8 @@ ARDIACORE_EXPORT
 @property(readonly) NSDictionary<NSString*, id>* securityInfo;
 - (BOOL)discard;
 @property(readonly) BOOL discarded;
+@property(readonly) BOOL canUnload;
+- (BOOL)unload;
 @property(nonatomic) BOOL frozen;
 - (void)resolveUnresponsive:(BOOL)terminate;
 - (BOOL)showAutofillSuggestions:(BOOL)passwords;

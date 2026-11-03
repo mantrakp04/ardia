@@ -139,6 +139,10 @@ static void (^gQuitCancelledHandler)(void);
   remove(p);
 }
 
++ (NSArray<NSString *> *)loadedProfileNames {
+  return ardia_host::LoadedProfileNames();
+}
+
 + (NSString *)releaseProfile:(NSString *)profile {
   ArdiaCoreEngine *engine = ArdiaCoreEngine.sharedEngine;
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(profile);
