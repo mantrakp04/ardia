@@ -102,16 +102,6 @@ NSScreen *ScreenFor(NSRect frame) { return OverlappingScreen(frame) ?: NSScreen.
 
 }
 
-namespace {
-
-BOOL ScreenAt(CGFloat x, CGFloat y) {
-  for (NSScreen *screen in NSScreen.screens)
-    if (NSPointInRect(NSMakePoint(x, y), screen.frame)) return YES;
-  return NO;
-}
-
-}
-
 namespace ardia_pip {
 
 void PreventActivation(NSWindow *window) {
@@ -205,6 +195,10 @@ NSString *CornerName(int corner) {
                                               object:NSApp
                                                queue:nil
                                           usingBlock:^(NSNotification *) { [weakSelf screenChanged]; }]];
+    [_observers addObject:[center addObserverForName:NSApplicationDidChangeScreenParametersNotification
+                                              object:nil
+                                               queue:nil
+                                          usingBlock:^(NSNotification *) { [weakSelf screensChanged]; }]];
     [_observers addObject:[center addObserverForName:NSWindowWillStartLiveResizeNotification
                                               object:window
                                                queue:nil
@@ -337,12 +331,20 @@ NSString *CornerName(int corner) {
   return screen ?: _lastScreen ?: NSScreen.mainScreen;
 }
 
+- (BOOL)displayBeyond:(ArdiaPiPEdge)side {
+  const auto screens = ThrowScreens();
+  const int home = ScreenIndex([self homeScreen]);
+  if (home < 0 || home >= (int)screens.size()) return NO;
+  return ardia_pip_throw::DisplayBeyond(ThrowRect(_window.frame), home, screens.data(), (int)screens.size(),
+                                        side == ArdiaPiPEdgeRight ? ardia_pip_throw::kRight : ardia_pip_throw::kLeft);
+}
+
 - (ArdiaPiPEdge)edgeBeyond {
   NSRect frame = _window.frame;
   NSRect visible = [self homeScreen].visibleFrame;
   CGFloat half = NSWidth(frame) / 2;
-  if (NSMaxX(frame) - NSMaxX(visible) > half && !ScreenAt(NSMaxX(visible) + 1, NSMidY(frame))) return ArdiaPiPEdgeRight;
-  if (NSMinX(visible) - NSMinX(frame) > half && !ScreenAt(NSMinX(visible) - 1, NSMidY(frame))) return ArdiaPiPEdgeLeft;
+  if (NSMaxX(frame) - NSMaxX(visible) > half && ![self displayBeyond:ArdiaPiPEdgeRight]) return ArdiaPiPEdgeRight;
+  if (NSMinX(visible) - NSMinX(frame) > half && ![self displayBeyond:ArdiaPiPEdgeLeft]) return ArdiaPiPEdgeLeft;
   return ArdiaPiPEdgeNone;
 }
 
@@ -364,7 +366,7 @@ NSString *CornerName(int corner) {
   const NSRect frame = _window.frame;
   const NSRect visible = [self homeScreen].visibleFrame;
   const auto side = ardia_pip_throw::FlungOffSide(ThrowRect(frame), {velocity.x, velocity.y}, ThrowRect(visible),
-                                                   ScreenAt(NSMinX(visible) - 1, NSMidY(frame)), ScreenAt(NSMaxX(visible) + 1, NSMidY(frame)));
+                                                   [self displayBeyond:ArdiaPiPEdgeLeft], [self displayBeyond:ArdiaPiPEdgeRight]);
   return side == ardia_pip_throw::kFlungRight ? ArdiaPiPEdgeRight : side == ardia_pip_throw::kFlungLeft ? ArdiaPiPEdgeLeft : ArdiaPiPEdgeNone;
 }
 
@@ -396,6 +398,11 @@ NSString *CornerName(int corner) {
   *thrown = flings && [self throwWithVelocity:velocity];
   if (!*thrown) [self rescueIfLost];
   return ArdiaPiPEdgeNone;
+}
+
+- (void)screensChanged {
+  if (_stashedEdge != ArdiaPiPEdgeNone && ![NSScreen.screens containsObject:_stashScreen]) [self setStashedEdge:ArdiaPiPEdgeNone];
+  [self rescueIfLost];
 }
 
 - (NSScreen *)gestureHome {
@@ -497,6 +504,7 @@ NSString *CornerName(int corner) {
   }
   NSMutableArray *trace = record[@"frames"];
   _animating = YES;
+  _slideTarget = target;
   const CFTimeInterval start = CACurrentMediaTime();
   __weak ArdiaPiPController *weakSelf = self;
   _slide = [NSTimer scheduledTimerWithTimeInterval:1.0 / 120 repeats:YES block:^(NSTimer *timer) {
@@ -627,7 +635,7 @@ NSString *CornerName(int corner) {
   const auto velocity = ardia_pip_throw::SwipeVelocity({last.x, last.y});
   BOOL thrown = NO;
   const ArdiaPiPEdge edge = [self landWithVelocity:NSMakePoint(velocity.x, velocity.y) flings:flings thrown:&thrown];
-  const NSRect destination = edge != ArdiaPiPEdgeNone ? [self frameStashedAt:edge] : thrown ? NSRectFromString(_lastThrow[@"target"]) : frame;
+  const NSRect destination = _animating ? _slideTarget : _window.frame;
   const NSPoint landing = NSMakePoint(NSMinX(destination) + _swipeGrab.x, NSMinY(destination) + _swipeGrab.y);
   const BOOL unmoved = NSEqualPoints(NSEvent.mouseLocation, _swipePointer);
   const BOOL warp = edge == ArdiaPiPEdgeNone && unmoved && (!thrown || CACurrentMediaTime() - _swipeBeganAt >= 0.15);

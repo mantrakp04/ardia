@@ -49,7 +49,7 @@ NSTimeInterval gHandleDownAt;
 
 BOOL OnHandle(NSWindow *window, NSEvent *event) {
   ArdiaPiPHandle *handle = [ArdiaPiPController forWindow:window].overlay.handle;
-  if (!handle || handle.hidden || [ArdiaPiPController forWindow:window].stashedEdge == ArdiaPiPEdgeNone) return NO;
+  if (!handle || handle.hidden || handle.alphaValue <= 0.01 || [ArdiaPiPController forWindow:window].stashedEdge == ArdiaPiPEdgeNone) return NO;
   return NSPointInRect([handle convertPoint:event.locationInWindow fromView:nil], handle.bounds);
 }
 

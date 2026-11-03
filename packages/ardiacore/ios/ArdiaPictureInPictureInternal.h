@@ -72,6 +72,7 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
   BOOL _keepOnTop;
   NSMutableArray *_observers;
   NSTimer *_slide;
+  NSRect _slideTarget;
   BOOL _animating;
   BOOL _sawDrag;
   BOOL _swiping;

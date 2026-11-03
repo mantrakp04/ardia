@@ -954,19 +954,20 @@ on its window.
 - **Tilt**: Dia also tilts the window while it's dragged (`dragAngleAnimation`, 0.005 × speed).
 
 **Ardia** (`ArdiaPiPController.mm`, the maths in `ArdiaPiPThrowMath.h`, tested by `pnpm -C packages/ardiacore test`)
-does the same on Chrome's video PiP window, using the same thresholds, corner rule, 10 pt inset and spring. It
-differs in a few places:
+does the same on Chrome's video PiP window, using the same thresholds and 10 pt inset. It differs in a few places,
+including its corner rule and spring:
 - Chrome's window can't tilt.
 - The window is remembered by its frame (Chrome's `ArdiaPictureInPicture.plist`), not by its corner.
 - A drag or swipe past a screen side keeps Ardia's 28 pt peek stash rather than Dia's off-screen one.
 - A swipe whose fingers rested more than 0.1 s before lifting doesn't throw.
-- The corner isn't Dia's ±45° heading from the grabbed spot. Ardia projects the window's centre 0.5 s along the fling
-  (UIKit's normal deceleration) and takes the nearest corner of the display under the window's centre, so a short
-  flick stays on its side and every fling lands somewhere. A fling toward a side the window is within half its
-  width of, with no display beyond, stashes it there.
+- The corner isn't Dia's ±45° heading from the grabbed spot. Ardia projects the window's centre to velocity × 0.5 s
+  from where it was let go (where UIKit's normal deceleration, rate 0.998, would bring it to rest) and takes the
+  nearest corner of the display under the window's centre, so a short flick stays on its side and every fling lands
+  somewhere. A mostly horizontal fling toward a side the window is within half its width of, with no display beyond,
+  stashes it there when that projected centre crosses the side.
 - Throws use a 0.4 s response spring (damping 0.9), not Dia's 0.9 s: 90 % of the way in 0.23 s and settled in 0.82 s
   rather than 1.74 s, which felt floaty after a two-finger swipe.
-- Stashing happens on release, carrying the release velocity, on a 0.35 s response spring (damping 0.9). Showing it
+- Stashing happens on release (carrying the release velocity when the release was a fling), on a 0.35 s response spring (damping 0.9). Showing it
   again uses the same spring. The handle fades in over 0.12 s once the window lands and out over 0.1 s as it leaves.
 - A click on the stash handle is read in Ardia's own event monitor, so it works whatever Chrome's window does with the
   click. A press on the handle that moves 3 pt becomes a drag.
@@ -980,6 +981,7 @@ differs in a few places:
 Measured in a hidden instance (3440 × 1410 and 1512 × 949 visible frames, 501 × 282 and 336 × 189 windows): every throw landed exactly 10 pt
 from the corner, for example (2929, 10) bottom right and (10, 1118) top left. Every frame was within 1 pt of the spring
 model at 120 Hz ticks: 26–36 % of the way at 0.1 s, 58–73 % at 0.25 s, 92–96 % at 0.5 s, the last move at about 1.3 s.
+Those timings are for the 0.9 s response spring this shipped with (2026-10-22). The 0.4 s spring settles in 0.82 s.
 
 ### Still unknown (needs a capture of Dia 1.50.1)
 - The painted mark's exact outline and position inside the 84pt view (particle uniforms). The `shadeLayer` path

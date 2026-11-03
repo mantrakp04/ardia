@@ -25,7 +25,7 @@ using namespace ardia_pip;
 
 - (NSView *)hitTest:(NSPoint)point {
   NSPoint local = [self convertPoint:point fromView:self.superview];
-  if (!_handle.hidden && NSPointInRect(local, _handle.frame)) return _handle;
+  if (!_handle.hidden && _handle.alphaValue > 0.01 && NSPointInRect(local, _handle.frame)) return _handle;
   return nil;
 }
 

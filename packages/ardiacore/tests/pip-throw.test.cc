@@ -308,7 +308,7 @@ int main() {
     const Screen two[] = {{{0, 0, 1800, 1169}, {0, 0, 1800, 1129}}, {{-306, 1169, 2560, 1440}, {-306, 1169, 2560, 1409}}};
     CHECK(ScreenNearest({900, 500}, two, 2) == 0);
     CHECK(ScreenNearest({900, 2000}, two, 2) == 1);
-    CHECK(ScreenNearest({5000, 500}, two, 2) == 1 || ScreenNearest({5000, 500}, two, 2) == 0);
+    CHECK(ScreenNearest({5000, 500}, two, 2) == 1);
     CHECK(ScreenNearest({0, 0}, two, 0) == -1);
   }
 
@@ -592,6 +592,7 @@ int main() {
       }
     }
     CHECK(settled > 1.6 * kResponse && settled < 3.9 * kResponse);
+    CHECK(std::fabs(settled - 0.82) < 0.05);
     double overshoot = 0;
     for (int frame = 0; frame < 600; frame++) overshoot = std::max(overshoot, SpringAt(-1000, 0, frame / 120.0).offset);
     CHECK(overshoot > 0 && overshoot < 2);
