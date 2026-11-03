@@ -122,10 +122,12 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
 
 ### Refs
 
-Refs keep agent-browser's `@eN` form, but numbers are never reused within a session: the first snapshot gives
-`e1, e2, ...` in document order and later snapshots (and `find`) continue from the last number instead of restarting
-at `e1`, so a delayed `click @e1` can't land on a different element from a newer snapshot; it fails as stale. Each
-ref keeps the browser instance, target id, frame id,
+Refs keep agent-browser's `@eN` form with stable numbers: a node (same browser instance, target, frame, document
+and backend node id) keeps its number across snapshots and `find`, so repeat snapshots of an unchanged page give
+identical refs. A node seen for the first time takes the next unused number, and a number never moves to another
+node, so a delayed `click @e1` can't land on a different element; once its node or document is gone it fails as
+stale. Numbers keep rising across documents (a new page's nodes are new nodes), and refs of documents a tab has left
+are forgotten. Each ref keeps the browser instance, target id, frame id,
 the frame's loader id, the snapshot generation and the backend DOM node id (with role and name for display). A ref
 resolves only within that lifetime: the instance must match, the frame must still have the same loader
 (`Page.getFrameTree`), and `DOM.resolveNode` must find the node, connected, in the isolated world. Anything else is
@@ -141,7 +143,12 @@ Humanized input is on by default and goes through pydoll's own classes: `Mouse` 
 off: `SteadyKeyboard` overrides `Keyboard._should_make_typo` to return False, and `tests/test_browse.py` fails if a
 pydoll update renames it or stops routing humanized typing through it. `keyboard inserttext` stays an instant
 `Input.insertText`. `--no-humanize` turns it off for one command, `AGENT_BROWSER_NO_HUMANIZE=1` for the session.
-Click points get a small random offset inside the box; a click whose point is covered fails with
+`fill` and `type` follow a field the page swaps out when it's focused (Wikipedia's Vector 2022 search box mounts a new
+input on first focus): if the target is detached after the focusing click or `DOM.focus`, and focus sits on an
+editable field in the same frame and document that matches it (same tag and type, and a shared id, name, placeholder,
+aria-label or title), they type there and report `retargeted: true` (the text output says so too). Anything else
+fails with `element_replaced` and types nothing. `auth login` never follows a replacement. Click points get a small
+random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`.
 
 Every input command confirms the page got it. Capture listeners in the isolated world count trusted `mousedown`,
@@ -172,7 +179,9 @@ tabs visible to the renderer, as a capture does).
 `ardia browse` doesn't change the page's main world by default: locating, snapshots (`Accessibility.getFullAXTree`,
 cursor-interactive elements found by computed style), `get`, `is`, `find`, `read`, `storage`, `select`, `pushstate`,
 `vitals` (`PerformanceObserver` with buffered entries) and `a11y` (axe-core, `iframes: false`) run in an isolated
-world (`Page.createIsolatedWorld`, `ardia-browse`) or through browser-side CDP. `--annotate` draws its labels on the
+world (`Page.createIsolatedWorld`, `ardia-browse`) or through browser-side CDP. `--annotate` lists and labels only the refs whose boxes fall inside the
+captured image (agent-browser 0.35.1 prints every ref on the page in its legend; ardia browse lists only what the
+image shows), and draws its labels on the
 PNG in Python, so nothing is added to the page. The page still sees what a person causes: trusted input events,
 focus, scrolling, and the DOM changes those lead to (`select` and `pushstate` dispatch their `input`/`change` and
 `popstate` events from the isolated world). Only `eval`, `wait --fn`, init scripts and the React hook run in the
@@ -239,6 +248,9 @@ agent-browser starts its own browser (`--headed`, `--profile`, `--executable-pat
 fail with a message saying so. `--headers`, `--color-scheme` and `--download-path` are launch-time too: they point at
 `set headers`, `set media` and `download <sel> <path>`. Config files (`~/.agent-browser/config.json`, `./agent-browser.json`) and
 `AGENT_BROWSER_PLUGINS` are never read. `read <url>` fetches with Python's `urllib`, so it never touches Ardia.
+
+When the reader of its output goes away early (`ardia browse snapshot -i | head`), it stops writing and exits 141, as a
+program killed by SIGPIPE would, without a traceback.
 
 ### Captures and bounds
 

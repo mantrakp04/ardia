@@ -281,6 +281,25 @@ def read_has_url(args: list[str]) -> bool:
 
 
 def main(argv: list[str]) -> int:
+    try:
+        code = run(argv)
+        sys.stdout.flush()
+        return code
+    except BrokenPipeError:
+        quiet_stdout()
+        return 141
+
+
+def quiet_stdout() -> None:
+    try:
+        sink = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(sink, sys.stdout.fileno())
+        os.close(sink)
+    except (OSError, ValueError):
+        pass
+
+
+def run(argv: list[str]) -> int:
     from ardia_cli import endpoint as endpoints
     from ardia_cli.browse import client, help as helptext
 

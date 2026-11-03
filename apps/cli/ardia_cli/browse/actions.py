@@ -236,11 +236,47 @@ async def hover(page, element, humanize: bool):
                        {"mousemove": 1}, "The hover")
 
 
-async def focus_field(page, element, info, humanize: bool):
-    if humanize and not info.get("focused"):
-        await click(page, element, True)
-    else:
-        await page.focus_element(element)
+async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool = False):
+    from ardia_cli.browse.errors import CdpError
+
+    try:
+        if humanize and not info.get("focused"):
+            await click(page, element, True)
+        else:
+            await page.focus_element(element)
+    except CdpError as error:
+        if not tolerate_detach or "focusable" not in error.cdp_message:
+            raise
+
+
+REPLACEMENT = """(old) => {
+  const active = document.activeElement;
+  if (!active || active === old || active === document.body) return null;
+  const info = ardiaBrowse.info(active);
+  if (!info.editable || info.disabled) return null;
+  const keys = ["id", "name", "placeholder", "aria-label", "title"];
+  const same = active.tagName === old.tagName && (active.type || "") === (old.type || "")
+    && keys.some((key) => old.getAttribute(key) && old.getAttribute(key) === active.getAttribute(key));
+  return same ? active : null;
+}"""
+
+
+async def settle_focus(page, element, loader: str | None):
+    connected = await page.call("(el) => el.isConnected", element, frame=element.frame)
+    if connected:
+        return element, False
+    await page.refresh_frames()
+    if page.loader(element.frame) != loader:
+        raise BrowseError(f"The page navigated when {element.label} was focused, so nothing was typed", code="element_replaced")
+    remote = await page.call(REPLACEMENT, element, frame=element.frame, by_value=False)
+    replacement = await page.element_from(remote, element.frame, f"the field that replaced {element.label}")
+    if replacement is None:
+        raise BrowseError(
+            f"{element.label} was replaced when it was focused, and focus didn't land on a matching field in the same page, "
+            "so nothing was typed. Snapshot again and use the new ref",
+            code="element_replaced",
+        )
+    return replacement, True
 
 
 async def type_into(page, element, text: str, humanize: bool, guard=None):
@@ -268,16 +304,22 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         raise BrowseError(f"{element.label} is a <select>; use `ardia browse select {element.label} <value>`")
     if not info.get("editable") or info.get("disabled"):
         raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
-    await focus_field(page, element, info, humanize)
+    loader = page.loader(element.frame)
+    await focus_field(page, element, info, humanize, tolerate_detach=True)
+    element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
     if text:
         await type_into(page, element, text, humanize, guard)
+    return retargeted
 
 
 async def type_text(page, element, text: str, humanize: bool):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
-    await focus_field(page, element, info, humanize)
+    loader = page.loader(element.frame)
+    await focus_field(page, element, info, humanize, tolerate_detach=True)
+    element, retargeted = await settle_focus(page, element, loader)
     await type_into(page, element, text, humanize)
+    return retargeted
 
 
 async def set_checked(page, element, wanted: bool, humanize: bool):

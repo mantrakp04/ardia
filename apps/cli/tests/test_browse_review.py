@@ -66,11 +66,11 @@ class DeadLinkIsTerminal(unittest.TestCase):
         self.assertEqual(opened, [1])
 
 
-def ax_tree(names):
+def ax_tree(names, base=100):
     nodes = [{"nodeId": "r", "role": {"value": "RootWebArea"}, "name": {"value": ""}, "childIds": [f"n{i}" for i in range(len(names))]}]
     for index, name in enumerate(names):
         nodes.append({"nodeId": f"n{index}", "parentId": "r", "role": {"value": "button"}, "name": {"value": name},
-                      "backendDOMNodeId": 100 + index, "childIds": []})
+                      "backendDOMNodeId": base + index, "childIds": []})
     return nodes
 
 
@@ -78,8 +78,10 @@ class SnapshotPage:
     target_id = "T"
     main_frame = "F"
 
-    def __init__(self, names):
+    def __init__(self, names, base=100):
         self.names = names
+        self.base = base
+        self.live = set()
         self.frames = {"F": {"loader": "L1", "origin": "http://x", "url": "http://x/"}}
 
     async def refresh_frames(self):
@@ -88,46 +90,79 @@ class SnapshotPage:
     def loader(self, frame):
         return self.frames[frame]["loader"]
 
-    async def send(self, method, params=None, input_event=False, timeout=30):
+    async def send(self, method, params=None, input_event=False, timeout=30, mutation=False):
         if method == "Accessibility.getFullAXTree":
-            return {"nodes": ax_tree(self.names)}
+            self.live = {self.base + index for index in range(len(self.names))}
+            return {"nodes": ax_tree(self.names, self.base)}
         raise AssertionError(method)
 
+    async def resolve_backend(self, backend, frame, label):
+        return SimpleNamespace(frame=frame, backend_id=backend, label=label) if backend in self.live else None
 
-class RefsAreNeverReassigned(unittest.TestCase):
-    def test_second_snapshot_continues_numbering_and_old_refs_are_stale(self):
-        state = State({"session": "t"}, lambda: None)
-        state.instance = "i"
+    async def call(self, function, *args, frame=None, **kwargs):
+        return True
+
+
+def take(state, page):
+    with mock.patch.object(snapshot, "clickable_map", mock.AsyncMock(return_value={})):
+        return run(snapshot.take(state, page, interactive=True))
+
+
+def ref_state(page):
+    state = State({"session": "t"}, lambda: None)
+    state.instance = "i"
+    state.target_infos = {"T": {}}
+
+    async def page_for(target=None):
+        return page
+
+    state.page = page_for
+    return state
+
+
+class RefsAreStableAndNeverReassigned(unittest.TestCase):
+    def test_repeat_snapshots_of_an_unchanged_page_give_identical_refs(self):
+        page = SnapshotPage(["A", "B", "C"])
+        state = ref_state(page)
+        first = take(state, page)[0]
+        for _ in range(5):
+            self.assertEqual(take(state, page)[0], first)
+        self.assertEqual(sorted(state.refs_json()), ["e1", "e2", "e3"])
+        self.assertEqual(state.issued_refs, 3)
+
+    def test_a_new_element_never_inherits_an_old_number(self):
         page = SnapshotPage(["Old"])
-        with mock.patch.object(snapshot, "clickable_map", mock.AsyncMock(return_value={})):
-            run(snapshot.take(state, page, interactive=True))
-            first = set(state.refs)
-            page.names = ["New"]
-            run(snapshot.take(state, page, interactive=True))
-        self.assertEqual(first, {"e1"})
-        self.assertEqual(set(state.refs), {"e2"})
-        state.target_infos = {"T": {}}
-
-        async def page_for(target=None):
-            return page
-
-        state.page = page_for
-        with self.assertRaises(StaleRef):
+        state = ref_state(page)
+        take(state, page)
+        self.assertEqual(sorted(state.refs_json()), ["e1"])
+        page.names, page.base = ["New"], 500
+        take(state, page)
+        self.assertEqual(sorted(state.refs_json()), ["e2"])
+        with self.assertRaisesRegex(StaleRef, "no longer in the page"):
             run(state.resolve_ref("e1"))
+        resolved_page, element = run(state.resolve_ref("e2"))
+        self.assertEqual(element.backend_id, 500)
         with self.assertRaisesRegex(BrowseError, "Unknown ref"):
             run(state.resolve_ref("e9"))
 
-    def test_find_refs_continue_the_counter(self):
-        state = State({"session": "t"}, lambda: None)
-        state.instance = "i"
+    def test_a_new_document_gets_new_numbers_and_old_ones_go_stale(self):
         page = SnapshotPage(["A", "B"])
-        with mock.patch.object(snapshot, "clickable_map", mock.AsyncMock(return_value={})):
-            run(snapshot.take(state, page, interactive=True))
-        element = SimpleNamespace(frame="F", backend_id=7)
-        self.assertEqual(state.add_ref(page, element), "e3")
-        with mock.patch.object(snapshot, "clickable_map", mock.AsyncMock(return_value={})):
-            run(snapshot.take(state, page, interactive=True))
-        self.assertEqual(sorted(state.refs), ["e4", "e5"])
+        state = ref_state(page)
+        take(state, page)
+        page.frames["F"]["loader"] = "L2"
+        take(state, page)
+        self.assertEqual(sorted(state.refs_json()), ["e3", "e4"])
+        with self.assertRaises(StaleRef):
+            run(state.resolve_ref("e1"))
+
+    def test_find_reuses_the_snapshot_number_for_the_same_node(self):
+        page = SnapshotPage(["A", "B"])
+        state = ref_state(page)
+        take(state, page)
+        self.assertEqual(state.add_ref(page, SimpleNamespace(frame="F", backend_id=101)), "e2")
+        self.assertEqual(state.add_ref(page, SimpleNamespace(frame="F", backend_id=7)), "e3")
+        self.assertEqual(take(state, page)[0].count("ref=e"), 2)
+        self.assertEqual(sorted(state.refs_json()), ["e1", "e2"])
 
 
 def make_daemon(test):
@@ -602,6 +637,84 @@ class CredentialGuardRunsAfterFocus(unittest.TestCase):
         target = inputs.FocusedKeyTarget(FocusPage(), {}, object(), guard)
         run(target.focus())
         self.assertEqual(order, ["focus", "guard"])
+
+
+class SettlePage:
+    def __init__(self, connected, replacement=None, loader_after="L"):
+        self.connected = connected
+        self.replacement = replacement
+        self.frames = {"F": {"loader": loader_after}}
+
+    def loader(self, frame):
+        return self.frames[frame]["loader"]
+
+    async def refresh_frames(self):
+        return self.frames
+
+    async def call(self, function, *args, **kwargs):
+        if "isConnected" in function:
+            return self.connected
+        return {"objectId": "new"} if self.replacement else {"subtype": "null"}
+
+    async def element_from(self, remote, frame, label):
+        return SimpleNamespace(frame=frame, backend_id=2, label=label) if remote.get("objectId") else None
+
+
+class FocusReplacementIsFollowed(unittest.TestCase):
+    old = SimpleNamespace(frame="F", backend_id=1, label="@e1")
+
+    def test_still_attached_keeps_the_target(self):
+        self.assertEqual(run(actions.settle_focus(SettlePage(True), self.old, "L")), (self.old, False))
+
+    def test_replaced_field_with_focus_on_its_replacement_is_retargeted(self):
+        element, retargeted = run(actions.settle_focus(SettlePage(False, replacement=True), self.old, "L"))
+        self.assertTrue(retargeted)
+        self.assertEqual(element.backend_id, 2)
+
+    def test_focus_anywhere_else_fails(self):
+        with self.assertRaises(BrowseError) as caught:
+            run(actions.settle_focus(SettlePage(False), self.old, "L"))
+        self.assertEqual(caught.exception.code, "element_replaced")
+
+    def test_a_new_document_fails(self):
+        with self.assertRaises(BrowseError):
+            run(actions.settle_focus(SettlePage(False, replacement=True, loader_after="L2"), self.old, "L"))
+
+    def test_the_vault_never_follows_a_replacement(self):
+        import inspect
+
+        from ardia_cli.browse import vault
+
+        source = inspect.getsource(vault.login)
+        self.assertNotIn("settle_focus", source)
+        self.assertNotIn("tolerate_detach", source)
+
+
+class AnnotateListsOnlyWhatIsInTheImage(unittest.TestCase):
+    def test_legend_skips_boxes_outside_the_viewport(self):
+        from ardia_cli.browse import media
+
+        region = (0, 0, 1280, 577)
+        self.assertTrue(media.in_image({"x": 8, "y": 21, "width": 100, "height": 37}, region))
+        self.assertTrue(media.in_image({"x": 8, "y": 570, "width": 100, "height": 20}, region))
+        self.assertFalse(media.in_image({"x": 8, "y": 10317, "width": 58, "height": 21}, region))
+        self.assertFalse(media.in_image({"x": 8, "y": -1979, "width": 58, "height": 21}, region))
+        self.assertFalse(media.in_image({"x": 8, "y": 40, "width": 0, "height": 0}, region))
+
+
+class BrokenPipeIsQuiet(unittest.TestCase):
+    def test_a_closed_reader_ends_quietly(self):
+        import subprocess
+
+        read, write = os.pipe()
+        os.close(read)
+        try:
+            done = subprocess.run([sys.executable, "-m", "ardia_cli", "browse", "--help"], stdout=write, stderr=subprocess.PIPE,
+                                  env=dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1])), timeout=60)
+        finally:
+            os.close(write)
+        self.assertEqual(done.stderr.decode(), "")
+        self.assertEqual(done.returncode, 141)
 
 
 if __name__ == "__main__":

@@ -157,12 +157,24 @@ async def capture_png(page, full: bool = False, clip: dict | None = None, fmt: s
     return base64.b64decode(result["data"])
 
 
-async def annotations(ctx, page):
+def in_image(box: dict, region: tuple[float, float, float, float]) -> bool:
+    left, top, right, bottom = region
+    return box["width"] > 0 and box["height"] > 0 and box["x"] < right and box["x"] + box["width"] > left \
+        and box["y"] < bottom and box["y"] + box["height"] > top
+
+
+async def annotations(ctx, page, full: bool = False):
     await snapshot.take(ctx.state, page, interactive=True)
     rows = []
     metrics = await page.send("Page.getLayoutMetrics")
     viewport = metrics.get("cssVisualViewport") or {}
-    for ref in ctx.state.refs.values():
+    width, height = viewport.get("clientWidth") or 0, viewport.get("clientHeight") or 0
+    region = (0, 0, width, height)
+    if full:
+        content = metrics.get("cssContentSize") or metrics.get("contentSize") or {}
+        scroll_x, scroll_y = viewport.get("pageX") or 0, viewport.get("pageY") or 0
+        region = (-scroll_x, -scroll_y, (content.get("width") or width) - scroll_x, (content.get("height") or height) - scroll_y)
+    for ref in ctx.state.snapshot_refs():
         try:
             quads = (await page.send("DOM.getContentQuads", {"backendNodeId": ref.backend})).get("quads") or []
         except BrowseError:
@@ -174,7 +186,8 @@ async def annotations(ctx, page):
         entry = {"number": int(ref.id[1:]), "ref": ref.id, "role": ref.role, "box": box}
         if ref.name:
             entry["name"] = ref.name
-        rows.append(entry)
+        if in_image(box, region):
+            rows.append(entry)
     return rows, viewport
 
 
@@ -242,7 +255,7 @@ async def cmd_screenshot(ctx, argv):
         clip = {"x": box["x"] + ox + vp["scrollX"], "y": box["y"] + oy + vp["scrollY"], "width": max(1, box["width"]), "height": max(1, box["height"]), "scale": 1}
     rows = None
     if annotate:
-        rows, viewport = await annotations(ctx, page)
+        rows, viewport = await annotations(ctx, page, full)
     data = await capture_png(page, full, clip, fmt, quality)
     if rows is not None:
         offset = None

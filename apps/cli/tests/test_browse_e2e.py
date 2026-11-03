@@ -238,6 +238,54 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(state["leaked"], [], "a credential character reached the cross-origin frame")
         self.assertEqual(state["pw"], "")
 
+    def test_fill_follows_a_field_the_page_replaces_on_focus(self):
+        session = "replace"
+        self.browse("open", self.url("replace.html"), "--show", session=session)
+        ref = ref_for(self.browse("snapshot", "-i", session=session).stdout, "Search the fixture")
+        filled = json.loads(self.browse("fill", ref, "Chromium", "--json", session=session).stdout)
+        self.assertEqual(filled, {"success": True, "data": {"filled": ref, "retargeted": True}, "error": None})
+        state = json.loads(self.browse("get", "text", "#report", session=session).stdout)
+        self.assertEqual((state["mounted"], state["value"], state["otherValue"]), (True, "Chromium", ""))
+        self.browse("open", self.url("replace.html"), session=session)
+        ref = ref_for(self.browse("snapshot", "-i", session=session).stdout, "Search the fixture")
+        typed = self.browse("type", ref, "abc", session=session).stdout
+        self.assertIn("typed into that one", typed)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout)["value"], "abc")
+
+    def test_fill_refuses_when_focus_goes_to_another_field(self):
+        session = "replace-elsewhere"
+        self.browse("open", self.url("replace.html#elsewhere"), "--show", session=session)
+        ref = ref_for(self.browse("snapshot", "-i", session=session).stdout, "Search the fixture")
+        refused = self.browse("fill", ref, "Chromium", session=session, check=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("nothing was typed", refused.stderr)
+        state = json.loads(self.browse("get", "text", "#report", session=session).stdout)
+        self.assertEqual((state["value"], state["otherValue"]), ("", ""))
+
+    def test_auth_login_never_follows_a_replaced_field(self):
+        env = {"ARDIA_BROWSE_KEYCHAIN": self.scratch_keychain()}
+        session = "vault-replace"
+        self.browse("auth", "save", "swap", "--url", self.url("replace.html"), "--password-selector", "#q", "--password-stdin",
+                    session=session, extra_env=env, stdin="s3cret!\n")
+        self.browse("open", self.url("replace.html"), "--show", session=session, extra_env=env)
+        refused = self.browse("auth", "login", "swap", session=session, extra_env=env, check=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout)["value"], "")
+
+    def test_repeat_snapshots_keep_their_refs_and_annotate_lists_only_the_image(self):
+        session = "stable"
+        self.browse("open", self.url("login.html"), "--show", session=session)
+        first = self.browse("snapshot", "-i", session=session).stdout
+        for _ in range(3):
+            self.assertEqual(self.browse("snapshot", "-i", session=session).stdout, first)
+        self.assertEqual(self.browse("snapshot", session=session).stdout.count("ref="), first.count("ref="))
+        annotated = json.loads(self.browse("screenshot", "--annotate", str(SCRATCH / "stable.png"), "--json", session=session).stdout)["data"]
+        height = json.loads(self.browse("eval", "innerHeight", "--json", session=session).stdout)["data"]["result"]
+        self.assertTrue(annotated["annotations"])
+        self.assertTrue(all(row["box"]["y"] < height and row["box"]["y"] + row["box"]["height"] > 0 for row in annotated["annotations"]))
+        self.assertLess(len(annotated["annotations"]), first.count("ref="))
+        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout, first)
+
     def test_refs_survive_idle_disconnect(self):
         session = "idle"
         self.browse("open", self.url("login.html"), "--show", session=session)

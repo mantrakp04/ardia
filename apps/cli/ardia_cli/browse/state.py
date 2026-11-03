@@ -43,6 +43,8 @@ class State:
         self.frames: dict[str, str] = {}
         self.refs: dict[str, Ref] = {}
         self.issued_refs = 0
+        self.ref_keys: dict[tuple, str] = {}
+        self.current_refs: list[str] = []
         self.generation = 0
         self.last_snapshot: str | None = None
         self.auto_dialog = not config.get("no_auto_dialog")
@@ -186,21 +188,44 @@ class State:
             )
         return frame
 
-    def set_refs(self, refs: list[Ref], snapshot_text: str | None):
+    def set_refs(self, refs: list[Ref], snapshot_text: str | None, page: Page | None = None):
         self.generation += 1
-        self.refs = {ref.id: ref for ref in refs}
+        if page is not None:
+            self.prune_refs(page)
         for ref in refs:
             ref.generation = self.generation
+            self.refs[ref.id] = ref
+        self.current_refs = [ref.id for ref in refs]
         if snapshot_text is not None:
             self.last_snapshot = snapshot_text
+
+    def prune_refs(self, page: Page):
+        live = {(frame_id, frame.get("loader")) for frame_id, frame in page.frames.items()}
+        for key, ref_id in list(self.ref_keys.items()):
+            instance, target, frame, loader, _ = key
+            if instance != self.instance or (target == page.target_id and (frame, loader) not in live):
+                del self.ref_keys[key]
+                self.refs.pop(ref_id, None)
 
     def next_ref(self) -> str:
         self.issued_refs += 1
         return f"e{self.issued_refs}"
 
+    def ref_for_node(self, page: Page, frame: str, backend: int) -> str:
+        key = (self.instance, page.target_id, frame, page.loader(frame) or "", backend)
+        ref_id = self.ref_keys.get(key)
+        if ref_id is None:
+            ref_id = self.ref_keys[key] = self.next_ref()
+        return ref_id
+
+    def snapshot_refs(self) -> list[Ref]:
+        return [self.refs[ref_id] for ref_id in self.current_refs if ref_id in self.refs]
+
     def add_ref(self, page: Page, element, role: str = "", name: str = "") -> str:
-        ref = Ref(self.next_ref(), self.instance, page.target_id, element.frame, page.loader(element.frame) or "",
-                  self.generation, element.backend_id, role, name)
+        ref_id = self.ref_for_node(page, element.frame, element.backend_id)
+        known = self.refs.get(ref_id)
+        ref = Ref(ref_id, self.instance, page.target_id, element.frame, page.loader(element.frame) or "",
+                  self.generation, element.backend_id, role or (known.role if known else ""), name or (known.name if known else ""))
         self.refs[ref.id] = ref
         return ref.id
 
@@ -287,7 +312,7 @@ class State:
         raise BrowseError(f"Tab {ref} not found; run `ardia browse tab` to list open tabs", code="tab_not_found")
 
     def refs_json(self) -> dict:
-        return {ref.id: {"name": ref.name, "role": ref.role} for ref in self.refs.values()}
+        return {ref.id: {"name": ref.name, "role": ref.role} for ref in self.snapshot_refs()}
 
     def ref_records(self) -> list[dict]:
         return [asdict(ref) for ref in self.refs.values()]

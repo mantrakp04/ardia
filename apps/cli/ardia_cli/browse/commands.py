@@ -394,8 +394,15 @@ async def cmd_fill(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "fill <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    await actions.fill(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return Result({"filled": args[0]})
+    retargeted = await actions.fill(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
+    return typed_result("filled", args[0], retargeted)
+
+
+def typed_result(key: str, selector: str, retargeted: bool) -> Result:
+    if not retargeted:
+        return Result({key: selector})
+    return Result({key: selector, "retargeted": True},
+                  f"✓ Done (the page replaced {selector} with a new field when it was focused; typed into that one)")
 
 
 @command("type")
@@ -403,8 +410,8 @@ async def cmd_type(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool", "--delay": "value"})
     need(args, 2, "type <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    await actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return Result({"typed": args[0]})
+    retargeted = await actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
+    return typed_result("typed", args[0], retargeted)
 
 
 @command("press")
@@ -802,11 +809,11 @@ async def cmd_find(ctx: Ctx, argv):
         await actions.click(page, element, humanize, 2)
         return Result({"clicked": f"@{ref}", "count": 2})
     if action == "fill":
-        await actions.fill(page, element, " ".join(rest[1:]), humanize)
-        return Result({"filled": f"@{ref}"})
+        retargeted = await actions.fill(page, element, " ".join(rest[1:]), humanize)
+        return typed_result("filled", f"@{ref}", retargeted)
     if action == "type":
-        await actions.type_text(page, element, " ".join(rest[1:]), humanize)
-        return Result({"typed": f"@{ref}"})
+        retargeted = await actions.type_text(page, element, " ".join(rest[1:]), humanize)
+        return typed_result("typed", f"@{ref}", retargeted)
     if action in ("check", "uncheck"):
         await actions.set_checked(page, element, action == "check", humanize)
         return Result({action + "ed": f"@{ref}"})

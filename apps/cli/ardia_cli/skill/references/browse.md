@@ -32,8 +32,8 @@ ardia browse close                       # closes only the tabs this session ope
   wheel scrolling with momentum, typing per character with varying gaps and no typos. `--no-humanize` on one
   command, or `AGENT_BROWSER_NO_HUMANIZE=1` for all, makes it instant. `keyboard inserttext` is always instant.
 - **Refs go stale for real.** A ref belongs to its document: after a navigation, a new document or an Ardia restart
-  it's reported as stale (`Stale ref @e4: ... Run snapshot again`), never guessed. Numbers are never reused in a
-  session, so the second snapshot may start at `@e17`: always take refs from the latest snapshot.
+  it's reported as stale (`Stale ref @e4: ... Run snapshot again`), never guessed. An element keeps its number
+  across snapshots of the same page, and a number never moves to another element.
 - **It doesn't change the page's main world by default.** Locating, snapshots and reads run in an isolated world or
   through the browser. The page still sees what a person would: input events, focus, scrolling and the DOM changes
   those cause. Only `eval`, `wait --fn`, init scripts (`addinitscript`, `open --init-script`) and the React hook

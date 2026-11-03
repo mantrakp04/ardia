@@ -236,9 +236,9 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
                     node.name = (text or "")[:MAX_NAME]
     for node in walk(nodes):
         if node.role in REF_ROLES or node.hints:
-            if node.role == "heading" and not node.name:
+            if node.role == "heading" and not node.name or node.backend is None:
                 continue
-            node.ref = state.next_ref()
+            node.ref = state.ref_for_node(page, node.frame, node.backend)
     if urls:
         for used in frames_used:
             await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)
@@ -249,7 +249,7 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
         if node.ref and node.backend is not None
     ]
     full_text = text if not (interactive or compact or depth is not None or selector) else None
-    state.set_refs(refs, text)
+    state.set_refs(refs, text, page)
     if full_text is not None:
         state.extras["full_snapshot"] = full_text
     return text, refs
