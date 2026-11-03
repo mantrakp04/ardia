@@ -22,7 +22,7 @@ import {
   dockState,
   dockedCardInset,
   edgeWatchWidth,
-  fromSidebarEdge,
+  fromSidebarEdgeInStrip,
   inPeekHold,
   peekHoldWidth,
   peekSpan,
@@ -194,7 +194,7 @@ function SidebarDock({
   const state = dockState({ open, fullscreen, moving, peekLive: peek.live });
   const holdWidth = peekHoldWidth(width);
   const holdHeight = useRef(Infinity);
-  const inHold = (x: number, y: number) => inPeekHold(fromSidebarEdge(x, right, windowWidth), y, holdWidth, holdHeight.current);
+  const inHold = (stripX: number, y: number) => inPeekHold(fromSidebarEdgeInStrip(stripX, right), y, holdWidth, holdHeight.current);
   const peeking = state === "peeking";
   const shown = shownAs(state);
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
