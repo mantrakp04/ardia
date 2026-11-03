@@ -513,7 +513,7 @@ NSString *CornerName(int corner) {
 - (void)springTo:(NSRect)target velocity:(NSPoint)velocity response:(double)response record:(NSMutableDictionary *)record {
   [self stopMotion];
   const NSRect from = _window.frame;
-  if (NSEqualPoints(from.origin, target.origin) || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
+  if (NSEqualPoints(from.origin, target.origin) || !_window.visible || NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
     if (!NSEqualPoints(from.origin, target.origin)) [_window setFrameOrigin:target.origin];
     record[@"settledAfter"] = @0;
     return [self springSettled];
