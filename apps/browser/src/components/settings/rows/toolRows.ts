@@ -158,6 +158,12 @@ export const toolRows = {
           description: "Save startup memory by loading profiles and their extensions when first opened. Turn off to preload all profiles at startup. Takes effect after restarting Ardia.",
           keywords: ["profile", "startup", "launch", "extensions", "memory", "ram", "lazy", "preload"],
         },
+        unloadProfilesAfter: {
+          advanced: true,
+          title: "Unload inactive profiles",
+          description: "When a profile isn't selected in any window. Pages must first be safely discarded by Memory Saver.",
+          keywords: ["profile", "unload", "idle", "timeout", "memory", "ram", "five minutes", "15 minutes", "hour"],
+        },
         memorySaver: {
           advanced: true,
           title: "Memory Saver",

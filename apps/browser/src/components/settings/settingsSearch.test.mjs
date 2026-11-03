@@ -133,3 +133,8 @@ test("profile startup memory setting is searchable", () => {
   assert.ok(ids("preload").includes("advanced.loadProfilesWhenOpened"));
   assert.ok(ids("extensions").includes("advanced.loadProfilesWhenOpened"));
 });
+
+test("profile unloading timeout is searchable", () => {
+  assert.ok(ids("unload inactive profiles").includes("advanced.unloadProfilesAfter"));
+  assert.ok(ids("timeout").includes("advanced.unloadProfilesAfter"));
+});

@@ -25,3 +25,29 @@ test("a released and reloaded profile gets a fresh grace period, including Defau
   ready([], new Set(), PROFILE_IDLE_MS);
   assert.deepEqual(ready([""], new Set(), PROFILE_IDLE_MS + 1), []);
 });
+
+test("each configured delay waits for its full interval", () => {
+  for (const delay of [5, 15, 60, 120]) {
+    const ready = idleProfiles();
+    const ms = delay * 60_000;
+    ready(["work"], new Set(), 0, ms);
+    assert.deepEqual(ready(["work"], new Set(), ms - 1, ms), []);
+    assert.deepEqual(ready(["work"], new Set(), ms, ms), ["work"]);
+  }
+});
+
+test("turning unloading off clears elapsed idle time", () => {
+  const ready = idleProfiles();
+  ready(["work"], new Set(), 0);
+  assert.deepEqual(ready(["work"], new Set(), PROFILE_IDLE_MS, null), []);
+  assert.deepEqual(ready(["work"], new Set(), PROFILE_IDLE_MS + 1), []);
+  assert.deepEqual(ready(["work"], new Set(), 2 * PROFILE_IDLE_MS + 1), ["work"]);
+});
+
+test("unloading respects the Off choice and Memory Saver", async () => {
+  const { profileUnloadDelay } = await import("./idleProfiles.ts");
+  for (const [value, minutes] of [["never", null], ["5m", 5], ["15m", 15], ["1h", 60], ["2h", 120]]) {
+    assert.equal(profileUnloadDelay({ memorySaver: true, unloadProfilesAfter: value }), minutes === null ? null : minutes * 60_000);
+    assert.equal(profileUnloadDelay({ memorySaver: false, unloadProfilesAfter: value }), null);
+  }
+});

@@ -5,7 +5,7 @@ import { suspendProfilePages } from "./suspendProfile.ts";
 function fixture() {
   const page = { kind: "loaded", nav: { url: "https://example.com", seq: 9001 } };
   const state = {
-    settings: { memorySaver: true },
+    settings: { memorySaver: true, unloadProfilesAfter: "5m" },
     profiles: { default: {}, work: {}, alias: { dataId: "work" } },
     windows: { first: { profileId: "default" } },
     tabs: { tab: { id: "tab", profileId: "work", url: "https://example.com", page } },
@@ -70,4 +70,22 @@ test("a navigation while unload is pending is not overwritten", async () => {
   assert.equal(state.tabs.tab.url, "https://changed.example");
   assert.equal(state.tabs.tab.page.kind, "loaded");
   assert.equal(state.tabs.tab.page.nav.seq, 9002);
+});
+
+test("the Off choice prevents native page unloading", async () => {
+  const { state, calls, port } = fixture();
+  state.settings.unloadProfilesAfter = "never";
+  assert.equal(await suspendProfilePages("work", port), false);
+  assert.deepEqual(calls, []);
+});
+
+
+test("changing the timeout during unloading stops the profile release", async () => {
+  const { state, port } = fixture();
+  port.handles.set("tab", { discard: async () => {
+    state.settings = { ...state.settings, unloadProfilesAfter: "2h" };
+    return "unloaded";
+  } });
+  assert.equal(await suspendProfilePages("work", port), false);
+  assert.equal(state.tabs.tab.page.kind, "asleep");
 });

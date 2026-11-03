@@ -1,6 +1,6 @@
 import { onSystemState, setBatterySaver, systemState, type SystemState } from "../../platform/performance";
 import { profileSelected, suspendProfilePages } from "../profiles/suspendProfile";
-import { idleProfiles } from "../profiles/idleProfiles";
+import { idleProfiles, profileUnloadDelay } from "../profiles/idleProfiles";
 import { releaseProfile, loadedProfiles as nativeLoadedProfiles } from "../../platform/profiles";
 import { showToast } from "../app/toasts";
 import { openSettings } from "../settings/settingsWindows";
@@ -59,12 +59,14 @@ function forget(tabId: string) {
 function releaseUnusedProfiles() {
   const s = store();
   const inUse = new Set(Object.values(s.windows).map((w) => engineProfile(s, w.profileId)));
-  for (const profile of readyToRelease(loadedProfiles, inUse, Date.now())) {
+  for (const profile of readyToRelease(loadedProfiles, inUse, Date.now(), profileUnloadDelay(s.settings))) {
     if (isIncognitoProfile(profile) || releasingProfiles.has(profile)) continue;
     releasingProfiles.add(profile);
     const generation = profileGenerations.get(profile);
+    const unloadAfter = s.settings.unloadProfilesAfter;
     void suspendProfilePages(profile, { state: store, handles: webviews }).then((suspended) =>
-      suspended && !profileSelected(store(), profile) ? releaseProfile(profile) : null,
+      suspended && store().settings.unloadProfilesAfter === unloadAfter
+        && profileUnloadDelay(store().settings) !== null && !profileSelected(store(), profile) ? releaseProfile(profile) : null,
     ).then((result) => {
       if (result?.status === "released" && profileGenerations.get(profile) === generation) loadedProfiles.delete(profile);
     }).catch(() => {}).finally(() => releasingProfiles.delete(profile));
@@ -112,7 +114,9 @@ export function startTabLifecycle() {
 
   startMemorySaver();
   useBrowser.subscribe((s: BrowserState, prev: BrowserState) => {
-    if (s.windows !== prev.windows || s.profiles !== prev.profiles) releaseUnusedProfiles();
+    if (s.windows !== prev.windows || s.profiles !== prev.profiles
+      || s.settings.memorySaver !== prev.settings.memorySaver
+      || s.settings.unloadProfilesAfter !== prev.settings.unloadProfilesAfter) releaseUnusedProfiles();
     if (s.settings.batterySaverWhen !== prev.settings.batterySaverWhen) {
       lowBatteryHeld = false;
       updateBatterySaver(false);
