@@ -2,6 +2,7 @@ import { onWindowEvent } from "../../platform/windows";
 import { everySlowly } from "../../platform/slowTimers";
 import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
+import { shownTabIds } from "../tabs/shownTabs";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
@@ -78,6 +79,7 @@ async function run(folderId: string) {
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
   fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
+  markCompletedTabs(folderId, gone, ids);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
@@ -147,7 +149,8 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
     return existing;
   }
   const id = s.newTab(windowId, { url: item.url, background: options.background });
-  useBrowser.getState().updateTab(id, { liveItem: { folderId, itemId: item.id } });
+  const completed = live().completed[folderId]?.some((c) => c.item.id === item.id);
+  useBrowser.getState().updateTab(id, { liveItem: completed ? { folderId, itemId: item.id, completed } : { folderId, itemId: item.id } });
   return id;
 }
 
@@ -156,6 +159,28 @@ export function deleteLiveFolder(folderId: string) {
   const tabs = Object.values(s.tabs).filter((t) => t.liveItem?.folderId === folderId).map((t) => t.id);
   if (tabs.length) s.closeTabs(tabs);
   removeFolder(folderId);
+}
+
+function markCompletedTabs(folderId: string, gone: Record<string, CompletionState>, listed: Set<string>) {
+  const s = useBrowser.getState();
+  const hidden = new Set((live().hidden[folderId] ?? []).map((it) => it.id));
+  for (const t of Object.values(s.tabs)) {
+    const ref = t.liveItem;
+    if (ref?.folderId !== folderId) continue;
+    if (gone[ref.itemId] && !hidden.has(ref.itemId) && !ref.completed) s.updateTab(t.id, { liveItem: { ...ref, completed: true } });
+    else if (ref.completed && listed.has(ref.itemId)) s.updateTab(t.id, { liveItem: { folderId, itemId: ref.itemId } });
+  }
+  closeCompletedTabs();
+}
+
+function closeCompletedTabs() {
+  const s = useBrowser.getState();
+  const { folders, items } = live();
+  const shown = shownTabIds(s);
+  const tabs = Object.values(s.tabs)
+    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
+    .map((t) => t.id);
+  if (tabs.length) s.closeTabs(tabs);
 }
 
 let started = false;
@@ -173,7 +198,9 @@ export function startLiveEngine() {
   orphans();
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
+    if (s.folders !== prev.folders || s.items !== prev.items) closeCompletedTabs();
   });
+  closeCompletedTabs();
 
   useBrowser.subscribe((s, prev) => {
     if (s.profiles === prev.profiles) return;
@@ -196,6 +223,10 @@ export function startLiveEngine() {
   });
   onWindowEvent((e) => {
     if (e.type === "focus") for (const id of live().folderOrder) if (due(id, STALE_ON_FOCUS_MS)) void refreshFolder(id);
+  });
+
+  useBrowser.subscribe((s, prev) => {
+    if (s.windows !== prev.windows || s.splits !== prev.splits || s.peeks !== prev.peeks) closeCompletedTabs();
   });
 
   useBrowser.subscribe((s, prev) => {
