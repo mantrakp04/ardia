@@ -266,3 +266,64 @@ test("an approved omnibox hook becomes a provider only while its runner serves i
   stub.emitControlClose(runner);
   assert.equal(useRegisteredProviders.getState().list.some((p) => p.id === "hook:jira"), false);
 });
+
+test("download.deciding fires when a download finishes; a folder rule moves it, anything else leaves it", async () => {
+  const { startDownloadHooks, resetDownloadHooksForTests } = await import("./downloadHooks.ts");
+  fresh([
+    { name: "invoices", on: "download.deciding", match: "https://billing.example/*", folder: "~/Downloads/Invoices" },
+    { name: "finance", on: "download.deciding", match: "https://bank.example/*", folder: "~/Documents/Finance" },
+  ]);
+  resetDownloadHooksForTests();
+  const moves = [];
+  const approved = [];
+  startDownloadHooks({
+    move: async (path, folder) => (moves.push([path, folder]), { ok: true, path: `/Users/me/${folder.slice(2)}/${path.split("/").pop()}` }),
+    approveFolders: (folders) => approved.push(folders),
+  });
+  assert.deepEqual(approved.at(-1), []);
+  const base = { received: 10, total: 10, speed: 0, mimeType: "application/pdf", paused: false, profile: "" };
+  const finish = (id, url) => {
+    S().upsertDownload({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "downloading" });
+    S().upsertDownload({ ...base, id, url, filename: `${id}.pdf`, path: `/Users/me/Downloads/${id}.pdf`, state: "finished" });
+  };
+  finish("d1", "https://billing.example/inv.pdf");
+  finish("d2", "https://bank.example/stmt.pdf");
+  finish("d3", "https://other.example/x.pdf");
+  await wait(10);
+  assert.deepEqual(moves, [["/Users/me/Downloads/d1.pdf", "~/Downloads/Invoices"]]);
+  assert.equal(S().downloads.find((d) => d.id === "d1").path, "/Users/me/Downloads/Invoices/d1.pdf");
+  approveRule(approvalFor(useHookRules.getState().hooks[1]).key);
+  assert.deepEqual(approved.at(-1), ["~/Documents/Finance"]);
+  finish("d4", "https://bank.example/stmt2.pdf");
+  await wait(10);
+  assert.deepEqual(moves.at(-1), ["/Users/me/Downloads/d4.pdf", "~/Documents/Finance"]);
+  S().upsertDownload({ ...S().downloads.find((d) => d.id === "d1"), received: 11 });
+  await wait(10);
+  assert.equal(moves.length, 2);
+  resetDownloadHooksForTests();
+});
+
+test("a program download hook that times out leaves the file where it is", async () => {
+  const { startDownloadHooks, resetDownloadHooksForTests } = await import("./downloadHooks.ts");
+  const hooks = [{ name: "sorter", on: "download.deciding", run: ["~/bin/sort"] }];
+  fresh(hooks);
+  await controlOn();
+  approveRule(approvalFor(useHookRules.getState().hooks[0]).key);
+  const runner = ++nextConnection;
+  call("subscribe", { events: ["tab.opened"], hooks }, runner);
+  resetDownloadHooksForTests();
+  const moves = [];
+  startDownloadHooks({ move: async (path, folder) => (moves.push([path, folder]), { ok: true, path }), approveFolders: () => {} });
+  const from = stub.controlSocket.broadcasts.length;
+  const d = { id: "p1", url: "https://a.example/f.zip", filename: "f.zip", path: "/Users/me/Downloads/f.zip", received: 5, total: 5, speed: 0, mimeType: "application/zip", paused: false, profile: "", state: "finished" };
+  S().upsertDownload({ ...d, state: "downloading" });
+  S().upsertDownload(d);
+  const request = linesFor(runner, from).find((l) => l.decide);
+  assert.deepEqual(request.data, { url: d.url, origin: "https://a.example", filename: "f.zip", mime: "application/zip", size: 5, path: d.path, profile: "" });
+  assert.equal(request.deadline, 2000);
+  call("answer", { decide: request.decide, answer: { folder: "/etc" } }, runner);
+  await wait(10);
+  assert.deepEqual(moves, []);
+  stub.emitControlClose(runner);
+  resetDownloadHooksForTests();
+});

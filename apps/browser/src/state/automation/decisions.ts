@@ -125,10 +125,21 @@ export function downloadFolderAllowed(folder: string, approvedFolders: readonly 
   return isInsideDownloads(folder) || approvedFolders.some((f) => folder === f || folder.startsWith(`${f}/`));
 }
 
-export function decideDownload(download: { url: string; tabId: string | null; profile: string | null }, approvedFolders: readonly string[], signal?: AbortSignal): string | null | Promise<string | null> {
+export type FinishedDownload = { url: string; filename: string; mimeType: string; size: number; path: string; profile: string | null };
+
+const originOf = (url: string) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
+
+export function decideDownload(download: FinishedDownload, approvedFolders: readonly string[], signal?: AbortSignal): string | null | Promise<string | null> {
   if (download.profile && isIncognitoProfile(download.profile)) return null;
   const folderOf = (folder: unknown) => (typeof folder === "string" && downloadFolderAllowed(folder, approvedFolders) ? folder : null);
-  return decide<string>("download.deciding", { url: download.url, tabId: download.tabId, profile: download.profile }, {
+  const data = { url: download.url, origin: originOf(download.url), filename: download.filename, mime: download.mimeType, size: download.size, path: download.path, profile: download.profile };
+  return decide<string>("download.deciding", data, {
     applies: (hook) => urlApplies(hook, download.url),
     rule: (hook) => (downloadFolderAllowed(hook.rules!.folder!, [hook.rules!.folder!]) ? hook.rules!.folder! : null),
     answer: (answer) => (isFields(answer) ? folderOf(answer.folder) : null),

@@ -186,7 +186,7 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 |---|---|---|---|---|---|
 | `tab.opening` | a top-level navigation the user starts: typed or pasted in the address bar, a link opened in a new tab or window, a URL from another app. Never redirects, subresources, same-tab link clicks, restores or reloads | `url`, `via` (`typed`, `newTab`, `link`, `external`), `windowId`, `tabId`, `profile` | `{"url"}` to rewrite, `{"cancel": true}` | open the original | 250 ms |
 | `link.opening` | a URL arrives from another app, after `tab.opening` | `url`, `source` (`bundleId`, `appName`, null when unknown) | `{"profile"?, "open"?: "tab"\|"littleArdia"\|"window", "window"?}`, `{"drop": true}` | Ardia's usual routing | 250 ms |
-| `download.deciding` | a download is about to pick its folder | `url`, `tabId`, `profile` | `{"folder"}` | the usual folder or save panel | 2 s |
+| `download.deciding` | a download has finished (it moves after completion; nothing hooks the engine before the download starts) | `url`, `origin`, `filename`, `mime`, `size`, `path` (where it is now), `profile` | `{"folder"}` | the file stays where it is | 2 s |
 | `permission.requested` | a site asks for camera, microphone, location, notifications… | `origin`, `kinds`, `windowId`, `tabId`, `profile` | `{"permission": "deny"\|"ask"\|"allow"}` | the normal prompt | 2 s |
 
 - **Two forms.** Declarative rules in hooks.json that the app evaluates itself, in process and synchronously, with
@@ -214,12 +214,16 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
   while a program decides is never granted.
-- **Downloads.** Answers may only pick `~/Downloads`, its subfolders, or a folder the user approved (a `folder` rule
-  outside Downloads, after approval); `..` and `.` parts are refused. Moving the file there is the engine's job:
-  resolving through descriptors (no symlink escapes), never overwriting (collision-safe names), keeping quarantine
-  and the dangerous-download checks, and never using the save panel's replacement authority. The JS side
-  (`decideDownload`) is ready; the engine doesn't ask yet, so `download.deciding` hooks are validated and listed
-  but have no effect until it does.
+- **Downloads.** `download.deciding` fires once per download, when it finishes (not for private profiles,
+  off-the-record or dangerous downloads, nor ones already finished at launch), and the answer moves the finished
+  file. A `folder` rule or a program answer may only pick `~/Downloads`, its subfolders, or a folder the user
+  approved (a `folder` rule outside Downloads, after approval); `.` and `..` parts are refused. The app asks the
+  native side (`moveCompletedDownload(path, folder)` in `platform/systemSignals.ts`) to move it. That side only
+  moves a file the app itself just downloaded, only into `~/Downloads` or the folders the app passed in
+  `setApprovedDownloadFolders` (sent at startup and on every change, from the approved rules). It resolves through
+  descriptors, never overwrites and keeps the quarantine attribute. On success the download's row points at the
+  new path; a timeout, an error or no answer leaves the file where it is. Folders cross the bridge as `~/…`.
+  Code: `state/automation/downloadHooks.ts`.
 - **Floods.** At most 64 pending decisions (16 per runner connection), 200 hooks and 50 rewrite rules per hook; the
   runner runs at most 16 decide programs at once (4 per hook) and gives up at the deadline. Command hooks run at
   most 10 commands per 10 s each, so a hook that triggers itself stops.
