@@ -155,7 +155,7 @@ test("keep history: trimming a page with more visits than the list tracks counts
   assert.equal(withoutVisitsBefore(entry, NOW - 60 * DAY_MS), entry, "nothing tracked is older: unchanged");
 });
 
-test("keep history: an import leaves out what's older than the period", () => {
+test("keep history: an import leaves out what's older than the period", async () => {
   S().hydrate({});
   stub.historyDbs.clear();
   S().updateSettings({ keepHistory: "month" });
@@ -165,6 +165,8 @@ test("keep history: an import leaves out what's older than the period", () => {
   ]);
   assert.equal(added, 1);
   assert.deepEqual(historyOf(S(), "default").map((h) => h.url), ["https://arc-new.example/"]);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(chrome(""), ["https://arc-new.example/ 2"], "Chrome gets only the rows inside the period");
 });
 
 test("keep history: Forever moves history.json's older visits into Chrome, a period leaves them out", async () => {
