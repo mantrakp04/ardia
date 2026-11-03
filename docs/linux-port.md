@@ -543,6 +543,9 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     background of an element that does hold overlays is holed by `pageHoles` (`setFloating`, a floating hole merged
     with the page holes so overlapping holes don't cancel). Menus, the command panel, hover cards, popovers,
     prompts, the downloads bubble and the peek are never clipped and draw above the player.
+  - The holes go in the same React commit as the player and its input region, and a queued update is cancelled with
+    them. A clip left behind also blocks hit testing, and `plainViewport` hit-tests the page's corners, so a leftover
+    hole under a sampled point hides the page in every tab.
 - **Pop-out.** The pop-out button, or dragging the player past the window's edge, turns it into Chromium's real PiP
   window on the same surface, so playback continues without a reload, a pause or leaving picture in picture. The
   in-window player stays until the real window has presented a frame. On X11 the window opens at the pointer (a

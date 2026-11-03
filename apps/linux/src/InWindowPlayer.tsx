@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { useCardAnchors } from "../../browser/src/state/windows/layout";
 import { ardiaHost } from "./host.ts";
 import { inputRegions, pageHoles, useInputRegion } from "./shellAbove";
-import { createPlayerHoles, cutClip, hitRects } from "./playerHoles.ts";
+import { createPlayerHoles, cutClip, hitRects, nextFrameRunner } from "./playerHoles.ts";
 import {
   aspectOf,
   clampInto,
@@ -83,16 +83,14 @@ function useViewportSync(player: number | null, rect: Rect | null) {
 
 function usePlayerHoles(root: HTMLElement | null, hole: Rect | null) {
   const holes = useMemo(() => createPlayerHoles(() => pageHoles()), []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!root || !hole) {
       holes.clear();
       return;
     }
     const desktop = root.closest(".ardia-desktop") as HTMLElement | null;
     if (!desktop) return;
-    let queued = false;
     const apply = () => {
-      queued = false;
       const overlays = (inputRegions()?.overlayElements() ?? []).filter((element): element is HTMLElement => element instanceof HTMLElement && element !== root && !element.contains(root));
       holes.apply({ rect: hole, radius: PLAYER_RADIUS }, [desktop], [root, ...overlays]);
       const box = root.getBoundingClientRect();
@@ -109,21 +107,18 @@ function usePlayerHoles(root: HTMLElement | null, hole: Rect | null) {
       const clip = cutClip(cuts);
       if (root.style.clipPath !== clip) root.style.clipPath = clip;
     };
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(apply);
-    };
+    const frames = nextFrameRunner(apply);
     apply();
-    const watcher = new MutationObserver(schedule);
+    const watcher = new MutationObserver(frames.schedule);
     watcher.observe(desktop, { subtree: true, childList: true, attributes: true, attributeFilter: ["style", "class"] });
-    window.addEventListener("resize", schedule);
+    window.addEventListener("resize", frames.schedule);
     return () => {
+      frames.stop();
       watcher.disconnect();
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", frames.schedule);
     };
   }, [root, hole?.x, hole?.y, hole?.width, hole?.height]);
-  useEffect(() => () => holes.clear(), []);
+  useLayoutEffect(() => () => holes.clear(), []);
 }
 
 export function InWindowPlayer({ windowId }: { windowId: string }) {

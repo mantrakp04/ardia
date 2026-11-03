@@ -79,6 +79,27 @@ export type PlayerHoleTarget = {
   isLayer(element: Element): boolean;
 };
 
+export type FrameClock = { request: (run: () => void) => number; cancel: (frame: number) => void };
+
+export function nextFrameRunner(run: () => void, clock: FrameClock = { request: (next) => requestAnimationFrame(next), cancel: (frame) => cancelAnimationFrame(frame) }) {
+  let pending: number | null = null;
+  let stopped = false;
+  return {
+    schedule() {
+      if (stopped || pending !== null) return;
+      pending = clock.request(() => {
+        pending = null;
+        run();
+      });
+    },
+    stop() {
+      stopped = true;
+      if (pending !== null) clock.cancel(pending);
+      pending = null;
+    },
+  };
+}
+
 export function createPlayerHoles(target: () => PlayerHoleTarget | null) {
   const clipped = new Map<HTMLElement, string>();
   const mine = (element: Element) => clipped.has(element as HTMLElement);
