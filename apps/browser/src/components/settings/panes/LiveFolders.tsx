@@ -168,6 +168,8 @@ const BODY_TOP = { marginTop: space.l } as const;
 const HELP = { lineHeight: proseLineHeight.small } as const;
 const CODE = { ...settingsType.code, textAlign: "center", marginTop: space.xl } as const;
 const SPLIT = { marginVertical: space.xl } as const;
+const REDIRECT = { marginBottom: space.ml } as const;
+const REDIRECT_URI = { flex: 1, fontFamily: settingsType.code.fontFamily } as const;
 
 function Help({ children }: { children: ReactNode }) {
   return (
@@ -232,7 +234,6 @@ function GithubConnect({ busy, run }: ConnectProps) {
 }
 
 function GiteaConnect({ busy, run }: ConnectProps) {
-  const theme = useTheme();
   const config = live().config;
   const [site, setSite] = useState(config.giteaSite);
   const [token, setToken] = useState("");
@@ -248,34 +249,34 @@ function GiteaConnect({ busy, run }: ConnectProps) {
     });
   return (
     <View>
-      <Field label="Server">
+      <FormField label="Server">
         <TextField value={site} onChangeText={setSite} placeholder="https://gitea.example.com" />
-      </Field>
+      </FormField>
       <Help>
         Create an access token on your server (Settings › Applications) with read access to issue, repository and user. Works with Gitea and Forgejo, Codeberg included.
       </Help>
-      <Field label="Access token">
+      <FormField label="Access token">
         <TextField value={token} onChangeText={setToken} secure onSubmit={() => !busy && hasSite && token.trim() && connect()} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title="Create Token…" disabled={!hasSite} onPress={() => openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`)} />
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!hasSite || !token.trim() || busy} onPress={connect} />
-      </Actions>
-      <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 14 }} />
+      </DialogActions>
+      <Divider thick style={SPLIT} />
       <Help>Or sign in with an OAuth2 application you create on your server (Settings › Applications), with Confidential Client turned off and this redirect URI:</Help>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <Text selectable style={{ flex: 1, ...font.small, fontFamily: "Menlo", color: theme.textPrimary }}>
+      <Box row center gap="m" style={REDIRECT}>
+        <Text selectable size="small" style={REDIRECT_URI}>
           {OAUTH_REDIRECT}
         </Text>
         <Button title="Copy" onPress={() => copyText(OAUTH_REDIRECT)} />
-      </View>
-      <Field label="OAuth app client ID">
+      </Box>
+      <FormField label="OAuth app client ID">
         <TextField value={clientId} onChangeText={setClientId} />
-      </Field>
-      <Actions>
+      </FormField>
+      <DialogActions>
         <Button title={busy ? "Waiting for Gitea…" : "Sign In with Gitea…"} disabled={!hasSite || !clientId.trim() || busy} onPress={signIn} />
-      </Actions>
+      </DialogActions>
     </View>
   );
 }
