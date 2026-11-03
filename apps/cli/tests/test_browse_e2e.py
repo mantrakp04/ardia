@@ -400,6 +400,15 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(state["mutations"], 0, state["mutationSamples"])
         self.assertEqual(state["newGlobals"], [])
 
+    def test_a_service_worker_starting_during_a_session_leaves_the_browser_running(self):
+        session = "token-worker"
+        self.browse("open", self.url("login.html"), session=session)
+        self.browse("open", self.url("service-worker.html"), session=session)
+        self.assertEqual(self.browse("wait", "--text", "worker registered", session=session).returncode, 0)
+        time.sleep(1)
+        self.assertTrue(self.alive(self.pid))
+        self.assertIn("service worker", self.browse("get", "title", session=session).stdout)
+
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"
         self.browse("open", self.url("login.html"), session=session)
