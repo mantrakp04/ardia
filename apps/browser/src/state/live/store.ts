@@ -168,8 +168,9 @@ const without = <T>(record: Record<string, T>, key: string) => {
 const stackIds = (items: LiveItem[] | undefined) => (items ?? []).flatMap((it) => (it.pr?.stack ? [it.pr.stack.id] : []));
 
 function stacksOnlyIn(s: LiveState, id: string): Set<string> {
-  const elsewhere = new Set(s.folderOrder.filter((f) => f !== id).flatMap((f) => [...stackIds(s.items[f]), ...stackIds(s.hidden[f])]));
-  return new Set([...stackIds(s.items[id]), ...stackIds(s.hidden[id])].filter((stack) => !elsewhere.has(stack)));
+  const listedIn = (f: string) => [...stackIds(s.items[f]), ...stackIds(s.hidden[f]), ...stackIds(s.repoHidden[f])];
+  const elsewhere = new Set(s.folderOrder.filter((f) => f !== id).flatMap(listedIn));
+  return new Set(listedIn(id).filter((stack) => !elsewhere.has(stack)));
 }
 
 export function removeFolder(id: string) {
@@ -315,8 +316,10 @@ export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
 export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSourceId>) {
   setLive((s) => {
     const keptOut = s.repoHidden[folderId];
-    const hiddenRepos = s.folders[folderId]?.hiddenRepos ?? [];
-    const still = keptOut?.filter((it) => !fetchedSources.has(it.source) || hiddenRepos.includes(repoKey(it) ?? ""));
+    const folder = s.folders[folderId];
+    const repoStillHidden = (it: LiveItem) => !!folder?.hiddenRepos.includes(repoKey(it) ?? "");
+    const awaitingFetch = (it: LiveItem) => !!folder?.sources.includes(it.source) && !fetchedSources.has(it.source);
+    const still = keptOut?.filter((it) => repoStillHidden(it) || awaitingFetch(it));
     return keptOut && still && still.length !== keptOut.length ? { repoHidden: { ...s.repoHidden, [folderId]: still } } : {};
   });
 }

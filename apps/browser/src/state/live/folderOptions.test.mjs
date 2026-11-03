@@ -7,6 +7,7 @@ docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, fol
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, liveTabPlace } = await import("./rows.ts");
+const { liveFolderMenuItems } = await import("../sidebar/liveMenus.ts");
 const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, setRepoHidden, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
@@ -261,4 +262,71 @@ test("a pull request hidden until refresh stays hidden when its repo is hidden a
   setRepoHidden(id, "bitbucket:me/dotfiles", true);
   await manualRefresh(id);
   assert.deepEqual(live().items[id], []);
+});
+
+const repoMenu = (id) => {
+  const submenu = liveFolderMenuItems("no-window", id).find((it) => it.id === "repos");
+  return {
+    enabled: submenu.enabled,
+    rows: submenu.children.map((it) => (it.separator ? "---" : `${it.checked === false ? "[ ]" : it.checked ? "[x]" : ""}${it.title}${it.enabled === false ? " (off)" : ""}`)),
+  };
+};
+
+test("the Repositories submenu lists every repo the folder knows, sorted, and names the service only when the folder has two", () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  assert.deepEqual(repoMenu(id), { enabled: false, rows: ["Show All Repositories (off)"] });
+  applyFetch(id, [inRepo("a", "zed/app"), inRepo("b", "acme/app"), inRepo("c", "me/parked")], {});
+  assert.deepEqual(repoMenu(id).rows, ["Show All Repositories (off)", "---", "[x]acme/app", "[x]me/parked", "[x]zed/app"]);
+  hideItems(id, [inRepo("c", "me/parked")]);
+  setRepoHidden(id, "bitbucket:zed/app", true);
+  applyFetch(id, [inRepo("b", "acme/app"), inRepo("g", "acme/app", "github")], {});
+  assert.deepEqual(repoMenu(id), {
+    enabled: true,
+    rows: ["Show All Repositories", "---", "[x]acme/app (Bitbucket)", "[x]acme/app (GitHub)", "[x]me/parked (Bitbucket)", "[ ]zed/app (Bitbucket)"],
+  });
+});
+
+test("a shown repo whose service left the folder lets its kept-aside pull requests go, so their open tabs aren't hidden for good", async () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  const { fetch } = SOURCES.github;
+  SOURCES.github.fetch = async () => [];
+  try {
+    applyFetch(id, [inRepo("m", "me/dotfiles")], {});
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    updateFolder(id, { sources: ["github"] });
+    setRepoHidden(id, "bitbucket:me/dotfiles", false);
+    await refreshFolder(id);
+    assert.deepEqual(live().repoHidden[id], []);
+  } finally {
+    SOURCES.github.fetch = fetch;
+  }
+});
+
+test("once its service leaves the folder, only a repo still hidden keeps its pull requests aside", async () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  const { fetch } = SOURCES.github;
+  SOURCES.github.fetch = async () => [];
+  try {
+    applyFetch(id, [inRepo("m", "me/dotfiles"), inRepo("w", "acme/app")], {});
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    setRepoHidden(id, "bitbucket:acme/app", true);
+    setRepoHidden(id, "bitbucket:acme/app", false);
+    updateFolder(id, { sources: ["github"] });
+    await refreshFolder(id);
+    assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["m"]);
+  } finally {
+    SOURCES.github.fetch = fetch;
+  }
+});
+
+test("removing a folder keeps the open state of a stack another folder holds in a hidden repo", () => {
+  const id = createFolder("default", "pullRequests");
+  const other = createFolder("default", "pullRequests");
+  const inStack = { ...pr("s1", 21, "h21", "main"), pr: { ...pr("s1", 21, "h21", "main").pr, repo: "me/stacked", stack: { id: "kept-stack", position: 1, size: 2 } } };
+  applyFetch(id, [inStack], {});
+  applyFetch(other, [inStack], {});
+  setRepoHidden(other, "github:me/stacked", true);
+  toggleStack("kept-stack");
+  removeFolder(id);
+  assert.ok("kept-stack" in live().expandedStacks);
 });
