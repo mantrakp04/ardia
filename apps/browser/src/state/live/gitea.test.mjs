@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { giteaCompletion, giteaLink, giteaPages, giteaRefs, giteaReview, mapGitea } from "./gitea.ts";
+import { giteaCompletion, giteaItemId, giteaLink, giteaPages, giteaRefs, giteaReview, mapGitea } from "./gitea.ts";
 import { httpsSiteUrl } from "./net.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/gitea.json", import.meta.url), "utf8"));
@@ -13,6 +13,7 @@ const details = () =>
     const branch = fixture.branches[`${ref.repo}:${pull.base.ref}`];
     return { ...ref, pull, reviews: fixture.reviews[key] ?? [], status: fixture.statuses[pull.head.sha] ?? null, requiredApprovals: branch ? branch.required_approvals : 0 };
   });
+const id = (pull) => `gitea:gitea.example.com/${pull}`;
 const byId = (items) => Object.fromEntries(items.map((it) => [it.id, it]));
 
 test("authored pull requests come first, and one listed twice keeps its first section", () => {
@@ -25,14 +26,14 @@ test("authored pull requests come first, and one listed twice keeps its first se
 
 test("a review request for you is a review; one for your team is a team review", () => {
   const items = byId(mapGitea(SITE, "octo-dev", details()));
-  assert.equal(items["gitea:acme/forge#12"].section, "authored");
-  assert.equal(items["gitea:acme/forge#40"].section, "review");
-  assert.equal(items["gitea:acme/infra#7"].section, "team");
+  assert.equal(items[id("acme/forge#12")].section, "authored");
+  assert.equal(items[id("acme/forge#40")].section, "review");
+  assert.equal(items[id("acme/infra#7")].section, "team");
 });
 
 test("pull request details map as GitHub's do", () => {
   const items = byId(mapGitea(SITE, "octo-dev", details()));
-  const pr = items["gitea:acme/forge#40"];
+  const pr = items[id("acme/forge#40")];
   assert.equal(pr.url, "https://gitea.example.com/acme/forge/pulls/40");
   assert.equal(pr.subtitle, "acme/forge #40");
   assert.equal(pr.source, "gitea");
@@ -46,9 +47,15 @@ test("pull request details map as GitHub's do", () => {
   ]);
 });
 
+test("the same repository and number on two servers are different pull requests", () => {
+  assert.equal(giteaItemId("https://gitea.example.com", "acme/forge", 12), id("acme/forge#12"));
+  assert.notEqual(giteaItemId("https://codeberg.org", "acme/forge", 12), giteaItemId("https://gitea.example.com", "acme/forge", 12));
+  assert.equal(giteaItemId("https://example.com/git", "acme/forge", 12), "gitea:example.com/git/acme/forge#12");
+});
+
 test("Gitea Actions links are made absolute against the server", () => {
   const items = byId(mapGitea(SITE, "octo-dev", details()));
-  assert.equal(items["gitea:acme/forge#12"].pr.checks[0].url, "https://gitea.example.com/acme/forge/actions/runs/31/jobs/0");
+  assert.equal(items[id("acme/forge#12")].pr.checks[0].url, "https://gitea.example.com/acme/forge/actions/runs/31/jobs/0");
   assert.equal(giteaLink("https://example.com/git", "/git/acme/forge/actions/runs/1"), "https://example.com/git/acme/forge/actions/runs/1");
   assert.equal(giteaLink("https://example.com/git", "acme/forge"), "https://example.com/git/acme/forge");
   assert.equal(giteaLink(SITE, "https://ci.example.com/1"), "https://ci.example.com/1");
@@ -58,10 +65,10 @@ test("Gitea Actions links are made absolute against the server", () => {
 
 test("a draft's conflicts are unknown, since Gitea never reports drafts as mergeable", () => {
   const items = byId(mapGitea(SITE, "octo-dev", details()));
-  const draft = items["gitea:acme/forge#13"].pr;
+  const draft = items[id("acme/forge#13")].pr;
   assert.equal(draft.draft, true);
   assert.equal(draft.mergeable, "unknown");
-  assert.equal(items["gitea:acme/forge#12"].pr.mergeable, "mergeable");
+  assert.equal(items[id("acme/forge#12")].pr.mergeable, "mergeable");
   const old = { ...fixture.pulls["acme/forge#13"], draft: undefined, mergeable: undefined };
   const [legacy] = mapGitea(SITE, "octo-dev", [{ repo: "acme/forge", number: 13, section: "authored", pull: old, reviews: null, status: null, requiredApprovals: null }]);
   assert.equal(legacy.pr.draft, true, "older servers mark drafts with a WIP: title");
@@ -92,16 +99,16 @@ test("with required approvals on the base branch, a pull request is approved onl
 
 test("pull requests based on each other's branches stack", () => {
   const items = byId(mapGitea(SITE, "octo-dev", details()));
-  assert.deepEqual(items["gitea:acme/forge#12"].pr.stack, { id: "stack:gitea:acme/forge#12", position: 1, size: 2 });
-  assert.deepEqual(items["gitea:acme/forge#13"].pr.stack, { id: "stack:gitea:acme/forge#12", position: 2, size: 2 });
-  assert.equal(items["gitea:acme/forge#40"].pr.stack, undefined);
+  assert.deepEqual(items[id("acme/forge#12")].pr.stack, { id: `stack:${id("acme/forge#12")}`, position: 1, size: 2 });
+  assert.deepEqual(items[id("acme/forge#13")].pr.stack, { id: `stack:${id("acme/forge#12")}`, position: 2, size: 2 });
+  assert.equal(items[id("acme/forge#40")].pr.stack, undefined);
 });
 
 test("merged and closed pull requests drop out of a fetch", () => {
   const all = details();
   all[0] = { ...all[0], pull: { ...all[0].pull, state: "closed", merged: true } };
   all[2] = { ...all[2], pull: { ...all[2].pull, state: "closed" } };
-  assert.deepEqual(mapGitea(SITE, "octo-dev", all).map((it) => it.id), ["gitea:acme/forge#13", "gitea:acme/infra#7"]);
+  assert.deepEqual(mapGitea(SITE, "octo-dev", all).map((it) => it.id), [id("acme/forge#13"), id("acme/infra#7")]);
 });
 
 test("a pull request that leaves the folder completes as merged, closed or reviewed", () => {

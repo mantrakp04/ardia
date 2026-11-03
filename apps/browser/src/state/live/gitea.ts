@@ -68,6 +68,8 @@ export function giteaRefs(authored: GiteaIssue[], review: GiteaIssue[]): GiteaPu
   return refs;
 }
 
+export const giteaItemId = (site: string, repo: string, number: number) => `gitea:${site.replace(/^https?:\/\//i, "")}/${repo}#${number}`;
+
 export function giteaLink(site: string, target: string | null | undefined): string | null {
   if (!target) return null;
   if (/^https?:\/\//i.test(target)) return target;
@@ -95,7 +97,7 @@ function mapPull(site: string, me: string, { repo, number, section, pull, review
   const checks: PullRequestCheck[] = (status?.statuses ?? []).map((s) => ({ name: s.context, state: CHECK_STATES[s.status] ?? "neutral", url: giteaLink(site, s.target_url) }));
   const prSection: PullRequestSection = section === "authored" ? "authored" : direct ? "review" : "team";
   return {
-    id: `gitea:${repo}#${number}`,
+    id: giteaItemId(site, repo, number),
     source: "gitea",
     url: pull.html_url,
     title: pull.title,

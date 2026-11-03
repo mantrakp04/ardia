@@ -1,5 +1,5 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
-import { GITEA_DEFAULT_SITE, GITEA_SEARCH, giteaCompletion, giteaRefs, mapGitea, type GiteaDetails, type GiteaIssue, type GiteaPull } from "./gitea";
+import { GITEA_DEFAULT_SITE, GITEA_SEARCH, giteaCompletion, giteaItemId, giteaRefs, mapGitea, type GiteaDetails, type GiteaIssue, type GiteaPull } from "./gitea";
 import { GITEA_BATCH, giteaApi, giteaDetails, giteaRequiredApprovals, giteaTokens, inBatches, type GiteaTokens } from "./giteaApi";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, httpsSiteUrl, request, setSecret } from "./net";
@@ -122,7 +122,7 @@ const gitea: LiveSource = {
     const api = giteaApi(site, token);
     const out: Record<string, CompletionState> = {};
     await inBatches(items, GITEA_BATCH, async (item) => {
-      if (!item.pr) return;
+      if (!item.pr || item.id !== giteaItemId(site, item.pr.repo, item.pr.number)) return;
       const pull = await api.get<GiteaPull>(`/repos/${item.pr.repo}/pulls/${item.pr.number}`).catch(() => null);
       const state = pull && giteaCompletion(pull, item.section);
       if (state) out[item.id] = state;
