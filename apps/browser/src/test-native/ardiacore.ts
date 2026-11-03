@@ -265,6 +265,7 @@ export const stagingRemovals = { ok: true };
 export const deletedProfileData: string[] = [];
 export const profileDataLeft = new Map<string, string[]>();
 export const revealedTabs: string[] = [];
+export const discardedOffers: string[] = [];
 export const installedCrx: { path: string; profile: string }[] = [];
 export const linkRoute: { next: LinkRoute } = { next: {} };
 export const resolvedPermissions: { id: string; result: string; remember: boolean }[] = [];
@@ -323,6 +324,7 @@ const fakeModules = {
       revealTab: (key: string) => void revealedTabs.push(key),
       dropTabReveals: (key: string) => void revealedTabs.push(`drop over ${key}`),
       revealOffered: (adoptId: string, key: string) => void revealedTabs.push(`${adoptId} over ${key}`),
+      discardOffered: async (adoptId: string) => (discardedOffers.push(adoptId), true),
     },
   )),
   ArdiaWindows: domain("windows", { list: () => [], dev: () => "" }),

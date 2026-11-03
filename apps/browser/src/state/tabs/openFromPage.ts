@@ -1,4 +1,4 @@
-import type { OpenWindowRequest } from "../../platform/tabs";
+import { discardOffered, type OpenWindowRequest } from "../../platform/tabs";
 import { openWindow } from "../browser/actions";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
@@ -18,7 +18,10 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
   settleOpening(gated, null, (verdict) => {
-    if (verdict && "cancel" in verdict) return;
+    if (verdict && "cancel" in verdict) {
+      if (request.adoptId) void discardOffered(request.adoptId).catch(() => false);
+      return;
+    }
     if (!verdict) return openNow(request, page, true);
     const adoptId = asAdoptId(request.adoptId);
     if (!adoptId) return openNow({ ...request, url: verdict.url }, page, true);

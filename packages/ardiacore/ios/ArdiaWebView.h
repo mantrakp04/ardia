@@ -63,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)revealTab:(NSString *)transferKey;
 + (void)dropTabReveals:(NSString *)transferKey;
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey;
++ (BOOL)discardOffered:(NSString *)adoptId;
 @end
 
 @interface ArdiaWebView (Focus)
