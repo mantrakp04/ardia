@@ -2,7 +2,7 @@ import { addHistoryVisits, onHistoryChanged, queryHistory, watchHistory, type En
 import { readDocument } from "../../platform/documents";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
-import { MAX_HISTORY, MAX_VISIT_TIMES } from "./history";
+import { historyCutoff, MAX_HISTORY, MAX_VISIT_TIMES } from "./history";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
@@ -11,7 +11,6 @@ import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
 const LEGACY_TOLERANCE_MS = 60_000;
-const CHROME_KEEPS_MS = 90 * 86_400_000;
 const CHUNK = 500;
 const LEGACY_KEPT_MS = 15_000;
 
@@ -171,6 +170,7 @@ async function moveHistory(file: LegacyFile, now: number) {
     if (!perEngine.has(engine)) perEngine.set(engine, list);
   }
   for (const engine of perEngine.keys()) migrating.add(engine);
+  const keptFrom = historyCutoff(store().settings.keepHistory, now) ?? -Infinity;
   try {
     for (const [engine, list] of perEngine) {
       const pages = list
@@ -178,7 +178,7 @@ async function moveHistory(file: LegacyFile, now: number) {
         .map((e) => ({
           url: e.url,
           title: e.title ?? "",
-          visitTimes: (e.visitTimes?.length ? e.visitTimes : [e.lastVisit]).filter((t) => typeof t === "number" && t > now - CHROME_KEEPS_MS),
+          visitTimes: (e.visitTimes?.length ? e.visitTimes : [e.lastVisit]).filter((t) => typeof t === "number" && t >= keptFrom),
         }))
         .filter((p) => p.visitTimes.length);
       for (let i = 0; i < pages.length; i += CHUNK) await addHistoryVisits(engine, pages.slice(i, i + CHUNK), LEGACY_TOLERANCE_MS);

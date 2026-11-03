@@ -5,17 +5,7 @@ import { everySlowly } from "../../platform/slowTimers";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { useBrowser } from "../browser/store";
 import { engineProfiles } from "../profiles/engineProfiles";
-import type { Settings } from "../settings/settings";
-
-export type KeepHistory = Settings["keepHistory"];
-
-export const DAY_MS = 86_400_000;
-
-const KEPT_DAYS: Record<KeepHistory, number> = { forever: Infinity, year: 365, threeMonths: 90, month: 30 };
-
-export const historyCutoff = (keep: KeepHistory, now: number): number | null => (keep === "forever" ? null : now - KEPT_DAYS[keep] * DAY_MS);
-
-export const shortensHistory = (from: KeepHistory, to: KeepHistory) => KEPT_DAYS[to] < KEPT_DAYS[from];
+import { DAY_MS, historyCutoff, type KeepHistory } from "./history";
 
 const store = () => useBrowser.getState();
 
@@ -33,17 +23,24 @@ function noteTrimmedBefore(before: number) {
   if (before > historyTrimmedBefore()) writeDocument(RETENTION_DOCUMENT, versionedJson({ trimmedBefore: before }, RETENTION_VERSION));
 }
 
-const failed = (engine: string) => (error: unknown) => console.warn(`[history] couldn't delete old history (${engine || "original profile"})`, error);
+const expired = (engine: string, before: number) =>
+  expireHistoryBefore(engine, before).then(
+    () => true,
+    (error: unknown) => {
+      console.warn(`[history] couldn't delete old history (${engine || "original profile"})`, error);
+      return false;
+    },
+  );
 
 export async function expireOldHistory(now = Date.now()): Promise<string[]> {
-  const s = store();
-  const before = historyCutoff(s.settings.keepHistory, now);
+  const before = historyCutoff(store().settings.keepHistory, now);
   if (before === null) return [];
-  const engines = engineProfiles(s);
-  noteTrimmedBefore(before);
-  s.trimHistoryBefore(before);
-  await Promise.all(engines.map((engine) => expireHistoryBefore(engine, before).catch(failed(engine))));
-  return engines;
+  const engines = engineProfiles(store());
+  const results = await Promise.all(engines.map((engine) => expired(engine, before)));
+  const done = engines.filter((_, i) => results[i]);
+  store().trimHistoryBefore(before, done);
+  if (done.length === engines.length) noteTrimmedBefore(before);
+  return done;
 }
 
 export function keepHistoryFor(keep: KeepHistory) {

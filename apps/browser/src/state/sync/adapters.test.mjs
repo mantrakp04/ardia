@@ -2224,8 +2224,9 @@ test("history: a Mac that keeps a month drops its older history, and the other M
   await syncAll([short, long]);
   assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"]);
 
-  const expiring = short.with(() => retention.keepHistoryFor("month"));
-  assert.deepEqual((await expiring).sort(), [""]);
+  short.with(() => {});
+  assert.deepEqual((await retention.keepHistoryFor("month")).sort(), [""]);
+  short.browser = S();
   assert.deepEqual(todaysHistory(short), ["https://recent.example/"]);
   await syncAll([short, long]);
   assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://recent.example/"], "the other Mac's older history stays");
@@ -2239,4 +2240,16 @@ test("history: a Mac that keeps a month drops its older history, and the other M
   short.with(() => S().updateSettings({ keepHistory: "forever" }));
   await syncAll([short, long]);
   assert.deepEqual(todaysHistory(long), ["https://old.example/", "https://older.example/", "https://recent.example/"], "keeping more again deletes nothing elsewhere");
+  assert.deepEqual(todaysHistory(short), ["https://recent.example/"], "and doesn't bring back what this Mac deleted");
+
+  stub.current.device = long.id;
+  stub.chromeVisit("", "https://old.example/", "Old", Date.now() - 60_000);
+  const entries = await history.queryHistory("");
+  long.with(() =>
+    useBrowser.setState({ history: { "": { list: entries.map((e) => ({ ...e, favicon: null, lastVisit: e.visitTimes.at(-1) })), floor: -Infinity, ready: true } } }),
+  );
+  await syncAll([long, short]);
+  const oldOnShort = short.with(() => historyOf(S(), "default").find((h) => h.url === "https://old.example/"));
+  assert.equal(oldOnShort?.visitTimes.length, 1, "a new visit elsewhere arrives without the visits this Mac deleted");
+  assert.ok((stub.historyDbs.get(short.id)?.get("")?.get("https://old.example/")?.visits ?? []).every((t) => t > Date.now() - day));
 });

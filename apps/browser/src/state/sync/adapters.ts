@@ -3,8 +3,8 @@ import { deletePassword } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
 import { assignPositions, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
 import { bookmarkRoots, bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../bookmarks/bookmarks";
-import { historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
-import { historyCutoff, historyTrimmedBefore } from "../history/retention";
+import { historyCutoff, historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
+import { historyTrimmedBefore } from "../history/retention";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
@@ -211,7 +211,7 @@ export function historyAdapter(profileId: string): Adapter {
     },
     apply: async (visible, changed) => {
       if (!ready()) return false;
-      const since = syncedHistorySince(Date.now());
+      const since = Math.max(syncedHistorySince(Date.now()), historyTrimmedBefore());
       const byUrl = new Map(historyOf(store(), profileId).map((e) => [e.url, e]));
       const add: { url: string; title: string; visitTimes: number[] }[] = [];
       const remove: string[] = [];

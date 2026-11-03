@@ -148,7 +148,10 @@ function deleteHistoryUrls(profile: string, { urls }: { urls: string[] }) {
   return {};
 }
 
+export const historyExpiryFails = new Set<string>();
+
 function expireHistoryBefore(profile: string, { before }: { before: number }) {
+  if (historyExpiryFails.has(profile)) throw new Error(`history.expireBefore failed for ${profile || "original profile"}`);
   const db = chromeHistory(profile);
   for (const [url, row] of db) {
     const kept = row.visits.filter((at) => at >= before);

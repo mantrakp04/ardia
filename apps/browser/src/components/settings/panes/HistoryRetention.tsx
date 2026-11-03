@@ -1,6 +1,8 @@
+import { orWarn } from "../../../lib/fallback";
 import { confirm } from "../../../state/app/system";
 import { useSettings } from "../../../state/browser/hooks";
-import { keepHistoryFor, shortensHistory, type KeepHistory } from "../../../state/history/retention";
+import { shortensHistory, type KeepHistory } from "../../../state/history/history";
+import { keepHistoryFor } from "../../../state/history/retention";
 import { PopUp } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
 
@@ -25,7 +27,7 @@ export function HistoryRetentionSection() {
       });
       if (!confirmed) return;
     }
-    void keepHistoryFor(next);
+    await keepHistoryFor(next).catch(orWarn([]));
   };
 
   return (

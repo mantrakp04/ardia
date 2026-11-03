@@ -3,8 +3,9 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
-const { historyOf } = await import("./history.ts");
-const { DAY_MS, RETENTION_DOCUMENT, expireOldHistory, historyCutoff, historyTrimmedBefore, keepHistoryFor, shortensHistory } = await import("./retention.ts");
+const { DAY_MS, historyCutoff, historyOf, shortensHistory, withoutVisitsBefore } = await import("./history.ts");
+const { migrateHistoryFile } = await import("./engineSync.ts");
+const { RETENTION_DOCUMENT, expireOldHistory, historyTrimmedBefore, keepHistoryFor } = await import("./retention.ts");
 const { DEFAULT_SETTINGS, SETTING_SPECS, parseSettings } = await import("../settings/settings.ts");
 const { SYNCED_SETTINGS } = await import("../sync/settingsAdapter.ts");
 const { isConfigSettingKey } = await import("../settings/configAllowlist.ts");
@@ -115,4 +116,71 @@ test("keep history: the cutoff it trimmed to is saved, and never moves back", as
   assert.equal(historyTrimmedBefore(), -Infinity, "a newer version reads as nothing");
   stub.docs.set(RETENTION_DOCUMENT, JSON.stringify({ version: 1, trimmedBefore: "soon" }));
   assert.equal(historyTrimmedBefore(), -Infinity);
+});
+
+test("keep history: a failed deletion doesn't count as trimmed, and the next pass tries again", async () => {
+  S().hydrate({});
+  stub.historyDbs.clear();
+  stub.docs.delete(RETENTION_DOCUMENT);
+  const work = S().createProfile({ name: "Work" });
+  const workEngine = S().profiles[work].dataId ?? work;
+  seed("", [["https://old.example/", [45]]]);
+  seed(workEngine, [["https://work-old.example/", [45]]]);
+  S().updateSettings({ keepHistory: "month" });
+
+  stub.historyExpiryFails.add(workEngine);
+  try {
+    assert.deepEqual(await expireOldHistory(NOW), [""], "only the profile Chrome deleted from");
+  } finally {
+    stub.historyExpiryFails.delete(workEngine);
+  }
+  assert.deepEqual(chrome(""), []);
+  assert.deepEqual(shown("default"), []);
+  assert.deepEqual(chrome(workEngine), ["https://work-old.example/ 45"]);
+  assert.deepEqual(shown(work), ["https://work-old.example/ 1 45"], "the list keeps what Chrome still has");
+  assert.equal(historyTrimmedBefore(), -Infinity, "sync doesn't treat it as deleted yet");
+
+  assert.deepEqual((await expireOldHistory(NOW)).sort(), ["", workEngine].sort());
+  assert.deepEqual(chrome(workEngine), []);
+  assert.deepEqual(shown(work), []);
+  assert.equal(historyTrimmedBefore(), NOW - 30 * DAY_MS);
+});
+
+test("keep history: trimming a page with more visits than the list tracks counts only the visits left", () => {
+  const times = Array.from({ length: 50 }, (_, i) => NOW - (49 - i) * DAY_MS);
+  const entry = { url: "https://busy.example/", title: "Busy", favicon: null, visits: 200, lastVisit: times.at(-1), visitTimes: times };
+  const kept = withoutVisitsBefore(entry, NOW - 29.5 * DAY_MS);
+  assert.equal(kept.visitTimes.length, 30);
+  assert.equal(kept.visits, 30, "the 150 untracked visits are older still, so they went too");
+  assert.equal(withoutVisitsBefore(entry, NOW - 60 * DAY_MS), entry, "nothing tracked is older: unchanged");
+});
+
+test("keep history: an import leaves out what's older than the period", () => {
+  S().hydrate({});
+  stub.historyDbs.clear();
+  S().updateSettings({ keepHistory: "month" });
+  const added = S().importHistory("default", [
+    { url: "https://arc-old.example/", title: "Old", visits: 3, lastVisit: NOW - 400 * DAY_MS },
+    { url: "https://arc-new.example/", title: "New", visits: 2, lastVisit: NOW - 2 * DAY_MS },
+  ]);
+  assert.equal(added, 1);
+  assert.deepEqual(historyOf(S(), "default").map((h) => h.url), ["https://arc-new.example/"]);
+});
+
+test("keep history: Forever moves history.json's older visits into Chrome, a period leaves them out", async () => {
+  const entry = (url, age) => ({ url, title: url, favicon: null, visits: 1, lastVisit: NOW - age * DAY_MS, visitTimes: [NOW - age * DAY_MS] });
+  const file = JSON.stringify({ version: 2, history: { default: [entry("https://ancient.example/", 400), entry("https://fresh.example/", 2)] } });
+
+  S().hydrate({});
+  stub.historyDbs.clear();
+  stub.docs.set("history.json", file);
+  assert.equal(await migrateHistoryFile(NOW, { keepMs: 0 }), "moved");
+  assert.deepEqual(chrome(""), ["https://ancient.example/ 400", "https://fresh.example/ 2"]);
+
+  S().hydrate({});
+  stub.historyDbs.clear();
+  S().updateSettings({ keepHistory: "month" });
+  stub.docs.set("history.json", file);
+  assert.equal(await migrateHistoryFile(NOW, { keepMs: 0 }), "moved");
+  assert.deepEqual(chrome(""), ["https://fresh.example/ 2"]);
 });
