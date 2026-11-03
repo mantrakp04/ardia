@@ -1,7 +1,11 @@
 #import "../ios/ArdiaDownloadMover.h"
 
 #include <CommonCrypto/CommonDigest.h>
+#include <atomic>
 #include <cstdio>
+#include <fcntl.h>
+#include <memory>
+#include <vector>
 #include <climits>
 #include <cstdlib>
 #include <sys/stat.h>
@@ -245,6 +249,151 @@ int main() {
       NSString *path = Finished(mover, @"clean.txt", @"clean");
       CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"]) isEqual:@"ok"]);
       CHECK(StagingDirs().count == 0);
+    }
+    {
+      NSString *path = Finished(mover, @"linked-before.txt", @"two names");
+      NSString *other = [gHome stringByAppendingPathComponent:@"elsewhere-link.txt"];
+      link(path.fileSystemRepresentation, other.fileSystemRepresentation);
+      CHECK([Reason([mover moveDownloadAt:path toFolder:@"~/Downloads/Linked"]) isEqual:@"linked"]);
+      CHECK([Text(path) isEqual:@"two names"]);
+      CHECK(StagingDirs().count == 0);
+      unlink(other.fileSystemRepresentation);
+    }
+    {
+      NSString *path = Finished(mover, @"linked-after.txt", @"linked later");
+      NSString *other = [gHome stringByAppendingPathComponent:@"later-link.txt"];
+      mover.stepHook = ^(NSString *step, NSString *staging) {
+        if ([step isEqualToString:@"verified"])
+          link([staging stringByAppendingPathComponent:@"linked-after.txt"].fileSystemRepresentation, other.fileSystemRepresentation);
+      };
+      NSDictionary *result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Linked"];
+      mover.stepHook = nil;
+      CHECK([Reason(result) isEqual:@"linked"]);
+      CHECK([Text(path) isEqual:@"linked later"]);
+      CHECK(!Exists([gHome stringByAppendingPathComponent:@"Downloads/Linked/linked-after.txt"]));
+      CHECK(StagingDirs().count == 0);
+      unlink(other.fileSystemRepresentation);
+    }
+    {
+      NSString *path = Finished(mover, @"stray.txt", @"genuine stray");
+      mover.stepHook = ^(NSString *step, NSString *staging) {
+        if (![step isEqualToString:@"verified"]) return;
+        NSString *staged = [staging stringByAppendingPathComponent:@"stray.txt"];
+        rename(staged.fileSystemRepresentation, [staging stringByAppendingPathComponent:@"kept"].fileSystemRepresentation);
+        [@"impostor" writeToFile:staged atomically:NO encoding:NSUTF8StringEncoding error:nil];
+        [@"blocker" writeToFile:[staging stringByAppendingPathComponent:@"not-stray.txt"] atomically:NO encoding:NSUTF8StringEncoding error:nil];
+      };
+      NSDictionary *result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Strays"];
+      mover.stepHook = nil;
+      CHECK([Reason(result) isEqual:@"changed"]);
+      NSString *strayPath = [gHome stringByAppendingPathComponent:@"Downloads/Strays/stray.txt"];
+      CHECK([result[@"strayPath"] isEqual:strayPath]);
+      CHECK([Text(strayPath) isEqual:@"impostor"]);
+      CHECK([Text([result[@"stagedPath"] stringByAppendingPathComponent:@"kept"]) isEqual:@"genuine stray"]);
+      [NSFileManager.defaultManager removeItemAtPath:result[@"stagedPath"] error:nil];
+    }
+    {
+      NSString *path = Finished(mover, @"renamed.txt", @"genuine");
+      NSString *renamed = [gSource stringByAppendingPathComponent:@"renamed-staging"];
+      mover.stepHook = ^(NSString *step, NSString *staging) {
+        if (![step isEqualToString:@"claimed"]) return;
+        NSFileHandle *staged = [NSFileHandle fileHandleForWritingAtPath:[staging stringByAppendingPathComponent:@"renamed.txt"]];
+        [staged seekToEndOfFile];
+        [staged writeData:[@"!" dataUsingEncoding:NSUTF8StringEncoding]];
+        [staged closeFile];
+        Make(@"src/renamed.txt", @"blocker");
+        rename(staging.fileSystemRepresentation, renamed.fileSystemRepresentation);
+      };
+      NSDictionary *result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Bills"];
+      mover.stepHook = nil;
+      CHECK([result[@"stagedPath"] isEqual:[renamed stringByAppendingPathComponent:@"renamed.txt"]]);
+      CHECK([Text(result[@"stagedPath"]) isEqual:@"genuine!"]);
+      NSDictionary *rewritten = [mover noteDownloadEvent:@{@"id" : [NSString stringWithFormat:@"d%d", gNextId], @"path" : path}];
+      CHECK([rewritten[@"path"] isEqual:result[@"stagedPath"]]);
+      [NSFileManager.defaultManager removeItemAtPath:renamed error:nil];
+    }
+    {
+      __block NSString *(^crashAt)(NSString *, NSString *, NSString *) = ^NSString *(NSString *name, NSString *text, NSString *at) {
+        NSString *path = Finished(mover, name, text);
+        dispatch_semaphore_t reached = dispatch_semaphore_create(0);
+        dispatch_semaphore_t never = dispatch_semaphore_create(0);
+        mover.stepHook = ^(NSString *step, NSString *) {
+          if (![step isEqualToString:at]) return;
+          dispatch_semaphore_signal(reached);
+          dispatch_semaphore_wait(never, DISPATCH_TIME_FOREVER);
+        };
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ [mover moveDownloadAt:path toFolder:@"~/Downloads/Crash"]; });
+        dispatch_semaphore_wait(reached, DISPATCH_TIME_FOREVER);
+        return path;
+      };
+      NSString *freed = crashAt(@"crash-free.txt", @"put back", @"claimed");
+      ArdiaDownloadMover *restarted = [[ArdiaDownloadMover alloc] initWithHome:gHome defaults:defaults];
+      CHECK([Text(freed) isEqual:@"put back"]);
+      CHECK(StagingDirs().count == 0);
+      CHECK([defaults dictionaryForKey:@"ArdiaDownloadMoveJournal"] == nil);
+
+      mover = restarted;
+      NSString *taken = crashAt(@"crash-taken.txt", @"still mine", @"claimed");
+      NSString *takenId = [NSString stringWithFormat:@"d%d", gNextId];
+      Make(@"src/crash-taken.txt", @"someone else");
+      restarted = [[ArdiaDownloadMover alloc] initWithHome:gHome defaults:defaults];
+      NSString *reported = [restarted noteDownloadEvent:@{@"id" : takenId, @"path" : taken}][@"path"];
+      CHECK([reported hasPrefix:[gSource stringByAppendingPathComponent:@".ardia-moving-"]]);
+      CHECK([Text(reported) isEqual:@"still mine"]);
+      CHECK([Text(taken) isEqual:@"someone else"]);
+      [NSFileManager.defaultManager removeItemAtPath:reported.stringByDeletingLastPathComponent error:nil];
+
+      mover = restarted;
+      NSString *placed = crashAt(@"crash-placed.txt", @"landed", @"placed");
+      NSString *placedId = [NSString stringWithFormat:@"d%d", gNextId];
+      restarted = [[ArdiaDownloadMover alloc] initWithHome:gHome defaults:defaults];
+      NSString *landed = [gHome stringByAppendingPathComponent:@"Downloads/Crash/crash-placed.txt"];
+      NSDictionary *committed = [restarted noteDownloadEvent:@{@"id" : placedId, @"path" : placed}];
+      CHECK([committed[@"path"] isEqual:landed]);
+      CHECK([Text(landed) isEqual:@"landed"]);
+      CHECK(StagingDirs().count == 0);
+      mover = restarted;
+    }
+    {
+      const long long size = 512LL << 20;
+      NSString *path = [gSource stringByAppendingPathComponent:@"large.bin"];
+      const int fd = open(path.fileSystemRepresentation, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      ftruncate(fd, size);
+      close(fd);
+      CC_SHA256_CTX context;
+      CC_SHA256_Init(&context);
+      std::vector<unsigned char> zeros(1 << 20, 0);
+      for (long long done = 0; done < size; done += (long long)zeros.size()) CC_SHA256_Update(&context, zeros.data(), (CC_LONG)zeros.size());
+      unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+      CC_SHA256_Final(digest, &context);
+      NSMutableString *hex = [NSMutableString string];
+      for (unsigned char byte : digest) [hex appendFormat:@"%02x", byte];
+      [mover noteDownloadEvent:@{@"id" : @"large", @"path" : path, @"state" : @"finished", @"dangerous" : @NO, @"offTheRecord" : @NO,
+                                 @"sha256" : hex, @"received" : @(size)}];
+      auto hashed = std::make_shared<std::atomic<bool>>(false);
+      dispatch_semaphore_t claimed = dispatch_semaphore_create(0), done = dispatch_semaphore_create(0);
+      mover.stepHook = ^(NSString *step, NSString *) {
+        if ([step isEqualToString:@"claimed"]) dispatch_semaphore_signal(claimed);
+        if ([step isEqualToString:@"verified"]) *hashed = true;
+      };
+      __block NSDictionary *result = nil;
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        result = [mover moveDownloadAt:path toFolder:@"~/Downloads/Large"];
+        dispatch_semaphore_signal(done);
+      });
+      dispatch_semaphore_wait(claimed, DISPATCH_TIME_FOREVER);
+      const CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+      [mover noteDownloadEvent:@{@"id" : @"meanwhile", @"path" : @"/elsewhere", @"state" : @"downloading"}];
+      const double waitedMs = (CFAbsoluteTimeGetCurrent() - start) * 1000;
+      const bool hashStillRunning = !*hashed;
+      dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+      mover.stepHook = nil;
+      std::printf("download mover: noteDownloadEvent during a 512 MB hash took %.2f ms (hash still running: %s)\n", waitedMs,
+                  hashStillRunning ? "yes" : "no");
+      CHECK(hashStillRunning);
+      CHECK(waitedMs < 50);
+      CHECK([Reason(result) isEqual:@"ok"]);
+      unlink([gHome stringByAppendingPathComponent:@"Downloads/Large/large.bin"].fileSystemRepresentation);
     }
     {
       CHECK([[ArdiaDownloadMover safeFileName:@".hidden"] isEqual:@"hidden"]);

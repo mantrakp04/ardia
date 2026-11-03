@@ -16,6 +16,7 @@ namespace {
 
 NSString *const kMovedDefault = @"ArdiaMovedDownloads";
 NSString *const kStagingPrefix = @".ardia-moving-";
+NSString *const kJournalDefault = @"ArdiaDownloadMoveJournal";
 constexpr NSUInteger kMaxMoved = 200;
 constexpr NSUInteger kMaxRecords = 1000;
 constexpr int kMaxCollisions = 999;
@@ -184,6 +185,7 @@ int OpenOwnStaging(int source, NSString *name) {
   NSMutableArray<NSString *> *_recordOrder;
   NSMutableDictionary<NSString *, NSDictionary *> *_identities;
   NSMutableArray<NSDictionary *> *_moved;
+  NSMutableSet<NSString *> *_inFlight;
 }
 
 + (ArdiaDownloadMover *)shared {
@@ -207,12 +209,53 @@ int OpenOwnStaging(int source, NSString *name) {
     _recordOrder = [NSMutableArray array];
     _identities = [NSMutableDictionary dictionary];
     _moved = [NSMutableArray array];
+    _inFlight = [NSMutableSet set];
     for (id entry in [[defaults arrayForKey:kMovedDefault] ?: @[] copy])
       if ([entry isKindOfClass:NSDictionary.class] && [entry[@"id"] isKindOfClass:NSString.class] &&
           [entry[@"from"] isKindOfClass:NSString.class] && [entry[@"to"] isKindOfClass:NSString.class])
         [_moved addObject:entry];
+    [self reconcileJournal];
   }
   return self;
+}
+
+- (void)lockedRemember:(NSString *)downloadId from:(NSString *)from to:(NSString *)to {
+  NSDictionary *previous = [self movedEntryFor:downloadId];
+  [_moved addObject:@{@"id" : downloadId, @"from" : previous[@"from"] ?: from, @"to" : to}];
+  if (_moved.count > kMaxMoved) [_moved removeObjectsInRange:NSMakeRange(0, _moved.count - kMaxMoved)];
+  [_defaults setObject:[_moved copy] forKey:kMovedDefault];
+}
+
+- (void)journal:(NSString *)downloadId entry:(NSDictionary *)entry {
+  os_unfair_lock_lock(&_lock);
+  NSMutableDictionary *journal = [[_defaults dictionaryForKey:kJournalDefault] mutableCopy] ?: [NSMutableDictionary dictionary];
+  journal[downloadId] = entry;
+  if (journal.count) [_defaults setObject:journal forKey:kJournalDefault];
+  else [_defaults removeObjectForKey:kJournalDefault];
+  os_unfair_lock_unlock(&_lock);
+  [_defaults synchronize];
+}
+
+- (void)reconcileJournal {
+  NSDictionary *journal = [_defaults dictionaryForKey:kJournalDefault];
+  if (!journal.count) return;
+  for (NSString *downloadId in journal) {
+    NSDictionary *entry = [journal[downloadId] isKindOfClass:NSDictionary.class] ? journal[downloadId] : nil;
+    NSString *source = entry[@"source"], *staging = entry[@"staging"], *name = entry[@"name"], *placed = entry[@"placed"];
+    if (![source isKindOfClass:NSString.class] || ![staging isKindOfClass:NSString.class] || ![name isKindOfClass:NSString.class]) continue;
+    NSString *staged = [staging stringByAppendingPathComponent:name];
+    struct stat info;
+    if ([placed isKindOfClass:NSString.class] && lstat(placed.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode)) {
+      [self lockedRemember:downloadId from:source to:placed];
+    } else if (lstat(staged.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode)) {
+      const bool sourceFree = lstat(source.fileSystemRepresentation, &info) != 0 && errno == ENOENT;
+      if (!sourceFree || renamex_np(staged.fileSystemRepresentation, source.fileSystemRepresentation, RENAME_EXCL) != 0)
+        [self lockedRemember:downloadId from:source to:staged];
+    }
+    rmdir(staging.fileSystemRepresentation);
+  }
+  [_defaults removeObjectForKey:kJournalDefault];
+  [_defaults synchronize];
 }
 
 - (NSDictionary *)movedEntryFor:(NSString *)downloadId {
@@ -260,18 +303,8 @@ int OpenOwnStaging(int source, NSString *name) {
 }
 
 - (NSDictionary *)moveDownloadAt:(NSString *)path toFolder:(NSString *)folder {
-  os_unfair_lock_lock(&_lock);
-  NSDictionary *result = [self lockedMove:path toFolder:folder];
-  os_unfair_lock_unlock(&_lock);
-  return result;
-}
-
-- (void)step:(NSString *)name staging:(int)staging {
-  if (self.stepHook) self.stepHook(name, DirectoryPath(staging) ?: @"");
-}
-
-- (NSDictionary *)lockedMove:(NSString *)path toFolder:(NSString *)folder {
   if (![path isKindOfClass:NSString.class] || !path.length) return Failure(@"notADownload");
+  os_unfair_lock_lock(&_lock);
   NSString *downloadId = nil;
   for (NSString *candidate in _recordOrder.reverseObjectEnumerator)
     if ([_records[candidate][@"path"] isEqual:path]) {
@@ -279,17 +312,39 @@ int OpenOwnStaging(int source, NSString *name) {
       break;
     }
   NSDictionary *record = downloadId ? _records[downloadId] : nil;
-  if (!record) return Failure(@"notADownload");
-  if ([record[@"offTheRecord"] boolValue]) return Failure(@"private");
-  if ([record[@"dangerous"] boolValue]) return Failure(@"dangerous");
-  if (![record[@"state"] isEqual:@"finished"]) return Failure(@"notFinished");
-  NSDictionary *identity = _identities[downloadId];
-  if (!identity) return Failure(@"noIdentity");
+  NSDictionary *identity = downloadId ? _identities[downloadId] : nil;
+  NSArray<NSArray<NSString *> *> *approved = _approved;
+  NSString *refusal = nil;
+  if (!record) refusal = @"notADownload";
+  else if ([record[@"offTheRecord"] boolValue]) refusal = @"private";
+  else if ([record[@"dangerous"] boolValue]) refusal = @"dangerous";
+  else if (![record[@"state"] isEqual:@"finished"]) refusal = @"notFinished";
+  else if (!identity) refusal = @"noIdentity";
+  else if ([_inFlight containsObject:downloadId]) refusal = @"busy";
+  if (!refusal) [_inFlight addObject:downloadId];
+  os_unfair_lock_unlock(&_lock);
+  if (refusal) return Failure(refusal);
+  NSDictionary *result = [self move:downloadId record:record identity:identity approved:approved path:path folder:folder];
+  os_unfair_lock_lock(&_lock);
+  [_inFlight removeObject:downloadId];
+  os_unfair_lock_unlock(&_lock);
+  return result;
+}
 
+- (void)step:(NSString *)name staging:(int)staging {
+  if (void (^hook)(NSString *, NSString *) = self.stepHook) hook(name, DirectoryPath(staging) ?: @"");
+}
+
+- (NSDictionary *)move:(NSString *)downloadId
+                record:(NSDictionary *)record
+              identity:(NSDictionary *)identity
+              approved:(NSArray<NSArray<NSString *> *> *)approved
+                  path:(NSString *)path
+                folder:(NSString *)folder {
   NSArray<NSString *> *components = FolderComponents(folder);
   if (!components) return Failure(@"folderNotAllowed");
   NSUInteger rootLength = 0;
-  for (NSArray<NSString *> *root in [_approved arrayByAddingObject:@[ @"Downloads" ]])
+  for (NSArray<NSString *> *root in [approved arrayByAddingObject:@[ @"Downloads" ]])
     if (HasPrefix(components, root)) rootLength = MAX(rootLength, root.count);
   if (!rootLength) return Failure(@"folderNotAllowed");
 
@@ -312,6 +367,7 @@ int OpenOwnStaging(int source, NSString *name) {
   struct stat entry;
   if (fstatat(source.get(), sourceName.fileSystemRepresentation, &entry, AT_SYMLINK_NOFOLLOW) != 0) return Failure(@"missing");
   if (!S_ISREG(entry.st_mode)) return Failure(@"notAFile");
+  if (entry.st_nlink != 1) return Failure(@"linked");
   struct stat sourceDir, destinationDir;
   if (fstat(source.get(), &sourceDir) != 0 || fstat(destination.get(), &destinationDir) != 0) return Failure(@"failed");
   if (sourceDir.st_dev == destinationDir.st_dev && sourceDir.st_ino == destinationDir.st_ino) return @{@"ok" : @YES, @"path" : path};
@@ -321,18 +377,36 @@ int OpenOwnStaging(int source, NSString *name) {
   if (!stagingName) return Failure(@"failed");
   ScopedFd staging(OpenOwnStaging(source.get(), stagingName));
   if (!staging.valid()) return Failure(@"failed");
-  NSString *stagingPath = DirectoryPath(staging.get());
-  NSString *stagedPath = [stagingPath stringByAppendingPathComponent:sourceName];
-  const auto removeStaging = [&] { unlinkat(source.get(), stagingName.fileSystemRepresentation, AT_REMOVEDIR); };
+  NSMutableDictionary *journal = [@{@"source" : path, @"staging" : DirectoryPath(staging.get()) ?: @"", @"name" : sourceName,
+                                    @"sha256" : identity[@"sha256"], @"size" : identity[@"size"], @"folder" : folder} mutableCopy];
+  [self journal:downloadId entry:journal];
+  const auto finish = [&] {
+    unlinkat(source.get(), stagingName.fileSystemRepresentation, AT_REMOVEDIR);
+    [self journal:downloadId entry:nil];
+  };
+  const auto keepStaged = [&](NSString *reason, NSString *name) -> NSDictionary * {
+    NSString *stagedPath = [DirectoryPath(staging.get()) stringByAppendingPathComponent:name];
+    if (stagedPath && [name isEqualToString:sourceName]) {
+      os_unfair_lock_lock(&_lock);
+      [self lockedRemember:downloadId from:path to:stagedPath];
+      NSMutableDictionary *event = [_records[downloadId] mutableCopy];
+      event[@"path"] = stagedPath;
+      event[@"filename"] = stagedPath.lastPathComponent;
+      _records[downloadId] = event;
+      os_unfair_lock_unlock(&_lock);
+    }
+    [self journal:downloadId entry:nil];
+    return StagedFailure(reason, stagedPath);
+  };
   const auto giveBack = [&](NSString *reason) -> NSDictionary * {
-    if (!Restore(staging.get(), sourceName, source.get(), sourceName)) return StagedFailure(reason, stagedPath);
-    removeStaging();
+    if (!Restore(staging.get(), sourceName, source.get(), sourceName)) return keepStaged(reason, sourceName);
+    finish();
     return Failure(reason);
   };
 
   if (renameatx_np(source.get(), sourceName.fileSystemRepresentation, staging.get(), sourceName.fileSystemRepresentation, RENAME_EXCL) != 0) {
     const int error = errno;
-    removeStaging();
+    finish();
     return Failure(error == ENOENT ? @"missing" : @"failed");
   }
   [self step:@"claimed" staging:staging.get()];
@@ -340,6 +414,7 @@ int OpenOwnStaging(int source, NSString *name) {
   ScopedFd claimed(openat(staging.get(), sourceName.fileSystemRepresentation, O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
   struct stat verified;
   if (!claimed.valid() || fstat(claimed.get(), &verified) != 0 || !S_ISREG(verified.st_mode)) return giveBack(@"changed");
+  if (verified.st_nlink != 1) return giveBack(@"linked");
   if (verified.st_size != [identity[@"size"] longLongValue] || ![Sha256Of(claimed.get()) isEqualToString:identity[@"sha256"]])
     return giveBack(@"changed");
   [self step:@"verified" staging:staging.get()];
@@ -354,31 +429,42 @@ int OpenOwnStaging(int source, NSString *name) {
       break;
     }
     if (errno == EEXIST) continue;
-    if (errno == ENOENT) return StagedFailure(@"changed", stagingPath);
+    if (errno == ENOENT) return keepStaged(@"changed", @"");
     return giveBack(errno == EXDEV ? @"crossesVolumes" : @"failed");
   }
   if (!placed) return giveBack(@"tooManyCollisions");
-
-  struct stat landed;
-  if (fstatat(destination.get(), placed.fileSystemRepresentation, &landed, AT_SYMLINK_NOFOLLOW) != 0 ||
-      landed.st_dev != verified.st_dev || landed.st_ino != verified.st_ino) {
-    NSString *stray = [NSString stringWithFormat:@"not-%@", sourceName];
-    renameatx_np(destination.get(), placed.fileSystemRepresentation, staging.get(), stray.fileSystemRepresentation, RENAME_EXCL);
-    return StagedFailure(@"changed", stagingPath);
-  }
-
   NSString *directory = DirectoryPath(destination.get()) ?: [_home stringByAppendingPathComponent:[components componentsJoinedByString:@"/"]];
   NSString *finalPath = [directory stringByAppendingPathComponent:placed];
-  removeStaging();
-  NSDictionary *previous = [self movedEntryFor:downloadId];
-  [_moved addObject:@{@"id" : downloadId, @"from" : previous[@"from"] ?: path, @"to" : finalPath}];
-  if (_moved.count > kMaxMoved) [_moved removeObjectsInRange:NSMakeRange(0, _moved.count - kMaxMoved)];
-  [_defaults setObject:[_moved copy] forKey:kMovedDefault];
+  journal[@"placed"] = finalPath;
+  [self journal:downloadId entry:journal];
+  [self step:@"placed" staging:staging.get()];
 
+  struct stat landed;
+  const bool present = fstatat(destination.get(), placed.fileSystemRepresentation, &landed, AT_SYMLINK_NOFOLLOW) == 0;
+  if (!present || landed.st_dev != verified.st_dev || landed.st_ino != verified.st_ino) {
+    NSString *stray = [NSString stringWithFormat:@"not-%@", sourceName];
+    NSDictionary *staged = keepStaged(@"changed", @"");
+    if (!present || renameatx_np(destination.get(), placed.fileSystemRepresentation, staging.get(), stray.fileSystemRepresentation, RENAME_EXCL) == 0)
+      return staged;
+    NSMutableDictionary *withStray = [staged mutableCopy];
+    withStray[@"strayPath"] = finalPath;
+    return withStray;
+  }
+  if (landed.st_nlink != 1) {
+    if (renameatx_np(destination.get(), placed.fileSystemRepresentation, staging.get(), sourceName.fileSystemRepresentation, RENAME_EXCL) == 0)
+      return giveBack(@"linked");
+    [self journal:downloadId entry:nil];
+    return StagedFailure(@"linked", finalPath);
+  }
+
+  os_unfair_lock_lock(&_lock);
+  [self lockedRemember:downloadId from:path to:finalPath];
   NSMutableDictionary *event = [record mutableCopy];
   event[@"path"] = finalPath;
   event[@"filename"] = placed;
   _records[downloadId] = event;
+  os_unfair_lock_unlock(&_lock);
+  finish();
   return @{@"ok" : @YES, @"path" : finalPath, @"event" : event};
 }
 

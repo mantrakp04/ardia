@@ -233,10 +233,13 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 - **What a program sees.** Decide data has the URL without its query and fragment unless the hook says
   `"fullUrls": true`; a program that rewrites query parameters needs it. The runner trims again on its side.
 - **link.opening** decides before any tab exists. At every launch native holds incoming links (no early Little Ardia
-  tab, no parked link tabs) until JS reports its link policy with `setHoldIncomingLinks(hold)`: the app reports it
+  tab, no parked link tabs) until JS reports its link policy with `setHoldIncomingLinks(hold, hooksStamp)`: the app reports it
   once its hooks are loaded and again on every change, `true` while an active `tab.opening` or `link.opening` hook
-  exists. Only when the last report said no hold and hooks.json hasn't changed since does native take its fast
-  path before JS loads. A routed or rewritten link never adopts contents loaded for it
+  exists. `hooksStamp` is the stamp (device, inode, size, mtime, ctime) native returned with the hooks.json read the
+  rules came from, so a decision is never filed under a newer file; native keeps the fast-path fingerprint only when
+  that stamp is the file's current one. The fingerprint also covers config.json and `automation-approvals.json`, so
+  native takes its fast path before JS loads only when the last report said no hold and none of the three changed
+  since. A routed or rewritten link never adopts contents loaded for it
   under another profile.
 - **Permissions.** A hook can deny or leave the normal prompt; `allow` means "show the prompt", never an unattended
   grant. A deny is answered on the engine's own request id and never remembered. A request dismissed or replaced
@@ -252,11 +255,22 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   moves a file the app itself just downloaded, only into `~/Downloads` or the folders the app passed in
   `setApprovedDownloadFolders` (sent at startup and on every change, approvals included, from the approved rules). It resolves through
   descriptors, never overwrites and keeps the quarantine attribute. Native checks the engine's SHA-256 of the
-  bytes after claiming the file into a private staging folder; a download without an engine hash (WebKit) can't be
-  moved (`noIdentity`). If a failed move couldn't put the file back, it stays in that staging folder beside the
-  download and the row points there (`stagedPath`), so it's never lost. On success the download's row points at the
-  new path (native also reports it, so Show in Finder keeps working after relaunch); a timeout, an error or no
+  bytes after claiming the file into a private staging folder; a download without an engine hash can't be moved
+  (`noIdentity`): Save Page (including MHTML) and WebKit downloads have none, so `download.deciding` hooks leave
+  them where they are. A file with another hard link is refused (`linked`), at the claim and again after it is
+  placed. If a failed move couldn't put the file back, it stays in that staging folder beside the download and the
+  row points there (`stagedPath`, read from the staging folder's open descriptor, so a renamed folder still reports
+  the real place; `strayPath` names a swapped-in file that couldn't be taken back out of the destination), so it's
+  never lost. Each move writes a small journal entry before the claim and removes it after the commit; at the next
+  launch a leftover entry is settled: a placed file counts as moved, a staged file goes back to its original path if
+  that is free, and otherwise stays staged and is reported like a failed move's `stagedPath`. Hashing runs outside the
+  mover's lock, so engine events are never held up by a large file. On success the download's row points at
+  the new path (native also reports it, so Show in Finder keeps working after relaunch); a timeout, an error or no
   answer leaves the file where it is. Folders cross the bridge as `~/…`.
+  **Trust boundary.** The checks stop a swapped or linked file from being moved in place of the download; they don't
+  stop a process running as the same user that already holds a writable descriptor or a hard link to the file from
+  rewriting it after the check. Such a process is outside what Ardia defends against: it can already read
+  `ArdiaControl.json` and drive the browser.
   Code: `state/automation/downloadHooks.ts`.
 - **Floods.** At most 64 pending decisions (16 per runner connection), 200 hooks and 50 rewrite rules per hook; the
   runner runs at most 16 decide programs at once (4 per hook) and gives up at the deadline. Command hooks run at
