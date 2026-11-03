@@ -125,6 +125,14 @@ pydoll update renames it or stops routing humanized typing through it. `keyboard
 Click points get a small random offset inside the box; a click whose point is covered fails with
 `covered by <tag#id.class>`.
 
+Every input command confirms the page got it. Capture listeners in the isolated world count trusted `mousedown`,
+`mouseup`, `mousemove`, `keydown`, `keyup` and `wheel` events in the target's frame; after the gesture the command
+waits up to 1.5 s for the counts it needs (a click's `mousedown` and `mouseup`, one `keydown` and `keyup` per typed
+character, a `wheel` per scroll). If they never arrive it fails with `input_not_delivered` instead of reporting `✓
+Done`. A navigation or a closed frame counts as delivered, and so do keys sent while focus is in an iframe and a
+raw `mouse` event over one, since those land in another frame. The listeners add no DOM and nothing the page's world
+can enumerate.
+
 Held keys and buttons are tracked before each dispatch, and a gesture that's interrupted releases them in a
 bounded (2 s), shielded `finally`; `keydown` and `mouse down` stay held across commands on purpose (and keep the
 connection up). An interrupted drag reports an unknown outcome. HTML5 `draggable` sources are refused: without

@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli.browse import claims, client, inputs, media, paths, plugins, readurl, snapshot, vault
+from ardia_cli.browse import actions, claims, client, inputs, media, paths, plugins, readurl, snapshot, vault
 from ardia_cli.browse import cli as browse_cli
 from ardia_cli.browse import commands, daemon
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Gated, OutcomeUnknown, StaleRef, Usage
@@ -228,6 +228,56 @@ class HeldInputTest(unittest.TestCase):
         press = events[first_press][1]
         release = next(t for kind, t in events[first_press:] if kind == "mouseReleased")
         self.assertGreater(release - press, 0.04)
+
+
+class DeliveryTest(unittest.TestCase):
+    class Page:
+        main_frame = "F"
+
+        def __init__(self, deliver=True, navigate=False):
+            self.counts = {"mousedown": 0, "mouseup": 0, "keydown": 0, "activeFrame": False}
+            self.frames = {"F": {"loader": "L1"}}
+            self.deliver = deliver
+            self.navigate = navigate
+
+        def loader(self, frame):
+            return self.frames.get(frame, {}).get("loader")
+
+        async def refresh_frames(self):
+            return self.frames
+
+        async def call(self, function, *args, frame=None, **kwargs):
+            return dict(self.counts)
+
+        async def dispatch(self):
+            if self.deliver:
+                self.counts["mousedown"] += 1
+                self.counts["mouseup"] += 1
+            if self.navigate:
+                self.frames["F"]["loader"] = "L2"
+            return "done"
+
+    def run_click(self, page):
+        with mock.patch.object(actions, "DELIVERY_TIMEOUT", 0.2):
+            return asyncio.run(actions.expect_input(page, "F", page.dispatch, {"mousedown": 1, "mouseup": 1}, "The click"))
+
+    def test_delivered_click_passes(self):
+        self.assertEqual(self.run_click(self.Page()), "done")
+
+    def test_click_the_page_never_saw_fails(self):
+        with self.assertRaises(BrowseError) as caught:
+            self.run_click(self.Page(deliver=False))
+        self.assertEqual(caught.exception.code, "input_not_delivered")
+        self.assertIn("mousedown", caught.exception.message)
+
+    def test_navigation_counts_as_delivered(self):
+        self.assertEqual(self.run_click(self.Page(deliver=False, navigate=True)), "done")
+
+    def test_keys_into_a_focused_iframe_are_not_judged_by_the_parent(self):
+        page = self.Page(deliver=False)
+        page.counts["activeFrame"] = True
+        with mock.patch.object(actions, "DELIVERY_TIMEOUT", 0.2):
+            self.assertEqual(asyncio.run(actions.expect_input(page, "F", page.dispatch, {"keydown": 1}, "The key press")), "done")
 
 
 class GlobalsTest(unittest.TestCase):

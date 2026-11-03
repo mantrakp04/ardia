@@ -411,7 +411,9 @@ async def cmd_press(ctx: Ctx, argv):
     need(args, 1, "press <key>")
     page = await ctx.state.page()
     humanize = ctx.humanize and not options.get("no_humanize")
-    await page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize))
+    frame = ctx.state.frame_for(page) or page.main_frame
+    await actions.expect_input(page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)),
+                               {"keydown": 1}, "The key press")
     return Result({"pressed": args[0]})
 
 
@@ -421,7 +423,9 @@ async def cmd_keydown(ctx: Ctx, argv):
     need(args, 1, f"{ctx.command} <key>")
     page = await ctx.state.page()
     down = ctx.command == "keydown"
-    await page.input.gesture(ctx.command, lambda: page.input.press_combo(args[0], False, down_only=down, up_only=not down), keep_held=True)
+    frame = ctx.state.frame_for(page) or page.main_frame
+    await actions.expect_input(page, frame, lambda: page.input.gesture(ctx.command, lambda: page.input.press_combo(args[0], False, down_only=down, up_only=not down), keep_held=True),
+                               {"keydown" if down else "keyup": 1}, f"The {ctx.command}")
     return Result({"key": args[0], "down" if down else "up": True})
 
 
@@ -438,7 +442,9 @@ async def cmd_keyboard(ctx: Ctx, argv):
         raise Usage(f"Unknown keyboard subcommand: {args[0]} (type or inserttext)")
     keyboard = page.input.keyboard()
     humanize = ctx.humanize and not options.get("no_humanize")
-    await page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize))
+    frame = ctx.state.frame_for(page) or page.main_frame
+    await actions.expect_input(page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)),
+                               {"keydown": len(text)}, "The typing")
     return Result({"typed": True})
 
 
@@ -523,19 +529,27 @@ async def cmd_mouse(ctx: Ctx, argv):
     if action == "move":
         need(args, 3, "mouse move <x> <y>")
         x, y = float(args[1]), float(args[2])
-        await page.input.gesture("mouse move", lambda: mouse.move(x, y, humanize=humanize), keep_held=True)
+        needs = {} if await page.call("(x, y) => ardiaBrowse.overFrame(x, y)", x, y, frame=page.main_frame) else {"mousemove": 1}
+        await actions.expect_input(page, page.main_frame, lambda: page.input.gesture("mouse move", lambda: mouse.move(x, y, humanize=humanize), keep_held=True),
+                                   needs, "The mouse move")
         return Result({"moved": True})
     if action in ("down", "up"):
         button = actions.mouse_button(args[1] if len(args) > 1 else None)
         run = (lambda: mouse.down(button)) if action == "down" else (lambda: mouse.up(button))
-        await page.input.gesture(f"mouse {action}", run, keep_held=True)
+        x, y = mouse._position
+        over = await page.call("(x, y) => ardiaBrowse.overFrame(x, y)", x, y, frame=page.main_frame)
+        await actions.expect_input(page, page.main_frame, lambda: page.input.gesture(f"mouse {action}", run, keep_held=True),
+                                   {} if over else {"mousedown" if action == "down" else "mouseup": 1}, f"The mouse {action}")
         return Result({action: True})
     if action == "wheel":
         need(args, 2, "mouse wheel <dy> [dx]")
         dy = float(args[1])
         dx = float(args[2]) if len(args) > 2 else 0
         x, y = mouse._position
-        await page.send("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": int(x), "y": int(y), "deltaX": dx, "deltaY": dy}, input_event=True)
+        over = await page.call("(x, y) => ardiaBrowse.overFrame(x, y)", x, y, frame=page.main_frame)
+        wheel = {"type": "mouseWheel", "x": int(x), "y": int(y), "deltaX": dx, "deltaY": dy}
+        await actions.expect_input(page, page.main_frame, lambda: page.input.gesture("mouse wheel", lambda: page.send("Input.dispatchMouseEvent", wheel, input_event=True), keep_held=True),
+                                   {} if over else {"wheel": 1}, "The wheel")
         return Result({"scrolled": True})
     raise Usage(f"Unknown mouse action: {action}")
 

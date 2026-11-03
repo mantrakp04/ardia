@@ -26,6 +26,8 @@ ardia browse close                       # closes only the tabs this session ope
   `fill`, `type`, `press`, `hover`, `drag` and `mouse` fail with a clear error on a background tab. Use
   `open --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` (Ardia switches its window to the tab). Snapshots,
   `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in the background.
+- **Input is confirmed.** A click, key press, typing or scroll that the page never received fails with
+  `input_not_delivered` rather than reporting success; retry, or show the tab.
 - **Input is humanized by default**: curved mouse paths that start where the last one ended, human press timing,
   wheel scrolling with momentum, typing per character with varying gaps and no typos. `--no-humanize` on one
   command, or `AGENT_BROWSER_NO_HUMANIZE=1` for all, makes it instant. `keyboard inserttext` is always instant.

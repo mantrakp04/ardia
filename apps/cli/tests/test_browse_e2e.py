@@ -194,6 +194,7 @@ class BrowseEndToEnd(unittest.TestCase):
 
     def test_hidden_tab_refuses_input(self):
         session = "hidden"
+        self.browse("open", self.url("probe.html"), "--show", session="hidden-front")
         self.browse("open", self.url("probe.html"), session=session)
         refused = self.browse("click", "#target", session=session, check=False)
         self.assertEqual(refused.returncode, 1)

@@ -41,6 +41,7 @@
       if (event.type.startsWith("key")) entry.key = event.key;
       if (event.type.startsWith("mouse") || event.type === "click") { entry.x = event.clientX; entry.y = event.clientY; entry.buttons = event.buttons; }
       if (state.events.length < 5000) state.events.push(entry);
+      report();
     };
     for (const type of ["mousemove", "mousedown", "mouseup", "click", "keydown", "keyup", "input", "wheel", "scroll"]) {
       window.addEventListener(type, log, true);

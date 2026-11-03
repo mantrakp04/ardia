@@ -254,7 +254,7 @@ async def login(ctx, argv):
                 if humanize:
                     await keyboard._apply_realistic_delay(char)
 
-        await page.input.gesture("auth login", run)
+        await actions.expect_input(page, frame, lambda: page.input.gesture("auth login", run), {"keydown": len(text)}, "The typing")
 
     try:
         if username_element is not None:
@@ -266,5 +266,5 @@ async def login(ctx, argv):
         _, submit = await ctx.state.locate(meta["submitSelector"], page)
         await actions.click(page, submit, humanize)
     else:
-        await page.input.gesture("auth login", lambda: page.input.press_combo("Enter", humanize))
+        await actions.expect_input(page, frame, lambda: page.input.gesture("auth login", lambda: page.input.press_combo("Enter", humanize)), {"keydown": 1}, "The Enter press")
     return Result({"name": name, "loggedIn": True, "url": page.url}, f"✓ Logged in as {meta.get('username') or name}")

@@ -234,6 +234,21 @@ LIBRARY = r"""
         setTimeout(() => resolve(result), 300);
       });
     },
+    inputWatch() {
+      if (!globalThis.ardiaBrowseInput) {
+        const counts = { mousedown: 0, mouseup: 0, click: 0, mousemove: 0, keydown: 0, keyup: 0, wheel: 0 };
+        for (const type of Object.keys(counts)) {
+          addEventListener(type, (event) => { if (event.isTrusted) counts[type] += 1; }, { capture: true, passive: true });
+        }
+        Object.defineProperty(globalThis, "ardiaBrowseInput", { value: counts, enumerable: false });
+      }
+      const active = document.activeElement;
+      return Object.assign({ activeFrame: !!active && (active.tagName === "IFRAME" || active.tagName === "FRAME") }, globalThis.ardiaBrowseInput);
+    },
+    overFrame(x, y) {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit && (hit.tagName === "IFRAME" || hit.tagName === "FRAME");
+    },
     pushState(url) {
       history.pushState({}, "", url);
       dispatchEvent(new PopStateEvent("popstate", { state: {} }));

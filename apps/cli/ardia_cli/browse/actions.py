@@ -5,6 +5,49 @@ import random
 from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
+DELIVERY_TIMEOUT = 1.5
+NOT_DELIVERED = (
+    "{action} was sent, but the page received no {missing} event, so nothing happened there. The tab may not be on "
+    "screen in Ardia (just switched, or covered by another tab): retry, or show it with `ardia browse tab <id> --show`"
+)
+
+
+async def input_counts(page, frame):
+    return await page.call("() => ardiaBrowse.inputWatch()", frame=frame)
+
+
+async def expect_input(page, frame, run, needs: dict, action: str):
+    from ardia_cli.browse.errors import CdpError, ConnectionLost
+
+    frame = frame or page.main_frame
+    loader = page.loader(frame)
+    try:
+        before = await input_counts(page, frame)
+    except ConnectionLost:
+        raise
+    except BrowseError:
+        before = None
+    result = await run()
+    if before is None or not needs or before.get("activeFrame") and ("keydown" in needs or "keyup" in needs):
+        return result
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + DELIVERY_TIMEOUT
+    while True:
+        try:
+            await page.refresh_frames()
+            if frame not in page.frames or page.loader(frame) != loader:
+                return result
+            now = await input_counts(page, frame)
+        except ConnectionLost:
+            raise
+        except (CdpError, BrowseError):
+            return result
+        missing = [name for name, count in needs.items() if now.get(name, 0) - before.get(name, 0) < count]
+        if not missing:
+            return result
+        if loop.time() >= deadline:
+            raise BrowseError(NOT_DELIVERED.format(action=action, missing=" or ".join(missing)), data={"missing": missing}, code="input_not_delivered")
+        await asyncio.sleep(0.05)
 
 
 def mouse_button(name: str | None):
@@ -175,12 +218,14 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
     x, y, _ = await target_point(page, element, humanize)
     mouse = page.input.mouse
     which = mouse_button(button)
-    await page.input.gesture("click", lambda: mouse.click(x, y, button=which, click_count=count, humanize=humanize))
+    await expect_input(page, element.frame, lambda: page.input.gesture("click", lambda: mouse.click(x, y, button=which, click_count=count, humanize=humanize)),
+                       {"mousedown": count, "mouseup": count}, "The click")
 
 
 async def hover(page, element, humanize: bool):
     x, y, _ = await target_point(page, element, humanize, check_cover=False)
-    await page.input.gesture("hover", lambda: page.input.mouse.move(x, y, humanize=humanize))
+    await expect_input(page, element.frame, lambda: page.input.gesture("hover", lambda: page.input.mouse.move(x, y, humanize=humanize)),
+                       {"mousemove": 1}, "The hover")
 
 
 async def focus_field(page, element, info, humanize: bool):
@@ -192,15 +237,18 @@ async def focus_field(page, element, info, humanize: bool):
 
 async def type_into(page, element, text: str, humanize: bool, guard=None):
     keyboard = page.input.keyboard(element=element, guard=guard)
-    await page.input.gesture("type", lambda: keyboard.type_text(text, humanize=humanize))
+    await expect_input(page, element.frame, lambda: page.input.gesture("type", lambda: keyboard.type_text(text, humanize=humanize)),
+                       {"keydown": len(text), "keyup": len(text)}, "The typing")
 
 
 async def clear_field(page, element, humanize: bool):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if not info.get("value"):
         return
-    await page.input.gesture("clear", lambda: page.input.press_combo("Meta+a", humanize))
-    await page.input.gesture("clear", lambda: page.input.press_combo("Backspace", humanize))
+    await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Meta+a", humanize)),
+                       {"keydown": 2}, "Select all")
+    await expect_input(page, element.frame, lambda: page.input.gesture("clear", lambda: page.input.press_combo("Backspace", humanize)),
+                       {"keydown": 1}, "Backspace")
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if info.get("value"):
         raise BrowseError(f"Couldn't clear {element.label}; it still holds text")
@@ -267,7 +315,8 @@ async def drag(page, source, target, humanize: bool):
     x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
     mouse = page.input.mouse
     try:
-        await page.input.gesture("drag", lambda: mouse.drag(x1, y1, x2, y2, humanize=humanize))
+        await expect_input(page, source.frame, lambda: page.input.gesture("drag", lambda: mouse.drag(x1, y1, x2, y2, humanize=humanize)),
+                           {"mousedown": 1, "mouseup": 1}, "The drag")
     except asyncio.CancelledError:
         raise
     except OutcomeUnknown:
@@ -289,4 +338,6 @@ async def scroll(page, direction: str, amount: float, humanize: bool, selector_e
         ox, oy = await frame_offset(page, selector_element.frame)
         point = (ox + r["x"] + r["width"] * random.uniform(0.35, 0.65), oy + r["y"] + r["height"] * random.uniform(0.35, 0.65))
         frame = selector_element.frame
-    await page.input.gesture("scroll", lambda: scroll_wheel(page, distance, vertical, humanize, point, frame, selector_element), allow_hidden=True)
+    needs = {} if distance == 0 or await page.hidden() else {"wheel": 1}
+    await expect_input(page, frame, lambda: page.input.gesture("scroll", lambda: scroll_wheel(page, distance, vertical, humanize, point, frame, selector_element), allow_hidden=True),
+                       needs, "The scroll")
