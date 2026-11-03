@@ -14,7 +14,7 @@ import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { Group, PaneIntro, Row, SectionHeader } from "../Form";
+import { Group, PaneIntro, Row, SectionHeader, SettingToggle } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/ProfileIcons";
 import { iconSymbol } from "../../../lib/customIcon";
@@ -58,6 +58,11 @@ export function ProfilesPane() {
             minWidth={160}
           />
         </Row>
+      </Group>
+
+      <SectionHeader title="Shared data" />
+      <Group>
+        <SettingToggle anchor="profiles.shareTopApps" />
       </Group>
 
       <SectionHeader title="Profile switcher" />
