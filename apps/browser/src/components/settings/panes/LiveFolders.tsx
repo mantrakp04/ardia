@@ -240,6 +240,10 @@ function GiteaConnect({ busy, run }: ConnectProps) {
   const [clientId, setClientId] = useState(config.giteaClientId);
   const hasSite = !!site.trim();
   const connect = () => void run(() => connectGitea(site, { token: token.trim() }));
+  const createToken = () => {
+    if (settingsBrowserWindow()) openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`);
+    else void run(() => Promise.reject(new Error("Open a browser window first")));
+  };
   const signIn = () =>
     void run(async () => {
       const windowId = settingsBrowserWindow();
@@ -259,7 +263,7 @@ function GiteaConnect({ busy, run }: ConnectProps) {
         <TextField value={token} onChangeText={setToken} secure onSubmit={() => !busy && hasSite && token.trim() && connect()} />
       </FormField>
       <DialogActions>
-        <Button title="Create Token…" disabled={!hasSite} onPress={() => openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`)} />
+        <Button title="Create Token…" disabled={!hasSite} onPress={createToken} />
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!hasSite || !token.trim() || busy} onPress={connect} />
       </DialogActions>
