@@ -9,7 +9,7 @@ enum ConfigFolder {
   static var directory: String { LaunchConfig.shared.configDirectory }
 
   static func isWatchable(_ name: String) -> Bool {
-    name == "config.json" || isThemeFile(name)
+    name == "config.json" || name == "hooks.json" || isThemeFile(name)
   }
 
   private static func isThemeFile(_ name: String) -> Bool {
@@ -19,7 +19,7 @@ enum ConfigFolder {
   static func path(_ name: String) -> String { (directory as NSString).appendingPathComponent(name) }
 
   static func read(_ name: String) -> [String: Any] {
-    guard name == "config.json" || isThemeFile(name) else { return ["status": "unreadable"] }
+    guard isWatchable(name) else { return ["status": "unreadable"] }
     return readRegularFile(path(name))
   }
 
