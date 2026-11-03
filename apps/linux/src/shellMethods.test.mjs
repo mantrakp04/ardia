@@ -153,20 +153,36 @@ test("the Mac-only methods of #305 answer on Linux with a truthful value or ERR_
   }
 });
 
+test("automation's system signals answer truthfully on Linux: no idle watch and no link hold, synchronously, and a download move refused so the file stays put", async () => {
+  const host = linuxHost();
+  const signal = (method) => resolveHostModule(host, "ArdiaSystemSignals", method);
+  assert.equal(signal("watchIdle")([60]), undefined);
+  assert.equal(signal("holdsIncomingLinks")(), false);
+  assert.equal(signal("setHoldIncomingLinks")(true, "stamp"), undefined);
+  assert.equal(signal("setApprovedDownloadFolders")(["/tmp/folder"]), undefined);
+  for (const method of ["moveCompletedDownload", "devPost"]) {
+    assert.equal(reachesNativeHostUnchecked(signal(method)), false, method);
+    await assert.rejects(signal(method)("x", "y"), (error) => error.code === "ERR_UNAVAILABLE", method);
+  }
+});
+
 test("translation's synchronous methods answer synchronously on Linux, as the shared code does when translation is absent", () => {
   const host = linuxHost();
   assert.deepEqual(resolveHostModule(host, "ArdiaTranslate", "userLanguages")(), []);
   assert.equal(resolveHostModule(host, "ArdiaTranslate", "languageName")("fr"), "fr");
 });
 
-test("the ardia command and the user-scripts folder answer on Linux as the modules were absent before they became required", async () => {
-  const host = linuxHost();
+test("the ardia command and the user-scripts folder route to the engine that advertises them", async () => {
+  for (const name of ["ArdiaCli.installedVersion", "ArdiaCli.install", "ArdiaAutomation.start", "ArdiaAutomation.stop", "ArdiaAutomation.reply", "ArdiaAutomation.broadcast", "ArdiaUserScripts.watch", "ArdiaUserScripts.read", "ArdiaUserScripts.readStatus", "ArdiaUserScripts.writeStatus"]) {
+    assert.ok(routedNatively.has(name), name);
+  }
+  const cli = ["ArdiaCli.installedVersion", "ArdiaCli.install"];
+  const host = olderEngine(...cli);
   assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
   assert.equal((await resolveHostModule(host, "ArdiaCli", "install")().catch((error) => error)).code, "ERR_UNAVAILABLE");
-  assert.equal(resolveHostModule(host, "ArdiaUserScripts", "watch")(true), undefined);
-  assert.deepEqual(await resolveHostModule(host, "ArdiaUserScripts", "read")(), { state: "empty" });
-  assert.equal(await resolveHostModule(host, "ArdiaUserScripts", "readStatus")(), null);
-  assert.equal(await resolveHostModule(host, "ArdiaUserScripts", "writeStatus")("{}"), undefined);
+  const current = linuxHost();
+  current.bootstrap.capabilities.push(...cli);
+  await assert.rejects(resolveHostModule(current, "ArdiaCli", "install")(), /Unsupported Linux host method: ArdiaCli.install/);
 });
 
 test("every ArdiaShell method resolves to its Linux fallback while the native host doesn't advertise it", () => {

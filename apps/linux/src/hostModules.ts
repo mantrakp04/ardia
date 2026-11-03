@@ -9,6 +9,8 @@ import { linuxSystemMethod } from "./hostFiles.ts";
 import { linuxModuleMethod } from "./hostSystem.ts";
 import { linuxShellMethod, watchSidebarEdgeBesideNativeLeftEdge } from "./shellMethods.ts";
 import { appModuleFallback } from "./appModuleFallbacks.ts";
+import { cliModuleMethod } from "./hostCli.ts";
+import { configModuleMethod } from "./hostConfig.ts";
 
 const synchronousDefaults: Record<string, Record<string, unknown>> = {
   ArdiaApp: { apiVersion: 0 },
@@ -19,7 +21,6 @@ const synchronousDefaults: Record<string, Record<string, unknown>> = {
 const synchronousMethods: Record<string, Record<string, unknown>> = {
   ArdiaGlassEffect: { isLiquidGlass: false },
   ArdiaCli: { installedVersion: null },
-  ArdiaUserScripts: { watch: undefined },
   ArdiaConfig: { readFile: { status: "missing" } },
   ArdiaAutomation: { reply: undefined, broadcast: undefined },
 };
@@ -48,6 +49,10 @@ export function resolveHostModule(host: ArdiaHost, name: string, method: string)
   if (syncMethod !== undefined) return syncMethod;
   const calendar = calendarModuleMethod(host, name, method);
   if (calendar !== undefined) return calendar;
+  const cli = cliModuleMethod(host, name, method);
+  if (cli !== undefined) return cli;
+  const config = configModuleMethod(host, name, method);
+  if (config !== undefined) return config;
   const fallback = appModuleFallback(host, name, method);
   if (fallback) return fallback;
   if (name === "ArdiaDocuments" && method === "call") {

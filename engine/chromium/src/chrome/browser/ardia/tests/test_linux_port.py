@@ -73,7 +73,10 @@ class RegistryTests(unittest.TestCase):
         linux = sources("linux")
         self.assertFalse(any(path.suffix == ".mm" for path in linux))
         self.assertNotIn(ROOT / "ac_reauth.cc", linux)
-        self.assertNotIn(ROOT / "ac_cli_control.cc", linux)
+        for shared in ("ac_cli_control.cc", "ac_cli_token_policy.cc", "ac_cli_token_policy_web_targets.cc"):
+            self.assertIn(ROOT / shared, linux)
+            self.assertIn(ROOT / shared, sources("mac"))
+        self.assertFalse((ROOT / "ac_cli_control_linux.cc").exists())
         provided = linux_core_headers()
         self.assertIn("ardia/core/ac_launch_switches.h", provided)
         for path in service_sources("linux"):

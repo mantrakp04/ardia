@@ -10,6 +10,7 @@ from ardia_cli import endpoint
 
 SOCKET_FILE = "ArdiaControl.sock"
 SUN_PATH_MAX = 103
+LINUX_SUN_PATH_MAX = 107
 MAX_LINE = 1024 * 1024
 PROTOCOL = 2
 CONNECT_TIMEOUT = 5.0
@@ -57,6 +58,7 @@ DECIDE_QUEUE_CAP = 256
 SOL_LOCAL = 0
 LOCAL_PEERCRED = 0x001
 XUCRED_SIZE = 76
+UCRED = struct.Struct("=iII")
 
 
 class Unreachable(Exception):
@@ -80,8 +82,9 @@ def socket_path(data_dir: str | None = None) -> Path:
 
 def check_socket(path: Path) -> None:
     size = len(os.fsencode(str(path)))
-    if size > SUN_PATH_MAX:
-        raise Unreachable(f"the control socket path is {size} bytes, over the {SUN_PATH_MAX} a Unix socket allows: {path}; use a shorter data dir")
+    limit = LINUX_SUN_PATH_MAX if endpoint.LINUX else SUN_PATH_MAX
+    if size > limit:
+        raise Unreachable(f"the control socket path is {size} bytes, over the {limit} a Unix socket allows: {path}; use a shorter data dir")
     try:
         info = os.lstat(path)
     except FileNotFoundError:
@@ -107,6 +110,8 @@ def check_events(names) -> list[str]:
 
 
 def peer_uid(sock: socket.socket) -> int | None:
+    if endpoint.LINUX:
+        return linux_peer_uid(sock)
     try:
         raw = sock.getsockopt(SOL_LOCAL, LOCAL_PEERCRED, XUCRED_SIZE)
     except OSError:
@@ -114,6 +119,17 @@ def peer_uid(sock: socket.socket) -> int | None:
     if len(raw) < 8:
         return None
     _, uid = struct.unpack_from("=II", raw)
+    return uid
+
+
+def linux_peer_uid(sock: socket.socket) -> int | None:
+    try:
+        raw = sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, UCRED.size)
+    except (OSError, AttributeError):
+        return None
+    if len(raw) < UCRED.size:
+        return None
+    _, uid, _ = UCRED.unpack_from(raw)
     return uid
 
 

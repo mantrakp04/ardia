@@ -36,6 +36,7 @@
     ["ArdiaCalendar.requestAccess", 120000],
     ["ArdiaCalendar.sources", 60000],
     ["ArdiaCalendar.objects", 120000],
+    ["ArdiaCli.install", 330000],
   ]);
 
   const request = (method, args, deadline = 30000) => {

@@ -137,6 +137,13 @@ test("interactive credential requests get longer deadlines than ordinary request
   assert.deepEqual([...f.delays.values()], [30000, 180000, 900000, 180000, 180000, 30000, 30000]);
 });
 
+test("the ardia command's installer outlives its native 300 s deadline, kill grace and output drain", () => {
+  const f = fixture();
+  void f.host.invoke("ArdiaCli.install", { args: [] });
+  void f.host.invoke("ArdiaCli.installedVersion", { args: [] });
+  assert.deepEqual([...f.delays.values()], [330000, 30000]);
+});
+
 test("calendar requests that may open Evolution Data Server backends get room to finish", () => {
   const f = fixture();
   void f.host.invoke("ArdiaCalendar.status", { args: [] });

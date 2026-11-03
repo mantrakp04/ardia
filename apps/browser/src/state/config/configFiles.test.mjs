@@ -60,6 +60,23 @@ test("a change made in the app stands until the file changes; every change event
   assert.ok(configFolder.schemaWrites.length >= 1);
 });
 
+test("a window that isn't the launch takes the theme but leaves settings and known problems alone until the file changes", async () => {
+  fresh({ tabLayout: "sidebar" });
+  const window = S().createWindow({ url: "https://a.com/" });
+  files.set("themes/nord.json", JSON.stringify({ dark: { accent: "#88C0D0" } }));
+  writeConfig({ theme: "nord", settings: { tabLayout: "top", selectedTabGlow: "bright" } });
+  startConfigFiles(colorRoles, false);
+  firstWindowCommitted();
+  await wait(10);
+  assert.equal(S().settings.tabLayout, "sidebar");
+  assert.equal(useBasePalette.getState().theme, "nord");
+  assert.equal(useToasts.getState().toasts[window], undefined);
+  emitConfigChange();
+  await settled();
+  assert.equal(S().settings.tabLayout, "top");
+  assert.equal(useToasts.getState().toasts[window], undefined, "a problem the launch window showed isn't shown again");
+});
+
 test("taking a key out of the file, or deleting the file, keeps the current value", () => {
   fresh();
   writeConfig({ settings: { tabLayout: "top" } });

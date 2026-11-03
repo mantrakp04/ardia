@@ -17,7 +17,7 @@ In scope:
   await history(days=1, limit=200, profile=None, domains=False)
                  recent history per URL, newest first: url, title, visits (in the window), total_visits,
                  last_visit (ISO, local time), profile; domains=True rolls it up per domain.
-                 profile is a profile name or its folder under Chromium/ (default: all). Only http(s) pages.
+                 profile is a profile name or its PROFILE_FOLDERS (default: all). Only http(s) pages.
                  Both read Ardia's data dir (the token path's, or --data-dir/$ARDIA_DATA_DIR) and need control on.
   await run(command, arg=None, window=None)   run one of Ardia's commands (see ardia commands); CommandError if refused
   await windows()                             Ardia's windows and their tabs
@@ -37,11 +37,15 @@ Examples:
   ardia exec -f script.py --json
   echo 'len(tabs)' | ardia exec -
   ardia exec 'await history(days=1, domains=True)' --json
-"""
+""".replace("PROFILE_FOLDERS", "folder in the data dir" if sys.platform.startswith("linux") else "folder under Chromium/")
 EXEC_EPILOG = """\
 Endpoint: --ws, else --port (plain DevTools servers only), else $ARDIA_CDP_URL, else
 <data dir>/Chromium/ArdiaControl.json with --data-dir or $ARDIA_DATA_DIR, else the installed Ardia's.
 """
+if sys.platform.startswith("linux"):
+    EXEC_EPILOG = EXEC_EPILOG.replace("<data dir>/Chromium/ArdiaControl.json", "<data dir>/ArdiaControl.json").replace(
+        "the installed Ardia's.", "the installed Ardia's\n(${XDG_CONFIG_HOME:-~/.config}/ardia)."
+    )
 SKILLS_DESCRIPTION = """\
 Install the ardia agent skill (SKILL.md and a pydoll reference) so coding agents know how to drive Ardia.
 

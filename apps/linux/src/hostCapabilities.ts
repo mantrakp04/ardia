@@ -6,11 +6,27 @@ export type LinuxCapabilities = {
   thinScrollBars: boolean;
   webkit: boolean;
   cliControl: boolean;
+  cliInstall: boolean;
+  userScripts: boolean;
   externalLinks: boolean;
   performanceRecording: boolean;
   taskManager: boolean;
   videoUpscaling: boolean;
 };
+
+export const CLI_CONTROL_METHODS = [
+  "engine.cliControlStatus",
+  "engine.setCliControl",
+  "engine.setCliActiveTab",
+  "ArdiaAutomation.start",
+  "ArdiaAutomation.stop",
+  "ArdiaAutomation.reply",
+  "ArdiaAutomation.broadcast",
+] as const;
+
+export const CLI_INSTALL_METHODS = ["ArdiaCli.installedVersion", "ArdiaCli.install"] as const;
+
+export const USER_SCRIPTS_METHODS = ["ArdiaUserScripts.watch", "ArdiaUserScripts.read", "ArdiaUserScripts.readStatus", "ArdiaUserScripts.writeStatus"] as const;
 
 export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): LinuxCapabilities {
   const has = (...methods: string[]) => !!host && methods.every((method) => hostSupports(method, host));
@@ -19,7 +35,9 @@ export function linuxCapabilities(host: ArdiaHost | undefined = ardiaHost): Linu
     launchAtLogin: has("ArdiaSystem.launchAtLoginStatus", "ArdiaSystem.setLaunchAtLogin"),
     thinScrollBars: has("ArdiaSystem.setThinScrollBars"),
     webkit: false,
-    cliControl: false,
+    cliControl: has(...CLI_CONTROL_METHODS),
+    cliInstall: has(...CLI_INSTALL_METHODS),
+    userScripts: has(...USER_SCRIPTS_METHODS),
     externalLinks: has("ArdiaApp.openExternalURL"),
     performanceRecording: has("engine.beginTracing", "engine.endTracing", "engine.isTracing"),
     taskManager: has("engine.openTaskManager"),
@@ -34,6 +52,7 @@ export function unavailableSettingIds(capabilities: LinuxCapabilities, settingId
   if (!capabilities.thinScrollBars) ids.add("appearance.pageScrollBars");
   if (!capabilities.videoUpscaling) ids.add("tabs.videoUpscaling");
   if (!capabilities.cliControl) for (const id of ["advanced.cliControl", "advanced.cliInstall"]) ids.add(id);
+  if (!capabilities.cliInstall) ids.add("advanced.cliInstall");
   if (!capabilities.webkit) for (const id of settingIds) if (id.startsWith("engines.")) ids.add(id);
   return ids;
 }

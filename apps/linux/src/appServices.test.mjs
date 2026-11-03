@@ -6,7 +6,7 @@ import { useOnboarding, onboardingCompletedAt } from "../../browser/src/state/on
 import { useToasts } from "../../browser/src/state/app/toasts.ts";
 import { APP_LAUNCH_LOCK, APP_LAUNCH_MARK, FRESH_PROFILE_DOCUMENT, LAUNCH_STEPS, UTILITY_APP_COMMANDS, claimAppLaunch, hostLaunchRecord, onboardingAction, recordFreshProfile, runAppCommand, runLaunchServices, serveUtilityCommands, startAppCommands } from "./appServices.ts";
 
-const capabilities = { defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, externalLinks: false, performanceRecording: false, taskManager: false };
+const capabilities = { defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, cliInstall: false, externalLinks: false, performanceRecording: false, taskManager: false };
 
 function lockManager() {
   const queue = [];
@@ -334,6 +334,24 @@ test("release notes still open when the holder died between recording versionUpd
   } finally {
     delete appInfo.releaseNotesURL;
     delete appInfo.forceReleaseNotes;
+  }
+});
+
+test("the first launch with a VERSION file counts as an update but opens no release-notes tab, and neither does a dev build without one", async () => {
+  const releaseNoteTabs = () => Object.values(useBrowser.getState().tabs).filter((tab) => (tab.url ?? tab.navigation?.url ?? "").includes("release-notes"));
+  for (const [before, after] of [["156.0.8078.79", "0.2.44-nightly.3"], ["0.2.44-nightly.3", "156.0.8078.79"]]) {
+    const { first } = twoWindows();
+    appInfo.appVersion = after;
+    docs.set("release-notes.json", JSON.stringify({ lastVersion: before, pending: null, version: 1 }));
+    docs.set("onboarding.json", JSON.stringify({ completedAt: 1, version: 1 }));
+    try {
+      const record = await launch(first, { savedSession: true });
+      assert.deepEqual(record.completions, ["versionUpdated", "version", "onboarding", "releaseNotes", "defaultBrowserOffer"]);
+      assert.deepEqual(releaseNoteTabs(), []);
+      assert.equal(JSON.parse(docs.get("release-notes.json")).lastVersion, after);
+    } finally {
+      appInfo.appVersion = "1.0";
+    }
   }
 });
 

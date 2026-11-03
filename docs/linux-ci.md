@@ -16,6 +16,7 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
 | `packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64` | Dispatches to [`scripts/linux/fetch-engine.sh`](../scripts/linux/fetch-engine.sh); the Mac path is unchanged |
 | [`scripts/linux/runtime_files.py`](../scripts/linux/runtime_files.py) | The one runtime allowlist used by publishing, fetching and packaging, and the safe archive unpacker |
 | [`scripts/linux/smoke.mjs`](../scripts/linux/smoke.mjs) | Strict smoke gate for a packaged tarball |
+| [`scripts/linux/release.sh`](../scripts/linux/release.sh) | Builds a versioned Linux release with the CLI, smoke-tests it and prints the upload command |
 
 ## Engine archives
 
@@ -65,7 +66,8 @@ package job red after almost every merge.
 - **Nearest.** The workflow defaults to `--nearest`, the same option the Mac fetcher has. It uses the engine of the nearest
   earlier commit that changed `engine/`, within the last 200 such commits. The job warns, the summary names both
   trees, and the artifact is named `Ardia-linux-x64-<commit12>-engine-<engine12>`.
-- **Exact.** Choose `exact` when a package must match its source. A Linux release requires it.
+- **Exact.** Choose `exact` when a package must match its source. A Linux release requires it, and
+  `scripts/linux/release.sh` defaults to it.
 - **Keeping nearest close.** Publishing after each `engine/` change on the builder keeps nearest builds close.
 
 ## Jobs
@@ -78,12 +80,15 @@ package job red after almost every merge.
 
   On failure it uploads every check's log.
 - **`package`.** In order, it:
-  1. fetches the engine (cached per tree and table);
-  2. builds `apps/linux/dist`;
-  3. prepares uBlock Origin with `scripts/linux/fetch-ubo.sh` (cached);
-  4. runs `scripts/linux/package.py --out <engine>`;
-  5. runs the smoke gate;
-  6. uploads the tarball, its SHA-256 and `results.json` for seven days.
+  1. reads the version from `MARKETING_VERSION` in the Xcode project, as `scripts/release.sh` does;
+  2. fetches the engine (cached per tree and table);
+  3. builds `apps/linux/dist`;
+  4. installs uv and builds the CLI with `apps/cli/scripts/build.sh <version> <dist> --platform linux-x64`; its Python
+     and esbuild downloads are cached;
+  5. prepares uBlock Origin with `scripts/linux/fetch-ubo.sh` (cached);
+  6. runs `scripts/linux/package.py --out <engine> --version <version> --cli <CLI tarball>`;
+  7. runs the smoke gate, with `--allow-old-engine` when the engine is a nearest one;
+  8. uploads the tarball, the CLI tarball, their SHA-256 files and `results.json` for seven days.
 
   Its apt list covers the libraries `chrome` links (`readelf -d`) plus GTK and libsecret, which it loads at runtime.
 
@@ -108,12 +113,49 @@ It refuses any sandbox-disabling switch. Every check must run and pass:
 5. Every renderer runs under seccomp in its own user and pid namespace.
 6. The shipped uBlock Origin and its Linux bridge are present and the content blocker reports ready.
 7. A clean quit and relaunch restores the tab.
-8. `install.sh --destdir` stages the launcher, desktop entry, chrome, UI and polkit policy with the right modes.
+8. `install.sh --destdir` stages the launcher, desktop entry, chrome, UI and polkit policy with the right modes, plus
+   `lib/ardia/VERSION` and `lib/ardia/cli/` when the package has them.
+9. `app-version`: `systemInfo.appVersion` is `lib/ardia/VERSION`.
+10. `cli-install`: the bundled installer installs the bundled CLI the way the browser does
+    (`--version <VERSION> --sha256 <digest>`, `ARDIA_CLI_URL=file://…`). `HOME`, `XDG_DATA_HOME`, `ARDIA_CLI_HOME` and
+    `ARDIA_CLI_BIN_DIR` all point into the scratch folder. `ardia --version` must print the package version, and a
+    second install must be a no-op.
+11. `cli-control`: a third instance turns `cliControl` on. Then `ardia windows` and `ardia exec` (a new tab's title,
+    then `tab.title()`) must succeed with `--data-dir <profile>`. Turning it off must make `ardia windows` exit 2.
+    The app doesn't start its token server when `--remote-debugging-port` is set, so this instance is driven over
+    `--remote-debugging-pipe` instead.
+12. `cli-scripts`: a fourth pipe-driven instance, with extensions on, turns `cliControl` on. `ardia scripts install`
+    of a userscript that prefixes the fixture's title must report the profile `loaded`, `ardia scripts list` must show
+    it as reported by Ardia, and a new tab on the fixture must open retitled. After `ardia scripts uninstall` it must
+    report `removed`, and the fixture must open with its own title.
 
-It takes about 8 s and writes `results.json` and the launch logs.
+Checks 9 to 12 report `skip` and pass for a dev package without `VERSION` or `cli/`. Each can also report `old` when
+the engine's host predates the feature: `appVersion` is Chromium's own version, the bootstrap advertises none of
+`engine.setCliControl`, `ArdiaCli.install` and `ArdiaAutomation.start`, or (for `cli-scripts`) not all four
+`ArdiaUserScripts` methods. `old` fails the gate unless
+`--allow-old-engine` is passed. CI and `release.sh` pass it only for an engine that isn't the commit's own.
+
+It takes about 8 s without the CLI, and writes `results.json`, the launch logs and `cli.log`.
 
 A headless smoke can't cover focus, GPU, keyring or desktop dialogs, and no automated check here does. The headless
 acceptance suite ([linux-acceptance.md](linux-acceptance.md)) runs by hand.
+
+## Linux releases
+
+`scripts/linux/release.sh <version>` is the Linux half of a release (`docs/releasing.md` › Linux package). In order,
+it:
+
+1. checks the version's channel, `MARKETING_VERSION`, the notes file and a clean tree;
+2. fetches the exact engine (`--engine nearest`, an engine dir or a Chromium out dir make test builds);
+3. builds `apps/linux/dist`, the CLI and uBlock Origin;
+4. packages `Ardia-<version>-linux-x64.tar.xz` with `--version` and `--cli`;
+5. writes the `.sha256` files and `provenance.txt` (version, channel, commit, engine tree, Chromium version and both
+   digests);
+6. runs the smoke gate.
+
+Everything goes to `dist/<version>/linux/`, or to `--out`. It never uploads. It prints the `gh release upload` command
+for the package, the CLI tarball and their `.sha256` files. `--allow-dirty` builds from a dirty tree for testing.
+`engine/` must still be clean for a fetched engine, so pass an engine dir then.
 
 ## Sandbox on Ubuntu
 

@@ -85,7 +85,7 @@ function watchNames() {
   watchConfigFiles(["config.json", "hooks.json", ...(theme.name ? [themeFile(theme.name)] : [])]).then(changed, (error: unknown) => console.warn("[config] couldn't watch the config folder", error));
 }
 
-export function reconcileConfig() {
+export function reconcileConfig(applySettings = true) {
   const problems: string[] = [];
   const read = readConfigFile(CONFIG_FILE);
   let name = theme.name;
@@ -94,11 +94,12 @@ export function reconcileConfig() {
   else {
     const config = readConfig(read.text, useBrowser.getState().settings);
     problems.push(...config.problems);
-    if (Object.keys(config.patch).length) useBrowser.getState().updateSettings(config.patch);
+    if (applySettings && Object.keys(config.patch).length) useBrowser.getState().updateSettings(config.patch);
     if (config.theme !== undefined) name = config.theme;
   }
   applyTheme({ name, roles: readTheme(name, problems) });
-  report(problems);
+  if (applySettings) report(problems);
+  else reported = new Set(problems);
   if (watching !== undefined) watchNames();
 }
 
@@ -123,10 +124,10 @@ export function configRestoreSession(): boolean | undefined {
   return read.status === "ok" ? launchRestoreSession(read.text, useBrowser.getState().settings) : undefined;
 }
 
-export function startConfigFiles(roles: RolePalettes) {
+export function startConfigFiles(roles: RolePalettes, launch = true) {
   if (defaults) return;
   defaults = roles;
-  reconcileConfig();
+  reconcileConfig(launch);
   afterFirstWindow(() => {
     windowsUp = true;
     onConfigChange(changed);

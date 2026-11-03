@@ -8,14 +8,17 @@
 # --sha256 DIGEST    the tarball's digest; required for a download (the app passes the one pinned in its signed bundle).
 # --uninstall        remove the installed CLI and its ardia link.
 #
-# Installs into ${ARDIA_CLI_HOME:-~/Library/Application Support/Ardia/CLI}/<version>, points its `current` link
-# there and links ${ARDIA_CLI_BIN_DIR:-~/.local/bin}/ardia to current/bin/ardia. When the default bin dir isn't on
-# the login shell's PATH, it adds one PATH line to ~/.zprofile (~/.bash_profile for bash), once.
+# Runs on macOS (Apple silicon) and Linux (x86_64). Installs into $ARDIA_CLI_HOME/<version> (default
+# ~/Library/Application Support/Ardia/CLI on macOS, ${XDG_DATA_HOME:-~/.local/share}/ardia/cli on Linux), points its
+# `current` link there and links ${ARDIA_CLI_BIN_DIR:-~/.local/bin}/ardia to current/bin/ardia. When the default bin
+# dir isn't on the login shell's PATH, it adds one PATH line to its login file, once: on macOS ~/.zprofile
+# (~/.bash_profile for bash); on Linux ~/.zprofile for zsh, ~/.bash_profile for bash when it exists, else ~/.profile.
 # Re-running it upgrades: a version that is already current is left alone; a new one is verified, staged in
 # <version>.partial, renamed, and `current` is swapped atomically (a running ardia keeps its old dir). It keeps the
 # current and the previous version and prunes the rest, except versions a running ardia uses (it leaves a lease in
 # <version>/.leases/<pid>, live while that pid runs and started before the lease was written). Two runs never overlap:
-# each holds a flock on $ARDIA_CLI_HOME/.lock (lockf), which the kernel drops when the run exits.
+# each holds a flock on $ARDIA_CLI_HOME/.lock (lockf on macOS, flock on Linux), which the kernel drops when the run
+# exits.
 # The installed version is `basename "$(readlink "$ARDIA_CLI_HOME/current")"`.
 # Downloads are https only, and never trust a checksum from the same place as the tarball: without --sha256 it refuses
 # to download. ARDIA_CLI_URL overrides the tarball URL; a file:// one may go without --sha256, and its checksum is read
@@ -27,9 +30,21 @@ set -eu
 umask 022
 
 repo=mantrakp04/ardia
-asset_suffix=-macos-arm64.tar.gz
 version_pattern='^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[a-z]{1,16}\.[0-9]{1,4})?$'
-cli_home=${ARDIA_CLI_HOME:-$HOME/Library/Application Support/Ardia/CLI}
+if [ "$(uname -s)" = Linux ]; then
+  os=linux
+  asset_platform=linux-x64
+  case ${XDG_DATA_HOME:-} in
+    /*) data_home=$XDG_DATA_HOME ;;
+    *) data_home=$HOME/.local/share ;;
+  esac
+  cli_home=${ARDIA_CLI_HOME:-$data_home/ardia/cli}
+else
+  os=macos
+  asset_platform=macos-arm64
+  cli_home=${ARDIA_CLI_HOME:-$HOME/Library/Application Support/Ardia/CLI}
+fi
+asset_suffix=-$asset_platform.tar.gz
 default_bin_dir=$HOME/.local/bin
 bin_dir=${ARDIA_CLI_BIN_DIR:-$default_bin_dir}
 version=
@@ -92,12 +107,32 @@ fetch() {
   curl -fsSL --proto "$protocols" --proto-redir =https --retry 2 --connect-timeout 15 "$@"
 }
 
+if [ "$os" = linux ]; then
+  lock_fd9() { flock -w 120 9; }
+  sha256_of() { sha256sum "$1" | awk '{ print $1 }'; }
+  link_into() { ln -sfn "$1" "$2"; }
+  replace_link() { mv -fT "$1" "$2"; }
+  started_epoch() { LC_ALL=C date -d "$1" +%s 2>/dev/null; }
+  modified_epoch() { stat -c %Y "$1" 2>/dev/null; }
+  account_shell() { getent passwd "$(id -un)" 2>/dev/null | awk -F: '{ print $7; exit }'; }
+  default_shell=/bin/sh
+else
+  lock_fd9() { /usr/bin/lockf -s -t 120 9; }
+  sha256_of() { shasum -a 256 "$1" | awk '{ print $1 }'; }
+  link_into() { ln -sfh "$1" "$2"; }
+  replace_link() { mv -fh "$1" "$2"; }
+  started_epoch() { LC_ALL=C date -j -f "%a %b %e %T %Y" "$1" +%s 2>/dev/null; }
+  modified_epoch() { stat -f %m "$1" 2>/dev/null; }
+  account_shell() { dscl . -read "/Users/$(id -un)" UserShell 2>/dev/null | awk '{ print $2 }'; }
+  default_shell=/bin/zsh
+fi
+
 take_lock() {
   if [ -d "$cli_home/.lock" ] && ! [ -L "$cli_home/.lock" ]; then
     rm -rf "$cli_home/.lock" "$cli_home/.lock-takeover"
   fi
   exec 9>>"$cli_home/.lock" || fail "couldn't open $cli_home/.lock"
-  /usr/bin/lockf -s -t 120 9 || fail "another install is still running"
+  lock_fd9 || fail "another install is still running"
 }
 
 points_into_cli_home() {
@@ -120,8 +155,8 @@ link_bin() {
   printf 'step link\n'
   mkdir -p "$bin_dir" || fail "couldn't create $bin_dir"
   check_bin_free
-  ln -sfh "$target" "$bin_dir/.ardia.$$" || fail "couldn't create the ardia link"
-  mv -fh "$bin_dir/.ardia.$$" "$bin_dir/ardia" || { rm -f "$bin_dir/.ardia.$$"; fail "couldn't link $bin_dir/ardia"; }
+  link_into "$target" "$bin_dir/.ardia.$$" || fail "couldn't create the ardia link"
+  replace_link "$bin_dir/.ardia.$$" "$bin_dir/ardia" || { rm -f "$bin_dir/.ardia.$$"; fail "couldn't link $bin_dir/ardia"; }
 }
 
 lease_live() {
@@ -131,8 +166,8 @@ lease_live() {
   esac
   started=$(LC_ALL=C ps -o lstart= -p "$holder" 2>/dev/null) || return 1
   [ -n "$started" ] || return 1
-  started=$(LC_ALL=C date -j -f "%a %b %e %T %Y" "$started" +%s 2>/dev/null) || return 0
-  leased=$(stat -f %m "$1" 2>/dev/null) || return 1
+  started=$(started_epoch "$started") || return 0
+  leased=$(modified_epoch "$1") || return 1
   [ "$started" -le $((leased + 1)) ]
 }
 
@@ -212,8 +247,11 @@ if [ "$uninstall" -eq 1 ]; then
   exit 0
 fi
 
-[ "$(uname -s)" = Darwin ] || fail "the ardia CLI runs on macOS only"
-[ "$(uname -m)" = arm64 ] || fail "the ardia CLI runs on Apple silicon only, not $(uname -m)"
+case $(uname -s) in
+  Darwin) [ "$(uname -m)" = arm64 ] || fail "the ardia CLI runs on Apple silicon only, not $(uname -m)" ;;
+  Linux) [ "$(uname -m)" = x86_64 ] || fail "the ardia CLI runs on x86_64 Linux only, not $(uname -m)" ;;
+  *) fail "the ardia CLI runs on macOS and Linux only" ;;
+esac
 
 printf 'step resolve\n'
 if [ -n "${ARDIA_CLI_URL:-}" ]; then
@@ -226,7 +264,7 @@ if [ -n "${ARDIA_CLI_URL:-}" ]; then
 elif [ -n "$version" ]; then
   url=https://github.com/$repo/releases/download/v$version/ardia-cli-$version$asset_suffix
 else
-  pattern="https://github\.com/$repo/releases/download/v[0-9a-z.-]*/ardia-cli-[0-9a-z.-]*-macos-arm64\.tar\.gz"
+  pattern="https://github\.com/$repo/releases/download/v[0-9a-z.-]*/ardia-cli-[0-9a-z.-]*-$asset_platform\.tar\.gz"
   url=$(fetch https://api.github.com/repos/$repo/releases/latest 2>/dev/null | grep -o "$pattern" | head -n 1 || true)
   if [ -z "$url" ]; then
     url=$(fetch "https://api.github.com/repos/$repo/releases?per_page=30" 2>/dev/null | grep -o "$pattern" | head -n 1 || true)
@@ -268,7 +306,7 @@ fi
 
 printf 'step verify\n'
 printf '%s\n' "$expected" | grep -Eq '^[0-9a-f]{64}$' || fail "bad checksum file: $url.sha256"
-actual=$(shasum -a 256 "$work/cli.tar.gz" | awk '{ print $1 }')
+actual=$(sha256_of "$work/cli.tar.gz")
 [ "$actual" = "$expected" ] || fail "checksum mismatch: expected $expected, got $actual"
 check_archive "$work/cli.tar.gz"
 
@@ -281,7 +319,7 @@ tar -xzf "$work/cli.tar.gz" -C "$staged" --strip-components 1 --no-same-owner "a
   || fail "couldn't extract ardia-cli-$version from the tarball"
 check_tree "$staged"
 [ -x "$staged/bin/ardia" ] || fail "the tarball has no ardia-cli-$version/bin/ardia"
-xattr -dr com.apple.quarantine "$staged" 2>/dev/null || true
+[ "$os" = linux ] || xattr -dr com.apple.quarantine "$staged" 2>/dev/null || true
 "$staged/bin/ardia" --version >"$work/check.out" 2>&1 9>&- || fail "the downloaded ardia doesn't run: $(tail -n 1 "$work/check.out")"
 if [ -d "$dest" ] && ! [ -L "$dest" ] && [ -x "$dest/bin/ardia" ] && in_use "$dest"; then
   rm -rf "$staged"
@@ -292,8 +330,8 @@ else
   fi
   mv "$staged" "$dest" || fail "couldn't move the CLI into $dest"
 fi
-ln -sfh "$version" "$cli_home/.install.current.$$" || fail "couldn't create the current link"
-mv -fh "$cli_home/.install.current.$$" "$cli_home/current" || fail "couldn't switch $cli_home/current"
+link_into "$version" "$cli_home/.install.current.$$" || fail "couldn't create the current link"
+replace_link "$cli_home/.install.current.$$" "$cli_home/current" || fail "couldn't switch $cli_home/current"
 for entry in "$cli_home"/*; do
   case ${entry##*/} in
     current|"$version"|"$previous") continue ;;
@@ -306,15 +344,18 @@ done
 link_bin
 
 if [ "$bin_dir" = "$default_bin_dir" ]; then
-  login_shell=$(dscl . -read "/Users/$(id -un)" UserShell 2>/dev/null | awk '{ print $2 }')
-  [ -x "${login_shell:-}" ] || login_shell=${SHELL:-/bin/zsh}
+  login_shell=$(account_shell || true)
+  [ -x "${login_shell:-}" ] || login_shell=${SHELL:-$default_shell}
   login_path=$(env -i HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" TERM=dumb "$login_shell" -l -c 'printf "%s" "$PATH"' </dev/null 2>/dev/null 9>&- || true)
   case :$login_path: in
     *:"$bin_dir":*|*:"$bin_dir/":*) ;;
     *)
-      case ${login_shell##*/} in
-        bash) rc=$HOME/.bash_profile ;;
-        *) rc=$HOME/.zprofile ;;
+      case $os-${login_shell##*/} in
+        macos-bash) rc=$HOME/.bash_profile ;;
+        macos-*) rc=$HOME/.zprofile ;;
+        linux-zsh) rc=$HOME/.zprofile ;;
+        linux-bash) if [ -f "$HOME/.bash_profile" ]; then rc=$HOME/.bash_profile; else rc=$HOME/.profile; fi ;;
+        *) rc=$HOME/.profile ;;
       esac
       line='export PATH="$HOME/.local/bin:$PATH"'
       if ! [ -f "$rc" ] || ! grep -qxF "$line" "$rc"; then

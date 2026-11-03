@@ -3,10 +3,10 @@ set -uo pipefail
 usage='usage: scripts/linux/ci-checks.sh [--jobs N] [--logs DIR]
 
 Runs the Linux checks that need no engine: the apps/linux typecheck, host,
-symbol, module-graph and acceptance self-tests, the UI build, and the Python
-and Node fixture suites under engine/. The engine/ardiacore-linux modules run
-in parallel, N at a time (default: the CPU count), each under a 10-minute
-deadline. Every check runs; the exit status is non-zero if any failed, and
+symbol, module-graph and acceptance self-tests, the UI build, the smoke gate
+unit tests, and the Python and Node fixture suites under engine/. The
+engine/ardiacore-linux modules run in parallel, N at a time (default: the CPU
+count), each under a 10-minute deadline. Every check runs; the exit status is non-zero if any failed, and
 each check leaves its output in DIR (default: a temporary directory).'
 jobs=$(nproc)
 logs=""
@@ -49,6 +49,7 @@ check linux-build pnpm --filter @ardia/linux build
 check patches-build-tests python3 -m unittest discover -s engine/patches/build/tests
 check chromium-ardia-tests python3 -m unittest discover -s engine/chromium/src/chrome/browser/ardia/tests
 check ardiacore-linux-bootstrap node --test engine/ardiacore-linux/tests/bootstrap.test.mjs
+check linux-smoke-gate node --test scripts/linux/smoke.test.mjs
 
 modules=$(cd engine/ardiacore-linux/tests && ls test_*.py | sed 's/\.py$//')
 started=$(date +%s)

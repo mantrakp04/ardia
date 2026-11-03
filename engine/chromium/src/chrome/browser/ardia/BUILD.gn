@@ -9,6 +9,14 @@ ardia_sources = [
   "ac_autofill_internal.h",
   "ac_bookmarks.cc",
   "ac_browsing_data.cc",
+  "ac_cli_control.cc",
+  "ac_cli_token_policy.cc",
+  "ac_cli_token_policy.h",
+  "ac_cli_token_policy_contexts.cc",
+  "ac_cli_token_policy_events.cc",
+  "ac_cli_token_policy_internal.h",
+  "ac_cli_token_policy_methods.cc",
+  "ac_cli_token_policy_web_targets.cc",
   "ac_cookies.cc",
   "ac_downloads.cc",
   "ac_engine.cc",
@@ -51,14 +59,6 @@ ardia_sources = [
 
 if (is_mac) {
   ardia_sources += [
-    "ac_cli_control.cc",
-    "ac_cli_token_policy.cc",
-    "ac_cli_token_policy.h",
-    "ac_cli_token_policy_contexts.cc",
-    "ac_cli_token_policy_events.cc",
-    "ac_cli_token_policy_internal.h",
-    "ac_cli_token_policy_methods.cc",
-    "ac_cli_token_policy_web_targets.cc",
     "ac_external_apps.h",
     "ac_external_apps.mm",
     "ac_input_frame_rate.mm",
@@ -69,7 +69,6 @@ if (is_mac) {
 
 if (is_linux) {
   ardia_sources += [
-    "ac_cli_control_linux.cc",
     "ac_engine_dispatch.cc",
     "ac_external_apps_linux.cc",
     "ac_input_frame_rate_linux.cc",

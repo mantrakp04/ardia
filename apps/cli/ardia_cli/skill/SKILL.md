@@ -211,8 +211,8 @@ without their query and fragment unless the hook says `"fullUrls": true` (`--ful
 
 `run` is argv, not a shell line; use `["/bin/sh", "-c", "…"]` when you need one, and never paste event values
 into it. `ardia hooks list` checks the file, `ardia hooks install` (ask first) runs the hooks at every login, and
-their output goes to `~/Library/Logs/Ardia/hooks.log`. Inside `ardia exec` the same is `await run(...)` (with
-`window=` or `tab=`), `await windows()` and `async for e in events(...)`.
+their output goes to `~/Library/Logs/Ardia/hooks.log` (on Linux `~/.local/state/ardia/hooks.log`). Inside `ardia exec` the same is
+`await run(...)` (with `window=` or `tab=`), `await windows()` and `async for e in events(...)`.
 
 ## Daily reports
 
