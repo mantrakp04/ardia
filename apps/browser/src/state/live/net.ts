@@ -51,13 +51,13 @@ export async function requestPage<T>(url: string, init: RequestInit = {}): Promi
   return { body: (await res.json()) as T, total: total === null ? null : Number(total) };
 }
 
-export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/i, "https://");
+export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?![a-z][\w+.-]*:\/\/)/i, "https://");
 
 const LOOPBACK = /^http:\/\/(localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?(\/|$)/i;
 
 export function httpsSiteUrl(site: string): string {
   const base = siteUrl(site);
-  if (/^http:\/\//i.test(base) && !LOOPBACK.test(base)) throw new LiveError("notConfigured", "Ardia sends tokens only over HTTPS. Use the server's https:// address");
+  if (!/^https:\/\//i.test(base) && !LOOPBACK.test(base)) throw new LiveError("notConfigured", "Ardia sends tokens only over HTTPS. Use the server's https:// address");
   return base;
 }
 
