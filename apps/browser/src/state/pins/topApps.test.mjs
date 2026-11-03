@@ -344,3 +344,47 @@ test("a relaunch doesn't merge the profiles' Top Apps again", () => {
   assert.deepEqual(topApps(after, "default"), [], "Personal's synced unpin stays");
   assert.deepEqual(topApps(after, work), ["https://mail.com"], "Work keeps its copy until its own sync");
 });
+
+function fiveTiles() {
+  reset();
+  const w = S().createWindow({ url: "https://a.com" });
+  const ids = [S().windows[w].tabIds[0], ...["b", "c", "d", "e"].map((x) => S().newTab(w, { url: `https://${x}.com` }))];
+  S().pinTabs(ids, true);
+  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  S().switchProfile(w, work);
+  S().switchProfile(w, "default");
+  return { w, work, ids };
+}
+const letters = (w, p) => topApps(w, p).map((u) => new URL(u).hostname[0]).join("");
+
+test("moving several Top Apps at once keeps the same order in both profiles", () => {
+  const { w, work, ids } = fiveTiles();
+  S().placeTabs(ids.slice(3), { pinned: true, beforeId: ids[0] });
+  assert.equal(letters(w, "default"), "deabc");
+  assert.equal(letters(w, work), "deabc");
+});
+
+test("a Top App edit in one profile doesn't overwrite a sibling's newer title, icon or pinned URL on another tile", () => {
+  reset();
+  const { w, work } = spaces();
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([docs], true);
+  const workDocs = tileOf(w, work, "https://docs.com");
+  writes.fromSync(() => S().updateTab(workDocs, { customTitle: "Docs (synced)", customIcon: "📄", pinnedUrl: "https://docs.com/home" }));
+  const news = S().newTab(w, { url: "https://news.com" });
+  S().pinTabs([news], true);
+  S().placeTabs([tileOf(w, "default", "https://news.com")], { pinned: true, beforeId: tileOf(w, "default", "https://docs.com") });
+  const t = S().tabs[workDocs];
+  assert.deepEqual([t.customTitle, t.customIcon, t.pinnedUrl], ["Docs (synced)", "📄", "https://docs.com/home"]);
+  assert.ok(topApps(w, work).includes("https://news.com"), "Work still gets the new tile");
+});
+
+test("a change to a different sharing group doesn't merge this group's Top Apps again", () => {
+  reset();
+  const { w, work } = spaces();
+  syncRemoves(tileOf(w, "default", "https://mail.com"));
+  const other = S().createProfile({ name: "Other" });
+  S().createProfile({ name: "Other sibling", shareWith: other });
+  assert.deepEqual(topApps(w, "default"), [], "Personal's synced unpin stays");
+  assert.deepEqual(topApps(w, work), ["https://mail.com"]);
+});

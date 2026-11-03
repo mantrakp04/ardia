@@ -29,13 +29,15 @@ export function topAppCircles(s: Pick<BrowserState, "profiles" | "profileOrder" 
   return dataGroups(s).map((g) => g.profileIds).filter((ids) => ids.length > 1);
 }
 
+const circleKey = (ids: string[]) => [...ids].sort().join(",");
+
 let lastCircles: { profiles: unknown; profileOrder: unknown; on: boolean; key: string } | null = null;
 
 function circlesKey(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): string {
   const on = !!s.settings.shareTopApps;
   if (lastCircles && lastCircles.profiles === s.profiles && lastCircles.profileOrder === s.profileOrder && lastCircles.on === on) return lastCircles.key;
   const key = topAppCircles(s)
-    .map((ids) => [...ids].sort().join(","))
+    .map(circleKey)
     .sort()
     .join("|");
   lastCircles = { profiles: s.profiles, profileOrder: s.profileOrder, on, key };
@@ -82,19 +84,36 @@ type Member = { window: string | null; profileId: string };
 
 const keyOf = (i: Item) => pinKeyOf(i.tab);
 
+const EDITABLE = ["pinnedUrl", "customTitle", "customIcon", "pin"] as const;
+const sameField = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 function withChange(target: Item[], before: Item[], after: Item[], blocked: Set<string>): Item[] {
-  const sigBefore = new Map(before.map((i) => [keyOf(i), tileSig(i.tab)]));
-  const leftBefore = new Map(before.map((i, n) => [keyOf(i), n ? keyOf(before[n - 1]!) : null]));
-  const kept = new Set(after.map(keyOf));
-  const out = target.filter((i) => kept.has(keyOf(i)) || !sigBefore.has(keyOf(i)));
+  const beforeOf = new Map(before.map((i) => [keyOf(i), i]));
+  const afterKeys = new Set(after.map(keyOf));
+  const out = target
+    .filter((i) => afterKeys.has(keyOf(i)) || !beforeOf.has(keyOf(i)))
+    .map((i) => {
+      const now = after.find((a) => keyOf(a) === keyOf(i));
+      const was = beforeOf.get(keyOf(i));
+      if (!now || !was || blocked.has(keyOf(i))) return i;
+      const edited = EDITABLE.filter((f) => !sameField(was.tab[f], now.tab[f]));
+      return edited.length ? { ...i, tab: { ...i.tab, ...Object.fromEntries(edited.map((f) => [f, now.tab[f]])) } } : i;
+    });
+  const shared = (keys: string[]) => keys.filter((k) => beforeOf.has(k) && afterKeys.has(k));
+  const sourceOrder = shared(after.map(keyOf));
+  if (shared(before.map(keyOf)).join("\n") !== sourceOrder.join("\n")) {
+    const inOut = new Set(out.map(keyOf));
+    const order = sourceOrder.filter((k) => inOut.has(k));
+    const slots = out.map((i, n) => (order.includes(keyOf(i)) ? n : -1)).filter((n) => n >= 0);
+    const byKey = new Map(out.map((i) => [keyOf(i), i]));
+    slots.forEach((slot, n) => (out[slot] = byKey.get(order[n]!)!));
+  }
   after.forEach((item, n) => {
     const key = keyOf(item);
-    const left = n ? keyOf(after[n - 1]!) : null;
-    if (blocked.has(key) || (sigBefore.get(key) === tileSig(item.tab) && leftBefore.get(key) === left)) return;
-    const at = out.findIndex((i) => keyOf(i) === key);
-    if (at >= 0) out.splice(at, 1);
-    const anchor = left === null ? -1 : out.findIndex((i) => keyOf(i) === left);
-    out.splice(left === null ? 0 : anchor >= 0 ? anchor + 1 : out.length, 0, item);
+    if (beforeOf.has(key) || blocked.has(key) || out.some((i) => keyOf(i) === key)) return;
+    let anchor = -1;
+    for (let m = n - 1; m >= 0 && anchor < 0; m--) anchor = out.findIndex((i) => keyOf(i) === keyOf(after[m]!));
+    out.splice(anchor + 1, 0, item);
   });
   return out;
 }
@@ -112,14 +131,19 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
   const key = circlesKey(s);
   if (!key) return s.topAppsMerged ? { ...s, topAppsMerged: "" } : null;
   const circles = topAppCircles(s);
-  const turnedOn = key !== s.topAppsMerged;
-  if (!turnedOn && writingFromSync()) return keepEmptiedParks(s, prev, circles);
-  if (!turnedOn && !pinsMayDiffer(s, prev) && s.parkedPins === prev.parkedPins) return null;
+  const merged = new Set(s.topAppsMerged.split("|"));
+  const joining = new Set(circles.filter((c) => !merged.has(circleKey(c))).map(circleKey));
+  const kept = writingFromSync() ? keepEmptiedParks(s, prev, circles) : null;
+  if (!joining.size && (kept || writingFromSync())) return kept;
+  if (!joining.size && !pinsMayDiffer(s, prev) && s.parkedPins === prev.parkedPins) return null;
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isRegularWindow(s.windows[id]));
   const prevGroups = pinnedGroupsOf(prev);
   const hadPlace = (p: string) => shownAnywhere(prev, p);
-  let next: BrowserState = turnedOn ? { ...s, topAppsMerged: key } : s;
+  const base = kept ?? s;
+  let next: BrowserState = key !== base.topAppsMerged ? { ...base, topAppsMerged: key } : base;
   for (const circle of circles) {
+    const turnedOn = joining.has(circleKey(circle));
+    if (!turnedOn && writingFromSync()) continue;
     const members = circle.flatMap((p): Member[] => {
       const windows = order.filter((w) => profilesOf(next, next.windows[w]!).has(p));
       return windows.length ? windows.map((w) => ({ window: w, profileId: p })) : [{ window: null, profileId: p }];
