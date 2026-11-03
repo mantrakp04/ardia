@@ -68,7 +68,7 @@ jobs:
               | select(.repository.nameWithOwner == $repo)
               | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
             if [ -z "$wanted" ]; then
-              echo "#$pr: its issues have no type label, leaving it as is"
+              echo "#$pr: no type label on the issues it closes in $REPO, leaving it as is. A 'Closes #N' only counts when the PR targets the default branch."
               return
             fi
             current=$(jq -r --argjson types "$type_label_names" '

@@ -67,34 +67,6 @@ body:
       placeholder: macOS 26.1
     validations:
       required: true
-  - type: dropdown
-    id: tabs
-    attributes:
-      label: Tabs
-      description: Some bugs only show up in one layout.
-      options:
-        - In the sidebar
-        - Across the top
-        - Not sure
-    validations:
-      required: false
-  - type: dropdown
-    id: address-bar
-    attributes:
-      label: Address bar
-      options:
-        - On top
-        - In the sidebar
-        - Not sure
-    validations:
-      required: false
-  - type: input
-    id: profiles-and-windows
-    attributes:
-      label: Profiles and windows open
-      placeholder: 2 profiles, 3 windows
-    validations:
-      required: false
   - type: textarea
     id: anything-else
     attributes:
