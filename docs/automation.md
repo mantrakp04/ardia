@@ -258,10 +258,10 @@ Hooks that answer before something happens, with a deadline after which Ardia do
   bytes after claiming the file into a private staging folder; a download without an engine hash can't be moved
   (`noIdentity`): Save Page (including MHTML) and WebKit downloads have none, so `download.deciding` hooks leave
   them where they are. A file with another hard link is refused (`linked`), at the claim and again after it is
-  placed. If a failed move couldn't put the file back, it stays in that staging folder beside the download and the
+  placed; a second move of a download while one runs is `busy`. If a failed move couldn't put the file back, it stays in that staging folder beside the download and the
   row points there (`stagedPath`, read from the staging folder's open descriptor, so a renamed folder still reports
-  the real place; `strayPath` names a swapped-in file that couldn't be taken back out of the destination), so it's
-  never lost. Each move writes a small journal entry before the claim and removes it after the commit; at the next
+  the real place; `strayPath` names a swapped-in file that couldn't be taken back out of the destination, and the app logs it), so
+  it's never lost. Each move writes a small journal entry before the claim and removes it after the commit; at the next
   launch a leftover entry is settled: a placed file counts as moved, a staged file goes back to its original path if
   that is free, and otherwise stays staged and is reported like a failed move's `stagedPath`. Hashing runs outside the
   mover's lock, so engine events are never held up by a large file. On success the download's row points at
