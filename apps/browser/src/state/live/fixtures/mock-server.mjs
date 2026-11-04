@@ -11,6 +11,9 @@ let state;
 let approved;
 let detailsError;
 let bitbucketState;
+let gitlab;
+let approvalsOff = false;
+const gitlabState = new Map();
 const log = [];
 function reset() {
   github = load("github.json");
@@ -19,6 +22,9 @@ function reset() {
   approved = false;
   detailsError = null;
   bitbucketState = "OPEN";
+  gitlab = load("gitlab.json");
+  approvalsOff = false;
+  gitlabState.clear();
 }
 reset();
 
@@ -122,6 +128,38 @@ createServer(async (req, res) => {
       return send(res, 200, { values: [{ id: 7, title: "Bitbucket: tidy pipelines", updated_on: "2026-09-25T06:00:00Z", comment_count: 2, author: { display_name: "Octo Dev" }, source: { branch: { name: "tidy" } }, destination: { branch: { name: "main" }, repository: { full_name: "acme/pipelines" } }, links: { html: { href: "https://bitbucket.org/acme/pipelines/pull-requests/7" } }, participants: [{ role: "REVIEWER", state: "approved" }] }] });
     }
     if (p.endsWith("/statuses")) return send(res, 200, { values: [{ state: "SUCCESSFUL", name: "Pipeline #12", url: "https://bitbucket.org/acme/pipelines/pipelines/12" }] });
+  }
+
+  if (p === "/gitlab/api/v4/user") return req.headers["private-token"] === "mock-token" ? send(res, 200, gitlab.user) : send(res, 401, { message: "401 Unauthorized" });
+  if (p === "/gitlab/api/v4/merge_requests") {
+    const scope = url.searchParams.get("scope");
+    const reviewer = url.searchParams.get("reviewer_id");
+    const source = scope === "created_by_me" ? gitlab.authored : scope === "all" && reviewer ? gitlab.review : [];
+    const list = source
+      .map(({ head_pipeline, changes_count, ...mr }) => ({ ...mr, state: gitlabState.get(`${mr.project_id}:${mr.iid}`) ?? "opened" }))
+      .filter((mr) => mr.state === "opened");
+    return send(res, 200, list);
+  }
+  if (/^\/gitlab\/api\/v4\/projects\/(\d+)\/merge_requests\/(\d+)\/approvals$/.test(p)) {
+    if (approvalsOff) return send(res, 404, { message: "404 Not Found" });
+    const match = p.match(/^\/gitlab\/api\/v4\/projects\/(\d+)\/merge_requests\/(\d+)\/approvals$/);
+    const approvals = gitlab.approvals[`${match[1]}:${match[2]}`];
+    return approvals ? send(res, 200, approvals) : send(res, 404, { message: "404 Not Found" });
+  }
+  if (p === "/mock/gitlab-ce") {
+    approvalsOff = url.searchParams.get("on") === "1";
+    return send(res, 200, { ok: true, approvalsOff });
+  }
+  if (/^\/gitlab\/api\/v4\/projects\/(\d+)\/merge_requests\/(\d+)$/.test(p)) {
+    const match = p.match(/^\/gitlab\/api\/v4\/projects\/(\d+)\/merge_requests\/(\d+)$/);
+    const mr = [...gitlab.authored, ...gitlab.review].find((m) => m.project_id === Number(match[1]) && m.iid === Number(match[2]));
+    if (!mr) return send(res, 404, { message: "404 Not Found" });
+    return send(res, 200, { ...mr, state: gitlabState.get(`${match[1]}:${match[2]}`) ?? "opened" });
+  }
+  if (p === "/mock/gitlab-merge" || p === "/mock/gitlab-close") {
+    const id = url.searchParams.get("id");
+    gitlabState.set(id, p === "/mock/gitlab-merge" ? "merged" : "closed");
+    return send(res, 200, { ok: true });
   }
 
   if (p === "/google/auth") {
