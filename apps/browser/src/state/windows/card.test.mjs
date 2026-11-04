@@ -22,7 +22,7 @@ function sharedTileInBothSpaces(shareWith) {
   return { w, mail, work };
 }
 
-test("a shared Top App keeps its pane across a space switch, so its page is never re-attached", () => {
+test("a shared Top App keeps its pane key across a space switch", () => {
   const { w, mail, work } = sharedTileInBothSpaces("default");
   const copy = S().windows[w].tabIds.find((id) => S().tabs[id].profileId === work && S().tabs[id].pinnedUrl === MAIL);
   S().handOffPin(copy);
@@ -34,7 +34,7 @@ test("a shared Top App keeps its pane across a space switch, so its page is neve
   assert.equal(shownPaneKey(w), inWork, "same pane in both spaces");
 });
 
-test("a shared Top App keeps its tile's pin key through the page swap, so its glass isn't rebuilt", () => {
+test("a shared Top App keeps its pin key through the page swap", () => {
   const { w, work } = sharedTileInBothSpaces("default");
   const tileIn = (profileId) => S().windows[w].tabIds.find((id) => S().tabs[id].profileId === profileId && S().tabs[id].pinnedUrl === MAIL);
   const before = { home: tileIn("default"), work: tileIn(work) };
