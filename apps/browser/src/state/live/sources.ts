@@ -5,6 +5,7 @@ import { GITLAB_BATCH, mapGitlab, mergeRequestsQuery, normalizeGitlabSite, stops
 import { changeGitlabSite, gitlabSiteRevision, invalidateGitlabRefreshes, live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
+import { useBrowser } from "../browser/store";
 
 export type LiveSource = {
   id: LiveSourceId;
@@ -333,8 +334,13 @@ export async function connectGitlab(site: string, token: string): Promise<void> 
     if (error instanceof LiveError && error.kind === "signedOut") throw new LiveError("signedOut", "GitLab didn't accept the token");
     throw error;
   }
-  if (live().config.gitlabSite !== base) invalidateGitlabRefreshes();
+  const changingSite = live().config.gitlabSite !== base;
+  if (changingSite) invalidateGitlabRefreshes();
   await setSecret("gitlab", token.trim());
+  if (changingSite) {
+    const browser = useBrowser.getState();
+    for (const tab of Object.values(browser.tabs)) if (tab.liveItem?.itemId.startsWith("gitlab:")) browser.updateTab(tab.id, { liveItem: undefined });
+  }
   changeGitlabSite(base);
   updateConfig({ gitlabSite: base, gitlabUserId: String(me.id) });
   setAccount("gitlab", account(me.username, me.name || null, me.avatar_url));

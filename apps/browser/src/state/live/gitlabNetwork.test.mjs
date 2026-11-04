@@ -215,3 +215,25 @@ test("an old refresh cannot restore items after an instance switch", async () =>
     shellNativeModules.ArdiaKeychain.get = oldGet;
   }
 });
+
+test("switching instances detaches old GitLab tabs without closing them", async () => {
+  const { connectGitlab } = await import("./sources.ts");
+  const { updateConfig, createFolder } = await import("./store.ts");
+  const { useBrowser } = await import("../browser/store.ts");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json(fixture.user);
+  const browser = () => useBrowser.getState();
+  const windowId = browser().createWindow();
+  const folderId = createFolder("default", "pullRequests", ["gitlab"]);
+  const tabId = browser().newTab(windowId, { url: "https://instance-a.example/mr/41" });
+  browser().updateTab(tabId, { liveItem: { folderId, itemId: "gitlab:7:41" } });
+  try {
+    updateConfig({ gitlabSite: "https://instance-a.example", gitlabUserId: "31" });
+    await connectGitlab("https://instance-b.example", "token");
+    assert.equal(browser().tabs[tabId].url, "https://instance-a.example/mr/41");
+    assert.equal(browser().tabs[tabId].liveItem, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    browser().closeWindow(windowId);
+  }
+});
