@@ -65,6 +65,7 @@ test("a 404 and a 403 from Bitbucket each get their own message instead of the g
     assert.equal(error?.kind, kind);
     assert.equal(errorText(error.kind, "bitbucket"), text);
   }
+  assert.equal(errorText("forbidden", "github"), "Your GitHub token can't access this. Check its permissions in Settings.");
 });
 
 const partly = (fetching) =>

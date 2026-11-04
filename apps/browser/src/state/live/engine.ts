@@ -127,7 +127,7 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
     case "signedOut":
       return `Sign back in to ${name}`;
     case "forbidden":
-      return `Your ${name} token can't access this. Check its scopes and workspace access in Settings.`;
+      return `Your ${name} token can't access this. Check its ${source === "bitbucket" ? "scopes and workspace access" : "permissions"} in Settings.`;
     case "notFound":
       return `${name} doesn't recognize this request. Ardia may need an update.`;
     case "sso":
