@@ -153,9 +153,37 @@ const gitlab: LiveSource = {
         ? gitlabList(`scope=all&reviewer_id=${encodeURIComponent(live().config.gitlabUserId)}`)
         : Promise.resolve([]),
     ]);
-    const unique = [...new Map([...authored, ...review].map((mr) => [`${mr.project_id}:${mr.iid}`, mr])).values()];
+    const key = (mr: RawMR) => `${mr.project_id}:${mr.iid}`;
+    const unique = [...new Map([...review, ...authored].map((mr) => [key(mr), mr])).values()];
+    const needsDetails = unique.filter((mr) => mr.head_pipeline === undefined);
+    const details = new Map<string, Partial<RawMR>>();
+    if (needsDetails.length) {
+      const base = endpoints.gitlab(live().config.gitlabSite);
+      const headers = await gitlabAuth();
+      for (let i = 0; i < needsDetails.length; i += GITLAB_BATCH) {
+        const batch = needsDetails.slice(i, i + GITLAB_BATCH);
+        const results = await Promise.all(
+          batch.map((mr) => request<Partial<RawMR>>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}`, { headers }).catch(() => null)),
+        );
+        results.forEach((detail, index) => {
+          if (detail) details.set(key(batch[index]!), detail);
+        });
+      }
+    }
+    const enrich = (mrs: RawMR[]) =>
+      mrs.map((mr) => {
+        const detail = details.get(key(mr));
+        if (!detail) return mr;
+        return {
+          ...mr,
+          ...(detail.head_pipeline !== undefined ? { head_pipeline: detail.head_pipeline } : {}),
+          ...(detail.changes_count !== undefined ? { changes_count: detail.changes_count } : {}),
+          ...(detail.detailed_merge_status !== undefined ? { detailed_merge_status: detail.detailed_merge_status } : {}),
+          ...(detail.has_conflicts !== undefined ? { has_conflicts: detail.has_conflicts } : {}),
+        };
+      });
     const approvals = await gitlabApprovals(unique);
-    return mapGitlab(authored, review, approvals);
+    return mapGitlab(enrich(authored), enrich(review), approvals);
   },
   async resolveGone(items) {
     const mrs = items.filter((it) => it.source === "gitlab" && it.pr);
