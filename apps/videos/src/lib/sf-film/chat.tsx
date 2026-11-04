@@ -214,7 +214,6 @@ function stack(history: Msg[], shown: Msg[], fresh: number) {
     const h = (name ? NAME_H : 0) + (m.link ? CARD_H : TEXT_H) + (read ? READ_H : 0) + (last ? RUN_GAP : IN_RUN);
     push({ kind: "msg", m, name, tail: last && !m.link, face: !m.me && last, read, top: y, h });
   });
-  if (today >= all.length) push({ kind: "stamp", text: ["Today", "4:02 PM"], top: y, h: STAMP_H });
   return { items, total: y };
 }
 
@@ -311,7 +310,9 @@ export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], 
   const latest = shown[shown.length - 1];
   const latestItem = items.at(-1);
   const settle = latest && latest.at > -0.5 ? springAt(b, latest.at, { stiffness: 260, damping: 26 }) : 1;
-  const lift = latestItem ? latestItem.h * (1 - settle) : 0;
+  const before = items.at(-2);
+  const arrived = latestItem && latestItem.kind === "msg" && before?.kind === "stamp" && before.text[0] === "Today" ? latestItem.h + before.h : latestItem?.h ?? 0;
+  const lift = arrived * (1 - settle);
   const y0 = area - total + lift + state.scroll * historyH;
   const enter = easeOut(clamp((b - state.switchAt) / 0.35));
   return (

@@ -208,9 +208,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 230,
-        "width": 1000,
-        "height": 240,
+        "y": 290,
+        "width": 490,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -220,10 +220,10 @@
       "label": "grid · tomas",
       "parentId": null,
       "values": {
-        "x": 40,
-        "y": 530,
-        "width": 1000,
-        "height": 240,
+        "x": 550,
+        "y": 290,
+        "width": 490,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -234,9 +234,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 830,
-        "width": 1000,
-        "height": 240,
+        "y": 870,
+        "width": 490,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -246,10 +246,10 @@
       "label": "grid · ava",
       "parentId": null,
       "values": {
-        "x": 40,
-        "y": 1130,
-        "width": 1000,
-        "height": 240,
+        "x": 550,
+        "y": 870,
+        "width": 490,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -264,7 +264,7 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1385,
+        "y": 1390,
         "width": 960,
         "height": 90,
         "rotation": 0

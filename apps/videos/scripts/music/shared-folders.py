@@ -45,7 +45,7 @@ RING_OUT_MAX_BOOST_DB = 18.0
 
 PEAK_ALIGNED_KINDS = {"whoosh"}
 SFX_TARGET_LU = {"arrive": -16.0}
-SFX_MIX_FLOOR_LU = {"arrive": -18.0}
+SFX_MIX_FLOOR_LU = {"arrive": -17.8}
 DEFAULT_SFX_TARGET_LU = -23.0
 SFX_MEASURE_S = 0.2
 SILENCE_EXEMPT_KINDS = {"thud"}
@@ -221,7 +221,7 @@ def calibrate_sfx(bank, bed, mix):
             offset = 20 * np.log10(c.get("gain", 1.0) / mid)
             db = SFX_TARGET_LU.get(kind, DEFAULT_SFX_TARGET_LU) + offset - cue_level(x, anc, c, bed)
             if kind in SFX_MIX_FLOOR_LU:
-                db = max(db, SFX_MIX_FLOOR_LU[kind] + offset - cue_level(x, anc, c, mix))
+                db = max(db, SFX_MIX_FLOOR_LU[kind] - cue_level(x, anc, c, mix))
             cue_db[id(c)] = db
     return cue_db
 
