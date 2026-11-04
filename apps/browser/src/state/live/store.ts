@@ -112,6 +112,30 @@ export const useLive = create<LiveState>()(() => ({
 export const live = () => useLive.getState();
 const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
 
+let gitlabRevision = 0;
+export const gitlabSiteRevision = () => gitlabRevision;
+export const invalidateGitlabRefreshes = () => { gitlabRevision++; };
+
+export function changeGitlabSite(site: string) {
+  if (live().config.gitlabSite === site) return;
+  invalidateGitlabRefreshes();
+  const withoutGitlabIds = (records: Record<string, string[]>) => Object.fromEntries(Object.entries(records).map(([id, ids]) => [id, ids.filter((value) => !value.startsWith("gitlab:"))]));
+  const withoutGitlabItems = (records: Record<string, LiveItem[]>) => Object.fromEntries(Object.entries(records).map(([id, items]) => [id, items.filter((item) => item.source !== "gitlab")]));
+  setLive((s) => ({
+    config: { ...s.config, gitlabSite: site },
+    folders: Object.fromEntries(Object.entries(s.folders).map(([id, folder]) => [id, { ...folder, hiddenRepos: folder.hiddenRepos.filter((repo) => !repo.startsWith("gitlab:")) }])),
+    items: withoutGitlabItems(s.items),
+    hidden: withoutGitlabItems(s.hidden),
+    repoHidden: withoutGitlabItems(s.repoHidden),
+    known: withoutGitlabIds(s.known),
+    unread: withoutGitlabIds(s.unread),
+    completing: withoutGitlabIds(s.completing),
+    completed: Object.fromEntries(Object.entries(s.completed).map(([id, items]) => [id, items.filter(({ item }) => item.source !== "gitlab")])),
+    expandedStacks: Object.fromEntries(Object.entries(s.expandedStacks).filter(([id]) => !id.startsWith("stack:gitlab:"))),
+    status: Object.fromEntries(Object.entries(s.status).map(([id, status]) => [id, s.folders[id]?.sources.includes("gitlab") ? { ...status, state: "idle" as const, lastFetch: null, error: null } : status])),
+  }));
+}
+
 export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
 let timer: ReturnType<typeof setTimeout> | undefined;

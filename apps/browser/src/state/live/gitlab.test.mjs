@@ -76,6 +76,11 @@ test("a site URL is normalized to what the API base needs", () => {
   assert.equal(normalizeGitlabSite(""), "https://gitlab.com");
 });
 
+test("a site's api path is retained whether or not the API suffix was pasted", () => {
+  assert.equal(normalizeGitlabSite("https://host/tools/api/"), "https://host/tools/api");
+  assert.equal(normalizeGitlabSite("https://host/tools/api/api/v4/"), "https://host/tools/api");
+});
+
 test("the list query asks for open merge requests, newest first, a page at a time", () => {
   assert.equal(mergeRequestsQuery("created_by_me"), "scope=created_by_me&state=opened&per_page=100&order_by=updated_at&sort=desc");
   assert.equal(mergeRequestsQuery("all&reviewer_id=31"), "scope=all&reviewer_id=31&state=opened&per_page=100&order_by=updated_at&sort=desc");

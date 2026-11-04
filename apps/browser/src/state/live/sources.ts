@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { GITLAB_BATCH, mapGitlab, mergeRequestsQuery, normalizeGitlabSite, stopsApprovalProbe, type Approvals, type RawMR } from "./gitlab";
-import { live, setAccount, updateConfig } from "./store";
+import { changeGitlabSite, gitlabSiteRevision, invalidateGitlabRefreshes, live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
 
@@ -113,16 +113,15 @@ const bitbucket: LiveSource = {
 
 const gitlabAuth = async () => ({ "PRIVATE-TOKEN": await secret("gitlab") });
 
-async function gitlabList(query: string): Promise<RawMR[]> {
-  const base = endpoints.gitlab(live().config.gitlabSite);
-  return request<RawMR[]>(`${base}/merge_requests?${mergeRequestsQuery(query)}`, { headers: await gitlabAuth() });
+const gitlabFatal = (error: unknown) => error instanceof LiveError && (error.kind === "rateLimited" || error.kind === "signedOut");
+
+async function gitlabList(query: string, base: string, headers: { "PRIVATE-TOKEN": string }): Promise<RawMR[]> {
+  return request<RawMR[]>(`${base}/merge_requests?${mergeRequestsQuery(query)}`, { headers });
 }
 
-async function gitlabApprovals(mrs: RawMR[]): Promise<Record<string, Approvals>> {
+async function gitlabApprovals(mrs: RawMR[], base: string, headers: { "PRIVATE-TOKEN": string }): Promise<Record<string, Approvals>> {
   const approvals: Record<string, Approvals> = {};
   if (!mrs.length) return approvals;
-  const base = endpoints.gitlab(live().config.gitlabSite);
-  const headers = await gitlabAuth();
   for (let i = 0; i < mrs.length; i += GITLAB_BATCH) {
     const batch = mrs.slice(i, i + GITLAB_BATCH);
     const results = await Promise.allSettled(
@@ -134,7 +133,9 @@ async function gitlabApprovals(mrs: RawMR[]): Promise<Record<string, Approvals>>
     let stop = false;
     for (const result of results) {
       if (result.status === "fulfilled") approvals[result.value.key] = result.value.value;
+      else if (result.reason instanceof LiveError && result.reason.kind === "rateLimited") throw result.reason;
       else if (stopsApprovalProbe(result.reason)) stop = true;
+      else if (gitlabFatal(result.reason)) throw result.reason;
     }
     if (stop) break;
   }
@@ -147,10 +148,16 @@ const gitlab: LiveSource = {
   kind: "pullRequests",
   site: "https://gitlab.com",
   async fetch(folder) {
+    const revision = gitlabSiteRevision();
+    const { gitlabSite, gitlabUserId } = live().config;
+    const headers = await gitlabAuth();
+    if (revision !== gitlabSiteRevision()) throw new LiveError("signedOut", "GitLab instance changed");
+    if (!gitlabUserId) throw new LiveError("signedOut", "Not signed in");
+    const base = endpoints.gitlab(gitlabSite);
     const [authored, review] = await Promise.all([
-      folder.filters.authored ? gitlabList("scope=created_by_me") : Promise.resolve([]),
-      folder.filters.reviewRequests && live().config.gitlabUserId
-        ? gitlabList(`scope=all&reviewer_id=${encodeURIComponent(live().config.gitlabUserId)}`)
+      folder.filters.authored ? gitlabList("scope=created_by_me", base, headers) : Promise.resolve([]),
+      folder.filters.reviewRequests
+        ? gitlabList(`scope=all&reviewer_id=${encodeURIComponent(gitlabUserId)}`, base, headers)
         : Promise.resolve([]),
     ]);
     const key = (mr: RawMR) => `${mr.project_id}:${mr.iid}`;
@@ -158,12 +165,13 @@ const gitlab: LiveSource = {
     const needsDetails = unique.filter((mr) => mr.head_pipeline === undefined);
     const details = new Map<string, Partial<RawMR>>();
     if (needsDetails.length) {
-      const base = endpoints.gitlab(live().config.gitlabSite);
-      const headers = await gitlabAuth();
       for (let i = 0; i < needsDetails.length; i += GITLAB_BATCH) {
         const batch = needsDetails.slice(i, i + GITLAB_BATCH);
         const results = await Promise.all(
-          batch.map((mr) => request<Partial<RawMR>>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}`, { headers }).catch(() => null)),
+          batch.map((mr) => request<Partial<RawMR>>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}`, { headers }).catch((error: unknown) => {
+            if (gitlabFatal(error)) throw error;
+            return null;
+          })),
         );
         results.forEach((detail, index) => {
           if (detail) details.set(key(batch[index]!), detail);
@@ -182,7 +190,7 @@ const gitlab: LiveSource = {
           ...(detail.has_conflicts !== undefined ? { has_conflicts: detail.has_conflicts } : {}),
         };
       });
-    const approvals = await gitlabApprovals(unique);
+    const approvals = await gitlabApprovals(unique, base, headers);
     return mapGitlab(enrich(authored), enrich(review), approvals);
   },
   async resolveGone(items) {
@@ -325,7 +333,9 @@ export async function connectGitlab(site: string, token: string): Promise<void> 
     if (error instanceof LiveError && error.kind === "signedOut") throw new LiveError("signedOut", "GitLab didn't accept the token");
     throw error;
   }
+  if (live().config.gitlabSite !== base) invalidateGitlabRefreshes();
   await setSecret("gitlab", token.trim());
+  changeGitlabSite(base);
   updateConfig({ gitlabSite: base, gitlabUserId: String(me.id) });
   setAccount("gitlab", account(me.username, me.name || null, me.avatar_url));
 }

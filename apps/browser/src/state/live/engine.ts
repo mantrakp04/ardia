@@ -4,7 +4,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { applyFetch, createFolder, releaseShownRepos, finishCompleting, gitlabSiteRevision, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -38,9 +38,12 @@ export function manualRefresh(folderId: string): Promise<void> {
 async function run(folderId: string) {
   const folder = live().folders[folderId];
   if (!folder) return;
+  const gitlabRevision = gitlabSiteRevision();
+  const staleGitlab = () => folder.sources.includes("gitlab") && gitlabSiteRevision() !== gitlabRevision;
   const before = live();
   setStatus(folderId, { state: before.status[folderId]?.lastFetch ? "updating" : "initializing" });
   const results = await Promise.allSettled(folder.sources.map((id) => SOURCES[id].fetch(folder)));
+  if (staleGitlab()) return;
 
   const fetched: LiveItem[] = [];
   const failed: { source: LiveSourceId; error: unknown }[] = [];
@@ -67,6 +70,7 @@ async function run(folderId: string) {
     const resolve = SOURCES[source].resolveGone;
     if (!resolve) continue;
     Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
+    if (staleGitlab()) return;
   }
 
   const current = live();
@@ -87,7 +91,7 @@ async function run(folderId: string) {
   releaseShownRepos(folderId, succeeded);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
-  if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
+  if (leaving.length) setTimeout(() => finishCompleting(folderId, staleGitlab() ? leaving.filter((id) => !id.startsWith("gitlab:")) : leaving), COMPLETION_MS);
 }
 
 function describe(source: LiveSourceId, error: unknown) {

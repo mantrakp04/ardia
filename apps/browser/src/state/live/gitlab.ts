@@ -35,7 +35,7 @@ export function normalizeGitlabSite(site: string): string {
   if (!normalized) return "https://gitlab.com";
   if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
   normalized = normalized.replace(/\/+$/, "");
-  normalized = normalized.replace(/\/api\/v4$/i, "").replace(/\/api$/i, "");
+  normalized = normalized.replace(/\/api\/v4$/i, "");
   normalized = normalized.replace(/\/+$/, "");
   return normalized;
 }
