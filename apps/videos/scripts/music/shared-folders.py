@@ -32,6 +32,8 @@ MUSIC_EDIT = [(0, 0, 20), (20, 28, 32), (52, 44, 4), (56, 48, 56)]
 SPLICE_FADE_S = 0.008
 MUSIC_SECTION_GAIN_DB = {"explain": -1.5}
 SECTION_GAIN_RAMP_S = 0.4
+RING_OUT_DB_PER_S = 4.0
+RING_OUT_MAX_BOOST_DB = 18.0
 
 PEAK_ALIGNED_KINDS = {"whoosh"}
 SFX_GAIN_DB = {"click": -14.0, "tick": -16.0, "arrive": -8.0, "chatPop": -14.0, "whoosh": -16.0, "sheet": -18.0,
@@ -41,16 +43,20 @@ SILENCE_EXEMPT_KINDS = {"thud"}
 EXEMPT_DECAY_S = 0.165
 EXEMPT_FADE_S = 0.06
 
-VO_LINE_LUFS = -15.0
+VO_REFERENCE_LUFS = -20.0
+VO_OVER_BED_LU = 3.0
+VO_LEVEL_SPREAD_DB = 3.5
 VO_MIN_GAP_S = 0.35
-DUCK_DB = -8.0
-DUCK_LEAD_S = 0.1
-DUCK_ATTACK_S = 0.5
-DUCK_HOLD_S = 0.3
-DUCK_RELEASE_S = 1.2
+DUCK_DB = -2.5
+POCKET_DB = -5.0
+POCKET_HZ = (1500.0, 4500.0)
+DUCK_LEAD_S = 0.2
+DUCK_ATTACK_S = 0.7
+DUCK_HOLD_S = 0.4
+DUCK_RELEASE_S = 1.0
 
 SUB_HIGHPASS_HZ = 35.0
-TARGET_LUFS = float(CUTS.get("lufs", -14))
+TARGET_LUFS = -16.0
 CEILING_DBTP = -2.0
 TAIL_FADE_S = 0.4
 
@@ -106,6 +112,18 @@ def section_gains(x, gains):
     w = np.hanning(int(SECTION_GAIN_RAMP_S * SR))
     db = np.convolve(db, w / w.sum(), "same")
     return x * 10 ** (db / 20)[:, None]
+
+
+def ring_out(x):
+    a = at(CUTS.get("endHit", CUTS["beats"]))
+    win = int(0.1 * SR)
+    env = 10 * np.log10(ndimage.uniform_filter1d((x ** 2).sum(axis=1), win) + 1e-20)
+    peak_at = a + int(np.argmax(env[a:a + SR // 2]))
+    t = (np.arange(LENGTH) - peak_at) / SR
+    target = env[peak_at] - RING_OUT_DB_PER_S * t
+    boost = np.where(t > 0.25, np.clip(target - env, 0, RING_OUT_MAX_BOOST_DB), 0.0)
+    boost = ndimage.uniform_filter1d(ndimage.maximum_filter1d(boost, int(0.2 * SR)), int(0.3 * SR))
+    return x * 10 ** (boost / 20)[:, None]
 
 
 def anchor(x, kind):
@@ -164,24 +182,36 @@ def speech_edges(x):
 
 
 def render_vo():
-    bus = np.zeros((LENGTH, 2))
     spans = []
     free_from = 0
     for line in sorted(CUTS["vo"], key=lambda v: v["beat"]):
         x = decode(os.path.join(AUDIO, f"vo-{line['id']}.wav"))
-        x = x * 10 ** ((VO_LINE_LUFS - lufs(x)) / 20)
+        x = x * 10 ** ((VO_REFERENCE_LUFS - lufs(x)) / 20)
         lead, last = speech_edges(x)
         wanted = at(line["beat"])
         start = max(wanted, free_from)
-        place(bus, x, start - lead)
         end = start + (last - lead)
         spans.append({"id": line["id"], "text": line["text"], "beat": line["beat"], "start": start, "end": end,
-                      "pushed": start - wanted})
+                      "pushed": start - wanted, "audio": x, "offset": start - lead})
         free_from = end + int(VO_MIN_GAP_S * SR)
-    return bus, spans
+    return spans
 
 
-def duck_db(spans):
+def level_vo(spans, bed):
+    gains = []
+    for sp in spans:
+        alone = np.zeros((LENGTH, 2))
+        place(alone, sp["audio"], sp["offset"])
+        gains.append(window_loudness(bed, sp["start"], sp["end"]) + VO_OVER_BED_LU - window_loudness(alone, sp["start"], sp["end"]))
+    mid = float(np.median(gains))
+    bus = np.zeros((LENGTH, 2))
+    for sp, g in zip(spans, gains):
+        sp["gain_db"] = float(np.clip(g, mid - VO_LEVEL_SPREAD_DB, mid + VO_LEVEL_SPREAD_DB))
+        place(bus, sp["audio"] * 10 ** (sp["gain_db"] / 20), sp["offset"])
+    return bus
+
+
+def vo_envelope(spans):
     t = np.arange(LENGTH)
     db = np.zeros(LENGTH)
     lead, att = int(DUCK_LEAD_S * SR), int(DUCK_ATTACK_S * SR)
@@ -192,8 +222,20 @@ def duck_db(spans):
         fall = np.clip(1 - (t - full_to) / rel, 0, 1)
         shape = np.where(t < full_from, 0.5 - 0.5 * np.cos(np.pi * rise),
                          np.where(t > full_to, 0.5 - 0.5 * np.cos(np.pi * fall), 1.0))
-        db = np.minimum(db, DUCK_DB * shape)
+        db = np.maximum(db, shape)
     return db
+
+
+def duck_db(spans):
+    return DUCK_DB * vo_envelope(spans)
+
+
+def bed_under_vo(music, spans):
+    shape = vo_envelope(spans)
+    sos = signal.butter(2, POCKET_HZ, "bandpass", fs=SR, output="sos")
+    band = signal.sosfiltfilt(sos, music, axis=0)
+    pocketed = music - band * (1 - 10 ** (POCKET_DB * shape / 20))[:, None]
+    return pocketed * 10 ** (DUCK_DB * shape / 20)[:, None]
 
 
 def silence_mask():
@@ -265,7 +307,7 @@ def master(bed, exempt):
 
 def mix(with_vo, music, sfx_bus, sfx_exempt, vo_bus, spans):
     if with_vo:
-        bed = music * 10 ** (duck_db(spans) / 20)[:, None] + sfx_bus + vo_bus
+        bed = bed_under_vo(music, spans) + sfx_bus + vo_bus
     else:
         bed = music + sfx_bus
     return master(bed, sfx_exempt)
@@ -322,6 +364,14 @@ def peak_ms(x, beat):
     c = at(beat)
     a, b = max(0, c - int(0.4 * SR)), min(len(e), c + int(0.4 * SR))
     return (a + int(np.argmax(e[a:b])) - c) / SR * 1000
+
+
+def momentary(x):
+    p = (k_weight(x) ** 2).sum(axis=1)
+    c = np.concatenate([[0.0], np.cumsum(p)])
+    w, hop = int(0.4 * SR), int(0.1 * SR)
+    ends = np.arange(w, len(p) + 1, hop)
+    return ends / SR, -0.691 + 10 * np.log10((c[ends] - c[ends - w]) / w + 1e-20)
 
 
 def window_loudness(x, a, b):
@@ -386,9 +436,24 @@ def check(paths, music, bank, spans, vo_bus):
     d = duck_stats(db, spans)
     print(f"duck: depth {d['depth']:.1f} dB; attack ({d['attack_line']}) 10-90% {d['attack']:.2f} s, full {d['full_before_speech']:.2f} s "
           f"before speech; release ({d['release_line']}) 90-10% {d['release']:.2f} s, starting {d['release_starts_after_speech']:.2f} s after speech")
-    duck = music * 10 ** (db / 20)[:, None]
+    duck = bed_under_vo(music, spans)
+    print(f"pocket: {POCKET_DB:.1f} dB at {POCKET_HZ[0] / 1000:.1f}-{POCKET_HZ[1] / 1000:.1f} kHz on the same envelope")
+    print("line  VO over bed  bed under VO vs 1.5 s before  VO gain")
     for sp in spans:
-        print(f"  {sp['id']}: VO {window_loudness(vo_bus, sp['start'], sp['end']) - window_loudness(duck, sp['start'], sp['end']):+.1f} LU over the ducked music")
+        over = window_loudness(vo_bus, sp["start"], sp["end"]) - window_loudness(duck, sp["start"], sp["end"])
+        pre = max(0, sp["start"] - int(1.5 * SR) - int((DUCK_LEAD_S + DUCK_ATTACK_S) * SR))
+        ride = window_loudness(duck, sp["start"], sp["end"]) - window_loudness(duck, pre, pre + int(1.5 * SR))
+        print(f"{sp['id']:4s}  {over:+6.1f} LU   {ride:+6.1f} dB                     {sp['gain_db']:+.1f} dB")
+    for p in paths[::2]:
+        x = decode(p)
+        t, mom = momentary(x)
+        a = at(CUTS.get("endHit", CUTS["beats"]))
+        sel = t >= a / SR
+        k0 = int(np.argmax(np.where(sel & (t <= a / SR + 1.0), mom, -999)))
+        below = np.flatnonzero(sel & (t > t[k0]) & (mom <= mom[k0] - 20))
+        ring = (t[below[0]] - t[k0]) if len(below) else float("nan")
+        print(f"ring-out {os.path.basename(p)}: peak {mom[k0]:.1f} LUFS at {t[k0]:.1f} s, -20 dB {ring:.1f} s later, "
+              f"{LENGTH / SR - t[k0]:.1f} s of audio after it")
     if CUTS["sfx"]:
         print("cue        beat   align     lag in mix  lands at   vs music")
     for cue in CUTS["sfx"]:
@@ -409,10 +474,11 @@ def main():
     if {"-h", "--help"} & set(sys.argv):
         print(__doc__.strip())
         return
-    music = section_gains(edit_music(), MUSIC_SECTION_GAIN_DB)
+    music = ring_out(section_gains(edit_music(), MUSIC_SECTION_GAIN_DB))
     bank = load_sfx()
     sfx_bus, sfx_exempt = render_sfx(bank)
-    vo_bus, spans = render_vo()
+    spans = render_vo()
+    vo_bus = level_vo(spans, bed_under_vo(music, spans) + sfx_bus)
     for s in spans:
         if s["pushed"]:
             print(f"warning: {s['id']} overlaps the line before it; placed {s['pushed'] / SR:.2f} s after beat {s['beat']} "
