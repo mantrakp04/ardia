@@ -290,8 +290,8 @@ function TurnShot() {
   const fromChat = (x: number, y: number) => ({ x: chatBox.x + chatBox.w / 2 + (x - chatBox.w / 2) * k, y: chatBox.y + chatBox.h / 2 + (y - chatBox.h / 2) * k });
   const lastLift = lift + (links.length - 1) * stagger;
   const fade = 1 - sineInOut(clamp((b - lastLift - 0.25) / chatOut));
-  const up = sineInOut(clamp((b - rise) / 1.6));
-  const landed = (i: number) => clamp((b - (lift + i * stagger + land * 0.85)) / (land * 0.22));
+  const up = sineInOut(clamp((b - rise) / 1.2));
+  const landed = (i: number) => (b >= lift + i * stagger + land ? 1 : 0);
   const lifted = TURN_LINKS.filter((_, i) => b >= lift + i * stagger).map((l) => l.host);
   const pointer = chatPointer(b + chat.beats, chatBox.w, chat.marks!.panel);
   return (
@@ -328,10 +328,21 @@ function TurnShot() {
         const x = mix(from.x, target.x, t);
         const y = mix(from.y, target.y, t) - Math.sin(Math.PI * t) * 60;
         const lifting = Math.min(1, t * 5) * (1 - t);
+        const h = mix((fromW * CARD_H) / 600, r.height * cam.s, t);
+        const sx = w / (r.width - 8);
+        const sy = h / r.height;
+        const rowLook = seg(b, start + land * 0.68, land * 0.27);
         return (
           <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${18 * lifting}px ${30 * lifting}px rgba(0,0,0,0.18))` }}>
-            <div style={{ position: "relative", width: w, height: mix((fromW * CARD_H) / 600, r.height * cam.s, t), overflow: "hidden", borderRadius: mix((26 * fromW) / 600, 8, t) }}>
-              <LinkCard link={link} width={w} />
+            <div style={{ position: "relative", width: w, height: h, overflow: "hidden", borderRadius: mix((34 * fromW) / 600, 0, t) }}>
+              <div style={{ opacity: 1 - rowLook }}>
+                <LinkCard link={link} width={w} />
+              </div>
+              {rowLook > 0 ? (
+                <div style={{ position: "absolute", inset: 0, opacity: rowLook, overflow: "hidden" }}>
+                  <Img src={footageSrc(name, shared)} style={{ position: "absolute", left: -(r.x + 4) * sx, top: -r.y * sy, width: WIN_PT[0] * sx, height: WIN_PT[1] * sy, maxWidth: "none" }} />
+                </div>
+              ) : null}
             </div>
           </div>
         );

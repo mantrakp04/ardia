@@ -163,17 +163,17 @@
   },
   {
    "kind": "click",
-   "beat": 44,
+   "beat": 43.8,
    "gain": 0.45
   },
   {
    "kind": "click",
-   "beat": 45.4,
+   "beat": 45.0,
    "gain": 0.45
   },
   {
    "kind": "arrive",
-   "beat": 46.2,
+   "beat": 45.7,
    "gain": 0.5
   },
   {

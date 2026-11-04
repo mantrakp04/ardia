@@ -192,7 +192,7 @@ export interface ChatState {
 }
 
 type Item = { kind: "stamp"; text: [string, string]; top: number; h: number } | { kind: "msg"; m: Msg; name: boolean; tail: boolean; face: boolean; read: boolean; top: number; h: number };
-function stack(history: Msg[], shown: Msg[]) {
+function stack(history: Msg[], shown: Msg[], fresh: number) {
   const items: Item[] = [];
   let y = 0;
   const push = (it: Item) => {
@@ -201,18 +201,20 @@ function stack(history: Msg[], shown: Msg[]) {
   };
   const all = [...history, ...shown];
   const lastSent = all.reduce((at, m, i) => (m.me ? i : at), -1);
+  const today = history.length + Math.max(0, fresh);
   if (history.length) push({ kind: "stamp", text: ["Yesterday", "9:14 PM"], top: y, h: STAMP_H });
   all.forEach((m, i) => {
-    if (i === history.length) push({ kind: "stamp", text: ["Today", "4:02 PM"], top: y, h: STAMP_H });
+    if (i === today) push({ kind: "stamp", text: ["Today", "4:02 PM"], top: y, h: STAMP_H });
     const prev = all[i - 1];
     const next = all[i + 1];
-    const first = !prev || prev.who !== m.who || i === history.length;
-    const last = !next || next.who !== m.who || i + 1 === history.length;
+    const first = !prev || prev.who !== m.who || i === today;
+    const last = !next || next.who !== m.who || i + 1 === today;
     const name = !m.me && first;
     const read = i === lastSent;
     const h = (name ? NAME_H : 0) + (m.link ? CARD_H : TEXT_H) + (read ? READ_H : 0) + (last ? RUN_GAP : IN_RUN);
     push({ kind: "msg", m, name, tail: last && !m.link, face: !m.me && last, read, top: y, h });
   });
+  if (today >= all.length) push({ kind: "stamp", text: ["Today", "4:02 PM"], top: y, h: STAMP_H });
   return { items, total: y };
 }
 
@@ -262,7 +264,7 @@ const Lights = ({ style }: { style?: CSSProperties }) => (
 );
 
 const STAMPS = ["4:02 PM", "3:47 PM", "Yesterday", "Tuesday"];
-function Sidebar({ b, state }: { b: number; state: ChatState }) {
+function Sidebar({ b, state, latest }: { b: number; state: ChatState; latest?: Msg }) {
   return (
     <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 440, backgroundColor: SIDEBAR, backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,0.35), rgba(255,255,255,0))", borderRight: "1px solid #DCDCE0", padding: "26px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 8px 24px" }}>
@@ -276,12 +278,12 @@ function Sidebar({ b, state }: { b: number; state: ChatState }) {
       {THREADS.map((t, i) => {
         const on = i === state.thread;
         const unread = !on && i < 3;
-        const lastMsg = t.messages.filter((m) => m.at <= b).at(-1);
+        const lastMsg = on && latest ? latest : t.messages.filter((m) => m.at <= b).at(-1);
         const preview = lastMsg ? (lastMsg.text ?? `Link: ${lastMsg.link?.host}`) : "";
         return (
           <div key={t.id} style={{ position: "relative", display: "flex", gap: 14, alignItems: "center", padding: "14px 14px 14px 30px", borderRadius: 16, backgroundColor: on ? SELECTED : "transparent", marginBottom: 4 }}>
             {unread ? <div style={{ position: "absolute", left: 8, top: "50%", translate: "0 -50%", width: 14, height: 14, borderRadius: 7, backgroundColor: SELECTED }} /> : null}
-            <GroupAvatar people={t.members} size={64} ring={on ? SELECTED : SIDEBAR} />
+            <GroupAvatar people={t.members.filter((p) => p !== "Priya")} size={64} ring={on ? SELECTED : SIDEBAR} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <div style={{ fontSize: 25, fontWeight: 600, color: on ? "#FFFFFF" : "#000000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
@@ -304,8 +306,8 @@ export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], 
   const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
   const area = height - HEADER - COMPOSE;
   const history = thread.history ?? [];
-  const { items, total } = stack(history, shown);
-  const historyH = items.filter((it) => it.kind === "msg" ? history.includes(it.m) : it.text[0] === "Yesterday").reduce((sum, it) => sum + it.h, 0);
+  const { items, total } = stack(history, shown, [...thread.messages, ...extra].findIndex((m) => m.at > -0.5));
+  const historyH = items.filter((it) => (it.kind === "msg" ? history.includes(it.m) : it.text[0] === "Yesterday")).reduce((sum, it) => sum + it.h, 0);
   const latest = shown[shown.length - 1];
   const latestItem = items.at(-1);
   const settle = latest && latest.at > -0.5 ? springAt(b, latest.at, { stiffness: 260, damping: 26 }) : 1;
@@ -314,9 +316,9 @@ export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], 
   const enter = easeOut(clamp((b - state.switchAt) / 0.35));
   return (
     <div style={{ position: "absolute", inset: 0, borderRadius: 30, overflow: "hidden", backgroundColor: PAPER, fontFamily: SF, boxShadow: "0 20px 60px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(0,0,0,0.08)" }}>
-      {list ? <Sidebar b={b} state={state} /> : null}
+      {list ? <Sidebar b={b} state={state} latest={latest} /> : null}
       <div style={{ position: "absolute", left: list, right: 0, top: 0, bottom: 0, opacity: mix(0.4, 1, enter) }}>
-        <div style={{ position: "absolute", left: 0, right: 0, top: HEADER, height: area, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: HEADER, height: area, overflow: "hidden", WebkitMaskImage: "linear-gradient(to bottom, transparent 0, black 46px)", maskImage: "linear-gradient(to bottom, transparent 0, black 46px)" }}>
           <div style={{ position: "absolute", inset: 0, transform: `scale(${1 + 0.9 * focus})`, transformOrigin: "30% 70%" }}>
             {items.map((it, k) => {
               const top = y0 + it.top;
@@ -357,7 +359,7 @@ export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], 
         <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: HEADER, borderBottom: "1px solid #E5E5EA", backgroundColor: "rgba(255,255,255,0.78)", backdropFilter: "blur(24px) saturate(1.6)" }}>
           {port ? <Lights style={{ position: "absolute", left: 28, top: 26 }} /> : null}
           <div style={{ position: "absolute", left: 0, right: 0, top: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <GroupAvatar people={thread.members} size={62} />
+            <GroupAvatar people={thread.members.filter((p) => p !== "Priya")} size={62} />
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 23, fontWeight: 600, color: "#000000" }}>
               {thread.title}
               <Sym name="chevron.right" size={16} color={GREY} />

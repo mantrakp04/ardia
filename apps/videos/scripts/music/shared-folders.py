@@ -45,6 +45,7 @@ RING_OUT_MAX_BOOST_DB = 18.0
 
 PEAK_ALIGNED_KINDS = {"whoosh"}
 SFX_TARGET_LU = {"arrive": -16.0}
+SFX_MIX_FLOOR_LU = {"arrive": -18.0}
 DEFAULT_SFX_TARGET_LU = -23.0
 SFX_MEASURE_S = 0.2
 SILENCE_EXEMPT_KINDS = {"thud"}
@@ -211,14 +212,17 @@ def cue_level(x, anc, cue, bed):
     return window_loudness(one, c, c + n) - window_loudness(bed, c, c + n)
 
 
-def calibrate_sfx(bank, bed):
+def calibrate_sfx(bank, bed, mix):
     cue_db = {}
     for kind, (x, anc) in bank.items():
         cues = [c for c in CUTS["sfx"] if c["kind"] == kind]
         mid = float(np.median([c.get("gain", 1.0) for c in cues]))
         for c in cues:
             offset = 20 * np.log10(c.get("gain", 1.0) / mid)
-            cue_db[id(c)] = SFX_TARGET_LU.get(kind, DEFAULT_SFX_TARGET_LU) + offset - cue_level(x, anc, c, bed)
+            db = SFX_TARGET_LU.get(kind, DEFAULT_SFX_TARGET_LU) + offset - cue_level(x, anc, c, bed)
+            if kind in SFX_MIX_FLOOR_LU:
+                db = max(db, SFX_MIX_FLOOR_LU[kind] + offset - cue_level(x, anc, c, mix))
+            cue_db[id(c)] = db
     return cue_db
 
 
@@ -535,9 +539,9 @@ def main():
     bank = load_sfx()
     spans = render_vo()
     bed = bed_under_vo(music, spans)
-    cue_db = calibrate_sfx(bank, bed)
+    vo_bus = level_vo(spans, bed)
+    cue_db = calibrate_sfx(bank, bed, bed + vo_bus)
     sfx_bus, sfx_exempt = render_sfx(bank, cue_db)
-    vo_bus = level_vo(spans, bed + sfx_bus)
     for s in spans:
         if s["pushed"]:
             print(f"warning: {s['id']} overlaps the line before it; placed {s['pushed'] / SR:.2f} s after beat {s['beat']} "
