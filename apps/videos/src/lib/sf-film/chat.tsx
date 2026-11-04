@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { Img, staticFile } from "remotion";
-import { clamp, easeInOut, easeOut, mix, seg, springAt } from "./kit";
+import { clamp, easeInOut, easeOut, mix, Pointer, seg, sine, springAt } from "./kit";
 import { PEOPLE } from "./plan";
 
 const SF = '-apple-system, "SF Pro Text", "Helvetica Neue", sans-serif';
@@ -37,7 +37,8 @@ export const LINKS = {
   course: L("course.example", "GEOG 341 · Week 6"),
   library: L("library.example", "The Shaded City"),
   heatmap: L("heatmap.example", "Summer Heat Map"),
-  pressroom: L("pressroom.example", "Lumo Press Kit"),
+  survey: L("survey.example", "Field Survey Form"),
+  pressroom: L("pressroom.example", "Kite Press Kit"),
   roadmap: L("roadmap.example", "Q4 Launch Roadmap"),
   mockups: L("mockups.example", "Onboarding Mockups"),
   hostel: L("hostel.example", "Harbour Hostel"),
@@ -75,7 +76,7 @@ export const THREADS: Thread[] = [
     ],
   },
   {
-    id: "launch", title: "lumo launch 🚀", members: ["Maya", "Leo"], links: 23,
+    id: "launch", title: "kite launch 🚀", members: ["Maya", "Leo"], links: 23,
     messages: [
       { at: -3, who: "Leo", text: "where’s the press kit link" },
       { at: -2, who: "Maya", link: LINKS.pressroom },
@@ -114,10 +115,11 @@ function Bubble({ m }: { m: Msg }) {
   );
 }
 
+export const CARD_H = 300;
 export function LinkCard({ link, width = 600 }: { link: Link; width?: number }) {
   const k = width / 600;
   return (
-    <div style={{ width, borderRadius: 26 * k, overflow: "hidden", backgroundColor: "#fff", border: "1px solid #ECE4D6", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
+    <div style={{ width, height: CARD_H * k, boxSizing: "border-box", borderRadius: 26 * k, overflow: "hidden", backgroundColor: "#fff", border: "1px solid #ECE4D6", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
       <div style={{ height: 200 * k, overflow: "hidden", backgroundColor: "#E9E2D4" }}>
         <Img src={staticFile(`footage/sf-pages/${link.host}.jpg`)} style={{ width: "100%", display: "block" }} />
       </div>
@@ -146,9 +148,43 @@ export interface ChatState {
   switchAt: number;
   scroll: number;
   links: number;
+  panel?: number;
 }
 
-export function ChatApp({ b, height, state, port, focus = 0, extra = [], hide = [] }: { b: number; height: number; state: ChatState; port: boolean; focus?: number; extra?: Msg[]; hide?: string[] }) {
+export const PANEL_LINKS = [LINKS.canopy, LINKS.citydata, LINKS.course, LINKS.library, LINKS.heatmap, LINKS.survey];
+const PANEL_TOP = 96;
+export function panelLayout(width: number, port: boolean) {
+  const list = port ? 0 : 440;
+  const cols = port ? 2 : 3;
+  const pad = 36;
+  const gap = 24;
+  const w = (width - list - pad * 2 - gap * (cols - 1)) / cols;
+  const h = (w * CARD_H) / 600;
+  return PANEL_LINKS.map((link, i) => ({ link, x: list + pad + (i % cols) * (w + gap), y: 132 + PANEL_TOP + Math.floor(i / cols) * (h + gap), w, h }));
+}
+export const badgeCenter = (width: number) => ({ x: width - 34 - 58, y: 66 });
+
+function LinksPanel({ width, height, port, open, count, hide }: { width: number; height: number; port: boolean; open: number; count: number; hide: string[] }) {
+  const list = port ? 0 : 440;
+  const cards = panelLayout(width, port);
+  return (
+    <div style={{ position: "absolute", left: list, right: 0, top: 132, bottom: 0, overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, backgroundColor: "#FBF8F2", translate: `0 ${(1 - open) * (height - 132)}px`, boxShadow: "0 -10px 30px rgba(0,0,0,0.08)" }}>
+        <div style={{ position: "absolute", left: 36, top: 26, display: "flex", alignItems: "baseline", gap: 18 }}>
+          <div style={{ fontSize: 38, fontWeight: 700, color: "#1E1A16" }}>Links</div>
+          <div style={{ fontSize: 24, color: "#857C6F" }}>{count} shared in this chat</div>
+        </div>
+        {cards.map((c) => (
+          <div key={c.link.host} style={{ position: "absolute", left: c.x - list, top: c.y - 132, opacity: hide.includes(c.link.host) ? 0 : 1 }}>
+            <LinkCard link={c.link} width={c.w} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], hide = [], pointer }: { b: number; width: number; height: number; state: ChatState; port: boolean; focus?: number; extra?: Msg[]; hide?: string[]; pointer?: { x: number; y: number; press: number } | null }) {
   const list = port ? 0 : 440;
   const thread = THREADS[state.thread];
   const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
@@ -236,6 +272,12 @@ export function ChatApp({ b, height, state, port, focus = 0, extra = [], hide = 
         </div>
         <div style={{ position: "absolute", left: 28, right: 28, bottom: 26, height: 64, borderRadius: 32, backgroundColor: "#fff", border: "1px solid #E2DACB", display: "flex", alignItems: "center", padding: "0 28px", color: "#A59C8E", fontSize: 26 }}>Message {thread.title}</div>
       </div>
+      {state.panel && state.panel > 0.001 ? <LinksPanel width={width} height={height} port={port} open={state.panel} count={state.links} hide={hide} /> : null}
+      {pointer ? (
+        <div style={{ position: "absolute", left: 0, top: 0, width: 0, height: 0, scale: "1.7", transformOrigin: `${pointer.x}px ${pointer.y}px` }}>
+          <Pointer x={pointer.x} y={pointer.y} press={pointer.press} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -264,5 +306,6 @@ export function chatState(b: number, marks: Record<string, number>): ChatState {
   const scroll = thread === 0 ? up * (1 - down) : 0;
   const t = THREADS[thread];
   const links = t.links + t.messages.filter((m) => m.at > -0.5 && b >= m.at && m.link).length;
-  return { thread, switchAt, scroll, links };
+  const panel = marks.panel !== undefined && thread === 0 ? sine(clamp((b - marks.panel) / 0.7)) : 0;
+  return { thread, switchAt, scroll, links, panel };
 }

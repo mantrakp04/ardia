@@ -117,6 +117,16 @@
    "gain": 0.3
   },
   {
+   "kind": "click",
+   "beat": 13.6,
+   "gain": 0.4
+  },
+  {
+   "kind": "sheet",
+   "beat": 13.7,
+   "gain": 0.3
+  },
+  {
    "kind": "arrive",
    "beat": 24,
    "gain": 0.75
@@ -213,47 +223,47 @@
   },
   {
    "kind": "lift",
-   "beat": 82.2,
+   "beat": 82.1,
    "gain": 0.35
   },
   {
    "kind": "thud",
-   "beat": 83.97,
+   "beat": 83.77,
    "gain": 0.4
   },
   {
    "kind": "arrive",
-   "beat": 85.2,
+   "beat": 84.7,
    "gain": 0.55
   },
   {
    "kind": "lift",
-   "beat": 87.2,
+   "beat": 87.1,
    "gain": 0.35
   },
   {
    "kind": "thud",
-   "beat": 88.97,
+   "beat": 88.77,
    "gain": 0.4
   },
   {
    "kind": "arrive",
-   "beat": 90.2,
+   "beat": 89.7,
    "gain": 0.55
   },
   {
    "kind": "lift",
-   "beat": 92.2,
+   "beat": 92.1,
    "gain": 0.35
   },
   {
    "kind": "thud",
-   "beat": 93.97,
+   "beat": 93.77,
    "gain": 0.4
   },
   {
    "kind": "arrive",
-   "beat": 95.2,
+   "beat": 94.7,
    "gain": 0.55
   },
   {
@@ -285,7 +295,7 @@
   },
   {
    "id": "vo1c",
-   "beat": 11.6,
+   "beat": 11.0,
    "text": "And someone always asks for the one from Tuesday."
   },
   {
@@ -295,13 +305,8 @@
   },
   {
    "id": "vo3",
-   "beat": 26.8,
+   "beat": 31.5,
    "text": "Shared Folders puts one folder in everyone's sidebar."
-  },
-  {
-   "id": "vo4a",
-   "beat": 33.2,
-   "text": "Share it right from the sidebar."
   },
   {
    "id": "vo4b",
@@ -310,17 +315,17 @@
   },
   {
    "id": "vo4c",
-   "beat": 43.8,
+   "beat": 44.3,
    "text": "They choose Add Shared Folder, and it's in their sidebar too."
   },
   {
    "id": "vo5",
-   "beat": 51.4,
+   "beat": 52.0,
    "text": "It's a real folder in iCloud Drive, so there's no new account to make."
   },
   {
    "id": "vo6a",
-   "beat": 59.4,
+   "beat": 60.2,
    "text": "Drop a link in."
   },
   {
@@ -337,11 +342,6 @@
    "id": "vo7b",
    "beat": 74.2,
    "text": "Reorder it."
-  },
-  {
-   "id": "vo7d",
-   "beat": 77.5,
-   "text": "It all stays in sync, both ways."
   },
   {
    "id": "vo7c",

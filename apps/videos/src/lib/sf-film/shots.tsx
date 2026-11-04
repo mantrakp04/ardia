@@ -1,14 +1,14 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
 import { Img, staticFile, useVideoConfig } from "remotion";
 import { useStudioObject } from "../studio-objects-v6";
-import { ChatApp, chatLayout, chatState, LINKS, LinkCard, THREADS } from "./chat";
+import { badgeCenter, CARD_H, ChatApp, chatState, LINKS, LinkCard, panelLayout, THREADS } from "./chat";
 import {
   byTime, camAt, clamp, easeInOut, easeOut, footageSrc, indexOf, lastIndexOf, mix, Paper, Pointer, pointerPath, scene, Screen, seg,
   Supers, useAspect, useBeat, useShot, type Frame,
 } from "./kit";
 import { Morph, planMorph, type Rect, type Rows, targetAt } from "./morph";
 import { Halo, MacMenu, type MenuEntry, menuRowTop, SharePicker, SHEET_PICK } from "./parts";
-import { DARK_BG, LIGHT_BG, type Pane, PEOPLE, type ShotKind, type View, WIN_PT } from "./plan";
+import { chat, DARK_BG, LIGHT_BG, type Pane, PEOPLE, type ShotKind, type View, WIN_PT } from "./plan";
 
 const SLOW = 5;
 const sineInOut = (x: number) => 0.5 - 0.5 * Math.cos(Math.PI * x);
@@ -54,22 +54,32 @@ function playback(name: string, b: number, at: number, labels: string[], start: 
   const last = Math.max(...labels.map((l) => (has(name, l) ? lastIndexOf(name, l) : -1)));
   return { index: ms > 1800 ? last : byTime(name, labels, t0, SLOW, ms), overlay: null, halo: null };
 }
+const STRIP_PT = 48;
 function arrival(name: string, b: number, at: number, opts: { before?: string; after?: string; rename?: RegExp; top?: boolean } = {}): Arrival {
   const beforeLabel = opts.before ?? "arrive:before";
   if (opts.top) {
-    const strip = (scene(name) as unknown as { strip?: Rect }).strip;
+    const strip = (scene(name) as unknown as { strip?: Rect & { insert?: number } }).strip;
     const before = indexOf(name, beforeLabel);
     const last = opts.after === "added" ? lastIndexOf(name, "added") : has(name, "settled") ? lastIndexOf(name, "settled") : lastIndexOf(name, "arrive");
     if (!strip) return playback(name, b, at, opts.after === "added" ? ["adding", "added"] : ["arrive", "settled"], before);
     if (b < at) return { index: before, overlay: null, halo: null };
     const t = sineInOut(clamp((b - at) / 0.72));
-    const left = Math.max(0, strip.x - 6);
+    const insert = strip.insert ?? strip.width;
+    const gap = t * insert;
+    const right = strip.x + strip.width;
+    const band = { position: "absolute", top: 0, height: STRIP_PT, overflow: "hidden" } as const;
+    const frame = { position: "absolute", top: 0, width: WIN_PT[0], height: WIN_PT[1] } as const;
     const overlay = t < 1 ? (
-      <div style={{ position: "absolute", left, top: 0, width: WIN_PT[0] - left, height: 46, overflow: "hidden", opacity: t }}>
-        <Img src={footageSrc(name, last)} style={{ position: "absolute", left: -left - (1 - t) * 18, top: 0, width: WIN_PT[0], height: WIN_PT[1] }} />
-      </div>
+      <>
+        <div style={{ ...band, left: strip.x, width: right - strip.x }}>
+          <Img src={footageSrc(name, before)} style={{ ...frame, left: -strip.x + gap }} />
+        </div>
+        <div style={{ ...band, left: strip.x, width: gap }}>
+          <Img src={footageSrc(name, last)} style={{ ...frame, left: -strip.x }} />
+        </div>
+      </>
     ) : null;
-    const halo = t > 0.45 ? { x: strip.x, y: 6, width: Math.min(190, strip.width), height: 30 } : null;
+    const halo = t > 0.8 ? { x: strip.x + 2, y: 6, width: insert - 4, height: 32 } : null;
     return { index: t < 1 ? before : last, overlay, halo };
   }
   const afterLabel = opts.after ?? (has(name, "settled") ? "settled" : "arrive");
@@ -220,15 +230,26 @@ function ChatShot() {
   const aspect = useAspect();
   const box = shot.panes![0];
   const object = useStudioObject(box.id);
-  const push = 1 + 0.03 * seg(b, 0, 16, (x) => x);
+  const push = 1 + CHAT_PUSH * seg(b, 0, 16, (x) => x);
+  const width = object.number("width");
   return (
     <Paper>
       <Box id={box.id} style={{ scale: String(push) }}>
-        <ChatApp b={b} height={object.number("height")} state={chatState(b, shot.marks!)} port={aspect === "port"} />
+        <ChatApp b={b} width={width} height={object.number("height")} state={chatState(b, shot.marks!)} port={aspect === "port"} pointer={chatPointer(b, width, shot.marks!.panel)} />
       </Box>
       <Supers />
     </Paper>
   );
+}
+
+const CHAT_PUSH = 0.03;
+function chatPointer(b: number, width: number, click: number) {
+  const c = badgeCenter(width);
+  return pointerPath(b, [
+    { at: click - 0.6, x: c.x - 90, y: c.y + 250 },
+    { at: click, x: c.x, y: c.y, click: true },
+    { at: click + 1.1, x: c.x - 30, y: c.y + 140 },
+  ], 0.5);
 }
 
 function toFrame(box: { x: number; y: number; w: number; h: number }, v: View, pt: { x: number; y: number }) {
@@ -260,23 +281,22 @@ function TurnShot() {
   const links = rows.filter(([, r]) => header && r.x >= 20 && r.y > header[1].y && (!stop || r.y < stop[1].y));
   const tint = tintOf(name);
   const chatB = 16;
-  const scrolls = [0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.48];
-  const scroll = scrolls.reduce((best, sc) => {
-    const hit = (v: number) => TURN_LINKS.filter((l) => chatLayout(chatB, chatBox.h, { thread: 0, switchAt: -1, scroll: v, links: 0 }, port).some((c) => c.link.host === l.host && c.y > 140 && c.y < chatBox.h - 300)).length;
-    return hit(sc) > hit(best) ? sc : best;
-  }, 0);
-  const state = { thread: 0, switchAt: -1, scroll, links: THREADS[0].links + 1 };
-  const layout = chatLayout(chatB, chatBox.h, state, port).filter((c) => c.y > 140 && c.y < chatBox.h - 300);
-  const fade = 1 - sineInOut(clamp((b - lift) / chatOut));
+  const state = { thread: 0, switchAt: -1, scroll: 0, links: THREADS[0].links + 1, panel: 1 };
+  const cards = panelLayout(chatBox.w, port);
+  const k = 1 + CHAT_PUSH;
+  const fromChat = (x: number, y: number) => ({ x: chatBox.x + chatBox.w / 2 + (x - chatBox.w / 2) * k, y: chatBox.y + chatBox.h / 2 + (y - chatBox.h / 2) * k });
+  const lastLift = lift + (links.length - 1) * stagger;
+  const fade = 1 - sineInOut(clamp((b - lastLift - 0.25) / chatOut));
   const up = sineInOut(clamp((b - rise) / 1.6));
   const landed = (i: number) => clamp((b - (lift + land + i * stagger)) / 0.3);
   const lifted = TURN_LINKS.filter((_, i) => b >= lift + i * stagger).map((l) => l.host);
+  const pointer = chatPointer(b + chat.beats, chatBox.w, chat.marks!.panel);
   return (
     <Paper>
       {fade > 0.005 ? (
         <div style={{ position: "absolute", inset: 0, opacity: fade, scale: String(mix(0.96, 1, fade)) }}>
-          <Box id="chat-app">
-            <ChatApp b={chatB} height={chatBox.h} state={state} port={port} hide={lifted} />
+          <Box id="chat-app" style={{ scale: String(k) }}>
+            <ChatApp b={chatB} width={chatBox.w} height={chatBox.h} state={state} port={port} hide={lifted} pointer={pointer} />
           </Box>
         </div>
       ) : null}
@@ -292,21 +312,22 @@ function TurnShot() {
       ) : null}
       {links.map(([id, r], i) => {
         const link = TURN_LINKS[i];
-        if (!link) return null;
+        const card = link ? cards.find((c) => c.link.host === link.host) : null;
+        if (!link || !card) return null;
         const start = lift + i * stagger;
         const t = sineInOut(clamp((b - start) / land));
         if (b < start || landed(i) >= 1) return null;
-        const card = layout.find((c) => c.link.host === link.host);
-        const fromX = chatBox.x + (card ? card.x : (port ? 60 : 520) + (i % 2) * 120);
-        const fromY = chatBox.y + (card ? card.y : 180 + i * 90);
+        const from = fromChat(card.x, card.y);
+        const fromW = card.w * k;
         const target = toFrame(box, cam, { x: r.x + 4, y: r.y });
         const targetW = (r.width - 8) * cam.s;
-        const w = mix(600, targetW, t);
-        const x = mix(fromX, target.x, t);
-        const y = mix(fromY, target.y, t) - Math.sin(Math.PI * t) * 60;
+        const w = mix(fromW, targetW, t);
+        const x = mix(from.x, target.x, t);
+        const y = mix(from.y, target.y, t) - Math.sin(Math.PI * t) * 60;
+        const lifting = Math.min(1, t * 5) * (1 - t);
         return (
-          <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${16 * (1 - t)}px ${28 * (1 - t)}px rgba(0,0,0,0.16))` }}>
-            <div style={{ position: "relative", width: w, height: mix(316 * (w / 600), r.height * cam.s, t), overflow: "hidden", borderRadius: mix(26, 8, t) }}>
+          <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${18 * lifting}px ${30 * lifting}px rgba(0,0,0,0.18))` }}>
+            <div style={{ position: "relative", width: w, height: mix((fromW * CARD_H) / 600, r.height * cam.s, t), overflow: "hidden", borderRadius: mix((26 * fromW) / 600, 8, t) }}>
               <div style={{ opacity: 1 - seg(b, start + land * 0.55, land * 0.4) }}>
                 <LinkCard link={link} width={w} />
               </div>
@@ -438,6 +459,7 @@ function CallbackShot() {
       <Box id={shot.panes![0].id}>
         <ChatApp
           b={b + 16}
+          width={object.number("width")}
           height={object.number("height")}
           state={{ thread: 0, switchAt: 15.6, scroll: 0, links: 48 }}
           port={aspect === "port"}

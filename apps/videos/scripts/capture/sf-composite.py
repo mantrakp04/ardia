@@ -72,7 +72,11 @@ def build(scene):
         band = np.abs(a[:96] - b[:96]) > 24
         cols = np.where(band.sum(axis=0) > 3)[0]
         if len(cols) > 20:
-            extra["strip"] = {"x": float(cols.min()) / 2, "y": 2.0, "width": float(cols.max() - cols.min()) / 2, "height": 40.0}
+            x0 = int(cols.min())
+            span = 240
+            shifts = range(16, a.shape[1] - x0 - span)
+            insert = min(shifts, key=lambda d: float(np.abs(a[:96, x0:x0 + span] - b[:96, x0 + d:x0 + d + span]).mean()))
+            extra["strip"] = {"x": x0 / 2, "y": 2.0, "width": float(cols.max() - x0) / 2, "height": 40.0, "insert": insert / 2}
     tint = C.sampled_tint(frames[0]["f"]) if frames else None
     if tint is not None:
         extra["tint"] = ["#%02X%02X%02X" % tuple(int(round(v)) for v in c) for c in tint]

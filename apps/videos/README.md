@@ -93,7 +93,7 @@ declares that a document lacks. It keeps existing values, removals and operation
 The film runs in five parts:
 
 1. **Chats.** Four stand-in group chats (a thesis, a product launch, a trip, a study group) bury their links: "wait which link??", "can someone resend 🙏", someone scrolling up through the history.
-2. **The turn.** The thesis chat's link cards lift out and land as the rows of Priya's shared "Thesis Reading" folder.
+2. **The turn.** The thesis chat's links panel opens (47 links), and five of its cards lift out and land as the rows of Priya's shared "Thesis Reading" folder.
 3. **The swell.** On the music's first swell the folder lands in four real Macs at once: Priya (light), Tomás (dark), Jun (sidebar on the right) and Ava (top tab strip).
 4. **The explanation.** Narrated and paced on measured Apple Mac films (`output/videos-reference/shared-folders/APPLE-NOTES.md`):
    - Share Folder… and the share picker's Collaborate;
@@ -130,10 +130,10 @@ python3 scripts/capture/sf-composite.py <scene>…                    # every .c
 - **Drags are real.** Each step is a mouse event through the sidebar's own drag controller, with one step per film frame and one snapshot per step.
 - **Arrivals are real.** A watching instance snapshots from the moment its store changes, with sidebar motion slowed 5×.
   - In a sidebar, the film composites the arrival from the real before and after frames: rows slide by their measured offsets and a new row's slot grows.
-  - In the top strip, the captured frames are played back at real speed.
+  - In the top strip, the new tab's slot opens at the insertion point and the tabs to its right slide over by its measured width.
   - Measured locally, a change takes 0.9–1.2 s to reach the other sidebar. The film's commit-to-arrival gap is 0.8–1.4 s.
 - **Composited, not captured:**
-  - the chats (a stand-in with invented people and no messenger brand);
+  - the chats (a stand-in with invented people and no messenger brand) and its links panel;
   - the context menus (drawn from the `menu.json` items the app dumped, with SF Symbols rendered by AppKit);
   - the share picker (background mode only logs it), recreated in the macOS look with the system's own app and folder icons.
 - **Pages.** The pages are stand-in sites with CC0 photos and no people in them (`sites/SOURCES.md`).

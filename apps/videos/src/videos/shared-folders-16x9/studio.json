@@ -370,23 +370,6 @@
       }
     },
     {
-      "id": "drop-live",
-      "definition": "type",
-      "label": "drop · Live, both ways.",
-      "parentId": null,
-      "values": {
-        "text": "Live, both ways.",
-        "size": 62,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 930,
-        "width": 1600,
-        "height": 110,
-        "rotation": 0
-      }
-    },
-    {
       "id": "edits-priya",
       "definition": "window",
       "label": "edits · priya",
@@ -409,6 +392,23 @@
         "y": 140,
         "width": 880,
         "height": 740,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-live",
+      "definition": "type",
+      "label": "edits · Live, both ways.",
+      "parentId": null,
+      "values": {
+        "text": "Live, both ways.",
+        "size": 62,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -536,7 +536,7 @@
       "parentId": null,
       "values": {
         "x": 860,
-        "y": 220,
+        "y": 170,
         "width": 200,
         "height": 200,
         "rotation": 0
@@ -562,17 +562,34 @@
     {
       "id": "end-ardia",
       "definition": "type",
-      "label": "end · Ardia, the sidebar browser f",
+      "label": "end · Ardia",
       "parentId": null,
       "values": {
-        "text": "Ardia, the sidebar browser for Mac",
-        "size": 64,
+        "text": "Ardia",
+        "size": 116,
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 160,
-        "y": 460,
+        "y": 400,
         "width": 1600,
-        "height": 90,
+        "height": 130,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-category",
+      "definition": "type",
+      "label": "end · The sidebar browser for Mac",
+      "parentId": null,
+      "values": {
+        "text": "The sidebar browser for Mac",
+        "size": 52,
+        "color": "#6E6E73",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 540,
+        "width": 1600,
+        "height": 80,
         "rotation": 0
       }
     },
@@ -583,11 +600,11 @@
       "parentId": null,
       "values": {
         "text": "Download at ardia.dev",
-        "size": 64,
+        "size": 62,
         "color": "#2150D9",
         "fill": "#00000000",
         "x": 160,
-        "y": 590,
+        "y": 650,
         "width": 1600,
         "height": 90,
         "rotation": 0

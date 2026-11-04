@@ -165,9 +165,9 @@
       "parentId": null,
       "values": {
         "x": 30,
-        "y": 230,
+        "y": 190,
         "width": 1020,
-        "height": 1240,
+        "height": 1140,
         "rotation": 0
       }
     },
@@ -182,7 +182,7 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1360,
+        "y": 1365,
         "width": 960,
         "height": 110,
         "rotation": 0
@@ -195,9 +195,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 450,
+        "y": 250,
         "width": 1000,
-        "height": 1000,
+        "height": 1080,
         "rotation": 0
       }
     },
@@ -208,9 +208,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 470,
+        "y": 250,
         "width": 1000,
-        "height": 450,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -221,9 +221,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 1010,
+        "y": 830,
         "width": 1000,
-        "height": 450,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -236,7 +236,7 @@
         "x": 40,
         "y": 2200,
         "width": 1000,
-        "height": 450,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -249,7 +249,7 @@
         "x": 40,
         "y": 2200,
         "width": 1000,
-        "height": 450,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -264,7 +264,7 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 240,
+        "y": 1365,
         "width": 960,
         "height": 110,
         "rotation": 0
@@ -277,9 +277,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 420,
+        "y": 250,
         "width": 1000,
-        "height": 1000,
+        "height": 1080,
         "rotation": 0
       }
     },
@@ -294,7 +294,7 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1360,
+        "y": 1365,
         "width": 960,
         "height": 110,
         "rotation": 0
@@ -307,9 +307,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 420,
+        "y": 250,
         "width": 1000,
-        "height": 1000,
+        "height": 1080,
         "rotation": 0
       }
     },
@@ -320,9 +320,9 @@
       "parentId": null,
       "values": {
         "x": 90,
-        "y": 470,
+        "y": 400,
         "width": 900,
-        "height": 760,
+        "height": 820,
         "rotation": 0
       }
     },
@@ -337,7 +337,7 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1360,
+        "y": 1365,
         "width": 960,
         "height": 110,
         "rotation": 0
@@ -350,9 +350,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 290,
+        "y": 250,
         "width": 1000,
-        "height": 500,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -363,26 +363,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 850,
+        "y": 840,
         "width": 1000,
-        "height": 480,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "drop-live",
-      "definition": "type",
-      "label": "drop · Live, both ways.",
-      "parentId": null,
-      "values": {
-        "text": "Live, both ways.",
-        "size": 64,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 60,
-        "y": 1360,
-        "width": 960,
-        "height": 110,
+        "height": 490,
         "rotation": 0
       }
     },
@@ -393,9 +376,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 290,
+        "y": 250,
         "width": 1000,
-        "height": 500,
+        "height": 520,
         "rotation": 0
       }
     },
@@ -406,9 +389,26 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 850,
+        "y": 840,
         "width": 1000,
-        "height": 480,
+        "height": 490,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-live",
+      "definition": "type",
+      "label": "edits · Live, both ways.",
+      "parentId": null,
+      "values": {
+        "text": "Live, both ways.",
+        "size": 64,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 60,
+        "y": 1365,
+        "width": 960,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -419,9 +419,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 270,
         "width": 1000,
-        "height": 1100,
+        "height": 1180,
         "rotation": 0
       }
     },
@@ -432,9 +432,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 270,
         "width": 1000,
-        "height": 1100,
+        "height": 1180,
         "rotation": 0
       }
     },
@@ -445,9 +445,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 270,
         "width": 1000,
-        "height": 1100,
+        "height": 1180,
         "rotation": 0
       }
     },
@@ -458,9 +458,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 270,
         "width": 1000,
-        "height": 1100,
+        "height": 1180,
         "rotation": 0
       }
     },
@@ -471,9 +471,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 270,
         "width": 1000,
-        "height": 1100,
+        "height": 1180,
         "rotation": 0
       }
     },
@@ -484,9 +484,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 380,
+        "y": 270,
         "width": 1000,
-        "height": 340,
+        "height": 330,
         "rotation": 0
       }
     },
@@ -497,9 +497,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 800,
+        "y": 670,
         "width": 1000,
-        "height": 340,
+        "height": 330,
         "rotation": 0
       }
     },
@@ -510,9 +510,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 1220,
+        "y": 1070,
         "width": 1000,
-        "height": 340,
+        "height": 330,
         "rotation": 0
       }
     },
@@ -523,9 +523,9 @@
       "parentId": null,
       "values": {
         "x": 30,
-        "y": 230,
+        "y": 190,
         "width": 1020,
-        "height": 1240,
+        "height": 1140,
         "rotation": 0
       }
     },
@@ -536,7 +536,7 @@
       "parentId": null,
       "values": {
         "x": 440,
-        "y": 560,
+        "y": 520,
         "width": 200,
         "height": 200,
         "rotation": 0
@@ -562,17 +562,34 @@
     {
       "id": "end-ardia",
       "definition": "type",
-      "label": "end · Ardia, the sidebar browser f",
+      "label": "end · Ardia",
       "parentId": null,
       "values": {
-        "text": "Ardia, the sidebar\nbrowser for Mac",
-        "size": 66,
+        "text": "Ardia",
+        "size": 112,
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 800,
+        "y": 755,
         "width": 960,
-        "height": 180,
+        "height": 130,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-category",
+      "definition": "type",
+      "label": "end · The sidebar browser for Mac",
+      "parentId": null,
+      "values": {
+        "text": "The sidebar browser for Mac",
+        "size": 50,
+        "color": "#6E6E73",
+        "fill": "#00000000",
+        "x": 60,
+        "y": 895,
+        "width": 960,
+        "height": 80,
         "rotation": 0
       }
     },
@@ -583,13 +600,13 @@
       "parentId": null,
       "values": {
         "text": "Download at ardia.dev",
-        "size": 64,
+        "size": 60,
         "color": "#2150D9",
         "fill": "#00000000",
         "x": 60,
-        "y": 1020,
+        "y": 1000,
         "width": 960,
-        "height": 100,
+        "height": 90,
         "rotation": 0
       }
     }
