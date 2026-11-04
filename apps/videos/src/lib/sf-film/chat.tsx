@@ -83,7 +83,7 @@ export const THREADS: Thread[] = [
       { at: -1, who: "Leo", text: "no the OTHER one" },
       { at: 9.5, who: "Maya", link: LINKS.roadmap },
       { at: 10.3, who: "Leo", text: "can u resend the mockups 🙏" },
-      { at: 11.1, who: "Maya", text: "it’s in the doc", me: true },
+      { at: 11.1, who: "Priya", text: "it’s in the doc", me: true },
       { at: 11.8, who: "Leo", text: "what doc 💀" },
     ],
   },
@@ -103,14 +103,44 @@ export const THREADS: Thread[] = [
 ];
 
 const BUBBLE = 40;
-const NAME = 24;
-const heightOf = (m: Msg) => (m.link ? 316 : BUBBLE * 1.25 + 32) + (m.me ? 0 : NAME + 8);
-const GAP = 22;
+const NAME_H = 34;
+const TEXT_H = BUBBLE * 1.25 + 30;
+const RUN_GAP = 26;
+const IN_RUN = 6;
+const READ_H = 34;
+const STAMP_H = 64;
+const HEADER = 132;
+const COMPOSE = 112;
+const AVATAR = 52;
+const INSET = 36;
+const SENT = "#1F8BFF";
+const RECEIVED = "#E9E9EB";
+const PAPER = "#FFFFFF";
+const SIDEBAR = "#EDEDF0";
+const GREY = "#8E8E93";
+const SELECTED = "#1A82FB";
 
-function Bubble({ m }: { m: Msg }) {
+function Sym({ name, size, color, style }: { name: string; size: number; color: string; style?: CSSProperties }) {
+  const url = `url(${staticFile(`brand/sf/sym-${name}.png`)})`;
+  return <div style={{ width: size, height: size, backgroundColor: color, WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center", flexShrink: 0, ...style }} />;
+}
+
+function Tail({ me }: { me: boolean }) {
+  const color = me ? SENT : RECEIVED;
+  const side = me ? "right" : "left";
   return (
-    <div style={{ padding: "16px 26px", borderRadius: 34, fontSize: BUBBLE, lineHeight: 1.25, maxWidth: 820, backgroundColor: m.me ? "#26231F" : "#FFFFFF", color: m.me ? "#FBF8F2" : "#1E1A16", border: m.me ? "none" : "1px solid #ECE4D6", boxShadow: "0 1px 2px rgba(0,0,0,0.05)", whiteSpace: "nowrap" }}>
-      {m.text}
+    <>
+      <div style={{ position: "absolute", bottom: 0, [side]: -10, width: 30, height: 32, backgroundColor: color, [me ? "borderBottomLeftRadius" : "borderBottomRightRadius"]: 24 }} />
+      <div style={{ position: "absolute", bottom: 0, [side]: -24, width: 24, height: 34, backgroundColor: PAPER, [me ? "borderBottomLeftRadius" : "borderBottomRightRadius"]: 16 }} />
+    </>
+  );
+}
+
+function Bubble({ m, tail }: { m: Msg; tail: boolean }) {
+  return (
+    <div style={{ position: "relative", padding: "15px 28px", borderRadius: 42, fontSize: BUBBLE, lineHeight: 1.25, maxWidth: 820, backgroundColor: m.me ? SENT : RECEIVED, color: m.me ? "#FFFFFF" : "#000000", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+      {tail ? <Tail me={!!m.me} /> : null}
+      <span style={{ position: "relative" }}>{m.text}</span>
     </div>
   );
 }
@@ -119,24 +149,34 @@ export const CARD_H = 300;
 export function LinkCard({ link, width = 600 }: { link: Link; width?: number }) {
   const k = width / 600;
   return (
-    <div style={{ width, height: CARD_H * k, boxSizing: "border-box", borderRadius: 26 * k, overflow: "hidden", backgroundColor: "#fff", border: "1px solid #ECE4D6", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
-      <div style={{ height: 200 * k, overflow: "hidden", backgroundColor: "#E9E2D4" }}>
+    <div style={{ width, height: CARD_H * k, boxSizing: "border-box", borderRadius: 34 * k, overflow: "hidden", backgroundColor: RECEIVED, fontFamily: SF }}>
+      <div style={{ height: 204 * k, overflow: "hidden", backgroundColor: "#D8D8DC" }}>
         <Img src={staticFile(`footage/sf-pages/${link.host}.jpg`)} style={{ width: "100%", display: "block" }} />
       </div>
-      <div style={{ padding: `${14 * k}px ${22 * k}px ${16 * k}px` }}>
-        <div style={{ fontSize: 30 * k, fontWeight: 650, color: "#1E1A16", whiteSpace: "nowrap" }}>{link.title}</div>
-        <div style={{ fontSize: 22 * k, color: "#2150D9", marginTop: 4 * k }}>{link.host}</div>
+      <div style={{ padding: `${16 * k}px ${24 * k}px 0` }}>
+        <div style={{ fontSize: 30 * k, fontWeight: 600, color: "#000000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.01em" }}>{link.title}</div>
+        <div style={{ fontSize: 24 * k, color: GREY, marginTop: 4 * k }}>{link.host}</div>
       </div>
     </div>
   );
 }
 
-function Avatars({ people, size }: { people: Person[]; size: number }) {
+function Face({ who, size, ring = PAPER }: { who: Person; size: number; ring?: string }) {
   return (
-    <div style={{ display: "flex" }}>
+    <div style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: COLOR[who], boxShadow: `0 0 0 ${Math.max(2, size * 0.05)}px ${ring}`, color: "#fff", fontWeight: 600, fontSize: size * 0.44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {who[0]}
+    </div>
+  );
+}
+
+function GroupAvatar({ people, size, ring }: { people: Person[]; size: number; ring?: string }) {
+  const small = size * 0.56;
+  const spots = [[0.02, 0.06], [0.42, 0.02], [0.2, 0.42]];
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       {people.slice(0, 3).map((n, i) => (
-        <div key={n} style={{ width: size, height: size, borderRadius: size / 2, marginLeft: i ? -size * 0.3 : 0, backgroundColor: COLOR[n], border: `3px solid #FFFDF8`, color: "#fff", fontWeight: 700, fontSize: size * 0.42, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {n[0]}
+        <div key={n} style={{ position: "absolute", left: spots[i][0] * size, top: spots[i][1] * size }}>
+          <Face who={n} size={small} ring={ring} />
         </div>
       ))}
     </div>
@@ -151,8 +191,33 @@ export interface ChatState {
   panel?: number;
 }
 
+type Item = { kind: "stamp"; text: [string, string]; top: number; h: number } | { kind: "msg"; m: Msg; name: boolean; tail: boolean; face: boolean; read: boolean; top: number; h: number };
+function stack(history: Msg[], shown: Msg[]) {
+  const items: Item[] = [];
+  let y = 0;
+  const push = (it: Item) => {
+    items.push(it);
+    y += it.h;
+  };
+  const all = [...history, ...shown];
+  const lastSent = all.reduce((at, m, i) => (m.me ? i : at), -1);
+  if (history.length) push({ kind: "stamp", text: ["Yesterday", "9:14 PM"], top: y, h: STAMP_H });
+  all.forEach((m, i) => {
+    if (i === history.length) push({ kind: "stamp", text: ["Today", "4:02 PM"], top: y, h: STAMP_H });
+    const prev = all[i - 1];
+    const next = all[i + 1];
+    const first = !prev || prev.who !== m.who || i === history.length;
+    const last = !next || next.who !== m.who || i + 1 === history.length;
+    const name = !m.me && first;
+    const read = i === lastSent;
+    const h = (name ? NAME_H : 0) + (m.link ? CARD_H : TEXT_H) + (read ? READ_H : 0) + (last ? RUN_GAP : IN_RUN);
+    push({ kind: "msg", m, name, tail: last && !m.link, face: !m.me && last, read, top: y, h });
+  });
+  return { items, total: y };
+}
+
 export const PANEL_LINKS = [LINKS.canopy, LINKS.citydata, LINKS.course, LINKS.library, LINKS.heatmap, LINKS.survey];
-const PANEL_TOP = 96;
+const PANEL_TOP = 164;
 export function panelLayout(width: number, port: boolean) {
   const list = port ? 0 : 440;
   const cols = port ? 2 : 3;
@@ -160,22 +225,28 @@ export function panelLayout(width: number, port: boolean) {
   const gap = 24;
   const w = (width - list - pad * 2 - gap * (cols - 1)) / cols;
   const h = (w * CARD_H) / 600;
-  return PANEL_LINKS.map((link, i) => ({ link, x: list + pad + (i % cols) * (w + gap), y: 132 + PANEL_TOP + Math.floor(i / cols) * (h + gap), w, h }));
+  return PANEL_LINKS.map((link, i) => ({ link, x: list + pad + (i % cols) * (w + gap), y: HEADER + PANEL_TOP + Math.floor(i / cols) * (h + gap), w, h }));
 }
-export const badgeCenter = (width: number) => ({ x: width - 34 - 58, y: 66 });
+export const badgeCenter = (width: number) => ({ x: width - INSET - 22, y: HEADER / 2 });
 
-function LinksPanel({ width, height, port, open, count, hide }: { width: number; height: number; port: boolean; open: number; count: number; hide: string[] }) {
+function LinksPanel({ width, port, open, count, hide }: { width: number; port: boolean; open: number; count: number; hide: string[] }) {
   const list = port ? 0 : 440;
   const cards = panelLayout(width, port);
+  const tabs = ["Photos", "Links", "Documents"];
   return (
-    <div style={{ position: "absolute", left: list, right: 0, top: 132, bottom: 0, overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, backgroundColor: "#FBF8F2", translate: `0 ${(1 - open) * (height - 132)}px`, boxShadow: "0 -10px 30px rgba(0,0,0,0.08)" }}>
-        <div style={{ position: "absolute", left: 36, top: 26, display: "flex", alignItems: "baseline", gap: 18 }}>
-          <div style={{ fontSize: 38, fontWeight: 700, color: "#1E1A16" }}>Links</div>
-          <div style={{ fontSize: 24, color: "#857C6F" }}>{count} shared in this chat</div>
+    <div style={{ position: "absolute", left: list, right: 0, top: HEADER, bottom: 0, overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, backgroundColor: PAPER, translate: `${(1 - open) * 104}% 0`, boxShadow: "-12px 0 30px rgba(0,0,0,0.08)", borderLeft: "1px solid #E5E5EA" }}>
+        <div style={{ position: "absolute", left: "50%", top: 24, translate: "-50% 0", display: "flex", padding: 4, borderRadius: 14, backgroundColor: "#E3E3E8" }}>
+          {tabs.map((t) => (
+            <div key={t} style={{ padding: "8px 30px", borderRadius: 11, fontSize: 24, fontWeight: t === "Links" ? 600 : 500, color: "#1C1C1E", backgroundColor: t === "Links" ? "#FFFFFF" : "transparent", boxShadow: t === "Links" ? "0 1px 3px rgba(0,0,0,0.12)" : undefined }}>{t}</div>
+          ))}
+        </div>
+        <div style={{ position: "absolute", left: INSET, top: 96, display: "flex", alignItems: "baseline", gap: 14 }}>
+          <div style={{ fontSize: 36, fontWeight: 700, color: "#000000", letterSpacing: "-0.02em" }}>Links</div>
+          <div style={{ fontSize: 26, color: GREY }}>{count}</div>
         </div>
         {cards.map((c) => (
-          <div key={c.link.host} style={{ position: "absolute", left: c.x - list, top: c.y - 132, opacity: hide.includes(c.link.host) ? 0 : 1 }}>
+          <div key={c.link.host} style={{ position: "absolute", left: c.x - list, top: c.y - HEADER, opacity: hide.includes(c.link.host) ? 0 : 1 }}>
             <LinkCard link={c.link} width={c.w} />
           </div>
         ))}
@@ -184,95 +255,128 @@ function LinksPanel({ width, height, port, open, count, hide }: { width: number;
   );
 }
 
+const Lights = ({ style }: { style?: CSSProperties }) => (
+  <div style={{ display: "flex", gap: 12, ...style }}>
+    {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: c, boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.12)" }} />)}
+  </div>
+);
+
+const STAMPS = ["4:02 PM", "3:47 PM", "Yesterday", "Tuesday"];
+function Sidebar({ b, state }: { b: number; state: ChatState }) {
+  return (
+    <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 440, backgroundColor: SIDEBAR, backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,0.35), rgba(255,255,255,0))", borderRight: "1px solid #DCDCE0", padding: "26px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 8px 24px" }}>
+        <Lights />
+        <Sym name="square.and.pencil" size={30} color="#6C6C70" />
+      </div>
+      <div style={{ height: 52, borderRadius: 13, backgroundColor: "rgba(118,118,128,0.12)", color: GREY, fontSize: 24, display: "flex", alignItems: "center", gap: 10, padding: "0 16px", marginBottom: 16 }}>
+        <Sym name="magnifyingglass" size={24} color={GREY} />
+        Search
+      </div>
+      {THREADS.map((t, i) => {
+        const on = i === state.thread;
+        const unread = !on && i < 3;
+        const lastMsg = t.messages.filter((m) => m.at <= b).at(-1);
+        const preview = lastMsg ? (lastMsg.text ?? `Link: ${lastMsg.link?.host}`) : "";
+        return (
+          <div key={t.id} style={{ position: "relative", display: "flex", gap: 14, alignItems: "center", padding: "14px 14px 14px 30px", borderRadius: 16, backgroundColor: on ? SELECTED : "transparent", marginBottom: 4 }}>
+            {unread ? <div style={{ position: "absolute", left: 8, top: "50%", translate: "0 -50%", width: 14, height: 14, borderRadius: 7, backgroundColor: SELECTED }} /> : null}
+            <GroupAvatar people={t.members} size={64} ring={on ? SELECTED : SIDEBAR} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                <div style={{ fontSize: 25, fontWeight: 600, color: on ? "#FFFFFF" : "#000000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                <div style={{ fontSize: 19, color: on ? "rgba(255,255,255,0.85)" : GREY, flexShrink: 0 }}>{STAMPS[i]}</div>
+              </div>
+              <div style={{ fontSize: 21, color: on ? "rgba(255,255,255,0.85)" : GREY, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {preview}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], hide = [], pointer }: { b: number; width: number; height: number; state: ChatState; port: boolean; focus?: number; extra?: Msg[]; hide?: string[]; pointer?: { x: number; y: number; press: number } | null }) {
   const list = port ? 0 : 440;
   const thread = THREADS[state.thread];
   const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
-  const area = height - 132 - 112;
-  const total = shown.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
-  const latest = shown[shown.length - 1];
-  const settle = latest && latest.at > -0.5 ? springAt(b, latest.at, { stiffness: 260, damping: 26 }) : 1;
-  const lift = latest ? (heightOf(latest) + GAP) * (1 - settle) : 0;
+  const area = height - HEADER - COMPOSE;
   const history = thread.history ?? [];
-  const historyH = history.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
-  const all = [...history, ...shown];
-  let y = area - total - historyH + lift + state.scroll * historyH;
-  const placed = all.map((m) => {
-    const top = y;
-    y += heightOf(m) + GAP;
-    return { m, top };
-  });
+  const { items, total } = stack(history, shown);
+  const historyH = items.filter((it) => it.kind === "msg" ? history.includes(it.m) : it.text[0] === "Yesterday").reduce((sum, it) => sum + it.h, 0);
+  const latest = shown[shown.length - 1];
+  const latestItem = items.at(-1);
+  const settle = latest && latest.at > -0.5 ? springAt(b, latest.at, { stiffness: 260, damping: 26 }) : 1;
+  const lift = latestItem ? latestItem.h * (1 - settle) : 0;
+  const y0 = area - total + lift + state.scroll * historyH;
   const enter = easeOut(clamp((b - state.switchAt) / 0.35));
   return (
-    <div style={{ position: "absolute", inset: 0, borderRadius: 30, overflow: "hidden", backgroundColor: "#FBF8F2", fontFamily: SF, boxShadow: "0 20px 60px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08)" }}>
-      {list ? (
-        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: list, backgroundColor: "#F3EEE4", borderRight: "1px solid #E5DDCF", padding: "24px 18px" }}>
-          <div style={{ display: "flex", gap: 10, marginBottom: 26, marginLeft: 6 }}>
-            {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: c }} />)}
-          </div>
-          <div style={{ height: 54, borderRadius: 16, backgroundColor: "#E9E2D5", color: "#958B7C", fontSize: 24, display: "flex", alignItems: "center", padding: "0 20px", marginBottom: 18 }}>Search</div>
-          {THREADS.map((t, i) => {
-            const on = i === state.thread;
-            const unread = on ? 0 : t.links % 9 + 3;
-            return (
-              <div key={t.id} style={{ display: "flex", gap: 16, alignItems: "center", padding: "16px 14px", borderRadius: 20, backgroundColor: on ? "#FFFFFF" : "transparent", boxShadow: on ? "0 1px 3px rgba(0,0,0,0.06)" : undefined, marginBottom: 6 }}>
-                <Avatars people={t.members} size={50} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 25, fontWeight: 650, color: "#1E1A16", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                  <div style={{ fontSize: 19, color: "#857C6F", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {(t.messages.filter((m) => m.at <= b).at(-1)?.text ?? t.messages.filter((m) => m.at <= b).at(-1)?.link?.host) ?? ""}
-                  </div>
-                </div>
-                {unread ? <div style={{ minWidth: 34, height: 34, borderRadius: 17, backgroundColor: "#C3371F", color: "#fff", fontSize: 19, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 9px" }}>{unread}</div> : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+    <div style={{ position: "absolute", inset: 0, borderRadius: 30, overflow: "hidden", backgroundColor: PAPER, fontFamily: SF, boxShadow: "0 20px 60px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(0,0,0,0.08)" }}>
+      {list ? <Sidebar b={b} state={state} /> : null}
       <div style={{ position: "absolute", left: list, right: 0, top: 0, bottom: 0, opacity: mix(0.4, 1, enter) }}>
-        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 132, borderBottom: "1px solid #E7E0D3", backgroundColor: "#FFFDF8", display: "flex", alignItems: "center", padding: "0 34px", gap: 20 }}>
-          {port ? (
-            <div style={{ display: "flex", gap: 10, position: "absolute", left: 26, top: 22 }}>
-              {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => <div key={c} style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: c }} />)}
-            </div>
-          ) : null}
-          <div style={{ marginLeft: port ? 70 : 0 }}>
-            <Avatars people={thread.members} size={62} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 36, fontWeight: 700, color: "#1E1A16", whiteSpace: "nowrap" }}>{thread.title}</div>
-            <div style={{ fontSize: 22, color: "#7B7368", marginTop: 4 }}>{thread.members.join(", ")}</div>
-          </div>
-          <div style={{ padding: "12px 22px", borderRadius: 30, backgroundColor: "#C3371F", color: "#fff", fontWeight: 700, fontSize: 28, display: "flex", gap: 10, alignItems: "center" }}>
-            <Img src={staticFile("brand/sf/sym-link.png")} style={{ width: 24, height: 24, filter: "invert(1)" }} />
-            {state.links}
-          </div>
-        </div>
-        <div style={{ position: "absolute", left: 0, right: 0, top: 132, height: area, overflow: "hidden" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: HEADER, height: area, overflow: "hidden" }}>
           <div style={{ position: "absolute", inset: 0, transform: `scale(${1 + 0.9 * focus})`, transformOrigin: "30% 70%" }}>
-            {placed.filter(({ top, m }) => top + heightOf(m) > -40 && top < area + 40).map(({ m, top }, k) => {
+            {items.map((it, k) => {
+              const top = y0 + it.top;
+              if (top + it.h < -60 || top > area + 60) return null;
+              if (it.kind === "stamp") {
+                return (
+                  <div key={`s${k}`} style={{ position: "absolute", left: 0, right: 0, top: top + 14, textAlign: "center", fontSize: 21, color: GREY }}>
+                    <span style={{ fontWeight: 600 }}>{it.text[0]}</span> {it.text[1]}
+                  </div>
+                );
+              }
+              const m = it.m;
               const pop = m.at > -0.5 ? springAt(b, m.at, { stiffness: 420, damping: 24 }) : 1;
               const style: CSSProperties = {
-                position: "absolute", top, [m.me ? "right" : "left"]: 36, display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start",
+                position: "absolute", top, [m.me ? "right" : "left"]: m.me ? INSET + 10 : INSET + AVATAR + 18, display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start",
                 transformOrigin: m.me ? "100% 100%" : "0 100%", scale: String(mix(0.85, 1, pop)), opacity: clamp(pop * 3),
               };
               return (
                 <div key={`${k}${m.who}${m.at}`} style={style}>
-                  {!m.me ? <div style={{ fontSize: NAME, fontWeight: 650, color: COLOR[m.who], margin: "0 0 8px 20px" }}>{m.who}</div> : null}
-                  {m.link ? <div style={{ opacity: hide.includes(m.link.host) ? 0 : 1 }}><LinkCard link={m.link} /></div> : <Bubble m={m} />}
+                  {it.name ? <div style={{ fontSize: 21, color: GREY, height: NAME_H, margin: "0 0 0 24px" }}>{m.who}</div> : null}
+                  {m.link ? <div style={{ opacity: hide.includes(m.link.host) ? 0 : 1 }}><LinkCard link={m.link} /></div> : <Bubble m={m} tail={it.tail} />}
+                  {it.read ? <div style={{ fontSize: 20, color: GREY, height: READ_H, paddingTop: 6, marginRight: 8 }}>Read</div> : null}
+                  {it.face ? (
+                    <div style={{ position: "absolute", left: -(AVATAR + 14), bottom: RUN_GAP - 2 }}>
+                      <Face who={m.who} size={AVATAR} />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
           </div>
           {state.scroll > 0.02 ? (
-            <div style={{ position: "absolute", left: "50%", bottom: 22, translate: "-50% 0", padding: "12px 26px", borderRadius: 30, backgroundColor: "#26231F", color: "#fff", fontSize: 24, fontWeight: 600, opacity: clamp(state.scroll * 6) }}>
+            <div style={{ position: "absolute", left: "50%", bottom: 22, translate: "-50% 0", padding: "12px 26px", borderRadius: 30, backgroundColor: "rgba(242,242,247,0.96)", boxShadow: "0 4px 14px rgba(0,0,0,0.14)", color: SELECTED, fontSize: 24, fontWeight: 600, opacity: clamp(state.scroll * 6) }}>
               ↓ {Math.round(12 + state.scroll * 36)} new messages
             </div>
           ) : null}
         </div>
-        <div style={{ position: "absolute", left: 28, right: 28, bottom: 26, height: 64, borderRadius: 32, backgroundColor: "#fff", border: "1px solid #E2DACB", display: "flex", alignItems: "center", padding: "0 28px", color: "#A59C8E", fontSize: 26 }}>Message {thread.title}</div>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: HEADER, borderBottom: "1px solid #E5E5EA", backgroundColor: "rgba(255,255,255,0.78)", backdropFilter: "blur(24px) saturate(1.6)" }}>
+          {port ? <Lights style={{ position: "absolute", left: 28, top: 26 }} /> : null}
+          <div style={{ position: "absolute", left: 0, right: 0, top: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <GroupAvatar people={thread.members} size={62} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 23, fontWeight: 600, color: "#000000" }}>
+              {thread.title}
+              <Sym name="chevron.right" size={16} color={GREY} />
+            </div>
+          </div>
+          <div style={{ position: "absolute", right: INSET, top: 0, height: HEADER, display: "flex", alignItems: "center", gap: 30 }}>
+            <Sym name="video" size={44} color="#6C6C70" />
+            <Sym name="info.circle" size={44} color="#6C6C70" />
+          </div>
+        </div>
+        <div style={{ position: "absolute", left: INSET - 8, right: INSET - 8, bottom: 26, height: 62, display: "flex", alignItems: "center", gap: 16 }}>
+          <Sym name="plus.circle.fill" size={50} color="#B9B9BE" />
+          <div style={{ flex: 1, height: 62, borderRadius: 31, border: "1.5px solid #D1D1D6", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 22px 0 26px", color: "#AEAEB2", fontSize: 26 }}>
+            Message
+            <Sym name="face.smiling" size={34} color="#AEAEB2" />
+          </div>
+        </div>
       </div>
-      {state.panel && state.panel > 0.001 ? <LinksPanel width={width} height={height} port={port} open={state.panel} count={state.links} hide={hide} /> : null}
+      {state.panel && state.panel > 0.001 ? <LinksPanel width={width} port={port} open={state.panel} count={state.links} hide={hide} /> : null}
       {pointer ? (
         <div style={{ position: "absolute", left: 0, top: 0, width: 0, height: 0, scale: "1.7", transformOrigin: `${pointer.x}px ${pointer.y}px` }}>
           <Pointer x={pointer.x} y={pointer.y} press={pointer.press} />
@@ -280,22 +384,6 @@ export function ChatApp({ b, width, height, state, port, focus = 0, extra = [], 
       ) : null}
     </div>
   );
-}
-
-export function chatLayout(b: number, height: number, state: ChatState, port: boolean, extra: Msg[] = []) {
-  const thread = THREADS[state.thread];
-  const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
-  const area = height - 132 - 112;
-  const total = shown.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
-  const history = thread.history ?? [];
-  const historyH = history.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
-  let y = area - total - historyH + state.scroll * historyH;
-  const out: { link: Link; x: number; y: number; w: number; h: number }[] = [];
-  for (const m of [...history, ...shown]) {
-    if (m.link && y > -200 && y < area) out.push({ link: m.link, x: (port ? 0 : 440) + 36, y: 132 + y + (m.me ? 0 : NAME + 8), w: 600, h: 316 - NAME - 8 });
-    y += heightOf(m) + GAP;
-  }
-  return out;
 }
 
 export function chatState(b: number, marks: Record<string, number>): ChatState {

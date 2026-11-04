@@ -76,7 +76,10 @@ def build(scene):
             span = 240
             shifts = range(16, a.shape[1] - x0 - span)
             insert = min(shifts, key=lambda d: float(np.abs(a[:96, x0:x0 + span] - b[:96, x0 + d:x0 + d + span]).mean()))
-            extra["strip"] = {"x": x0 / 2, "y": 2.0, "width": float(cols.max() - x0) / 2, "height": 40.0, "insert": insert / 2}
+            rgb = np.asarray(Image.open(os.path.join(dst, f"{first:04d}.jpg")).convert("RGB"), np.float32)
+            fill = np.median(rgb[14:22, max(0, x0 - 10):max(1, x0 - 2)].reshape(-1, 3), axis=0)
+            extra["strip"] = {"x": x0 / 2, "y": 2.0, "width": float(cols.max() - x0) / 2, "height": 40.0, "insert": insert / 2,
+                              "fill": "#%02X%02X%02X" % tuple(int(round(v)) for v in fill)}
     tint = C.sampled_tint(frames[0]["f"]) if frames else None
     if tint is not None:
         extra["tint"] = ["#%02X%02X%02X" % tuple(int(round(v)) for v in c) for c in tint]

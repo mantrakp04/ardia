@@ -133,7 +133,7 @@ python3 scripts/capture/sf-composite.py <scene>…                    # every .c
   - In the top strip, the new tab's slot opens at the insertion point and the tabs to its right slide over by its measured width.
   - Measured locally, a change takes 0.9–1.2 s to reach the other sidebar. The film's commit-to-arrival gap is 0.8–1.4 s.
 - **Composited, not captured:**
-  - the chats (a stand-in with invented people and no messenger brand) and its links panel;
+  - the chats, drawn in the look of macOS Messages at the owner's request: invented people, `*.example` link previews, its Info › Links view, and no app icon, Apple logo or "iMessage" on screen;
   - the context menus (drawn from the `menu.json` items the app dumped, with SF Symbols rendered by AppKit);
   - the share picker (background mode only logs it), recreated in the macOS look with the system's own app and folder icons.
 - **Pages.** The pages are stand-in sites with CC0 photos and no people in them (`sites/SOURCES.md`).

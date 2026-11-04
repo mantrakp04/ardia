@@ -583,13 +583,13 @@
       "parentId": null,
       "values": {
         "text": "The sidebar browser for Mac",
-        "size": 52,
+        "size": 58,
         "color": "#6E6E73",
         "fill": "#00000000",
         "x": 160,
         "y": 540,
         "width": 1600,
-        "height": 80,
+        "height": 84,
         "rotation": 0
       }
     },

@@ -208,9 +208,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 250,
+        "y": 210,
         "width": 1000,
-        "height": 520,
+        "height": 250,
         "rotation": 0
       }
     },
@@ -221,9 +221,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 830,
+        "y": 525,
         "width": 1000,
-        "height": 520,
+        "height": 250,
         "rotation": 0
       }
     },
@@ -234,9 +234,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 2200,
+        "y": 840,
         "width": 1000,
-        "height": 520,
+        "height": 250,
         "rotation": 0
       }
     },
@@ -247,9 +247,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 2200,
+        "y": 1155,
         "width": 1000,
-        "height": 520,
+        "height": 250,
         "rotation": 0
       }
     },
@@ -264,9 +264,9 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1365,
+        "y": 30,
         "width": 960,
-        "height": 110,
+        "height": 100,
         "rotation": 0
       }
     },
@@ -583,13 +583,13 @@
       "parentId": null,
       "values": {
         "text": "The sidebar browser for Mac",
-        "size": 50,
+        "size": 56,
         "color": "#6E6E73",
         "fill": "#00000000",
         "x": 60,
         "y": 895,
         "width": 960,
-        "height": 80,
+        "height": 84,
         "rotation": 0
       }
     },

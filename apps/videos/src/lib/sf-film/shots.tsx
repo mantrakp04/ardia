@@ -58,13 +58,14 @@ const STRIP_PT = 48;
 function arrival(name: string, b: number, at: number, opts: { before?: string; after?: string; rename?: RegExp; top?: boolean } = {}): Arrival {
   const beforeLabel = opts.before ?? "arrive:before";
   if (opts.top) {
-    const strip = (scene(name) as unknown as { strip?: Rect & { insert?: number } }).strip;
+    const strip = (scene(name) as unknown as { strip?: Rect & { insert?: number; fill?: string } }).strip;
     const before = indexOf(name, beforeLabel);
     const last = opts.after === "added" ? lastIndexOf(name, "added") : has(name, "settled") ? lastIndexOf(name, "settled") : lastIndexOf(name, "arrive");
     if (!strip) return playback(name, b, at, opts.after === "added" ? ["adding", "added"] : ["arrive", "settled"], before);
     if (b < at) return { index: before, overlay: null, halo: null };
-    const t = sineInOut(clamp((b - at) / 0.72));
     const insert = strip.insert ?? strip.width;
+    const t = sineInOut(clamp((b - at) / (0.72 * clamp(insert / 250, 1, 2.2))));
+    const reveal = clamp((t - 0.3) / 0.6);
     const gap = t * insert;
     const right = strip.x + strip.width;
     const band = { position: "absolute", top: 0, height: STRIP_PT, overflow: "hidden" } as const;
@@ -76,6 +77,7 @@ function arrival(name: string, b: number, at: number, opts: { before?: string; a
         </div>
         <div style={{ ...band, left: strip.x, width: gap }}>
           <Img src={footageSrc(name, last)} style={{ ...frame, left: -strip.x }} />
+          {strip.fill ? <div style={{ position: "absolute", left: 0, right: 0, top: 7, height: 28, backgroundColor: strip.fill, opacity: 1 - reveal }} /> : null}
         </div>
       </>
     ) : null;
@@ -96,7 +98,8 @@ function arrival(name: string, b: number, at: number, opts: { before?: string; a
   const dur = plan.from ? 0.85 : 0.72;
   const t = sineInOut(clamp((b - at) / dur));
   if (b < at) return { index: before, overlay: null, halo: null };
-  const overlay = t < 1 ? <Morph src={name} before={before} after={after} plan={plan} p={t} tint={tintOf(name)} /> : null;
+  const tail = clamp(((b - at) / dur - 1) / 0.35);
+  const overlay = tail < 1 ? <div style={{ position: "absolute", inset: 0, opacity: 1 - tail }}><Morph src={name} before={before} after={after} plan={plan} p={t} tint={tintOf(name)} /></div> : null;
   return { index: after, overlay, halo: t > 0.45 ? targetAt(plan, t) : null };
 }
 
@@ -288,7 +291,7 @@ function TurnShot() {
   const lastLift = lift + (links.length - 1) * stagger;
   const fade = 1 - sineInOut(clamp((b - lastLift - 0.25) / chatOut));
   const up = sineInOut(clamp((b - rise) / 1.6));
-  const landed = (i: number) => clamp((b - (lift + land + i * stagger)) / 0.3);
+  const landed = (i: number) => clamp((b - (lift + i * stagger + land * 0.85)) / (land * 0.22));
   const lifted = TURN_LINKS.filter((_, i) => b >= lift + i * stagger).map((l) => l.host);
   const pointer = chatPointer(b + chat.beats, chatBox.w, chat.marks!.panel);
   return (
@@ -328,9 +331,7 @@ function TurnShot() {
         return (
           <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${18 * lifting}px ${30 * lifting}px rgba(0,0,0,0.18))` }}>
             <div style={{ position: "relative", width: w, height: mix((fromW * CARD_H) / 600, r.height * cam.s, t), overflow: "hidden", borderRadius: mix((26 * fromW) / 600, 8, t) }}>
-              <div style={{ opacity: 1 - seg(b, start + land * 0.55, land * 0.4) }}>
-                <LinkCard link={link} width={w} />
-              </div>
+              <LinkCard link={link} width={w} />
             </div>
           </div>
         );
@@ -485,7 +486,7 @@ function EndShot() {
   return (
     <Paper>
       <div style={{ position: "absolute", inset: 0, scale: String(push) }}>
-        <Box id={shot.panes![0].id} style={{ scale: String(mix(0.85, 1, s)), opacity: s, translate: `0 ${bob}px` }}>
+        <Box id={shot.panes![0].id} style={{ scale: String(mix(0.94, 1, s)), opacity: b >= lock ? 1 : 0, translate: `0 ${bob}px` }}>
           <Img src={staticFile("brand/app-icon.png")} style={{ width: "100%", height: "100%", filter: "drop-shadow(0 14px 24px rgba(0,0,0,0.18))" }} />
         </Box>
         <Supers />

@@ -28,6 +28,7 @@ export interface TypeLayer {
   box: Record<Aspect, Box>;
   align?: "left" | "center" | "right";
   portAlign?: "left" | "center" | "right";
+  cut?: boolean;
 }
 
 export type Layout = "sidebar" | "right" | "top";
@@ -110,17 +111,17 @@ const turn: Shot = {
   panes: [pane("turn-priya", { land: [300, 150, 1320, 825], port: [40, 250, 1000, 1080] },
     [[0, 0, 16, 600, 420], [3.6, 0, 6, 760, 500, "inout", 3.3]], [[0, 0, 16, 440, 480], [3.6, 0, 8, 520, 560, "inout", 3.3]],
     { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
-  marks: { lift: 0.5, land: 2.8, stagger: 0.22, chatOut: 0.9, rise: 2.55 },
+  marks: { lift: 0.5, land: 2.8, stagger: 0.22, chatOut: 1.0, rise: 1.55 },
   type: [],
 };
 
 const cell = (c: number, r: number): Record<Aspect, Box> => ({
   land: [70 + c * 898, 214 + r * 418, 880, 354],
-  port: r === 0 ? [40, 250 + c * 580, 1000, 520] : [40, 2200, 1000, 520],
+  port: [40, 210 + (r * 2 + c) * 315, 1000, 250],
 });
 const recv = (id: string, scene: string, who: Who, layout: Layout, c: number, r: number, role: Pane["role"], marks: Record<string, number>) => {
-  const [x0, y0, x1, y1] = region(layout, 600, 270, 8);
-  const [px0, py0, px1, py1] = region(layout, 560, 250, 8);
+  const [x0, y0, x1, y1] = region(layout, layout === "top" ? 700 : 600, 300, 8);
+  const [px0, py0, px1, py1] = region(layout, 700, 178, 8);
   return pane(id, cell(c, r), [[0, x0, y0, x1, y1], [0.01, x0, y0 + 2, x1 - 24, y1 - 10, "inout", 7.9]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 2, px1 - 20, py1 - 8, "inout", 7.9]], { scene, who, layout, role, marks });
 };
 
@@ -133,7 +134,7 @@ const grid: Shot = {
     recv("grid-ava", "story-add-ava", "ava", "top", 1, 1, "add", { arrive: 1 }),
   ],
   type: [
-    T("grid-title", "Shared Folders", 1.5, 7.9, "title", 84, [160, 22, 1600, 100], [60, 1365, 960, 110]),
+    T("grid-title", "Shared Folders", 1.5, 7.9, "title", 84, [160, 22, 1600, 100], [60, 30, 960, 100]),
   ],
 };
 
@@ -150,7 +151,7 @@ const share: Shot = {
 const accept: Shot = {
   id: "accept", kind: "accept", at: 43, beats: 6,
   panes: [pane("accept-window", { land: [300, 80, 1320, 825], port: [40, 250, 1000, 1080] },
-    [[0, 0, 20, 900, 590], [0.3, 0, 20, 760, 500, "inout", 2.0]], [[0, 0, 20, 640, 690], [0.3, 0, 20, 560, 605, "inout", 2.0]],
+    [[0, 0, 20, 860, 565], [0.01, 0, 20, 830, 545, "inout", 5.9]], [[0, 0, 20, 640, 690], [0.01, 0, 20, 620, 668, "inout", 5.9]],
     { scene: "story-add-tomas", who: "tomas", layout: "sidebar" })],
   marks: { menu: 1, pick: 2.4, arrive: 3.2 },
   type: [],
@@ -201,7 +202,7 @@ const causePane = (id: string, scene: string, who: Who, layout: Layout, grab: nu
 };
 const effectPane = (id: string, scene: string, who: Who, layout: Layout, box: Record<Aspect, Box>, arrive: number, beats: number, small = false): Pane => {
   const top = layout === "top";
-  const [x0, y0, x1, y1] = top ? (small ? [0, 0, 560, 520] : [120, 0, 1160, 380]) : small ? region(layout, 330, 280) : region(layout, 560, 340);
+  const [x0, y0, x1, y1] = top ? (small ? [0, 0, 560, 520] : [120, 0, 1160, 380]) : small ? region(layout, 262, 245) : region(layout, 560, 340);
   const [px0, py0, px1, py1] = top ? (small ? [0, 0, 760, 230] : [520, 0, 1160, 755]) : small ? region(layout, 480, 170) : region(layout, 420, 460);
   return pane(id, box, [[0, x0, y0, x1, y1], [0.01, x0, y0, x1 - 16, y1 - 6, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0, px1 - 12, py1 - 6, "inout", beats]], { scene, who, layout, role: "arrive", marks: { arrive } });
 };
@@ -234,12 +235,12 @@ const callback: Shot = {
 const end: Shot = {
   id: "end", kind: "end", at: 101, beats: 10,
   panes: [{ id: "end-icon", box: { land: [860, 170, 200, 200], port: [440, 520, 200, 200] } }],
-  marks: { lockup: 4.2 },
+  marks: { lockup: 4 },
   type: [
-    T("end-feature", "Shared Folders", 0, 4.6, "title", 120, [160, 460, 1600, 140], [60, 820, 960, 140], { portSize: 104 }),
-    T("end-ardia", "Ardia", 4.2, 10, "title", 116, [160, 400, 1600, 130], [60, 755, 960, 130], { portSize: 112 }),
-    T("end-category", "The sidebar browser for Mac", 4.2, 10, "caption", 52, [160, 540, 1600, 80], [60, 895, 960, 80], { color: MUTED, portSize: 50 }),
-    T("end-url", "Download at ardia.dev", 4.2, 10, "caption", 62, [160, 650, 1600, 90], [60, 1000, 960, 90], { color: "#2150D9", portSize: 60 }),
+    T("end-feature", "Shared Folders", 0, 4, "title", 120, [160, 460, 1600, 140], [60, 820, 960, 140], { portSize: 104, cut: true }),
+    T("end-ardia", "Ardia", 4, 10, "title", 116, [160, 400, 1600, 130], [60, 755, 960, 130], { portSize: 112, cut: true }),
+    T("end-category", "The sidebar browser for Mac", 4, 10, "caption", 58, [160, 540, 1600, 84], [60, 895, 960, 84], { color: MUTED, portSize: 56, cut: true }),
+    T("end-url", "Download at ardia.dev", 4, 10, "caption", 62, [160, 650, 1600, 90], [60, 1000, 960, 90], { color: "#2150D9", portSize: 60, cut: true }),
   ],
 };
 

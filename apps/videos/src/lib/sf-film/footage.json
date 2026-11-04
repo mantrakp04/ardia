@@ -1087,7 +1087,8 @@
    "y": 2.0,
    "width": 747.0,
    "height": 40.0,
-   "insert": 177.0
+   "insert": 177.0,
+   "fill": "#DCDCDC"
   },
   "tint": [
    "#E8E8E8",
@@ -12004,7 +12005,8 @@
    "y": 2.0,
    "width": 1093.0,
    "height": 40.0,
-   "insert": 920.5
+   "insert": 920.5,
+   "fill": "#E3CFC8"
   },
   "tint": [
    "#E4CFC9",
@@ -14652,7 +14654,8 @@
    "y": 2.0,
    "width": 406.0,
    "height": 40.0,
-   "insert": 177.0
+   "insert": 177.0,
+   "fill": "#D6CDBC"
   },
   "tint": [
    "#E2D9C7",
