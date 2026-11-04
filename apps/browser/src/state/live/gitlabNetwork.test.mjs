@@ -237,3 +237,40 @@ test("switching instances detaches old GitLab tabs without closing them", async 
     browser().closeWindow(windowId);
   }
 });
+
+test("a refresh cannot send a new token to the old site while the connection changes", async () => {
+  const { shellNativeModules } = await import("../../test-native/shell.ts");
+  const { SOURCES, connectGitlab } = await import("./sources.ts");
+  const { updateConfig } = await import("./store.ts");
+  const originalFetch = globalThis.fetch;
+  const keychain = shellNativeModules.ArdiaKeychain;
+  const oldGet = keychain.get;
+  const oldSet = keychain.set;
+  let release;
+  let started;
+  const held = new Promise((resolve) => { release = resolve; });
+  const startedPromise = new Promise((resolve) => { started = resolve; });
+  let calls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/user")) return Response.json(fixture.user);
+    calls++;
+    return Response.json([]);
+  };
+  keychain.get = async () => "new-token";
+  keychain.set = async () => { started(); await held; return true; };
+  try {
+    updateConfig({ gitlabSite: "https://instance-a.example", gitlabUserId: "31" });
+    const connecting = connectGitlab("https://instance-b.example", "new-token");
+    await startedPromise;
+    await assert.rejects(SOURCES.gitlab.fetch({ filters: { authored: true, reviewRequests: false } }),
+      (error) => error instanceof LiveError && error.kind === "signedOut");
+    assert.equal(calls, 0);
+    release();
+    await connecting;
+  } finally {
+    release();
+    keychain.get = oldGet;
+    keychain.set = oldSet;
+    globalThis.fetch = originalFetch;
+  }
+});
