@@ -213,6 +213,10 @@ export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", da
   );
 }
 
+export function GlassGroup(props: ViewProps) {
+  return <View {...props} />;
+}
+
 export type ContextMenuAreaProps = ViewProps & { onContextMenu?: () => void; captureDescendants?: boolean };
 
 export function ContextMenuArea({ onContextMenu, captureDescendants: _capture, ...props }: ContextMenuAreaProps) {
