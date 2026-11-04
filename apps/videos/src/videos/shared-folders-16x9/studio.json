@@ -164,10 +164,27 @@
       "label": "chat · window",
       "parentId": null,
       "values": {
-        "x": 110,
-        "y": 90,
-        "width": 1000,
-        "height": 900,
+        "x": 60,
+        "y": 60,
+        "width": 1060,
+        "height": 960,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "chat-count",
+      "definition": "type",
+      "label": "chat · 46 LINKS.",
+      "parentId": null,
+      "values": {
+        "text": "46 LINKS.",
+        "size": 300,
+        "color": "#C3371F",
+        "fill": "#00000000",
+        "x": 1180,
+        "y": 330,
+        "width": 700,
+        "height": 330,
         "rotation": 0
       }
     },
@@ -181,7 +198,7 @@
         "size": 200,
         "color": "#16130F",
         "fill": "#00000000",
-        "x": 1170,
+        "x": 1180,
         "y": 160,
         "width": 690,
         "height": 720,
@@ -195,7 +212,7 @@
       "parentId": null,
       "values": {
         "x": 270,
-        "y": 170,
+        "y": 180,
         "width": 1380,
         "height": 862,
         "rotation": 0
@@ -225,7 +242,7 @@
       "parentId": null,
       "values": {
         "x": 270,
-        "y": 170,
+        "y": 180,
         "width": 1380,
         "height": 862,
         "rotation": 0
@@ -234,17 +251,17 @@
     {
       "id": "share-name",
       "definition": "type",
-      "label": "share · SHARED FOLDERS",
+      "label": "share · SHARED FOLDERS.",
       "parentId": null,
       "values": {
-        "text": "SHARED FOLDERS",
-        "size": 44,
-        "color": "#B0617F",
-        "fill": "#00000000",
-        "x": 1010,
-        "y": 40,
+        "text": "SHARED FOLDERS.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#B0617F",
+        "x": 1000,
+        "y": 30,
         "width": 860,
-        "height": 60,
+        "height": 130,
         "rotation": 0
       }
     },
@@ -259,9 +276,22 @@
         "color": "#F1ECE2",
         "fill": "#C3371F",
         "x": 1300,
-        "y": 700,
+        "y": 720,
         "width": 560,
-        "height": 300,
+        "height": 280,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "invite-window",
+      "definition": "window",
+      "label": "invite · window",
+      "parentId": null,
+      "values": {
+        "x": 270,
+        "y": 180,
+        "width": 1380,
+        "height": 862,
         "rotation": 0
       }
     },
@@ -272,7 +302,7 @@
       "parentId": null,
       "values": {
         "x": 270,
-        "y": 170,
+        "y": 180,
         "width": 1380,
         "height": 862,
         "rotation": 0
@@ -288,10 +318,10 @@
         "size": 170,
         "color": "#F1ECE2",
         "fill": "#3F7DB0",
-        "x": 1180,
-        "y": 700,
-        "width": 680,
-        "height": 320,
+        "x": 1220,
+        "y": 760,
+        "width": 640,
+        "height": 260,
         "rotation": 0
       }
     },
@@ -302,9 +332,9 @@
       "parentId": null,
       "values": {
         "x": 50,
-        "y": 190,
+        "y": 215,
         "width": 900,
-        "height": 840,
+        "height": 830,
         "rotation": 0
       }
     },
@@ -315,9 +345,9 @@
       "parentId": null,
       "values": {
         "x": 970,
-        "y": 190,
+        "y": 215,
         "width": 900,
-        "height": 840,
+        "height": 830,
         "rotation": 0
       }
     },
@@ -332,7 +362,7 @@
         "color": "#F1ECE2",
         "fill": "#B0617F",
         "x": 50,
-        "y": 40,
+        "y": 30,
         "width": 900,
         "height": 120,
         "rotation": 0
@@ -349,7 +379,7 @@
         "color": "#F1ECE2",
         "fill": "#3F7DB0",
         "x": 970,
-        "y": 40,
+        "y": 30,
         "width": 900,
         "height": 120,
         "rotation": 0
@@ -362,26 +392,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "back-both",
-      "definition": "type",
-      "label": "back-cause · BOTH WAYS.",
-      "parentId": null,
-      "values": {
-        "text": "BOTH WAYS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#16130F",
-        "x": 1020,
-        "y": 760,
-        "width": 820,
-        "height": 220,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -392,9 +405,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -405,9 +418,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -418,26 +431,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "rename-word",
-      "definition": "type",
-      "label": "rename-effect · RENAMES.",
-      "parentId": null,
-      "values": {
-        "text": "RENAMES.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 1020,
-        "y": 760,
-        "width": 820,
-        "height": 220,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -448,9 +444,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -461,26 +457,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "reorder-word",
-      "definition": "type",
-      "label": "reorder-effect · REORDERS.",
-      "parentId": null,
-      "values": {
-        "text": "REORDERS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#B0617F",
-        "x": 1020,
-        "y": 760,
-        "width": 820,
-        "height": 220,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -491,9 +470,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -504,26 +483,9 @@
       "parentId": null,
       "values": {
         "x": 80,
-        "y": 70,
+        "y": 80,
         "width": 1760,
-        "height": 940,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "sub-word",
-      "definition": "type",
-      "label": "sub-effect · SUBFOLDERS.",
-      "parentId": null,
-      "values": {
-        "text": "SUBFOLDERS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 1020,
-        "y": 760,
-        "width": 820,
-        "height": 220,
+        "height": 930,
         "rotation": 0
       }
     },
@@ -534,9 +496,9 @@
       "parentId": null,
       "values": {
         "x": 50,
-        "y": 190,
+        "y": 215,
         "width": 900,
-        "height": 840,
+        "height": 830,
         "rotation": 0
       }
     },
@@ -547,9 +509,9 @@
       "parentId": null,
       "values": {
         "x": 970,
-        "y": 190,
+        "y": 215,
         "width": 900,
-        "height": 840,
+        "height": 830,
         "rotation": 0
       }
     },
@@ -571,49 +533,75 @@
       }
     },
     {
+      "id": "nos-priya",
+      "definition": "window",
+      "label": "nos · priya",
+      "parentId": null,
+      "values": {
+        "x": 50,
+        "y": 215,
+        "width": 900,
+        "height": 830,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "nos-tomas",
+      "definition": "window",
+      "label": "nos · tomas",
+      "parentId": null,
+      "values": {
+        "x": 970,
+        "y": 215,
+        "width": 900,
+        "height": 830,
+        "rotation": 0
+      }
+    },
+    {
       "id": "nos-folder",
       "definition": "window",
       "label": "nos · folder",
       "parentId": null,
       "values": {
         "x": 1140,
-        "y": 150,
+        "y": 170,
         "width": 700,
-        "height": 700,
+        "height": 600,
         "rotation": 0
       }
     },
     {
       "id": "nos-account",
       "definition": "type",
-      "label": "nos · NO ACCOUNT.",
+      "label": "nos · NO ARDIA ACCOUNT.",
       "parentId": null,
       "values": {
-        "text": "NO ACCOUNT.",
-        "size": 400,
+        "text": "NO ARDIA\nACCOUNT.",
+        "size": 260,
         "color": "#F1ECE2",
-        "fill": "#00000000",
+        "fill": "#16130F",
         "x": 80,
-        "y": 230,
+        "y": 330,
         "width": 1760,
-        "height": 560,
+        "height": 420,
         "rotation": 0
       }
     },
     {
-      "id": "nos-signup",
+      "id": "nos-server",
       "definition": "type",
-      "label": "nos · NO SIGN-UP.",
+      "label": "nos · NO SERVER.",
       "parentId": null,
       "values": {
-        "text": "NO SIGN-UP.",
-        "size": 400,
+        "text": "NO SERVER.",
+        "size": 300,
         "color": "#F1ECE2",
-        "fill": "#00000000",
+        "fill": "#C3371F",
         "x": 80,
-        "y": 230,
+        "y": 330,
         "width": 1760,
-        "height": 560,
+        "height": 420,
         "rotation": 0
       }
     },
@@ -646,7 +634,7 @@
         "fill": "#00000000",
         "x": 84,
         "y": 880,
-        "width": 1800,
+        "width": 1000,
         "height": 50,
         "rotation": 0
       }
@@ -657,10 +645,40 @@
       "label": "end · icon",
       "parentId": null,
       "values": {
-        "x": 470,
-        "y": 170,
-        "width": 250,
-        "height": 250,
+        "x": 100,
+        "y": 210,
+        "width": 230,
+        "height": 230,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-live",
+      "definition": "window",
+      "label": "end · live",
+      "parentId": null,
+      "values": {
+        "x": 1240,
+        "y": 140,
+        "width": 600,
+        "height": 800,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-new",
+      "definition": "type",
+      "label": "end · NEW: SHARED FOLDERS",
+      "parentId": null,
+      "values": {
+        "text": "NEW: SHARED FOLDERS",
+        "size": 54,
+        "color": "#B0617F",
+        "fill": "#00000000",
+        "x": 104,
+        "y": 140,
+        "width": 1060,
+        "height": 60,
         "rotation": 0
       }
     },
@@ -671,13 +689,13 @@
       "parentId": null,
       "values": {
         "text": "ARDIA",
-        "size": 290,
+        "size": 270,
         "color": "#16130F",
         "fill": "#00000000",
-        "x": 760,
-        "y": 160,
-        "width": 720,
-        "height": 270,
+        "x": 360,
+        "y": 200,
+        "width": 760,
+        "height": 250,
         "rotation": 0
       }
     },
@@ -688,13 +706,13 @@
       "parentId": null,
       "values": {
         "text": "THE SIDEBAR BROWSER FOR MAC",
-        "size": 70,
+        "size": 64,
         "color": "#2150D9",
         "fill": "#00000000",
-        "x": 300,
+        "x": 104,
         "y": 480,
-        "width": 1320,
-        "height": 90,
+        "width": 1060,
+        "height": 80,
         "rotation": 0
       }
     },
@@ -705,12 +723,12 @@
       "parentId": null,
       "values": {
         "text": "DOWNLOAD",
-        "size": 90,
+        "size": 86,
         "color": "#16130F",
         "fill": "#00000000",
-        "x": 300,
-        "y": 620,
-        "width": 1320,
+        "x": 104,
+        "y": 610,
+        "width": 1060,
         "height": 100,
         "rotation": 0
       }
@@ -722,13 +740,81 @@
       "parentId": null,
       "values": {
         "text": "ARDIA.DEV",
-        "size": 230,
+        "size": 220,
         "color": "#C3371F",
         "fill": "#00000000",
-        "x": 300,
-        "y": 730,
-        "width": 1320,
-        "height": 250,
+        "x": 100,
+        "y": 710,
+        "width": 1060,
+        "height": 240,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "back-word-text",
+      "definition": "type",
+      "label": "back-word · BOTH WAYS.",
+      "parentId": null,
+      "values": {
+        "text": "BOTH WAYS.",
+        "size": 200,
+        "color": "#F1ECE2",
+        "fill": "#16130F",
+        "x": 1020,
+        "y": 770,
+        "width": 820,
+        "height": 210,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "rename-word-text",
+      "definition": "type",
+      "label": "rename-word · RENAMES.",
+      "parentId": null,
+      "values": {
+        "text": "RENAMES.",
+        "size": 200,
+        "color": "#F1ECE2",
+        "fill": "#3F7DB0",
+        "x": 1020,
+        "y": 770,
+        "width": 820,
+        "height": 210,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "reorder-word-text",
+      "definition": "type",
+      "label": "reorder-word · REORDERS.",
+      "parentId": null,
+      "values": {
+        "text": "REORDERS.",
+        "size": 200,
+        "color": "#F1ECE2",
+        "fill": "#B0617F",
+        "x": 1020,
+        "y": 770,
+        "width": 820,
+        "height": 210,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "sub-word-text",
+      "definition": "type",
+      "label": "sub-word · SUBFOLDERS.",
+      "parentId": null,
+      "values": {
+        "text": "SUBFOLDERS.",
+        "size": 200,
+        "color": "#F1ECE2",
+        "fill": "#3F7DB0",
+        "x": 1020,
+        "y": 770,
+        "width": 820,
+        "height": 210,
         "rotation": 0
       }
     }

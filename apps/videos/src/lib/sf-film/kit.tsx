@@ -188,7 +188,7 @@ export function NameTag({ text, fill }: { text: string; fill: string }) {
   return (
     <div
       style={{
-        position: "absolute", left: 22, top: -26, height: 52, padding: "0 22px", borderRadius: 26, backgroundColor: fill,
+        position: "absolute", left: 18, top: -60, height: 50, padding: "0 22px", borderRadius: 26, backgroundColor: fill,
         display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 18px rgba(22,19,15,0.25)",
       }}
     >
@@ -302,8 +302,13 @@ export function Type({ layer }: { layer: TypeLayer }) {
   let shown = text;
   const align = (frame.width < frame.height && layer.portAlign) || layer.align || "left";
   let style: CSSProperties = poster;
+  if (layer.count) {
+    const hit = [...layer.count].reverse().find(([at]) => b >= at);
+    if (hit) shown = text.replace(/^\d+/, String(hit[1]));
+  }
   if (layer.style === "slam") {
-    const s = springAt(b, layer.at, { stiffness: 620, damping: 26 });
+    const last = layer.count ? Math.max(layer.at, ...layer.count.map(([at]) => at).filter((at) => b >= at)) : layer.at;
+    const s = springAt(b, last, { stiffness: 620, damping: 26 });
     scale = 1.07 - 0.07 * s;
     extraRot = (1 - s) * (random(layer.id) - 0.5) * 5;
   } else if (layer.style === "stamp") {

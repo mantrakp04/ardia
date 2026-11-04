@@ -70,7 +70,7 @@
    "beat": 1.5
   },
   {
-   "kind": "chatPop",
+   "kind": "slam",
    "beat": 2
   },
   {
@@ -82,82 +82,79 @@
    "beat": 3
   },
   {
-   "kind": "slam",
-   "beat": 4
-  },
-  {
-   "kind": "chatPop",
-   "beat": 5
-  },
-  {
-   "kind": "chatPop",
-   "beat": 6
-  },
-  {
    "kind": "whoosh",
-   "beat": 7.75
+   "beat": 3.75
   },
   {
    "kind": "click",
-   "beat": 9.5
+   "beat": 5.5
   },
   {
    "kind": "tick",
-   "beat": 10.5
+   "beat": 6.4
   },
   {
    "kind": "click",
-   "beat": 11
+   "beat": 7
   },
   {
    "kind": "sheet",
-   "beat": 12
+   "beat": 8
   },
   {
    "kind": "tick",
-   "beat": 13.5
+   "beat": 9.5
   },
   {
    "kind": "click",
-   "beat": 14.5
+   "beat": 10.5
   },
   {
    "kind": "arrive",
-   "beat": 15,
+   "beat": 11,
    "gain": 0.45
   },
   {
-   "kind": "whoosh",
-   "beat": 15.75
+   "kind": "chatPop",
+   "beat": 12.25,
+   "gain": 0.8
   },
   {
    "kind": "click",
-   "beat": 17
+   "beat": 13
+  },
+  {
+   "kind": "whoosh",
+   "beat": 13.75
+  },
+  {
+   "kind": "click",
+   "beat": 15
   },
   {
    "kind": "tick",
-   "beat": 17.5
+   "beat": 15.5
   },
   {
    "kind": "click",
-   "beat": 18
+   "beat": 16
   },
   {
    "kind": "arrive",
-   "beat": 18.5,
+   "beat": 16.5,
    "gain": 0.6
   },
   {
    "kind": "whoosh",
-   "beat": 19.75
+   "beat": 18.75
   },
   {
    "kind": "lift",
-   "beat": 21
+   "beat": 20.5
   },
   {
    "kind": "drag",
-   "beat": 21.5
+   "beat": 21
   },
   {
    "kind": "thud",
@@ -193,27 +190,27 @@
   },
   {
    "kind": "lift",
-   "beat": 35
+   "beat": 35.5
   },
   {
    "kind": "thud",
-   "beat": 36.5
+   "beat": 37.25
   },
   {
    "kind": "arrive",
-   "beat": 37
+   "beat": 38
   },
   {
    "kind": "click",
-   "beat": 38.5
+   "beat": 39
   },
   {
    "kind": "arrive",
-   "beat": 39.5
+   "beat": 40.5
   },
   {
    "kind": "whoosh",
-   "beat": 39.75
+   "beat": 41.75
   },
   {
    "kind": "slam",
@@ -235,17 +232,17 @@
  "vo": [
   {
    "id": "vo1",
-   "beat": 4.25,
+   "beat": 0.5,
    "text": "The group chat is not a folder."
   },
   {
    "id": "vo2",
-   "beat": 8.5,
+   "beat": 4.75,
    "text": "Share a folder from your sidebar."
   },
   {
    "id": "vo3",
-   "beat": 20.75,
+   "beat": 20.5,
    "text": "Drop a link here…"
   },
   {
@@ -255,8 +252,8 @@
   },
   {
    "id": "vo5",
-   "beat": 44.25,
-   "text": "No account. No sign-up. Just iCloud Drive."
+   "beat": 44,
+   "text": "No Ardia account. No server. Just iCloud Drive."
   },
   {
    "id": "vo6",

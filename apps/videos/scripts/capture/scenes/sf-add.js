@@ -1,4 +1,4 @@
-then(() => picShown().then(() => snap("rest")));
+then(() => picShown().then(() => rows()).then((r) => snap("rest", { rows: r })));
 then(() => {
   slow(5);
   const end = Date.now() + 5000;

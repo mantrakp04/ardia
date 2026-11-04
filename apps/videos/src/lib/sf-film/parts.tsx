@@ -20,65 +20,74 @@ export const CHAT: Msg[] = [
   { at: 0.5, who: "Priya", text: "no the OTHER heat map" },
   { at: 1, who: "Jun", link: { host: "heatmap.example", title: "Summer Heat Map", site: "heatmap.example" } },
   { at: 1.5, who: "Ava", text: "can someone resend 🙏" },
-  { at: 2, who: "Tomás", text: "scroll up lol" },
-  { at: 2.5, who: "Jun", text: "it’s from tuesday??" },
-  { at: 3, who: "Ava", link: { host: "course.example", title: "GEOG 341 · Week 6", site: "Alder State University" } },
-  { at: 5, who: "Tomás", text: "pasting them all in a doc 💀" },
-  { at: 6, who: "Jun", text: "which doc" },
+  { at: 2.5, who: "Tomás", text: "pasting them all in a doc 💀" },
+  { at: 3, who: "Jun", text: "which doc" },
 ];
 const height = (m: Msg) => (m.link ? 236 : 78);
 const GAP = 14;
 
-export function ChatWindow({ b, width, height: h }: { b: number; width: number; height: number }) {
+export function ChatWindow({ b, width, height: h, zoom, push }: { b: number; width: number; height: number; zoom: number; push: number }) {
+  const lw = width / zoom;
+  const lh = h / zoom;
   const shown = CHAT.filter((m) => b >= m.at);
   const links = 44 + shown.filter((m) => m.link).length;
   const total = shown.reduce((sum, m) => sum + height(m) + GAP, 0);
   const latest = shown[shown.length - 1];
   const settle = latest ? springAt(b, latest.at, { stiffness: 300, damping: 26 }) : 1;
   const lift = latest ? (height(latest) + GAP) * (1 - settle) : 0;
-  const area = h - 120 - 96;
+  const area = lh - 120 - 96;
   let y = area - total + lift;
-  const typing = b >= 3.4 && b < 5 ? "Tomás is typing…" : b >= 5.4 && b < 6 ? "Jun is typing…" : b < 0.5 ? "Priya is typing…" : "";
+  const typing = b < 0.5 ? "Priya is typing…" : b >= 2 && b < 2.5 ? "Tomás is typing…" : "";
+  const placed = shown.map((m) => {
+    const top = y;
+    y += height(m) + GAP;
+    return { m, top };
+  });
+  const card = placed.find(({ m }) => m.link?.host === "heatmap.example");
+  const origin = card ? `${28 + 235}px ${120 + card.top + 24 + 118}px` : "50% 50%";
+  const scale = 1 + 1.6 * push;
   return (
-    <div style={{ position: "absolute", inset: 0, borderRadius: 26, overflow: "hidden", backgroundColor: "#FBF8F2", fontFamily: SF, boxShadow: "0 14px 40px rgba(22,19,15,0.22), 0 50px 90px rgba(22,19,15,0.22)" }}>
-      <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 120, borderBottom: "1px solid #E7E0D3", backgroundColor: "#FFFDF8", display: "flex", alignItems: "center", padding: "0 30px", gap: 18 }}>
-        <div style={{ display: "flex", gap: 9, position: "absolute", left: 22, top: 20 }}>
-          {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
-            <div key={c} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: c }} />
-          ))}
-        </div>
-        <div style={{ display: "flex", marginLeft: 92, marginTop: 6 }}>
-          {(["Priya", "Tomás", "Jun", "Ava"] as const).map((n, i) => (
-            <div key={n} style={{ width: 50, height: 50, borderRadius: 25, marginLeft: i ? -14 : 0, backgroundColor: PEOPLE_CHAT[n], border: "3px solid #FFFDF8", color: "#fff", fontWeight: 700, fontSize: 21, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {n[0]}
+    <div style={{ position: "absolute", inset: 0, borderRadius: 26, overflow: "hidden", backgroundColor: "#FBF8F2", boxShadow: "0 14px 40px rgba(22,19,15,0.22), 0 50px 90px rgba(22,19,15,0.22)" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: lw, height: lh, transform: `scale(${zoom})`, transformOrigin: "0 0", fontFamily: SF }}>
+        <div style={{ position: "absolute", inset: 0, transform: `scale(${scale})`, transformOrigin: origin }}>
+          <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 120, borderBottom: "1px solid #E7E0D3", backgroundColor: "#FFFDF8", display: "flex", alignItems: "center", padding: "0 26px", gap: 16 }}>
+            <div style={{ display: "flex", gap: 9, position: "absolute", left: 22, top: 20 }}>
+              {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
+                <div key={c} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: c }} />
+              ))}
             </div>
-          ))}
-        </div>
-        <div style={{ flex: 1, marginTop: 6 }}>
-          <div style={{ fontSize: 29, fontWeight: 700, color: "#1E1A16" }}>thesis gc 🌳</div>
-          <div style={{ fontSize: 19, color: "#7B7368", marginTop: 3 }}>{typing || "Priya, Tomás, Jun, Ava"}</div>
-        </div>
-        <div style={{ marginTop: 6, padding: "10px 18px", borderRadius: 24, backgroundColor: "#C3371F", color: "#fff", fontWeight: 700, fontSize: 22, display: "flex", gap: 8, alignItems: "center" }}>
-          <Img src={staticFile("brand/sf/sym-link.png")} style={{ width: 20, height: 20, filter: "invert(1)" }} />
-          {links} links
+            <div style={{ display: "flex", marginLeft: 80, marginTop: 6 }}>
+              {(["Priya", "Tomás", "Jun", "Ava"] as const).map((n, i) => (
+                <div key={n} style={{ width: 46, height: 46, borderRadius: 23, marginLeft: i ? -14 : 0, backgroundColor: PEOPLE_CHAT[n], border: "3px solid #FFFDF8", color: "#fff", fontWeight: 700, fontSize: 19, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {n[0]}
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1, marginTop: 6, minWidth: 0 }}>
+              <div style={{ fontSize: 27, fontWeight: 700, color: "#1E1A16" }}>thesis gc 🌳</div>
+              <div style={{ fontSize: 17, color: "#7B7368", marginTop: 3, whiteSpace: "nowrap" }}>{typing || "Priya, Tomás, Jun, Ava"}</div>
+            </div>
+            <div style={{ marginTop: 6, padding: "9px 16px", borderRadius: 24, backgroundColor: "#C3371F", color: "#fff", fontWeight: 700, fontSize: 21, display: "flex", gap: 8, alignItems: "center", scale: String(1 + 0.18 * Math.max(0, 1 - Math.abs(b - 1) * 4)) }}>
+              <Img src={staticFile("brand/sf/sym-link.png")} style={{ width: 18, height: 18, filter: "invert(1)" }} />
+              {links}
+            </div>
+          </div>
+          <div style={{ position: "absolute", left: 0, right: 0, top: 120, height: area, overflow: "hidden" }}>
+            {placed.map(({ m, top }) => {
+              const pop = springAt(b, m.at, { stiffness: 420, damping: 22 });
+              const me = m.who === "Priya";
+              const style: CSSProperties = { position: "absolute", top, [me ? "right" : "left"]: 28, display: "flex", flexDirection: "column", alignItems: me ? "flex-end" : "flex-start", transformOrigin: me ? "100% 100%" : "0 100%", scale: String(m.at > -0.5 ? mix(0.82, 1, pop) : 1), opacity: m.at > -0.5 ? clamp(pop * 3) : 1 };
+              return (
+                <div key={`${m.who}${m.at}`} style={style}>
+                  {!me ? <div style={{ fontSize: 17, fontWeight: 650, color: PEOPLE_CHAT[m.who], margin: "0 0 5px 16px" }}>{m.who}</div> : null}
+                  {m.link ? <LinkCard link={m.link} /> : <Bubble me={me} text={m.text ?? ""} />}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ position: "absolute", left: 24, right: 24, bottom: 22, height: 56, borderRadius: 28, backgroundColor: "#fff", border: "1px solid #E2DACB", display: "flex", alignItems: "center", padding: "0 24px", color: "#A59C8E", fontSize: 21 }}>Message thesis gc</div>
         </div>
       </div>
-      <div style={{ position: "absolute", left: 0, right: 0, top: 120, height: area, overflow: "hidden" }}>
-        {shown.map((m) => {
-          const top = y;
-          y += height(m) + GAP;
-          const pop = springAt(b, m.at, { stiffness: 420, damping: 22 });
-          const me = m.who === "Priya";
-          const style: CSSProperties = { position: "absolute", top, [me ? "right" : "left"]: 28, display: "flex", flexDirection: "column", alignItems: me ? "flex-end" : "flex-start", transformOrigin: me ? "100% 100%" : "0 100%", scale: String(m.at > -0.5 ? mix(0.82, 1, pop) : 1), opacity: m.at > -0.5 ? clamp(pop * 3) : 1 };
-          return (
-            <div key={`${m.who}${m.at}`} style={style}>
-              {!me ? <div style={{ fontSize: 18, fontWeight: 650, color: PEOPLE_CHAT[m.who], margin: "0 0 5px 16px" }}>{m.who}</div> : null}
-              {m.link ? <LinkCard link={m.link} /> : <Bubble me={me} text={m.text ?? ""} />}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ position: "absolute", left: 24, right: 24, bottom: 22, height: 56, borderRadius: 28, backgroundColor: "#fff", border: "1px solid #E2DACB", display: "flex", alignItems: "center", padding: "0 24px", color: "#A59C8E", fontSize: 21 }}>Message thesis gc</div>
     </div>
   );
 }
@@ -229,8 +238,28 @@ export function Halo({ rect, b, at, color, pad = 4 }: { rect: { x: number; y: nu
     <div
       style={{
         position: "absolute", left: rect.x - pad - 3 * grow, top: rect.y - pad - 3 * grow, width: rect.width + 2 * pad + 6 * grow, height: rect.height + 2 * pad + 6 * grow,
-        borderRadius: 12, border: `2.5px solid ${color}`, opacity: fade * (t < 1 ? 1 : 0), boxShadow: `0 0 ${16 * grow}px ${color}88`,
+        borderRadius: 12, border: `2.5px solid ${color}`, opacity: fade * clamp((b - at) / 0.2) * (t < 1 ? 1 : 0), boxShadow: `0 0 ${16 * grow}px ${color}88`,
       }}
     />
+  );
+}
+
+export function MacBanner({ x, y, b, at, out, title, body }: { x: number; y: number; b: number; at: number; out: number; title: string; body: string }) {
+  if (b < at || b > out + 0.3) return null;
+  const s = springAt(b, at, { stiffness: 300, damping: 26 });
+  const gone = seg(b, out, 0.3, easeOut);
+  return (
+    <div style={{ position: "absolute", left: x + (1 - s) * 380, top: y, width: 344, opacity: 1 - gone, scale: String(1 - 0.04 * gone), fontFamily: SF }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "11px 13px", borderRadius: 18, backgroundColor: "rgba(246,245,243,0.96)", border: "0.5px solid rgba(0,0,0,0.12)", boxShadow: "0 10px 30px rgba(0,0,0,0.20), 0 1px 3px rgba(0,0,0,0.10)" }}>
+        <Img src={staticFile("brand/sf/app-messages.png")} style={{ width: 38, height: 38 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(0,0,0,0.88)" }}>{title}</span>
+            <span style={{ fontSize: 11, color: "rgba(0,0,0,0.42)" }}>now</span>
+          </div>
+          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.78)", marginTop: 1, lineHeight: 1.25 }}>{body}</div>
+        </div>
+      </div>
+    </div>
   );
 }

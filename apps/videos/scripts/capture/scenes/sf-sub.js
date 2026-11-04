@@ -2,12 +2,9 @@ then(() => picShown().then(() => rows()).then((r) => snap("rest", { rows: r })))
 then(() => {
   slow(5);
   const gid = folder().id;
-  const survey = st().tabs.a5;
-  const nid = st().newNestedGroup(gid);
-  const blank = st().groups[nid].tabIds[0];
-  st().updateGroup(nid, { name: "Methods" });
-  st().updateTab(blank, { url: survey.url, pinnedUrl: survey.url, title: survey.title, favicon: survey.favicon });
-  st().closeTab("a5");
+  const nid = st().groupTabs(["a5"], { pinned: true, name: "Methods" });
+  st().updateGroup(nid, { parentId: gid });
+  st().activate("a6");
   return snapFor("nest", 3500);
 });
 then(() => slow(1));

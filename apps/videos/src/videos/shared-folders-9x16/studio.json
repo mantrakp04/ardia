@@ -165,9 +165,26 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 560,
+        "y": 520,
         "width": 1000,
-        "height": 900,
+        "height": 940,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "chat-count",
+      "definition": "type",
+      "label": "chat · 46 LINKS.",
+      "parentId": null,
+      "values": {
+        "text": "46 LINKS.",
+        "size": 240,
+        "color": "#C3371F",
+        "fill": "#00000000",
+        "x": 60,
+        "y": 225,
+        "width": 960,
+        "height": 270,
         "rotation": 0
       }
     },
@@ -178,13 +195,13 @@
       "parentId": null,
       "values": {
         "text": "THE GROUP CHAT\nIS NOT A FOLDER.",
-        "size": 130,
+        "size": 120,
         "color": "#16130F",
         "fill": "#00000000",
         "x": 60,
         "y": 225,
         "width": 960,
-        "height": 300,
+        "height": 270,
         "rotation": 0
       }
     },
@@ -195,9 +212,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 440,
+        "y": 500,
         "width": 1000,
-        "height": 1000,
+        "height": 950,
         "rotation": 0
       }
     },
@@ -225,26 +242,26 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 440,
+        "y": 500,
         "width": 1000,
-        "height": 1000,
+        "height": 950,
         "rotation": 0
       }
     },
     {
       "id": "share-name",
       "definition": "type",
-      "label": "share · SHARED FOLDERS",
+      "label": "share · SHARED FOLDERS.",
       "parentId": null,
       "values": {
-        "text": "SHARED FOLDERS",
-        "size": 44,
-        "color": "#B0617F",
-        "fill": "#00000000",
+        "text": "SHARED FOLDERS.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#B0617F",
         "x": 60,
-        "y": 232,
+        "y": 225,
         "width": 960,
-        "height": 56,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -255,13 +272,26 @@
       "parentId": null,
       "values": {
         "text": "INVITE ANY APPLE ID.",
-        "size": 90,
+        "size": 80,
         "color": "#F1ECE2",
         "fill": "#C3371F",
         "x": 60,
-        "y": 300,
+        "y": 345,
         "width": 960,
-        "height": 120,
+        "height": 90,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "invite-window",
+      "definition": "window",
+      "label": "invite · window",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 500,
+        "width": 1000,
+        "height": 950,
         "rotation": 0
       }
     },
@@ -272,9 +302,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 440,
+        "y": 500,
         "width": 1000,
-        "height": 1000,
+        "height": 950,
         "rotation": 0
       }
     },
@@ -302,9 +332,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 520,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -315,9 +345,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 950,
+        "y": 990,
         "width": 1000,
-        "height": 520,
+        "height": 480,
         "rotation": 0
       }
     },
@@ -362,26 +392,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "back-both",
-      "definition": "type",
-      "label": "back-cause · BOTH WAYS.",
-      "parentId": null,
-      "values": {
-        "text": "BOTH WAYS.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#16130F",
-        "x": 60,
-        "y": 225,
-        "width": 960,
-        "height": 125,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -392,9 +405,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -405,9 +418,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -418,26 +431,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "rename-word",
-      "definition": "type",
-      "label": "rename-effect · RENAMES.",
-      "parentId": null,
-      "values": {
-        "text": "RENAMES.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 60,
-        "y": 225,
-        "width": 960,
-        "height": 125,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -448,9 +444,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -461,26 +457,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "reorder-word",
-      "definition": "type",
-      "label": "reorder-effect · REORDERS.",
-      "parentId": null,
-      "values": {
-        "text": "REORDERS.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#B0617F",
-        "x": 60,
-        "y": 225,
-        "width": 960,
-        "height": 125,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -491,9 +470,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -504,26 +483,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 1080,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "sub-word",
-      "definition": "type",
-      "label": "sub-effect · SUBFOLDERS.",
-      "parentId": null,
-      "values": {
-        "text": "SUBFOLDERS.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 60,
-        "y": 225,
-        "width": 960,
-        "height": 125,
+        "height": 1040,
         "rotation": 0
       }
     },
@@ -534,9 +496,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 360,
+        "y": 420,
         "width": 1000,
-        "height": 520,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -547,9 +509,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 950,
+        "y": 990,
         "width": 1000,
-        "height": 520,
+        "height": 480,
         "rotation": 0
       }
     },
@@ -571,6 +533,32 @@
       }
     },
     {
+      "id": "nos-priya",
+      "definition": "window",
+      "label": "nos · priya",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 420,
+        "width": 1000,
+        "height": 500,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "nos-tomas",
+      "definition": "window",
+      "label": "nos · tomas",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 990,
+        "width": 1000,
+        "height": 480,
+        "rotation": 0
+      }
+    },
+    {
       "id": "nos-folder",
       "definition": "window",
       "label": "nos · folder",
@@ -586,34 +574,34 @@
     {
       "id": "nos-account",
       "definition": "type",
-      "label": "nos · NO ACCOUNT.",
+      "label": "nos · NO ARDIA ACCOUNT.",
       "parentId": null,
       "values": {
-        "text": "NO\nACCOUNT.",
-        "size": 400,
+        "text": "NO ARDIA\nACCOUNT.",
+        "size": 190,
         "color": "#F1ECE2",
-        "fill": "#00000000",
+        "fill": "#16130F",
         "x": 60,
-        "y": 420,
+        "y": 560,
         "width": 960,
-        "height": 760,
+        "height": 640,
         "rotation": 0
       }
     },
     {
-      "id": "nos-signup",
+      "id": "nos-server",
       "definition": "type",
-      "label": "nos · NO SIGN-UP.",
+      "label": "nos · NO SERVER.",
       "parentId": null,
       "values": {
-        "text": "NO\nSIGN-UP.",
-        "size": 400,
+        "text": "NO\nSERVER.",
+        "size": 210,
         "color": "#F1ECE2",
-        "fill": "#00000000",
+        "fill": "#C3371F",
         "x": 60,
-        "y": 420,
+        "y": 560,
         "width": 960,
-        "height": 760,
+        "height": 640,
         "rotation": 0
       }
     },
@@ -624,12 +612,12 @@
       "parentId": null,
       "values": {
         "text": "JUST\nICLOUD DRIVE.",
-        "size": 230,
+        "size": 150,
         "color": "#16130F",
         "fill": "#00000000",
         "x": 60,
         "y": 260,
-        "width": 960,
+        "width": 900,
         "height": 560,
         "rotation": 0
       }
@@ -646,7 +634,7 @@
         "fill": "#00000000",
         "x": 64,
         "y": 820,
-        "width": 960,
+        "width": 880,
         "height": 80,
         "rotation": 0
       }
@@ -657,10 +645,40 @@
       "label": "end · icon",
       "parentId": null,
       "values": {
-        "x": 100,
-        "y": 330,
-        "width": 220,
-        "height": 220,
+        "x": 80,
+        "y": 260,
+        "width": 200,
+        "height": 200,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-live",
+      "definition": "window",
+      "label": "end · live",
+      "parentId": null,
+      "values": {
+        "x": 80,
+        "y": 1010,
+        "width": 920,
+        "height": 460,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "end-new",
+      "definition": "type",
+      "label": "end · NEW: SHARED FOLDERS",
+      "parentId": null,
+      "values": {
+        "text": "NEW: SHARED FOLDERS",
+        "size": 34,
+        "color": "#B0617F",
+        "fill": "#00000000",
+        "x": 84,
+        "y": 225,
+        "width": 920,
+        "height": 50,
         "rotation": 0
       }
     },
@@ -671,13 +689,13 @@
       "parentId": null,
       "values": {
         "text": "ARDIA",
-        "size": 220,
+        "size": 200,
         "color": "#16130F",
         "fill": "#00000000",
-        "x": 360,
-        "y": 330,
-        "width": 660,
-        "height": 220,
+        "x": 310,
+        "y": 260,
+        "width": 690,
+        "height": 200,
         "rotation": 0
       }
     },
@@ -688,13 +706,13 @@
       "parentId": null,
       "values": {
         "text": "THE SIDEBAR\nBROWSER FOR MAC",
-        "size": 70,
+        "size": 64,
         "color": "#2150D9",
         "fill": "#00000000",
-        "x": 100,
-        "y": 620,
-        "width": 880,
-        "height": 150,
+        "x": 84,
+        "y": 500,
+        "width": 900,
+        "height": 130,
         "rotation": 0
       }
     },
@@ -705,13 +723,13 @@
       "parentId": null,
       "values": {
         "text": "DOWNLOAD",
-        "size": 90,
+        "size": 86,
         "color": "#16130F",
         "fill": "#00000000",
-        "x": 100,
-        "y": 850,
+        "x": 84,
+        "y": 660,
         "width": 880,
-        "height": 100,
+        "height": 90,
         "rotation": 0
       }
     },
@@ -722,13 +740,81 @@
       "parentId": null,
       "values": {
         "text": "ARDIA.DEV",
-        "size": 230,
+        "size": 170,
         "color": "#C3371F",
         "fill": "#00000000",
-        "x": 100,
-        "y": 960,
-        "width": 880,
+        "x": 80,
+        "y": 760,
+        "width": 860,
         "height": 200,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "back-word-text",
+      "definition": "type",
+      "label": "back-word · BOTH WAYS.",
+      "parentId": null,
+      "values": {
+        "text": "BOTH WAYS.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#16130F",
+        "x": 60,
+        "y": 225,
+        "width": 960,
+        "height": 125,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "rename-word-text",
+      "definition": "type",
+      "label": "rename-word · RENAMES.",
+      "parentId": null,
+      "values": {
+        "text": "RENAMES.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#3F7DB0",
+        "x": 60,
+        "y": 225,
+        "width": 960,
+        "height": 125,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "reorder-word-text",
+      "definition": "type",
+      "label": "reorder-word · REORDERS.",
+      "parentId": null,
+      "values": {
+        "text": "REORDERS.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#B0617F",
+        "x": 60,
+        "y": 225,
+        "width": 960,
+        "height": 125,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "sub-word-text",
+      "definition": "type",
+      "label": "sub-word · SUBFOLDERS.",
+      "parentId": null,
+      "values": {
+        "text": "SUBFOLDERS.",
+        "size": 120,
+        "color": "#F1ECE2",
+        "fill": "#3F7DB0",
+        "x": 60,
+        "y": 225,
+        "width": 960,
+        "height": 125,
         "rotation": 0
       }
     }

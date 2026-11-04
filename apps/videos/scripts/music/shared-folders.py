@@ -27,28 +27,31 @@ LENGTH = int(round(CUTS["beats"] * BEAT * SR))
 
 MUSIC_TAKE = "music-take2.mp3"
 TAKE_LATENCY_S = 0.0234
-MUSIC_EDIT = [(0, 0, 16), (16, 8, 6), (22, 15, 1), (24, 16, 16), (40, 44, 8), (48, 48, 16)]
+MUSIC_EDIT = [(0, 0, 16), (16, 8, 6), (22, 15, 1), (24, 32, 16), (40, 28, 4), (44, 48, 4), (48, 48, 16)]
 SPLICE_FADE_S = 0.006
 BUILD_SWEEP_BEATS = (16, 23)
 BUILD_SWEEP_HZ = (25.0, 320.0)
 BUILD_RAMP_BEATS = (8, 23)
 BUILD_RAMP_DB = (-5.5, -2.0)
-SECTION_GAIN_DB = {"drop": 1.5}
+DROP_MUSIC_RAMP_DB = (1.5, -2.5)
+SECTION_BUS_GAIN_DB = {"hook": -5.5, "build": -5.0, "lift": -4.5, "end": -1.0}
 SECTION_GAIN_RAMP_S = 0.03
 
 PEAK_ALIGNED_KINDS = {"whoosh"}
 SFX_GAIN_DB = {
-    "chatPop": -10.0, "slam": -5.0, "whoosh": -8.0, "click": -6.0, "tick": -6.0, "sheet": -17.0,
+    "chatPop": -10.0, "slam": -7.0, "whoosh": -8.0, "click": -6.0, "tick": -6.0, "sheet": -17.0,
     "lift": -10.0, "drag": -12.0, "thud": -5.0, "type": -6.0, "arrive": 1.0,
 }
 SILENCE_EXEMPT_KINDS = {"thud"}
+EXEMPT_DECAY_S = 0.165
+EXEMPT_FADE_S = 0.06
 VO_GAIN_DB = -1.0
-DUCK_DB = -7.0
+DUCK_DB = -8.0
 DUCK_RAMP_S = 0.1
 DUCK_HOLD_S = 0.08
 SUB_HIGHPASS_HZ = 35.0
 TARGET_LUFS = float(CUTS.get("lufs", -11))
-CEILING_DBTP = float(CUTS.get("truePeak", -1.5)) - 0.25
+CEILING_DBTP = -2.0
 TAIL_FADE_S = 0.25
 
 
@@ -120,10 +123,20 @@ def build_ramp(x):
     return out
 
 
-def section_gains(x):
+def drop_ramp(x):
+    sec = next(s for s in CUTS["sections"] if s["name"] == "drop")
+    a, b = at(sec["at"]), at(sec["at"] + sec["beats"])
+    db = np.zeros(LENGTH)
+    db[a:b] = np.linspace(DROP_MUSIC_RAMP_DB[0], DROP_MUSIC_RAMP_DB[1], b - a)
+    w = np.hanning(int(SECTION_GAIN_RAMP_S * SR))
+    db = np.convolve(db, w / w.sum(), "same")
+    return x * 10 ** (db / 20)[:, None]
+
+
+def section_gains(x, gains):
     db = np.zeros(LENGTH)
     for sec in CUTS["sections"]:
-        db[at(sec["at"]):at(sec["at"] + sec["beats"])] = SECTION_GAIN_DB.get(sec["name"], 0.0)
+        db[at(sec["at"]):at(sec["at"] + sec["beats"])] = gains.get(sec["name"], 0.0)
     w = np.hanning(int(SECTION_GAIN_RAMP_S * SR))
     db = np.convolve(db, w / w.sum(), "same")
     return x * 10 ** (db / 20)[:, None]
@@ -158,9 +171,18 @@ def render_sfx(bank):
     for cue in CUTS["sfx"]:
         x, anc = bank[cue["kind"]]
         g = 10 ** (SFX_GAIN_DB[cue["kind"]] / 20) * cue.get("gain", 1.0)
-        target = exempt if cue["kind"] in SILENCE_EXEMPT_KINDS and in_silence(cue["beat"]) else bus
-        place(target, x * g, at(cue["beat"]) - anc)
+        if cue["kind"] in SILENCE_EXEMPT_KINDS and in_silence(cue["beat"]):
+            place(exempt, gate_after(x, anc + int(EXEMPT_DECAY_S * SR)) * g, at(cue["beat"]) - anc)
+        else:
+            place(bus, x * g, at(cue["beat"]) - anc)
     return bus, exempt
+
+
+def gate_after(x, end):
+    y = x[:end].copy()
+    n = min(len(y), int(EXEMPT_FADE_S * SR))
+    y[len(y) - n:] *= raised_cosine(n)[::-1, None]
+    return y
 
 
 def in_silence(beat):
@@ -249,7 +271,7 @@ def master(bed, exempt):
     x = bed + exempt
     ceiling = 10 ** (CEILING_DBTP / 20)
     scale = 10 ** ((TARGET_LUFS - lufs(x)) / 20)
-    for _ in range(6):
+    for _ in range(12):
         y = x * scale
         y = y * limiter_gain(y, ceiling)[:, None]
         miss = TARGET_LUFS - lufs(y)
@@ -268,7 +290,7 @@ def mix(with_vo, music, sfx_bus, sfx_exempt, vo_bus, spans):
         bed = music * duck_gain(spans)[:, None] + sfx_bus + vo_bus
     else:
         bed = music + sfx_bus
-    return master(bed, sfx_exempt)
+    return master(section_gains(bed, SECTION_BUS_GAIN_DB), sfx_exempt)
 
 
 def ebur128(path):
@@ -277,6 +299,28 @@ def ebur128(path):
     tail = r[r.rfind("Summary:"):]
     get = lambda k: float(re.search(k + r":\s+(-?[\d.]+)", tail).group(1))
     return get("I"), get("LRA"), get("Peak")
+
+
+def short_term(path):
+    r = subprocess.run(["ffmpeg", "-nostats", "-hide_banner", "-loglevel", "verbose", "-i", path, "-af", "ebur128", "-f", "null", "-"],
+                       capture_output=True, text=True).stderr
+    rows = re.findall(r"t:\s*([\d.]+)\s+TARGET.*?S:\s*(-?[\d.]+|-inf)", r)
+    t = np.array([float(a) for a, _ in rows])
+    st = np.array([float(b) if b != "-inf" else -120.0 for _, b in rows])
+    return t, st
+
+
+def loudest_short_term(path):
+    t, st = short_term(path)
+    rows = []
+    for sec in CUTS["sections"]:
+        a, b = sec["at"] * BEAT, (sec["at"] + sec["beats"]) * BEAT
+        sel = (t - 3.0 >= a - 1e-3) & (t <= b + 1e-3)
+        if sel.any():
+            k = np.argmax(np.where(sel, st, -999))
+            rows.append(f"{sec['name']} {st[k]:.1f} @ {t[k]:.1f}s")
+    k = int(np.argmax(st))
+    return " | ".join(rows) + f" | film max {st[k]:.1f} @ {t[k]:.1f}s"
 
 
 def onset_ms(x, beat, search=0.05):
@@ -320,12 +364,17 @@ def check(paths, music, bank, spans, vo_bus):
     for p in paths:
         i, lra, tp = ebur128(p)
         print(f"{os.path.basename(p)}: I {i:.1f} LUFS, LRA {lra:.1f} LU, true peak {tp:.1f} dBTP")
+    for p in paths[::2]:
+        print(f"short-term max of 3 s windows inside each section, {os.path.basename(p)}: {loudest_short_term(p)}")
     full = decode(paths[0])
     print(f"length {len(full)} samples = {len(full) / SR:.3f} s")
     exempt = [c for c in CUTS["sfx"] if c["kind"] in SILENCE_EXEMPT_KINDS and in_silence(c["beat"])]
     for a, b in CUTS["silences"]:
         names = ", ".join(f"{c['kind']}@{c['beat']}" for c in exempt) or "none"
-        print(f"silence beats {a}-{b}: bed is digital zero by construction; exempt cues sounding: {names}")
+        seg = np.abs(full[at(a):at(b)]).max(axis=1)
+        live = np.flatnonzero(seg > 0)
+        zero_run = len(seg) - (live[-1] + 1 if len(live) else 0)
+        print(f"silence beats {a}-{b}: exempt cues {names}; sound ends +{(live[-1] + 1 if len(live) else 0) / SR * 1000:.0f} ms, then {zero_run / SR * 1000:.0f} ms of digital zero")
     print(f"last frame rms {20 * np.log10(np.sqrt((full[-SR // 30:] ** 2).mean()) + 1e-12):.1f} dBFS")
     drop = [onset_ms(music, k) for k in range(24, 44)]
     drop = [d for d in drop if d is not None]
@@ -361,7 +410,7 @@ def main():
     if {"-h", "--help"} & set(sys.argv):
         print(__doc__.strip())
         return
-    music = section_gains(build_ramp(build_sweep(edit_music())))
+    music = drop_ramp(build_ramp(build_sweep(edit_music())))
     bank = load_sfx()
     sfx_bus, sfx_exempt = render_sfx(bank)
     vo_bus, spans = render_vo()

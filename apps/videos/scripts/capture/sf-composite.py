@@ -62,6 +62,9 @@ def build(scene):
         p = os.path.join(src, name)
         if os.path.exists(p):
             extra[name.split(".")[0].replace("-", "")] = json.load(open(p)) if name.endswith(".json") else open(p).read().strip().split("\n") if name == "files.txt" else open(p).read().strip()
+    tint = C.sampled_tint(frames[0]["f"]) if frames else None
+    if tint is not None:
+        extra["tint"] = ["#%02X%02X%02X" % tuple(int(round(v)) for v in c) for c in tint]
     index_path = os.path.join(C.ROOT, "src", "lib", "sf-film", "footage.json")
     index = json.load(open(index_path)) if os.path.exists(index_path) else {}
     index[scene] = {"size": size, "frames": out, **extra}

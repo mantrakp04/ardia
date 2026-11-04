@@ -189,6 +189,6 @@ designed from a text description (Voice Design), not a clone. Files live in the 
 | `sfx-thud.wav` | Soft drop commit | Sound Effects, `eleven_text_to_sound_v2` |
 | `sfx-type.wav` | Three keyboard taps (cut from a generation) | Sound Effects, `eleven_text_to_sound_v2` |
 | `sfx-arrive.wav` | Signature arrival chime, a marimba/bell pop on D5 (the track is in D) | Sound Effects, `eleven_text_to_sound_v2` |
-| `vo-vo1.wav` … `vo-vo6.wav` | The six voiceover lines in `cuts.json`, one file each, silence trimmed; `vo-vo5.wav` has its three phrases re-spaced to about 1 s apart | Text to Speech, `eleven_v3`, voice "Ardia Narrator (designed)" (`UaGUd7CqoCVmNU5Aiahi`), made with Voice Design `eleven_ttv_v3` |
+| `vo-vo1.wav` … `vo-vo6.wav` | The six voiceover lines in `cuts.json`, one file each, silence trimmed; `vo-vo5.wav` ("No Ardia account. No server. Just iCloud Drive.") has its first two phrases sped up 10% and its three phrases re-spaced to start 0, 1.33 and 2.23 s in | Text to Speech, `eleven_v3`, voice "Ardia Narrator (designed)" (`UaGUd7CqoCVmNU5Aiahi`), made with Voice Design `eleven_ttv_v3` |
 | `shared-folders-16x9.wav`, `shared-folders-9x16.wav` | The mix: music, sound effects and voiceover (the two files are identical) | Rendered by `shared-folders.py` from the files above |
 | `shared-folders-16x9-novo.wav` | The mix without voiceover | Rendered by `shared-folders.py` from the files above |
