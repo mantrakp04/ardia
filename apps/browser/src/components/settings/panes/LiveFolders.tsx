@@ -21,7 +21,7 @@ import { settingsType } from "../tokens";
 const DESCRIPTIONS: Record<LiveSourceId, string> = {
   github: "Your open pull requests and the ones waiting for your review, with checks and conflicts.",
   bitbucket: "Your open pull requests on Bitbucket Cloud, with build status.",
-  gitlab: "Open merge requests plus the ones waiting for your review, with pipeline status and conflicts.",
+  gitlab: "Your open merge requests and the ones waiting for your review, with pipeline status and conflicts.",
   notion: "Pages recently edited in your workspace.",
   confluence: "Pages you created, edited or watch.",
   gdrive: "Documents recently changed in your Drive.",
