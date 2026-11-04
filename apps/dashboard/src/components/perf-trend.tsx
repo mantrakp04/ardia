@@ -70,6 +70,7 @@ export function TrendSheetProvider({ children }: { children: ReactElement | Reac
   const [open, setOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const openRef = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
   const setSheetOpen = (next: boolean) => {
     openRef.current = next;
     setOpen(next);
@@ -77,6 +78,7 @@ export function TrendSheetProvider({ children }: { children: ReactElement | Reac
   const sheet = useMemo<TrendSheet>(
     () => ({
       show: (next) => {
+        opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         openRef.current = true;
         setSpec(next);
         setVersion((v) => v + 1);
@@ -90,7 +92,15 @@ export function TrendSheetProvider({ children }: { children: ReactElement | Reac
     <OpenTrend.Provider value={sheet}>
       {children}
       <Sheet open={open} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-2xl">
+        <SheetContent
+          side="right"
+          className="w-full gap-0 overflow-y-auto sm:max-w-2xl"
+          onCloseAutoFocus={(e) => {
+            if (!opener.current?.isConnected) return;
+            e.preventDefault();
+            opener.current.focus({ preventScroll: true });
+          }}
+        >
           {spec ? <TrendSheetBody key={version} spec={spec} /> : null}
         </SheetContent>
       </Sheet>
@@ -110,8 +120,14 @@ export function TrendTarget({ spec, name, side = "top", children }: { spec: Tren
     setHovering(false);
     sheet.show(spec);
   };
-  const release = (e: PointerEvent) => {
-    if (e.pointerType === "mouse") suppressed.current = false;
+  const release = () => {
+    suppressed.current = false;
+  };
+  const releaseOnMouseLeave = (e: PointerEvent) => {
+    if (e.pointerType === "mouse" && !sheet.isOpen()) release();
+  };
+  const releaseOnBlur = () => {
+    if (!sheet.isOpen()) release();
   };
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Enter" && e.key !== " ") return;
@@ -137,8 +153,9 @@ export function TrendTarget({ spec, name, side = "top", children }: { spec: Tren
         aria-label={`${name ?? labelOf(spec)}: show its trend`}
         aria-haspopup="dialog"
         onPointerEnter={() => setWanted(true)}
-        onPointerLeave={release}
+        onPointerLeave={releaseOnMouseLeave}
         onFocus={() => setWanted(true)}
+        onBlur={releaseOnBlur}
         onClick={activate}
         onKeyDown={onKeyDown}
       >
@@ -253,7 +270,7 @@ function QuantileSpark({ series, color, onScrub, label, height = 56 }: { series:
     let d = "";
     let pen = false;
     values.forEach((v, i) => {
-      if (v === null || !series.count[i]) {
+      if (v === null || v <= 0 || !series.count[i]) {
         pen = false;
         return;
       }
@@ -274,7 +291,8 @@ function QuantileSpark({ series, color, onScrub, label, height = 56 }: { series:
     setActive(null);
     onScrub(null);
   };
-  const dot = active !== null && series.count[active] ? series.p50[active] : null;
+  const p50 = active !== null && series.count[active] ? series.p50[active] : null;
+  const dot = p50 !== null && p50 !== undefined && p50 > 0 ? p50 : null;
   return (
     <div ref={ref} role="img" aria-label={label} className="relative select-none touch-pan-y" style={{ height }} onPointerMove={move} onPointerDown={move} onPointerLeave={leave}>
       <svg viewBox={`0 0 ${SPARK_W} ${height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-hidden">

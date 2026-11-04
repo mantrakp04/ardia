@@ -63,24 +63,26 @@ function ValueInput({ field, value, onChange, options, onSubmit }: { field: Repl
   );
 }
 
+const initialValue = (field: ReplayField) => (REPLAY_FIELDS[field].kind === "bool" ? "yes" : "");
+
 export function AddCondition({ conditions, onAdd, options }: { conditions: ReplayCondition[]; onAdd: (c: ReplayCondition) => void; options?: ReplayOptions }) {
   const [open, setOpen] = useState(false);
   const [field, setField] = useState<ReplayField>("length");
   const [op, setOp] = useState<ReplayOp>("gte");
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue("length"));
   const candidate = parseCondition(field, op, value);
   const duplicate = candidate ? conditions.some((c) => sameCondition(c, candidate)) : false;
   const full = conditions.length >= MAX_CONDITIONS;
   const submit = () => {
     if (!candidate || duplicate || full) return;
     onAdd(candidate);
-    setValue("");
+    setValue(initialValue(field));
     setOpen(false);
   };
   const pickField = (next: ReplayField) => {
     setField(next);
     setOp(opsFor(next)[0]!);
-    setValue(REPLAY_FIELDS[next].kind === "bool" ? "yes" : "");
+    setValue(initialValue(next));
   };
 
   return (

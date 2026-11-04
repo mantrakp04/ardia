@@ -1,3 +1,5 @@
+ALTER TABLE telemetry.otel_logs MODIFY COLUMN Timestamp DateTime64(9, 'UTC') CODEC(Delta(8), ZSTD(1));
+
 ALTER TABLE telemetry.otel_logs
     ADD COLUMN IF NOT EXISTS ReplayFirstMs Int64 MATERIALIZED if(LogAttributes['event'] = '$replay_chunk', toInt64OrZero(LogAttributes['first_timestamp']), 0) CODEC(Delta(8), ZSTD(1)),
     ADD COLUMN IF NOT EXISTS ReplayLastMs Int64 MATERIALIZED if(LogAttributes['event'] = '$replay_chunk', toInt64OrZero(LogAttributes['last_timestamp']), 0) CODEC(Delta(8), ZSTD(1)),
@@ -12,7 +14,7 @@ SELECT
     Event AS event,
     DistinctId AS distinct_id,
     SessionId AS session_id,
-    toDateTime64(Timestamp, 6, 'UTC') AS timestamp,
+    Timestamp AS timestamp,
     CAST(LogAttributes, 'Map(String, String)') AS properties,
     LogAttributes['$elements_chain'] AS elements_chain,
     toString(ServiceName) AS source,
@@ -41,7 +43,7 @@ SELECT
     toString(event) AS event,
     distinct_id,
     session_id,
-    timestamp,
+    toDateTime64(timestamp, 9, 'UTC') AS timestamp,
     properties,
     elements_chain,
     'posthog-cloud' AS source,

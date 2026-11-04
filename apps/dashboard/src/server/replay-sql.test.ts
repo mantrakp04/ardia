@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { legacyConditions, parseConditions, withPreset } from "../lib/replay-query";
-import { buildReplayList, REPLAY_PAGE_SIZE } from "./replay-sql";
+import { dateValueMs, legacyConditions, parseConditions, withPreset } from "../lib/replay-query.ts";
+import { buildReplayList, REPLAY_PAGE_SIZE } from "./replay-sql.ts";
 
 const FROM = Date.UTC(2026, 10, 1);
 const build = (raw: unknown, match: "all" | "any" = "all", page = 1) => buildReplayList({ from: FROM, conditions: parseConditions(raw), match, sort: "newest", page });
@@ -54,13 +54,14 @@ test("unknown fields, operators and bad values are dropped", () => {
   assert.deepEqual(conditions, [{ field: "pages", op: "gte", value: 2 }]);
 });
 
-test("any page and path starts with read the session's URLs", () => {
-  const { sql, params } = build([["any_page", "starts_with", "/release-notes"], ["first_page", "not_contains", "utm_"]]);
-  assert.ok(sql.includes("groupUniqArray(200)(properties['$current_url']) AS urls"));
-  assert.match(whereOf(sql), /arrayExists\(u -> startsWith\(lower\(path\(u\)\), lower\(\{p0:String\}\)\), urls\)/);
-  assert.match(whereOf(sql), /NOT \(positionCaseInsensitiveUTF8\(first_url, \{p1:String\}\) > 0\)/);
-  assert.deepEqual(params, { p0: "/release-notes", p1: "utm_" });
-  assert.ok(!build([["pages", "gte", 1]]).sql.includes("groupUniqArray"));
+test("any page matches every page view of the session, not a capped sample", () => {
+  const { sql, params } = build([["any_page", "starts_with", "/release-notes"], ["any_page", "not_contains", "pricing"], ["first_page", "not_contains", "utm_"]]);
+  assert.ok(sql.includes("max(startsWith(lower(path(properties['$current_url'])), lower({p0:String}))) AS page_match_0"));
+  assert.ok(sql.includes("max(positionCaseInsensitiveUTF8(properties['$current_url'], {p1:String}) > 0) AS page_match_1"));
+  assert.equal(whereOf(sql), "WHERE (page_match_0 = 1) AND (page_match_1 = 0) AND (NOT (positionCaseInsensitiveUTF8(first_url, {p2:String}) > 0))");
+  assert.deepEqual(params, { p0: "/release-notes", p1: "pricing", p2: "utm_" });
+  assert.ok(!sql.includes("groupUniqArray"));
+  assert.ok(!build([["pages", "gte", 1]]).sql.includes("page_match"));
 });
 
 test("started, size and paging", () => {
@@ -68,6 +69,13 @@ test("started, size and paging", () => {
   assert.equal(whereOf(sql), "WHERE (start_ms >= {p0:Int64}) AND (bytes / 1024 < {p1:Float64})");
   assert.deepEqual(params, { p0: Date.UTC(2026, 10, 2, 10, 30), p1: 500 });
   assert.ok(sql.endsWith(`LIMIT ${REPLAY_PAGE_SIZE} OFFSET ${2 * REPLAY_PAGE_SIZE}`));
+});
+
+test("impossible dates are rejected instead of rolling over", () => {
+  assert.equal(dateValueMs("2026-02-28"), Date.UTC(2026, 1, 28));
+  assert.equal(dateValueMs("2028-02-29T23:59"), Date.UTC(2028, 1, 29, 23, 59));
+  for (const bad of ["2026-02-31", "2026-02-29", "2026-13-01", "2026-00-10", "2026-04-31", "2026-11-03T24:00", "2026-11-03T12:60", "2026-11-3"]) assert.equal(dateValueMs(bad), null, bad);
+  assert.deepEqual(parseConditions([["started", "after", "2026-02-31"]]), []);
 });
 
 test("Customize it clicks come from the site's demo_customize event", () => {

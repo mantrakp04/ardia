@@ -84,14 +84,14 @@ function ReplaysPage() {
   const urlFilter = String(presetValue(conditions, "first_page", "contains") ?? "");
   const [urlDraft, setUrlDraft] = useState(urlFilter);
 
-  const setConditions = (next: ReplayCondition[]) =>
-    navigate({ search: (prev) => ({ ...prev, ...DROP_LEGACY, f: next.length ? toTuples(next) : undefined, match: next.length > 1 ? prev.match : undefined, page: undefined }) });
-  const setPreset = (field: ReplayField, op: ReplayOp, value: string | number | undefined) => setConditions(withPreset(conditions, field, op, value));
+  const setConditions = (next: ReplayCondition[], replace = false) =>
+    navigate({ search: (prev) => ({ ...prev, ...DROP_LEGACY, f: next.length ? toTuples(next) : undefined, match: next.length > 1 ? prev.match : undefined, page: undefined }), replace });
+  const setPreset = (field: ReplayField, op: ReplayOp, value: string | number | undefined, replace = false) => setConditions(withPreset(conditions, field, op, value), replace);
 
   useEffect(() => setUrlDraft(urlFilter), [urlFilter]);
   useEffect(() => {
     const id = setTimeout(() => {
-      if (urlFilter !== urlDraft.trim()) setPreset("first_page", "contains", urlDraft.trim() || undefined);
+      if (urlFilter !== urlDraft.trim()) setPreset("first_page", "contains", urlDraft.trim() || undefined, true);
     }, 350);
     return () => clearTimeout(id);
   }, [urlDraft, urlFilter, conditions]);
@@ -107,11 +107,12 @@ function ReplaysPage() {
   });
 
   const minLength = Number(presetValue(conditions, "length", "gte") ?? 0);
-  const device = String(presetValue(conditions, "device", "is") ?? "");
+  const deviceFilter = String(presetValue(conditions, "device", "is") ?? "");
   const download = String(presetValue(conditions, "download", "is") ?? "");
   const customize = String(presetValue(conditions, "customize", "is") ?? "");
   const hasClicks = presetValue(conditions, "clicks", "gt") === 0;
   const devices = query.data?.options.device ?? [];
+  const device = devices.find((d) => d.toLowerCase() === deviceFilter.toLowerCase()) ?? deviceFilter;
 
   return (
     <>
@@ -132,7 +133,7 @@ function ReplaysPage() {
           </select>
           <select aria-label="Device" value={device} onChange={(e) => setPreset("device", "is", e.target.value || undefined)} className={selectClass}>
             <option value="">All devices</option>
-            {(devices.some((d) => d.toLowerCase() === device.toLowerCase()) || !device ? devices : [device, ...devices]).map((d) => (
+            {(!device || devices.includes(device) ? devices : [device, ...devices]).map((d) => (
               <option key={d} value={d}>
                 {d}
               </option>
