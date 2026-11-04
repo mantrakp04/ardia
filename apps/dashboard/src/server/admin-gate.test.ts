@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { viewerFor } from "./admin-gate";
+import { viewerFor } from "./admin-gate.ts";
 
 const base = { primaryEmail: "Owner@Example.com", primaryEmailVerified: true };
 

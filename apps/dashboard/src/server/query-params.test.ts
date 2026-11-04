@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { escapeParam, paramSearch } from "./query-params";
+import { escapeParam, paramSearch } from "./query-params.ts";
 
 const unescape = (text: string) => text.replace(/\\(.)/gs, (_, c: string) => ({ t: "\t", n: "\n", r: "\r" })[c] ?? c);
 

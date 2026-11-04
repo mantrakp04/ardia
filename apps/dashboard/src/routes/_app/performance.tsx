@@ -63,9 +63,12 @@ function specs(p: Perf) {
 
 function TrendTile({ spec, name, children }: { spec: TrendSpec; name: string; children: ReactNode }) {
   return (
-    <TrendTarget spec={spec} name={name} side="bottom">
-      <div className="-m-2 rounded-lg p-2 outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/50">{children}</div>
-    </TrendTarget>
+    <div className="relative -m-2 rounded-lg p-2 transition-colors hover:bg-accent/50 [&_[data-slot=tooltip-trigger]]:relative [&_[data-slot=tooltip-trigger]]:z-10">
+      <TrendTarget spec={spec} name={name} side="bottom">
+        <div className="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+      </TrendTarget>
+      {children}
+    </div>
   );
 }
 

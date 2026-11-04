@@ -1,13 +1,13 @@
-import { dateValueMs, REPLAY_FIELDS, type ReplayCondition, type ReplayField, type ReplayMatch, type ReplayOp, type ReplaySort } from "../lib/replay-query";
-import type { QueryParams } from "./clickhouse";
-import { prop, since } from "./sql";
+import { dateValueMs, REPLAY_FIELDS, type ReplayCondition, type ReplayField, type ReplayMatch, type ReplayOp, type ReplaySort } from "../lib/replay-query.ts";
+import type { QueryParams } from "./clickhouse.ts";
+import { prop, since } from "./sql.ts";
 
 export const REPLAY_PAGE_SIZE = 50;
 
 export const CUSTOMIZE_EVENT = "demo_customize";
 export const DOWNLOAD_EVENT = "download_clicked";
 
-const COLUMN: Record<ReplayField, string> = {
+const COLUMN: Record<Exclude<ReplayField, "any_page">, string> = {
   length: "duration_s",
   pages: "pages",
   clicks: "clicks",
@@ -19,7 +19,6 @@ const COLUMN: Record<ReplayField, string> = {
   os: "os_name",
   country: "country",
   first_page: "first_url",
-  any_page: "urls",
   referrer: "referrer",
   started: "start_ms",
 };
@@ -39,6 +38,7 @@ const REFERRER_SQL = (domain: string) => `if(${domain} IN ('$direct', ''), 'dire
 
 class Params {
   values: QueryParams = {};
+  pageMatches: string[] = [];
   private next = 0;
   bind(value: string | number, type: "String" | "Float64" | "Int64") {
     const name = `p${this.next++}`;
@@ -47,7 +47,16 @@ class Params {
   }
 }
 
+function textMatch(op: ReplayOp, target: string, value: string) {
+  return op === "starts_with" ? `startsWith(lower(path(${target})), lower(${value}))` : `positionCaseInsensitiveUTF8(${target}, ${value}) > 0`;
+}
+
 function conditionSql(c: ReplayCondition, params: Params): string {
+  if (c.field === "any_page") {
+    const name = `page_match_${params.pageMatches.length}`;
+    params.pageMatches.push(`max(${textMatch(c.op, "properties['$current_url']", params.bind(String(c.value), "String"))}) AS ${name}`);
+    return `${name} = ${c.op === "not_contains" ? 0 : 1}`;
+  }
   const column = COLUMN[c.field];
   const kind = REPLAY_FIELDS[c.field].kind;
   if (kind === "number") return `${column} ${NUMBER_OP[c.op]} ${params.bind(Number(c.value), "Float64")}`;
@@ -55,8 +64,7 @@ function conditionSql(c: ReplayCondition, params: Params): string {
   if (kind === "date") return `${column} ${c.op === "after" ? ">=" : "<"} ${params.bind(dateValueMs(String(c.value)) ?? 0, "Int64")}`;
   const value = params.bind(String(c.value), "String");
   if (kind === "choice" || (kind === "domain" && (c.op === "is" || c.op === "is_not"))) return `lower(${column}) ${c.op === "is" ? "=" : "!="} lower(${value})`;
-  const matches = (target: string) => (c.op === "starts_with" ? `startsWith(lower(path(${target})), lower(${value}))` : `positionCaseInsensitiveUTF8(${target}, ${value}) > 0`);
-  const test = c.field === "any_page" ? `arrayExists(u -> ${matches("u")}, ${column})` : matches(column);
+  const test = textMatch(c.op, column, value);
   return c.op === "not_contains" ? `NOT (${test})` : test;
 }
 
@@ -71,7 +79,8 @@ const replaySessions = (from: number) => `session_id IN (SELECT session_id FROM 
 export function buildReplayList(input: { from: number; conditions: ReplayCondition[]; match: ReplayMatch; sort: ReplaySort; page: number }) {
   const params = new Params();
   const where = whereSql(input.conditions, input.match, params);
-  const needsUrls = input.conditions.some((c) => c.field === "any_page");
+  const pageMatches = params.pageMatches.map((sql) => ` ${sql},`).join("");
+  const pageMatchNames = params.pageMatches.map((_, i) => ` page_match_${i},`).join("");
   const offset = (Math.max(1, Math.floor(input.page)) - 1) * REPLAY_PAGE_SIZE;
   const sql = `WITH chunks AS (
     SELECT session_id, min(toInt64OrZero(properties['first_timestamp'])) AS start_ms, max(toInt64OrZero(properties['last_timestamp'])) AS end_ms,
@@ -79,7 +88,7 @@ export function buildReplayList(input: { from: number; conditions: ReplayConditi
     FROM telemetry.events WHERE ${chunkFilter(input.from)}
     GROUP BY session_id
   ), views AS (
-    SELECT session_id, count() AS pages, argMin(properties['$current_url'], timestamp) AS first_url,${needsUrls ? " groupUniqArray(200)(properties['$current_url']) AS urls," : ""}
+    SELECT session_id, count() AS pages, argMin(properties['$current_url'], timestamp) AS first_url,${pageMatches}
       any(${prop("$device_type")}) AS device_type_raw, any(${prop("$os")}) AS os_name, any(${prop("$browser")}) AS browser, any(${prop("$geoip_country_code")}) AS country,
       argMin(${prop("$referring_domain")}, timestamp) AS referrer_domain
     FROM telemetry.events
@@ -93,7 +102,7 @@ export function buildReplayList(input: { from: number; conditions: ReplayConditi
   )
   SELECT session_id, start_ms, duration_s, clicks, bytes, pages, first_url, device, browser, country, downloaded, customized, count() OVER () AS total
   FROM (
-    SELECT session_id, start_ms, toInt64(greatest(0, round((end_ms - start_ms) / 1000))) AS duration_s, clicks, bytes, pages, first_url,${needsUrls ? " urls," : ""}
+    SELECT session_id, start_ms, toInt64(greatest(0, round((end_ms - start_ms) / 1000))) AS duration_s, clicks, bytes, pages, first_url,${pageMatchNames}
       if(pages = 0, 'Unknown', ${DEVICE_SQL("device_type_raw", "os_name")}) AS device, os_name, browser, country, ${REFERRER_SQL("referrer_domain")} AS referrer,
       downloaded, customized
     FROM chunks LEFT JOIN views USING session_id LEFT JOIN marks USING session_id

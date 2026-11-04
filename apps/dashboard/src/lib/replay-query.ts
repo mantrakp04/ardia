@@ -56,14 +56,17 @@ export type ReplaySort = (typeof REPLAY_SORTS)[number];
 export const MAX_CONDITIONS = 12;
 const MAX_TEXT = 200;
 const MAX_NUMBER = 1e12;
-const DATE_VALUE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/;
+const DATE_VALUE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/;
 
 export const opsFor = (field: ReplayField): readonly ReplayOp[] => FIELD_KINDS[REPLAY_FIELDS[field].kind];
 
 export function dateValueMs(value: string): number | null {
-  if (!DATE_VALUE.test(value)) return null;
-  const ms = Date.parse(value.length === 10 ? `${value}T00:00:00Z` : `${value}:00Z`);
-  return Number.isFinite(ms) ? ms : null;
+  const parts = DATE_VALUE.exec(value);
+  if (!parts) return null;
+  const [year, month, day, hour, minute] = parts.slice(1).map((part) => Number(part ?? 0)) as [number, number, number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const exact = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day && date.getUTCHours() === hour && date.getUTCMinutes() === minute;
+  return exact ? date.getTime() : null;
 }
 
 export function parseCondition(field: unknown, op: unknown, value: unknown): ReplayCondition | null {
