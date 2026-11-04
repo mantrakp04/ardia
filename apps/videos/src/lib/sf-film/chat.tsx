@@ -121,8 +121,8 @@ const GREY = "#8E8E93";
 const SELECTED = "#1A82FB";
 
 function Sym({ name, size, color, style }: { name: string; size: number; color: string; style?: CSSProperties }) {
-  const url = `url(${staticFile(`brand/sf/sym-${name}.png`)})`;
-  return <div style={{ width: size, height: size, backgroundColor: color, WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "contain", maskSize: "contain", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", WebkitMaskPosition: "center", maskPosition: "center", flexShrink: 0, ...style }} />;
+  const v = parseInt(color.slice(1, 3), 16);
+  return <Img src={staticFile(`brand/sf/sym-${name}.png`)} style={{ width: size, height: size, objectFit: "contain", opacity: 1 - v / 255, flexShrink: 0, ...style }} />;
 }
 
 function Tail({ me }: { me: boolean }) {

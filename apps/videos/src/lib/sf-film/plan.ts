@@ -111,7 +111,7 @@ const turn: Shot = {
   panes: [pane("turn-priya", { land: [300, 150, 1320, 825], port: [40, 250, 1000, 1080] },
     [[0, 0, 16, 600, 420], [3.6, 0, 6, 760, 500, "inout", 3.3]], [[0, 0, 16, 440, 480], [3.6, 0, 8, 520, 560, "inout", 3.3]],
     { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
-  marks: { lift: 0.5, land: 2.8, stagger: 0.22, chatOut: 0.7, rise: 1.85 },
+  marks: { lift: 0.5, land: 2.8, stagger: 0.22, chatOut: 0.8, rise: 1.65 },
   type: [],
 };
 
@@ -121,7 +121,7 @@ const cell = (c: number, r: number): Record<Aspect, Box> => ({
 });
 const recv = (id: string, scene: string, who: Who, layout: Layout, c: number, r: number, role: Pane["role"], marks: Record<string, number>) => {
   const [x0, y0, x1, y1] = region(layout, layout === "top" ? 700 : 600, 300, 8);
-  const [px0, py0, px1, py1] = layout === "top" ? [0, 0, 560, 572] : region(layout, 270, 276, 8);
+  const [px0, py0, px1, py1] = layout === "top" ? [600, 0, 1160, 572] : region(layout, 270, 276, 8);
   const land: Key[] = layout === "top" ? [[0, x0, y0, x1, y1], [0.3, 0, 0, 1180, 475, "inout", 2.3]] : [[0, x0, y0, x1, y1], [0.01, x0, y0 + 2, x1 - 24, y1 - 10, "inout", 7.9]];
   const port: Key[] = [[0, px0, py0, px1, py1], [0.01, px0, py0 + 2, px1 - 8, py1 - 8, "inout", 7.9]];
   return pane(id, cell(c, r), land, port, { scene, who, layout, role, marks });
