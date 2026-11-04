@@ -4045,6 +4045,7 @@ try {
       let from = await mark(tab.id);
       await win("fakeOcclusion:occluded");
       await until("auto PiP on swiping away from the full-screen window", async () => pipAfter(tab.id, from, true), 5000);
+      await until("the PiP window presented", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000);
       from = await mark(tab.id);
       await win("fakeOcclusion:visible");
       await until("auto PiP ended back on the full-screen window", async () => pipAfter(tab.id, from, false), 5000);
@@ -4060,7 +4061,8 @@ try {
       const left = await pipAfter(tab.id, from, true);
       const inPage = (await cdp(t, "Runtime.evaluate", { expression: "({ pip: !!document.pictureInPictureElement, fs: !!document.fullscreenElement, paused: v.paused })", returnByValue: true })).result.value;
       await win("fakeOcclusion:visible");
-      if (left || inPage.pip || !inPage.fs) throw new Error(`a video in page full screen left full screen when the window was swiped away: ${JSON.stringify({ pip: left?.payload, page: inPage })}`);
+      if (left || inPage.pip || !inPage.fs || inPage.paused)
+        throw new Error(`a video in page full screen left full screen or paused when the window was swiped away: ${JSON.stringify({ pip: left?.payload, page: inPage })}`);
       out.pageFullScreen = inPage;
       await pressF(t);
       await settled("the video back inline", (w) => w.fullScreen && w.pageFullScreen?.page == null);
