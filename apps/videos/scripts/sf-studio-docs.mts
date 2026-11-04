@@ -38,7 +38,7 @@ for (const [video, { cut, aspect }] of Object.entries(VIDEOS)) {
     : { version: 1, video, definitions: definitions(FRAME[aspect]), objects: [], operations: [] };
   const have = new Set(doc.objects.map((o: { id: string }) => o.id));
   for (const shot of CUTS[cut].shots) {
-    for (const w of shot.screens ?? []) {
+    for (const w of shot.panes ?? []) {
       if (!w || have.has(w.id)) continue;
       const [x, y, width, height] = w.box[aspect];
       doc.objects.push({ id: w.id, definition: "window", label: `${shot.id} · ${w.id.replace(`${shot.id}-`, "")}`, parentId: null, values: { x, y, width, height, rotation: 0 } });
@@ -50,7 +50,7 @@ for (const [video, { cut, aspect }] of Object.entries(VIDEOS)) {
       const size = aspect === "port" && t.portSize ? t.portSize : t.size;
       doc.objects.push({
         id: t.id, definition: "type", label: `${shot.id} · ${t.text.replace(/\n/g, " ").slice(0, 28)}`, parentId: null,
-        values: { text: aspect === "port" && t.portText ? t.portText : t.text, size, color: t.color, fill: t.fill ?? "#00000000", x, y, width, height, rotation: t.rotation ?? 0 },
+        values: { text: aspect === "port" && t.portText ? t.portText : t.text, size, color: t.color, fill: "#00000000", x, y, width, height, rotation: 0 },
       });
       have.add(t.id);
     }

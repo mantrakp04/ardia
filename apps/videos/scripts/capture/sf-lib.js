@@ -9,7 +9,7 @@ const GM = req("state/sidebar/groupMenu.ts");
 const SM = req("state/sidebar/sidebarMenu.ts");
 const SA = req("state/sidebar/actions.ts");
 const UI = req("state/sidebar/sidebarUi.ts");
-const FOLDER = "Thesis Reading";
+const FOLDER = (typeof ARG !== "undefined" && ARG && ARG.folder) || "Thesis Reading";
 let engineWindow = null;
 const num = () => (engineWindow ? Promise.resolve(engineWindow) : ac.engine.call("windows.list", {}).then((ws) => (engineWindow = ws.find((w) => w.hasRoot).window)));
 const act = (a) => num().then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
@@ -61,3 +61,23 @@ const warmUrls = (urls) => urls.forEach((url) => then(() => {
   const id = st().newTab(W, { url });
   return sleep(2600).then(() => { st().closeTab(id); return sleep(300); });
 }));
+const descendants = (g) => {
+  if (!g) return [];
+  const kids = Object.values(st().groups).filter((x) => x.parentId === g.id);
+  return [...g.tabIds, ...kids.flatMap((k) => descendants(k))];
+};
+const signature = () => {
+  const walk = (g) => g ? { n: g.name, t: g.tabIds.map((id) => [st().tabs[id].customTitle || st().tabs[id].title, st().tabs[id].url]), k: Object.values(st().groups).filter((x) => x.parentId === g.id).map(walk) } : null;
+  return JSON.stringify(walk(folder()));
+};
+const groupNamed = (name) => Object.values(st().groups).find((g) => g.name === name);
+const tabTitled = (text) => {
+  const pool = [...descendants(folder()), ...st().windows[W].tabIds];
+  return pool.find((id) => ((st().tabs[id].customTitle || st().tabs[id].title || "") + " " + st().tabs[id].url).indexOf(text) >= 0);
+};
+const refOf = (text) => (groupNamed(text) ? groupNamed(text).id : tabTitled(text));
+const placeOf = (to) => {
+  if (to.between) return () => Promise.all([row(refOf(to.between[0])), row(refOf(to.between[1]))]).then(([p, q]) => ({ x: p.x + 80, y: (p.y + p.height + q.y) / 2 }));
+  if (to.below) return () => row(refOf(to.below)).then((r) => ({ x: r.x + 80, y: r.y + r.height - 3 }));
+  return () => row(refOf(to.above)).then((r) => ({ x: r.x + 80, y: r.y + 4 }));
+};

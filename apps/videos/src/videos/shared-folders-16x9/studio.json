@@ -159,79 +159,148 @@
   ],
   "objects": [
     {
-      "id": "chat-window",
+      "id": "chat-app",
       "definition": "window",
-      "label": "chat · window",
+      "label": "chat · app",
       "parentId": null,
       "values": {
-        "x": 60,
-        "y": 60,
-        "width": 1060,
-        "height": 960,
+        "x": 40,
+        "y": 30,
+        "width": 1840,
+        "height": 870,
         "rotation": 0
       }
     },
     {
-      "id": "chat-count",
+      "id": "chat-lost",
       "definition": "type",
-      "label": "chat · 46 LINKS.",
+      "label": "chat · Links get lost in the chat.",
       "parentId": null,
       "values": {
-        "text": "46 LINKS.",
-        "size": 300,
-        "color": "#C3371F",
+        "text": "Links get lost in the chat.",
+        "size": 62,
+        "color": "#1D1D1F",
         "fill": "#00000000",
-        "x": 1180,
-        "y": 330,
-        "width": 700,
-        "height": 330,
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
         "rotation": 0
       }
     },
     {
-      "id": "chat-not",
-      "definition": "type",
-      "label": "chat · THE GROUP CHAT IS NOT A FOLD",
-      "parentId": null,
-      "values": {
-        "text": "THE GROUP CHAT\nIS NOT\nA FOLDER.",
-        "size": 200,
-        "color": "#16130F",
-        "fill": "#00000000",
-        "x": 1180,
-        "y": 160,
-        "width": 690,
-        "height": 720,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "folder-window",
+      "id": "turn-priya",
       "definition": "window",
-      "label": "folder · window",
+      "label": "turn · priya",
       "parentId": null,
       "values": {
-        "x": 270,
-        "y": 180,
-        "width": 1380,
-        "height": 862,
+        "x": 300,
+        "y": 150,
+        "width": 1320,
+        "height": 825,
         "rotation": 0
       }
     },
     {
-      "id": "folder-share",
+      "id": "turn-better",
       "definition": "type",
-      "label": "folder · SHARE A FOLDER FROM YOUR SID",
+      "label": "turn · There’s a better place for t",
       "parentId": null,
       "values": {
-        "text": "SHARE A FOLDER\nFROM YOUR SIDEBAR.",
-        "size": 110,
-        "color": "#F1ECE2",
-        "fill": "#16130F",
-        "x": 80,
-        "y": 26,
-        "width": 1760,
-        "height": 130,
+        "text": "There’s a better place for them.",
+        "size": 62,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 30,
+        "width": 1600,
+        "height": 100,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-priya",
+      "definition": "window",
+      "label": "grid · priya",
+      "parentId": null,
+      "values": {
+        "x": 70,
+        "y": 214,
+        "width": 880,
+        "height": 354,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-tomas",
+      "definition": "window",
+      "label": "grid · tomas",
+      "parentId": null,
+      "values": {
+        "x": 968,
+        "y": 214,
+        "width": 880,
+        "height": 354,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-jun",
+      "definition": "window",
+      "label": "grid · jun",
+      "parentId": null,
+      "values": {
+        "x": 70,
+        "y": 632,
+        "width": 880,
+        "height": 354,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-ava",
+      "definition": "window",
+      "label": "grid · ava",
+      "parentId": null,
+      "values": {
+        "x": 968,
+        "y": 632,
+        "width": 880,
+        "height": 354,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-title",
+      "definition": "type",
+      "label": "grid · Shared Folders",
+      "parentId": null,
+      "values": {
+        "text": "Shared Folders",
+        "size": 84,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 22,
+        "width": 1600,
+        "height": 100,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "grid-every",
+      "definition": "type",
+      "label": "grid · One folder, in everyone’s si",
+      "parentId": null,
+      "values": {
+        "text": "One folder, in everyone’s sidebar.",
+        "size": 44,
+        "color": "#6E6E73",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 996,
+        "width": 1600,
+        "height": 64,
         "rotation": 0
       }
     },
@@ -241,401 +310,542 @@
       "label": "share · window",
       "parentId": null,
       "values": {
-        "x": 270,
-        "y": 180,
-        "width": 1380,
-        "height": 862,
+        "x": 300,
+        "y": 80,
+        "width": 1320,
+        "height": 825,
         "rotation": 0
       }
     },
     {
-      "id": "share-name",
+      "id": "share-apple",
       "definition": "type",
-      "label": "share · SHARED FOLDERS.",
+      "label": "share · Share it with anyone who has",
       "parentId": null,
       "values": {
-        "text": "SHARED FOLDERS.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#B0617F",
-        "x": 1000,
-        "y": 30,
-        "width": 860,
-        "height": 130,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "share-invite",
-      "definition": "type",
-      "label": "share · INVITE ANY APPLE ID.",
-      "parentId": null,
-      "values": {
-        "text": "INVITE ANY\nAPPLE ID.",
-        "size": 150,
-        "color": "#F1ECE2",
-        "fill": "#C3371F",
-        "x": 1300,
-        "y": 720,
-        "width": 560,
-        "height": 280,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "invite-window",
-      "definition": "window",
-      "label": "invite · window",
-      "parentId": null,
-      "values": {
-        "x": 270,
-        "y": 180,
-        "width": 1380,
-        "height": 862,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "accept-window",
-      "definition": "window",
-      "label": "accept · window",
-      "parentId": null,
-      "values": {
-        "x": 270,
-        "y": 180,
-        "width": 1380,
-        "height": 862,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "accept-his",
-      "definition": "type",
-      "label": "accept · NOW IT’S HIS TOO.",
-      "parentId": null,
-      "values": {
-        "text": "NOW IT’S\nHIS TOO.",
-        "size": 170,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 1220,
-        "y": 760,
-        "width": 640,
-        "height": 260,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "duo-priya",
-      "definition": "window",
-      "label": "duo · priya",
-      "parentId": null,
-      "values": {
-        "x": 50,
-        "y": 215,
-        "width": 900,
-        "height": 830,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "duo-tomas",
-      "definition": "window",
-      "label": "duo · tomas",
-      "parentId": null,
-      "values": {
-        "x": 970,
-        "y": 215,
-        "width": 900,
-        "height": 830,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "duo-here",
-      "definition": "type",
-      "label": "duo · DROP IT HERE.",
-      "parentId": null,
-      "values": {
-        "text": "DROP IT HERE.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#B0617F",
-        "x": 50,
-        "y": 30,
-        "width": 900,
-        "height": 120,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "duo-there",
-      "definition": "type",
-      "label": "duo · IT LANDS THERE.",
-      "parentId": null,
-      "values": {
-        "text": "IT LANDS THERE.",
-        "size": 120,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 970,
-        "y": 30,
-        "width": 900,
-        "height": 120,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "back-cause-window",
-      "definition": "window",
-      "label": "back-cause · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "back-effect-window",
-      "definition": "window",
-      "label": "back-effect · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "rename-cause-window",
-      "definition": "window",
-      "label": "rename-cause · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "rename-effect-window",
-      "definition": "window",
-      "label": "rename-effect · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "reorder-cause-window",
-      "definition": "window",
-      "label": "reorder-cause · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "reorder-effect-window",
-      "definition": "window",
-      "label": "reorder-effect · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "sub-cause-window",
-      "definition": "window",
-      "label": "sub-cause · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "sub-effect-window",
-      "definition": "window",
-      "label": "sub-effect · window",
-      "parentId": null,
-      "values": {
-        "x": 80,
-        "y": 80,
-        "width": 1760,
-        "height": 930,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "same-priya",
-      "definition": "window",
-      "label": "same · priya",
-      "parentId": null,
-      "values": {
-        "x": 50,
-        "y": 215,
-        "width": 900,
-        "height": 830,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "same-tomas",
-      "definition": "window",
-      "label": "same · tomas",
-      "parentId": null,
-      "values": {
-        "x": 970,
-        "y": 215,
-        "width": 900,
-        "height": 830,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "same-line",
-      "definition": "type",
-      "label": "same · SAME FOLDER. EVERY SIDEBAR.",
-      "parentId": null,
-      "values": {
-        "text": "SAME FOLDER.\nEVERY SIDEBAR.",
-        "size": 110,
-        "color": "#16130F",
+        "text": "Share it with anyone who has an Apple ID.",
+        "size": 62,
+        "color": "#1D1D1F",
         "fill": "#00000000",
-        "x": 80,
-        "y": 34,
-        "width": 1760,
-        "height": 120,
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
         "rotation": 0
       }
     },
     {
-      "id": "nos-priya",
+      "id": "files-card",
       "definition": "window",
-      "label": "nos · priya",
+      "label": "files · card",
       "parentId": null,
       "values": {
-        "x": 50,
-        "y": 215,
-        "width": 900,
-        "height": 830,
+        "x": 560,
+        "y": 110,
+        "width": 800,
+        "height": 700,
         "rotation": 0
       }
     },
     {
-      "id": "nos-tomas",
-      "definition": "window",
-      "label": "nos · tomas",
-      "parentId": null,
-      "values": {
-        "x": 970,
-        "y": 215,
-        "width": 900,
-        "height": 830,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "nos-folder",
-      "definition": "window",
-      "label": "nos · folder",
-      "parentId": null,
-      "values": {
-        "x": 1140,
-        "y": 170,
-        "width": 700,
-        "height": 600,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "nos-account",
+      "id": "files-icloud",
       "definition": "type",
-      "label": "nos · NO ARDIA ACCOUNT.",
+      "label": "files · It lives in iCloud Drive. No",
       "parentId": null,
       "values": {
-        "text": "NO ARDIA\nACCOUNT.",
-        "size": 260,
-        "color": "#F1ECE2",
-        "fill": "#16130F",
-        "x": 80,
-        "y": 330,
-        "width": 1760,
-        "height": 420,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "nos-server",
-      "definition": "type",
-      "label": "nos · NO SERVER.",
-      "parentId": null,
-      "values": {
-        "text": "NO SERVER.",
-        "size": 300,
-        "color": "#F1ECE2",
-        "fill": "#C3371F",
-        "x": 80,
-        "y": 330,
-        "width": 1760,
-        "height": 420,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "nos-icloud",
-      "definition": "type",
-      "label": "nos · JUST ICLOUD DRIVE.",
-      "parentId": null,
-      "values": {
-        "text": "JUST\nICLOUD\nDRIVE.",
-        "size": 230,
-        "color": "#16130F",
+        "text": "It lives in iCloud Drive. No new account.",
+        "size": 62,
+        "color": "#1D1D1F",
         "fill": "#00000000",
-        "x": 80,
-        "y": 150,
-        "width": 1000,
-        "height": 640,
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
         "rotation": 0
       }
     },
     {
-      "id": "nos-path",
-      "definition": "type",
-      "label": "nos · ICLOUD DRIVE › ARDIA SHARED ",
+      "id": "drop-priya",
+      "definition": "window",
+      "label": "drop · priya",
       "parentId": null,
       "values": {
-        "text": "ICLOUD DRIVE › ARDIA SHARED › THESIS READING",
-        "size": 30,
-        "color": "#57524A",
+        "x": 60,
+        "y": 140,
+        "width": 880,
+        "height": 740,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "drop-tomas",
+      "definition": "window",
+      "label": "drop · tomas",
+      "parentId": null,
+      "values": {
+        "x": 980,
+        "y": 140,
+        "width": 880,
+        "height": 740,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "drop-add",
+      "definition": "type",
+      "label": "drop · Add a link, and it’s there f",
+      "parentId": null,
+      "values": {
+        "text": "Add a link, and it’s there for everyone.",
+        "size": 62,
+        "color": "#1D1D1F",
         "fill": "#00000000",
-        "x": 84,
-        "y": 880,
-        "width": 1000,
-        "height": 50,
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-priya",
+      "definition": "window",
+      "label": "edits · priya",
+      "parentId": null,
+      "values": {
+        "x": 60,
+        "y": 140,
+        "width": 880,
+        "height": 740,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-tomas",
+      "definition": "window",
+      "label": "edits · tomas",
+      "parentId": null,
+      "values": {
+        "x": 980,
+        "y": 140,
+        "width": 880,
+        "height": 740,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-rename",
+      "definition": "type",
+      "label": "edits · Rename it.",
+      "parentId": null,
+      "values": {
+        "text": "Rename it.",
+        "size": 62,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-reorder",
+      "definition": "type",
+      "label": "edits · Reorder it.",
+      "parentId": null,
+      "values": {
+        "text": "Reorder it.",
+        "size": 62,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "edits-nest",
+      "definition": "type",
+      "label": "edits · Tuck it into a subfolder.",
+      "parentId": null,
+      "values": {
+        "text": "Tuck it into a subfolder.",
+        "size": 62,
+        "color": "#1D1D1F",
+        "fill": "#00000000",
+        "x": 160,
+        "y": 930,
+        "width": 1600,
+        "height": 110,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-jun",
+      "definition": "window",
+      "label": "v-thesis-cause · v-thesis-jun",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-label",
+      "definition": "type",
+      "label": "v-thesis-cause · A thesis reading list",
+      "parentId": null,
+      "values": {
+        "text": "A thesis reading list",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-priya",
+      "definition": "window",
+      "label": "v-thesis-effect · v-thesis-priya",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-tomas",
+      "definition": "window",
+      "label": "v-thesis-effect · v-thesis-tomas",
+      "parentId": null,
+      "values": {
+        "x": 660,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-ava",
+      "definition": "window",
+      "label": "v-thesis-effect · v-thesis-ava",
+      "parentId": null,
+      "values": {
+        "x": 1280,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-thesis-label2",
+      "definition": "type",
+      "label": "v-thesis-effect · A thesis reading list",
+      "parentId": null,
+      "values": {
+        "text": "A thesis reading list",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-launch-maya",
+      "definition": "window",
+      "label": "v-launch-cause · v-launch-maya",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-launch-label",
+      "definition": "type",
+      "label": "v-launch-cause · A product launch",
+      "parentId": null,
+      "values": {
+        "text": "A product launch",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-launch-leo",
+      "definition": "window",
+      "label": "v-launch-effect · v-launch-leo",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-launch-label2",
+      "definition": "type",
+      "label": "v-launch-effect · A product launch",
+      "parentId": null,
+      "values": {
+        "text": "A product launch",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-lab-okafor",
+      "definition": "window",
+      "label": "v-lab-cause · v-lab-okafor",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-lab-label",
+      "definition": "type",
+      "label": "v-lab-cause · A research lab",
+      "parentId": null,
+      "values": {
+        "text": "A research lab",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-lab-sam",
+      "definition": "window",
+      "label": "v-lab-effect · v-lab-sam",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-lab-label2",
+      "definition": "type",
+      "label": "v-lab-effect · A research lab",
+      "parentId": null,
+      "values": {
+        "text": "A research lab",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-trip-kai",
+      "definition": "window",
+      "label": "v-trip-cause · v-trip-kai",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-trip-label",
+      "definition": "type",
+      "label": "v-trip-cause · A weekend away",
+      "parentId": null,
+      "values": {
+        "text": "A weekend away",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-trip-noor",
+      "definition": "window",
+      "label": "v-trip-effect · v-trip-noor",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-trip-label2",
+      "definition": "type",
+      "label": "v-trip-effect · A weekend away",
+      "parentId": null,
+      "values": {
+        "text": "A weekend away",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-ruiz",
+      "definition": "window",
+      "label": "v-class-cause · v-class-ruiz",
+      "parentId": null,
+      "values": {
+        "x": 160,
+        "y": 110,
+        "width": 1600,
+        "height": 850,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-label",
+      "definition": "type",
+      "label": "v-class-cause · A class",
+      "parentId": null,
+      "values": {
+        "text": "A class",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-ana",
+      "definition": "window",
+      "label": "v-class-effect · v-class-ana",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-ben",
+      "definition": "window",
+      "label": "v-class-effect · v-class-ben",
+      "parentId": null,
+      "values": {
+        "x": 660,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-cleo",
+      "definition": "window",
+      "label": "v-class-effect · v-class-cleo",
+      "parentId": null,
+      "values": {
+        "x": 1280,
+        "y": 250,
+        "width": 600,
+        "height": 560,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "v-class-label2",
+      "definition": "type",
+      "label": "v-class-effect · A class",
+      "parentId": null,
+      "values": {
+        "text": "A class",
+        "size": 46,
+        "color": "#F5F5F7",
+        "fill": "#00000000",
+        "x": 90,
+        "y": 990,
+        "width": 1740,
+        "height": 70,
+        "rotation": 0
+      }
+    },
+    {
+      "id": "callback-app",
+      "definition": "window",
+      "label": "callback · app",
+      "parentId": null,
+      "values": {
+        "x": 40,
+        "y": 30,
+        "width": 1840,
+        "height": 870,
         "rotation": 0
       }
     },
@@ -645,176 +855,61 @@
       "label": "end · icon",
       "parentId": null,
       "values": {
-        "x": 100,
-        "y": 210,
-        "width": 230,
-        "height": 230,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "end-live",
-      "definition": "window",
-      "label": "end · live",
-      "parentId": null,
-      "values": {
-        "x": 1240,
-        "y": 140,
-        "width": 600,
-        "height": 800,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "end-new",
-      "definition": "type",
-      "label": "end · NEW: SHARED FOLDERS",
-      "parentId": null,
-      "values": {
-        "text": "NEW: SHARED FOLDERS",
-        "size": 54,
-        "color": "#B0617F",
-        "fill": "#00000000",
-        "x": 104,
-        "y": 140,
-        "width": 1060,
-        "height": 60,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "end-name",
-      "definition": "type",
-      "label": "end · ARDIA",
-      "parentId": null,
-      "values": {
-        "text": "ARDIA",
-        "size": 270,
-        "color": "#16130F",
-        "fill": "#00000000",
-        "x": 360,
+        "x": 860,
         "y": 200,
-        "width": 760,
-        "height": 250,
+        "width": 200,
+        "height": 200,
         "rotation": 0
       }
     },
     {
-      "id": "end-mac",
+      "id": "end-feature",
       "definition": "type",
-      "label": "end · THE SIDEBAR BROWSER FOR MAC",
+      "label": "end · Shared Folders",
       "parentId": null,
       "values": {
-        "text": "THE SIDEBAR BROWSER FOR MAC",
-        "size": 64,
-        "color": "#2150D9",
+        "text": "Shared Folders",
+        "size": 110,
+        "color": "#1D1D1F",
         "fill": "#00000000",
-        "x": 104,
-        "y": 480,
-        "width": 1060,
-        "height": 80,
+        "x": 160,
+        "y": 440,
+        "width": 1600,
+        "height": 130,
         "rotation": 0
       }
     },
     {
-      "id": "end-download",
+      "id": "end-ardia",
       "definition": "type",
-      "label": "end · DOWNLOAD",
+      "label": "end · Ardia, the sidebar browser f",
       "parentId": null,
       "values": {
-        "text": "DOWNLOAD",
-        "size": 86,
-        "color": "#16130F",
+        "text": "Ardia, the sidebar browser for Mac",
+        "size": 44,
+        "color": "#6E6E73",
         "fill": "#00000000",
-        "x": 104,
-        "y": 610,
-        "width": 1060,
-        "height": 100,
+        "x": 160,
+        "y": 590,
+        "width": 1600,
+        "height": 70,
         "rotation": 0
       }
     },
     {
       "id": "end-url",
       "definition": "type",
-      "label": "end · ARDIA.DEV",
+      "label": "end · Download at ardia.dev",
       "parentId": null,
       "values": {
-        "text": "ARDIA.DEV",
-        "size": 220,
-        "color": "#C3371F",
+        "text": "Download at ardia.dev",
+        "size": 52,
+        "color": "#2150D9",
         "fill": "#00000000",
-        "x": 100,
+        "x": 160,
         "y": 710,
-        "width": 1060,
-        "height": 240,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "back-word-text",
-      "definition": "type",
-      "label": "back-word · BOTH WAYS.",
-      "parentId": null,
-      "values": {
-        "text": "BOTH WAYS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#16130F",
-        "x": 1020,
-        "y": 770,
-        "width": 820,
-        "height": 210,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "rename-word-text",
-      "definition": "type",
-      "label": "rename-word · RENAMES.",
-      "parentId": null,
-      "values": {
-        "text": "RENAMES.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 1020,
-        "y": 770,
-        "width": 820,
-        "height": 210,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "reorder-word-text",
-      "definition": "type",
-      "label": "reorder-word · REORDERS.",
-      "parentId": null,
-      "values": {
-        "text": "REORDERS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#B0617F",
-        "x": 1020,
-        "y": 770,
-        "width": 820,
-        "height": 210,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "sub-word-text",
-      "definition": "type",
-      "label": "sub-word · SUBFOLDERS.",
-      "parentId": null,
-      "values": {
-        "text": "SUBFOLDERS.",
-        "size": 200,
-        "color": "#F1ECE2",
-        "fill": "#3F7DB0",
-        "x": 1020,
-        "y": 770,
-        "width": 820,
-        "height": 210,
+        "width": 1600,
+        "height": 80,
         "rotation": 0
       }
     }

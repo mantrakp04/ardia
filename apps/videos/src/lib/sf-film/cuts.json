@@ -1,264 +1,92 @@
 {
- "bpm": 120,
+ "bpm": 100,
  "fps": 30,
- "beatFrames": 15,
- "beats": 64,
- "lufs": -11,
+ "beatFrames": 18,
+ "beats": 112,
+ "lufs": -14,
  "truePeak": -1.5,
  "sections": [
   {
-   "name": "hook",
+   "name": "chaos",
    "at": 0,
+   "beats": 16,
+   "energy": 3,
+   "brief": "a soft, curious pulse; the chat threads pile up"
+  },
+  {
+   "name": "turn",
+   "at": 16,
    "beats": 8,
-   "energy": 4,
-   "brief": "warm plucky groove, finger snaps, muted keys; the chat bubbles pop on the beat"
+   "energy": 5,
+   "brief": "a rising lift into the swell"
   },
   {
-   "name": "build",
-   "at": 8,
-   "beats": 15,
-   "energy": 6,
-   "brief": "bass and claps enter, a rising lift with a riser into a hard stop"
-  },
-  {
-   "name": "silence",
-   "at": 23,
-   "beats": 1,
-   "energy": 0,
-   "brief": "true digital silence: the link is released in Priya's sidebar"
-  },
-  {
-   "name": "drop",
+   "name": "swell",
    "at": 24,
-   "beats": 20,
-   "energy": 9,
-   "brief": "the biggest moment: full, bright, bouncy chorus; the link lands in Tomas's sidebar on beat 24"
-  },
-  {
-   "name": "lift",
-   "at": 44,
    "beats": 8,
    "energy": 7,
-   "brief": "stabs on beats 44, 46 and 48 under NO ACCOUNT / NO SIGN-UP / JUST ICLOUD DRIVE, building to the end hit"
+   "brief": "the first warm, full swell on beat 24: the folder lands in four sidebars at once"
+  },
+  {
+   "name": "explain",
+   "at": 32,
+   "beats": 40,
+   "energy": 6,
+   "brief": "steady, confident groove under the narration"
+  },
+  {
+   "name": "montage",
+   "at": 72,
+   "beats": 28,
+   "energy": 8,
+   "brief": "energy up for the user-story montage, a clear pulse for cuts"
   },
   {
    "name": "end",
-   "at": 52,
+   "at": 100,
    "beats": 12,
-   "energy": 5,
-   "brief": "end hit on beat 52, then a ringing chord tail that has died away by beat 64"
+   "energy": 4,
+   "brief": "resolve on beat 104 for the end card, final chord gone by beat 112 (67.2 s)"
   }
  ],
- "silences": [
-  [
-   23,
-   24
-  ]
- ],
- "endHit": 52,
- "sfx": [
-  {
-   "kind": "chatPop",
-   "beat": 0.5
-  },
-  {
-   "kind": "chatPop",
-   "beat": 1
-  },
-  {
-   "kind": "chatPop",
-   "beat": 1.5
-  },
-  {
-   "kind": "slam",
-   "beat": 2
-  },
-  {
-   "kind": "chatPop",
-   "beat": 2.5
-  },
-  {
-   "kind": "chatPop",
-   "beat": 3
-  },
-  {
-   "kind": "whoosh",
-   "beat": 3.75
-  },
-  {
-   "kind": "click",
-   "beat": 5.5
-  },
-  {
-   "kind": "tick",
-   "beat": 6.4
-  },
-  {
-   "kind": "click",
-   "beat": 7
-  },
-  {
-   "kind": "sheet",
-   "beat": 8
-  },
-  {
-   "kind": "tick",
-   "beat": 9.5
-  },
-  {
-   "kind": "click",
-   "beat": 10.5
-  },
-  {
-   "kind": "arrive",
-   "beat": 11,
-   "gain": 0.45
-  },
-  {
-   "kind": "chatPop",
-   "beat": 12.25,
-   "gain": 0.8
-  },
-  {
-   "kind": "click",
-   "beat": 13
-  },
-  {
-   "kind": "whoosh",
-   "beat": 13.75
-  },
-  {
-   "kind": "click",
-   "beat": 15
-  },
-  {
-   "kind": "tick",
-   "beat": 15.5
-  },
-  {
-   "kind": "click",
-   "beat": 16
-  },
-  {
-   "kind": "arrive",
-   "beat": 16.5,
-   "gain": 0.6
-  },
-  {
-   "kind": "whoosh",
-   "beat": 18.75
-  },
-  {
-   "kind": "lift",
-   "beat": 20.5
-  },
-  {
-   "kind": "drag",
-   "beat": 21
-  },
-  {
-   "kind": "thud",
-   "beat": 23
-  },
-  {
-   "kind": "arrive",
-   "beat": 24
-  },
-  {
-   "kind": "lift",
-   "beat": 27
-  },
-  {
-   "kind": "thud",
-   "beat": 29
-  },
-  {
-   "kind": "arrive",
-   "beat": 30
-  },
-  {
-   "kind": "type",
-   "beat": 31.25
-  },
-  {
-   "kind": "click",
-   "beat": 33
-  },
-  {
-   "kind": "arrive",
-   "beat": 34
-  },
-  {
-   "kind": "lift",
-   "beat": 35.5
-  },
-  {
-   "kind": "thud",
-   "beat": 37.25
-  },
-  {
-   "kind": "arrive",
-   "beat": 38
-  },
-  {
-   "kind": "click",
-   "beat": 39
-  },
-  {
-   "kind": "arrive",
-   "beat": 40.5
-  },
-  {
-   "kind": "whoosh",
-   "beat": 41.75
-  },
-  {
-   "kind": "slam",
-   "beat": 44
-  },
-  {
-   "kind": "slam",
-   "beat": 46
-  },
-  {
-   "kind": "slam",
-   "beat": 48
-  },
-  {
-   "kind": "whoosh",
-   "beat": 51.75
-  }
- ],
+ "silences": [],
+ "endHit": 104,
+ "sfx": [],
  "vo": [
   {
    "id": "vo1",
-   "beat": 0.5,
-   "text": "The group chat is not a folder."
+   "beat": 5,
+   "text": "Every group project has one. The chat where links go to get lost."
   },
   {
    "id": "vo2",
-   "beat": 4.75,
-   "text": "Share a folder from your sidebar."
+   "beat": 17,
+   "text": "Now there's a better place for them."
   },
   {
    "id": "vo3",
-   "beat": 20.5,
-   "text": "Drop a link here…"
+   "beat": 25.5,
+   "text": "With Shared Folders in Ardia, a folder in your sidebar can belong to everyone you work with."
   },
   {
    "id": "vo4",
-   "beat": 25,
-   "text": "…it lands there."
+   "beat": 38.5,
+   "text": "Share it with anyone who has an Apple ID. It lives in iCloud Drive, so there's no new account to make."
   },
   {
    "id": "vo5",
-   "beat": 44,
-   "text": "No Ardia account. No server. Just iCloud Drive."
+   "beat": 53.5,
+   "text": "When someone adds a link, it shows up for everyone, right away."
   },
   {
    "id": "vo6",
-   "beat": 53,
-   "text": "Ardia. ardia dot dev."
+   "beat": 62,
+   "text": "Rename it, reorder it, tuck it into a subfolder. Everyone sees the same folder."
+  },
+  {
+   "id": "vo7",
+   "beat": 105,
+   "text": "Shared Folders. Now in Ardia."
   }
  ]
 }

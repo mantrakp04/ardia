@@ -1,9 +1,9 @@
 import { createContext, type CSSProperties, type ReactNode, useContext } from "react";
-import { AbsoluteFill, Easing, Img, random, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Img, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { useStudioObject } from "../studio-objects-v6";
 import footage from "./footage.json";
-import { type Aspect, BEAT, type Shot, type TypeLayer, type View, WIN_PT } from "./plan";
-import { color, font } from "../ac-launch/theme";
+import { type Aspect, BEAT, LIGHT_BG, type Shot, type TypeLayer, type View, WIN_PT } from "./plan";
+import { color } from "../ac-launch/theme";
 
 const ShotContext = createContext<Shot | null>(null);
 export const ShotProvider = ShotContext.Provider;
@@ -46,13 +46,8 @@ export function kick(b: number, start: number, decay = 0.35) {
   return Math.exp(-(b - start) / decay) * Math.cos((b - start) * 9);
 }
 
-export function Paper({ tone = color.paper, children }: { tone?: string; children?: ReactNode }) {
-  return (
-    <AbsoluteFill style={{ backgroundColor: tone }}>
-      <Grain />
-      {children}
-    </AbsoluteFill>
-  );
+export function Paper({ tone = LIGHT_BG, children }: { tone?: string; children?: ReactNode }) {
+  return <AbsoluteFill style={{ backgroundColor: tone }}>{children}</AbsoluteFill>;
 }
 
 export function Grain({ opacity = 0.08 }: { opacity?: number }) {
@@ -161,8 +156,12 @@ export function Screen({
   const h = object.number("height");
   const geometry = object.geometry({ x: "x", y: "y", width: "width", height: "height", rotation: "rotation" });
   const s = view.s;
-  const left = w / 2 - view.cx * s;
-  const top = h / 2 - view.cy * s;
+  const hw = w / 2 / s;
+  const hh = h / 2 / s;
+  const cx = hw * 2 >= WIN_PT[0] ? WIN_PT[0] / 2 : clamp(view.cx, hw, WIN_PT[0] - hw);
+  const cy = hh * 2 >= WIN_PT[1] ? WIN_PT[1] / 2 : clamp(view.cy, hh, WIN_PT[1] - hh);
+  const left = w / 2 - cx * s;
+  const top = h / 2 - cy * s;
   return (
     <div {...object.bind} {...geometry.bind} style={{ ...geometry.style }}>
       <div
@@ -179,23 +178,24 @@ export function Screen({
         {overlay}
         <div style={{ position: "absolute", inset: 0, borderRadius: radius, boxShadow: "inset 0 0 0 1.5px rgba(22,19,15,0.10)", pointerEvents: "none" }} />
       </div>
-      {tag ? <NameTag text={tag} fill={tagColor ?? color.ink} /> : null}
+      {tag ? <NameTag text={tag} fill={tagColor ?? color.ink} scale={Math.min(1, Math.max(0.62, w / 900))} /> : null}
     </div>
   );
 }
 
-export function NameTag({ text, fill }: { text: string; fill: string }) {
+export function NameTag({ text, fill, scale = 1 }: { text: string; fill: string; scale?: number }) {
   return (
     <div
       style={{
-        position: "absolute", left: 18, top: -60, height: 50, padding: "0 22px", borderRadius: 26, backgroundColor: fill,
+        transform: `scale(${scale})`, transformOrigin: "0 100%",
+        position: "absolute", left: 14, top: -60, height: 50, padding: "0 22px", borderRadius: 26, backgroundColor: fill,
         display: "flex", alignItems: "center", gap: 12, boxShadow: "0 6px 18px rgba(22,19,15,0.25)",
       }}
     >
-      <div style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.92)", color: fill, fontFamily: font.poster, fontWeight: 860, fontStretch: "75%", fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.92)", color: fill, fontFamily: '-apple-system, "SF Pro Text", sans-serif', fontWeight: 700, fontSize: 17, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {text[0]}
       </div>
-      <span style={{ fontFamily: font.poster, fontWeight: 860, fontStretch: "70%", fontSize: 30, letterSpacing: "0.02em", color: "#FFFFFF", textTransform: "uppercase" }}>{text}</span>
+      <span style={{ fontFamily: '-apple-system, "SF Pro Text", sans-serif', fontWeight: 600, fontSize: 26, color: "#FFFFFF" }}>{text}</span>
     </div>
   );
 }
@@ -237,129 +237,38 @@ export function pointerPath(b: number, stops: { at: number; x: number; y: number
   return { x, y, press };
 }
 
-const poster: CSSProperties = {
-  fontFamily: font.poster, fontWeight: 860, fontStretch: "62%", textTransform: "uppercase", lineHeight: 0.86,
-  letterSpacing: "-0.005em", wordSpacing: "0.22em", whiteSpace: "pre-line", margin: 0,
+const SANS = '-apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif';
+const STYLE: Record<TypeLayer["style"], CSSProperties> = {
+  caption: { fontFamily: SANS, fontWeight: 600, letterSpacing: "-0.018em", lineHeight: 1.12 },
+  title: { fontFamily: SANS, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.02 },
+  label: { fontFamily: SANS, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.1 },
 };
-const mono: CSSProperties = {
-  fontFamily: font.mono, fontWeight: 520, fontStretch: "87.5%", letterSpacing: "0.06em", textTransform: "uppercase",
-  lineHeight: 1.3, whiteSpace: "pre-line", margin: 0,
-};
-
-let canvas: CanvasRenderingContext2D | null = null;
-const measured = new Map<string, number>();
-function lineWidth(text: string, stamp: boolean) {
-  const key = `${stamp}:${text}`;
-  const hit = measured.get(key);
-  if (hit !== undefined) return hit;
-  canvas ??= document.createElement("canvas").getContext("2d");
-  if (!canvas) return text.length * 45;
-  canvas.font = `${stamp ? 850 : 860} 100px "${font.poster}"`;
-  (canvas as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = stamp ? "condensed" : "extra-condensed";
-  const spacing = stamp ? 7 : -0.5;
-  const words = stamp ? 0 : 22;
-  const w = Math.max(...text.toUpperCase().split("\n").map((l) => canvas!.measureText(l).width + spacing * l.length + words * (l.split(" ").length - 1)));
-  measured.set(key, w);
-  return w;
-}
-export function fitSize(text: string, size: number, width: number, height: number, stamp = false) {
-  const lines = text.split("\n").length;
-  const byWidth = (100 * width) / Math.max(1, lineWidth(text, stamp));
-  const byHeight = height / (lines * (stamp ? 1.45 : 0.9));
-  return Math.max(8, Math.min(size, byWidth * 0.97, byHeight));
-}
-
-const STAMP_FALL = 3 / BEAT;
-function visible(b: number, layer: TypeLayer, shot: Shot) {
-  const start = layer.style === "stamp" ? layer.at - STAMP_FALL : layer.at;
-  return b >= start && b < (layer.out ?? shot.beats);
-}
 
 export function Type({ layer }: { layer: TypeLayer }) {
   const shot = useShot();
   const b = useBeat();
   const frame = useVideoConfig();
   const object = useStudioObject(layer.id);
-  if (!visible(b, layer, shot)) return null;
-  const local = b - layer.at;
+  const out = layer.out ?? shot.beats;
+  if (b < layer.at || b >= out) return null;
+  const inT = easeOut(clamp((b - layer.at) / 0.55));
+  const outT = clamp((out - b) / 0.4);
+  const opacity = Math.min(inT, outT);
+  const rise = (1 - inT) * 14;
   const text = object.text("text");
   const ink = object.text("color");
-  const fill = object.text("fill");
-  const plate = !/^#[0-9a-f]{6}00$/i.test(fill);
-  const boxW = object.number("width");
-  const boxH = object.number("height");
-  const stampStyle = layer.style === "stamp";
-  const sized = layer.style === "slam" || stampStyle;
-  const room = (s: number) => (plate ? [boxW - s * 0.4, boxH - s * 0.28] : stampStyle ? [boxW - s * 0.9, boxH] : [boxW, boxH]);
-  let size = object.number("size");
-  if (sized) {
-    const [w, h] = room(size);
-    size = fitSize(text, size, w, h, stampStyle);
-  }
-  let scale = 1;
-  let extraRot = 0;
-  let opacity = 1;
-  let shown = text;
-  const align = (frame.width < frame.height && layer.portAlign) || layer.align || "left";
-  let style: CSSProperties = poster;
-  if (layer.count) {
-    const hit = [...layer.count].reverse().find(([at]) => b >= at);
-    if (hit) shown = text.replace(/^\d+/, String(hit[1]));
-  }
-  if (layer.style === "slam") {
-    const last = layer.count ? Math.max(layer.at, ...layer.count.map(([at]) => at).filter((at) => b >= at)) : layer.at;
-    const s = springAt(b, last, { stiffness: 620, damping: 26 });
-    scale = 1.07 - 0.07 * s;
-    extraRot = (1 - s) * (random(layer.id) - 0.5) * 5;
-  } else if (layer.style === "stamp") {
-    const t = clamp((local + STAMP_FALL) / STAMP_FALL);
-    scale = t < 1 ? mix(2.4, 0.94, easeIn(t)) : 1 - 0.06 * Math.exp(-local * 9);
-    opacity = t < 0.15 ? 0 : 1;
-  } else if (layer.style === "label") {
-    style = mono;
-    const chars = Math.ceil(clamp(local / 0.6) * text.length);
-    shown = text.slice(0, chars);
-  }
-  const cx = object.number("x") + boxW / 2;
-  const cy = object.number("y") + boxH / 2;
-  const fitX = (Math.min(cx, frame.width - cx) - 16) / (boxW / 2);
-  const fitY = (Math.min(cy, frame.height - cy) - 16) / (boxH / 2);
-  scale = Math.max(0.01, Math.min(scale, Math.max(1, Math.min(fitX, fitY))));
-  const geometry = object.geometry(
-    { x: "x", y: "y", width: "width", height: "height", rotation: "rotation" },
-    { offset: { rotation: extraRot }, scale },
-  );
+  const size = object.number("size");
+  const align = (frame.width < frame.height && layer.portAlign) || layer.align || "center";
+  const geometry = object.geometry({ x: "x", y: "y", width: "width", height: "height", rotation: "rotation" }, { offset: { y: rise } });
   return (
     <div
       {...object.bind}
       {...geometry.bind}
-      style={{
-        ...geometry.style, display: "flex", flexDirection: "column",
-        justifyContent: plate || stampStyle || align === "center" ? "center" : "flex-start",
-        alignItems: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center",
-        opacity,
-      }}
+      style={{ ...geometry.style, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center", opacity }}
     >
-      {stampStyle ? (
-        <div style={{ border: `${size * 0.07}px solid ${ink}`, borderRadius: size * 0.1, padding: size * 0.06, color: ink, mixBlendMode: "multiply" }}>
-          <p
-            {...object.bindText("text")}
-            style={{
-              ...poster, fontWeight: 850, fontStretch: "75%", letterSpacing: "0.07em", fontSize: size, lineHeight: 1,
-              border: `${size * 0.025}px solid ${ink}`, borderRadius: size * 0.05, padding: `${size * 0.12}px ${size * 0.3}px ${size * 0.08}px`,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {text}
-          </p>
-        </div>
-      ) : (
-        <div style={plate ? { backgroundColor: fill, padding: `${size * 0.14}px ${size * 0.2}px ${size * 0.1}px`, borderRadius: size * 0.06 } : undefined}>
-          <p {...object.bindText("text")} style={{ ...style, fontSize: size, color: ink, textAlign: align }}>
-            {shown}
-          </p>
-        </div>
-      )}
+      <p {...object.bindText("text")} style={{ ...STYLE[layer.style], margin: 0, whiteSpace: "pre-line", fontSize: size, color: ink, textAlign: align }}>
+        {text}
+      </p>
     </div>
   );
 }

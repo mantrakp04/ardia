@@ -23,8 +23,29 @@ FILES = {
     "lecture.example": ["Helsinki Rooftops (Unsplash).jpg", "Rooftops (Unsplash).jpg",
                         "Suburb view on a foggy morning (Unsplash).jpg", "Rooftop street view (Unsplash).jpg"],
     "survey.example": ["Forsyth Park, Savannah (Unsplash).jpg"],
+    "pressroom.example": ["Coffee steaming in a mug.jpg"],
+    "mockups.example": ["Sunflower field at sunset.jpg"],
+    "preprints.example": ["Arbuscular mycorrhiza microscope.jpg", "White mushrooms on tree bark (Unsplash).jpg"],
+    "protocols.example": ["Cdc-wDxFn dBEC0-unsplash.jpg", "PCR tubes.jpg"],
+    "labwiki.example": ["Fume hood.jpg"],
+    "journalclub.example": ["White mushrooms on tree bark (Unsplash).jpg"],
+    "hostel.example": ["Parco Nazionale delle Cinque Terre, Riomaggiore, Italy (Unsplash).jpg", "Vacation in Greece (Unsplash).jpg",
+                       "Kitchen (Unsplash).jpg", "Burano, Venice, Italy (Unsplash).jpg", "Boats of Cavtat, Cavtat, Croatia (Unsplash).jpg",
+                       "Bunk bed.jpg", "Hotel bedroom windows (Unsplash).jpg", "NY loft bedroom (Unsplash).jpg"],
+    "ferry.example": ["Ferry deck (Unsplash).jpg"],
+    "trails.example": ["Sharp green mountain ridge (Unsplash).jpg", "Manarola, Italy (Unsplash hpUDtMgq72A).jpg",
+                       "Coastline drone view (Unsplash uUS0DWy6lvA).jpg"],
+    "eats.example": ["BBQ Skewers (Unsplash).jpg", "Eating Asian Noodles (Unsplash).jpg", "Noodle Dish (Unsplash).jpg",
+                     "Dumplings (Unsplash).jpg", "Dim Sum Dinner (Unsplash).jpg", "Noodle Bowl for Lunch (Unsplash).jpg",
+                     "Vegetable Satay - Bali 2025-11-19.jpg", "Seafood Market in Japan (Unsplash).jpg",
+                     "Foto sate sedang dibakar.jpg", "Green shop (Unsplash).jpg", "Ladle of Ramen (Unsplash).jpg",
+                     "Sate Ayam Khas Madura.jpg"],
+    "syllabus.example": ["Plants in beakers (Unsplash).jpg"],
+    "labmanual.example": ["Giving water bath to a solution in test tube.jpg"],
+    "quiz.example": ["Petri Dish containing Calcium Chloride.jpg"],
 }
-WIDE = {"canopy.example", "course.example", "library.example", "lecture.example", "survey.example"}
+WIDE = {"hostel.example", "ferry.example", "trails.example", "eats.example", "syllabus.example", "canopy.example", "course.example", "library.example", "lecture.example", "survey.example"}
+WIDE |= {"pressroom.example", "mockups.example", "preprints.example", "protocols.example", "labwiki.example", "journalclub.example"}
 OK = {"CC0", "Public domain", "Public Domain"}
 
 
