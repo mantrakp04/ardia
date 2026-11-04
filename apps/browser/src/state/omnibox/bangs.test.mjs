@@ -166,7 +166,8 @@ test("a list that couldn't be saved is not used, and its ETag isn't kept", async
   server([{ status: 200, body: heliumBody("new"), etag: '"v2"' }]);
   heldSaves.on = true;
   const pending = refreshBangs();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  for (const deadline = Date.now() + 5000; !heldSaves.queue.length && Date.now() < deadline; ) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(heldSaves.queue.length, 1);
   assert.equal(bangStatus().source, "bundled");
   assert.equal(bangStatus().etag, null);
   heldSaves.queue.shift()();
