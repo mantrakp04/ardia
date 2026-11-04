@@ -6,7 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
 import { connectGoogleDrive } from "../../../state/live/googleAuth";
 import { isMocked } from "../../../state/live/net";
-import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
+import { connectBitbucket, connectConfluence, connectGithub, connectGitlab, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { useProfileRecords } from "../../../state/profiles/hooks";
@@ -55,6 +55,7 @@ export function LiveFoldersPane() {
       <Group>
         <SourceRow id="github" />
         <SourceRow id="bitbucket" />
+        <SourceRow id="gitlab" />
       </Group>
 
       <SectionHeader title="Documents" />
@@ -148,6 +149,9 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
       break;
     case "bitbucket":
       body = <BitbucketConnect busy={busy} run={run} />;
+      break;
+    case "gitlab":
+      body = <GitlabConnect busy={busy} run={run} />;
       break;
     case "notion":
       body = <NotionConnect busy={busy} run={run} />;
@@ -258,6 +262,27 @@ function BitbucketConnect({ busy, run }: ConnectProps) {
       <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!user.trim() || !token.trim() || busy} onPress={go} />
+      </DialogActions>
+    </View>
+  );
+}
+
+function GitlabConnect({ busy, run }: ConnectProps) {
+  const [site, setSite] = useState(live().config.gitlabSite || "https://gitlab.com");
+  const [token, setToken] = useState("");
+  const go = () => void run(() => connectGitlab(site, token));
+  return (
+    <View>
+      <Help>Create a personal access token with the read_api scope (GitLab › Preferences › Access Tokens), and if the group uses SSO, authorize the token for it. Enter the instance's address, gitlab.com or your own.</Help>
+      <FormField label="GitLab site">
+        <TextField value={site} onChangeText={setSite} placeholder="https://gitlab.com" />
+      </FormField>
+      <FormField label="Personal access token">
+        <TextField value={token} onChangeText={setToken} secure textContentType="password" onSubmit={go} />
+      </FormField>
+      <DialogActions>
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!site.trim() || !token.trim() || busy} onPress={go} />
       </DialogActions>
     </View>
   );
