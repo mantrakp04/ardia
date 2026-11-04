@@ -406,7 +406,12 @@ NSString *CornerName(int corner) {
 }
 
 - (void)screensChanged {
-  if (_swiping || (NSEvent.pressedMouseButtons & 1)) return;
+  if (_swiping) return;
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(screensChanged) object:nil];
+  if (_sawDrag || (NSEvent.pressedMouseButtons & 1)) {
+    [self performSelector:@selector(screensChanged) withObject:nil afterDelay:0.12];
+    return;
+  }
   if (_stashedEdge != ArdiaPiPEdgeNone && ![NSScreen.screens containsObject:_stashScreen]) [self setStashedEdge:ArdiaPiPEdgeNone];
   if (_stashedEdge != ArdiaPiPEdgeNone && [self displayBeyond:_stashedEdge of:_stashScreen]) return [self unstash];
   if (_stashedEdge != ArdiaPiPEdgeNone) return [self stashAt:_stashedEdge velocity:NSZeroPoint on:_stashScreen];
