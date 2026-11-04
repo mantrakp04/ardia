@@ -62,6 +62,7 @@ const TONE: Record<string, string> = {
   skipped: "bg-muted text-muted-foreground",
   drafted: "bg-chart-3/12 text-chart-3",
   "recheck queued": "bg-chart-5/14 text-chart-5",
+  snoozed: "bg-chart-4/12 text-chart-4",
   sent: "bg-good/12 text-good",
   closed: "bg-muted text-muted-foreground",
   bug: "bg-bad/10 text-bad",
