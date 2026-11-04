@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
 import { GlassGroup, useGlass } from "../ui/Glass";
@@ -152,17 +152,20 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
   const glass = useGlass();
-  if (!tab) return null;
-  const overlays = (
-    <>
-      <NextMeetingBadge tabId={tabId} />
-      {playing || mute ? (
-        <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
-          <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
-        </View>
-      ) : null}
-    </>
+  const overlays = useMemo(
+    () => (
+      <>
+        <NextMeetingBadge tabId={tabId} />
+        {playing || mute ? (
+          <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
+            <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
+          </View>
+        ) : null}
+      </>
+    ),
+    [tabId, playing, mute, theme.textSecondary],
   );
+  if (!tab) return null;
 
   return (
     <Animated.View ref={wrapper.ref} style={[{ position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
