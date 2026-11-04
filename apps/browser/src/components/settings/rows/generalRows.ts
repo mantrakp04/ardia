@@ -90,7 +90,8 @@ export const generalRows = {
       rows: {
         shareTopApps: {
           title: "Share Top Apps",
-          description: "Profiles that share data show the same Top Apps, and each one is a single page you pick up where you left it in any of them.",
+          description:
+            "Profiles that share browsing data can show the same Top Apps, each one a single page you pick up where you left it in any of them. Pick which ones take part. A profile with its own data keeps its own Top Apps, since its logins and cookies are separate.",
           keywords: ["pinned tabs", "favorites", "essentials", "spaces", "shared"],
         },
       },

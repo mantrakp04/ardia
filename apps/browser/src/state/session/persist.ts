@@ -17,6 +17,7 @@ import { parseSettingsMeta, sessionWithSettingsMeta } from "../settings/settings
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
+import { profilesAfterSharingSetting } from "../pins/topApps";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
@@ -128,7 +129,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
   return {
-    profiles: byProfile(raw.profiles, profileOk),
+    profiles: profilesAfterSharingSetting(byProfile(raw.profiles, profileOk), raw.settings),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
