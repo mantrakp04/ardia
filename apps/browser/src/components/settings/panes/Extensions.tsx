@@ -1,11 +1,10 @@
 import {
-  reloadExtension,
   addFromWebStore,
   configure,
   extensionsProfileId,
   loadUnpacked,
   openExtensionDetails,
-  refreshExtensions,
+  reload,
   removeExtension,
   setEnabled,
   setPinned,
@@ -189,7 +188,7 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
         ) : null}
         {!ext.fromWebStore ? (
           <Row title="Reload" description={ext.path ?? undefined}>
-            <Button title="Reload" onPress={() => void reloadExtension(ext.id, profile).finally(() => refreshExtensions(profile))} />
+            <Button title="Reload" onPress={() => void reload(profile, ext.id)} />
           </Row>
         ) : null}
         {ext.errors.length ? <Row title="Errors" description={ext.errors.slice(0, 5).join("\n")} /> : null}

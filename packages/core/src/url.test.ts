@@ -44,6 +44,21 @@ test("fixupUrl leaves searches alone: file names, emails, prose, unknown schemes
   assert.equal(fixupUrl("site.photography/about"), "https://site.photography/about");
 });
 
+test("fixupUrl reads the host up to the first / ? or #: one trailing dot, a 1-5 digit port, labels never start or end in a hyphen", () => {
+  assert.equal(fixupUrl("example.com./x"), "https://example.com./x");
+  assert.equal(fixupUrl("example.com../x"), null);
+  assert.equal(fixupUrl("example.com:123456/x"), null);
+  assert.equal(fixupUrl("[::1]:"), null);
+  assert.equal(fixupUrl("[::1]./"), "http://[::1]./");
+  assert.equal(fixupUrl("LOCALHOST:3000"), "http://LOCALHOST:3000");
+  assert.equal(fixupUrl("-a.com"), null);
+  assert.equal(fixupUrl("a-.com"), null);
+  assert.equal(fixupUrl("a.1com/"), null);
+  assert.equal(fixupUrl("my-site.xn--p1ai"), "https://my-site.xn--p1ai");
+  assert.equal(fixupUrl("my-blog-post.another-post.third-post.fourth-post.fifth-post:"), null);
+  assert.equal(fixupUrl("my-blog-post.another-post.third-post.dev/"), "https://my-blog-post.another-post.third-post.dev/");
+});
+
 const ascii = (unicode: string) => {
   const host = domainToASCII(unicode);
   assert.ok(host, `${unicode} should be a valid IDN`);
