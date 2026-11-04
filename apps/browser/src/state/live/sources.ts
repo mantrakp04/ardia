@@ -1,6 +1,7 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
+import { GITLAB_BATCH, mapGitlab, mergeRequestsQuery, normalizeGitlabSite, stopsApprovalProbe, type Approvals, type RawMR } from "./gitlab";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
@@ -110,6 +111,73 @@ const bitbucket: LiveSource = {
   },
 };
 
+const gitlabAuth = async () => ({ "PRIVATE-TOKEN": await secret("gitlab") });
+
+async function gitlabList(query: string): Promise<RawMR[]> {
+  const base = endpoints.gitlab(live().config.gitlabSite);
+  return request<RawMR[]>(`${base}/merge_requests?${mergeRequestsQuery(query)}`, { headers: await gitlabAuth() });
+}
+
+async function gitlabApprovals(mrs: RawMR[]): Promise<Record<string, Approvals>> {
+  const approvals: Record<string, Approvals> = {};
+  if (!mrs.length) return approvals;
+  const base = endpoints.gitlab(live().config.gitlabSite);
+  const headers = await gitlabAuth();
+  for (let i = 0; i < mrs.length; i += GITLAB_BATCH) {
+    const batch = mrs.slice(i, i + GITLAB_BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async (mr) => ({
+        key: `${mr.project_id}:${mr.iid}`,
+        value: await request<Approvals>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, { headers }),
+      })),
+    );
+    let stop = false;
+    for (const result of results) {
+      if (result.status === "fulfilled") approvals[result.value.key] = result.value.value;
+      else if (stopsApprovalProbe(result.reason)) stop = true;
+    }
+    if (stop) break;
+  }
+  return approvals;
+}
+
+const gitlab: LiveSource = {
+  id: "gitlab",
+  name: "GitLab",
+  kind: "pullRequests",
+  site: "https://gitlab.com",
+  async fetch(folder) {
+    const [authored, review] = await Promise.all([
+      folder.filters.authored ? gitlabList("scope=created_by_me") : Promise.resolve([]),
+      folder.filters.reviewRequests && live().config.gitlabUserId
+        ? gitlabList(`scope=all&reviewer_id=${encodeURIComponent(live().config.gitlabUserId)}`)
+        : Promise.resolve([]),
+    ]);
+    const unique = [...new Map([...authored, ...review].map((mr) => [`${mr.project_id}:${mr.iid}`, mr])).values()];
+    const approvals = await gitlabApprovals(unique);
+    return mapGitlab(authored, review, approvals);
+  },
+  async resolveGone(items) {
+    const mrs = items.filter((it) => it.source === "gitlab" && it.pr);
+    if (!mrs.length) return {};
+    const headers = await gitlabAuth();
+    const base = endpoints.gitlab(live().config.gitlabSite);
+    const out: Record<string, CompletionState> = {};
+    for (let i = 0; i < mrs.length; i += GITLAB_BATCH) {
+      await Promise.all(
+        mrs.slice(i, i + GITLAB_BATCH).map(async (item) => {
+          const [, projectId, iid] = item.id.split(":");
+          const mr = await request<{ state: string }>(`${base}/projects/${projectId}/merge_requests/${iid}`, { headers }).catch(() => null);
+          if (mr?.state === "merged") out[item.id] = "merged";
+          else if (mr?.state === "closed") out[item.id] = "closed";
+          else if (mr?.state === "opened" && (item.section === "review" || item.section === "team")) out[item.id] = "reviewed";
+        }),
+      );
+    }
+    return out;
+  },
+};
+
 const notionHeaders = (token: string) => ({ Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" });
 
 const notion: LiveSource = {
@@ -169,7 +237,7 @@ const gdrive: LiveSource = {
   },
 };
 
-export const SOURCES: Record<LiveSourceId, LiveSource> = { github, bitbucket, notion, confluence, gdrive };
+export const SOURCES: Record<LiveSourceId, LiveSource> = { github, bitbucket, gitlab, notion, confluence, gdrive };
 
 const account = (login: string, name: string | null, avatar: string | null): LiveAccount => ({ login, name, avatar, connectedAt: Date.now() });
 
@@ -216,6 +284,22 @@ export async function connectBitbucket(user: string, token: string) {
   await setSecret("bitbucket", token.trim());
   updateConfig({ bitbucketUser: user.trim() });
   setAccount("bitbucket", account(me.account_id, me.display_name, me.links?.avatar?.href ?? null));
+}
+
+export async function connectGitlab(site: string, token: string): Promise<void> {
+  const base = normalizeGitlabSite(site);
+  let me: { id: number | string; username: string; name: string | null; avatar_url: string | null };
+  try {
+    me = await request<{ id: number | string; username: string; name: string | null; avatar_url: string | null }>(`${endpoints.gitlab(base)}/user`, {
+      headers: { "PRIVATE-TOKEN": token.trim() },
+    });
+  } catch (error) {
+    if (error instanceof LiveError && error.kind === "signedOut") throw new LiveError("signedOut", "GitLab didn't accept the token");
+    throw error;
+  }
+  await setSecret("gitlab", token.trim());
+  updateConfig({ gitlabSite: base, gitlabUserId: String(me.id) });
+  setAccount("gitlab", account(me.username, me.name || null, me.avatar_url));
 }
 
 export async function connectNotion(token: string) {

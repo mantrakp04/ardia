@@ -35,6 +35,7 @@ export const toolRows = {
       rows: {
         github: { title: "GitHub", description: "Your open pull requests and the ones waiting for your review, with checks and conflicts.", keywords: ["pull requests", "connect"] },
         bitbucket: { title: "Bitbucket", description: "Your open pull requests on Bitbucket Cloud, with build status.", keywords: ["pull requests", "connect"] },
+        gitlab: { title: "GitLab", description: "Open merge requests plus the ones waiting for your review, with pipeline status and conflicts.", keywords: ["merge requests", "pipelines", "conflicts", "connect"] },
       },
     },
     {

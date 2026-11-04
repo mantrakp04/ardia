@@ -28,7 +28,7 @@ export type Approvals = { approvals_required: number; approvals_left: number };
 export const GITLAB_PAGE_SIZE = 100;
 export const GITLAB_BATCH = 10;
 
-const GITLAB_SOURCE: LiveSourceId = "gitlab" as LiveSourceId;
+const GITLAB_SOURCE: LiveSourceId = "gitlab";
 
 export function normalizeGitlabSite(site: string): string {
   let normalized = site.trim();

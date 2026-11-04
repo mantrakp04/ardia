@@ -138,7 +138,7 @@ export function newProfileLiveFolder(profileId: string, kind: LiveFolderKind, so
   const s = live();
   const connected: LiveSourceId[] =
     kind === "pullRequests"
-      ? (["github", "bitbucket"] as const).filter((id) => s.accounts[id])
+      ? (["github", "bitbucket", "gitlab"] as const).filter((id) => s.accounts[id])
       : (["notion", "confluence", "gdrive"] as const).filter((id) => s.accounts[id]);
   const id = createFolder(profileId, kind, sources ?? (connected.length ? connected : undefined));
   void refreshFolder(id);

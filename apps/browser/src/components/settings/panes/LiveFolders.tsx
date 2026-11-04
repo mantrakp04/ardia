@@ -18,6 +18,24 @@ import { setting, type SettingId } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
 
+const DESCRIPTIONS: Record<LiveSourceId, string> = {
+  github: "Your open pull requests and the ones waiting for your review, with checks and conflicts.",
+  bitbucket: "Your open pull requests on Bitbucket Cloud, with build status.",
+  gitlab: "Open merge requests plus the ones waiting for your review, with pipeline status and conflicts.",
+  notion: "Pages recently edited in your workspace.",
+  confluence: "Pages you created, edited or watch.",
+  gdrive: "Documents recently changed in your Drive.",
+};
+
+const ANCHORS: Record<LiveSourceId, string> = {
+  github: "liveFolders.github",
+  bitbucket: "liveFolders.bitbucket",
+  gitlab: "liveFolders.gitlab",
+  notion: "liveFolders.notion",
+  confluence: "liveFolders.confluence",
+  gdrive: "liveFolders.gdrive",
+};
+
 export function LiveFoldersPane() {
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
   const profiles = useProfileRecords();
@@ -92,10 +110,10 @@ function SourceRow({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
   return (
     <Row
-      anchor={`liveFolders.${id}`}
+      anchor={ANCHORS[id] as SettingId}
       icon={<Favicon url={source.site} size={18} />}
       title={source.name}
-      description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
+      description={account ? `Connected as ${connectedAs(id, account)}` : DESCRIPTIONS[id]}
     >
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />

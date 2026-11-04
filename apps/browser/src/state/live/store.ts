@@ -8,6 +8,8 @@ import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./m
 export type LiveConfig = {
   githubClientId: string;
   bitbucketUser: string;
+  gitlabSite: string;
+  gitlabUserId: string;
   confluenceSite: string;
   confluenceEmail: string;
   googleClientId: string;
@@ -54,7 +56,7 @@ type LiveState = {
   dismissedNow: DismissedNow;
 };
 
-export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
+export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", gitlabSite: "https://gitlab.com", gitlabUserId: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
 
 export const DEFAULT_CALENDAR: CalendarSettings = {
   alertLead: "1",
@@ -365,4 +367,3 @@ export function setMeetingGroup(group: MeetingGroup | null, groupId?: string) {
     return groupId && s.meetingGroups[groupId] ? { meetingGroups: without(s.meetingGroups, groupId) } : {};
   });
 }
-
