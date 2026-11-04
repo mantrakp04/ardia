@@ -185,7 +185,7 @@ export function OntoRing({ width }: { width: number | Animated.Value }) {
   );
 }
 
-export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pressed: boolean; children: React.ReactNode }) {
+export function ItemRow({ hovered, pressed, padded = true, children }: { hovered: boolean; pressed: boolean; padded?: boolean; children: React.ReactNode }) {
   const theme = useTheme();
   return (
     <View
@@ -199,8 +199,8 @@ export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pres
         backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: CHIP_PAD.left,
-        paddingRight: CHIP_PAD.right,
+        paddingLeft: padded ? CHIP_PAD.left : 0,
+        paddingRight: padded ? CHIP_PAD.right : 0,
       }}
     >
       {children}
