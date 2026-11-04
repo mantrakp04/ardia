@@ -11,6 +11,7 @@ export {
   ContextMenuArea,
   DockSelection,
   GlassEffect,
+  GlassGroup,
   OutsidePressArea,
   Surface,
   VisualEffect,
