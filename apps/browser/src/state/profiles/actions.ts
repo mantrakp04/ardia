@@ -12,6 +12,8 @@ export function setSwitcherIcon(profileId: string, icon: string | null) {
   if (icon && !currentSettings().profileSwitcherIcons) updateSettings({ profileSwitcherIcons: true });
 }
 
+export const setShareTopApps = (profileId: string, share: boolean) => updateProfile(profileId, { ownTopApps: share ? undefined : true });
+
 export function commitProfileName(profileId: string, text: string): boolean {
   const name = text.trim();
   const profile = currentProfile(profileId);

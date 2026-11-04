@@ -1,51 +1,58 @@
 import type { BrowserState } from "../browser/store";
 import { isPinnedRow, makeTab, pinKeyOf, pinSection, snapshotTab, TILE_PIN } from "../browser/model";
-import type { ParkedPins, Tab } from "../browser/types";
-import { dataGroups, dataIdOf } from "../profiles/profiles";
+import type { ParkedPins, Profile, Tab } from "../browser/types";
+import { isFields } from "../../lib/decode";
+import { dataGroups, dataIdOf, sharingProfiles } from "../profiles/profiles";
 import { isRegularWindow } from "../windows/small";
 import { writingFromSync } from "./syncWrites";
 import { conform, pinnedGroupsOf, pinsMayDiffer, profilesOf, sectionOf, tileSig, union, type Item, type Section } from "./pinMirror";
 
-type Sharing = Pick<BrowserState, "profiles" | "settings">;
+type Sharing = Pick<BrowserState, "profiles">;
+type Circles = Pick<BrowserState, "profiles" | "profileOrder">;
 
 export const isTopApp = (t: Pick<Tab, "pin">) => pinSection(t) === "tile";
 
-const dataOf = (s: Pick<BrowserState, "profiles">, profileId: string) => {
+const sharingDataOf = (s: Sharing, profileId: string) => {
   const p = s.profiles[profileId];
-  return p ? dataIdOf(p) : undefined;
+  return p && !p.ownTopApps ? dataIdOf(p) : undefined;
 };
 
 export function topAppsShared(s: Sharing, a: string, b: string): boolean {
-  if (a === b || !s.settings.shareTopApps) return false;
-  const data = dataOf(s, a);
-  return !!data && data === dataOf(s, b);
+  if (a === b) return false;
+  const data = sharingDataOf(s, a);
+  return !!data && data === sharingDataOf(s, b);
 }
+
+export const profilesAfterSharingSetting = (profiles: Record<string, Profile>, settings: unknown): Record<string, Profile> =>
+  isFields(settings) && settings.shareTopApps === false ? Object.fromEntries(Object.entries(profiles).map(([id, p]) => [id, { ...p, ownTopApps: true }])) : profiles;
 
 export const sameTopApp = (s: Sharing, a: Pick<Tab, "pin" | "profileId">, b: Pick<Tab, "pin" | "profileId">) =>
   isTopApp(a) && isTopApp(b) && topAppsShared(s, a.profileId, b.profileId);
 
-export function topAppCircles(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): string[][] {
-  if (!s.settings.shareTopApps) return [];
-  return dataGroups(s).map((g) => g.profileIds).filter((ids) => ids.length > 1);
+export function topAppCircles(s: Circles): string[][] {
+  return dataGroups(s)
+    .map((g) => g.profileIds.filter((id) => !s.profiles[id]!.ownTopApps))
+    .filter((ids) => ids.length > 1);
 }
+
+export const topAppSiblings = (s: Circles, profileId: string): string[] =>
+  s.profiles[profileId]?.ownTopApps ? [] : sharingProfiles(s, profileId).filter((id) => !s.profiles[id]!.ownTopApps);
 
 const circleKey = (ids: string[]) => [...ids].sort().join(",");
 
-let lastCircles: { profiles: unknown; profileOrder: unknown; on: boolean; key: string } | null = null;
+let lastCircles: { profiles: unknown; profileOrder: unknown; key: string } | null = null;
 
-function circlesKey(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): string {
-  const on = !!s.settings.shareTopApps;
-  if (lastCircles && lastCircles.profiles === s.profiles && lastCircles.profileOrder === s.profileOrder && lastCircles.on === on) return lastCircles.key;
+function circlesKey(s: Circles): string {
+  if (lastCircles && lastCircles.profiles === s.profiles && lastCircles.profileOrder === s.profileOrder) return lastCircles.key;
   const key = topAppCircles(s)
     .map(circleKey)
     .sort()
     .join("|");
-  lastCircles = { profiles: s.profiles, profileOrder: s.profileOrder, on, key };
+  lastCircles = { profiles: s.profiles, profileOrder: s.profileOrder, key };
   return key;
 }
 
-export function sharingChanged(s: Pick<BrowserState, "profiles" | "profileOrder" | "settings">, prev: Pick<BrowserState, "profiles" | "profileOrder" | "settings">): boolean {
-  if (s.settings.shareTopApps !== prev.settings.shareTopApps) return true;
+export function sharingChanged(s: Circles, prev: Circles): boolean {
   if (s.profiles === prev.profiles && s.profileOrder === prev.profileOrder) return false;
   return circlesKey(s) !== circlesKey(prev);
 }
@@ -133,18 +140,19 @@ function keepEmptiedParks(s: BrowserState, prev: BrowserState, circles: string[]
 
 export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState | null {
   const key = circlesKey(s);
-  if (!key) return s.topAppsMerged ? { ...s, topAppsMerged: "" } : null;
+  const recorded = key !== s.topAppsMerged ? { ...s, topAppsMerged: key } : s;
+  const onlyRecorded = recorded === s ? null : recorded;
+  if (!key) return onlyRecorded;
   const circles = topAppCircles(s);
-  const merged = new Set(s.topAppsMerged.split("|"));
-  const joining = new Set(circles.filter((c) => !merged.has(circleKey(c))).map(circleKey));
-  const kept = writingFromSync() ? keepEmptiedParks(s, prev, circles) : null;
-  if (!joining.size && (kept || writingFromSync())) return kept;
-  if (!joining.size && !pinsMayDiffer(s, prev) && s.parkedPins === prev.parkedPins) return null;
+  const merged = s.topAppsMerged.split("|").map((k) => new Set(k.split(",")));
+  const joining = new Set(circles.filter((c) => !merged.some((m) => c.every((id) => m.has(id)))).map(circleKey));
+  const kept = writingFromSync() ? keepEmptiedParks(recorded, prev, circles) : null;
+  if (!joining.size && (kept || writingFromSync())) return kept ?? onlyRecorded;
+  if (!joining.size && !pinsMayDiffer(s, prev) && s.parkedPins === prev.parkedPins) return onlyRecorded;
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isRegularWindow(s.windows[id]));
   const prevGroups = pinnedGroupsOf(prev);
   const hadPlace = (p: string) => shownAnywhere(prev, p);
-  const base = kept ?? s;
-  let next: BrowserState = key !== base.topAppsMerged ? { ...base, topAppsMerged: key } : base;
+  let next: BrowserState = kept ?? recorded;
   for (const circle of circles) {
     const turnedOn = joining.has(circleKey(circle));
     if (!turnedOn && writingFromSync()) continue;

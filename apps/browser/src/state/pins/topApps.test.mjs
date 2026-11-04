@@ -6,11 +6,17 @@ const { flushPersistence, loadSession, startPersistence } = await import("../ses
 const stub = await import("../../test-native/index.ts");
 const folders = await import("./tileFolders.ts");
 const writes = await import("./syncWrites.ts");
+const topAppsMod = await import("./topApps.ts");
 
 const S = () => useBrowser.getState();
-const reset = (shareTopApps = true) => {
+let optedOut = false;
+const reset = (shared = true) => {
   S().hydrate({});
-  S().updateSettings({ shareTopApps });
+  optedOut = !shared;
+};
+const shareTopApps = (on, ids = S().profileOrder.filter((id) => id !== "default")) => {
+  optedOut = !on;
+  for (const id of ids) S().updateProfile(id, { ownTopApps: on ? undefined : true });
 };
 const loaded = (id) => !!S().tabs[id]?.page.nav || !!S().tabs[id]?.page.adopt;
 const shown = (w) => model.activeTabId(S(), w);
@@ -26,7 +32,7 @@ function spaces({ shareWith = true } = {}) {
   S().newTab(w, { url: "https://a.com" });
   S().pinTabs([mail], true);
   S().activate(mail);
-  const work = S().createProfile({ name: "Work", shareWith: shareWith ? "default" : null });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: shareWith ? "default" : null });
   S().switchProfile(w, work);
   return { w, mail, work };
 }
@@ -73,7 +79,7 @@ test("Top Apps that both profiles already had become one; pinned rows stay each 
   const notes = S().newTab(w, { url: "https://notes.com" });
   S().pinTabs([mail], true);
   S().pinTabs([notes], true, true);
-  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
   S().switchProfile(w, work);
   const own = S().newTab(w, { url: "https://mail.com" });
   const jira = S().newTab(w, { url: "https://jira.com" });
@@ -81,7 +87,7 @@ test("Top Apps that both profiles already had become one; pinned rows stay each 
   S().pinTabs([jira], true);
   assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "off: each keeps its own");
 
-  S().updateSettings({ shareTopApps: true });
+  shareTopApps(true);
   assert.deepEqual(topApps(w, "default"), ["https://mail.com", "https://jira.com"]);
   assert.deepEqual(topApps(w, work), ["https://mail.com", "https://jira.com"], "Work's own mail tile is kept, not doubled");
   assert.equal(tileOf(w, work, "https://mail.com"), own);
@@ -138,12 +144,12 @@ test("merging picks the same tile whichever profile is on screen, so two Macs ag
     const w = S().createWindow({ url: "https://mail.com" });
     const [mail] = S().windows[w].tabIds;
     S().pinTabs([mail], true);
-    const work = S().createProfile({ name: "Work", shareWith: "default" });
+    const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
     S().switchProfile(w, work);
     const own = S().newTab(w, { url: "https://mail.com" });
     S().pinTabs([own], true);
     if (!showWork) S().switchProfile(w, "default");
-    S().updateSettings({ shareTopApps: true });
+    shareTopApps(true);
     const key = (id) => S().tabs[id].pinKey ?? id;
     return [key(tileOf(w, "default", "https://mail.com")), key(tileOf(w, work, "https://mail.com")), mail];
   };
@@ -193,7 +199,7 @@ test("making a shared Top App a pinned row, or turning sharing off, never wakes 
   reset();
   ({ w, work } = spaces());
   S().activate(tileOf(w, work, "https://mail.com"));
-  S().updateSettings({ shareTopApps: false });
+  shareTopApps(false);
   assert.equal(Object.values(S().tabs).some((t) => t.page.kind === "frozen"), false, "no copy stays frozen on another profile's page");
   assert.equal(pages("https://mail.com").length, 1);
 });
@@ -215,14 +221,14 @@ test("turning sharing on when both profiles have the same Top App loaded keeps o
   const [mail] = S().windows[w].tabIds;
   S().pinTabs([mail], true);
   S().activate(mail);
-  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
   S().switchProfile(w, work);
   const own = S().newTab(w, { url: "https://mail.com" });
   S().pinTabs([own], true);
   S().activate(own);
   assert.equal(pages("https://mail.com").length, 2, "off: each profile has its own page");
   S().switchProfile(w, "default");
-  S().updateSettings({ shareTopApps: true });
+  shareTopApps(true);
   assert.equal(pages("https://mail.com").length, 1, "one page once they share");
   assert.equal(shown(w), mail, "Personal, on screen, keeps its page");
   assert.equal(loaded(mail), true);
@@ -263,7 +269,7 @@ function foldered() {
   const [mail] = S().windows[w].tabIds;
   const docs = S().newTab(w, { url: "https://docs.com" });
   S().pinTabs([mail, docs], true);
-  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
   useBrowser.setState(folders.newTileFolder(S(), [mail, docs], "Apps").state);
   return { w, mail, work, folder: S().tabs[mail].pin.folder.id };
 }
@@ -304,9 +310,9 @@ test("a parked profile's Top App opens at the pinned URL chosen in its sibling",
 test("turning sharing back on keeps a pinned row the other profile made from a shared Top App", () => {
   reset();
   const { w, work } = spaces();
-  S().updateSettings({ shareTopApps: false });
+  shareTopApps(false);
   S().placeTabs([tileOf(w, work, "https://mail.com")], { pinned: true, row: true });
-  S().updateSettings({ shareTopApps: true });
+  shareTopApps(true);
   assert.deepEqual(rows(w, work), ["https://mail.com"], "Work keeps its row");
   assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "Personal keeps its tile");
 });
@@ -353,7 +359,7 @@ function fiveTiles() {
   const w = S().createWindow({ url: "https://a.com" });
   const ids = [S().windows[w].tabIds[0], ...["b", "c", "d", "e"].map((x) => S().newTab(w, { url: `https://${x}.com` }))];
   S().pinTabs(ids, true);
-  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
   S().switchProfile(w, work);
   S().switchProfile(w, "default");
   return { w, work, ids };
@@ -386,8 +392,8 @@ test("a change to a different sharing group doesn't merge this group's Top Apps 
   reset();
   const { w, work } = spaces();
   syncRemoves(tileOf(w, "default", "https://mail.com"));
-  const other = S().createProfile({ name: "Other" });
-  S().createProfile({ name: "Other sibling", shareWith: other });
+  const other = S().createProfile({ ownTopApps: optedOut, name: "Other" });
+  S().createProfile({ ownTopApps: optedOut, name: "Other sibling", shareWith: other });
   assert.deepEqual(topApps(w, "default"), [], "Personal's synced unpin stays");
   assert.deepEqual(topApps(w, work), ["https://mail.com"]);
 });
@@ -397,13 +403,122 @@ test("a pinned row dragged back into Top Apps with a tile takes its place in bot
   const w = S().createWindow({ url: "https://a.com" });
   const ids = [S().windows[w].tabIds[0], ...["b", "c", "d"].map((x) => S().newTab(w, { url: `https://${x}.com` }))];
   S().pinTabs(ids, true);
-  const work = S().createProfile({ name: "Work", shareWith: "default" });
+  const work = S().createProfile({ ownTopApps: optedOut, name: "Work", shareWith: "default" });
   S().switchProfile(w, work);
   S().switchProfile(w, "default");
-  S().updateSettings({ shareTopApps: false });
+  shareTopApps(false);
   S().placeTabs([ids[3]], { pinned: true, row: true });
-  S().updateSettings({ shareTopApps: true });
+  shareTopApps(true);
   S().placeTabs([ids[1], ids[3]], { pinned: true, row: false, beforeId: ids[0] });
   assert.equal(letters(w, "default"), "bdac");
   assert.equal(letters(w, work), "bdac");
+});
+
+test("each profile that shares data picks whether its Top Apps join the shared set; one that opts out keeps its own", () => {
+  reset();
+  const { w, mail, work } = spaces();
+  const school = S().createProfile({ name: "School", shareWith: "default" });
+  S().switchProfile(w, school);
+  assert.deepEqual(topApps(w, school), ["https://mail.com"], "a third sibling joins by default");
+  assert.deepEqual(topAppsMod.topAppSiblings(S(), school), ["default", work]);
+
+  shareTopApps(false, [school]);
+  assert.deepEqual(topAppsMod.topAppSiblings(S(), school), []);
+  assert.deepEqual(topAppsMod.topAppSiblings(S(), "default"), [work], "Personal and Work still share");
+  assert.equal(topAppsMod.topAppsShared(S(), "default", school), false);
+  assert.deepEqual(topApps(w, school), ["https://mail.com"], "School keeps the tiles it had, as its own");
+  const own = tileOf(w, school, "https://mail.com");
+  S().activate(own);
+  assert.equal(shown(w), own, "School's tile opens its own page, not Personal's");
+  assert.equal(S().tabs[mail].profileId, "default");
+  const lab = S().newTab(w, { url: "https://lab.com" });
+  S().pinTabs([lab], true);
+  assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "School's new Top App stays in School");
+  S().switchProfile(w, "default");
+  const docs = S().newTab(w, { url: "https://docs.com" });
+  S().pinTabs([docs], true);
+  assert.deepEqual(topApps(w, work), ["https://mail.com", "https://docs.com"], "Work still gets Personal's");
+  assert.deepEqual(topApps(w, school), ["https://mail.com", "https://lab.com"], "School doesn't");
+
+  shareTopApps(true, [school]);
+  assert.deepEqual([...topApps(w, school)].sort(), ["https://docs.com", "https://lab.com", "https://mail.com"], "opting back in merges School's with the set");
+  assert.deepEqual(topApps(w, "default"), topApps(w, school));
+  assert.deepEqual(topApps(w, work), topApps(w, school));
+  assert.equal(pages("https://mail.com").length, 1, "one live page for the shared tile again");
+});
+
+test("opting out the profile that holds a shared page leaves no copy frozen on it", () => {
+  reset();
+  const { w, mail, work } = spaces();
+  S().activate(tileOf(w, work, "https://mail.com"));
+  assert.equal(S().tabs[mail].profileId, work);
+  shareTopApps(false, [work]);
+  assert.equal(Object.values(S().tabs).some((t) => t.page.kind === "frozen"), false);
+  assert.equal(pages("https://mail.com").length, 1);
+});
+
+test("a profile with its own data never shares Top Apps, whatever its own choice", () => {
+  for (const on of [true, false]) {
+    reset();
+    const { w, work } = spaces({ shareWith: false });
+    shareTopApps(on, [work]);
+    const own = S().newTab(w, { url: "https://jira.com" });
+    S().pinTabs([own], true);
+    assert.deepEqual(topAppsMod.topAppSiblings(S(), work), [], `ownTopApps ${!on}`);
+    assert.equal(topAppsMod.topAppsShared(S(), "default", work), false);
+    assert.deepEqual(topApps(w, work), ["https://jira.com"], "Work has only its own tile");
+    assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "Personal never gets it");
+  }
+});
+
+test("a session saved while the old Share Top Apps setting was off loads with every profile keeping its own Top Apps", () => {
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const w = S().createWindow({ url: "https://mail.com" });
+  const [mail] = S().windows[w].tabIds;
+  S().pinTabs([mail], true);
+  const work = S().createProfile({ name: "Work", shareWith: "default", ownTopApps: true });
+  S().switchProfile(w, work);
+  const own = S().newTab(w, { url: "https://jira.com" });
+  S().pinTabs([own], true);
+  flushPersistence();
+  stop();
+  const saved = JSON.parse(stub.docs.get("session.json"));
+  for (const p of Object.values(saved.profiles)) delete p.ownTopApps;
+  saved.settings.shareTopApps = false;
+  stub.docs.set("session.json", JSON.stringify(saved));
+  S().hydrate({});
+  S().hydrate(loadSession());
+  const after = S().windowOrder[0];
+  assert.deepEqual(S().profileOrder.map((id) => !!S().profiles[id].ownTopApps), [true, true], "every profile keeps its own");
+  assert.deepEqual(topApps(after, "default"), ["https://mail.com"], "nothing merged into Personal");
+  assert.deepEqual(topApps(after, work), ["https://jira.com"], "nor into Work");
+});
+
+test("opting a third profile out doesn't merge the other two again, so a synced unpin that reached one of them stays", () => {
+  reset();
+  const { w, work } = spaces();
+  const school = S().createProfile({ name: "School", shareWith: "default" });
+  S().switchProfile(w, school);
+  S().switchProfile(w, "default");
+  syncRemoves(tileOf(w, "default", "https://mail.com"));
+  assert.deepEqual(topApps(w, "default"), [], "Personal has the synced unpin");
+  shareTopApps(false, [school]);
+  assert.deepEqual(topApps(w, "default"), [], "Personal's unpin stays");
+  assert.deepEqual(topApps(w, work), ["https://mail.com"], "Work keeps its copy until its own sync");
+});
+
+test("opting a third profile out and straight back in merges its Top Apps into the set again", () => {
+  reset();
+  const { w, work } = spaces();
+  const school = S().createProfile({ name: "School", shareWith: "default" });
+  S().switchProfile(w, school);
+  S().switchProfile(w, "default");
+  syncRemoves(tileOf(w, "default", "https://mail.com"));
+  shareTopApps(false, [school]);
+  shareTopApps(true, [school]);
+  assert.deepEqual(topApps(w, "default"), ["https://mail.com"], "School's tile merges back into Personal");
+  assert.deepEqual(topApps(w, work), ["https://mail.com"]);
+  assert.deepEqual(topApps(w, school), ["https://mail.com"]);
 });

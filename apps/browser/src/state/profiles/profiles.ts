@@ -12,8 +12,8 @@ export type ProfilesSlice = {
   profileOrder: string[];
   orphanedProfileData: string[];
 
-  createProfile(options: { name: string; color?: ProfileColor; icon?: string | null; shareWith?: string | null }): string;
-  updateProfile(id: string, patch: Partial<Pick<Profile, "name" | "icon" | "pinnedCollapsed">>): void;
+  createProfile(options: { name: string; color?: ProfileColor; icon?: string | null; shareWith?: string | null; ownTopApps?: boolean }): string;
+  updateProfile(id: string, patch: Partial<Pick<Profile, "name" | "icon" | "pinnedCollapsed" | "ownTopApps">>): void;
   setProfileLook(id: string, look: Partial<Pick<Profile, "color" | "theme">>): void;
   deleteProfile(id: string): void;
   reorderProfiles(ids: string[]): void;
@@ -53,7 +53,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
     profileOrder: [DEFAULT_PROFILE.id],
     orphanedProfileData: [],
 
-    createProfile({ name, color, icon = null, shareWith }) {
+    createProfile({ name, color, icon = null, shareWith, ownTopApps }) {
       const s = get();
       const source = shareWith ? s.profiles[shareWith] : undefined;
       const profile: Profile = {
@@ -63,6 +63,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
         icon,
         createdAt: Date.now(),
         ...(source ? { dataId: dataIdOf(source) } : {}),
+        ...(ownTopApps ? { ownTopApps } : {}),
       };
       const profiles = { ...s.profiles, [profile.id]: profile };
       const bookmarks = ensureRoots(s.bookmarks, engineProfile({ profiles }, profile.id))[0];
