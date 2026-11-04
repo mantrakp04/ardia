@@ -86,7 +86,7 @@ export async function siteBreakdowns(range: RangeKey, signal?: AbortSignal) {
        WHERE event = '$pageview' AND ${since(w.start)} AND ${SITE}
      )
      GROUP BY dim, key
-     ORDER BY dim, visitors DESC
+     ORDER BY dim, visitors DESC, views DESC, key
      LIMIT 40 BY dim`,
     signal,
   );
@@ -131,14 +131,16 @@ export async function siteClicks(range: RangeKey, signal?: AbortSignal) {
   const rows = await query(
     `SELECT kind, key, countIf(${cur}) AS n, uniqIf(distinct_id, ${cur}) AS people, countIf(${prev}), uniqIf(distinct_id, ${prev})
      FROM (
-       SELECT distinct_id, timestamp,
-         arrayJoin(if(event = 'download_clicked', [('event', event), ('location', properties['location'])], [('event', event)])) AS pair,
-         pair.1 AS kind, pair.2 AS key
+       SELECT distinct_id, timestamp, 'event' AS kind, event AS key
        FROM telemetry.events
        WHERE event IN (${events}) AND ${since(compareStart(w))} AND ${SITE}
+       UNION ALL
+       SELECT distinct_id, timestamp, 'location' AS kind, properties['location'] AS key
+       FROM telemetry.events
+       WHERE event = 'download_clicked' AND ${since(compareStart(w))} AND ${SITE}
      )
      GROUP BY kind, key
-     ORDER BY kind, n DESC
+     ORDER BY kind, n DESC, key
      LIMIT 60 BY kind`,
     signal,
   );

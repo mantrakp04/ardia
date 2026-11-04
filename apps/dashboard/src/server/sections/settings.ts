@@ -11,41 +11,54 @@ const WEEK = 7 * DAY;
 
 const SNAPSHOT = `(event = 'settings_snapshot' AND ${APP_SOURCE})`;
 const VERSION = `if(${prop("$app_version")} = '', 'unknown', ${prop("$app_version")})`;
-const KEYS = `arrayDistinct(arrayMap(name -> replaceRegexpOne(name, '^(setting|default)_', ''), arrayFilter(name -> match(name, '^(setting|default)_.'), mapKeys(p))))`;
-const encoded = (prefix: "setting" | "default") => `if(p[concat('${prefix}_', k)] IN ('', '${NULL_VALUE}'), '${NULL_VALUE}', p[concat('${prefix}_', k)])`;
-const VALUE = encoded("setting");
-const DEFAULT = encoded("default");
+const SETTING_NAME = "match(name, '^(setting|default)_.')";
+const encoded = (prefix: "setting" | "default") => `if(anyIf(value, startsWith(name, '${prefix}_')) AS raw_${prefix} IN ('', '${NULL_VALUE}'), '${NULL_VALUE}', raw_${prefix})`;
+const ENTRY = `replaceRegexpOne(name, '^(setting|default)_', '') AS k, ${encoded("setting")} AS val, ${encoded("default")} AS dflt`;
 const WEEK_BUCKET = "toUnixTimestamp(toDateTime(toMonday(timestamp), 'UTC')) * 1000";
-const AMOUNT = `toFloat64OrNull(p['setting_${TINT_KEY}'])`;
-const TINT_ON = `p['setting_${TINT_SWITCH_KEY}'] = 'true'`;
+const TINT = `argMax((properties['setting_${TINT_KEY}'], properties['setting_${TINT_SWITCH_KEY}']), timestamp)`;
+const AMOUNT = "toFloat64OrNull(tint.1)";
+const TINT_ON = "tint.2 = 'true'";
 
 export function settingsSql(start: number) {
   const scope = `${SNAPSHOT} AND ${since(start)}`;
   return {
-    latest: `SELECT k, v, ${VALUE} AS val, ${DEFAULT} AS dflt, count(), countIf(latest)
+    latest: `SELECT k, v, val, dflt, count(), countIf(latest)
        FROM (
-         SELECT p, v, t = max(t) OVER (PARTITION BY id) AS latest
+         SELECT id, v, latest, ${ENTRY}
          FROM (
-           SELECT distinct_id AS id, ${VERSION} AS v, argMax(properties, timestamp) AS p, max(timestamp) AS t
-           FROM telemetry.events
-           WHERE ${scope}
-           GROUP BY id, v
+           SELECT id, v, t = max(t) OVER (PARTITION BY id) AS latest, mapKeys(p) AS names, mapValues(p) AS values
+           FROM (
+             SELECT distinct_id AS id, ${VERSION} AS v, argMax(properties, timestamp) AS p, max(timestamp) AS t
+             FROM telemetry.events
+             WHERE ${scope}
+             GROUP BY id, v
+           )
          )
+         ARRAY JOIN names AS name, values AS value
+         WHERE ${SETTING_NAME}
+         GROUP BY id, v, latest, k
        )
-       ARRAY JOIN ${KEYS} AS k
        GROUP BY k, v, val, dflt`,
-    daily: `SELECT day, k, ${VALUE} AS val, val = ${DEFAULT} AS on_default, count()
+    daily: `SELECT day, k, val, val = dflt AS on_default, count()
        FROM (
-         SELECT ${dayBucket} AS day, distinct_id AS id, argMax(properties, timestamp) AS p
-         FROM telemetry.events
-         WHERE ${scope}
-         GROUP BY day, id
+         SELECT day, id, ${ENTRY}
+         FROM (
+           SELECT day, id, mapKeys(p) AS names, mapValues(p) AS values
+           FROM (
+             SELECT ${dayBucket} AS day, distinct_id AS id, argMax(properties, timestamp) AS p
+             FROM telemetry.events
+             WHERE ${scope}
+             GROUP BY day, id
+           )
+         )
+         ARRAY JOIN names AS name, values AS value
+         WHERE ${SETTING_NAME}
+         GROUP BY day, id, k
        )
-       ARRAY JOIN ${KEYS} AS k
        GROUP BY day, k, val, on_default`,
     tint: `SELECT toUInt64(0) AS week, ${AMOUNT} AS amount, count()
        FROM (
-         SELECT distinct_id AS id, argMax(properties, timestamp) AS p
+         SELECT distinct_id AS id, ${TINT} AS tint
          FROM telemetry.events
          WHERE ${scope}
          GROUP BY id
@@ -55,7 +68,7 @@ export function settingsSql(start: number) {
        UNION ALL
        SELECT week, ${AMOUNT} AS amount, count()
        FROM (
-         SELECT toUInt64(${WEEK_BUCKET}) AS week, distinct_id AS id, argMax(properties, timestamp) AS p
+         SELECT toUInt64(${WEEK_BUCKET}) AS week, distinct_id AS id, ${TINT} AS tint
          FROM telemetry.events
          WHERE ${scope}
          GROUP BY week, id
@@ -134,7 +147,7 @@ export async function settingsOverview(range: RangeKey, signal?: AbortSignal) {
       add(v.values, r.value, r.perVersion);
       versionMap.set(r.version, v);
     }
-    const dominant = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? NULL_VALUE;
+    const dominant = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? NULL_VALUE;
     const ascending = [...versionMap.keys()].sort(compareVersions);
     const newest = newestVersion(ascending);
     const currentDefault = newest ? dominant(versionMap.get(newest)!.defaults) : NULL_VALUE;
@@ -149,7 +162,7 @@ export async function settingsOverview(range: RangeKey, signal?: AbortSignal) {
           installs: v.installs,
           default: dflt,
           onDefault: v.onDefault,
-          values: [...v.values.entries()].map(([value, n]) => ({ value, installs: n })).sort((a, b) => b.installs - a.installs),
+          values: [...v.values.entries()].map(([value, n]) => ({ value, installs: n })).sort((a, b) => b.installs - a.installs || a.value.localeCompare(b.value)),
           defaultChanged: before !== undefined && dominant(versionMap.get(before)!.defaults) !== dflt,
         };
       })
