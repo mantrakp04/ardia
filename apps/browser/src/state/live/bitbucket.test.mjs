@@ -54,7 +54,7 @@ test("open pull requests come from every workspace the user is in, following eac
 test("a 404 and a 403 from Bitbucket each get their own message instead of the generic one", async () => {
   for (const [status, kind, text] of [
     [404, "notFound", "Bitbucket doesn't recognize this request. Ardia may need an update."],
-    [403, "forbidden", "Your Bitbucket token is missing a permission. Check its scopes in Settings."],
+    [403, "forbidden", "Your Bitbucket token can't access this. Check its scopes and workspace access in Settings."],
   ]) {
     serve({ [`${API}/user/workspaces?pagelen=100`]: status });
     await connectBitbucket("me@example.com", "token");
@@ -218,6 +218,6 @@ test("a source that fails outright doesn't hide another source's partial failure
   await refreshFolder(id);
   const errors = live().status[id].errors;
   assert.deepEqual(errors.map((e) => `${e.source}:${e.kind}`).sort(), ["bitbucket:forbidden", "github:notConfigured"]);
-  assert.equal(folderErrorText(errors), "Connect GitHub in Settings · Your Bitbucket token is missing a permission. Check its scopes in Settings.");
-  assert.deepEqual(folderErrorTexts([...errors, ...errors]), ["Connect GitHub in Settings", "Your Bitbucket token is missing a permission. Check its scopes in Settings."]);
+  assert.equal(folderErrorText(errors), "Connect GitHub in Settings · Your Bitbucket token can't access this. Check its scopes and workspace access in Settings.");
+  assert.deepEqual(folderErrorTexts([...errors, ...errors]), ["Connect GitHub in Settings", "Your Bitbucket token can't access this. Check its scopes and workspace access in Settings."]);
 });
