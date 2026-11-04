@@ -6,9 +6,9 @@ import { useShallow } from "zustand/react/shallow";
 import { deleteProfile } from "../../../state/browser/actions";
 import { requestCreateProfile } from "../../../state/profiles/createProfileRequest";
 import { hex, profileAccent, useTheme } from "../../ui/theme";
-import { useProfileDataStats, useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import { useDataSharingProfileIds, useProfileDataStats, useProfileOrder, useProfileRecords, useTopAppSiblingNames } from "../../../state/profiles/hooks";
 import { currentProfileOrder, currentProfiles } from "../../../state/browser/current";
-import { commitProfileName, reorderProfiles, setDefaultProfile } from "../../../state/profiles/actions";
+import { commitProfileName, reorderProfiles, setDefaultProfile, setShareTopApps } from "../../../state/profiles/actions";
 import { openProfileIconPicker } from "../../../state/profiles/iconPicker";
 import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
@@ -25,7 +25,7 @@ import { openProfileItemMenu } from "../../profiles/profileMenu";
 import { curve } from "../../ui/motion";
 import { settingsMotion } from "../tokens";
 
-const listOf = (names: string[]) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);
+const listOf = (names: string[], joiner = "and") => (names.length <= 2 ? names.join(` ${joiner} `) : `${names.slice(0, -1).join(", ")}, ${joiner} ${names.at(-1)}`);
 
 function useSharedWith(profileId: string): string[] {
   const order = useProfileOrder();
@@ -40,6 +40,7 @@ export function ProfilesPane() {
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
   const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
+  const shareable = useDataSharingProfileIds();
 
   return (
     <View>
@@ -60,6 +61,14 @@ export function ProfilesPane() {
         </Row>
       </Group>
 
+      <SectionHeader title="Shared data" />
+      <Group>
+        <Row anchor="profiles.shareTopApps" />
+        {shareable.map((id) => (
+          <ShareTopAppsRow key={id} profileId={id} />
+        ))}
+      </Group>
+
       <SectionHeader title="Profile switcher" />
       <Group>
         <Row anchor="profiles.switcherIcons">
@@ -73,6 +82,26 @@ export function ProfilesPane() {
       />
       <ProfileList />
     </View>
+  );
+}
+
+function useTopAppsDescription(profileId: string): string {
+  const own = useProfile(profileId, (p) => !!p?.ownTopApps);
+  const sharing = useTopAppSiblingNames(profileId);
+  const shared = useSharedWith(profileId);
+  const others = useProfileRecords(useShallow((profiles) => shared.filter((id) => id !== profileId).map((id) => profiles[id]?.name ?? "")));
+  if (own) return "Keeps its own Top Apps.";
+  return sharing.length ? `Same Top Apps as ${listOf(sharing)}, one live page each.` : `Shares once ${listOf(others, "or")} does.`;
+}
+
+function ShareTopAppsRow({ profileId }: { profileId: string }) {
+  const profile = useProfile(profileId, (p) => p);
+  const description = useTopAppsDescription(profileId);
+  if (!profile) return null;
+  return (
+    <Row icon={<ProfileBadge profile={profile} size={20} />} title={profile.name} description={description}>
+      <Toggle value={!profile.ownTopApps} accessibilityLabel={`Share Top Apps in ${profile.name}`} onChange={(share) => setShareTopApps(profileId, share)} />
+    </Row>
   );
 }
 
@@ -242,6 +271,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
   const sharedNames = useProfileRecords(useShallow((profiles) => shared.map((id) => profiles[id]?.name ?? "")));
   const sharedColors = useProfileRecords(useShallow((profiles) => shared.map((id) => profileAccent(profiles[id]))));
   const stats = useProfileDataStats(profileId);
+  const topAppsDescription = useTopAppsDescription(profileId);
   const savedName = profile?.name ?? "";
   const [name, setName] = useState(savedName);
   const typed = useRef(name);
@@ -305,6 +335,14 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
             title="Shared data"
             description={`${listOf(sharedNames)} share Cookies, Passwords, Extensions, Bookmarks, and History. Each keeps its own tabs.`}
           />
+        ) : null}
+        {sharing ? (
+          <Row
+            title="Share Top Apps"
+            description={topAppsDescription}
+          >
+            <Toggle value={!profile.ownTopApps} accessibilityLabel="Share Top Apps" onChange={(share) => setShareTopApps(profileId, share)} />
+          </Row>
         ) : null}
         <Row title="Make Default Profile" description={isDefault ? "New windows already open with this profile." : "Open new windows with this profile."}>
           <Button title="Make Default" disabled={isDefault} onPress={() => setDefaultProfile(profileId)} />

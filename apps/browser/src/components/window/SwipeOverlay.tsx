@@ -35,6 +35,9 @@ function spring(value: Animated.Value, toValue: number, spec: SpringSpec, native
   return Animated.spring(value, { toValue, ...springOf(spec), useNativeDriver: native });
 }
 
+const rowsAboveSelected = (count: number, selected: number) => count - 1 - selected;
+const listTop = (height: number, count: number, selected: number) => height / 2 - ROW / 2 - LIST_PAD - rowsAboveSelected(count, selected) * ROW;
+
 export function NavigationOverlays({ tabId, windowId, geometry }: { tabId: string; windowId: string; geometry: ToolbarGeometry }) {
   return (
     <>
@@ -106,7 +109,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
       spring(v.h, height, springSpec.snappy),
       spring(v.top, top, springSpec.snappy),
       spring(v.radius, corner, springSpec.snappy),
-    ]).start();
+    ], { stopTogether: false }).start();
   };
 
   const setConfirmed = (confirmed: boolean) => {
@@ -134,7 +137,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     g.selected = 0;
     g.listY = lastDy.current;
     swipeHaptic("generic");
-    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, height / 2 - LIST_PAD - ROW / 2, LIST_RADIUS);
+    v.pill.setValue(rowsAboveSelected(list.length, 0) * ROW);
+    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, listTop(height, list.length, 0), LIST_RADIUS);
     Animated.timing(v.list, { toValue: 1, ...SWIPE_MOTION.list, useNativeDriver: true }).start();
     setShown((s) => (s ? { ...s, list, selected: 0 } : s));
   };
@@ -145,7 +149,11 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     if (index === g.selected) return;
     g.selected = index;
     swipeHaptic("alignment");
-    spring(v.pill, index * ROW, SWIPE_PILL_SPRING, true).start();
+    const count = g.list!.length;
+    Animated.parallel([
+      spring(v.top, listTop(sizeRef.current.height, count, index), SWIPE_PILL_SPRING),
+      spring(v.pill, rowsAboveSelected(count, index) * ROW, SWIPE_PILL_SPRING),
+    ], { stopTogether: false }).start();
     setShown((s) => (s ? { ...s, selected: index } : s));
   };
 
@@ -285,7 +293,7 @@ function DestinationList({ tabId, items, selected, appear, pill }: { tabId: stri
           transform: [{ translateY: pill }],
         }}
       />
-      {items.map((item, i) => (
+      {items.map((item, i) => ({ item, i })).reverse().map(({ item, i }) => (
         <View key={item.key} style={{ height: ROW, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xl, gap: space.ml }}>
           <View style={{ width: 16, height: 16, borderRadius: radius.control, overflow: "hidden" }}>
             {item.offset === "newTab" ? <NewTabIcon /> : <Favicon url={item.url} favicon={favicons.get(item.url) ?? null} />}

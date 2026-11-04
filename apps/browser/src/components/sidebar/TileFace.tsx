@@ -126,25 +126,26 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
   const theme = useTheme();
   const tokens = useSidebarTokens();
   return (
-    <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
-      <GlassFill radius={TILE_RADIUS} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"} />
-      {active ? (
-        <DockSelection
-          image={tileTheme?.image}
-          emoji={tileTheme?.emoji}
-          theme={tileTheme?.theme.kind}
-          fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
-          cornerRadius={TILE_RADIUS}
-          strokeWidth={GLASS_RING}
-          dark={theme.dark}
-          glass
-          colorRing
-          style={StyleSheet.absoluteFill}
-        />
-      ) : selected ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: TILE_RADIUS, borderWidth: 1, borderColor: tokens.dragBorder }]} />
-      ) : null}
-      {children}
+    <View style={{ width, height: layout.pinnedHeight }}>
+      <GlassFill radius={TILE_RADIUS} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"}>
+        {active ? (
+          <DockSelection
+            image={tileTheme?.image}
+            emoji={tileTheme?.emoji}
+            theme={tileTheme?.theme.kind}
+            fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
+            cornerRadius={TILE_RADIUS}
+            strokeWidth={GLASS_RING}
+            dark={theme.dark}
+            glass
+            colorRing
+            style={StyleSheet.absoluteFill}
+          />
+        ) : selected ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: TILE_RADIUS, borderWidth: 1, borderColor: tokens.dragBorder }]} />
+        ) : null}
+        {children}
+      </GlassFill>
     </View>
   );
 }

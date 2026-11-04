@@ -54,6 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface ArdiaWebView (Tab)
++ (void)setLittleArdiaOpensNewTabLinks:(BOOL)enabled NS_SWIFT_NAME(setLittleArdiaOpensNewTabLinks(_:));
 - (void)resolveUnresponsive:(BOOL)terminate NS_SWIFT_NAME(resolveUnresponsive(terminate:));
 - (NSString *)discard:(BOOL)unload NS_SWIFT_NAME(discard(unload:));
 @end
@@ -62,6 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)revealTab:(NSString *)transferKey;
 + (void)dropTabReveals:(NSString *)transferKey;
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey;
++ (BOOL)discardOffered:(NSString *)adoptId;
 @end
 
 @interface ArdiaWebView (Focus)

@@ -29,6 +29,7 @@ class Endpoint:
     source: str
     explicit: bool
     active: str | None = None
+    instance: str | None = None
 
 
 def resolve(ws: str | None = None, port: int | None = None, data_dir: str | None = None) -> Endpoint:
@@ -62,7 +63,7 @@ def _from_ws(url: str, source: str) -> Endpoint:
         raise EndpointError(f"{source} must be a ws://host:port/devtools/browser/<id> URL")
     for token in parse_qs(parts.query).get("token", []):
         add_secret(token)
-    return Endpoint(url, source, True)
+    return Endpoint(url, source, True, instance=f"{parts.netloc}{parts.path}")
 
 
 def _from_port(port: int) -> Endpoint:
@@ -116,6 +117,7 @@ def from_control_file(path: Path) -> Endpoint:
     browser = control.get("browser")
     token = control.get("token")
     pid = control.get("pid")
+    generation = control.get("generation")
     if not (isinstance(port, int) and 0 < port < 65536):
         raise EndpointError(f"{NOT_REACHABLE} ({path.name} has no valid port)")
     if not (isinstance(browser, str) and _BROWSER_PATH.match(browser)):
@@ -131,6 +133,7 @@ def from_control_file(path: Path) -> Endpoint:
         str(path),
         False,
         f"http://127.0.0.1:{port}/ardia/active?{query}",
+        f"{pid}:{generation if isinstance(generation, int) else 0}:{browser}",
     )
 
 

@@ -148,5 +148,7 @@ export function newTabLingeringOver(windowId: string, from: string | undefined, 
 export function activateFocusedPane(tabId: string) {
   const s = useBrowser.getState();
   const t = s.tabs[tabId];
-  if (t && splitOf(s, tabId) && s.windows[t.windowId]?.activeTabIds[t.profileId] !== tabId) s.activate(tabId);
+  const split = t && splitOf(s, tabId);
+  const shown = t && activeTabId(s, t.windowId);
+  if (split && shown !== tabId && splitOf(s, shown)?.id === split.id) s.activate(tabId);
 }

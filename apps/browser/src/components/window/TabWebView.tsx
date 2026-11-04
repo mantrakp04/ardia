@@ -69,7 +69,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const seq = navigation?.seq;
   const adopted = useRef<string | null>(null);
   const [handoff] = useState(() => takeHandOff(tabId, engine));
-  const arrived = useRef(!!handoff && handoff.seq === navigation?.seq);
+  const arrived = useRef(!!handoff && (handoff.seq === navigation?.seq || isBlank(navigation?.url ?? "")));
   const loadsOnCreate = useRef(engine === "webkit" && !handoff ? navigation?.seq : undefined);
   useEffect(() => {
     if (!navigation) return;
@@ -138,8 +138,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteReady(tabId);
         void webviews.get(tabId)?.setMuted(isTabSilenced(tabId));
       }}
-      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt }) => {
-        noteCommit(tabId, committedUrl, committedAt);
+      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
+        noteCommit(tabId, committedUrl, committedAt, httpStatus);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
         const untouched = committedInitial === undefined ? reported === "" && !(tab()?.openerId && adoptId) : committedInitial && !initialDocumentAccessed;

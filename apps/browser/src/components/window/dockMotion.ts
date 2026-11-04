@@ -17,11 +17,11 @@ export function springAt(
 export const PEEK_ORIGIN: readonly [number, number] = [5, layout.cardInset];
 export const PEEK_BOTTOM = layout.cardInset;
 
-export const dockedCardLeft = (sidebarWidth: number) => sidebarWidth + layout.sidebarCardGap;
+export const dockedCardInset = (sidebarWidth: number) => sidebarWidth + layout.sidebarCardGap;
 
-export const cardLeft = (dock: number, sidebarWidth: number, inset: number) => inset + (dockedCardLeft(sidebarWidth) - inset) * dock;
+export const cardInsetAt = (dock: number, sidebarWidth: number, inset: number) => inset + (dockedCardInset(sidebarWidth) - inset) * dock;
 
-export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: 7, lightsRight: 70.75 + 7 } as const;
+export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: layout.sidebarInset + 1 } as const;
 
 export type HeaderButton = "back" | "forward" | "reload";
 
@@ -48,13 +48,18 @@ export function dockState({ open, fullscreen, moving, peekLive }: DockInput): Do
 
 export const shownAs = (state: DockState) => (state === "peeking" ? "peek" : state === "hiding" ? "away" : state);
 
-export const watchesLeftEdge = (state: DockState, moving: boolean) => (state === "peeking" || state === "away") && !moving;
+export const watchesEdge = (state: DockState, moving: boolean) => (state === "peeking" || state === "away") && !moving;
 
 export const peekHoldWidth = (sidebarWidth: number) => PEEK_ORIGIN[0] + sidebarWidth + PEEK_HOLD_SLACK;
 
 export const inPeekHold = (x: number, y: number, holdWidth: number, holdHeight: number) => x >= 0 && x < holdWidth && y >= 0 && y < holdHeight;
 
-export const leftEdgeWatchWidth = (peeking: boolean, draggingTab: boolean, holdWidth: number) => (peeking ? holdWidth : draggingTab ? PEEK_EDGE_STRIP : 0);
+export const fromSidebarEdgeInStrip = (stripX: number, right: boolean) => (right ? PEEK_EDGE_STRIP - stripX : stripX);
+
+export const peekSpan = (sidebarWidth: number, right: boolean, windowWidth: number): readonly [number, number] =>
+  right ? [windowWidth - PEEK_ORIGIN[0] - sidebarWidth, Infinity] : [-Infinity, PEEK_ORIGIN[0] + sidebarWidth];
+
+export const edgeWatchWidth = (peeking: boolean, draggingTab: boolean, holdWidth: number) => (peeking ? holdWidth : draggingTab ? PEEK_EDGE_STRIP : 0);
 
 export type DockMove = "jump" | "arcHide" | "spring";
 

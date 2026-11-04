@@ -30,7 +30,7 @@ const SURFACES = {
   menuFromSidebar: {
     open: ({ w }) => {
       focus(w);
-      setPeekShown(w, true, 245);
+      setPeekShown(w, true, [-Infinity, 245]);
       void showMenu([]);
     },
     close: async ({ w }) => {

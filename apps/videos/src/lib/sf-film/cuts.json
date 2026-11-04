@@ -1,0 +1,267 @@
+{
+ "bpm": 120,
+ "fps": 30,
+ "beatFrames": 15,
+ "beats": 64,
+ "lufs": -11,
+ "truePeak": -1.5,
+ "sections": [
+  {
+   "name": "hook",
+   "at": 0,
+   "beats": 8,
+   "energy": 4,
+   "brief": "warm plucky groove, finger snaps, muted keys; the chat bubbles pop on the beat"
+  },
+  {
+   "name": "build",
+   "at": 8,
+   "beats": 15,
+   "energy": 6,
+   "brief": "bass and claps enter, a rising lift with a riser into a hard stop"
+  },
+  {
+   "name": "silence",
+   "at": 23,
+   "beats": 1,
+   "energy": 0,
+   "brief": "true digital silence: the link is released in Priya's sidebar"
+  },
+  {
+   "name": "drop",
+   "at": 24,
+   "beats": 20,
+   "energy": 9,
+   "brief": "the biggest moment: full, bright, bouncy chorus; the link lands in Tomas's sidebar on beat 24"
+  },
+  {
+   "name": "lift",
+   "at": 44,
+   "beats": 8,
+   "energy": 7,
+   "brief": "stabs on beats 44, 46 and 48 under NO ACCOUNT / NO SIGN-UP / JUST ICLOUD DRIVE, building to the end hit"
+  },
+  {
+   "name": "end",
+   "at": 52,
+   "beats": 12,
+   "energy": 5,
+   "brief": "end hit on beat 52, then a ringing chord tail that has died away by beat 64"
+  }
+ ],
+ "silences": [
+  [
+   23,
+   24
+  ]
+ ],
+ "endHit": 52,
+ "sfx": [
+  {
+   "kind": "chatPop",
+   "beat": 0.5
+  },
+  {
+   "kind": "chatPop",
+   "beat": 1
+  },
+  {
+   "kind": "chatPop",
+   "beat": 1.5
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2.5
+  },
+  {
+   "kind": "chatPop",
+   "beat": 3
+  },
+  {
+   "kind": "slam",
+   "beat": 4
+  },
+  {
+   "kind": "chatPop",
+   "beat": 5
+  },
+  {
+   "kind": "chatPop",
+   "beat": 6
+  },
+  {
+   "kind": "whoosh",
+   "beat": 7.75
+  },
+  {
+   "kind": "click",
+   "beat": 9.5
+  },
+  {
+   "kind": "tick",
+   "beat": 10.5
+  },
+  {
+   "kind": "click",
+   "beat": 11
+  },
+  {
+   "kind": "sheet",
+   "beat": 12
+  },
+  {
+   "kind": "tick",
+   "beat": 13.5
+  },
+  {
+   "kind": "click",
+   "beat": 14.5
+  },
+  {
+   "kind": "arrive",
+   "beat": 15,
+   "gain": 0.45
+  },
+  {
+   "kind": "whoosh",
+   "beat": 15.75
+  },
+  {
+   "kind": "click",
+   "beat": 17
+  },
+  {
+   "kind": "tick",
+   "beat": 17.5
+  },
+  {
+   "kind": "click",
+   "beat": 18
+  },
+  {
+   "kind": "arrive",
+   "beat": 18.5,
+   "gain": 0.6
+  },
+  {
+   "kind": "whoosh",
+   "beat": 19.75
+  },
+  {
+   "kind": "lift",
+   "beat": 21
+  },
+  {
+   "kind": "drag",
+   "beat": 21.5
+  },
+  {
+   "kind": "thud",
+   "beat": 23
+  },
+  {
+   "kind": "arrive",
+   "beat": 24
+  },
+  {
+   "kind": "lift",
+   "beat": 27
+  },
+  {
+   "kind": "thud",
+   "beat": 29
+  },
+  {
+   "kind": "arrive",
+   "beat": 30
+  },
+  {
+   "kind": "type",
+   "beat": 31.25
+  },
+  {
+   "kind": "click",
+   "beat": 33
+  },
+  {
+   "kind": "arrive",
+   "beat": 34
+  },
+  {
+   "kind": "lift",
+   "beat": 35
+  },
+  {
+   "kind": "thud",
+   "beat": 36.5
+  },
+  {
+   "kind": "arrive",
+   "beat": 37
+  },
+  {
+   "kind": "click",
+   "beat": 38.5
+  },
+  {
+   "kind": "arrive",
+   "beat": 39.5
+  },
+  {
+   "kind": "whoosh",
+   "beat": 39.75
+  },
+  {
+   "kind": "slam",
+   "beat": 44
+  },
+  {
+   "kind": "slam",
+   "beat": 46
+  },
+  {
+   "kind": "slam",
+   "beat": 48
+  },
+  {
+   "kind": "whoosh",
+   "beat": 51.75
+  }
+ ],
+ "vo": [
+  {
+   "id": "vo1",
+   "beat": 4.25,
+   "text": "The group chat is not a folder."
+  },
+  {
+   "id": "vo2",
+   "beat": 8.5,
+   "text": "Share a folder from your sidebar."
+  },
+  {
+   "id": "vo3",
+   "beat": 20.75,
+   "text": "Drop a link here…"
+  },
+  {
+   "id": "vo4",
+   "beat": 25,
+   "text": "…it lands there."
+  },
+  {
+   "id": "vo5",
+   "beat": 44.25,
+   "text": "No account. No sign-up. Just iCloud Drive."
+  },
+  {
+   "id": "vo6",
+   "beat": 53,
+   "text": "Ardia. ardia dot dev."
+  }
+ ]
+}

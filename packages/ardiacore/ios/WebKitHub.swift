@@ -84,10 +84,16 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     config.mediaTypesRequiringUserActionForPlayback = []
     config.allowsAirPlayForMediaPlayback = true
     config.preferences.isElementFullscreenEnabled = !LaunchConfig.shared.background
+    Self.allowPictureInPicture(config.preferences)
     config.preferences.javaScriptCanOpenWindowsAutomatically = false
     config.preferences.isFraudulentWebsiteWarningEnabled = false
     config.defaultWebpagePreferences.preferredContentMode = .desktop
     return config
+  }
+
+  private static func allowPictureInPicture(_ preferences: WKPreferences) {
+    guard preferences.responds(to: NSSelectorFromString("_setAllowsPictureInPictureMediaPlayback:")) else { return }
+    preferences.setValue(true, forKey: "allowsPictureInPictureMediaPlayback")
   }
 
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {

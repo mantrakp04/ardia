@@ -3400,7 +3400,46 @@ try {
       const backRequests = (await eventsOf(tab.id)).filter((x) => x.name === "activateRequest").length - requests;
       if (!back.closed || !back.preventsActivation || back.activations !== 1 || backRequests !== 1)
         throw new Error(`Chrome's Back to Tab: ${JSON.stringify({ back, backRequests })}`);
+      await sleep(500);
+      const reducesMotion = (() => {
+        try {
+          return execFileSync("defaults", ["read", "com.apple.universalaccess", "reduceMotion"], { encoding: "utf8" }).trim() === "1";
+        } catch {
+          return false;
+        }
+      })();
+      const corners = reducesMotion ? { skipped: "Reduce Motion is on, so the PiP doesn't fling" } : {};
+      if (!reducesMotion) {
+        await open();
+        const pipAct = (action) => engine("tabs.devPictureInPictureAction", { action });
+        const shown = async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null;
+        const rect = (s) => s.match(/-?[\d.]+/g).map(Number);
+        const [vx, vy, vw, vh] = rect((await shown()).visibleFrame), [, , pw, ph] = rect((await shown()).frame);
+        const spot = { bottomRight: [vx + vw - 10 - pw, vy + 10], topLeft: [vx + 10, vy + vh - 10 - ph] };
+        const landed = (corner) => until(`the PiP at rest ${corner}`, async () => {
+          const w = await shown();
+          const [x, y] = rect(w.frame);
+          return Math.abs(x - spot[corner][0]) < 1 && Math.abs(y - spot[corner][1]) < 1 && w.cornerRadius === 9 ? w : null;
+        }, 5000);
+        await pipAct(`frame:{{${Math.round(vx + (vw - pw) / 2)}, ${Math.round(vy + (vh - ph) / 2)}}, {${pw}, ${ph}}}`);
+        await sleep(400);
+        await pipAct("swipe:240,-160,8");
+        await landed("bottomRight");
+        for (const [kind, gesture] of [["swipe", "swipe:-400,300,8"], ["drag", "drag:-400,300,6,8"]]) {
+          await pipAct(gesture);
+          await landed("topLeft");
+          const info = await pipAct("throw");
+          const flight = (typeof info === "string" ? JSON.parse(info) : info).lastThrow;
+          const radii = flight.frames.slice(0, -1).map((f) => f[3]);
+          if (flight.corner !== "topLeft" || !radii.length || radii.some((r) => r !== 6))
+            throw new Error(`a ${kind} thrown out of a corner isn't 6 pt in flight: ${JSON.stringify({ corner: flight.corner, radii })}`);
+          corners[kind] = { frames: radii.length, flightRadius: [Math.min(...radii), Math.max(...radii)] };
+          await pipAct("swipe:400,-300,8");
+          await landed("bottomRight");
+        }
+      }
       return {
+        corners,
         steps: result.steps.map((x) => x.step),
         closeButton: closed.point,
         playing: [before.time.toFixed(1), after.time.toFixed(1)],
@@ -5383,10 +5422,10 @@ try {
   await check("drag-preview-across-reload", async () => {
     const windowId = await appUp("app-drag-reload.out.log");
     const preview = () => evalApp(`return globalThis.expo.modules.ArdiaDev.devDragPreviewState()`);
-    const edges = async () => (await evalApp(`return ac.shell.devLeftEdgeStats(false)`)).watched;
+    const edges = async () => (await evalApp(`return ac.shell.devSidebarEdgeStats(false)`)).watched;
     const edgesBefore = await edges();
     await evalApp(`const d = ac.shell.dragPreview; d.begin(${JSON.stringify(windowId)}, [40, 40, 160, 28], [20, 14]);
-      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchLeftEdge(${JSON.stringify(windowId)}, true); return true`);
+      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchSidebarEdge(${JSON.stringify(windowId)}, true); return true`);
     const shown = await until("the preview", async () => {
       const p = await preview();
       return p.visible ? p : null;

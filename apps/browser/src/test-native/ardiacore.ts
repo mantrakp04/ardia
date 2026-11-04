@@ -265,11 +265,14 @@ export const stagingRemovals = { ok: true };
 export const deletedProfileData: string[] = [];
 export const profileDataLeft = new Map<string, string[]>();
 export const revealedTabs: string[] = [];
+export const discardedOffers: string[] = [];
 export const installedCrx: { path: string; profile: string }[] = [];
 export const linkRoute: { next: LinkRoute } = { next: {} };
+export const resolvedPermissions: { id: string; result: string; remember: boolean }[] = [];
 export const extensionAnswers = {
   actionStates: async (_tabId: string, _ids: string[]): Promise<Record<string, ActionState>> => ({}),
   sidePanelUrl: async (_tabId: string, _extensionId: string): Promise<string | null> => null,
+  change: async (_verb: string, _id: string): Promise<void> => {},
 };
 
 const tabStripHost = () => testGlobals.acTestTabStrip!;
@@ -322,6 +325,7 @@ const fakeModules = {
       revealTab: (key: string) => void revealedTabs.push(key),
       dropTabReveals: (key: string) => void revealedTabs.push(`drop over ${key}`),
       revealOffered: (adoptId: string, key: string) => void revealedTabs.push(`${adoptId} over ${key}`),
+      discardOffered: async (adoptId: string) => (discardedOffers.push(adoptId), true),
     },
   )),
   ArdiaWindows: domain("windows", { list: () => [], dev: () => "" }),
@@ -334,7 +338,7 @@ const fakeModules = {
     setSettings: () => ({ folder: "", askWhereToSave: false, managed: false }),
   }),
   ArdiaPermissions: domain("permissions", {
-    resolve: () => null,
+    resolve: ({ id, result, remember }) => (resolvedPermissions.push({ id, result, remember }), null),
     resolveExternalApp: () => null,
     externalAppAllowances: () => [],
     removeExternalAppAllowance: () => null,
@@ -396,10 +400,10 @@ const fakeModules = {
       if (!engine) throw Object.assign(new Error("no extension engine in this test"), { code: "ERR_ENGINE" });
       return { id: await engine.install(path, profile) };
     },
-    setEnabled: () => ({ ok: true }),
-    uninstall: async ({ profile, id }) => (await extensionEngine()?.uninstall(id, profile), { ok: true }),
-    reload: async ({ profile, id }) => (await extensionEngine()?.reload(id, profile), { ok: true }),
-    configure: () => ({ ok: true }),
+    setEnabled: async ({ id }) => (await extensionAnswers.change("setEnabled", id), { ok: true }),
+    uninstall: async ({ profile, id }) => (await extensionAnswers.change("uninstall", id), await extensionEngine()?.uninstall(id, profile), { ok: true }),
+    reload: async ({ profile, id }) => (await extensionAnswers.change("reload", id), await extensionEngine()?.reload(id, profile), { ok: true }),
+    configure: async ({ id }) => (await extensionAnswers.change("configure", id), { ok: true }),
     chooseFolder: () => null,
     installCrx: ({ profile, path }) => (installedCrx.push({ path: path, profile }), { id: "crx" }),
     resolveInstallPrompt: () => null,
@@ -455,6 +459,7 @@ const fakeModules = {
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
     setCommandScrollZoom: () => null,
+    setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,
     setVideoUpscaling: () => null,
     setVideoUpscalingTestConditions: () => null,

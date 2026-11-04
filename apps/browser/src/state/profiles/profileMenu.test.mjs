@@ -20,6 +20,7 @@ const base = {
   color: "blue",
   isDefault: true,
   only: false,
+  sharesTopApps: null,
 };
 
 test("a profile's menu in the sidebar: Rename…, the icon picker and its colour, Profile Settings…, and Delete Profile… last", () => {
@@ -43,4 +44,13 @@ test("a profile's menu in the sidebar: Rename…, the icon picker and its colour
 test("in Settings the same verbs, with the details and default choices in place of Profile Settings…", () => {
   const items = render(profileMenuItems({ ...base, place: "settings" }));
   assert.deepEqual(items.slice(5), ["---", "Show Profile Details [info.circle]", "Make Default Profile [star] (off)", "---", "Delete Profile… [trash]"]);
+});
+
+test("a profile that shares data has a Share Top Apps check in its menu; one with its own data doesn't", () => {
+  const on = render(profileMenuItems({ ...base, sharesTopApps: true }));
+  assert.deepEqual(on.slice(5, 8), ["---", "✓ Share Top Apps [square.grid.2x2]", "---"]);
+  const off = render(profileMenuItems({ ...base, sharesTopApps: false }));
+  assert.ok(off.includes("Share Top Apps [square.grid.2x2]"));
+  assert.ok(!off.some((l) => l.startsWith("✓ Share Top Apps")), "unchecked when off");
+  assert.ok(!render(profileMenuItems(base)).some((l) => l.includes("Share Top Apps")));
 });

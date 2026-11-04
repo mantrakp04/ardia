@@ -17,6 +17,7 @@ import { parseSettingsMeta, sessionWithSettingsMeta } from "../settings/settings
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
+import { profilesAfterSharingSetting } from "../pins/topApps";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
@@ -87,6 +88,7 @@ const SESSION_FIELDS = {
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
   pinSync: field(["pinSync"], (s) => publicProfiles(s.pinSync)),
+  topAppsMerged: field(["topAppsMerged"], (s) => s.topAppsMerged),
   closedGroups: field(["closedGroups"], (s) => s.closedGroups.filter((c) => c.tabs.every(publicTab))),
   deletedGroups: field(["deletedGroups"], (s) => s.deletedGroups.filter((c) => c.tabs.every(publicTab))),
   cleanedTabs: field(["cleanedTabs"], (s) => s.cleanedTabs.filter((c) => publicTab(c.tab))),
@@ -127,7 +129,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
   return {
-    profiles: byProfile(raw.profiles, profileOk),
+    profiles: profilesAfterSharingSetting(byProfile(raw.profiles, profileOk), raw.settings),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
@@ -144,6 +146,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, parkedSplitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
+    topAppsMerged: typeof raw.topAppsMerged === "string" ? raw.topAppsMerged : undefined,
     closedGroups: rows(raw.closedGroups, tabListOk),
     deletedGroups: rows(raw.deletedGroups, tabListOk),
     cleanedTabs: rows(raw.cleanedTabs, closedTabOk),
@@ -257,8 +260,14 @@ export function resumePersistence() {
   resume();
 }
 
+let restoredAtLaunch = false;
+
+export const sessionRestoredAtLaunch = () => restoredAtLaunch;
+
 export function startPersistence(overrides: LaunchOverrides = {}) {
-  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
+  const loaded = loadSession(overrides);
+  restoredAtLaunch = !!loaded?.windowOrder?.length;
+  useBrowser.getState().hydrate(loaded ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();

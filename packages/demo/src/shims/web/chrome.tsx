@@ -184,7 +184,7 @@ function inScrollView(node: Element | null) {
   return false;
 }
 
-export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", dark, style, ...props }: GlassEffectProps) {
+export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", dark, style, children, ...props }: GlassEffectProps) {
   const appDark = useBrowser((s) => s.ui.appDark);
   const theme = (dark ?? appDark) ? "dark" : "light";
   const g = GLASS[theme];
@@ -208,8 +208,13 @@ export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", da
         <div style={{ ...backdrop(`brightness(${1 + peakGain(g.rim)})`, highlight ? maskStyle(highlight) : { mask: fallbackBands(g.rim), WebkitMask: fallbackBands(g.rim) }), ...fade }} />
       </div>
       {shade ? <div style={{ ...layer, inset: -SHADE_OUTSET, background: "#000", ...maskStyle(shade), ...fade }} /> : null}
+      {children}
     </View>
   );
+}
+
+export function GlassGroup(props: ViewProps) {
+  return <View {...props} />;
 }
 
 export type ContextMenuAreaProps = ViewProps & { onContextMenu?: () => void; captureDescendants?: boolean };

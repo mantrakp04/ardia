@@ -100,11 +100,16 @@ def build_parser():
     from ardia_cli import automation_cli
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+    commands.add_parser("browse", help="agent-browser's commands against the running Ardia (ardia browse --help)", add_help=False)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["browse"]:
+        from ardia_cli.browse.cli import main as browse_main
+
+        return browse_main(argv[1:])
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0

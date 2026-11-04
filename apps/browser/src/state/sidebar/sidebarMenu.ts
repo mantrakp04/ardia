@@ -14,11 +14,13 @@ import { sections } from "./menuParts";
 import { pinnedFoldMenuItem, runPinnedFold } from "./pinnedFold";
 import { addSharedFolder } from "../sharedFolders/actions";
 import { canAddSharedFolder } from "../sharedFolders/removal";
+import { toggleSidebarSide } from "../settings/actions";
 
 const store = () => useBrowser.getState();
 
 export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] {
   const w = s.windows[windowId];
+  const inSidebar = tabLayoutOf(s, windowId) === "sidebar";
   return sections(
     [
       { id: "newTab", title: "New Tab", symbol: "plus.app", ...menuShortcut("newTab", s) },
@@ -33,7 +35,8 @@ export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] 
     [{ id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
     [
       ...pinnedFoldMenuItem(s, windowId),
-      { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: tabLayoutOf(s, windowId) === "sidebar", ...menuShortcut("toggleTabLayout", s) },
+      { id: "tabLayout", title: "Show Tabs in Sidebar", symbol: "sidebar.left", checked: inSidebar, ...menuShortcut("toggleTabLayout", s) },
+      ...(inSidebar ? [{ id: "sidebarSide", title: "Sidebar on Right", symbol: "sidebar.right", checked: s.settings.sidebarSide === "right", ...menuShortcut("toggleSidebarSide", s) }] : []),
       { id: "autoHide", title: "Auto-Hide Tabs", checked: !!w && !w.sidebarOpen, ...menuShortcut("toggleSidebar", s) },
     ],
     [{ id: "closeAll", title: "Close All Tabs", symbol: "xmark", ...menuShortcut("closeAllTabs", s) }],
@@ -54,6 +57,7 @@ export async function openSidebarMenu(windowId: string) {
   else if (choice === "addShared") void addSharedFolder(windowId);
   else if (choice === "bookmarkAll") bookmarkAllTabs(windowId);
   else if (choice === "tabLayout") s.toggleTabLayout(windowId);
+  else if (choice === "sidebarSide") toggleSidebarSide();
   else if (choice === "autoHide") s.toggleSidebar(windowId);
   else if (choice === "closeAll") closeAllTabs(windowId);
 }
