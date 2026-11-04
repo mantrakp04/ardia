@@ -1,6 +1,6 @@
 # Dashboard: Triage
 
-`/triage` in the dashboard (`apps/dashboard`) shows the feedback-triage data that `ardia-db` mirrors into the `sandbox` database on the telemetry ClickHouse: requests, the reply queue, people, releases and GitHub issues. It sits behind the same Hexclave sign-in and `DASHBOARD_ALLOWED_EMAILS` allowlist as every other page.
+`/triage` in the dashboard (`apps/dashboard`) shows the feedback-triage data that `ardia-db` mirrors into the `sandbox` database on the telemetry ClickHouse: requests, the reply queue, people, releases and GitHub issues. It sits behind the same Hexclave sign-in and admin gate as every other page: a verified primary email and `is_admin: true` in the user's client read-only metadata.
 
 ## Credentials
 

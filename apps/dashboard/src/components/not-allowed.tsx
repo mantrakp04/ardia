@@ -12,7 +12,7 @@ export function NotAllowed() {
       <div className={cn("relative grid w-full max-w-[380px] justify-items-center gap-3 p-7 text-center", glassPanel)}>
         <img src="/app-icon.png" alt="" width={48} height={48} className="size-12 rounded-[13px]" />
         <h1 className="text-xl font-semibold tracking-[-0.02em]">Not allowed</h1>
-        <p className="text-sm text-foreground/60">This account can sign in, but it isn't on the dashboard's list. Sign out and use the owner account.</p>
+        <p className="text-sm text-foreground/60">This account can sign in, but it isn't a dashboard admin. Sign out and use the owner account.</p>
         <button
           type="button"
           disabled={busy}
