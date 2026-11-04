@@ -25,3 +25,14 @@ Fetched by `fetch-images.py` from Wikimedia Commons. Only CC0 or public-domain f
 | crumbs.example | Bakery bread in Boston.jpg | CC0 | https://commons.wikimedia.org/wiki/File:Bakery_bread_in_Boston.jpg |
 | crumbs.example | Coffee steaming in a mug.jpg | CC0 | https://commons.wikimedia.org/wiki/File:Coffee_steaming_in_a_mug.jpg |
 | crumbs.example | Blue white kitchen interior (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Blue_white_kitchen_interior_(Unsplash).jpg |
+| canopy.example | Tree-lined street in Westgate.jpg | CC0 | https://commons.wikimedia.org/wiki/File:Tree-lined_street_in_Westgate.jpg |
+| course.example | University of Illinois at Urbana-Champaign, Champaign, United States (Unsplash lguU6sOKwZA).jpg | CC0 | https://commons.wikimedia.org/wiki/File:University_of_Illinois_at_Urbana-Champaign,_Champaign,_United_States_(Unsplash_lguU6sOKwZA).jpg |
+| library.example | Tree archway in a park (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Tree_archway_in_a_park_(Unsplash).jpg |
+| library.example | Branches obscuring the sun (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Branches_obscuring_the_sun_(Unsplash).jpg |
+| library.example | Forsyth Park, Savannah (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Forsyth_Park,_Savannah_(Unsplash).jpg |
+| library.example | Helsinki Rooftops (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Helsinki_Rooftops_(Unsplash).jpg |
+| lecture.example | Helsinki Rooftops (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Helsinki_Rooftops_(Unsplash).jpg |
+| lecture.example | Rooftops (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Rooftops_(Unsplash).jpg |
+| lecture.example | Suburb view on a foggy morning (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Suburb_view_on_a_foggy_morning_(Unsplash).jpg |
+| lecture.example | Rooftop street view (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Rooftop_street_view_(Unsplash).jpg |
+| survey.example | Forsyth Park, Savannah (Unsplash).jpg | CC0 | https://commons.wikimedia.org/wiki/File:Forsyth_Park,_Savannah_(Unsplash).jpg |

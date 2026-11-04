@@ -164,3 +164,31 @@ Commit [`5db40e8fe26785c256845a5bb38921b2654a887f`](https://github.com/MckAudio/
 | [TR8/HATS/009_909_Open_HiHat_Short.wav](https://github.com/MckAudio/MckSamplePacks/blob/5db40e8fe26785c256845a5bb38921b2654a887f/TR8/HATS/009_909_Open_HiHat_Short.wav) | `62314550a3` |
 | [TR8/HATS/010_909_Closed_HiHat_Short.wav](https://github.com/MckAudio/MckSamplePacks/blob/5db40e8fe26785c256845a5bb38921b2654a887f/TR8/HATS/010_909_Closed_HiHat_Short.wav) | `bf84f488ef` |
 | [TR8/PERC/019_909_Hand_Clap.wav](https://github.com/MckAudio/MckSamplePacks/blob/5db40e8fe26785c256845a5bb38921b2654a887f/TR8/PERC/019_909_Hand_Clap.wav) | `851ec71255` |
+
+## Shared Folders film
+
+Every file the Shared Folders mix (`scripts/music/shared-folders.py`) reads or writes. All of it was generated
+with ElevenLabs on 2026-11-03 under the account's paid **Creator** plan, whose terms include a commercial licence
+for the output (no attribution required). No recorded voice of a real person is used: the narrator is a voice
+designed from a text description (Voice Design), not a clone. Files live in the gitignored
+`public/music/shared-folders/`.
+
+| File | What it is | Source |
+| --- | --- | --- |
+| `music-take1.mp3` | Raw music generation, not used (drop lands at 8 s, no end hit) | Eleven Music, `music_v2_5`, composition plan |
+| `music-take2.mp3` | Raw music generation, **used**: 120.00 BPM, edited on the beat grid by the mix script | Eleven Music, `music_v2_5`, composition plan |
+| `music-take3.mp3` | Raw music generation, not used (six-chunk plan; no end hit) | Eleven Music, `music_v2_5`, composition plan |
+| `sfx-chatPop.wav` | Soft bubble pop | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-slam.wav` | Punchy title thud | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-whoosh.wav` | Short air whoosh (aligned on its loudest point) | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-click.wav` | Trackpad click | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-tick.wav` | Menu tick (one tick cut from a generation) | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-sheet.wav` | Soft panel-open swoosh | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-lift.wav` | Soft pick-up | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-drag.wav` | Subtle slide | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-thud.wav` | Soft drop commit | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-type.wav` | Three keyboard taps (cut from a generation) | Sound Effects, `eleven_text_to_sound_v2` |
+| `sfx-arrive.wav` | Signature arrival chime, a marimba/bell pop on D5 (the track is in D) | Sound Effects, `eleven_text_to_sound_v2` |
+| `vo-vo1.wav` … `vo-vo6.wav` | The six voiceover lines in `cuts.json`, one file each, silence trimmed; `vo-vo5.wav` has its three phrases re-spaced to about 1 s apart | Text to Speech, `eleven_v3`, voice "Ardia Narrator (designed)" (`UaGUd7CqoCVmNU5Aiahi`), made with Voice Design `eleven_ttv_v3` |
+| `shared-folders-16x9.wav`, `shared-folders-9x16.wav` | The mix: music, sound effects and voiceover (the two files are identical) | Rendered by `shared-folders.py` from the files above |
+| `shared-folders-16x9-novo.wav` | The mix without voiceover | Rendered by `shared-folders.py` from the files above |

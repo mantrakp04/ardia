@@ -1,0 +1,126 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GEOG 341 · Week 6</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--mar:#8a1c2b;--mar2:#a8283a;--cream:#f8f5f0;--ink:#231f20;--soft:#585054;--mute:#8b8286;--line:#e6e0da;--gold:#c99a2e}
+body{font-family:"Helvetica Neue",-apple-system,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;font-size:14px;display:grid;grid-template-columns:64px 1fr;min-height:100vh}
+.rail{background:var(--mar);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;position:sticky;top:0;height:100vh}
+.rail .u{width:40px;height:40px;border-radius:9px;background:#fff;color:var(--mar);display:grid;place-items:center;font:700 22px/1 "Gill Sans","Gill Sans MT",sans-serif;margin-bottom:12px}
+.rail .it{width:52px;padding:7px 0;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:4px;color:#f3d9dc;font-size:10px}
+.rail .it svg{width:20px;height:20px}
+.rail .it.on{background:rgba(255,255,255,.16);color:#fff}
+.rail .me{margin-top:auto;width:34px;height:34px;border-radius:50%;background:#f2c86b;color:#5a3a00;font-weight:700;font-size:13px;display:grid;place-items:center}
+.app{display:grid;grid-template-columns:190px 1fr;min-width:0}
+.cnav{background:#fff;border-right:1px solid var(--line);padding:18px 0}
+.cnav .code{padding:0 18px 4px;font:600 12px/1.2 "Gill Sans",sans-serif;letter-spacing:.12em;color:var(--mar)}
+.cnav .nm{padding:0 18px 14px;font-size:13px;color:var(--soft);line-height:1.35;border-bottom:1px solid var(--line);margin-bottom:8px}
+.cnav a{display:block;padding:8px 18px;color:var(--soft);font-size:13.5px;text-decoration:none;border-left:3px solid transparent}
+.cnav a.on{border-color:var(--mar);color:var(--mar);font-weight:600;background:#fbf3f4}
+.cnav a i{float:right;font-style:normal;font-size:11px;background:var(--mar2);color:#fff;border-radius:9px;padding:1px 6px}
+.main{min-width:0}
+.top{height:52px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 26px;gap:8px;font-size:13px;color:var(--mute);white-space:nowrap}
+.top b{color:var(--ink);font-weight:600}
+.top .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.top .stu{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:15px;display:flex;align-items:center;gap:6px;color:var(--soft)}
+.banner{position:relative;height:184px;overflow:hidden}
+.banner img{width:100%;height:100%;object-fit:cover;object-position:center 58%;display:block}
+.banner:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(60,8,16,.86) 0%,rgba(80,12,22,.55) 46%,rgba(0,0,0,0) 80%)}
+.banner .t{position:absolute;left:28px;bottom:22px;z-index:1;color:#fff}
+.banner .k{font:600 12px/1 "Gill Sans",sans-serif;letter-spacing:.16em;color:#f5d48a;margin-bottom:9px}
+.banner h1{font:600 31px/1.1 "Gill Sans","Gill Sans MT",sans-serif;letter-spacing:-.005em}
+.banner p{font-size:13.5px;color:#f1dfe1;margin-top:7px}
+.weeks{display:flex;gap:6px;padding:14px 28px;background:#fff;border-bottom:1px solid var(--line);align-items:center;white-space:nowrap}
+.weeks span{height:30px;padding:0 12px;border-radius:15px;border:1px solid var(--line);display:flex;align-items:center;font-size:12.5px;color:var(--soft);gap:6px}
+.weeks span.done:before{content:"";width:6px;height:6px;border-radius:50%;background:#5c9a6b}
+.weeks .on{background:var(--mar);border-color:var(--mar);color:#fff;font-weight:600}
+.weeks .lab{border:0;padding:0 6px 0 0;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.cols{display:grid;grid-template-columns:1fr 300px;gap:22px;padding:20px 28px 40px}
+h2{font:600 22px/1.2 "Gill Sans",sans-serif;margin-bottom:6px;display:flex;align-items:baseline;gap:10px}
+h2 small{font:13px "Helvetica Neue",sans-serif;color:var(--mute)}
+.lede{color:var(--soft);line-height:1.55;margin-bottom:16px;max-width:640px}
+.goals{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.goals span{font-size:12px;padding:5px 10px;border-radius:6px;background:#fff;border:1px solid var(--line);color:var(--soft)}
+.list{background:#fff;border:1px solid var(--line);border-radius:12px}
+.lh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.lh h3{font:600 15px "Gill Sans",sans-serif;letter-spacing:.02em}
+.lh span{margin-left:auto;font-size:12px;color:var(--mute)}
+.prog{width:90px;height:5px;border-radius:3px;background:#efe9e3;margin-left:10px;overflow:hidden}
+.prog i{display:block;width:40%;height:100%;background:#5c9a6b}
+.rd{display:flex;gap:13px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid #f1ece6}
+.rd:last-child{border:0}
+.ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;flex:none;font:700 10px/1 "Helvetica Neue",sans-serif;letter-spacing:.04em}
+.ic.pdf{background:#fbe9ea;color:#b3261e}.ic.web{background:#e7f0fb;color:#2b5ea7}.ic.bk{background:#f6eedb;color:#8a6414}.ic.vid{background:#efe8fb;color:#6a3fc0}.ic.data{background:#e4f3ea;color:#2e7d4f}
+.rd b{display:block;font-weight:600;font-size:14px;line-height:1.35}
+.rd p{font-size:12.5px;color:var(--mute);margin-top:3px}
+.rd .req{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--mar);background:#fbf0f1;border-radius:4px;padding:2px 6px;margin-left:6px;vertical-align:1px}
+.rd .ck{margin-left:auto;width:20px;height:20px;border-radius:6px;border:1.6px solid #cfc6bf;flex:none;margin-top:6px}
+.rd .ck.y{background:#5c9a6b;border-color:#5c9a6b;display:grid;place-items:center}
+.asg{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.asg .bar{height:5px;background:linear-gradient(90deg,var(--mar),var(--gold))}
+.asg .in{padding:15px 16px}
+.due{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#a0431b;background:#fdf0e6;border-radius:5px;padding:4px 8px}
+.asg h4{font:600 20px/1.2 "Gill Sans",sans-serif;margin:10px 0 4px}
+.asg p{font-size:13px;color:var(--soft);line-height:1.5}
+.when{display:flex;gap:10px;margin:13px 0;font-size:12.5px}
+.when div{flex:1;background:var(--cream);border-radius:8px;padding:8px 10px}
+.when b{display:block;font-size:15px;margin-top:2px}
+.when span{color:var(--mute)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--soft);margin-bottom:13px}
+.av{display:flex}
+.av i{width:28px;height:28px;border-radius:50%;border:2px solid #fff;margin-left:-5px;display:grid;place-items:center;font:700 10px "Helvetica Neue";font-style:normal;color:#fff}
+.av i:first-child{margin-left:0}
+.go{height:38px;border-radius:9px;background:var(--mar);color:#fff;font-weight:600;font-size:13.5px;display:flex;align-items:center;justify-content:center}
+.side{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:16px}
+.side h5{font:600 12px "Gill Sans",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.ev{display:flex;gap:11px;padding:8px 0;border-top:1px solid #f1ece6;font-size:13px}
+.ev:first-of-type{border:0}
+.ev .d{width:38px;text-align:center;flex:none;font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.ev .d b{display:block;font-size:17px;color:var(--ink);letter-spacing:0}
+.ev p{color:var(--mute);font-size:12px;margin-top:2px}
+@media (max-width:1100px){.app{grid-template-columns:1fr}.cnav{display:none}.cols{grid-template-columns:1fr 280px}}
+</style></head><body>
+<nav class="rail"><div class="u">A</div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9l7-6 7 6v8H3z"/></svg>Home</div>
+<div class="it on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h6v12H3zM11 4h6v12h-6z"/></svg>Courses</div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v4M13 2v4"/></svg>Calendar</div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14v9H8l-4 3v-3H3z"/></svg>Inbox</div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h9l3 3v11H4z"/><path d="M7 9h6M7 12h6"/></svg>Library</div>
+<div class="me">NV</div></nav>
+<div class="app">
+<aside class="cnav"><div class="code">GEOG 341</div><div class="nm">Urban Climates &amp; Green Infrastructure</div>
+<a>Home</a><a>Announcements <i>2</i></a><a class="on">Modules</a><a>Readings</a><a>Assignments</a><a>Discussions <i>5</i></a><a>Groups</a><a>Grades</a><a>People</a><a>Files</a><a>Office hours</a></aside>
+<div class="main">
+<div class="top">Courses › GEOG 341 › Modules › <b>Week 6</b><div class="r"><span>Fall 2026</span><span class="stu">Student view</span></div></div>
+<div class="banner"><img src="img/0.jpg" alt=""><div class="t"><div class="k">ALDER STATE UNIVERSITY · DEPT. OF GEOGRAPHY</div><h1>GEOG 341 · Urban Climates</h1><p>Prof. Ines Valcourt · Tue &amp; Thu 10:30 · Harrow Hall 204</p></div></div>
+<div class="weeks"><span class="lab">Weeks</span><span class="done">1</span><span class="done">2</span><span class="done">3</span><span class="done">4</span><span class="done">5</span><span class="on">6 · Urban climate</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span></div>
+<div class="cols">
+<section>
+<h2>Week 6 · Urban climate <small>Oct 5 – Oct 9</small></h2>
+<p class="lede">Why cities run hot, and what shade, water and surfaces can do about it. This week we move from the energy balance of a street canyon to field evidence on street trees, then start the group thesis drafts.</p>
+<div class="goals"><span>Explain the urban heat island</span><span>Read a canopy–temperature figure</span><span>Plan a field reading</span></div>
+<div class="list">
+<div class="lh"><h3>Readings</h3><span>2 of 5 done</span><div class="prog"><i></i></div></div>
+<div class="rd"><div class="ic pdf">PDF</div><div><b>Canopy cover and street-level heat <span class="req">REQUIRED</span></b><p>Ostrowe et al. · Journal of City Climates 15(3) · 28 pp · ~45 min</p></div><div class="ck y"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.4 2.4 4.6-5"/></svg></div></div>
+<div class="rd"><div class="ic bk">BOOK</div><div><b>The Shaded City, ch. 3 “Streets that breathe” <span class="req">REQUIRED</span></b><p>R. Achterberg · Alder State Library, on reserve · pp. 61–98</p></div><div class="ck y"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.4 2.4 4.6-5"/></svg></div></div>
+<div class="rd"><div class="ic vid">VID</div><div><b>Lecture: Cool Roofs and the energy budget</b><p>Dr. Samir Okafor-Lind · 48 min · captions</p></div><div class="ck"></div></div>
+<div class="rd"><div class="ic data">CSV</div><div><b>Port Alder Street Tree Census (dataset)</b><p>Open data portal · 48,213 rows · use for Lab 3</p></div><div class="ck"></div></div>
+<div class="rd"><div class="ic web">WEB</div><div><b>Summer Heat Map, block-level readings</b><p>Interactive map · explore your group's district</p></div><div class="ck"></div></div>
+</div>
+</section>
+<aside>
+<div class="asg"><div class="bar"></div><div class="in">
+<span class="due"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#a0431b" stroke-width="1.6"><circle cx="6" cy="6" r="4.8"/><path d="M6 3.4V6l1.8 1.2"/></svg>Due in 3 days</span>
+<h4>Group draft due Fri</h4>
+<p>Thesis draft 1: research question, literature map and a field-survey plan. One submission per group.</p>
+<div class="when"><div><span>Due Fri</span><b>Oct 9</b></div><div><span>Points</span><b>40</b></div><div><span>Draft</span><b>1 of 3</b></div></div>
+<div class="grp"><div class="av"><i style="background:#c0563f">NV</i><i style="background:#3d7a8c">JR</i><i style="background:#7a5bb0">AM</i><i style="background:#c99a2e">TK</i></div>Group 4 · Shade Seekers</div>
+<div class="go">Open group workspace</div>
+</div></div>
+<div class="side"><h5>Coming up</h5>
+<div class="ev"><div class="d">Oct<b>6</b></div><div><b>Field lab: Merrow Ave</b><p>Meet at the east gate, 9:00</p></div></div>
+<div class="ev"><div class="d">Oct<b>8</b></div><div><b>Quiz 4 · Energy balance</b><p>Opens 8:00, 20 min</p></div></div>
+<div class="ev"><div class="d">Oct<b>9</b></div><div><b>Group draft 1</b><p>11:59 pm</p></div></div></div>
+</aside>
+</div></div></div>
+</body></html>

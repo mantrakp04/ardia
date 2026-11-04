@@ -82,6 +82,73 @@ The runtimes are copied from Studio: `src/lib/studio-objects-v6` (the provider, 
 `studio-objects-v5` (readers, geometry, text bindings). `node scripts/studio-docs.mts` adds any object `plan.ts`
 declares that a document lacks. It keeps existing values, removals and operation history.
 
+## The Shared Folders film
+
+| Composition | Size | Length |
+| --- | --- | --- |
+| `shared-folders-16x9` | 1920 × 1080 | 32.0 s |
+| `shared-folders-9x16` | 1080 × 1920 | 32.0 s |
+| `shared-folders-16x9-novo` | 1920 × 1080 | 32.0 s, music and sound effects without the voiceover |
+
+A thesis group chat drowning in pasted links ("wait which link??") becomes one pinned folder that lives in two
+people's sidebars. Priya shares "Thesis Reading" from the folder's menu and invites Tomás from the share picker;
+Tomás adds it with Add Shared Folder…; then two Macs side by side: she drops a link into the folder and it lands
+in his sidebar on the drop. The arrival repeats from the other side (a link back, a rename, a reorder, a
+subfolder), then "NO ACCOUNT. NO SIGN-UP. JUST ICLOUD DRIVE." over the folder's real files and the end card.
+It reads fully muted; the voiceover only repeats the type.
+
+`src/lib/sf-film` holds the film: `cuts.json` (120 BPM, a beat is 15 frames; sections, the silence before the
+drop, every sound-effect cue and voiceover line in beats), `plan.ts` (shots, type and screen poses for both
+aspects, cameras as window-point views), `shots.tsx`, `parts.tsx` (the chat, the macOS menu and share picker),
+`kit.tsx` and `Film.tsx`. `src/entries/shared-folders.tsx` registers only these three, so
+`VIDEOS_ENTRY=src/entries/shared-folders.tsx pnpm render <id>` renders them while another film in `src/videos` is
+half-written. `scripts/sf-studio-docs.mts` writes their `studio.json` documents.
+
+### Footage
+
+Two hidden Debug instances (Priya, plum; Tomás, blue) share one scratch directory as their `sharedFolders`
+location, so the sync is the real one (`docs/shared-folders.md`, "Testing it") and nothing touches iCloud Drive:
+
+```bash
+scripts/capture/sf-run.sh <Debug Ardia.app> <scratch dir>     # both instances, every scene
+python3 scripts/capture/sf-composite.py sf-setup-a sf-setup-b sf-share sf-add sf-drop sf-watch-drop sf-back \
+  sf-watch-back sf-rename sf-watch-rename sf-reorder sf-watch-reorder sf-sub sf-watch-sub
+swift scripts/capture/sf-icons.swift public/brand/sf <SF Symbol names in the menus> app:messages=/System/Applications/Messages.app …
+```
+
+- **Drags are real.** Each step is a real mouse event (`windows.dev mouse:down/dragged/up`) through the sidebar's
+  own drag controller, with one window snapshot per film frame, so the ghost, the gap opening and the drop are the
+  app's. Renames are typed a key at a time into the sidebar's rename field.
+- **Arrivals are real.** The other instance snapshots continuously from the moment its store changes; animations
+  run five times slower in both instances (`sidebarMotionScale` and `Animated.spring`), and the film plays them
+  back at real speed from each frame's timestamp. Measured locally, a change takes 0.9–1.2 s from release to the
+  other sidebar (debounce, coordinated write, FSEvents, read); the film shows it one beat (0.5 s) later.
+- **Composited, not captured:** the group chat (a stand-in with invented names, no real messenger's look), the
+  context menus (drawn from the real `menu.json` items the app dumped, with SF Symbols rendered by AppKit) and the
+  share picker (background mode logs it instead of showing it; recreated in the macOS look with the system's own
+  app and folder icons). The pages are the stand-in sites `canopy`, `citydata`, `course`, `library`, `heatmap`,
+  `lecture` and `survey.example`, with CC0 photos (`sites/SOURCES.md`).
+
+### Audio
+
+`scripts/music/shared-folders.py` mixes the film from `cuts.json`. Every file is generated with ElevenLabs on the
+account's paid Creator plan, which includes a commercial licence; `scripts/music/samples.md` lists each one.
+
+- **Music:** an Eleven Music (`music_v2_5`) track generated from a composition plan built from the cut's sections.
+  It measures 120.00 BPM. The script shifts it 23.4 ms onto the grid and rearranges it on beat boundaries: the
+  build bar repeats, a riser runs into a hard stop, one beat of digital silence comes before the drop on beat 24,
+  then the break's stabs and the end hit on beat 52 with a ringing tail.
+- **Sound effects:** ElevenLabs Sound Effects (`eleven_text_to_sound_v2`), one file per cue kind. Transients land
+  on their beat; whooshes peak on it. The signature `arrive` chime is a D5 pop, in the track's key.
+- **Voiceover:** ElevenLabs `eleven_v3` with a narrator designed with Voice Design ("Ardia Narrator (designed)"),
+  not a clone of anyone. The music ducks 7 dB under it with 100 ms ramps.
+- **Master:** −11 LUFS integrated, true peak −1.7 dBTP, sub high-passed at 35 Hz, digital silence in `silences`
+  except the beat-23 thud.
+
+To recreate the mix, run `python3 scripts/music/shared-folders.py --check` (about 7 s; numpy, scipy, ffmpeg). It
+writes `shared-folders-16x9.wav`, `shared-folders-9x16.wav` and `shared-folders-16x9-novo.wav` to
+`public/music/shared-folders/`, then prints loudness and cue timing. Re-run it whenever cues move.
+
 ## Recreating the media (not in git)
 
 `public/footage`, `public/music`, `public/fonts`, `public/brand` and `.capture` are gitignored. To rebuild them:
