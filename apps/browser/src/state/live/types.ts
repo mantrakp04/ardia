@@ -75,9 +75,11 @@ export type FolderStatus = {
 
 export class LiveError extends Error {
   kind: LiveErrorKind;
-  constructor(kind: LiveErrorKind, message: string) {
+  status?: number;
+  constructor(kind: LiveErrorKind, message: string, status?: number) {
     super(message);
     this.kind = kind;
+    this.status = status;
   }
 }
 
