@@ -124,8 +124,8 @@ const bitbucket: LiveSource = {
     const results = await inBitbucketBatches(workspaces, ({ workspace }) =>
       bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
     );
-    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
-    if (failure && results.every((result) => result.status === "rejected")) throw failure.reason;
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected").map((result) => result.reason);
+    if (failures.length && failures.length === results.length) throw failures[0];
     const failedWorkspaces = new Set(workspaces.filter((_, i) => results[i]?.status === "rejected").map(({ workspace }) => workspace.slug));
     const keptFromFailedWorkspaces = (live().items[folder.id] ?? []).filter((it) => it.source === "bitbucket" && it.pr && failedWorkspaces.has(it.pr.repo.split("/")[0] ?? ""));
     const prs = fulfilled(results).flat();
@@ -138,7 +138,7 @@ const bitbucket: LiveSource = {
     const itemFailure = items.find((result): result is PromiseRejectedResult => result.status === "rejected");
     if (itemFailure) throw itemFailure.reason;
     const listed = [...fulfilled(items), ...keptFromFailedWorkspaces];
-    if (failure) throw new PartialFetch(listed, failure.reason);
+    if (failures.length) throw new PartialFetch(listed, failures);
     return listed;
   },
   async resolveGone(items) {

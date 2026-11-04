@@ -50,7 +50,7 @@ async function run(folderId: string) {
     if (r.status === "fulfilled") fetched.push(...r.value);
     else if (r.reason instanceof PartialFetch) {
       fetched.push(...r.reason.items);
-      partlyFailed.push({ source, error: r.reason.failure });
+      partlyFailed.push(...r.reason.failures.map((error) => ({ source, error })));
     } else failed.push({ source, error: r.reason });
   });
   if (!live().folders[folderId]) return;

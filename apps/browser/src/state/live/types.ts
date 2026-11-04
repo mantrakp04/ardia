@@ -85,11 +85,11 @@ export class LiveError extends Error {
 
 export class PartialFetch extends Error {
   items: LiveItem[];
-  failure: unknown;
-  constructor(items: LiveItem[], failure: unknown) {
+  failures: unknown[];
+  constructor(items: LiveItem[], failures: unknown[]) {
     super("Part of the source couldn't be loaded");
     this.items = items;
-    this.failure = failure;
+    this.failures = failures;
   }
 }
 
