@@ -37,12 +37,27 @@ function isLocalHost(host: string): boolean {
   );
 }
 
-const L = "a-z0-9\\u00a1-\\uffff";
-const LABEL = `[${L}](?:[${L}-]*[${L}])?`;
-const HOST = new RegExp(
-  `^(localhost|\\[[0-9a-f:.]+\\]|(\\d{1,3}\\.){3}\\d{1,3}|(${LABEL}\\.)+([a-z\\u00a1-\\uffff](?:[${L}-]*[${L}])?|xn--[a-z0-9-]+)|${LABEL})\\.?(:\\d{1,5})?(?=[/?#]|$)`,
-  "i",
-);
+const LABEL_CHARS = /^[a-z0-9\u00a1-\uffff-]+$/i;
+const isLabel = (part: string) => LABEL_CHARS.test(part) && part[0] !== "-" && !part.endsWith("-");
+const isTld = (part: string) => (isLabel(part) && !/^\d/.test(part)) || /^xn--[a-z0-9-]+$/i.test(part);
+
+function isHostName(name: string): boolean {
+  if (name.toLowerCase() === "localhost" || /^\[[0-9a-f:.]+\]$/i.test(name) || /^(\d{1,3}\.){3}\d{1,3}$/.test(name)) return true;
+  const labels = name.split(".");
+  return labels.length === 1 ? isLabel(name) : labels.slice(0, -1).every(isLabel) && isTld(labels.at(-1)!);
+}
+
+type HostMatch = { authority: string; name: string; port: string };
+
+function matchHost(input: string): HostMatch | null {
+  const end = input.search(/[/?#]/);
+  const authority = end === -1 ? input : input.slice(0, end);
+  const colon = authority.lastIndexOf(":");
+  const port = colon !== -1 && /^:\d{1,5}$/.test(authority.slice(colon)) ? authority.slice(colon) : "";
+  const bare = port ? authority.slice(0, colon) : authority;
+  const name = bare.endsWith(".") ? bare.slice(0, -1) : bare;
+  return isHostName(name) ? { authority, name, port } : null;
+}
 
 const JAVASCRIPT_URL = /^(?:view-source:)?javascript:/i;
 const JAVASCRIPT_PREFIX = /^[\u0000-\u0020\u007f]*javascript:/i;
@@ -73,23 +88,23 @@ function fixup(raw: string): string | null {
   if (input.startsWith("/") && !input.startsWith("//")) return `file://${input.replace(/\s/g, "%20")}`;
 
   if (!/[.:/?#[]/.test(input)) return input.toLowerCase() === "localhost" ? `http://${input}` : null;
-  const host = HOST.exec(input);
+  const host = matchHost(input);
   if (!host) return null;
-  const name = host[1]!.toLowerCase().replace(/\.$/, "");
+  const name = host.name.toLowerCase();
   const numeric = /^[\d.]+$/.test(name);
   if (numeric && !name.includes(".")) return null;
   const dotted = name.includes(".") && !numeric && name.charCodeAt(0) !== 91;
   const tld = dotted ? name.slice(name.lastIndexOf(".") + 1) : "";
-  const rest = input.slice(host[0].length);
+  const rest = input.slice(host.authority.length);
   const special = name === "localhost" || name.charCodeAt(0) === 91 || numeric;
   const proto = isLocalHost(name) ? "http" : "https";
   if (special || (dotted && (knownTld(tld) || tld.startsWith("xn--")))) return `${proto}://${input}`;
-  if (!host[5] && !rest.includes("/") && !rest.includes("?") && !rest.includes("#")) return null;
+  if (!host.port && !rest.includes("/") && !rest.includes("?") && !rest.includes("#")) return null;
   const path = /^[^?#]*/.exec(rest)![0];
   const query = /\?[^#]*/.exec(rest)?.[0] ?? "";
   const fragment = /#.*/.exec(rest)?.[0] ?? "";
-  const parts = (host[5] ? 1 : 0) + (path ? 1 : 0) + (query.length > 1 ? 1 : 0) + (fragment.length > 1 ? 1 : 0);
-  return host[5] || path.endsWith("/") || parts > 1 ? `${proto}://${input}` : null;
+  const parts = (host.port ? 1 : 0) + (path ? 1 : 0) + (query.length > 1 ? 1 : 0) + (fragment.length > 1 ? 1 : 0);
+  return host.port || path.endsWith("/") || parts > 1 ? `${proto}://${input}` : null;
 }
 
 export function searchUrlFor(template: string, query: string): string {

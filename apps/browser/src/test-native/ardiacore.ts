@@ -272,6 +272,7 @@ export const resolvedPermissions: { id: string; result: string; remember: boolea
 export const extensionAnswers = {
   actionStates: async (_tabId: string, _ids: string[]): Promise<Record<string, ActionState>> => ({}),
   sidePanelUrl: async (_tabId: string, _extensionId: string): Promise<string | null> => null,
+  change: async (_verb: string, _id: string): Promise<void> => {},
 };
 
 const tabStripHost = () => testGlobals.acTestTabStrip!;
@@ -399,10 +400,10 @@ const fakeModules = {
       if (!engine) throw Object.assign(new Error("no extension engine in this test"), { code: "ERR_ENGINE" });
       return { id: await engine.install(path, profile) };
     },
-    setEnabled: () => ({ ok: true }),
-    uninstall: async ({ profile, id }) => (await extensionEngine()?.uninstall(id, profile), { ok: true }),
-    reload: async ({ profile, id }) => (await extensionEngine()?.reload(id, profile), { ok: true }),
-    configure: () => ({ ok: true }),
+    setEnabled: async ({ id }) => (await extensionAnswers.change("setEnabled", id), { ok: true }),
+    uninstall: async ({ profile, id }) => (await extensionAnswers.change("uninstall", id), await extensionEngine()?.uninstall(id, profile), { ok: true }),
+    reload: async ({ profile, id }) => (await extensionAnswers.change("reload", id), await extensionEngine()?.reload(id, profile), { ok: true }),
+    configure: async ({ id }) => (await extensionAnswers.change("configure", id), { ok: true }),
     chooseFolder: () => null,
     installCrx: ({ profile, path }) => (installedCrx.push({ path: path, profile }), { id: "crx" }),
     resolveInstallPrompt: () => null,
