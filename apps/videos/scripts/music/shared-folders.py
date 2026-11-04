@@ -28,7 +28,7 @@ LENGTH = int(round(CUTS["beats"] * BEAT * SR))
 
 MUSIC_TAKE = "music-take4.mp3"
 TAKE_LATENCY_S = 0.0265
-MUSIC_EDIT = [(0, 0, 20), (20, 28, 20), (40, 48, 12), (52, 44, 4), (56, 48, 12), (68, 44, 2), (70, 48, 40), (110, 12, 4)]
+MUSIC_EDIT = [(0, 0, 20), (20, 28, 20), (40, 48, 12), (52, 44, 4), (56, 48, 8), (64, 44, 2), (66, 48, 31), (97, 12, 4)]
 SPLICE_FADE_S = 0.008
 TAIL_SOURCE_BEAT = 96
 TAIL_KEEP_S = 0.5

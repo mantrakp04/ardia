@@ -182,9 +182,9 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1500,
+        "y": 1360,
         "width": 960,
-        "height": 220,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -271,23 +271,6 @@
       }
     },
     {
-      "id": "grid-every",
-      "definition": "type",
-      "label": "grid · One folder in every sidebar.",
-      "parentId": null,
-      "values": {
-        "text": "One folder in every sidebar.",
-        "size": 56,
-        "color": "#6E6E73",
-        "fill": "#00000000",
-        "x": 60,
-        "y": 1500,
-        "width": 960,
-        "height": 140,
-        "rotation": 0
-      }
-    },
-    {
       "id": "share-window",
       "definition": "window",
       "label": "share · window",
@@ -311,9 +294,9 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1500,
+        "y": 1360,
         "width": 960,
-        "height": 220,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -354,9 +337,9 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1500,
+        "y": 1360,
         "width": 960,
-        "height": 220,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -367,9 +350,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 300,
+        "y": 290,
         "width": 1000,
-        "height": 560,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -380,9 +363,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 920,
+        "y": 850,
         "width": 1000,
-        "height": 560,
+        "height": 480,
         "rotation": 0
       }
     },
@@ -397,9 +380,9 @@
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 60,
-        "y": 1500,
+        "y": 1360,
         "width": 960,
-        "height": 220,
+        "height": 110,
         "rotation": 0
       }
     },
@@ -410,9 +393,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 300,
+        "y": 290,
         "width": 1000,
-        "height": 560,
+        "height": 500,
         "rotation": 0
       }
     },
@@ -423,35 +406,9 @@
       "parentId": null,
       "values": {
         "x": 40,
-        "y": 920,
+        "y": 850,
         "width": 1000,
-        "height": 560,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-maya",
-      "definition": "window",
-      "label": "v-launch-cause · v-launch-maya",
-      "parentId": null,
-      "values": {
-        "x": 40,
-        "y": 360,
-        "width": 1000,
-        "height": 1100,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-leo",
-      "definition": "window",
-      "label": "v-launch-effect · v-launch-leo",
-      "parentId": null,
-      "values": {
-        "x": 40,
-        "y": 360,
-        "width": 1000,
-        "height": 1100,
+        "height": 480,
         "rotation": 0
       }
     },
@@ -626,13 +583,13 @@
       "parentId": null,
       "values": {
         "text": "Download at ardia.dev",
-        "size": 54,
+        "size": 64,
         "color": "#2150D9",
         "fill": "#00000000",
         "x": 60,
         "y": 1020,
         "width": 960,
-        "height": 90,
+        "height": 100,
         "rotation": 0
       }
     }

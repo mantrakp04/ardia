@@ -86,9 +86,9 @@ declares that a document lacks. It keeps existing values, removals and operation
 
 | Composition | Size | Length |
 | --- | --- | --- |
-| `shared-folders-16x9` | 1920 × 1080 | 67.2 s |
-| `shared-folders-9x16` | 1080 × 1920 | 67.2 s |
-| `shared-folders-16x9-novo` | 1920 × 1080 | 67.2 s, music and effects without the narration |
+| `shared-folders-16x9` | 1920 × 1080 | 66.6 s |
+| `shared-folders-9x16` | 1080 × 1920 | 66.6 s |
+| `shared-folders-16x9-novo` | 1920 × 1080 | 66.6 s, music and effects without the narration |
 
 The film runs in five parts:
 
@@ -99,17 +99,15 @@ The film runs in five parts:
    - Share Folder… and the share picker's Collaborate;
    - the real files in iCloud Drive;
    - a drag on one Mac arriving on the other;
-   - a rename, a reorder and a subfolder.
+   - a rename on one Mac and a reorder on the other, both arriving live.
 5. **The montage.** A dark user-story montage in which each story is a real cause on one Mac and its arrival on the others:
-   - a thesis list;
-   - a product launch;
    - a lab with a link dragged three folders deep;
    - a trip landing in the top strip;
-   - a class where a TA's link reaches three students.
+   - a class where the teacher's link reaches three students.
 
 It ends on a chat callback ("it's all in the folder 📁") and the end card. Captions and labels carry the story without sound.
 
-`src/lib/sf-film` holds the film. `cuts.json` is the grid: 100 BPM, 18 frames per beat, 112 beats, with sections and narration beats. `plan.ts` holds shots, panes, cameras and captions for both aspects. The rest:
+`src/lib/sf-film` holds the film. `cuts.json` is the grid: 100 BPM, 18 frames per beat, 111 beats, with sections and narration beats. `plan.ts` holds shots, panes, cameras and captions for both aspects. The rest:
 - `shots.tsx`;
 - `chat.tsx` (the stand-in chat);
 - `parts.tsx` (the macOS menu, share picker and halo);
@@ -133,7 +131,7 @@ python3 scripts/capture/sf-composite.py <scene>…                    # every .c
 - **Arrivals are real.** A watching instance snapshots from the moment its store changes, with sidebar motion slowed 5×.
   - In a sidebar, the film composites the arrival from the real before and after frames: rows slide by their measured offsets and a new row's slot grows.
   - In the top strip, the captured frames are played back at real speed.
-  - Measured locally, a change takes 0.9–1.2 s to reach the other sidebar. The film's commit-to-arrival gap is 0.6–1.1 s.
+  - Measured locally, a change takes 0.9–1.2 s to reach the other sidebar. The film's commit-to-arrival gap is 0.8–1.4 s.
 - **Composited, not captured:**
   - the chats (a stand-in with invented people and no messenger brand);
   - the context menus (drawn from the `menu.json` items the app dumped, with SF Symbols rendered by AppKit);
@@ -147,8 +145,8 @@ python3 scripts/capture/sf-composite.py <scene>…                    # every .c
 - **Music.** An instrumental Eleven Music (`music_v2_5`) score generated from a composition plan with instrumental-only section labels. It measures 100.00 BPM and is edited on beat boundaries:
   - the turn lands on 16;
   - the swell on 24;
-  - the montage lift on 72;
-  - the resolve on 104.
+  - the montage lift on 82;
+  - the resolve on 101.
 
   Speech-to-text finds no words in it, and the voice isolator finds no voice.
 - **Narration.** ElevenLabs `eleven_multilingual_v2` with "Ardia Warm Baritone", a Voice Design narrator rather than a clone of anyone. Two other candidates are in `public/music/shared-folders/voice-candidates/`.

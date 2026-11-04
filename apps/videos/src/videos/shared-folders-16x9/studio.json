@@ -271,23 +271,6 @@
       }
     },
     {
-      "id": "grid-every",
-      "definition": "type",
-      "label": "grid · One folder in every sidebar.",
-      "parentId": null,
-      "values": {
-        "text": "One folder in every sidebar.",
-        "size": 50,
-        "color": "#6E6E73",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 994,
-        "width": 1600,
-        "height": 66,
-        "rotation": 0
-      }
-    },
-    {
       "id": "share-window",
       "definition": "window",
       "label": "share · window",
@@ -426,32 +409,6 @@
         "y": 140,
         "width": 880,
         "height": 740,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-maya",
-      "definition": "window",
-      "label": "v-launch-cause · v-launch-maya",
-      "parentId": null,
-      "values": {
-        "x": 160,
-        "y": 120,
-        "width": 1600,
-        "height": 860,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-leo",
-      "definition": "window",
-      "label": "v-launch-effect · v-launch-leo",
-      "parentId": null,
-      "values": {
-        "x": 160,
-        "y": 120,
-        "width": 1600,
-        "height": 860,
         "rotation": 0
       }
     },
@@ -626,13 +583,13 @@
       "parentId": null,
       "values": {
         "text": "Download at ardia.dev",
-        "size": 52,
+        "size": 64,
         "color": "#2150D9",
         "fill": "#00000000",
         "x": 160,
         "y": 590,
         "width": 1600,
-        "height": 80,
+        "height": 90,
         "rotation": 0
       }
     }

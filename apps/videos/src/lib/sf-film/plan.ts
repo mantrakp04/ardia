@@ -94,7 +94,7 @@ const pane = (id: string, box: Record<Aspect, Box>, land: Key[], port: Key[], mo
 const region = (layout: Layout | undefined, w: number, h: number, y0 = 16): [number, number, number, number] =>
   layout === "right" ? [1280 - w, y0, 1280, y0 + h] : layout === "top" ? [0, 0, w + 300, h] : [0, y0, w, y0 + h];
 
-const CAP: Record<Aspect, Box> = { land: [160, 930, 1600, 110], port: [60, 1500, 960, 220] };
+const CAP: Record<Aspect, Box> = { land: [160, 930, 1600, 110], port: [60, 1360, 960, 110] };
 const cap = (id: string, text: string, at: number, out: number, more: Partial<TypeLayer> = {}) =>
   T(id, text, at, out, "caption", 62, CAP.land, CAP.port, { portSize: 64, ...more });
 
@@ -110,7 +110,7 @@ const turn: Shot = {
   panes: [pane("turn-priya", { land: [300, 150, 1320, 825], port: [40, 450, 1000, 1000] },
     [[0, 0, 16, 600, 420], [3.6, 0, 6, 760, 500, "inout", 3.3]], [[0, 0, 16, 440, 480], [3.6, 0, 8, 520, 560, "inout", 3.3]],
     { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
-  marks: { lift: 0.5, land: 2.4, stagger: 0.38, chatOut: 1.6, rise: 1.4 },
+  marks: { lift: 0.5, land: 2.4, stagger: 0.38, chatOut: 1.5, rise: 2.05 },
   type: [],
 };
 
@@ -119,8 +119,8 @@ const cell = (c: number, r: number): Record<Aspect, Box> => ({
   port: r === 0 ? [40, 470 + c * 540, 1000, 450] : [40, 2200, 1000, 450],
 });
 const recv = (id: string, scene: string, who: Who, layout: Layout, c: number, r: number, role: Pane["role"], marks: Record<string, number>) => {
-  const [x0, y0, x1, y1] = region(layout, 560, 250, 8);
-  const [px0, py0, px1, py1] = region(layout, 520, 230, 8);
+  const [x0, y0, x1, y1] = region(layout, 600, 270, 8);
+  const [px0, py0, px1, py1] = region(layout, 560, 250, 8);
   return pane(id, cell(c, r), [[0, x0, y0, x1, y1], [0.01, x0, y0 + 2, x1 - 24, y1 - 10, "inout", 7.9]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 2, px1 - 20, py1 - 8, "inout", 7.9]], { scene, who, layout, role, marks });
 };
 
@@ -134,15 +134,14 @@ const grid: Shot = {
   ],
   type: [
     T("grid-title", "Shared Folders", 1.5, 7.9, "title", 84, [160, 22, 1600, 100], [60, 240, 960, 110]),
-    T("grid-every", "One folder in every sidebar.", 3, 7.9, "caption", 50, [160, 994, 1600, 66], [60, 1500, 960, 140], { color: MUTED, portSize: 56 }),
   ],
 };
 
 const share: Shot = {
   id: "share", kind: "share", at: 31, beats: 12,
   panes: [pane("share-window", { land: [300, 80, 1320, 825], port: [40, 420, 1000, 1000] },
-    [[0, 0, 10, 900, 590], [0.01, 0, 10, 860, 560, "inout", 6], [8.3, 0, 20, 600, 390, "inout", 3.6]],
-    [[0, 0, 10, 640, 620], [0.01, 0, 10, 620, 600, "inout", 6], [8.3, 0, 20, 480, 470, "inout", 3.6]],
+    [[0, 0, 10, 900, 590], [0.01, 0, 10, 860, 560, "inout", 6], [7.4, 0, 16, 720, 470, "inout", 3.6]],
+    [[0, 0, 10, 640, 620], [0.01, 0, 10, 620, 600, "inout", 6], [7.4, 0, 16, 540, 530, "inout", 3.6]],
     { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
   marks: { menu: 1.5, pick: 3, sheet: 3.6, tick: 5.4, choose: 7, glyph: 8.4 },
   type: [cap("share-apple", "Invite any Apple ID.", 6.5, 10.5)],
@@ -151,7 +150,7 @@ const share: Shot = {
 const accept: Shot = {
   id: "accept", kind: "accept", at: 43, beats: 6,
   panes: [pane("accept-window", { land: [300, 80, 1320, 825], port: [40, 420, 1000, 1000] },
-    [[0, 0, 20, 900, 590], [0.01, 0, 20, 860, 565, "inout", 5.9]], [[0, 0, 20, 640, 620], [0.01, 0, 20, 620, 600, "inout", 5.9]],
+    [[0, 0, 20, 900, 590], [0.01, 0, 20, 860, 565, "inout", 2.4], [2.6, 0, 20, 620, 410, "inout", 3.3]], [[0, 0, 20, 640, 620], [0.01, 0, 20, 620, 600, "inout", 2.4], [2.6, 0, 20, 470, 460, "inout", 3.3]],
     { scene: "story-add-tomas", who: "tomas", layout: "sidebar" })],
   marks: { menu: 1, pick: 2.4, arrive: 3.2 },
   type: [],
@@ -164,8 +163,8 @@ const files: Shot = {
   type: [cap("files-icloud", "Just iCloud Drive. No new account.", 1.4, 6.6)],
 };
 
-const DUO_L: Record<Aspect, Box> = { land: [60, 140, 880, 740], port: [40, 300, 1000, 560] };
-const DUO_R: Record<Aspect, Box> = { land: [980, 140, 880, 740], port: [40, 920, 1000, 560] };
+const DUO_L: Record<Aspect, Box> = { land: [60, 140, 880, 740], port: [40, 290, 1000, 500] };
+const DUO_R: Record<Aspect, Box> = { land: [980, 140, 880, 740], port: [40, 850, 1000, 480] };
 const duoKeys = (layout: Layout, beats: number): [Key[], Key[]] => {
   const [x0, y0, x1, y1] = region(layout, 470, 400);
   const [px0, py0, px1, py1] = region(layout, 560, 400);
@@ -182,10 +181,10 @@ const drop: Shot = {
 };
 
 const edits: Shot = {
-  id: "edits", kind: "panes", at: 66, beats: 20,
+  id: "edits", kind: "panes", at: 66, beats: 16,
   panes: [
-    pane("edits-priya", DUO_L, ...duoKeys("sidebar", 20), { who: "priya", layout: "sidebar", role: "edits", marks: { renameField: 0.8, renameType: 1.3, renameCommit: 3.3, reorderArrive: 11, menu: 13.5, menuPick: 14.6, nest: 14.8 } }),
-    pane("edits-tomas", DUO_R, ...duoKeys("sidebar", 20), { who: "tomas", layout: "sidebar", role: "edits", marks: { renameArrive: 5, reorderGrab: 7.5, reorderUp: 8.8, nestArrive: 16.4 } }),
+    pane("edits-priya", DUO_L, ...duoKeys("sidebar", 16), { who: "priya", layout: "sidebar", role: "edits", marks: { renameField: 0.8, renameType: 1.3, renameCommit: 3.3, reorderArrive: 12.5 } }),
+    pane("edits-tomas", DUO_R, ...duoKeys("sidebar", 16), { who: "tomas", layout: "sidebar", role: "edits", marks: { renameArrive: 4.6, reorderGrab: 8.9, reorderUp: 10.2 } }),
   ],
   type: [],
 };
@@ -200,10 +199,10 @@ const causePane = (id: string, scene: string, who: Who, layout: Layout, grab: nu
   const [px0, py0, px1, py1] = region(layout, 400, 440);
   return pane(id, WIDE, [[0, x0, y0, x1, y1], [0.01, x0, y0 + 4, x1 - 20, y1 - 8, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 4, px1 - 14, py1 - 8, "inout", beats]], { scene, who, layout, role: "drag", marks: { grab, up } });
 };
-const effectPane = (id: string, scene: string, who: Who, layout: Layout, box: Record<Aspect, Box>, arrive: number, beats: number): Pane => {
+const effectPane = (id: string, scene: string, who: Who, layout: Layout, box: Record<Aspect, Box>, arrive: number, beats: number, small = false): Pane => {
   const top = layout === "top";
-  const [x0, y0, x1, y1] = top ? [0, 0, 1010, 360] : region(layout, 560, 340);
-  const [px0, py0, px1, py1] = top ? [0, 0, 1000, 560] : region(layout, 420, 460);
+  const [x0, y0, x1, y1] = top ? (small ? [0, 0, 560, 520] : [0, 0, 1010, 360]) : small ? region(layout, 330, 280) : region(layout, 560, 340);
+  const [px0, py0, px1, py1] = top ? (small ? [0, 0, 760, 170] : [0, 0, 1000, 560]) : small ? region(layout, 480, 170) : region(layout, 420, 460);
   return pane(id, box, [[0, x0, y0, x1, y1], [0.01, x0, y0, x1 - 16, y1 - 6, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0, px1 - 12, py1 - 6, "inout", beats]], { scene, who, layout, role: "arrive", marks: { arrive } });
 };
 const TRI = (i: number): Record<Aspect, Box> => ({
@@ -212,37 +211,34 @@ const TRI = (i: number): Record<Aspect, Box> => ({
 });
 
 const montage: Shot[] = [
-  ...vignette("v-launch", 86,
-    causePane("v-launch-maya", "launch-0-act-maya", "maya", "sidebar", 0.2, 1.3, 2.5),
-    [effectPane("v-launch-leo", "launch-0-watch-leo", "leo", "right", WIDE, 0.7, 3.5)], 2.5, 6),
-  ...vignette("v-lab", 92,
-    causePane("v-lab-okafor", "lab-0-act-okafor", "okafor", "sidebar", 0.2, 1.3, 2.5),
-    [effectPane("v-lab-sam", "lab-0-watch-sam", "sam", "sidebar", WIDE, 0.7, 3.5)], 2.5, 6),
-  ...vignette("v-trip", 98,
-    causePane("v-trip-kai", "trip-0-act-kai", "kai", "sidebar", 0.2, 1.3, 2.5),
-    [effectPane("v-trip-noor", "trip-0-watch-noor", "noor", "top", WIDE, 0.7, 3.5)], 2.5, 6),
-  ...vignette("v-class", 104,
-    causePane("v-class-ruiz", "class-0-act-ruiz", "ruiz", "sidebar", 0.2, 1.3, 2.5), [
-      effectPane("v-class-ana", "class-0-watch-ana", "ana", "right", TRI(0), 0.7, 3.5),
-      effectPane("v-class-ben", "class-0-watch-ben", "ben", "sidebar", TRI(1), 0.7, 3.5),
-      effectPane("v-class-cleo", "class-0-watch-cleo", "cleo", "top", TRI(2), 0.7, 3.5),
-    ], 2.5, 6),
+  ...vignette("v-lab", 82,
+    causePane("v-lab-okafor", "lab-0-act-okafor", "okafor", "sidebar", 0.2, 1.3, 2),
+    [effectPane("v-lab-sam", "lab-0-watch-sam", "sam", "sidebar", WIDE, 1.2, 3)], 2, 5),
+  ...vignette("v-trip", 87,
+    causePane("v-trip-kai", "trip-0-act-kai", "kai", "sidebar", 0.2, 1.3, 2),
+    [effectPane("v-trip-noor", "trip-0-watch-noor", "noor", "top", WIDE, 1.2, 3)], 2, 5),
+  ...vignette("v-class", 92,
+    causePane("v-class-ruiz", "class-0-act-ruiz", "ruiz", "sidebar", 0.2, 1.3, 2), [
+      effectPane("v-class-ana", "class-0-watch-ana", "ana", "right", TRI(0), 1.2, 3, true),
+      effectPane("v-class-ben", "class-0-watch-ben", "ben", "sidebar", TRI(1), 1.2, 3, true),
+      effectPane("v-class-cleo", "class-0-watch-cleo", "cleo", "top", TRI(2), 1.2, 3, true),
+    ], 2, 5),
 ];
 
 const callback: Shot = {
-  id: "callback", kind: "callback", at: 110, beats: 4,
+  id: "callback", kind: "callback", at: 97, beats: 4,
   panes: [{ id: "callback-app", box: { land: [40, 30, 1840, 870], port: [30, 230, 1020, 1240] } }],
   type: [],
 };
 
 const end: Shot = {
-  id: "end", kind: "end", at: 114, beats: 10,
+  id: "end", kind: "end", at: 101, beats: 10,
   panes: [{ id: "end-icon", box: { land: [860, 220, 200, 200], port: [440, 560, 200, 200] } }],
-  marks: { lockup: 4.5 },
+  marks: { lockup: 4.4 },
   type: [
     T("end-feature", "Shared Folders", 0, 4.5, "title", 120, [160, 460, 1600, 140], [60, 820, 960, 140], { portSize: 104 }),
-    T("end-ardia", "Ardia, the sidebar browser for Mac", 4.5, 10, "title", 64, [160, 460, 1600, 90], [60, 800, 960, 180], { portText: "Ardia, the sidebar\nbrowser for Mac", portSize: 66 }),
-    T("end-url", "Download at ardia.dev", 4.5, 10, "caption", 52, [160, 590, 1600, 80], [60, 1020, 960, 90], { color: "#2150D9", portSize: 54 }),
+    T("end-ardia", "Ardia, the sidebar browser for Mac", 4.4, 10, "title", 64, [160, 460, 1600, 90], [60, 800, 960, 180], { portText: "Ardia, the sidebar\nbrowser for Mac", portSize: 66 }),
+    T("end-url", "Download at ardia.dev", 4.4, 10, "caption", 64, [160, 590, 1600, 90], [60, 1020, 960, 100], { color: "#2150D9", portSize: 64 }),
   ],
 };
 
@@ -250,5 +246,5 @@ const film: Shot[] = [chat, turn, grid, share, accept, files, drop, edits, ...mo
 
 export type CutName = "film";
 export const CUTS: Record<CutName, { beats: number; shots: Shot[] }> = {
-  film: { beats: 124, shots: film },
+  film: { beats: 111, shots: film },
 };

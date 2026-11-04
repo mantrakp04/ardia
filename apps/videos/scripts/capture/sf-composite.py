@@ -62,6 +62,17 @@ def build(scene):
         p = os.path.join(src, name)
         if os.path.exists(p):
             extra[name.split(".")[0].replace("-", "")] = json.load(open(p)) if name.endswith(".json") else open(p).read().strip().split("\n") if name == "files.txt" else open(p).read().strip()
+    labels = [fr.get("label") for fr in frames]
+    first = next((i for i, l in enumerate(labels) if l in ("arrive:before", "rest")), None)
+    if first is not None and any(l in ("arrive", "adding") for l in labels):
+        import numpy as np
+        from PIL import Image
+        a = np.asarray(Image.open(os.path.join(dst, f"{first:04d}.jpg")).convert("L"), np.float32)
+        b = np.asarray(Image.open(os.path.join(dst, f"{len(out) - 1:04d}.jpg")).convert("L"), np.float32)
+        band = np.abs(a[:96] - b[:96]) > 24
+        cols = np.where(band.sum(axis=0) > 3)[0]
+        if len(cols) > 20:
+            extra["strip"] = {"x": float(cols.min()) / 2, "y": 2.0, "width": float(cols.max() - cols.min()) / 2, "height": 40.0}
     tint = C.sampled_tint(frames[0]["f"]) if frames else None
     if tint is not None:
         extra["tint"] = ["#%02X%02X%02X" % tuple(int(round(v)) for v in c) for c in tint]

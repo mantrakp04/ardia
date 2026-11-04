@@ -3,7 +3,7 @@ import { Img, staticFile, useVideoConfig } from "remotion";
 import { useStudioObject } from "../studio-objects-v6";
 import { ChatApp, chatLayout, chatState, LINKS, LinkCard, THREADS } from "./chat";
 import {
-  byTime, camAt, clamp, easeInOut, easeOut, indexOf, lastIndexOf, mix, Paper, Pointer, pointerPath, scene, Screen, seg,
+  byTime, camAt, clamp, easeInOut, easeOut, footageSrc, indexOf, lastIndexOf, mix, Paper, Pointer, pointerPath, scene, Screen, seg,
   Supers, useAspect, useBeat, useShot, type Frame,
 } from "./kit";
 import { Morph, planMorph, type Rect, type Rows, targetAt } from "./morph";
@@ -56,7 +56,22 @@ function playback(name: string, b: number, at: number, labels: string[], start: 
 }
 function arrival(name: string, b: number, at: number, opts: { before?: string; after?: string; rename?: RegExp; top?: boolean } = {}): Arrival {
   const beforeLabel = opts.before ?? "arrive:before";
-  if (opts.top) return playback(name, b, at, opts.after === "added" ? ["adding", "added"] : ["arrive", "settled"], indexOf(name, beforeLabel));
+  if (opts.top) {
+    const strip = (scene(name) as unknown as { strip?: Rect }).strip;
+    const before = indexOf(name, beforeLabel);
+    const last = opts.after === "added" ? lastIndexOf(name, "added") : has(name, "settled") ? lastIndexOf(name, "settled") : lastIndexOf(name, "arrive");
+    if (!strip) return playback(name, b, at, opts.after === "added" ? ["adding", "added"] : ["arrive", "settled"], before);
+    if (b < at) return { index: before, overlay: null, halo: null };
+    const t = sineInOut(clamp((b - at) / 0.72));
+    const left = Math.max(0, strip.x - 6);
+    const overlay = t < 1 ? (
+      <div style={{ position: "absolute", left, top: 0, width: WIN_PT[0] - left, height: 46, overflow: "hidden", opacity: t }}>
+        <Img src={footageSrc(name, last)} style={{ position: "absolute", left: -left - (1 - t) * 18, top: 0, width: WIN_PT[0], height: WIN_PT[1] }} />
+      </div>
+    ) : null;
+    const halo = t > 0.45 ? { x: strip.x, y: 6, width: Math.min(190, strip.width), height: 30 } : null;
+    return { index: t < 1 ? before : last, overlay, halo };
+  }
   const afterLabel = opts.after ?? (has(name, "settled") ? "settled" : "arrive");
   const rowsLabel = opts.after ?? (has(name, "settled") ? "settled" : "after");
   const before = indexOf(name, beforeLabel);
@@ -156,34 +171,10 @@ function EditsPane({ pane }: { pane: Pane }) {
       else if (b < m.renameType) index = indexOf(src, "field");
       else if (b < m.renameCommit) index = first + Math.min(n - 1, Math.floor(((b - m.renameType) / (m.renameCommit - m.renameType - 0.1)) * n));
       else index = byTime(src, ["commit", "settle", "after"], fs[indexOf(src, "commit")].t, SLOW, (b - m.renameCommit) * BEAT_MS);
-    } else if (b < m.menu - 0.6) {
+    } else {
       src = "story-2-watch-priya";
       ({ index, overlay, halo } = arrival(src, b, m.reorderArrive));
       haloAt = m.reorderArrive;
-    } else {
-      src = "story-3-act-priya";
-      const rest = indexOf(src, "rest");
-      const rowsB = fr(src, rest).rows ?? {};
-      const rowsA = fr(src, lastIndexOf(src, "after")).rows ?? {};
-      const plan = planMorph(rowsB, rowsA);
-      const t = sineInOut(clamp((b - m.nest) / 0.72));
-      index = b < m.nest ? rest : lastIndexOf(src, "after");
-      if (plan && b >= m.nest && t < 1) overlay = <Morph src={src} before={rest} after={index} plan={plan} p={t} tint={tintOf(src)} />;
-      halo = plan && b >= m.nest && t > 0.45 ? targetAt(plan, t) : null;
-      haloAt = m.nest;
-      const head = Object.values(rowsB).find((r) => r && r.x < 20) ?? { x: 9, y: 54.5, width: 232, height: 34 };
-      const items = (scene("story-share-priya").menu ?? []) as MenuEntry[];
-      const hx = head.x + 96;
-      const hy = head.y + head.height / 2;
-      const target = menuRowTop(items, "nest");
-      pointer = pointerPath(b, [
-        { at: m.menu - 0.1, x: hx, y: hy },
-        { at: m.menu, x: hx, y: hy, click: true },
-        { at: m.menuPick - 0.2, x: hx + 124, y: hy + 2 + target },
-        { at: m.menuPick, x: hx + 124, y: hy + 2 + target, click: true },
-        { at: m.menuPick + 2.2, x: hx + 190, y: hy + 300 },
-      ], 0.8);
-      menu = <MacMenu items={items} x={hx + 4} y={hy + 2} b={b} open={m.menu + 0.05} close={m.menuPick + 0.25} hover={b >= m.menuPick - 0.45 ? "nest" : null} flash={m.menuPick} />;
     }
   } else {
     if (b < m.reorderGrab) {
@@ -197,14 +188,10 @@ function EditsPane({ pane }: { pane: Pane }) {
           pointer = { x: mix(g[0] + 90, g[0], t), y: mix(g[1] + 140, g[1], t), press: 0 };
         }
       }
-    } else if (b < m.nestArrive) {
+    } else {
       src = "story-2-act-tomas";
       index = dragIndex(src, b, m.reorderGrab, m.reorderUp);
-      pointer = dragPointer(src, index, b, m.reorderUp, m.reorderGrab);
-    } else {
-      src = "story-3-watch-tomas";
-      ({ index, overlay, halo } = arrival(src, b, m.nestArrive));
-      haloAt = m.nestArrive;
+      pointer = b < m.reorderUp + 2.6 ? dragPointer(src, index, b, m.reorderUp, m.reorderGrab) : null;
     }
   }
   return (
@@ -268,13 +255,20 @@ function TurnShot() {
   const { lift, land, stagger, chatOut, rise } = shot.marks!;
   const shared = lastIndexOf(name, "shared");
   const rows = Object.entries(fr(name, shared).rows ?? {}).filter((e): e is [string, Rect] => !!e[1] && e[1].x < 250).sort((a, b2) => a[1].y - b2[1].y);
-  const [header, ...links] = rows;
+  const header = rows.find(([, r]) => r.x < 20);
+  const stop = rows.find(([, r]) => header && r.x < 20 && r.y > header[1].y);
+  const links = rows.filter(([, r]) => header && r.x >= 20 && r.y > header[1].y && (!stop || r.y < stop[1].y));
   const tint = tintOf(name);
   const chatB = 16;
-  const state = { thread: 0, switchAt: -1, scroll: 0, links: THREADS[0].links + 1 };
-  const layout = chatLayout(chatB, chatBox.h, state, port);
-  const fade = 1 - easeInOut(clamp((b - lift) / chatOut));
-  const up = easeOut(clamp((b - rise) / 1.6));
+  const scrolls = [0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.48];
+  const scroll = scrolls.reduce((best, sc) => {
+    const hit = (v: number) => TURN_LINKS.filter((l) => chatLayout(chatB, chatBox.h, { thread: 0, switchAt: -1, scroll: v, links: 0 }, port).some((c) => c.link.host === l.host && c.y > 140 && c.y < chatBox.h - 300)).length;
+    return hit(sc) > hit(best) ? sc : best;
+  }, 0);
+  const state = { thread: 0, switchAt: -1, scroll, links: THREADS[0].links + 1 };
+  const layout = chatLayout(chatB, chatBox.h, state, port).filter((c) => c.y > 140 && c.y < chatBox.h - 300);
+  const fade = 1 - sineInOut(clamp((b - lift) / chatOut));
+  const up = sineInOut(clamp((b - rise) / 1.6));
   const landed = (i: number) => clamp((b - (lift + land + i * stagger)) / 0.3);
   const lifted = TURN_LINKS.filter((_, i) => b >= lift + i * stagger).map((l) => l.host);
   return (
@@ -292,18 +286,19 @@ function TurnShot() {
             {links.map(([id, r], i) => (
               <div key={id} style={{ position: "absolute", left: 0, top: r.y - 1.5, width: 250, height: r.height + 3, opacity: 1 - landed(i), backgroundImage: `linear-gradient(to bottom, ${tint[0]}, ${tint[1]})`, backgroundSize: `250px ${WIN_PT[1]}px`, backgroundPosition: `0 ${-(r.y - 1.5)}px` }} />
             ))}
-            {header ? <Halo rect={header[1]} b={b} at={lift + land + (links.length - 1) * stagger + 0.3} color={PEOPLE.priya.color} /> : null}
+            {header ? <Halo rect={header[1]} b={b} at={lift + land + (links.length - 1) * stagger} color={PEOPLE.priya.color} /> : null}
           </Screen>
         </div>
       ) : null}
       {links.map(([id, r], i) => {
-        const link = TURN_LINKS[i] ?? LINKS.canopy;
+        const link = TURN_LINKS[i];
+        if (!link) return null;
         const start = lift + i * stagger;
         const t = sineInOut(clamp((b - start) / land));
         if (b < start || landed(i) >= 1) return null;
         const card = layout.find((c) => c.link.host === link.host);
-        const fromX = chatBox.x + (card ? card.x : (port ? 36 : 476));
-        const fromY = chatBox.y + (card ? card.y : chatBox.h + 40 + i * 30);
+        const fromX = chatBox.x + (card ? card.x : (port ? 60 : 520) + (i % 2) * 120);
+        const fromY = chatBox.y + (card ? card.y : 180 + i * 90);
         const target = toFrame(box, cam, { x: r.x + 4, y: r.y });
         const targetW = (r.width - 8) * cam.s;
         const w = mix(600, targetW, t);
