@@ -48,6 +48,7 @@ export type ScopeSources = {
 };
 
 export function providerScope(text: string, providers: readonly KeywordProvider[] = []): SearchScope | null {
+  if (!providers.length) return null;
   const t = text.trim().toLowerCase();
   if (!t || /\s/.test(t)) return null;
   const p = providers.find((x) => x.keyword.toLowerCase() === t);
