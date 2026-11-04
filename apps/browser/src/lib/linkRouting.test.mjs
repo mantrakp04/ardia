@@ -57,6 +57,16 @@ test("a link from a page or the address bar routes only to another place; Little
   assert.equal(placeLinkFrom({ routes: [route("r", "contains", "x.com", RECENT)], defaultDestination: work }, "https://x.com", world, "home"), null);
 });
 
+test("Little Ardia in a chosen profile opens there from anywhere, and a default whose profile is gone falls back to Little Ardia", () => {
+  const littleWork = { kind: "little", profileId: "work" };
+  const routing = { routes: [route("a", "contains", "x.com", littleWork), route("b", "contains", "y.com", { kind: "little", profileId: "deleted" })], defaultDestination: littleWork };
+  assert.deepEqual(placeExternalLink(routing, "https://x.com", world), { kind: "little", profileId: "work" });
+  assert.deepEqual(placeExternalLink(routing, "https://ardia.io", world), { kind: "little", profileId: "work" });
+  assert.deepEqual(placeLinkFrom(routing, "https://x.com", world, "home"), { kind: "little", profileId: "work" });
+  assert.equal(placeLinkFrom(routing, "https://y.com", world, "home"), null);
+  assert.deepEqual(placeExternalLink({ routes: [], defaultDestination: { kind: "little", profileId: "deleted" } }, "https://ardia.io", world), { kind: "little", profileId: "home" });
+});
+
 test("saved routing is normalized: malformed routes and duplicate ids drop, an unknown default becomes Little Ardia", () => {
   assert.deepEqual(normalizeLinkRouting(undefined), DEFAULT_LINK_ROUTING);
   assert.deepEqual(normalizeLinkRouting({ routes: "nope", defaultDestination: { kind: "space" } }), DEFAULT_LINK_ROUTING);
@@ -67,11 +77,13 @@ test("saved routing is normalized: malformed routes and duplicate ids drop, an u
       route("b", "regex", "x", work),
       { id: "c", match: "contains", pattern: "y", destination: { kind: "group", profileId: "work" } },
       route("d", "equals", "", { kind: "recent", extra: 1 }),
+      route("e", "contains", "z", { kind: "little", profileId: "work" }),
+      route("f", "contains", "z", { kind: "little", profileId: "" }),
     ],
     defaultDestination: { kind: "profile", profileId: "work" },
   };
   assert.deepEqual(normalizeLinkRouting(saved), {
-    routes: [route("a", "contains", "x.com", work), route("d", "equals", "", RECENT)],
+    routes: [route("a", "contains", "x.com", work), route("d", "equals", "", RECENT), route("e", "contains", "z", { kind: "little", profileId: "work" })],
     defaultDestination: work,
   });
 });
@@ -152,4 +164,13 @@ test("a link clicked inside its destination group or Little Ardia window is not 
   assert.deepEqual(placeLinkFromProfile(s, "https://mail.example/", "home", { windowId: "w1", tabId: "t-out" }), { kind: "group", profileId: "home", groupKey: "pin-inbox" });
   assert.equal(placeLinkFromProfile(s, "https://chat.example/", "home", { windowId: "small" }), null);
   assert.deepEqual(placeLinkFromProfile(s, "https://chat.example/", "home", { windowId: "w1" }), { kind: "little", profileId: "home" });
+  const elsewhere = { ...s, profiles: { ...s.profiles, work: { id: "work" } }, settings: { ...s.settings, linkRouting: { routes: [route("l", "contains", "chat.example", { kind: "little", profileId: "work" })], defaultDestination: RECENT } } };
+  assert.deepEqual(placeLinkFromProfile(elsewhere, "https://chat.example/", "home", { windowId: "small" }), { kind: "little", profileId: "work" });
+});
+
+test("the Open in menu round-trips Little Ardia with and without a chosen profile and names a deleted one", async () => {
+  const { decodeDestination, encodeDestination, withCurrentDestination } = await import("../state/linkRouting/hooks.ts");
+  for (const d of [LITTLE_ARDIA, { kind: "little", profileId: "work" }, RECENT, work, inbox]) assert.deepEqual(decodeDestination(encodeDestination(d)), d);
+  assert.equal(encodeDestination(LITTLE_ARDIA), "little");
+  assert.deepEqual(withCurrentDestination([], { kind: "little", profileId: "gone" }), [{ value: "little:gone", title: "Little Ardia (a deleted profile)" }]);
 });

@@ -23,7 +23,7 @@ export function placeLinkFromProfile(s: BrowserState, url: string, sourceProfile
 }
 
 function atPlacement(s: BrowserState, placed: LinkPlacement, from?: LinkSource): boolean {
-  if (placed.kind === "little") return isSmall(s, from?.windowId);
+  if (placed.kind === "little") return isSmall(s, from?.windowId) && s.windows[from!.windowId!]?.profileId === placed.profileId;
   if (placed.kind !== "group" || !from?.tabId) return false;
   return Object.values(s.groups).some((g) => g.profileId === placed.profileId && groupRouteKey(g) === placed.groupKey && g.tabIds.includes(from.tabId!));
 }

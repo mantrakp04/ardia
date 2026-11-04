@@ -6,7 +6,7 @@ export type RouteDestination =
   | { kind: "profile"; profileId: string }
   | { kind: "group"; profileId: string; groupKey: string }
   | { kind: "recent" }
-  | { kind: "little" };
+  | { kind: "little"; profileId?: string };
 
 export type LinkRoute = { id: string; match: RouteMatch; pattern: string; destination: RouteDestination };
 
@@ -38,7 +38,8 @@ export function destinationOf(value: unknown): RouteDestination | null {
     case "recent":
       return RECENT;
     case "little":
-      return LITTLE_ARDIA;
+      if (value.profileId === undefined) return LITTLE_ARDIA;
+      return typeof value.profileId === "string" && value.profileId ? { kind: "little", profileId: value.profileId } : null;
     case "profile":
       return typeof value.profileId === "string" && value.profileId ? { kind: "profile", profileId: value.profileId } : null;
     case "group":
@@ -64,7 +65,8 @@ const DESTINATION_SCHEMA: JsonSchema = {
   anyOf: [
     { type: "object", properties: { kind: { const: "profile" }, profileId: { type: "string" } }, required: ["kind", "profileId"] },
     { type: "object", properties: { kind: { const: "group" }, profileId: { type: "string" }, groupKey: { type: "string" } }, required: ["kind", "profileId", "groupKey"] },
-    { type: "object", properties: { kind: { enum: ["recent", "little"] } }, required: ["kind"] },
+    { type: "object", properties: { kind: { const: "little" }, profileId: { type: "string" } }, required: ["kind"] },
+    { type: "object", properties: { kind: { const: "recent" } }, required: ["kind"] },
   ],
 };
 
@@ -97,11 +99,6 @@ export function normalizeLinkRouting(value: unknown): LinkRouting {
   return { routes, defaultDestination: destinationOf(value.defaultDestination) ?? LITTLE_ARDIA };
 }
 
-export const sameDestination = (a: RouteDestination, b: RouteDestination): boolean =>
-  a.kind === b.kind &&
-  (a.kind === "profile" ? a.profileId === (b as typeof a).profileId : true) &&
-  (a.kind === "group" ? a.profileId === (b as typeof a).profileId && a.groupKey === (b as typeof a).groupKey : true);
-
 let routeCounter = 0;
 export const newLinkRouteId = () => `route-${Date.now().toString(36)}-${(++routeCounter).toString(36)}`;
 
@@ -127,6 +124,7 @@ export function placeDestination(destination: RouteDestination, world: RoutingWo
     case "recent":
       return { kind: "profile", profileId: world.recentProfileId };
     case "little":
+      if (destination.profileId) return world.hasProfile(destination.profileId) ? { kind: "little", profileId: destination.profileId } : null;
       return { kind: "little", profileId: sourceProfileId && world.hasProfile(sourceProfileId) ? sourceProfileId : world.recentProfileId };
     case "profile":
       return world.hasProfile(destination.profileId) ? { kind: "profile", profileId: destination.profileId } : null;
@@ -142,7 +140,8 @@ export function placeExternalLink(routing: LinkRouting, url: string, world: Rout
     const placed = placeDestination(route.destination, world);
     if (placed) return placed;
   }
-  return placeDestination(routing.defaultDestination, world) ?? placeDestination(RECENT, world)!;
+  const fallback = routing.defaultDestination.kind === "little" ? LITTLE_ARDIA : RECENT;
+  return placeDestination(routing.defaultDestination, world) ?? placeDestination(fallback, world)!;
 }
 
 export function placeLinkFrom(routing: LinkRouting, url: string, world: RoutingWorld, sourceProfileId: string): LinkPlacement | null {

@@ -154,18 +154,24 @@ static BOOL LinkMayRoute(NSDictionary *settings, NSString *url) {
   return NO;
 }
 
-static BOOL OtherAppsOpenInRecentProfile(NSDictionary *settings) {
+static NSDictionary *OtherAppsDestination(NSDictionary *settings) {
   NSDictionary *routing = SavedLinkRouting(settings);
-  if (!routing) return YES;
-  NSDictionary *destination = [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : nil;
-  return [destination[@"kind"] isEqual:@"little"] || [destination[@"kind"] isEqual:@"recent"];
+  return [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : nil;
+}
+
+static BOOL OpensInLittleWindowOfRecentProfile(NSDictionary *destination) {
+  return [destination[@"kind"] isEqual:@"little"] && destination[@"profileId"] == nil;
+}
+
+static BOOL OtherAppsOpenInRecentProfile(NSDictionary *settings) {
+  if (!SavedLinkRouting(settings)) return YES;
+  NSDictionary *destination = OtherAppsDestination(settings);
+  return OpensInLittleWindowOfRecentProfile(destination) || [destination[@"kind"] isEqual:@"recent"];
 }
 
 static BOOL OtherAppsOpenInLittleWindow(NSDictionary *settings) {
-  NSDictionary *routing = SavedLinkRouting(settings);
-  if (!routing) return ![settings[@"openLinksInLittleArdia"] isEqual:@NO];
-  NSDictionary *destination = [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : nil;
-  return [destination[@"kind"] isEqual:@"little"];
+  if (!SavedLinkRouting(settings)) return ![settings[@"openLinksInLittleArdia"] isEqual:@NO];
+  return OpensInLittleWindowOfRecentProfile(OtherAppsDestination(settings));
 }
 
 static void ParkLaunchLinks(NSArray<NSURL *> *links, ArdiaSavedSession *session) {

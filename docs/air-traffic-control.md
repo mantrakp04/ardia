@@ -13,9 +13,11 @@ A route is one condition and one destination. The condition is `URL Contains <pa
   `www.linear.app/team`. Nothing else is normalized (ports, `www.`, percent escapes, IDN).
 - Only `http(s)` URLs match. A route with a blank pattern never matches.
 
-The destination is a profile, one of its tab groups, Most Recent Profile (the profile of the main window used last) or
-Little Ardia. Routes run from the top; the first match wins. A route whose profile or group no longer exists is skipped,
-and the next matching route or the default takes over. New Route adds a route; ⊖ removes it; the row's context menu moves
+The destination is a profile, one of its tab groups, Most Recent Profile (the profile of the main window used last),
+Little Ardia, or Little Ardia in a chosen profile. With several profiles the menu lists "Little Ardia (Current
+Profile)" and one "Little Ardia (Work)" entry per profile. Routes run from the top; the first match wins. A route whose profile or group no longer exists is skipped,
+and the next matching route or the default takes over; a default of Little Ardia in a deleted profile falls back to Little
+Ardia in the most recent profile. New Route adds a route; ⊖ removes it; the row's context menu moves
 it up or down. Changes apply at once.
 
 Below the routes, **Open links from other apps in** is the default for links from other apps with no match, with the same
@@ -35,7 +37,8 @@ Routes stay on this Mac. Arc keeps them local too.
 
 A match for the profile you are already in is not a route: the link opens as it always did, referrer and all. A tab group
 route in the current profile is a route (into the group), and so is Little Ardia, which keeps the source profile for a
-typed URL or a page click and uses Most Recent Profile for a link from another app.
+typed URL or a page click and uses Most Recent Profile for a link from another app. Little Ardia in a chosen profile
+always opens in that profile.
 
 Private windows never route, and nothing routes into one.
 
@@ -49,7 +52,7 @@ page, the same check Peek uses, so a page can't synthesize one, takes the dispos
 (none: a foreground tab; ⌘: a background tab; ⇧: a window; ⌘⇧: a foreground tab, as Chrome; anything else, or the
 Peek or Split key: nothing), and emits `openWindow` with `routed` and whether the link opens a tab (`target=_blank`)
 or the page; JS places it (`openFromPage` › `openRoutedLink`). A link clicked where it already is (a tab inside the
-destination group, a Little Ardia window for a Little Ardia route) is not a route. If the routes changed in between and
+destination group, a Little Ardia window of the destination's profile for a Little Ardia route) is not a route. If the routes changed in between and
 the link no longer routes, JS performs the click's own open instead: a navigation, or a tab for `target=_blank`.
 
 Not routed, by design: a click the page itself prevented (SPA routers), links with `download`, clicks with the Peek or
@@ -64,8 +67,8 @@ patches and an engine-side matcher for it); this version stays in the app so it 
 
 When a link from another app launches Ardia, native parks it in the last profile before JS runs (`ArdiaCoreHost.mm`).
 With routes saved, it parks a link only if no route matches it (the same Contains and Is equal to rules, on the same URL text) and the default
-destination uses the most recent profile (Most Recent Profile or Little Ardia), and it shows the early Little Ardia window
-only when the default is Little Ardia, so a link that may route never makes a request with the wrong profile's cookies.
+destination uses the most recent profile (Most Recent Profile or Little Ardia without a chosen profile), and it shows the
+early Little Ardia window only when the default is Little Ardia without a chosen profile, so a link that may route never makes a request with the wrong profile's cookies.
 Those links wait for JS and route normally.
 
 ## Code

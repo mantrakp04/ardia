@@ -30,6 +30,8 @@ test("linkRouting's schema and validator agree on real routings and broken ones"
   const route = (destination, match = "contains") => ({ id: "r", match, pattern: "github.com", destination });
   const routings = [
     { routes: [], defaultDestination: { kind: "little" } },
+    { routes: [route({ kind: "little", profileId: "work" })], defaultDestination: { kind: "little", profileId: "default" } },
+    { routes: [], defaultDestination: { kind: "little", profileId: 7 } },
     { routes: [route({ kind: "profile", profileId: "work" }), route({ kind: "group", profileId: "default", groupKey: "g" }, "equals")], defaultDestination: { kind: "recent" } },
     { routes: [route({ kind: "profile" })], defaultDestination: { kind: "recent" } },
     { routes: [route({ kind: "group", profileId: "default" })], defaultDestination: { kind: "recent" } },
