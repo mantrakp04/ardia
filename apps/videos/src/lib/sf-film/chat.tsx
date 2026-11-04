@@ -70,8 +70,8 @@ export const THREADS: Thread[] = [
       { at: 1.3, who: "Jun", link: LINKS.heatmap },
       { at: 2.0, who: "Ava", text: "can someone resend 🙏" },
       { at: 2.8, who: "Tomás", text: "scroll up lol" },
-      { at: 7.2, who: "Jun", text: "found it?" },
-      { at: 7.6, who: "Ava", text: "which one lol" },
+      { at: 12.8, who: "Jun", text: "found it?" },
+      { at: 13.5, who: "Ava", text: "which one lol" },
     ],
   },
   {
@@ -80,10 +80,10 @@ export const THREADS: Thread[] = [
       { at: -3, who: "Leo", text: "where’s the press kit link" },
       { at: -2, who: "Maya", link: LINKS.pressroom },
       { at: -1, who: "Leo", text: "no the OTHER one" },
-      { at: 8.6, who: "Maya", link: LINKS.roadmap },
-      { at: 9.4, who: "Leo", text: "can u resend the mockups 🙏" },
-      { at: 10.2, who: "Maya", text: "it’s in the doc", me: true },
-      { at: 11.0, who: "Leo", text: "what doc 💀" },
+      { at: 9.5, who: "Maya", link: LINKS.roadmap },
+      { at: 10.3, who: "Leo", text: "can u resend the mockups 🙏" },
+      { at: 11.1, who: "Maya", text: "it’s in the doc", me: true },
+      { at: 11.8, who: "Leo", text: "what doc 💀" },
     ],
   },
   {
@@ -148,7 +148,7 @@ export interface ChatState {
   links: number;
 }
 
-export function ChatApp({ b, height, state, port, focus = 0, extra = [] }: { b: number; height: number; state: ChatState; port: boolean; focus?: number; extra?: Msg[] }) {
+export function ChatApp({ b, height, state, port, focus = 0, extra = [], hide = [] }: { b: number; height: number; state: ChatState; port: boolean; focus?: number; extra?: Msg[]; hide?: string[] }) {
   const list = port ? 0 : 440;
   const thread = THREADS[state.thread];
   const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
@@ -223,7 +223,7 @@ export function ChatApp({ b, height, state, port, focus = 0, extra = [] }: { b: 
               return (
                 <div key={`${k}${m.who}${m.at}`} style={style}>
                   {!m.me ? <div style={{ fontSize: NAME, fontWeight: 650, color: COLOR[m.who], margin: "0 0 8px 20px" }}>{m.who}</div> : null}
-                  {m.link ? <LinkCard link={m.link} /> : <Bubble m={m} />}
+                  {m.link ? <div style={{ opacity: hide.includes(m.link.host) ? 0 : 1 }}><LinkCard link={m.link} /></div> : <Bubble m={m} />}
                 </div>
               );
             })}
@@ -240,9 +240,25 @@ export function ChatApp({ b, height, state, port, focus = 0, extra = [] }: { b: 
   );
 }
 
+export function chatLayout(b: number, height: number, state: ChatState, port: boolean, extra: Msg[] = []) {
+  const thread = THREADS[state.thread];
+  const shown = [...thread.messages, ...extra].filter((m) => b >= m.at);
+  const area = height - 132 - 112;
+  const total = shown.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
+  const history = thread.history ?? [];
+  const historyH = history.reduce((sum, m) => sum + heightOf(m) + GAP, 0);
+  let y = area - total - historyH + state.scroll * historyH;
+  const out: { link: Link; x: number; y: number; w: number; h: number }[] = [];
+  for (const m of [...history, ...shown]) {
+    if (m.link && y > -200 && y < area) out.push({ link: m.link, x: (port ? 0 : 440) + 36, y: 132 + y + (m.me ? 0 : NAME + 8), w: 600, h: 316 - NAME - 8 });
+    y += heightOf(m) + GAP;
+  }
+  return out;
+}
+
 export function chatState(b: number, marks: Record<string, number>): ChatState {
-  const thread = b < marks.launch ? 0 : b < marks.trip ? 1 : 2;
-  const switchAt = thread === 0 ? -1 : thread === 1 ? marks.launch : marks.trip;
+  const thread = b < marks.launch ? 0 : b < marks.back ? 1 : 0;
+  const switchAt = b < marks.launch ? -1 : b < marks.back ? marks.launch : marks.back;
   const up = easeInOut(clamp((b - marks.scroll) / (marks.scrollEnd - marks.scroll - 0.6)));
   const down = seg(b, marks.scrollEnd - 0.5, 0.45, easeInOut);
   const scroll = thread === 0 ? up * (1 - down) : 0;

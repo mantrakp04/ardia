@@ -2,7 +2,7 @@
  "bpm": 100,
  "fps": 30,
  "beatFrames": 18,
- "beats": 112,
+ "beats": 124,
  "lufs": -16,
  "truePeak": -1.5,
  "sections": [
@@ -11,81 +11,381 @@
    "at": 0,
    "beats": 16,
    "energy": 3,
-   "brief": "a soft, curious pulse; the chat threads pile up"
+   "brief": "soft curious pulse under the chat chaos"
   },
   {
    "name": "turn",
    "at": 16,
-   "beats": 8,
+   "beats": 7,
    "energy": 5,
-   "brief": "a rising lift into the swell"
+   "brief": "rising lift as the links leave the chat"
+  },
+  {
+   "name": "air",
+   "at": 23,
+   "beats": 1,
+   "energy": 1,
+   "brief": "a short breath of air before the swell"
   },
   {
    "name": "swell",
    "at": 24,
    "beats": 8,
    "energy": 7,
-   "brief": "the first warm, full swell on beat 24: the folder lands in four sidebars at once"
+   "brief": "the warm full swell on beat 24, folder lands in four sidebars"
   },
   {
    "name": "explain",
    "at": 32,
-   "beats": 40,
-   "energy": 6,
-   "brief": "steady, confident groove under the narration"
+   "beats": 54,
+   "energy": 5,
+   "brief": "steady confident groove, sparse under narration"
   },
   {
    "name": "montage",
-   "at": 72,
-   "beats": 28,
+   "at": 86,
+   "beats": 24,
    "energy": 8,
-   "brief": "energy up for the user-story montage, a clear pulse for cuts"
+   "brief": "energy up for the user-story montage"
+  },
+  {
+   "name": "callback",
+   "at": 110,
+   "beats": 4,
+   "energy": 4,
+   "brief": "settle down for the chat callback"
   },
   {
    "name": "end",
-   "at": 100,
-   "beats": 12,
+   "at": 114,
+   "beats": 10,
    "energy": 4,
-   "brief": "resolve on beat 104 for the end card, final chord gone by beat 112 (67.2 s)"
+   "brief": "resolve on beat 114 for the end card and ring out to 124 (74.4 s)"
   }
  ],
  "silences": [],
- "endHit": 104,
- "sfx": [],
+ "endHit": 114,
+ "sfx": [
+  {
+   "kind": "chatPop",
+   "beat": 0.6,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 1.3,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2.0,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 9.5,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 10.3,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 11.1,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 11.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 12.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 13.5,
+   "gain": 0.3
+  },
+  {
+   "kind": "arrive",
+   "beat": 24,
+   "gain": 0.75
+  },
+  {
+   "kind": "click",
+   "beat": 32.5,
+   "gain": 0.45
+  },
+  {
+   "kind": "click",
+   "beat": 34,
+   "gain": 0.45
+  },
+  {
+   "kind": "sheet",
+   "beat": 34.6,
+   "gain": 0.35
+  },
+  {
+   "kind": "tick",
+   "beat": 36.4,
+   "gain": 0.4
+  },
+  {
+   "kind": "click",
+   "beat": 38,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 39.4,
+   "gain": 0.35
+  },
+  {
+   "kind": "click",
+   "beat": 44,
+   "gain": 0.45
+  },
+  {
+   "kind": "click",
+   "beat": 45.4,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 46.2,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 57.5,
+   "gain": 0.4
+  },
+  {
+   "kind": "thud",
+   "beat": 59.9,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 61.5,
+   "gain": 0.6
+  },
+  {
+   "kind": "type",
+   "beat": 67.3,
+   "gain": 0.35
+  },
+  {
+   "kind": "click",
+   "beat": 69.3,
+   "gain": 0.35
+  },
+  {
+   "kind": "arrive",
+   "beat": 71,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 73.5,
+   "gain": 0.4
+  },
+  {
+   "kind": "thud",
+   "beat": 75.5,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 77,
+   "gain": 0.5
+  },
+  {
+   "kind": "click",
+   "beat": 79.5,
+   "gain": 0.45
+  },
+  {
+   "kind": "click",
+   "beat": 80.6,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 82.4,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 86.2,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 87.97,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 89.2,
+   "gain": 0.55
+  },
+  {
+   "kind": "lift",
+   "beat": 92.2,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 93.97,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 95.2,
+   "gain": 0.55
+  },
+  {
+   "kind": "lift",
+   "beat": 98.2,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 99.97,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 101.2,
+   "gain": 0.55
+  },
+  {
+   "kind": "lift",
+   "beat": 104.2,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 105.97,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 107.2,
+   "gain": 0.55
+  },
+  {
+   "kind": "chatPop",
+   "beat": 110.5,
+   "gain": 0.35
+  },
+  {
+   "kind": "chatPop",
+   "beat": 111.5,
+   "gain": 0.35
+  },
+  {
+   "kind": "chatPop",
+   "beat": 112.3,
+   "gain": 0.35
+  }
+ ],
  "vo": [
   {
-   "id": "vo1",
-   "beat": 5,
-   "text": "Every group project has one. The chat where links go to get lost."
+   "id": "vo1a",
+   "beat": 1.5,
+   "text": "Every group project has a chat like this."
+  },
+  {
+   "id": "vo1b",
+   "beat": 6.5,
+   "text": "The links pile up."
+  },
+  {
+   "id": "vo1c",
+   "beat": 10,
+   "text": "And someone always asks for the one from Tuesday."
   },
   {
    "id": "vo2",
    "beat": 17,
-   "text": "Now there's a better place for them."
+   "text": "So give them a better place."
   },
   {
    "id": "vo3",
-   "beat": 25.5,
-   "text": "With Shared Folders in Ardia, a folder in your sidebar can belong to everyone you work with."
+   "beat": 27.5,
+   "text": "Shared Folders puts one folder in everyone's sidebar."
   },
   {
-   "id": "vo4",
-   "beat": 38.5,
-   "text": "Share it with anyone who has an Apple ID. It lives in iCloud Drive, so there's no new account to make."
+   "id": "vo4a",
+   "beat": 33,
+   "text": "Share it right from the sidebar."
   },
   {
-   "id": "vo5",
-   "beat": 53.5,
-   "text": "When someone adds a link, it shows up for everyone, right away."
+   "id": "vo4b",
+   "beat": 37.5,
+   "text": "Anyone with an Apple ID can join."
   },
   {
-   "id": "vo6",
+   "id": "vo4c",
+   "beat": 43.5,
+   "text": "They choose Add Shared Folder, and it's in their sidebar too."
+  },
+  {
+   "id": "vo5a",
+   "beat": 50,
+   "text": "It's a real folder in iCloud Drive."
+  },
+  {
+   "id": "vo5b",
+   "beat": 54,
+   "text": "So there's no new account to make."
+  },
+  {
+   "id": "vo6a",
+   "beat": 57.75,
+   "text": "Drop a link in."
+  },
+  {
+   "id": "vo6b",
    "beat": 62,
-   "text": "Rename it, reorder it, tuck it into a subfolder. Everyone sees the same folder."
+   "text": "Everyone has it, a moment later."
   },
   {
-   "id": "vo7",
-   "beat": 105,
+   "id": "vo7a",
+   "beat": 67,
+   "text": "Rename it."
+  },
+  {
+   "id": "vo7b",
+   "beat": 73.5,
+   "text": "Reorder it."
+  },
+  {
+   "id": "vo7c",
+   "beat": 79.5,
+   "text": "Or tuck it into a subfolder."
+  },
+  {
+   "id": "vo7d",
+   "beat": 83,
+   "text": "It all stays in sync, both ways."
+  },
+  {
+   "id": "vo8",
+   "beat": 114.5,
    "text": "Shared Folders. Now in Ardia."
   }
  ]

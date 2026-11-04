@@ -51,11 +51,16 @@ async function vignette(id, spec) {
       folder: spec.folder, load: p.tabs.map(([tid]) => tid), active: p.active, build: p.build ?? null,
       warm: warm.filter((u) => !p.tabs.some(([, host]) => u.includes(`//${host}.`))),
     })));
+    writeFileSync(join(owner.data, "menu.json.pick"), "shareFolder");
     await cap(owner.data, "sf-v-share", `${id}-share-${owner.who}`, { folder: spec.folder });
+    const shareDir = join(repo, "apps/videos/.capture", `${id}-share-${owner.who}`);
+    writeFileSync(join(shareDir, "files.txt"), execFileSync("ls", [join(shared, spec.folder)], { encoding: "utf8" }).trim().split("\n").join("\n"));
+    try { writeFileSync(join(shareDir, "menu.json"), readFileSync(join(owner.data, "menu.json"))); } catch {}
     for (const p of people.filter((x) => x !== owner)) {
       writeFileSync(join(p.data, "menu.json.pick"), "addShared");
       writeFileSync(join(p.data, "file-chooser.txt"), `${join(shared, spec.folder)}\n`);
       await cap(p.data, "sf-v-add", `${id}-add-${p.who}`, { folder: spec.folder, expand: p.expand ?? [] });
+      try { writeFileSync(join(repo, "apps/videos/.capture", `${id}-add-${p.who}`, "menu.json"), readFileSync(join(p.data, "menu.json"))); } catch {}
     }
     for (const [n, action] of spec.actions.entries()) {
       const actor = people.find((p) => p.who === action.who);

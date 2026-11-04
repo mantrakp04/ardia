@@ -174,10 +174,10 @@
     {
       "id": "chat-lost",
       "definition": "type",
-      "label": "chat · Links get lost in the chat.",
+      "label": "chat · Links get lost.",
       "parentId": null,
       "values": {
-        "text": "Links get lost in the chat.",
+        "text": "Links get lost.",
         "size": 62,
         "color": "#1D1D1F",
         "fill": "#00000000",
@@ -198,23 +198,6 @@
         "y": 150,
         "width": 1320,
         "height": 825,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "turn-better",
-      "definition": "type",
-      "label": "turn · There’s a better place for t",
-      "parentId": null,
-      "values": {
-        "text": "There’s a better place for them.",
-        "size": 62,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 30,
-        "width": 1600,
-        "height": 100,
         "rotation": 0
       }
     },
@@ -290,17 +273,17 @@
     {
       "id": "grid-every",
       "definition": "type",
-      "label": "grid · One folder, in everyone’s si",
+      "label": "grid · One folder in every sidebar.",
       "parentId": null,
       "values": {
-        "text": "One folder, in everyone’s sidebar.",
-        "size": 44,
+        "text": "One folder in every sidebar.",
+        "size": 50,
         "color": "#6E6E73",
         "fill": "#00000000",
         "x": 160,
-        "y": 996,
+        "y": 994,
         "width": 1600,
-        "height": 64,
+        "height": 66,
         "rotation": 0
       }
     },
@@ -320,10 +303,10 @@
     {
       "id": "share-apple",
       "definition": "type",
-      "label": "share · Share it with anyone who has",
+      "label": "share · Invite any Apple ID.",
       "parentId": null,
       "values": {
-        "text": "Share it with anyone who has an Apple ID.",
+        "text": "Invite any Apple ID.",
         "size": 62,
         "color": "#1D1D1F",
         "fill": "#00000000",
@@ -335,25 +318,38 @@
       }
     },
     {
+      "id": "accept-window",
+      "definition": "window",
+      "label": "accept · window",
+      "parentId": null,
+      "values": {
+        "x": 300,
+        "y": 80,
+        "width": 1320,
+        "height": 825,
+        "rotation": 0
+      }
+    },
+    {
       "id": "files-card",
       "definition": "window",
       "label": "files · card",
       "parentId": null,
       "values": {
         "x": 560,
-        "y": 110,
+        "y": 100,
         "width": 800,
-        "height": 700,
+        "height": 640,
         "rotation": 0
       }
     },
     {
       "id": "files-icloud",
       "definition": "type",
-      "label": "files · It lives in iCloud Drive. No",
+      "label": "files · Just iCloud Drive. No new ac",
       "parentId": null,
       "values": {
-        "text": "It lives in iCloud Drive. No new account.",
+        "text": "Just iCloud Drive. No new account.",
         "size": 62,
         "color": "#1D1D1F",
         "fill": "#00000000",
@@ -391,12 +387,12 @@
       }
     },
     {
-      "id": "drop-add",
+      "id": "drop-live",
       "definition": "type",
-      "label": "drop · Add a link, and it’s there f",
+      "label": "drop · Live, both ways.",
       "parentId": null,
       "values": {
-        "text": "Add a link, and it’s there for everyone.",
+        "text": "Live, both ways.",
         "size": 62,
         "color": "#1D1D1F",
         "fill": "#00000000",
@@ -434,169 +430,15 @@
       }
     },
     {
-      "id": "edits-rename",
-      "definition": "type",
-      "label": "edits · Rename it.",
-      "parentId": null,
-      "values": {
-        "text": "Rename it.",
-        "size": 62,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 930,
-        "width": 1600,
-        "height": 110,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "edits-reorder",
-      "definition": "type",
-      "label": "edits · Reorder it.",
-      "parentId": null,
-      "values": {
-        "text": "Reorder it.",
-        "size": 62,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 930,
-        "width": 1600,
-        "height": 110,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "edits-nest",
-      "definition": "type",
-      "label": "edits · Tuck it into a subfolder.",
-      "parentId": null,
-      "values": {
-        "text": "Tuck it into a subfolder.",
-        "size": 62,
-        "color": "#1D1D1F",
-        "fill": "#00000000",
-        "x": 160,
-        "y": 930,
-        "width": 1600,
-        "height": 110,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-jun",
-      "definition": "window",
-      "label": "v-thesis-cause · v-thesis-jun",
-      "parentId": null,
-      "values": {
-        "x": 160,
-        "y": 110,
-        "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-label",
-      "definition": "type",
-      "label": "v-thesis-cause · A thesis reading list",
-      "parentId": null,
-      "values": {
-        "text": "A thesis reading list",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-priya",
-      "definition": "window",
-      "label": "v-thesis-effect · v-thesis-priya",
-      "parentId": null,
-      "values": {
-        "x": 40,
-        "y": 250,
-        "width": 600,
-        "height": 560,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-tomas",
-      "definition": "window",
-      "label": "v-thesis-effect · v-thesis-tomas",
-      "parentId": null,
-      "values": {
-        "x": 660,
-        "y": 250,
-        "width": 600,
-        "height": 560,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-ava",
-      "definition": "window",
-      "label": "v-thesis-effect · v-thesis-ava",
-      "parentId": null,
-      "values": {
-        "x": 1280,
-        "y": 250,
-        "width": 600,
-        "height": 560,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-thesis-label2",
-      "definition": "type",
-      "label": "v-thesis-effect · A thesis reading list",
-      "parentId": null,
-      "values": {
-        "text": "A thesis reading list",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
-        "rotation": 0
-      }
-    },
-    {
       "id": "v-launch-maya",
       "definition": "window",
       "label": "v-launch-cause · v-launch-maya",
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-label",
-      "definition": "type",
-      "label": "v-launch-cause · A product launch",
-      "parentId": null,
-      "values": {
-        "text": "A product launch",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -607,26 +449,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-launch-label2",
-      "definition": "type",
-      "label": "v-launch-effect · A product launch",
-      "parentId": null,
-      "values": {
-        "text": "A product launch",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -637,26 +462,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-lab-label",
-      "definition": "type",
-      "label": "v-lab-cause · A research lab",
-      "parentId": null,
-      "values": {
-        "text": "A research lab",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -667,26 +475,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-lab-label2",
-      "definition": "type",
-      "label": "v-lab-effect · A research lab",
-      "parentId": null,
-      "values": {
-        "text": "A research lab",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -697,26 +488,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-trip-label",
-      "definition": "type",
-      "label": "v-trip-cause · A weekend away",
-      "parentId": null,
-      "values": {
-        "text": "A weekend away",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -727,26 +501,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-trip-label2",
-      "definition": "type",
-      "label": "v-trip-effect · A weekend away",
-      "parentId": null,
-      "values": {
-        "text": "A weekend away",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -757,26 +514,9 @@
       "parentId": null,
       "values": {
         "x": 160,
-        "y": 110,
+        "y": 120,
         "width": 1600,
-        "height": 850,
-        "rotation": 0
-      }
-    },
-    {
-      "id": "v-class-label",
-      "definition": "type",
-      "label": "v-class-cause · A class",
-      "parentId": null,
-      "values": {
-        "text": "A class",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
+        "height": 860,
         "rotation": 0
       }
     },
@@ -820,23 +560,6 @@
       }
     },
     {
-      "id": "v-class-label2",
-      "definition": "type",
-      "label": "v-class-effect · A class",
-      "parentId": null,
-      "values": {
-        "text": "A class",
-        "size": 46,
-        "color": "#F5F5F7",
-        "fill": "#00000000",
-        "x": 90,
-        "y": 990,
-        "width": 1740,
-        "height": 70,
-        "rotation": 0
-      }
-    },
-    {
       "id": "callback-app",
       "definition": "window",
       "label": "callback · app",
@@ -856,7 +579,7 @@
       "parentId": null,
       "values": {
         "x": 860,
-        "y": 200,
+        "y": 220,
         "width": 200,
         "height": 200,
         "rotation": 0
@@ -869,13 +592,13 @@
       "parentId": null,
       "values": {
         "text": "Shared Folders",
-        "size": 110,
+        "size": 120,
         "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 160,
-        "y": 440,
+        "y": 460,
         "width": 1600,
-        "height": 130,
+        "height": 140,
         "rotation": 0
       }
     },
@@ -886,13 +609,13 @@
       "parentId": null,
       "values": {
         "text": "Ardia, the sidebar browser for Mac",
-        "size": 44,
-        "color": "#6E6E73",
+        "size": 64,
+        "color": "#1D1D1F",
         "fill": "#00000000",
         "x": 160,
-        "y": 590,
+        "y": 460,
         "width": 1600,
-        "height": 70,
+        "height": 90,
         "rotation": 0
       }
     },
@@ -907,7 +630,7 @@
         "color": "#2150D9",
         "fill": "#00000000",
         "x": 160,
-        "y": 710,
+        "y": 590,
         "width": 1600,
         "height": 80,
         "rotation": 0

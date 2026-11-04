@@ -251,8 +251,8 @@ export function Type({ layer }: { layer: TypeLayer }) {
   const object = useStudioObject(layer.id);
   const out = layer.out ?? shot.beats;
   if (b < layer.at || b >= out) return null;
-  const inT = easeOut(clamp((b - layer.at) / 0.55));
-  const outT = clamp((out - b) / 0.4);
+  const inT = layer.at <= 0 ? 1 : easeOut(clamp((b - layer.at) / 0.55));
+  const outT = out >= shot.beats ? 1 : clamp((out - b) / 0.4);
   const opacity = Math.min(inT, outT);
   const rise = (1 - inT) * 14;
   const text = object.text("text");

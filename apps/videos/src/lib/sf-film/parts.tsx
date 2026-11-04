@@ -238,7 +238,7 @@ export function Halo({ rect, b, at, color, pad = 4 }: { rect: { x: number; y: nu
     <div
       style={{
         position: "absolute", left: rect.x - pad - 3 * grow, top: rect.y - pad - 3 * grow, width: rect.width + 2 * pad + 6 * grow, height: rect.height + 2 * pad + 6 * grow,
-        borderRadius: 12, border: `2.5px solid ${color}`, opacity: fade * clamp((b - at) / 0.2) * (t < 1 ? 1 : 0), boxShadow: `0 0 ${16 * grow}px ${color}88`,
+        borderRadius: 12, border: `2.5px solid ${color}`, opacity: fade * clamp((b - at - 0.3) / 0.25) * (t < 1 ? 1 : 0), boxShadow: `0 0 ${16 * grow}px ${color}88`,
       }}
     />
   );

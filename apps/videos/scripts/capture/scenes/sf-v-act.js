@@ -6,6 +6,13 @@ if (op.kind === "drag") {
   settle("settle", 14, 30);
 } else if (op.kind === "add") {
   then(() => { const id = st().newTab(W, { url: op.url }); return sleep(2500).then(() => { st().addTabsToGroup(refOf(op.into || FOLDER), [id]); return snapFor("nest", 3000); }); });
+} else if (op.kind === "nest") {
+  then(() => {
+    const id = st().groupTabs(op.links.map(refOf), { pinned: true, name: op.name });
+    st().updateGroup(id, { parentId: folder().id });
+    if (op.active) st().activate(refOf(op.active));
+    return snapFor("nest", 3000);
+  });
 } else if (op.kind === "rename") {
   then(() => SA.startRename(W, { kind: "tab", id: refOf(op.from) }).then(() => sleep(500)).then(() => snap("field")));
   typeChars("type", op.to);

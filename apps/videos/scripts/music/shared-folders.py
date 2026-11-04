@@ -28,17 +28,25 @@ LENGTH = int(round(CUTS["beats"] * BEAT * SR))
 
 MUSIC_TAKE = "music-take4.mp3"
 TAKE_LATENCY_S = 0.0265
-MUSIC_EDIT = [(0, 0, 20), (20, 28, 32), (52, 44, 4), (56, 48, 56)]
+MUSIC_EDIT = [(0, 0, 20), (20, 28, 20), (40, 48, 12), (52, 44, 4), (56, 48, 12), (68, 44, 2), (70, 48, 40), (110, 12, 4)]
 SPLICE_FADE_S = 0.008
-MUSIC_SECTION_GAIN_DB = {"explain": -1.5}
+TAIL_SOURCE_BEAT = 96
+TAIL_KEEP_S = 0.5
+TAIL_JOIN_S = 0.04
+AIR_SECTION = "air"
+AIR_DB = -14.0
+AIR_LOWPASS_HZ = 600.0
+AIR_IN_S = 0.08
+AIR_OUT_S = 0.01
+MUSIC_SECTION_GAIN_DB = {"explain": -1.5, "callback": -2.0}
 SECTION_GAIN_RAMP_S = 0.4
 RING_OUT_DB_PER_S = 4.0
 RING_OUT_MAX_BOOST_DB = 18.0
 
 PEAK_ALIGNED_KINDS = {"whoosh"}
-SFX_GAIN_DB = {"click": -14.0, "tick": -16.0, "arrive": -8.0, "chatPop": -14.0, "whoosh": -16.0, "sheet": -18.0,
-               "lift": -16.0, "drag": -18.0, "thud": -12.0, "type": -14.0, "slam": -12.0}
-DEFAULT_SFX_GAIN_DB = -14.0
+SFX_TARGET_LU = {"arrive": -16.0}
+DEFAULT_SFX_TARGET_LU = -23.0
+SFX_MEASURE_S = 0.2
 SILENCE_EXEMPT_KINDS = {"thud"}
 EXEMPT_DECAY_S = 0.165
 EXEMPT_FADE_S = 0.06
@@ -47,13 +55,11 @@ VO_REFERENCE_LUFS = -20.0
 VO_OVER_BED_LU = 3.0
 VO_LEVEL_SPREAD_DB = 3.5
 VO_MIN_GAP_S = 0.35
-DUCK_DB = -2.5
-POCKET_DB = -5.0
-POCKET_HZ = (1500.0, 4500.0)
+DUCK_DB = -1.5
 DUCK_LEAD_S = 0.2
-DUCK_ATTACK_S = 0.7
+DUCK_ATTACK_S = 0.8
 DUCK_HOLD_S = 0.4
-DUCK_RELEASE_S = 1.0
+DUCK_RELEASE_S = 1.2
 
 SUB_HIGHPASS_HZ = 35.0
 TARGET_LUFS = -16.0
@@ -102,7 +108,52 @@ def edit_music():
         if t1 < LENGTH:
             env[-xf:] *= np.sqrt(raised_cosine(xf))[::-1]
         out[t0 - lead:t1] += seg * env[:, None]
+    return place_tail(out, take)
+
+
+def stretch(x, factor):
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "f64le", "-ar", str(SR), "-ac", "2", "-i", "-",
+                        "-af", f"atempo={factor:.6f}", "-f", "f64le", "-"], input=x.astype("<f8").tobytes(),
+                       capture_output=True, check=True).stdout
+    return np.frombuffer(r, "<f8").reshape(-1, 2).copy()
+
+
+def place_tail(out, take):
+    t0 = at(CUTS.get("endHit", CUTS["beats"]))
+    s0 = at(TAIL_SOURCE_BEAT)
+    tail = take[s0:]
+    tail = tail[:len(tail) - int(np.argmax(np.abs(tail[::-1]).max(axis=1) > 1e-6))]
+    keep, join = int(TAIL_KEEP_S * SR), int(TAIL_JOIN_S * SR)
+    room = LENGTH - t0
+    factor = (len(tail) - keep) / (room - keep)
+    rest = stretch(tail[keep - join:], factor) if factor < 1 else tail[keep - join:]
+    seg = np.zeros((room + join, 2))
+    seg[:keep] = tail[:keep]
+    fade = raised_cosine(join)[:, None]
+    seg[keep - join:keep] = tail[keep - join:keep] * (1 - fade) + rest[:join] * fade
+    n = min(len(rest) - join, room - keep)
+    seg[keep:keep + n] = rest[join:join + n]
+    lead = int(SPLICE_FADE_S * SR)
+    out[t0 - lead:t0] += take[s0 - lead:s0] * np.sqrt(raised_cosine(lead))[:, None]
+    out[t0:] += seg[:room]
     return out
+
+
+def air_dip(x):
+    sec = next((s for s in CUTS["sections"] if s["name"] == AIR_SECTION), None)
+    if sec is None:
+        return x
+    a, b = at(sec["at"]), at(sec["at"] + sec["beats"])
+    m = np.zeros(LENGTH)
+    n_in, n_out = int(AIR_IN_S * SR), int(AIR_OUT_S * SR)
+    m[a:b] = 1.0
+    m[a:a + n_in] = raised_cosine(n_in)
+    m[b - n_out:b] = raised_cosine(n_out)[::-1]
+    sos = signal.butter(4, AIR_LOWPASS_HZ, "lowpass", fs=SR, output="sos")
+    low = signal.sosfiltfilt(sos, x[max(0, a - SR):b + SR], axis=0)
+    filtered = np.zeros_like(x)
+    filtered[max(0, a - SR):b + SR] = low
+    return x * (1 - m)[:, None] + filtered * (m * 10 ** (AIR_DB / 20))[:, None]
 
 
 def section_gains(x, gains):
@@ -148,8 +199,27 @@ def place(out, x, start):
         out[a:b] += x[a - start:b - start]
 
 
-def sfx_gain(cue):
-    return 10 ** (SFX_GAIN_DB.get(cue["kind"], DEFAULT_SFX_GAIN_DB) / 20) * cue.get("gain", 1.0)
+def sfx_gain(cue, cue_db):
+    return 10 ** (cue_db[id(cue)] / 20)
+
+
+def cue_level(x, anc, cue, bed):
+    one = np.zeros((LENGTH, 2))
+    place(one, x, at(cue["beat"]) - anc)
+    c = at(cue["beat"])
+    n = int(SFX_MEASURE_S * SR)
+    return window_loudness(one, c, c + n) - window_loudness(bed, c, c + n)
+
+
+def calibrate_sfx(bank, bed):
+    cue_db = {}
+    for kind, (x, anc) in bank.items():
+        cues = [c for c in CUTS["sfx"] if c["kind"] == kind]
+        mid = float(np.median([c.get("gain", 1.0) for c in cues]))
+        for c in cues:
+            offset = 20 * np.log10(c.get("gain", 1.0) / mid)
+            cue_db[id(c)] = SFX_TARGET_LU.get(kind, DEFAULT_SFX_TARGET_LU) + offset - cue_level(x, anc, c, bed)
+    return cue_db
 
 
 def gate_after(x, end):
@@ -163,15 +233,15 @@ def in_silence(beat):
     return any(a <= beat < b for a, b in CUTS["silences"])
 
 
-def render_sfx(bank):
+def render_sfx(bank, cue_db):
     bus = np.zeros((LENGTH, 2))
     exempt = np.zeros((LENGTH, 2))
     for cue in CUTS["sfx"]:
         x, anc = bank[cue["kind"]]
         if cue["kind"] in SILENCE_EXEMPT_KINDS and in_silence(cue["beat"]):
-            place(exempt, gate_after(x, anc + int(EXEMPT_DECAY_S * SR)) * sfx_gain(cue), at(cue["beat"]) - anc)
+            place(exempt, gate_after(x, anc + int(EXEMPT_DECAY_S * SR)) * sfx_gain(cue, cue_db), at(cue["beat"]) - anc)
         else:
-            place(bus, x * sfx_gain(cue), at(cue["beat"]) - anc)
+            place(bus, x * sfx_gain(cue, cue_db), at(cue["beat"]) - anc)
     return bus, exempt
 
 
@@ -231,11 +301,7 @@ def duck_db(spans):
 
 
 def bed_under_vo(music, spans):
-    shape = vo_envelope(spans)
-    sos = signal.butter(2, POCKET_HZ, "bandpass", fs=SR, output="sos")
-    band = signal.sosfiltfilt(sos, music, axis=0)
-    pocketed = music - band * (1 - 10 ** (POCKET_DB * shape / 20))[:, None]
-    return pocketed * 10 ** (DUCK_DB * shape / 20)[:, None]
+    return music * 10 ** (duck_db(spans) / 20)[:, None]
 
 
 def silence_mask():
@@ -379,15 +445,6 @@ def window_loudness(x, a, b):
     return -0.691 + 10 * np.log10((seg ** 2).mean(axis=0).sum() + 1e-20)
 
 
-def mix_lag_ms(full, stem, c):
-    a, b = max(0, c - int(0.1 * SR)), min(LENGTH, c + int(0.5 * SR))
-    f, s = full[a:b].mean(axis=1), stem[a:b].mean(axis=1)
-    r = signal.correlate(f, s, mode="full", method="fft")
-    lags = np.arange(-len(s) + 1, len(f))
-    sel = np.abs(lags) <= int(0.05 * SR)
-    return lags[sel][np.argmax(r[sel])] / SR * 1000
-
-
 def duck_stats(db, spans):
     first = spans[0]
     gaps = [(spans[i + 1]["start"] if i + 1 < len(spans) else LENGTH) - sp["end"] for i, sp in enumerate(spans)]
@@ -404,7 +461,7 @@ def duck_stats(db, spans):
             "release_starts_after_speech": (r90 - last["end"]) / SR}
 
 
-def check(paths, music, bank, spans, vo_bus):
+def check(paths, music, bank, cue_db, sfx_bus, spans, vo_bus):
     for p in paths:
         i, lra, tp = ebur128(p)
         print(f"{os.path.basename(p)}: I {i:.1f} LUFS, LRA {lra:.1f} LU, true peak {tp:.1f} dBTP")
@@ -437,7 +494,6 @@ def check(paths, music, bank, spans, vo_bus):
     print(f"duck: depth {d['depth']:.1f} dB; attack ({d['attack_line']}) 10-90% {d['attack']:.2f} s, full {d['full_before_speech']:.2f} s "
           f"before speech; release ({d['release_line']}) 90-10% {d['release']:.2f} s, starting {d['release_starts_after_speech']:.2f} s after speech")
     duck = bed_under_vo(music, spans)
-    print(f"pocket: {POCKET_DB:.1f} dB at {POCKET_HZ[0] / 1000:.1f}-{POCKET_HZ[1] / 1000:.1f} kHz on the same envelope")
     print("line  VO over bed  bed under VO vs 1.5 s before  VO gain")
     for sp in spans:
         over = window_loudness(vo_bus, sp["start"], sp["end"]) - window_loudness(duck, sp["start"], sp["end"])
@@ -455,30 +511,33 @@ def check(paths, music, bank, spans, vo_bus):
         print(f"ring-out {os.path.basename(p)}: peak {mom[k0]:.1f} LUFS at {t[k0]:.1f} s, -20 dB {ring:.1f} s later, "
               f"{LENGTH / SR - t[k0]:.1f} s of audio after it")
     if CUTS["sfx"]:
-        print("cue        beat   align     lag in mix  lands at   vs music")
+        print("cue        beat   on its beat (placed stem)   vs bed    vs mix")
+    pre_master = duck + vo_bus + sfx_bus
+    n = int(SFX_MEASURE_S * SR)
     for cue in CUTS["sfx"]:
         one = np.zeros((LENGTH, 2))
         x, anc = bank[cue["kind"]]
-        place(one, x * sfx_gain(cue), at(cue["beat"]) - anc)
+        place(one, x * sfx_gain(cue, cue_db), at(cue["beat"]) - anc)
         c = at(cue["beat"])
-        rel = window_loudness(one, c, c + int(0.3 * SR)) - window_loudness(duck, c, c + int(0.3 * SR))
-        lag = mix_lag_ms(full, one, c)
+        rel = window_loudness(one, c, c + n) - window_loudness(duck, c, c + n)
+        rel_mix = window_loudness(one, c, c + n) - window_loudness(pre_master, c, c + n)
         s0 = peak_ms(one, cue["beat"]) if cue["kind"] in PEAK_ALIGNED_KINDS else onset_ms(one, cue["beat"])
-        if s0 is None:
-            print(f"{cue['kind']:8s} {cue['beat']:6.2f}  soft (no transient)                {rel:+5.1f} LU")
-            continue
-        print(f"{cue['kind']:8s} {cue['beat']:6.2f}  {s0:+6.1f} ms  {lag:+6.1f} ms   {s0 + lag:+6.1f} ms   {rel:+5.1f} LU")
+        label = "peak " if cue["kind"] in PEAK_ALIGNED_KINDS else "onset"
+        where = "soft (no transient)" if s0 is None else f"{label} {s0:+6.1f} ms"
+        print(f"{cue['kind']:8s} {cue['beat']:6.2f}  {where:26s}  {rel:+6.1f} LU {rel_mix:+6.1f} LU")
 
 
 def main():
     if {"-h", "--help"} & set(sys.argv):
         print(__doc__.strip())
         return
-    music = ring_out(section_gains(edit_music(), MUSIC_SECTION_GAIN_DB))
+    music = ring_out(section_gains(air_dip(edit_music()), MUSIC_SECTION_GAIN_DB))
     bank = load_sfx()
-    sfx_bus, sfx_exempt = render_sfx(bank)
     spans = render_vo()
-    vo_bus = level_vo(spans, bed_under_vo(music, spans) + sfx_bus)
+    bed = bed_under_vo(music, spans)
+    cue_db = calibrate_sfx(bank, bed)
+    sfx_bus, sfx_exempt = render_sfx(bank, cue_db)
+    vo_bus = level_vo(spans, bed + sfx_bus)
     for s in spans:
         if s["pushed"]:
             print(f"warning: {s['id']} overlaps the line before it; placed {s['pushed'] / SR:.2f} s after beat {s['beat']} "
@@ -494,7 +553,7 @@ def main():
     for name, x in outs.items():
         print(f"{name}: {lufs(x):.2f} LUFS, true peak {20 * np.log10(true_peak(x).max()):.2f} dBTP")
     if "--check" in sys.argv:
-        check(paths, music, bank, spans, vo_bus)
+        check(paths, music, bank, cue_db, sfx_bus, spans, vo_bus)
 
 
 if __name__ == "__main__":

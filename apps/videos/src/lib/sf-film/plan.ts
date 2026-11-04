@@ -45,7 +45,7 @@ export interface Pane {
   marks?: Record<string, number>;
 }
 
-export type ShotKind = "chat" | "turn" | "panes" | "share" | "files" | "callback" | "end";
+export type ShotKind = "chat" | "turn" | "panes" | "share" | "accept" | "files" | "callback" | "end";
 
 export interface Shot {
   id: string;
@@ -95,165 +95,160 @@ const region = (layout: Layout | undefined, w: number, h: number, y0 = 16): [num
   layout === "right" ? [1280 - w, y0, 1280, y0 + h] : layout === "top" ? [0, 0, w + 300, h] : [0, y0, w, y0 + h];
 
 const CAP: Record<Aspect, Box> = { land: [160, 930, 1600, 110], port: [60, 1500, 960, 220] };
-const CAP_TOP: Record<Aspect, Box> = { land: [160, 30, 1600, 100], port: [60, 230, 960, 200] };
 const cap = (id: string, text: string, at: number, out: number, more: Partial<TypeLayer> = {}) =>
   T(id, text, at, out, "caption", 62, CAP.land, CAP.port, { portSize: 64, ...more });
-const capTop = (id: string, text: string, at: number, out: number, more: Partial<TypeLayer> = {}) =>
-  T(id, text, at, out, "caption", 62, CAP_TOP.land, CAP_TOP.port, { portSize: 64, ...more });
 
 const chat: Shot = {
   id: "chat", kind: "chat", at: 0, beats: 16,
   panes: [{ id: "chat-app", box: { land: [40, 30, 1840, 870], port: [30, 230, 1020, 1240] } }],
-  marks: { scroll: 4, scrollEnd: 7, launch: 8, trip: 12 },
-  type: [cap("chat-lost", "Links get lost in the chat.", 5, 15.8)],
+  marks: { scroll: 3.5, scrollEnd: 7, launch: 9, back: 12.5 },
+  type: [cap("chat-lost", "Links get lost.", 9.5, 13.5)],
 };
 
 const turn: Shot = {
-  id: "turn", kind: "turn", at: 16, beats: 8,
+  id: "turn", kind: "turn", at: 16, beats: 7,
   panes: [pane("turn-priya", { land: [300, 150, 1320, 825], port: [40, 450, 1000, 1000] },
-    [[0, 0, 16, 600, 420], [4.6, 0, 0, 1000, 625, "inout", 3.2]], [[0, 0, 16, 440, 480], [4.6, 0, 0, 640, 700, "inout", 3.2]],
-    { scene: "turn-share-priya", who: "priya", layout: "sidebar" })],
-  marks: { lift: 0.3, land: 2.2, stagger: 0.4 },
-  type: [capTop("turn-better", "There’s a better place for them.", 1, 7.8)],
+    [[0, 0, 16, 600, 420], [3.6, 0, 6, 760, 500, "inout", 3.3]], [[0, 0, 16, 440, 480], [3.6, 0, 8, 520, 560, "inout", 3.3]],
+    { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
+  marks: { lift: 0.5, land: 2.4, stagger: 0.38, chatOut: 1.6, rise: 1.4 },
+  type: [],
 };
 
 const cell = (c: number, r: number): Record<Aspect, Box> => ({
   land: [70 + c * 898, 214 + r * 418, 880, 354],
-  port: [30 + c * 519, 470 + r * 520, 501, 450],
+  port: r === 0 ? [40, 470 + c * 540, 1000, 450] : [40, 2200, 1000, 450],
 });
 const recv = (id: string, scene: string, who: Who, layout: Layout, c: number, r: number, role: Pane["role"], marks: Record<string, number>) => {
-  const [x0, y0, x1, y1] = region(layout, 620, 282, 8);
-  const [px0, py0, px1, py1] = region(layout, 420, 400, 8);
-  return pane(id, cell(c, r), [[0, x0, y0, x1, y1], [0.01, x0, y0 + 2, x1 - 30, y1 - 12, "inout", 7.9]], [[0, px0, py0, px1, py1]], { scene, who, layout, role, marks });
+  const [x0, y0, x1, y1] = region(layout, 560, 250, 8);
+  const [px0, py0, px1, py1] = region(layout, 520, 230, 8);
+  return pane(id, cell(c, r), [[0, x0, y0, x1, y1], [0.01, x0, y0 + 2, x1 - 24, y1 - 10, "inout", 7.9]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 2, px1 - 20, py1 - 8, "inout", 7.9]], { scene, who, layout, role, marks });
 };
 
 const grid: Shot = {
-  id: "grid", kind: "panes", at: 24, beats: 8,
+  id: "grid", kind: "panes", at: 23, beats: 8,
   panes: [
-    recv("grid-priya", "turn-share-priya", "priya", "sidebar", 0, 0, "rest", {}),
-    recv("grid-tomas", "turn-add-tomas", "tomas", "sidebar", 1, 0, "add", { arrive: 0 }),
-    recv("grid-jun", "turn-add-jun", "jun", "right", 0, 1, "add", { arrive: 0 }),
-    recv("grid-ava", "turn-add-ava", "ava", "top", 1, 1, "add", { arrive: 0 }),
+    recv("grid-priya", "story-share-priya", "priya", "sidebar", 0, 0, "rest", {}),
+    recv("grid-tomas", "story-add-tomas", "tomas", "sidebar", 1, 0, "add", { arrive: 1 }),
+    recv("grid-jun", "story-add-jun", "jun", "right", 0, 1, "add", { arrive: 1 }),
+    recv("grid-ava", "story-add-ava", "ava", "top", 1, 1, "add", { arrive: 1 }),
   ],
   type: [
-    T("grid-title", "Shared Folders", 0.6, 7.9, "title", 84, [160, 22, 1600, 100], [60, 240, 960, 110]),
-    T("grid-every", "One folder, in everyone’s sidebar.", 2.5, 7.9, "caption", 44, [160, 996, 1600, 64], [60, 1460, 960, 140], { color: MUTED, portSize: 50 }),
+    T("grid-title", "Shared Folders", 1.5, 7.9, "title", 84, [160, 22, 1600, 100], [60, 240, 960, 110]),
+    T("grid-every", "One folder in every sidebar.", 3, 7.9, "caption", 50, [160, 994, 1600, 66], [60, 1500, 960, 140], { color: MUTED, portSize: 56 }),
   ],
 };
 
 const share: Shot = {
-  id: "share", kind: "share", at: 32, beats: 12,
+  id: "share", kind: "share", at: 31, beats: 12,
   panes: [pane("share-window", { land: [300, 80, 1320, 825], port: [40, 420, 1000, 1000] },
-    [[0, 0, 0, 1280, 800], [0.2, 0, 10, 860, 560, "inout", 1.6], [7.8, 0, 20, 520, 340, "inout", 1.8]],
-    [[0, 0, 0, 800, 800], [0.2, 0, 10, 620, 600, "inout", 1.6], [7.8, 0, 20, 420, 420, "inout", 1.8]],
-    { scene: "sf-share", who: "priya", layout: "sidebar" })],
-  marks: { menu: 1.2, pick: 2.8, sheet: 3.4, tick: 5, choose: 6.8, glyph: 8.2 },
-  type: [cap("share-apple", "Share it with anyone who has an Apple ID.", 3.4, 11.9)],
+    [[0, 0, 10, 900, 590], [0.01, 0, 10, 860, 560, "inout", 6], [8.3, 0, 20, 600, 390, "inout", 3.6]],
+    [[0, 0, 10, 640, 620], [0.01, 0, 10, 620, 600, "inout", 6], [8.3, 0, 20, 480, 470, "inout", 3.6]],
+    { scene: "story-share-priya", who: "priya", layout: "sidebar" })],
+  marks: { menu: 1.5, pick: 3, sheet: 3.6, tick: 5.4, choose: 7, glyph: 8.4 },
+  type: [cap("share-apple", "Invite any Apple ID.", 6.5, 10.5)],
+};
+
+const accept: Shot = {
+  id: "accept", kind: "accept", at: 43, beats: 6,
+  panes: [pane("accept-window", { land: [300, 80, 1320, 825], port: [40, 420, 1000, 1000] },
+    [[0, 0, 20, 900, 590], [0.01, 0, 20, 860, 565, "inout", 5.9]], [[0, 0, 20, 640, 620], [0.01, 0, 20, 620, 600, "inout", 5.9]],
+    { scene: "story-add-tomas", who: "tomas", layout: "sidebar" })],
+  marks: { menu: 1, pick: 2.4, arrive: 3.2 },
+  type: [],
 };
 
 const files: Shot = {
-  id: "files", kind: "files", at: 44, beats: 8,
-  panes: [{ id: "files-card", box: { land: [560, 110, 800, 700], port: [90, 470, 900, 820] } }],
-  type: [cap("files-icloud", "It lives in iCloud Drive. No new account.", 0.5, 7.9)],
+  id: "files", kind: "files", at: 49, beats: 7,
+  panes: [{ id: "files-card", box: { land: [560, 100, 800, 640], port: [90, 470, 900, 760] } }],
+  marks: { scene: 0 },
+  type: [cap("files-icloud", "Just iCloud Drive. No new account.", 1.4, 6.6)],
 };
 
 const DUO_L: Record<Aspect, Box> = { land: [60, 140, 880, 740], port: [40, 300, 1000, 560] };
-const DUO_R: Record<Aspect, Box> = { land: [980, 140, 880, 740], port: [40, 900, 1000, 560] };
+const DUO_R: Record<Aspect, Box> = { land: [980, 140, 880, 740], port: [40, 920, 1000, 560] };
 const duoKeys = (layout: Layout, beats: number): [Key[], Key[]] => {
   const [x0, y0, x1, y1] = region(layout, 470, 400);
-  const [px0, py0, px1, py1] = region(layout, 540, 300);
-  return [[[0, x0, y0, x1, y1], [0.01, x0, y0 + 4, x1 - 20, y1 - 10, "inout", beats - 0.1]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 4, px1 - 20, py1 - 6, "inout", beats - 0.1]]];
+  const [px0, py0, px1, py1] = region(layout, 560, 400);
+  return [[[0, x0, y0, x1, y1], [0.01, x0, y0 + 4, x1 - 16, y1 - 8, "inout", beats - 0.1]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 4, px1 - 16, py1 - 5, "inout", beats - 0.1]]];
 };
 
 const drop: Shot = {
-  id: "drop", kind: "panes", at: 52, beats: 8,
+  id: "drop", kind: "panes", at: 56, beats: 10,
   panes: [
-    pane("drop-priya", DUO_L, ...duoKeys("sidebar", 8), { scene: "sf-drop", who: "priya", layout: "sidebar", role: "drag", marks: { grab: 1.8, up: 3.5 } }),
-    pane("drop-tomas", DUO_R, ...duoKeys("sidebar", 8), { scene: "sf-watch-drop", who: "tomas", layout: "sidebar", role: "arrive", marks: { arrive: 5.6 } }),
+    pane("drop-priya", DUO_L, ...duoKeys("sidebar", 10), { scene: "story-0-act-priya", who: "priya", layout: "sidebar", role: "drag", marks: { grab: 1.5, up: 3.2 } }),
+    pane("drop-tomas", DUO_R, ...duoKeys("sidebar", 10), { scene: "story-0-watch-tomas", who: "tomas", layout: "sidebar", role: "arrive", marks: { arrive: 5.5 } }),
   ],
-  type: [cap("drop-add", "Add a link, and it’s there for everyone.", 0.5, 7.9)],
+  type: [cap("drop-live", "Live, both ways.", 5.8, 9.6)],
 };
 
 const edits: Shot = {
-  id: "edits", kind: "panes", at: 60, beats: 12,
+  id: "edits", kind: "panes", at: 66, beats: 20,
   panes: [
-    pane("edits-priya", DUO_L, ...duoKeys("sidebar", 12), { who: "priya", layout: "sidebar", role: "edits", marks: { renameType: 1.2, renameCommit: 3.1, reorderArrive: 7.7, nest: 9.0 } }),
-    pane("edits-tomas", DUO_R, ...duoKeys("sidebar", 12), { who: "tomas", layout: "sidebar", role: "edits", marks: { renameArrive: 4.2, reorderGrab: 5.4, reorderUp: 6.7, nestArrive: 10.1 } }),
+    pane("edits-priya", DUO_L, ...duoKeys("sidebar", 20), { who: "priya", layout: "sidebar", role: "edits", marks: { renameField: 0.8, renameType: 1.3, renameCommit: 3.3, reorderArrive: 11, menu: 13.5, menuPick: 14.6, nest: 14.8 } }),
+    pane("edits-tomas", DUO_R, ...duoKeys("sidebar", 20), { who: "tomas", layout: "sidebar", role: "edits", marks: { renameArrive: 5, reorderGrab: 7.5, reorderUp: 8.8, nestArrive: 16.4 } }),
   ],
-  type: [
-    cap("edits-rename", "Rename it.", 0.8, 5.2),
-    cap("edits-reorder", "Reorder it.", 5.2, 8.8),
-    cap("edits-nest", "Tuck it into a subfolder.", 8.8, 11.9),
-  ],
+  type: [],
 };
 
-const LABEL: Record<Aspect, Box> = { land: [90, 990, 1740, 70], port: [60, 1500, 960, 80] };
-const vignette = (id: string, at: number, label: string, cause: Pane, effects: Pane[], causeBeats: number, beats: number): Shot[] => [
-  { id: `${id}-cause`, kind: "panes", at, beats: causeBeats, tone: "dark", panes: [cause], type: [T(`${id}-label`, label, 0, causeBeats, "label", 46, LABEL.land, LABEL.port, { color: LIGHT_BG, align: "left" })] },
-  { id: `${id}-effect`, kind: "panes", at: at + causeBeats, beats: beats - causeBeats, tone: "dark", panes: effects, type: [T(`${id}-label2`, label, 0, beats - causeBeats, "label", 46, LABEL.land, LABEL.port, { color: LIGHT_BG, align: "left" })] },
+const vignette = (id: string, at: number, cause: Pane, effects: Pane[], causeBeats: number, beats: number): Shot[] => [
+  { id: `${id}-cause`, kind: "panes", at, beats: causeBeats, tone: "dark", panes: [cause], type: [] },
+  { id: `${id}-effect`, kind: "panes", at: at + causeBeats, beats: beats - causeBeats, tone: "dark", panes: effects, type: [] },
 ];
-const WIDE: Record<Aspect, Box> = { land: [160, 110, 1600, 850], port: [40, 360, 1000, 1080] };
+const WIDE: Record<Aspect, Box> = { land: [160, 120, 1600, 860], port: [40, 360, 1000, 1100] };
 const causePane = (id: string, scene: string, who: Who, layout: Layout, grab: number, up: number, beats: number): Pane => {
-  const [x0, y0, x1, y1] = region(layout, 660, 380);
-  const [px0, py0, px1, py1] = region(layout, 420, 460);
-  return pane(id, WIDE, [[0, x0, y0, x1, y1], [0.01, x0, y0 + 6, x1 - 30, y1 - 10, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 6, px1 - 20, py1 - 10, "inout", beats]], { scene, who, layout, role: "drag", marks: { grab, up } });
+  const [x0, y0, x1, y1] = region(layout, 640, 360);
+  const [px0, py0, px1, py1] = region(layout, 400, 440);
+  return pane(id, WIDE, [[0, x0, y0, x1, y1], [0.01, x0, y0 + 4, x1 - 20, y1 - 8, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0 + 4, px1 - 14, py1 - 8, "inout", beats]], { scene, who, layout, role: "drag", marks: { grab, up } });
 };
-const effectPane = (id: string, scene: string, who: Who, layout: Layout, box: Record<Aspect, Box>, arrive: number, small = false): Pane => {
-  const [x0, y0, x1, y1] = small ? region(layout, layout === "top" ? 420 : 300, 290) : region(layout, 600, 360);
-  const [px0, py0, px1, py1] = small ? region(layout, layout === "top" ? 520 : 400, 150) : region(layout, 460, 330);
-  return pane(id, box, [[0, x0, y0, x1, y1], [arrive, x0, y0 + 4, x1 - 40, y1 - 20, "spring"]], [[0, px0, py0, px1, py1], [arrive, px0, py0 + 4, px1 - 30, py1 - 16, "spring"]], { scene, who, layout, role: "arrive", marks: { arrive } });
+const effectPane = (id: string, scene: string, who: Who, layout: Layout, box: Record<Aspect, Box>, arrive: number, beats: number): Pane => {
+  const top = layout === "top";
+  const [x0, y0, x1, y1] = top ? [0, 0, 1010, 360] : region(layout, 560, 340);
+  const [px0, py0, px1, py1] = top ? [0, 0, 1000, 560] : region(layout, 420, 460);
+  return pane(id, box, [[0, x0, y0, x1, y1], [0.01, x0, y0, x1 - 16, y1 - 6, "inout", beats]], [[0, px0, py0, px1, py1], [0.01, px0, py0, px1 - 12, py1 - 6, "inout", beats]], { scene, who, layout, role: "arrive", marks: { arrive } });
 };
 const TRI = (i: number): Record<Aspect, Box> => ({
   land: [40 + i * 620, 250, 600, 560],
-  port: [40, 340 + i * 380, 1000, 360],
+  port: [40, 380 + i * 420, 1000, 340],
 });
 
 const montage: Shot[] = [
-  ...vignette("v-thesis", 72, "A thesis reading list",
-    causePane("v-thesis-jun", "turn-0-act-jun", "jun", "right", 0.3, 1.4, 2.5), [
-      effectPane("v-thesis-priya", "turn-0-watch-priya", "priya", "sidebar", TRI(0), 0.5, true),
-      effectPane("v-thesis-tomas", "turn-0-watch-tomas", "tomas", "sidebar", TRI(1), 0.5, true),
-      effectPane("v-thesis-ava", "turn-0-watch-ava", "ava", "top", TRI(2), 0.5, true),
-    ], 2.5, 5.5),
-  ...vignette("v-launch", 77.5, "A product launch",
-    causePane("v-launch-maya", "launch-0-act-maya", "maya", "sidebar", 0.2, 1.3, 2.5), [
-      effectPane("v-launch-leo", "launch-0-watch-leo", "leo", "right", WIDE, 0.5),
-    ], 2.5, 5.5),
-  ...vignette("v-lab", 83, "A research lab",
-    causePane("v-lab-okafor", "lab-0-act-okafor", "okafor", "sidebar", 0.2, 1.3, 2.5), [
-      effectPane("v-lab-sam", "lab-0-watch-sam", "sam", "sidebar", WIDE, 0.5),
-    ], 2.5, 6),
-  ...vignette("v-trip", 89, "A weekend away",
-    causePane("v-trip-kai", "trip-0-act-kai", "kai", "sidebar", 0.2, 1.3, 2.5), [
-      effectPane("v-trip-noor", "trip-0-watch-noor", "noor", "top", WIDE, 0.5),
-    ], 2.5, 5.5),
-  ...vignette("v-class", 94.5, "A class",
+  ...vignette("v-launch", 86,
+    causePane("v-launch-maya", "launch-0-act-maya", "maya", "sidebar", 0.2, 1.3, 2.5),
+    [effectPane("v-launch-leo", "launch-0-watch-leo", "leo", "right", WIDE, 0.7, 3.5)], 2.5, 6),
+  ...vignette("v-lab", 92,
+    causePane("v-lab-okafor", "lab-0-act-okafor", "okafor", "sidebar", 0.2, 1.3, 2.5),
+    [effectPane("v-lab-sam", "lab-0-watch-sam", "sam", "sidebar", WIDE, 0.7, 3.5)], 2.5, 6),
+  ...vignette("v-trip", 98,
+    causePane("v-trip-kai", "trip-0-act-kai", "kai", "sidebar", 0.2, 1.3, 2.5),
+    [effectPane("v-trip-noor", "trip-0-watch-noor", "noor", "top", WIDE, 0.7, 3.5)], 2.5, 6),
+  ...vignette("v-class", 104,
     causePane("v-class-ruiz", "class-0-act-ruiz", "ruiz", "sidebar", 0.2, 1.3, 2.5), [
-      effectPane("v-class-ana", "class-0-watch-ana", "ana", "right", TRI(0), 0.5, true),
-      effectPane("v-class-ben", "class-0-watch-ben", "ben", "sidebar", TRI(1), 0.5, true),
-      effectPane("v-class-cleo", "class-0-watch-cleo", "cleo", "top", TRI(2), 0.5, true),
-    ], 2.5, 5.5),
+      effectPane("v-class-ana", "class-0-watch-ana", "ana", "right", TRI(0), 0.7, 3.5),
+      effectPane("v-class-ben", "class-0-watch-ben", "ben", "sidebar", TRI(1), 0.7, 3.5),
+      effectPane("v-class-cleo", "class-0-watch-cleo", "cleo", "top", TRI(2), 0.7, 3.5),
+    ], 2.5, 6),
 ];
 
 const callback: Shot = {
-  id: "callback", kind: "callback", at: 100, beats: 4,
+  id: "callback", kind: "callback", at: 110, beats: 4,
   panes: [{ id: "callback-app", box: { land: [40, 30, 1840, 870], port: [30, 230, 1020, 1240] } }],
   type: [],
 };
 
 const end: Shot = {
-  id: "end", kind: "end", at: 104, beats: 8,
-  panes: [{ id: "end-icon", box: { land: [860, 200, 200, 200], port: [440, 520, 200, 200] } }],
+  id: "end", kind: "end", at: 114, beats: 10,
+  panes: [{ id: "end-icon", box: { land: [860, 220, 200, 200], port: [440, 560, 200, 200] } }],
+  marks: { lockup: 4.5 },
   type: [
-    T("end-feature", "Shared Folders", 0, 8, "title", 110, [160, 440, 1600, 130], [60, 760, 960, 130], { portSize: 96 }),
-    T("end-ardia", "Ardia, the sidebar browser for Mac", 0, 8, "caption", 44, [160, 590, 1600, 70], [60, 920, 960, 140], { color: MUTED, portText: "Ardia, the sidebar\nbrowser for Mac", portSize: 46 }),
-    T("end-url", "Download at ardia.dev", 0, 8, "caption", 52, [160, 710, 1600, 80], [60, 1090, 960, 90], { color: "#2150D9", portSize: 52 }),
+    T("end-feature", "Shared Folders", 0, 4.5, "title", 120, [160, 460, 1600, 140], [60, 820, 960, 140], { portSize: 104 }),
+    T("end-ardia", "Ardia, the sidebar browser for Mac", 4.5, 10, "title", 64, [160, 460, 1600, 90], [60, 800, 960, 180], { portText: "Ardia, the sidebar\nbrowser for Mac", portSize: 66 }),
+    T("end-url", "Download at ardia.dev", 4.5, 10, "caption", 52, [160, 590, 1600, 80], [60, 1020, 960, 90], { color: "#2150D9", portSize: 54 }),
   ],
 };
 
-const film: Shot[] = [chat, turn, grid, share, files, drop, edits, ...montage, callback, end];
+const film: Shot[] = [chat, turn, grid, share, accept, files, drop, edits, ...montage, callback, end];
 
 export type CutName = "film";
 export const CUTS: Record<CutName, { beats: number; shots: Shot[] }> = {
-  film: { beats: 112, shots: film },
+  film: { beats: 124, shots: film },
 };

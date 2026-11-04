@@ -1,5 +1,5 @@
 {
- "turn": {
+ "story": {
   "folder": "Thesis Reading",
   "people": [
    {
@@ -30,6 +30,14 @@
      [
       "p5",
       "heatmap"
+     ],
+     [
+      "p6",
+      "lecture"
+     ],
+     [
+      "p7",
+      "survey"
      ]
     ],
     "build": {
@@ -54,11 +62,11 @@
     "tabs": [
      [
       "t1",
-      "lecture"
+      "docpad"
      ],
      [
       "t2",
-      "docpad"
+      "lexicon"
      ]
     ]
    },
@@ -73,11 +81,7 @@
     "tabs": [
      [
       "j1",
-      "survey"
-     ],
-     [
-      "j2",
-      "lexicon"
+      "tunes"
      ]
     ]
    },
@@ -93,24 +97,50 @@
      [
       "a1",
       "dailyledger"
-     ],
-     [
-      "a2",
-      "moodwall"
      ]
     ]
    }
   ],
   "actions": [
    {
-    "who": "jun",
+    "who": "priya",
     "op": {
      "kind": "drag",
-     "from": "survey",
+     "from": "lecture",
      "to": {
       "below": "heatmap"
      },
-     "steps": 20
+     "steps": 30
+    }
+   },
+   {
+    "who": "priya",
+    "op": {
+     "kind": "rename",
+     "from": "heatmap",
+     "to": "Heat map (THE one)"
+    }
+   },
+   {
+    "who": "tomas",
+    "op": {
+     "kind": "drag",
+     "from": "library",
+     "to": {
+      "above": "canopy"
+     },
+     "steps": 23
+    }
+   },
+   {
+    "who": "priya",
+    "op": {
+     "kind": "nest",
+     "name": "Methods",
+     "links": [
+      "survey"
+     ],
+     "active": "heatmap"
     }
    }
   ]
@@ -416,7 +446,7 @@
     "tabs": [
      [
       "x1",
-      "canopy"
+      "tunes"
      ]
     ]
    },
@@ -431,7 +461,7 @@
     "tabs": [
      [
       "y1",
-      "lecture"
+      "moodwall"
      ]
     ]
    },
@@ -446,7 +476,7 @@
     "tabs": [
      [
       "z1",
-      "citydata"
+      "watch"
      ]
     ]
    }

@@ -1,9 +1,9 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
 import { Img, staticFile, useVideoConfig } from "remotion";
 import { useStudioObject } from "../studio-objects-v6";
-import { ChatApp, chatState, LINKS, LinkCard, THREADS } from "./chat";
+import { ChatApp, chatLayout, chatState, LINKS, LinkCard, THREADS } from "./chat";
 import {
-  byTime, camAt, clamp, easeInOut, easeOut, indexOf, kick, lastIndexOf, mix, Paper, Pointer, pointerPath, scene, Screen, seg,
+  byTime, camAt, clamp, easeInOut, easeOut, indexOf, lastIndexOf, mix, Paper, Pointer, pointerPath, scene, Screen, seg,
   Supers, useAspect, useBeat, useShot, type Frame,
 } from "./kit";
 import { Morph, planMorph, type Rect, type Rows, targetAt } from "./morph";
@@ -11,6 +11,7 @@ import { Halo, MacMenu, type MenuEntry, menuRowTop, SharePicker, SHEET_PICK } fr
 import { DARK_BG, LIGHT_BG, type Pane, PEOPLE, type ShotKind, type View, WIN_PT } from "./plan";
 
 const SLOW = 5;
+const sineInOut = (x: number) => 0.5 - 0.5 * Math.cos(Math.PI * x);
 const BEAT_MS = 600;
 
 function useCam(pane: Pane | undefined) {
@@ -67,11 +68,11 @@ function arrival(name: string, b: number, at: number, opts: { before?: string; a
     const halo = opts.rename ? linkRow(name, opts.rename, rowsLabel) : null;
     return { index: b < at ? before : after, overlay: null, halo: b >= at ? halo : null };
   }
-  const dur = plan.from ? 0.8 : 0.6;
-  const t = plan.from ? easeInOut(clamp((b - at) / dur)) : easeOut(clamp((b - at) / dur));
+  const dur = plan.from ? 0.85 : 0.72;
+  const t = sineInOut(clamp((b - at) / dur));
   if (b < at) return { index: before, overlay: null, halo: null };
   const overlay = t < 1 ? <Morph src={name} before={before} after={after} plan={plan} p={t} tint={tintOf(name)} /> : null;
-  return { index: after, overlay, halo: targetAt(plan, t) };
+  return { index: after, overlay, halo: t > 0.45 ? targetAt(plan, t) : null };
 }
 
 function dragIndex(name: string, b: number, grab: number, up: number) {
@@ -89,10 +90,11 @@ function dragPointer(name: string, i: number, b: number, up: number, grab: numbe
   if (f.ptr && b >= grab) return { x: f.ptr[0], y: f.ptr[1], press: f.press ?? 0 };
   const g = fr(name, indexOf(name, "drag:grab")).ptr;
   const lastUp = fr(name, indexOf(name, "drag:up")).ptr;
-  if (b >= up && lastUp) return { x: lastUp[0] + 14 * seg(b, up + 0.7, 1.2), y: lastUp[1] + 20 * seg(b, up + 0.7, 1.2), press: 0 };
+  if (b >= up && lastUp) return { x: lastUp[0] + 70 * seg(b, up + 0.8, 1.6, easeInOut), y: lastUp[1] + 110 * seg(b, up + 0.8, 1.6, easeInOut), press: 0 };
   if (!g) return null;
-  const t = easeOut(clamp((b - (grab - 1)) / 1));
-  return { x: mix(g[0] + 70, g[0], t), y: mix(g[1] + 100, g[1], t), press: 0 };
+  const t = easeInOut(clamp((b - (grab - 1.2)) / 1.1));
+  if (b < grab - 1.2) return null;
+  return { x: mix(g[0] + 90, g[0], t), y: mix(g[1] + 140, g[1], t), press: 0 };
 }
 
 function PaneView({ pane }: { pane: Pane }) {
@@ -107,7 +109,6 @@ function PaneView({ pane }: { pane: Pane }) {
   let halo: Rect | null = null;
   let haloAt = 0;
   let pointer: { x: number; y: number; press: number } | null = null;
-  let kicked = 0;
   if (pane.role === "drag") {
     index = dragIndex(name, b, m.grab, m.up);
     pointer = dragPointer(name, index, b, m.up, m.grab);
@@ -115,18 +116,15 @@ function PaneView({ pane }: { pane: Pane }) {
     const arr = arrival(name, b, m.arrive, { before: "rest", after: "added", top });
     ({ index, overlay, halo } = arr);
     haloAt = m.arrive;
-    kicked = m.arrive;
   } else if (pane.role === "arrive") {
     const arr = arrival(name, b, m.arrive, { top });
     ({ index, overlay, halo } = arr);
     haloAt = m.arrive;
-    kicked = m.arrive;
   } else {
     index = has(name, "shared") ? lastIndexOf(name, "shared") : indexOf(name, "rest");
   }
-  const k = kicked ? kick(b, kicked, 0.25) : 0;
   return (
-    <div style={{ position: "absolute", inset: 0, scale: String(1 + 0.008 * k) }}>
+    <div style={{ position: "absolute", inset: 0 }}>
       <Screen id={pane.id} src={name} index={index} view={cam} tag={who?.name} tagColor={who?.color}>
         {overlay}
         {who ? <Halo rect={halo} b={b} at={haloAt} color={who.color} /> : null}
@@ -147,44 +145,64 @@ function EditsPane({ pane }: { pane: Pane }) {
   let halo: Rect | null = null;
   let haloAt = 0;
   let pointer: { x: number; y: number; press: number } | null = null;
+  let menu: ReactNode = null;
   if (pane.who === "priya") {
     if (b < m.reorderArrive) {
-      src = "sf-rename";
+      src = "story-1-act-priya";
       const fs = scene(src).frames;
       const first = indexOf(src, "type");
       const n = fs.filter((f) => f.label === "type").length;
-      if (b < m.renameType - 0.5) index = indexOf(src, "rest");
+      if (b < m.renameField) index = indexOf(src, "rest");
       else if (b < m.renameType) index = indexOf(src, "field");
       else if (b < m.renameCommit) index = first + Math.min(n - 1, Math.floor(((b - m.renameType) / (m.renameCommit - m.renameType - 0.1)) * n));
       else index = byTime(src, ["commit", "settle", "after"], fs[indexOf(src, "commit")].t, SLOW, (b - m.renameCommit) * BEAT_MS);
-    } else if (b < m.nest) {
-      src = "sf-watch-reorder";
+    } else if (b < m.menu - 0.6) {
+      src = "story-2-watch-priya";
       ({ index, overlay, halo } = arrival(src, b, m.reorderArrive));
       haloAt = m.reorderArrive;
     } else {
-      src = "sf-sub";
-      const fs = scene(src).frames;
-      const rowsB = fr(src, indexOf(src, "rest")).rows ?? {};
+      src = "story-3-act-priya";
+      const rest = indexOf(src, "rest");
+      const rowsB = fr(src, rest).rows ?? {};
       const rowsA = fr(src, lastIndexOf(src, "after")).rows ?? {};
       const plan = planMorph(rowsB, rowsA);
-      const t = easeOut(clamp((b - m.nest) / 0.6));
-      index = lastIndexOf(src, "after");
-      if (plan && t < 1) overlay = <Morph src={src} before={indexOf(src, "rest")} after={index} plan={plan} p={t} tint={tintOf(src)} />;
-      halo = plan ? targetAt(plan, t) : null;
+      const t = sineInOut(clamp((b - m.nest) / 0.72));
+      index = b < m.nest ? rest : lastIndexOf(src, "after");
+      if (plan && b >= m.nest && t < 1) overlay = <Morph src={src} before={rest} after={index} plan={plan} p={t} tint={tintOf(src)} />;
+      halo = plan && b >= m.nest && t > 0.45 ? targetAt(plan, t) : null;
       haloAt = m.nest;
-      void fs;
+      const head = Object.values(rowsB).find((r) => r && r.x < 20) ?? { x: 9, y: 54.5, width: 232, height: 34 };
+      const items = (scene("story-share-priya").menu ?? []) as MenuEntry[];
+      const hx = head.x + 96;
+      const hy = head.y + head.height / 2;
+      const target = menuRowTop(items, "nest");
+      pointer = pointerPath(b, [
+        { at: m.menu - 0.1, x: hx, y: hy },
+        { at: m.menu, x: hx, y: hy, click: true },
+        { at: m.menuPick - 0.2, x: hx + 124, y: hy + 2 + target },
+        { at: m.menuPick, x: hx + 124, y: hy + 2 + target, click: true },
+        { at: m.menuPick + 2.2, x: hx + 190, y: hy + 300 },
+      ], 0.8);
+      menu = <MacMenu items={items} x={hx + 4} y={hy + 2} b={b} open={m.menu + 0.05} close={m.menuPick + 0.25} hover={b >= m.menuPick - 0.45 ? "nest" : null} flash={m.menuPick} />;
     }
   } else {
     if (b < m.reorderGrab) {
-      src = "sf-watch-rename";
+      src = "story-1-watch-tomas";
       ({ index, overlay, halo } = arrival(src, b, m.renameArrive, { rename: /heatmap/ }));
       haloAt = m.renameArrive;
+      if (b >= m.reorderGrab - 1.3) {
+        const g = fr("story-2-act-tomas", indexOf("story-2-act-tomas", "drag:grab")).ptr;
+        if (g) {
+          const t = easeInOut(clamp((b - (m.reorderGrab - 1.2)) / 1.1));
+          pointer = { x: mix(g[0] + 90, g[0], t), y: mix(g[1] + 140, g[1], t), press: 0 };
+        }
+      }
     } else if (b < m.nestArrive) {
-      src = "sf-reorder";
+      src = "story-2-act-tomas";
       index = dragIndex(src, b, m.reorderGrab, m.reorderUp);
       pointer = dragPointer(src, index, b, m.reorderUp, m.reorderGrab);
     } else {
-      src = "sf-watch-sub";
+      src = "story-3-watch-tomas";
       ({ index, overlay, halo } = arrival(src, b, m.nestArrive));
       haloAt = m.nestArrive;
     }
@@ -193,6 +211,7 @@ function EditsPane({ pane }: { pane: Pane }) {
     <Screen id={pane.id} src={src} index={index} view={cam} tag={who.name} tagColor={who.color}>
       {overlay}
       <Halo rect={halo} b={b} at={haloAt} color={who.color} />
+      {menu}
       {pointer ? <Pointer x={pointer.x} y={pointer.y} press={pointer.press} /> : null}
     </Screen>
   );
@@ -238,59 +257,102 @@ function TurnShot() {
   const shot = useShot();
   const b = useBeat();
   const aspect = useAspect();
-  const { width, height } = useVideoConfig();
+  const port = aspect === "port";
   const pane = shot.panes![0];
   const cam = useCam(pane);
   const object = useStudioObject(pane.id);
+  const chatObject = useStudioObject("chat-app");
   const box = { x: object.number("x"), y: object.number("y"), w: object.number("width"), h: object.number("height") };
+  const chatBox = { x: chatObject.number("x"), y: chatObject.number("y"), w: chatObject.number("width"), h: chatObject.number("height") };
   const name = pane.scene!;
-  const { lift, land, stagger } = shot.marks!;
+  const { lift, land, stagger, chatOut, rise } = shot.marks!;
   const shared = lastIndexOf(name, "shared");
   const rows = Object.entries(fr(name, shared).rows ?? {}).filter((e): e is [string, Rect] => !!e[1] && e[1].x < 250).sort((a, b2) => a[1].y - b2[1].y);
   const [header, ...links] = rows;
   const tint = tintOf(name);
-  const fade = 1 - easeInOut(clamp((b - 0.2) / 1.6));
-  const rise = easeOut(clamp((b - 0.6) / 1.4));
-  const chatScale = mix(0.9, 1, fade);
-  const landed = (i: number) => clamp((b - (lift + land + i * stagger)) / 0.35);
+  const chatB = 16;
+  const state = { thread: 0, switchAt: -1, scroll: 0, links: THREADS[0].links + 1 };
+  const layout = chatLayout(chatB, chatBox.h, state, port);
+  const fade = 1 - easeInOut(clamp((b - lift) / chatOut));
+  const up = easeOut(clamp((b - rise) / 1.6));
+  const landed = (i: number) => clamp((b - (lift + land + i * stagger)) / 0.3);
+  const lifted = TURN_LINKS.filter((_, i) => b >= lift + i * stagger).map((l) => l.host);
   return (
     <Paper>
-      {fade > 0.01 ? (
-        <div style={{ position: "absolute", inset: 0, opacity: fade, scale: String(chatScale) }}>
+      {fade > 0.005 ? (
+        <div style={{ position: "absolute", inset: 0, opacity: fade, scale: String(mix(0.96, 1, fade)) }}>
           <Box id="chat-app">
-            <ChatApp b={16} height={aspect === "land" ? 870 : 1240} state={{ thread: 2, switchAt: -1, scroll: 0, links: THREADS[2].links + 1 }} port={aspect === "port"} />
+            <ChatApp b={chatB} height={chatBox.h} state={state} port={port} hide={lifted} />
           </Box>
         </div>
       ) : null}
-      <div style={{ position: "absolute", inset: 0, opacity: rise, translate: `0 ${(1 - rise) * 40}px` }}>
-        <Screen id={pane.id} src={name} index={shared} view={cam} tag={PEOPLE.priya.name} tagColor={PEOPLE.priya.color}>
-          {links.map(([id, r], i) => (
-            <div key={id} style={{ position: "absolute", left: 0, top: r.y - 1.5, width: 250, height: r.height + 3, opacity: 1 - landed(i), backgroundImage: `linear-gradient(to bottom, ${tint[0]}, ${tint[1]})`, backgroundSize: `250px ${WIN_PT[1]}px`, backgroundPosition: `0 ${-(r.y - 1.5)}px` }} />
-          ))}
-          {header ? <Halo rect={header[1]} b={b} at={lift + land + links.length * stagger} color={PEOPLE.priya.color} /> : null}
-        </Screen>
-      </div>
+      {up > 0.005 ? (
+        <div style={{ position: "absolute", inset: 0, opacity: up, translate: `0 ${(1 - up) * 30}px` }}>
+          <Screen id={pane.id} src={name} index={shared} view={cam} tag={PEOPLE.priya.name} tagColor={PEOPLE.priya.color}>
+            {links.map(([id, r], i) => (
+              <div key={id} style={{ position: "absolute", left: 0, top: r.y - 1.5, width: 250, height: r.height + 3, opacity: 1 - landed(i), backgroundImage: `linear-gradient(to bottom, ${tint[0]}, ${tint[1]})`, backgroundSize: `250px ${WIN_PT[1]}px`, backgroundPosition: `0 ${-(r.y - 1.5)}px` }} />
+            ))}
+            {header ? <Halo rect={header[1]} b={b} at={lift + land + (links.length - 1) * stagger + 0.3} color={PEOPLE.priya.color} /> : null}
+          </Screen>
+        </div>
+      ) : null}
       {links.map(([id, r], i) => {
+        const link = TURN_LINKS[i] ?? LINKS.canopy;
         const start = lift + i * stagger;
-        const t = easeInOut(clamp((b - start) / land));
-        if (b < start - 0.05 || landed(i) >= 1) return null;
+        const t = sineInOut(clamp((b - start) / land));
+        if (b < start || landed(i) >= 1) return null;
+        const card = layout.find((c) => c.link.host === link.host);
+        const fromX = chatBox.x + (card ? card.x : (port ? 36 : 476));
+        const fromY = chatBox.y + (card ? card.y : chatBox.h + 40 + i * 30);
         const target = toFrame(box, cam, { x: r.x + 4, y: r.y });
-        const from = { x: (aspect === "land" ? 300 : 120) + (i % 2) * (aspect === "land" ? 520 : 300), y: (aspect === "land" ? 220 : 520) + i * (aspect === "land" ? 120 : 160) };
         const targetW = (r.width - 8) * cam.s;
-        const w = mix(aspect === "land" ? 560 : 520, targetW, t);
-        const x = mix(from.x, target.x, t);
-        const y = mix(from.y, target.y, t) - Math.sin(Math.PI * t) * 80;
+        const w = mix(600, targetW, t);
+        const x = mix(fromX, target.x, t);
+        const y = mix(fromY, target.y, t) - Math.sin(Math.PI * t) * 60;
         return (
-          <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${16 * (1 - t)}px ${28 * (1 - t)}px rgba(0,0,0,0.18))`, transformOrigin: "0 0" }}>
+          <div key={id} style={{ position: "absolute", left: x, top: y, width: w, opacity: 1 - landed(i), filter: `drop-shadow(0 ${16 * (1 - t)}px ${28 * (1 - t)}px rgba(0,0,0,0.16))` }}>
             <div style={{ position: "relative", width: w, height: mix(316 * (w / 600), r.height * cam.s, t), overflow: "hidden", borderRadius: mix(26, 8, t) }}>
               <div style={{ opacity: 1 - seg(b, start + land * 0.55, land * 0.4) }}>
-                <LinkCard link={TURN_LINKS[i] ?? LINKS.canopy} width={w} />
+                <LinkCard link={link} width={w} />
               </div>
             </div>
           </div>
         );
       })}
-      <div style={{ display: "none" }}>{width + height}</div>
+      <Supers />
+    </Paper>
+  );
+}
+
+function AcceptShot() {
+  const shot = useShot();
+  const b = useBeat();
+  const pane = shot.panes![0];
+  const cam = useCam(pane);
+  const name = pane.scene!;
+  const items = (scene(name).menu ?? []) as MenuEntry[];
+  const m = shot.marks!;
+  const rowsB = Object.values(fr(name, indexOf(name, "rest")).rows ?? {}).filter((r): r is Rect => !!r);
+  const bottom = rowsB.length ? Math.max(...rowsB.map((r) => r.y + r.height)) + 60 : 220;
+  const mx = 120;
+  const my = bottom;
+  const target = menuRowTop(items, "addShared");
+  const p = pointerPath(b, [
+    { at: m.menu - 0.1, x: mx, y: my },
+    { at: m.menu, x: mx, y: my, click: true },
+    { at: m.pick - 0.3, x: mx + 110, y: my + target },
+    { at: m.pick, x: mx + 110, y: my + target, click: true },
+    { at: m.arrive + 1.6, x: mx + 200, y: my + 240 },
+  ], 0.8);
+  const arr = arrival(name, b, m.arrive, { before: "rest", after: "added" });
+  return (
+    <Paper>
+      <Screen id={pane.id} src={name} index={arr.index} view={cam} tag={PEOPLE.tomas.name} tagColor={PEOPLE.tomas.color}>
+        {arr.overlay}
+        <MacMenu items={items} x={mx + 3} y={my + 2} b={b} open={m.menu + 0.05} close={m.pick + 0.25} hover={b >= m.pick - 0.5 ? "addShared" : null} flash={m.pick} />
+        <Halo rect={arr.halo} b={b} at={m.arrive} color={PEOPLE.tomas.color} />
+        {p ? <Pointer x={p.x} y={p.y} press={p.press} /> : null}
+      </Screen>
       <Supers />
     </Paper>
   );
@@ -339,9 +401,8 @@ function ShareShot() {
 function FilesShot() {
   const shot = useShot();
   const b = useBeat();
-  const listing = (scene("sf-sub") as unknown as { files?: string[] }).files ?? [];
-  const files = listing.slice(1, listing.indexOf("") < 0 ? undefined : listing.indexOf(""));
-  const show = easeOut(clamp(b / 0.8));
+  const files = (scene("story-share-priya") as unknown as { files?: string[] }).files ?? [];
+  const show = 1;
   return (
     <Paper>
       <Box id={shot.panes![0].id} style={{ opacity: show, translate: `0 ${(1 - show) * 30}px`, scale: String(1 + 0.02 * seg(b, 0, 6, (x) => x)) }}>
@@ -356,7 +417,7 @@ function FilesShot() {
           <div style={{ marginTop: 26 }}>
             {files.map((n, i) => {
               const dir = !n.endsWith(".webloc");
-              const t = seg(b, 0.6 + i * 0.18, 0.5);
+              const t = 0.35 + 0.65 * seg(b, 0.2 + i * 0.16, 0.5);
               return (
                 <div key={n} style={{ display: "flex", alignItems: "center", gap: 16, height: 66, borderTop: i ? "1px solid #F0EEEA" : "none", fontSize: 29, color: "#1D1D1F", opacity: t, translate: `${(1 - t) * 24}px 0` }}>
                   <Img src={staticFile(dir ? "brand/sf/folder-plain.png" : "brand/sf/sym-link.png")} style={{ width: dir ? 34 : 24, height: dir ? 34 : 24, opacity: dir ? 1 : 0.45 }} />
@@ -400,9 +461,10 @@ function CallbackShot() {
 function EndShot() {
   const shot = useShot();
   const b = useBeat();
-  const s = easeOut(clamp(b / 0.6));
+  const lock = shot.marks!.lockup;
+  const s = easeOut(clamp((b - lock) / 0.6));
   const bob = Math.sin(b * 1.1) * 4;
-  const push = 1 + 0.025 * seg(b, 0, 8, (x) => x);
+  const push = 1 + 0.025 * seg(b, 0, shot.beats, (x) => x);
   return (
     <Paper>
       <div style={{ position: "absolute", inset: 0, scale: String(push) }}>
@@ -420,6 +482,7 @@ export const SHOTS: Record<ShotKind, ComponentType> = {
   turn: TurnShot,
   panes: PanesShot,
   share: ShareShot,
+  accept: AcceptShot,
   files: FilesShot,
   callback: CallbackShot,
   end: EndShot,
