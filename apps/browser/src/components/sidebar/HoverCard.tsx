@@ -114,7 +114,8 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
         {tab.url ? (
           <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
-            label={bookmarked ? "Bookmarked" : "Bookmark"}
+            active={bookmarked}
+            label="Bookmark"
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}

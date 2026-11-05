@@ -108,7 +108,7 @@ export const ActionTile = forwardRef<
             {caption ? (
               <>
                 <Symbol name={icon} size={13} color={active ? theme.accent : theme.icon} style={CAPTION_GLYPH} />
-                <Text size="tiny" tone="textSecondary">
+                <Text lines={1} size="tiny" tone="textSecondary">
                   {label}
                 </Text>
               </>

@@ -44,6 +44,7 @@ export function DraggableChip({
   out?: GroupOut;
 }) {
   const active = useIsActiveTab(tabId);
+  const dragToGroup = useSettings((s) => s.dragToGroupInTopStrip);
   const strip = useContext(DockContext);
   const latestStrip = useRef(strip);
   latestStrip.current = strip;
@@ -66,7 +67,7 @@ export function DraggableChip({
     gap: GAP,
     range,
     cross: dock ? tabIn(() => latestStrip.current, from, width) : undefined,
-    targets: !group && from >= 0 ? strip?.targets : undefined,
+    targets: dragToGroup && !group && from >= 0 ? strip?.targets : undefined,
     drop: (dx, ids) => {
       if (!member) return false;
       const at = leaveIndex(member.top, member.slot, member.chip, member.expanded, member.left + dx, width);

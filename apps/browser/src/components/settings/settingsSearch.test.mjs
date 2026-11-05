@@ -114,11 +114,11 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   const unshown = (settings, env) => new Set(unshownSettings({ ...DEFAULT_SETTINGS, ...settings }, env).split("\n").filter(Boolean));
   const across = unshown({}, { top: true });
   for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
-  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], []);
+  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], ["tabs.dragToGroupInTopStrip"]);
   assert.ok(unshown({}, { top: false, glass: true }).has("appearance.glassTintAmount"));
   for (const id of ["appearance.interfaceStyle", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]) assert.ok(unshown({}, { top: false }).has(id), id);
   const classic = unshown({ interfaceStyle: "classic" }, { top: false, glass: true });
-  assert.deepEqual([...classic], ["appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
+  assert.deepEqual([...classic], ["tabs.dragToGroupInTopStrip", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
   assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.memorySaverMode"));
   assert.ok(unshown({ pageEngine: "webkit" }, { top: false }).has("engines.protectedVideo"));
 });
