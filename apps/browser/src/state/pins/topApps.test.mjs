@@ -667,3 +667,13 @@ test("the split never empties a profile in a window, shown or not", () => {
   S().switchProfile(w, work);
   assert.ok(view(w, work).some((id) => S().tabs[id].pinnedUrl === "https://mail.com"), "Work still has the tab it had in this window");
 });
+
+test("a tab in no saved window never decides who owns a tile", () => {
+  const { saved, work } = mergedBy0244();
+  delete saved.pinChoices;
+  const original = saved.tabs.find((t) => t.profileId === "default" && t.pinnedUrl === "https://mail.com" && !t.pinKey);
+  for (const w of saved.windows) w.tabIds = w.tabIds.filter((id) => id !== original.id);
+  const w = relaunch(saved);
+  S().switchProfile(w, work);
+  assert.ok(topApps(w, work).includes("https://mail.com"), "Work keeps its Mail, the only one left");
+});

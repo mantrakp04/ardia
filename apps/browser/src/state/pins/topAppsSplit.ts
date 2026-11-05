@@ -35,7 +35,8 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
   const circles = (isString(doc.topAppsMerged) ? doc.topAppsMerged.split("|") : []).map((k) => k.split(",").filter(keepsOwn)).filter((c) => c.length > 1);
   if (!circles.length) return profiles === doc.profiles ? doc : { ...doc, profiles };
 
-  const tabs = list(doc.tabs).filter((t) => isString(t.id));
+  const inWindow = new Set(list(doc.windows).flatMap((w) => (isStringList(w.tabIds) ? w.tabIds : [])));
+  const tabs = list(doc.tabs).filter((t) => isString(t.id) && inWindow.has(t.id));
   const inPinnedGroup = new Set(list(doc.groups).filter((g) => g.pinned === true && isStringList(g.tabIds)).flatMap((g) => g.tabIds as string[]));
   const inSplit = new Set(list(doc.splits).flatMap(slotIds));
   const isLiveTile = (t: Fields) => pinAs(t) === "tile" && !inPinnedGroup.has(t.id as string);
