@@ -105,6 +105,8 @@ export const isLiquidGlass = (): boolean => GlassEffectModule.isLiquidGlass();
 
 export const GlassEffect = requireNativeViewManager<GlassEffectProps>("ArdiaGlassEffect");
 
+export const GlassGroup = requireNativeViewManager<ViewProps>("ArdiaGlassGroup");
+
 export type PopoverBubbleProps = ViewProps & {
   material?: "popover" | "menu" | "hudWindow" | "sheet" | "toolTip";
   dark?: boolean;

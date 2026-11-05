@@ -328,3 +328,19 @@ test("a theme without an angle publishes no angle record", async () => {
   await a.sync();
   assert.ok(!Object.keys(a.scope.records).some((key) => key.endsWith(":angle")));
 });
+
+test("a profile's choice to keep its own Top Apps syncs to the other Mac", async () => {
+  const folder = new Folder();
+  const a = new Mac("a", folder);
+  await a.sync();
+  const b = new Mac("b", folder, { joining: true });
+  await rounds([a, b], 3);
+  a.with(() => S().updateProfile("default", { ownTopApps: true }));
+  await rounds([a, b], 3);
+  assert.equal(b.profile().ownTopApps, true, "B's profile keeps its own Top Apps too");
+  assert.equal(await rounds([a, b], 4), 0);
+  b.with(() => S().updateProfile("default", { ownTopApps: undefined }));
+  await rounds([a, b], 3);
+  assert.equal(a.profile().ownTopApps, undefined, "and shares again when B's does");
+  assert.equal(await rounds([a, b], 4), 0);
+});

@@ -25,6 +25,7 @@ extern ArdiaBootstrapDelegate *gBootstrap;
 extern bool gScratchDataDir;
 extern NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts;
 void LinksArrived(NSArray<NSURL *> *urls);
+void ReplayLaunchURLs(NSArray<NSURL *> *urls);
 void StartLaunchTab();
 void StartEarlyWindow();
 

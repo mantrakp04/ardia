@@ -11,7 +11,7 @@ from ardia_cli import endpoint
 SOCKET_FILE = "ArdiaControl.sock"
 SUN_PATH_MAX = 103
 MAX_LINE = 1024 * 1024
-PROTOCOL = 1
+PROTOCOL = 2
 CONNECT_TIMEOUT = 5.0
 CALL_TIMEOUT = 30.0
 EVENT_QUEUE_CAP = 1000
@@ -24,7 +24,36 @@ EVENTS = (
     "tab.activated",
     "tab.navigated",
     "settings.changed",
+    "app.launched",
+    "app.quitting",
+    "app.activated",
+    "app.deactivated",
+    "tab.idle",
+    "tab.resumed",
+    "media.started",
+    "media.stopped",
+    "tab.crashed",
+    "notification.shown",
+    "peek.opened",
+    "peek.closed",
+    "littleArdia.opened",
+    "split.created",
+    "split.closed",
+    "pin.added",
+    "pin.removed",
+    "tab.moved",
+    "profile.switched",
+    "system.sleep",
+    "system.wake",
+    "user.idle",
+    "user.active",
+    "page.error",
 )
+NAMED_ONLY_EVENTS = ("notification.shown", "app.activated", "app.deactivated", "system.sleep", "system.wake", "user.idle", "user.active")
+TAB_IDLE_EVENTS = ("tab.idle", "tab.resumed")
+USER_IDLE_EVENTS = ("user.idle", "user.active")
+DECIDE_EVENTS = ("tab.opening", "link.opening", "download.deciding", "permission.requested")
+DECIDE_QUEUE_CAP = 256
 SOL_LOCAL = 0
 LOCAL_PEERCRED = 0x001
 XUCRED_SIZE = 76
@@ -98,6 +127,7 @@ class Connection:
         self._lost: str | None = None
         self.event_cap = EVENT_QUEUE_CAP
         self._dropped = 0
+        self._decides: asyncio.Queue = asyncio.Queue()
         self._task = asyncio.ensure_future(self._read())
         self.info: dict = {}
 
@@ -131,6 +161,10 @@ class Connection:
                     future = self._pending.pop(ident)
                     if not future.done():
                         future.set_result(message)
+                elif isinstance(message.get("decide"), str):
+                    if self._decides.qsize() >= DECIDE_QUEUE_CAP:
+                        self._decides.get_nowait()
+                    self._decides.put_nowait(message)
                 elif isinstance(message.get("event"), str):
                     if self._events.qsize() >= self.event_cap:
                         self._events.get_nowait()
@@ -146,6 +180,7 @@ class Connection:
                 future.set_exception(unreachable(reason))
         self._pending.clear()
         self._events.put_nowait(None)
+        self._decides.put_nowait(None)
         self._writer.close()
 
     async def call(self, method: str, params: dict | None = None, timeout: float | None = CALL_TIMEOUT):
@@ -184,8 +219,24 @@ class Connection:
             raise MethodError(str(error.get("code") or "failed"), str(error.get("message") or "failed"))
         return reply.get("result")
 
-    async def subscribe(self, names) -> None:
-        await self.call("subscribe", {"events": list(names)})
+    async def subscribe(self, names, extra: dict | None = None):
+        return await self.call("subscribe", {"events": list(names), **(extra or {})})
+
+    async def next_decide(self) -> dict:
+        if self._lost and self._decides.empty():
+            raise unreachable(self._lost)
+        item = await self._decides.get()
+        if item is None:
+            self._decides.put_nowait(None)
+            raise unreachable(self._lost)
+        return item
+
+    async def answer(self, decide: str, answer) -> bool:
+        try:
+            await self.call("answer", {"decide": decide, "answer": answer}, timeout=5)
+            return True
+        except (MethodError, Unreachable):
+            return False
 
     async def next_line(self, timeout: float | None = None) -> tuple[dict, str]:
         if self._lost and self._events.empty():

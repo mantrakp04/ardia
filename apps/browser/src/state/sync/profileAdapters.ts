@@ -7,7 +7,7 @@ import { PROFILE, PROFILE_THEME, SHARE, profileRecord } from "./records";
 
 const store = () => useBrowser.getState();
 
-export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; th?: ProfileTheme | null };
+export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; o?: true; th?: ProfileTheme | null };
 
 export type ProfileThemeRecord = { t: ProfileTheme } | { preset: true };
 
@@ -58,6 +58,7 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
           c: p.color,
           i: p.icon,
           ...(id === DEFAULT_PROFILE_ID ? { d: true } : {}),
+          ...(p.ownTopApps ? { o: true } : {}),
         } satisfies ProfileRecord);
       }
       const mine = new Set(values.keys());
@@ -68,7 +69,7 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
         const record = profileRecord(visible.get(`${PROFILE}${syncId}`));
         if (!record || !changed.has(`${PROFILE}${syncId}`)) continue;
         const legacy = store().profiles[id]!.theme === undefined && !records.known(`${PROFILE_THEME}${syncId}`) ? legacyThemeOf(record) : null;
-        store().updateProfile(id, { name: record.n, icon: record.i });
+        store().updateProfile(id, { name: record.n, icon: record.i, ownTopApps: record.o });
         store().setProfileLook(id, { color: record.c, ...legacy });
       }
     },

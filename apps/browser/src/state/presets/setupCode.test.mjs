@@ -10,6 +10,7 @@ const ARC = {
   preset: "arc",
   settings: {
     tabLayout: "sidebar",
+    sidebarSide: "left",
     addressBar: "sidebar",
     commandBarPlacement: "centred",
     newTabOpens: "commandBar",
@@ -125,4 +126,13 @@ test("the summary names what the code sets, in plain words", () => {
     "3 apps pinned",
   ]);
   assert.deepEqual(describeSetupChoices({ settings: { tabLayout: "top", addressBar: "sidebar" } }), ["Tabs along the top"]);
+});
+
+test("the sidebar side rides in the code, and codes from before it still decode", () => {
+  const right = { settings: { tabLayout: "sidebar", sidebarSide: "right" } };
+  assert.deepEqual(decodeSetupCode(encodeSetupCode(right)), { ok: true, choices: right });
+  assert.deepEqual(decodeSetupCode(signed("t0a1")), { ok: true, choices: { settings: { tabLayout: "sidebar", addressBar: "sidebar" } } });
+  assert.deepEqual(describeSetupChoices(right), ["Tabs in the sidebar", "Sidebar on the right"]);
+  assert.deepEqual(describeSetupChoices({ settings: { tabLayout: "top", sidebarSide: "right" } }), ["Tabs along the top"]);
+  assert.deepEqual(describeSetupChoices({ settings: { tabLayout: "sidebar", sidebarSide: "left" } }), ["Tabs in the sidebar"]);
 });

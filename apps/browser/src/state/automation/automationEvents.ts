@@ -3,18 +3,9 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { focusedWindowOf } from "../windows/ui";
 import { eligibleKind, isEligibleTab, shownPage } from "./automationWindows";
+import type { AutomationEventName } from "./eventNames";
 
-export const AUTOMATION_EVENTS = [
-  "window.opened",
-  "window.closed",
-  "window.focused",
-  "tab.opened",
-  "tab.closed",
-  "tab.activated",
-  "tab.navigated",
-  "settings.changed",
-] as const;
-export type AutomationEventName = (typeof AUTOMATION_EVENTS)[number];
+export { AUTOMATION_EVENTS, type AutomationEventName } from "./eventNames";
 export type AutomationEventSink = (name: AutomationEventName, data: Record<string, unknown>) => void;
 
 type Commit = { url: string; at: number };
@@ -92,12 +83,21 @@ function holdNavigation(tabId: string, url: string, sameDocument: boolean) {
   releaseNavigations(tabId);
 }
 
-export function noteCommit(tabId: string, url: string | undefined, at: number | undefined) {
+function sendPageError(tabId: string, url: string, status: number) {
+  const s = useBrowser.getState();
+  if (!sink || !isEligibleTab(s, tabId)) return;
+  const t = s.tabs[tabId]!;
+  sink("page.error", { windowId: t.windowId, tabId, profile: t.profileId, url: shownPage({ ...t, url }).url, status });
+}
+
+export function noteCommit(tabId: string, url: string | undefined, at: number | undefined, httpStatus?: number) {
   if (!sink || url === undefined || at === undefined || !url || url === "about:blank") return;
   const last = commits.get(tabId) ?? { url: "", at: startedAt };
   if (at <= last.at && url === last.url) return;
   commits.set(tabId, { url, at: Math.max(at, last.at) });
-  holdNavigation(tabId, url, at <= last.at);
+  const document = at > last.at;
+  if (document && typeof httpStatus === "number" && httpStatus >= 400 && httpStatus <= 599) sendPageError(tabId, url, httpStatus);
+  holdNavigation(tabId, url, !document);
 }
 
 export function startEventFeed(send: AutomationEventSink) {

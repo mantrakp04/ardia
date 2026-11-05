@@ -28,7 +28,9 @@ import { ShortcutsPane } from "./panes/Shortcuts";
 import { SyncPane } from "./panes/Sync";
 import { TabsPane } from "./panes/Tabs";
 import { useSettingsSheet } from "../../state/settings/sheet";
-import { goToSettingsPane, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { goToSettingsPane, SETTINGS_WINDOW_ID, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { closeProfileIconPickerIn } from "../../state/profiles/iconPicker";
+import { ProfileIconPicker } from "../profiles/ProfileIconPicker";
 import { settingsProfileFor } from "../../state/extensions/store";
 import { useSettingsColors } from "./useSettingsColors";
 import { settingsLayout } from "./tokens";
@@ -80,6 +82,7 @@ export function SettingsWindow() {
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);
+  useEffect(() => closeProfileIconPickerIn(SETTINGS_WINDOW_ID), [key]);
   const content = useRef<View>(null);
   const scrollTop = useRef(0);
   const viewport = useRef(0);
@@ -159,6 +162,7 @@ export function SettingsWindow() {
           </View>
         </ScrollView>
       </View>
+      <ProfileIconPicker windowId={SETTINGS_WINDOW_ID} />
       {sheet}
     </View>
   );

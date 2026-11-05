@@ -1,5 +1,5 @@
 import { removeDownloadStaging, type Download } from "../../platform/downloads";
-import { readDocument, writeDocument } from "../../platform/documents";
+import { documentSaved, readDocument, writeDocument } from "../../platform/documents";
 import { SESSION_DOCUMENT } from "./sessionDocument";
 import { useBrowser, type BrowserState, type HydrateData } from "../browser/store";
 import { inPinnedContainer, isIncognitoProfile, snapshotTab } from "../browser/model";
@@ -17,6 +17,7 @@ import { parseSettingsMeta, sessionWithSettingsMeta } from "../settings/settings
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
+import { profilesAfterSharingSetting } from "../pins/topApps";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
@@ -87,6 +88,7 @@ const SESSION_FIELDS = {
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
   pinSync: field(["pinSync"], (s) => publicProfiles(s.pinSync)),
+  topAppsMerged: field(["topAppsMerged"], (s) => s.topAppsMerged),
   closedGroups: field(["closedGroups"], (s) => s.closedGroups.filter((c) => c.tabs.every(publicTab))),
   deletedGroups: field(["deletedGroups"], (s) => s.deletedGroups.filter((c) => c.tabs.every(publicTab))),
   cleanedTabs: field(["cleanedTabs"], (s) => s.cleanedTabs.filter((c) => publicTab(c.tab))),
@@ -127,7 +129,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
   return {
-    profiles: byProfile(raw.profiles, profileOk),
+    profiles: profilesAfterSharingSetting(byProfile(raw.profiles, profileOk), raw.settings),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
@@ -144,6 +146,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, parkedSplitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
+    topAppsMerged: typeof raw.topAppsMerged === "string" ? raw.topAppsMerged : undefined,
     closedGroups: rows(raw.closedGroups, tabListOk),
     deletedGroups: rows(raw.deletedGroups, tabListOk),
     cleanedTabs: rows(raw.cleanedTabs, closedTabOk),
@@ -159,11 +162,13 @@ function read(name: string): string | null {
   }
 }
 
-function write(name: string, json: string) {
+function write(name: string, json: string): boolean {
   try {
     writeDocument(name, json);
+    return true;
   } catch (error) {
     console.warn(`Couldn't save ${name}`, error);
+    return false;
   }
 }
 
@@ -228,13 +233,26 @@ export function loadSession({ restoreSession }: LaunchOverrides = {}): HydrateDa
 }
 
 let flush: () => void = () => {};
+let unstaged: () => boolean = () => false;
 let resume: () => void = () => {};
 let frozen = false;
 
-export function flushPersistence({ final = false } = {}) {
+export function flushPersistence({ final = false } = {}): boolean {
+  const saving = !frozen;
   flush();
   if (final && !frozen) saveLaunchLook(useBrowser.getState());
   if (final) frozen = true;
+  return saving;
+}
+
+export async function sessionSaved(): Promise<boolean> {
+  if (!flushPersistence() || unstaged()) return false;
+  try {
+    await documentSaved(SESSION_DOCUMENT);
+    return !frozen;
+  } catch {
+    return false;
+  }
 }
 
 export function resumePersistence() {
@@ -242,8 +260,14 @@ export function resumePersistence() {
   resume();
 }
 
+let restoredAtLaunch = false;
+
+export const sessionRestoredAtLaunch = () => restoredAtLaunch;
+
 export function startPersistence(overrides: LaunchOverrides = {}) {
-  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
+  const loaded = loadSession(overrides);
+  restoredAtLaunch = !!loaded?.windowOrder?.length;
+  useBrowser.getState().hydrate(loaded ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();
@@ -258,14 +282,15 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
     const s = useBrowser.getState();
     for (const doc of DOCS.filter((d) => dirty.has(d))) {
       const json = doc.json(s);
-      if (lastJson.get(doc.name) !== json) {
+      if (lastJson.get(doc.name) === json || write(doc.name, json)) {
         lastJson.set(doc.name, json);
-        write(doc.name, json);
+        dirty.delete(doc);
       }
     }
-    dirty.clear();
+    if (dirty.size) timer = setTimeout(save, SAVE_DELAY_MS);
   };
   flush = save;
+  unstaged = () => [...dirty].some((d) => d.name === SESSION_DOCUMENT);
 
   const check = (s: BrowserState, initial = false) => {
     if (frozen) return;

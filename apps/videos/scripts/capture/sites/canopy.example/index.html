@@ -1,0 +1,132 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Canopy & Street Heat</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#16232b;--soft:#4a5a63;--mute:#7b8a92;--line:#dde4e7;--teal:#0e5e6f;--teal2:#e6f1f2;--warm:#c4521d;--paper:#fbfcfc}
+body{font-family:"Avenir Next",-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}
+.top{background:var(--teal);color:#fff;font-size:12px;letter-spacing:.02em}
+.top .in{max-width:1180px;margin:0 auto;padding:7px 28px;display:flex;gap:22px;align-items:center}
+.top .in span{opacity:.82}.top .in b{font-weight:600;opacity:1;margin-left:auto}
+header.mast{border-bottom:1px solid var(--line);background:#fff}
+header.mast .in{max-width:1180px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;gap:18px}
+.logo{display:flex;align-items:center;gap:11px}
+.logo i{width:38px;height:38px;border-radius:9px;background:var(--teal);display:grid;place-items:center;color:#fff;font:700 22px/1 "Iowan Old Style",Charter,Georgia,serif;font-style:normal}
+.logo div{font:600 19px/1.1 "Iowan Old Style",Charter,Georgia,serif;letter-spacing:-.005em}
+.logo small{display:block;white-space:nowrap;font:500 11px/1.4 "Avenir Next",sans-serif;color:var(--mute);letter-spacing:.06em;text-transform:uppercase}
+.search{width:200px}nav.main{display:flex;gap:22px;margin-left:34px;white-space:nowrap;font-size:14px;color:var(--soft);font-weight:500}
+nav.main .on{color:var(--teal);box-shadow:inset 0 -2px 0 var(--teal);padding-bottom:4px}
+.search{margin-left:auto;width:230px;height:34px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;padding:0 11px;gap:8px;color:var(--mute);font-size:13px;background:#f6f8f9;white-space:nowrap;overflow:hidden}
+.btn-s{white-space:nowrap;height:34px;padding:0 14px;border-radius:8px;background:var(--ink);color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center}
+.crumbs{max-width:1180px;margin:0 auto;padding:14px 28px 0;font-size:12.5px;color:var(--mute)}
+.crumbs a{color:var(--teal);text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:6px 28px 60px;display:grid;grid-template-columns:172px 1fr 248px;gap:34px}
+aside.toc{position:sticky;top:20px;align-self:start;padding-top:18px;font-size:13px}
+aside.toc h4,.side h4{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);font-weight:600;margin-bottom:10px}
+aside.toc ol{list-style:none;border-left:2px solid var(--line)}
+aside.toc li{padding:6px 0 6px 13px;color:var(--soft);margin-left:-2px;border-left:2px solid transparent}
+aside.toc li.on{border-color:var(--teal);color:var(--teal);font-weight:600}
+.metrics{margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metrics div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+.metrics b{display:block;font-size:17px;font-weight:600}
+.metrics span{font-size:11px;color:var(--mute)}
+main{padding-top:14px;min-width:0}
+.tags{display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:12px}
+.oa{display:inline-flex;align-items:center;gap:6px;color:#b4561f;font-weight:600}
+.oa svg{width:12px;height:14px}
+.pill{border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:var(--soft);background:#fff}
+h1{font:600 30px/1.17 "Iowan Old Style",Charter,Georgia,serif;letter-spacing:-.012em;margin-bottom:14px;text-wrap:balance}
+.authors{font-size:14.5px;color:var(--ink);line-height:1.6}
+.authors sup{color:var(--teal);font-size:10px;margin-left:1px}
+.authors .orc{display:inline-block;width:11px;height:11px;border-radius:50%;background:#7fae3c;vertical-align:-1px;margin-left:3px}
+.affil{font-size:12.5px;color:var(--mute);margin:4px 0 12px;line-height:1.5}
+.pub{display:flex;gap:14px;font-size:12px;white-space:nowrap;overflow:hidden;color:var(--soft);padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:14px}
+.pub b{color:var(--ink);font-weight:600}
+.acts{display:flex;gap:9px;margin-bottom:22px}
+.a{white-space:nowrap;height:36px;padding:0 15px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.a.pdf{background:var(--warm);border-color:var(--warm);color:#fff}
+.a svg{width:15px;height:15px}
+.abs{background:var(--teal2);border-radius:12px;padding:18px 22px;margin-bottom:20px}
+.abs h2{font:600 13px/1 "Avenir Next",sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:9px}
+.abs p{font:16px/1.58 Charter,"Iowan Old Style",Georgia,serif;color:#24343c}
+.kw{display:flex;flex-wrap:wrap;gap:7px;margin:-6px 0 24px}
+.kw span{font-size:12px;padding:4px 10px;border-radius:5px;background:#fff;border:1px solid var(--line);color:var(--soft)}
+.kw b{font-size:12px;color:var(--mute);font-weight:600;margin-right:4px;align-self:center}
+figure.hero{margin:0 0 22px}
+figure.hero img{width:100%;height:300px;object-fit:cover;border-radius:10px;display:block}
+figcaption{font-size:13px;line-height:1.5;color:var(--soft);margin-top:9px}
+figcaption b{color:var(--ink)}
+h3{font:600 22px/1.25 "Iowan Old Style",Charter,Georgia,serif;margin:24px 0 10px}
+h3 em{font-style:normal;color:var(--teal);margin-right:8px}
+main p.t{font:16.5px/1.66 Charter,"Iowan Old Style",Georgia,serif;color:#25323a;margin-bottom:13px}
+main p.t a{color:var(--teal)}
+.side{padding-top:18px;font-size:13px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:16px}
+.chart svg{display:block;width:100%;height:auto}
+.chart p{font-size:12px;color:var(--soft);line-height:1.45;margin-top:8px}
+.chart p b{color:var(--ink)}
+.rel a{display:block;color:var(--ink);text-decoration:none;font:500 13.5px/1.38 "Iowan Old Style",Charter,Georgia,serif;padding:9px 0;border-top:1px solid var(--line)}
+.rel a:first-of-type{border-top:0;padding-top:2px}
+.rel a span{display:block;font:12px/1.4 "Avenir Next",sans-serif;color:var(--mute);margin-top:3px}
+.cite{font-size:12px;line-height:1.5;color:var(--soft);font-family:ui-monospace,Menlo,monospace;background:#f4f7f8;border-radius:8px;padding:10px}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr 236px}aside.toc{display:none}nav.main span:nth-child(4){display:none}.search{width:170px}}
+</style></head><body>
+<div class="top"><div class="in"><span>Open access since 2011</span><span>Peer reviewed · Diamond OA</span><span>ISSN 2799-4410</span><b>Submit a manuscript →</b></div></div>
+<header class="mast"><div class="in">
+<div class="logo"><i>J</i><div>Journal of City Climates<small>Urban heat · Hydrology · Green infrastructure</small></div></div>
+<nav class="main"><span>Current issue</span><span class="on">Articles</span><span>Collections</span><span>For authors</span><span>About</span></nav>
+<div class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7b8a92" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Search 4,812 articles</div>
+<div class="btn-s">Sign in</div>
+</div></header>
+<div class="crumbs"><a>Home</a> › <a>Volume 15 (2026)</a> › <a>Issue 3</a> › Research article</div>
+<div class="wrap">
+<aside class="toc"><h4>On this page</h4><ol><li class="on">Abstract</li><li>1. Introduction</li><li>2. Study area &amp; data</li><li>3. Methods</li><li>4. Results</li><li>5. Discussion</li><li>6. Conclusions</li><li>References (64)</li></ol>
+<div class="metrics"><div><b>18.4k</b><span>Views</span></div><div><b>2,931</b><span>Downloads</span></div><div><b>47</b><span>Citations</span></div><div><b>312</b><span>Saves</span></div></div></aside>
+<main>
+<div class="tags"><span class="oa"><svg viewBox="0 0 12 16"><path d="M3 7V4.5a3 3 0 0 1 6 0" fill="none" stroke="#b4561f" stroke-width="1.6"/><rect x="1" y="7" width="10" height="8" rx="2" fill="#b4561f"/></svg>Open access</span><span class="pill">Research article</span><span class="pill">Urban heat</span></div>
+<h1>Canopy cover and street-level heat: how mature street trees cool summer sidewalks across 212 city blocks</h1>
+<div class="authors">Maren Ostrowe<sup>1</sup><span class="orc"></span>, Tobias Ekwueme<sup>1,2</sup><span class="orc"></span>, Lucía Ferrand-Hale<sup>2</sup>, Idris Kanbara<sup>3</sup>, Hanne Solvik<sup>1</sup>✉</div>
+<div class="affil"><sup>1</sup> Department of Urban Ecology, Coastline Institute of Technology · <sup>2</sup> Centre for Climate-Ready Streets, Weller College · <sup>3</sup> Port Alder Public Works, Urban Forestry Division</div>
+<div class="pub"><span>Received <b>11 Feb 2026</b></span><span>Published <b>19 Jun 2026</b></span><span><b>15</b>(3): 241–268</span><span>doi:10.99814/jcc.2026.0341</span></div>
+<div class="acts">
+<div class="a pdf"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.7"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10"/></svg>Download PDF</div>
+<div class="a"><svg viewBox="0 0 16 16" fill="none" stroke="#16232b" stroke-width="1.6"><path d="M4 4h4v4H4zM4 8c0 2-1 3-2 4M10 4h4v4h-4zM10 8c0 2-1 3-2 4"/></svg>Cite</div>
+<div class="a"><svg viewBox="0 0 16 16" fill="none" stroke="#16232b" stroke-width="1.6"><path d="M4 2h8v12l-4-3-4 3z"/></svg>Save</div>
+<div class="a"><svg viewBox="0 0 16 16" fill="none" stroke="#16232b" stroke-width="1.6"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>Share</div>
+<div class="a">Data (4)</div>
+</div>
+<figure class="hero"><img src="img/0.jpg" alt=""><figcaption><b>Figure 1.</b> A residential block in the high-canopy class (52% cover). Mature crowns close over the carriageway by mid-June; sidewalk readings here peaked at 29.8 °C while an unshaded block 600 m away reached 34.6 °C on the same afternoon.</figcaption></figure>
+<section class="abs"><h2>Abstract</h2><p>Street trees are the cheapest air conditioner a city owns, but how much shade a block needs before pedestrians feel the difference is still argued. We paired 2,140 hand-held sidewalk readings with a tree-by-tree census across 212 blocks of a mid-sized coastal city during three heat waves. Blocks above 40% canopy were on average 4.1 °C cooler at 15:00 than blocks below 10%, and surface temperatures of shaded asphalt fell by up to 19 °C. Cooling rose steeply up to roughly 35% cover and then levelled off, suggesting that planting gaps on bare blocks returns more relief per tree than thickening already-shaded ones.</p></section>
+<div class="kw"><b>Keywords</b><span>street trees</span><span>urban heat island</span><span>canopy cover</span><span>thermal comfort</span><span>sidewalk temperature</span><span>green infrastructure</span></div>
+
+<h3><em>1</em>Introduction</h3>
+<p class="t">Heat is the deadliest weather in most temperate cities, and it is unevenly shared. Blocks with fewer trees tend to be blocks with more asphalt, older housing and fewer people who can leave town when the forecast turns. Municipal planting programmes have grown quickly since 2020, yet most still set targets by city-wide canopy percentage rather than by where shade is missing <a>[4, 11, 17]</a>.</p>
+<p class="t">Here we ask a narrower question that planners can act on: on a single block, how much canopy does it take before a person walking the sidewalk at three in the afternoon measurably feels cooler, and does each additional tree keep helping?</p>
+<h3><em>2</em>Study area and data</h3>
+<p class="t">Readings were taken on 212 blocks in Port Alder between 1 July and 28 August 2025, a summer that included three heat waves of four or more days above 31 °C.</p>
+</main>
+<aside class="side">
+<div class="card chart"><h4>Figure 3 · Cooling vs. canopy</h4>
+<svg viewBox="0 0 220 168" font-family="Avenir Next,sans-serif" font-size="8">
+<g stroke="#e8edef" stroke-width="1"><path d="M30 20H212M30 50H212M30 80H212M30 110H212M30 140H212"/></g>
+<g fill="#7b8a92" text-anchor="end"><text x="26" y="23">36</text><text x="26" y="53">34</text><text x="26" y="83">32</text><text x="26" y="113">30</text><text x="26" y="143">28</text></g>
+<g fill="#7b8a92" text-anchor="middle"><text x="30" y="154">0</text><text x="75" y="154">15</text><text x="121" y="154">30</text><text x="166" y="154">45</text><text x="212" y="154">60%</text></g>
+<text x="121" y="166" fill="#4a5a63" text-anchor="middle">Canopy cover on block</text>
+<text transform="translate(8 82) rotate(-90)" fill="#4a5a63" text-anchor="middle">Sidewalk °C at 15:00</text>
+<g fill="#c4521d" fill-opacity=".55" id="pts"></g>
+<path d="M30 28 C70 52 100 86 128 104 S180 116 212 118" fill="none" stroke="#0e5e6f" stroke-width="2.4"/>
+<path d="M30 22 C70 46 100 80 128 97 S180 109 212 111 L212 126 C180 124 152 116 128 112 S70 58 30 35Z" fill="#0e5e6f" fill-opacity=".1"/>
+</svg>
+<p><b>−4.1 °C</b> between the lowest and highest canopy classes. Gains flatten past ~35% cover (n = 212 blocks).</p></div>
+<div class="card"><h4>How to cite</h4><div class="cite">Ostrowe M, Ekwueme T, Ferrand-Hale L, Kanbara I, Solvik H. Canopy cover and street-level heat. <i>J City Clim</i>. 2026;15(3):241–268.</div></div>
+<div class="card rel"><h4>Related articles</h4>
+<a>Albedo or shade? Ranking cooling options for bus stops<span>Vol 15 · 2026 · 9 citations</span></a>
+<a>Night-time heat retention under dense urban canopy<span>Vol 14 · 2025 · 31 citations</span></a>
+<a>Who gets the shade? Canopy equity in eleven port cities<span>Vol 13 · 2024 · 88 citations</span></a></div>
+</aside>
+</div>
+<script>
+const g=document.getElementById("pts");let s=7;const r=()=>(s=(s*9301+49297)%233280)/233280;
+for(let i=0;i<70;i++){const c=Math.pow(r(),.85)*60;const base=35.6-4.6*(1-Math.exp(-c/16))-1.2*(c/60);const t=base+(r()-.5)*2.2;const x=30+c/60*182,y=20+(36-t)/8*120;g.insertAdjacentHTML("beforeend",`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.3"/>`)}
+</script>
+</body></html>

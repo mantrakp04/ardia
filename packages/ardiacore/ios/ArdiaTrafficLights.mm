@@ -19,6 +19,8 @@ const void *kLightsShownKey = &kLightsShownKey;
 
 const void *kLightsMoveKey = &kLightsMoveKey;
 
+const void *kLightsTrailingKey = &kLightsTrailingKey;
+
 }
 
 namespace {
@@ -171,10 +173,32 @@ void InstallTrafficLightsOrigin(Class frameClass) {
         return ((NSPoint (*)(id, SEL))standard)(frameView, sel);
       NSButton *close = [window standardWindowButton:NSWindowCloseButton];
       const NSSize size = close ? close.frame.size : NSMakeSize(14, 14);
-      const CGFloat height = NSHeight(frameView.bounds);
-      if (NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey))
-        return NSMakePoint(center.pointValue.x - size.width / 2, height - center.pointValue.y - size.height / 2);
-      return NSMakePoint(kTrafficLightInsetX, height - kTrafficLightTop - size.height);
+      const NSPoint center = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size);
+      return NSMakePoint(center.x - size.width / 2, NSHeight(frameView.bounds) - center.y - size.height / 2);
+    };
+  });
+}
+
+void InstallTitlebarReachingLights(Class frameClass) {
+  static NSMutableSet<Class> *installed = [NSMutableSet set];
+  if (!frameClass || [installed containsObject:frameClass]) return;
+  [installed addObject:frameClass];
+  const SEL sel = NSSelectorFromString(@"_currentTitlebarContainerViewFrame");
+  ReplaceMethod(frameClass, sel, ^id(IMP standard) {
+    return ^NSRect(NSView *frameView) {
+      NSRect frame = ((NSRect (*)(id, SEL))standard)(frameView, sel);
+      NSWindow *window = frameView.window;
+      if (!window || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen)) return frame;
+      NSValue *center = objc_getAssociatedObject(window, kLightsCenterKey);
+      if (!center) return frame;
+      NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+      const CGFloat reach = ceil(center.pointValue.y + (close ? NSHeight(close.frame) : 14) / 2);
+      const CGFloat top = frameView.isFlipped ? NSMinY(frame) : NSHeight(frameView.bounds) - NSMaxY(frame);
+      const CGFloat grow = reach - top - NSHeight(frame);
+      if (grow <= 0) return frame;
+      frame.size.height += grow;
+      if (!frameView.isFlipped) frame.origin.y -= grow;
+      return frame;
     };
   });
 }
@@ -278,7 +302,7 @@ namespace ardia_window {
 
 void RetileTrafficLights(NSWindow *window) {
   NSView *frameView = window.contentView.superview;
-  for (NSString *name in @[ @"_updateButtonPositions", @"_positionSharingIndicator" ]) {
+  for (NSString *name in @[ @"_updateTitlebarContainerViewFrameIfNecessary", @"_updateButtonPositions", @"_updateMouseTracking", @"_positionSharingIndicator" ]) {
     const SEL sel = NSSelectorFromString(name);
     if ([frameView respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(frameView, sel);
   }
@@ -292,8 +316,11 @@ NSArray<NSButton *> *TrafficLightButtons(NSWindow *window) {
   return buttons;
 }
 
-NSPoint LightsCenter(NSValue *center, NSSize size) {
-  return center ? center.pointValue : NSMakePoint(kTrafficLightInsetX + size.width / 2, kTrafficLightTop + size.height / 2);
+NSPoint LightsCenter(NSWindow *window, NSValue *center, NSSize size) {
+  if (!center) return NSMakePoint(kTrafficLightInsetX + size.width / 2, kTrafficLightTop + size.height / 2);
+  const NSPoint at = center.pointValue;
+  const BOOL trailing = objc_getAssociatedObject(window, kLightsTrailingKey) != nil;
+  return trailing ? NSMakePoint(NSWidth(window.frame) - at.x, at.y) : at;
 }
 
 void TranslateTrafficLights(NSWindow *window, CGFloat dx) {
@@ -324,6 +351,7 @@ void SettleTrafficLights(NSWindow *window) {
 void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   InstallTrafficLightsOrigin([window.contentView.superview class]);
+  InstallTitlebarReachingLights([window.contentView.superview class]);
   InstallSharingIndicatorBounds([window.contentView.superview class]);
   InstallSharingWindowBounds();
   RetileTrafficLights(window);
@@ -341,7 +369,7 @@ bool MoveTrafficLights(NSWindow *window, NSValue *center) {
   for (NSButton *button in buttons)
     if (!button.layer) return false;
   const NSSize size = buttons[0].frame.size;
-  const NSPoint laidOut = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size), to = LightsCenter(center, size);
+  const NSPoint laidOut = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size), to = LightsCenter(window, center, size);
   if (to.y != laidOut.y) return false;
   TranslateTrafficLights(window, to.x - laidOut.x);
   if (to.x == laidOut.x) {
@@ -381,4 +409,8 @@ void ConfigureWindow(NSWindow *window) {
 
 NSValue *ArdiaTrafficLightsCenter(NSWindow *window) {
   return window ? objc_getAssociatedObject(window, kLightsCenterKey) : nil;
+}
+
+BOOL ArdiaTrafficLightsTrailing(NSWindow *window) {
+  return window && objc_getAssociatedObject(window, kLightsTrailingKey) != nil;
 }

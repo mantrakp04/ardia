@@ -30,6 +30,7 @@ import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
 import { leftPage } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
+import { shareFromPage } from "../../state/site/share";
 import { useAutoPictureInPicture } from "../../state/media/pip";
 import { requestDisplayMedia } from "../../state/media/screenShare";
 import { setNowPlaying, setPictureInPictureState } from "../../state/media/media";
@@ -68,7 +69,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const seq = navigation?.seq;
   const adopted = useRef<string | null>(null);
   const [handoff] = useState(() => takeHandOff(tabId, engine));
-  const arrived = useRef(!!handoff && handoff.seq === navigation?.seq);
+  const arrived = useRef(!!handoff && (handoff.seq === navigation?.seq || isBlank(navigation?.url ?? "")));
   const loadsOnCreate = useRef(engine === "webkit" && !handoff ? navigation?.seq : undefined);
   useEffect(() => {
     if (!navigation) return;
@@ -137,8 +138,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteReady(tabId);
         void webviews.get(tabId)?.setMuted(isTabSilenced(tabId));
       }}
-      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt }) => {
-        noteCommit(tabId, committedUrl, committedAt);
+      onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
+        noteCommit(tabId, committedUrl, committedAt, httpStatus);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
         const untouched = committedInitial === undefined ? reported === "" && !(tab()?.openerId && adoptId) : committedInitial && !initialDocumentAccessed;
@@ -216,8 +217,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onPagePress={() => activateFocusedPane(tabId)}
       onWindowClose={() => !isQuitting() && closeTabNow(tabId)}
       onNotification={(notification) => showWebNotification(tabId, notification)}
-      onCommand={({ command, text, modifiers }) => {
+      onCommand={({ command, text, modifiers, share, anchor }) => {
         if (command === "search") searchSelection(tabId, text, modifiers);
+        else if (command === "share" && share) void shareFromPage(tab(), share, anchor);
         else if (command === "copyLinkToHighlight") void copyLinkToSelection(tabId);
         else if (command === "escape" && popoverOf(tabId)) setPopover(tabId, null);
         else if (command === "escape" && !closeFolderPanelIn(tab()?.windowId) && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);

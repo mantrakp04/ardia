@@ -18,6 +18,7 @@ import { menuCommandAlternate, menuShortcut } from "../commands/commandShortcuts
 import { openSettings } from "../settings/settingsWindows";
 import { profileAccentOf } from "../profiles/looks";
 import { isSiteMuted } from "../tabs/mute";
+import { groupCloseAllowed } from "../groups/closeGuard";
 import { focusedWindowOf } from "../windows/ui";
 
 const store = () => useBrowser.getState();
@@ -59,6 +60,7 @@ export async function closeGroup(groupId: string) {
   const group = s.groups[groupId];
   const w = group && s.windows[group.windowId];
   if (!group || !w) return;
+  if (!(await groupCloseAllowed(w.id, groupId))) return;
   if (s.settings.warnBeforeClosingTabGroup && !rootOf(s.groups, groupId)?.pinned) {
     const tabs = plural(group.tabIds.length, "tab");
     const { confirmed, suppressed } = await confirm({

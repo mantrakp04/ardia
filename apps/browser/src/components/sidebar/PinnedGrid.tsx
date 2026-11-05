@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
+import { GlassGroup, useGlass } from "../ui/Glass";
 import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
@@ -39,7 +40,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
       }}
       style={{ marginTop: flush ? 0 : topGap }}
     >
-      <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced) }}>
+      <GlassGroup style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced) }}>
         {tabs.map((cell, i) => {
           const x = (slots[i]! % columns) * (width + TILE_GAP);
           const y = Math.floor(slots[i]! / columns) * PIN_SLOT;
@@ -50,7 +51,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
             <PinnedTile key={cellKey(cell)} tabId={cell} width={width} sliding={dragging} x={x} y={y} />
           );
         })}
-      </View>
+      </GlassGroup>
       <Animated.View ref={tail.wrapper.ref} style={{ position: "absolute", right: 0, bottom: 0, width: 0, height: 0 }} />
     </View>
   );
@@ -150,6 +151,20 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const { wrapper, handle, dragging } = useDragItem(entryKey("tab", tabId), { kind: "tile", tabIds: [tabId], section: "tiles" });
   const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
+  const glass = useGlass();
+  const overlays = useMemo(
+    () => (
+      <>
+        <NextMeetingBadge tabId={tabId} />
+        {playing || mute ? (
+          <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
+            <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
+          </View>
+        ) : null}
+      </>
+    ),
+    [tabId, playing, mute, theme.textSecondary],
+  );
   if (!tab) return null;
 
   return (
@@ -161,14 +176,11 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
         onDoubleClick={() => returnShownTabToPinnedUrl(windowId, tabId)}
       >
         <TabPressArea windowId={windowId} tab={tab}>
-          {({ pressed }) => <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />}
+          {({ pressed }) => (
+            <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} badge={glass ? overlays : undefined} />
+          )}
         </TabPressArea>
-        <NextMeetingBadge tabId={tabId} />
-        {playing || mute ? (
-          <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
-            <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
-          </View>
-        ) : null}
+        {glass ? null : overlays}
       </View>
     </Animated.View>
   );

@@ -1,5 +1,6 @@
-import { GlassEffect, isLiquidGlass } from "@ardia/shell";
-import { createContext, memo, useContext } from "react";
+import { GlassEffect, GlassGroup as NativeGlassGroup, isLiquidGlass } from "@ardia/shell";
+import { createContext, memo, useContext, type ReactNode } from "react";
+import { View, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme, type Theme } from "./theme";
 import { parseColor, toHex } from "../../lib/color";
 
@@ -13,6 +14,7 @@ const PANEL_TINT_SHARE = 0.85;
 const PANEL_GLASS_STRENGTH = 0.5;
 const GLASS_STYLE = { control: "clear", panel: "regular" } as const;
 const STATE_GAIN = { rest: 1, lit: 2, pressed: 3, active: 6 } as const;
+const HOSTED_CONTENT = { alignItems: "center", justifyContent: "center" } as const;
 
 export type GlassKind = keyof typeof GLASS_STYLE;
 export type GlassState = keyof typeof STATE_GAIN;
@@ -53,6 +55,7 @@ export const GlassFill = memo(function GlassFill({
   panelFill,
   dark,
   theme: shownTheme,
+  children,
 }: {
   radius: number;
   border?: number;
@@ -60,6 +63,7 @@ export const GlassFill = memo(function GlassFill({
   panelFill?: string;
   dark?: boolean;
   theme?: Theme;
+  children?: ReactNode;
 }) {
   const contextTheme = useTheme();
   const theme = shownTheme ?? contextTheme;
@@ -73,7 +77,14 @@ export const GlassFill = memo(function GlassFill({
       cornerRadius={radius}
       tint={panelFill ? panelGlassTint(theme, panelFill, tint) : controlGlassTint(theme, state, tint)}
       dark={shownDark}
-      style={[frame, panelFill ? null : { opacity: CONTROL_GLASS_STRENGTH }]}
-    />
+      style={[frame, children ? HOSTED_CONTENT : panelFill ? null : { opacity: CONTROL_GLASS_STRENGTH }]}
+    >
+      {children}
+    </GlassEffect>
   );
 });
+
+export function GlassGroup({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const Group = useGlass() ? NativeGlassGroup : View;
+  return <Group style={style}>{children}</Group>;
+}

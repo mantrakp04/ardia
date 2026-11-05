@@ -29,7 +29,7 @@ export function useSection<N extends SectionName>(section: N, range?: RangeKey):
 export function SectionError({ error, onRetry, className }: { error: unknown; onRetry: () => void; className?: string }) {
   const message = error instanceof Error ? error.message : String(error);
   return (
-    <div role="alert" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad/25 bg-bad/[0.06] px-3 py-2.5 text-xs", className)}>
+    <div role="alert" className={cn("col-span-full flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad/25 bg-bad/[0.06] px-3 py-2.5 text-xs", className)}>
       <TriangleAlert className="size-3.5 shrink-0 text-bad" aria-hidden />
       <span className="min-w-0 flex-1 break-words text-foreground/80">Couldn't load this: {message}</span>
       <button
@@ -63,7 +63,7 @@ export function Loaded<T>({
       </div>
     );
   }
-  if (query.isError) return <SectionError error={query.error} onRetry={() => query.refetch()} className={className} />;
+  if (query.isError) return <SectionError error={query.error} onRetry={() => query.refetch()} />;
   return (
     <div className={className} aria-busy="true">
       {skeleton}

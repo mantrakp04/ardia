@@ -30,7 +30,7 @@ export type TourStop = {
   title: string;
   body: string;
   anchor?: TourAnchor;
-  placement?: "below" | "right" | "inside";
+  placement?: "below" | "besideSidebar" | "inside";
   radius?: number;
   pad?: number;
 };
@@ -50,7 +50,7 @@ const TOUR_STOPS: TourStop[] = [
     title: "Your tabs live in the sidebar",
     body: "New tabs land here. Drag them to reorder or group them; right-click one to pin it, so it's always a click away.",
     anchor: "tabs",
-    placement: "right",
+    placement: "besideSidebar",
     radius: 10,
     pad: 4,
   },

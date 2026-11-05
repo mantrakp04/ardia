@@ -16,9 +16,11 @@ export function MiniWindow({
   field,
   look,
   size = "m",
+  side = "left",
   children,
 }: {
   layout: "side" | "top" | "none";
+  side?: "left" | "right";
   bars?: number | number[];
   accentBar?: number;
   field?: "side" | "toolbar";
@@ -37,7 +39,7 @@ export function MiniWindow({
     borderColor: look.accent,
   });
   return (
-    <View style={{ flex: 1, padding: g.pad, gap: g.gap, flexDirection: layout === "top" ? "column" : "row", backgroundColor: look.window }}>
+    <View style={{ flex: 1, padding: g.pad, gap: g.gap, flexDirection: layout === "top" ? "column" : side === "right" ? "row-reverse" : "row", backgroundColor: look.window }}>
       {layout === "side" && (
         <View style={{ width: g.side, gap: g.barGap, paddingTop: field === "side" ? g.sideFieldTop : g.sideTop }}>
           {field === "side" && <View style={fieldStyle(g.sideField)} />}

@@ -10,7 +10,7 @@ import { useToolbarHeld } from "../../state/app/transientUi";
 import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
 import { curve } from "../ui/motion";
-import { Divider, reduceMotion, space, Text } from "../ui";
+import { reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
 import { motionStep, tallPage, type MotionValue, type TallPage } from "./toolbarMotion";
 import { useToolbarRow } from "./useToolbarRow";
@@ -145,9 +145,9 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
       </Animated.View>
       {url ? (
-        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: H - 1, height: 1, justifyContent: "flex-end", transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}>
-          <Divider color={palette.divider} />
-        </Animated.View>
+        <Animated.View
+          style={{ position: "absolute", left: 0, right: 0, top: H - 1, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider, transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}
+        />
       ) : null}
     </View>
   );

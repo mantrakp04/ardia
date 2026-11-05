@@ -1,0 +1,103 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Journal Club Notes</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#22241c;--soft:#585b4c;--mute:#9a9c8c;--line:#e7e6dc;--olive:#56662a;--olive2:#eef2e0;--paper:#fffefa}
+body{font-family:-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;font-size:14px}
+.bar{height:46px;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--mute);white-space:nowrap;background:#fff}
+.bar .lg{width:24px;height:24px;border-radius:6px;background:var(--olive);display:grid;place-items:center;margin-right:4px}
+.bar b{color:var(--ink);font-weight:500}
+.bar .r{margin-left:auto;display:flex;align-items:center;gap:10px}
+.bar .r .ed{color:var(--soft)}
+.avs{display:flex}.avs i{width:24px;height:24px;border-radius:50%;border:2px solid #fff;margin-left:-6px;display:grid;place-items:center;font:700 9px -apple-system,sans-serif;color:#fff;font-style:normal}
+.share{height:28px;padding:0 12px;border-radius:7px;background:var(--olive);color:#fff;font-weight:600;display:flex;align-items:center}
+.cover{height:120px;position:relative;overflow:hidden}
+.cover img{width:100%;height:100%;object-fit:cover;object-position:center 60%}
+.wrap{max-width:1120px;margin:0 auto;padding:0 40px 40px;display:grid;grid-template-columns:1fr 270px;gap:44px}
+.icon{width:62px;height:62px;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.12);margin-top:-32px;position:relative;display:grid;place-items:center}
+h1{font:700 34px/1.1 Palatino,"Palatino Linotype","Book Antiqua",serif;margin:12px 0 10px;letter-spacing:-.01em}
+.props{display:grid;grid-template-columns:120px 1fr;row-gap:6px;font-size:13.5px;margin-bottom:14px}
+.props .k{color:var(--mute);display:flex;align-items:center;gap:6px}
+.props div{color:var(--ink)}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--olive2);color:var(--olive);margin-right:4px}
+.chip.b{background:#e8eefb;color:#2f56a8}
+.pp{display:inline-flex;align-items:center;gap:6px}
+.pp i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:700 8.5px -apple-system,sans-serif;color:#fff;font-style:normal}
+.paper{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;margin-bottom:16px}
+.paper .th{width:40px;height:50px;border-radius:4px;background:linear-gradient(#5e2750 0 28%,#faf7f9 28%);flex:none;position:relative}
+.paper .th:after{content:"";position:absolute;left:6px;right:6px;top:20px;height:22px;background:repeating-linear-gradient(#d8ccd5 0 2px,transparent 2px 5px)}
+.paper b{display:block;font:600 14px/1.3 Palatino,serif}
+.paper span{font-size:12px;color:var(--mute)}
+h2{font:700 20px Palatino,serif;margin:18px 0 8px}
+ul.notes{padding-left:20px;line-height:1.65;font:15px/1.65 Palatino,serif;color:#33352a}
+ul.notes li{margin-bottom:3px}
+ul.notes li::marker{color:var(--olive)}
+.q{border-left:3px solid var(--olive);padding:4px 12px;margin:8px 0;font:italic 15px/1.55 Palatino,serif;color:var(--soft);background:#fafbf4}
+.todo{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:14px}
+.todo i{width:17px;height:17px;border-radius:4px;border:1.6px solid #c8c9ba;flex:none}
+.todo i.y{background:var(--olive);border-color:var(--olive)}
+.todo.done span{color:var(--mute);text-decoration:line-through}
+.todo .who{margin-left:auto;font-size:12px;color:var(--mute)}
+table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+th{text-align:left;font-weight:600;font-size:11.5px;color:var(--mute);padding:7px 10px;border-bottom:1px solid var(--line);background:#fbfbf6}
+td{padding:7px 10px;border-bottom:1px solid #f1f0e8;vertical-align:middle}
+tr:last-child td{border:0}
+td .open{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:12px;border:1.5px dashed #b9c08f;color:var(--olive);font-weight:600;font-size:12px}
+td .st{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:10px}
+.side{padding-top:24px}
+.side h5{font-size:11px;letter-spacing:.1em;color:var(--mute);font-weight:600;margin-bottom:10px}
+.cm{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:10px;font-size:13px;line-height:1.45;color:var(--soft)}
+.cm .h{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.cm .h i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 9px -apple-system,sans-serif;color:#fff;font-style:normal}
+.cm .h b{color:var(--ink);font-size:12.5px}
+.cm .h span{margin-left:auto;font-size:11px;color:var(--mute)}
+.cm mark{background:#f3f0c6;color:inherit;border-radius:2px;padding:0 2px}
+.outline a{display:block;font-size:13px;color:var(--soft);padding:3px 0;text-decoration:none}
+.outline{margin-top:18px}
+.su{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:18px}.su .r{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f1f0e8;font-size:13px}.su h5+.r{border:0}.su .r b{width:48px;font-weight:600;font-size:12.5px}.su .st{margin-left:auto;font-style:normal;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px}.su .open{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;border:1.5px dashed #b9c08f;color:var(--olive);font-weight:600;font-size:12px}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr 240px;gap:28px;padding:0 28px 40px}}
+</style></head><body>
+<div class="bar"><span class="lg"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M2 2v10M5.5 3.5h6.5M5.5 7h6.5M5.5 10.5h4"/></svg></span>Halden Lab › Journal club › 2026 › Autumn › <b>Journal Club Notes</b>
+<div class="r"><span class="ed">Edited 4 min ago</span><div class="avs"><i style="background:#56662a">MK</i><i style="background:#b58700">IH</i><i style="background:#0d7a8a">PV</i></div><span class="share">Share</span></div></div>
+<div class="cover"><img src="img/0.jpg" alt=""></div>
+<div class="wrap">
+<main>
+<div class="icon"><svg width="34" height="34" viewBox="0 0 34 34"><path d="M5 16c0-6.6 5.4-11 12-11s12 4.4 12 11z" fill="#c9b79a"/><circle cx="12" cy="11" r="1.6" fill="#fff"/><circle cx="20" cy="9" r="1.4" fill="#fff"/><circle cx="23" cy="13" r="1.2" fill="#fff"/><path d="M14 16h6l-.8 12a2.2 2.2 0 0 1-4.4 0z" fill="#efe6d6"/></svg></div>
+<h1>Journal Club Notes</h1>
+<div class="props">
+<span class="k">◷ Date</span><div>Thursday, Nov 5, 2026 · 16:00 – 17:00</div>
+<span class="k">⌂ Room</span><div>Seminar room 2.20 and the lab call link</div>
+<span class="k">☺ Presenter</span><div><span class="pp"><i style="background:#56662a">MK</i>Mateo Kallas</span></div>
+<span class="k">◇ Tags</span><div><span class="chip">mycorrhiza</span><span class="chip">drought</span><span class="chip b">our preprint</span></div>
+</div>
+<div class="paper"><div class="th"></div><div><b>Root-associated fungi shift nitrogen uptake in drought-stressed beech seedlings</b><span>Halden, Kallas, Ventresca et al. · Verso preprint v2 · Oct 27, 2026</span></div></div>
+<h2>Discussion</h2>
+<ul class="notes">
+<li>Mateo walked through Fig. 1: the 2.3× uptake gain only holds under <b>moderate</b> drought. Everyone agreed the severe group needs more replicates.</li>
+<li>Reviewer-style question from Yerlan: are the sterile controls really sterile? Plan: re-check 10 random roots by microscopy.</li>
+<li>Exploration types: long-distance types rise as soil dries. Could be a sampling artefact of which tips survive.</li>
+</ul>
+<div class="q">“If the fungi only help when it's a bit dry, that's still most summers.” — Ingrid</div>
+<h2>Action items</h2>
+<div class="todo done"><i class="y"></i><span>Upload slides to Lab Wiki › Journal club</span><span class="who">Mateo · done</span></div>
+<div class="todo"><i></i><span>Microscopy check on 10 sterile-control roots</span><span class="who">Priya · Nov 12</span></div>
+<div class="todo"><i></i><span>Add severe-drought replicates to the spring plan</span><span class="who">Oskar · Nov 19</span></div>
+
+</main>
+<aside class="side">
+<div class="su"><h5>SIGN-UP LIST · AUTUMN</h5>
+<div class="r"><b>Nov 5</b><span class="pp"><i style="background:#56662a">MK</i>Mateo</span><em class="st" style="background:#eef2e0;color:#56662a">Done</em></div>
+<div class="r"><b>Nov 12</b><span class="pp"><i style="background:#0d7a8a">PV</i>Priya</span><em class="st" style="background:#e8eefb;color:#2f56a8">Confirmed</em></div>
+<div class="r"><b>Nov 19</b><span class="pp"><i style="background:#6b4fa8">YT</i>Yerlan</span><em class="st" style="background:#fff3d6;color:#8a6100">Swap?</em></div>
+<div class="r"><b>Nov 26</b><span class="open">+ Sign up</span></div>
+<div class="r"><b>Dec 3</b><span class="open">+ Sign up</span></div>
+<div class="r"><b>Dec 10</b><span class="open">+ Sign up</span></div></div>
+<h5>COMMENTS · 4</h5>
+<div class="cm"><div class="h"><i style="background:#b58700">IH</i><b>Ingrid H.</b><span>2h</span></div>On <mark>more replicates</mark>: we have seed for 60 more beech. Let's grow them in February.</div>
+<div class="cm"><div class="h"><i style="background:#0d7a8a">PV</i><b>Priya V.</b><span>1h</span></div>I'll take Nov 12. Paper link in the folder.</div>
+<div class="cm"><div class="h"><i style="background:#6b4fa8">YT</i><b>Yerlan T.</b><span>12m</span></div>Can someone swap with me on the 19th? Field trip that week.</div>
+
+</aside>
+</div>
+</body></html>

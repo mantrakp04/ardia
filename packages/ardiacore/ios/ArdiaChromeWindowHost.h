@@ -22,8 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)removeRootViewOfWindow:(NSWindow *)window;
 
-+ (void)setTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
-+ (void)moveTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
++ (void)setTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
++ (void)moveTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
 
 + (void)closeWindow:(NSWindow *)window;
 
@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 NSView *_Nullable ArdiaWindowRootView(NSWindow *_Nullable window);
 NSValue *_Nullable ArdiaTrafficLightsCenter(NSWindow *_Nullable window);
+BOOL ArdiaTrafficLightsTrailing(NSWindow *_Nullable window);
 
 @interface ArdiaChromeWindowHost (Dev)
 
