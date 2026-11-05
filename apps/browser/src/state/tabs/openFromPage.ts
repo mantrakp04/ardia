@@ -6,6 +6,7 @@ import { peekSourceOf } from "../peek/peek";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
+import type { Frame } from "../browser/types";
 import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
@@ -51,6 +52,9 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
     return;
   }
   const from = peekSource ? { ...page, tabId: peekSource } : page;
+  if (isSmall(s, w.id) && disposition === "foreground") {
+    return void s.createWindow({ kind: "small", url, adoptId, profileId: from.profileId, frame: cascadedFrame(w.frame) });
+  }
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
     return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true, gated });
   }
@@ -69,6 +73,14 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
   s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
+}
+
+const CASCADE_STEP = 22;
+
+export function cascadedFrame(frame: Frame | null): Frame | undefined {
+  if (!frame) return undefined;
+  const [x, y, width, height] = frame;
+  return [x + CASCADE_STEP, y - CASCADE_STEP, width, height];
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {
