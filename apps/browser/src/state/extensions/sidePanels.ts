@@ -13,6 +13,8 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
+export const panelTabOpen = (tabId?: string) => !tabId || !!useBrowser.getState().tabs[tabId];
+
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
   if (!shownIn(windowId, extensionId)) return Promise.resolve();
   wanted.set(windowId, extensionId);
@@ -32,8 +34,16 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   });
 }
 
+function hideSidePanel(windowId: string) {
+  const now = useExtensions.getState().sidePanels[windowId];
+  if (!now) return closeSidePanel(windowId);
+  if (now.hidden) return;
+  useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: { ...now, hidden: true } } }));
+}
+
 export function toggleSidePanel(windowId: string, extensionId: string): Promise<void> | void {
-  if (wanted.get(windowId) === extensionId) closeSidePanel(windowId);
+  const shown = useExtensions.getState().sidePanels[windowId];
+  if (wanted.get(windowId) === extensionId && !shown?.hidden) closeSidePanel(windowId);
   else return openSidePanel(windowId, extensionId);
 }
 
@@ -57,10 +67,11 @@ export async function syncSidePanel(windowId: string): Promise<void> {
         ? `chrome-extension://${extensionId}/${ext.sidePanel.replace(/^\//, "")}`
         : null;
   if (fetches.get(windowId) !== ticket) return;
-  if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);
+  if (!shownIn(windowId, extensionId)) return closeSidePanel(windowId);
+  if (!url) return readyTab ? hideSidePanel(windowId) : closeSidePanel(windowId);
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, tabId: readyTab };
   const now = useExtensions.getState().sidePanels[windowId];
-  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile) return;
+  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && !now.hidden) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
 }

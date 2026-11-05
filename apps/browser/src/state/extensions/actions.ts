@@ -257,7 +257,7 @@ export async function showExtensionMenu(windowId: string, ext: InstalledExtensio
     { separator: true },
     { id: "options", title: "Options", enabled: !!ext.optionsUrl && ext.enabled },
     ...(ext.sidePanel && ext.enabled
-      ? [{ id: "sidePanel", title: useExtensions.getState().sidePanels[windowId]?.extensionId === ext.id ? "Close Side Panel" : "Open Side Panel" }]
+      ? [{ id: "sidePanel", title: useExtensions.getState().sidePanels[windowId]?.extensionId === ext.id && !useExtensions.getState().sidePanels[windowId]?.hidden ? "Close Side Panel" : "Open Side Panel" }]
       : []),
     { id: "pin", title: ext.pinned ? "Unpin from Toolbar" : "Pin to Toolbar", symbol: ext.pinned ? "pin.slash" : "pin" },
     { id: "enable", title: ext.enabled ? "Turn Off" : "Turn On" },

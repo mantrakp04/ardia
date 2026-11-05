@@ -62,6 +62,56 @@ test("A→B→A shows A's side panel whatever order Chrome answers in", async ()
   panels.closeSidePanel(w);
 });
 
+test("a tab without a panel of its own hides the panel, and coming back shows the same one", async () => {
+  const { w, a, b, asked, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/a.html");
+  await opened;
+  const panelOfA = E().sidePanels[w];
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, null);
+  assert.equal(E().sidePanels[w].hidden, true);
+  assert.deepEqual(panels.wantedSidePanels(), [[w, "ext"]]);
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(2, "chrome-extension://ext/a.html");
+  assert.equal(E().sidePanels[w].hidden, undefined);
+  assert.equal(E().sidePanels[w].url, panelOfA.url);
+  assert.equal(asked.length, 3);
+  panels.closeSidePanel(w);
+});
+
+test("opening the side panel from a tab without one while it is hidden opens instead of closing", async () => {
+  const { w, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/a.html");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, null);
+  assert.equal(E().sidePanels[w].hidden, true);
+  const toggled = panels.toggleSidePanel(w, "ext");
+  await answer(2, "chrome-extension://ext/b.html");
+  await toggled;
+  assert.equal(E().sidePanels[w].url, "chrome-extension://ext/b.html");
+  assert.equal(E().sidePanels[w].hidden, undefined);
+  panels.closeSidePanel(w);
+});
+
+test("closing a hidden side panel removes it", async () => {
+  const { w, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/a.html");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, null);
+  panels.closeSidePanel(w);
+  assert.equal(E().sidePanels[w], undefined);
+  assert.deepEqual(panels.wantedSidePanels(), []);
+});
+
 test("a second click on the side panel button while it opens closes it", async () => {
   const { w, asked, answer } = setup();
   const opening = panels.toggleSidePanel(w, "ext");

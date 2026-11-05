@@ -9,7 +9,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, panelTabOpen, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 
 const MIN_WIDTH = 320;
@@ -23,28 +23,32 @@ function rubberBand(width: number): number {
   return width;
 }
 const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
-const alive = (p: SidePanel, currentKey: string) => !p.tabId || !!useBrowser.getState().tabs[p.tabId] || panelKey(p) === currentKey;
+const alive = (p: SidePanel, currentKey: string) => panelTabOpen(p.tabId) || panelKey(p) === currentKey;
 const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 
 export function ExtensionSidePanel() {
   const windowId = useWindowId();
-  const panel = useExtensions((e) => e.sidePanels[windowId]);
+  const entry = useExtensions((e) => e.sidePanels[windowId]);
+  const panel = entry && !entry.hidden ? entry : undefined;
+  const state = !entry ? "closed" : entry.hidden ? "hidden" : "shown";
   const savedWidth = useSettings((st) => st.extensionSidePanelWidth ?? 360);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
   const [kept, setKept] = useState<SidePanel[]>(panel ? [panel] : []);
   const shownKey = useRef("");
-  shownKey.current = shown ? panelKey(shown) : "";
+  shownKey.current = panel && shown ? panelKey(shown) : "";
+  const entryNow = useRef(entry);
+  entryNow.current = entry;
 
   useEffect(() => {
     if (panel) setShown(panel);
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.fade, easing: curve.outCubic, useNativeDriver: false }).start(({ finished }) => {
-      if (!finished || panel) return;
+      if (!finished || entryNow.current) return;
       setShown(undefined);
       setKept([]);
     });
-  }, [!!panel]);
+  }, [state]);
   useEffect(() => {
     if (!panel) return;
     setShown(panel);
@@ -100,7 +104,7 @@ export function ExtensionSidePanel() {
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
         {kept.map((p) => (
-          <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={panelKey(p) === panelKey(shown)} />
+          <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={!!panel && panelKey(p) === panelKey(shown)} />
         ))}
         <View
           {...responder.panHandlers}
