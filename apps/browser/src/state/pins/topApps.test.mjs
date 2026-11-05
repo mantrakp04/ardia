@@ -620,3 +620,25 @@ test("the split never empties the profile a window shows", () => {
   assert.equal(S().windows[w].profileId, work, "the window still shows Work");
   assert.ok(view(w, work).some((id) => S().tabs[id].pinnedUrl === "https://mail.com"), "with the copy it showed");
 });
+
+test("the split removes no more copies than Recently Closed can hold, and leaves the rest in place", () => {
+  const { saved, work } = mergedBy0244();
+  const home = saved.windows[0];
+  const extra = [];
+  for (let i = 0; i < 60; i++) {
+    const key = `tile-${i}`;
+    const url = `https://site${i}.com`;
+    extra.push({ ...saved.tabs.find((t) => t.pin), id: key, pinKey: undefined, profileId: "default", url, pinnedUrl: url });
+    extra.push({ ...saved.tabs.find((t) => t.pin), id: `copy-${i}`, pinKey: key, profileId: work, url, pinnedUrl: url });
+  }
+  saved.tabs.push(...extra);
+  home.tabIds.push(...extra.map((t) => t.id));
+  delete saved.pinChoices;
+  relaunch(saved);
+  const removed = S().closedTabs.filter((c) => c.tab.pin);
+  assert.equal(removed.length, 50, "Recently Closed holds every copy it removed");
+  const site = (url) => /^https:\/\/site\d+\.com$/.test(url ?? "");
+  const kept = Object.values(S().tabs).filter((t) => t.profileId === work && t.pin?.as === "tile" && site(t.pinnedUrl)).length;
+  assert.ok(kept > 0, "some copies stay put past the cap");
+  assert.equal(kept + removed.filter((c) => site(c.tab.pinnedUrl)).length, 60, "every copy is either kept or in Recently Closed");
+});

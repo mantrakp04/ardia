@@ -45,6 +45,7 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
 
   const dropTabs = new Set<string>();
   const dropParked = new Map<string, Set<string>>();
+  let budget = MAX_CLOSED_TABS;
   for (const circle of circles) {
     const byKey = new Map<string, Map<string, Holding>>();
     const hold = (key: string, p: string) => {
@@ -60,6 +61,9 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
       for (const [p, h] of holders) {
         if (owners.includes(p)) continue;
         if (h.live.some((t) => inSplit.has(t.id as string))) continue;
+        const parkedCount = h.parked ? parkedTilesOf(p).filter((e) => e.id === key).length : 0;
+        if (h.live.length + parkedCount > budget) continue;
+        budget -= h.live.length + parkedCount;
         for (const t of h.live) dropTabs.add(t.id as string);
         if (h.parked) (dropParked.get(p) ?? dropParked.set(p, new Set()).get(p)!).add(key);
       }
