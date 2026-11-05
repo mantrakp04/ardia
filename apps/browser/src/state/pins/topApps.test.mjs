@@ -642,3 +642,14 @@ test("the split removes no more copies than Recently Closed can hold, and leaves
   assert.ok(kept > 0, "some copies stay put past the cap");
   assert.equal(kept + removed.filter((c) => site(c.tab.pinnedUrl)).length, 60, "every copy is either kept or in Recently Closed");
 });
+
+test("the split leaves a parked tile that belongs to a parked split view", () => {
+  const { saved, work } = mergedBy0244({ park: true });
+  const park = saved.parkedPins[work];
+  const mail = park.tabs.find((e) => e.pinnedUrl === "https://mail.com");
+  const other = park.tabs.find((e) => e.pinnedUrl === "https://jira.com");
+  park.splits = [{ orientation: "horizontal", slots: [{ size: 0.5, tabId: mail.id }, { size: 0.5, tabId: other.id }] }];
+  relaunch(saved);
+  assert.equal(S().parkedPins[work]?.splits?.length, 1);
+  assert.ok(S().parkedPins[work].tabs.some((e) => e.id === mail.id), "the split's tile stays");
+});

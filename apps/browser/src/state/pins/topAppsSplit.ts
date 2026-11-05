@@ -42,6 +42,7 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
   const parkedPins: Fields = isFields(doc.parkedPins) ? { ...doc.parkedPins } : {};
   const parkedTilesOf = (p: string) => list(isFields(parkedPins[p]) ? (parkedPins[p] as Fields).tabs : []).filter((e) => isString(e.id) && !e.groupId && pinAs(e) !== "row");
   const choices = isFields(doc.pinChoices) ? doc.pinChoices : {};
+  const inParkedSplit = (p: string) => new Set(list(isFields(parkedPins[p]) ? (parkedPins[p] as Fields).splits : []).flatMap(slotIds));
 
   const dropTabs = new Set<string>();
   const dropParked = new Map<string, Set<string>>();
@@ -61,6 +62,7 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
       for (const [p, h] of holders) {
         if (owners.includes(p)) continue;
         if (h.live.some((t) => inSplit.has(t.id as string))) continue;
+        if (h.parked && inParkedSplit(p).has(key)) continue;
         const parkedCount = h.parked ? parkedTilesOf(p).filter((e) => e.id === key).length : 0;
         if (h.live.length + parkedCount > budget) continue;
         budget -= h.live.length + parkedCount;
