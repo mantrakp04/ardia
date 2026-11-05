@@ -5,7 +5,9 @@ import { displayUrl } from "@ardia/core";
 import { concentric, FadeLabel, font, hairline, Panel, radius, space } from "../ui";
 import { SectionLabel } from "./SectionLabel";
 import { useTheme } from "../ui/theme";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
+import { useProfileRecords } from "../../state/profiles/hooks";
+import { ProfileBadge } from "../profiles/ProfileIcons";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "../../state/sidebar/switcher";
 import { TabIcon } from "./TabIcon";
@@ -21,6 +23,7 @@ const ROW_RADIUS = concentric(SWITCHER_RADIUS, SWITCHER_PAD);
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
+  const showProfile = useSettings((s) => s.tabSwitcherScope === "allProfiles");
   const switcher = useSidebarUi((u) => (u.switcher?.windowId === windowId && u.switcher.visible ? u.switcher : null));
   if (!switcher) return null;
   const start = Math.max(0, Math.min(switcher.index - Math.floor(MAX_ROWS / 2), switcher.ids.length - MAX_ROWS));
@@ -36,15 +39,16 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
     >
       <SectionLabel title="Recent Tabs" inset={space.m} top={space.xxs} bottom={space.s} />
       {shown.map((id, i) => (
-        <SwitcherRow key={id} tabId={id} focused={start + i === switcher.index} index={start + i} focusFill={tokens.switcherFocus} outline={tokens.switcherOutline} />
+        <SwitcherRow key={id} tabId={id} showProfile={showProfile} focused={start + i === switcher.index} index={start + i} focusFill={tokens.switcherFocus} outline={tokens.switcherOutline} />
       ))}
     </Panel>
   );
 }
 
-function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: string; focused: boolean; index: number; focusFill: string; outline: string }) {
+function SwitcherRow({ tabId, showProfile, focused, index, focusFill, outline }: { tabId: string; showProfile: boolean; focused: boolean; index: number; focusFill: string; outline: string }) {
   const theme = useTheme();
   const tab = useTab(tabId);
+  const profile = useProfileRecords((profiles) => profiles[tab?.profileId ?? ""]);
   useEffect(() => () => leaveSwitcherRow(index), [index]);
   if (!tab) return null;
   return (
@@ -69,6 +73,12 @@ function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: str
           <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight={focused ? "medium" : "regular"} color={theme.textPrimary} style={{ height: 17 }} />
           {tab.url ? <FadeLabel text={displayUrl(tab.url)} fontSize={font.caption.fontSize} color={theme.textSecondary} style={{ height: 14 }} /> : null}
         </View>
+        {showProfile && profile ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, maxWidth: 120 }}>
+            <ProfileBadge profile={profile} size={16} />
+            <Text numberOfLines={1} style={{ ...font.caption, color: theme.textSecondary, flexShrink: 1 }}>{profile.name}</Text>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );

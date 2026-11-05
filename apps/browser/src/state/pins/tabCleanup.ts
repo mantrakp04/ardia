@@ -36,7 +36,7 @@ export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
 export function isClosedPin(s: BrowserState, id: string): boolean {
   const t = s.tabs[id];
   if (!t || !inPinnedContainer(s, id) || pinSection(t) === "tile") return false;
-  return !hasPage(t) && activeTabId(s, t.windowId) !== id && !holderOf(s, id);
+  return !hasPage(t) && activeTabId(s, t.windowId, t.profileId) !== id && !holderOf(s, id);
 }
 
 export function clearedTabIds(s: BrowserState, windowId: string): string[] {
@@ -163,9 +163,23 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
   return out.length >= w.tabIds.length ? out.slice(0, w.tabIds.length - 1) : out;
 }
 
+export function switcherTabAvailable(s: BrowserState, windowId: string, id: string): boolean {
+  const w = s.windows[windowId];
+  const t = s.tabs[id];
+  if (!w || !t || t.windowId !== windowId || !w.tabIds.includes(id)) return false;
+  if (w.kind === "private" ? t.profileId !== w.profileId : isIncognitoProfile(t.profileId) || !s.profiles[t.profileId]) return false;
+  if (s.settings.tabSwitcherScope !== "allProfiles" && t.profileId !== w.profileId) return false;
+  return !isClosedPin(s, id) && !(inPinnedContainer(s, id) && t.page.kind === "asleep");
+}
+
 export function recentTabIds(s: BrowserState, windowId: string, now = Date.now(), staleAfterMs = CLEAN_UP_AFTER_MS): string[] {
-  const view = viewTabIds(s, windowId).map((id) => s.tabs[id]!);
-  const sorted = view.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const w = s.windows[windowId];
+  if (!w) return [];
+  const ids = s.settings.tabSwitcherScope === "allProfiles" && w.kind !== "private" ? w.tabIds : viewTabIds(s, windowId);
+  const active = activeTabId(s, windowId);
+  const sorted = ids.filter((id) => switcherTabAvailable(s, windowId, id)).map((id) => s.tabs[id]!).sort((a, b) =>
+    a.id === active ? -1 : b.id === active ? 1 : b.lastActiveAt - a.lastActiveAt,
+  );
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 
