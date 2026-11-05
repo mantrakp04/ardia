@@ -164,7 +164,7 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
 
 function folderItem(folderId: string, itemId: string): LiveItem | undefined {
   const l = live();
-  return (l.items[folderId] ?? []).find((i) => i.id === itemId) ?? (l.hidden[folderId] ?? []).find((i) => i.id === itemId);
+  return (l.items[folderId] ?? []).find((i) => i.id === itemId) ?? (l.hidden[folderId] ?? []).find((i) => i.id === itemId) ?? l.completed[folderId]?.find((c) => c.item.id === itemId)?.item;
 }
 
 export function liveTabAway(tabId: string | null, s: BrowserState = useBrowser.getState()) {
@@ -183,6 +183,16 @@ export function deleteLiveFolder(folderId: string) {
   removeFolder(folderId);
 }
 
+export function syncLiveHomes() {
+  const s = useBrowser.getState();
+  const members = pinnedGroupMembers(s.groups);
+  for (const t of Object.values(s.tabs)) {
+    if (!t.liveItem || t.pin || members.has(t.id) || !live().items[t.liveItem.folderId]) continue;
+    const home = folderItem(t.liveItem.folderId, t.liveItem.itemId)?.url ?? null;
+    if (home !== t.pinnedUrl) s.updateTab(t.id, { pinnedUrl: home });
+  }
+}
+
 let started = false;
 const lastNudge = new Map<string, number>();
 
@@ -195,24 +205,15 @@ export function startLiveEngine() {
     const folders = live().folders;
     for (const t of Object.values(s.tabs)) if (t.liveItem && !folders[t.liveItem.folderId]) s.updateTab(t.id, { liveItem: undefined });
   };
-  const liveHomes = () => {
-    const s = useBrowser.getState();
-    const members = pinnedGroupMembers(s.groups);
-    for (const t of Object.values(s.tabs)) {
-      if (!t.liveItem || t.pin || members.has(t.id) || !live().items[t.liveItem.folderId]) continue;
-      const home = folderItem(t.liveItem.folderId, t.liveItem.itemId)?.url ?? null;
-      if (home !== t.pinnedUrl) s.updateTab(t.id, { pinnedUrl: home });
-    }
-  };
   orphans();
-  liveHomes();
+  syncLiveHomes();
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
-    if (s.items !== prev.items || s.hidden !== prev.hidden) liveHomes();
+    if (s.items !== prev.items || s.hidden !== prev.hidden || s.completed !== prev.completed) syncLiveHomes();
   });
 
   useBrowser.subscribe((s, prev) => {
-    if (s.groups !== prev.groups) liveHomes();
+    if (s.groups !== prev.groups) syncLiveHomes();
   });
 
   useBrowser.subscribe((s, prev) => {
