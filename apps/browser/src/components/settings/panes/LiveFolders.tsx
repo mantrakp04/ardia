@@ -1,6 +1,6 @@
 import { copyText } from "../../../state/app/system";
 import { focusWindow } from "../../../state/windows/nativeWindow";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
@@ -114,14 +114,21 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => cancelSignIn, []);
+  const open = useRef(false);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+      cancelSignIn();
+    };
+  }, []);
   const showError = (e: unknown) => setError(e == null ? null : String((e as Error)?.message ?? e));
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
     setError(null);
     try {
       await task();
-      closeSettingsSheet();
+      if (open.current) closeSettingsSheet();
     } catch (e) {
       showError(e);
     } finally {

@@ -274,7 +274,9 @@ export async function startGithubDeviceFlow(clientId: string): Promise<DeviceFlo
   return { userCode: code.user_code, verificationUri: code.verification_uri, expiresAt, done, cancel: () => (cancelled = true) };
 }
 
-export async function connectGitea(site: string, credentials: GiteaCredentials) {
+const stillWanted = () => true;
+
+export async function connectGitea(site: string, credentials: GiteaCredentials, current = stillWanted) {
   const base = httpsSiteUrl(site);
   const token = "token" in credentials ? credentials.token : credentials.access;
   const { get } = giteaApi(base, token);
@@ -288,6 +290,7 @@ export async function connectGitea(site: string, credentials: GiteaCredentials) 
     if (error instanceof LiveError && !(error.kind === "other" && error.message.startsWith("404"))) throw error;
     throw new LiveError("notConfigured", `There's no Gitea or Forgejo at ${base}`);
   });
+  if (!current()) throw new Error("Cancelled");
   newGiteaSession();
   await setSecret("gitea", JSON.stringify({ ...credentials, site: base } satisfies GiteaLogin));
   updateConfig({ giteaSite: base, ...("clientId" in credentials ? { giteaClientId: credentials.clientId } : {}) });
@@ -319,7 +322,7 @@ export async function connectConfluence(site: string, email: string, token: stri
   setAccount("confluence", account(me.accountId, me.displayName, null));
 }
 
-export async function connectGoogle(clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string) {
+export async function connectGoogle(clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string, current = stillWanted) {
   const json = await request<{ access_token: string; refresh_token?: string; expires_in: number }>(endpoints.googleToken, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -327,10 +330,11 @@ export async function connectGoogle(clientId: string, clientSecret: string, code
   });
   if (!json.refresh_token) throw new LiveError("signedOut", "Google didn't return a refresh token");
   const tokens: GoogleTokens = { access_token: json.access_token, refresh_token: json.refresh_token, expires_at: Date.now() + json.expires_in * 1000, client_secret: clientSecret };
-  await setSecret("gdrive", JSON.stringify(tokens));
   const about = await request<{ user?: { displayName: string; emailAddress: string; photoLink?: string } }>(`${endpoints.drive}/about?fields=user`, {
     headers: { Authorization: `Bearer ${json.access_token}` },
   }).catch(() => null);
+  if (!current()) throw new Error("Cancelled");
+  await setSecret("gdrive", JSON.stringify(tokens));
   updateConfig({ googleClientId: clientId });
   setAccount("gdrive", account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null));
 }

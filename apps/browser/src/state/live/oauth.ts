@@ -9,6 +9,7 @@ import { connectGitea, connectGoogle } from "./sources";
 export const OAUTH_REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";
 
+let signIns = 0;
 let pending: { cancel(): void } | null = null;
 
 function query(url: string): Map<string, string> | null {
@@ -25,12 +26,16 @@ function query(url: string): Map<string, string> | null {
   }
 }
 
-export const cancelSignIn = () => pending?.cancel();
+export function cancelSignIn() {
+  signIns++;
+  pending?.cancel();
+}
 
-export function authorizeInTab(windowId: string, url: string, state: string): Promise<Map<string, string>> {
+export function authorizeInTab(windowId: string, url: string, state: string): { params: Promise<Map<string, string>>; current(): boolean } {
   cancelSignIn();
+  const attempt = signIns;
   const tabId = useBrowser.getState().newTab(windowId, { url });
-  return new Promise<Map<string, string>>((resolve, reject) => {
+  const params = new Promise<Map<string, string>>((resolve, reject) => {
     const stop = useBrowser.subscribe((s, prev) => {
       if (s.tabs === prev.tabs) return;
       const tab = s.tabs[tabId];
@@ -54,6 +59,7 @@ export function authorizeInTab(windowId: string, url: string, state: string): Pr
       },
     };
   });
+  return { params, current: () => attempt === signIns };
 }
 
 export async function connectGoogleDrive(windowId: string, clientId: string, clientSecret: string): Promise<void> {
@@ -70,10 +76,11 @@ export async function connectGoogleDrive(windowId: string, clientId: string, cli
     access_type: "offline",
     prompt: "consent",
   })}`;
-  const params = await authorizeInTab(windowId, url, state);
+  const { params: authorized, current } = authorizeInTab(windowId, url, state);
+  const params = await authorized;
   const code = params.get("code");
   if (!code) throw new Error(params.get("error") ?? "Google didn't grant access");
-  await connectGoogle(clientId.trim(), clientSecret.trim(), code, verifier, OAUTH_REDIRECT);
+  await connectGoogle(clientId.trim(), clientSecret.trim(), code, verifier, OAUTH_REDIRECT, current);
 }
 
 export async function signInGitea(windowId: string, site: string, clientId: string): Promise<void> {
@@ -90,9 +97,10 @@ export async function signInGitea(windowId: string, site: string, clientId: stri
     code_challenge_method: "S256",
     state,
   })}`;
-  const params = await authorizeInTab(windowId, url, state);
+  const { params: authorized, current } = authorizeInTab(windowId, url, state);
+  const params = await authorized;
   const code = params.get("code");
   if (!code) throw new Error(params.get("error_description") || params.get("error") || "Gitea didn't grant access");
   const tokens = await giteaTokens(base, { grant_type: "authorization_code", client_id: id, code, code_verifier: verifier, redirect_uri: OAUTH_REDIRECT });
-  await connectGitea(base, { ...tokens, clientId: id });
+  await connectGitea(base, { ...tokens, clientId: id }, current);
 }
