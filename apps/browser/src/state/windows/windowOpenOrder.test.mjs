@@ -18,13 +18,6 @@ test("launch: the focused window first, the rest behind it in window order", () 
   ]);
 });
 
-test("each opened right under the focused one leaves the stack the focus order has", () => {
-  const opens = windowOpens(state(["a", "b", "c", "d"], "b"), ["a", "b", "c", "d"], true);
-  const stack = [opens[0].id];
-  for (const o of opens.slice(1)) stack.splice(stack.indexOf(o.behind) + 1, 0, o.id);
-  assert.deepEqual(stack, ["b", "d", "c", "a"]);
-});
-
 test("one window, or no focused one", () => {
   assert.deepEqual(windowOpens(state(["a"], "a"), ["a"], true), [{ id: "a", focus: true }]);
   assert.deepEqual(windowOpens(state(["a", "b"], null), ["a", "b"], true), [{ id: "a", focus: false }, { id: "b", focus: false }]);

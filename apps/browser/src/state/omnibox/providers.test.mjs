@@ -17,7 +17,7 @@ const asTestInstance = (on) => {
   reloadLaunchConfigForTests();
 };
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const flush = () => new Promise((r) => setImmediate(r));
 const ctx = { partition: "default|normal", privateContext: false };
 
 test("registerOmniboxProvider adds, replaces by id, and its return removes it", () => {
@@ -34,7 +34,8 @@ test("registerOmniboxProvider adds, replaces by id, and its return removes it", 
   assert.throws(() => registerOmniboxProvider({ id: "x", title: "X", keyword: "a b", query: async () => [] }), /keyword/);
 });
 
-test("queries stream per provider; a slow one hits its deadline and never holds the others", async () => {
+test("queries stream per provider; a slow one hits its deadline and never holds the others", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const queries = createProviderQueries(60);
   const seen = [];
   let slowSignal;
@@ -44,14 +45,17 @@ test("queries stream per provider; a slow one hits its deadline and never holds 
     { id: "throws", title: "Throws", query: () => { throw new Error("boom"); } },
     { id: "rejects", title: "Rejects", query: async () => { throw new Error("boom"); } },
   ], (s) => seen.push(s.id));
-  await wait(10);
+  await flush();
   assert.deepEqual(seen, ["fast"]);
-  await wait(80);
+  t.mock.timers.tick(60);
+  await flush();
   assert.deepEqual(seen, ["fast"], "the slow one never answers after its deadline");
   assert.equal(slowSignal.aborted, true, "its signal aborts at the deadline");
 });
 
-test("every run aborts the previous one's queries and drops their late answers", async () => {
+test("every run aborts the previous one's queries and drops their late answers", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const queries = createProviderQueries(1000);
   const seen = [];
   const signals = [];
@@ -59,12 +63,14 @@ test("every run aborts the previous one's queries and drops their late answers",
   queries.run("a", [provider], (s) => seen.push(s.rows[0].title));
   queries.run("ab", [provider], (s) => seen.push(s.rows[0].title));
   assert.equal(signals[0].aborted, true);
-  await wait(40);
+  t.mock.timers.tick(20);
+  await flush();
   assert.deepEqual(seen, ["ab"]);
   queries.run("abc", [provider], (s) => seen.push(s.rows[0].title));
   queries.cancel();
   assert.equal(signals[2].aborted, true, "closing the bar aborts what's in flight");
-  await wait(40);
+  t.mock.timers.tick(20);
+  await flush();
   assert.deepEqual(seen, ["ab"]);
 });
 
@@ -155,34 +161,42 @@ const reply = (body, { url = "", headers = {}, chunk = 0 } = {}) => {
   return { url, headers, chunks };
 };
 
-test("remote fetch: debounced, no cookies or referrer, cached per profile, aborted by the next key", async () => {
+const debounced = (t, pending) => {
+  t.mock.timers.tick(REMOTE_PROVIDER.debounceMs);
+  return pending;
+};
+
+test("remote fetch: debounced, no cookies or referrer, cached per profile, aborted by the next key", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   forgetRemoteProviderCache();
   const f = fakeFetch(() => reply(["q", ["one", "two"]]));
   try {
     const template = "https://s.example.com/?q={query}";
-    assert.deepEqual(await fetchRemoteRows(template, "on", "z|normal", new AbortController().signal), [], "a text without a URL and no link template is dropped");
+    assert.deepEqual(await debounced(t, fetchRemoteRows(template, "on", "z|normal", new AbortController().signal)), [], "a text without a URL and no link template is dropped");
     f.calls.length = 0;
-    const rows = await fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}");
+    const rows = await debounced(t, fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}"));
     assert.deepEqual(rows, [{ title: "one", url: "https://go.example.com/one" }, { title: "two", url: "https://go.example.com/two" }], "through the provider's link template, never the endpoint");
     assert.equal(f.calls[0].url, "https://s.example.com/?q=on");
     assert.equal(f.calls[0].xhr.withCredentials, false);
     assert.equal(f.calls[0].xhr.sent.method, "GET");
     await fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}");
     assert.equal(f.calls.length, 1, "cached");
-    await fetchRemoteRows(template, "on", "b|normal", new AbortController().signal, "https://go.example.com/{query}");
+    await debounced(t, fetchRemoteRows(template, "on", "b|normal", new AbortController().signal, "https://go.example.com/{query}"));
     assert.equal(f.calls.length, 2, "another profile has its own cache");
     const typing = new AbortController();
     const pending = fetchRemoteRows(template, "onw", "a|normal", typing.signal);
     typing.abort();
     assert.deepEqual(await pending, []);
-    await wait(REMOTE_PROVIDER.debounceMs + 20);
+    t.mock.timers.tick(REMOTE_PROVIDER.debounceMs + 20);
+    await flush();
     assert.equal(f.calls.length, 2, "an aborted key never reaches the network");
   } finally {
     f.restore();
   }
 });
 
-test("remote fetch: private hosts, loopback outside a test instance, a redirect away, a large reply are all dropped", async () => {
+test("remote fetch: private hosts, loopback outside a test instance, a redirect away, a large reply are all dropped", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   forgetRemoteProviderCache();
   const big = "x".repeat(REMOTE_PROVIDER.maxBytes * 4);
   const f = fakeFetch((url) =>
@@ -194,14 +208,14 @@ test("remote fetch: private hosts, loopback outside a test instance, a redirect 
     assert.deepEqual(await fetchRemoteRows("http://127.0.0.1:9/?q={query}", "x", "p", signal), []);
     assert.equal(f.calls.length, 0);
     asTestInstance(true);
-    assert.deepEqual(await fetchRemoteRows("http://127.0.0.1:9/?q={query}", "x", "p", signal), [{ title: "a", url: "https://a.com/" }], "loopback http in a test instance");
+    assert.deepEqual(await debounced(t, fetchRemoteRows("http://127.0.0.1:9/?q={query}", "x", "p", signal)), [{ title: "a", url: "https://a.com/" }], "loopback http in a test instance");
     asTestInstance(false);
-    assert.deepEqual(await fetchRemoteRows("https://hop.example.com/?q={query}", "x", "p", signal), []);
-    assert.deepEqual(await fetchRemoteRows("https://big.example.com/?q={query}", "x", "p", signal), []);
+    assert.deepEqual(await debounced(t, fetchRemoteRows("https://hop.example.com/?q={query}", "x", "p", signal)), []);
+    assert.deepEqual(await debounced(t, fetchRemoteRows("https://big.example.com/?q={query}", "x", "p", signal)), []);
     const bigCall = f.calls.find((c) => c.url.includes("big"));
     assert.equal(bigCall.xhr.aborted, true, "aborted while receiving");
     assert.equal(bigCall.delivered, Math.floor(REMOTE_PROVIDER.maxBytes / 16_384) + 1, "stopped at the chunk that crossed the cap, not after the whole 512 KB");
-    assert.deepEqual(await fetchRemoteRows("https://long.example.com/?q={query}", "x", "p", signal), []);
+    assert.deepEqual(await debounced(t, fetchRemoteRows("https://long.example.com/?q={query}", "x", "p", signal)), []);
   } finally {
     asTestInstance(false);
     f.restore();

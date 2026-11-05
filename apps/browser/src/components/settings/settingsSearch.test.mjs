@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { editDistance, groupByPane, search } from "./searchMatch.ts";
-import { SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
+import { ADVANCED_PANES, SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
 
 const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
@@ -60,6 +60,11 @@ test("results group by pane, best group first, best row first", () => {
   for (const g of groups) for (let i = 1; i < g.hits.length; i++) assert.ok(g.hits[i - 1].score >= g.hits[i].score);
   const panes = groups.map((g) => g.pane);
   assert.equal(new Set(panes).size, panes.length);
+});
+
+test("every pane keeps a basic setting unless it hides whole", () => {
+  const panes = new Set(SETTINGS.map((s) => s.pane));
+  for (const pane of panes) if (!ADVANCED_PANES.has(pane)) assert.ok(SETTINGS.some((s) => s.pane === pane && !s.advanced), pane);
 });
 
 test("an empty query finds nothing", () => {
