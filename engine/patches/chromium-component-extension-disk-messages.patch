@@ -1,0 +1,38 @@
+--- a/extensions/browser/renderer_startup_helper.cc
++++ b/extensions/browser/renderer_startup_helper.cc
+@@ -26,6 +26,7 @@
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/render_process_host.h"
+ #include "extensions/browser/bad_message.h"
++#include "extensions/browser/component_extension_resource_manager.h"
+ #include "extensions/browser/extension_function_dispatcher.h"
+ #include "extensions/browser/extension_mojo_binder_registry.h"
+ #include "extensions/browser/extension_mojo_binder_registry_factory.h"
+@@ -39,6 +40,7 @@
+ #include "extensions/browser/service_worker/service_worker_task_queue.h"
+ #include "extensions/browser/user_script_manager.h"
+ #include "extensions/browser/user_script_world_configuration_manager.h"
++#include "extensions/common/constants.h"
+ #include "extensions/common/extension_id.h"
+ #include "extensions/common/extension_l10n_util.h"
+ #include "extensions/common/extension_set.h"
+@@ -753,8 +755,18 @@
+     paths_to_load.push_back(imported_extension->path());
+   }
+ 
++  const ComponentExtensionResourceManager* component_resources =
++      ExtensionsBrowserClient::Get()->GetComponentExtensionResourceManager();
++  int default_messages_resource_id = 0;
+   bool is_component =
+-    extension->location() == extensions::mojom::ManifestLocation::kComponent;
++    extension->location() == extensions::mojom::ManifestLocation::kComponent &&
++    component_resources &&
++    component_resources->IsComponentExtensionResource(
++        extension->path(),
++        base::FilePath(kLocaleFolder)
++            .AppendASCII(default_locale)
++            .Append(kMessagesFilename),
++        &default_messages_resource_id);
+ 
+   if (is_component) {
+     auto dictionary_map = l10n_file_util::LoadMessageBundleSubstitutionMapFromPaths(

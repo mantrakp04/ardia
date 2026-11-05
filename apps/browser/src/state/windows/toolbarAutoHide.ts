@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { useBrowser, type BrowserState } from "../browser/store";
-import { DEFAULT_WINDOW_UI } from "./ui";
+import type { ScrollState } from "../../platform/tabs";
+import { useBrowser } from "../browser/store";
 
 export const STRIP_HEIGHT = 20;
 
@@ -20,9 +20,7 @@ const without = (map: Record<string, true>, tabId: string) => {
   return next;
 };
 
-export function noteScroll(tabId: string, data: unknown) {
-  const state = (data as { state?: unknown } | null)?.state;
-  if (state !== "down" && state !== "up" && state !== "top") return;
+export function noteScroll(tabId: string, state: ScrollState) {
   useToolbarAutoHide.setState((s) => {
     const peek = without(s.peek, tabId);
     const scrolledDown =
@@ -57,10 +55,6 @@ type ToolbarModeInput = {
 export function toolbarMode(i: ToolbarModeInput): ToolbarMode {
   if (!i.enabled || !i.hasPage || !i.scrolledDown || i.needsBar) return "shown";
   return i.peek ? "peek" : "collapsed";
-}
-
-export function needsBar(s: BrowserState, tabId: string, windowId: string): boolean {
-  return !!(s.windowUi[windowId] ?? DEFAULT_WINDOW_UI).panel.open || !!s.find[tabId]?.open;
 }
 
 useBrowser.subscribe((s, prev) => {

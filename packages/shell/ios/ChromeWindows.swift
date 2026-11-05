@@ -23,52 +23,15 @@ enum ChromeWindows {
     ArdiaChromeWindowHost.refusesUnhandledKeyHandler = { FocusHandoff.shared.refusesUnhandledKey($1, in: $0) }
   }
 
-  static func takeDismissed(appWindow: String) -> Bool {
-    ArdiaChromeWindowHost.takeDismissedAppWindow(appWindow)
-  }
-
-  static func fullScreenIsForPage(_ window: NSWindow) -> Bool {
-    ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)
-  }
-
-  static func forgetLaunchPictures() {
-    ArdiaChromeWindowHost.forgetLaunchPictures()
-  }
-
-  static func recordLaunchLayout() {
-    ArdiaChromeWindowHost.recordLaunchLayout()
-  }
-
-  static func embed(_ root: NSView, in window: NSWindow) {
-    ArdiaChromeWindowHost.embedRootView(root, in: window)
-  }
-
-  static func root(of window: NSWindow) -> NSView? {
-    ArdiaChromeWindowHost.rootView(of: window)
-  }
-
-  static func close(_ window: NSWindow) {
-    ArdiaChromeWindowHost.close(window)
-  }
-
-  static func showProfile(_ profile: String, in window: NSWindow) {
-    ArdiaChromeWindowHost.showProfile(profile, in: window)
-  }
-
   private static let drawnMoves = LaunchConfig.shared.switchOn("sidebarSlideLean")
 
-  static func setTrafficLightsCenter(_ center: NSPoint?, in window: NSWindow) {
+  static func setTrafficLightsCenter(_ center: NSPoint?, trailing: Bool, in window: NSWindow) {
     let value = center.map { NSValue(point: $0) }
     if drawnMoves {
-      ArdiaChromeWindowHost.moveTrafficLightsCenter(value, in: window)
+      ArdiaChromeWindowHost.moveTrafficLightsCenter(value, trailing: trailing, in: window)
     } else {
-      ArdiaChromeWindowHost.setTrafficLightsCenter(value, in: window)
+      ArdiaChromeWindowHost.setTrafficLightsCenter(value, trailing: trailing, in: window)
     }
-  }
-
-  static func prepare(_ profiles: [String], for window: NSWindow) {
-    guard !profiles.isEmpty else { return }
-    ArdiaChromeWindowHost.prepareProfiles(profiles, for: window)
   }
 
   private static var swapHandlerInstalled = false
@@ -76,9 +39,5 @@ enum ChromeWindows {
     guard !swapHandlerInstalled else { return }
     swapHandlerInstalled = true
     ArdiaChromeWindowHost.swappedHandler = handler
-  }
-
-  static func removeRoot(of window: NSWindow) {
-    ArdiaChromeWindowHost.removeRootView(of: window)
   }
 }

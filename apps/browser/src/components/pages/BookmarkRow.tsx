@@ -10,7 +10,7 @@ import { openBookmarkRowMenu } from "../../state/bookmarks/bookmarkMenus";
 import { hostLabel } from "./PageLayout";
 import { bookmarkList, pagesColors } from "./tokens";
 
-const ROW_LOOK = { height: bookmarkList.row, borderRadius: radius.button, flexDirection: "row", alignItems: "center", paddingHorizontal: space.ml, gap: space.ml } as const;
+const ROW_LOOK = { height: bookmarkList.row, borderRadius: radius.tile, flexDirection: "row", alignItems: "center", paddingHorizontal: space.ml, gap: space.ml } as const;
 const FOLDER_ICON = { width: bookmarkList.folderIconBox, height: bookmarkList.folderIconBox } as const;
 const TITLE = { flexShrink: 1 } as const;
 const DETAIL = { flex: 1 } as const;
@@ -26,6 +26,7 @@ export function BookmarkRow({
   onSelect,
   onOpenFolder,
   onDelete,
+  menuSelection,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -40,12 +41,13 @@ export function BookmarkRow({
   onSelect: (e: { metaKey?: boolean; shiftKey?: boolean }) => void;
   onOpenFolder: (folder?: string) => void;
   onDelete: () => void;
+  menuSelection: () => string[];
   onDragStart: () => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: (x: number, y: number) => void;
 }) {
   const theme = useTheme();
-  const colors = theme.dark ? pagesColors.dark : pagesColors.light;
+  const colors = pagesColors(theme);
   const node = useBookmarks((b) => b.nodes[id]);
   const path = useBookmarks((b) => (showPath ? bookmarkAncestors(b, id).map((a) => a.title).reverse().join(" › ") : ""));
   const { hovered, hoverProps } = useHover();
@@ -83,7 +85,7 @@ export function BookmarkRow({
   const open = (mode: Parameters<typeof openUrl>[2]) => node.kind === "url" && openUrl(node.url, windowId, mode);
   const menu = () => {
     if (!selected) onSelect({});
-    return openBookmarkRowMenu(node, { windowId, profileId, showPath, onOpenFolder, onDelete });
+    return openBookmarkRowMenu(node, { windowId, profileId, showPath, selection: selected ? menuSelection() : [id], onOpenFolder, onDelete });
   };
 
   return (
@@ -112,7 +114,7 @@ export function BookmarkRow({
                 {showPath ? path : node.kind === "url" ? hostLabel(node.url) : plural(node.children.length, "item")}
               </Text>
               <View style={{ opacity: hovered ? 1 : 0 }}>
-                <Button variant="icon" icon="ellipsis" size={13} box={bookmarkList.menuBox} radius={radius.m} onPress={() => void menu()} tooltip="More actions" />
+                <Button variant="icon" icon="ellipsis" size="l" onPress={() => void menu()} tooltip="More actions" />
               </View>
             </View>
           </Pressable>

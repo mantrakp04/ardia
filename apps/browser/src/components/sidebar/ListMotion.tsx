@@ -1,3 +1,4 @@
+import { devRegister } from "../dev/devRegister";
 import { createContext, memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
@@ -10,6 +11,8 @@ import { entryHeight } from "../../state/sidebar/geometry";
 import { ghostEntry, snapshotEntry, type EntrySnapshot } from "./GhostEntry";
 import { curve } from "../ui/motion";
 import { SIDEBAR_MOTION } from "./tokens";
+import { entryId, entryKey, parseEntry } from "../../state/sidebar/entryKey";
+import { splitTabIdsOf } from "../../state/splits/splits";
 
 export const SLIDE_MS = SIDEBAR_MOTION.listSlide;
 export const FADE_MS = SIDEBAR_MOTION.listFade;
@@ -35,9 +38,9 @@ export const ListMotionContext = createContext<ListMotionScope>({ enabled: false
 let ghostIds = 0;
 
 const tabsOf = (s: BrowserState, entry: string): string[] => {
-  const id = entry.slice(2);
-  if (entry.startsWith("g:")) return s.groups[id]?.tabIds ?? [];
-  if (entry.startsWith("s:")) return s.splits[id]?.tabIds ?? [];
+  const { kind, id } = parseEntry(entry);
+  if (kind === "group") return s.groups[id]?.tabIds ?? [];
+  if (kind === "split") return splitTabIdsOf(s.splits[id]) ?? [];
   return [id];
 };
 
@@ -156,11 +159,11 @@ type Core = {
   planner: Planner;
   height: (entry: string) => number;
   enabled: boolean;
-  native: boolean;
+  nativeTail: boolean;
   below?: ((delta: number) => void) | null;
 };
 
-function useMotion({ devKey, entries, from, planner, height, enabled, native, below }: Core) {
+function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail, below }: Core) {
   const slides = useRef(new Map<string, Slide>()).current;
   const contexts = useRef(new Map<string, EntryMotion>()).current;
   const clipped = useRef(new Set<string>()).current;
@@ -196,10 +199,7 @@ function useMotion({ devKey, entries, from, planner, height, enabled, native, be
   const queued = useRef<Plan | null>(null);
   const clipping = useRef<object | null>(null);
   const [, rerender] = useState(0);
-  if (__DEV__ && enabled) {
-    const dev = globalThis as { sidebarMotion?: Record<string, unknown> };
-    dev.sidebarMotion = { ...dev.sidebarMotion, [devKey]: { slides, ghosts, clipped } };
-  }
+  if (enabled) devRegister("sidebarMotion", devKey, { slides, ghosts, clipped });
 
   const now = Date.now();
   for (const slide of slides.values()) {
@@ -258,7 +258,7 @@ function useMotion({ devKey, entries, from, planner, height, enabled, native, be
       slide.at = at;
       slide.until = at + slideMs + FRAME_SLACK_MS;
       slide.landed = false;
-      const timing = Animated.timing(slide.value, { toValue: 0, duration: slideMs, easing: SLIDE_EASING, useNativeDriver: native });
+      const timing = Animated.timing(slide.value, { toValue: 0, duration: slideMs, easing: SLIDE_EASING, useNativeDriver: nativeTail || m.key !== TAIL });
       const clips = i === 0 && token;
       timing.start(({ finished }) => {
         if (!finished) return;
@@ -323,8 +323,9 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
     if (before.state.groups !== after.state.groups) {
       const had = new Set(before.list);
       for (const e of after.list) {
-        if (!had.has(e) || !e.startsWith("g:")) continue;
-        const change = groupChange(before.state, after.state, e.slice(2));
+        const groupId = entryId(e, "group");
+        if (!had.has(e) || groupId === null) continue;
+        const change = groupChange(before.state, after.state, groupId);
         if (change === "other" && height(before.state, e) !== height(after.state, e)) return null;
         if (change === "grown" || change === "extended") changes.set(e, change);
       }
@@ -345,7 +346,7 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
     const snapshot = (e: string) => snapshotEntry(before.state, windowId, profileId, e);
     return buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail: true, snapshot, clipAfter: grown, start });
   };
-  return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, native: true });
+  return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: true });
 }
 
 export function useGroupMotion(windowId: string, profileId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
@@ -368,8 +369,8 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
     if (!atEnd) return plan;
     return { ...(plan ?? { moves: [], ghosts: [], clipped: [] }), below: old.end - next.end };
   };
-  const below = scope.slideBelow ? (delta: number) => scope.slideBelow?.(`g:${groupId}`, delta) : null;
-  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, native: false, below });
+  const below = scope.slideBelow ? (delta: number) => scope.slideBelow?.(entryKey("group", groupId), delta) : null;
+  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: false, below });
 }
 
 export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { snapshot: EntrySnapshot; top: number; opacity: Animated.Value }) {

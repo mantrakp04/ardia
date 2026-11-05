@@ -7,7 +7,6 @@ export {
   isDefaultBrowser,
   isInDock,
   launchAtLoginStatus,
-  setAppearance,
   setAppIcon,
   setAsDefaultBrowser,
   setAutomaticUpdateChecks,

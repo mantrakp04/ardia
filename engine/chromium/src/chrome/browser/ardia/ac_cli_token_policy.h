@@ -5,7 +5,7 @@
 
 #include <memory>
 
-#include "ardia/core/ac_content_hooks.h"  // nogncheck
+#include "ardia/core/ac_content_hooks.h"
 
 namespace content {
 class DevToolsAgentHost;

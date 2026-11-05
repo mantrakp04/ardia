@@ -23,6 +23,13 @@ const ICONS: Record<string, Icon> = {
   "outlook.live.com": OUTLOOK,
   "youtube.com": require("../../../assets/site-icons/youtube.png"),
   "open.spotify.com": require("../../../assets/site-icons/spotify.png"),
+  "google.com": require("../../../assets/site-icons/google.png"),
+  "bing.com": require("../../../assets/site-icons/bing.png"),
+  "duckduckgo.com": require("../../../assets/site-icons/duckduckgo.png"),
+  "ecosia.org": require("../../../assets/site-icons/ecosia.png"),
+  "search.brave.com": require("../../../assets/site-icons/brave-search.png"),
+  "kagi.com": require("../../../assets/site-icons/kagi.png"),
+  "startpage.com": require("../../../assets/site-icons/startpage.png"),
 };
 
 const PAGE = /^https?:\/\/(?:www\.)?([^/?#:@]+)(?::\d+)?(?:\/([^/?#]*))?/i;

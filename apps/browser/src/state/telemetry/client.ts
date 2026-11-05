@@ -1,18 +1,21 @@
-import { engineInfo, systemInfo, type SystemInfo } from "../../platform/app";
-import { readDocument, writeDocument } from "../../platform/documents";
-import { devTestValue } from "../../platform/launchConfig";
+import { engineInfo } from "../../platform/app";
+import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
-import { DEV_SEND_TEST_KEY, LOGS_URL, MAX_BODY_BYTES } from "./config";
+import { MAX_BODY_BYTES } from "./config";
 import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
 import { cleanProperties } from "./sanitize";
-import { versionedJson, unchanged, upgraded, type Migrations } from "../../lib/savedDocument";
+import type { RequestLogEntry } from "./requestLog";
+import { appInfo, mayPost, post } from "./transport";
+import { uuidv4, uuidv7 } from "./ids";
+import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
+import { withDeadline } from "../../lib/deadline";
+import { isFields, isString, numberOr, stringOr } from "../../lib/decode";
 
 const STATE_DOC = "telemetry.json";
 const QUEUE_DOC = "telemetry-queue.json";
 const STATE_VERSION = 1;
 const STATE_MIGRATIONS: Migrations = { 0: unchanged };
 const QUEUE_VERSION = 1;
-const REQUEST_LOG_DOC = "telemetry-requests.log";
 
 const MAX_EVENTS = 1000;
 const MAX_LOGS = 200;
@@ -21,44 +24,55 @@ const FLUSH_DELAY_MS = 30_000;
 const URGENT_FLUSH_DELAY_MS = 3_000;
 const MAX_BACKOFF_MS = 30 * 60_000;
 
-type Saved = {
-  version: 1;
-  sharing: boolean;
+type Session = {
   decidedAt: number | null;
   askDoneAt: number | null;
-  installId: string | null;
   crashCursor: number;
   lastVersion: string | null;
   sessionOpen: boolean;
-  lastLaunchAt?: number | null;
-  lastQuitAt?: number | null;
-  lastBuild?: string | null;
+  lastLaunchAt: number | null;
+  lastQuitAt: number | null;
+  lastBuild: string | null;
+  settingsDay: string | null;
 };
+type Sharing = { sharing: false; installId: null } | { sharing: true; installId: string };
+type Saved = Session & Sharing;
 
 const DEFAULT: Saved = {
-  version: 1,
   sharing: false,
+  installId: null,
   decidedAt: null,
   askDoneAt: null,
-  installId: null,
   crashCursor: 0,
   lastVersion: null,
   sessionOpen: false,
+  lastLaunchAt: null,
+  lastQuitAt: null,
+  lastBuild: null,
+  settingsDay: null,
 };
 
-function readJson<T>(name: string): T | null {
-  try {
-    const json = readDocument(name);
-    return json ? (JSON.parse(json) as T) : null;
-  } catch {
-    return null;
-  }
+function readSaved(doc: SavedObject | null): Saved {
+  if (!doc) return DEFAULT;
+  const sharing: Sharing = doc.sharing === true && isString(doc.installId) && doc.installId ? { sharing: true, installId: doc.installId } : { sharing: false, installId: null };
+  return {
+    ...sharing,
+    decidedAt: numberOr(doc.decidedAt, null),
+    askDoneAt: numberOr(doc.askDoneAt, null),
+    crashCursor: numberOr(doc.crashCursor, 0),
+    lastVersion: stringOr(doc.lastVersion, null),
+    sessionOpen: doc.sessionOpen === true,
+    lastLaunchAt: numberOr(doc.lastLaunchAt, null),
+    lastQuitAt: numberOr(doc.lastQuitAt, null),
+    lastBuild: stringOr(doc.lastBuild, null),
+    settingsDay: stringOr(doc.settingsDay, null),
+  };
 }
 
-let saved: Saved = { ...DEFAULT };
+let saved: Saved = DEFAULT;
 
-function save(patch: Partial<Saved>) {
-  saved = { ...saved, ...patch };
+function save(patch: Partial<Session> | (Partial<Session> & Sharing)) {
+  saved = { ...saved, ...patch } as Saved;
   try {
     writeDocument(STATE_DOC, versionedJson(saved, STATE_VERSION));
   } catch {}
@@ -73,15 +87,10 @@ export const useTelemetry = create<{ sharing: boolean; decided: boolean; askDone
 
 export const isSharing = () => saved.sharing;
 
-let app: SystemInfo | null = null;
-export const appInfo = () => (app ??= systemInfo());
 let engineVersion: string | null = null;
 
 export const environment = (): "dev" | "test" | "production" =>
   __DEV__ ? "dev" : appInfo().isolatedInstance ? "test" : "production";
-
-const devSendAllowed = () => devTestValue(DEV_SEND_TEST_KEY) === "1";
-const canSend = () => !__DEV__ || devSendAllowed();
 
 function context(): Record<string, unknown> {
   const info = appInfo();
@@ -101,10 +110,30 @@ function context(): Record<string, unknown> {
   };
 }
 
-type Queue = { version: 1; events: QueuedEvent[]; logs: OtlpLogRecord[] };
+type Queue = { events: QueuedEvent[]; logs: OtlpLogRecord[] };
 
-let queue: Queue = { version: 1, events: [], logs: [] };
+let queue: Queue = { events: [], logs: [] };
+let queueLoaded = false;
 let generation = 0;
+
+const isEvent = (v: unknown): v is QueuedEvent =>
+  isFields(v) && isString(v.uuid) && isString(v.event) && isString(v.distinct_id) && isString(v.timestamp) && isFields(v.properties);
+const isLog = (v: unknown): v is OtlpLogRecord => isFields(v) && isString(v.timeUnixNano) && isFields(v.body) && Array.isArray(v.attributes);
+
+function storedQueue(): Queue {
+  const doc = parseSaved(readDocument(QUEUE_DOC), QUEUE_VERSION);
+  return {
+    events: Array.isArray(doc?.events) ? doc.events.filter(isEvent) : [],
+    logs: Array.isArray(doc?.logs) ? doc.logs.filter(isLog) : [],
+  };
+}
+
+function loadQueue() {
+  if (queueLoaded) return;
+  queueLoaded = true;
+  const stored = storedQueue();
+  queue = { events: [...stored.events, ...queue.events], logs: [...stored.logs, ...queue.logs] };
+}
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 function persistQueue(now = false) {
@@ -112,6 +141,7 @@ function persistQueue(now = false) {
   persistTimer = undefined;
   const write = () => {
     try {
+      loadQueue();
       writeDocument(QUEUE_DOC, versionedJson(queue, QUEUE_VERSION));
     } catch {}
   };
@@ -119,8 +149,21 @@ function persistQueue(now = false) {
   else persistTimer = setTimeout(write, 2000);
 }
 
+export function saveQueueNow(timeoutMs = 1000): Promise<void> {
+  clearTimeout(persistTimer);
+  persistTimer = undefined;
+  try {
+    loadQueue();
+    const landed = saveDocument(QUEUE_DOC, versionedJson(queue, QUEUE_VERSION)).catch(() => {});
+    return withDeadline(landed, timeoutMs, undefined);
+  } catch {
+    return Promise.resolve();
+  }
+}
+
 function clearQueue() {
-  queue = { version: 1, events: [], logs: [] };
+  queue = { events: [], logs: [] };
+  queueLoaded = true;
   clearTimeout(flushTimer);
   flushTimer = undefined;
   persistQueue(true);
@@ -135,11 +178,12 @@ export type CaptureOptions = {
 };
 
 export function capture(event: string, props: Record<string, unknown> = {}, options: CaptureOptions = {}) {
-  if (!saved.sharing || !saved.installId) {
+  if (!saved.sharing) {
     droppedWhileOff++;
     return;
   }
   try {
+    loadQueue();
     queue.events.push({
       uuid: uuidv7(),
       event,
@@ -156,6 +200,7 @@ export function capture(event: string, props: Record<string, unknown> = {}, opti
 export function queueLog(level: "warn" | "error", message: string, attributes: Record<string, string | number | boolean>) {
   if (!saved.sharing) return;
   try {
+    loadQueue();
     queue.logs.push(logRecord(level, message, attributes));
     if (queue.logs.length > MAX_LOGS) queue.logs.splice(0, queue.logs.length - MAX_LOGS);
     persistQueue();
@@ -178,52 +223,16 @@ function scheduleFlush(delay: number) {
   flushTimer = setTimeout(() => void flush(), due - Date.now());
 }
 
-export type RequestLogEntry = {
-  at: string;
-  kind: "events" | "logs" | "daily";
-  url: string;
-  count: number;
-  bytes: number;
-  status: number | null;
-  dryRun?: boolean;
-};
-
-const requests: RequestLogEntry[] = [];
-
-export const requestLog = (): readonly RequestLogEntry[] => requests;
-
-export function logRequest(entry: RequestLogEntry, body: string) {
-  requests.push(entry);
-  if (requests.length > 200) requests.shift();
-  if (__DEV__) {
-    try {
-      const line = JSON.stringify({ ...entry, body: JSON.parse(body) });
-      writeDocument(REQUEST_LOG_DOC, (readDocument(REQUEST_LOG_DOC) ?? "").slice(-400_000) + `${line}\n`);
-    } catch {}
-  }
-  if (__DEV__) console.log(`[telemetry] ${entry.dryRun ? "dry run" : "POST"} ${entry.url} ${entry.kind}×${entry.count} → ${entry.status}`);
-}
-
 const inflight = new Set<AbortController>();
 
-async function post(kind: RequestLogEntry["kind"], url: string, body: string, count: number) {
-  const entry: RequestLogEntry = { at: new Date().toISOString(), kind, url, count, bytes: body.length, status: null };
-  if (!canSend()) {
-    logRequest({ ...entry, dryRun: true }, body);
-    return 200;
-  }
+async function send(kind: RequestLogEntry["kind"], body: string, count: number) {
   const abort = new AbortController();
   inflight.add(abort);
   try {
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, signal: abort.signal });
-    entry.status = response.status;
-  } catch {
-    entry.status = 0;
+    return await post(kind, body, count, abort.signal);
   } finally {
     inflight.delete(abort);
   }
-  logRequest(entry, body);
-  return entry.status;
 }
 
 function resource(): Record<string, unknown> {
@@ -264,7 +273,7 @@ async function drain<T>(
       size = Math.ceil(batch.length / 2);
       continue;
     }
-    const status = await post(kind, LOGS_URL, body, batch.length);
+    const status = await send(kind, body, batch.length);
     if (gen !== generation) return "stale";
     const result = outcome(status, batch.length);
     if (result === "retry") return "failed";
@@ -319,6 +328,7 @@ export function setSharing(on: boolean, source: SharingSource) {
     crashCursor: now,
     lastVersion: appInfo().appVersion,
     lastBuild: appInfo().appBuild,
+    settingsDay: null,
     sessionOpen: true,
     decidedAt: now,
     askDoneAt: saved.askDoneAt ?? now,
@@ -335,7 +345,7 @@ let loaded = false;
 export function loadChoice() {
   if (loaded) return;
   loaded = true;
-  saved = { ...DEFAULT, ...(upgraded(readJson(STATE_DOC), STATE_VERSION, STATE_MIGRATIONS) as Partial<Saved> | null) };
+  saved = readSaved(parseSaved(readDocument(STATE_DOC), STATE_VERSION, STATE_MIGRATIONS));
   useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
 }
 
@@ -353,18 +363,17 @@ export function startClient(): ClientSession | null {
     .then((e) => (engineVersion = `ArdiaCore / Chromium ${e.chromiumVersion}`))
     .catch(() => {});
   if (!saved.sharing) {
-    const stale = readJson<Queue>(QUEUE_DOC);
-    if (stale?.events?.length || stale?.logs?.length) clearQueue();
+    const stale = storedQueue();
+    if (stale.events.length || stale.logs.length) clearQueue();
     return null;
   }
-  const stored = upgraded(readJson(QUEUE_DOC), QUEUE_VERSION) as Queue | null;
-  if (stored) queue = { version: 1, events: [...(stored.events ?? []), ...queue.events], logs: [...(stored.logs ?? []), ...queue.logs] };
+  loadQueue();
   const previous: PreviousSession = saved.lastVersion === null ? "none" : saved.sessionOpen ? "unclean" : "clean";
   const version = appInfo().appVersion;
   const updatedFrom = saved.lastVersion && saved.lastVersion !== version ? saved.lastVersion : null;
   const build = appInfo().appBuild;
   const firstOfVersion = saved.lastVersion !== version || (saved.lastBuild != null && saved.lastBuild !== build);
-  const last = { lastLaunchAt: saved.lastLaunchAt ?? null, lastQuitAt: saved.lastQuitAt ?? null, firstOfVersion };
+  const last = { lastLaunchAt: saved.lastLaunchAt, lastQuitAt: saved.lastQuitAt, firstOfVersion };
   save({ sessionOpen: true, lastVersion: version, lastBuild: build, lastLaunchAt: appInfo().processStart ?? Date.now() });
   scheduleFlush(10_000);
   return { previous, updatedFrom, ...last };
@@ -376,25 +385,10 @@ export function endSession() {
   persistQueue(true);
 }
 
+export const settingsSnapshotDay = () => saved.settingsDay;
+export const markSettingsSnapshot = (day: string) => save({ settingsDay: day });
+
 export const crashCursor = () => saved.crashCursor;
 export const advanceCrashCursor = (to: number) => to > saved.crashCursor && save({ crashCursor: to });
 
-export const devState = () => ({ saved, queued: { events: queue.events.length, logs: queue.logs.length }, droppedWhileOff, canSend: canSend() });
-
-function hex(n: number) {
-  return Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-}
-function variant() {
-  return (8 + Math.floor(Math.random() * 4)).toString(16);
-}
-
-export function uuidv4() {
-  const h = hex(29);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-${variant()}${h.slice(15, 18)}-${h.slice(18, 29)}${hex(1)}`;
-}
-
-export function uuidv7() {
-  const ms = Date.now().toString(16).padStart(12, "0");
-  const h = hex(18);
-  return `${ms.slice(0, 8)}-${ms.slice(8, 12)}-7${h.slice(0, 3)}-${variant()}${h.slice(3, 6)}-${h.slice(6, 18)}`;
-}
+export const devState = () => ({ saved, queued: { events: queue.events.length, logs: queue.logs.length }, droppedWhileOff, canSend: mayPost("events") });

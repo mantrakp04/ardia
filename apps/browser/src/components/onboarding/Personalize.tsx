@@ -1,137 +1,71 @@
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { PROFILE_COLORS } from "../ui/theme";
-import { useProfile, useWindow } from "../../state/browser/hooks";
-import { updateProfile } from "../../state/profiles/actions";
+import { StyleSheet, View } from "react-native";
+import { useSettings, useTabLayout } from "../../state/browser/hooks";
+import { chooseSidebarSide } from "../../state/settings/actions";
+import type { Settings } from "../../state/settings/settings";
 import { toggleTabLayout } from "../../state/splits/actions";
-import { useWindowTabLayout } from "../../state/windows/hooks";
-import type { ProfileColor } from "../../state/browser/types";
-import { Radio, useHover } from "../ui";
+import { MiniWindow } from "../settings/MiniWindow";
+import { Segmented, Text, type SegmentOption } from "../ui";
+import { OptionCard } from "./OptionCard";
 import { useOnboardingColors } from "./Parts";
-import { curve } from "../ui/motion";
-import { font, weight } from "../ui/tokens";
-import { onboardingMotion, onboardingType } from "./tokens";
+import { radius, space } from "../ui/tokens";
 
 export const PERSONALIZE_COPY = {
   title: "Make it yours",
   subtitle: "Pick the theme color and layout that feel right for you.",
   layouts: "Choose how you would like to view your tabs:",
+  side: "Sidebar on the",
 } as const;
 
-const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
+type Side = Settings["sidebarSide"];
 
-export function ThemeColorPicker({ windowId, size = 30, onPick }: { windowId: string; size?: number; onPick?: (color: ProfileColor) => void }) {
-  const profileId = useWindow(windowId, (w) => w?.profileId);
-  const current = useProfile(profileId, (p) => p?.color);
-  const incognito = useWindow(windowId, (w) => !!w?.incognito);
-  if (!profileId || incognito) return null;
-  return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: size >= 30 ? 8 : 6 }} accessibilityRole="radiogroup" accessibilityLabel="Theme color">
-      {COLORS.map((c) => (
-        <ColorButton key={c} color={c} size={size} selected={current === c} onPress={() => (onPick ? onPick(c) : updateProfile(profileId, { color: c }))} />
-      ))}
-    </View>
-  );
-}
+const SIDE_OPTIONS: SegmentOption<Side>[] = [
+  { value: "left", title: "Left" },
+  { value: "right", title: "Right" },
+];
 
-function ColorButton({ color, size, selected, onPress }: { color: ProfileColor; size: number; selected: boolean; onPress: () => void }) {
-  const { swatch, name } = PROFILE_COLORS[color];
-  const { hovered, hoverProps } = useHover();
-  const t = useRef(new Animated.Value(selected ? 1 : 0)).current;
-  useEffect(() => {
-    Animated.timing(t, { toValue: selected ? 1 : 0, duration: onboardingMotion.swatch, easing: curve.outQuad, useNativeDriver: false }).start();
-  }, [selected]);
-  return (
-    <View {...hoverProps} tooltip={name}>
-      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={name}>
-        {({ pressed }) => (
-          <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", transform: [{ scale: pressed ? 0.94 : 1 }] }}>
-            <Animated.View
-              style={{
-                position: "absolute",
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                borderWidth: 2,
-                borderColor: swatch,
-                opacity: t,
-              }}
-            />
-            <Animated.View
-              style={{
-                width: t.interpolate({ inputRange: [0, 1], outputRange: [size - (hovered ? 6 : 8), size - 12] }),
-                height: t.interpolate({ inputRange: [0, 1], outputRange: [size - (hovered ? 6 : 8), size - 12] }),
-                borderRadius: size / 2,
-                backgroundColor: swatch,
-                opacity: hovered || selected ? 1 : 0.85,
-              }}
-            />
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
+const OFF_OPACITY = 0.4;
 
 export function TabLayoutPicker({ windowId }: { windowId: string }) {
-  const layout = useWindowTabLayout(windowId);
+  const layout = useTabLayout(windowId);
+  const side = useSettings((s) => s.sidebarSide);
   const pick = (next: "sidebar" | "top") => {
     if (next !== layout) toggleTabLayout(windowId);
   };
+  const sideOn = layout === "sidebar";
   return (
-    <View style={{ flexDirection: "row", gap: 10 }} accessibilityRole="radiogroup" accessibilityLabel="Tab layout">
-      <LayoutButton kind="sidebar" title="Sidebar" subtitle="Tabs down the side" selected={layout === "sidebar"} onPress={() => pick("sidebar")} />
-      <LayoutButton kind="top" title="Classic" subtitle="Tabs along the top" selected={layout === "top"} onPress={() => pick("top")} />
+    <View style={{ gap: space.ml }}>
+      <View style={{ flexDirection: "row", gap: space.ml }} accessibilityRole="radiogroup" accessibilityLabel="Tab layout">
+        <LayoutButton kind="sidebar" side={side} title="Sidebar" subtitle="Tabs down the side" selected={layout === "sidebar"} onPress={() => pick("sidebar")} />
+        <LayoutButton kind="top" side="left" title="Classic" subtitle="Tabs along the top" selected={layout === "top"} onPress={() => pick("top")} />
+      </View>
+      <View
+        pointerEvents={sideOn ? "auto" : "none"}
+        accessibilityState={{ disabled: !sideOn }}
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.xs, opacity: sideOn ? 1 : OFF_OPACITY }}
+      >
+        <Text size="small" tone="textSecondary">
+          {PERSONALIZE_COPY.side}
+        </Text>
+        <Segmented options={SIDE_OPTIONS} value={side} onChange={chooseSidebarSide} />
+      </View>
     </View>
   );
 }
 
-function LayoutButton({ kind, title, subtitle, selected, onPress }: { kind: "sidebar" | "top"; title: string; subtitle: string; selected: boolean; onPress: () => void }) {
+const LAYOUT_PREVIEW_HEIGHT = 64;
+
+function LayoutButton({ kind, side, title, subtitle, selected, onPress }: { kind: "sidebar" | "top"; side: Side; title: string; subtitle: string; selected: boolean; onPress: () => void }) {
   const colors = useOnboardingColors();
-  const { hovered, hoverProps } = useHover();
-  const bar = { backgroundColor: colors.progressTrack, borderRadius: 2 };
-  return (
-    <View {...hoverProps} style={{ flex: 1 }}>
-      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
-        {({ pressed }) => (
-          <View
-            mouseDownCanMoveWindow={false}
-            style={{
-              padding: 10,
-              gap: 10,
-              borderRadius: 12,
-              backgroundColor: hovered || selected ? colors.button : colors.row,
-              borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth * 2,
-              borderColor: selected ? colors.title : colors.rowBorder,
-              transform: [{ scale: pressed ? 0.98 : 1 }],
-            }}
-          >
-            <View style={{ height: 64, borderRadius: 7, padding: 5, gap: 4, backgroundColor: colors.preview, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.previewBorder, flexDirection: kind === "sidebar" ? "row" : "column" }}>
-              {kind === "sidebar" ? (
-                <View style={{ width: "26%", gap: 3, paddingTop: 7 }}>
-                  {[1, 0.8, 0.9].map((w, i) => (
-                    <View key={i} style={[bar, { height: 5, width: `${w * 100}%`, opacity: i === 0 ? 1 : 0.6 }]} />
-                  ))}
-                </View>
-              ) : (
-                <View style={{ flexDirection: "row", gap: 3, height: 7, paddingLeft: 12 }}>
-                  {[0, 1, 2].map((i) => (
-                    <View key={i} style={[bar, { width: "22%", height: 7, opacity: i === 0 ? 1 : 0.6 }]} />
-                  ))}
-                </View>
-              )}
-              <View style={{ flex: 1, borderRadius: 4, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.previewBorder }} />
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Radio on={selected} look="ring" />
-              <View style={{ flex: 1 }}>
-                <Text style={{ ...onboardingType.bodyCompact, fontWeight: weight.medium, color: colors.title }}>{title}</Text>
-                <Text style={{ ...font.caption, color: colors.rowSubtitle }}>{subtitle}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-      </Pressable>
+  const preview = (
+    <View style={{ height: LAYOUT_PREVIEW_HEIGHT, borderRadius: radius.tile, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.previewBorder }}>
+      <MiniWindow
+        layout={kind === "sidebar" ? "side" : "top"}
+        side={side}
+        bars={[1, 0.8, 0.9]}
+        size="m"
+        look={{ window: colors.preview, bar: colors.progressTrack, page: colors.card, edge: colors.previewBorder }}
+      />
     </View>
   );
+  return <OptionCard control="radio" title={title} subtitle={subtitle} selected={selected} onPress={onPress} preview={preview} />;
 }

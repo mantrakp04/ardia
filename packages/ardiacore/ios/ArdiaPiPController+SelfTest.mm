@@ -60,7 +60,7 @@ using namespace ardia_pip;
   };
   auto rounded = [=] {
     CALayer *layer = window.contentView.layer;
-    return layer.cornerRadius == kCornerRadius && layer.masksToBounds && !window.opaque && window.hasShadow &&
+    return layer.cornerRadius == self.cornerRadius && layer.masksToBounds && !window.opaque && window.hasShadow &&
            self.overlay.layer.borderWidth == 1;
   };
   auto dragTo = [=](CGFloat x) {
@@ -206,6 +206,26 @@ using namespace ardia_pip;
   };
   [[NSJSONSerialization dataWithJSONObject:result options:0 error:nil] writeToFile:[dir stringByAppendingPathComponent:@"pip-hover.json"]
                                                                        atomically:YES];
+}
+
+- (void)devMouse:(NSArray<NSString *> *)args {
+  if (args.count != 2) return;
+  NSArray<NSString *> *xy = [args[1] componentsSeparatedByString:@","];
+  if (xy.count != 2) return;
+  NSWindow *window = _window;
+  const NSPoint point = NSMakePoint(xy[0].doubleValue, NSHeight(window.frame) - xy[1].doubleValue);
+  NSDictionary<NSString *, NSNumber *> *types = @{
+    @"moved" : @(NSEventTypeMouseMoved),
+    @"down" : @(NSEventTypeLeftMouseDown),
+    @"up" : @(NSEventTypeLeftMouseUp),
+  };
+  NSNumber *type = types[args[0]];
+  if (!type) return;
+  NSEvent *event = [NSEvent mouseEventWithType:(NSEventType)type.integerValue location:point modifierFlags:0
+                                     timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+                                       context:nil eventNumber:0 clickCount:1 pressure:type.integerValue == NSEventTypeLeftMouseDown];
+  if (type.integerValue == NSEventTypeMouseMoved) [window.contentView mouseMoved:event];
+  else [NSApp postEvent:event atStart:NO];
 }
 
 @end

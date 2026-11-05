@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { menuBarRevision, menuCommandAlternate, menuShortcut, resolvedShortcuts, setMenuBarShortcuts, shortcutHint } = await import("./commandShortcuts.ts");
+const { menuBarBindings, menuBarRevision, menuCommandAlternate, menuShortcut, resolvedShortcuts, setMenuBarShortcuts, shortcutHint } = await import("./commandShortcuts.ts");
 
 const state = (shortcuts, profileOrder = ["work", "home"]) => ({ settings: { shortcuts }, profileOrder });
-const item = (id, defaultKey, defaultModifiers, remappable = true) => ({ id, title: id, path: [], key: defaultKey, modifiers: defaultModifiers, defaultKey, defaultModifiers, remappable, aliases: [] });
+const item = (id, key, modifiers, remappable = true) => (remappable ? { id, title: id, path: [], remappable } : { id, title: id, path: [], remappable, key, modifiers });
 
 test("hints follow a rebinding and drop the default it took", () => {
   const s = state({ closeTab: ["t", "command"] });
@@ -62,4 +62,34 @@ test("a profile's ↗ alternate goes when its ⌘ keys are another binding or it
   assert.equal(menuCommandAlternate("switchProfile:work", state({ "switchProfile:work": ["k", "control"], closeTab: ["k", "control", "command"] })), null);
   assert.equal(menuCommandAlternate("switchProfile:work", state({ "switchProfile:work": ["k", "command"] })), null);
   assert.deepEqual(menuCommandAlternate("switchProfile:work", state({ "switchProfile:work": [""] })), { modifiers: ["command"] });
+});
+
+test("the menu bar gets every binding resolved, so it shows what Settings and the hints show", () => {
+  setMenuBarShortcuts([item("newTab", "t", ["command"]), item("toggleSidebar", "s", ["command"]), item("findInPage", "f", ["command"]), item("nextTab", "]", ["shift", "command"]), item("reload", "r", ["command"]), item("switchProfile:home", "", []), item("system:Edit > Emoji & Symbols", "e", ["control", "command"], false)]);
+  const bindings = menuBarBindings(state({ newTab: ["s", "command"], findInPage: ["L", "command"], nextTab: ["}", "command"], reload: [""] }));
+  assert.deepEqual(bindings.newTab, [["s", "command"]]);
+  assert.deepEqual(bindings.toggleSidebar, [["f", "shift", "command"]]);
+  assert.deepEqual(bindings.findInPage, [["l", "shift", "command"]]);
+  assert.deepEqual(bindings.nextTab, [["}", "command"]]);
+  assert.deepEqual(bindings.reload, []);
+  assert.equal(bindings["system:Edit > Emoji & Symbols"], undefined);
+  assert.deepEqual(bindings["switchProfile:home"], [["2", "control"]]);
+  assert.deepEqual(bindings["newWindow:home"], [["2", "control", "command"]]);
+  assert.deepEqual(menuBarBindings(state({ "switchProfile:home": ["k", "command"] }))["newWindow:home"], []);
+});
+
+test("a profile bound with fn keeps its ↗ shortcut in the menu bar, and a ⌘fn binding has no ↗ shortcut", () => {
+  setMenuBarShortcuts([item("switchProfile:work", "", []), item("switchProfile:home", "", [])]);
+  assert.deepEqual(menuBarBindings(state({ "switchProfile:home": ["k", "control", "function"] }))["newWindow:home"], [["k", "control", "function", "command"]]);
+  assert.deepEqual(menuBarBindings(state({ "switchProfile:home": ["k", "command", "function"] }))["newWindow:home"], []);
+  assert.equal(menuCommandAlternate("switchProfile:home", state({ "switchProfile:home": ["k", "command", "function"] })), null);
+  assert.deepEqual(menuCommandAlternate("switchProfile:home", state({ "switchProfile:home": ["k", "control", "function"] })), { modifiers: ["command"] });
+});
+
+test("a remappable item's default comes from the catalog, a fixed one's from the menu bar", () => {
+  setMenuBarShortcuts([item("toggleSidebar", "s", ["command"]), item("switchProfile:work", "", []), item("system:Edit > Emoji & Symbols", "e", ["control", "command"], false)]);
+  const resolved = resolvedShortcuts(state({}));
+  assert.deepEqual(resolved.defaultsOf("toggleSidebar").map((k) => k.key), ["s", "l", "f"]);
+  assert.deepEqual(resolved.defaultsOf("switchProfile:work"), [{ key: "1", modifiers: ["control"] }]);
+  assert.deepEqual(resolved.defaultsOf("system:Edit > Emoji & Symbols"), [{ key: "e", modifiers: ["control", "command"] }]);
 });

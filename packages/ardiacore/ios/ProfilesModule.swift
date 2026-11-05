@@ -2,11 +2,9 @@ import ExpoModulesCore
 
 public class ProfilesModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaProfiles")
+    Name(Self.calls.moduleName)
 
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      ProfilesModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static let calls = CallTable(domain: "profiles", handlers: [
@@ -16,7 +14,7 @@ public class ProfilesModule: Module {
     },
     "deleteData": { args, reply in PageEngines.deleteProfileData(profile: args.profile) { reply.ok(["remaining": $0]) } },
     "clearBrowsingData": { args, reply in
-      PageEngines.clearBrowsingData(profile: args.profile, types: args.strings("types"), since: args.double("since") ?? 0) { reply.ok() }
+      PageEngines.clearBrowsingData(profile: args.profile, types: try args.strings("types"), since: try args.optionalDouble("since") ?? 0) { reply.ok() }
     },
   ])
 }

@@ -110,33 +110,6 @@ export function controllingExtensionEngine(extension: readonly ExtensionSearchEn
   return extension.find((e) => e.isDefault);
 }
 
-const withoutPlaceholders = (url: string) => url.replace(/\{[^{}%]*\}/g, "");
-
-export function extensionEnginesFromChrome(profile: string, list: unknown): ExtensionSearchEngine[] {
-  const groups = list && typeof list === "object" ? Object.values(list as Record<string, unknown>) : [];
-  const out: ExtensionSearchEngine[] = [];
-  for (const group of groups) {
-    if (!Array.isArray(group)) continue;
-    for (const e of group as Record<string, unknown>[]) {
-      const ext = e?.extension as { id?: unknown; name?: unknown } | undefined;
-      if (!ext || typeof ext.id !== "string" || e.isOmniboxExtension) continue;
-      if (typeof e.url !== "string" || !e.url.includes("%s") || out.some((o) => o.extensionId === ext.id)) continue;
-      out.push({
-        profile,
-        extensionId: ext.id,
-        extensionName: typeof ext.name === "string" ? ext.name : "",
-        name: typeof e.name === "string" && e.name ? e.name : String(ext.name ?? ""),
-        keyword: typeof e.keyword === "string" ? e.keyword : "",
-        url: withoutPlaceholders(e.url),
-        suggestUrl:
-          typeof e.suggestionsUrl === "string" && e.suggestionsUrl.includes("%s") ? withoutPlaceholders(e.suggestionsUrl) : undefined,
-        isDefault: e.default === true,
-      });
-    }
-  }
-  return out;
-}
-
 export function engineById(engines: readonly SearchEngine[], id: string | undefined): SearchEngine {
   return engines.find((e) => e.id === id) ?? BUILT_IN_ENGINES[0]!;
 }

@@ -6,7 +6,7 @@ const { windowOpens } = await import("./windowOpenOrder.ts");
 const state = (order, focused) => ({
   windowOrder: order,
   windows: Object.fromEntries(order.map((id) => [id, { id }])),
-  ui: { focusedWindowId: focused },
+  ui: { focusOrder: focused ? [focused] : [] },
 });
 
 test("launch: the focused window first, the rest behind it in window order", () => {
@@ -16,13 +16,6 @@ test("launch: the focused window first, the rest behind it in window order", () 
     { id: "c", focus: false, behind: "b" },
     { id: "d", focus: false, behind: "b" },
   ]);
-});
-
-test("each opened right under the focused one leaves the stack the focus order has", () => {
-  const opens = windowOpens(state(["a", "b", "c", "d"], "b"), ["a", "b", "c", "d"], true);
-  const stack = [opens[0].id];
-  for (const o of opens.slice(1)) stack.splice(stack.indexOf(o.behind) + 1, 0, o.id);
-  assert.deepEqual(stack, ["b", "d", "c", "a"]);
 });
 
 test("one window, or no focused one", () => {

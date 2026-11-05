@@ -1,3 +1,5 @@
+import type { Program } from "./gl";
+
 export type Tone = "light" | "dark";
 
 interface Box {
@@ -221,17 +223,16 @@ export class ColorProbe {
   readonly width = PROBE_WIDTH;
   readonly height: number;
   readonly pixels: Uint8Array;
-  private readonly halfTexture: WebGLTexture;
-  private readonly halfFramebuffer: WebGLFramebuffer;
   private readonly texture: WebGLTexture;
   private readonly framebuffer: WebGLFramebuffer;
-  private readonly buffer: WebGLBuffer;
+  private buffer: WebGLBuffer | null = null;
   private readonly halfWidth: number;
   private readonly halfHeight: number;
   private sync: WebGLSync | null = null;
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
+    private readonly program: Program,
     sourceWidth: number,
     sourceHeight: number,
   ) {
@@ -239,41 +240,31 @@ export class ColorProbe {
     this.halfWidth = Math.max(this.width, Math.round(sourceWidth / 4));
     this.halfHeight = Math.max(this.height, Math.round(sourceHeight / 4));
     this.pixels = new Uint8Array(this.width * this.height * 4);
-    [this.halfTexture, this.halfFramebuffer] = this.target(this.halfWidth, this.halfHeight);
-    [this.texture, this.framebuffer] = this.target(this.width, this.height);
-    this.buffer = gl.createBuffer()!;
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
-    gl.bufferData(gl.PIXEL_PACK_BUFFER, this.pixels.byteLength, gl.STREAM_READ);
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-  }
-
-  private target(width: number, height: number): [WebGLTexture, WebGLFramebuffer] {
-    const gl = this.gl;
-    const texture = gl.createTexture()!;
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
-    const framebuffer = gl.createFramebuffer()!;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    this.texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, this.width, this.height);
+    this.framebuffer = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    return [texture, framebuffer];
   }
 
   get pending() {
     return this.sync !== null;
   }
 
-  capture(source: WebGLFramebuffer, sourceWidth: number, sourceHeight: number) {
+  capture(source: WebGLTexture) {
     const gl = this.gl;
     if (this.sync) return;
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, source);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.halfFramebuffer);
-    gl.blitFramebuffer(0, 0, sourceWidth, sourceHeight, 0, 0, this.halfWidth, this.halfHeight, gl.COLOR_BUFFER_BIT, gl.LINEAR);
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.halfFramebuffer);
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.framebuffer);
-    gl.blitFramebuffer(0, 0, this.halfWidth, this.halfHeight, 0, 0, this.width, this.height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+    gl.viewport(0, 0, this.width, this.height);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, source);
+    this.program.use().int("uSource", 0).vec2("uHalfSize", this.halfWidth, this.halfHeight).vec2("uProbeSize", this.width, this.height);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    this.buffer = gl.createBuffer()!;
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, this.pixels.byteLength, gl.STREAM_READ);
     gl.readPixels(0, 0, this.width, this.height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -306,6 +297,8 @@ export class ColorProbe {
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.buffer);
     gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.pixels);
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    gl.deleteBuffer(this.buffer);
+    this.buffer = null;
     return true;
   }
 
@@ -313,10 +306,9 @@ export class ColorProbe {
     const gl = this.gl;
     if (this.sync) gl.deleteSync(this.sync);
     this.sync = null;
-    gl.deleteTexture(this.halfTexture);
     gl.deleteTexture(this.texture);
-    gl.deleteFramebuffer(this.halfFramebuffer);
     gl.deleteFramebuffer(this.framebuffer);
     gl.deleteBuffer(this.buffer);
+    this.buffer = null;
   }
 }

@@ -1,4 +1,5 @@
 ---
+import { homeUrl } from "../data/site";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
@@ -12,7 +13,7 @@ import { DMG, DMG_SIZE, MIN_MACOS, REPO, VERSION } from "../data/release";
 import { HERO_POSTERS } from "../data/heroPoster";
 import { faqJsonLd } from "../data/faq";
 
-const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const home = homeUrl(Astro.site);
 const description =
   "A Mac browser with Arc's sidebar and Dia's polish, built on real Chromium. Free, open source and notarized by Apple, with ads and trackers kept out.";
 const jsonLd = [

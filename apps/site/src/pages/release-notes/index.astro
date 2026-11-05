@@ -1,4 +1,6 @@
 ---
+import { breadcrumbs } from "../../data/jsonLd";
+import { base, homeUrl } from "../../data/site";
 import { Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
 import Header from "../../components/Header.astro";
@@ -7,6 +9,7 @@ import DownloadButton from "../../components/DownloadButton.astro";
 import SendToMac from "../../components/SendToMac.astro";
 import NotesBody from "../../components/NotesBody.astro";
 import { NIGHTLY } from "../../data/release";
+import { KEYS } from "../../scripts/storage";
 import { isoDate, releasePath, releases as loadReleases } from "../../data/releaseNotes";
 import hills from "../../assets/paint/hills.png";
 import sun from "../../assets/paint/sun.png";
@@ -35,8 +38,7 @@ const months = releases.reduce<{ label: string; releases: typeof releases }[]>((
 const onlyNightlies = (group: typeof releases) => group.every((r) => r.nightly);
 const dabs = ["var(--sun)", "var(--sage)", "#e98f3c", "#d98a6c"];
 const nightlyDab = "#a99bd0";
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const home = homeUrl(Astro.site);
 const page = new URL("release-notes/", home).href;
 const jsonLd = [
   {
@@ -59,14 +61,7 @@ const jsonLd = [
       })),
     },
   },
-  {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
-      { "@type": "ListItem", position: 2, name: "Release notes", item: page },
-    ],
-  },
+  breadcrumbs(home, ["Release notes", page]),
 ];
 ---
 
@@ -75,6 +70,43 @@ const jsonLd = [
   description={`What’s new, fixed and faster in every Ardia release, from 0.1.0 to ${latest.version}. The Mac browser with Arc’s sidebar ships often, and writes it all down.`}
   jsonLd={jsonLd}
 >
+  <script is:inline slot="head" define:vars={{ viewKey: KEYS.releaseNotesView }}>
+    const root = document.documentElement;
+    let target = "";
+    let saved = null;
+    try {
+      target = decodeURIComponent(location.hash.slice(1));
+    } catch {}
+    try {
+      saved = localStorage.getItem(viewKey);
+    } catch {}
+    const view = saved === "all" || /-nightly\.\d+$/.test(target) ? "all" : "stable";
+    root.dataset.notesView = view;
+    let radioSet = view === "stable";
+    let foldSet = !target;
+    if (!radioSet || !foldSet) {
+      const settle = () => {
+        if (!radioSet) {
+          const all = document.getElementById("view-all");
+          if (all) {
+            all.checked = true;
+            radioSet = true;
+          }
+        }
+        if (!foldSet) {
+          const fold = document.getElementById(target)?.querySelector("details[data-fold]");
+          if (fold) {
+            fold.open = true;
+            foldSet = true;
+          }
+        }
+        if (radioSet && foldSet) watch.disconnect();
+      };
+      const watch = new MutationObserver(settle);
+      watch.observe(root, { childList: true, subtree: true });
+      addEventListener("DOMContentLoaded", () => watch.disconnect(), { once: true });
+    }
+  </script>
   <Header home={`${base}/`} current="notes" />
   <main class="almanac">
     <section class="masthead" aria-labelledby="notes-title">
@@ -110,7 +142,7 @@ const jsonLd = [
       <span class="grass" aria-hidden="true"></span>
     </section>
 
-    <div class="log paint" data-log>
+    <div class="log paint">
       <div class="wrap layout">
         <nav class="index" aria-label="Releases">
           <div class="index-head">
@@ -196,14 +228,14 @@ const jsonLd = [
                   </h2>
                 </header>
                 {r.open ? (
-                  <NotesBody html={r.html} />
+                  <NotesBody html={r.html} video={r.video} />
                 ) : (
                   <details class="fold" data-fold>
                     <summary class="label">
                       <span class="fold-open">Read the notes</span>
                       <span class="fold-close">Fold them back</span>
                     </summary>
-                    <NotesBody html={r.html} />
+                    <NotesBody html={r.html} video={r.video} />
                   </details>
                 )}
               </article>
@@ -412,19 +444,22 @@ const jsonLd = [
       color: var(--ink);
     }
   }
-  .log:not(:has(#view-all:checked)):is([data-js], :not(:has(.entry.nightly:target)))
+  :global(:root[data-notes-view="stable"]) .log :is(.entry.nightly, .index li.nightly, .month.nightly-only, .count-all, .nightly-note),
+  :global(:root:not([data-notes-view])) .log:not(:has(#view-all:checked)):not(:has(.entry.nightly:target))
     :is(.entry.nightly, .index li.nightly, .month.nightly-only, .count-all, .nightly-note) {
     display: none;
   }
-  .log:has(#view-all:checked) .count-stable,
-  .log:not([data-js]):has(.entry.nightly:target) .count-stable {
+  :global(:root[data-notes-view="all"]) .log .count-stable,
+  :global(:root:not([data-notes-view])) .log:is(:has(#view-all:checked), :has(.entry.nightly:target)) .count-stable {
     display: none;
   }
-  .log:has(#view-all:checked) .entry.latest:not(:first-of-type) {
+  :global(:root[data-notes-view="all"]) .log .entry.latest:not(:first-of-type),
+  :global(:root:not([data-notes-view])) .log:has(#view-all:checked) .entry.latest:not(:first-of-type) {
     padding-top: clamp(32px, 4vw, 52px);
     border-top: 1px solid var(--rule-strong);
   }
-  .log:has(#view-all:checked) .entry:first-of-type {
+  :global(:root[data-notes-view="all"]) .log .entry:first-of-type,
+  :global(:root:not([data-notes-view])) .log:has(#view-all:checked) .entry:first-of-type {
     padding-top: 0;
     border-top: 0;
   }
@@ -843,39 +878,46 @@ const jsonLd = [
 </style>
 
 <script>
-  import { track } from "../../scripts/track";
+  import { capture } from "../../scripts/telemetry";
+  import { KEYS, write } from "../../scripts/storage";
 
   const latest = document.querySelector<HTMLElement>(".entry:not(.nightly)")?.id ?? null;
   const viewed = (trigger: "load" | "hashchange") =>
-    track("release_notes_viewed", { version: decodeURIComponent(location.hash.slice(1)) || null, latest, trigger });
+    capture("release_notes_viewed", { version: targetId() || null, latest, trigger });
 
-  const log = document.querySelector<HTMLElement>("[data-log]");
-  if (log) log.dataset.js = "";
+  const root = document.documentElement;
   const viewSwitch = document.querySelector<HTMLFieldSetElement>("[data-view-switch]");
   const showAll = document.querySelector<HTMLInputElement>("#view-all");
-  const viewKey = "ac:release-notes-view";
-  try {
-    if (showAll && localStorage.getItem(viewKey) === "all") showAll.checked = true;
-  } catch {}
+  const showView = (view: "all" | "stable") => {
+    root.dataset.notesView = view;
+    if (showAll) showAll.checked = view === "all";
+  };
+  if (showAll && root.dataset.notesView === "all" && !showAll.checked) showAll.checked = true;
   viewSwitch?.addEventListener("change", (e) => {
-    try {
-      localStorage.setItem(viewKey, (e.target as HTMLInputElement).value);
-    } catch {}
+    const view = (e.target as HTMLInputElement).value === "all" ? "all" : "stable";
+    showView(view);
+    write(KEYS.releaseNotesView, view);
   });
 
   const isShown = (el: HTMLElement) => el.offsetParent !== null;
+  const targetId = () => {
+    try {
+      return decodeURIComponent(location.hash.slice(1));
+    } catch {
+      return "";
+    }
+  };
   const revealTarget = () => {
-    const id = decodeURIComponent(location.hash.slice(1));
+    const id = targetId();
     if (!id) return;
     const entry = document.getElementById(id);
     const wantsNightly = entry ? entry.classList.contains("nightly") : /-nightly\.\d+$/.test(id);
     const hidden = entry ? !isShown(entry) : false;
-    if (wantsNightly && showAll) showAll.checked = true;
+    if (wantsNightly && root.dataset.notesView !== "all") showView("all");
     const fold = entry?.querySelector<HTMLDetailsElement>("[data-fold]");
     if (fold && !fold.open) fold.open = true;
     if (entry && hidden && isShown(entry)) entry.scrollIntoView({ block: "start" });
   };
-  revealTarget();
   viewed("load");
   addEventListener("hashchange", () => {
     revealTarget();

@@ -1,23 +1,23 @@
 import { memo, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { markHoverProps } from "../../lib/hoverMarks";
 import type { HistoryEntry } from "../../state/browser/types";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { Favicon } from "../favicon/Favicon";
-import { Button, Checkbox, ContextMenuArea, HoverSlot, MouseArea, radius, space, Text, useTheme } from "../ui";
+import { Button, Checkbox, ContextMenuArea, Divider, HoverSlot, MouseArea, radius, space, Text, useTheme } from "../ui";
 import { historyScroll } from "./historyLayout";
 import { openHistoryRowMenu } from "../../state/history/historyMenus";
 import { hostLabel, timeLabel } from "./PageLayout";
 import { historyRow, pagesColors, pageType } from "./tokens";
 
 const DAY_HEADER = { position: "absolute", left: 0, right: 0, height: historyRow.header, justifyContent: "flex-end", paddingBottom: space.m, paddingHorizontal: historyRow.headerInset } as const;
-const DAY_LABEL = { fontSize: pageType.dayHeader } as const;
+const DAY_LABEL = pageType.dayHeader;
 const ROW_FRAME = { height: historyRow.height, paddingHorizontal: space.xl } as const;
 const TIME = { width: historyRow.timeWidth } as const;
 const LINK = { flexDirection: "row", alignItems: "center", gap: space.ml } as const;
 const TITLE = { flexShrink: 1 } as const;
 const HOST = { flexShrink: 0, maxWidth: historyRow.hostMaxWidth } as const;
-const SEPARATOR = { position: "absolute", left: space.xl + space.l, right: space.xl + space.l, bottom: 0, height: StyleSheet.hairlineWidth * 2 } as const;
+const SEPARATOR = { position: "absolute", left: space.xl + space.l, right: space.xl + space.l, bottom: 0 } as const;
 
 export const DayHeader = memo(function DayHeader({ label, top }: { label: string; top: number }) {
   return (
@@ -40,6 +40,7 @@ export const HistoryRow = memo(function HistoryRow({
   onToggle,
   onMoreFromSite,
   onRemove,
+  menuTargets,
 }: {
   entry: HistoryEntry;
   profileId: string;
@@ -50,7 +51,8 @@ export const HistoryRow = memo(function HistoryRow({
   windowId: string;
   onToggle: (url: string, shift: boolean) => void;
   onMoreFromSite: (url: string) => void;
-  onRemove: (url: string) => void;
+  onRemove: (urls: string[]) => void;
+  menuTargets: (entry: HistoryEntry) => HistoryEntry[];
 }) {
   const theme = useTheme();
   const url = useRef(entry.url);
@@ -93,8 +95,8 @@ export const HistoryRow = memo(function HistoryRow({
     };
   });
   const showControls = restingUrl === entry.url || focusedUrl === entry.url;
-  const menu = () => openHistoryRowMenu(entry.url, windowId, onMoreFromSite, onRemove);
-  const r = radius.card;
+  const menu = () => openHistoryRowMenu(menuTargets(entry), windowId, onMoreFromSite, onRemove);
+  const r = radius.panel;
   return (
     <View {...hoverProps} {...focusProps} style={ROW_FRAME}>
       <ContextMenuArea onContextMenu={() => void menu()} style={{ flex: 1 }}>
@@ -105,7 +107,7 @@ export const HistoryRow = memo(function HistoryRow({
             alignItems: "center",
             paddingHorizontal: space.l,
             gap: space.l,
-            backgroundColor: selected ? (theme.dark ? pagesColors.dark : pagesColors.light).rowSelected : hovered ? theme.rowHover : theme.groupFill,
+            backgroundColor: selected ? pagesColors(theme).rowSelected : hovered ? theme.rowHover : theme.groupFill,
             borderTopLeftRadius: first ? r : 0,
             borderTopRightRadius: first ? r : 0,
             borderBottomLeftRadius: last ? r : 0,
@@ -142,10 +144,10 @@ export const HistoryRow = memo(function HistoryRow({
               </Text>
             </Pressable>
           </MouseArea>
-          <HoverSlot hovered={showControls} width={historyRow.menuBox} hover={<Button variant="icon" icon="ellipsis" size={13} box={historyRow.menuBox} radius={radius.m} onPress={() => void menu()} tooltip="More actions" />} />
+          <HoverSlot hovered={showControls} width={historyRow.menuBox} hover={<Button variant="icon" icon="ellipsis" size="l" onPress={() => void menu()} tooltip="More actions" />} />
         </View>
       </ContextMenuArea>
-      {!last && <View style={[SEPARATOR, { backgroundColor: theme.divider }]} />}
+      {!last && <Divider thick style={SEPARATOR} />}
     </View>
   );
 });

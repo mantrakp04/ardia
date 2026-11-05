@@ -7,11 +7,6 @@ on:
         description: Version, as committed in MARKETING_VERSION (0.2.42 or 0.2.42-nightly.1)
         type: string
         required: true
-      channel:
-        description: Channel
-        type: choice
-        options: [nightly, stable]
-        default: nightly
       dry_run:
         description: Dry run, a release candidate that publishes nothing
         type: boolean
@@ -29,7 +24,6 @@ env:
   HOMEBREW_NO_INSTALL_CLEANUP: 1
   TURBO_TELEMETRY_DISABLED: 1
   VERSION: ${{ inputs.version }}
-  CHANNEL: ${{ inputs.channel }}
   DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
@@ -49,10 +43,8 @@ jobs:
           set -euo pipefail
           fail() { echo "::error::$*"; exit 1; }
           check() { if [ "$DRY_RUN" = true ]; then echo "::warning::$* (a real release would stop here)"; else fail "$*"; fi; }
-          case "$CHANNEL" in
-            nightly) [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$ ]] || fail "a nightly is <next stable>-nightly.<n>, not $VERSION" ;;
-            stable) [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "a stable version is <major>.<minor>.<patch>, not $VERSION" ;;
-          esac
+          . scripts/lib/releases.sh
+          channel=$(channel_of "$VERSION") || fail "$VERSION is neither <major>.<minor>.<patch> nor <next stable>-nightly.<n>"
           project=$(sed -n 's/.*MARKETING_VERSION = "\{0,1\}\([^";]*\)"\{0,1\};/\1/p' apps/browser/macos/Ardia.xcodeproj/project.pbxproj | sort -u)
           [ "$project" = "$VERSION" ] || check "MARKETING_VERSION is $project: commit the bump to $VERSION first"
           [ -f "docs/release-notes/$VERSION.md" ] || check "no docs/release-notes/$VERSION.md: write and commit the notes first"
@@ -60,7 +52,7 @@ jobs:
           tree=$(git rev-parse HEAD:engine)
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           {
-            echo "### Ardia $VERSION ($CHANNEL)"
+            echo "### Ardia $VERSION ($channel)"
             echo "- commit \`$GITHUB_SHA\`, engine tree \`${tree:0:12}\`"
             if [ "$DRY_RUN" = true ]; then echo "- dry run: a release candidate, nothing published"; else echo "- publishes"; fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -153,13 +145,13 @@ jobs:
         run: pod install
       - name: Tree is clean
         run: |
-          pods=(apps/browser/macos/Podfile.lock apps/browser/macos/Ardia.xcodeproj/project.pbxproj)
-          normalize() { sed -E 's/^[-+]//; s/"//g; s/^(  ArdiaCore: )[0-9a-f]{40}$/\1checksum/'; }
-          removed=$(git diff -U0 -- "${pods[@]}" | { grep '^-[^-]' || true; } | normalize)
-          added=$(git diff -U0 -- "${pods[@]}" | { grep '^+[^+]' || true; } | normalize)
+          pbx=apps/browser/macos/Ardia.xcodeproj/project.pbxproj
+          unquote() { sed -E 's/^[-+]//; s/"//g'; }
+          removed=$(git diff -U0 -- "$pbx" | { grep '^-[^-]' || true; } | unquote)
+          added=$(git diff -U0 -- "$pbx" | { grep '^+[^+]' || true; } | unquote)
           if [ -n "$removed$added" ] && [ "$removed" = "$added" ]; then
-            echo "::notice::pod install only quoted MARKETING_VERSION and rehashed ArdiaCore's podspec (its checksum includes this checkout's path): kept, not counted as changes"
-            git update-index --assume-unchanged "${pods[@]}"
+            echo "::notice::pod install only quoted MARKETING_VERSION: kept, not counted as changes"
+            git update-index --assume-unchanged "$pbx"
           fi
           dirty=$(git status --porcelain -- apps/browser apps/cli packages engine scripts/dmg | grep -v ' apps/browser/build' || true)
           [ -z "$dirty" ] || {
@@ -170,7 +162,7 @@ jobs:
           }
       - name: Build
         run: |
-          args=("$VERSION" --channel "$CHANNEL" --phase build)
+          args=("$VERSION" --phase build)
           if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
           if ! curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"; then
             echo "::notice::the latest release has no appcast.xml: this release starts it"
@@ -250,7 +242,7 @@ jobs:
           NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
           export RELEASE_BUILD_INPUT="$RUNNER_TEMP/build-in"
-          args=("$VERSION" --channel "$CHANNEL" --phase sign)
+          args=("$VERSION" --phase sign)
           if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
           if ! curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"; then
             export APPCAST_BASE=none
@@ -278,7 +270,7 @@ jobs:
           node-version: 24
       - name: Launch check
         run: |
-          args=("$VERSION" --channel "$CHANNEL" --phase check)
+          args=("$VERSION" --phase check)
           if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
           scripts/release.sh "${args[@]}"
       - name: Update signature

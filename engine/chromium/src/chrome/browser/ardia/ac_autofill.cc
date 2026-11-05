@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_autofill.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <string>
 #include <utility>
@@ -31,8 +31,6 @@ namespace autofill_internal {
 namespace {
 
 using autofill::PersonalDataManager;
-
-constexpr base::TimeDelta kSettleStep = base::Milliseconds(50);
 
 const char* NetworkName(const std::string& network) {
   static constexpr std::pair<const char*, const char*> kNetworks[] = {
@@ -195,8 +193,7 @@ using ardia::Call;
 using ardia::Reply;
 using autofill::PersonalDataManager;
 
-AC_ENGINE_CALL(ac_autofill_addresses) {
-  AC_AUTOFILL_CALL();
+AC_PROFILE_CALL(ac_autofill_addresses) {
   ardia::autofill_internal::Load(
       call, base::BindOnce([](PersonalDataManager* pdm, Reply reply) {
         base::ListValue list;
@@ -209,8 +206,7 @@ AC_ENGINE_CALL(ac_autofill_addresses) {
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_cards) {
-  AC_AUTOFILL_CALL();
+AC_PROFILE_CALL(ac_autofill_cards) {
   ardia::autofill_internal::Load(
       call, base::BindOnce([](PersonalDataManager* pdm, Reply reply) {
         base::ListValue list;
@@ -223,8 +219,7 @@ AC_ENGINE_CALL(ac_autofill_cards) {
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_card_number) {
-  AC_AUTOFILL_CALL();
+AC_PROFILE_CALL(ac_autofill_card_number) {
   ardia::autofill_internal::Load(
       call,
       base::BindOnce(

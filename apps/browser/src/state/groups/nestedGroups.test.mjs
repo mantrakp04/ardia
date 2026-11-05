@@ -3,7 +3,7 @@ import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { groupEntries, sidebarEntries, numberedTabs } = await import("../sidebar/entries.ts");
 const { nestGroups, orderSections } = await import("./groups.ts");
-const { canMoveGroup } = await import("../pins/organize.ts");
+const { canMoveGroup } = await import("../pins/tabGrouping.ts");
 const { liveAnchors, withLiveFolders } = await import("../sidebar/pinnedOrder.ts");
 const { createFolder, removeFolder, updateFolder, useLive } = await import("../live/store.ts");
 
@@ -261,7 +261,7 @@ test("nesting repair keeps a tab in a single chain", () => {
 const sectionsInOrder = (w) => {
   const s = S();
   const pinnedMember = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
-  const rank = (id) => (s.tabs[id].pinned ? (s.tabs[id].pinnedAsRow ? 1 : 0) : pinnedMember.has(id) ? 2 : 3);
+  const rank = (id) => (!!s.tabs[id].pin ? ((s.tabs[id].pin?.as === "row") ? 1 : 0) : pinnedMember.has(id) ? 2 : 3);
   const ranks = s.windows[w].tabIds.map(rank);
   return ranks.every((r, i) => i === 0 || ranks[i - 1] <= r);
 };
@@ -339,8 +339,8 @@ test("a saved or synced nested group pinned unlike its root settles to the root'
 
 test("settling a nested group pinned unlike its root keeps pinned groups ahead of the list", async () => {
   const { settleNesting } = await import("./groups.ts");
-  const tab = (id, extra = {}) => ({ id, windowId: "w", profileId: "default", url: `https://${id}.example/`, pinned: false, ...extra });
-  const tabs = { e: tab("e", { pinned: true, pinnedAsRow: true }), b: tab("b"), c: tab("c"), p: tab("p"), a: tab("a"), d: tab("d") };
+  const tab = (id, extra = {}) => ({ id, windowId: "w", profileId: "default", url: `https://${id}.example/`, pin: null, ...extra });
+  const tabs = { e: tab("e", { pin: { as: "row" } }), b: tab("b"), c: tab("c"), p: tab("p"), a: tab("a"), d: tab("d") };
   const group = (id, tabIds, extra = {}) => ({ id, windowId: "w", profileId: "default", name: id, icon: null, color: null, collapsed: false, pinned: false, tabIds, createdAt: 0, ...extra });
   const groups = {
     O: group("O", ["b", "c", "a", "d"]),

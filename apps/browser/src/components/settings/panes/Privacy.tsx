@@ -5,12 +5,9 @@ import {
   removeExternalAppAllowance,
   resetSiteSettings,
   setContentBlockerAllowed,
-  setContentBlockerEnabled,
-  setFilterListEnabled,
   setSiteSetting,
   setZoom,
   type ClearSiteDataResult,
-  type ContentBlockerState,
   type FilterList,
   type FilterListCategory,
   type SiteSettings,
@@ -19,29 +16,31 @@ import {
 } from "../../../state/site/siteSettings";
 import { confirm } from "../../../state/app/system";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, Text, View } from "react-native";
-import { useTheme } from "../../ui/theme";
-import { currentSettings } from "../../../state/browser/current";
-import { useProfiles, useSettings } from "../../../state/browser/hooks";
-import { engineProfile } from "../../../state/browser/model";
-import { Button, Checkbox, font, Group, PopUp, Sheet, Toggle, weight } from "../../ui";
+import { Image, ScrollView, View } from "react-native";
+import { currentEngineProfile } from "../../../state/browser/current";
+import { useSettings } from "../../../state/browser/hooks";
+import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
+import { setting, type SettingId } from "../settingsIndex";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { updateSettings } from "../../../state/settings/actions";
+import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
+import { UI_LOCALE } from "../../../lib/uiLocale";
 
-const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
-  { id: "ads", toggle: "Block ads", section: "Ad blockers", anchor: "privacy.blockAds" },
-  { id: "trackers", toggle: "Block trackers", section: "Trackers", anchor: "privacy.blockTrackers" },
-  { id: "cookies", toggle: "Block cookie banners", section: "Cookie banners", anchor: "privacy.blockCookieBanners" },
-  { id: "annoyances", toggle: "", section: "Annoyances" },
-  { id: "security", toggle: "", section: "Malware and scams" },
-  { id: "regional", toggle: "", section: "Regional blockers" },
+const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
+  { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
+  { id: "trackers", section: "Trackers", anchor: "privacy.blockTrackers" },
+  { id: "cookies", section: "Cookie banners", anchor: "privacy.blockCookieBanners" },
+  { id: "annoyances", section: "Annoyances" },
+  { id: "security", section: "Malware and scams" },
+  { id: "regional", section: "Regional blockers" },
 ];
 
-const filtersText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "filter" : "filters"}`;
+const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
 
 function useContentBlocker() {
   const [state, reload] = useResource(contentBlocker);
@@ -53,20 +52,9 @@ function useContentBlocker() {
   return [state ?? null, refresh] as const;
 }
 
-const categoryOn = (s: ContentBlockerState, c: FilterListCategory) => s.enabled && s.lists.some((l) => l.category === c && l.enabled);
-
-async function setCategory(s: ContentBlockerState, c: FilterListCategory, on: boolean) {
-  const lists = s.lists.filter((l) => l.category === c);
-  const usual = lists.filter((l) => l.defaultOn || l.enabled);
-  const starters = usual.length ? usual : lists.filter((l) => /easylist|fanboy/.test(l.id));
-  for (const l of on ? (starters.length ? starters : lists) : lists.filter((l) => l.enabled)) await setFilterListEnabled(l.id, on);
-  const anyOn = CATEGORIES.some((x) => (x.id === c ? on : categoryOn(s, x.id)));
-  if (anyOn !== s.enabled) await setContentBlockerEnabled(anyOn);
-}
-
 export function PrivacyPane() {
-  const theme = useTheme();
   const [blocker, refresh] = useContentBlocker();
+  const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
     if (!blocker) return;
@@ -79,7 +67,7 @@ export function PrivacyPane() {
       if (!confirmed) return refresh();
     }
     try {
-      await setCategory(blocker, c, on);
+      await setBlockingCategory(blocker, c, on);
     } finally {
       refresh();
     }
@@ -89,8 +77,8 @@ export function PrivacyPane() {
     <View>
       <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
       <Group>
-        {CATEGORIES.filter((c) => c.toggle).map((c) => (
-          <Row key={c.id} anchor={c.anchor} title={c.toggle}>
+        {CATEGORIES.filter((c) => c.anchor).map((c) => (
+          <Row key={c.id} anchor={c.anchor}>
             <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
           </Row>
         ))}
@@ -117,10 +105,16 @@ export function PrivacyPane() {
 
       <SitePermissions />
       <AppLinks />
+      <SectionHeader anchor="privacy.commandScrollZoom" description={null} />
+      <Group>
+        <Row anchor="privacy.commandScrollZoom">
+          <Toggle value={commandScrollZoom} onChange={(v) => updateSettings({ commandScrollZoom: v })} />
+        </Row>
+      </Group>
       <ZoomLevels />
       {blocker && (
-        <Text style={{ marginTop: 14, ...font.footnote, color: theme.textTertiary }}>
-          {`${(blocker.stats.networkFilters ?? 0).toLocaleString()} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString()} cosmetic rules loaded.`}
+        <Text size="caption" tone="textTertiary" style={RULES_LOADED}>
+          {`${(blocker.stats.networkFilters ?? 0).toLocaleString(UI_LOCALE)} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString(UI_LOCALE)} cosmetic rules loaded.`}
         </Text>
       )}
       <ShareDiagnosticsSection />
@@ -128,22 +122,24 @@ export function PrivacyPane() {
   );
 }
 
+const RULES_LOADED = { marginTop: space.xl } as const;
+const LISTS = { maxHeight: 420, marginTop: space.m } as const;
+const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
+
 function FilterListsSheet() {
-  const theme = useTheme();
   const [blocker, refresh] = useContentBlocker();
   const toggle = async (l: FilterList, on: boolean) => {
+    if (!blocker) return;
     try {
-      await setFilterListEnabled(l.id, on);
-      if (on && blocker && !blocker.enabled) await setContentBlockerEnabled(true);
+      await setFilterList(blocker, l.id, on);
     } finally {
       refresh();
     }
   };
   return (
-    <Sheet width={500} onClose={closeSettingsSheet}>
-      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>Advanced Ad Block Settings</Text>
-      <Text style={{ ...font.small, marginTop: 4, color: theme.textSecondary }}>Block common components found across the web by using additional rules and filters.</Text>
-      <ScrollView style={{ maxHeight: 420, marginTop: 8 }}>
+    <Sheet size="l" onClose={closeSettingsSheet}>
+      <DialogTitle subtitle={setting("privacy.filterLists").description}>Advanced Ad Block Settings</DialogTitle>
+      <ScrollView style={LISTS}>
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
           if (!lists.length) return null;
@@ -163,21 +159,22 @@ function FilterListsSheet() {
           );
         })}
       </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
-        <Text style={{ flex: 1, ...font.footnote, color: theme.textTertiary }}>
-          {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
-        </Text>
+      <DialogActions
+        note={
+          <Text size="caption" tone="textTertiary">
+            {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
+          </Text>
+        }
+      >
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
-      </View>
+      </DialogActions>
     </Sheet>
   );
 }
 
 function ZoomLevels() {
-  const profileId = useSettings((s) => s.defaultProfileId);
-  const profiles = useProfiles();
-  const [selected, setSelected] = useState(profileId);
-  const [loaded, reload] = useResource(zoomLevels, engineProfile(selected));
+  const [selected, setSelected] = useSettingsProfile();
+  const [loaded, reload] = useResource(zoomLevels, currentEngineProfile(selected));
   const levels = loaded ?? {};
   const load = () => void reload();
   const hosts = Object.keys(levels).sort();
@@ -186,14 +183,12 @@ function ZoomLevels() {
     <>
       <SectionHeader
         title="Zoom levels"
-        action={
-          profiles.length > 1 ? <PopUp value={selected} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setSelected} /> : undefined
-        }
+        action={<ProfilePicker value={selected} onChange={setSelected} />}
       />
       <Group>
         {hosts.map((host) => (
           <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host} description={`${Math.round(levels[host]! * 100)}%`}>
-            <Button title="Reset" onPress={() => void setZoom(engineProfile(selected), host, 1).then(load)} />
+            <Button title="Reset" onPress={() => void setZoom(currentEngineProfile(selected), host, 1).then(load)} />
           </Row>
         ))}
       </Group>
@@ -229,9 +224,8 @@ const VALUE_OPTIONS: { value: SiteSettingValue; title: string }[] = [
 ];
 
 function SitePermissions() {
-  const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
-  const [loaded, reload] = useResource(siteOrigins, engineProfile(profileId));
+  const [profileId, setProfileId] = useSettingsProfile();
+  const [loaded, reload] = useResource(siteOrigins, currentEngineProfile(profileId));
   const origins = loaded ?? null;
   const refresh = () => void reload();
 
@@ -239,12 +233,7 @@ function SitePermissions() {
     <>
       <SectionHeader
         anchor="privacy.sitePermissions"
-        description="Pop-ups, camera, location and other permissions you've set for sites."
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-          ) : undefined
-        }
+        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
         {origins === null ? (
@@ -267,9 +256,8 @@ function SitePermissions() {
 }
 
 function AppLinks() {
-  const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
-  const [loaded, reload] = useResource(appLinks, engineProfile(profileId));
+  const [profileId, setProfileId] = useSettingsProfile();
+  const [loaded, reload] = useResource(appLinks, currentEngineProfile(profileId));
   const allowed = loaded ?? null;
   const refresh = () => void reload();
 
@@ -277,14 +265,9 @@ function AppLinks() {
     <>
       <SectionHeader
         anchor="privacy.appLinks"
-        description="Sites that open another app without asking first."
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-          ) : undefined
-        }
+        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
-      <Group>
+      <Group of="privacy.appLinks">
         {allowed === null ? (
           <Row title=" " description=" " />
         ) : allowed.length === 0 ? (
@@ -299,7 +282,7 @@ function AppLinks() {
             >
               <Button
                 title="Remove"
-                onPress={() => void removeExternalAppAllowance(engineProfile(profileId), a.origin, a.scheme).then(refresh)}
+                onPress={() => void removeExternalAppAllowance(currentEngineProfile(profileId), a.origin, a.scheme).then(refresh)}
               />
             </Row>
           ))
@@ -310,8 +293,7 @@ function AppLinks() {
 }
 
 function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin: string; onChanged: () => void }) {
-  const theme = useTheme();
-  const profile = engineProfile(profileId);
+  const profile = currentEngineProfile(profileId);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [status, setStatus] = useState("");
   const load = () => void getSiteSettings(profile, origin).catch((): SiteSettings => ({}) as SiteSettings).then(setSettings).catch(() => {});
@@ -322,12 +304,9 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
     onChanged();
   };
   return (
-    <Sheet width={460} onClose={closeSettingsSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Favicon url={origin} size={20} />
-        <Text style={{ flex: 1, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{origin.replace(/^https?:\/\//, "")}</Text>
-      </View>
-      <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
+    <Sheet size="l" onClose={closeSettingsSheet}>
+      <DialogTitle icon={<Favicon url={origin} size={20} />}>{origin.replace(/^https?:\/\//, "")}</DialogTitle>
+      <ScrollView style={SITE_LIST}>
         <Group>
           {SETTING_LABELS.filter(([type]) => settings?.[type]).map(([type, label]) => (
             <Row key={type} title={label} description={settings![type].isDefault ? `Default (${settings![type].value})` : undefined}>
@@ -341,27 +320,32 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
           ))}
         </Group>
       </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16 }}>
-        <Button
-          title="Reset Permissions"
-          onPress={() =>
-            void resetSiteSettings(profile, origin).then(() => {
-              load();
-              onChanged();
-            })
-          }
-        />
-        <Button
-          title="Clear Site Data"
-          onPress={() =>
-            void clearSiteData(profile, origin).catch((): ClearSiteDataResult => ({ cookies: false, storage: false })).then((r) =>
-              setStatus(r.cookies === false ? "Site data cleared." : `Cleared ${r.cookies} cookie${r.cookies === 1 ? "" : "s"} and site data.`),
-            )
-          }
-        />
-        <Text style={{ flex: 1, ...font.small, color: theme.textSecondary }}>{status}</Text>
+      <DialogActions
+        note={status}
+        leading={
+          <>
+            <Button
+              title="Reset Permissions"
+              onPress={() =>
+                void resetSiteSettings(profile, origin).then(() => {
+                  load();
+                  onChanged();
+                })
+              }
+            />
+            <Button
+              title="Clear Site Data"
+              onPress={() =>
+                void clearSiteData(profile, origin).catch((): ClearSiteDataResult => ({ cookies: false, storage: false })).then((r) =>
+                  setStatus(r.cookies === false ? "Site data cleared." : `Cleared ${r.cookies} cookie${r.cookies === 1 ? "" : "s"} and site data.`),
+                )
+              }
+            />
+          </>
+        }
+      >
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
-      </View>
+      </DialogActions>
     </Sheet>
   );
 }

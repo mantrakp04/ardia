@@ -8,6 +8,8 @@ import { useTabLive } from "../browser/hooks";
 import type { TabLive } from "../browser/types";
 import { internalPageOf, tabDestination } from "../pages/urls";
 import { pageOf, patchPage, usePage } from "./pageState";
+import { historyOf } from "../history/history";
+import { adoptedPage, IDLE } from "./pageSession";
 
 const store = () => useBrowser.getState();
 
@@ -48,7 +50,8 @@ function showNewTab(tabId: string, keep?: { url: string; title: string }) {
   if (!tab?.url) return;
   patchPage(tabId, { newTabShown: { url: keep?.url ?? tab.url, title: keep?.title ?? tab.title, favicon: tab.favicon }, status: "" });
   const internal = internalPageOf(tabDestination(tab)) !== null;
-  store().updateTab(tabId, { url: "", title: "", favicon: null, ...(internal ? { navigation: null } : {}) });
+  const page = internal && tab.page.kind === "loaded" ? IDLE : internal && tab.page.kind === "adopted" ? adoptedPage(tab.page.adopt) : tab.page;
+  store().updateTab(tabId, { url: "", title: "", favicon: null, page });
 }
 
 function goBackToNewTab(tabId: string, offset: number, first: { url: string; title: string }) {
@@ -142,7 +145,7 @@ export const closeHistoryMenuOf = (tabId: string) => {
 
 export function historyFavicons(profileId: string, items: readonly { url: string }[]): Map<string, string | null> {
   const urls = new Set(items.map((i) => i.url));
-  return new Map((useBrowser.getState().history[profileId] ?? []).filter((h) => urls.has(h.url)).map((h) => [h.url, h.favicon]));
+  return new Map(historyOf(useBrowser.getState(), profileId).filter((h) => urls.has(h.url)).map((h) => [h.url, h.favicon]));
 }
 
 export function toggleHistoryMenu(tabId: string, direction: -1 | 1) {

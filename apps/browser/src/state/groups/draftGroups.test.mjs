@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
+const { bookmarkRoots } = await import("../bookmarks/bookmarks.ts");
 const { addFolderToSidebar, allArcHolders, restorableArcHolder, restoreArcFolders } = await import("../bookmarks/bookmarkGroups.ts");
 const { importArcSpace } = await import("../import/apply.ts");
 const { sidebarEntries } = await import("../sidebar/entries.ts");
@@ -29,9 +30,10 @@ const tree = (groupId) => {
 const roots = (w) => sidebarEntries(S(), w).pinned.filter((e) => e.startsWith("g:")).map((e) => e.slice(2));
 
 function start() {
-  S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  S().hydrate({});
   const w = S().createWindow({ url: "https://home.example/" });
-  const bar = S().bookmarks.roots[P]?.bar ?? (S().addBookmark({ profileId: P, url: "https://seed.example/", title: "seed" }), S().bookmarks.roots[P].bar);
+  const bar = bookmarkRoots(S(), P)?.bar ?? (S().addBookmark({ profileId: P, url: "https://seed.example/", title: "seed" }), bookmarkRoots(S(), P).bar);
   return { w, bar };
 }
 
@@ -60,8 +62,8 @@ test("Add to Sidebar as Group: a pinned group with nested groups, unloaded pinne
   assert.deepEqual(tree(g), ["https://a.example/", { Sub: ["https://b.example/"] }, "https://c.example/"]);
   for (const id of S().groups[g].tabIds) {
     const t = S().tabs[id];
-    assert.equal(t.unloaded, true);
-    assert.equal(t.navigation, null);
+    assert.equal(t.page.kind, "asleep");
+    assert.equal(t.page.nav, undefined);
   }
   assert.equal(Object.keys(S().bookmarks.nodes).length, before, "the bookmarks stay");
   assert.deepEqual(roots(w), [g]);

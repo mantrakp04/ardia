@@ -13,7 +13,8 @@ if [[ "${1:-}" == --key ]]; then
   exit 0
 fi
 
-src=${ARDIACORE_FRAMEWORK:-$HOME/chromium-build/chromium_git/chromium/src/out/Release_GN_arm64/Chromium Framework.framework}
+. "$repo/scripts/lib/paths.sh"
+src=$chromium_framework
 if [[ -z "${ARDIACORE_FRAMEWORK:-}" && ! -d "$src" ]]; then
   src=$("$here/fetch-engine.sh") || exit 1
 fi
@@ -49,7 +50,7 @@ fill_cache() {
     set -e
     "$3" --key "$1" >"$2/.key"
     cp -cR "$1" "$2/"' _ "$src" "$tmp" "$here/${0##*/}")
-  if [[ "$src" == "$HOME/chromium-build/"* ]]; then
+  if [[ "$src" == "$chromium_src/"* ]]; then
     "$repo/scripts/agent/locked" chromium --wait 500 -- "${copy[@]}" >&2 || return 1
   else
     "${copy[@]}" >&2 || return 1

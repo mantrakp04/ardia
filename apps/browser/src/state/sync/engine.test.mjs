@@ -7,6 +7,8 @@ globalThis.__DEV__ = false;
 
 const folder = new Map();
 let onWrite = null;
+let readFails = false;
+const knownAtRead = [];
 let ids = 0;
 globalThis.acTestNativeModules = {
   ArdiaSync: {
@@ -24,6 +26,8 @@ globalThis.acTestNativeModules = {
       return id;
     },
     read: async (_folder, scope, known) => {
+      knownAtRead.push([...known]);
+      if (readFails) throw Object.assign(new Error("The sync folder couldn't be read"), { code: "ERR_SYNC_FOLDER_UNREADABLE" });
       const here = [...folder].filter(([, f]) => f.scope === scope);
       const files = here.filter(([id]) => !known.includes(id)).map(([id, f]) => ({ id, payload: f.payload }));
       return { files, pending: [], damaged: [], present: here.map(([id]) => id) };
@@ -38,7 +42,7 @@ globalThis.acTestNativeModules = {
 const shell = await import("../../test-native/index.ts");
 const { useBrowser } = await import("../browser/store.ts");
 const S = () => useBrowser.getState();
-const reset = () => (S().hydrate({}), useBrowser.setState({ bookmarksReady: { default: true } }));
+const reset = () => (S().hydrate({}), useBrowser.setState({ bookmarksReady: { "": true } }));
 
 test("a crash after a batch lands: after the restart it's sent again as it was, and the next batch gets a new seq", async () => {
   reset();
@@ -75,7 +79,29 @@ test("a crash after a batch lands: after the restart it's sent again as it was, 
   }
   const three = [...folder.values()].map((f) => JSON.parse(f.payload)).find((f) => f.ops?.some((op) => op.v?.t === "Three"));
   assert.deepEqual(three.ops.map((op) => op.v?.t), ["Three"], "only what's new");
-  assert.equal(shell.docs.get("sync-journal.nns"), "", "the journal is emptied once the saved state has its batches");
+  assert.ok(shell.docs.has("sync-journal-1.nns"), "the journal keeps the batches the saved state doesn't have yet");
+});
+
+test("a cycle writes its batch as a small journal file and leaves the saved state alone", async () => {
+  reset();
+  const engine = await import("./engine.ts?parts");
+  engine.startSync();
+  assert.ok("ok" in (await engine.turnOnSync("/sync")));
+  await engine.syncNow();
+  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
+  const written = [];
+  const set = shell.docs.set.bind(shell.docs);
+  shell.docs.set = (name, contents) => (written.push(name), set(name, contents));
+  try {
+    for (const n of [1, 2, 3]) {
+      S().addBookmark({ profileId: "default", url: `https://part${n}.example/`, title: `Part ${n}` });
+      await engine.syncNow();
+    }
+  } finally {
+    delete shell.docs.set;
+  }
+  assert.equal(written.filter((name) => name === "sync-state.nns").length, 0, "the whole state isn't rewritten every cycle");
+  assert.ok(written.filter((name) => /^sync-journal-\d+\.nns$/.test(name)).length >= 3, "each batch lands in its own journal file");
 });
 
 test("a batch is published only once the journal holding it is on disk", async () => {
@@ -97,4 +123,24 @@ test("a batch is published only once the journal holding it is on disk", async (
   for (const land of shell.heldSaves.queue.splice(0)) land();
   await syncing;
   assert.equal(published().length, 1, "published once the journal landed");
+});
+
+test("a sync folder that can't be read reads as offline and keeps every file it knew", async () => {
+  reset();
+  const engine = await import("./engine.ts?unreadable");
+  engine.startSync();
+  assert.ok("ok" in (await engine.turnOnSync("/sync")));
+  S().addBookmark({ profileId: "default", url: "https://kept.example/", title: "Kept" });
+  await engine.syncNow();
+  readFails = true;
+  try {
+    await engine.syncNow();
+    assert.equal(engine.useSync.getState().status, "offline");
+  } finally {
+    readFails = false;
+  }
+  knownAtRead.length = 0;
+  await engine.syncNow();
+  assert.equal(engine.useSync.getState().status, "updated");
+  assert.ok(knownAtRead.flat().length > 0, "the next read still skips the files it had read");
 });

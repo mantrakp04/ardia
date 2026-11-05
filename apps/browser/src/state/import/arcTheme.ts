@@ -1,4 +1,5 @@
-import { padPosition, sanitizeTheme, THEME_TEXTURES } from "../../lib/profileLook";
+import { THEME_TEXTURES } from "@ardia/core";
+import { padPosition, sanitizeTheme } from "../../lib/profileLook";
 import type { ProfileTheme, ThemeColor, ThemeLook, ThemeMode, ThemeTexture } from "../browser/types";
 
 type Json = Record<string, unknown>;

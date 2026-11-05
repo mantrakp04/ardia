@@ -3,13 +3,14 @@ import { chooseTextFragment, cleanUrl, searchUrl, withTextFragment, type Selecti
 import { copyText } from "../../platform/clipboard";
 import { create } from "zustand";
 import { webviews } from "../../platform/webviews";
+import type { PageSelection } from "../../platform/tabs";
 import { useBrowser } from "../browser/store";
 import { defaultSearchEngine } from "../settings/settings";
-import { showToast } from "../splits/actions";
+import { showToast } from "../app/toasts";
 import { openModeFor } from "../bookmarks/actions";
 import { openFromPage } from "../tabs/openFromPage";
 
-export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
+export type { PageSelection };
 
 export const usePageSelection = create<Record<string, PageSelection | null>>()(() => ({}));
 

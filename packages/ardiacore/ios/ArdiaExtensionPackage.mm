@@ -50,22 +50,30 @@ bool ValidMessages(NSDictionary *messages) {
 NSDictionary *Messages(NSString *folder, NSDictionary *manifest, NSString **error) {
   NSString *locales = [folder stringByAppendingPathComponent:@"_locales"];
   NSMutableArray<NSString *> *candidates = [NSMutableArray array];
-  for (NSString *lang in NSLocale.preferredLanguages) {
-    NSString *l = [lang stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
-    [candidates addObject:l];
-    NSRange sep = [l rangeOfString:@"_"];
-    if (sep.location != NSNotFound) [candidates addObject:[l substringToIndex:sep.location]];
+  NSString *uiLocale = [NSBundle.mainBundle.preferredLocalizations.firstObject stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
+  if ([uiLocale isEqualToString:@"en"]) uiLocale = @"en_US";
+  if (uiLocale.length) {
+    [candidates addObject:uiLocale];
+    NSRange sep = [uiLocale rangeOfString:@"_"];
+    if (sep.location != NSNotFound) [candidates addObject:[uiLocale substringToIndex:sep.location]];
   }
   if ([manifest[@"default_locale"] isKindOfClass:NSString.class]) [candidates addObject:manifest[@"default_locale"]];
   [candidates addObjectsFromArray:@[ @"en", @"en_US" ]];
+  NSMutableDictionary *merged = [NSMutableDictionary dictionary];
+  NSMutableSet<NSString *> *loaded = [NSMutableSet set];
   for (NSString *locale in candidates) {
+    if ([loaded containsObject:locale]) continue;
+    [loaded addObject:locale];
     NSDictionary *messages = LoadJSON([[locales stringByAppendingPathComponent:locale] stringByAppendingPathComponent:@"messages.json"]);
     if (!messages) continue;
-    if (ValidMessages(messages)) return messages;
-    *error = [NSString stringWithFormat:@"The localization file _locales/%@/messages.json is invalid", locale];
-    return nil;
+    if (!ValidMessages(messages)) {
+      *error = [NSString stringWithFormat:@"The localization file _locales/%@/messages.json is invalid", locale];
+      return nil;
+    }
+    for (NSString *key in messages)
+      if (!merged[key]) merged[key] = messages[key];
   }
-  return @{};
+  return merged;
 }
 
 NSString *IconPath(id icons, int size) {

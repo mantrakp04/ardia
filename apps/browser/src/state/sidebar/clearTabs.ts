@@ -1,8 +1,8 @@
 import { closeTab } from "../browser/actions";
 import { useBrowser } from "../browser/store";
 import { plural } from "../browser/model";
-import { canUndoClear, type ClearedTabs } from "../pins/organize";
-import { hideKeyedToast, showToast, useToasts } from "../splits/actions";
+import { canUndoClear, type ClearedTabs } from "../pins/tabCleanup";
+import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
 
 const store = () => useBrowser.getState();
 

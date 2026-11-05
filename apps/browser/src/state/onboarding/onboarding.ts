@@ -5,46 +5,21 @@ import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { resolveWindowId, tabLayoutOf } from "../browser/model";
 import type { Settings } from "../settings/settings";
-import type { ProfileColor } from "../browser/types";
-import { pinSites } from "./sites";
+import type { ProfileColor, ProfileTheme } from "../browser/types";
+import { PRESETS, presetFor, setsUpLikeBrowser, type BrowserSourceId, type Preset } from "./presets";
 import { endToolTour, startToolTour } from "./tour";
+import { choosePresetColor, setProfileTheme } from "../profiles/themeActions";
 import { stepsForThisSurface } from "./demoSteps";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
+import { hasSavedSession } from "../session/sessionDocument";
+import { isLiquidGlass } from "../../platform/app";
 
 export { playIntroMusic, setIntroMusicMuted, stopIntroMusic, type IntroMusicCues } from "../../platform/introMusic";
+export { PRESET_NAMES, PRESETS, presetFor, setsUpLikeBrowser, type BrowserSourceId, type Preset } from "./presets";
 
 export type OnboardingStep = "intro" | "source" | "layout" | "tabs" | "look" | "searchPrivacy" | "pins" | "home" | "outro";
 
 export const STEPS: OnboardingStep[] = stepsForThisSurface(["intro", "source", "layout", "tabs", "look", "searchPrivacy", "pins", "home", "outro"]);
-
-export type Preset = "arc" | "dia";
-
-export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
-
-export const PRESETS: Record<Preset, Partial<Settings>> = {
-  dia: {
-    addressBar: "toolbar",
-    commandBarPlacement: "field",
-    newTabOpens: "page",
-    newTabPosition: "bottom",
-    newTabButtonPosition: "bottom",
-    balancedTopApps: false,
-    shareTabsAcrossWindows: false,
-    cleanUpInactiveTabsAfterHours: null,
-    openLinksInLittleArdia: true,
-  },
-  arc: {
-    addressBar: "sidebar",
-    commandBarPlacement: "centred",
-    newTabOpens: "commandBar",
-    newTabPosition: "top",
-    newTabButtonPosition: "top",
-    balancedTopApps: true,
-    shareTabsAcrossWindows: true,
-    cleanUpInactiveTabsAfterHours: 12,
-    openLinksInLittleArdia: true,
-  },
-};
 
 export type QuestionId =
   | "source"
@@ -58,7 +33,9 @@ export type QuestionId =
   | "windows"
   | "tabsMore"
   | "color"
+  | "switcher"
   | "appearance"
+  | "style"
   | "siteColor"
   | "lookMore"
   | "engine"
@@ -69,9 +46,9 @@ export type QuestionId =
   | "links"
   | "outro";
 
-type Question = { id: QuestionId; keys: readonly (keyof Settings)[] };
+type Question = { id: QuestionId; keys: readonly (keyof Settings)[]; askedWithPreset?: true };
 
-const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
+export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   source: [{ id: "source", keys: [] }],
   layout: [
     { id: "tabs", keys: ["tabLayout"] },
@@ -81,14 +58,16 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   tabs: [
     { id: "newTab", keys: ["newTabOpens"] },
     { id: "newTabPosition", keys: ["newTabPosition", "newTabButtonPosition"] },
-    { id: "tidy", keys: ["cleanUpInactiveTabsAfterHours"] },
+    { id: "tidy", keys: ["cleanUpInactiveTabsAfterMinutes"] },
     { id: "quit", keys: ["restoreSession"] },
     { id: "windows", keys: ["shareTabsAcrossWindows"] },
     { id: "tabsMore", keys: ["balancedTopApps", "peekModifier", "undoReopensClosedTab", "cmdClickCreatesTabGroup"] },
   ],
   look: [
     { id: "color", keys: [] },
+    { id: "switcher", keys: ["profileSwitcherIcons"], askedWithPreset: true },
     { id: "appearance", keys: ["appearance"] },
+    { id: "style", keys: ["interfaceStyle", "glassTintWithTheme", "glassTintAmount"], askedWithPreset: true },
     { id: "siteColor", keys: ["extendWebsiteColor"] },
     { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
   ],
@@ -107,17 +86,25 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
 
 export const QUESTION_ORDER: QuestionId[] = Object.values(QUESTIONS).flatMap((list) => list.map((q) => q.id));
 
+const answeredByPreset = (q: Question, preset: Preset) => !q.askedWithPreset && q.keys.length > 0 && q.keys.every((k) => k in PRESETS[preset]);
+
+const SIDEBAR_ONLY: readonly QuestionId[] = ["address", "switcher"];
+const liquidGlass = isLiquidGlass();
+
 export function questionsFor(step: OnboardingStep): Question[] {
   if (step === "intro") return [];
-  const list = QUESTIONS[step];
-  if (step !== "layout") return list;
-  const { windowId, draft, preset } = useOnboarding.getState();
+  const { windowId, draft, preset, source } = useOnboarding.getState();
+  const asked = setsUpLikeBrowser(source) ? QUESTIONS[step].filter((q) => !answeredByPreset(q, preset)) : QUESTIONS[step];
+  const list = liquidGlass ? asked : asked.filter((q) => q.id !== "style");
+  if (!list.some((q) => SIDEBAR_ONLY.includes(q.id))) return list;
   const b = useBrowser.getState();
-  const { tabLayout } = resolveDraft(["tabLayout"], draft, preset, { ...b.settings, tabLayout: tabLayoutOf(b, windowId) });
-  return tabLayout === "top" ? list.filter((q) => q.id !== "address") : list;
+  const { tabLayout } = resolveDraft(["tabLayout"], draft, preset, { ...b.settings, tabLayout: tabLayoutOf(b, windowId) }, b.settingsMeta.chosen);
+  return tabLayout === "top" ? list.filter((q) => !SIDEBAR_ONLY.includes(q.id)) : list;
 }
 
-export const presetFor = (source: BrowserSourceId | null): Preset => (source === "arc" || source === "zen" ? "arc" : "dia");
+export const activeSteps = () => STEPS.filter((step) => step === "intro" || questionsFor(step).length > 0);
+
+export const presetPatch = (source: BrowserSourceId | null): Partial<Settings> => (setsUpLikeBrowser(source) ? PRESETS[source] : {});
 
 export type Extras = {
   color: ProfileColor;
@@ -130,7 +117,7 @@ export type Extras = {
   login: boolean;
 };
 
-type LiveBaseline = Partial<Settings> & { color?: ProfileColor };
+type LiveBaseline = Partial<Settings> & { color?: ProfileColor; theme?: ProfileTheme | null };
 
 type OnboardingState = {
   windowId: string | null;
@@ -147,7 +134,10 @@ type OnboardingState = {
   picked: Partial<Record<QuestionId, string[]>>;
 };
 
-const stepAfter = (step: OnboardingStep, delta: number) => STEPS[STEPS.indexOf(step) + delta];
+const stepAfter = (step: OnboardingStep, delta: number) => {
+  const steps = activeSteps();
+  return steps[steps.indexOf(step) + delta];
+};
 
 const setWindowLayout = (windowId: string, tabLayout: Settings["tabLayout"]) =>
   useBrowser.setState((s) => {
@@ -219,12 +209,28 @@ export function previewLive(patch: Partial<Settings>) {
 }
 
 export function previewColor(color: ProfileColor) {
-  const { windowId, baseline } = useOnboarding.getState();
+  const { windowId } = useOnboarding.getState();
   const b = useBrowser.getState();
   const profileId = windowId ? b.windows[windowId]?.profileId : undefined;
   if (!profileId) return;
-  if (!("color" in baseline)) useOnboarding.setState({ baseline: { ...baseline, color: b.profiles[profileId]?.color } });
-  b.updateProfile(profileId, { color });
+  recordLookBaseline(profileId);
+  choosePresetColor(profileId, color);
+}
+
+export function previewTheme(theme: ProfileTheme) {
+  const { windowId } = useOnboarding.getState();
+  const b = useBrowser.getState();
+  const profileId = windowId ? b.windows[windowId]?.profileId : undefined;
+  if (!profileId) return;
+  recordLookBaseline(profileId);
+  setProfileTheme(profileId, theme);
+}
+
+function recordLookBaseline(profileId: string) {
+  const { baseline } = useOnboarding.getState();
+  if ("color" in baseline) return;
+  const profile = useBrowser.getState().profiles[profileId];
+  useOnboarding.setState({ baseline: { ...baseline, color: profile?.color, theme: profile?.theme ?? null } });
 }
 
 export function confirmAnswer(question: QuestionId, patch: Partial<Settings>, picked: string[]) {
@@ -233,7 +239,10 @@ export function confirmAnswer(question: QuestionId, patch: Partial<Settings>, pi
   if (Object.keys(patch).length) useBrowser.getState().updateSettings(patch);
   const kept: LiveBaseline = { ...baseline };
   for (const key of Object.keys(patch)) delete kept[key as keyof LiveBaseline];
-  if (question === "color") delete kept.color;
+  if (question === "color") {
+    delete kept.color;
+    delete kept.theme;
+  }
   const all = { ...useOnboarding.getState().picked, [question]: picked };
   useOnboarding.setState({ baseline: kept, picked: all });
   save({ picked: all });
@@ -244,7 +253,7 @@ export function skipStep() {
   const { step, sub } = useOnboarding.getState();
   const rest = questionsFor(step).slice(sub);
   const keys = rest.flatMap((q) => q.keys);
-  revertLive([...keys, ...(rest.some((q) => q.id === "color") ? (["color"] as const) : [])]);
+  revertLive([...keys, ...(rest.some((q) => q.id === "color") ? (["color", "theme"] as const) : [])]);
   useOnboarding.setState((s) => {
     const draft = { ...s.draft };
     for (const key of keys) delete draft[key];
@@ -259,12 +268,12 @@ function revertLive(keys: readonly (keyof LiveBaseline)[]) {
   const { windowId, baseline } = useOnboarding.getState();
   const restore = Object.fromEntries(keys.filter((k) => k in baseline).map((k) => [k, baseline[k]])) as LiveBaseline;
   if (!Object.keys(restore).length) return;
-  const { color, tabLayout, ...rest } = restore;
+  const { color, theme, tabLayout, ...rest } = restore;
   const b = useBrowser.getState();
   const window = windowId ? b.windows[windowId] : undefined;
   if (tabLayout && windowId) setWindowLayout(windowId, tabLayout);
   if (Object.keys(rest).length) b.updateSettings(rest, { fromSync: true });
-  if (color && window) b.updateProfile(window.profileId, { color });
+  if ((color || "theme" in restore) && window) b.setProfileLook(window.profileId, { ...(color ? { color } : {}), ...("theme" in restore ? { theme } : {}) });
   const kept = { ...baseline };
   for (const key of keys) delete kept[key];
   useOnboarding.setState({ baseline: kept });
@@ -275,9 +284,9 @@ export function resolveDraft<K extends keyof Settings>(
   draft: Partial<Settings>,
   preset: Preset,
   settings: Settings,
+  chosen: readonly string[],
 ): Pick<Settings, K> {
   const presetValues = PRESETS[preset];
-  const chosen = settings.chosen ?? [];
   return Object.fromEntries(
     keys.map((k) => [k, k in draft ? draft[k] : k in presetValues && !chosen.includes(k) ? presetValues[k] : settings[k]]),
   ) as Pick<Settings, K>;
@@ -339,10 +348,13 @@ export function startOnboarding(windowId?: string | null, step: OnboardingStep =
   save({ step, sub: 0, source: null, preset: "dia", picked: {} });
 }
 
+export const forgetOnboardingProgress = () =>
+  writeDocument(DOC, versionedJson({ completedAt: null, startedAt: Date.now(), introMusicMuted: introMusicMuted() } satisfies Saved, DOC_VERSION));
+
 function resumeOnboarding(saved: Saved) {
   const id = resolveWindowId(useBrowser.getState(), null);
   if (!id) return;
-  const step = saved.step && STEPS.includes(saved.step) && saved.step !== "intro" ? saved.step : "source";
+  const step = saved.step && saved.step !== "intro" && STEPS.includes(saved.step) ? saved.step : "source";
   const source = saved.source ?? null;
   useOnboarding.setState((s) => ({
     ...FRESH,
@@ -356,6 +368,8 @@ function resumeOnboarding(saved: Saved) {
     tourAfter: false,
     session: s.session + 1,
   }));
+  const next = activeSteps().find((s) => STEPS.indexOf(s) >= STEPS.indexOf(step)) ?? "outro";
+  if (next !== step) return goToStep(next);
   const sub = Math.min(saved.sub ?? 0, questionsFor(step).length - 1);
   if (sub > 0) useOnboarding.setState({ sub });
 }
@@ -379,19 +393,8 @@ export function maybeStartOnboarding() {
   const saved = readSaved();
   if (saved?.completedAt) return;
   if (saved?.startedAt) return resumeOnboarding(saved);
-  if (readDocument("session.json")) return markCompleted();
+  if (hasSavedSession()) return markCompleted();
   if (__DEV__ && devTestValue("onboarding") !== "1") return;
   save({ startedAt: Date.now() });
   startOnboarding();
 }
-
-if (__DEV__) (globalThis as { acOnboarding?: unknown }).acOnboarding = {
-    store: useOnboarding,
-    go: goToStep,
-    start: startOnboarding,
-    finish: finishOnboarding,
-    pinSites,
-    resolveDraft,
-    questionsFor,
-    PRESETS,
-  };

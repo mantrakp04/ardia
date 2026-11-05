@@ -1,4 +1,5 @@
 ---
+import { base } from "../data/site";
 import { FAQ } from "../data/faq";
 ---
 
@@ -15,7 +16,17 @@ import { FAQ } from "../data/faq";
         FAQ.map((q) => (
           <div class="item" id={q.id}>
             <dt>{q.question}</dt>
-            <dd>{q.answer}</dd>
+            <dd>
+              {q.answer}
+              {q.more && (
+                <>
+                  {" "}
+                  <a class="link" href={`${base}/${q.more.path}`}>
+                    {q.more.label}
+                  </a>
+                </>
+              )}
+            </dd>
           </div>
         ))
       }

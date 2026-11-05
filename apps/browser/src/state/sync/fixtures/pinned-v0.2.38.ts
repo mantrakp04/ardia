@@ -1,9 +1,8 @@
 import { assignPositions, type Adapter, type Extraction } from "@ardia/sync";
 import { useBrowser, type BrowserState } from "../../browser/store";
 import { orderSections, syncGroupOrder } from "../../groups/groups";
-import { makeTab, pinnedFirst, without } from "../../browser/model";
+import { makeTab, pinKeyOf, TILE_PIN, without } from "../../browser/model";
 import { adoptParkedPins, parkWindowPins } from "../../pins/parkedPins";
-import { pinKeyOf } from "../../pins/pinMirror";
 import { removeTabs } from "../../tabs/tabs";
 import type { Tab, TabGroup } from "../../browser/types";
 
@@ -15,10 +14,10 @@ type PinGroupValue = { n: string; i: string | null; c: TabGroup["color"]; pos: s
 
 type Window = BrowserState["windows"][string];
 
-const openWindows = (s: BrowserState) => s.windowOrder.map((id) => s.windows[id]).filter((w): w is Window => !!w && !w.incognito && w.kind !== "small");
+const openWindows = (s: BrowserState) => s.windowOrder.map((id) => s.windows[id]).filter((w): w is Window => !!w && w.kind !== "private" && w.kind !== "small");
 
 function homeWindow(s: BrowserState, profileId: string): Window | undefined {
-  const order = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).filter((w): w is Window => !!w && !w.incognito && w.kind !== "small");
+  const order = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).filter((w): w is Window => !!w && w.kind !== "private" && w.kind !== "small");
   const shows = (w: Window) => w.tabIds.some((id) => s.tabs[id]?.profileId === profileId);
   return order.find((w) => w.profileId === profileId && shows(w)) ?? order.find(shows) ?? order.find((w) => w.profileId === profileId) ?? order[0];
 }
@@ -41,7 +40,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           const t = s.tabs[id];
           if (!t || t.profileId !== profileId || seen.has(pinKeyOf(t))) continue;
           const g = pinnedGroupOf.get(id);
-          if (t.pinned) tiles.push({ ...t, id: pinKeyOf(t) });
+          if (t.pin) tiles.push({ ...t, id: pinKeyOf(t) });
           else if (g) {
             const key = pinKeyOf(g);
             if (!members.has(key)) {
@@ -77,7 +76,7 @@ export function pinnedAdapter(profileId: string): Adapter {
       if (!home) return false;
       const PARK = `park:${profileId}`;
       if (s.parkedPins[profileId]) {
-        const stand: Window = { id: PARK, profileId, incognito: false, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 };
+        const stand: Window = { id: PARK, profileId, kind: "main", tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 };
         s = adoptParkedPins({ ...s, windows: { ...s.windows, [PARK]: stand } }, PARK, profileId);
       }
       const scope = new Set([home.id, PARK]);
@@ -103,12 +102,12 @@ export function pinnedAdapter(profileId: string): Adapter {
       const removable = goneTabs.filter((id) => {
         const t = s.tabs[id]!;
         const w = s.windows[t.windowId];
-        const kept = !!t.navigation || !!t.adoptId || Object.values(w?.activeTabIds ?? {}).includes(id);
+        const kept = t.page.kind === "loaded" || t.page.kind === "adopted" || Object.values(w?.activeTabIds ?? {}).includes(id);
         return w && !kept && w.tabIds.some((other) => other !== id && !goneTabs.includes(other));
       });
       s = removeTabs(s, removable, false);
       const tabs = { ...s.tabs };
-      for (const id of goneTabs) if (tabs[id]) tabs[id] = { ...tabs[id]!, pinned: false, pinnedUrl: null, pinKey: undefined };
+      for (const id of goneTabs) if (tabs[id]) tabs[id] = { ...tabs[id]!, pin: null, pinnedUrl: null, pinKey: undefined };
       let groups = { ...s.groups };
       for (const k of changed) if (k.startsWith("pin:g:") && !visible.has(k) && scope.has(groups[gid(k.slice(6))]?.windowId ?? "")) delete groups[gid(k.slice(6))];
       const windows = { ...s.windows };
@@ -126,11 +125,11 @@ export function pinnedAdapter(profileId: string): Adapter {
         if (old) {
           tabs[id] = {
             ...old,
-            pinned: !group,
+            pin: group ? null : (old.pin ?? TILE_PIN),
             pinnedUrl: group ? null : v.u,
             customTitle: v.t,
             customIcon: v.i,
-            ...(old.unloaded ? { url: v.u, title: v.ti } : {}),
+            ...(old.page.kind === "asleep" ? { url: v.u, title: v.ti } : {}),
           };
           continue;
         }
@@ -138,11 +137,10 @@ export function pinnedAdapter(profileId: string): Adapter {
         const w = windows[windowId];
         if (!w) continue;
         const tab: Tab = {
-          ...makeTab(windowId, profileId, v.u, { title: v.ti, pinned: !group, customTitle: v.t, customIcon: v.i }),
+          ...makeTab(windowId, profileId, v.u, { title: v.ti, pin: group ? null : TILE_PIN, customTitle: v.t, customIcon: v.i }),
           id,
           pinnedUrl: group ? null : v.u,
-          navigation: null,
-          unloaded: true,
+          page: { kind: "asleep" },
         };
         tabs[id] = tab;
         windows[windowId] = { ...w, tabIds: [...w.tabIds, id] };
@@ -158,19 +156,19 @@ export function pinnedAdapter(profileId: string): Adapter {
       const sequence = [...tileOrder, ...groupOrder.flatMap((g) => memberOrder.get(g) ?? [])];
       const rank = new Map(sequence.map((id, i) => [id, i]));
       for (const w of Object.values(windows)) {
-        if (w.incognito) continue;
+        if (w.kind === "private") continue;
         const ids = w.tabIds.filter((id) => tabs[id]);
         const slots = ids.map((id, i) => (rank.has(id) ? i : -1)).filter((i) => i >= 0);
         const sorted = slots.map((i) => ids[i]!).sort((a, z) => rank.get(a)! - rank.get(z)!);
         slots.forEach((slot, i) => (ids[slot] = sorted[i]!));
-        const window = { ...w, tabIds: orderSections(pinnedFirst(ids, tabs), tabs, groups) };
+        const window = { ...w, tabIds: orderSections(orderSections(ids, tabs, {}), tabs, groups) };
         windows[w.id] = window;
         groups = syncGroupOrder(groups, window);
       }
       let { live, parkedPins } = s;
       const parkWindow = windows[PARK];
       if (parkWindow) {
-        parkedPins = parkWindowPins(parkedPins, parkWindow, { tabs, groups, history: s.history });
+        parkedPins = parkWindowPins(parkedPins, parkWindow, { tabs, groups, history: s.history, profiles: s.profiles });
         for (const id of parkWindow.tabIds) delete tabs[id];
         live = without(live, parkWindow.tabIds);
         groups = Object.fromEntries(Object.entries(groups).filter(([, g]) => g.windowId !== PARK));

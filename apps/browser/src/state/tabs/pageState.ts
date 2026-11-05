@@ -14,7 +14,7 @@ import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
-import { splitOf } from "../splits/splits";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
 
 export type { AutofillPrompt, AutofillPromptAnswer, PasswordPrompt, PasswordPromptAnswer } from "../../platform/tabs";
 
@@ -36,7 +36,6 @@ export type PageState = {
   backToNewTab: boolean;
   engineBack: { engine: PageEngine; url: string } | null;
   newTabShown: { url: string; title: string; favicon: string | null } | null;
-  iconPage: string | null;
 };
 
 const IDLE_PAGE: PageState = {
@@ -57,7 +56,6 @@ const IDLE_PAGE: PageState = {
   backToNewTab: false,
   engineBack: null,
   newTabShown: null,
-  iconPage: null,
 };
 
 type Store = {
@@ -81,6 +79,12 @@ export function patchPage(tabId: string, patch: Partial<PageState>) {
 }
 
 export const pageOf = (tabId: string | undefined): PageState => (tabId && usePages.getState().pages[tabId]) || IDLE_PAGE;
+
+const iconPages = new Map<string, string | null>();
+
+export const iconPageOf = (tabId: string): string | null => iconPages.get(tabId) ?? null;
+
+export const setIconPage = (tabId: string, page: string | null) => void iconPages.set(tabId, page);
 
 export function usePage<T>(tabId: string | undefined, select: (p: PageState) => T): T {
   return usePages((s) => select((tabId && s.pages[tabId]) || IDLE_PAGE));
@@ -110,13 +114,14 @@ export function useFullscreenTab(windowId: string): string | undefined {
     if (!fullscreen) return undefined;
     const active = activeTabId(s, windowId);
     const peek = peekTabId(s, windowId);
-    const shown = [...(peek ? [peek] : []), ...(active ? (splitOf(s, active)?.tabIds ?? [active]) : [])];
+    const shown = [...(peek ? [peek] : []), ...(active ? (splitTabIdsOf(splitOf(s, active)) ?? [active]) : [])];
     return shown.find((id) => fullscreen.split("\n").includes(id));
   });
 }
 
 useBrowser.subscribe((s, prev) => {
   if (s.tabs === prev.tabs) return;
+  for (const id of iconPages.keys()) if (!s.tabs[id]) iconPages.delete(id);
   const { pages, ready, popover } = usePages.getState();
   const stale = (ids: string[], tabOf: (id: string) => string) => {
     for (let i = 0; i < ids.length; i++) if (!s.tabs[tabOf(ids[i]!)]) return true;

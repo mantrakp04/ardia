@@ -30,18 +30,30 @@ const POPULAR_SITE_SEARCHES: readonly SiteSearch[] = [
 ];
 
 export type SearchScope = {
-  kind: "engine" | "site" | "history";
+  kind: "engine" | "site" | "history" | "provider";
   name: string;
   host: string;
   url: string;
   engineId?: string;
+  providerId?: string;
 };
+
+export type KeywordProvider = { id: string; title: string; keyword: string; host?: string; url?: string };
 
 export type ScopeSources = {
   engines: readonly SearchEngine[];
   sites?: readonly SiteSearch[];
   hosts?: readonly string[];
+  providers?: readonly KeywordProvider[];
 };
+
+export function providerScope(text: string, providers: readonly KeywordProvider[] = []): SearchScope | null {
+  if (!providers.length) return null;
+  const t = text.trim().toLowerCase();
+  if (!t || /\s/.test(t)) return null;
+  const p = providers.find((x) => x.keyword.toLowerCase() === t);
+  return p ? { kind: "provider", name: p.title, host: p.host ?? "", url: p.url ?? "", providerId: p.id } : null;
+}
 
 function normalize(text: string): string {
   return text.trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
@@ -52,7 +64,9 @@ function siteLabel(host: string): string {
   return parts.length >= 2 ? parts[parts.length - 2]! : host;
 }
 
-export function findScope(text: string, { engines, sites = POPULAR_SITE_SEARCHES, hosts = [] }: ScopeSources): SearchScope | null {
+export function findScope(text: string, { engines, sites = POPULAR_SITE_SEARCHES, hosts = [], providers }: ScopeSources): SearchScope | null {
+  const provider = providerScope(text, providers);
+  if (provider) return provider;
   const t = normalize(text);
   if (!t || /\s/.test(t)) return null;
   const host = hostOf(`https://${t}`) || t;
@@ -80,13 +94,14 @@ function engineScope(e: SearchEngine): SearchScope {
 
 export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine: Pick<SearchEngine, "url">): string {
   if (scope.kind === "history") return searchUrl(defaultEngine, `site:${scope.host} ${query.trim()}`);
+  if (scope.kind === "provider" && !scope.url) return searchUrl(defaultEngine, query);
   return searchUrlFor(scope.url, query);
 }
 
 export function offeredSiteSearch(typed: string, completion: string, sources: ScopeSources): SearchScope | null {
   const t = typed.trim();
   if (!t || /\s/.test(t)) return null;
-  return findScope(typed + completion, sources);
+  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources);
 }
 
 export type SiteSearchKeyState = {

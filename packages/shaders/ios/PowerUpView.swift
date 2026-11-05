@@ -1,3 +1,4 @@
+import ArdiaCore
 import ExpoModulesCore
 import MetalKit
 
@@ -27,7 +28,7 @@ final class PowerUpView: MetalSurface {
     "green": ["#90CE01", "#43CC60", "#0CD9EB", "#C3EEAF", "#9EDD73"],
     "blue": ["#4ACCFF", "#5FADFF", "#60F0CF", "#9CEEFF", "#72C1FF"],
     "default": ["#7E1731", "#334CB4", "#2D81FF", "#2D81FF", "#FFF268", "#F70305", "#FE64CD"],
-  ].mapValues { $0.compactMap { SIMD4<Float>(hex: $0) } }
+  ].mapValues { $0.compactMap { RGBA(hex: $0)?.simd } }
 
   private var time: Float = 0
   private let finishTime: Float = 3.75
@@ -48,7 +49,7 @@ final class PowerUpView: MetalSurface {
     if value.count == 1, let named = Self.palettes[value[0]] {
       srgb = named
     } else {
-      srgb = value.compactMap { SIMD4<Float>(hex: $0) }
+      srgb = value.compactMap { RGBA(hex: $0)?.simd }
     }
     if !srgb.isEmpty {
       colors = Self.oklab(srgb)

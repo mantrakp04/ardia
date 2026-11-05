@@ -61,13 +61,13 @@ test("after launch: a new window opens animated, a closed one closes and its pri
   const sync = start(native);
   sync.sync(S());
   let prev = S();
-  const priv = S().createWindow({ incognito: true });
+  const priv = S().createWindow({ kind: "private" });
   sync.sync(S(), prev);
   const opened = native.of("open").at(-1);
   assert.equal(opened[1], priv);
   assert.equal(opened[2].animated, true);
   assert.equal(opened[2].incognito, true);
-  const profile = engineProfile(S().windows[priv].profileId);
+  const profile = engineProfile(S(), S().windows[priv].profileId);
   prev = S();
   S().closeWindow(priv);
   sync.sync(S(), prev);
@@ -131,5 +131,5 @@ test("full screen comes back oldest first", () => {
   const sync = start(native);
   const s = S();
   sync.restoreFullScreen({ ...s, windows: { ...s.windows, [a]: { ...s.windows[a], fullScreen: 2 }, [b]: { ...s.windows[b], fullScreen: 1 } } });
-  assert.deepEqual(native.of("restoreFullScreen"), [["restoreFullScreen", [b, a], s.ui.focusedWindowId]]);
+  assert.deepEqual(native.of("restoreFullScreen"), [["restoreFullScreen", [b, a], (s.ui.focusOrder[0] ?? null)]]);
 });

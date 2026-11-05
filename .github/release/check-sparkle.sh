@@ -14,10 +14,9 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/ac-sparkle.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 swiftc -O "$root/.claude/skills/release/scripts/ed25519.swift" -o "$work/ed25519"
-item="$(awk -v v="$version" '/<item>/ { buf = "" } { buf = buf $0 "\n" } /<\/item>/ && buf ~ ("shortVersionString>" v "<") { print buf; exit }' "$feed")"
-[ -n "$item" ] || { echo "::error::$feed has no item for $version"; exit 1; }
-signature="$(grep -o 'sparkle:edSignature="[^"]*"' <<<"$item" | head -1 | sed 's/^sparkle:edSignature="//; s/"$//')"
-length="$(grep -o 'length="[0-9]*"' <<<"$item" | head -1 | tr -dc '0-9')"
+enclosure="$(python3 -I "$root/.claude/skills/release/scripts/appcast.py" enclosure "$feed" "$version")" \
+  || { echo "::error::$feed has no single item for $version"; exit 1; }
+read -r signature length <<<"$enclosure"
 key="$(plutil -extract SUPublicEDKey raw "$dist/export/Ardia.app/Contents/Info.plist")"
 [ "$length" = "$(stat -f %z "$zip")" ] || { echo "::error::the appcast's length for $(basename "$zip") is $length, the file is $(stat -f %z "$zip")"; exit 1; }
 "$work/ed25519" verify "$zip" "$signature" "$key" \

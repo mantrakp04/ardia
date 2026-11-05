@@ -3,7 +3,7 @@ import { requireNativeViewManager } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { findNodeHandle, type NativeSyntheticEvent } from "react-native";
 import type { FaviconImage } from "./favicons";
-import { ardiaError } from "./engine/call";
+import { ArdiaError, ardiaError } from "@ardia/core";
 import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
 import type { DiscardOutcome, WebViewHandle, WebViewProps } from "./pageTypes";
 import type { PageCookie } from "./webkit";
@@ -71,7 +71,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
         try {
           return JSON.parse(json) as T;
         } catch {
-          return null;
+          throw new ArdiaError("ERR_BAD_REPLY", "the page's result isn't JSON");
         }
       },
       navigationEntries: async () => (await call([], (n) => n.navigationEntries())).map((e) => ({ ...e, url: toAppUrl(e.url) })),

@@ -26,6 +26,13 @@ export const useSidebarUi = create<SidebarUi>()(() => ({
 export const sidebarUi = () => useSidebarUi.getState();
 export const setSidebarUi = (patch: Partial<SidebarUi>) => useSidebarUi.setState(patch);
 
+export function setLiveSidebarWidth(windowId: string, width: number | null) {
+  useSidebarUi.setState((u) => {
+    const { [windowId]: _, ...rest } = u.dragWidth;
+    return { dragWidth: width === null ? rest : { ...rest, [windowId]: Math.round(width * 2) / 2 } };
+  });
+}
+
 const rows = new Map<string, Map<string, View>>();
 
 export function registerRow(windowId: string, id: string, view: View | null) {

@@ -8,14 +8,13 @@ import {
 import { type PageEngine, defaultEngine, ENGINE_NAMES, RECOMMENDED_ENGINE, siteOf } from "../../../state/engines/engines";
 import { resolveInput } from "@ardia/core";
 import { useEffect, useState } from "react";
-import { AppState, Linking, Text, View } from "react-native";
+import { AppState, Linking, View } from "react-native";
 import { setWebsiteEngine } from "../../../state/engines/actions";
-import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
-import { Button, font, Group, PopUp, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Button, DialogActions, DialogTitle, PopUp, Sheet, space, Text, TextField, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { FormField, Group, Row, SectionHeader } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 const ENGINE_OPTIONS: { value: PageEngine; title: string }[] = [
@@ -27,7 +26,7 @@ const siteLabel = (site: string) => site.replace(/^https:\/\//, "");
 
 export function EnginesPane() {
   const engine = useSettings((settings) => defaultEngine({ settings }));
-  const rules = useSettings((s) => s.websiteEngines ?? {});
+  const rules = useSettings((s) => s.websiteEngines);
   const sites = Object.keys(rules).sort((a, b) => siteLabel(a).localeCompare(siteLabel(b)));
   const protectedVideo = useSettings((s) => s.protectedVideoInWebKit);
   const setDefault = (value: PageEngine) => updateSettings({ pageEngine: value });
@@ -42,15 +41,13 @@ export function EnginesPane() {
         <Row anchor="engines.recommendedDefault">
           <Button title="Use Recommended" disabled={engine === RECOMMENDED_ENGINE} onPress={() => setDefault(RECOMMENDED_ENGINE)} />
         </Row>
-        {engine === "chromium" && (
-          <Row anchor="engines.protectedVideo">
-            <Toggle value={protectedVideo} onChange={(value) => updateSettings({ protectedVideoInWebKit: value })} />
-          </Row>
-        )}
+        <Row anchor="engines.protectedVideo">
+          <Toggle value={protectedVideo} onChange={(value) => updateSettings({ protectedVideoInWebKit: value })} />
+        </Row>
       </Group>
 
-      <SectionHeader anchor="engines.websiteRules" action={<Button title="Add Website Rule…" icon="plus" onPress={() => showSettingsSheet(<RuleSheet />)} />} />
-      <Group>
+      <SectionHeader anchor="engines.websiteRules" description={null} action={<Button title="Add Website Rule…" icon="plus" onPress={() => showSettingsSheet(<RuleSheet />)} />} />
+      <Group of="engines.websiteRules">
         {sites.length === 0 ? (
           <Row title="No website rules" description="Choose “Opens in” in a site's controls, or add a rule here." />
         ) : (
@@ -108,14 +105,13 @@ function RuleRow({ site, engine }: { site: string; engine: PageEngine }) {
   return (
     <Row icon={<Favicon url={site} />} title={siteLabel(site)}>
       <PopUp value={engine} options={ENGINE_OPTIONS} onChange={(value) => setWebsiteEngine(site, value)} minWidth={110} />
-      <Button variant="icon" icon="pencil" size={11} box={24} radius={6} onPress={() => showSettingsSheet(<RuleSheet site={site} engine={engine} />)} tooltip="Edit" />
-      <Button variant="icon" icon="trash" size={11} box={24} radius={6} onPress={() => setWebsiteEngine(site, null)} tooltip="Remove" />
+      <Button variant="icon" icon="pencil" size="m" onPress={() => showSettingsSheet(<RuleSheet site={site} engine={engine} />)} tooltip="Edit" />
+      <Button variant="icon" icon="trash" size="m" onPress={() => setWebsiteEngine(site, null)} tooltip="Remove" />
     </Row>
   );
 }
 
 function RuleSheet({ site, engine: initial }: { site?: string; engine?: PageEngine }) {
-  const theme = useTheme();
   const [address, setAddress] = useState(site ? siteLabel(site) : "");
   const [engine, setEngine] = useState<PageEngine>(initial ?? "webkit");
   const [error, setError] = useState<string | null>(null);
@@ -128,35 +124,40 @@ function RuleSheet({ site, engine: initial }: { site?: string; engine?: PageEngi
     closeSettingsSheet();
   };
   return (
-    <Sheet width={440} onClose={closeSettingsSheet}>
-      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{site ? "Edit Website Rule" : "Add Website Rule"}</Text>
-      <Text style={{ ...font.small, marginTop: 6, color: theme.textSecondary }}>
-        A rule matches the site's address exactly: its scheme, host and port. Subdomains need their own rule.
-      </Text>
-      <View style={{ marginTop: 12 }}>
-        <Text style={{ ...font.footnote, marginBottom: 5, color: theme.textSecondary }}>Website</Text>
+    <Sheet onClose={closeSettingsSheet}>
+      <DialogTitle subtitle="A rule matches the site's address exactly: its scheme, host and port. Subdomains need their own rule.">
+        {site ? "Edit Website Rule" : "Add Website Rule"}
+      </DialogTitle>
+      <FormField label="Website">
         <TextField value={address} onChangeText={setAddress} placeholder="netflix.com" onSubmit={save} onEscape={closeSettingsSheet} />
-      </View>
-      <View style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Text style={{ ...font.footnote, color: theme.textSecondary }}>Opens in</Text>
+      </FormField>
+      <FormField label="Opens in" inline>
         <PopUp value={engine} options={ENGINE_OPTIONS} onChange={setEngine} />
-      </View>
-      {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-        {site && (
-          <Button
-            title="Remove"
-            kind="destructive"
-            onPress={() => {
-              setWebsiteEngine(site, null);
-              closeSettingsSheet();
-            }}
-          />
-        )}
-        <View style={{ flex: 1 }} />
+      </FormField>
+      {error && (
+        <Text size="caption" tone="destructive" style={ERROR}>
+          {error}
+        </Text>
+      )}
+      <DialogActions
+        leading={
+          site ? (
+            <Button
+              title="Remove"
+              kind="destructive"
+              onPress={() => {
+                setWebsiteEngine(site, null);
+                closeSettingsSheet();
+              }}
+            />
+          ) : null
+        }
+      >
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={site ? "Save" : "Add"} kind="primary" onPress={save} />
-      </View>
+      </DialogActions>
     </Sheet>
   );
 }
+
+const ERROR = { marginTop: space.ml } as const;

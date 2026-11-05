@@ -2,7 +2,7 @@ import { systemInfo } from "../../platform/app";
 import { create } from "zustand";
 import { openUrls } from "../browser/actions";
 import { useBrowser } from "../browser/store";
-import { activeTabId, resolveWindowId } from "../browser/model";
+import { activeTabId, resolveWindowId, tabLayoutOf } from "../browser/model";
 import { closeReleaseNotes } from "../releaseNotes/releaseNotes";
 import { splitOf } from "../splits/splits";
 import { useUrlAnchors } from "../windows/layout";
@@ -22,7 +22,7 @@ export function tourWindowFacts(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return null;
   const tabId = activeTabId(s, windowId);
-  return { tabLayout: w.tabLayout ?? s.settings.tabLayout, sidebarOpen: w.sidebarOpen, tabId, inSplit: !!splitOf(s, tabId), url: useUrlAnchors.getState()[windowId] };
+  return { tabLayout: tabLayoutOf(s, windowId), sidebarOpen: w.sidebarOpen, tabId, inSplit: !!splitOf(s, tabId), url: useUrlAnchors.getState()[windowId] };
 }
 
 export type TourStop = {
@@ -30,7 +30,7 @@ export type TourStop = {
   title: string;
   body: string;
   anchor?: TourAnchor;
-  placement?: "below" | "right" | "inside";
+  placement?: "below" | "besideSidebar" | "inside";
   radius?: number;
   pad?: number;
 };
@@ -50,7 +50,7 @@ const TOUR_STOPS: TourStop[] = [
     title: "Your tabs live in the sidebar",
     body: "New tabs land here. Drag them to reorder or group them; right-click one to pin it, so it's always a click away.",
     anchor: "tabs",
-    placement: "right",
+    placement: "besideSidebar",
     radius: 10,
     pad: 4,
   },

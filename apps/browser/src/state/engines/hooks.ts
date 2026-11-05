@@ -1,7 +1,5 @@
 import { useBrowser } from "../browser/store";
-import { builtInEngine, engineMark, recommendedEngineFor, ruleFor, tabEngine } from "./engines";
-
-export const useEngineMark = (tabId: string) => useBrowser((s) => engineMark(s, tabId));
+import { builtInEngine, recommendedEngineFor, ruleFor, tabEngine } from "./engines";
 
 export const usePageEngine = (tabId: string) => useBrowser((s) => tabEngine(s, tabId));
 

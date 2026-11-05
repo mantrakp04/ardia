@@ -45,6 +45,11 @@ export class Program {
     return this;
   }
 
+  ivec2(name: string, x: number, y: number) {
+    this.gl.uniform2i(this.at(name), x, y);
+    return this;
+  }
+
   int(name: string, value: number) {
     this.gl.uniform1i(this.at(name), value);
     return this;

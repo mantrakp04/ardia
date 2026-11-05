@@ -3,6 +3,7 @@
 #import "ArdiaChromeWindowHost.h"
 #import "ArdiaPiPThrowMath.h"
 
+#import <dlfcn.h>
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -106,16 +107,16 @@ void InstallZoomMonitor() {
                                                   }];
 }
 
-bool Attach(ArdiaWebView *view, NSString *host, NSString *frameId) {
+bool Attach(ArdiaWebView *view, NSString *host) {
   for (NSWindow *window in NSApp.windows) {
     ArdiaPiPController *controller = [ArdiaPiPController forWindow:window];
     if (!IsChromeVideoPictureInPicture(window) && !(controller && window.visible)) continue;
     if (!window.hasShadow) continue;
+    if (controller.view && controller.view.browserId != view.browserId) continue;
     BOOL fresh = !controller;
     if (fresh) controller = [[ArdiaPiPController alloc] initWithWindow:window];
     controller.view = view;
     controller.host = host;
-    [controller setVideoFrame:frameId];
     [controller roundCorners];
     PreventActivation(window);
     if (ardia_host::Background()) {
@@ -136,6 +137,20 @@ bool Attach(ArdiaWebView *view, NSString *host, NSString *frameId) {
 
 }
 
+namespace {
+
+NSString *DevShowAlpha(NSWindow *window, float alpha) {
+  using MainConnection = int (*)(void);
+  using SetAlpha = int (*)(int, int, float);
+  auto connection = (MainConnection)dlsym(RTLD_DEFAULT, "CGSMainConnectionID");
+  auto set = (SetAlpha)dlsym(RTLD_DEFAULT, "CGSSetWindowAlpha");
+  if (!ArdiaLaunchConfig.shared.testInstance) return @"test instances only";
+  if (!connection || !set) return @"no CGSSetWindowAlpha";
+  return set(connection(), (int)window.windowNumber, alpha) == 0 ? @"started" : @"refused";
+}
+
+}
+
 namespace ardia_pip {
 
 void WatchZoom() { InstallZoomMonitor(); }
@@ -146,14 +161,13 @@ void TabRequestedActivation(ArdiaWebView *view) {
       return ActivateApp(@"Back to Tab (Chrome's button)");
 }
 
-void VideoChanged(ArdiaWebView *view, NSString *host, NSString *frameId, bool active) {
-  if (!active) return;
+void VideoEntered(ArdiaWebView *view, NSString *host) {
   __block int tries = 0;
   __block void (^look)(void);
   __weak ArdiaWebView *weakView = view;
   look = ^{
     ArdiaWebView *strongView = weakView;
-    if (!strongView || Attach(strongView, host, frameId) || ++tries >= 20) {
+    if (!strongView || Attach(strongView, host) || ++tries >= 20) {
       look = nil;
       return;
     }
@@ -185,10 +199,12 @@ void VideoChanged(ArdiaWebView *view, NSString *host, NSString *frameId, bool ac
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
       @"styled" : @(controller != nil),
-      @"rounded" : @(content.cornerRadius == kCornerRadius && content.masksToBounds && !window.opaque),
+      @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
+      @"cornerRadius" : @(content.cornerRadius),
       @"rim" : @(controller.overlay.layer.borderWidth),
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
+      @"key" : @(window.keyWindow),
       @"host" : controller.host ?: @"",
       @"backToTab" : @(controller.view != nil),
       @"minSize" : NSStringFromSize(window.contentMinSize),
@@ -210,6 +226,10 @@ void VideoChanged(ArdiaWebView *view, NSString *host, NSString *frameId, bool ac
   else if ([action isEqual:@"menu"]) return [[controller.menu.itemArray valueForKey:@"title"] componentsJoinedByString:@"|"];
   else if ([action hasPrefix:@"snapshot:"]) return [controller snapshot:[action substringFromIndex:9]];
   else if ([action hasPrefix:@"frame:"]) [controller.window setFrame:NSRectFromString([action substringFromIndex:6]) display:YES];
+  else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
+  else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
+  else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];
   else if ([action isEqual:@"throw"]) {

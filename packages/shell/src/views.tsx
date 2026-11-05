@@ -11,7 +11,7 @@ export const WindowProfile = requireNativeViewManager<WindowProfileProps>("Ardia
 
 export const WindowDragRegion = requireNativeViewManager<
   ViewProps & { titleBarDoubleClick?: boolean; onRegionDoubleClick?: () => void; clickable?: boolean; onRegionClick?: () => void }
->("ArdiaShell");
+>("ArdiaAppWindows");
 
 export const OutsidePressArea = requireNativeViewManager<ViewProps & { onOutsidePress?: (event: { nativeEvent: { timestamp?: number } }) => void }>("ArdiaOutsidePressArea");
 
@@ -105,6 +105,8 @@ export const isLiquidGlass = (): boolean => GlassEffectModule.isLiquidGlass();
 
 export const GlassEffect = requireNativeViewManager<GlassEffectProps>("ArdiaGlassEffect");
 
+export const GlassGroup = requireNativeViewManager<ViewProps>("ArdiaGlassGroup");
+
 export type PopoverBubbleProps = ViewProps & {
   material?: "popover" | "menu" | "hudWindow" | "sheet" | "toolTip";
   dark?: boolean;
@@ -119,6 +121,7 @@ export type PopoverBubbleProps = ViewProps & {
   shadowOpacity?: number;
   shadowRadius?: number;
   shadowOffsetY?: number;
+  glass?: boolean;
 };
 
 type NativePopoverBubbleProps = Omit<PopoverBubbleProps, "shadowOpacity" | "shadowRadius" | "shadowOffsetY"> & {
@@ -155,6 +158,7 @@ export type DockSelectionProps = ViewProps & {
   iconSize?: number;
   dark: boolean;
   glass?: boolean;
+  colorRing?: boolean;
 };
 
 export const DockSelection = requireNativeViewManager<DockSelectionProps>("ArdiaDockSelection");

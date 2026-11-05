@@ -63,12 +63,12 @@ async function syncAll(devices, rounds = 2) {
 
 const act = (fn) => useBrowser.setState(fn(S()), true);
 const host = (t) => new URL(t.pinnedUrl || t.url).hostname.replace(".example", "");
-const tabOf = (h) => Object.values(S().tabs).find((t) => t.pinned && host(t) === h)?.id;
+const tabOf = (h) => Object.values(S().tabs).find((t) => !!t.pin && host(t) === h)?.id;
 const area = (device) =>
   device.with(() =>
     Object.values(S().tabs)
-      .filter((t) => t.pinned)
-      .map((t) => `${host(t)}:${t.pinnedAsRow ? "row" : t.tileFolder ? t.tileFolder.name : "tile"}`)
+      .filter((t) => !!t.pin)
+      .map((t) => `${host(t)}:${(t.pin?.as === "row") ? "row" : t.pin?.folder ? t.pin?.folder.name : "tile"}`)
       .sort(),
   );
 
@@ -145,7 +145,7 @@ const previousVersion = () => [previous.pinnedRowsAdapter("default"), previous.p
 const memberOf = (device, key) =>
   device.with(() => {
     const members = new Set(Object.values(S().groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
-    return Object.values(S().tabs).find((t) => (t.pinKey ?? t.id) === key && !t.pinned && members.has(t.id));
+    return Object.values(S().tabs).find((t) => (t.pinKey ?? t.id) === key && !t.pin && members.has(t.id));
   });
 
 function seedGroup(device) {

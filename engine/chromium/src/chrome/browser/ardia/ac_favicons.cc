@@ -163,11 +163,7 @@ void LookUpSite(favicon::FaviconService* service,
 using ardia::Call;
 using ardia::Reply;
 
-AC_ENGINE_CALL(ac_favicons_get) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_favicons_get) {
   favicon::FaviconService* service = ardia::FaviconsFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no favicons");
@@ -233,11 +229,7 @@ AC_ENGINE_CALL(ac_favicons_get) {
   }
 }
 
-AC_ENGINE_CALL(ac_favicons_set) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_favicons_set) {
   favicon::FaviconService* service = ardia::FaviconsFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no favicons");

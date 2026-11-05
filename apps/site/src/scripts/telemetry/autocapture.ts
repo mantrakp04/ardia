@@ -159,7 +159,7 @@ function check() {
 }
 
 function report(p: Pending, absolute: number, timeouts: Record<"scroll" | "selection" | "mutation" | "absolute", boolean>) {
-  const k = `$dead_${p.kind}`;
+  const k = `$dead_${p.kind}` as const;
   const ms = (v: number | undefined) => (v === undefined ? undefined : Math.round(v));
   capture(
     k,

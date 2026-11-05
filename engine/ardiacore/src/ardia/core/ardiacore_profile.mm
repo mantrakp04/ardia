@@ -21,14 +21,13 @@
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
+#include "components/autofill/core/common/autofill_prefs.h"
+#include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/spare_render_process_host_manager.h"
-#include "extensions/browser/extension_action.h"
-#include "extensions/browser/extension_action_manager.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/manifest.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_navigation_hold.h"
@@ -65,16 +64,16 @@ class ProfileGoneObserver : public ProfileObserver {
   base::ScopedObservation<Profile, ProfileObserver> observation_{this};
 };
 
-bool IsHostPreference(const std::string& name) {
-  static const char* const kAllowed[] = {
-      "credentials_enable_service", "autofill.profile_enabled",
-      "autofill.credit_card_enabled", "download_bubble.partial_view_enabled"};
-  for (const char* allowed : kAllowed) {
-    if (name == allowed) {
-      return true;
-    }
+bool BoolPref(Profile* profile, const char* name) {
+  const PrefService::Preference* pref =
+      profile ? profile->GetPrefs()->FindPreference(name) : nullptr;
+  return !pref || !pref->GetValue()->is_bool() || pref->GetValue()->GetBool();
+}
+
+void SetBoolPref(Profile* profile, const char* name, bool value) {
+  if (profile && profile->GetPrefs()->FindPreference(name)) {
+    profile->GetPrefs()->SetBoolean(name, value);
   }
-  return false;
 }
 
 class BrowsingDataDone : public content::BrowsingDataRemover::Observer {
@@ -222,21 +221,28 @@ bool IsProfileDeleting(const Profile* profile) {
   return _path;
 }
 
-- (NSNumber*)boolPreference:(NSString*)name {
-  const std::string key = base::SysNSStringToUTF8(name);
-  if (!_profile || !IsHostPreference(key)) {
-    return nil;
-  }
-  const PrefService::Preference* pref = _profile->GetPrefs()->FindPreference(key);
-  return pref && pref->GetValue()->is_bool() ? @(pref->GetValue()->GetBool()) : nil;
+- (BOOL)passwordsOffered {
+  return BoolPref(_profile.get(), password_manager::prefs::kCredentialsEnableService);
 }
 
-- (void)setBoolPreference:(NSString*)name value:(BOOL)value {
-  const std::string key = base::SysNSStringToUTF8(name);
-  if (_profile && IsHostPreference(key) &&
-      _profile->GetPrefs()->FindPreference(key)) {
-    _profile->GetPrefs()->SetBoolean(key, value);
-  }
+- (void)setPasswordsOffered:(BOOL)offered {
+  SetBoolPref(_profile.get(), password_manager::prefs::kCredentialsEnableService, offered);
+}
+
+- (BOOL)addressesAutofilled {
+  return BoolPref(_profile.get(), autofill::prefs::kAutofillProfileEnabled);
+}
+
+- (void)setAddressesAutofilled:(BOOL)autofilled {
+  SetBoolPref(_profile.get(), autofill::prefs::kAutofillProfileEnabled, autofilled);
+}
+
+- (BOOL)cardsAutofilled {
+  return BoolPref(_profile.get(), autofill::prefs::kAutofillCreditCardEnabled);
+}
+
+- (void)setCardsAutofilled:(BOOL)autofilled {
+  SetBoolPref(_profile.get(), autofill::prefs::kAutofillCreditCardEnabled, autofilled);
 }
 
 - (void)clearBrowsingData:(NSArray<NSString*>*)types
@@ -324,33 +330,6 @@ bool IsProfileDeleting(const Profile* profile) {
 
 - (void)watchCastRoutes {
   ardiacore::WatchCastRoutes(_profile.get());
-}
-
-- (NSArray<NSDictionary<NSString*, id>*>*)extensions {
-  NSMutableArray* list = [NSMutableArray array];
-  if (!_profile) {
-    return list;
-  }
-  auto* registry = extensions::ExtensionRegistry::Get(_profile.get());
-  auto* actions = extensions::ExtensionActionManager::Get(_profile.get());
-  for (const auto& extension : registry->enabled_extensions()) {
-    if (extensions::Manifest::IsComponentLocation(extension->location())) {
-      continue;
-    }
-    extensions::ExtensionAction* action =
-        actions->GetExtensionAction(*extension);
-    [list addObject:@{
-      @"id" : NS(extension->id()),
-      @"name" : NS(extension->name()),
-      @"version" : NS(extension->VersionString()),
-      @"enabled" : @YES,
-      @"actionPopupURL" :
-          action ? NS(action->GetPopupUrl(extensions::ExtensionAction::kDefaultTabId)
-                          .spec())
-                 : @"",
-    }];
-  }
-  return list;
 }
 
 @end

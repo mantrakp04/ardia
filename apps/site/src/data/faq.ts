@@ -1,4 +1,4 @@
-export type Question = { id?: string; question: string; answer: string };
+export type Question = { id?: string; question: string; answer: string; more?: { path: string; label: string } };
 
 export const FAQ: Question[] = [
   { question: "What does it cost?", answer: "Nothing. It’s open source under GPL-3.0. No paid tier, no catch." },
@@ -19,6 +19,7 @@ export const FAQ: Question[] = [
   {
     question: "Coming from Arc?",
     answer: "Same sidebar, same muscle memory. The importer brings your spaces, pinned tabs and their names along.",
+    more: { path: "arc/", label: "See what comes over." },
   },
   { question: "Is this Dia?", answer: "No. It dresses like Dia, or like Arc if you ask." },
   { question: "Why “Ardia”?", answer: "Arc plus Dia." },

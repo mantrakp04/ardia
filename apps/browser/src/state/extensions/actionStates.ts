@@ -2,34 +2,23 @@ import { extensionActionStates } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { extensionProfile, readyTabOf, useExtensions, windowExtensions } from "./store";
+import { singleFlight } from "../../lib/singleFlight";
 
-let running: Promise<void> | null = null;
-let again = false;
 let pendingAll = false;
 const pendingProfiles = new Set<string>();
 
 export function refreshActionStates(profiles?: Iterable<string>): Promise<void> {
   if (profiles) for (const profile of profiles) pendingProfiles.add(profile);
   else pendingAll = true;
-  if (running) {
-    again = true;
-    return running;
-  }
-  running = (async () => {
-    try {
-      do {
-        again = false;
-        const only = pendingAll ? null : new Set(pendingProfiles);
-        pendingAll = false;
-        pendingProfiles.clear();
-        await pass(only);
-      } while (again);
-    } finally {
-      running = null;
-    }
-  })();
-  return running;
+  return refresh();
 }
+
+const refresh = singleFlight(async () => {
+  const only = pendingAll ? null : new Set(pendingProfiles);
+  pendingAll = false;
+  pendingProfiles.clear();
+  await pass(only);
+});
 
 async function pass(only: Set<string> | null) {
   const s = useBrowser.getState();

@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "ardia/core/ac_content_hooks.h"  // nogncheck
+#include "ardia/core/ac_content_hooks.h"
 #include "base/base64url.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
@@ -21,7 +21,6 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
@@ -41,14 +40,10 @@
 #include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/termination_notification.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
-#include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_socket_factory.h"
@@ -322,19 +317,9 @@ class ControlServer {
     if (!tab_id) {
       return;
     }
-    GlobalBrowserCollection::GetInstance()->ForEach(
-        [&](BrowserWindowInterface* browser) {
-          TabStripModel* model = browser->GetTabStripModel();
-          for (int i = 0; model && i < model->count(); ++i) {
-            content::WebContents* contents = model->GetWebContentsAt(i);
-            if (sessions::SessionTabHelper::IdForTab(contents).id() ==
-                *tab_id) {
-              active_ = contents->GetWeakPtr();
-              return false;
-            }
-          }
-          return true;
-        });
+    if (content::WebContents* contents = TabWithId(*tab_id)) {
+      active_ = contents->GetWeakPtr();
+    }
   }
 
   static bool ActiveTarget(const content::DevToolsSocketFactory* factory,
@@ -516,18 +501,9 @@ class ControlServer {
 }
 }
 
-AC_ENGINE_CALL(ac_cli_control) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  ardia::Reply out(reply, context);
-  base::DictValue args;
-  if (args_json && *args_json) {
-    std::optional<base::Value> parsed = base::JSONReader::Read(
-        args_json, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
-    if (!parsed || !parsed->is_dict()) {
-      return out.Error("arguments are not a JSON object");
-    }
-    args = std::move(*parsed).TakeDict();
-  }
+AC_ARGS_CALL(ac_cli_control) {
+  ardia::Reply out = call.TakeReply();
+  const base::DictValue& args = call.args();
   ardia::ControlServer& server = ardia::ControlServer::Get();
   if (const base::Value* active = args.Find("active")) {
     server.SetActiveTab(active->is_int() && active->GetInt() >= 0

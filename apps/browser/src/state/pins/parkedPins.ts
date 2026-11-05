@@ -1,12 +1,16 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds, depthOf, orderSections, placeBlock, syncGroupOrder, withParent } from "../groups/groups";
-import { IDLE_LIVE, isIncognitoProfile, makeTab, newId, pendingRestore, pinnedFirst, restoreId, snapshotTab, without } from "../browser/model";
-import { samePage } from "./organize";
-import { pinKeyOf } from "./pinMirror";
+import { IDLE_LIVE, isIncognitoProfile, isPinnedRow, makeTab, newId, pinKeyOf, snapshotTab, TILE_PIN, without } from "../browser/model";
+import { pendingRestore, restoreId } from "../tabs/adoptIds";
 import type { BrowserWindow, HistoryEntry, ParkedPins, Tab, TabGroup } from "../browser/types";
+import { samePage } from "../../lib/url";
+import { historyOf } from "../history/history";
+import { isRegularWindow } from "../windows/small";
+import { ASLEEP, withWake } from "../tabs/pageSession";
+import { mapSlotIds, slotTabIds, splitTabIds } from "../splits/splits";
 
 
-type PinSource = Pick<BrowserState, "tabs" | "groups" | "history"> & Partial<Pick<BrowserState, "windows" | "splits">>;
+type PinSource = Pick<BrowserState, "tabs" | "groups" | "history" | "profiles"> & Partial<Pick<BrowserState, "windows" | "splits">>;
 
 function atPin(t: Tab, history: HistoryEntry[]): Partial<Pick<Tab, "url" | "title" | "favicon">> {
   const home = t.pinnedUrl;
@@ -18,7 +22,7 @@ function atPin(t: Tab, history: HistoryEntry[]): Partial<Pick<Tab, "url" | "titl
 const homeOf = (t: { url: string; pinnedUrl?: string | null }) => t.pinnedUrl || t.url;
 
 export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWindow, s: PinSource): Record<string, ParkedPins> {
-  if (w.incognito) return parked;
+  if (w.kind === "private") return parked;
   const own = Object.values(s.groups).filter((g) => g.pinned && g.windowId === w.id);
   const ownIds = new Set(own.map((g) => g.id));
   const groupOf = new Map<string, TabGroup>();
@@ -26,11 +30,11 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
   let next = parked;
   const profiles = new Set(w.tabIds.map((id) => s.tabs[id]?.profileId).filter((p): p is string => !!p));
   const shownElsewhere = (profileId: string) =>
-    Object.values(s.windows ?? {}).some((o) => o.id !== w.id && !o.incognito && o.kind !== "small" && o.tabIds.some((id) => s.tabs[id]?.profileId === profileId));
+    Object.values(s.windows ?? {}).some((o) => o.id !== w.id && isRegularWindow(o) && o.tabIds.some((id) => s.tabs[id]?.profileId === profileId));
   for (const profileId of profiles) {
     if (shownElsewhere(profileId)) continue;
     const own = w.tabIds.map((id) => s.tabs[id]).filter((t): t is Tab => !!t && t.profileId === profileId);
-    if (!own.some((t) => t.pinned || groupOf.has(t.id))) continue;
+    if (!own.some((t) => t.pin || groupOf.has(t.id))) continue;
     const old = next[profileId] ?? { tabs: [], groups: [] };
     const ids = new Set(old.tabs.map((p) => p.id));
     const homes = old.tabs.filter((p) => !p.groupId).map(homeOf);
@@ -38,24 +42,24 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
     const tiles: ParkedPins["tabs"] = [];
     const rest: ParkedPins["tabs"] = [];
     const paneIds = new Map<string, string>();
-    const splitPanes = new Set(Object.values(s.splits ?? {}).filter((v) => v.windowId === w.id).flatMap((v) => v.tabIds));
+    const splitPanes = new Set(Object.values(s.splits ?? {}).filter((v) => v.windowId === w.id).flatMap((v) => splitTabIds(v)));
     const pending = (t: Tab, moved: boolean) => {
       const from = !moved && !isIncognitoProfile(t.profileId) ? pendingRestore(t) : undefined;
       return from ? { restoreFrom: from } : {};
     };
     for (const t of own) {
-      if (t.pinned ? t.pinnedAsRow : groupOf.has(t.id)) paneIds.set(t.id, pinKeyOf(t));
+      if (t.pin ? isPinnedRow(t) : groupOf.has(t.id)) paneIds.set(t.id, pinKeyOf(t));
       if (ids.has(pinKeyOf(t))) continue;
-      const g = t.pinned ? undefined : groupOf.get(t.id);
-      if (t.pinned) {
-        const back = atPin(t, s.history[profileId] ?? []);
+      const g = t.pin ? undefined : groupOf.get(t.id);
+      if (t.pin) {
+        const back = atPin(t, historyOf(s, profileId));
         const tile = { ...snapshotTab(t), ...back, ...pending(t, !!back.url), id: pinKeyOf(t), groupId: null };
         if (!splitPanes.has(t.id) && homes.some((h) => samePage(h, homeOf(tile)))) {
           paneIds.delete(t.id);
           continue;
         }
         homes.push(homeOf(tile));
-        (t.pinnedAsRow ? rest : tiles).push(tile);
+        (isPinnedRow(t) ? rest : tiles).push(tile);
       } else if (g) {
         const chain = [...ancestorIds(s.groups, g.id).filter((id) => ownIds.has(id)).reverse().map((id) => s.groups[id]!), g];
         chain.forEach((x, i) => {
@@ -63,17 +67,17 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
           const parent = chain[i - 1];
           groups.push({ id: pinKeyOf(x), name: x.name, icon: x.icon, color: x.color, collapsed: x.collapsed, ...(parent ? { parentId: pinKeyOf(parent) } : {}) });
         });
-        const back = atPin(t, s.history[profileId] ?? []);
+        const back = atPin(t, historyOf(s, profileId));
         rest.push({ ...snapshotTab(t), ...back, ...pending(t, !!back.url), id: pinKeyOf(t), groupId: pinKeyOf(g) });
       }
     }
-    const isTile = (p: ParkedPins["tabs"][number]) => !p.groupId && !p.pinnedAsRow;
+    const isTile = (p: ParkedPins["tabs"][number]) => !p.groupId && !isPinnedRow(p);
     const splits = [...(old.splits ?? [])];
     for (const v of Object.values(s.splits ?? {})) {
-      if (v.windowId !== w.id || !v.tabIds.every((id) => paneIds.has(id))) continue;
-      const parkedIds = v.tabIds.map((id) => paneIds.get(id)!);
-      if (splits.some((x) => x.ids.some((id) => parkedIds.includes(id)))) continue;
-      splits.push({ ids: parkedIds, orientation: v.orientation, sizes: v.sizes, ...(v.stack ? { stack: v.stack } : {}) });
+      if (v.windowId !== w.id || !splitTabIds(v).every((id) => paneIds.has(id))) continue;
+      const parked = { orientation: v.orientation, slots: mapSlotIds(v.slots, (id) => paneIds.get(id)!) };
+      if (splits.some((x) => splitTabIds(x).some((id) => splitTabIds(parked).includes(id)))) continue;
+      splits.push(parked);
     }
     const tabs = [...old.tabs.filter(isTile), ...tiles, ...old.tabs.filter((p) => !isTile(p)), ...rest];
     next = { ...next, [profileId]: { tabs, groups, ...(splits.length ? { splits } : {}) } };
@@ -84,23 +88,21 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
 export function adoptParkedPins(s: BrowserState, windowId: string, profileId: string): BrowserState {
   const park = s.parkedPins[profileId];
   const w = s.windows[windowId];
-  if (!park || !w || w.incognito || !s.profiles[profileId]) return s;
+  if (!park || !w || w.kind === "private" || !s.profiles[profileId]) return s;
   const tabs = { ...s.tabs };
   const live = { ...s.live };
-  const homes = w.tabIds.map((id) => tabs[id]).filter((t): t is Tab => !!t?.pinned && t.profileId === profileId).map(homeOf);
+  const homes = w.tabIds.map((id) => tabs[id]).filter((t): t is Tab => !!t?.pin && t.profileId === profileId).map(homeOf);
   const keyOf = new Map<string, string>();
   const tabOf = new Map<string, string>();
   const added: string[] = [];
-  const splitPanes = new Set((park.splits ?? []).flatMap((v) => v.ids));
+  const splitPanes = new Set((park.splits ?? []).flatMap((v) => splitTabIds(v)));
   for (const { id, groupId, restoreFrom, ...snap } of park.tabs) {
     const home = homeOf(snap);
     if (!groupId && !splitPanes.has(id) && homes.some((h) => samePage(h, home))) continue;
     const tab: Tab = {
-      ...makeTab(windowId, profileId, snap.url, { ...snap, profileId, pinned: !groupId, pinnedUrl: home || null }),
+      ...makeTab(windowId, profileId, snap.url, { ...snap, profileId, pin: groupId ? null : (snap.pin ?? TILE_PIN), pinnedUrl: home || null }),
       ...(tabs[id] ? { id: newId("tab"), pinKey: id } : { id }),
-      navigation: null,
-      unloaded: true,
-      ...(restoreFrom && !tabs[id] ? { wakeAdoptId: restoreId(restoreFrom) } : {}),
+      page: withWake(ASLEEP, restoreFrom && !tabs[id] ? restoreId(restoreFrom) : undefined),
     };
     tabs[tab.id] = tab;
     live[tab.id] = IDLE_LIVE;
@@ -134,13 +136,14 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
   let splits = s.splits;
   let order = [...added, ...w.tabIds];
   for (const v of park.splits ?? []) {
-    const panes = v.ids.map((id) => tabOf.get(id) ?? "");
+    const slots = mapSlotIds(v.slots, (id) => tabOf.get(id) ?? "");
+    const panes = slots.flatMap(slotTabIds);
     if (!panes.every(Boolean)) continue;
     const id = newId("split");
-    splits = { ...splits, [id]: { id, windowId, tabIds: panes, orientation: v.orientation, sizes: v.sizes, ...(v.stack ? { stack: v.stack } : {}) } };
+    splits = { ...splits, [id]: { id, windowId, orientation: v.orientation, slots } };
     order = placeBlock(order, order.filter((x) => panes.includes(x)));
   }
-  const window = { ...w, tabIds: orderSections(pinnedFirst(order, tabs, groups), tabs, groups) };
+  const window = { ...w, tabIds: orderSections(order, tabs, groups) };
   groups = syncGroupOrder(groups, window);
   return { ...s, tabs, live, groups, splits, windows: { ...s.windows, [windowId]: window }, parkedPins: without(s.parkedPins, [profileId]) };
 }

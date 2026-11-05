@@ -1,5 +1,6 @@
 import { isIncognitoProfile } from "../browser/model";
-import { cacheKey, EMPTY_ICONS, pageKey, useFavicons, type Favicons } from "./favicons";
+import { cacheKey, EMPTY_ICONS, useFavicons, type Favicons } from "./favicons";
+import { withoutFragment } from "../../lib/url";
 
 export type LaunchFavicons = {
   images: string[];
@@ -23,7 +24,7 @@ export function launchFavicons(tabs: { url: string; favicon: string | null; prof
     if (!t.url || isIncognitoProfile(t.profileId)) continue;
     const key = cacheKey(t.profileId);
     const icons = profiles[key];
-    const page = pageKey(t.url);
+    const page = withoutFragment(t.url);
     const uri = icons?.pages[page];
     if (!icons || !uri || uri.length > LAUNCH_URI_LIMIT || look.profiles[key]?.pages[page] !== undefined) continue;
     const fromSrc = t.favicon ? icons.srcs[t.favicon] : undefined;

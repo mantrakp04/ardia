@@ -1,8 +1,10 @@
-export const DOWNLOADS_PANEL = { width: 300, margin: 8, arrowWidth: 20, arrowHeight: 9, arrowGap: 1 } as const;
+import { space } from "../ui/tokens";
+
+export const DOWNLOADS_PANEL = { width: 300, margin: space.m, arrowWidth: 20, arrowHeight: 9, arrowGap: 1 } as const;
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Size = { width: number; height: number };
-export type DownloadsFallback = { topStrip: boolean; footer: boolean; footerBottom: number };
+export type DownloadsFallback = { topStrip: boolean; footer: boolean; footerBottom: number; sidebarRight: boolean };
 
 export type DownloadsPlacement = {
   width: number;
@@ -26,7 +28,11 @@ export function downloadsPlacement(viewport: Size, anchor: Rect | null, fallback
   const { margin, arrowHeight, arrowGap } = DOWNLOADS_PANEL;
   const width = Math.max(0, Math.min(DOWNLOADS_PANEL.width, viewport.width - margin * 2));
   if (!anchorInside(viewport, anchor)) {
-    const left = fallback.topStrip ? Math.max(margin, viewport.width - margin - width) : FALLBACK_SIDEBAR_LEFT;
+    const left = fallback.topStrip
+      ? Math.max(margin, viewport.width - margin - width)
+      : fallback.sidebarRight
+        ? Math.max(margin, viewport.width - FALLBACK_SIDEBAR_LEFT - width)
+        : FALLBACK_SIDEBAR_LEFT;
     if (fallback.footer) return { width, left, bottom: fallback.footerBottom, arrow: "none", arrowX: width / 2, room: viewport.height - fallback.footerBottom - margin };
     return { width, left, top: FALLBACK_TOP, arrow: "none", arrowX: width / 2, room: viewport.height - FALLBACK_TOP - margin };
   }

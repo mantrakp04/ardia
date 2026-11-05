@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { folderChildren, type RemovedBookmarks } from "../../state/bookmarks/bookmarks";
 import { useTab } from "../../state/browser/hooks";
 import { currentBookmarks } from "../../state/browser/current";
-import { useBookmarks } from "../../state/bookmarks/hooks";
+import { useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { plural } from "../../state/browser/model";
 import type { BookmarkNode, Bookmarks } from "../../state/browser/types";
 import { moveBookmark, openFolder, removeBookmarks, restoreBookmarks } from "../../state/bookmarks/actions";
 import { FolderTree } from "../bookmarks/FolderTree";
-import { Box, Button, radius, space, Symbol, Text, useTheme } from "../ui";
+import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme } from "../ui";
 import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
 import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
-import { EmptyState, matchesQuery, PageHeader } from "./PageLayout";
+import { matchesQuery, PageHeader } from "./PageLayout";
 import { bookmarkList, pagesColors, undoToast } from "./tokens";
-import { UndoToast } from "./UndoToast";
 
 
 type Target = { kind: "folder"; id: string } | { kind: "row"; id: string; index: number; folder: boolean };
@@ -22,13 +21,14 @@ type Drop = { into: string } | { parentId: string; index: number };
 
 export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: string }) {
   const theme = useTheme();
-  const colors = theme.dark ? pagesColors.dark : pagesColors.light;
+  const colors = pagesColors(theme);
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
-  const roots = useBookmarks((b) => b.roots[profileId]);
+  const roots = useBookmarkRoots(profileId);
   const [folderId, setFolderId] = useState<string | null>(roots?.bar ?? null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [undo, setUndo] = useState<{ removed: RemovedBookmarks; count: number } | null>(null);
+  const [undoClosing, setUndoClosing] = useState(false);
   const [drop, setDrop] = useState<Drop | null>(null);
   const anchor = useRef<string | null>(null);
   const targets = useMemo(() => new DropTargets<Target>(), []);
@@ -70,10 +70,11 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
     const removed = removeBookmarks(list);
     setSelected([]);
     setUndo({ removed, count: removed.places.length });
+    setUndoClosing(false);
   };
   useEffect(() => {
     if (!undo) return;
-    const timer = setTimeout(() => setUndo(null), undoToast.visibleMs);
+    const timer = setTimeout(() => setUndoClosing(true), undoToast.visibleMs);
     return () => clearTimeout(timer);
   }, [undo]);
 
@@ -123,7 +124,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
 
   return (
     <View style={{ flex: 1 }}>
-      <PageHeader title="Bookmarks" query={query} onQuery={setQuery} placeholder="Search bookmarks" actions={actions} />
+      <PageHeader title="Bookmarks" query={query} onQuery={setQuery} actions={actions} />
       <View style={BODY}>
         <ScrollView style={TREE} contentContainerStyle={TREE_CONTENT}>
           <FolderTree
@@ -137,7 +138,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
             wrapRow={(id, row) => (
               <View
                 ref={targets.ref(`tree:${id}`, { kind: "folder", id })}
-                style={{ borderRadius: radius.m, backgroundColor: drop && "into" in drop && drop.into === id ? colors.dropTarget : undefined }}
+                style={{ borderRadius: radius.control, backgroundColor: drop && "into" in drop && drop.into === id ? colors.dropTarget : undefined }}
               >
                 {row}
               </View>
@@ -145,7 +146,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
           />
         </ScrollView>
         <Box radius="panel" fill="groupFill" border="groupBorder" style={LIST_CARD}>
-          <Box row padX="lx" gap="m" style={LIST_HEADER}>
+          <Box row padX="xl" gap="m" style={LIST_HEADER}>
             <Text lines={1} weight="semibold" style={LIST_TITLE}>
               {searching ? `Results for “${query.trim()}”` : folderTitle}
             </Text>
@@ -153,10 +154,10 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
               <Button title="Open All" onPress={() => void openFolder(folderId, windowId)} disabled={!ids.length} />
             )}
           </Box>
-          <View style={[SEPARATOR, { backgroundColor: theme.divider }]} />
+          <Divider thick />
           {ids.length === 0 ? (
             <EmptyState
-              icon={<Symbol name={searching ? "magnifyingglass" : "bookmark"} size={bookmarkList.emptyIcon} color={theme.textTertiary} style={EMPTY_ICON} />}
+              symbol={searching ? "magnifyingglass" : "bookmark"}
               title={searching ? "No search results found" : "This folder is empty"}
             />
           ) : (
@@ -188,6 +189,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
                       setFolderId(folder);
                     }}
                     onDelete={() => remove(selected.includes(id) ? selected : [id])}
+                    menuSelection={() => ids.filter((x) => selected.includes(x))}
                     onDragStart={() => onDragStart(id)}
                     onDragMove={onDragMove}
                     onDragEnd={onDragEnd}
@@ -200,12 +202,15 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
         </Box>
       </View>
       {undo && (
-        <UndoToast
-          message={`${plural(undo.count, "item")} deleted`}
-          onUndo={() => {
+        <Toast
+          title={`${plural(undo.count, "item")} deleted`}
+          action="Undo"
+          onAction={() => {
             restoreBookmarks(undo.removed);
             setUndo(null);
           }}
+          closing={undoClosing}
+          onClosed={() => setUndo(null)}
         />
       )}
     </View>
@@ -226,7 +231,5 @@ const TREE_CONTENT = { paddingVertical: space.xs } as const;
 const LIST_CARD = { flex: 1, overflow: "hidden" } as const;
 const LIST_HEADER = { height: bookmarkList.headerHeight, alignItems: "center" } as const;
 const LIST_TITLE = { flex: 1 } as const;
-const SEPARATOR = { height: StyleSheet.hairlineWidth * 2 } as const;
-const EMPTY_ICON = { width: bookmarkList.emptyIconBox, height: bookmarkList.emptyIconBox } as const;
 const LIST_CONTENT = { padding: space.s } as const;
 const DROP_LINE = { height: bookmarkList.dropLine, marginHorizontal: space.m, marginVertical: -bookmarkList.dropLine / 2, borderRadius: bookmarkList.dropLineRadius, zIndex: 5 } as const;

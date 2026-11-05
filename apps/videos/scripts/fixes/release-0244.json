@@ -1,0 +1,492 @@
+{
+ "id": "release-0244",
+ "segments": [
+  {
+   "scene": "rightpeek",
+   "section": "New",
+   "title": "The sidebar sits on either side",
+   "body": "Make it yours › Right. The window buttons move with the sidebar, and with it hidden it peeks in from the right edge and stays open while you look at your tabs. 0.2.43 only had the left.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    1360,
+    860
+   ],
+   "lead": 1.0,
+   "tail": 12.6
+  },
+  {
+   "scene": "sharefolder",
+   "section": "New",
+   "title": "Share a pinned folder through iCloud Drive",
+   "body": "Right-click a pinned folder › Share Folder…. Ardia keeps it in iCloud Drive › Ardia Shared and hands it to macOS's share sheet. Links sync both ways, per profile, with no account. 0.2.43's menu has no such item.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    560,
+    420
+   ],
+   "lead": 1.6,
+   "tail": 6.6
+  },
+  {
+   "scene": "sharedtiles",
+   "section": "New",
+   "title": "Profiles that share data share Top Apps",
+   "body": "Personal and Work share browsing data. On 0.2.44 Work opens with Personal's Top Apps, and a tile pinned in Work shows up in Personal, one live page each. 0.2.43 kept every profile's tiles apart.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    600,
+    450
+   ],
+   "lead": 1.0,
+   "tail": 6.4
+  },
+  {
+   "scene": "sharetopapps",
+   "source": "reuse",
+   "from": "fixes-0244n7",
+   "source_scene": "sharetopapps",
+   "section": "New",
+   "card": false,
+   "title": "Each profile picks for itself",
+   "body": "Settings › Profiles › Shared data. Each profile has its own Share Top Apps switch (nightly.6 had one for all): Work opts out and keeps its own tiles, Personal and School still share.",
+   "beforeVersion": "0.2.44-nightly.6",
+   "afterVersion": "0.2.44-nightly.7"
+  },
+  {
+   "scene": "configfile",
+   "section": "New",
+   "title": "Set Ardia up from a file",
+   "body": "Settings, keybindings and themes can live in ~/.config/ardia/config.json, dotfiles style. Each save applies at once: light appearance, then a theme file that turns the selected tab green. Ardia never writes the file back. 0.2.43 ignores it.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    820,
+    560
+   ],
+   "lead": 1.0,
+   "tail": 8.6,
+   "editor": {
+    "x": 330,
+    "y": 250,
+    "w": 470,
+    "title": "~/.config/ardia/config.json"
+   },
+   "editor_initial": "{\n  \"settings\": {}\n}"
+  },
+  {
+   "scene": "addressrows",
+   "section": "New",
+   "card": false,
+   "title": "Your own address bar rows",
+   "body": "The same file adds address bar rows, from a list, a URL template or a suggest endpoint. Here a \"trip\" keyword lists three links: type trip, Space, then a word. On 0.2.43 it's a plain search.",
+   "layout": "side",
+   "cam": [
+    260,
+    100,
+    1000,
+    560
+   ],
+   "lead": 1.0,
+   "tail": 6.2,
+   "static_pane": {
+    "x": 300,
+    "y": 500,
+    "w": 520,
+    "title": "config.json"
+   },
+   "static_text": "\"omniboxProviders\": [{\n  \"keyword\": \"trip\", \"title\": \"Trip\",\n  \"rows\": [\n    { \"title\": \"Ferry times\", \"url\": \"http://ferry.example/\" },\n    { \"title\": \"Hostel booking\", ... },\n    { \"title\": \"Trail map\", ... }\n  ]\n}]"
+  },
+  {
+   "scene": "hooksfile",
+   "section": "New",
+   "title": "Hooks rewrite links before they open",
+   "body": "A rule in ~/.config/ardia/hooks.json sends forum.example to its old, app-wall-free version, so typing http://forum.example/ lands on old.forum.example. Rules that reach outside the page wait for approval in Settings › Advanced › Automation; this one was approved first.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    1360,
+    860
+   ],
+   "lead": 1.0,
+   "tail": 7.2,
+   "static_pane": {
+    "x": 640,
+    "y": 560,
+    "w": 680,
+    "title": "~/.config/ardia/hooks.json"
+   },
+   "static_text": "{\n  \"hooks\": [\n    {\n      \"name\": \"old-threadly\",\n      \"on\": \"tab.opening\",\n      \"rewrite\": [\n        {\n          \"match\": \"*://forum.example/*\",\n          \"to\": \"http://old.forum.example{path}{query}\"\n        }\n      ]\n    }\n  ]\n}"
+  },
+  {
+   "scene": "browsecli",
+   "section": "New",
+   "title": "The ardia command can drive Ardia",
+   "body": "With \"Let the ardia command control Ardia\" on, ardia browse takes agent-browser's commands and runs them on the Ardia you have open: open a page, read it, fill a field, click. 0.2.43's ardia command has no browse.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    1360,
+    860
+   ],
+   "lead": 1.0,
+   "tail": 13.0,
+   "terminal": {
+    "x": 520,
+    "y": 470,
+    "w": 820,
+    "title": "Terminal — ardia"
+   },
+   "rate": 2
+  },
+  {
+   "scene": "customtheme",
+   "section": "New",
+   "title": "Custom themes from the New Tab page",
+   "body": "Make it yours now has the Custom swatch and the gradient editor from Settings, right on the New Tab page. 0.2.43's panel had presets only.",
+   "layout": "side",
+   "cam": [
+    620,
+    260,
+    740,
+    580
+   ],
+   "lead": 1.0,
+   "tail": 7.0
+  },
+  {
+   "scene": "profileicon",
+   "source": "reuse",
+   "from": "fixes-0244n3",
+   "source_scene": "profileicon",
+   "section": "New",
+   "title": "A real emoji picker",
+   "body": "Profile and sidebar icons get a picker: search, every emoji by category and SF Symbols, with the current icon highlighted. Before, a fixed menu of 20 symbols and 20 emoji.",
+   "beforeVersion": "0.2.44-nightly.2",
+   "afterVersion": "0.2.44-nightly.3"
+  },
+  {
+   "scene": "pipcorner",
+   "source": "reuse",
+   "from": "fixes-0244n7",
+   "source_scene": "pipcorner",
+   "section": "New",
+   "title": "PiP's corners line up with the window's",
+   "body": "Thrown into a corner of the window, Picture in Picture bends its corners to nest inside the browser window's rounded corner instead of sitting off it.",
+   "beforeVersion": "0.2.44-nightly.6",
+   "afterVersion": "0.2.44-nightly.7"
+  },
+  {
+   "scene": "pageshare",
+   "section": "New",
+   "title": "Share from the page menu",
+   "body": "Right-click shares the selected text, an image, a link with its trackers removed, or the page. File › Share › Share… is now ⌥⌘S. 0.2.43's page menu has no Share.",
+   "layout": "side",
+   "cam": [
+    263,
+    50,
+    820,
+    560
+   ],
+   "lead": 1.0,
+   "tail": 5.8
+  },
+  {
+   "scene": "playerleft",
+   "section": "New",
+   "title": "The sidebar player shows the time left",
+   "body": "While it plays, the sidebar player shows the time left where its pause button was, ticking down. Pause is one hover away. 0.2.43 showed the pause button.",
+   "layout": "side",
+   "cam": [
+    0,
+    690,
+    262,
+    170
+   ],
+   "lead": 1.0,
+   "tail": 5.8
+  },
+  {
+   "scene": "littlelink",
+   "source": "reuse",
+   "from": "fixes-0244n4",
+   "source_scene": "littlelink",
+   "section": "New",
+   "title": "New-tab links can stay in Little Ardia",
+   "body": "Settings › General › \"Open new-tab links inside Little Ardia\". A link that would open a new tab loads in Little Ardia itself, so Back takes you back. Thanks, @narasaka.",
+   "beforeVersion": "0.2.44-nightly.3",
+   "afterVersion": "0.2.44-nightly.4"
+  },
+  {
+   "scene": "prrepos",
+   "section": "New",
+   "title": "A pull request folder can hide repos",
+   "body": "A pull request folder's menu has a Repositories submenu, as Arc's does. Unchecking ava/dotfiles drops its pull requests from the folder. Thanks, @maciekzygmunt.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    640,
+    500
+   ],
+   "lead": 1.0,
+   "tail": 7.6
+  },
+  {
+   "scene": "stripscroll",
+   "source": "reuse",
+   "from": "fixes-0244n7",
+   "source_scene": "stripscroll",
+   "section": "Fixed",
+   "title": "The top strip stays clear of the window buttons",
+   "body": "Horizontal tabs, more than fit, ⌃Tab past the last one. Before, Top Apps and tabs slid under the window buttons; now they're cut off at the strip's edge.",
+   "beforeVersion": "0.2.44-nightly.6",
+   "afterVersion": "0.2.44-nightly.7"
+  },
+  {
+   "scene": "stripclose",
+   "source": "reuse",
+   "from": "fixes-0244n7",
+   "source_scene": "stripclose",
+   "section": "Fixed",
+   "card": false,
+   "title": "The next × stays under the pointer",
+   "body": "Three clicks on the same ×. Before, the strip shifted after the first close and the next click selected a tab; now the next tab's × lands under the pointer.",
+   "beforeVersion": "0.2.44-nightly.6",
+   "afterVersion": "0.2.44-nightly.7"
+  },
+  {
+   "scene": "stripsplit",
+   "source": "reuse",
+   "from": "fixes-0244n7",
+   "source_scene": "stripsplit",
+   "section": "Fixed",
+   "card": false,
+   "title": "A split tab opens wherever you click it",
+   "body": "A click near the bottom edge of a split tab in the top strip. Before, only its title and icons took clicks; now the whole pill opens the split.",
+   "beforeVersion": "0.2.44-nightly.6",
+   "afterVersion": "0.2.44-nightly.7"
+  },
+  {
+   "scene": "notifymute",
+   "source": "reuse",
+   "from": "fixes-0244n2",
+   "source_scene": "notifymute",
+   "section": "Fixed",
+   "title": "A muted tab's notifications are silent",
+   "body": "Muting a pinned chat tab, or its site, now mutes the sound of its notifications too.",
+   "beforeVersion": "0.2.44-nightly.1",
+   "afterVersion": "main · fe7336e"
+  },
+  {
+   "scene": "profilename",
+   "source": "reuse",
+   "from": "fixes-0244n3",
+   "source_scene": "profilename",
+   "section": "Fixed",
+   "title": "Names save when you click away",
+   "body": "Renaming a profile and clicking elsewhere. Before, the name was dropped unless you pressed Return; now clicking away ends the edit and keeps it.",
+   "beforeVersion": "0.2.44-nightly.2",
+   "afterVersion": "0.2.44-nightly.3"
+  },
+  {
+   "scene": "sidebarfield",
+   "source": "reuse",
+   "from": "fixes-0244n3",
+   "source_scene": "sidebarfield",
+   "section": "Fixed",
+   "title": "One search box on a New Tab page",
+   "body": "The sidebar's address field on a New Tab page, with ⌘L set to open in the centre. Before, a second box stacked on top; now it goes straight to the page's own search box.",
+   "beforeVersion": "0.2.44-nightly.2",
+   "afterVersion": "0.2.44-nightly.3"
+  },
+  {
+   "scene": "movetop",
+   "source": "reuse",
+   "from": "fixes-0244n4",
+   "source_scene": "movetop",
+   "section": "Fixed",
+   "title": "Moved tabs land where new tabs go",
+   "body": "Open in Ardia, Move to Window or a drop on another window puts the tab where \"New tabs open at\" says, never inside a group. Thanks, @daberni.",
+   "beforeVersion": "0.2.44-nightly.3",
+   "afterVersion": "0.2.44-nightly.4"
+  },
+  {
+   "scene": "glassscroll",
+   "section": "Fixed",
+   "title": "Pages scroll smoothly with Glass Top Apps",
+   "body": "With the sidebar open in the Glass style, every Top Apps tile cost its own glass pass each frame, and scrolling a page stuttered. The tiles now render in one.",
+   "source": "text",
+   "reason": "The stutter is in WindowServer's compositing. Two takes in a hidden test instance measured within noise (11 to 19 late frames on either release), so a side-by-side would show nothing.",
+   "length": 3.4
+  },
+  {
+   "scene": "omnifreeze",
+   "section": "Fixed",
+   "title": "Dashes and dots no longer freeze the address bar",
+   "body": "Text like my-post.another-post.x: stalled each keystroke for seconds while a pattern backtracked, and longer text crashed Ardia. The check is linear now.",
+   "source": "text",
+   "reason": "The short example didn't stall in a hidden test instance, and the long one crashes 0.2.43, which would put macOS's crash dialog on the owner's screen.",
+   "length": 3.4
+  },
+  {
+   "scene": "crashes",
+   "source": "text",
+   "section": "Fixed",
+   "title": "Three more crashes are gone",
+   "body": "The green button's Move & Resize and Fill & Arrange menus on macOS 27, a page starting a service worker while an ardia session was connected, and running low on disk space.",
+   "reason": "Crashing 0.2.43 on purpose would put macOS's crash dialog on the owner's screen, and the green button's menus need a real pointer.",
+   "length": 3.4
+  },
+  {
+   "scene": "pipwebkit",
+   "source": "text",
+   "section": "Fixed",
+   "title": "Picture in Picture works in WebKit tabs",
+   "body": "Including a video embedded in another site's player, and Back to Tab takes you to the video when you were in a split view.",
+   "reason": "WebKit's PiP is the system panel, which a hidden test instance can't keep off the owner's screen, and Back to Tab's split bug needs the app to become active.",
+   "length": 3.4
+  },
+  {
+   "scene": "swipelist",
+   "source": "text",
+   "section": "Fixed",
+   "title": "Swipe-and-hold opens the history list upward",
+   "body": "As Dia's does, with the nearest page at the bottom under your fingers, and each step slides the list.",
+   "reason": "The list only answers a real trackpad gesture in a release build, and this Mac has Swipe between pages turned off.",
+   "length": 3.2
+  },
+  {
+   "scene": "backgroundpeek",
+   "source": "text",
+   "section": "Fixed",
+   "title": "The collapsed sidebar stays put behind other apps",
+   "body": "A hover over Ardia's edge while another app is in front no longer slides the sidebar out later.",
+   "reason": "A hidden test instance always counts as the app in front, so the case can't happen there.",
+   "length": 3.2
+  },
+  {
+   "scene": "littleexpand",
+   "section": "Fixed",
+   "title": "Expanding Little Ardia mid-load keeps the page",
+   "body": "Expanding Little Ardia into a tab while its link was still loading could leave the tab on a blank page. It now lands on the page. Thanks, @narasaka.",
+   "source": "text",
+   "reason": "With a slow redirect, 0.2.43 reached the page too; the stuck hand-off couldn't be reproduced on demand.",
+   "length": 3.4
+  },
+  {
+   "scene": "peeklights",
+   "section": "Fixed",
+   "title": "The peeked sidebar's window buttons work",
+   "body": "With the address bar in the toolbar, the peeked sidebar's red, yellow and green buttons sat outside the title bar's hit area and ignored clicks and hovers. They respond again. Thanks, @narasaka.",
+   "source": "text",
+   "reason": "While a window is recorded, macOS swaps its window buttons for the screen-sharing badge, so there's nothing to click on film.",
+   "length": 3.4
+  },
+  {
+   "scene": "tokens",
+   "source": "still",
+   "still_from": "footage/0244n1",
+   "still_name": "settings-dark-appearance.png",
+   "still_size": [
+    1640,
+    1280
+   ],
+   "cam": [
+    0,
+    0,
+    1640,
+    1280
+   ],
+   "length": 3.0,
+   "section": "Smaller",
+   "title": "One set of sizes, corners and timings",
+   "body": "Text sizes, corners, spacing and animation timing come from one small set of values, and look-alike controls are the same piece everywhere.",
+   "afterVersion": "0.2.44-nightly.1"
+  },
+  {
+   "scene": "groupbox",
+   "source": "reuse",
+   "from": "fixes-0244n2",
+   "source_scene": "groupbox",
+   "section": "Smaller",
+   "title": "Group boxes sit even",
+   "body": "A tab group's box is as tight below its last tab as above its header, and its last row rounds to match.",
+   "beforeVersion": "0.2.44-nightly.1",
+   "afterVersion": "main · fe7336e"
+  },
+  {
+   "scene": "glassgo",
+   "section": "Smaller",
+   "title": "Liquid glass Go and Dictate buttons",
+   "body": "In the Glass style, the address bar's Go and Dictate buttons are liquid glass.",
+   "layout": "side",
+   "cam": [
+    330,
+    240,
+    840,
+    300
+   ],
+   "lead": 1.0,
+   "tail": 6.0
+  },
+  {
+   "scene": "stripicons",
+   "source": "new",
+   "section": "Smaller",
+   "title": "Strip icons aren't cut off",
+   "body": "The pinned group's emoji and a tile folder's icons in the top strip show whole. Before, the folder's icons ran past the strip's edge.",
+   "lead": 1.0,
+   "tail": 2.6,
+   "cam": [
+    110,
+    0,
+    160,
+    52
+   ],
+   "layout": "side"
+  },
+  {
+   "scene": "ubo",
+   "section": "Smaller",
+   "title": "uBlock Origin 1.75.4",
+   "body": "The bundled uBlock Origin is now 1.75.4. Settings › Privacy › Advanced… says which one you have.",
+   "layout": "side",
+   "cam": [
+    0,
+    0,
+    820,
+    640
+   ],
+   "lead": 2.4,
+   "tail": 4.6,
+   "zoom": {
+    "cam": [
+     130,
+     404,
+     300,
+     234
+    ],
+    "from": 3.6,
+    "to": 4.6
+   }
+  },
+  {
+   "scene": "extensions",
+   "source": "text",
+   "section": "Smaller",
+   "title": "Extension buttons stay quiet",
+   "body": "An extension's buttons no longer report an error when the extension is already gone.",
+   "reason": "Nothing changes on screen: the error only went to telemetry.",
+   "length": 2.4
+  }
+ ]
+}

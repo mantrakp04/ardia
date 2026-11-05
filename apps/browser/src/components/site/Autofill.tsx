@@ -1,16 +1,18 @@
 import { Text, View } from "react-native";
 import type { CardNetwork } from "../../state/site/autofill";
-import { ink, Symbol } from "../ui";
+import { capsule, ink, radius, space, Symbol } from "../ui";
 import { CARD_BADGES, cardBadgeType, MASTERCARD_RINGS } from "./tokens";
+
+const RING = 10;
 
 export function NetworkBadge({ network }: { network: CardNetwork }) {
   const badge = CARD_BADGES[network] ?? CARD_BADGES.card;
   return (
-    <View style={{ width: 28, height: 19, borderRadius: 3.5, backgroundColor: badge.fill, alignItems: "center", justifyContent: "center", flexDirection: "row" }}>
+    <View style={{ width: 28, height: 19, borderRadius: radius.control, backgroundColor: badge.fill, alignItems: "center", justifyContent: "center", flexDirection: "row" }}>
       {network === "mastercard" ? (
         <>
-          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: MASTERCARD_RINGS.left, marginRight: -3.5 }} />
-          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: MASTERCARD_RINGS.right, opacity: 0.9 }} />
+          <View style={{ width: RING, height: RING, borderRadius: capsule(RING), backgroundColor: MASTERCARD_RINGS.left, marginRight: -space.xs }} />
+          <View style={{ width: RING, height: RING, borderRadius: capsule(RING), backgroundColor: MASTERCARD_RINGS.right, opacity: 0.9 }} />
         </>
       ) : badge.label ? (
         <Text

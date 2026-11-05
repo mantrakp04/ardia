@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -10,7 +11,7 @@ public class FadeLabelModule: Module {
       Prop("text") { (view: FadeLabel, v: String) in view.text = v }
       Prop("fontSize") { (view: FadeLabel, v: Double) in view.fontSize = v }
       Prop("weight") { (view: FadeLabel, v: String) in view.weight = v }
-      Prop("color") { (view: FadeLabel, hex: String) in view.color = NSColor(hex: hex) ?? .labelColor }
+      Prop("color") { (view: FadeLabel, hex: String) in view.color = RGBA(hex: hex)?.srgb ?? .labelColor }
       Prop("fadeWidth") { (view: FadeLabel, v: Double) in view.fadeWidth = v }
     }
   }

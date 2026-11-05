@@ -7,8 +7,8 @@ import type { DragGeometry } from "./stripGroups";
 import { GAP, INCOMING_GAP_MS, TOP_STRIP_HEIGHT } from "./tokens";
 
 export function useIncomingTab(windowId: string, current: boolean, top: DragGeometry) {
-  const active = useTabDrag((d) => current && d.tabIds.length > 0 && d.windowId !== windowId);
-  const point = useTabDrag((d) => (current && d.overWindow === windowId ? d.overPoint : null));
+  const active = useTabDrag((d) => current && (d.phase === "external" || (d.phase === "tab" && d.windowId !== windowId)));
+  const point = useTabDrag((d) => (current && d.phase !== "idle" && d.overWindow === windowId ? d.overPoint : null));
   const origin = useRef<View>(null);
   const [start, setStart] = useState<number | null>(null);
   useEffect(() => {
@@ -45,7 +45,7 @@ function incomingIndex(top: DragGeometry, point: [number, number] | null, start:
 export function IncomingGap({ open, width, origin }: { open: boolean; width: number; origin?: React.RefObject<View | null> }) {
   const room = useRef(new Animated.Value(open ? 1 : 0)).current;
   useEffect(() => {
-    Animated.timing(room, { toValue: open ? 1 : 0, duration: INCOMING_GAP_MS, easing: curve.outCubic, useNativeDriver: false }).start();
+    Animated.timing(room, { toValue: open ? 1 : 0, duration: INCOMING_GAP_MS, easing: curve.enter, useNativeDriver: false }).start();
   }, [open]);
   return (
     <Animated.View

@@ -23,7 +23,7 @@ export type BookmarkDraft = { title: string; url?: string; addedAt?: number; chi
 
 export type RemovedBookmarks = { nodes: BookmarkNode[]; places: { id: string; parentId: string; index: number }[] };
 
-const EMPTY_BOOKMARKS: Bookmarks = { nodes: {}, roots: {} };
+const EMPTY_BOOKMARKS: Bookmarks = { nodes: {} };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const isBookmarkUuid = (id: string) => UUID.test(id);
@@ -60,18 +60,49 @@ export function bookmarkUuidFor(id: string): string {
 
 export const rootIdsFor = (engine: string) => ({ bar: `bar@${engine || "default"}`, other: `other@${engine || "default"}` });
 
-export function bookmarkRoots(b: Bookmarks, profileId: string) {
-  return b.roots[profileId];
+export const ROOT_TITLES = { bar: "Bookmarks Bar", other: "Other Bookmarks" } as const;
+
+const MAX_DEPTH = 64;
+
+export function isWithin(b: Bookmarks, id: string, ancestors: readonly string[]): boolean {
+  let node = b.nodes[id];
+  for (let i = 0; node && i < MAX_DEPTH; i++) {
+    if (ancestors.includes(node.id)) return true;
+    node = node.parentId ? b.nodes[node.parentId] : undefined;
+  }
+  return false;
 }
 
-export function ensureRoots(b: Bookmarks, profileId: string): [Bookmarks, { bar: string; other: string }] {
-  const existing = b.roots[profileId];
-  if (existing) return [b, existing];
-  const roots = rootIdsFor(engineProfile(profileId));
+export type BookmarkRootIds = { bar: string; other: string };
+
+export type BookmarkOwners = Pick<BrowserState, "bookmarks" | "profiles" | "profileOrder">;
+
+export function engineBookmarkRoots(b: Bookmarks, engine: string): BookmarkRootIds | null {
+  const roots = rootIdsFor(engine);
+  return b.nodes[roots.bar] && b.nodes[roots.other] ? roots : null;
+}
+
+export const bookmarkRoots = (s: Pick<BrowserState, "bookmarks" | "profiles">, profileId: string) =>
+  engineBookmarkRoots(s.bookmarks, engineProfile(s, profileId));
+
+export function ownerOfBookmark(s: BookmarkOwners, id: string): string | null {
+  let node = s.bookmarks.nodes[id];
+  for (let i = 0; node?.parentId && i < MAX_DEPTH; i++) node = s.bookmarks.nodes[node.parentId];
+  const root = node;
+  if (!root) return null;
+  return s.profileOrder.find((p) => {
+    const roots = bookmarkRoots(s, p);
+    return roots?.bar === root.id || roots?.other === root.id;
+  }) ?? null;
+}
+
+export function ensureRoots(b: Bookmarks, engine: string): [Bookmarks, BookmarkRootIds] {
+  const roots = rootIdsFor(engine);
+  if (b.nodes[roots.bar] && b.nodes[roots.other]) return [b, roots];
   const nodes = { ...b.nodes };
-  nodes[roots.bar] ??= { kind: "folder", id: roots.bar, parentId: null, title: "Bookmarks Bar", children: [], addedAt: 0 };
-  nodes[roots.other] ??= { kind: "folder", id: roots.other, parentId: null, title: "Other Bookmarks", children: [], addedAt: 0 };
-  return [{ nodes, roots: { ...b.roots, [profileId]: roots } }, roots];
+  nodes[roots.bar] ??= { kind: "folder", id: roots.bar, parentId: null, title: ROOT_TITLES.bar, children: [], addedAt: 0 };
+  nodes[roots.other] ??= { kind: "folder", id: roots.other, parentId: null, title: ROOT_TITLES.other, children: [], addedAt: 0 };
+  return [{ ...b, nodes }, roots];
 }
 
 function subtree(b: Bookmarks, ids: string[]): string[] {
@@ -86,7 +117,7 @@ function subtree(b: Bookmarks, ids: string[]): string[] {
   return out;
 }
 
-export function removeBookmarkTree(b: Bookmarks, ids: string[], profileId?: string): Bookmarks {
+export function removeBookmarkTree(b: Bookmarks, ids: string[]): Bookmarks {
   const gone = new Set(subtree(b, ids));
   const nodes = without(b.nodes, gone);
   for (const node of Object.values(nodes)) {
@@ -94,27 +125,28 @@ export function removeBookmarkTree(b: Bookmarks, ids: string[], profileId?: stri
       nodes[node.id] = { ...node, children: node.children.filter((c) => !gone.has(c)) };
     }
   }
-  return { nodes, roots: profileId ? without(b.roots, [profileId]) : b.roots };
+  return { ...b, nodes };
 }
 
 const urlIndex = new WeakMap<Bookmarks, Map<string, Map<string, string[]>>>();
 
-export function bookmarksByUrl(b: Bookmarks, profileId: string): Map<string, string[]> {
-  let perProfile = urlIndex.get(b);
-  if (!perProfile) urlIndex.set(b, (perProfile = new Map()));
-  let index = perProfile.get(profileId);
+export function bookmarksByUrl(b: Bookmarks, engine: string): Map<string, string[]> {
+  let perEngine = urlIndex.get(b);
+  if (!perEngine) urlIndex.set(b, (perEngine = new Map()));
+  let index = perEngine.get(engine);
   if (index) return index;
   index = new Map();
-  const roots = b.roots[profileId];
+  const roots = engineBookmarkRoots(b, engine);
   for (const id of roots ? subtree(b, [roots.bar, roots.other]) : []) {
     const node = b.nodes[id];
     if (node?.kind === "url") index.set(node.url, [...(index.get(node.url) ?? []), id]);
   }
-  perProfile.set(profileId, index);
+  perEngine.set(engine, index);
   return index;
 }
 
-export const isBookmarked = (b: Bookmarks, profileId: string, url: string) => !!url && bookmarksByUrl(b, profileId).has(url);
+export const isBookmarked = (s: Pick<BrowserState, "bookmarks" | "profiles">, profileId: string, url: string) =>
+  !!url && bookmarksByUrl(s.bookmarks, engineProfile(s, profileId)).has(url);
 
 export function folderChildren(b: Bookmarks, folderId: string): BookmarkNode[] {
   const folder = b.nodes[folderId];
@@ -132,7 +164,7 @@ function insertChild(b: Bookmarks, node: BookmarkNode, parentId: string, index?:
 export function bookmarkAncestors(b: Bookmarks, id: string): BookmarkFolder[] {
   const out: BookmarkFolder[] = [];
   let node = b.nodes[id];
-  for (let i = 0; node?.parentId && i < 64; i++) {
+  for (let i = 0; node?.parentId && i < MAX_DEPTH; i++) {
     const parent = b.nodes[node.parentId];
     if (parent?.kind !== "folder") break;
     out.push(parent);
@@ -150,14 +182,14 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
   bookmarksReady: {},
 
   addBookmark({ profileId, url, title, favicon = null, parentId, index }) {
-    const [b, roots] = ensureRoots(get().bookmarks, profileId);
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
     const node: BookmarkNode = { kind: "url", id: newBookmarkId(), parentId: parentId ?? roots.bar, title, url, favicon, addedAt: Date.now() };
     set({ bookmarks: insertChild(b, node, node.parentId, index) });
     return node.id;
   },
 
   addBookmarkFolder({ profileId, title, parentId, index }) {
-    const [b, roots] = ensureRoots(get().bookmarks, profileId);
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
     const node: BookmarkNode = { kind: "folder", id: newBookmarkId(), parentId: parentId ?? roots.bar, title, children: [], addedAt: Date.now() };
     set({ bookmarks: insertChild(b, node, node.parentId!, index) });
     return node.id;
@@ -194,7 +226,7 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
   },
 
   addBookmarkTree(profileId, drafts, parentId, index) {
-    let [b, roots] = ensureRoots(get().bookmarks, profileId);
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
     const nodes = { ...b.nodes };
     const build = (d: BookmarkDraft, parent: string): string => {
       const id = newBookmarkId();
@@ -252,7 +284,7 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
   toggleBookmark(profileId, page) {
     const s = get();
     if (!page.url) return false;
-    const existing = bookmarksByUrl(s.bookmarks, profileId).get(page.url);
+    const existing = bookmarksByUrl(s.bookmarks, engineProfile(s, profileId)).get(page.url);
     if (existing?.length) {
       set({ bookmarks: removeBookmarkTree(s.bookmarks, existing) });
       return false;

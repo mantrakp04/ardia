@@ -19,7 +19,7 @@ test("re-importing an Arc space adds no pinned tab whose page is already pinned 
       { type: "url", title: "Left", url: "https://left.example/" },
     ],
   };
-  const pinnedCount = () => Object.values(S().tabs).filter((t) => t.pinned).length;
+  const pinnedCount = () => Object.values(S().tabs).filter((t) => !!t.pin).length;
   assert.equal(importArcSpace(P, space).tabs, 3);
   const after = pinnedCount();
   const tabCount = Object.keys(S().tabs).length;
@@ -113,6 +113,20 @@ test("Arc favorites land as tiles after the space's rows and folders came in", a
   const result = { tabs: [], spaces: [space], favorites, history: [], credentials: [], favicons: [], bookmarks: null, vaultToken: null };
   const counts = await applyResult(P, result, "Arc", []);
   assert.equal(counts.tabs, 2);
-  const tiles = Object.values(S().tabs).filter((t) => t.pinned && !t.pinnedAsRow).map((t) => t.url).sort();
+  const tiles = Object.values(S().tabs).filter((t) => !!t.pin && !(t.pin?.as === "row")).map((t) => t.url).sort();
   assert.deepEqual(tiles, ["https://row.example/", "https://www.youtube.com/"]);
+});
+
+test("importing history into a full list reports the pages it added, not the change in list length", async () => {
+  const { importHistory } = await import("./apply.ts");
+  const { MAX_HISTORY, historyOf } = await import("../history/history.ts");
+  S().hydrate({});
+  const full = Array.from({ length: MAX_HISTORY }, (_, i) => ({ url: `https://old${i}.example/`, title: "", favicon: null, visits: 1, lastVisit: 1000 + i }));
+  useBrowser.setState({ history: { "": { list: full, floor: -Infinity, ready: true } } });
+  const added = importHistory(P, [
+    { url: "https://new1.example/", title: "New 1", visits: 1, lastVisit: 999_999 },
+    { url: "https://new2.example/", title: "New 2", visits: 1, lastVisit: 999_998 },
+  ]);
+  assert.equal(added, 2);
+  assert.equal(historyOf(S(), P).length, MAX_HISTORY);
 });
