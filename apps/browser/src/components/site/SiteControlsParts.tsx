@@ -100,6 +100,7 @@ export const ActionTile = forwardRef<
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={active === undefined ? undefined : { selected: active }}
         accessibilityActions={ACTIVATE}
         onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && onPress(event)}
       >

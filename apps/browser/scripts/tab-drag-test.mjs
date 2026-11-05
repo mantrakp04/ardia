@@ -257,6 +257,7 @@ try {
     await run(`st().updateSettings({ dragToGroupInTopStrip: false }); return settle(400);`);
     assert.equal(await dropOnSecond(), 0, "window drags");
     assert.deepEqual(await groupsIn(), [], "setting off: no group");
+    assert.deepEqual(await tabsOf("w7"), ["c2", "c1", "c3"], "setting off: a reorder");
     await run(`st().updateSettings({ dragToGroupInTopStrip: true }); return settle(400);`);
     assert.equal(await dropOnSecond(), 0, "window drags");
     const groups = await groupsIn();
