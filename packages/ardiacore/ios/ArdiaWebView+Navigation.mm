@@ -18,6 +18,12 @@ bool IsRendererDebugURL(NSString *url) {
   return [hosts containsObject:c.host.lowercaseString ?: @""];
 }
 
+NSString *CommittedEntryURL(ArdiaCoreTab *tab) {
+  for (NSDictionary *entry in tab.navigationEntries)
+    if ([entry[@"committed"] boolValue]) return entry[@"url"];
+  return nil;
+}
+
 NSString *ReportedTitle(NSString *title, NSString *url, BOOL loading) {
   if (!loading || !title.length) return title ?: @"";
   NSURLComponents *c = [NSURLComponents componentsWithString:url];
@@ -63,6 +69,12 @@ NSString *PNGDataURL(NSImage *image) {
     NSMutableDictionary *withInitial = [navigation mutableCopy];
     withInitial[@"initialDocumentAccessed"] = @(_tab.initialDocumentAccessed);
     withInitial[@"committedInitial"] = @(_tab.committedInitial);
+    if (ArdiaWebView.reportsCommits) {
+      [self noteDocumentCommits];
+      withInitial[@"committedUrl"] = [self committedURL];
+      withInitial[@"committedAt"] = @(_commits.at);
+      if (_commits.httpStatus > 0) withInitial[@"httpStatus"] = @(_commits.httpStatus);
+    }
     navigation = withInitial;
   }
   if (_reports.crashed && _tab.loading) {
@@ -75,6 +87,32 @@ NSString *PNGDataURL(NSImage *image) {
   if ([navigation isEqualToDictionary:_sent.navigation]) return;
   _sent.navigation = navigation;
   [self emit:@"navigation" payload:navigation];
+}
+
+- (void)followCommitsOfTab {
+  if (_commits.tab == _tab) return;
+  _commits.tab = _tab;
+  _commits.url = nil;
+  _commits.at = 0;
+  _commits.httpStatus = 0;
+  _commits.documents = _tab.committedDocumentCount;
+}
+
+- (void)noteDocumentCommits {
+  [self followCommitsOfTab];
+  const int documents = _tab.committedDocumentCount;
+  if (documents == _commits.documents) return;
+  _commits.documents = documents;
+  _commits.at = NSDate.date.timeIntervalSince1970 * 1000;
+  _commits.httpStatus = _tab.committedHTTPStatus;
+}
+
+- (NSString *)committedURL {
+  [self followCommitsOfTab];
+  NSString *visible = _tab.url ?: @"";
+  if (_commits.url && [visible isEqualToString:_commits.url]) return _commits.url;
+  if ([CommittedEntryURL(_tab) isEqualToString:visible]) _commits.url = visible;
+  return _commits.url ?: @"";
 }
 
 - (void)queueNavigation {
@@ -121,6 +159,7 @@ NSString *PNGDataURL(NSImage *image) {
 }
 
 - (void)tabDidCommitDocument:(ArdiaCoreTab *)tab {
+  [self noteDocumentCommits];
   ArdiaFieldMarkNow(_transferKey, @"commit");
   [ArdiaEarlyWindow pageCommitted:tab shownURL:_shownURL];
   _reports.theme = nil;

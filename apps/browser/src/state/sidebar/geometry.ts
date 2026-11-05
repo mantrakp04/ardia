@@ -9,7 +9,6 @@ import { shownPinnedEntries } from "./pinnedFold";
 import { entryId, entryKey } from "./entryKey";
 import { pinSection } from "../browser/model";
 
-const GROUP_PAD = SIDEBAR_GROUP.pad;
 const GROUP_BORDER = SIDEBAR_GROUP.border;
 const ROW = SIDEBAR_ROW.height;
 const GAP = SIDEBAR_ROW.gap;
@@ -20,9 +19,9 @@ export const headGap = (first: string | null | undefined): number => (first && e
 
 function membersHeight(s: BrowserState, windowId: string, profileId: string, groupId: string): number {
   const entries = groupEntries(s, groupId);
-  if (!s.groups[groupId]?.collapsed) return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) + GROUP_PAD : GROUP_PAD;
+  if (!s.groups[groupId]?.collapsed) return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) : 0;
   const kept = keptEntry(s, windowId, profileId, entries);
-  return kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) + GROUP_PAD : 0;
+  return kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) : 0;
 }
 
 export function entryHeight(s: BrowserState, windowId: string, profileId: string, entry: string): number {
@@ -94,7 +93,7 @@ export const firstPaintEntriesNow = (windowId: string, profileId: string, entrie
 export function foldedGroupHeight(windowId: string, profileId: string, groupId: string): number {
   const s = useBrowser.getState();
   const kept = keptEntry(s, windowId, profileId, groupEntries(s, groupId));
-  return GROUP_BORDER * 2 + ROW + (kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) + GROUP_PAD : 0);
+  return GROUP_BORDER * 2 + ROW + (kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) : 0);
 }
 
 export const usePendingEntriesHeight = (windowId: string, profileId: string, entries: string[], from: number, growing: boolean): number =>

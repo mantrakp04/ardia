@@ -6,6 +6,10 @@ import { bookmarkRoots } from "../bookmarks/bookmarks";
 import { historyOf } from "../history/history";
 import type { Settings } from "../settings/settings";
 import { useLookValue } from "../tabs/tabWatch";
+import { useBasePaletteValue } from "../config/hooks";
+import type { BasePalette } from "../../lib/themeFile";
+import { topAppSiblings } from "../pins/topApps";
+import { sharingProfiles } from "./profiles";
 
 export function useProfileRecords(): Record<string, Profile>;
 export function useProfileRecords<T>(select: (profiles: Record<string, Profile>) => T): T;
@@ -19,15 +23,23 @@ export function useProfileOrder<T>(select?: (order: string[]) => T) {
   return useBrowser((s) => (select ? select(s.profileOrder) : s.profileOrder));
 }
 
+export const useDataSharingProfileIds = (): string[] => useBrowser(useShallow((s) => s.profileOrder.filter((id) => sharingProfiles(s, id).length > 0)));
+
+export const useTopAppSiblingNames = (profileId: string): string[] => useBrowser(useShallow((s) => topAppSiblings(s, profileId).map((id) => s.profiles[id]!.name)));
+
 export const useProfileName = (profileId: string): string => useBrowser((s) => profileFor(s, profileId).name);
 
 export const useWindowProfileValue = <T>(windowId: string, select: (profile: Profile | undefined) => T): T =>
   useBrowser((s) => select(s.profiles[s.windows[windowId]?.profileId ?? ""]));
 
-export const useProfileLook = <T>(profileId: string, look: (profile: Profile | undefined, appDark: boolean, settings: Settings) => T): T => useLookValue(profileId, look);
+type ProfileLook<T> = (profile: Profile | undefined, appDark: boolean, settings: Settings, palette: BasePalette | null) => T;
 
-export const useProfileLooks = <T>(pages: readonly { id: string }[], look: (profile: Profile | undefined, appDark: boolean, settings: Settings) => T): T[] =>
-  useBrowser(useShallow((s) => pages.map((p) => look(s.profiles[p.id], s.ui.appDark, s.settings))));
+export const useProfileLook = <T>(profileId: string, look: ProfileLook<T>): T => useLookValue(profileId, look);
+
+export function useProfileLooks<T>(pages: readonly { id: string }[], look: ProfileLook<T>): T[] {
+  const palette = useBasePaletteValue();
+  return useBrowser(useShallow((s) => pages.map((p) => look(s.profiles[p.id], s.ui.appDark, s.settings, palette))));
+}
 
 export const useCreateProfileShareDefault = (windowId: string | null): string =>
   useBrowser((s) => (windowId && s.windows[windowId]?.kind !== "private" ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));

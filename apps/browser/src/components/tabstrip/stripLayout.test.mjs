@@ -71,3 +71,11 @@ test("an unmeasured group or folder chip counts as zero wide until it is measure
   const strip = layout(entries, "c");
   assert.deepEqual(strip.spanOf("c"), [3.5 + 6.5, 6.5 + strip.chip]);
 });
+
+test("a held chip width keeps every tab where it was after a close, whatever room the close freed", () => {
+  const six = ["a", "b", "c", "d", "e", "f"].map((id) => tab(id));
+  const held = layoutStrip(six.slice(1), "b", 1000, measured(), null, 156.5);
+  assert.equal(held.chip, 156.5);
+  assert.deepEqual(held.spanOf("c"), [156.5 + 4, 156.5]);
+  assert.equal(layoutStrip(six.slice(1), "b", 1000, measured(), null).chip, 173);
+});

@@ -33,6 +33,7 @@ type Session = {
   lastLaunchAt: number | null;
   lastQuitAt: number | null;
   lastBuild: string | null;
+  settingsDay: string | null;
 };
 type Sharing = { sharing: false; installId: null } | { sharing: true; installId: string };
 type Saved = Session & Sharing;
@@ -48,6 +49,7 @@ const DEFAULT: Saved = {
   lastLaunchAt: null,
   lastQuitAt: null,
   lastBuild: null,
+  settingsDay: null,
 };
 
 function readSaved(doc: SavedObject | null): Saved {
@@ -63,6 +65,7 @@ function readSaved(doc: SavedObject | null): Saved {
     lastLaunchAt: numberOr(doc.lastLaunchAt, null),
     lastQuitAt: numberOr(doc.lastQuitAt, null),
     lastBuild: stringOr(doc.lastBuild, null),
+    settingsDay: stringOr(doc.settingsDay, null),
   };
 }
 
@@ -325,6 +328,7 @@ export function setSharing(on: boolean, source: SharingSource) {
     crashCursor: now,
     lastVersion: appInfo().appVersion,
     lastBuild: appInfo().appBuild,
+    settingsDay: null,
     sessionOpen: true,
     decidedAt: now,
     askDoneAt: saved.askDoneAt ?? now,
@@ -380,6 +384,9 @@ export function endSession() {
   save({ sessionOpen: false, lastQuitAt: Date.now() });
   persistQueue(true);
 }
+
+export const settingsSnapshotDay = () => saved.settingsDay;
+export const markSettingsSnapshot = (day: string) => save({ settingsDay: day });
 
 export const crashCursor = () => saved.crashCursor;
 export const advanceCrashCursor = (to: number) => to > saved.crashCursor && save({ crashCursor: to });

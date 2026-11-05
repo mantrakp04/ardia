@@ -270,6 +270,16 @@ void ArdiaWebViewsSetFieldTiming(BOOL on) {
   return RecentEvents()[@(browserId)] ?: @[];
 }
 
+static BOOL gReportsCommits = NO;
+
++ (BOOL)reportsCommits {
+  return gReportsCommits;
+}
+
++ (void)setReportsCommits:(BOOL)reportsCommits {
+  gReportsCommits = reportsCommits;
+}
+
 + (int)browserIdOfTab:(NSString *)tabId {
   ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
   return tab ? ardia_host::BrowserId(tab) : 0;

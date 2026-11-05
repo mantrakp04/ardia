@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
-import { ActivityIndicator, Animated, StyleSheet, View } from "react-native";
-import { Button, curve, radius, space, Symbol, Text, useTheme } from "../../ui";
+import { ActivityIndicator, Animated, View } from "react-native";
+import { Button, curve, space, Symbol, Text, useTheme } from "../../ui";
+import { SelectableCard } from "../../settings/SelectableCard";
 import { cancelImport, type ImportFlow, type KindStatus } from "../../../state/import/flow";
 import { KINDS } from "../model";
 import { Spacer, Title } from "../Parts";
-import { accentAlpha, importColors, importLayout, importMotion } from "../tokens";
+import { importLayout, importMotion } from "../tokens";
 
 export function ProgressBody({ flow }: { flow: ImportFlow }) {
   const { step, source } = flow;
@@ -40,7 +41,7 @@ function CategoryRow({ title, icon, status, index }: { title: string; icon: stri
   const check = useRef(new Animated.Value(0)).current;
   const { rowAppear } = importMotion;
   useEffect(() => {
-    Animated.timing(appear, { toValue: 1, duration: rowAppear.duration, delay: index * rowAppear.stagger, easing: curve.outCubic, useNativeDriver: true }).start();
+    Animated.timing(appear, { toValue: 1, duration: rowAppear.duration, delay: index * rowAppear.stagger, easing: curve.enter, useNativeDriver: true }).start();
   }, []);
   useEffect(() => {
     if (status === "done" || status === "failed") Animated.spring(check, { toValue: 1, ...importMotion.check, useNativeDriver: true }).start();
@@ -51,33 +52,28 @@ function CategoryRow({ title, icon, status, index }: { title: string; icon: stri
       style={{
         opacity: appear,
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [rowAppear.rise, 0] }) }],
-        height: importLayout.categoryRow,
-        borderRadius: radius.card,
-        paddingHorizontal: space.l,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.l,
-        backgroundColor: active ? `${theme.formAccent}${accentAlpha.active}` : theme.groupFill,
-        borderWidth: StyleSheet.hairlineWidth * 2,
-        borderColor: active ? `${theme.formAccent}${accentAlpha.activeBorder}` : theme.groupBorder,
       }}
     >
-      <Symbol name={icon} size={13} color={status === "pending" ? theme.textTertiary : theme.icon} style={{ width: 20, height: 20 }} />
-      <Text tone={status === "pending" ? "textSecondary" : "textPrimary"} style={{ flex: 1 }}>
-        {title}
-      </Text>
-      {active ? (
-        <ActivityIndicator size="small" />
-      ) : status === "pending" ? null : (
-        <Animated.View style={{ transform: [{ scale: check }] }}>
-          <Symbol
-            name={status === "done" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"}
-            size={15}
-            color={status === "done" ? theme.success : theme.warning}
-            style={{ width: 20, height: 20 }}
-          />
-        </Animated.View>
-      )}
+      <SelectableCard selected={active} style={CATEGORY_ROW}>
+        <Symbol name={icon} size={13} color={status === "pending" ? theme.textTertiary : theme.icon} style={{ width: 20, height: 20 }} />
+        <Text tone={status === "pending" ? "textSecondary" : "textPrimary"} style={{ flex: 1 }}>
+          {title}
+        </Text>
+        {active ? (
+          <ActivityIndicator size="small" />
+        ) : status === "pending" ? null : (
+          <Animated.View style={{ transform: [{ scale: check }] }}>
+            <Symbol
+              name={status === "done" ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"}
+              size={15}
+              color={status === "done" ? theme.success : theme.warning}
+              style={{ width: 20, height: 20 }}
+            />
+          </Animated.View>
+        )}
+      </SelectableCard>
     </Animated.View>
   );
 }
+
+const CATEGORY_ROW = { height: importLayout.categoryRow, paddingHorizontal: space.l, flexDirection: "row", alignItems: "center", gap: space.l } as const;

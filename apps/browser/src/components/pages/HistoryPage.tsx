@@ -5,17 +5,15 @@ import { useProfileHistory } from "../../state/history/hooks";
 import { removeHistory } from "../../state/history/actions";
 import type { HistoryEntry } from "../../state/browser/types";
 import { requestClearData, useClearDataRequest } from "../../state/profiles/clearDataRequest";
-import { Button, Symbol, Text, useTheme } from "../ui";
+import { Button, EmptyState, Text } from "../ui";
 import { ClearDataDialog } from "./ClearDataDialog";
 import { layoutHistory } from "./historyLayout";
 import { confirmRemoveSelected, shownSelection } from "../../state/history/historyMenus";
 import { HistoryList } from "./HistoryList";
-import { EmptyState, hostLabel, PageHeader } from "./PageLayout";
-import { EMPTY_ICON, emptyIcon } from "./tokens";
+import { hostLabel, PageHeader } from "./PageLayout";
 
 
 export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string; profileId: string; initialQuery: string }) {
-  const theme = useTheme();
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
   const history = useProfileHistory(profileId);
   const [query, setQuery] = useState(initialQuery);
@@ -87,10 +85,10 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
 
   return (
     <View style={{ flex: 1 }}>
-      <PageHeader title="History" query={query} onQuery={setQuery} placeholder="Search history" actions={actions} />
+      <PageHeader title="History" query={query} onQuery={setQuery} actions={actions} />
       {layout.rows.length === 0 ? (
         <EmptyState
-          icon={<Symbol name="clock" size={emptyIcon.size} color={theme.textTertiary} style={EMPTY_ICON} />}
+          symbol="clock"
           title={query ? "No search results found" : "Your browsing history appears here"}
         />
       ) : (

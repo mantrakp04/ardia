@@ -1,10 +1,10 @@
 import { showMenu } from "../../../state/app/system";
-import { Symbol, Button, font, Toggle } from "../../ui";
+import { Box, Button, Dot, lineHeight, space, Symbol, Text, Toggle } from "../../ui";
 import { copyRecoveryPhrase, revealSyncFolder, type FolderInfo } from "../../../state/sync/recoveryKit";
 import { useEffect, useState } from "react";
 import { syncFolder } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
-import { Linking, Text, View } from "react-native";
+import { Linking, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useProfileRecords } from "../../../state/profiles/hooks";
 import { useProfiles } from "../../../state/browser/hooks";
@@ -19,13 +19,11 @@ import {
 } from "../../../state/sync/engine";
 import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
-import { settingsType } from "../tokens";
 import { ago } from "../../../lib/time";
 
 export function SyncPane() {
-  const theme = useTheme();
   const enabled = useSync((s) => s.enabled);
   const status = useSync((s) => s.status);
   const folder = useSync((s) => s.folder);
@@ -36,25 +34,25 @@ export function SyncPane() {
   }, [enabled, status]);
 
   if (status === "unavailable") {
-    return <Text style={{ marginTop: 20, ...settingsType.lead, color: theme.textSecondary }}>Sync isn’t available in this build.</Text>;
+    return <PaneIntro>Sync isn’t available in this build.</PaneIntro>;
   }
   return (
-    <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+    <Box gap="xl">
+      <PaneIntro>
         Sync your profiles, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your Macs. It all goes through a folder
         you choose, like one in iCloud Drive, and it’s end-to-end encrypted: only your devices can read it.
-      </Text>
+      </PaneIntro>
       {enabled ? <SyncOn info={info} /> : <SyncOff info={info} />}
-    </View>
+    </Box>
   );
 }
 
 function SyncIcon({ on }: { on: boolean }) {
   const theme = useTheme();
   return (
-    <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: on ? theme.formAccent : theme.control, borderWidth: on ? 0 : 1, borderColor: theme.controlBorder }}>
-      <Symbol name="arrow.triangle.2.circlepath" size={13} weight="semibold" color={on ? theme.onAccent : theme.icon} style={{ width: 28, height: 28 }} />
-    </View>
+    <Dot size={SYNC_ICON} color={on ? theme.formAccent : theme.control} ring={on ? undefined : theme.controlBorder}>
+      <Symbol name="arrow.triangle.2.circlepath" size={13} weight="semibold" color={on ? theme.onAccent : theme.icon} style={SYNC_GLYPH} />
+    </Dot>
   );
 }
 
@@ -87,8 +85,8 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
   };
 
   return (
-    <>
-      <Group style={{ marginTop: 18 }}>
+    <View>
+      <Group>
         <Row
           icon={<SyncIcon on={false} />}
           anchor="sync.sync"
@@ -125,14 +123,25 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
           </Row>
         ) : null}
       </Group>
-      {failure ? <Text style={{ marginTop: 8, ...font.small, color: theme.destructive }}>{failure}</Text> : null}
-      <Text style={{ marginTop: 12, ...font.footnote, lineHeight: 15, color: theme.textTertiary }}>
+      {failure ? (
+        <Text size="caption" tone="destructive" style={FAILURE}>
+          {failure}
+        </Text>
+      ) : null}
+      <Text size="caption" tone="textTertiary" style={FOOTNOTE}>
         No server and no account: your Macs meet in the sync folder. Your recovery phrase never leaves your devices, and without it the folder is
         unreadable, file names included.
       </Text>
-    </>
+    </View>
   );
 }
+
+const SYNC_ICON = 28;
+const SYNC_GLYPH = { width: SYNC_ICON, height: SYNC_ICON } as const;
+const FAILURE = { marginTop: space.m } as const;
+const FOOTNOTE = { marginTop: space.l, lineHeight: lineHeight.caption } as const;
+const ERROR_ROW = { marginTop: space.m } as const;
+const ERROR_TEXT = { flex: 1, lineHeight: lineHeight.caption } as const;
 
 function statusLine(status: SyncStatus, lastSyncedAt: number | null, pending: number): string {
   const since = lastSyncedAt ? ago(lastSyncedAt) : null;
@@ -192,8 +201,8 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
 
   const locked = status === "locked";
   return (
-    <>
-      <Group style={{ marginTop: 18 }}>
+    <View>
+      <Group>
         <Row icon={<SyncIcon on={!locked} />} anchor="sync.sync" description={statusLine(status, lastSyncedAt, pending)}>
           {locked ? (
             <Button title="Enter Recovery Phrase…" kind="primary" onPress={() => showPhraseEntry(info)} />
@@ -205,10 +214,12 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
         <Row anchor="sync.folder" description={info ? folderLabel(info) : " "} />
       </Group>
       {error && status !== "updated" ? (
-        <View style={{ flexDirection: "row", gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
+        <Box row gap="s" padX="xxs" style={ERROR_ROW}>
           <Symbol name="exclamationmark.circle.fill" size={11} color={theme.destructive} style={{ width: 14, height: 15 }} />
-          <Text style={{ flex: 1, ...font.footnote, lineHeight: 15, color: theme.textSecondary }}>{error}</Text>
-        </View>
+          <Text size="caption" tone="textSecondary" style={ERROR_TEXT}>
+            {error}
+          </Text>
+        </Box>
       ) : null}
 
       <SectionHeader
@@ -266,6 +277,6 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
           <Row title="Just this Mac so far" description="Other devices show here once they sync." />
         )}
       </Group>
-    </>
+    </View>
   );
 }

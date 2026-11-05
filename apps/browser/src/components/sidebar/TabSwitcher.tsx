@@ -1,8 +1,9 @@
 import { tabTitle } from "../../state/browser/model";
 import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { displayUrl } from "@ardia/core";
-import { FadeLabel, font, Panel, radius, weight } from "../ui";
+import { concentric, FadeLabel, font, hairline, Panel, radius, space } from "../ui";
+import { SectionLabel } from "./SectionLabel";
 import { useTheme } from "../ui/theme";
 import { useTab } from "../../state/browser/hooks";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
@@ -13,7 +14,9 @@ import { SIDEBAR_SHADOW, useSidebarTokens } from "./tokens";
 const WIDTH = 400;
 const ROW = 40;
 const MAX_ROWS = 9;
-const SWITCHER_RADIUS = 16;
+const SWITCHER_RADIUS = radius.sheet;
+const SWITCHER_PAD = space.m;
+const ROW_RADIUS = concentric(SWITCHER_RADIUS, SWITCHER_PAD);
 
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
   const theme = useTheme();
@@ -29,9 +32,9 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
       radius={SWITCHER_RADIUS}
       border={theme.panelBorder}
       shadow={SIDEBAR_SHADOW.tabSwitcher}
-      style={{ position: "absolute", left: (windowWidth - WIDTH) / 2, top: Math.max(40, (windowHeight - height) / 2 - 40), width: WIDTH, padding: 8 }}
+      style={{ position: "absolute", left: (windowWidth - WIDTH) / 2, top: Math.max(40, (windowHeight - height) / 2 - 40), width: WIDTH, padding: SWITCHER_PAD }}
     >
-      <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTertiary, paddingHorizontal: 8, paddingBottom: 6, paddingTop: 2 }}>Recent Tabs</Text>
+      <SectionLabel title="Recent Tabs" inset={space.m} top={space.xxs} bottom={space.s} />
       {shown.map((id, i) => (
         <SwitcherRow key={id} tabId={id} focused={start + i === switcher.index} index={start + i} focusFill={tokens.switcherFocus} outline={tokens.switcherOutline} />
       ))}
@@ -51,13 +54,13 @@ function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: str
         onMouseLeave={() => leaveSwitcherRow(index)}
         style={{
           height: ROW,
-          borderRadius: radius.card,
+          borderRadius: ROW_RADIUS,
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 10,
-          gap: 10,
+          paddingHorizontal: space.ml,
+          gap: space.ml,
           backgroundColor: focused ? focusFill : undefined,
-          borderWidth: focused ? 0.5 : 0,
+          borderWidth: focused ? hairline.ring : 0,
           borderColor: outline,
         }}
       >

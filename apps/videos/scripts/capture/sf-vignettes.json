@@ -1,0 +1,501 @@
+{
+ "story": {
+  "folder": "Thesis Reading",
+  "people": [
+   {
+    "who": "priya",
+    "name": "Priya",
+    "color": "plum",
+    "appearance": "light",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "p5",
+    "tabs": [
+     [
+      "p1",
+      "canopy"
+     ],
+     [
+      "p2",
+      "citydata"
+     ],
+     [
+      "p3",
+      "course"
+     ],
+     [
+      "p4",
+      "library"
+     ],
+     [
+      "p5",
+      "heatmap"
+     ],
+     [
+      "p6",
+      "lecture"
+     ],
+     [
+      "p7",
+      "survey"
+     ]
+    ],
+    "build": {
+     "name": "Thesis Reading",
+     "links": [
+      "p1",
+      "p2",
+      "p3",
+      "p4",
+      "p5"
+     ]
+    }
+   },
+   {
+    "who": "tomas",
+    "name": "Tomás",
+    "color": "blue",
+    "appearance": "dark",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "t1",
+    "tabs": [
+     [
+      "t1",
+      "cinema"
+     ],
+     [
+      "t2",
+      "lexicon"
+     ]
+    ]
+   },
+   {
+    "who": "jun",
+    "name": "Jun",
+    "color": "green",
+    "appearance": "light",
+    "side": "right",
+    "layout": "sidebar",
+    "active": "j1",
+    "tabs": [
+     [
+      "j1",
+      "moodwall"
+     ]
+    ]
+   },
+   {
+    "who": "ava",
+    "name": "Ava",
+    "color": "orange",
+    "appearance": "light",
+    "side": "left",
+    "layout": "top",
+    "active": "a1",
+    "tabs": [
+     [
+      "a1",
+      "dailyledger"
+     ]
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "who": "priya",
+    "op": {
+     "kind": "drag",
+     "from": "lecture",
+     "to": {
+      "below": "heatmap"
+     },
+     "steps": 30
+    }
+   },
+   {
+    "who": "priya",
+    "op": {
+     "kind": "rename",
+     "from": "heatmap",
+     "to": "Heat map (THE one)"
+    }
+   },
+   {
+    "who": "tomas",
+    "op": {
+     "kind": "drag",
+     "from": "library",
+     "to": {
+      "above": "canopy"
+     },
+     "steps": 23
+    }
+   },
+   {
+    "who": "priya",
+    "op": {
+     "kind": "nest",
+     "name": "Methods",
+     "links": [
+      "survey"
+     ],
+     "active": "heatmap"
+    }
+   }
+  ]
+ },
+ "launch": {
+  "folder": "Lumo Launch",
+  "people": [
+   {
+    "who": "maya",
+    "name": "Maya",
+    "color": "purple",
+    "appearance": "dark",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "m5",
+    "tabs": [
+     [
+      "m1",
+      "roadmap"
+     ],
+     [
+      "m2",
+      "pressroom"
+     ],
+     [
+      "m3",
+      "mockups"
+     ],
+     [
+      "m4",
+      "signups"
+     ],
+     [
+      "m5",
+      "changelog"
+     ]
+    ],
+    "build": {
+     "name": "Lumo Launch",
+     "links": [
+      "m1",
+      "m2",
+      "m3",
+      "m4"
+     ]
+    }
+   },
+   {
+    "who": "leo",
+    "name": "Leo",
+    "color": "red",
+    "appearance": "dark",
+    "side": "right",
+    "layout": "sidebar",
+    "active": "l1",
+    "tabs": [
+     [
+      "l1",
+      "tunes"
+     ]
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "who": "maya",
+    "op": {
+     "kind": "drag",
+     "from": "changelog",
+     "to": {
+      "between": [
+       "roadmap",
+       "pressroom"
+      ]
+     },
+     "steps": 20
+    }
+   }
+  ]
+ },
+ "lab": {
+  "folder": "Halden Lab",
+  "people": [
+   {
+    "who": "okafor",
+    "name": "Dr. Okafor",
+    "color": "pink",
+    "appearance": "light",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "o5",
+    "tabs": [
+     [
+      "o1",
+      "preprints"
+     ],
+     [
+      "o2",
+      "labwiki"
+     ],
+     [
+      "o3",
+      "protocols"
+     ],
+     [
+      "o4",
+      "samples"
+     ],
+     [
+      "o5",
+      "journalclub"
+     ]
+    ],
+    "build": {
+     "name": "Halden Lab",
+     "links": [
+      "o1",
+      "o2"
+     ],
+     "nested": [
+      {
+       "name": "Protocols",
+       "links": [
+        "o3"
+       ],
+       "nested": [
+        {
+         "name": "PCR",
+         "links": [
+          "o4"
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "who": "sam",
+    "name": "Sam",
+    "color": "yellow",
+    "appearance": "dark",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "s1",
+    "tabs": [
+     [
+      "s1",
+      "cinema"
+     ]
+    ],
+    "expand": [
+     "Protocols",
+     "PCR"
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "who": "okafor",
+    "op": {
+     "kind": "drag",
+     "from": "journalclub",
+     "to": {
+      "between": [
+       "PCR",
+       "samples"
+      ]
+     },
+     "steps": 20
+    }
+   },
+   {
+    "who": "okafor",
+    "op": {
+     "kind": "drag",
+     "from": "labwiki",
+     "to": {
+      "between": [
+       "Protocols",
+       "protocols"
+      ]
+     },
+     "steps": 20
+    }
+   }
+  ]
+ },
+ "trip": {
+  "folder": "Port Sela Trip",
+  "people": [
+   {
+    "who": "kai",
+    "name": "Kai",
+    "color": "orange",
+    "appearance": "dark",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "k4",
+    "tabs": [
+     [
+      "k1",
+      "hostel"
+     ],
+     [
+      "k2",
+      "ferry"
+     ],
+     [
+      "k3",
+      "trails"
+     ],
+     [
+      "k4",
+      "eats"
+     ]
+    ],
+    "build": {
+     "name": "Port Sela Trip",
+     "links": [
+      "k1",
+      "k2",
+      "k3"
+     ]
+    }
+   },
+   {
+    "who": "noor",
+    "name": "Noor",
+    "color": "yellow",
+    "appearance": "light",
+    "side": "left",
+    "layout": "top",
+    "active": "n1",
+    "tabs": [
+     [
+      "n1",
+      "moodwall"
+     ]
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "who": "kai",
+    "op": {
+     "kind": "drag",
+     "from": "eats",
+     "to": {
+      "below": "trails"
+     },
+     "steps": 20
+    }
+   }
+  ]
+ },
+ "class": {
+  "folder": "BIO 210",
+  "people": [
+   {
+    "who": "ruiz",
+    "name": "Ms. Ruiz",
+    "color": "blue",
+    "appearance": "light",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "r4",
+    "tabs": [
+     [
+      "r1",
+      "syllabus"
+     ],
+     [
+      "r2",
+      "labmanual"
+     ],
+     [
+      "r3",
+      "officehours"
+     ],
+     [
+      "r4",
+      "quiz"
+     ]
+    ],
+    "build": {
+     "name": "BIO 210",
+     "links": [
+      "r1",
+      "r2",
+      "r3"
+     ]
+    }
+   },
+   {
+    "who": "ana",
+    "name": "Ana",
+    "color": "green",
+    "appearance": "light",
+    "side": "right",
+    "layout": "sidebar",
+    "active": "x1",
+    "tabs": [
+     [
+      "x1",
+      "crumbs"
+     ]
+    ]
+   },
+   {
+    "who": "ben",
+    "name": "Ben",
+    "color": "pink",
+    "appearance": "dark",
+    "side": "left",
+    "layout": "sidebar",
+    "active": "y1",
+    "tabs": [
+     [
+      "y1",
+      "moodwall"
+     ]
+    ]
+   },
+   {
+    "who": "cleo",
+    "name": "Cleo",
+    "color": "neutral",
+    "appearance": "light",
+    "side": "left",
+    "layout": "top",
+    "active": "z1",
+    "tabs": [
+     [
+      "z1",
+      "watch"
+     ]
+    ]
+   }
+  ],
+  "actions": [
+   {
+    "who": "ruiz",
+    "op": {
+     "kind": "drag",
+     "from": "quiz",
+     "to": {
+      "between": [
+       "syllabus",
+       "labmanual"
+      ]
+     },
+     "steps": 20
+    }
+   }
+  ]
+ }
+}

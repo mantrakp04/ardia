@@ -1,12 +1,8 @@
 import { HexclaveServerApp } from "@hexclave/tanstack-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { HEXCLAVE_PROJECT_ID } from "../lib/project";
+import { viewerFor, type Viewer } from "./admin-gate";
 import { devAuthBypass, serverEnv } from "./env";
-
-export type Viewer =
-  | { state: "signed-out" }
-  | { state: "denied"; email: string | null }
-  | { state: "allowed"; email: string };
 
 let app: HexclaveServerApp | null = null;
 
@@ -23,22 +19,8 @@ function serverApp() {
   return app;
 }
 
-function allowedEmails(): Set<string> {
-  const raw = serverEnv("DASHBOARD_ALLOWED_EMAILS") ?? "mantrakp@gmail.com";
-  return new Set(
-    raw
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
 export async function currentViewer(): Promise<Viewer> {
   if (devAuthBypass()) return { state: "allowed", email: "dev-bypass@localhost" };
   const request = getRequest();
-  const user = await serverApp().getUser({ tokenStore: request });
-  if (!user) return { state: "signed-out" };
-  const email = user.primaryEmail?.trim().toLowerCase() || null;
-  if (!email || !user.primaryEmailVerified || !allowedEmails().has(email)) return { state: "denied", email };
-  return { state: "allowed", email };
+  return viewerFor(await serverApp().getUser({ tokenStore: request }));
 }

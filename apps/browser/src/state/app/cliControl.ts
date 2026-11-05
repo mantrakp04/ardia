@@ -72,10 +72,13 @@ export const useCli = create<CliState>()(() => ({
 export const useCliIndicator = create<{ shown: boolean }>()(() => ({ shown: false }));
 
 let indicatorHide: ReturnType<typeof setTimeout> | null = null;
+let socketRuns = 0;
+let socketServing = false;
 
 function updateIndicator({ server }: CliState) {
-  const on = server?.state === "on";
-  const connected = on && server.connections > 0;
+  const cdpOn = server?.state === "on";
+  const on = cdpOn || socketServing;
+  const connected = on && (cdpOn ? server.connections : 0) + socketRuns > 0;
   if (connected || !on) {
     if (indicatorHide) clearTimeout(indicatorHide);
     indicatorHide = null;
@@ -90,6 +93,16 @@ function updateIndicator({ server }: CliState) {
 }
 
 useCli.subscribe(updateIndicator);
+
+export function noteSocketRun(delta: 1 | -1) {
+  socketRuns = Math.max(0, socketRuns + delta);
+  updateIndicator(useCli.getState());
+}
+
+export function noteSocketServing(serving: boolean) {
+  socketServing = serving;
+  updateIndicator(useCli.getState());
+}
 
 let running: Promise<CliInstallResult> | null = null;
 

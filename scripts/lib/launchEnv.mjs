@@ -42,7 +42,7 @@ const OLD_TRACE = { visibility: "ARDIA_TRACE_VISIBILITY", pip: "ARDIA_TRACE_PIP"
 
 export const INSTANCE_KEYS = [
   "jsLocation", "chromiumSwitches", "downloadsDir", "updateFeed", "allowAudio", "allowOcclusion", "releaseNotes",
-  "cliHome", "cliBinDir", "cliUrl", "syncFolder", "importSourceDir", "importSafariHome",
+  "cliHome", "cliBinDir", "cliUrl", "syncFolder", "sharedFolders", "importSourceDir", "importSafariHome",
 ];
 export const TEST_KEYS = [
   "keychain", "keychainHiddenReads", "keychainFail", "safeStorageAnswer", "reauth", "bluetoothChooser",
@@ -53,7 +53,7 @@ export const TEST_KEYS = [
   "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout",
 ];
 export const COMMA_KEYS = [
-  "chromiumSwitches", "downloadsDir", "updateFeed", "cliHome", "cliBinDir", "cliUrl", "syncFolder", "importSourceDir",
+  "chromiumSwitches", "downloadsDir", "updateFeed", "cliHome", "cliBinDir", "cliUrl", "syncFolder", "sharedFolders", "importSourceDir",
   "importSafariHome", "importSecret", "cliInstallScript", "legacySource", "bangsUrl", "liveMock",
 ];
 

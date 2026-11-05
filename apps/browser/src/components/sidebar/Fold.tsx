@@ -1,11 +1,12 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve } from "../ui/motion";
+import { layout } from "../ui/theme";
 import { FoldedAway } from "./hoverController";
 import { SIDEBAR_MOTION } from "./tokens";
 
 const FOLD_MS = SIDEBAR_MOTION.fold;
-const FOLD_EASING = curve.fold;
+const FOLD_EASING = curve.enter;
 
 type FoldState = { open: Animated.Value; moving: boolean };
 
@@ -38,7 +39,6 @@ export function Fold({
   collapsed,
   entries,
   keep,
-  gap,
   rowHeight,
   estimate,
   padTop = 0,
@@ -51,7 +51,6 @@ export function Fold({
   collapsed: boolean;
   entries: FoldEntry[];
   keep?: string | null;
-  gap: number;
   rowHeight?: number | ((key: string) => number);
   estimate?: (key: string) => number;
   padTop?: number;
@@ -61,6 +60,7 @@ export function Fold({
   footer?: ReactNode;
 }) {
   const { open, moving } = fold;
+  const gap = layout.rowGap;
   const parentAway = useContext(FoldedAway);
   const measuring = rowHeight === undefined;
   const [measured, setMeasured] = useState<Record<string, number>>({});

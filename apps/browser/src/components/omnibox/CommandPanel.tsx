@@ -2,7 +2,7 @@ import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../ui/theme";
-import { useWindowId, useWindowUi } from "../../state/browser/hooks";
+import { useSidebarSide, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
 import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
 import { usePage } from "../../state/tabs/pageState";
@@ -17,16 +17,16 @@ import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barS
 import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
-import { shadow } from "../ui/tokens";
+import { radius, shadow, space } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = 20;
+const PANEL_RADIUS = radius.hero;
 const MIN_WIDTH = 420;
-const WINDOW_MARGIN = 12;
+const WINDOW_MARGIN = space.l;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = 12;
+const DROPDOWN_RADIUS = radius.panel;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
 
@@ -43,6 +43,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
+  const sidebarRight = useSidebarSide(windowId) === "right";
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -68,10 +69,12 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   if (!anchor) return null;
 
   if (anchor.sidebar) {
-    const shown = anchor.left >= 0;
-    const left = shown ? anchor.left : WINDOW_MARGIN;
-    const width = Math.min(Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD), room(left, DROPDOWN_MIN_WIDTH));
-    const from = shown ? { left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
+    const shown = anchor.left >= 0 && (!sidebarRight || windowWidth <= 0 || anchor.left < windowWidth);
+    const wanted = Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD);
+    const end = shown ? anchor.left + anchor.width : windowWidth - WINDOW_MARGIN;
+    const left = sidebarRight ? Math.max(WINDOW_MARGIN, end - wanted) : shown ? anchor.left : WINDOW_MARGIN;
+    const width = sidebarRight ? end - left : Math.min(wanted, room(left, DROPDOWN_MIN_WIDTH));
+    const from = shown ? { left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
     return (
       <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={DROPDOWN_RADIUS} surface={surface(DROPDOWN_RADIUS)}>
         <OutsidePressArea onOutsidePress={onCancel}>

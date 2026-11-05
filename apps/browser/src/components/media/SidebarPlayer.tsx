@@ -1,29 +1,54 @@
-import { Panel, Symbol, Button, useHover } from "../ui";
+import { Dot, Panel, Symbol, Button, tabularNums, Text, useHover } from "../ui";
 import { useShallow } from "zustand/react/shallow";
-import { useRef } from "react";
-import { Image, Pressable, View } from "react-native";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Image, Pressable, View } from "react-native";
 import { switchToTab, toggleMute } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
-import { font, radius, weight } from "../ui/tokens";
+import { curve, duration } from "../ui/motion";
+import { font, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
 import { muteTitle } from "../../state/tabs/mute";
 import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { useArtwork } from "../../state/media/artwork";
-import { dismissPlayer, isPlaying, mediaCommand, playerTabFor, useHiddenPlayerTabs, useMedia, useSession, type Session } from "../../state/media/media";
+import {
+  dismissPlayer,
+  formatTime,
+  isPlaying,
+  mediaCommand,
+  playerTabFor,
+  positionOf,
+  skipOrTrack,
+  transportIcons,
+  useHiddenPlayerTabs,
+  useMedia,
+  usePictureInPicture,
+  useSession,
+  useTicker,
+  type Session,
+} from "../../state/media/media";
+import { hostOf } from "@ardia/core";
 import { Marquee, useMarqueeGroup } from "./Marquee";
+import { TimeBar } from "./MiniPlayer";
 import { useMediaTokens } from "./tokens";
 
 const ROW_HEIGHT = 40;
-const ROW_INSET = 6;
-const TRAILING_INSET = 4;
+const ROW_INSET = space.s;
+const TRAILING_INSET = space.xs;
 const ART = 28;
 const LIVE_DOT = 6;
 const BUTTON = 24;
-const BUTTON_GAP = 2;
 const TITLE_HEIGHT = 16;
-const HOVER_BUTTONS_WIDTH = BUTTON * 2 + BUTTON_GAP * 2;
+const ARTIST_HEIGHT = 14;
+const SEEK_ROW = 18;
+const CONTROLS_ROW = 32;
+const CONTROLS_GAP = space.s;
+const EXPANDED_BOTTOM = space.xs;
+const EXPANDED_HEIGHT = ROW_HEIGHT + SEEK_ROW + CONTROLS_ROW + EXPANDED_BOTTOM;
+const EXPAND_DELAY_MS = 250;
+const COLLAPSE_DELAY_MS = 160;
 const MARQUEE_PASSES_AT_REST = 1;
 
 export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
@@ -39,54 +64,149 @@ export function useSidebarPlayerTab(windowId: string, profileId: string): string
 
 const isLive = (session: Session) => session.duration === null;
 
-export function SidebarPlayer({ tabId }: { tabId: string }) {
+function useExpanded(hovered: boolean, held: boolean) {
+  const want = hovered || held;
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (want === expanded) return;
+    const timer = setTimeout(() => setExpanded(want), want ? EXPAND_DELAY_MS : COLLAPSE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [want, expanded]);
+  const reveal = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (expanded) setMounted(true);
+    const run = Animated.timing(reveal, { toValue: expanded ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false });
+    run.start(({ finished }) => finished && !expanded && setMounted(false));
+    return () => run.stop();
+  }, [expanded]);
+  return { expanded, mounted: want || mounted, reveal };
+}
+
+function PlayButton({ tabId, playing, size }: { tabId: string; playing: boolean; size: "m" | "l" }) {
+  return <Button variant="icon" icon={playing ? "pause.fill" : "play.fill"} size={size} tooltip={playing ? "Pause" : "Play"} onPress={() => mediaCommand(tabId, "toggle")} />;
+}
+
+function TimeLeft({ session }: { session: Session }) {
+  const media = useMediaTokens();
+  useTicker(true);
+  const left = formatTime((session.duration ?? 0) - positionOf(session));
+  return (
+    <View accessibilityLabel={`${left} left`} style={{ height: BUTTON, minWidth: BUTTON, paddingHorizontal: space.xs, alignItems: "flex-end", justifyContent: "center" }}>
+      <Text size="caption" color={media.secondary} style={tabularNums}>
+        -{left}
+      </Text>
+    </View>
+  );
+}
+
+const PlayerControls = memo(function PlayerControls({ tabId, reveal, onSeeking }: { tabId: string; reveal: Animated.Value; onSeeking: (seeking: boolean) => void }) {
+  const media = useMediaTokens();
+  const session = useSession(tabId);
+  const mute = useMuteState(tabId);
+  const playing = isPlaying(session);
+  const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
+  const [pip, togglePip] = usePictureInPicture(tabId);
+  useTicker(playing);
+  if (!session) return null;
+  const icons = transportIcons(session);
+  return (
+    <Animated.View style={{ opacity: reveal, paddingHorizontal: ROW_INSET + 2 }}>
+      <View style={{ height: SEEK_ROW }}>
+        <TimeBar tabId={tabId} session={session} tokens={media} trailing="total" onDragging={onSeeking} />
+      </View>
+      <View style={{ height: CONTROLS_ROW, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Button variant="icon" icon={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size="m" tooltip={muteTitle(mute)} onPress={() => toggleMute(tabId)} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
+          <Button variant="icon" icon={icons.back} size="m" tooltip={icons.backTip} onPress={() => skipOrTrack(tabId, session, "back")} />
+          <PlayButton tabId={tabId} playing={playing} size="l" />
+          <Button variant="icon" icon={icons.ahead} size="m" tooltip={icons.aheadTip} onPress={() => skipOrTrack(tabId, session, "ahead")} />
+        </View>
+        {video ? (
+          <Button variant="icon" icon={pip ? "pip.exit" : "pip.enter"} size="m" tooltip={pip ? "Exit Picture in Picture" : "Picture in Picture"} onPress={togglePip} />
+        ) : (
+          <View style={{ width: BUTTON }} />
+        )}
+      </View>
+    </Animated.View>
+  );
+});
+
+const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: { tabId: string; mounted: boolean; hovered: boolean; reveal: Animated.Value }) {
   const theme = useTheme();
-  const tokens = useSidebarTokens();
   const media = useMediaTokens();
   const session = useSession(tabId);
   const tab = useTab(tabId);
   const mute = useMuteState(tabId);
+  const artwork = useArtwork(tabId, session?.artwork);
+  const artistHeight = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [0, ARTIST_HEIGHT] }), [reveal]);
+  const title = session?.title || tab?.title || "";
+  const artist = session?.artist || (tab ? hostOf(tab.url) : "");
+  const marquee = useMarqueeGroup(`${title}|${artist}`, hovered ? -1 : MARQUEE_PASSES_AT_REST);
+  if (!session || !tab) return null;
+  return (
+    <Pressable onPress={() => switchToTab(tabId)} style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}>
+      <View tooltip="Back to Tab" style={{ width: ART, height: ART, borderRadius: radius.control, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+        {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
+      </View>
+      {isLive(session) ? (
+        <View accessibilityLabel="Live" style={{ marginLeft: space.m }}>
+          <Dot size={LIVE_DOT} color={theme.destructive} />
+        </View>
+      ) : null}
+      {mute ? <Symbol name="speaker.slash.fill" size={9} color={theme.textSecondary} style={{ width: 13, height: 12, marginLeft: space.s }} /> : null}
+      <View style={{ flex: 1, minWidth: 0, marginLeft: space.s }}>
+        <Marquee id="title" text={title} group={marquee} height={TITLE_HEIGHT} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textPrimary }} />
+        {mounted && artist ? (
+          <Animated.View style={{ height: artistHeight, opacity: reveal, overflow: "hidden" }}>
+            <Marquee id="artist" text={artist} group={marquee} height={ARTIST_HEIGHT} style={{ ...font.caption, color: theme.textSecondary }} />
+          </Animated.View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+});
+
+export function SidebarPlayer({ tabId }: { tabId: string }) {
+  const tokens = useSidebarTokens();
+  const session = useSession(tabId);
+  const shown = useTab(tabId) !== undefined;
   const playing = isPlaying(session);
   const { hovered, hoverProps } = useHover();
-  const artwork = useArtwork(tabId, session?.artwork);
-  const title = session?.title || tab?.title || "";
-  const marquee = useMarqueeGroup(title, hovered ? -1 : MARQUEE_PASSES_AT_REST);
-  if (!session || !tab) return null;
-  const go = () => switchToTab(tabId);
+  const [seeking, setSeeking] = useState(false);
+  const { expanded, mounted, reveal } = useExpanded(hovered, seeking);
+  const height = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [ROW_HEIGHT, EXPANDED_HEIGHT] }), [reveal]);
+  const glass = useGlass();
+  if (!session || !shown) return null;
+
+  const body = (
+    <>
+      <View style={{ height: ROW_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: TRAILING_INSET }}>
+        <PlayerRow tabId={tabId} mounted={mounted} hovered={hovered} reveal={reveal} />
+        {expanded ? (
+          <Button variant="icon" icon="xmark" size="m" tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
+        ) : playing && session.duration ? (
+          <TimeLeft session={session} />
+        ) : (
+          <PlayButton tabId={tabId} playing={playing} size="m" />
+        )}
+      </View>
+      {mounted ? <PlayerControls tabId={tabId} reveal={reveal} onSeeking={setSeeking} /> : null}
+    </>
+  );
 
   return (
-    <View {...hoverProps} style={{ height: ROW_HEIGHT }}>
-      <Panel
-        fill={tokens.groupFill}
-        radius={radius.panel}
-        border={tokens.groupStroke}
-        style={{ flex: 1, flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: TRAILING_INSET }}
-      >
-        <Pressable onPress={go} style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}>
-          <View tooltip="Back to Tab" style={{ width: ART, height: ART, borderRadius: radius.m, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
-            {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
-          </View>
-          {isLive(session) ? <View accessibilityLabel="Live" style={{ width: LIVE_DOT, height: LIVE_DOT, borderRadius: LIVE_DOT / 2, marginLeft: 7, backgroundColor: theme.destructive }} /> : null}
-          {mute ? <Symbol name="speaker.slash.fill" size={9} color={theme.textSecondary} style={{ width: 13, height: 12, marginLeft: 6 }} /> : null}
-          <View style={{ flex: 1, minWidth: 0, marginLeft: 6, marginRight: hovered ? HOVER_BUTTONS_WIDTH : 0 }}>
-            <Marquee id="title" text={title} group={marquee} height={TITLE_HEIGHT} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textPrimary }} />
-          </View>
-        </Pressable>
-        {hovered ? (
-          <View style={{ position: "absolute", top: 0, bottom: 0, right: TRAILING_INSET + BUTTON + BUTTON_GAP, flexDirection: "row", alignItems: "center", gap: BUTTON_GAP }}>
-            <Button variant="icon" icon="xmark" size={11} box={BUTTON} radius={radius.m} tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
-            <Button variant="icon"
-              icon={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"}
-              size={12}
-              box={BUTTON}
-              radius={radius.m}
-              tooltip={muteTitle(mute)}
-              onPress={() => toggleMute(tabId)}
-            />
-          </View>
-        ) : null}
-        <Button variant="icon" icon={playing ? "pause.fill" : "play.fill"} size={13} box={BUTTON} radius={radius.m} tooltip={playing ? "Pause" : "Play"} onPress={() => mediaCommand(tabId, "toggle")} />
-      </Panel>
-    </View>
+    <Animated.View {...hoverProps} style={{ height }}>
+      {glass ? (
+        <View style={{ flex: 1, overflow: "hidden", borderRadius: radius.panel }}>
+          <GlassFill radius={radius.panel} state={hovered ? "lit" : "rest"} />
+          {body}
+        </View>
+      ) : (
+        <Panel fill={tokens.groupFill} radius={radius.panel} border={tokens.groupStroke} style={{ flex: 1, overflow: "hidden" }}>
+          {body}
+        </Panel>
+      )}
+    </Animated.View>
   );
 }

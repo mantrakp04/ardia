@@ -150,6 +150,28 @@ export const hasTrackControls = (session: Session) => session.actions.includes("
 
 export const SKIP_SECONDS = 15;
 
+export function skipBy(tabId: string, session: Session, seconds: number) {
+  const now = Date.now();
+  const position = Math.max(0, Math.min(session.duration ?? Infinity, positionOf(session, now) + seconds));
+  setNowPlaying(tabId, { ...session, position, timestamp: now });
+  mediaCommand(tabId, "seekBy", seconds);
+}
+
+export function seekTo(tabId: string, session: Session, seconds: number) {
+  setNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
+  mediaCommand(tabId, "seekTo", seconds);
+}
+
+export function skipOrTrack(tabId: string, session: Session, direction: "back" | "ahead") {
+  if (hasTrackControls(session)) mediaCommand(tabId, direction === "back" ? "previous" : "next");
+  else skipBy(tabId, session, direction === "back" ? -SKIP_SECONDS : SKIP_SECONDS);
+}
+
+export const transportIcons = (session: Session) =>
+  hasTrackControls(session)
+    ? { back: "backward.end.fill", ahead: "forward.end.fill", backTip: "Play Previous Track", aheadTip: "Play Next Track" }
+    : { back: `gobackward.${SKIP_SECONDS}`, ahead: `goforward.${SKIP_SECONDS}`, backTip: `Skip back ${SKIP_SECONDS} seconds`, aheadTip: `Skip ahead ${SKIP_SECONDS} seconds` };
+
 export function isTabShown(s: BrowserState, tabId: string, profileId?: string): boolean {
   const windowId = s.tabs[tabId]?.windowId;
   if (!windowId) return false;

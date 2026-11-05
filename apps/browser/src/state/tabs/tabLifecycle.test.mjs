@@ -36,11 +36,6 @@ const { docs: savedDocs } = await import("../../test-native/index.ts");
 const S = () => useBrowser.getState();
 const memorySaverCalls = () => globalThis.engineCalls.filter(([name]) => name === "memorySaver").map(([, request]) => request);
 
-test("Memory Saver is on and Balanced by default, as in Helium, with no sites kept active", () => {
-  S().hydrate({});
-  assert.deepEqual(memorySaverRequest(S().settings), { state: "on", aggressiveness: "balanced", sites: [] });
-});
-
 test("the app's Memory Saver settings reach the engine at launch and on every change", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   S().hydrate({ settings: { memorySaver: false, memorySaverMode: "maximum", keepActiveSites: ["music.youtube.com"] } });

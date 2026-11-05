@@ -1,15 +1,13 @@
 import { type SystemCalendar, connectCalendar, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
-import { Linking, Text, View } from "react-native";
-import { useTheme } from "../../ui/theme";
+import { Linking, View } from "react-native";
 import { ALERT_LEADS, COUNTDOWN_LEADS, countdownLeadTitle } from "../../../state/live/meetings";
 import { updateCalendarSettings, useLive } from "../../../state/live/store";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
-import { Button, Checkbox, font, PopUp, Toggle, weight } from "../../ui";
+import { Box, Button, Checkbox, EmptyState, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
 
 export function CalendarPane() {
-  const theme = useTheme();
   const settings = useLive((s) => s.calendar);
   const { access, calendars } = useCalendar();
   const autoGroup = useSettings((s) => s.autoGroupMeetingTabs);
@@ -99,25 +97,32 @@ export function CalendarPane() {
           </Group>
         </>
       ) : connected ? (
-        <Text style={{ marginTop: 12, ...font.small, color: theme.textSecondary }}>No calendars found. Add accounts in the Calendar app.</Text>
+        <View style={NO_CALENDARS}>
+          <EmptyState symbol="calendar" title="No calendars found" subtitle="Add accounts in the Calendar app." />
+        </View>
       ) : null}
     </View>
   );
 }
 
 function CalendarList({ title, calendars, hidden }: { title: string; calendars: SystemCalendar[]; hidden: string[] }) {
-  const theme = useTheme();
   return (
-    <View style={{ paddingVertical: 6 }}>
-      <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textSecondary, marginLeft: 12, marginBottom: 2 }}>{title}</Text>
+    <Box padY="s">
+      <Text size="caption" weight="semibold" tone="textSecondary" style={LIST_TITLE}>
+        {title}
+      </Text>
       {calendars.map((c) => (
         <Row
           key={c.id}
-          icon={<View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: c.color }} />}
+          icon={<View style={[CALENDAR_COLOR, { backgroundColor: c.color }]} />}
           title={<Checkbox value={!hidden.includes(c.id)} onChange={(v) => setCalendarHidden(c.id, !v)} label={c.title} />}
           description={c.account}
         />
       ))}
-    </View>
+    </Box>
   );
 }
+
+const NO_CALENDARS = { marginTop: space.l } as const;
+const LIST_TITLE = { marginLeft: space.l, marginBottom: space.xxs } as const;
+const CALENDAR_COLOR = { width: 10, height: 10, borderRadius: radius.hair } as const;

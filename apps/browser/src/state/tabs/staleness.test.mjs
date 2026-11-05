@@ -27,8 +27,8 @@ registerHooks({
 const { useBrowser } = await import("../browser/store.ts");
 const { useIsActiveTab, useTab, useTabLive, WindowContext } = await import("../browser/hooks.ts");
 const { useTabValue, useStoreWhile, shallowEqual } = await import("./tabWatch.ts");
-const { usePageProgress, setPageProgress } = await import("./pageProgress.ts");
-const { useRowState, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
+const { usePageProgress, setPageProgress, watchPageProgress } = await import("./pageProgress.ts");
+const { useRowState, mutedBy, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
 const { useSidebarUi, setSidebarUi } = await import("../sidebar/sidebarUi.ts");
 const { useIsSleeping, noteDiscarded, noteReady } = await import("./tabLifecycle.ts");
 const { useMedia, setPictureInPictureState } = await import("../media/media.ts");
@@ -61,6 +61,7 @@ const row = (tabId, windowId) =>
         selected: !!(flags & SELECTED),
         playing: !!(flags & PLAYING),
         loading: !!(flags & LOADING),
+        mute: mutedBy(flags),
         renaming: useSidebarUi((u) => u.renaming?.kind === "tab" && u.renaming.id === tabId),
         sleeping: useIsSleeping(tabId),
         pip: useMedia((m) => !!m.pipOpen[tabId]),
@@ -95,6 +96,14 @@ test("a sidebar row: created, renamed, re-iconed, pinned, flagged, badged, slept
   assert.equal(rb.value.pinned, true, "pinned");
   S().togglePin(b);
   assert.equal(rb.value.pinned, false, "unpinned");
+
+  S().updateTab(b, { muted: true });
+  assert.deepEqual([ra.value.mute, rb.value.mute], [null, "tab"], "tab muted: its row only");
+  S().updateSettings({ mutedSites: ["b.com"] });
+  assert.equal(rb.value.mute, "site", "site muted");
+  S().updateSettings({ mutedSites: [] });
+  S().updateTab(b, { muted: false });
+  assert.equal(rb.value.mute, null, "unmuted");
 
   S().activate(b);
   assert.deepEqual([ra.value.active, rb.value.active], [false, true], "switch: both rows");
@@ -206,6 +215,22 @@ test("a hidden pane's paused reads are current the render it's shown, and follow
   assert.equal(pane.rerender({ visible: true }).hasPage, true, "a change while hidden again");
   pane.unmount();
   void w;
+});
+
+test("a tab's progress wakes its own watchers, not the store or other tabs", () => {
+  let storeUpdates = 0;
+  const stop = useBrowser.subscribe(() => storeUpdates++);
+  const woke = { a: 0, b: 0 };
+  const offA = watchPageProgress("a", () => woke.a++);
+  const offB = watchPageProgress("b", () => woke.b++);
+  setPageProgress("a", 0.3);
+  setPageProgress("a", 0.3);
+  setPageProgress("a", 0.7);
+  assert.deepEqual(woke, { a: 2, b: 0 }, "an unchanged value wakes nobody");
+  assert.equal(storeUpdates, 0);
+  offA();
+  offB();
+  stop();
 });
 
 test("page progress: a bar mounted mid-load starts at the current value, follows reports, and a gone page reads 0", () => {

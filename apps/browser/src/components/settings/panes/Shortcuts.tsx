@@ -5,27 +5,25 @@ import {
   resolvedShortcuts,
   useMenuBarRevision,
 } from "../../../state/commands/commandShortcuts";
-import { Symbol, Button, font, PopUp, SearchField, Toggle, useHover } from "../../ui";
+import { Box, Button, EmptyState, KeyCap, PopUp, SearchField, space, Symbol, Text, Toggle, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { useProfileOrder } from "../../../state/profiles/hooks";
 import { setShortcutOverride, updateSettings } from "../../../state/settings/actions";
 import { openUrls } from "../../../state/browser/actions";
-import { Anchor, Group, Row, SectionHeader } from "../Form";
+import { Anchor, Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { matchesQuery } from "../../pages/PageLayout";
 import { shortcutItems } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { formatShortcut, sameShortcut, type Shortcut } from "../../../state/commands/shortcuts";
-import { settingsType } from "../tokens";
 
 type Filter = "all" | "customized" | "conflicts";
 
 const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 
 export function ShortcutsPane() {
-  const theme = useTheme();
   const overrides = useSettings((s) => s.shortcuts);
   const profileOrder = useProfileOrder();
   const menuBar = useMenuBarRevision();
@@ -64,30 +62,34 @@ export function ShortcutsPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
-        Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
-      </Text>
-      <Group style={{ marginTop: 14 }}>
-        <Row anchor="shortcuts.undoReopensClosedTab">
-          <Toggle value={undoReopensClosedTab} onChange={(v) => updateSettings({ undoReopensClosedTab: v })} />
-        </Row>
-      </Group>
-      <Anchor id="shortcuts.actions" radius={8} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
-        <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" style={{ flex: 1 }} />
-        <PopUp
-          value={filter}
-          options={[
-            { value: "all", title: "All Shortcuts" },
-            { value: "customized", title: "Customized Shortcuts" },
-            { value: "conflicts", title: "Conflicting Shortcuts" },
-          ]}
-          onChange={setFilter}
-          minWidth={170}
-        />
-        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {} })} />
-      </Anchor>
+      <Box gap="xl">
+        <PaneIntro>Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.</PaneIntro>
+        <Group>
+          <Row anchor="shortcuts.undoReopensClosedTab">
+            <Toggle value={undoReopensClosedTab} onChange={(v) => updateSettings({ undoReopensClosedTab: v })} />
+          </Row>
+        </Group>
+        <Anchor id="shortcuts.actions" shape="row" style={TOOLBAR}>
+          <View style={FILL}>
+            <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" />
+          </View>
+          <PopUp
+            value={filter}
+            options={[
+              { value: "all", title: "All Shortcuts" },
+              { value: "customized", title: "Customized Shortcuts" },
+              { value: "conflicts", title: "Conflicting Shortcuts" },
+            ]}
+            onChange={setFilter}
+            minWidth={170}
+          />
+          <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {} })} />
+        </Anchor>
+      </Box>
       {items !== null && shown.length === 0 && (
-        <Text style={{ marginTop: 30, textAlign: "center", ...font.body, color: theme.textTertiary }}>No matching actions</Text>
+        <View style={NO_MATCH}>
+          <EmptyState symbol="magnifyingglass" title="No matching actions" />
+        </View>
       )}
       {menus.map((menu) => (
         <View key={menu}>
@@ -103,7 +105,7 @@ export function ShortcutsPane() {
                     title={item.title}
                     description={
                       others.length ? (
-                        <Text style={{ ...font.footnote, marginTop: 2, color: theme.warning }}>
+                        <Text size="caption" tone="warning" style={CONFLICT}>
                           {`${others.length === 1 ? "This shortcut conflicts with another shortcut:" : "This shortcut conflicts with other shortcuts:"} ${others.map((o) => o.title).join(", ")}`}
                         </Text>
                       ) : item.path.length > 1 ? (
@@ -112,7 +114,7 @@ export function ShortcutsPane() {
                     }
                   >
                     {overrides[item.id] && (
-                      <Button variant="icon" icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcutOverride(item.id, null)} tooltip="Reset to Default" />
+                      <Button variant="icon" icon="arrow.uturn.backward" size="m" onPress={() => setShortcutOverride(item.id, null)} tooltip="Reset to Default" />
                     )}
                     <ShortcutField
                       combo={effective(item)}
@@ -159,39 +161,29 @@ function ShortcutField({
   const text = recording ? "Type Shortcut" : formatShortcut(combo);
   if (!remappable) {
     return (
-      <View style={{ minWidth: 110, alignItems: "flex-end" }} tooltip="(not remappable)">
-        <Text style={{ ...font.body, color: theme.textTertiary }}>{text || "—"}</Text>
+      <View style={FIXED_KEYS} tooltip="(not remappable)">
+        <Text tone="textTertiary">{text || "—"}</Text>
       </View>
     );
   }
   return (
-    <View {...hoverProps}>
+    <View {...hoverProps} style={KEY_FIELD}>
       <Pressable onPress={onRecord}>
-        <View
-          style={{
-            minWidth: 110,
-            height: 24,
-            paddingHorizontal: 8,
-            borderRadius: 6,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            backgroundColor: recording ? `${theme.formAccent}33` : hovered ? theme.controlHover : theme.control,
-            borderWidth: recording ? 1.5 : 1,
-            borderColor: recording ? theme.formAccent : theme.controlBorder,
-          }}
-        >
-          <Text style={{ flex: 1, textAlign: "center", ...font.body, color: recording ? theme.formAccent : text ? theme.textPrimary : theme.textTertiary }}>
-            {text || "None"}
-          </Text>
-          {hovered && !recording && combo.key ? (
-            <Pressable onPress={onClear} tooltip="Remove Shortcut">
-              <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
-            </Pressable>
-          ) : null}
-        </View>
+        <KeyCap keys={[text || "None"]} editing={recording} empty={!text} hovered={hovered} />
       </Pressable>
+      {hovered && !recording && combo.key ? (
+        <Pressable onPress={onClear} tooltip="Remove Shortcut" style={CLEAR}>
+          <Symbol name="xmark.circle.fill" size={11} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
+
+const TOOLBAR = { flexDirection: "row", alignItems: "center", gap: space.m } as const;
+const FILL = { flex: 1 } as const;
+const NO_MATCH = { marginTop: space.huge } as const;
+const CONFLICT = { marginTop: space.xxs } as const;
+const FIXED_KEYS = { minWidth: 110, alignItems: "flex-end" } as const;
+const KEY_FIELD = { minWidth: 110, justifyContent: "center" } as const;
+const CLEAR = { position: "absolute", right: space.xs } as const;

@@ -22,6 +22,7 @@ public class TabsModule: Module {
     Function("revealTab") { (key: String) in ArdiaWebView.revealTab(key) }
     Function("dropTabReveals") { (key: String) in ArdiaWebView.dropTabReveals(key) }
     Function("revealOffered") { (adoptId: String, key: String) in ArdiaWebView.revealOffered(adoptId, over: key) }
+    AsyncFunction("discardOffered") { (adoptId: String) -> Bool in ArdiaWebView.discardOffered(adoptId) }.runOnQueue(.main)
 
     Self.calls.function
   }
@@ -35,6 +36,10 @@ public class TabsModule: Module {
       reply.ok()
     },
     "strips": { _, reply in reply.ok(ArdiaTabStrip.allStrips) },
+    "reportCommits": { args, reply in
+      ArdiaWebView.reportsCommits = try args.bool("on")
+      reply.ok()
+    },
     "lastTabPolicy": EngineCall.passing("ac_tabs_last_tab_policy"),
     "devBrowserId": { args, reply in reply.ok(try browserId(args)) },
     "devEvents": { args, reply in reply.ok(ArdiaWebView.devEvents(browserId: try browserId(args))) },

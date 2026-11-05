@@ -2,14 +2,16 @@ import { useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { layout, useTheme } from "../ui/theme";
-import { useActiveTabId, useSettings, useTabLive, useWindowId } from "../../state/browser/hooks";
-import { openPanel, toggleSidebar } from "../../state/windows/actions";
+import { useActiveTabId, useSettings, useSidebarSide, useTabLive, useWindowId } from "../../state/browser/hooks";
+import { toggleSidebar } from "../../state/windows/actions";
+import { openEmptySidebarField } from "../../state/omnibox/barState";
 import { isAddressBarInSidebar } from "../../state/sidebar/current";
 import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
-import { Button, type ButtonHit, FadeLabel, font, useHover } from "../ui";
+import { Button, type ButtonHit, FadeLabel, font, radius, space, ToolbarRowContext, useHover } from "../ui";
+import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { setUrlAnchor } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SidebarFieldFill } from "./SidebarField";
@@ -23,13 +25,14 @@ const BUTTON = layout.toolbarButton;
 const { toggleX: TOGGLE_X, edge: EDGE } = HEADER_TOOLS;
 const LIGHTS_Y = ARC_LIGHTS_CENTER[1];
 const PLATE = 32;
-const PLATE_RADIUS = 6;
+const PLATE_RADIUS = radius.toolbar;
 
 export function SidebarHeaderTools({ width }: { width: number }) {
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
   const toggle = useSettings((st) => st.showSidebarButton !== false);
+  const right = useSidebarSide(windowId) === "right";
   const sidebarHint = useShortcutHint("toggleSidebar");
   const { buttons, step } = navButtonsFitting(width, BUTTON, toggle);
   const shown = tab ? buttons : [];
@@ -47,8 +50,8 @@ export function SidebarHeaderTools({ width }: { width: number }) {
         <Button variant="icon" toolbar
           {...place(at[0]!)}
           palette={palette}
-          icon="sidebar.left"
-          size={GLYPH}
+          icon={right ? "sidebar.right" : "sidebar.left"}
+          glyph={GLYPH}
           onPress={() => toggleSidebar(windowId)}
           tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
         />
@@ -77,11 +80,11 @@ function NavigationButtons({
     <>
       {buttons.map((b, i) =>
         b === "reload" ? (
-          <ReloadButton key={b} {...slots[i]!} tab={tab} loading={loading} palette={palette} onFocus={alreadyFocused} />
+          <ReloadButton key={b} place={slots[i]} tab={tab} loading={loading} palette={palette} onFocus={alreadyFocused} />
         ) : (
           <HistoryButton
             key={b}
-            {...slots[i]!}
+            place={slots[i]}
             tabId={tab.id}
             windowId={tab.windowId}
             direction={b === "back" ? -1 : 1}
@@ -110,7 +113,9 @@ export function SidebarAddressRow({ width }: { width: number }) {
       onLayout={anchor}
       style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, top: SIDEBAR_FIELD.top, height: SIDEBAR_FIELD.height }}
     >
-      {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
+      <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
+        {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
+      </ToolbarRowContext.Provider>
     </View>
   );
 }
@@ -146,13 +151,13 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
 function EmptyField({ windowId }: { windowId: string }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
-  const open = () => openPanel(windowId, "");
+  const open = () => openEmptySidebarField(windowId);
   return (
     <View {...hoverProps}>
       <Pressable onPress={open}>
-        <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: 11 }}>
+        <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: space.l }}>
           <SidebarFieldFill hovered={hovered} />
-          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -2 }} />
+          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -space.xxs }} />
         </View>
       </Pressable>
     </View>

@@ -193,6 +193,17 @@ export const toolRows = {
       },
     },
     {
+      section: "Automation",
+      rows: {
+        automationRules: {
+          advanced: true,
+          title: "Automation rules",
+          description: "Rules from hooks.json and config.json that rewrite or route links, pick folders, run programs or read what you type stay off until you approve them here. Editing a rule needs a new approval.",
+          keywords: ["hooks", "hooks.json", "approve", "launchActions", "address bar providers", "rules"],
+        },
+      },
+    },
+    {
       section: "Web engine",
       rows: {
         chromium: { advanced: true, title: "Chromium", keywords: ["engine", "version", "ardiacore"] },

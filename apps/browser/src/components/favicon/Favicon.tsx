@@ -35,7 +35,7 @@ export const Favicon = memo(function Favicon({
         setBroken(resolved.uri);
         if (resolved.profileId) faviconFailed(resolved.profileId, resolved.uri);
       }}
-      style={{ width: size, height: size, borderRadius: size > 18 ? radius.s : radius.xs, tintColor: white ? theme.textPrimary : undefined }}
+      style={{ width: size, height: size, borderRadius: size > 18 ? radius.control : radius.hair, tintColor: white ? theme.textPrimary : undefined }}
     />
   );
 });
@@ -43,7 +43,7 @@ export const Favicon = memo(function Favicon({
 export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }: { url: string; size?: number }) {
   const theme = useTheme();
   const bundled = bundledSiteIcon(url, theme.dark);
-  if (bundled !== undefined) return <Image source={bundled} style={{ width: size, height: size, borderRadius: size > 18 ? radius.s : radius.xs }} />;
+  if (bundled !== undefined) return <Image source={bundled} style={{ width: size, height: size, borderRadius: size > 18 ? radius.control : radius.hair }} />;
   const initial = hostInitial(url);
   if (!initial) return <Symbol name="globe" size={size - 3} color={theme.textSecondary} style={{ width: size, height: size }} />;
   const tile = Math.round((size * 14) / 16);

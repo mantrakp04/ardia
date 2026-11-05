@@ -11,7 +11,7 @@ import { DragController } from "./dragController";
 import { onAppEvent } from "../../state/drag/dragNative";
 import { WindowDropGlow } from "../tabstrip/WindowDropGlow";
 
-const DROP_GLOW_PLACE = { left: 5, right: 5, top: 44, bottom: 6, borderRadius: radius.card } as const;
+const DROP_GLOW_PLACE = { left: 5, right: 5, top: 44, bottom: 6, borderRadius: radius.chrome } as const;
 
 const DragContext = createContext<DragController | null>(null);
 

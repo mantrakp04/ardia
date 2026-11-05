@@ -26,9 +26,10 @@ import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
 import { useWindowId, WindowContext } from "./state/browser/hooks";
 import { provideProfileLooks } from "./state/profiles/looks";
+import { currentBasePalette } from "./state/config/basePalette";
 import { focusedWindowOf } from "./state/windows/ui";
 
-provideProfileLooks({ accent: profileAccent, theme: profileTheme });
+provideProfileLooks({ accent: profileAccent, theme: (profile, appDark, source) => profileTheme(profile, appDark, source, currentBasePalette()) });
 
 export function WindowRoot({ windowId }: { windowId?: string }) {
   if (isUtilityWindowId(windowId))
@@ -74,6 +75,7 @@ function BrowserWindow() {
         fullscreen={fullscreen}
         topTabs={topTabs}
         inset={{ top: topTabs ? TOP_STRIP_HEIGHT : layout.cardInset, right: layout.cardInset, bottom: layout.cardInset, left: layout.cardInset }}
+        windowWidth={width}
         topStrip={
           topTabs
             ? { strip: <TopTabStrip width={width} hidden={fullscreen} />, peek: <TopStripPeek windowWidth={width} enabled={!fullscreen} /> }

@@ -1,5 +1,7 @@
 export * from "./app";
+export * from "./automation";
 export * from "./cli";
+export * from "./config";
 export * from "./browserCommand";
 export * from "./commands";
 export * from "./dev";
@@ -13,6 +15,7 @@ export * from "./menus";
 export * from "./notifications";
 export * from "./scripting";
 export * from "./system";
+export * from "./systemSignals";
 export * from "./translation";
 export * from "./updater";
 export * from "./userScripts";

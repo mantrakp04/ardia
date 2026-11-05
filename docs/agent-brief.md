@@ -14,7 +14,7 @@ variables) is in `docs/conventions.md`, enforced by `apps/browser/src/convention
   inline styles.
 - Native code lives in Expo modules under `packages/*/ios` (Swift / Objective-C++):
   - `packages/ardiacore`: the web engine, **ArdiaCore**: Chrome's own framework (`Chromium Framework.framework`,
-    Chromium 156.0.8078.47 + Helium 0.20.1 + our patch series, `docs/engine-build.md`) with our layer linked
+    Chromium 156.0.8078.79 + Helium 0.20.3 + our patch series, `docs/engine-build.md`) with our layer linked
     in, and the Expo modules and JS API the app uses (`docs/ardiacore-spike.md`, `docs/ardiacore-parity.md`).
     - **Chromium runs the process.** `main.swift` calls `ArdiaHost.run`: `ChromeMain` starts with our
       `ACMainDelegate`, `NSApp` is Chrome's `BrowserCrApplication`, and the React Native host (`AppDelegate`) starts
@@ -297,6 +297,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `releaseNotes` | Opens the release notes as after an update (works on a Developer ID build: the release smoke) |
 | | `cliHome=<dir>` · `cliBinDir=<dir>` · `cliUrl=<url>` | Where the `ardia` command installs, links and downloads from (`docs/cli.md`); a test instance installs only with the first two |
 | | `syncFolder=<dir>` | The sync folder (`packages/sync/scripts/e2e.mjs`) |
+| | `sharedFolders=<dir>` | Where Share Folder… creates shared folders and where Add Shared Folder… starts (`iCloud Drive › Ardia Shared` otherwise; a scratch data dir uses `<data dir>/Ardia Shared`), `docs/shared-folders.md` |
 | | `importSourceDir=<dir>` · `importSafariHome=<dir>` | Where import looks for other browsers and Safari's home, so a scratch instance never sees the owner's profiles |
 | `ARDIA_SWITCHES` | `name=on\|off,…` | Kill switches (`platform/killSwitches.ts` `SWITCHES`, at most 8, on by default) and experiments (`EXPERIMENTS`: `beginFrameBridge`, `serverWindowDrag`, `serverWindowDragAllOpen`, `webkitSignIn`, off by default). Honoured in every build (`docs/kill-switches.md`) |
 | `ARDIA_TRACE` | `visibility` | Occlusion and each WebView attach/detach, `[ardiacore-vis]` in the system log |

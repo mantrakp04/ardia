@@ -10,6 +10,8 @@ import type { DragGeometry } from "./stripGroups";
 import { registerSlot } from "./stripReorder";
 import { ITEM_HEIGHT, ITEM_TOP, NEW_TAB_ICON, TAB_RADIUS } from "./tokens";
 
+const NEW_TAB_HIT = { width: ITEM_HEIGHT, height: ITEM_HEIGHT, plateX: 0, plateY: 0, box: ITEM_HEIGHT, radius: TAB_RADIUS };
+
 export function NewTabButton({ windowId, geometry }: { windowId: string; geometry: DragGeometry }) {
   const theme = useTheme();
   const palette = useMemo<IconPalette>(
@@ -25,8 +27,8 @@ export function NewTabButton({ windowId, geometry }: { windowId: string; geometr
     else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
   };
   return (
-    <Animated.View style={{ marginTop: ITEM_TOP, marginLeft: 0.5, transform: [{ translateX: shift }] }}>
-      <Button variant="icon" toolbar icon="plus" size={NEW_TAB_ICON} box={ITEM_HEIGHT} radius={TAB_RADIUS} palette={palette} tooltip="New Tab (⌘T) — ⌥-click to open in Split View" onPress={open} />
+    <Animated.View style={{ marginTop: ITEM_TOP, transform: [{ translateX: shift }] }}>
+      <Button variant="icon" toolbar icon="plus" glyph={NEW_TAB_ICON} hit={NEW_TAB_HIT} palette={palette} tooltip="New Tab (⌘T) — ⌥-click to open in Split View" onPress={open} />
     </Animated.View>
   );
 }

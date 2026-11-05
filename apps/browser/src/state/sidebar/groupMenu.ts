@@ -9,6 +9,8 @@ import { GROUP_COLOR_ORDER, GROUP_COLORS, NEUTRAL_GROUP_SWATCH, NO_GROUP_COLOR_S
 import { copyUrls, openIconPicker, startRename } from "./actions";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
+import { confirmRemovingShared } from "../sharedFolders/removal";
+import { runSharedFolderChoice, sharedFolderMenuItems } from "../sharedFolders/menu";
 
 type GroupChoice = Destination | { kind: "color"; color: GroupColor | null };
 
@@ -51,6 +53,7 @@ export function groupMenuItems(s: BrowserState, windowId: string, groupId: strin
       { id: "color", title: "Color", symbol: "paintpalette", children: groupColorItems(g.color, siteColor) },
     ],
     withAlternate({ id: "copy", title: "Copy All Links", symbol: "link" }, { id: "copyMd", title: "Copy All Links as Markdown", symbol: "link" }, null),
+    sharedFolderMenuItems(s, groupId),
     [
       { id: "ungroup", title: "Ungroup", symbol: "folder.badge.minus" },
       { id: "bookmarkBar", title: "Move to Bookmarks Bar", symbol: "bookmark" },
@@ -62,8 +65,13 @@ export function groupMenuItems(s: BrowserState, windowId: string, groupId: strin
 
 export async function openGroupMenu(windowId: string, groupId: string) {
   const choice = await chooseFromMenu(groupMenuItems(store(), windowId, groupId));
-  if (choice) runGroupChoice(windowId, groupId, choice);
+  if (!choice) return;
+  const removes = typeof choice === "string" ? REMOVES_FOLDER.has(choice) : choice.kind === "profile";
+  if (removes && !(await confirmRemovingShared(windowId, groupId))) return;
+  runGroupChoice(windowId, groupId, choice);
 }
+
+const REMOVES_FOLDER = new Set(["pin", "ungroup", "delete", "bookmarkBar"]);
 
 function sendGroup(groupId: string, to: GroupChoice) {
   if (to.kind === "color") store().updateGroup(groupId, { color: to.color });
@@ -76,6 +84,7 @@ function runGroupChoice(windowId: string, groupId: string, choice: string | Grou
   const g = s.groups[groupId];
   if (!g || g.windowId !== windowId) return;
   if (typeof choice !== "string") return sendGroup(groupId, choice);
+  if (runSharedFolderChoice(windowId, groupId, choice)) return;
   const target = { kind: "group" as const, id: groupId };
   if (choice === "rename") void startRename(windowId, target);
   else if (choice === "icon") void openIconPicker(windowId, target);

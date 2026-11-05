@@ -84,6 +84,14 @@ struct ArdiaPageReports {
   BOOL autoPictureInPictureActive{};
 };
 
+struct ArdiaCommits {
+  __weak ArdiaCoreTab *tab;
+  NSString *url;
+  double at{};
+  int httpStatus{};
+  int documents{};
+};
+
 struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
@@ -105,6 +113,7 @@ struct ArdiaPageFocusState {
   ArdiaReveal _reveal;
   ArdiaPageFocusState _focus;
   ArdiaPageReports _reports;
+  ArdiaCommits _commits;
   NSString *_profile;
   NSString *_initialURL;
   NSString *_adoptId;
@@ -128,6 +137,7 @@ struct ArdiaPageFocusState {
   BOOL _pinned;
   NSView *_devtoolsView;
   CFTimeInterval _linkDropAt;
+  NSMutableArray<NSDictionary<NSString *, id> *> *_newTabLinks;
   id _sightObserver;
 }
 - (ArdiaWindowController *)controller;
@@ -152,7 +162,13 @@ struct ArdiaPageFocusState {
 - (void)takePageReports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
-- (void)announceOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition tries:(int)tries;
+- (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)announceOpenedTab:(ArdiaCoreTab *)tab
+                  adoptId:(NSString *)adoptId
+              disposition:(NSString *)disposition
+                  inPlace:(BOOL)inPlace
+                    tries:(int)tries;
+- (void)noteNewTabLink:(nullable NSString *)url;
 - (void)tabRemovedFromWindow:(ArdiaCoreWindow *)window;
 - (void)tabActivatedByChrome:(BOOL)chromes;
 - (void)devToolsChanged:(NSView *)devToolsView;
@@ -235,6 +251,8 @@ struct ArdiaPageFocusState {
 @interface ArdiaWebView (NavigationInternal)
 - (void)emitNavigation;
 - (void)queueNavigation;
+- (NSString *)committedURL;
+- (void)followCommitsOfTab;
 - (void)resetBlocked:(BOOL)report;
 - (void)sendProgress;
 - (void)loadNow:(NSString *)url userInitiated:(BOOL)userInitiated;

@@ -1,0 +1,367 @@
+{
+ "bpm": 100,
+ "fps": 30,
+ "beatFrames": 18,
+ "beats": 111,
+ "lufs": -16,
+ "truePeak": -1.5,
+ "sections": [
+  {
+   "name": "chaos",
+   "at": 0,
+   "beats": 16,
+   "energy": 3,
+   "brief": "soft curious pulse"
+  },
+  {
+   "name": "turn",
+   "at": 16,
+   "beats": 7,
+   "energy": 5,
+   "brief": "rising lift"
+  },
+  {
+   "name": "air",
+   "at": 23,
+   "beats": 1,
+   "energy": 1,
+   "brief": "breath before the swell"
+  },
+  {
+   "name": "swell",
+   "at": 24,
+   "beats": 8,
+   "energy": 7,
+   "brief": "warm full swell on 24"
+  },
+  {
+   "name": "explain",
+   "at": 32,
+   "beats": 50,
+   "energy": 5,
+   "brief": "steady groove under narration"
+  },
+  {
+   "name": "montage",
+   "at": 82,
+   "beats": 15,
+   "energy": 8,
+   "brief": "energy up for three user stories"
+  },
+  {
+   "name": "callback",
+   "at": 97,
+   "beats": 4,
+   "energy": 4,
+   "brief": "settle for the chat callback"
+  },
+  {
+   "name": "end",
+   "at": 101,
+   "beats": 10,
+   "energy": 4,
+   "brief": "resolve on 101, ring out to 111 (66.6 s)"
+  }
+ ],
+ "silences": [],
+ "endHit": 101,
+ "sfx": [
+  {
+   "kind": "chatPop",
+   "beat": 0.6,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 1.3,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2.0,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 2.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 9.5,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 10.3,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 11.1,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 11.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 12.8,
+   "gain": 0.3
+  },
+  {
+   "kind": "chatPop",
+   "beat": 13.5,
+   "gain": 0.3
+  },
+  {
+   "kind": "click",
+   "beat": 13.6,
+   "gain": 0.4
+  },
+  {
+   "kind": "sheet",
+   "beat": 13.7,
+   "gain": 0.3
+  },
+  {
+   "kind": "arrive",
+   "beat": 24,
+   "gain": 0.75
+  },
+  {
+   "kind": "click",
+   "beat": 32.5,
+   "gain": 0.45
+  },
+  {
+   "kind": "click",
+   "beat": 34,
+   "gain": 0.45
+  },
+  {
+   "kind": "sheet",
+   "beat": 34.6,
+   "gain": 0.35
+  },
+  {
+   "kind": "tick",
+   "beat": 36.4,
+   "gain": 0.4
+  },
+  {
+   "kind": "click",
+   "beat": 38,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 39.4,
+   "gain": 0.35
+  },
+  {
+   "kind": "click",
+   "beat": 43.8,
+   "gain": 0.45
+  },
+  {
+   "kind": "click",
+   "beat": 45.0,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 45.7,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 57.5,
+   "gain": 0.4
+  },
+  {
+   "kind": "thud",
+   "beat": 59.9,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 61.5,
+   "gain": 0.6
+  },
+  {
+   "kind": "type",
+   "beat": 67.3,
+   "gain": 0.35
+  },
+  {
+   "kind": "click",
+   "beat": 69.3,
+   "gain": 0.35
+  },
+  {
+   "kind": "arrive",
+   "beat": 70.6,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 74.9,
+   "gain": 0.4
+  },
+  {
+   "kind": "thud",
+   "beat": 76.9,
+   "gain": 0.45
+  },
+  {
+   "kind": "arrive",
+   "beat": 78.5,
+   "gain": 0.5
+  },
+  {
+   "kind": "lift",
+   "beat": 82.1,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 83.77,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 84.7,
+   "gain": 0.55
+  },
+  {
+   "kind": "lift",
+   "beat": 87.1,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 88.77,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 89.7,
+   "gain": 0.55
+  },
+  {
+   "kind": "lift",
+   "beat": 92.1,
+   "gain": 0.35
+  },
+  {
+   "kind": "thud",
+   "beat": 93.77,
+   "gain": 0.4
+  },
+  {
+   "kind": "arrive",
+   "beat": 94.7,
+   "gain": 0.55
+  },
+  {
+   "kind": "chatPop",
+   "beat": 97.5,
+   "gain": 0.35
+  },
+  {
+   "kind": "chatPop",
+   "beat": 98.5,
+   "gain": 0.35
+  },
+  {
+   "kind": "chatPop",
+   "beat": 99.3,
+   "gain": 0.35
+  }
+ ],
+ "vo": [
+  {
+   "id": "vo1a",
+   "beat": 1.5,
+   "text": "Every group project has a chat like this."
+  },
+  {
+   "id": "vo1b",
+   "beat": 7.2,
+   "text": "The links pile up."
+  },
+  {
+   "id": "vo1c",
+   "beat": 11.0,
+   "text": "And someone always asks for the one from Tuesday."
+  },
+  {
+   "id": "vo2",
+   "beat": 18.25,
+   "text": "So give them a better place."
+  },
+  {
+   "id": "vo3",
+   "beat": 31.5,
+   "text": "Shared Folders puts one folder in everyone's sidebar."
+  },
+  {
+   "id": "vo4b",
+   "beat": 38.6,
+   "text": "Anyone with an Apple ID can join."
+  },
+  {
+   "id": "vo4c",
+   "beat": 44.3,
+   "text": "They choose Add Shared Folder, and it's in their sidebar too."
+  },
+  {
+   "id": "vo5",
+   "beat": 52.0,
+   "text": "It's a real folder in iCloud Drive, so there's no new account to make."
+  },
+  {
+   "id": "vo6a",
+   "beat": 60.2,
+   "text": "Drop a link in."
+  },
+  {
+   "id": "vo6b",
+   "beat": 64.0,
+   "text": "Everyone has it, a moment later."
+  },
+  {
+   "id": "vo7a",
+   "beat": 68.6,
+   "text": "Rename it."
+  },
+  {
+   "id": "vo7b",
+   "beat": 74.2,
+   "text": "Reorder it."
+  },
+  {
+   "id": "vo7c",
+   "beat": 82.75,
+   "text": "Or tuck it into a subfolder."
+  },
+  {
+   "id": "vo9a",
+   "beat": 88.0,
+   "text": "Plan a trip."
+  },
+  {
+   "id": "vo9b",
+   "beat": 92.4,
+   "text": "Or run a whole class."
+  },
+  {
+   "id": "vo8",
+   "beat": 101.5,
+   "text": "Shared Folders. Now in Ardia."
+  }
+ ]
+}

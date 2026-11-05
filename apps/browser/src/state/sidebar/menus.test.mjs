@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+globalThis.acTestNativeModules = { ArdiaSharedFolders: { location: () => ({ path: "/scratch", iCloudAvailable: true, iCloudPath: "/scratch" }) } };
 const { useBrowser } = await import("../browser/store.ts");
 const { tabMenuItems } = await import("./tabMenu.ts");
 const { multiTabMenuItems } = await import("./multiTabMenu.ts");
@@ -263,6 +264,7 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "---",
     "New Group [folder.badge.plus]",
     "New Live Folder ›",
+    "Add Shared Folder… [person.2]",
     "---",
     "New Profile… [plus]",
     "---",
@@ -270,10 +272,14 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "---",
     "Collapse Pinned Tabs [rectangle.compress.vertical] (off)",
     "Show Tabs in Sidebar [sidebar.left] ⇧⌘S ✓",
+    "Sidebar on Right [sidebar.right]",
     "Auto-Hide Tabs ⌘S",
     "---",
     "Close All Tabs [xmark] ⇧⌘K",
   ]);
+  S().updateSettings({ sidebarSide: "right" });
+  assert.ok(top(sidebarMenuItems(S(), w)).includes("Sidebar on Right [sidebar.right] ✓"));
+  S().updateSettings({ sidebarSide: "left" });
   S().closeTabs([ids[1]]);
   assert.ok(top(sidebarMenuItems(S(), w)).includes("Reopen Closed Tab ⇧⌘T"));
 });

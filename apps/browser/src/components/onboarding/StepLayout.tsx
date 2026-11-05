@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { ScrollView, View, type LayoutChangeEvent } from "react-native";
+import { ChoiceCard } from "./ChoiceCard";
 import { activeSteps, previousStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { BackButton, PrimaryButton, SecondaryButton } from "./Buttons";
-import { CONTENT_WIDTH } from "./ChoiceList";
-import { Reveal, StepProgress, StepTitle, useOnboardingColors } from "./Parts";
+import { CONTENT_WIDTH } from "./tokens";
+import { Reveal, StepProgress, StepTitle, Tag, useOnboardingColors } from "./Parts";
+import { radius, space } from "../ui/tokens";
 
-const COLUMN = { width: CONTENT_WIDTH + 56, padding: 28 };
+const COLUMN = { width: CONTENT_WIDTH + space.xxxl * 2, padding: space.xxxl, top: 34 };
 
-const NARROW = { below: 600, previewShare: 0.3, inset: 12, padding: 20 } as const;
+const NARROW = { below: 600, previewShare: 0.3, inset: space.l, padding: space.xxl } as const;
 
 export function StepLayout({
   title,
@@ -20,7 +22,7 @@ export function StepLayout({
 }: {
   title: string;
   subtitle?: string;
-  tag?: ReactNode;
+  tag?: string;
   pageKey?: string | number;
   children?: ReactNode;
   actions: ReactNode;
@@ -35,11 +37,15 @@ export function StepLayout({
   };
   const body = (
     <>
-      <Reveal delay={60} style={{ gap: 10 }}>
+      <Reveal delay={60} style={{ gap: space.ml }}>
         <StepTitle title={title} subtitle={subtitle} />
-        {tag ? <View style={{ flexDirection: "row" }}>{tag}</View> : null}
+        {tag ? (
+          <View style={{ flexDirection: "row" }}>
+            <Tag title={tag} />
+          </View>
+        ) : null}
       </Reveal>
-      <Reveal delay={140} style={{ gap: 16, marginTop: 22 }}>
+      <Reveal delay={140} style={{ gap: space.xl, marginTop: space.xxxl }}>
         {children}
       </Reveal>
     </>
@@ -49,42 +55,35 @@ export function StepLayout({
       <Reveal>
         <StepProgress />
       </Reveal>
-      <ScrollView key={pageKey} style={{ flex: 1, marginTop: 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView key={pageKey} style={{ flex: 1, marginTop: space.xxl }} showsVerticalScrollIndicator={false}>
         {body}
       </ScrollView>
-      <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 14 }}>
+      <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: space.ml, paddingTop: space.xl }}>
         {actions}
       </Reveal>
     </>
   );
-  const pane = {
-    borderRadius: 14,
-    backgroundColor: colors.preview,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: colors.previewBorder,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  } as const;
+  const pane = { overflow: "hidden", alignItems: "center", justifyContent: "center" } as const;
+  const paneCard = { plain: true, radius: radius.sheet, fill: colors.preview, border: colors.previewBorder };
   if (narrow)
     return (
       <View style={{ flex: 1 }} onLayout={onLayout}>
-        <View style={[pane, { height: Math.round(size.height * NARROW.previewShare), margin: NARROW.inset, marginBottom: 0 }]}>
+        <ChoiceCard {...paneCard} style={[pane, { height: Math.round(size.height * NARROW.previewShare), margin: NARROW.inset, marginBottom: 0 }]}>
           <Reveal delay={120} style={{ alignSelf: "stretch", flex: 1 }}>
             <FittedPreview>{preview}</FittedPreview>
           </Reveal>
-        </View>
+        </ChoiceCard>
         <View style={{ flex: 1, padding: NARROW.padding }}>{column}</View>
       </View>
     );
   return (
     <View style={{ flex: 1, flexDirection: "row" }} onLayout={onLayout}>
-      <View style={{ width: COLUMN.width, paddingTop: 34, paddingBottom: 28, paddingHorizontal: COLUMN.padding }}>{column}</View>
-      <View style={[pane, { flex: 1, margin: 12, marginLeft: 0 }]}>
+      <View style={{ width: COLUMN.width, paddingTop: COLUMN.top, paddingBottom: COLUMN.padding, paddingHorizontal: COLUMN.padding }}>{column}</View>
+      <ChoiceCard {...paneCard} style={[pane, { flex: 1, margin: space.l, marginLeft: 0 }]}>
         <Reveal delay={120} style={{ alignItems: "center", justifyContent: "center" }}>
           {preview}
         </Reveal>
-      </View>
+      </ChoiceCard>
     </View>
   );
 }

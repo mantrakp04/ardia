@@ -19,17 +19,20 @@ import { markPinned } from "../pins/pinChoices";
 import { hasLoadedPage, hasPage, IDLE, isAsleep, loadedPage, withWake } from "../tabs/pageSession";
 import { adoptParkedPins, parkWindowPins } from "../pins/parkedPins";
 import { settleMovedPins } from "../pins/pinMirror";
-import { returnSharedPages } from "../pins/pinShare";
+import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
+import { isTopApp, topAppsShared } from "../pins/topApps";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { pendingRestore } from "../tabs/adoptIds";
+import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
 import { sharedElsewhere, sharesTabs } from "../tabs/tabShare";
-import { isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
+import { isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
-import { orderSections } from "../groups/groups";
+import { commonGroup, orderSections } from "../groups/groups";
+import { groupOf } from "../pins/tabGrouping";
 import { focusedWindowOf } from "./ui";
 
 export type CreateWindowOptions = {
@@ -83,24 +86,24 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   if (!moving.length) return s;
 
   const sources = new Set(moving.map((t) => t.windowId));
+  const joinable = new Set(moving.filter((t) => !groupOf(s, t.id) && !inPinnedContainer(s, t.id)).map((t) => t.id));
   let next = removeTabs(s, moving.map((t) => t.id), false);
-  const w = next.windows[targetId]!;
   const tabs = { ...next.tabs };
   const live = { ...next.live };
-  const activeTabIds = { ...w.activeTabIds };
   for (const tab of moving) {
     const t = tab;
     const loaded = hasLoadedPage(tab);
     tabs[t.id] = { ...t, windowId: targetId, page: loaded ? loadedPage(navigationTo(t.url)) : hasPage(tab) ? IDLE : tab.page };
     live[t.id] = IDLE_LIVE;
-    activeTabIds[t.profileId] ??= t.id;
   }
-  next = {
-    ...next,
-    tabs,
-    live,
-    windows: { ...next.windows, [targetId]: { ...w, tabIds: orderSections([...w.tabIds, ...moving.map((t) => t.id)], tabs, next.groups), activeTabIds } },
-  };
+  next = { ...next, tabs, live };
+  for (const profileId of new Set(moving.map((t) => t.profileId))) {
+    next = placeMovedTabs(next, targetId, moving.filter((t) => t.profileId === profileId).map((t) => t.id), joinable);
+  }
+  const w = next.windows[targetId]!;
+  const activeTabIds = { ...w.activeTabIds };
+  for (const t of moving) activeTabIds[t.profileId] ??= t.id;
+  next = { ...next, windows: { ...next.windows, [targetId]: { ...w, activeTabIds } } };
   for (const id of sources) {
     const src = next.windows[id];
     if (!src || viewTabIds(next, id).length) continue;
@@ -108,6 +111,25 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
     if (recent) next = apply(next, activated(next, src.activeTabIds[recent.profileId] ?? recent.id));
   }
   return settleMovedPins(s, next, moving.map((t) => t.id), targetId);
+}
+
+function placeMovedTabs(s: BrowserState, windowId: string, ids: string[], joinable: Set<string>): BrowserState {
+  const w = s.windows[windowId]!;
+  const { index, openerId } = newTabPlacement(s, w, s.tabs[ids[0]!]!.profileId);
+  const currentGrouped = !!openerId && !inPinnedContainer(s, openerId) && !!groupOf(s, openerId);
+  const joins = currentGrouped && ids.every((id) => joinable.has(id));
+  const at = currentGrouped && !joins ? afterGroupOf(s, w.tabIds, openerId, index) : index;
+  const tabIds = orderSections(inserted(w.tabIds, at, ids), s.tabs, s.groups);
+  const next = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds } } };
+  return joins ? joinedWithCurrent(next, ids, openerId) : next;
+}
+
+const inserted = (list: string[], at: number, items: string[]) => [...list.slice(0, at), ...items, ...list.slice(at)];
+
+function afterGroupOf(s: BrowserState, tabIds: string[], tabId: string | undefined, from: number): number {
+  let i = from;
+  while (tabId && i < tabIds.length && commonGroup(s.groups, [tabId, tabIds[i]!])) i++;
+  return i;
 }
 
 function intoProfile(s: BrowserState, tabId: string, profileId: string): BrowserState {
@@ -245,6 +267,8 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     let target = remembered && s.tabs[remembered]?.windowId === windowId ? remembered : undefined;
     target ??= s.windows[windowId]!.tabIds.find((id) => s.tabs[id]?.profileId === profileId && !isAsleep(s.tabs[id]));
     if (!target) [s, target] = withNewTab(s, windowId, { profileId, background: true });
+    const swapped = !hasPage(s.tabs[target]!) && holderOf(s, target)?.windowId === windowId ? swapPinPage(s, target) : null;
+    if (swapped) [s, target] = [swapped.state, swapped.holderId];
     s = apply(s, activated(s, target));
     if (focusedWindowOf(s) === windowId) s = { ...s, ui: { ...s.ui, lastProfileId: profileId } };
     set(s);
@@ -266,6 +290,14 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
 
   moveTabToProfile(tabId, profileId) {
     const s = get();
+    const tab = s.tabs[tabId];
+    const w = tab && s.windows[tab.windowId];
+    if (tab && isRegularWindow(w) && isTopApp(tab) && topAppsShared(s, tab.profileId, profileId)) {
+      get().switchProfile(w.id, profileId);
+      const now = get();
+      const copy = now.windows[w.id]?.tabIds.find((id) => now.tabs[id]?.profileId === profileId && isTopApp(now.tabs[id]!) && pinKeyOf(now.tabs[id]!) === pinKeyOf(tab));
+      if (copy) return get().activate(copy);
+    }
     const next = intoProfile(s, tabId, profileId);
     if (next !== s) set(apply(next, activated(next, tabId)));
   },

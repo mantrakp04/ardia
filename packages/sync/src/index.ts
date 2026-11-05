@@ -6,3 +6,4 @@ export * from "./native.ts";
 export * from "./order.ts";
 export * from "./scope.ts";
 export * from "./scopeState.ts";
+export * from "./sharedFolders.ts";

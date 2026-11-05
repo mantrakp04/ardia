@@ -46,6 +46,7 @@ export type EngineCalls = {
   "tabs.stripCommand": [{ id: number; command: TabStripCommand }, null];
   "tabs.strips": [{}, TabStripTransaction];
   "tabs.lastTabPolicy": [{}, { closesWindow: boolean }];
+  "tabs.reportCommits": [{ on: boolean }, null];
   "tabs.devBrowserId": [{ tabId: string }, number];
   "tabs.devEvents": [{ tabId: string }, { name: string; payload: unknown }[]];
   "tabs.devWindowNumber": [{ tabId: string }, number];
@@ -168,6 +169,7 @@ export type EngineCalls = {
   "webView.setPeekOtherSiteTabs": [{ tabIds: string[] }, null];
   "webView.setSelectionPopover": [{ enabled: boolean }, null];
   "webView.setCommandScrollZoom": [{ enabled: boolean }, null];
+  "webView.setLittleArdiaOpensNewTabLinks": [{ enabled: boolean }, null];
   "webView.setAutoPictureInPicture": [{ enabled: boolean }, null];
   "webView.setVideoUpscaling": [{ enabled: boolean }, null];
   "webView.setVideoUpscalingTestConditions": [{ lowPower?: boolean; thermalPressure?: boolean }, null];

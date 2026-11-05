@@ -1,6 +1,7 @@
 import { useEffect, type ComponentType } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { space, useTheme, VisualEffect, WindowDragRegion } from "../ui";
+import { PageToolbar } from "../pages/PageLayout";
 import { ChooseBody, ChooseFooter } from "./steps/ChooseStep";
 import { DoneBody, DoneFooter } from "./steps/DoneStep";
 import { ProfilesBody, ProfilesFooter } from "./steps/ProfilesStep";
@@ -41,19 +42,9 @@ export function ImportWindow() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: importLayout.padX, paddingTop: importLayout.padTop, paddingBottom: space.xxl }}>
         <Body flow={flow} />
       </ScrollView>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.m,
-          paddingHorizontal: space.xxl,
-          height: importLayout.footerHeight,
-          borderTopWidth: StyleSheet.hairlineWidth * 2,
-          borderTopColor: theme.divider,
-        }}
-      >
+      <PageToolbar size="footer" divider>
         {Footer ? <Footer flow={flow} /> : null}
-      </View>
+      </PageToolbar>
     </View>
   );
 }

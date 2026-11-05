@@ -16,6 +16,7 @@ chromium chromium-device-chooser-hook.patch
 chromium chromium-cast-dialog-hook.patch
 chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
+chromium chromium-storage-pressure-bubble-without-browser-view.patch
 chromium chromium-initial-document-access.patch
 chromium chromium-hidden-window-current-window.patch
 chromium chromium-devtools-redock-display.patch

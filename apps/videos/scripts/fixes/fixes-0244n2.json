@@ -1,0 +1,24 @@
+{
+  "id": "fixes-0244n2",
+  "segments": [
+    {
+      "scene": "groupbox",
+      "title": "A tab group's box sits even",
+      "body": "Point at a tab group, then at its last tab. The box now sits as close under the last tab as it does over the group's name. 0.2.44-nightly.1 left an extra 2 pt of box below the last tab, so the bottom looked loose next to the top and sides.",
+      "layout": "side",
+      "cam": [0, 34, 262, 150],
+      "lead": 1.0,
+      "tail": 5.0,
+      "gaps": { "before": "2.5 pt below the last tab", "after": "0.5 pt, same as the top" }
+    },
+    {
+      "scene": "notifymute",
+      "title": "Muted tabs stay quiet",
+      "body": "Pinecone is muted, in the background. A message arrives and the site sends a notification. Ardia now hands it to macOS without a sound. 0.2.44-nightly.1 muted the tab's audio but still asked macOS to play the alert sound. The banner is drawn from what Ardia sent to macOS: a hidden test window can't show real ones.",
+      "layout": "side",
+      "cam": [0, 0, 560, 330],
+      "lead": 3.6,
+      "tail": 4.2
+    }
+  ]
+}

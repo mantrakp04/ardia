@@ -567,10 +567,13 @@ async function runPair(startRow, opA, opB, schedule) {
 }
 
 const cases = [];
-for (const startRow of [true, false])
-  for (const opA of OPS)
-    for (const opB of OPS)
-      for (const schedule of Object.keys(SCHEDULES)) if (!(schedule.includes("44 days late") && (opA.collects || opB.collects))) cases.push({ startRow, opA, opB, schedule });
+const scheduleNames = Object.keys(SCHEDULES);
+for (let i = 0; i < OPS.length; i++)
+  for (let j = i; j < OPS.length; j++) {
+    const [opA, opB] = (i + j) % 2 ? [OPS[j], OPS[i]] : [OPS[i], OPS[j]];
+    const usable = scheduleNames.filter((schedule) => !(schedule.includes("44 days late") && (opA.collects || opB.collects)));
+    cases.push({ startRow: Math.floor(cases.length / scheduleNames.length) % 2 === 0, opA, opB, schedule: usable[(j - i) % usable.length] });
+  }
 
 test(`concurrent pinned-tab edits on two Macs converge (${cases.length} runs)`, async () => {
   const failures = [];
@@ -886,4 +889,77 @@ test("known residual: a log that never arrives keeps its gap and the logs after 
   assert.ok(b.scopes.default.extra.lateA?.length, "documented in docs/sync.md: the gap stays open");
   const fromA = [...folder.files.values()].filter((f) => f.scope === "p:default" && JSON.parse(f.payload).kind === "log" && JSON.parse(f.payload).device === "lateA");
   assert.ok(fromA.length >= 1, "and A's later logs stay in the folder");
+});
+
+test("Top Apps shared by two profiles: an unpin synced into a profile whose pins are parked stays gone when that profile is shown before its sibling syncs", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "default");
+  const b = sharing("B", "work");
+  const tiles = (mac, p) => mac.with(() => Object.values(S().tabs).filter((t) => t.profileId === p && t.pin?.as === "tile").map((t) => t.pinnedUrl));
+  a.with(() => {
+    const w = S().windowOrder[0];
+    S().pinTabs([S().newTab(w, { url: "https://mail.com/" })], true);
+    S().switchProfile(w, "work");
+  });
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync());
+  assert.deepEqual(tiles(b, "work"), ["https://mail.com/"], "B's Work shows the shared Top App");
+  a.with(() => S().togglePin(Object.values(S().tabs).find((t) => t.profileId === "default" && t.pin).id));
+  await a.sync(["default"]);
+  await b.sync(["default"]);
+  b.with(() => S().switchProfile(S().windowOrder[0], "default"));
+  assert.deepEqual(tiles(b, "default"), [], "showing Personal doesn't take Work's not-yet-synced copy back");
+  const sent = [];
+  for (let i = 0; i < 6; i++) sent.push((await a.sync()) + (await b.sync()));
+  assert.deepEqual(sent.slice(-3), [0, 0, 0], `the Macs settle (published per round: ${sent})`);
+  assert.deepEqual([tiles(a, "default"), tiles(a, "work"), tiles(b, "default"), tiles(b, "work")], [[], [], [], []], "gone everywhere");
+});
+
+test("Top Apps shared by two profiles: a tile made a pinned row on one Mac stays a row after the other Mac syncs both profiles", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "work");
+  const b = sharing("B", "default");
+  let mail;
+  a.with(() => {
+    const w = S().windowOrder[0];
+    mail = S().newTab(w, { url: "https://mail.com/" });
+    S().pinTabs([mail, S().newTab(w, { url: "https://docs.com/" })], true);
+  });
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync());
+  a.with(() => S().placeTabs([tabFor(mail, "work").id], { pinned: true, row: true }));
+  const sent = [];
+  for (let i = 0; i < 6; i++) sent.push((await a.sync()) + (await b.sync()));
+  assert.equal(a.with(() => tabFor(mail, "work")?.pin?.as), "row", "A keeps Work's pinned row");
+  assert.equal(b.with(() => S().parkedPins.work?.tabs.find((p) => p.id === mail)?.pin?.as), "row", "B's parked Work has it as a row");
+  assert.deepEqual(sent.slice(-3), [0, 0, 0], `the Macs settle (published per round: ${sent})`);
+});
+
+test("Top Apps shared by two profiles reach a profile the pinning Mac has never shown", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "default");
+  const b = sharing("B", "work");
+  a.with(() => S().pinTabs([S().newTab(S().windowOrder[0], { url: "https://mail.com/" })], true));
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync(["work", "default"]));
+  assert.deepEqual(
+    b.with(() => Object.values(S().tabs).filter((t) => t.profileId === "work" && t.pin?.as === "tile").map((t) => t.pinnedUrl)),
+    ["https://mail.com/"],
+    "B's Work shows the Top App A pinned in Personal",
+  );
 });

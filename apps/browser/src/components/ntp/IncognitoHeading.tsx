@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Box, Symbol, Text, useTheme } from "../ui";
+import { Box, proseLineHeight, Symbol, Text, useTheme } from "../ui";
 import { headingTop } from "./newTabLayout";
 import { ntpType } from "./tokens";
 
 export const INCOGNITO_ICON = "eyeglasses";
 
-const BLURB = { lineHeight: 18, textAlign: "center", maxWidth: 460 } as const;
+const BLURB = { lineHeight: proseLineHeight.body, textAlign: "center", maxWidth: 460 } as const;
 const ICON = { width: 32, height: 28 } as const;
 
 export function IncognitoHeading({ left, barTop, width, onHeight }: { left: number; barTop: number; width: number; onHeight: (height: number) => void }) {

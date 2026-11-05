@@ -14,6 +14,8 @@ export type NavigationState = {
   initialDocumentAccessed?: boolean;
   committedInitial?: boolean;
   committedUrl?: string;
+  committedAt?: number;
+  httpStatus?: number;
 };
 
 export type MediaState = { playing: boolean; muted: boolean };
@@ -50,10 +52,19 @@ export type OpenWindowRequest = {
 export type BlockedPopup = { id: string; url: string; origin: string };
 
 export type FindResult = { count: number; active: number; final: boolean };
+export type PageShare = {
+  kind: "text" | "link" | "image" | "video" | "audio" | "page";
+  url?: string;
+  title?: string;
+  text?: string;
+  fileUrl?: string;
+};
 export type PageCommand = {
-  command: "search" | "ask" | "copyLinkToHighlight" | "escape";
+  command: "search" | "ask" | "copyLinkToHighlight" | "escape" | "share";
   text: string;
   modifiers?: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean };
+  share?: PageShare;
+  anchor?: [number, number, number, number];
 };
 export type LoadError = { url: string; code: number; text: string };
 export type NavigationEntry = { url: string; title: string; current: boolean };

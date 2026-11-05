@@ -102,6 +102,10 @@ const darkRoles = {
   warning: "#FF9F0A",
   success: "#30D158",
   searchFlash: "rgba(10,132,255,0.22)",
+  badgeFill: "rgba(255,255,255,0.15)",
+  chipFill: "rgba(255,255,255,0.1)",
+  progressTrack: "#717782",
+  toastFill: "rgba(44,42,43,0.9)",
 };
 
 export type ColorRoles = typeof darkRoles;
@@ -199,6 +203,10 @@ const lightRoles: ColorRoles = {
   warning: "#FF9500",
   success: "#34C759",
   searchFlash: "rgba(0,122,255,0.16)",
+  badgeFill: "rgba(0,0,0,0.15)",
+  chipFill: "rgba(0,0,0,0.06)",
+  progressTrack: "#CED7E7",
+  toastFill: "rgba(255,255,255,0.92)",
 };
 
 export const colorRoles = { dark: darkRoles, light: lightRoles } as const;
@@ -276,45 +284,61 @@ export const space = {
   xxs: 2,
   xs: 4,
   s: 6,
-  sm: 7,
   m: 8,
   ml: 10,
   l: 12,
-  lx: 14,
   xl: 16,
-  xlx: 18,
   xxl: 20,
   xxxl: 24,
+  huge: 32,
 } as const;
 
 export type Space = keyof typeof space;
 
 export const radius = {
   none: 0,
-  xs: 3,
-  s: 4,
-  field: 5,
-  control: 5.5,
-  m: 6,
-  button: 7,
-  l: 8,
-  card: 10,
+  hair: 2,
+  control: 4,
+  tile: 8,
   panel: 12,
-  sheet: 14,
+  sheet: 16,
+  hero: 20,
+  chrome: 10,
+  toolbar: 7,
 } as const;
 
 export type Radius = keyof typeof radius;
 
+export const concentric = (outer: number, inset: number) => Math.max(0, outer - inset);
+
+export const capsule = (height: number) => height / 2;
+
 export const font = {
+  badge: { fontSize: 9 },
+  tiny: { fontSize: 10 },
   caption: { fontSize: 11 },
-  footnote: { fontSize: 11.5 },
   small: { fontSize: 12 },
   body: { fontSize: 13 },
-  title: { fontSize: 14 },
-  heading: { fontSize: 15 },
+  title: { fontSize: 15 },
+  large: { fontSize: 17 },
 } as const;
 
 export type TypeSize = keyof typeof font;
+
+export const lineHeight = { badge: 11, tiny: 13, caption: 14, small: 15, body: 16, title: 20, large: 22, display: 32 } as const;
+
+export const proseLineHeight = { small: 17, body: 18 } as const;
+
+export const tabularNums = { fontVariant: ["tabular-nums"] as "tabular-nums"[] };
+
+export const tracking = { tight: -0.4, caps: 0.4, wide: 1.2 } as const;
+
+export const display = {
+  title: { fontSize: 22 },
+  large: { fontSize: 26, letterSpacing: tracking.tight },
+  code: { fontSize: 26, letterSpacing: 3, fontFamily: "Menlo" },
+  wordmark: { fontSize: 64, letterSpacing: -1.5 },
+} as const;
 
 export const weight = {
   regular: "400",
@@ -325,18 +349,47 @@ export const weight = {
 
 export type Weight = keyof typeof weight;
 
-export type ShadowLevel = { color: string; opacity: { dark: number; light: number }; radius: number; offset: [number, number] };
+export type ShadowLevel = { color: string; opacity: { dark: number; light: number }; panelShare?: number; radius: number; offset: [number, number] };
 
 export const shadow = {
   tooltip: { color: "#000000", opacity: { dark: 0.15, light: 0.08 }, radius: 4, offset: [0, 1] },
   popover: { color: "#000000", opacity: { dark: 0.45, light: 0.16 }, radius: 18, offset: [0, 8] },
-  dialog: { color: "#000000", opacity: { dark: darkRoles.panelShadowOpacity, light: lightRoles.panelShadowOpacity }, radius: 24, offset: [0, 10] },
+  dialog: { color: "#000000", opacity: { dark: darkRoles.panelShadowOpacity, light: lightRoles.panelShadowOpacity }, panelShare: 1, radius: 24, offset: [0, 10] },
+  card: { color: "#000000", opacity: { dark: darkRoles.panelShadowOpacity * 0.8, light: lightRoles.panelShadowOpacity * 0.8 }, panelShare: 0.8, radius: 16, offset: [0, 6] },
+  sheet: { color: "#000000", opacity: { dark: darkRoles.panelShadowOpacity, light: lightRoles.panelShadowOpacity }, panelShare: 1, radius: 20, offset: [0, 8] },
+  peek: { color: "#000000", opacity: { dark: darkRoles.panelShadowOpacity, light: lightRoles.panelShadowOpacity }, panelShare: 1, radius: 20, offset: [0, 6] },
 } satisfies Record<string, ShadowLevel>;
 
 export type Shadow = keyof typeof shadow;
 
 export const hairline = { panel: 0.5, ring: 0.5 } as const;
 
-export const swatch = { size: 20, inset: 2, ring: 2, gap: 7 } as const;
+export const swatch = { size: 20, inset: 2, ring: 2, gap: space.m } as const;
 
 export const opacity = { disabled: 0.45 } as const;
+
+export const TOOLTIP = { padX: 6.5, padY: 5, radius: radius.control } as const;
+
+export const emptyState = { icon: 30, iconBox: 40, liftBottom: 80, subtitleMaxWidth: 360 } as const;
+
+export const iconButton = {
+  xs: { box: 20, glyph: 9 },
+  s: { box: 22, glyph: 10 },
+  m: { box: 24, glyph: 11 },
+  l: { box: 26, glyph: 12 },
+  toolbar: { box: 30, glyph: 15 },
+} as const;
+
+export type IconButtonSize = keyof typeof iconButton;
+
+export const pillHeight = { prompt: 28, m: 24, l: 30, xl: 36 } as const;
+
+export const stepperSize = { width: 24, height: 20 } as const;
+
+export const sheetWidth = { xs: 320, s: 420, m: 440, l: 480 } as const;
+
+export type SheetSize = keyof typeof sheetWidth;
+
+export const toastLayout = { bottom: space.xxxl, maxWidth: 420, rise: 10 } as const;
+
+export const POPOVER_WIDTH = { s: 300, m: 340, l: 360 } as const;

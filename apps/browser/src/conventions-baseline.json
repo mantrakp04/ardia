@@ -3,6 +3,7 @@
   "imports": {},
   "native-calls": {},
   "tokens": {},
+  "scale": {},
   "get-state": {},
   "set-state": {},
   "store-reads": {},

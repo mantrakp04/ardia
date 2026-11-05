@@ -90,7 +90,22 @@
    ForceInstalledTracker force_installed_tracker_;
 --- a/extensions/browser/updater/update_service.cc
 +++ b/extensions/browser/updater/update_service.cc
-@@ -131,6 +131,13 @@
+@@ -106,10 +106,14 @@
+                                      const update_client::CrxUpdateItem& item) {
+   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+ 
++  bool should_perform_action_on_omaha_attributes = false;
++
+   switch (item.state) {
+     case update_client::ComponentState::kUpToDate:
++      should_perform_action_on_omaha_attributes = true;
+       break;
+     case update_client::ComponentState::kCanUpdate:
++      should_perform_action_on_omaha_attributes = true;
+       if (update_found_callback) {
+         update_found_callback.Run(item.id, item.next_version);
+       }
+@@ -126,6 +130,13 @@
        break;
    }
  

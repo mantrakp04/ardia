@@ -10,6 +10,8 @@ import {
   type EngineInput,
   type ExtensionSearchEngine,
   type SearchEngine,
+  isProviderEntryList,
+  type ProviderEntry,
 } from "@ardia/core";
 import type { StateCreator } from "zustand";
 import { fromLegacyUrl } from "../../lib/legacy";
@@ -17,10 +19,12 @@ import type { BrowserState } from "../browser/store";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
+import type { JsonSchema } from "../../lib/jsonSchema";
+import { PROVIDERS_SCHEMA } from "../omnibox/providerSchema";
 
 export const DEFAULT_PROFILE_ID = "default";
 
-export type SettingSpec<T> = { default: T; valid: (value: unknown) => boolean; synced: boolean; values?: readonly T[] };
+export type SettingSpec<T> = { default: T; valid: (value: unknown) => boolean; synced: boolean; schema: JsonSchema; values?: readonly T[] };
 
 const SYNCED = true;
 
@@ -28,16 +32,31 @@ const isRecordOf = (v: unknown, item: (x: unknown) => boolean) => isFields(v) &&
 const isWidth = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
 const hasStrings = (v: unknown, keys: readonly string[]) => isFields(v) && keys.every((k) => isString(v[k]));
 
-const flag = (d: boolean, synced = false): SettingSpec<boolean> => ({ default: d, valid: (v) => typeof v === "boolean", synced });
-const text = (d: string, synced = false): SettingSpec<string> => ({ default: d, valid: isString, synced });
-const width = (d: number): SettingSpec<number> => ({ default: d, valid: isWidth, synced: false });
+const STRING_LIST: JsonSchema = { type: "array", items: { type: "string" } };
+const WIDTH: JsonSchema = { type: "number", exclusiveMinimum: 0 };
+const engineRecords = (keys: string[]): JsonSchema => ({
+  type: "array",
+  items: { type: "object", properties: Object.fromEntries(keys.map((k) => [k, { type: "string" }])), required: keys },
+});
+const recordOf = (item: JsonSchema): JsonSchema => ({ type: "object", additionalProperties: item });
+
+const flag = (d: boolean, synced = false): SettingSpec<boolean> => ({ default: d, valid: (v) => typeof v === "boolean", synced, schema: { type: "boolean" } });
+const text = (d: string, synced = false): SettingSpec<string> => ({ default: d, valid: isString, synced, schema: { type: "string" } });
+const width = (d: number): SettingSpec<number> => ({ default: d, valid: isWidth, synced: false, schema: WIDTH });
+const fraction = (d: number, synced = false): SettingSpec<number> => ({
+  default: d,
+  valid: (v) => typeof v === "number" && v >= 0 && v <= 1,
+  synced,
+  schema: { type: "number", minimum: 0, maximum: 1 },
+});
 const oneOf = <const V extends readonly string[]>(values: V, d: V[number], synced = false): SettingSpec<V[number]> & { values: V } => ({
   default: d,
   values,
   valid: (v) => values.includes(v as string),
   synced,
+  schema: { type: "string", enum: values },
 });
-const shaped = <T,>(d: T, valid: (v: unknown) => boolean, synced = false): SettingSpec<T> => ({ default: d, valid, synced });
+const shaped = <T,>(d: T, valid: (v: unknown) => boolean, schema: JsonSchema, synced = false): SettingSpec<T> => ({ default: d, valid, synced, schema });
 
 export const SETTING_SPECS = {
   warnBeforeQuitting: flag(false, SYNCED),
@@ -45,12 +64,17 @@ export const SETTING_SPECS = {
   restoreSession: flag(true),
   searchEngine: text("google", SYNCED),
   customSearchUrl: text("", SYNCED),
-  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), SYNCED),
-  extensionSearchEngines: shaped<ExtensionSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"]))),
+  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), engineRecords(["id", "name", "keyword", "url"]), SYNCED),
+  extensionSearchEngines: shaped<ExtensionSearchEngine[]>(
+    [],
+    (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"])),
+    engineRecords(["profile", "extensionId", "name", "keyword", "url"]),
+  ),
   searchSuggestions: flag(true, SYNCED),
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
+  sidebarSide: oneOf(["left", "right"], "left", SYNCED),
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),
@@ -63,13 +87,14 @@ export const SETTING_SPECS = {
   extendWebsiteColor: flag(true, SYNCED),
   cmdClickCreatesTabGroup: flag(true, SYNCED),
   optShiftClickOpensInGroup: flag(true, SYNCED),
+  dragToGroupInTopStrip: flag(false, SYNCED),
   peekModifier: oneOf(["alt", "shift", "off"], "shift", SYNCED),
   peekLinksToOtherSites: flag(false, SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
   autoGroupMeetingTabs: flag(true, SYNCED),
-  cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), SYNCED),
-  mutedSites: shaped<string[]>([], isStringList, SYNCED),
-  neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList)),
+  cleanUpInactiveTabsAfterMinutes: shaped<number | null>(null, (v) => v === null || isWidth(v), { type: ["number", "null"], exclusiveMinimum: 0 }, SYNCED),
+  mutedSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
+  neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   autoPictureInPicture: flag(true, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
   videoUpscaling: flag(true, SYNCED),
@@ -80,13 +105,16 @@ export const SETTING_SPECS = {
   balancedTopApps: flag(false, SYNCED),
   showAdvancedSettings: flag(false),
   selectedTabGlow: oneOf(["full", "soft", "off"], "full", SYNCED),
+  interfaceStyle: oneOf(["glass", "classic"], "glass", SYNCED),
+  glassTintWithTheme: flag(false, SYNCED),
+  glassTintAmount: fraction(0.8, SYNCED),
   pageScrollBars: oneOf(["system", "thin"], "system", SYNCED),
   fadeUnloadedTabs: flag(false, SYNCED),
   warnBeforeClosingTabGroup: flag(true, SYNCED),
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
-  keepActiveSites: shaped<string[]>([], isStringList, SYNCED),
+  keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),
   showFullUrl: flag(false, SYNCED),
   allowJavaScriptFromAppleEvents: flag(false),
@@ -101,12 +129,15 @@ export const SETTING_SPECS = {
   spacesFollowAppearance: flag(true),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
-  shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), SYNCED),
+  shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
   openLinksInLittleArdia: flag(true),
-  littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth)),
+  littleArdiaOpensNewTabLinks: flag(false, SYNCED),
+  littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth), { type: "array", prefixItems: [WIDTH, WIDTH], minItems: 2, maxItems: 2 }),
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
-  websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit")),
+  websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
   protectedVideoInWebKit: flag(true),
+  launchActions: shaped<string[]>([], (v) => isStringList(v) && v.length <= 20, { type: "array", items: { type: "string" }, maxItems: 20 }),
+  omniboxProviders: shaped<ProviderEntry[]>([], isProviderEntryList, PROVIDERS_SCHEMA),
 };
 
 type Specs = typeof SETTING_SPECS;

@@ -28,3 +28,8 @@ test("hex output is clamped, rounded and upper case", () => {
   assert.equal(over("#FFFFFF80", "#000000"), "#808080");
   assert.equal(over("rgba(255,0,0,0.25)", "#0000ff"), "#4000BF");
 });
+
+test("short hex colours expand each digit, as CSS does", () => {
+  assert.deepEqual(parseColor("#36A"), [0x33, 0x66, 0xaa, 1]);
+  assert.deepEqual(parseColor("#36A8"), [0x33, 0x66, 0xaa, 0x88 / 255]);
+});

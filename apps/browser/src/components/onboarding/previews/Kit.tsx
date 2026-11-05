@@ -2,13 +2,15 @@ import type { ReactNode } from "react";
 import { Animated, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Surface, Symbol } from "../../ui";
 import { hex } from "../../ui/theme";
+import { capsule, font, radius as radii, space, type ShadowLevel } from "../../ui/tokens";
+import { TAB_ROW } from "../../sidebar/tokens";
 import type { ToolbarPalette } from "../../ui/toolbarColors";
 import { trafficLights } from "../tokens";
 import { NEW_TAB, tab, type Tab } from "./content";
-import { at, atRect, CRUMB_X, FIELD, fill, hairline, LIGHTS_Y, ROW, rowY, TOOLBAR_H, TOOLBAR_ICONS, type Geo, type Rect } from "./geometry";
+import { at, atRect, CHIP, CRUMB_X, FIELD, fill, hairline, LIGHTS_Y, ROW, rowY, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo, type Rect } from "./geometry";
 import type { Look } from "./look";
 import { mix } from "../../../lib/color";
-import { mockInk, tabTints } from "./tokens";
+import { mockInk, mockShadow, tabTints } from "./tokens";
 
 export type Styles = StyleProp<ViewStyle> | object;
 
@@ -40,7 +42,7 @@ export function Lights({ g, y = LIGHTS_Y.toolbar, x = 25, style }: { g: Geo; y?:
   return (
     <Animated.View style={[at(g, x - 6, y - 6, 52, 12), style as ViewStyle]} pointerEvents="none">
       {trafficLights.map((color, i) => (
-        <View key={color} style={[at(g, i * 20, 0, 12, 12), { borderRadius: 6 * g.s, backgroundColor: color, borderWidth: hairline, borderColor: mockInk.lightsRim }]} />
+        <View key={color} style={[at(g, i * 20, 0, 12, 12), { borderRadius: capsule(12) * g.s, backgroundColor: color, borderWidth: hairline, borderColor: mockInk.lightsRim }]} />
       ))}
     </Animated.View>
   );
@@ -61,7 +63,7 @@ export function Highlight({ g, look, x = ROW.x, y, w = ROW.w, h = ROW.h, style }
     <Animated.View style={[at(g, x, y, w, h), style as ViewStyle]} pointerEvents="none">
       <Surface
         fill={hex(t.tabSelected)}
-        cornerRadius={10 * g.s}
+        cornerRadius={radii.chrome * g.s}
         borderColors={t.tabSelectedBorder.map(hex)}
         borderWidth={0.5}
         shadowColor={hex(t.tabSelectedShadow)}
@@ -78,10 +80,10 @@ export function TabRow({ g, look, t, x = ROW.x, y, w = ROW.w, selected, style, d
   return (
     <Animated.View style={[at(g, x, y, w, ROW.h), style as ViewStyle]}>
       {selected ? <Highlight g={g} look={look} x={0} y={0} w={w} /> : null}
-      <View style={[fill, { flexDirection: "row", alignItems: "center", paddingLeft: 10 * g.s, paddingRight: 8 * g.s, gap: 10 * g.s, opacity: dim ? 0.4 : 1 }]}>
+      <View style={[fill, { flexDirection: "row", alignItems: "center", paddingLeft: TAB_ROW.contentLeft * g.s, paddingRight: TAB_ROW.trailing * g.s, gap: TAB_ROW.titleGap * g.s, opacity: dim ? 0.4 : 1 }]}>
         <Favicon g={g} t={t} />
         <View style={{ flex: 1 }}>
-          <Label g={g} size={13} color={t === NEW_TAB ? look.t.textSecondary : selected ? look.t.tabSelectedText : look.t.textTab}>
+          <Label g={g} size={font.body.fontSize} color={t === NEW_TAB ? look.t.textSecondary : selected ? look.t.tabSelectedText : look.t.textTab}>
             {t.title}
           </Label>
         </View>
@@ -121,7 +123,7 @@ export function Crumb({ g, look, t, palette, style }: { g: Geo; look: Look; t: T
   const p = palette ?? look.plain;
   return (
     <Animated.View style={[{ flexDirection: "row", alignItems: "center" }, style as ViewStyle]}>
-      <Label g={g} size={13} color={p.text} weight="500" style={{ flexShrink: 1 }}>
+      <Label g={g} size={font.body.fontSize} color={p.text} weight="500" style={{ flexShrink: 1 }}>
         {t.host.replace(/^www\./, "")}
         <Text style={{ color: p.secondary, fontWeight: "400" }}>{`  /  ${t.title}`}</Text>
       </Label>
@@ -132,27 +134,83 @@ export function Crumb({ g, look, t, palette, style }: { g: Geo; look: Look; t: T
 export function Toolbar({ g, look, w, t, site, crumb = true, icons = TOOLBAR_ICONS, crumbX = CRUMB_X, style }: { g: Geo; look: Look; w: number; t: Tab; site?: boolean; crumb?: boolean; icons?: readonly number[]; crumbX?: number; style?: Styles }) {
   const palette = site ? look.site : look.plain;
   return (
-    <Animated.View style={[at(g, 0, 0, w, TOOLBAR_H), style as ViewStyle]}>
-      {palette.background ? <View style={[fill, { backgroundColor: palette.background }]} /> : null}
+    <ToolbarBand g={g} fill={palette.background ?? undefined} divider={site ? undefined : palette.divider} style={style}>
       <NavIcons g={g} color={palette.icon} xs={icons} y={21.2} names={icons.length === 3 ? ["chevron.left", "chevron.right", "arrow.clockwise"] : undefined} />
       {crumb ? <Crumb g={g} look={look} t={t} palette={palette} style={at(g, crumbX, 12, w - crumbX - 20, 18)} /> : null}
-      {site ? null : <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: hairline, backgroundColor: palette.divider }} />}
-    </Animated.View>
+    </ToolbarBand>
   );
+}
+
+export function FieldPlate({ g, look, style, children }: { g: Geo; look: Look; style?: Styles; children?: ReactNode }) {
+  return <Animated.View style={[{ position: "absolute", borderRadius: radii.chrome * g.s, backgroundColor: look.t.pinnedResting }, style as ViewStyle]}>{children}</Animated.View>;
 }
 
 export function SidebarField({ g, look, t, style, children }: { g: Geo; look: Look; t: Tab; style?: Styles; children?: ReactNode }) {
   return (
-    <Animated.View style={[atRect(g, FIELD), { borderRadius: 10 * g.s, backgroundColor: look.t.pinnedResting, justifyContent: "center", paddingHorizontal: 12 * g.s, overflow: "hidden" }, style as ViewStyle]}>
+    <FieldPlate g={g} look={look} style={[atRect(g, FIELD), { justifyContent: "center", paddingHorizontal: space.l * g.s, overflow: "hidden" }, style]}>
       {children ?? <Crumb g={g} look={look} t={t} />}
+    </FieldPlate>
+  );
+}
+
+export function Card({ g, look, rect, children, style, bg }: { g: Geo; look: Look; rect?: Rect; children?: ReactNode; style?: Styles; bg?: string }) {
+  return (
+    <Animated.View style={[rect ? atRect(g, rect) : { position: "absolute" }, { borderRadius: radii.chrome * g.s, backgroundColor: bg ?? look.page, borderWidth: hairline, borderColor: look.t.cardEdge, overflow: "hidden" }, style as ViewStyle]}>
+      {children}
     </Animated.View>
   );
 }
 
-export function Card({ g, look, rect, children, style, bg }: { g: Geo; look: Look; rect: Rect; children?: ReactNode; style?: Styles; bg?: string }) {
+export function ToolbarBand({ g, h = TOOLBAR_H, fill: background, divider, dividerStyle, style, children }: { g: Geo; h?: number; fill?: string; divider?: string; dividerStyle?: Styles; style?: Styles; children?: ReactNode }) {
   return (
-    <Animated.View style={[atRect(g, rect), { borderRadius: 10 * g.s, backgroundColor: bg ?? look.page, borderWidth: hairline, borderColor: look.t.cardEdge, overflow: "hidden" }, style as ViewStyle]}>
+    <Animated.View style={[{ position: "absolute", left: 0, right: 0, top: 0, height: h * g.s, backgroundColor: background }, style as ViewStyle]}>
+      {children}
+      {divider ? <Animated.View style={[{ position: "absolute", left: 0, right: 0, bottom: 0, height: hairline, backgroundColor: divider }, dividerStyle as ViewStyle]} /> : null}
+    </Animated.View>
+  );
+}
+
+export function TopTabPlate({ g, look, x, style, children }: { g: Geo; look: Look; x: number; style?: Styles; children?: ReactNode }) {
+  return (
+    <Animated.View style={[at(g, x, 3, CHIP.w, STRIP_H - 2), { borderTopLeftRadius: radii.chrome * g.s, borderTopRightRadius: radii.chrome * g.s, overflow: "hidden", backgroundColor: look.card }, style as ViewStyle]}>
       {children}
     </Animated.View>
   );
+}
+
+export function MockSurface({ g, look, radius, shadow, fill: surfaceFill, edge, style, children }: { g: Geo; look: Look; radius: number; shadow: ShadowLevel; fill?: string; edge?: string; style?: Styles; children?: ReactNode }) {
+  return (
+    <Surface
+      fill={hex(surfaceFill ?? look.t.panel)}
+      cornerRadius={radius * g.s}
+      borderColor={hex(edge ?? look.t.panelBorder)}
+      borderWidth={0.5}
+      shadowColor={shadow.color}
+      shadowOpacity={look.dark ? shadow.opacity.dark : shadow.opacity.light}
+      shadowRadius={shadow.radius * g.s}
+      shadowOffset={[shadow.offset[0] * g.s, shadow.offset[1] * g.s]}
+      style={style as ViewStyle}
+    >
+      {children}
+    </Surface>
+  );
+}
+
+export function WindowFrame({ g, look, edge, style, children }: { g: Geo; look: Look; edge: string; style?: Styles; children?: ReactNode }) {
+  return (
+    <View style={style as ViewStyle}>
+      <MockSurface g={g} look={look} radius={radii.panel} shadow={mockShadow.window} fill={look.tint[1]} edge={edge} style={fill} />
+      <View style={[fill, { borderRadius: radii.panel * g.s, overflow: "hidden" }]}>{children}</View>
+    </View>
+  );
+}
+
+const CARET = { width: 1.2, height: 17 } as const;
+
+export function Caret({ g, look, style }: { g: Geo; look: Look; style?: Styles }) {
+  return <Animated.View style={[{ width: CARET.width * g.s, height: CARET.height * g.s, borderRadius: capsule(CARET.width) * g.s, backgroundColor: look.t.accent }, style as ViewStyle]} />;
+}
+
+export function Selection({ g, look, style, children }: { g: Geo; look: Look; style?: Styles; children?: ReactNode }) {
+  return <Animated.View style={[{ backgroundColor: look.t.selection, borderRadius: radii.hair * g.s }, style as ViewStyle]}>{children}</Animated.View>;
 }

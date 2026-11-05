@@ -12,6 +12,7 @@ export type ArdiaCoreNativeModules = {
     revealTab(tabId: string): void;
     dropTabReveals(tabId: string): void;
     revealOffered(adoptId: string, overTabId: string): void;
+    discardOffered(adoptId: string): Promise<boolean>;
   };
   ArdiaEngine: { inputIdleSeconds(): number };
   ArdiaPasswords: {

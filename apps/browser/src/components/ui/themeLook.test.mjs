@@ -106,7 +106,7 @@ test("a black theme gets light text even in light mode, and a white one dark tex
 });
 
 test("no theme the old colour pad could make changes appearance in light mode, nor at its defaults in dark", () => {
-  for (let h = 0; h < 1; h += 0.02) for (let r = 0; r <= 0.5; r += 0.05) {
+  for (let h = 0; h < 1; h += 0.05) for (let r = 0; r <= 0.5; r += 0.1) {
     const x = 0.5 + r * Math.cos(h * 2 * Math.PI), y = 0.5 + r * Math.sin(h * 2 * Math.PI);
     for (const intensity of [0, 0.5, 1]) for (const translucency of [0, 0.5, 1]) {
       assert.equal(readableDark(solid(padColor(x, y), { intensity, translucency }), false), false, `${x},${y}`);

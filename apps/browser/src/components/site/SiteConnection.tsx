@@ -1,7 +1,9 @@
+import { View } from "react-native";
 import type { PageState } from "../../state/tabs/pageState";
 import { useTheme, type Theme } from "../ui/theme";
-import { Box, MenuRow, PANEL, Text } from "../ui";
-import { FooterChip } from "./SiteControlsParts";
+import { Box, MenuRow, PANEL, space, Text } from "../ui";
+import { ChipButton } from "./SiteControlsParts";
+import { Well } from "./PromptParts";
 import { connectionColor, useSiteTokens } from "./tokens";
 import { UI_LOCALE } from "../../lib/uiLocale";
 
@@ -17,7 +19,7 @@ function connectionLook(security: Security, theme: Theme) {
 
 export function ConnectionChip({ security, open, onPress }: { security: Security; open: boolean; onPress: () => void }) {
   const look = connectionLook(security, useTheme());
-  return <FooterChip icon={look.icon} title={look.chip} color={look.color} open={open} onPress={onPress} />;
+  return <ChipButton icon={look.icon} title={look.chip} color={look.color} open={open} onPress={onPress} tooltip={open ? "Hide Connection Details" : "Connection Details"} />;
 }
 
 export function ConnectionRow({ security }: { security: Security }) {
@@ -56,7 +58,8 @@ export function CertificateDetails({ security }: { security: NonNullable<Securit
     ...(cert.sha256 ? [["SHA-256", cert.sha256.replace(/[^0-9a-f]/gi, "").replace(/(.{2})(?!$)/g, "$1 ").slice(0, 47) + "…"] as [string, string]] : []),
   ];
   return (
-    <Box radius="l" style={{ marginHorizontal: PANEL.inset, marginTop: 2, marginBottom: 4, padding: PANEL.rowPadding, backgroundColor: site.certificateWell, gap: 3 }}>
+    <View style={{ marginHorizontal: PANEL.inset, marginTop: space.xxs, marginBottom: space.xs }}>
+      <Well gap="xs" fill={site.certificateWell}>
       {rows.map(([k, v]) => (
         <Box key={k} row gap="m">
           <Text size="caption" tone="textSecondary" style={{ width: CERTIFICATE_KEY_WIDTH }}>
@@ -67,6 +70,7 @@ export function CertificateDetails({ security }: { security: NonNullable<Securit
           </Text>
         </Box>
       ))}
-    </Box>
+      </Well>
+    </View>
   );
 }
