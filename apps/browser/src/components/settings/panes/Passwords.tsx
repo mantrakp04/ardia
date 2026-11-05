@@ -56,7 +56,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     try {
       const result = await importPasswordsCsv(profile);
       if (result === "cancelled") return;
-      setImportStatus(`Imported ${plural(result.saved, "password")}.`);
+      const imported = `Imported ${plural(result.saved, "password")}.`;
+      setImportStatus(result.skipped ? `${imported} ${plural(result.skipped, "login")} couldn't be saved.` : imported);
       load();
     } catch (e) {
       setImportStatus(`Couldn't import that file: ${(e as Error).message}`);
@@ -146,6 +147,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [password, setPassword] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
   const unlocked = usePasswordsUnlocked(profile);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
@@ -155,10 +157,11 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   }, [unlocked]);
 
   const save = async () => {
-    await updatePassword(profile, saved.origin, saved.username, {
+    const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
+    if (!changed) return setError("Couldn't save the change. Try again.");
     onChanged();
     closeSettingsSheet();
   };
@@ -183,7 +186,14 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
           <Row title="Website" description={saved.origin} />
           <Row title="Username">
             {editing ? (
-              <TextField value={username} onChangeText={setUsername} width={220} />
+              <TextField
+                value={username}
+                onChangeText={(t) => {
+                  setError("");
+                  setUsername(t);
+                }}
+                width={220}
+              />
             ) : (
               <Box row gap="xs" style={CENTER}>
                 <Text selectable>
@@ -195,7 +205,15 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
           </Row>
           <Row title="Password">
             {editing ? (
-              <TextField value={password ?? ""} onChangeText={setPassword} secure={!revealed} width={220} />
+              <TextField
+                value={password ?? ""}
+                onChangeText={(t) => {
+                  setError("");
+                  setPassword(t);
+                }}
+                secure={!revealed}
+                width={220}
+              />
             ) : (
               <Box row gap="xs" style={CENTER}>
                 <Text selectable style={revealed ? MONO : undefined}>
@@ -208,6 +226,11 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
           </Row>
         </Group>
       </View>
+      {error ? (
+        <Text size="caption" tone="destructive" style={ERROR}>
+          {error}
+        </Text>
+      ) : null}
       <DialogActions leading={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
         {editing ? (
           <>
@@ -228,5 +251,6 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
 const LOCKED = { alignItems: "center", marginTop: settingsLayout.emptyTop } as const;
 const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
+const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
 const MONO = { fontFamily: "Menlo" } as const;

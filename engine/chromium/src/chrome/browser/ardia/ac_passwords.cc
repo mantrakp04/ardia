@@ -407,7 +407,15 @@ AC_PROFILE_CALL(ac_passwords_add,
       std::move(*session), call.TakeReply(),
       base::BindOnce(
           [](std::string origin, std::string username, ardia::Secret password,
-             Session session, Reply reply, const Entries&) {
+             Session session, Reply reply, const Entries& entries) {
+            if (ardia::Find(entries, origin, username)) {
+              if (ardia::Saved(origin, username, password)
+                      .Run(session.delegate.get(), entries)) {
+                return reply.Ok();
+              }
+              return reply.Error(
+                  "A different password is already saved for this login");
+            }
             std::u16string password16 = ardia::UTF16Of(password);
             const bool added = session.delegate->AddPassword(
                 origin, base::UTF8ToUTF16(username), password16, u"", false);

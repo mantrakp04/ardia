@@ -2083,6 +2083,10 @@ try {
       const r = await engineOrError("passwords.list", { profile: "" });
       return r.passwords?.find((p) => p.username === "nnuser") ? r : null;
     });
+    const again = await secret("ArdiaPasswords", "save", "", origin, "nnuser", "s3cret");
+    if (again?.error) throw new Error(`saving the same login twice: ${again.error}`);
+    const conflicting = await secret("ArdiaPasswords", "save", "", origin, "nnuser", "different");
+    if (!conflicting?.error) throw new Error("a different password for a saved login was accepted");
     const revealed = await engineOrError("passwords.reveal", { profile: "", origin, username: "nnuser" });
     await engineOrError("passwords.remove", { profile: "", origin, username: "nnuser" });
     const after = await engineOrError("passwords.list", { profile: "" });

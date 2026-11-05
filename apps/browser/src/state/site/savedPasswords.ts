@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { onAppEvent } from "../../platform/app";
 import { importModule } from "../../platform/importModule";
 import { orWarn } from "../../lib/fallback";
+import { loginOrigin } from "../../lib/loginOrigin";
 import { getPassword, savePassword, unlockPasswords } from "./passwords";
 
 const UNLOCK_MS = 5 * 60_000;
@@ -56,8 +57,6 @@ export async function revealPassword(profile: string, origin: string, username: 
   return askedAt === revocations ? password : null;
 }
 
-export const originOfLogin = (url: string) => /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url)?.[1] ?? url;
-
 export type PasswordImport = { saved: number; skipped: number } | "cancelled";
 
 export async function importPasswordsCsv(profile: string): Promise<PasswordImport> {
@@ -67,7 +66,8 @@ export async function importPasswordsCsv(profile: string): Promise<PasswordImpor
   const credentials = await mod.importPasswordsCSV(path);
   let saved = 0;
   for (const c of credentials) {
-    if (c.url && c.password && (await savePassword(profile, originOfLogin(c.url), c.username, c.password).catch(orWarn(false)))) saved++;
+    const origin = loginOrigin(c.url);
+    if (origin && c.password && (await savePassword(profile, origin, c.username, c.password).catch(orWarn(false)))) saved++;
   }
   return { saved, skipped: credentials.length - saved };
 }
