@@ -920,7 +920,10 @@
     return { r, g, b, a: Math.min(1, Math.max(0, alpha)) };
   };
   const srgbFromLinear = (v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
-  const linearFromSrgb = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const linearFromSrgb = (v) => {
+    const magnitude = Math.abs(v);
+    return Math.sign(v) * (magnitude <= 0.04045 ? magnitude / 12.92 : ((magnitude + 0.055) / 1.055) ** 2.4);
+  };
   const multiply = (matrix, [x, y, z]) => matrix.map(([a, b, c]) => a * x + b * y + c * z);
   const XYZ_D65_TO_LINEAR_SRGB = [
     [3.2409699419045226, -1.537383177570094, -0.4986107602930034],

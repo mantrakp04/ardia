@@ -161,6 +161,10 @@ test("theme-colors in newer CSS color formats land within a step of what Chromiu
     "oklab(0.5 0.05 -0.1)": [106, 84, 155],
     "color(display-p3 0.2 0.4 0.8)": [26, 104, 211],
     "color(display-p3 1 0 0)": [255, 1, 0],
+    "color(display-p3 -1 0.5 0.5)": [0, 141, 134],
+    "color(display-p3 0.9 -0.2 0.4)": [252, 0, 102],
+    "lch(50 0 none)": [120, 119, 119],
+    "oklch(0.6 none 120)": [128, 128, 128],
     "color(srgb-linear 0.5 0.2 0.1)": [188, 124, 89],
     "lab(98 0 0)": [249, 249, 249],
   };
@@ -174,6 +178,10 @@ test("theme-colors in newer CSS color formats land within a step of what Chromiu
       `${meta} read as ${color}, Chromium paints rgb(${painted})`,
     );
   }
+});
+
+test("a theme-color in a colour space the script can't convert is skipped for the page", () => {
+  assert.deepEqual(page({ meta: "color(rec2020 0.5 0.5 0.5)", body: "rgb(31, 31, 31)" }).last(), { color: "#1F1F1F", source: "background" });
 });
 
 test("a translucent color(srgb …) header is blended over the page", () => {
