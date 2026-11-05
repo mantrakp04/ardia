@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Animated } from "react-native";
 import { useTheme } from "../ui/theme";
+import { space } from "../ui/tokens";
 import { curve, duration } from "../ui/motion";
 
-export const SCROLL_EDGE = { gap: 4, line: 1, inset: 1 } as const;
-const FADE = { duration: duration.instant, easing: curve.fade };
+export const SCROLL_EDGE = { gap: space.xs, line: 1, inset: 1 } as const;
+const FADE = { duration: duration.fast, easing: curve.fade };
 
 export function scrolledPastTop(offset: number): boolean {
   return offset > 0;

@@ -18,7 +18,6 @@ ArdiaCoreProfile *_Nullable LoadedProfile(NSString *name);
 bool IsDeletedProfile(NSString *name);
 void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *_Nullable profile));
 NSString *ProfileName(ArdiaCoreProfile *_Nullable profile);
-NSString *ProfileNameOfDirectory(NSString *directory);
 ArdiaCoreProfile *_Nullable PersonalIfLoaded(ArdiaCoreEngine *engine);
 bool IsPrivateProfile(NSString *_Nullable name);
 bool IsPrivateSessionId(NSString *_Nullable name);

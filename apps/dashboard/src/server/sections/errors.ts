@@ -1,14 +1,13 @@
 import { stepMs, windowFor, type RangeKey } from "../../lib/range";
 import { num, query, str } from "../clickhouse";
 import { classifyNoise } from "../noise";
-import { SITE, since, prop } from "../sql";
+import { APP_SOURCE, SITE, prop, since } from "../sql";
 import { windowInfo } from "../series";
 
-const APP_SOURCE = `source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND ${prop("$lib")} IN ('ardia-telemetry', 'netnyahoo-telemetry')`;
 const WHERE = `if(${SITE}, 'site', 'app')`;
 const TYPE = `coalesce(nullIf(JSONExtractString(properties['$exception_types'], 1), ''), nullIf(JSONExtractString(properties['$exception_list'], 1, 'type'), ''), 'Error')`;
 const MESSAGE = `substring(coalesce(nullIf(JSONExtractString(properties['$exception_values'], 1), ''), JSONExtractString(properties['$exception_list'], 1, 'value')), 1, 300)`;
-const FILTER = `event = '$exception' AND (${SITE} OR (${APP_SOURCE}))`;
+const FILTER = `event = '$exception' AND (${SITE} OR ${APP_SOURCE})`;
 
 type Frame = { function?: string; filename?: string; module?: string; lineno?: number | null; colno?: number | null };
 
@@ -130,7 +129,7 @@ export async function errorsLogs(range: RangeKey, signal?: AbortSignal) {
      FROM telemetry.logs
      WHERE ${since(w.start)}
      GROUP BY source, level, text
-     ORDER BY 4 DESC
+     ORDER BY 4 DESC, 5 DESC, source, level, text
      LIMIT 60`,
     signal,
   );

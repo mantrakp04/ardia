@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -10,7 +11,7 @@ public class SymbolModule: Module {
       Prop("name") { (view: SymbolView, name: String) in view.name = name }
       Prop("size") { (view: SymbolView, size: Double) in view.pointSize = size }
       Prop("weight") { (view: SymbolView, weight: String) in view.weight = weight }
-      Prop("color") { (view: SymbolView, hex: String) in view.tint = NSColor(hex: hex) }
+      Prop("color") { (view: SymbolView, hex: String) in view.tint = RGBA(hex: hex)?.srgb }
     }
   }
 }

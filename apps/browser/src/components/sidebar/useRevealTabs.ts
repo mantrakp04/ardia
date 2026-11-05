@@ -3,7 +3,8 @@ import type { ScrollView, View } from "react-native";
 import { watchRevealTargets } from "../../state/sidebar/reveal";
 import { measureRow } from "../../state/sidebar/sidebarUi";
 import { revealSpot } from "../../state/sidebar/geometry";
-import type { SidebarGeometry } from "./pageLayout";
+import { GLOW_ROOM, type SidebarGeometry } from "./pageLayout";
+import { SCROLL_EDGE } from "./ScrollEdge";
 
 export function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, scrollY: RefObject<number>, geometry: RefObject<SidebarGeometry>) {
   useEffect(() => {
@@ -13,8 +14,8 @@ export function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | n
     let reveals = 0;
     const show = (y: number, height: number) => {
       const top = scrollY.current ?? 0;
-      const { viewport, room, pad } = geometry.current;
-      if (y - top < room) scroll.current?.scrollTo({ y: Math.max(0, y - pad), animated: true });
+      const { viewport } = geometry.current;
+      if (y - top < GLOW_ROOM) scroll.current?.scrollTo({ y: Math.max(0, y - GLOW_ROOM - SCROLL_EDGE.inset), animated: true });
       else if (y + height - top > viewport - 8) scroll.current?.scrollTo({ y: y + height - viewport + 8, animated: true });
     };
     const reveal = () => {
@@ -26,7 +27,7 @@ export function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | n
       if (!tabId) return;
       const spot = revealSpot(windowId, tabId, geometry.current.tilesFixed, geometry.current.newTabAtTop);
       if (!spot) return;
-      if ("span" in spot) return show(geometry.current.pad + geometry.current.regions[spot.span.section] + spot.span.top, spot.span.height);
+      if ("span" in spot) return show(GLOW_ROOM + SCROLL_EDGE.inset + geometry.current.regions[spot.span.section] + spot.span.top, spot.span.height);
       const view = scroll.current as unknown as View;
       const keys = spot.keys;
       const firstShown = (i: number): Promise<Awaited<ReturnType<typeof measureRow>>> =>

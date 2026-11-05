@@ -20,7 +20,6 @@ const STEPS = [
   "blocked",
   "failed",
   "succeeded",
-  "fallback",
   "macLinks",
   "demoCustomize",
   "demoShown",
@@ -47,14 +46,13 @@ export async function funnelsSite(range: RangeKey, signal?: AbortSignal) {
          ${outcome("blocked")} AS blocked,
          ${outcome("error")} AS failed,
          shared OR copied AS succeeded,
-         max(event = 'send_to_mac_fallback') AS fallback,
          max(event = 'mac_link_visit') AS macLinks,
          max(event = 'demo_customize') AS demoCustomize,
          max(event = 'demo_setup_code_shown') AND demoCustomize AS demoShown,
          max(event = 'demo_setup_code_copied') AND demoCustomize AS demoCopied,
          max(event = 'download_clicked') AND demoCustomize AS demoDownload
        FROM telemetry.events
-       WHERE event IN ('$pageview', 'download_clicked', 'send_to_mac_clicked', 'send_to_mac_fallback', 'mac_link_visit', 'demo_customize', 'demo_setup_code_shown', 'demo_setup_code_copied')
+       WHERE event IN ('$pageview', 'download_clicked', 'send_to_mac_clicked', 'mac_link_visit', 'demo_customize', 'demo_setup_code_shown', 'demo_setup_code_copied')
          AND ${since(compareStart(w))} AND ${SITE}
        GROUP BY distinct_id, period
      )

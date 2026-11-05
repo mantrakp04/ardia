@@ -3,8 +3,10 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 app="$here/../../apps/dashboard"
-hexclave=(${HEXCLAVE:-npx @hexclave/cli@1.0.133})
+. "$here/../lib.sh"
 
 rsync -a --delete --exclude node_modules --exclude dist --exclude .output --exclude .tanstack --exclude src/routeTree.gen.ts "$app/" "$here/app/"
+mkdir -p "$here/site/src/data"
+cp "$here/../../apps/site/src/data/telemetry.ts" "$here/site/src/data/telemetry.ts"
 cd "$here"
-"${hexclave[@]}" deploy --cloud-project-id 49be2e2e-87c4-433e-b42f-f255854bff56
+hexclave_deploy

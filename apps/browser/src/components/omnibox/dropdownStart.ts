@@ -1,27 +1,25 @@
+import { tabTitle } from "../../state/browser/model";
 import { recentTabSuggestions, type Suggestion } from "@ardia/core";
 import { useMemo } from "react";
 import { useSettings, useTab, useWindow } from "../../state/browser/hooks";
-import { useHistory } from "../../state/history/hooks";
+import { useProfileHistory } from "../../state/history/hooks";
 import { usePeeks } from "../../state/peek/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { openTabsByUse } from "../../state/tabs/tabShare";
-import type { HistoryEntry } from "../../state/browser/types";
-import { tabTitle } from "../../state/sidebar/actions";
+import { withoutFragment } from "../../lib/url";
 
-const NO_HISTORY: HistoryEntry[] = [];
 const RECENT = 4;
-const pageKey = (url: string) => url.replace(/#.*$/, "");
 
 export function useDropdownStart(enabled: boolean, tabId: string, profileId: string): Suggestion[] {
   const url = useTab(tabId, (t) => (enabled ? (t?.url ?? "") : ""));
   const title = useTab(tabId, (t) => (enabled ? (t?.title ?? "") : ""));
   const favicon = useTab(tabId, (t) => (enabled ? (t?.favicon ?? null) : null));
-  const history = useHistory((h) => (enabled ? (h[profileId] ?? NO_HISTORY) : NO_HISTORY));
+  const history = useProfileHistory(enabled ? profileId : null);
   const recent = useMemo(() => {
-    const seen = new Set(url ? [pageKey(url)] : []);
+    const seen = new Set(url ? [withoutFragment(url)] : []);
     const out: Suggestion[] = [];
     for (const h of [...history].sort((a, b) => b.lastVisit - a.lastVisit)) {
-      const key = pageKey(h.url);
+      const key = withoutFragment(h.url);
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({ kind: "page", url: h.url, title: h.title, favicon: h.favicon, visited: true });

@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>sink</title></head>
+<body><input id="catch" autofocus>
+<script>
+  addEventListener("keydown", (event) => parent.postMessage(event.key, "*"), true);
+  addEventListener("focus", () => document.getElementById("catch").focus());
+</script>
+</body></html>

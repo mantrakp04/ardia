@@ -81,7 +81,7 @@ const grid = (device, last = false) =>
       return `${folder.name || "?"}[${folders.folderMembers(S(), w, f).map((id) => host(S().tabs[id])).join(",")}]`;
     });
   });
-const tile = (h) => Object.values(S().tabs).find((t) => t.pinned && host(t) === h).id;
+const tile = (h) => Object.values(S().tabs).find((t) => !!t.pin && host(t) === h).id;
 const act = (fn) => useBrowser.setState(fn(S()), true);
 
 function seed(device, hosts) {
@@ -99,7 +99,7 @@ test("a tile folder syncs with its name, members and order, and every edit to it
   seed(a, ["mail", "cal", "docs", "news"]);
   a.with(() => {
     act((s) => folders.addToTileFolder(s, [tile("docs")], tile("cal")));
-    act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].tileFolder.id, "Work"));
+    act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].pin?.folder.id, "Work"));
   });
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await syncAll([a, b]);
@@ -109,7 +109,7 @@ test("a tile folder syncs with its name, members and order, and every edit to it
 
   b.with(() => {
     act((s) => folders.addToTileFolder(s, [tile("mail")], tile("docs")));
-    act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].tileFolder.id, "Daily"));
+    act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].pin?.folder.id, "Daily"));
   });
   await syncAll([b, a]);
   assert.deepEqual(grid(a), ["Daily[cal,docs,mail]", "news"]);
@@ -131,7 +131,7 @@ test("a Mac on an older version sees a folder's tabs as plain tiles, loses none,
   old.with(() => S().createWindow({ url: "https://old-home.example/" }));
   await syncAll([a, old]);
   assert.deepEqual(grid(old), ["mail", "cal", "docs", "news"], "plain tiles, every tab there");
-  assert.ok(old.with(() => Object.values(S().tabs).every((t) => !t.tileFolder)));
+  assert.ok(old.with(() => Object.values(S().tabs).every((t) => !t.pin?.folder)));
 
   old.with(() => {
     S().updateTab(tile("docs"), { customTitle: "Docs" });
@@ -186,10 +186,10 @@ test("a parked folder syncs and comes back as a folder", async () => {
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await b.sync();
   b.with(() => S().closeWindow(S().windowOrder[0]));
-  assert.deepEqual(b.with(() => S().parkedPins.default.tabs.map((p) => p.tileFolder?.name ?? null)), ["Two", "Two", null]);
+  assert.deepEqual(b.with(() => S().parkedPins.default.tabs.map((p) => p.pin?.folder?.name ?? null)), ["Two", "Two", null]);
   a.with(() => act((s) => folders.addToTileFolder(s, [tile("cal")], tile("mail"))));
   await syncAll([a, b]);
-  assert.deepEqual(b.with(() => S().parkedPins.default.tabs.map((p) => p.tileFolder?.name ?? null)), ["Two", "Two", "Two"]);
+  assert.deepEqual(b.with(() => S().parkedPins.default.tabs.map((p) => p.pin?.folder?.name ?? null)), ["Two", "Two", "Two"]);
   b.with(() => S().createWindow());
   assert.deepEqual(grid(b), ["Two[mail,docs,cal]"]);
   assert.ok(model);
@@ -225,7 +225,7 @@ test("a rename on one Mac and an add on another at the same time end with one na
   await syncAll([a, b]);
   assert.deepEqual(grid(b), ["Old[mail,cal]", "docs"]);
   await new Promise((r) => setTimeout(r, 5));
-  a.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("mail")].tileFolder.id, "Renamed")));
+  a.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("mail")].pin?.folder.id, "Renamed")));
   b.with(() => act((s) => folders.addToTileFolder(s, [tile("docs")], tile("cal"))));
   await syncAll([b, a, b, a]);
   assert.deepEqual(grid(a), ["Renamed[mail,cal,docs]"]);
@@ -247,10 +247,10 @@ test("a parked folder an older Mac unpins down to one tab comes back as that til
     S().createWindow({ profileId: work, url: "https://work.example/" });
     S().closeWindow(S().windowOrder[0]);
   });
-  assert.ok(a.with(() => S().parkedPins.default.tabs.filter((p) => p.tileFolder).length === 2), "parked as a folder");
+  assert.ok(a.with(() => S().parkedPins.default.tabs.filter((p) => p.pin?.folder).length === 2), "parked as a folder");
   old.with(() => S().pinTabs([tile("docs")], false));
   await syncAll([old, a, old, a]);
-  assert.ok(a.with(() => S().parkedPins.default.tabs.every((p) => !p.tileFolder)), JSON.stringify(a.with(() => S().parkedPins.default.tabs.map((p) => [p.url, p.tileFolder ?? null]))));
+  assert.ok(a.with(() => S().parkedPins.default.tabs.every((p) => !p.pin?.folder)), JSON.stringify(a.with(() => S().parkedPins.default.tabs.map((p) => [p.url, p.pin?.folder ?? null]))));
   a.with(() => S().createWindow({ profileId: "default" }));
   assert.deepEqual(grid(a, true), ["mail", "cal"]);
 });
@@ -264,7 +264,7 @@ test("two updated Macs rename at once and one Mac's file is delayed: the later r
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await syncAll([a, b]);
   assert.deepEqual(grid(b), ["Start[mail,cal]"]);
-  const rename = (d, name) => d.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("mail")].tileFolder.id, name)));
+  const rename = (d, name) => d.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("mail")].pin?.folder.id, name)));
   rename(a, "Earlier");
   await a.sync();
   const delayed = [...folder.files.keys()];
@@ -291,7 +291,7 @@ test("a fresh Mac joining takes the folder and its name and publishes nothing, e
   a.with(() => act((s) => folders.newTileFolder(s, [tile("cal"), tile("docs")]).state));
   await a.sync();
   const tabFiles = [...folder.files.keys()];
-  a.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].tileFolder.id, "Reading list")));
+  a.with(() => act((s) => folders.renameTileFolder(s, S().windowOrder[0], S().tabs[tile("cal")].pin?.folder.id, "Reading list")));
   await a.sync();
   const nameFiles = [...folder.files.keys()].filter((id) => !tabFiles.includes(id));
   const fresh = new Device("devFresh", folder);
@@ -354,7 +354,7 @@ test("a folder member deleted while a Mac was away past tombstone retention stay
   assert.ok(dropped, "the snapshot left out both of x's records: no tombstone reached the returning Mac");
   for (const d of [a, c, other]) assert.deepEqual(grid(d), ["mail", "Away[m,k]"], d.id);
   assert.deepEqual(published, [0, 0, 0], "the returning Mac publishes nothing for the deletion it pulled");
-  assert.ok(a.with(() => Object.values(S().tabs).every((t) => !(t.pinned && (t.pinnedUrl || t.url) === "https://x.example/"))), "x isn't pinned again");
+  assert.ok(a.with(() => Object.values(S().tabs).every((t) => !(!!t.pin && (t.pinnedUrl || t.url) === "https://x.example/"))), "x isn't pinned again");
 });
 
 test("a folder of two whose member was deleted while a Mac was away is a plain tile there too", async () => {

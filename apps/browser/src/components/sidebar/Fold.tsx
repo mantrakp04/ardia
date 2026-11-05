@@ -1,11 +1,12 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, View } from "react-native";
 import { curve } from "../ui/motion";
-import { FoldedAway } from "../../state/sidebar/hover";
+import { layout } from "../ui/theme";
+import { FoldedAway } from "./hoverController";
 import { SIDEBAR_MOTION } from "./tokens";
 
 const FOLD_MS = SIDEBAR_MOTION.fold;
-const FOLD_EASING = curve.fold;
+const FOLD_EASING = curve.enter;
 
 type FoldState = { open: Animated.Value; moving: boolean };
 
@@ -38,8 +39,8 @@ export function Fold({
   collapsed,
   entries,
   keep,
-  gap,
   rowHeight,
+  estimate,
   padTop = 0,
   padBottom = 0,
   indent = 0,
@@ -50,8 +51,8 @@ export function Fold({
   collapsed: boolean;
   entries: FoldEntry[];
   keep?: string | null;
-  gap: number;
   rowHeight?: number | ((key: string) => number);
+  estimate?: (key: string) => number;
   padTop?: number;
   padBottom?: number;
   indent?: number;
@@ -59,6 +60,7 @@ export function Fold({
   footer?: ReactNode;
 }) {
   const { open, moving } = fold;
+  const gap = layout.rowGap;
   const parentAway = useContext(FoldedAway);
   const measuring = rowHeight === undefined;
   const [measured, setMeasured] = useState<Record<string, number>>({});
@@ -67,7 +69,7 @@ export function Fold({
   const folding = !!kept && (collapsed || moving);
   const state = useRef({ moving, folding, kept });
   state.current = { moving, folding, kept };
-  const heightOf = (key: string) => (typeof rowHeight === "function" ? rowHeight(key) : (rowHeight ?? measured[key] ?? 0));
+  const heightOf = (key: string) => (typeof rowHeight === "function" ? rowHeight(key) : (rowHeight ?? measured[key] ?? estimate?.(key) ?? 0));
   const rows = entries.filter((e) => !e.ghost);
   const total = rows.reduce((sum, e) => sum + heightOf(e.key), 0) + gap * Math.max(0, rows.length - 1) + padTop + padBottom;
   const foldingStyle = (height: number) => {
@@ -91,7 +93,7 @@ export function Fold({
       : collapsed
         ? { height: 0, opacity: 0, overflow: "hidden" as const }
         : null;
-  const mountAll = !collapsed || moving || mountClosed || measuring;
+  const mountAll = !collapsed || moving || mountClosed || (measuring && !estimate);
 
   return (
     <Animated.View style={outer} pointerEvents={collapsed ? "box-none" : "auto"}>

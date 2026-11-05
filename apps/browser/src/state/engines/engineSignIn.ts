@@ -6,6 +6,7 @@ import { engineProfile } from "../browser/model";
 import { carriableCookies, cookieAddresses } from "./signInCookies";
 import { webviews } from "../../platform/webviews";
 import { experimentOn } from "../../platform/killSwitches";
+import { withDeadline } from "../../lib/deadline";
 
 const CARRY_DEADLINE_MS = 1500;
 
@@ -16,7 +17,7 @@ export const signInCarryOn = () => (carryOn ??= experimentOn("webkitSignIn"));
 function stillChromiumPage(tabId: string, profile: string, web: WebViewHandle) {
   const s = useBrowser.getState();
   const t = s.tabs[tabId];
-  return !!t && engineProfile(t.profileId) === profile && webviews.get(tabId) === web && tabEngine(s, tabId) === "chromium";
+  return !!t && engineProfile(s, t.profileId) === profile && webviews.get(tabId) === web && tabEngine(s, tabId) === "chromium";
 }
 
 async function copyCookies(tabId: string, url: string): Promise<number> {
@@ -24,7 +25,7 @@ async function copyCookies(tabId: string, url: string): Promise<number> {
   const web = webviews.get(tabId);
   const urls = cookieAddresses(url);
   if (!t || !web || !urls.length) return 0;
-  const profile = engineProfile(t.profileId);
+  const profile = engineProfile(useBrowser.getState(), t.profileId);
   if (!stillChromiumPage(tabId, profile, web)) return 0;
   const storeKey = await webKitCookieStoreKey(profile);
   if (storeKey == null || !stillChromiumPage(tabId, profile, web)) return 0;
@@ -35,8 +36,5 @@ async function copyCookies(tabId: string, url: string): Promise<number> {
 
 export function carrySignInToWebKit(tabId: string, url: string): Promise<number> {
   if (!signInCarryOn()) return Promise.resolve(0);
-  return Promise.race([
-    copyCookies(tabId, url).catch(() => 0),
-    new Promise<number>((resolve) => setTimeout(() => resolve(0), CARRY_DEADLINE_MS)),
-  ]);
+  return withDeadline(copyCookies(tabId, url).catch(() => 0), CARRY_DEADLINE_MS, 0);
 }

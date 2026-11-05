@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { resolveWindowId } from "../browser/model";
+import { ownerOfBookmark } from "./bookmarks";
 
 export type EditorState = {
   windowId: string;
@@ -26,13 +27,7 @@ export function editBookmark(
   const node = id ? s.bookmarks.nodes[id] : undefined;
   if (id && !node) return;
   const profileId =
-    add.profileId ||
-    Object.entries(s.bookmarks.roots).find(([, r]) => {
-      let n = node;
-      for (let i = 0; n?.parentId && i < 64; i++) n = s.bookmarks.nodes[n.parentId];
-      return n && (r.bar === n.id || r.other === n.id);
-    })?.[0] ||
-    s.settings.defaultProfileId;
+add.profileId || (id ? ownerOfBookmark(s, id) : null) || s.settings.defaultProfileId;
   useBookmarkEditor.setState({
     open: {
       windowId: w,

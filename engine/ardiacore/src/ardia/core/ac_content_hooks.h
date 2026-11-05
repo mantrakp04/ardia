@@ -25,6 +25,8 @@ extern bool g_ardia_opacity_from_default_color;
 bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
 
 bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents);
+
+DevToolsAgentHost* ArdiaDevToolsAgentHostForId(const std::string& id);
 }
 
 namespace crypto::apple {

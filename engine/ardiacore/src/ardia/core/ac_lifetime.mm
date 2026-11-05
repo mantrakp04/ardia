@@ -49,11 +49,6 @@ enum class QuitPhase { kNone, kAskingHost, kAskingDownloads, kClosing, kCancelli
 QuitPhase g_phase = QuitPhase::kNone;
 int g_quit_generation = 0;
 
-LifetimeCallbacks& Callbacks() {
-  static base::NoDestructor<LifetimeCallbacks> callbacks;
-  return *callbacks;
-}
-
 base::CallbackListSubscription& ClosingAllBrowsersSubscription() {
   static base::NoDestructor<base::CallbackListSubscription> subscription;
   return *subscription;
@@ -70,9 +65,7 @@ void QuitCancelled() {
       FROM_HERE, base::BindOnce([] {
         g_phase = QuitPhase::kNone;
         NotifyWindowsQuitCancelled();
-        if (Callbacks().quit_cancelled) {
-          Callbacks().quit_cancelled.Run();
-        }
+        HostQuitCancelled();
       }));
 }
 
@@ -114,10 +107,6 @@ void Terminate() {
 
 bool IsQuitting() {
   return g_phase != QuitPhase::kNone;
-}
-
-void SetLifetimeCallbacks(LifetimeCallbacks callbacks) {
-  Callbacks() = std::move(callbacks);
 }
 
 void QuitEngine() {

@@ -1,8 +1,8 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, MagnifyArea, Surface, type MagnifyUpdate } from "../ui";
+import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnown, type MagnifyUpdate } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
-import { hex, layout, useTheme } from "../ui/theme";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { layout, useTheme } from "../ui/theme";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
@@ -16,12 +16,6 @@ const MIN_INSET = 16;
 const START_SCALE = 0.12;
 const GROW = PEEK_MOTION.grow;
 
-let reduceMotion: boolean | null = null;
-const reduceMotionKnown = AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => (reduceMotion = false),
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 export function peekFrame(width: number, height: number) {
   const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
@@ -69,7 +63,10 @@ function PeekCard({
   const theme = useTheme();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const frame = peekFrame(width, height);
-  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => (reduceMotion === null ? null : reduceMotion ? "fade" : "grow"));
+  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
+    const reduce = reduceMotion();
+    return reduce === null ? null : reduce ? "fade" : "grow";
+  });
   const fade = motion === "fade";
   const [progress] = useState(() => new Animated.Value(0));
   const [expand] = useState(() => new Animated.Value(0));
@@ -84,7 +81,7 @@ function PeekCard({
   useEffect(() => {
     if (motion) return;
     let live = true;
-    void reduceMotionKnown.then(() => live && setMotion(reduceMotion ? "fade" : "grow"));
+    void reduceMotionKnown.then((reduce) => live && setMotion(reduce ? "fade" : "grow"));
     return () => void (live = false);
   }, []);
 
@@ -167,13 +164,10 @@ function PeekCard({
         }
       >
         {!fullscreen && (
-          <Surface
-            fill={hex(theme.panel)}
-            cornerRadius={SMALL_WINDOW_RADIUS}
-            shadowColor={ink.black}
-            shadowOpacity={windowFrame.shadowOpacity}
-            shadowRadius={windowFrame.shadowRadius}
-            shadowOffset={windowFrame.shadowOffset}
+          <Panel
+            radius={SMALL_WINDOW_RADIUS}
+            border={null}
+            shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
             style={StyleSheet.absoluteFill}
           />
         )}
@@ -223,9 +217,9 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
       fieldLeft={SMALL_INSET}
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
       buttons={[
-        { icon: "rectangle.split.2x1", size: 14, disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-        { icon: "arrow.up.left.and.arrow.down.right", size: 13, tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
-        { icon: "xmark", size: 13, tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
+        { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
+        { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+        { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
       ]}
     />
   );

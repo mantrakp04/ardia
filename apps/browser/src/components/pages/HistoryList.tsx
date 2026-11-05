@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useRef, useState } from "react";
+import type { HistoryEntry } from "../../state/browser/types";
 import { type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent, ScrollView, View } from "react-native";
 import { assignSlots, historyScroll, rowAt, type Layout } from "./historyLayout";
 import { DayHeader, HistoryRow } from "./HistoryRow";
@@ -16,6 +17,7 @@ export function HistoryList({
   onToggle,
   onMoreFromSite,
   onRemove,
+  menuTargets,
 }: {
   layout: Layout;
   profileId: string;
@@ -23,7 +25,8 @@ export function HistoryList({
   selected: Set<string>;
   onToggle: (url: string, shift: boolean) => void;
   onMoreFromSite: (url: string) => void;
-  onRemove: (url: string) => void;
+  onRemove: (urls: string[]) => void;
+  menuTargets: (entry: HistoryEntry) => HistoryEntry[];
 }) {
   const { rows, days } = layout;
   const [viewport, setViewport] = useState(800);
@@ -75,6 +78,7 @@ export function HistoryList({
           onToggle={onToggle}
           onMoreFromSite={onMoreFromSite}
           onRemove={onRemove}
+          menuTargets={menuTargets}
         />
       </View>
     );

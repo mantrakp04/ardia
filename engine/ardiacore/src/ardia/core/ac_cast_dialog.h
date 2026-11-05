@@ -32,7 +32,6 @@ void WatchCastRoutes(Profile* profile);
 void TerminateCastRoute(const std::string& route_id);
 
 void HostCastRoutes(Profile* profile, NSArray* routes);
-bool HostWantsCastDialogs();
 void HostCastDialog(content::WebContents* contents, NSDictionary* state);
 
 }

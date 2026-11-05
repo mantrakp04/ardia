@@ -517,3 +517,51 @@ test("a removal reaching an install that a restart left queued cancels it", asyn
   assert.deepEqual(b.chrome.queued, []);
   assert.ok(b.chrome.changes.some((c) => c.kind === "cancel" && c.id === E1));
 });
+
+test("an install whose read is still out when quitting begins doesn't happen, and waits to be applied", async () => {
+  const folder = new Folder();
+  const a = new Mac("devA", folder);
+  const b = new Mac("devB", folder);
+  a.chrome.userInstall(E1);
+  await rounds([a]);
+  let quitting = false;
+  let armed = false;
+  const host = b.chrome.host();
+  const adapter = extensionsAdapter({
+    ...host,
+    read: async () => {
+      const local = await host.read();
+      if (armed) quitting = true;
+      return local;
+    },
+  });
+  const held: Adapter = { ...adapter, apply: (...args) => ((armed = true), adapter.apply(...args)) };
+  folder.now += 10;
+  await syncScope({ scope: "p", state: b.state, transport: folder.transport(), adapters: [held], clock: b.clock, device: b.id, now: () => folder.now, options: { holdApply: () => quitting } });
+  assert.deepEqual(b.chrome.changes, [], "nothing is installed once quitting has begun");
+  assert.ok(b.state.unapplied.includes(extensionKey(E1)), "and the record waits");
+  armed = false;
+  await adapter.reconcile(visible(b.state, "ext:"), folder.now, () => quitting);
+  assert.deepEqual(b.chrome.changes, [], "reconciling holds too");
+  quitting = false;
+  await b.sync();
+  b.chrome.finishInstalls();
+  assert.deepEqual(b.ids(), [E1], "after a cancelled quit it installs");
+});
+
+test("reconciling stops before installing when quitting begins during its read", async () => {
+  const folder = new Folder();
+  const a = new Mac("devA", folder);
+  const b = new Mac("devB", folder);
+  a.chrome.userInstall(E1);
+  await rounds([a]);
+  b.chrome.failing = true;
+  await b.sync();
+  b.chrome.failing = false;
+  b.chrome.changes = [];
+  let quitting = false;
+  const host = b.chrome.host();
+  const adapter = extensionsAdapter({ ...host, read: async () => ((quitting = true), host.read()) });
+  await adapter.reconcile(visible(b.state, "ext:"), folder.now + 10 * 60_000, () => quitting);
+  assert.deepEqual(b.chrome.changes, []);
+});

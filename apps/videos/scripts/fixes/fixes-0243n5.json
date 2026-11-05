@@ -1,0 +1,24 @@
+{
+  "id": "fixes-0243n5",
+  "segments": [
+    {
+      "scene": "lasttab",
+      "title": "Closing your last tab keeps the window",
+      "body": "A window with four pinned tiles, all asleep, and one tab. Click the tab's ✕: the window stays, New Tab takes its place and the tiles are untouched, as in Arc. 0.2.43-nightly.4 asked “Close 1 tab?”, then closed the window and its tiles with it.",
+      "layout": "side",
+      "cam": [0, 0, 920, 600],
+      "note": "Before dialog drawn from what nightly.4 logged",
+      "lead": 2.4,
+      "tail": 4.1
+    },
+    {
+      "scene": "glasscard",
+      "title": "Glass without outlines",
+      "body": "Point at a tab in the sidebar, then at Pin on its card, in dark mode over a colourful page. The card and its Pin, Bookmark and Split buttons are now clear liquid glass with no outline. 0.2.43-nightly.4 drew a flat, opaque card with a hairline edge.",
+      "layout": "side",
+      "cam": [0, 100, 560, 200],
+      "lead": 0.8,
+      "tail": 6.4
+    }
+  ]
+}

@@ -202,7 +202,7 @@ const spot = { x: 0.118, y: 0.31, r: 0.045 };
 </style>
 
 <script>
-  import { track } from "../scripts/track";
+  import { capture } from "../scripts/telemetry";
 
   const board = document.querySelector<HTMLElement>("[data-board]");
   const spot = board?.querySelector<HTMLButtonElement>("[data-found]");
@@ -232,7 +232,7 @@ const spot = { x: 0.118, y: 0.31, r: 0.045 };
       const s = started ? ((performance.now() - started) / 1000).toFixed(1) : null;
       found = s ? `Found her in ${s} s. She hides better offline.` : "Found her. She hides better offline.";
       say(found);
-      track("game_solved", { seconds: s ? Number(s) : null, misses });
+      capture("game_solved", { seconds: s ? Number(s) : null, misses });
     });
     const lines = ["Not her. That’s just the flock.", "Wrong woolly.", "Close. Look for the yellow bell.", "Not her. Keep looking."];
     board.addEventListener("click", () => say(found || lines[misses++ % lines.length]));

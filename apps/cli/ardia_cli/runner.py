@@ -274,6 +274,44 @@ def build_namespace(session: Session, filename: str, data_root=None) -> dict:
     async def history(days: float = 1, limit: int | None = 200, profile: str | None = None, domains: bool = False):
         return await browsing.run_bounded(browsing.history, data_root, days=days, limit=limit, profile=profile, domains=domains)
 
+    from ardia_cli import control
+
+    async def run(command: str, arg: str | None = None, window=None, tab=None):
+        params = {"command": command}
+        if arg is not None:
+            params["arg"] = arg
+        if window is not None:
+            params["window"] = window
+        if tab is not None:
+            params["tab"] = tab
+        connection = await control.open_control(data_root)
+        try:
+            return await connection.call("run", params)
+        finally:
+            await connection.close()
+
+    async def windows():
+        connection = await control.open_control(data_root)
+        try:
+            return await connection.call("windows")
+        finally:
+            await connection.close()
+
+    async def events(*names: str, full_urls: bool = False):
+        wanted = control.check_events(names) or ["*"]
+        connection = await control.open_control(data_root)
+        try:
+            await connection.subscribe(wanted, {"fullUrls": True} if full_urls else None)
+            while True:
+                yield await connection.next_event()
+        finally:
+            await connection.close()
+
+    namespace["run"] = run
+    namespace["windows"] = windows
+    namespace["events"] = events
+    namespace["CommandError"] = control.MethodError
+    namespace["ControlUnreachable"] = control.Unreachable
     namespace["js"] = js
     namespace["pinned"] = pinned
     namespace["history"] = history

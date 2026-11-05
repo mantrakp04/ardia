@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
 
 const here = fileURLToPath(import.meta.url);
-const { attach, devtools, launch, session, sleep } = await import(join(dirname(here), "../lib/instance.mjs"));
+const { attach, launch, session, sleep, uboReady } = await import(join(dirname(here), "../lib/instance.mjs"));
 
 const help = () => {
   const lines = readFileSync(here, "utf8").split("\n").slice(1);
@@ -229,7 +229,6 @@ function fixture() {
   });
 }
 
-const UBLOCK_ID = "fajbdaomknpkicfjcpipdmcpoamdmilh";
 const SEED = `
 const s = st();
 const at = (d, h, m) => new Date(2026, 0, 14 - d, h, m).getTime();
@@ -241,7 +240,7 @@ s.importHistory("default", [
   { url: "https://en.wikipedia.org/wiki/Typography", title: "Typography - Wikipedia", visits: 1, lastVisit: at(1, 11, 2) },
   { url: "https://docs.ardia.test/handbook", title: "Handbook", visits: 4, lastVisit: at(3, 16, 45) },
 ]);
-const roots = s.bookmarks.roots.default;
+const roots = ac.bookmarks.bookmarkRoots(s, "default");
 const folder = s.addBookmarkFolder({ profileId: "default", title: "Reading", parentId: roots && roots.bar });
 s.addBookmark({ profileId: "default", url: "https://swift.org/", title: "Swift", parentId: roots && roots.bar });
 s.addBookmark({ profileId: "default", url: "https://developer.apple.com/", title: "Apple Developer", parentId: roots && roots.bar });
@@ -282,10 +281,15 @@ for (const sp of Object.values(s.splits)) s.separateSplit(sp.id);
 s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never" });
 if (!s.windows[W].sidebarOpen) s.toggleSidebar(W);
 s.activate("t3");
+s.updateProfile("default", { pinnedCollapsed: false });
 return ac.shell.devSetPointer(W, 0, 0, false);
 `;
 
 const main = (name, body, extra = {}) => ({ name, window: "w1", body, ...extra });
+const DIVIDER_HOVER = `const list = globalThis.sidebarDrag.regions.get("list");
+return new Promise((r) => list.measureInWindow((x, y) => r([x, y])))
+  .then(([x, y]) => ac.shell.devSetPointer(W, { x: x + 40, y: y - 12 }))
+  .then(() => settle(400));`;
 const STATES = [
   main("dia-dark-ntp", ""),
   main("dia-light-ntp", `st().updateSettings({ appearance: "light" });`),
@@ -328,6 +332,10 @@ const STATES = [
   main("dia-light-split", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().createSplit(["t1", "t2"]);`),
   main("dia-light-edit-bookmark", `st().updateSettings({ appearance: "light" }); const b = Object.values(st().bookmarks.nodes).find((n) => n.kind === "url" && n.title === "Swift"); ac.pages.bookmarkEditor.setState({ open: { windowId: W, bookmarkId: b.id, folder: false, profileId: "default" } });`),
   main("top-light-ntp", `st().updateSettings({ appearance: "light", tabLayout: "top" });`),
+  main("dia-dark-divider-hover", DIVIDER_HOVER),
+  main("dia-light-divider-hover", `st().updateSettings({ appearance: "light" }); ${DIVIDER_HOVER}`),
+  main("dia-dark-pinned-divider-hover", `st().pinTabs(["p3"], true, true); return settle(300).then(() => { ${DIVIDER_HOVER} });`),
+  main("dia-dark-pinned-folded", `st().pinTabs(["p3"], true, true); st().updateProfile("default", { pinnedCollapsed: true }); return settle(300);`),
 ];
 const SETTINGS_PANES = ["general", "profiles", "sync", "tabs", "appearance", "privacy", "passwords", "autofill", "extensions", "search", "engines", "shortcuts", "liveFolders", "calendar", "advanced"];
 const stableFor = (pane) => (pane === "privacy" ? 12 : 1);
@@ -363,7 +371,7 @@ async function capture(appPath, outDir) {
   try {
     await run(`return settle(1500).then(() => !!st().windows[W]);`);
     console.log(`seed ${JSON.stringify(await run(SEED))}`);
-    console.log(`content blocker ${await contentBlockerReady(app)}`);
+    console.log(`content blocker ${await uboReady(app.port)}`);
     await run(`return settle(1500);`);
     for (const state of states) {
       const t0 = Date.now();
@@ -397,25 +405,6 @@ async function capture(appPath, outDir) {
   const failed = results.filter((r) => r.error).length;
   console.log(`${results.length - failed} captured, ${failed} failed → ${outDir}`);
   return failed ? 1 : 0;
-}
-
-async function contentBlockerReady(app) {
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    const list = await fetch(`http://127.0.0.1:${app.port}/json/list`).then((r) => r.json(), () => []);
-    const background = list.find((t) => t.type === "background_page" && t.url.includes(UBLOCK_ID));
-    if (background) {
-      const page = await devtools(background).catch(() => null);
-      try {
-        const ready = page && (await page.eval(`self.µBlock?.isReadyPromise ? µBlock.isReadyPromise.then(() => "ready") : null`, { timeout: 10000 }).catch(() => null));
-        if (ready) return ready;
-      } finally {
-        page?.close();
-      }
-    }
-    await sleep(500);
-  }
-  throw new Error("uBlock Origin wasn't ready within 90 s");
 }
 
 async function takeLock() {

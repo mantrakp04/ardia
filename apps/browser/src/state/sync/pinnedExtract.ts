@@ -1,14 +1,14 @@
-import { assignPositions, type Extraction } from "../../platform/sync";
+import { assignPositions, type Extraction, type HLC } from "../../platform/sync";
 import { ancestorIds, depthOf } from "../groups/groups";
-import { groupChoiceKey, placeChoiceKey } from "../pins/organize";
-import { pinKeyOf } from "../pins/pinMirror";
+import { groupChoiceKey, placeChoiceKey } from "../pins/pinChoices";
 import type { Tab, TabGroup } from "../browser/types";
-import { legacyColor, PIN_NEST, PIN_ROW, type NestGroupValue, type NestTabValue, type PinGroupValue, type PinValue } from "./pinRecords";
-import { homeWindow, openWindows, settleChoices, store } from "./pinnedSyncState";
+import { PIN_TAB, PIN_GROUP, legacyColor, PIN_NEST, PIN_ROW, type NestGroupValue, type NestTabValue, type PinGroupValue, type PinValue } from "./pinRecords";
+import { choiceStillOut, homeWindow, settleChoices, store, windowsHomeFirst } from "./pinnedSyncState";
+import { isPinnedRow, pinKeyOf } from "../browser/model";
 
-export function extractPinned(profileId: string, base: (key: string) => unknown, queued: (key: string) => boolean, now: number): Extraction {
+export function extractPinned(profileId: string, base: (key: string) => unknown, queued: (key: string) => boolean, now: number, stamp: (key: string) => HLC | undefined): Extraction {
   const s = store();
-  type Pin = Pick<Tab, "id" | "url" | "title" | "customTitle" | "customIcon"> & Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow">>;
+  type Pin = Pick<Tab, "id" | "url" | "title" | "customTitle" | "customIcon"> & Pick<Tab, "pin"> & Partial<Pick<Tab, "pinnedUrl">>;
   type Node = { pin: Pin } | { group: string };
   const area: Node[] = [];
   const inside = new Map<string, Node[]>();
@@ -26,12 +26,12 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
   for (const g of pinned.map((g) => [g, depthOf(s.groups, g.id)] as const).sort((a, z) => a[1] - z[1]).map(([g]) => g)) g.tabIds.forEach((id) => pinnedGroupOf.set(id, g));
   const seen = new Set<string>();
   const home = homeWindow(s, profileId);
-  for (const w of home ? [home, ...openWindows(s).filter((w) => w.id !== home.id)] : openWindows(s)) {
+  for (const w of windowsHomeFirst(s, home)) {
     for (const id of w.tabIds) {
       const t = s.tabs[id];
       if (!t || t.profileId !== profileId || seen.has(pinKeyOf(t))) continue;
       const g = pinnedGroupOf.get(id);
-      if (t.pinned) area.push({ pin: { ...t, id: pinKeyOf(t) } });
+      if (t.pin) area.push({ pin: { ...t, id: pinKeyOf(t) } });
       else if (g) {
         const chain = [...ancestorIds(s.groups, g.id).reverse().map((x) => s.groups[x]!).filter((x) => x.pinned), g];
         enter(chain.map((x) => ({ ...x, key: pinKeyOf(x) })));
@@ -55,8 +55,8 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
   const values = new Map<string, unknown>();
   const chosen = s.pinChoices[profileId] ?? {};
   const sync = s.pinSync[profileId] ?? {};
-  const baseTab = (key: string) => base(`pin:t:${key}`) as PinValue | undefined;
-  const baseGroup = (key: string) => base(`pin:g:${key}`) as PinGroupValue | undefined;
+  const baseTab = (key: string) => base(`${PIN_TAB}${key}`) as PinValue | undefined;
+  const baseGroup = (key: string) => base(`${PIN_GROUP}${key}`) as PinGroupValue | undefined;
   const pinValue = (t: Pin, group: string | null, pos: string): PinValue => {
     const was = baseTab(t.id);
     const entry = was ? sync[t.id] : undefined;
@@ -79,29 +79,29 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
       nest(n.group);
     }
   };
-  const legacyRank = (n: Node) => ("pin" in n ? (n.pin.pinnedAsRow ? 1 : 0) : 2);
+  const legacyRank = (n: Node) => ("pin" in n ? (isPinnedRow(n.pin) ? 1 : 0) : 2);
   area.sort((a, z) => legacyRank(a) - legacyRank(z));
   const areaPositions = assignPositions(area.map((n) => ("pin" in n ? ((baseTab(n.pin.id)?.g ?? null) === null ? baseTab(n.pin.id)?.pos : undefined) : baseGroup(n.group)?.pos)));
   area.forEach((n, i) => {
     if ("pin" in n) {
-      values.set(`pin:t:${n.pin.id}`, pinValue(n.pin, null, areaPositions[i]!));
+      values.set(`${PIN_TAB}${n.pin.id}`, pinValue(n.pin, null, areaPositions[i]!));
       return;
     }
     const g = info.get(n.group)!;
-    values.set(`pin:g:${n.group}`, { n: g.name, i: g.icon, c: legacyColor(g.color), pos: areaPositions[i]! } satisfies PinGroupValue);
+    values.set(`${PIN_GROUP}${n.group}`, { n: g.name, i: g.icon, c: legacyColor(g.color), pos: areaPositions[i]! } satisfies PinGroupValue);
     const members = flat(n.group);
     const positions = assignPositions(members.map(({ pin }) => (baseTab(pin.id)?.g === n.group ? baseTab(pin.id)?.pos : undefined)));
     members.forEach(({ pin, inner }, j) => {
-      values.set(`pin:t:${pin.id}`, pinValue(pin, n.group, positions[j]!));
+      values.set(`${PIN_TAB}${pin.id}`, pinValue(pin, n.group, positions[j]!));
       if (inner !== n.group) values.set(`${PIN_NEST}t:${pin.id}`, { g: inner } satisfies NestTabValue);
     });
     nest(n.group);
   });
-  const choiceOf = (k: string) => (k.startsWith("pin:g:") ? groupChoiceKey(k.slice(6)) : placeChoiceKey(k.slice(6)));
+  const choiceOf = (k: string) => (k.startsWith(PIN_GROUP) ? groupChoiceKey(k.slice(PIN_GROUP.length)) : placeChoiceKey(k.slice(PIN_TAB.length)));
   return {
     values,
     ignore: (k) => k.startsWith(PIN_ROW),
-    republish: (k) => k.startsWith("pin:") && choiceOf(k) in chosen && !queued(k),
+    republish: (k) => k.startsWith("pin:") && choiceStillOut(chosen, choiceOf(k), stamp(k)) && !queued(k),
     published: (keys) =>
       settleChoices(profileId, Object.fromEntries([...keys].filter((k) => k.startsWith("pin:")).map(choiceOf).filter((c) => c in chosen).map((c) => [c, chosen[c]!]))),
   } satisfies Extraction;

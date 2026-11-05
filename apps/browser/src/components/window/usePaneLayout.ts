@@ -1,9 +1,12 @@
-import { useEffect, useMemo } from "react";
-import { successorWhenLeaving, useMountedTabIds, useShownPaneKeys, useSplitsOf, useWarmTabIds, wakePanes } from "../../state/windows/card";
+import { useEffect, useMemo, useState } from "react";
+import { newTabLingeringOver, successorWhenLeaving, useMountedTabIds, useShownPaneKeys, useSplitsOf, useWarmTabIds, wakePanes } from "../../state/windows/card";
 import { pagerFor } from "../../state/windows/profilePager";
 import { useTabDrag } from "../../state/drag/tabDrag";
 import type { SplitView } from "../../state/browser/types";
 import { splitGeometry, type Rect } from "./geometry";
+import { splitTabIds } from "../../state/splits/splits";
+
+const NEW_TAB_LINGER_MS = 400;
 
 export function usePaneLayout(windowId: string, activeId: string | undefined, split: SplitView | undefined, fullscreenTab: string | undefined, size: { width: number; height: number }) {
   const mounted = useMountedTabIds(windowId);
@@ -13,7 +16,7 @@ export function usePaneLayout(windowId: string, activeId: string | undefined, sp
   const { panes, dividers } = useMemo(() => {
     const full: Rect = { x: 0, y: 0, width: size.width, height: size.height };
     if (fullscreenTab) {
-      const under = split?.tabIds.includes(fullscreenTab) ? splitGeometry(split, size.width, size.height).panes : {};
+      const under = split && splitTabIds(split).includes(fullscreenTab) ? splitGeometry(split, size.width, size.height).panes : {};
       return { panes: { ...under, [fullscreenTab]: full }, dividers: [] };
     }
     if (split) return splitGeometry(split, size.width, size.height);
@@ -22,8 +25,19 @@ export function usePaneLayout(windowId: string, activeId: string | undefined, sp
 
   useEffect(() => wakePanes(Object.keys(panes)), [panes]);
 
+  const [linger, setLinger] = useState<{ from: string | undefined; id?: string }>({ from: activeId });
+  if (linger.from !== activeId) setLinger({ from: activeId, id: fullscreenTab ? undefined : newTabLingeringOver(windowId, linger.from, activeId, mounted) });
+  const lingerId = linger.from === activeId ? linger.id : undefined;
+  useEffect(() => {
+    if (!linger.id) return;
+    const timer = setTimeout(() => setLinger((now) => (now === linger ? { from: now.from } : now)), NEW_TAB_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [linger]);
+  const lingerRect: Rect | undefined = lingerId && size.width > 0 ? { x: 0, y: 0, width: size.width, height: size.height } : undefined;
+  const shownPanes = useMemo(() => (lingerId && lingerRect ? { ...panes, [lingerId]: lingerRect } : panes), [panes, lingerId, lingerRect?.width, lingerRect?.height]);
+
   const pagerPages = pagerFor(windowId).state((st) => st.pages);
-  const leaving = useTabDrag((d) => (d.windowId === windowId && d.tabIds.length && (d.outside || !!(d.lifted ?? d.onPage)) ? d.tabIds : null));
+  const leaving = useTabDrag((d) => (d.phase === "tab" && d.windowId === windowId && (d.outside || !!(d.lifted ?? d.onPage)) ? d.tabIds : null));
   const successor = useMemo(() => (leaving ? successorWhenLeaving(leaving, windowId) : undefined), [leaving, windowId]);
   const warm = useWarmTabIds(windowId, pagerPages, successor);
   const warmSplits = useSplitsOf(warm);
@@ -34,7 +48,7 @@ export function usePaneLayout(windowId: string, activeId: string | undefined, sp
     return out;
   }, [warm, warmSplits, size.width, size.height]);
 
-  const shown = useShownPaneKeys(mounted, panes);
+  const shown = useShownPaneKeys(mounted, shownPanes);
 
-  return { mountedIds, panes, dividers, warmPanes, shown };
+  return { mountedIds, panes, dividers, warmPanes, shown, lingerId: lingerRect ? lingerId : undefined, lingerRect };
 }

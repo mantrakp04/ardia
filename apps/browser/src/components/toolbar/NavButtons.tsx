@@ -5,43 +5,48 @@ import { withLivePage } from "../../state/tabs/livePage";
 import { newTab } from "../../state/tabs/actions";
 import type { Tab } from "../../state/browser/types";
 import { Button, MouseArea, type ButtonHit } from "../ui";
+
+export type NavPlace = { style?: ViewStyle; hit?: ButtonHit };
 import type { ClickModifiers } from "../../lib/keys";
 import { closeHistoryMenu, goBack, goForward, historyItems, toggleHistoryMenu } from "../../state/tabs/navigation";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { GLYPH } from "./tokens";
+import { showReloadMenu } from "../../state/site/reloadMenu";
 
 export const ReloadButton = memo(function ReloadButton({
   tab,
   loading,
   palette,
-  style,
-  hit,
+  place,
   onFocus,
 }: {
   tab: Pick<Tab, "id" | "url" | "windowId">;
   loading: boolean;
   palette: ToolbarPalette;
-  style?: ViewStyle;
-  hit?: ButtonHit;
+  place?: NavPlace;
   onFocus: () => void;
 }) {
   const web = () => webviews.get(tab.id);
   const reloadHint = useShortcutHint("reload");
   return (
     <Button variant="icon" toolbar
-      style={style}
+      style={place?.style}
       palette={palette}
       icon={loading ? "xmark" : "arrow.clockwise"}
-      size={GLYPH}
-      hit={hit}
+      glyph={GLYPH}
+      hit={place?.hit}
       disabled={!tab.url}
       onPress={(m) => {
         onFocus();
         if (loading) return void web()?.stopLoading();
         if (m.metaKey) return void newTab(tab.windowId, { url: tab.url, background: true, openerId: tab.id });
         void withLivePage(tab.id, (page) => (m.shiftKey ? page.forceReload() : page.reload()));
+      }}
+      onContextMenu={() => {
+        onFocus();
+        void showReloadMenu(tab.id);
       }}
       tooltip={loading ? "Stop Loading This Page" : withShortcut("Refresh", reloadHint)}
     />
@@ -54,8 +59,7 @@ export const HistoryButton = memo(function HistoryButton({
   direction,
   disabled,
   palette,
-  style,
-  hit,
+  place,
   onFocus,
 }: {
   tabId: string;
@@ -63,8 +67,7 @@ export const HistoryButton = memo(function HistoryButton({
   direction: -1 | 1;
   disabled: boolean;
   palette: ToolbarPalette;
-  style?: object;
-  hit?: ButtonHit;
+  place?: NavPlace;
   onFocus: () => void;
 }) {
   const historyHint = useShortcutHint(direction < 0 ? "back" : "forward");
@@ -81,12 +84,12 @@ export const HistoryButton = memo(function HistoryButton({
     if (target?.url) openUrl(target.url, windowId, mode);
   };
   return (
-    <MouseArea style={style} onMiddleClick={(e) => !disabled && void onPress({ ...e, middle: true })}>
+    <MouseArea style={place?.style} onMiddleClick={(e) => !disabled && void onPress({ ...e, middle: true })}>
       <Button variant="icon" toolbar
         palette={palette}
         icon={direction < 0 ? "chevron.left" : "chevron.right"}
-        size={GLYPH}
-        hit={hit}
+        glyph={GLYPH}
+        hit={place?.hit}
         disabled={disabled}
         onPress={onPress}
         onLongPress={openMenu}

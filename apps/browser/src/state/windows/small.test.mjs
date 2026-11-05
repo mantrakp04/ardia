@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+const model = await import("../browser/model.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { lastActiveProfile, mainWindowFor } = await import("./small.ts");
+const { lastActiveProfile, mainWindowFor, newWindowProfile } = await import("./small.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 
@@ -18,7 +19,7 @@ function twoProfilesTwoWindows() {
   return { work, a, b };
 }
 
-const openExternalUrls = ([url]) => S().createWindow({ small: true, url });
+const openExternalUrls = ([url]) => S().createWindow({ kind: "small", url });
 const openInMainWindow = (id) => {
   const tab = S().windows[id].tabIds[0];
   S().moveTabsToWindow([tab], mainWindowFor(S(), S().tabs[tab].profileId) ?? null);
@@ -71,14 +72,14 @@ test("several links, or the setting off, go to the last active window and its pr
 
 test("a private window counts as the regular profile it was opened from; Little Ardia is never private", () => {
   const { work, a, b } = twoProfilesTwoWindows();
-  const priv = S().createWindow({ incognito: true });
-  assert.equal(S().windows[priv].originalProfileId, work);
+  const priv = S().createWindow({ kind: "private" });
+  assert.equal(model.incognitoOriginal(S().windows[priv].profileId), work);
   S().setFocusedWindow(b);
   S().setFocusedWindow(priv);
   assert.equal(lastActiveProfile(S()), work);
   openExternalUrls(["https://p.example/"]);
   const small = lastSmall();
-  assert.equal(small.incognito, false);
+  assert.equal(small.kind, "small");
   assert.equal(small.profileId, work);
   assert.equal(mainWindowFor(S(), work), a);
   S().closeWindow(small.id);
@@ -91,8 +92,8 @@ test("a private window counts as the regular profile it was opened from; Little 
 test("a private window opened from Personal counts as Personal", () => {
   const { b } = twoProfilesTwoWindows();
   S().setFocusedWindow(b);
-  const priv = S().createWindow({ incognito: true });
-  assert.equal(S().windows[priv].originalProfileId, "default");
+  const priv = S().createWindow({ kind: "private" });
+  assert.equal(model.incognitoOriginal(S().windows[priv].profileId), "default");
   assert.equal(lastActiveProfile(S()), "default");
 });
 
@@ -104,7 +105,7 @@ test("the window in front closing hands over to the next most recent window's pr
   assert.equal(lastActiveProfile(S()), work);
   S().closeWindow(a);
   assert.equal(lastActiveProfile(S()), "default");
-  assert.equal(S().ui.focusedWindowId, b);
+  assert.equal((S().ui.focusOrder[0] ?? null), b);
   openExternalUrls(["https://after-close.example/"]);
   assert.equal(lastSmall().profileId, "default");
   S().closeWindow(lastSmall().id);
@@ -130,7 +131,7 @@ test("the last active profile survives a quit and relaunch", () => {
   stub.docs.clear();
   const stop = startPersistence();
   const { work, b } = twoProfilesTwoWindows();
-  const priv = S().createWindow({ incognito: true });
+  const priv = S().createWindow({ kind: "private" });
   S().setFocusedWindow(b);
   S().setFocusedWindow(priv);
   flushPersistence();
@@ -139,11 +140,29 @@ test("the last active profile survives a quit and relaunch", () => {
   assert.equal(saved.lastProfileId, work);
   S().hydrate(saved);
   assert.equal(S().ui.lastProfileId, work);
-  assert.equal(S().ui.focusedWindowId, b);
+  assert.equal((S().ui.focusOrder[0] ?? null), b);
   openExternalUrls(["https://after-relaunch.example/"]);
   assert.equal(lastSmall().profileId, work);
   S().hydrate({ ...saved, lastProfileId: "gone" });
   assert.equal(S().ui.lastProfileId, null);
   assert.equal(lastActiveProfile(S()), "default");
   stub.docs.clear();
+});
+
+test("⌘N opens the new window on the profile of the window it was pressed in, not the default one", () => {
+  const { work, a, b } = twoProfilesTwoWindows();
+  assert.equal(newWindowProfile(S(), a), work);
+  assert.equal(newWindowProfile(S(), b), "default");
+});
+
+test("New Window with no window named follows the last active profile", () => {
+  const { work } = twoProfilesTwoWindows();
+  assert.equal(newWindowProfile(S(), null), work);
+});
+
+test("⌘N in a private window opens a normal window on the profile it came from", () => {
+  const { work, a } = twoProfilesTwoWindows();
+  const p = S().createWindow({ kind: "private", profileId: work });
+  assert.equal(newWindowProfile(S(), p), work);
+  assert.equal(S().windows[a].profileId, work);
 });

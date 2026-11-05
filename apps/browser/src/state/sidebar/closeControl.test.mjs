@@ -17,7 +17,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { groupCloseControl, pressGroupClose, pressTabClose, tabCloseControl } = await import("./closeControl.ts");
 
 const S = () => useBrowser.getState();
-const hasPage = (id) => !!(S().tabs[id].navigation || S().tabs[id].adoptId);
+const hasPage = (id) => !!(S().tabs[id].page.nav || S().tabs[id].page.adopt);
 
 function pinnedGroupInTwoWindows() {
   S().hydrate({});

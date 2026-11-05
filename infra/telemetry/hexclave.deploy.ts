@@ -1,16 +1,12 @@
-export const deploymentGroupId = "posthog";
+import { SECRETS, SERVICES } from "../shared";
 
-const SECRETS = {
-  clickhouseAdmin: "TELEMETRY_CLICKHOUSE_ADMIN_PASSWORD",
-  clickhouseOtel: "TELEMETRY_CLICKHOUSE_OTEL_PASSWORD",
-  clickhouseReader: "TELEMETRY_CLICKHOUSE_READER_PASSWORD",
-} as const;
+export const deploymentGroupId = "posthog";
 
 const SEAWEEDFS_4_51 = "docker.io/chrislusf/seaweedfs@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8";
 
 export const deploy = ({ secret, service }: any) => ({
   services: {
-    "ph-clickhouse": {
+    [SERVICES.clickhouse]: {
       type: "server",
       minInstances: 1,
       memory: "8GB",
@@ -25,19 +21,19 @@ export const deploy = ({ secret, service }: any) => ({
       },
     },
 
-    "otel-collector": {
+    [SERVICES.collector]: {
       type: "server",
       minInstances: 1,
       memory: "512MB",
       ports: { 4318: { protocol: "tcp" }, 13133: { protocol: "tcp" } },
       dockerfilePath: "collector/Dockerfile",
       env: {
-        CLICKHOUSE_HOST: service("ph-clickhouse").hostname(),
+        CLICKHOUSE_HOST: service(SERVICES.clickhouse).hostname(),
         CLICKHOUSE_OTEL_PASSWORD: secret(SECRETS.clickhouseOtel),
       },
     },
 
-    "ph-objects": {
+    [SERVICES.objects]: {
       type: "server",
       minInstances: 1,
       memory: "1GB",

@@ -23,6 +23,8 @@ export async function locateDownloadsButton(windowId: string, origin: Rect): Pro
   return null;
 }
 
+const DOWNLOADS_HIT = { width: SIDEBAR_FOOTER_DOWNLOADS.size, height: SIDEBAR_FOOTER_DOWNLOADS.size, plateX: 0, plateY: 0, box: SIDEBAR_FOOTER_DOWNLOADS.size, radius: DOWNLOADS_BUTTON.radius };
+
 export function DownloadsButton({ windowId }: { windowId: string }) {
   const open = useWindowUiOf(windowId, (ui) => !!ui?.downloadsOpen);
   const hint = useShortcutHint("downloads");
@@ -42,9 +44,8 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
     <View ref={view} collapsable={false}>
       <Button variant="icon"
         icon="arrow.down.circle"
-        size={DOWNLOADS_BUTTON.icon}
-        box={SIDEBAR_FOOTER_DOWNLOADS.size}
-        radius={DOWNLOADS_BUTTON.radius}
+        glyph={DOWNLOADS_BUTTON.icon}
+        hit={DOWNLOADS_HIT}
         active={open}
         tooltip={open ? undefined : withShortcut("Downloads", hint)}
         onPress={() => toggleDownloadsOpen(windowId)}

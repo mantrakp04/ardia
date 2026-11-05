@@ -1,4 +1,4 @@
-import { devCrash } from "../../platform/app";
+import { devCrash } from "../../platform/dev";
 import { onboardingCompletedAt } from "../onboarding/onboarding";
 import { devState, flush, setSharing, useTelemetry } from "./client";
 import { requestLog } from "./requestLog";

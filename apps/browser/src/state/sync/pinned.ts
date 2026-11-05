@@ -22,7 +22,7 @@ export function pinnedAreaAdapters(profileId: string): Adapter[] {
 export function pinnedAdapter(profileId: string): Adapter {
   return {
     prefix: "pin",
-    extract: (base, queued, now) => extractPinned(profileId, base, queued, now),
+    extract: (base, queued, now, _known, _remote, stamp) => extractPinned(profileId, base, queued, now, stamp),
     apply: (visible, changed, base, records) => applyPinned(profileId, visible, changed, base, records),
   };
 }

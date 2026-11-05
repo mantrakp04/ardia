@@ -1,4 +1,4 @@
-import { readDocument } from "@ardia/shell";
+import { readDocument } from "../../src/platform/documents";
 
 const real = globalThis.fetch;
 const blocked = [];

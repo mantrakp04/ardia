@@ -1,9 +1,9 @@
-import { useLayoutEffect, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
+import { useLayoutEffect, useMemo, useState } from "react";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
 import { useTheme } from "../ui/theme";
-import { useIsBookmarked, useTab } from "../../state/browser/hooks";
-import { plural } from "../../state/browser/model";
+import { useIsBookmarked, useSidebarSide, useTab } from "../../state/browser/hooks";
+import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
@@ -14,12 +14,17 @@ import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { FadeLabel, font, Panel, radius, Symbol, useHover, weight } from "../ui";
-import { SIDEBAR_SHADOW, SIDEBAR_TYPE } from "./tokens";
-import { clickTab, tabTitle, toggleBookmarkInWindow } from "../../state/sidebar/actions";
+import { FadeLabel, font, HoverCard as HoverPanel, space, Symbol, Text } from "../ui";
+import { lineHeight } from "../ui/tokens";
+import { ActionTile } from "../site/SiteControlsParts";
+import { SectionLabel } from "./SectionLabel";
+import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
+import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
 import { GroupPanel } from "./GroupPanel";
-import { cardHoverProps, dismissHover, setHoverSpace } from "../../state/sidebar/hover";
-import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
+import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
+import { cardHoverProps } from "./hoverController";
+import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
+import { hoverCardAt } from "./hoverPlacement";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
@@ -38,13 +43,17 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const { drawn, leaving, entering, motion } = useHoverCardMotion(windowId, target);
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
-  const edge = usePlayerEdge(windowId, shown?.anchor);
-  useHoverCardPlacement(motion, shown ? hoverCardOrigin(shown.anchor, player ? edge : undefined) : null, { width, height });
+  const side = useSidebarSide(windowId);
+  const frame = useMemo(() => ({ side, windowWidth: width }), [side, width]);
+  const edge = usePlayerEdge(windowId, shown?.anchor, frame);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, side, player ? edge : undefined) : null, { width, height });
   if (!shown) return null;
   return (
-    <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
-      <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
-    </Animated.View>
+    <HoverCardFrameProvider value={frame}>
+      <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
+        <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
+      </Animated.View>
+    </HoverCardFrameProvider>
   );
 }
 
@@ -58,18 +67,11 @@ function HoverContent({ hover, windowId, player, windowHeight }: { hover: Hover;
 }
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
-  const theme = useTheme();
+  const origin = useHoverCardOrigin(anchor);
   return (
-    <Panel
-      {...cardHoverProps}
-      fill={theme.panel}
-      radius={radius.panel}
-      border={theme.panelBorder}
-      shadow={SIDEBAR_SHADOW.card}
-      style={{ position: "absolute", ...hoverCardOrigin(anchor), width: WIDTH, padding: 10 }}
-    >
+    <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...origin }}>
       {children}
-    </Panel>
+    </HoverPanel>
   );
 }
 
@@ -85,37 +87,40 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const away = awayFromPin(tab);
   return (
     <Card anchor={anchor}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
         <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
       </View>
       {tab.url ? (
-        <Text numberOfLines={2} style={{ marginTop: 4, ...font.footnote, lineHeight: 15, color: theme.textSecondary }}>
+        <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
           {displayUrl(tab.url)}
         </Text>
       ) : null}
       {sleeping ? (
-        <View accessible accessibilityLabel="Web content has been discarded" style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+        <View accessible accessibilityLabel="Web content has been discarded" style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.xs }}>
           <Symbol name="moon.zzz" size={10} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
-          <Text style={{ ...font.footnote, color: theme.textTertiary }}>This tab needs to reload</Text>
+          <Text size="caption" tone="textTertiary">
+            This tab needs to reload
+          </Text>
         </View>
       ) : null}
       {away && tab.pinnedUrl ? (
-        <Text numberOfLines={1} style={{ marginTop: 2, ...font.footnote, color: theme.textTertiary }}>
+        <Text lines={1} size="caption" tone="textTertiary" style={PINNED_LINE}>
           Pinned: {displayUrl(tab.pinnedUrl)}
         </Text>
       ) : null}
-      <View style={{ flexDirection: "row", gap: 4, marginTop: 8 }}>
-        <Action icon={tab.pinned ? "pin.slash" : "pin"} label={tab.pinned ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
+      <View style={{ flexDirection: "row", gap: space.xs, marginTop: space.m }}>
+        <ActionTile caption icon={tab.pin ? "pin.slash" : "pin"} label={tab.pin ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
         {tab.url ? (
-          <Action
+          <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
-            label={bookmarked ? "Bookmarked" : "Bookmark"}
+            active={bookmarked}
+            label="Bookmark"
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}
-        {!isActive && !tab.pinned ? (
-          <Action
+        {!isActive && !tab.pin ? (
+          <ActionTile caption
             icon="rectangle.split.2x1"
             label="Split"
             onPress={() => {
@@ -124,9 +129,9 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
             }}
           />
         ) : null}
-        {video ? <Action icon={pip ? "pip.exit" : "pip.enter"} label={pip ? "Exit PiP" : "PiP"} onPress={togglePip} /> : null}
+        {video ? <ActionTile caption icon={pip ? "pip.exit" : "pip.enter"} label={pip ? "Exit PiP" : "PiP"} onPress={togglePip} /> : null}
         {away ? (
-          <Action
+          <ActionTile caption
             icon="arrow.uturn.backward"
             label="Reset"
             onPress={() => {
@@ -140,44 +145,13 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   );
 }
 
-const ACTIVATE = [{ name: "activate" }];
-
-function Action({ icon, label, onPress }: { icon: string; label: string; onPress(press: GestureResponderEvent | AccessibilityActionEvent): void }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps} style={{ flex: 1 }}>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityActions={ACTIVATE}
-        onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && onPress(event)}
-      >
-        {({ pressed }) => (
-          <View
-            style={{
-              height: 44,
-              borderRadius: radius.l,
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
-            }}
-          >
-            <Symbol name={icon} size={13} color={theme.icon} style={{ width: 18, height: 16 }} />
-            <Text style={{ fontSize: SIDEBAR_TYPE.cardAction, color: theme.textSecondary }}>{label}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
+const URL_LINE = { marginTop: space.xs, lineHeight: lineHeight.caption } as const;
+const PINNED_LINE = { marginTop: space.xxs } as const;
+const MORE_LINE = { marginTop: space.xs, marginLeft: space.xs } as const;
 
 const PEEK_ROWS = 8;
 
 function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId: string; anchor: Anchor }) {
-  const theme = useTheme();
   const members = useTileFolderMembers(windowId, folderId);
   const label = useTileFolderLabel(windowId, folderId);
   const open = useFolderPanel((u) => u.open?.windowId === windowId && u.open.folderId === folderId);
@@ -185,13 +159,15 @@ function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId
   const more = members.length - PEEK_ROWS;
   return (
     <Card anchor={anchor}>
-      <Text style={{ ...font.small, fontWeight: weight.semibold, color: theme.textSecondary, marginBottom: 4, marginLeft: 4 }}>
-        {label} · {plural(members.length, "tab")}
-      </Text>
+      <SectionLabel title={`${label} · ${plural(members.length, "tab")}`} inset={space.xs} bottom={space.xs} />
       {members.slice(0, PEEK_ROWS).map((id) => (
         <PeekRow key={id} tabId={id} windowId={windowId} />
       ))}
-      {more > 0 ? <Text style={{ ...font.footnote, color: theme.textTertiary, marginTop: 4, marginLeft: 4 }}>and {more} more</Text> : null}
+      {more > 0 ? (
+        <Text size="caption" tone="textTertiary" style={MORE_LINE}>
+          and {more} more
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -208,13 +184,11 @@ function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
         clickTab(windowId, tabId);
       }}
     >
-      <View
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{ height: 28, borderRadius: radius.button, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, backgroundColor: hovered ? theme.rowHover : undefined }}
-      >
-        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
-        <FadeLabel text={tabTitle(tab)} fontSize={SIDEBAR_TYPE.compact} color={theme.textTab} style={{ flex: 1, height: 17, marginLeft: 7 }} />
+      <View onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+        <SidebarListRow height={28} padRight={space.xs} fill={hovered ? theme.rowHover : undefined}>
+          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact profileId={tab.profileId} />
+          <SidebarRowLabel text={tabTitle(tab)} color={theme.textTab} compact />
+        </SidebarListRow>
       </View>
     </Pressable>
   );

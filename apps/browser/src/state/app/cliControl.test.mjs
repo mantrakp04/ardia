@@ -2,11 +2,17 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 
+const setTimeoutHoldingExit = globalThis.setTimeout;
+globalThis.setTimeout = (callback, ms, ...args) => {
+  const timer = setTimeoutHoldingExit(callback, ms, ...args);
+  return ms >= 1_000 ? timer.unref() : timer;
+};
+
 globalThis.__DEV__ = false;
 registerHooks({
   resolve(specifier, context, next) {
     if (!context.parentURL?.endsWith("/state/app/cliControl.ts") || specifier !== "../pages/urls") return next(specifier, context);
-    const stub = "export const isInternalTab = (t) => /^ardia:\\/\\//i.test(t.navigation?.url ?? t.url ?? '');";
+    const stub = "export const isInternalTab = (t) => /^ardia:\\/\\//i.test(t.page.nav?.url ?? t.url ?? '');";
     return { url: `data:text/javascript,${encodeURIComponent(stub)}`, shortCircuit: true };
   },
 });
@@ -20,8 +26,8 @@ const { useBrowser } = await import("../browser/store.ts");
 const cli = await import("./cliControl.ts");
 const settle = () => new Promise((r) => setImmediate(r));
 const setOn = (on) => useBrowser.getState().updateSettings({ cliControl: on });
-const { engineEvent } = await import("../../test-native/index.ts");
-const emit = (status) => engineEvent("cliControl", status);
+const { emitEvent } = await import("../../test-native/index.ts");
+const emit = (status) => emitEvent("engine.cliControl", status);
 const { markTabReady } = await import("../tabs/pageState.ts");
 const ready = (tabId) => (markTabReady(tabId), cli.noteTabReady(tabId));
 
@@ -103,7 +109,7 @@ test("a page parked behind New Tab or an Ardia page is not what the user is look
   S().updateTab(a, { url: tab.url, title: tab.title });
   await settle();
   assert.deepEqual(active, [a, null, a], "Forward shows the page again");
-  S().updateTab(a, { url: "ardia://settings", navigation: { ...S().tabs[a].navigation, url: "ardia://settings" } });
+  S().updateTab(a, { url: "ardia://settings", page: { kind: "loaded", nav: { ...S().tabs[a].page.nav, url: "ardia://settings" } } });
   await settle();
   assert.deepEqual(active, [a, null, a, null], "an Ardia page over a parked WebContents");
   emit({ state: "off", generation: 4 });

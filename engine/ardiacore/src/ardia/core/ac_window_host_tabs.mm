@@ -34,8 +34,7 @@ void WindowHost::ActiveTabChanged(Browser* browser,
   VideoUpscalingInputsChanged();
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&ShowWaitingInstalledBubbles));
-  base::AutoReset<int> notifying(&g_tab_strip_notifying,
-                                 g_tab_strip_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kTabStrip);
   ArdiaCoreTab* tab = TabBridge::GetOrCreate(contents)->tab();
   ArdiaCoreWindow* owner = owner_;
   if ([owner.delegate respondsToSelector:@selector(window:didActivateTab:)]) {
@@ -47,8 +46,7 @@ void WindowHost::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-  base::AutoReset<int> notifying(&g_tab_strip_notifying,
-                                 g_tab_strip_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kTabStrip);
   ArdiaCoreWindow* owner = owner_;
   id<ArdiaCoreWindowDelegate> delegate = owner.delegate;
   if (change.type() == TabStripModelChange::kInserted) {
@@ -64,7 +62,7 @@ void WindowHost::OnTabStripModelChanged(
       if (!disposition && pending_open_.disposition) {
         disposition = pending_open_.disposition;
         source = pending_open_.source.get();
-        bridge->set_open(*disposition, source);
+        bridge->set_open(pending_open_);
       }
       if (!source) {
         tabs::TabInterface* opener_tab =

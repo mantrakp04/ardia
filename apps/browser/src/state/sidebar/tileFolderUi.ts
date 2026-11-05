@@ -1,5 +1,5 @@
 import { prompt } from "../../platform/dialogs";
-import { showMenu } from "../../platform/menus";
+import { showMenu, type MenuItem } from "../../platform/menus";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId, plural } from "../browser/model";
@@ -69,16 +69,21 @@ export function removeFromFolder(tabId: string) {
   useBrowser.setState((s) => leaveTileFolder(s, [tabId]));
 }
 
+export function tileFolderContextItems(count: number): MenuItem[] {
+  return [
+    { id: "unpin", title: `Unpin ${plural(count, "Tab")}`, symbol: "pin.slash" },
+    { separator: true },
+    { id: "rename", title: "Rename…", symbol: "pencil" },
+    { separator: true },
+    { id: "remove", title: "Remove Folder", symbol: "folder.badge.minus" },
+  ];
+}
+
 export async function openTileFolderMenu(windowId: string, folderId: string) {
   dismissHover();
   const members = folderMembers(store(), windowId, folderId);
   if (!members.length) return;
-  const choice = await showMenu([
-    { id: "rename", title: "Rename Folder…", symbol: "character.cursor.ibeam" },
-    { id: "remove", title: "Remove Folder", symbol: "folder.badge.minus" },
-    { separator: true },
-    { id: "unpin", title: `Unpin ${plural(members.length, "Tab")}`, symbol: "pin.slash" },
-  ]);
+  const choice = await showMenu(tileFolderContextItems(members.length));
   if (choice === "rename") void renameFolder(windowId, folderId);
   else if (choice === "remove") useBrowser.setState((s) => dissolveTileFolder(s, windowId, folderId));
   else if (choice === "unpin") store().pinTabs(folderMembers(store(), windowId, folderId), false);

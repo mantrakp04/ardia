@@ -1,10 +1,14 @@
 import type { BrowserState } from "../browser/store";
-import { ancestorIds, closedGroupInfo, descendantIds, insertAll, nestGroups, orderSections, placeGroups, rejoinGroups, syncGroupOrder } from "../groups/groups";
-import { inPinnedContainer, newId, pendingRestore, restoreId, snapshotTab, viewTabIds } from "../browser/model";
+import { ancestorIds, closedGroupInfo, descendantIds, innermostGroupOf, insertAll, nestGroups, orderSections, placeGroups, rejoinGroups, syncGroupOrder } from "../groups/groups";
+import { inPinnedContainer, newId, snapshotTab, viewTabIds } from "../browser/model";
+import { pendingRestore, restoreId } from "../tabs/adoptIds";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
-import { groupLabel, groupOf, withGroup } from "./tabGrouping";
-import type { ClosedGroup, ClosedTab, NestedGroupSnapshot, Tab, TabGroup } from "../browser/types";
+import { groupLabel, withGroup } from "./tabGrouping";
+import type { BrowserWindow, ClosedGroup, ClosedTab, ClosedWindow, NestedGroupSnapshot, Tab, TabGroup } from "../browser/types";
+import { isAsleep } from "../tabs/pageSession";
 
+export const MAX_CLOSED_TABS = 50;
+export const MAX_CLOSED_WINDOWS = 10;
 const MAX_CLOSED_GROUPS = 20;
 const PURGED_AFTER_MS = 7 * 86_400_000;
 function keptAWeek<T extends { closedAt: number }>(list: T[], now: number): T[] {
@@ -15,30 +19,40 @@ export const keptDeletedGroups = (list: ClosedGroup[], now = Date.now()) => kept
 export const keptCleanedTabs = (list: ClosedTab[], now = Date.now()) => keptAWeek(list, now);
 
 export const cleanedTabsFor = (s: Pick<BrowserState, "windows" | "cleanedTabs" | "privateCleanedTabs">, windowId: string): ClosedTab[] =>
-  keptCleanedTabs(s.windows[windowId]?.incognito ? (s.privateCleanedTabs[windowId] ?? NO_CLEANED) : s.cleanedTabs);
+  keptCleanedTabs(s.windows[windowId]?.kind === "private" ? (s.privateCleanedTabs[windowId] ?? NO_CLEANED) : s.cleanedTabs);
 const NO_CLEANED: ClosedTab[] = [];
+
+export function closedTabEntry(s: Pick<BrowserState, "groups">, t: Tab, at: { windowId: string; index: number }, closedAt: number, group: TabGroup | null | undefined = innermostGroupOf(s.groups, t.id)): ClosedTab {
+  const parents = group ? ancestorIds(s.groups, group.id).map((id) => closedGroupInfo(s.groups[id]!)) : [];
+  return {
+    kind: "tab",
+    id: newId("ct"),
+    tab: snapshotTab(t),
+    tabId: t.id,
+    ...(pendingRestore(t) ? { restoreFrom: pendingRestore(t) } : {}),
+    windowId: at.windowId,
+    index: at.index,
+    group: group ? closedGroupInfo(group) : null,
+    ...(parents.length ? { parents } : {}),
+    closedAt,
+  };
+}
+
+export const closedWindowEntry = (w: BrowserWindow, tabs: ClosedWindow["tabs"], groups: ClosedWindow["groups"], closedAt: number): ClosedWindow => ({
+  kind: "window",
+  id: newId("cw"),
+  window: { profileId: w.profileId, sidebarOpen: w.sidebarOpen, frame: w.frame },
+  tabs,
+  groups,
+  closedAt,
+});
 
 export function closedEntries(s: BrowserState, ids: string[]): ClosedTab[] {
   const now = Date.now();
   return ids
     .map((id) => s.tabs[id])
     .filter((t): t is Tab => !!t && !!t.url)
-    .map((t) => {
-      const group = groupOf(s, t.id);
-      const parents = group ? ancestorIds(s.groups, group.id).map((id) => closedGroupInfo(s.groups[id]!)) : [];
-      return {
-        kind: "tab" as const,
-        id: newId("ct"),
-        tab: snapshotTab(t),
-        tabId: t.id,
-        ...(pendingRestore(t) ? { restoreFrom: pendingRestore(t) } : {}),
-        windowId: t.windowId,
-        index: s.windows[t.windowId]?.tabIds.indexOf(t.id) ?? 0,
-        group: group ? closedGroupInfo(group) : null,
-        ...(parents.length ? { parents } : {}),
-        closedAt: now,
-      };
-    });
+    .map((t) => closedTabEntry(s, t, { windowId: t.windowId, index: s.windows[t.windowId]?.tabIds.indexOf(t.id) ?? 0 }, now));
 }
 
 export function closeQuietly(s: BrowserState, ids: string[]): BrowserState {
@@ -55,7 +69,7 @@ function showAboveGroup(before: BrowserState, s: BrowserState, g: TabGroup): Bro
   if (!w || !was || !g.tabIds.includes(was)) return s;
   const order = viewTabIds(before, g.windowId, g.profileId).filter((id) => !inPinnedContainer(before, id));
   const at = order.indexOf(g.tabIds[0]!);
-  const stays = (id: string) => !!s.tabs[id] && !g.tabIds.includes(id) && !s.tabs[id]!.unloaded;
+  const stays = (id: string) => !!s.tabs[id] && !g.tabIds.includes(id) && !isAsleep(s.tabs[id]);
   const pick = order.slice(0, at).reverse().find(stays) ?? order.slice(at).find(stays);
   if (!pick) return s;
   if (w.profileId === g.profileId) return apply(s, activated(s, pick));
@@ -79,7 +93,7 @@ export function closingGroup(s: BrowserState, groupId: string, deleted = false):
     index: w.tabIds.indexOf(g.tabIds[0]!),
     closedAt: Date.now(),
   };
-  const recordable = !w.incognito && entry.tabs.some((t) => t.url);
+  const recordable = w.kind !== "private" && entry.tabs.some((t) => t.url);
   const next = showAboveGroup(s, closeQuietly(s, g.tabIds), g);
   if (!recordable) return next;
   if (deleted) return { ...next, deletedGroups: [...keptDeletedGroups(next.deletedGroups), entry] };
@@ -128,7 +142,7 @@ export function restoreSnapshots(
   const ids: string[] = [];
   const w = s.windows[windowId]!;
   for (const e of entries) {
-    const profileId = s.profiles[e.tab.profileId] || w.incognito ? e.tab.profileId : w.profileId;
+    const profileId = s.profiles[e.tab.profileId] || w.kind === "private" ? e.tab.profileId : w.profileId;
     const [next, id] = withNewTab(s, windowId, {
       url: e.tab.url || undefined,
       profileId,
@@ -166,7 +180,7 @@ export function regroupRestored(s: BrowserState, windowId: string, entries: Clos
 }
 
 export function restoreTarget(s: BrowserState, original: string, requested?: string | null): string | undefined {
-  const ok = (id: string | null | undefined) => !!id && !!s.windows[id] && !s.windows[id]!.incognito;
+  const ok = (id: string | null | undefined) => !!id && !!s.windows[id] && s.windows[id]!.kind !== "private";
   if (ok(original)) return original;
   if (ok(requested)) return requested!;
   return s.ui.focusOrder.find((id) => ok(id)) ?? s.windowOrder.find((id) => ok(id));
@@ -194,7 +208,7 @@ export function restoringGroup(s: BrowserState, entry: ClosedGroup, requested?: 
   const [restored, ids] = restoreSnapshots(
     next,
     windowId,
-    entry.tabs.map((tab, i) => ({ tab: { ...tab, pinned: false }, tabId: entry.tabIds?.[i], index: index === undefined ? undefined : index + i })),
+    entry.tabs.map((tab, i) => ({ tab: { ...tab, pin: null }, tabId: entry.tabIds?.[i], index: index === undefined ? undefined : index + i })),
   );
   next = restored;
   const home = entry.group.parentId ? next.groups[entry.group.parentId] : undefined;

@@ -12,7 +12,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "shaders:check": "turbo run shaders:check",
-    "test": "turbo run test && node --no-warnings --test extras/raycast-ardia/src/scripts.test.ts"
+    "test": "turbo run test && node --no-warnings --test extras/raycast-ardia/src/scripts.test.ts \"scripts/**/*.test.mjs\" \"apps/site/src/**/*.test.ts\""
   },
   "devDependencies": {
     "turbo": "^2.11.3",

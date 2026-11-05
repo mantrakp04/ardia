@@ -1,10 +1,15 @@
 #!/usr/bin/env node
-import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { promisify } from "node:util";
+import { compareVersions } from "../apps/site/src/data/versions.ts";
+import { github, readCache } from "./stats/github.mjs";
+import { RELEASE_VERSION } from "./stats/queries.mjs";
+import { parseSince } from "./stats/since.mjs";
 import { clickhouse, hasTelemetryEnv } from "./telemetry-env.mjs";
+import {
+  APP_LIBS, APP_SOURCES, AUTO_EVENTS, DAILY_LIB, HISTORY_SOURCE, PRODUCTION_HOSTS, SITE_EVENTS, SITE_LIBS, SITE_SOURCES, classifyNoise, visitorOnSql,
+} from "../apps/site/src/data/telemetry.ts";
 
 const USAGE = `usage: node scripts/stats.mjs [--since <when>] [--json] [--no-save]
 
@@ -16,10 +21,7 @@ ending now, plus what changed since the last run. Writes the visual as an SVG an
   --json           print the data as JSON instead of the report
   --no-save        don't record this run as the last check`;
 
-const REPO = "mantrakp04/ardia";
 const STATE = join(homedir(), ".local/state/ardia/stats-last.json");
-const TRAFFIC_CACHE = join(homedir(), ".cache/ardia/github-traffic.json");
-const RELEASES_CACHE = join(homedir(), ".cache/ardia/github-older-releases.json");
 const SVG_DIR = "/tmp/ardia-stats";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -33,35 +35,6 @@ const flag = (name) => {
   return i === -1 ? undefined : args[i + 1];
 };
 
-function parseSince(text, now) {
-  if (!text) return now - 24 * 3600e3;
-  const s = text.trim().toLowerCase();
-  let m = /^(\d+(?:\.\d+)?)\s*(m|min|mins|h|hr|hrs|d|day|days|w)$/.exec(s);
-  if (m) {
-    const unit = { m: 60e3, min: 60e3, mins: 60e3, h: 3600e3, hr: 3600e3, hrs: 3600e3, d: 864e5, day: 864e5, days: 864e5, w: 6048e5 }[m[2]];
-    return now - Number(m[1]) * unit;
-  }
-  const zoneOffset = (zone) => (zone === "ist" ? 330 : zone === "utc" || zone === "z" ? 0 : null);
-  m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(ist|utc|z)?$/.exec(s);
-  if (m) {
-    let hour = Number(m[1]) % (m[3] ? 12 : 24);
-    if (m[3] === "pm") hour += 12;
-    const offset = zoneOffset(m[4]) ?? -new Date(now).getTimezoneOffset();
-    const shifted = new Date(now + offset * 60e3);
-    let at = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), hour, Number(m[2] ?? 0)) - offset * 60e3;
-    if (at > now) at -= 864e5;
-    return at;
-  }
-  m = /^(\d{4})-(\d{2})-(\d{2})(?:[ t](\d{1,2}):(\d{2}))?\s*(ist|utc|z)?$/.exec(s);
-  if (m) {
-    const [, y, mo, d, h = "0", mi = "0", zone] = m;
-    const offset = zoneOffset(zone);
-    if (offset === null) return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi)).getTime();
-    return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi)) - offset * 60e3;
-  }
-  throw new Error(`can't read --since "${text}"`);
-}
-
 const now = Date.now();
 const since = parseSince(flag("--since"), now);
 const sinceSec = Math.floor(since / 1000);
@@ -70,38 +43,43 @@ const step = span <= 8 * 3600e3 ? 900 : span <= 3 * 864e5 ? 3600 : 86400;
 const zoneOffsetSec = -new Date(now).getTimezoneOffset() * 60;
 const origin = Math.floor((sinceSec + zoneOffsetSec) / step) * step - zoneOffsetSec;
 
-const HOSTS = "'ardia.dev', 'www.ardia.dev', 'netnyahoo.com', 'www.netnyahoo.com'";
-const SITE = `(source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND properties['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web') AND properties['$host'] IN (${HOSTS}))`;
-const APP = `(source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND properties['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry'))`;
-const DAILY = "Event = 'daily_active' AND ServiceName = 'ardia-app' AND LogAttributes['$lib'] = 'ardia-daily' AND LogAttributes['$environment'] = 'production'";
-const WINDOW_EVENTS = [
+const sqlList = (values) => values.map((v) => `'${v}'`).join(", ");
+const HOSTS = sqlList(PRODUCTION_HOSTS);
+const LIBS = { site: sqlList(SITE_LIBS), app: sqlList(APP_LIBS) };
+const SITE = `(source IN (${sqlList([...SITE_SOURCES, HISTORY_SOURCE])}) AND properties['$lib'] IN (${LIBS.site}) AND properties['$host'] IN (${HOSTS}))`;
+const APP = `(source IN (${sqlList([...APP_SOURCES, HISTORY_SOURCE])}) AND properties['$lib'] IN (${LIBS.app}))`;
+const DAILY = `Event = 'daily_active' AND ServiceName = '${APP_SOURCES[0]}' AND LogAttributes['$lib'] = '${DAILY_LIB}' AND LogAttributes['$environment'] = 'production'`;
+const REPORTED_EVENTS = [
   "$pageview", "download_clicked", "github_clicked", "screenshot_opened", "release_notes_viewed", "notify_clicked",
-  "$rageclick", "$dead_click", "send_to_mac_clicked", "send_to_mac_fallback", "mac_link_visit", "$exception",
-].map((e) => `'${e}'`).join(", ");
+  "$rageclick", "$dead_click", "send_to_mac_clicked", "mac_link_visit", "$exception",
+];
+const unknownEvents = REPORTED_EVENTS.filter((e) => !SITE_EVENTS.includes(e) && !AUTO_EVENTS.includes(e));
+if (unknownEvents.length) throw new Error(`stats.mjs reports events the site no longer sends: ${unknownEvents.join(", ")}`);
+const WINDOW_EVENTS = sqlList(REPORTED_EVENTS);
+const MAC_DEVICE = visitorOnSql("mac", (key) => `{p}['${key}']`);
 
 const OTEL = {
   table: "telemetry.otel_logs", final: " FINAL",
   p: "LogAttributes", ts: "Timestamp", t: "toDateTime64(Timestamp, 6, 'UTC')", e: "Event", d: "DistinctId",
-  site: `ServiceName IN ('ardia-site', 'netnyahoo-site') AND {p}['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web') AND {p}['$host'] IN (${HOSTS})`,
-  app: "ServiceName IN ('ardia-app', 'netnyahoo-app') AND {p}['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry')",
+  site: `ServiceName IN (${sqlList(SITE_SOURCES)}) AND {p}['$lib'] IN (${LIBS.site}) AND {p}['$host'] IN (${HOSTS})`,
+  app: `ServiceName IN (${sqlList(APP_SOURCES)}) AND {p}['$lib'] IN (${LIBS.app})`,
   base: "Event != '' AND ResourceAttributes['service.version'] != '0.0.0-selftest'",
 };
 const HISTORY = {
   table: "telemetry.posthog_events", final: "",
   p: "properties", ts: "timestamp", t: "timestamp", e: "event", d: "distinct_id",
-  site: `{p}['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web') AND {p}['$host'] IN (${HOSTS})`,
-  app: "{p}['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry')",
+  site: `{p}['$lib'] IN (${LIBS.site}) AND {p}['$host'] IN (${HOSTS})`,
+  app: `{p}['$lib'] IN (${LIBS.app})`,
   base: "1",
 };
 const fill = (sql, t) =>
   sql.replace(/\{(site|app)\}/g, (_, k) => `(${t[k]})`)
-    .replaceAll("{mac}", "({p}['$os'] = 'Mac OS X' AND {p}['$device_type'] = 'Desktop')")
+    .replaceAll("{mac}", `(${MAC_DEVICE})`)
     .replace(/\{(p|ts|t|e|d)\}/g, (_, k) => t[k]);
 const both = (select, where, { final = false } = {}) =>
   [OTEL, HISTORY]
     .map((t) => `SELECT ${fill(select, t)} FROM ${t.table}${final ? t.final : ""} WHERE ${fill(where, t)} AND ${t.base}`)
     .join(" UNION ALL ");
-const VERSION = "'^[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-nightly\\\\.[0-9]+)?$'";
 
 const problems = [];
 const attempt = async (name, fn) => {
@@ -115,10 +93,10 @@ const attempt = async (name, fn) => {
 
 const windowRows = () =>
   clickhouse(`SELECT event, distinct_id, toUnixTimestamp(timestamp), properties['$referring_domain'], properties['$device_type'],
-      properties['$os'], properties['$geoip_country_code'], properties['outcome'], properties['action'],
+      properties['$os'], properties['$geoip_country_code'], properties['outcome'],
       if(${APP}, 'app', 'site'), properties['$app_version'],
       if(event = '$exception', properties['$exception_values'], ''), if(event = '$exception', substring(properties['$exception_list'], 1, 4000), ''),
-      if(event = '$exception', properties['$raw_user_agent'], '')
+      if(event = '$exception', properties['$raw_user_agent'], ''), ${MAC_DEVICE.replaceAll("{p}", "properties")}
     FROM telemetry.events
     WHERE event IN (${WINDOW_EVENTS}) AND timestamp >= toDateTime(${sinceSec}, 'UTC')
       AND (${SITE} OR (event = '$exception' AND ${APP}))`);
@@ -133,7 +111,7 @@ const headline = () =>
               countIf(isFirst AND day = yesterday()) AS firstYesterday, countIf(isFirst AND day = today()) AS firstToday,
               countIf(isFirst) AS first
        FROM (${both("{p}['version'] AS v, toDate({t}) AS day, {p}['first'] = 'true' AS isFirst", "{e} = 'update_check'", { final: true })})
-       WHERE match(v, ${VERSION}) GROUP BY v)),
+       WHERE match(v, '${RELEASE_VERSION}') GROUP BY v)),
     (SELECT tuple(uniqExactIf(d, t >= toDateTime(${sinceSec}, 'UTC')), uniqExactIf(d, t >= today()), uniqExact(d))
      FROM (${both("{d} AS d, {t} AS t", `{ts} > now() - INTERVAL ${Math.max(7, Math.ceil(span / 864e5))} DAY AND {app}`)})),
     (SELECT tuple(countIf(day = today()), countIf(day = yesterday()), countIf(weekly AND day >= toMonday(today())),
@@ -143,84 +121,13 @@ const headline = () =>
                   LogAttributes['first'] = 'true' AS isFirst, LogAttributes['$app_version'] AS version
            FROM telemetry.otel_logs FINAL WHERE ${DAILY} AND Timestamp > now() - INTERVAL 40 DAY))`);
 
-const githubQuery = (releases, after) => `{ repository(owner: "mantrakp04", name: "ardia") { stargazerCount forkCount issues(states: OPEN) { totalCount }
-  stargazers(last: 100) { edges { starredAt } }
-  releases(first: ${releases}${after ? `, after: "${after}"` : ""}, orderBy: { field: CREATED_AT, direction: DESC }) { pageInfo { endCursor }
-    nodes { tagName isDraft isPrerelease publishedAt releaseAssets(first: 20) { nodes { name downloadCount } } } } } }`;
-const LIVE_RELEASES = 5;
-const github = async () => {
-  const token = process.env.GH_TOKEN ?? (await promisify(execFile)("gh", ["auth", "token"])).stdout.trim();
-  const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
-  const graphql = async (query) => {
-    const res = await fetch("https://api.github.com/graphql", { method: "POST", headers, body: JSON.stringify({ query }) });
-    const body = await res.json();
-    if (!res.ok || body.errors) throw new Error(`GitHub GraphQL: ${res.status} ${JSON.stringify(body.errors ?? body).slice(0, 160)}`);
-    return body.data.repository;
-  };
-  const rest = (path) => fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers }).then((r) => (r.ok ? r.json() : null));
-  const cachedFor = async (file, maxAge, load) => {
-    const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
-    if (cached && now - cached.at < maxAge) return cached;
-    const fresh = load().then((value) => {
-      const entry = { ...value, at: Date.now() };
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, JSON.stringify(entry));
-      return entry;
-    });
-    if (!cached) return fresh;
-    return Promise.race([fresh.catch(() => cached), new Promise((resolve) => setTimeout(resolve, 800, cached))]);
-  };
-  const repoPromise = graphql(githubQuery(LIVE_RELEASES));
-  const [repo, older, { views, referrers }] = await Promise.all([
-    repoPromise,
-    repoPromise.then((r) =>
-      cachedFor(RELEASES_CACHE, 3600e3, async () => ({ after: r.releases.pageInfo.endCursor, nodes: (await graphql(githubQuery(100, r.releases.pageInfo.endCursor))).releases.nodes })),
-    ),
-    cachedFor(TRAFFIC_CACHE, 3600e3, async () => {
-      const [views, referrers] = await Promise.all([rest("traffic/views"), rest("traffic/popular/referrers")]);
-      return { views, referrers };
-    }),
-  ]);
-  const liveTags = new Set(repo.releases.nodes.map((r) => r.tagName));
-  const releases = { nodes: [...repo.releases.nodes, ...older.nodes.filter((r) => !liveTags.has(r.tagName))] };
-  const starTimes = repo.stargazers.edges.map((e) => Date.parse(e.starredAt));
-  const count = (release, ext) => release.releaseAssets.nodes.find((a) => a.name.endsWith(ext))?.downloadCount ?? 0;
-  const latest = releases.nodes.find((r) => !r.isDraft && !r.isPrerelease);
-  return {
-    stars: repo.stargazerCount,
-    starsInWindow: starTimes.filter((t) => t >= since).length,
-    stars24h: starTimes.filter((t) => t >= now - 864e5).length,
-    forks: repo.forkCount,
-    openIssues: repo.issues.totalCount,
-    dmg: releases.nodes.reduce((sum, r) => sum + count(r, ".dmg"), 0),
-    zips: releases.nodes.reduce((sum, r) => sum + count(r, ".zip"), 0),
-    latest: latest && { version: latest.tagName.replace(/^v/, ""), dmg: count(latest, ".dmg"), zip: count(latest, ".zip"), published: latest.publishedAt },
-    views: views && { count: views.count, uniques: views.uniques },
-    referrers: (referrers ?? []).slice(0, 3).map((r) => [r.referrer, r.uniques]),
-  };
-};
-
 const [rows, head, gitHub] = await Promise.all([
   hasTelemetryEnv() ? attempt("telemetry (window)", windowRows) : (problems.push("telemetry: ~/.config/ardia/telemetry.env is missing (docs/growth.md, Telemetry)"), null),
   hasTelemetryEnv() ? attempt("telemetry (headline)", headline) : null,
-  attempt("github", github),
+  attempt("github", () => github({ now, since })),
 ]);
 
 const uniq = (list) => new Set(list).size;
-const compareVersions = (a, b) => {
-  const parse = (v) => {
-    const [core = "", pre = ""] = v.split("-nightly.");
-    return [...core.split(".").map(Number), pre ? Number(pre) : Number.POSITIVE_INFINITY];
-  };
-  const pa = parse(a);
-  const pb = parse(b);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] ?? 0;
-    const y = pb[i] ?? 0;
-    if (x !== y) return x < y ? -1 : 1;
-  }
-  return 0;
-};
 const tally = (pairs, top = 6) => {
   const sets = new Map();
   for (const [key, id] of pairs) {
@@ -255,24 +162,17 @@ function classifyError({ message, list, ua, where }) {
       return [];
     }
   })();
-  if (/^Script error\.?$/.test(message)) return "cross-origin Script error.";
-  if (frames.some((f) => /^(chrome|moz|safari(-web)?)-extension:/.test(f.filename ?? ""))) return "browser extension";
-  if (/webkit\.messageHandlers|Twitter for|Instagram|FBAN|FBAV/.test(message + ua)) return "in-app browser";
-  if (/Non-Error promise rejection captured with value: \{\}/.test(message)) return "Safari empty promise rejection (known)";
-  if (/ResizeObserver loop/.test(message)) return "ResizeObserver";
-  if (/Load failed|Failed to fetch|NetworkError|network error/i.test(message)) return "network drop";
-  if (/wallet|ethereum|solana|metamask|LavaMoat/i.test(message)) return "wallet extension";
-  return null;
+  return classifyNoise({ message, frames, userAgent: ua });
 }
 
 const data = { at: now, since, step, tz: TZ, github: gitHub, problems };
 if (rows) {
-  const r = rows.map(([event, id, t, ref, type, os, country, outcome, action, where, version, values, list, ua]) => ({
-    event, id, t: Number(t), ref, type, os, country, outcome, action, where, version, values, list, ua,
+  const r = rows.map(([event, id, t, ref, type, os, country, outcome, where, version, values, list, ua, mac]) => ({
+    event, id, t: Number(t), ref, type, os, country, outcome, where, version, values, list, ua, mac: Boolean(Number(mac)),
   }));
   const views = r.filter((x) => x.event === "$pageview");
   const ofEvent = (e) => r.filter((x) => x.event === e);
-  const macViews = views.filter((x) => x.os === "Mac OS X" && x.type === "Desktop");
+  const macViews = views.filter((x) => x.mac);
   const downloads = ofEvent("download_clicked");
   const buckets = Array.from({ length: Math.ceil((now / 1000 - origin) / step) }, () => new Set());
   for (const v of views) buckets[Math.min(buckets.length - 1, Math.floor((v.t - origin) / step))]?.add(v.id);
@@ -302,15 +202,14 @@ if (rows) {
     referrers: tally(views.map((x) => [REF[x.ref] ?? x.ref, x.id])),
     devices: tally(views.map((x) => [deviceName(x.type, x.os), x.id])),
     countries: tally(views.map((x) => [countryName(x.country), x.id]), 7),
-    mac: { visitors: uniq(macViews.map((x) => x.id)), clicked: uniq(downloads.filter((x) => x.os === "Mac OS X" && x.type === "Desktop").map((x) => x.id)) },
-    downloadsOther: tally(downloads.filter((x) => !(x.os === "Mac OS X" && x.type === "Desktop")).map((x) => [deviceName(x.type, x.os), x.id])),
+    mac: { visitors: uniq(macViews.map((x) => x.id)), clicked: uniq(downloads.filter((x) => x.mac).map((x) => x.id)) },
+    downloadsOther: tally(downloads.filter((x) => !x.mac).map((x) => [deviceName(x.type, x.os), x.id])),
     clicks: Object.fromEntries(["github_clicked", "screenshot_opened", "release_notes_viewed", "notify_clicked", "$rageclick", "$dead_click"].map((e) => [e, clicks(e)])),
   };
   data.phones = {
     taps: sends.length,
     people: uniq(sends.map((x) => x.id)),
     outcomes: tally(sends.map((x) => [x.outcome || "opened the panel", x.id])),
-    fallback: tally(ofEvent("send_to_mac_fallback").map((x) => [x.action || "other", x.id])),
     macLinkVisits: uniq(ofEvent("mac_link_visit").map((x) => x.id)),
   };
   data.errors = [...errors.values()].map(({ ids, ...e }) => ({ ...e, people: ids.size })).sort((a, b) => b.count - a.count);
@@ -339,7 +238,7 @@ if (head) {
   data.active = { dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday, pingSince, silentYesterday };
 }
 
-const previous = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : null;
+const previous = readCache(STATE);
 const current = {
   at: now,
   visitors: data.headline?.allTime,
@@ -419,8 +318,7 @@ function report() {
   if (data.phones) {
     const p = data.phones;
     out.push("", "**Phones**");
-    const fallback = p.fallback.length ? `; fallback ${list(p.fallback)}` : "";
-    out.push(`- Send to my Mac: ${p.taps} taps by ${p.people} people${p.outcomes.length ? ` → ${list(p.outcomes)}` : ""}${fallback}`);
+    out.push(`- Send to my Mac: ${p.taps} taps by ${p.people} people${p.outcomes.length ? ` → ${list(p.outcomes)}` : ""}`);
     out.push(`- Macs that opened a sent link: ${p.macLinkVisits} (${n(data.headline?.macLinkAll)} all time)`);
   }
   if (gitHub) {

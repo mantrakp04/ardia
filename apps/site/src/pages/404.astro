@@ -1,10 +1,10 @@
 ---
+import { base } from "../data/site";
 import { Picture } from "astro:assets";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import hills from "../assets/paint/hills.png";
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
 <Base title="Not found · Ardia" description="There’s no page at this address." noindex>

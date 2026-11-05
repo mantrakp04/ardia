@@ -1,10 +1,11 @@
-import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, font, radius, space, Surface, Symbol, VisualEffect } from "../ui";
+import { devRegister } from "../dev/devRegister";
+import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, concentric, radius, space, Surface, Symbol, Text, VisualEffect } from "../ui";
 import { swipeHaptic } from "../../state/app/system";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { spring as springOf } from "../ui/motion";
-import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, windowColors } from "./tokens";
+import { spring as springOf, springSpec, type SpringSpec } from "../ui/motion";
+import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, SWIPE_PILL_SPRING, windowColors } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
 import { HistoryPopover } from "./HistoryPopover";
@@ -27,12 +28,15 @@ const ICON_CONFIRMED = 34;
 const LIST_WIDTH = 200;
 const ROW = LIST_ROW;
 const LIST_PAD = space.m;
-const LIST_RADIUS = 18;
+const LIST_RADIUS = radius.sheet;
 const LIST_IDLE_MS = 300;
 
-export function spring(value: Animated.Value, toValue: number, response: number, dampingRatio: number, native = false) {
-  return Animated.spring(value, { toValue, ...springOf({ response, damping: dampingRatio }), useNativeDriver: native });
+function spring(value: Animated.Value, toValue: number, spec: SpringSpec, native = false) {
+  return Animated.spring(value, { toValue, ...springOf(spec), useNativeDriver: native });
 }
+
+const rowsAboveSelected = (count: number, selected: number) => count - 1 - selected;
+const listTop = (height: number, count: number, selected: number) => height / 2 - ROW / 2 - LIST_PAD - rowsAboveSelected(count, selected) * ROW;
 
 export function NavigationOverlays({ tabId, windowId, geometry }: { tabId: string; windowId: string; geometry: ToolbarGeometry }) {
   return (
@@ -98,14 +102,14 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     Object.assign(g, { active: true, direction, confirmed: false, width: SIZE, list: null, listY: 0, selected: 0 });
   };
 
-  const layoutTo = (width: number, height: number, top: number, radius: number, response: number, ratio: number) => {
+  const layoutTo = (width: number, height: number, top: number, corner: number) => {
     g.width = width;
     Animated.parallel([
-      spring(v.w, width, response, ratio),
-      spring(v.h, height, response, ratio),
-      spring(v.top, top, response, ratio),
-      spring(v.radius, radius, response, ratio),
-    ]).start();
+      spring(v.w, width, springSpec.snappy),
+      spring(v.h, height, springSpec.snappy),
+      spring(v.top, top, springSpec.snappy),
+      spring(v.radius, corner, springSpec.snappy),
+    ], { stopTogether: false }).start();
   };
 
   const setConfirmed = (confirmed: boolean) => {
@@ -115,8 +119,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     const { height } = sizeRef.current;
     if (!g.list) {
       const s = confirmed ? SIZE_CONFIRMED : SIZE;
-      layoutTo(s, s, height / 2 - s / 2, s / 2, 0.18, 0.7);
-      spring(v.icon, confirmed ? ICON_CONFIRMED / ICON : 1, 0.18, 0.7, true).start();
+      layoutTo(s, s, height / 2 - s / 2, s / 2);
+      spring(v.icon, confirmed ? ICON_CONFIRMED / ICON : 1, springSpec.snappy, true).start();
     }
     Animated.timing(v.confirm, { toValue: confirmed ? 1 : 0, ...SWIPE_MOTION.confirm, useNativeDriver: true }).start();
     setShown((s) => (s ? { ...s, confirmed } : s));
@@ -133,7 +137,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     g.selected = 0;
     g.listY = lastDy.current;
     swipeHaptic("generic");
-    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, height / 2 - LIST_PAD - ROW / 2, LIST_RADIUS, 0.22, 0.77);
+    v.pill.setValue(rowsAboveSelected(list.length, 0) * ROW);
+    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, listTop(height, list.length, 0), LIST_RADIUS);
     Animated.timing(v.list, { toValue: 1, ...SWIPE_MOTION.list, useNativeDriver: true }).start();
     setShown((s) => (s ? { ...s, list, selected: 0 } : s));
   };
@@ -144,7 +149,11 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     if (index === g.selected) return;
     g.selected = index;
     swipeHaptic("alignment");
-    spring(v.pill, index * ROW, 0.27, 0.9, true).start();
+    const count = g.list!.length;
+    Animated.parallel([
+      spring(v.top, listTop(sizeRef.current.height, count, index), SWIPE_PILL_SPRING),
+      spring(v.pill, rowsAboveSelected(count, index) * ROW, SWIPE_PILL_SPRING),
+    ], { stopTogether: false }).start();
     setShown((s) => (s ? { ...s, selected: index } : s));
   };
 
@@ -279,17 +288,17 @@ function DestinationList({ tabId, items, selected, appear, pill }: { tabId: stri
           right: space.m,
           top: LIST_PAD,
           height: ROW,
-          borderRadius: radius.card,
+          borderRadius: concentric(LIST_RADIUS, space.m),
           backgroundColor: windowColors(theme.dark).swipeSelection,
           transform: [{ translateY: pill }],
         }}
       />
-      {items.map((item, i) => (
-        <View key={item.key} style={{ height: ROW, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xlx, gap: space.ml }}>
-          <View style={{ width: 16, height: 16, borderRadius: radius.s, overflow: "hidden" }}>
-            {item.offset === "newTab" ? <NewTabIcon size={16} /> : <Favicon url={item.url} favicon={favicons.get(item.url) ?? null} size={16} />}
+      {items.map((item, i) => ({ item, i })).reverse().map(({ item, i }) => (
+        <View key={item.key} style={{ height: ROW, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xl, gap: space.ml }}>
+          <View style={{ width: 16, height: 16, borderRadius: radius.control, overflow: "hidden" }}>
+            {item.offset === "newTab" ? <NewTabIcon /> : <Favicon url={item.url} favicon={favicons.get(item.url) ?? null} />}
           </View>
-          <Text numberOfLines={1} style={{ flex: 1, ...font.body, color: i === selected ? theme.textPrimary : theme.textSecondary }}>
+          <Text numberOfLines={1} tone={i === selected ? "textPrimary" : "textSecondary"} style={FLEX}>
             {item.title}
           </Text>
         </View>
@@ -297,6 +306,8 @@ function DestinationList({ tabId, items, selected, appear, pill }: { tabId: stri
     </Animated.View>
   );
 }
+
+const FLEX = { flex: 1 } as const;
 
 const devPanes = new Map<string, React.RefObject<SwipeAreaHandle | null>>();
 function useSwipeDevHandle(tabId: string, area: React.RefObject<SwipeAreaHandle | null>) {
@@ -306,7 +317,5 @@ function useSwipeDevHandle(tabId: string, area: React.RefObject<SwipeAreaHandle 
     return () => void (devPanes.get(tabId) === area && devPanes.delete(tabId));
   }, [tabId]);
 }
-if (__DEV__) {
-  const g = globalThis as { acSwipe?: Record<string, unknown> };
-  g.acSwipe = { ...g.acSwipe, pane: (tabId: string) => devPanes.get(tabId)?.current ?? null, history: { items: historyItems, open: openHistoryMenu, menu: useHistoryMenu, go: goToHistoryItem } };
-}
+devRegister("acSwipe", "pane", (tabId: string) => devPanes.get(tabId)?.current ?? null);
+devRegister("acSwipe", "history", { items: historyItems, open: openHistoryMenu, menu: useHistoryMenu, go: goToHistoryItem });

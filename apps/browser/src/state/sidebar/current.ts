@@ -1,7 +1,7 @@
 import { useBrowser } from "../browser/store";
 import { movingTabIds, resolveDrop, type DragSource, type DropSpot } from "../drag/drops";
 import { descendantIds } from "../groups/groups";
-import { cleanUpCandidates } from "../pins/organize";
+import { cleanUpCandidates } from "../pins/tabCleanup";
 import { sharedTabsIn, sharesTabs } from "../tabs/tabShare";
 import { addressBarInSidebar } from "../windows/layout";
 

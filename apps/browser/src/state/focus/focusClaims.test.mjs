@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, runFocusMove, setFocusSenders } from "./focusClaims.ts";
+import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, runFocusMove } from "./focusClaims.ts";
+import { shellNativeModules } from "../../test-native/shell.ts";
+
+function setFocusSenders(claim, cancel) {
+  const shell = shellNativeModules.ArdiaFocus;
+  shell.claimFocus = (generation, tag) => Promise.resolve(claim(generation, tag));
+  shell.cancelFocusMove = (generation, restoring) => Promise.resolve(cancel(generation, restoring));
+}
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 

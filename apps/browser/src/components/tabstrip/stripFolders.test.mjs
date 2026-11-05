@@ -19,14 +19,16 @@ function setup() {
   return { w, r1, a, b, c, d, r2, x, outer, inner, deep };
 }
 
-const shape = (keys) =>
-  keys.map((k) => {
-    const [kind, id, x, y] = k.split(":");
-    if (kind === "pinned") return `dock ${host(id)}`;
-    if (kind === "group") return `group ${S().groups[id].name}`;
-    if (kind === "folder") return `folder ${S().groups[id].name} [${x.split(",").map(host).join(",")}] in ${S().groups[y].name}`;
-    if (kind === "tab") return `tab ${host(id)}${x ? ` in ${S().groups[x].name}` : ""}`;
-    return k;
+const member = (m) =>
+  m.kind === "folder"
+    ? `folder ${S().groups[m.id].name} [${m.tabIds.map(host).join(",")}] in ${S().groups[m.group].name}`
+    : `${m.kind} ${host(m.id)}${m.group ? ` in ${S().groups[m.group].name}` : ""}`;
+
+const shape = (entries) =>
+  entries.flatMap((e) => {
+    if (e.kind === "dock") return e.ids.map((id) => `dock ${host(id)}`);
+    if (e.kind === "group") return [`group ${S().groups[e.id].name}`, ...e.members.map(member)];
+    return [member(e)];
   });
 
 test("the strip shows a root group's nested groups as one folder each, after every pinned tab in its one container", () => {
@@ -45,7 +47,7 @@ test("a folder's menu lists its tabs and its nested folders as submenus, the act
   assert.equal(items[0].title, "b.example");
   assert.equal(items[1].title, "Deep");
   assert.equal(items[1].children.length, 1);
-  assert.equal(items[1].children[0].id, `t:${c}`);
+  assert.equal(items[1].children[0].value.tabId, c);
   assert.equal(items[1].children[0].checked, true);
   assert.ok(w);
 });

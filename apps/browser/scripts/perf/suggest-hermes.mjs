@@ -62,7 +62,7 @@ var BEFORE = ${/reference/.test(impl)};
 var coreIndex = __require(${JSON.stringify(coreFile)});
 var knownHosts = __require(${JSON.stringify(knownHostsFile)}).knownHosts;
 var BAR_ACTIONS = ${actionsJson};
-var state = { tabs: {}, history: { default: history } };
+var state = { tabs: {}, profiles: {}, history: { "": { list: history, floor: -Infinity, ready: true } } };
 tabs.forEach(function (t) { state.tabs[t.id] = t; });
 var pastHosts = null;
 function hostsFor() {

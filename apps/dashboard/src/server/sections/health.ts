@@ -13,13 +13,19 @@ const VALUE = `substring(coalesce(nullIf(JSONExtractString(properties['$exceptio
 
 export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
   const w = windowFor(range);
-  const launched = "event = 'app_launched' AND properties['previous_session'] IN ('clean', 'unclean')";
-  const unclean = "event = 'app_launched' AND properties['previous_session'] = 'unclean'";
+  const version = `if(${prop("$app_version")} = '', 'unknown', ${prop("$app_version")}) AS v`;
   const [usage, crashes] = await Promise.all([
     query(
-      `SELECT if(${prop("$app_version")} = '', 'unknown', ${prop("$app_version")}) AS v, uniq(distinct_id), countIf(${launched}), countIf(${unclean}), uniqIf(distinct_id, ${unclean})
-       FROM telemetry.events
-       WHERE ${APP} AND ${since(w.start)}
+      `SELECT v, uniq(distinct_id), countIf(launched), countIf(unclean), uniqIf(distinct_id, unclean)
+       FROM (
+         SELECT ${version}, distinct_id, false AS launched, false AS unclean
+         FROM telemetry.events
+         WHERE ${APP} AND ${since(w.start)} AND event != 'app_launched'
+         UNION ALL
+         SELECT ${version}, distinct_id, properties['previous_session'] IN ('clean', 'unclean') AS launched, properties['previous_session'] = 'unclean' AS unclean
+         FROM telemetry.events
+         WHERE event = 'app_launched' AND ${APP_SOURCE} AND ${since(w.start)}
+       )
        GROUP BY GROUPING SETS ((v), ())`,
       signal,
     ),

@@ -9,12 +9,13 @@ export const SETUP_CODE_MAX_INPUT = SETUP_CODE_MAX_LENGTH * 8;
 
 export const SETUP_SETTING_KEYS = [
   "tabLayout",
+  "sidebarSide",
   "addressBar",
   "commandBarPlacement",
   "newTabOpens",
   "newTabPosition",
   "newTabButtonPosition",
-  "cleanUpInactiveTabsAfterHours",
+  "cleanUpInactiveTabsAfterMinutes",
   "restoreSession",
   "shareTabsAcrossWindows",
   "balancedTopApps",
@@ -42,14 +43,15 @@ type Field<T> = { key: string; values: readonly T[] };
 
 const BOOL = [false, true] as const;
 
-const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
+export const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
   tabLayout: { key: "t", values: ["sidebar", "top"] },
+  sidebarSide: { key: "d", values: ["left", "right"] },
   addressBar: { key: "a", values: ["toolbar", "sidebar"] },
   commandBarPlacement: { key: "c", values: ["field", "centred"] },
   newTabOpens: { key: "n", values: ["page", "commandBar"] },
   newTabPosition: { key: "o", values: ["top", "bottom", "nextToCurrent"] },
   newTabButtonPosition: { key: "b", values: ["top", "bottom"] },
-  cleanUpInactiveTabsAfterHours: { key: "i", values: [null, 12, 24, 168] },
+  cleanUpInactiveTabsAfterMinutes: { key: "i", values: [null, 12 * 60, 24 * 60, 7 * 24 * 60] },
   restoreSession: { key: "r", values: BOOL },
   shareTabsAcrossWindows: { key: "w", values: BOOL },
   balancedTopApps: { key: "g", values: BOOL },
@@ -186,6 +188,7 @@ export function describeSetupChoices(choices: SetupChoices): string[] {
   const s = choices.settings;
   const lines: string[] = [];
   if (s.tabLayout) lines.push(s.tabLayout === "top" ? "Tabs along the top" : "Tabs in the sidebar");
+  if (s.sidebarSide === "right" && s.tabLayout !== "top") lines.push("Sidebar on the right");
   if (s.addressBar && s.tabLayout !== "top") lines.push(s.addressBar === "sidebar" ? "Address in the sidebar" : "Address in the toolbar");
   if (s.newTabOpens) lines.push(s.newTabOpens === "commandBar" ? "⌘T opens the command bar" : "⌘T opens the New Tab page");
   if (s.appearance) lines.push(APPEARANCE_LINE[s.appearance]);

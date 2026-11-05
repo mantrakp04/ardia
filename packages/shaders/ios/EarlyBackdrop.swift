@@ -1,10 +1,11 @@
 import AppKit
+import ArdiaCore
 
 @objc(ArdiaEarlyBackdrop)
 public final class EarlyBackdrop: NSObject {
   @objc public static func make(_ props: NSDictionary) -> NSView? {
     var tint = WindowTreatmentView.Tint()
-    if let hex = props["tintColor"] as? String, let c = SIMD4<Float>(hex: hex) {
+    if let hex = props["tintColor"] as? String, let c = RGBA(hex: hex)?.simd {
       tint.color = NSColor(displayP3Red: CGFloat(c.x), green: CGFloat(c.y), blue: CGFloat(c.z), alpha: 1)
     }
     if let alpha = (props["tintAlpha"] as? NSNumber)?.doubleValue { tint.alpha = alpha }

@@ -51,7 +51,6 @@ updater, so it never fetches.
 | `focusedWindowFirst` | a launch opens every window at once, the focused one last | no |
 | `sidebarSlide` | hiding or showing the sidebar jumps instead of sliding (it stays mounted either way); with the address bar in the sidebar, a hidden sidebar's bar moves to a toolbar on the card and the peek is Dia's | yes |
 | `sidebarSlideLean` | every step of the slide lays the traffic lights out (AppKit then rewalks the window's views); read natively, once a launch: `ChromeWindows.swift` | no |
-| `chromeBatterySaver` | Battery Saver is our sampler freezing busy background tabs over CDP instead of Chrome's own mode (`state/tabs/tabLifecycle.ts`) | no |
 
 ## Experiments (off by default; `EXPERIMENTS`)
 

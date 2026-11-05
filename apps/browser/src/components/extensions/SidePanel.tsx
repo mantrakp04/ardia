@@ -1,4 +1,4 @@
-import { WebView, Box, Button, Text } from "../ui";
+import { Box, Button, Divider, springs, Text, WebView } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
@@ -11,6 +11,7 @@ import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
 import { closeSidePanel, findExtension, panelTabOpen, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
+import { GLYPH } from "../toolbar/tokens";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 600;
@@ -43,7 +44,7 @@ export function ExtensionSidePanel() {
 
   useEffect(() => {
     if (panel) setShown(panel);
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.fade, easing: curve.outCubic, useNativeDriver: false }).start(({ finished }) => {
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (!finished || entryNow.current) return;
       setShown(undefined);
       setKept([]);
@@ -87,7 +88,7 @@ export function ExtensionSidePanel() {
           if (raw === target) return finish();
           const value = new Animated.Value(raw);
           value.addListener(({ value: v }) => setDragWidth(v));
-          Animated.timing(value, { toValue: target, duration: duration.resize, easing: curve.outBack, useNativeDriver: false }).start(() => {
+          Animated.spring(value, { toValue: target, ...springs.bouncy, useNativeDriver: false }).start(() => {
             value.removeAllListeners();
             finish();
           });
@@ -99,7 +100,7 @@ export function ExtensionSidePanel() {
   );
 
   if (!shown) return null;
-  const room = width + layout.cardInset - 1;
+  const room = width + layout.cardInset;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
@@ -134,16 +135,16 @@ function PanelCard({ windowId, panel, current }: { windowId: string; panel: Side
         </Text>
         <Button variant="icon"
           icon="ellipsis"
-          size={13}
+          glyph={GLYPH}
           tooltip="More"
           onPress={() => {
             const found = findExtension(profile, extensionId);
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
-        <Button variant="icon" icon="xmark" size={12} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
+        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
       </Box>
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.divider }} />
+      <Divider />
       <View style={PAGE}>
         <WebView
           style={StyleSheet.absoluteFill}

@@ -17,23 +17,30 @@ report() {
 }
 
 languages=" en "
-development="$(plutil -extract CFBundleDevelopmentRegion raw "$app/Contents/Info.plist" 2>/dev/null || true)"
-[ -n "$development" ] && [[ "$languages" != *" ${development//-/_} "* ]] && languages+="${development//-/_} "
+add_language() { [ -z "$1" ] || [[ "$languages" == *" ${1//-/_} "* ]] || languages+="${1//-/_} "; }
+add_language "$(plutil -extract CFBundleDevelopmentRegion raw "$app/Contents/Info.plist" 2>/dev/null || true)"
+declared="$(plutil -extract CFBundleLocalizations json -o - "$app/Contents/Info.plist" 2>/dev/null | tr -d '[]"' | tr ',' ' ' || true)"
+for name in $declared; do
+  [ -f "$fwv/Resources/${name//-/_}.lproj/locale.pak" ] \
+    || die "Info.plist's CFBundleLocalizations has $name, but the framework has no ${name//-/_}.lproj/locale.pak"
+  add_language "$name"
+done
 for lproj in "$resources"/*.lproj; do
   [ -d "$lproj" ] || continue
   name="$(basename "$lproj" .lproj)"
-  [ "$name" = Base ] || [[ "$languages" == *" ${name//-/_} "* ]] || languages+="${name//-/_} "
+  [ "$name" = Base ] || add_language "$name"
 done
+ungendered() { local name="${1%_FEMININE}"; name="${name%_MASCULINE}"; echo "${name%_NEUTER}"; }
 
 if enabled ARDIA_PRUNE_LOCALES; then
   [ -f "$fwv/Resources/en.lproj/locale.pak" ] || die "the framework has no en.lproj/locale.pak"
   doomed=()
   for lproj in "$fwv"/Resources/*.lproj; do
-    [[ "$languages" == *" $(basename "$lproj" .lproj) "* ]] || doomed+=("$lproj")
+    [[ "$languages" == *" $(ungendered "$(basename "$lproj" .lproj)") "* ]] || doomed+=("$lproj")
   done
   freed="$(bytes ${doomed[@]+"${doomed[@]}"})"
   rm -rf ${doomed[@]+"${doomed[@]}"}
-  report "Chrome locales" "$freed" "${#doomed[@]} dropped, kept:$languages; ARDIA_PRUNE_LOCALES=off keeps all"
+  report "Chrome locales" "$freed" "${#doomed[@]} dropped, $(echo $languages | wc -w | tr -d ' ') languages kept; ARDIA_PRUNE_LOCALES=off keeps all"
 fi
 
 if enabled ARDIA_PRUNE_SWIFTSHADER; then
@@ -87,10 +94,14 @@ ubo="$resources/Extensions/ublock"
 if enabled ARDIA_PRUNE_UBO_LOCALES && [ -d "$ubo/_locales" ]; then
   default_locale="$(plutil -extract default_locale raw "$ubo/manifest.json" 2>/dev/null || echo en)"
   [ -f "$ubo/_locales/$default_locale/messages.json" ] || die "uBlock Origin has no _locales/$default_locale"
+  lineages="$languages"
+  for name in $languages; do
+    [[ "$lineages" == *" ${name%%_*} "* ]] || lineages+="${name%%_*} "
+  done
   doomed=()
   for dir in "$ubo"/_locales/*/; do
     name="$(basename "$dir")"
-    [ "$name" = "$default_locale" ] || [[ "$languages" == *" $name "* ]] || doomed+=("${dir%/}")
+    [ "$name" = "$default_locale" ] || [[ "$lineages" == *" $name "* ]] || doomed+=("${dir%/}")
   done
   freed="$(bytes ${doomed[@]+"${doomed[@]}"})"
   rm -rf ${doomed[@]+"${doomed[@]}"}

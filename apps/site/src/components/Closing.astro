@@ -1,4 +1,5 @@
 ---
+import { base } from "../data/site";
 import { Picture, getImage } from "astro:assets";
 import { getEntry } from "astro:content";
 import hills from "../assets/paint/hills.png";
@@ -7,7 +8,6 @@ import DownloadButton from "./DownloadButton.astro";
 import MacOnlyNote from "./MacOnlyNote.astro";
 import SendToMac from "./SendToMac.astro";
 import { DISCORD, MIN_MACOS, VERSION } from "../data/release";
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const hillsMask = await getImage({ src: hills, width: 320, format: "webp" });
 const whatsNew = (await getEntry("releaseNotes", VERSION)) ? `${base}/release-notes/${VERSION}/` : `${base}/release-notes/`;
 ---

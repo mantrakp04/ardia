@@ -3,13 +3,14 @@ import { Animated, View } from "react-native";
 import { allArcHolders, restoreArcFolders } from "../../../state/bookmarks/bookmarkGroups";
 import { useBookmarks } from "../../../state/bookmarks/hooks";
 import { plural } from "../../../state/browser/model";
-import { openInWebStore, type ImportCounts } from "../../../state/import/apply";
+import { useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import type { ImportCounts } from "../../../state/import/apply";
+import { backTo, closeImport, openFoundExtensions, type ImportFlow } from "../../../state/import/flow";
 import { useOnboarding } from "../../../state/onboarding/onboarding";
 import { Button, space, Symbol, Text, useTheme } from "../../ui";
 import { APP, kindTitle } from "../model";
 import { Spacer, Title } from "../Parts";
-import { importColors, importLayout, importMotion, importType } from "../tokens";
-import type { ImportFlow } from "../useImportFlow";
+import { importLayout, importMotion, importType } from "../tokens";
 
 function summaryOf(counts: ImportCounts) {
   return [
@@ -24,12 +25,13 @@ function summaryOf(counts: ImportCounts) {
 }
 
 function ExtensionList({ flow }: { flow: ImportFlow }) {
-  const { extensions, source, target } = flow;
+  const { source, step } = flow;
   const onboarding = useOnboarding((s) => s.windowId !== null);
-  if (!extensions.list.length) return null;
+  if (step.name !== "done" || !step.extensions.list.length) return null;
+  const { extensions } = step;
   const centered = { textAlign: "center" } as const;
   return (
-    <View style={{ alignSelf: "stretch", marginTop: space.lx, gap: space.m }}>
+    <View style={{ alignSelf: "stretch", marginTop: space.xl, gap: space.m }}>
       <Text size="small" tone="textSecondary" style={centered}>
         {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
       </Text>
@@ -44,10 +46,7 @@ function ExtensionList({ flow }: { flow: ImportFlow }) {
         <View style={{ alignItems: "center" }}>
           <Button
             title={extensions.list.length === 1 ? "Open in Chrome Web Store" : `Open ${extensions.list.length} in Chrome Web Store`}
-            onPress={() => {
-              openInWebStore(extensions.profileId || target, extensions.list.map((e) => e.webStoreUrl));
-              flow.setExtensions((x) => ({ ...x, opened: true }));
-            }}
+            onPress={openFoundExtensions}
           />
         </View>
       )}
@@ -58,7 +57,7 @@ function ExtensionList({ flow }: { flow: ImportFlow }) {
 function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
   if (!notes.length) return null;
   return (
-    <Text size="small" tone="textTertiary" style={{ lineHeight: importType.smallLine, marginTop: space.ml, textAlign: failed ? "left" : "center" }}>
+    <Text size="caption" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml, textAlign: failed ? "left" : "center" }}>
       {notes.join(" ")}
     </Text>
   );
@@ -66,7 +65,9 @@ function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
 
 function RestoreArcFolders() {
   const bookmarks = useBookmarks((b) => b);
-  const arcHolders = useMemo(() => allArcHolders({ bookmarks }), [bookmarks]);
+  const profiles = useProfileRecords();
+  const profileOrder = useProfileOrder();
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks, profiles, profileOrder }), [bookmarks, profiles, profileOrder]);
   if (!arcHolders.length) return null;
   return (
     <Button
@@ -79,7 +80,9 @@ function RestoreArcFolders() {
 }
 
 export function DoneBody({ flow }: { flow: ImportFlow }) {
-  const { counts, failures, notes } = flow;
+  const { step } = flow;
+  if (step.name !== "done") return null;
+  const { counts, failures, notes } = step;
   const summary = summaryOf(counts);
   if (failures.length)
     return (
@@ -89,7 +92,7 @@ export function DoneBody({ flow }: { flow: ImportFlow }) {
           Some import steps failed:
         </Text>
         {failures.map((f) => (
-          <Text key={f.kind} tone="textSecondary" style={{ marginBottom: 3 }}>
+          <Text key={f.kind} tone="textSecondary" style={{ marginBottom: space.xs }}>
             {f.profiles.length ? `${kindTitle(f.kind)} import failed for profiles ${f.profiles.join(", ")}` : `${kindTitle(f.kind)} import failed`}
           </Text>
         ))}
@@ -104,7 +107,7 @@ export function DoneBody({ flow }: { flow: ImportFlow }) {
   return (
     <View style={{ alignItems: "center", marginTop: importLayout.doneTop, gap: space.l }}>
       <SuccessMark />
-      <Text weight="semibold" style={{ fontSize: importType.done }}>
+      <Text weight="semibold" style={importType.done}>
         You're all set
       </Text>
       <Text tone="textSecondary" style={{ textAlign: "center" }}>
@@ -118,12 +121,12 @@ export function DoneBody({ flow }: { flow: ImportFlow }) {
 }
 
 export function DoneFooter({ flow }: { flow: ImportFlow }) {
-  const failed = flow.failures.length > 0;
+  const failed = flow.step.name === "done" && flow.step.failures.length > 0;
   return (
     <>
       <Spacer />
-      {failed && <Button title="Try Again" onPress={() => flow.setStep("choose")} />}
-      <Button title={failed ? "Continue" : "Finish importing"} kind="primary" onPress={flow.close} />
+      {failed && <Button title="Try Again" onPress={() => backTo("choose")} />}
+      <Button title={failed ? "Continue" : "Finish importing"} kind="primary" onPress={closeImport} />
     </>
   );
 }
@@ -133,7 +136,7 @@ function SuccessMark() {
   const { success } = importMotion;
   const scale = useRef(new Animated.Value(success.from)).current;
   useEffect(() => {
-    Animated.spring(scale, { toValue: 1, friction: success.friction, tension: success.tension, useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: 1, ...success.spring, useNativeDriver: true }).start();
   }, []);
   return (
     <Animated.View style={{ transform: [{ scale }] }}>

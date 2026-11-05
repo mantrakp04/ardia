@@ -1,45 +1,44 @@
-import { canonical, type ScopeState } from "../../platform/sync";
+import { canonical, pullSettled, type ScopeState } from "../../platform/sync";
 import { useBrowser } from "../browser/store";
 import type { Profile } from "../browser/types";
 import { legacyThemeOf, themeAngleKey, themeFromRecord, type ProfileRecord } from "./profileAdapters";
+import { PROFILE, PROFILE_THEME, profileRecord } from "./records";
 import type { ProfileLink } from "./syncDoc";
 
 function pairedTheme(app: ScopeState, syncId: string): Pick<Profile, "theme"> | null {
-  const record = app.records[`pth:${syncId}`]?.v;
+  const record = app.records[`${PROFILE_THEME}${syncId}`]?.v;
   if (record) return themeFromRecord(record, app.records[themeAngleKey(syncId)]?.v);
-  const profile = app.records[`prof:${syncId}`]?.v as ProfileRecord | null | undefined;
+  const profile = profileRecord(app.records[`${PROFILE}${syncId}`]?.v);
   return profile ? legacyThemeOf(profile) : null;
 }
 
 function settledTheme(app: ScopeState, syncId: string): boolean {
-  const record = app.records[`pth:${syncId}`]?.v;
+  const record = app.records[`${PROFILE_THEME}${syncId}`]?.v;
   return !!record && !!themeFromRecord(record);
 }
 
-export function pairTheme(app: ScopeState, profileId: string, link: ProfileLink) {
-  const theme = pairedTheme(app, link.syncId);
-  if (theme) useBrowser.getState().updateProfile(profileId, theme);
-  if (settledTheme(app, link.syncId)) delete link.themeAdopting;
+export function pairTheme(app: ScopeState | undefined, profileId: string, link: ProfileLink, record?: ProfileRecord) {
+  const theme = app ? pairedTheme(app, link.syncId) : record ? legacyThemeOf(record) : null;
+  if (theme) useBrowser.getState().setProfileLook(profileId, theme);
+  if (app && settledTheme(app, link.syncId)) delete link.themeAdopting;
   else link.themeAdopting = true;
 }
 
-export function settleAppliedThemes(profiles: Record<string, ProfileLink>, app: ScopeState | undefined) {
-  if (!app) return;
-  for (const link of Object.values(profiles)) {
-    if (!link.themeAdopting) continue;
-    const key = `pth:${link.syncId}`;
-    const record = app.records[key]?.v;
-    if (record && themeFromRecord(record) && app.base[key] === canonical(record)) delete link.themeAdopting;
-  }
+export function themeChosenHere(link: ProfileLink | undefined): boolean {
+  if (!link?.themeAdopting) return false;
+  delete link.themeAdopting;
+  return true;
 }
 
-export function confirmThemes(profiles: Record<string, ProfileLink>, app: ScopeState) {
-  settleAppliedThemes(profiles, app);
-  if (app.pending > 0 || Object.keys(app.damaged).length > 0) return;
-  if (Object.values(app.files).some((f) => f.k === "bad")) return;
+export function settleThemeAdoption(profiles: Record<string, ProfileLink>, app: ScopeState | undefined, afterPull: boolean) {
+  if (!app) return;
+  const clean = afterPull && pullSettled(app);
   for (const link of Object.values(profiles)) {
     if (!link.themeAdopting) continue;
-    const record = app.records[`pth:${link.syncId}`];
-    if (!record || record.v === null) delete link.themeAdopting;
+    const key = `${PROFILE_THEME}${link.syncId}`;
+    const record = app.records[key]?.v;
+    const applied = !!record && !!themeFromRecord(record) && app.base[key] === canonical(record);
+    const absent = clean && (record === undefined || record === null);
+    if (applied || absent) delete link.themeAdopting;
   }
 }

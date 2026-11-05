@@ -1,8 +1,7 @@
 import posters from "../assets/hero/posters.json";
+import { HERO_FRAMES, HERO_STATES } from "./heroFrames.mjs";
 
 type Tone = "light" | "dark";
-type FrameName = "wider" | "wide" | "laptop" | "mid" | "tall";
-type StateName = "dawn" | "morning";
 
 interface Captured {
   state: string;
@@ -18,26 +17,13 @@ interface Captured {
 
 const urls = import.meta.glob<string>("../assets/hero/*.webp", { query: "?url", import: "default", eager: true });
 
-const FRAMES: Record<FrameName, { media: string[]; horizon: string }> = {
-  tall: { media: ["(max-aspect-ratio: 9/10) and (max-width: 820px)"], horizon: "67%" },
-  mid: {
-    media: ["(min-aspect-ratio: 9001/10000) and (max-aspect-ratio: 13/10)", "(max-aspect-ratio: 9/10) and (min-width: 820.01px)"],
-    horizon: "65%",
-  },
-  laptop: { media: ["(min-aspect-ratio: 13001/10000) and (max-aspect-ratio: 8/5) and (max-width: 1716px)"], horizon: "65%" },
-  wide: {
-    media: [
-      "(min-aspect-ratio: 8001/5000) and (max-aspect-ratio: 16/9) and (max-width: 1991px)",
-      "(min-aspect-ratio: 13001/10000) and (max-aspect-ratio: 8/5) and (min-width: 1716.01px) and (max-width: 1991px)",
-    ],
-    horizon: "65%",
-  },
-  wider: { media: ["(min-aspect-ratio: 16001/9000)", "(min-aspect-ratio: 13001/10000) and (min-width: 1991.01px)"], horizon: "65%" },
-};
-const STATES: Record<StateName, string> = {
-  dawn: "(prefers-reduced-motion: no-preference)",
-  morning: "(prefers-reduced-motion: reduce)",
-};
+function frameAndState(poster: Captured) {
+  const frame = HERO_FRAMES.find((f) => f.name === poster.frame);
+  const state = HERO_STATES.find((s) => s.name === poster.state);
+  if (!frame || !state)
+    throw new Error(`src/assets/hero/posters.json has ${poster.state}-${poster.frame}, which src/data/heroFrames.mjs doesn't list: rerun scripts/hero-posters.mjs`);
+  return { frame, state };
+}
 
 export interface HeroPoster {
   key: string;
@@ -58,13 +44,13 @@ export interface HeroPoster {
 const halo = (value: number) => (Math.round(value / 0.05) * 0.05).toFixed(2);
 
 export const HERO_POSTERS: HeroPoster[] = (posters as Captured[]).map((poster) => {
-  const frame = FRAMES[poster.frame as FrameName];
+  const { frame, state } = frameAndState(poster);
   const files = [...poster.files].sort((a, b) => a.width - b.width);
   const url = (file: string) => urls[`../assets/hero/${file}`];
   const aspect = poster.width / poster.height;
   return {
     key: `${poster.state}-${poster.frame}`,
-    media: frame.media.map((query) => `${STATES[poster.state as StateName]} and ${query}`).join(", "),
+    media: frame.media.map((query) => `${state.media} and ${query}`).join(", "),
     src: url(files[files.length - 1].file),
     srcset: files.map((file) => `${url(file.file)} ${file.width}w`).join(", "),
     sizes: `max(100vw, ${Math.ceil(aspect * 100)}vh)`,

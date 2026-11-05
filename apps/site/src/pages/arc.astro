@@ -1,43 +1,19 @@
 ---
+import { base, homeUrl } from "../data/site";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import DownloadButton from "../components/DownloadButton.astro";
 import Closing from "../components/Closing.astro";
 import Footer from "../components/Footer.astro";
-import { MIN_MACOS, VERSION } from "../data/release";
+import { MIN_MACOS } from "../data/release";
+import { aboutArdiaPage, breadcrumbs } from "../data/jsonLd";
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const home = new URL(`${base}/`, Astro.site).href;
+const home = homeUrl(Astro.site);
 const url = new URL("arc/", home).href;
 const title = "Moving from Arc? A free Arc replacement for Mac · Ardia";
 const description =
   "Arc stops working on December 22, 2026. Ardia is a free, open-source Mac browser with Arc’s sidebar that imports your spaces, pinned tabs, folders and themes.";
-const jsonLd = [
-  {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: title,
-    description,
-    url,
-    isPartOf: { "@type": "WebSite", name: "Ardia", url: home },
-    about: {
-      "@type": "SoftwareApplication",
-      name: "Ardia",
-      applicationCategory: "BrowserApplication",
-      operatingSystem: `${MIN_MACOS} or later, Apple Silicon`,
-      softwareVersion: VERSION,
-      url: home,
-    },
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
-      { "@type": "ListItem", position: 2, name: "Moving from Arc", item: url },
-    ],
-  },
-];
+const jsonLd = [aboutArdiaPage({ home, url, title, description }), breadcrumbs(home, ["Moving from Arc", url])];
 
 const carried = [
   { from: "Spaces", to: "The first space you pick fills the profile you import into. Each other one becomes its own profile, with its name and colour. Every space keeps its theme." },

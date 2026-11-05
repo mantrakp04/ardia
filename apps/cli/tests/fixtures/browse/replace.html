@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Replace on focus</title></head>
+<body>
+<form id="search" role="search" onsubmit="event.preventDefault()">
+<input id="q" type="search" name="search" placeholder="Search the fixture" aria-label="Search the fixture">
+</form>
+<p><input id="other" type="text" aria-label="Other field"></p>
+<pre id="report">{}</pre>
+<script>
+  const state = { mounted: false, value: "", otherValue: "" };
+  const report = () => {
+    const live = document.querySelector("#search input");
+    state.value = live ? live.value : "";
+    state.otherValue = document.getElementById("other").value;
+    document.getElementById("report").textContent = JSON.stringify(state);
+  };
+  const mount = (event) => {
+    if (state.mounted) return;
+    state.mounted = true;
+    const old = event.target;
+    const fresh = document.createElement("input");
+    for (const attribute of old.attributes) fresh.setAttribute(attribute.name, attribute.value);
+    fresh.dataset.mounted = "yes";
+    old.replaceWith(fresh);
+    fresh.focus();
+    if (location.hash === "#elsewhere") document.getElementById("other").focus();
+    report();
+  };
+  document.getElementById("q").addEventListener("focus", mount, { once: true });
+  document.addEventListener("input", report, true);
+  report();
+</script>
+</body>
+</html>

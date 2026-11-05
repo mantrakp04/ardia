@@ -2,17 +2,31 @@ import type { ScopeState } from "../../platform/sync";
 import type { Profile } from "../browser/types";
 import { unchanged, type Migrations } from "../../lib/savedDocument";
 
-export type DataType = "bookmarks" | "history" | "tabs" | "pinned" | "passwords" | "extensions" | "settings";
+type SyncTypeSpec = { title: string; description: string; profileData?: true };
 
-export const DATA_TYPES: { id: DataType; title: string; description: string }[] = [
-  { id: "bookmarks", title: "Bookmarks", description: "Each synced profile’s bookmarks bar and other bookmarks." },
-  { id: "history", title: "History", description: "The last 90 days." },
-  { id: "tabs", title: "Open Tabs", description: "Your other devices’ tabs show in the tab overflow menu." },
-  { id: "pinned", title: "Pinned Tabs and Groups", description: "Pinned tabs and pinned tab groups." },
-  { id: "passwords", title: "Passwords", description: "Saved passwords. Turning sync off never removes them from this Mac." },
-  { id: "extensions", title: "Extensions", description: "Extensions from the Chrome Web Store, whether they’re on, and whether they’re pinned." },
-  { id: "settings", title: "Settings", description: "Search engine, appearance, tab and keyboard settings." },
-];
+const SYNC_TYPES = {
+  bookmarks: { title: "Bookmarks", description: "Each synced profile’s bookmarks bar and other bookmarks.", profileData: true },
+  history: { title: "History", description: "The last 90 days.", profileData: true },
+  tabs: { title: "Open Tabs", description: "Your other devices’ tabs show in the tab overflow menu." },
+  pinned: { title: "Pinned Tabs and Groups", description: "Pinned tabs and pinned tab groups." },
+  passwords: { title: "Passwords", description: "Saved passwords. Turning sync off never removes them from this Mac.", profileData: true },
+  extensions: {
+    title: "Extensions",
+    description: "Extensions from the Chrome Web Store, whether they’re on, and whether they’re pinned.",
+    profileData: true,
+  },
+  settings: { title: "Settings", description: "Search engine, appearance, tab and keyboard settings." },
+} as const satisfies Record<string, SyncTypeSpec>;
+
+export type DataType = keyof typeof SYNC_TYPES;
+
+const SPECS: Readonly<Record<DataType, SyncTypeSpec>> = SYNC_TYPES;
+const TYPE_IDS = Object.keys(SYNC_TYPES) as DataType[];
+
+export const DATA_TYPES = TYPE_IDS.map((id) => ({ id, title: SPECS[id].title, description: SPECS[id].description }));
+
+export const typeSyncedFor = (types: Record<DataType, boolean>, type: DataType, ownsData: boolean) =>
+  types[type] && (ownsData || !SPECS[type].profileData);
 
 export type ProfileLink = {
   syncId: string;
@@ -43,7 +57,7 @@ export const STATE = "sync-state.nns";
 export const JOURNAL = "sync-journal.nns";
 export const APP_SCOPE = "app";
 
-export const defaultTypes = (): Record<DataType, boolean> => ({ bookmarks: true, history: true, tabs: true, pinned: true, passwords: true, extensions: true, settings: true });
+export const defaultTypes = (): Record<DataType, boolean> => Object.fromEntries(TYPE_IDS.map((id) => [id, true])) as Record<DataType, boolean>;
 
 export const emptyDoc = (): SyncDoc => ({
   v: 1,
@@ -68,6 +82,7 @@ export type RemoteProfile = { syncId: string; name: string; color: Profile["colo
 export type SyncUi = {
   status: SyncStatus;
   enabled: boolean;
+  joining: boolean;
   folder: string | null;
   types: Record<DataType, boolean>;
   profiles: Record<string, ProfileLink>;

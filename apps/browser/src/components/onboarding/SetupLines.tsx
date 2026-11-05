@@ -1,36 +1,32 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-import { CheckMark, useOnboardingColors } from "./Parts";
-import { font } from "../ui/tokens";
+import { Image, View } from "react-native";
+import { Checkbox, Text } from "../ui";
+import { lineHeight, proseLineHeight, radius, space } from "../ui/tokens";
+import { ChoiceCard } from "./ChoiceCard";
+import { useOnboardingColors } from "./Parts";
 import { onboardingType } from "./tokens";
 
 const ICON = require("../../../assets/app-icon.png");
 
+const CARD_WIDTH = 260;
+
 export function SetupLines({ heading, lines }: { heading: string; lines: string[] }) {
   const colors = useOnboardingColors();
   return (
-    <View style={{ alignItems: "center", gap: 22 }}>
+    <View style={{ alignItems: "center", gap: space.xxxl }}>
       <Image source={ICON} style={{ width: 72, height: 72 }} />
-      <View
-        style={{
-          width: 260,
-          padding: 18,
-          gap: 8,
-          borderRadius: 14,
-          backgroundColor: colors.card,
-          borderWidth: StyleSheet.hairlineWidth * 2,
-          borderColor: colors.rowBorder,
-        }}
-      >
-        <Text style={{ ...font.caption, lineHeight: 15, color: colors.subtitle }}>{heading}</Text>
+      <ChoiceCard plain radius={radius.sheet} fill={colors.card} style={{ width: CARD_WIDTH, padding: space.xl, gap: space.m }}>
+        <Text size="caption" color={colors.subtitle} style={{ lineHeight: lineHeight.caption }}>
+          {heading}
+        </Text>
         {lines.map((line) => (
-          <View key={line} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-            <View style={{ paddingTop: 1 }}>
-              <CheckMark on size={15} />
-            </View>
-            <Text style={{ flex: 1, ...onboardingType.bodyCompact, lineHeight: 17, color: colors.title }}>{line}</Text>
+          <View key={line} style={{ flexDirection: "row", gap: space.m, alignItems: "flex-start" }}>
+            <Checkbox look="ring" size="s" value />
+            <Text color={colors.title} style={[onboardingType.bodyCompact, { flex: 1, lineHeight: proseLineHeight.small }]}>
+              {line}
+            </Text>
           </View>
         ))}
-      </View>
+      </ChoiceCard>
     </View>
   );
 }

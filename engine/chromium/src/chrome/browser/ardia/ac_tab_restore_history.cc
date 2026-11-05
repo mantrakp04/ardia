@@ -446,11 +446,7 @@ void StartTabHistoryCleaner() {
 
 using ardia::Call;
 
-AC_ENGINE_CALL(ac_tab_history_generation) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_tab_history_generation) {
   std::optional<std::string> generation =
       ardia::TabHistoryGeneration(call.profile());
   call.TakeReply().Send(
@@ -458,11 +454,7 @@ AC_ENGINE_CALL(ac_tab_history_generation) {
                  : base::DictValue().Set("fromMarker", true));
 }
 
-AC_ENGINE_CALL(ac_tab_restore_tag) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_tab_restore_tag) {
   const std::string key = call.String("key");
   content::WebContents* contents = nullptr;
   if (key.empty() ||

@@ -300,6 +300,31 @@ class Instance {
   output() { return existsSync(this.log) ? readFileSync(this.log, "utf8") : ""; }
 }
 
+export const UBO_ID = "fajbdaomknpkicfjcpipdmcpoamdmilh";
+
+export async function uboReady(port, { seconds = 90, until = Date.now() + seconds * 1000 } = {}) {
+  const left = () => Math.max(1, until - Date.now());
+  while (Date.now() < until) {
+    const list = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(Math.min(5000, left())) })
+      .then((r) => r.json(), () => []);
+    const background = list.find((t) => t.type === "background_page" && t.url.includes(UBO_ID));
+    if (background) {
+      const session = await Promise.race([devtools(background), sleep(left()).then(() => null)]).catch(() => null);
+      try {
+        const ready = session && (await session.eval(
+          `self.µBlock?.isReadyPromise ? µBlock.isReadyPromise.then(() => µBlock.supportStats.allReadyAfter ?? "ready") : null`,
+          { timeout: Math.min(10000, left()) },
+        ).catch(() => null));
+        if (ready) return ready;
+      } finally {
+        session?.close();
+      }
+    }
+    await sleep(Math.min(500, left()));
+  }
+  throw new Error(`uBlock Origin wasn't ready within ${seconds} s`);
+}
+
 export async function launch(app, opts = {}) {
   app = resolve(app);
   const installed = (path) => /^\/Applications\/[^/]+\.app(\/|$)/.test(path);

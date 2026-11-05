@@ -94,7 +94,7 @@ final class ZenTests: XCTestCase {
     XCTAssertEqual(plain.failed, [])
     XCTAssertEqual(plain.spaces, [])
     XCTAssertEqual(plain.tabs.map(\.url), ["https://plain.example/", "https://pinned-plain.example/"])
-    XCTAssertTrue(plain.warnings.contains { $0.kind == .spaces && $0.code == "empty" })
+    XCTAssertTrue(plain.warnings.contains { $0.kind == .spaces && $0.code == .empty })
   }
 
   func testBookmarksHistoryCookiesComeFromTheFirefoxReaders() throws {

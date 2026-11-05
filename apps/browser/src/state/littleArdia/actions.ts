@@ -9,28 +9,66 @@ import { profileAccentOf } from "../profiles/looks";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isSmall, lastActiveProfile, mainWindowFor } from "../windows/small";
+import { isWebPageUrl } from "../../lib/url";
+import { navigationOf } from "../tabs/pageSession";
+import { asAdoptId } from "../tabs/adoptIds";
+import type { AdoptId } from "../browser/types";
+import { linkGate, type LinkGateResult, type LinkRouteChoice, type LinkSourceInfo } from "./linkGate";
 
 const store = () => useBrowser.getState();
 
-export function openLittleArdia(url?: string, profileId?: string, adoptId?: string, linkPointer?: [number, number]): string {
-  const id = store().createWindow({ small: true, url, profileId, adoptId, linkPointer });
+export function openLittleArdia(url?: string, profileId?: string, adoptId?: AdoptId, linkPointer?: [number, number]): string {
+  const id = store().createWindow({ kind: "small", url, profileId, adoptId, linkPointer });
   if (!url) store().openPanel(id, "");
   return id;
 }
 
-const opensInLittleArdia = (url: string) => /^(https?|file):/i.test(url);
 
-export function openExternalUrls(given: string[], pointer?: [number, number]) {
+export function openExternalUrls(given: string[], pointer?: [number, number], source?: LinkSourceInfo) {
   const settings = store().settings;
   const urls = settings.allowJavaScriptFromAppleEvents ? given : given.filter((url) => !runsJavaScript(url, settings));
   if (!urls.length) return;
+  const gate = linkGate();
+  if (!gate) return openUndecided(urls, pointer);
+  const verdicts = urls.map((url): LinkGateResult | Promise<LinkGateResult> => {
+    try {
+      return gate(url, source ?? null);
+    } catch {
+      return { url, route: null, decided: false };
+    }
+  });
+  void Promise.all(verdicts.map((v) => Promise.resolve(v).catch(() => null))).then((results) => {
+    const plain: string[] = [];
+    results.forEach((result, i) => {
+      if (!result) return;
+      if (result.route) return openRoutedUrl(result.url, result.route, pointer);
+      if (result.url !== urls[i]) return openUrlsFromApps([result.url], { profileId: null, adoptIds: [undefined] }, pointer, true);
+      plain.push(result.url);
+    });
+    if (plain.length) openUndecided(plain, pointer, results.some((r) => r?.decided));
+  });
+}
+
+function openRoutedUrl(url: string, route: LinkRouteChoice, pointer?: [number, number]) {
+  const profileId = route.profileId ?? lastActiveProfile(store());
+  if (route.windowId && store().windows[route.windowId]) {
+    store().newTab(route.windowId, { url, profileId, gated: true });
+    return focus(route.windowId);
+  }
+  const open = route.open ?? (store().settings.openLinksInLittleArdia && isWebPageUrl(url) ? "littleArdia" : "tab");
+  if (open === "littleArdia") return void openLittleArdia(url, profileId, undefined, pointer);
+  if (open === "window") return focus(openWindow({ url, profileId }));
+  openLinksInMainWindow([url], profileId, [undefined], true);
+}
+
+function openUndecided(urls: string[], pointer?: [number, number], gated = false) {
   void routeLinkTabs(urls).then(
-    (route) => openRoutedUrls(urls, route, pointer),
-    () => openUrlsFromApps(urls, routedLinks({}, urls.length), pointer),
+    (route) => openRoutedUrls(urls, route, pointer, gated),
+    () => openUrlsFromApps(urls, routedLinks({}, urls.length), pointer, gated),
   );
 }
 
-function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, number]) {
+function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, number], gated = false) {
   const dismissed = new Set(route.dismissed ?? []);
   const kept = urls.map((_, i) => i).filter((i) => !dismissed.has(i));
   if (!kept.length) return;
@@ -39,28 +77,29 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
     kept.map((i) => urls[i]!),
     routedLinks({ ...route, adoptIds: kept.map((i) => marks[i] ?? null) }, kept.length),
     pointer,
+    gated,
   );
 }
 
-function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number]) {
+function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number], gated = false) {
   const [url] = urls;
   const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && opensInLittleArdia(url)) return void openLittleArdia(url, profileId, routed.adoptIds[0], pointer);
-  openLinksInMainWindow(urls, profileId, routed.adoptIds);
+  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, asAdoptId(routed.adoptIds[0]), pointer);
+  openLinksInMainWindow(urls, profileId, routed.adoptIds, gated);
 }
 
-function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (string | undefined)[]) {
+function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (string | undefined)[], gated = false) {
   let target = mainWindowFor(store(), profileId);
   urls.forEach((url, i) => {
     const s = store();
-    const adoptId = adoptIds[i];
+    const adoptId = asAdoptId(adoptIds[i]);
     const w = target ? s.windows[target] : undefined;
     const blank = w && w.tabIds.length === 1 ? s.tabs[w.tabIds[0]!] : undefined;
-    const intoBlank = blank && !blank.url && !blank.navigation && blank.profileId === profileId && !s.windowUi[w!.id]?.panel.open;
+    const intoBlank = blank && !blank.url && !navigationOf(blank) && blank.profileId === profileId && !s.windowUi[w!.id]?.panel.open;
     if (!w) target = openWindow({ url, profileId, adoptId });
-    else if (intoBlank && !adoptId) s.navigate(blank.id, url);
+    else if (intoBlank && !adoptId) s.navigate(blank.id, url, { gated });
     else {
-      s.newTab(w.id, { url, profileId, adoptId });
+      s.newTab(w.id, { url, profileId, adoptId, gated });
       if (intoBlank) store().closeTab(blank.id);
     }
   });
@@ -89,7 +128,7 @@ export function moveLittleArdiaToProfile(windowId: string, profileId: string) {
   if (!w || !isSmall(s, windowId) || isWindowClosing(windowId) || !s.profiles[profileId] || w.profileId === profileId) return;
   const tabId = activeTabId(s, windowId);
   const url = (tabId ? s.tabs[tabId]?.url : undefined) || undefined;
-  const id = store().createWindow({ small: true, url, profileId, frame: w.frame });
+  const id = store().createWindow({ kind: "small", url, profileId, frame: w.frame });
   if (!url) store().openPanel(id, "");
   closeWindowAnimated(windowId, id, () => {
     if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));

@@ -3,7 +3,7 @@
 //
 //   scripts/agent/ac launch <app> [--data DIR] [--port N] [--js pinned|live|none|host:port] [--env K=V]…
 //                               [--instance K=V]… [--test K[=V]]… [--trace AREA]… [--switch S]…
-//                               [--session FILE.json] [--onboarded] [--no-wait] [--runs-from APP]
+//                               [--session FILE.json] [--onboarded] [--no-wait] [--runs-from APP] [--arg A]…
 //   scripts/agent/ac eval   <data dir> '<body>' [--timeout MS]   the dev harness: `return …` (a promise is awaited)
 //   scripts/agent/ac page   <data dir> <url part> '<expression>'  a page's DevTools Runtime.evaluate (awaited, by value)
 //   scripts/agent/ac quit   <data dir> [--kill]                   the app's quit, then SIGTERM, then SIGKILL
@@ -14,7 +14,8 @@
 // there, and only ever signals that process (pid, start time and binary). The app runs hidden (ARDIA_BACKGROUND=1,
 // `open -g -n`) with Metro pinned by default (a proxy that refuses reloads: other agents' edits don't restart it).
 // --instance, --test and --trace fill ARDIA_INSTANCE, ARDIA_TEST and ARDIA_TRACE (keys: docs/agent-brief.md); --switch
-// adds a Chrome switch (ARDIA_INSTANCE chromiumSwitches). A build from before ArdiaLaunchConfig gets the old variables.
+// adds a Chrome switch (ARDIA_INSTANCE chromiumSwitches), --arg one launch argument (`--arg=-AppleLanguages --arg='(zh-Hans)'`
+// sets this instance's languages and nothing else's). A build from before ArdiaLaunchConfig gets the old variables.
 // Body or expression `-` reads stdin. Exit 1 on a failure, 3 when the instance has gone.
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -39,7 +40,8 @@ for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
   if (!a.startsWith("--")) positional.push(a);
   else if (["--onboarded", "--no-wait", "--kill"].includes(a)) flags[a.slice(2)] = true;
-  else if (["--env", "--switch", "--instance", "--test", "--trace"].includes(a)) (flags[a.slice(2)] ??= []).push(rest[++i]);
+  else if (a.startsWith("--arg=")) (flags.arg ??= []).push(a.slice(6));
+  else if (["--env", "--switch", "--instance", "--test", "--trace", "--arg"].includes(a)) (flags[a.slice(2)] ??= []).push(rest[++i]);
   else flags[a.slice(2)] = rest[++i];
 }
 const input = (s) => (s === "-" ? readFileSync(0, "utf8") : s);
@@ -62,7 +64,7 @@ try {
       env: mergeLaunchEnv(...(flags.env ?? []).map((kv) => pairs([kv]))),
       instance: pairs(flags.instance), test: pairs(flags.test), trace: flags.trace ?? [],
       session: flags.session ? JSON.parse(readFileSync(flags.session, "utf8")) : undefined, ready: !flags["no-wait"],
-      runsFrom: flags["runs-from"],
+      runsFrom: flags["runs-from"], args: flags.arg,
     });
     console.log(`pid ${app.pid} port ${app.port} data ${app.data} log ${app.log}`);
     process.exit(0);
@@ -83,7 +85,6 @@ try {
       const harness = await app.eval("return true", { timeout: 2000 }).then(() => "answers", (e) => `no answer (${e.message})`);
       print({ pid: app.pid, port: app.port, data: app.data, app: app.app, log: app.log, started: app.started, harness });
     } else {
-      // Every running instance of any build, by its data dir (the browser process: helpers carry --type=).
       const ps = spawnSync("ps", ["-E", "-ww", "-ax", "-o", "pid=,command="], { encoding: "utf8" }).stdout.split("\n");
       for (const line of ps) {
         const m = /^\s*(\d+)\s+(\S.*?\/Contents\/MacOS\/Ardia)(?:\s|$)/.exec(line);
@@ -100,5 +101,4 @@ try {
   console.error(e.message ?? e);
   process.exit(1);
 }
-// A DevTools socket can hold the loop open.
 process.exit(0);

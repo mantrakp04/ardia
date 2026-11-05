@@ -19,6 +19,8 @@ import { isTabReady, pageOf, usePages } from "../tabs/pageState";
 import { isInternalTab } from "../pages/urls";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
+import { errorText } from "../../lib/errors";
+import { focusedWindowOf } from "../windows/ui";
 
 const DOC = "ardia-cli.json";
 const DOC_VERSION = 1;
@@ -70,10 +72,13 @@ export const useCli = create<CliState>()(() => ({
 export const useCliIndicator = create<{ shown: boolean }>()(() => ({ shown: false }));
 
 let indicatorHide: ReturnType<typeof setTimeout> | null = null;
+let socketRuns = 0;
+let socketServing = false;
 
 function updateIndicator({ server }: CliState) {
-  const on = server?.state === "on";
-  const connected = on && (server.connections ?? 0) > 0;
+  const cdpOn = server?.state === "on";
+  const on = cdpOn || socketServing;
+  const connected = on && (cdpOn ? server.connections : 0) + socketRuns > 0;
   if (connected || !on) {
     if (indicatorHide) clearTimeout(indicatorHide);
     indicatorHide = null;
@@ -89,6 +94,16 @@ function updateIndicator({ server }: CliState) {
 
 useCli.subscribe(updateIndicator);
 
+export function noteSocketRun(delta: 1 | -1) {
+  socketRuns = Math.max(0, socketRuns + delta);
+  updateIndicator(useCli.getState());
+}
+
+export function noteSocketServing(serving: boolean) {
+  socketServing = serving;
+  updateIndicator(useCli.getState());
+}
+
 let running: Promise<CliInstallResult> | null = null;
 
 export function installCliInBackground(reason: CliInstallReason): Promise<CliInstallResult> {
@@ -99,7 +114,7 @@ export function installCliInBackground(reason: CliInstallReason): Promise<CliIns
     if (step) useCli.setState({ step });
   });
   running = installCli()
-    .catch((e: unknown): CliInstallResult => ({ ok: false, appVersion: "", error: e instanceof Error ? e.message : String(e), lines: [] }))
+    .catch((e: unknown): CliInstallResult => ({ ok: false, appVersion: "", error: errorText(e), lines: [] }))
     .then((result) => {
       lines.remove();
       running = null;
@@ -127,7 +142,7 @@ export function describeCliInstall(state: Pick<CliState, "installing" | "step" |
 let sentActive: string | null | undefined;
 
 function shownReadyTab(s: BrowserState): string | null {
-  const windowId = s.ui.focusedWindowId;
+  const windowId = focusedWindowOf(s);
   const id = windowId ? shownPageId(s, windowId) : undefined;
   const tab = id ? s.tabs[id] : undefined;
   if (!id || !tab?.url || pageOf(id).newTabShown || !hasPage(tab) || isInternalTab(tab)) return null;
@@ -170,8 +185,9 @@ export function startCliControl() {
   let inFlight = 0;
   let newest = 0;
   const apply = (server: CliControlStatus, mayReconcile: boolean) => {
-    if ((server.generation ?? newest) < newest) return;
-    newest = Math.max(newest, server.generation ?? 0);
+    const generation = server.state === "external" ? newest : server.generation;
+    if (generation < newest) return;
+    newest = generation;
     useCli.setState({ server });
     const stoppedItself = server.state === "off" && !!server.reason;
     if (mayReconcile && stoppedItself && useBrowser.getState().settings.cliControl) useBrowser.getState().updateSettings({ cliControl: false });
@@ -179,7 +195,7 @@ export function startCliControl() {
   onCliControlChanged((server) => apply(server, inFlight === 0));
   let applied: boolean | null = null;
   const sync = () => {
-    const on = useBrowser.getState().settings.cliControl ?? false;
+    const on = useBrowser.getState().settings.cliControl;
     if (on === applied) return;
     const first = applied === null;
     applied = on;
@@ -190,7 +206,9 @@ export function startCliControl() {
       if (request === latest) apply(server, true);
     };
     const call = first && !on ? cliControlStatus() : setCliControl(on);
-    void call.then(settle, (e: unknown) => settle({ state: "off", reason: e instanceof Error ? e.message : String(e) }));
+    void call.then(settle, (e: unknown) =>
+      settle({ state: "off", connections: 0, generation: newest, file: "", reason: errorText(e) }),
+    );
   };
   sync();
   useBrowser.subscribe(() => {

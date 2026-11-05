@@ -1,5 +1,6 @@
 #import "ArdiaInternal.h"
 #import "ArdiaLaunchConfig.h"
+#import "ArdiaRuntime.h"
 
 #include <execinfo.h>
 #include <fcntl.h>
@@ -11,6 +12,8 @@
 
 #include <initializer_list>
 #include <vector>
+
+using namespace ardia_runtime;
 
 namespace ardia_host {
 
@@ -53,13 +56,6 @@ bool FromChromium(NSArray<NSString *> *stack) {
   for (NSString *frame in stack)
     if ([frame containsString:@"Chromium Framework"]) return true;
   return false;
-}
-
-template <typename Block>
-void Swizzle(Class cls, SEL selector, Block block) {
-  Method method = class_getInstanceMethod(cls, selector);
-  if (!method) return;
-  method_setImplementation(method, imp_implementationWithBlock(block));
 }
 
 void ObserveActivation() {
@@ -149,16 +145,16 @@ NSModalResponse AnswerPanel(NSSavePanel *panel, NSWindow *parent, NSString *how)
 
 void InterceptFilePanels() {
   for (Class cls : {NSSavePanel.class, NSOpenPanel.class}) {
-    Swizzle(cls, @selector(beginSheetModalForWindow:completionHandler:),
+    ReplaceMethodWith(cls, @selector(beginSheetModalForWindow:completionHandler:),
             ^(NSSavePanel *panel, NSWindow *window, void (^handler)(NSModalResponse)) {
               NSModalResponse response = AnswerPanel(panel, window, @"sheet");
               if (handler) dispatch_async(dispatch_get_main_queue(), ^{ handler(response); });
             });
-    Swizzle(cls, @selector(beginWithCompletionHandler:), ^(NSSavePanel *panel, void (^handler)(NSModalResponse)) {
+    ReplaceMethodWith(cls, @selector(beginWithCompletionHandler:), ^(NSSavePanel *panel, void (^handler)(NSModalResponse)) {
       NSModalResponse response = AnswerPanel(panel, nil, [NSString stringWithFormat:@"free-standing, level %ld", (long)panel.level]);
       if (handler) dispatch_async(dispatch_get_main_queue(), ^{ handler(response); });
     });
-    Swizzle(cls, @selector(runModal), ^NSModalResponse(NSSavePanel *panel) { return AnswerPanel(panel, nil, @"app-modal"); });
+    ReplaceMethodWith(cls, @selector(runModal), ^NSModalResponse(NSSavePanel *panel) { return AnswerPanel(panel, nil, @"app-modal"); });
   }
 }
 
@@ -226,8 +222,8 @@ NSModalResponse AnswerAlert(NSAlert *alert, NSString *how) {
 }
 
 void InterceptAlerts() {
-  Swizzle(NSAlert.class, @selector(runModal), ^NSModalResponse(NSAlert *alert) { return AnswerAlert(alert, @"app-modal"); });
-  Swizzle(NSAlert.class, @selector(beginSheetModalForWindow:completionHandler:),
+  ReplaceMethodWith(NSAlert.class, @selector(runModal), ^NSModalResponse(NSAlert *alert) { return AnswerAlert(alert, @"app-modal"); });
+  ReplaceMethodWith(NSAlert.class, @selector(beginSheetModalForWindow:completionHandler:),
           ^(NSAlert *alert, NSWindow *, void (^handler)(NSModalResponse)) {
             NSModalResponse response = AnswerAlert(alert, @"sheet");
             if (handler) dispatch_async(dispatch_get_main_queue(), ^{ handler(response); });
@@ -272,16 +268,16 @@ void KeyWindowLeaving(NSWindow *window) {
 
 void FakeKeyWindows() {
   gAppKitMakeKey = (void (*)(id, SEL))method_getImplementation(class_getInstanceMethod(NSWindow.class, @selector(makeKeyWindow)));
-  Swizzle(NSApplication.class, @selector(isActive), ^BOOL(NSApplication *) { return gAppActive; });
-  Swizzle(NSApplication.class, @selector(keyWindow), ^NSWindow *(NSApplication *) { return gAppActive ? gKeyWindow : nil; });
-  Swizzle(NSWindow.class, @selector(isKeyWindow), ^BOOL(NSWindow *window) { return gAppActive && window == gKeyWindow; });
+  ReplaceMethodWith(NSApplication.class, @selector(isActive), ^BOOL(NSApplication *) { return gAppActive; });
+  ReplaceMethodWith(NSApplication.class, @selector(keyWindow), ^NSWindow *(NSApplication *) { return gAppActive ? gKeyWindow : nil; });
+  ReplaceMethodWith(NSWindow.class, @selector(isKeyWindow), ^BOOL(NSWindow *window) { return gAppActive && window == gKeyWindow; });
   auto orderOut = (void (*)(id, SEL, id))method_getImplementation(class_getInstanceMethod(NSWindow.class, @selector(orderOut:)));
-  Swizzle(NSWindow.class, @selector(orderOut:), ^(NSWindow *window, id sender) {
+  ReplaceMethodWith(NSWindow.class, @selector(orderOut:), ^(NSWindow *window, id sender) {
     KeyWindowLeaving(window);
     orderOut(window, @selector(orderOut:), sender);
   });
   auto close = (void (*)(id, SEL))method_getImplementation(class_getInstanceMethod(NSWindow.class, @selector(close)));
-  Swizzle(NSWindow.class, @selector(close), ^(NSWindow *window) {
+  ReplaceMethodWith(NSWindow.class, @selector(close), ^(NSWindow *window) {
     KeyWindowLeaving(window);
     close(window, @selector(close));
   });
@@ -304,7 +300,7 @@ void KeepLowered(NSWindow *window) {
 void KeepBehindOwnerWindows() {
   gAppKitLevel = (decltype(gAppKitLevel))method_getImplementation(class_getInstanceMethod(NSWindow.class, @selector(level)));
   gAppKitSetLevel = (decltype(gAppKitSetLevel))method_getImplementation(class_getInstanceMethod(NSWindow.class, @selector(setLevel:)));
-  Swizzle(NSWindow.class, @selector(setLevel:), ^(NSWindow *window, NSWindowLevel level) {
+  ReplaceMethodWith(NSWindow.class, @selector(setLevel:), ^(NSWindow *window, NSWindowLevel level) {
     const NSWindowLevel real = Lowered(level);
     objc_setAssociatedObject(window, kAskedLevelKey, real != level ? @(level) : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     const bool setting = gSettingLevel;
@@ -312,7 +308,7 @@ void KeepBehindOwnerWindows() {
     gAppKitSetLevel(window, @selector(setLevel:), real);
     gSettingLevel = setting;
   });
-  Swizzle(NSWindow.class, @selector(level), ^NSWindowLevel(NSWindow *window) {
+  ReplaceMethodWith(NSWindow.class, @selector(level), ^NSWindowLevel(NSWindow *window) {
     NSNumber *asked = gSettingLevel ? nil : objc_getAssociatedObject(window, kAskedLevelKey);
     return asked ? asked.integerValue : gAppKitLevel(window, @selector(level));
   });
@@ -320,7 +316,7 @@ void KeepBehindOwnerWindows() {
     SEL selector = @selector(initWithContentRect:styleMask:backing:defer:);
     auto original = (id (*)(id, SEL, NSRect, NSWindowStyleMask, NSBackingStoreType, BOOL))method_getImplementation(
         class_getInstanceMethod(NSWindow.class, selector));
-    Swizzle(NSWindow.class, selector, ^id(NSWindow *window, NSRect rect, NSWindowStyleMask style, NSBackingStoreType backing, BOOL defer) {
+    ReplaceMethodWith(NSWindow.class, selector, ^id(NSWindow *window, NSRect rect, NSWindowStyleMask style, NSBackingStoreType backing, BOOL defer) {
       if ((window = original(window, selector, rect, style, backing, defer))) KeepLowered(window);
       return window;
     });
@@ -329,7 +325,7 @@ void KeepBehindOwnerWindows() {
     SEL selector = @selector(initWithContentRect:styleMask:backing:defer:screen:);
     auto original = (id (*)(id, SEL, NSRect, NSWindowStyleMask, NSBackingStoreType, BOOL, NSScreen *))method_getImplementation(
         class_getInstanceMethod(NSWindow.class, selector));
-    Swizzle(NSWindow.class, selector, ^id(NSWindow *window, NSRect rect, NSWindowStyleMask style, NSBackingStoreType backing, BOOL defer,
+    ReplaceMethodWith(NSWindow.class, selector, ^id(NSWindow *window, NSRect rect, NSWindowStyleMask style, NSBackingStoreType backing, BOOL defer,
                                           NSScreen *screen) {
       if ((window = original(window, selector, rect, style, backing, defer, screen))) KeepLowered(window);
       return window;
@@ -337,7 +333,7 @@ void KeepBehindOwnerWindows() {
   }
   auto order = (void (*)(id, SEL, NSWindowOrderingMode, NSInteger))method_getImplementation(
       class_getInstanceMethod(NSWindow.class, @selector(orderWindow:relativeTo:)));
-  Swizzle(NSWindow.class, @selector(orderWindow:relativeTo:), ^(NSWindow *window, NSWindowOrderingMode place, NSInteger other) {
+  ReplaceMethodWith(NSWindow.class, @selector(orderWindow:relativeTo:), ^(NSWindow *window, NSWindowOrderingMode place, NSInteger other) {
     if (place != NSWindowOut) KeepLowered(window);
     order(window, @selector(orderWindow:relativeTo:), place, other);
   });
@@ -383,7 +379,7 @@ void InstallActivationGuardsEarly() {
 
   Method activate = class_getInstanceMethod(NSRunningApplication.class, @selector(activateWithOptions:));
   auto originalActivate = (BOOL (*)(id, SEL, NSApplicationActivationOptions))method_getImplementation(activate);
-  Swizzle(NSRunningApplication.class, @selector(activateWithOptions:), ^BOOL(NSRunningApplication *app, NSApplicationActivationOptions options) {
+  ReplaceMethodWith(NSRunningApplication.class, @selector(activateWithOptions:), ^BOOL(NSRunningApplication *app, NSApplicationActivationOptions options) {
     if ([app isEqual:NSRunningApplication.currentApplication] && !Allow(@"activateWithOptions:")) return NO;
     return originalActivate(app, @selector(activateWithOptions:), options);
   });
@@ -405,50 +401,50 @@ void InstallActivationGuardsEarly() {
   {
     SEL selector = @selector(makeKeyAndOrderFront:);
     auto original = (void (*)(id, SEL, id))method_getImplementation(class_getInstanceMethod(NSWindow.class, selector));
-    Swizzle(NSWindow.class, selector, ^(NSWindow *window, id sender) {
+    ReplaceMethodWith(NSWindow.class, selector, ^(NSWindow *window, id sender) {
       note(@"makeKeyAndOrderFront:", window);
       if (aboveParent(window)) [window makeKeyWindow];
       else original(window, selector, sender);
     });
   }
-  Swizzle(NSWindow.class, @selector(makeKeyWindow), ^(NSWindow *window) {
+  ReplaceMethodWith(NSWindow.class, @selector(makeKeyWindow), ^(NSWindow *window) {
     note(@"makeKeyWindow", window);
     MakeKey(window);
   });
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
   for (SEL selector : {@selector(activateIgnoringOtherApps:), @selector(activate)})
-    Swizzle(NSApplication.class, selector, ^(NSApplication *) {
+    ReplaceMethodWith(NSApplication.class, selector, ^(NSApplication *) {
       LogLater([@"blocked " stringByAppendingString:NSStringFromSelector(selector)], NSThread.callStackReturnAddresses);
     });
 #pragma clang diagnostic pop
   {
     SEL selector = @selector(orderFrontRegardless);
     auto original = (void (*)(id, SEL))method_getImplementation(class_getInstanceMethod(NSWindow.class, selector));
-    Swizzle(NSWindow.class, selector, ^(NSWindow *window) {
+    ReplaceMethodWith(NSWindow.class, selector, ^(NSWindow *window) {
       note(@"orderFrontRegardless", window);
       KeepLowered(window);
       if (!aboveParent(window)) original(window, selector);
     });
   }
-  Swizzle(NSWindow.class, @selector(toggleFullScreen:), ^(NSWindow *window, id) { ActToggleFullScreen(window); });
-  Swizzle(NSApplication.class, @selector(unhide:), ^(NSApplication *app, id sender) {
+  ReplaceMethodWith(NSWindow.class, @selector(toggleFullScreen:), ^(NSWindow *window, id) { ActToggleFullScreen(window); });
+  ReplaceMethodWith(NSApplication.class, @selector(unhide:), ^(NSApplication *app, id sender) {
     Log(@"unhide: (unhiding without activation)", NSThread.callStackSymbols);
     [app unhideWithoutActivation];
   });
   Method policy = class_getInstanceMethod(NSApplication.class, @selector(setActivationPolicy:));
   auto originalPolicy = (BOOL (*)(id, SEL, NSApplicationActivationPolicy))method_getImplementation(policy);
-  Swizzle(NSApplication.class, @selector(setActivationPolicy:), ^BOOL(NSApplication *app, NSApplicationActivationPolicy value) {
+  ReplaceMethodWith(NSApplication.class, @selector(setActivationPolicy:), ^BOOL(NSApplication *app, NSApplicationActivationPolicy value) {
     if (value != NSApplicationActivationPolicyProhibited) Log(@"blocked setActivationPolicy:", NSThread.callStackSymbols);
     return originalPolicy(app, @selector(setActivationPolicy:), NSApplicationActivationPolicyProhibited);
   });
   ObserveActivation();
   Class menuMeta = object_getClass(NSMenu.class);
-  Swizzle(menuMeta, @selector(popUpContextMenu:withEvent:forView:),
+  ReplaceMethodWith(menuMeta, @selector(popUpContextMenu:withEvent:forView:),
           ^(id, NSMenu *menu, NSEvent *, NSView *) { ReportMenu(menu, @"context menu"); });
-  Swizzle(menuMeta, @selector(popUpContextMenu:withEvent:forView:withFont:),
+  ReplaceMethodWith(menuMeta, @selector(popUpContextMenu:withEvent:forView:withFont:),
           ^(id, NSMenu *menu, NSEvent *, NSView *, NSFont *) { ReportMenu(menu, @"context menu"); });
-  Swizzle(NSMenu.class, @selector(popUpMenuPositioningItem:atLocation:inView:), ^BOOL(NSMenu *menu, NSMenuItem *, NSPoint, NSView *) {
+  ReplaceMethodWith(NSMenu.class, @selector(popUpMenuPositioningItem:atLocation:inView:), ^BOOL(NSMenu *menu, NSMenuItem *, NSPoint, NSView *) {
     ReportMenu(menu, @"pop-up menu");
     return NO;
   });
