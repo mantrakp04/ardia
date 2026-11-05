@@ -87,6 +87,7 @@ export const SETTING_SPECS = {
   extendWebsiteColor: flag(true, SYNCED),
   cmdClickCreatesTabGroup: flag(true, SYNCED),
   optShiftClickOpensInGroup: flag(true, SYNCED),
+  dragToGroupInTopStrip: flag(false, SYNCED),
   peekModifier: oneOf(["alt", "shift", "off"], "shift", SYNCED),
   peekLinksToOtherSites: flag(false, SYNCED),
   splitLinkModifier: oneOf(["altShift", "alt"], "altShift", SYNCED),
