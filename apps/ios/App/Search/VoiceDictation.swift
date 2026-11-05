@@ -65,7 +65,11 @@ final class VoiceDictation {
     recorder?.stop()
     recorder = nil
     level = 0
-    if state == .listening || state == .requesting { state = transcript.isEmpty ? .idle : .finished }
+    if state == .listening {
+      state = transcript.isEmpty ? .unavailable(String(localized: "Ardia couldn’t hear anything. Try again.")) : .finished
+    } else if state == .requesting {
+      state = .idle
+    }
   }
 
   private func received(_ text: String, isFinal: Bool) {
@@ -81,7 +85,6 @@ final class VoiceDictation {
   private func failed() {
     guard state == .listening else { return }
     stop()
-    if transcript.isEmpty { state = .unavailable(String(localized: "Ardia couldn’t hear anything. Try again.")) }
   }
 
   private func scheduleSilence() {
