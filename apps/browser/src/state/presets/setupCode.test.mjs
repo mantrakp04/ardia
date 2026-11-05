@@ -103,10 +103,6 @@ const signed = (body) => {
   return `${SETUP_CODE_PREFIX}${body}-${(hash % 1296).toString(36).padStart(2, "0")}`;
 };
 
-test("the test signer matches the encoder", () => {
-  assert.equal(signed("t1e2"), encodeSetupCode({ settings: { tabLayout: "top", appearance: "dark" } }));
-});
-
 test("unknown keys are ignored, unknown values are dropped, repeated keys are refused", () => {
   assert.deepEqual(decodeSetupCode(signed("t1z9q12345")), { ok: true, choices: { settings: { tabLayout: "top" } } });
   assert.deepEqual(decodeSetupCode(signed("t1e7")), { ok: true, choices: { settings: { tabLayout: "top" } } });

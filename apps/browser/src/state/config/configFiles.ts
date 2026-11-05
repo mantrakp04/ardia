@@ -136,8 +136,6 @@ export function startConfigFiles(roles: RolePalettes) {
   });
 }
 
-export const reconcilePendingForTests = () => timer !== undefined;
-
 export function resetConfigFilesForTests() {
   clearTimeout(timer);
   timer = undefined;
