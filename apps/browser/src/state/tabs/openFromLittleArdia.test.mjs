@@ -47,6 +47,15 @@ test("a new-tab link in a main window still opens a tab there", () => {
   assert.equal(S().windows[main].tabIds.length, 2);
 });
 
-test("a Little Ardia without a known frame lets the new one take the default placement", () => {
+test("a new-tab link from a Little Ardia without a known frame opens one with no frame, so it takes the default placement", () => {
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], windows: {}, tabs: {} });
+  const small = S().createWindow({ kind: "small", url: "https://little.example/" });
+  const tabId = S().windows[small].tabIds[0];
+  assert.equal(S().windows[small].frame, null);
+  openFromPage({ url: "https://github.com/", disposition: "foreground", adoptId: "tab:7" }, { windowId: small, profileId: "default", tabId });
+  const opened = smallWindows().filter((w) => w.id !== small);
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].frame, null);
+  assert.equal(pageOf(opened[0].id).adopt, "tab:7");
   assert.equal(cascadedFrame(null), undefined);
 });
