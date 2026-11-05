@@ -181,6 +181,9 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/idn.ts"));
   __exportAll(exports, __require("packages/core/src/omnibox.ts"));
   __exportAll(exports, __require("packages/core/src/openTabs.ts"));
+  __exportAll(exports, __require("packages/core/src/providerConfig.ts"));
+  __exportAll(exports, __require("packages/core/src/providerNetwork.ts"));
+  __exportAll(exports, __require("packages/core/src/providerRows.ts"));
   __exportAll(exports, __require("packages/core/src/quickCreate.ts"));
   __exportAll(exports, __require("packages/core/src/siteSearch.ts"));
   __exportAll(exports, __require("packages/core/src/suggest.ts"));
@@ -189,6 +192,9 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/textFragment.ts"));
   __exportAll(exports, __require("packages/core/src/theme.ts"));
   __exportAll(exports, __require("packages/core/src/webStore.ts"));
+
+
+
 
 
 
@@ -1141,12 +1147,27 @@ function isLocalHost(host        )          {
   );
 }
 
-const L = "a-z0-9\\u00a1-\\uffff";
-const LABEL = `[${L}](?:[${L}-]*[${L}])?`;
-const HOST = new RegExp(
-  `^(localhost|\\[[0-9a-f:.]+\\]|(\\d{1,3}\\.){3}\\d{1,3}|(${LABEL}\\.)+([a-z\\u00a1-\\uffff](?:[${L}-]*[${L}])?|xn--[a-z0-9-]+)|${LABEL})\\.?(:\\d{1,5})?(?=[/?#]|$)`,
-  "i",
-);
+const LABEL_CHARS = /^[a-z0-9\u00a1-\uffff-]+$/i;
+const isLabel = (part        ) => LABEL_CHARS.test(part) && part[0] !== "-" && !part.endsWith("-");
+const isTld = (part        ) => (isLabel(part) && !/^\d/.test(part)) || /^xn--[a-z0-9-]+$/i.test(part);
+
+function isHostName(name        )          {
+  if (name.toLowerCase() === "localhost" || /^\[[0-9a-f:.]+\]$/i.test(name) || /^(\d{1,3}\.){3}\d{1,3}$/.test(name)) return true;
+  const labels = name.split(".");
+  return labels.length === 1 ? isLabel(name) : labels.slice(0, -1).every(isLabel) && isTld(labels.at(-1) );
+}
+
+                                                                   
+
+function matchHost(input        )                   {
+  const end = input.search(/[/?#]/);
+  const authority = end === -1 ? input : input.slice(0, end);
+  const colon = authority.lastIndexOf(":");
+  const port = colon !== -1 && /^:\d{1,5}$/.test(authority.slice(colon)) ? authority.slice(colon) : "";
+  const bare = port ? authority.slice(0, colon) : authority;
+  const name = bare.endsWith(".") ? bare.slice(0, -1) : bare;
+  return isHostName(name) ? { authority, name, port } : null;
+}
 
 const JAVASCRIPT_URL = /^(?:view-source:)?javascript:/i;
 const JAVASCRIPT_PREFIX = /^[\u0000-\u0020\u007f]*javascript:/i;
@@ -1177,23 +1198,23 @@ function fixup(raw        )                {
   if (input.startsWith("/") && !input.startsWith("//")) return `file://${input.replace(/\s/g, "%20")}`;
 
   if (!/[.:/?#[]/.test(input)) return input.toLowerCase() === "localhost" ? `http://${input}` : null;
-  const host = HOST.exec(input);
+  const host = matchHost(input);
   if (!host) return null;
-  const name = host[1] .toLowerCase().replace(/\.$/, "");
+  const name = host.name.toLowerCase();
   const numeric = /^[\d.]+$/.test(name);
   if (numeric && !name.includes(".")) return null;
   const dotted = name.includes(".") && !numeric && name.charCodeAt(0) !== 91;
   const tld = dotted ? name.slice(name.lastIndexOf(".") + 1) : "";
-  const rest = input.slice(host[0].length);
+  const rest = input.slice(host.authority.length);
   const special = name === "localhost" || name.charCodeAt(0) === 91 || numeric;
   const proto = isLocalHost(name) ? "http" : "https";
   if (special || (dotted && (knownTld(tld) || tld.startsWith("xn--")))) return `${proto}://${input}`;
-  if (!host[5] && !rest.includes("/") && !rest.includes("?") && !rest.includes("#")) return null;
+  if (!host.port && !rest.includes("/") && !rest.includes("?") && !rest.includes("#")) return null;
   const path = /^[^?#]*/.exec(rest) [0];
   const query = /\?[^#]*/.exec(rest)?.[0] ?? "";
   const fragment = /#.*/.exec(rest)?.[0] ?? "";
-  const parts = (host[5] ? 1 : 0) + (path ? 1 : 0) + (query.length > 1 ? 1 : 0) + (fragment.length > 1 ? 1 : 0);
-  return host[5] || path.endsWith("/") || parts > 1 ? `${proto}://${input}` : null;
+  const parts = (host.port ? 1 : 0) + (path ? 1 : 0) + (query.length > 1 ? 1 : 0) + (fragment.length > 1 ? 1 : 0);
+  return host.port || path.endsWith("/") || parts > 1 ? `${proto}://${input}` : null;
 }
 
 function searchUrlFor(template        , query        )         {
@@ -1858,6 +1879,468 @@ function recentTabSuggestions(tabs                       , options              
 }
 
 });
+__define("packages/core/src/providerConfig.ts", function (exports, __require) {
+  __export(exports, "PROVIDER_CONFIG_LIMITS", () => PROVIDER_CONFIG_LIMITS);
+  __export(exports, "PROVIDER_ENTRY_KEYS", () => PROVIDER_ENTRY_KEYS);
+  __export(exports, "QUERY_SLOT", () => QUERY_SLOT);
+  __export(exports, "isProviderKeyword", () => isProviderKeyword);
+  __export(exports, "isRemoteEndpoint", () => isRemoteEndpoint);
+  __export(exports, "readProviderEntries", () => readProviderEntries);
+  __export(exports, "isProviderEntryList", () => isProviderEntryList);
+  __export(exports, "providerConfigs", () => providerConfigs);
+const { hostOf } = __require("packages/core/src/omnibox.ts");
+const { PROVIDER_LIMITS, providerIcon, providerUrl } = __require("packages/core/src/providerRows.ts");
+
+                             
+                   
+                 
+                   
+                            
+               
+                   
+  
+
+                              
+             
+                
+                   
+                  
+                           
+               
+                   
+  
+
+const PROVIDER_CONFIG_LIMITS = { providers: 32, rows: 200 }         ;
+
+const PROVIDER_ENTRY_KEYS = ["keyword", "title", "global", "rows", "url", "suggest"]         ;
+const ROW_KEYS = new Set(["title", "url", "subtitle", "icon"]);
+const KEYWORD = /^[^\s/?#:@.!]{1,32}$/u;
+const LOOPBACK = /^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?[/?]/i;
+
+const QUERY_SLOT = "{query}";
+
+const isProviderKeyword = (value         )                  => typeof value === "string" && KEYWORD.test(value);
+
+function isRemoteEndpoint(template        )          {
+  if (!template.includes(QUERY_SLOT)) return false;
+  const sample = template.split(QUERY_SLOT).join("q");
+  return !!providerUrl(sample) && (/^https:\/\//i.test(sample) || LOOPBACK.test(sample));
+}
+
+const isTemplate = (template        ) => template.includes(QUERY_SLOT) && !!providerUrl(template.split(QUERY_SLOT).join("q"));
+
+                                                                   
+
+function checkRows(rows         , where        , problems          )                            {
+  if (!Array.isArray(rows)) {
+    problems.push(`${where}.rows must be a list of { title, url } rows`);
+    return null;
+  }
+  if (rows.length > PROVIDER_CONFIG_LIMITS.rows) problems.push(`${where}.rows has more than ${PROVIDER_CONFIG_LIMITS.rows} rows; the rest are skipped`);
+  const kept                     = [];
+  rows.slice(0, PROVIDER_CONFIG_LIMITS.rows).forEach((row, i) => {
+    const at = `${where}.rows[${i}]`;
+    if (!row || typeof row !== "object" || Array.isArray(row)) return void problems.push(`${at} must be an object with title and url`);
+    const r = row                           ;
+    const unknown = Object.keys(r).filter((k) => !ROW_KEYS.has(k));
+    if (unknown.length) return void problems.push(`${at}: ${unknown.join(", ")} isn't a row field (title, url, subtitle, icon)`);
+    if (typeof r.title !== "string" || !r.title.trim()) return void problems.push(`${at}.title must be a string`);
+    if (!providerUrl(r.url)) return void problems.push(`${at}.url must be an http or https URL`);
+    if (r.subtitle !== undefined && typeof r.subtitle !== "string") return void problems.push(`${at}.subtitle must be a string`);
+    if (r.icon !== undefined && r.icon !== null && !providerIcon(r.icon)) return void problems.push(`${at}.icon must be an https URL or a small data:image`);
+    kept.push(r                    );
+  });
+  return kept;
+}
+
+function checkEntry(value         , where        )          {
+  const problems           = [];
+  const fail = (problem        )          => ({ entry: null, problems: [...problems, `${where}${problem}`] });
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fail(" must be an object");
+  const v = value                           ;
+  const unknown = Object.keys(v).filter((k) => !(PROVIDER_ENTRY_KEYS                     ).includes(k));
+  if (unknown.length) return fail(`: ${unknown.join(", ")} isn't a provider field (${PROVIDER_ENTRY_KEYS.join(", ")})`);
+  if (v.keyword !== undefined && !isProviderKeyword(v.keyword)) return fail(".keyword must be 1 to 32 characters without spaces or / ? # : @ . !");
+  if (v.title !== undefined && (typeof v.title !== "string" || !v.title.trim() || v.title.length > PROVIDER_LIMITS.providerTitle))
+    return fail(`.title must be a string of 1 to ${PROVIDER_LIMITS.providerTitle} characters`);
+  if (v.global !== undefined && typeof v.global !== "boolean") return fail(".global must be true or false");
+  if (v.global === true && v.keyword !== undefined) return fail(": a provider with a keyword shows only in its keyword mode; drop global or the keyword");
+  if (v.url !== undefined && (typeof v.url !== "string" || !isTemplate(v.url))) return fail(`.url must be an http or https URL containing ${QUERY_SLOT}`);
+  if (v.url !== undefined && v.keyword === undefined) return fail(".url needs a keyword: it turns what you type after the keyword into a link");
+  if (v.suggest !== undefined && (typeof v.suggest !== "string" || !isRemoteEndpoint(v.suggest)))
+    return fail(`.suggest must be an https URL containing ${QUERY_SLOT}`);
+  if (v.suggest !== undefined && v.keyword === undefined && v.global !== true)
+    return fail(".suggest without a keyword needs global: true, since it sends everything you type to that server");
+  const rows = v.rows === undefined ? undefined : checkRows(v.rows, where, problems);
+  if (rows === null) return { entry: null, problems };
+  if (rows === undefined && v.url === undefined && v.suggest === undefined) return fail(" needs rows, url or suggest");
+  if (rows !== undefined && !rows.length && v.url === undefined && v.suggest === undefined) return { entry: null, problems };
+  return { entry: { ...(v                 ), ...(rows ? { rows } : {}) }, problems };
+}
+
+function readProviderEntries(value         , name = "omniboxProviders")                                                   {
+  if (!Array.isArray(value)) return { entries: [], problems: [`${name} must be a list of providers`] };
+  const entries                  = [];
+  const problems           = [];
+  const keywords = new Set        ();
+  value.forEach((item, i) => {
+    const where = `${name}[${i}]`;
+    if (entries.length >= PROVIDER_CONFIG_LIMITS.providers) return void problems.push(`${where}: at most ${PROVIDER_CONFIG_LIMITS.providers} providers`);
+    const checked = checkEntry(item, where);
+    problems.push(...checked.problems);
+    if (!checked.entry) return;
+    const keyword = checked.entry.keyword?.toLowerCase();
+    if (keyword && keywords.has(keyword)) return void problems.push(`${where}.keyword “${keyword}” is already used by another provider`);
+    if (keyword) keywords.add(keyword);
+    entries.push(checked.entry);
+  });
+  return { entries, problems };
+}
+
+const isProviderEntryList = (value         )                           =>
+  Array.isArray(value) && readProviderEntries(value).problems.length === 0;
+
+function entryTitle(e               )         {
+  if (e.title) return e.title.trim();
+  const host = hostOf((e.url ?? e.suggest ?? "").split(QUERY_SLOT).join("q"));
+  return host || e.keyword || "Links";
+}
+
+function providerConfigs(entries                          )                   {
+  const ids = new Set        ();
+  return entries.map((e) => {
+    const keyword = e.keyword?.toLowerCase();
+    const title = entryTitle(e);
+    let id = `config:${keyword ?? title.toLowerCase()}`;
+    for (let n = 2; ids.has(id); n++) id = `config:${keyword ?? title.toLowerCase()}:${n}`;
+    ids.add(id);
+    return {
+      id,
+      title,
+      ...(keyword ? { keyword } : {}),
+      global: !keyword,
+      rows: e.rows ?? [],
+      ...(e.url ? { url: e.url } : {}),
+      ...(e.suggest ? { suggest: e.suggest } : {}),
+    };
+  });
+}
+
+});
+__define("packages/core/src/providerRows.ts", function (exports, __require) {
+  __export(exports, "PROVIDER_LIMITS", () => PROVIDER_LIMITS);
+  __export(exports, "providerText", () => providerText);
+  __export(exports, "providerUrl", () => providerUrl);
+  __export(exports, "providerIcon", () => providerIcon);
+  __export(exports, "safeProviderRows", () => safeProviderRows);
+  __export(exports, "fillProviderTemplate", () => fillProviderTemplate);
+  __export(exports, "parseProviderReply", () => parseProviderReply);
+  __export(exports, "matchProviderRows", () => matchProviderRows);
+  __export(exports, "globalProviderRows", () => globalProviderRows);
+const { pageKey } = __require("packages/core/src/pageText.ts");
+                                                  
+
+                                                                                                                       
+
+                                                                                               
+
+                                                                           
+
+const PROVIDER_LIMITS = {
+  title: 120,
+  subtitle: 160,
+  url: 4096,
+  iconBytes: 16_384,
+  rowsPerProvider: 20,
+  rowsPerGlobalSection: 3,
+  globalRows: 6,
+  keyword: 32,
+  providerTitle: 60,
+}         ;
+
+const HIDDEN = "\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb";
+const HIDDEN_CHARACTERS = new RegExp(`[${HIDDEN}]`, "g");
+const UNSAFE_IN_URL = new RegExp(`[\\s${HIDDEN}]`);
+const WEB_URL = /^https?:\/\/([^/?#]+)(?:[/?#].*)?$/i;
+const AUTHORITY = /^(?:\[[0-9a-f:.]+\]|[^:@\[\]]+)(?::\d{1,5})?$/i;
+const IMAGE_DATA_URL = /^data:image\/(?:png|jpeg|gif|webp|x-icon|vnd\.microsoft\.icon);base64,[a-z0-9+/]+={0,2}$/i;
+
+function providerText(value         , max        )         {
+  if (typeof value !== "string") return "";
+  const text = value.replace(HIDDEN_CHARACTERS, " ").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${Array.from(text).slice(0, max - 1).join("").trimEnd()}…`;
+}
+
+function providerUrl(value         )                {
+  if (typeof value !== "string") return null;
+  const url = value.trim();
+  if (!url || url.length > PROVIDER_LIMITS.url || UNSAFE_IN_URL.test(url)) return null;
+  const authority = WEB_URL.exec(url)?.[1];
+  return authority && AUTHORITY.test(authority) ? url : null;
+}
+
+function providerIcon(value         )                {
+  if (typeof value !== "string" || !value) return null;
+  if (/^data:/i.test(value)) return value.length <= PROVIDER_LIMITS.iconBytes && IMAGE_DATA_URL.test(value) ? value : null;
+  return /^https?:\/\//i.test(value) ? providerUrl(value) : null;
+}
+
+function safeProviderRows(section                               , rows         , limit         = PROVIDER_LIMITS.rowsPerProvider)                       {
+  if (!Array.isArray(rows)) return [];
+  const out                       = [];
+  const seen = new Set        ();
+  const providerTitle = providerText(section.title, PROVIDER_LIMITS.providerTitle);
+  for (const row of rows) {
+    if (out.length >= limit) break;
+    if (!row || typeof row !== "object") continue;
+    const r = row                           ;
+    const url = providerUrl(r.url);
+    if (!url) continue;
+    const key = pageKey(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const title = providerText(r.title, PROVIDER_LIMITS.title) || url.slice(0, PROVIDER_LIMITS.title);
+    const subtitle = providerText(r.subtitle, PROVIDER_LIMITS.subtitle);
+    out.push({
+      kind: "provider",
+      providerId: section.id,
+      provider: providerTitle,
+      title,
+      url,
+      icon: providerIcon(r.icon),
+      ...(subtitle ? { subtitle } : {}),
+    });
+  }
+  return out;
+}
+
+function fillProviderTemplate(template        , query        )                {
+  const q = query.trim();
+  if (!q) return null;
+  return providerUrl(template.split("{query}").join(encodeURIComponent(q)));
+}
+
+function parseProviderReply(body         , template         )                     {
+  if (!Array.isArray(body)) return [];
+  if (typeof body[0] === "string" && Array.isArray(body[1])) {
+    const texts = body[1]             ;
+    const details = Array.isArray(body[2]) ? (body[2]             ) : [];
+    const urls = Array.isArray(body[3]) ? (body[3]             ) : [];
+    const rows                     = [];
+    texts.forEach((text, i) => {
+      if (typeof text !== "string" || !text.trim()) return;
+      const url = typeof urls[i] === "string" && urls[i] ? (urls[i]          ) : template ? fillProviderTemplate(template, text) : null;
+      if (!url) return;
+      const subtitle = details[i];
+      rows.push({ title: text, url, ...(typeof subtitle === "string" && subtitle ? { subtitle } : {}) });
+    });
+    return rows;
+  }
+  return body.filter((row)                          => !!row && typeof row === "object" && !Array.isArray(row))                      ;
+}
+
+function matchProviderRows(rows                             , text        )                     {
+  const tokens = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [...rows];
+  const scored                                                         = [];
+  rows.forEach((row, at) => {
+    const title = (row.title ?? "").toLowerCase();
+    const haystack = `${title} ${(row.subtitle ?? "").toLowerCase()} ${(row.url ?? "").toLowerCase()}`;
+    if (!tokens.every((t) => haystack.includes(t))) return;
+    const first = tokens[0] ;
+    const score = title.startsWith(first) ? 3 : new RegExp(`(^|[^a-z0-9])${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(title) ? 2 : 1;
+    scored.push({ row, score, at });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.at - b.at).map((x) => x.row);
+}
+
+function globalProviderRows(sections                            , shown                       )                       {
+  const taken = new Set        ();
+  for (const s of shown) if ("url" in s && s.kind !== "search") taken.add(pageKey(s.url));
+  const out                       = [];
+  for (const section of sections) {
+    let inSection = 0;
+    for (const row of safeProviderRows(section, section.rows)) {
+      if (out.length >= PROVIDER_LIMITS.globalRows || inSection >= PROVIDER_LIMITS.rowsPerGlobalSection) break;
+      const key = pageKey(row.url);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      out.push(row);
+      inSection++;
+    }
+  }
+  return out;
+}
+
+});
+__define("packages/core/src/pageText.ts", function (exports, __require) {
+  __export(exports, "displayUrl", () => displayUrl);
+  __export(exports, "pageKey", () => pageKey);
+  __export(exports, "pageTexts", () => pageTexts);
+  __export(exports, "logVisits", () => logVisits);
+  __export(exports, "shownWordsOf", () => shownWordsOf);
+  __export(exports, "pageText", () => pageText);
+  __export(exports, "hostOfPage", () => hostOfPage);
+  __export(exports, "hostPart", () => hostPart);
+  __export(exports, "hostLowerOfPage", () => hostLowerOfPage);
+  __export(exports, "originOfPage", () => originOfPage);
+const { hostOf, urlForDisplay } = __require("packages/core/src/omnibox.ts");
+
+function displayUrl(url        )         {
+  return urlForDisplay(url).replace(/\/$/, "");
+}
+
+const pageKey = (url        ) => url.replace(/#.*$/, "").replace(/\/$/, "");
+
+                        
+              
+              
+                
+                     
+                     
+                     
+                      
+                       
+                
+                         
+                     
+  
+
+const pageTexts = new WeakMap                  ();
+
+const logVisitsOf           = [];
+const logVisits = (visits        ) => (visits >= 0 && visits < 1024 && (visits | 0) === visits ? (logVisitsOf[visits] ??= Math.log2(1 + visits) * 8) : Math.log2(1 + visits) * 8);
+
+const NOT_WORD = /[^a-z0-9]+/g;
+const PLAIN_WORDS = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
+const wordsOf = (lower        ) => (PLAIN_WORDS.test(lower) ? ` ${lower}` : ` ${lower}`.replace(NOT_WORD, " "));
+const shownWordsOf = (t          ) => (t.shownWords ??= wordsOf(t.shownLower));
+
+function pageText(row                                )           {
+  let text = pageTexts.get(row);
+  if (!text) {
+    const shown = displayUrl(row.url);
+    const shownLower = shown.toLowerCase();
+    const titleLower = row.title.toLowerCase();
+    text = { url: row.url, key: pageKey(row.url), shown, shownLower, titleLower, titleWords: wordsOf(titleLower) };
+    pageTexts.set(row, text);
+  }
+  return text;
+}
+
+const hostOfPage = (t          ) => (t.host ??= hostOf(t.url));
+const hostPart = (shown        ) => /^[^/?#]*/.exec(shown) [0];
+const hostLowerOfPage = (t          ) => (t.hostLower ??= hostPart(t.shownLower));
+const originOfPage = (t          ) => (t.origin === undefined ? (t.origin = /^https?:\/\/[^/?#]+/i.exec(t.url)?.[0] ?? null) : t.origin);
+
+});
+__define("packages/core/src/providerNetwork.ts", function (exports, __require) {
+  __export(exports, "isPublicHost", () => isPublicHost);
+  __export(exports, "remoteRequestAllowed", () => remoteRequestAllowed);
+  __export(exports, "sha256Hex", () => sha256Hex);
+  __export(exports, "providerApprovalKey", () => providerApprovalKey);
+const { providerUrl } = __require("packages/core/src/providerRows.ts");
+
+const LOOPBACK_TEST_HOST = "127.0.0.1";
+const PRIVATE_SUFFIXES = /\.(?:localhost|local|internal|lan|home\.arpa|test|invalid|onion)$/i;
+const DNS_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?\.?$/;
+const AUTHORITY = /^([a-z]+):\/\/([^/?#]*)(?:[/?#]|$)/i;
+
+function isPublicHost(host        )          {
+  const h = host.toLowerCase();
+  if (!DNS_NAME.test(h)) return false;
+  const bare = h.replace(/\.$/, "");
+  return bare !== "localhost" && !PRIVATE_SUFFIXES.test(bare);
+}
+
+function plainAuthority(url        )                                          {
+  if (/[\u0000-\u0020\u007f\\]/.test(url)) return null;
+  const found = AUTHORITY.exec(url);
+  if (!found) return null;
+  const scheme = found[1] .toLowerCase();
+  const authority = found[2] ;
+  if (authority.includes("@") || authority.includes("%") || authority.startsWith("[")) return null;
+  const colon = authority.indexOf(":");
+  const host = colon < 0 ? authority : authority.slice(0, colon);
+  if (colon >= 0) {
+    const port = authority.slice(colon + 1);
+    if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535 || port === (scheme === "https" ? "443" : "80")) return null;
+  }
+  return { scheme, host };
+}
+
+function remoteRequestAllowed(url        , { allowLoopback = false }                              = {})          {
+  if (!providerUrl(url)) return false;
+  const parts = plainAuthority(url);
+  if (!parts) return false;
+  if (parts.scheme === "https" && isPublicHost(parts.host)) return true;
+  return allowLoopback && parts.host === LOOPBACK_TEST_HOST;
+}
+
+function canonical(value         )         {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.keys(value)
+      .sort()
+      .filter((k) => (value                           )[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${canonical((value                           )[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(value) ?? "null";
+}
+
+const K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+]);
+
+function utf8(text        )           {
+  const out           = [];
+  for (const ch of text) {
+    let c = ch.codePointAt(0) ;
+    if (c >= 0xd800 && c <= 0xdfff) c = 0xfffd;
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return out;
+}
+
+function sha256Hex(text        )         {
+  const bytes = utf8(text);
+  const bits = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bits >>> (i * 8)) & 255);
+  const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  const w = new Uint32Array(64);
+  const rotr = (x        , n        ) => (x >>> n) | (x << (32 - n));
+  for (let at = 0; at < bytes.length; at += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (bytes[at + i * 4]  << 24) | (bytes[at + i * 4 + 1]  << 16) | (bytes[at + i * 4 + 2]  << 8) | bytes[at + i * 4 + 3] ;
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15] , 7) ^ rotr(w[i - 15] , 18) ^ (w[i - 15]  >>> 3);
+      const s1 = rotr(w[i - 2] , 17) ^ rotr(w[i - 2] , 19) ^ (w[i - 2]  >>> 10);
+      w[i] = w[i - 16]  + s0 + w[i - 7]  + s1;
+    }
+    let [a, b, c, d, e, f, g, k] = [h[0] , h[1] , h[2] , h[3] , h[4] , h[5] , h[6] , h[7] ];
+    for (let i = 0; i < 64; i++) {
+      const t1 = (k + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i]  + w[i] ) >>> 0;
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      [k, g, f, e, d, c, b, a] = [g, f, e, (d + t1) >>> 0, c, b, a, (t1 + t2) >>> 0];
+    }
+    [a, b, c, d, e, f, g, k].forEach((v, i) => (h[i] = h[i]  + v));
+  }
+  return Array.from(h, (v) => v.toString(16).padStart(8, "0")).join("");
+}
+
+const providerApprovalKey = (definition         ) => `omnibox-provider:${sha256Hex(canonical(definition))}`;
+
+});
 __define("packages/core/src/quickCreate.ts", function (exports, __require) {
   __export(exports, "matchQuickCreate", () => matchQuickCreate);
                            
@@ -1903,6 +2386,7 @@ function matchQuickCreate(query        , limit = 3)                {
 
 });
 __define("packages/core/src/siteSearch.ts", function (exports, __require) {
+  __export(exports, "providerScope", () => providerScope);
   __export(exports, "findScope", () => findScope);
   __export(exports, "scopedSearchUrl", () => scopedSearchUrl);
   __export(exports, "offeredSiteSearch", () => offeredSiteSearch);
@@ -1941,18 +2425,30 @@ const POPULAR_SITE_SEARCHES                        = [
 ];
 
                            
-                                      
+                                                   
                
                
               
                     
+                      
   
+
+                                                                                                          
 
                             
                                    
                                 
                             
+                                         
   
+
+function providerScope(text        , providers                             = [])                     {
+  if (!providers.length) return null;
+  const t = text.trim().toLowerCase();
+  if (!t || /\s/.test(t)) return null;
+  const p = providers.find((x) => x.keyword.toLowerCase() === t);
+  return p ? { kind: "provider", name: p.title, host: p.host ?? "", url: p.url ?? "", providerId: p.id } : null;
+}
 
 function normalize(text        )         {
   return text.trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
@@ -1963,7 +2459,9 @@ function siteLabel(host        )         {
   return parts.length >= 2 ? parts[parts.length - 2]  : host;
 }
 
-function findScope(text        , { engines, sites = POPULAR_SITE_SEARCHES, hosts = [] }              )                     {
+function findScope(text        , { engines, sites = POPULAR_SITE_SEARCHES, hosts = [], providers }              )                     {
+  const provider = providerScope(text, providers);
+  if (provider) return provider;
   const t = normalize(text);
   if (!t || /\s/.test(t)) return null;
   const host = hostOf(`https://${t}`) || t;
@@ -1991,13 +2489,14 @@ function engineScope(e              )              {
 
 function scopedSearchUrl(scope             , query        , defaultEngine                           )         {
   if (scope.kind === "history") return searchUrl(defaultEngine, `site:${scope.host} ${query.trim()}`);
+  if (scope.kind === "provider" && !scope.url) return searchUrl(defaultEngine, query);
   return searchUrlFor(scope.url, query);
 }
 
 function offeredSiteSearch(typed        , completion        , sources              )                     {
   const t = typed.trim();
   if (!t || /\s/.test(t)) return null;
-  return findScope(typed + completion, sources);
+  return providerScope(typed, sources.providers) ?? findScope(typed + completion, sources);
 }
 
                                   
@@ -2050,9 +2549,10 @@ const { NO_BOOKMARKS, poolFor, tabsOver } = __require("packages/core/src/candida
 const { extensionSuggestions } = __require("packages/core/src/extensionRows.ts");
 const { BUILT_IN_ENGINES, searchUrl } = __require("packages/core/src/engines.ts");
 const { matchActions } = __require("packages/core/src/fuzzy.ts");
-const { fixupUrl, hostOf } = __require("packages/core/src/omnibox.ts");
+const { fixupUrl, hostOf, searchUrlFor } = __require("packages/core/src/omnibox.ts");
 const { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList } = __require("packages/core/src/pageMatch.ts");
 const { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey } = __require("packages/core/src/pageText.ts");
+const { globalProviderRows, providerUrl, safeProviderRows } = __require("packages/core/src/providerRows.ts");
 const { matchQuickCreate } = __require("packages/core/src/quickCreate.ts");
 const { scopedSearchUrl } = __require("packages/core/src/siteSearch.ts");
                                                                                                       
@@ -2068,6 +2568,7 @@ const DAY = 86_400_000;
 function buildSuggestions(raw        , source                  , options                 = {})                   {
   const { limit = 8, now = Date.now(), engine = BUILT_IN_ENGINES[0] , preference = "website", remote = [], actions = [], scope, preventInline = false } = options;
   const query = raw.trim();
+  if (scope?.kind === "provider") return providerScopeSuggestions(query, scope, options.providers ?? [], limit);
   if (!query) return { items: [], completion: "" };
   const bare = query[0] === "h" || query[0] === "H" ? query.replace(/^https?:\/\/(?=\S)/i, "") : query;
   const q = bare.toLowerCase();
@@ -2194,9 +2695,23 @@ function buildSuggestions(raw        , source                  , options        
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));
+  const providerAt = out.items.length;
   out.push(...remoteRows((text) => searchUrl(engine, text), engine.name));
   out.push(...pageRows.slice(3));
-  return { items: out.items, completion };
+  const providerRows = options.providers?.length ? globalProviderRows(options.providers, out.items) : [];
+  if (!providerRows.length) return { items: out.items, completion };
+  return { items: [...out.items.slice(0, providerAt), ...providerRows, ...out.items.slice(providerAt)], completion };
+}
+
+function providerScopeSuggestions(query        , scope             , sections                            , limit        )                   {
+  const id = scope.providerId ?? "";
+  const items                       = [];
+  const typedUrl = scope.url && query ? providerUrl(searchUrlFor(scope.url, query)) : null;
+  if (typedUrl) items.push({ kind: "provider", providerId: id, provider: scope.name, title: query, url: typedUrl, icon: null });
+  const section = sections.find((x) => x.id === id);
+  const seen = new Set(items.map((x) => x.url));
+  if (section) for (const row of safeProviderRows({ id, title: scope.name }, section.rows, limit)) if (!seen.has(row.url) && items.length < limit) items.push(row);
+  return { items, completion: "" };
 }
 
 function typedIsPage(t          , q        )          {
@@ -2227,67 +2742,6 @@ function bangSuggestions(match           , source                  , options    
   out.push(...buildSuggestions(query, source, { ...options, scope, remote: [], bangs: null }).items.slice(1));
   return { items: out.items, completion: "" };
 }
-
-});
-__define("packages/core/src/pageText.ts", function (exports, __require) {
-  __export(exports, "displayUrl", () => displayUrl);
-  __export(exports, "pageKey", () => pageKey);
-  __export(exports, "pageTexts", () => pageTexts);
-  __export(exports, "logVisits", () => logVisits);
-  __export(exports, "shownWordsOf", () => shownWordsOf);
-  __export(exports, "pageText", () => pageText);
-  __export(exports, "hostOfPage", () => hostOfPage);
-  __export(exports, "hostPart", () => hostPart);
-  __export(exports, "hostLowerOfPage", () => hostLowerOfPage);
-  __export(exports, "originOfPage", () => originOfPage);
-const { hostOf, urlForDisplay } = __require("packages/core/src/omnibox.ts");
-
-function displayUrl(url        )         {
-  return urlForDisplay(url).replace(/\/$/, "");
-}
-
-const pageKey = (url        ) => url.replace(/#.*$/, "").replace(/\/$/, "");
-
-                        
-              
-              
-                
-                     
-                     
-                     
-                      
-                       
-                
-                         
-                     
-  
-
-const pageTexts = new WeakMap                  ();
-
-const logVisitsOf           = [];
-const logVisits = (visits        ) => (visits >= 0 && visits < 1024 && (visits | 0) === visits ? (logVisitsOf[visits] ??= Math.log2(1 + visits) * 8) : Math.log2(1 + visits) * 8);
-
-const NOT_WORD = /[^a-z0-9]+/g;
-const PLAIN_WORDS = /^[a-z0-9]+(?: [a-z0-9]+)*$/;
-const wordsOf = (lower        ) => (PLAIN_WORDS.test(lower) ? ` ${lower}` : ` ${lower}`.replace(NOT_WORD, " "));
-const shownWordsOf = (t          ) => (t.shownWords ??= wordsOf(t.shownLower));
-
-function pageText(row                                )           {
-  let text = pageTexts.get(row);
-  if (!text) {
-    const shown = displayUrl(row.url);
-    const shownLower = shown.toLowerCase();
-    const titleLower = row.title.toLowerCase();
-    text = { url: row.url, key: pageKey(row.url), shown, shownLower, titleLower, titleWords: wordsOf(titleLower) };
-    pageTexts.set(row, text);
-  }
-  return text;
-}
-
-const hostOfPage = (t          ) => (t.host ??= hostOf(t.url));
-const hostPart = (shown        ) => /^[^/?#]*/.exec(shown) [0];
-const hostLowerOfPage = (t          ) => (t.hostLower ??= hostPart(t.shownLower));
-const originOfPage = (t          ) => (t.origin === undefined ? (t.origin = /^https?:\/\/[^/?#]+/i.exec(t.url)?.[0] ?? null) : t.origin);
 
 });
 __define("packages/core/src/candidatePool.ts", function (exports, __require) {
@@ -2475,6 +2929,8 @@ function suggestionKey(s            )         {
       return `create:${s.id}`;
     case "extension":
       return `extension:${s.open}:${s.id}`;
+    case "provider":
+      return `provider:${s.providerId}:${pageKey(s.url)}`;
   }
 }
 
