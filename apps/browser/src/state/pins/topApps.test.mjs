@@ -653,3 +653,17 @@ test("the split leaves a parked tile that belongs to a parked split view", () =>
   assert.equal(S().parkedPins[work]?.splits?.length, 1);
   assert.ok(S().parkedPins[work].tabs.some((e) => e.id === mail.id), "the split's tile stays");
 });
+
+test("the split never empties a profile in a window, shown or not", () => {
+  const { saved, work } = mergedBy0244();
+  const home = saved.windows[0];
+  const mine = saved.tabs.filter((t) => t.profileId === work && !(t.pin && t.pinnedUrl === "https://mail.com"));
+  const gone = new Set(mine.map((t) => t.id));
+  saved.tabs = saved.tabs.filter((t) => !gone.has(t.id));
+  home.tabIds = home.tabIds.filter((id) => !gone.has(id));
+  home.profileId = "default";
+  home.activeTabIds = { ...home.activeTabIds, [work]: saved.tabs.find((t) => t.profileId === work).id };
+  const w = relaunch(saved);
+  S().switchProfile(w, work);
+  assert.ok(view(w, work).some((id) => S().tabs[id].pinnedUrl === "https://mail.com"), "Work still has the tab it had in this window");
+});

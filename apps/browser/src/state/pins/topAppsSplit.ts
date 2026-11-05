@@ -77,7 +77,7 @@ export function sessionWithOwnTopApps(doc: SavedObject): SavedObject {
   for (const w of list(doc.windows)) {
     if (!isStringList(w.tabIds)) continue;
     keepAll(w.tabIds);
-    keepAll(w.tabIds.filter((id) => profileOfAny.get(id) === w.profileId));
+    for (const p of new Set(w.tabIds.map((id) => profileOfAny.get(id)))) keepAll(w.tabIds.filter((id) => profileOfAny.get(id) === p));
   }
 
   const closedAt = Date.now();
