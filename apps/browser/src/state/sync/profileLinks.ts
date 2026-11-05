@@ -69,7 +69,7 @@ export function linkProfiles(doc: SyncDoc, app: ScopeState) {
     const syncId = match ?? SyncNative!.newDeviceId();
     doc.profiles[id] = { syncId, enabled: true };
     taken.add(syncId);
-    if (matched && !!matched.o !== !!profile.ownTopApps) s.updateProfile(id, { ownTopApps: matched.o });
+    if (matched && !!matched.t !== !!profile.shareTopApps) s.updateProfile(id, { shareTopApps: matched.t });
     if (match) {
       doc.scopes[profileScope(syncId)] = { ...emptyScope(), awaitRemote: true };
       pairTheme(app, id, doc.profiles[id]!);
@@ -80,7 +80,7 @@ export function linkProfiles(doc: SyncDoc, app: ScopeState) {
 }
 
 export function addLinkedProfile(doc: SyncDoc, syncId: string, record: ProfileRecord, shareWith: string | null): string {
-  const id = useBrowser.getState().createProfile({ name: record.n, color: record.c, icon: record.i, shareWith, ownTopApps: record.o });
+  const id = useBrowser.getState().createProfile({ name: record.n, color: record.c, icon: record.i, shareWith, shareTopApps: record.t });
   doc.profiles[id] = { syncId, enabled: true };
   pairTheme(doc.scopes[APP_SCOPE], id, doc.profiles[id]!, record);
   doc.scopes[profileScope(syncId)] = { ...emptyScope(), awaitRemote: true };

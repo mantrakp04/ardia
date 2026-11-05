@@ -64,14 +64,14 @@ export async function showProfileMenu(
       color: profile.theme ? null : profile.color,
       isDefault: currentSettings().defaultProfileId === profileId,
       only: currentProfileOrder().length <= 1,
-      sharesTopApps: sharingProfiles({ profiles: currentProfiles(), profileOrder: currentProfileOrder() }, profileId).length ? !profile.ownTopApps : null,
+      sharesTopApps: sharingProfiles({ profiles: currentProfiles(), profileOrder: currentProfileOrder() }, profileId).length ? !!profile.shareTopApps : null,
     }),
   );
   if (!choice) return;
   if (typeof choice === "object") return choosePresetColor(profileId, choice.color);
   if (choice === "icon") return void openProfileIconPicker(profileId, windowId, place, anchor);
   if (choice === "rename") return void renameProfile(profileId, windowId);
-  if (choice === "topApps") return setShareTopApps(profileId, !!currentProfile(profileId)?.ownTopApps);
+  if (choice === "topApps") return setShareTopApps(profileId, !currentProfile(profileId)?.shareTopApps);
   if (choice === "settings") return openSettings("profiles", profileId);
   if (choice === "details") return goToSettingsPane("profiles", profileId);
   if (choice === "default") return setDefaultProfile(profileId);
