@@ -276,19 +276,22 @@ test("same-document navigations in quick succession all arrive, in order", async
   ]);
 });
 
-test("the pill stays up until the run's reply is written", async () => {
+test("the pill stays up until the run's reply is written", async (t) => {
   fresh();
   await controlOn();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   S().createWindow({ url: "https://a.example/" });
   useCli.setState({ server: { state: "external", connections: 0, generation: 4, file: "" } });
   useCliIndicator.setState({ shown: false });
   stub.controlSocket.holdWrites = true;
   call("run", { command: "setAppearance", arg: "light" });
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+  t.mock.timers.tick(3200);
   assert.equal(useCliIndicator.getState().shown, true);
   stub.controlSocket.holdWrites = false;
   stub.writeHeldReplies();
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+  t.mock.timers.tick(2999);
+  assert.equal(useCliIndicator.getState().shown, true);
+  t.mock.timers.tick(1);
   assert.equal(useCliIndicator.getState().shown, false);
   S().updateSettings({ cliControl: false });
 });

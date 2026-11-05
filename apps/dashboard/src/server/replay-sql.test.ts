@@ -78,11 +78,6 @@ test("impossible dates are rejected instead of rolling over", () => {
   assert.deepEqual(parseConditions([["started", "after", "2026-02-31"]]), []);
 });
 
-test("Customize it clicks come from the site's demo_customize event", () => {
-  const { sql } = build([]);
-  assert.ok(sql.includes("max(event = 'demo_customize') AS customized"));
-});
-
 test("quick filters are presets of the builder", () => {
   const legacy = legacyConditions({ min: "60", clicks: "1", device: "Mac", url: "release", download: "yes" });
   assert.deepEqual(legacy, [

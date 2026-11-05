@@ -21,7 +21,6 @@ const S = () => useBrowser.getState();
 const HOUR = 3_600_000;
 const OLD = () => Date.now() - 13 * HOUR;
 const saved = () => stub.docs.get("session.json") ?? "";
-const settle = () => new Promise((resolve) => setTimeout(resolve, 1700));
 
 function privateWindowWith(...urls) {
   const w = S().createWindow({ kind: "private", url: urls[0] });
@@ -282,7 +281,12 @@ test("a profile sharing another's data leaves nothing to delete until the last o
   assert.deepEqual(S().orphanedProfileData, ["", other]);
 });
 
-test("queued profile data is deleted once, and stays queued in session.json until that succeeds", async () => {
+test("queued profile data is deleted once, and stays queued in session.json until that succeeds", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const settle = async () => {
+    t.mock.timers.tick(1500);
+    for (let i = 0; i < 5; i++) await new Promise(setImmediate);
+  };
   stub.docs.clear();
   stub.deletedProfileData.length = 0;
   stub.profileDataLeft.set("", ["passwords"]);

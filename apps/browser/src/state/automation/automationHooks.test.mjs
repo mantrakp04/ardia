@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { startAutomation } = await import("./controlSocket.ts");
@@ -14,6 +14,7 @@ const { useRegisteredProviders } = await import("../omnibox/providers.ts");
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
+after(() => S().updateSettings({ cliControl: false }));
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let nextId = 0;
