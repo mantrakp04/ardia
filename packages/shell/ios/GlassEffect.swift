@@ -12,7 +12,7 @@ final class GlassEffect: ExpoView {
   var clear = false { didSet { apply() } }
 
   required init(appContext: AppContext? = nil) {
-    if #available(macOS 26.0, *) {
+    if #available(macOS 26.0, *), LiquidGlass.available {
       effect = NSGlassEffectView()
     } else {
       let material = NSVisualEffectView()
@@ -33,9 +33,7 @@ final class GlassEffect: ExpoView {
 
   private func apply() {
     if #available(macOS 26.0, *), let glass = effect as? NSGlassEffectView {
-      glass.cornerRadius = cornerRadius
-      glass.tintColor = tint
-      glass.style = clear ? .clear : .regular
+      LiquidGlass.apply(glass, cornerRadius: cornerRadius, tint: tint, clear: clear)
       return
     }
     effect.layer?.cornerRadius = cornerRadius
@@ -74,7 +72,7 @@ final class GlassEffect: ExpoView {
 
   private func rehost() {
     let wanted: [NSView] = reactSubviews() ?? []
-    guard #available(macOS 26.0, *), let glass = effect as? NSGlassEffectView, group == nil, !wanted.isEmpty else {
+    guard #available(macOS 26.0, *), let glass = effect as? NSGlassEffectView, LiquidGlass.hostsContent(glass), group == nil, !wanted.isEmpty else {
       if !content.subviews.isEmpty { content.subviews = [] }
       for view in wanted where view.superview !== self { addSubview(view) }
       return

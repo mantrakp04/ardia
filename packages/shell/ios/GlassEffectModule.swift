@@ -7,10 +7,7 @@ public class GlassEffectModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaGlassEffect")
 
-    Function("isLiquidGlass") { () -> Bool in
-      if #available(macOS 26.0, *) { return true }
-      return false
-    }
+    Function("isLiquidGlass") { () -> Bool in LiquidGlass.available }
 
     View(GlassEffect.self) {
       Prop("cornerRadius") { (view: GlassEffect, v: Double) in view.cornerRadius = v }

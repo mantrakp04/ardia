@@ -9,7 +9,7 @@ final class GlassGroup: ExpoView {
   var strength: Double = 1 { didSet { container?.alphaValue = strength } }
 
   required init(appContext: AppContext? = nil) {
-    if #available(macOS 26.0, *) {
+    if #available(macOS 26.0, *), LiquidGlass.groupsGlass {
       let group = NSGlassEffectContainerView()
       group.contentView = glassLayer
       container = group
