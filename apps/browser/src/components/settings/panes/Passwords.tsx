@@ -220,7 +220,13 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       <DialogActions leading={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
         {editing ? (
           <>
-            <Button title="Cancel" onPress={() => setEditing(false)} />
+            <Button
+              title="Cancel"
+              onPress={() => {
+                setError("");
+                setEditing(false);
+              }}
+            />
             <Button title="Save" kind="primary" disabled={!password} onPress={() => void save()} />
           </>
         ) : (

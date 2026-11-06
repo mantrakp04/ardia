@@ -11,6 +11,7 @@ globalThis.acTestNativeModules = {
 };
 const { emitAppEvent } = await import("../../test-native/shell.ts");
 const { importPasswordsCsv, lockPasswords, originOfLogin, revealPassword, unlockPasswordsFor, usePasswordUnlocks } = await import("./savedPasswords.ts");
+const passwords = await import("../../platform/passwords.ts");
 const stub = await import("../../test-native/index.ts");
 stub.passwordStores.set(stub.current.device, new Map());
 
@@ -89,6 +90,23 @@ test("importing the same CSV login twice counts it as saved both times", async (
   assert.deepEqual(await importing(rows), { saved: 1, skipped: 0 });
   assert.deepEqual(await importing(rows), { saved: 1, skipped: 0 });
   assert.equal(await revealed("https://again.example", "me"), "same");
+});
+
+test("saving a login again with the same password leaves the stored record alone", async (t) => {
+  const now = t.mock.method(Date, "now", () => 1000);
+  assert.equal(await passwords.savePassword("work", "https://stamp.example", "me", "same"), true);
+  now.mock.mockImplementation(() => 2000);
+  assert.equal(await passwords.savePassword("work", "https://stamp.example", "me", "same"), true);
+  const [stored] = (await stub.readLogins()).filter((l) => l.url === "https://stamp.example");
+  assert.equal(stored.created, 1000);
+});
+
+test("a login is edited through the origin the list reports for it", async () => {
+  await importing([login("https://listed.example/login", "me", "old")]);
+  const listed = (await passwords.listPasswords("work")).find((p) => p.username === "me" && p.origin.includes("listed.example"));
+  assert.ok(listed);
+  assert.equal(await passwords.updatePassword("work", listed.origin, "me", { password: "new" }), true);
+  assert.equal(await revealed(listed.origin, "me"), "new");
 });
 
 test("a CSV login with another password than the saved one is skipped and the saved one stays", async (t) => {

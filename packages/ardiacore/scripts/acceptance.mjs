@@ -2843,18 +2843,21 @@ try {
 
   await check("passwords-save-again", async () => {
     const origin = "https://again.test";
-    const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
-    if (first?.error) throw new Error(`first save: ${first.error}`);
-    const again = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
-    if (again?.error) throw new Error(`saving the same login again: ${again.error}`);
-    const other = await secret("ArdiaPasswords", "save", "", origin, "user", "pw2");
-    if (other?.error !== "Could not save the password (invalid, or already saved)") throw new Error(`saving another password for it: ${JSON.stringify(other)}`);
-    const revealed = await until("the first password", async () => {
-      const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "user" });
-      return r?.password === "pw1" ? r : null;
-    });
-    await engineOrError("passwords.remove", { profile: "", origin, username: "user" });
-    return { again: "saved", other: other.error, password: revealed.password };
+    try {
+      const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (first?.error) throw new Error(`first save: ${first.error}`);
+      const again = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (again?.error) throw new Error(`saving the same login again: ${again.error}`);
+      const other = await secret("ArdiaPasswords", "save", "", origin, "user", "pw2");
+      if (other?.error !== "Could not save the password (invalid, or already saved)") throw new Error(`saving another password for it: ${JSON.stringify(other)}`);
+      const revealed = await until("the first password", async () => {
+        const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "user" });
+        return r?.password === "pw1" ? r : null;
+      });
+      return { again: "saved", other: other.error, password: revealed.password };
+    } finally {
+      await engineOrError("passwords.remove", { profile: "", origin, username: "user" });
+    }
   });
 
   await check("autofill-cards", async () => {

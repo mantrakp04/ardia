@@ -360,7 +360,7 @@ const fakeModules = {
     "passwords",
     {
       list: () => ({
-        passwords: [...(passwordStores.get(current.device)?.values() ?? [])].map((l) => ({ origin: l.origin, username: l.username, created: l.created, modified: l.created })),
+        passwords: [...(passwordStores.get(current.device)?.values() ?? [])].map((l) => ({ origin: l.url, username: l.username, created: l.created, modified: l.created })),
       }),
       unlock: () => ({ unlocked: true }),
       reveal: (args) => ({ password: passwordStores.get(current.device)?.get(loginKey(args))?.password ?? null }),
@@ -374,10 +374,11 @@ const fakeModules = {
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
         const key = `${origin}\n${username}`;
-        if (!/^https?:\/\/[^/?#]+$/i.test(origin) || (logins().has(key) && logins().get(key)!.password !== password)) {
+        const existing = logins().get(key);
+        if (!/^https?:\/\/[^/?#]+$/i.test(origin) || (existing && existing.password !== password)) {
           throw new Error("Could not save the password (invalid, or already saved)");
         }
-        logins().set(key, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
+        if (!existing) logins().set(key, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
         return JSON.stringify({ ok: true });
       },
       update: async (_profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null) => {
