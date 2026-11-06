@@ -13,6 +13,7 @@
 @end
 
 @interface ArdiaPopupOriginStrip : NSView
+@property(nonatomic, copy) void (^openAsTab)(void);
 - (void)showURL:(NSString *)url security:(NSString *)level;
 @end
 
