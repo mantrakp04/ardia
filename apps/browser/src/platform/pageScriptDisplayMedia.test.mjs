@@ -206,3 +206,61 @@ test("the bridge runs in web pages and in same-origin about:blank and srcdoc chi
   assert.equal(typeof runsIn("data:", false, "null"), "function");
   assert.equal(typeof runsIn("chrome-extension:", false, "chrome-extension://abc"), "function");
 });
+
+const blankFrameTail = slice("  const receive = (kind, json) => {\n", "  const frame = Math.random()");
+
+function blankFrame() {
+  const sent = [];
+  const nativeCalls = [];
+  class MediaDevices {}
+  const nativeGetDisplayMedia = {
+    getDisplayMedia() {
+      nativeCalls.push(this);
+      return new Promise(() => {});
+    },
+  }.getDisplayMedia;
+  Object.defineProperty(MediaDevices.prototype, "getDisplayMedia", { value: nativeGetDisplayMedia, writable: true, enumerable: true, configurable: true });
+  Object.defineProperty(MediaDevices.prototype, "getUserMedia", { value() {}, writable: true, enumerable: true, configurable: true });
+  const devices = new MediaDevices();
+  class UserActivation {
+    get isActive() {
+      return true;
+    }
+  }
+  const navigator = { mediaDevices: devices, userActivation: new UserActivation() };
+  const guard = (fn) =>
+    function () {
+      try {
+        return Reflect.apply(fn, this, arguments);
+      } catch (e) {}
+    };
+  const receive = new Function(
+    "navigator",
+    "document",
+    "send",
+    "apply",
+    "handlers",
+    "DOMException",
+    "web",
+    "guard",
+    "fromJSON",
+    `${helper}${source}${blankFrameTail}return null;`,
+  )(navigator, { featurePolicy: { allowsFeature: () => true } }, (kind, data) => sent.push({ kind, data }), Reflect.apply, Object.create(null), DOMException, false, guard, JSON.parse);
+  return { receive, devices, proto: MediaDevices.prototype, native: nativeGetDisplayMedia, sent, nativeCalls };
+}
+
+test("a blank or srcdoc frame asks Ardia for its display-media config, and with the picker off a click there uses Chrome's own method", () => {
+  const f = blankFrame();
+  assert.equal(typeof f.receive, "function");
+  assert.deepEqual(f.sent, [{ kind: "displayMediaHello", data: {} }]);
+  f.receive("config", "{}");
+  assert.equal(f.proto.getDisplayMedia, f.native);
+  f.devices.getDisplayMedia({ video: true });
+  assert.deepEqual(f.nativeCalls, [f.devices]);
+  assert.equal(f.sent.length, 1);
+  f.receive("config", JSON.stringify({ displayMediaPicker: true }));
+  assert.notEqual(f.proto.getDisplayMedia, f.native);
+  f.devices.getDisplayMedia({ video: true });
+  assert.equal(f.sent[1].kind, "displayMedia");
+  assert.equal(f.nativeCalls.length, 1);
+});

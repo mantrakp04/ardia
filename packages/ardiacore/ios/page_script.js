@@ -121,7 +121,12 @@
     const handler = handlers[kind];
     if (handler) guard(handler)(fromJSON(json));
   };
-  if (!web) return receive;
+  if (!web) {
+    const configureDisplayMedia = (config) => (config.displayMediaPicker ? installDisplayMedia() : restoreDisplayMedia());
+    handlers.config = configureDisplayMedia;
+    send("displayMediaHello", {});
+    return receive;
+  }
 
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
