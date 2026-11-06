@@ -148,6 +148,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const unlocked = usePasswordsUnlocked(profile);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
@@ -158,10 +159,12 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
 
   const save = async () => {
     setError("");
+    setSaving(true);
     const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
+    setSaving(false);
     if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
     onChanged();
     closeSettingsSheet();
@@ -222,12 +225,13 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
           <>
             <Button
               title="Cancel"
+              disabled={saving}
               onPress={() => {
                 setError("");
                 setEditing(false);
               }}
             />
-            <Button title="Save" kind="primary" disabled={!password} onPress={() => void save()} />
+            <Button title="Save" kind="primary" disabled={!password || saving} onPress={() => void save()} />
           </>
         ) : (
           <>

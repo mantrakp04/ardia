@@ -2842,7 +2842,7 @@ try {
   });
 
   await check("passwords-save-again", async () => {
-    const origin = "https://again.test";
+    const origin = `https://again-${process.pid}-${Date.now().toString(36)}.test`;
     try {
       const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
       if (first?.error) throw new Error(`first save: ${first.error}`);
