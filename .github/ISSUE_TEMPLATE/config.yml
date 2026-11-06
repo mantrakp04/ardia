@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask on Discord
+    url: https://discord.gg/TdhuXrbcA6
+    about: Questions, and whether something is already fixed in the nightly.
