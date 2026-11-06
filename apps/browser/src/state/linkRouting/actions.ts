@@ -91,23 +91,27 @@ export function startLinkRouting() {
   if (started) return;
   started = true;
   let sent = "";
+  let wanted = "";
+  let request = 0;
   let retryMs = FIRST_RETRY_MS;
+  let retry: ReturnType<typeof setTimeout> | undefined;
   const sync = () => {
     const routes = pageLinkRoutes(store());
     const json = JSON.stringify(routes);
     if (json === sent) return;
+    clearTimeout(retry);
+    if (json !== wanted) {
+      wanted = json;
+      retryMs = FIRST_RETRY_MS;
+    }
     sent = json;
-    setLinkRoutes(routes).then(
-      () => {
-        retryMs = FIRST_RETRY_MS;
-      },
-      () => {
-        if (sent !== json) return;
-        sent = "";
-        setTimeout(sync, retryMs);
-        retryMs = Math.min(retryMs * 2, LAST_RETRY_MS);
-      },
-    );
+    const current = ++request;
+    setLinkRoutes(routes).catch(() => {
+      if (current !== request) return;
+      sent = "";
+      retry = setTimeout(sync, retryMs);
+      retryMs = Math.min(retryMs * 2, LAST_RETRY_MS);
+    });
   };
   sync();
   useBrowser.subscribe(sync);

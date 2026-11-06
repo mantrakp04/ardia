@@ -45,7 +45,8 @@ test("the old openLinksInLittleArdia switch sets linkRouting's default, keeps th
   const off = read({ openLinksInLittleArdia: false }, {}, current);
   assert.deepEqual(off.patch, { linkRouting: { routes, defaultDestination: { kind: "recent" } } });
   assert.deepEqual(off.problems, ["config.json: openLinksInLittleArdia is now linkRouting's defaultDestination"]);
-  assert.deepEqual(read({ openLinksInLittleArdia: true }, {}, current).patch, {});
+  const recent = { ...DEFAULT_SETTINGS, linkRouting: { routes, defaultDestination: { kind: "recent" } } };
+  assert.deepEqual(read({ openLinksInLittleArdia: true }, {}, recent).patch, { linkRouting: { routes, defaultDestination: { kind: "little" } } });
   const both = read({ openLinksInLittleArdia: false, linkRouting: { routes: [], defaultDestination: { kind: "little" } } }, {}, current);
   assert.deepEqual(both.patch, { linkRouting: { routes: [], defaultDestination: { kind: "little" } } });
 });
