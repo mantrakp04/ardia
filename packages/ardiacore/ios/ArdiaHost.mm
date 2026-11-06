@@ -313,6 +313,7 @@ static void (^gQuitCancelledHandler)(void);
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
+    @"focus" : ardia_host::FocusState(),
   };
 }
 

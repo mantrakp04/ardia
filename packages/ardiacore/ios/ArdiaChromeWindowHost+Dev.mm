@@ -553,6 +553,8 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     @"fakeActiveClicks" : ^NSString *(NSWindow *w, NSString *a) { return FakeActiveClicks(w, a); },
     @"click" : ^NSString *(NSWindow *w, NSString *a) { return Click(w, a); },
     @"mouse" : ^NSString *(NSWindow *w, NSString *a) { return MouseEvent(w, a); },
+    @"pageMove" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::PageMoveAt(w, WindowPoint(w, a)); },
+    @"focusState" : ^NSString *(NSWindow *, NSString *) { return ardia_host::FocusState(); },
     @"drag" : ^NSString *(NSWindow *w, NSString *a) { return Drag(w, a); },
     @"type" : ^NSString *(NSWindow *w, NSString *a) { return TypeText(w, a); },
     @"reserved" : ^NSString *(NSWindow *w, NSString *a) { return Reserved(w, a); },

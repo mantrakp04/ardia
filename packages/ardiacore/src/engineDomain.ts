@@ -8,6 +8,7 @@ export type EngineInfo = {
   liveBrowsers: number;
   popupWindows: number;
   chromeWindows: number;
+  focus?: string;
 };
 
 export type EngineComponent = {
