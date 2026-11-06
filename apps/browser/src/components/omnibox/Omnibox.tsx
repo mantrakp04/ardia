@@ -66,8 +66,7 @@ export function Omnibox({
   const hero = variant === "hero";
   const dropdown = variant === "sidebar";
 
-  const noneSelected = opensTab ? -1 : 0;
-  const bar = useBarText(hero, tabId, initialText, noneSelected);
+  const bar = useBarText(hero, tabId, initialText, 0);
   const { typed, edited, suppressCompletion, selected, scope, scopeFrom, pendingSelection, dispatch, selection } = bar;
   const input = useRef<TextInput>(null);
   const [bangEnter] = useState(createBangSubmitter);
@@ -129,7 +128,7 @@ export function Omnibox({
 
   const reset = () => {
     bangEnter.cancel();
-    dispatch({ kind: "reset", selected: noneSelected });
+    dispatch({ kind: "reset", selected: 0 });
     selection.collapse();
   };
 
@@ -236,7 +235,7 @@ export function Omnibox({
     const bySpace = scope ? null : keywordBySpace(typed, next);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
     if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
-    dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: opensTab && !change.typed.trim() ? -1 : 0 });
+    dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: 0 });
   };
 
   useOmniboxDriver(`${windowId}:${variant}`, {
