@@ -102,7 +102,7 @@ test("a manual refresh whose fetch fails keeps the pull requests it unhid", asyn
   applyFetch(id, [bitbucket("x"), bitbucket("y")], {});
   hideItems(id, [bitbucket("x")]);
   await manualRefresh(id);
-  assert.equal(live().status[id].error?.source, "bitbucket", "the fetch failed: Bitbucket isn't connected in tests");
+  assert.equal(live().status[id].errors[0]?.source, "bitbucket", "the fetch failed: Bitbucket isn't connected in tests");
   assert.deepEqual(live().items[id].map((it) => it.id).sort(), ["x", "y"]);
 });
 

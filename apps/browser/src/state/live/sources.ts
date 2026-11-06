@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
-import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
+import { LiveError, PartialFetch, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
 
 export type LiveSource = {
@@ -66,9 +66,49 @@ const github: LiveSource = {
   },
 };
 
-const BITBUCKET_STATE_BATCH = 10;
+const BITBUCKET_BATCH = 10;
+
+async function inBitbucketBatches<T, R>(items: T[], run: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += BITBUCKET_BATCH) results.push(...(await Promise.allSettled(items.slice(i, i + BITBUCKET_BATCH).map(run))));
+  return results;
+}
+
+const fulfilled = <R>(results: PromiseSettledResult<R>[]) => results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+
+const BITBUCKET_STATUS_REUSE_MS = 15 * 60_000;
+
+const bitbucketStatusCache = new Map<string, { commit: string; at: number; statuses: BitbucketStatuses }>();
+
+const bitbucketStatusKey = (pr: BitbucketPR) => `${pr.destination.repository.full_name}#${pr.id}`;
+
+async function bitbucketStatuses(pr: BitbucketPR, auth: string, now: number): Promise<BitbucketStatuses | null> {
+  const key = bitbucketStatusKey(pr);
+  const commit = pr.source.commit?.hash;
+  const cached = bitbucketStatusCache.get(key);
+  const running = cached?.statuses.values.some((status) => status.state === "INPROGRESS");
+  if (commit && cached?.commit === commit && !running && now - cached.at < BITBUCKET_STATUS_REUSE_MS) return cached.statuses;
+  const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${pr.destination.repository.full_name}/pullrequests/${pr.id}/statuses?pagelen=50`, {
+    headers: { Authorization: auth },
+  }).catch(() => null);
+  if (statuses && commit) bitbucketStatusCache.set(key, { commit, at: now, statuses });
+  return statuses;
+}
 
 const bitbucketAuth = async () => basic(live().config.bitbucketUser, await secret("bitbucket"));
+
+async function bitbucketPages<T>(url: string, auth: string): Promise<T[]> {
+  const values: T[] = [];
+  const visited = new Set<string>();
+  for (let next: string | undefined = url; next; ) {
+    if (visited.has(next)) throw new LiveError("other", `Bitbucket returned the same page twice: ${next}`);
+    visited.add(next);
+    const page: { values: T[]; next?: string } = await request(next, { headers: { Authorization: auth } });
+    values.push(...page.values);
+    next = page.next;
+  }
+  return values;
+}
 
 const bitbucket: LiveSource = {
   id: "bitbucket",
@@ -80,32 +120,36 @@ const bitbucket: LiveSource = {
     const auth = await bitbucketAuth();
     const me = live().accounts.bitbucket;
     if (!me) throw new LiveError("signedOut", "Not signed in");
-    const page = await request<{ values: BitbucketPR[] }>(`${endpoints.bitbucket}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, {
-      headers: { Authorization: auth },
-    });
-    return Promise.all(
-      page.values.map(async (pr) => {
-        const repo = pr.destination.repository.full_name;
-        const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${pr.id}/statuses?pagelen=50`, {
-          headers: { Authorization: auth },
-        }).catch(() => null);
-        return mapBitbucket(pr, statuses);
-      }),
+    const workspaces = await bitbucketPages<{ workspace: { slug: string } }>(`${endpoints.bitbucket}/user/workspaces?pagelen=100`, auth);
+    const results = await inBitbucketBatches(workspaces, ({ workspace }) =>
+      bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
     );
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected").map((result) => result.reason);
+    if (failures.length && failures.length === results.length) throw failures[0];
+    const failedWorkspaces = new Set(workspaces.filter((_, i) => results[i]?.status === "rejected").map(({ workspace }) => workspace.slug));
+    const keptFromFailedWorkspaces = (live().items[folder.id] ?? []).filter((it) => it.source === "bitbucket" && it.pr && failedWorkspaces.has(it.pr.repo.split("/")[0] ?? ""));
+    const prs = fulfilled(results).flat();
+    const now = Date.now();
+    const items = await inBitbucketBatches(prs, async (pr) => mapBitbucket(pr, await bitbucketStatuses(pr, auth, now)));
+    if (!failedWorkspaces.size) {
+      const open = new Set(prs.map(bitbucketStatusKey));
+      for (const key of bitbucketStatusCache.keys()) if (!open.has(key)) bitbucketStatusCache.delete(key);
+    }
+    const itemFailure = items.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (itemFailure) throw itemFailure.reason;
+    const listed = [...fulfilled(items), ...keptFromFailedWorkspaces];
+    if (failures.length) throw new PartialFetch(listed, failures);
+    return listed;
   },
   async resolveGone(items) {
     const auth = await bitbucketAuth();
     const out: Record<string, CompletionState> = {};
     const prs = items.flatMap((it) => (it.pr ? [{ id: it.id, repo: it.pr.repo, number: it.pr.number }] : []));
-    for (let i = 0; i < prs.length; i += BITBUCKET_STATE_BATCH) {
-      await Promise.all(
-        prs.slice(i, i + BITBUCKET_STATE_BATCH).map(async ({ id, repo, number }) => {
-          const pr = await request<{ state: string }>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${number}`, { headers: { Authorization: auth } }).catch(() => null);
-          if (pr?.state === "MERGED") out[id] = "merged";
-          else if (pr?.state === "DECLINED" || pr?.state === "SUPERSEDED") out[id] = "closed";
-        }),
-      );
-    }
+    await inBitbucketBatches(prs, async ({ id, repo, number }) => {
+      const pr = await request<{ state: string }>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${number}`, { headers: { Authorization: auth } }).catch(() => null);
+      if (pr?.state === "MERGED") out[id] = "merged";
+      else if (pr?.state === "DECLINED" || pr?.state === "SUPERSEDED") out[id] = "closed";
+    });
     return out;
   },
 };
