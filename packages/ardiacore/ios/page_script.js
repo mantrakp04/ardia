@@ -599,8 +599,6 @@
     const localName = getter(Element.prototype, "localName");
     const anchorHref = getter(HTMLAnchorElement.prototype, "href");
     const areaHref = getter(HTMLAreaElement.prototype, "href");
-    const anchorTarget = getter(HTMLAnchorElement.prototype, "target");
-    const areaTarget = getter(HTMLAreaElement.prototype, "target");
     const baseURI = getter(Node.prototype, "baseURI");
     const ratio = getter(window, "devicePixelRatio");
     const composedPath = Event.prototype.composedPath;
@@ -711,10 +709,7 @@
       return null;
     };
     const clickDetail = getter(UIEvent.prototype, "detail");
-    const linkTarget = (link) => {
-      const raw = namespace(link) === SVG ? apply(getAttribute, link, ["target"]) ?? "" : localName(link) === "a" ? anchorTarget(link) : areaTarget(link);
-      return lowered(raw);
-    };
+    const linkTarget = (link) => lowered(targetOf(link));
     const routedOpens = (link) => {
       const target = linkTarget(link);
       if (target === "_blank") return "tab";
@@ -937,7 +932,6 @@
 
   handlers.config = (config) => {
     handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace, otherSites: config.peekOtherSites });
-    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
     handlers.routeConfig({ routes: config.routes, self: config.sidebarProfile });
     blockAutoplay = !!config.blockAutoplay;
     pipTrace = !!config.pipTrace;

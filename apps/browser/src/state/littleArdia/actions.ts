@@ -45,7 +45,7 @@ export function openExternalUrls(given: string[], pointer?: [number, number], so
     results.forEach((result, i) => {
       if (!result) return;
       if (result.route) return openRoutedUrl(result.url, result.route, pointer);
-      if (result.url !== urls[i]) return openUrlsFromApps([result.url], { profileId: null, adoptIds: [undefined] }, pointer, true);
+      if (result.url !== urls[i]) return openUrlsFromApps([result.url], { profileId: null, adoptIds: [undefined] }, pointer, true, false);
       plain.push(result.url);
     });
     if (plain.length) openUndecided(plain, pointer, results.some((r) => r?.decided));
@@ -84,11 +84,12 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
   );
 }
 
-function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number], gated = false) {
+function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number], gated = false, withRoutes = true) {
   let main: string | undefined;
+  const recentProfileId = lastActiveProfile(store());
   urls.forEach((url, i) => {
     const s = store();
-    const placement = placeLinkFromOtherApp(s, url);
+    const placement = placeLinkFromOtherApp(s, url, { recentProfileId, withRoutes });
     const adoptId = routed.profileId !== null && engineProfile(s, placement.profileId) === engineProfile(s, routed.profileId) ? asAdoptId(routed.adoptIds[i]) : undefined;
     if (placement.kind === "little" && urls.length === 1 && isWebPageUrl(url)) return void openLittleArdia(url, placement.profileId, adoptId, pointer);
     main = openAtPlacement(placement.kind === "little" ? { kind: "profile", profileId: placement.profileId } : placement, { url, how: "foreground", adoptId, gated }) ?? main;

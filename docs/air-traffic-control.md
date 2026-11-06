@@ -80,4 +80,4 @@ Those links wait for JS and route normally.
 - `apps/browser/src/components/settings/panes/Links.tsx`: the pane. `state/settings/settings.ts`: `linkRouting` and `sessionWithLinkRouting`, session migration 10 → 11 (`state/session/persist.ts`).
 - `packages/ardiacore/ios/ArdiaWebView+Peek.mm`: `setLinkRoutes`, the `route` message and its gesture check;
   `ArdiaWebView+PageMessages.mm`: the routes in the page's config; `ArdiaWebView.mm`: the `sidebarProfile` prop;
-  `ArdiaHost+Launch.mm`: cold launch; `page_script.js`: the click interceptor. Native API 21.
+  `ArdiaHost+Launch.mm`: cold launch; `page_script.js`: the click interceptor. Native API 48.

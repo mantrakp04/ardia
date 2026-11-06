@@ -14,7 +14,12 @@ export function routingWorld(s: BrowserState): RoutingWorld {
   };
 }
 
-export const placeLinkFromOtherApp = (s: BrowserState, url: string): LinkPlacement => placeExternalLink(s.settings.linkRouting, url, routingWorld(s));
+export type OtherAppPlacing = { recentProfileId?: string; withRoutes?: boolean };
+
+export function placeLinkFromOtherApp(s: BrowserState, url: string, { recentProfileId = lastActiveProfile(s), withRoutes = true }: OtherAppPlacing = {}): LinkPlacement {
+  const routing = s.settings.linkRouting;
+  return placeExternalLink(withRoutes ? routing : { ...routing, routes: [] }, url, { ...routingWorld(s), recentProfileId });
+}
 
 export function placeLinkFromProfile(s: BrowserState, url: string, sourceProfileId: string, from?: LinkSource): LinkPlacement | null {
   if (!s.profiles[sourceProfileId]) return null;

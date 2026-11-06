@@ -61,11 +61,13 @@ function routeOf(value: unknown): LinkRoute | null {
 export const isLinkRouting = (value: unknown): value is LinkRouting =>
   isRecord(value) && Array.isArray(value.routes) && value.routes.every((route) => routeOf(route) !== null) && destinationOf(value.defaultDestination) !== null;
 
+const NONEMPTY: JsonSchema = { type: "string", pattern: "[\\s\\S]" };
+
 const DESTINATION_SCHEMA: JsonSchema = {
   anyOf: [
-    { type: "object", properties: { kind: { const: "profile" }, profileId: { type: "string" } }, required: ["kind", "profileId"] },
-    { type: "object", properties: { kind: { const: "group" }, profileId: { type: "string" }, groupKey: { type: "string" } }, required: ["kind", "profileId", "groupKey"] },
-    { type: "object", properties: { kind: { const: "little" }, profileId: { type: "string" } }, required: ["kind"] },
+    { type: "object", properties: { kind: { const: "profile" }, profileId: NONEMPTY }, required: ["kind", "profileId"] },
+    { type: "object", properties: { kind: { const: "group" }, profileId: NONEMPTY, groupKey: NONEMPTY }, required: ["kind", "profileId", "groupKey"] },
+    { type: "object", properties: { kind: { const: "little" }, profileId: NONEMPTY }, required: ["kind"] },
     { type: "object", properties: { kind: { const: "recent" } }, required: ["kind"] },
   ],
 };
@@ -77,7 +79,7 @@ export const LINK_ROUTING_SCHEMA: JsonSchema = {
       type: "array",
       items: {
         type: "object",
-        properties: { id: { type: "string" }, match: { enum: ["contains", "equals"] }, pattern: { type: "string" }, destination: DESTINATION_SCHEMA },
+        properties: { id: NONEMPTY, match: { enum: ["contains", "equals"] }, pattern: { type: "string" }, destination: DESTINATION_SCHEMA },
         required: ["id", "match", "pattern", "destination"],
       },
     },

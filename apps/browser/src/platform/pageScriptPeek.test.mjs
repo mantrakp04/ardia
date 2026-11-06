@@ -673,6 +673,18 @@ test("a routed click says whether the link opens a tab; overlong URLs, named tar
   assert.deepEqual(routes(frame).map((r) => r.opens), ["tab", "page"]);
 });
 
+test("a routed click takes the page's <base target>: _blank opens a tab, a named frame stays Chrome's", () => {
+  const env = environment();
+  env.handlers.routeConfig({ routes: [{ match: "contains", pattern: "work.example", profile: "work" }], self: "personal" });
+  env.document.base = env.element("base", { target: "_blank" });
+  env.gesture([env.link("https://work.example/based")], {});
+  env.gesture([env.link("https://work.example/own", { target: "_self" })], {});
+  assert.deepEqual(routes(env).map((r) => [r.url, r.opens]), [["https://work.example/based", "tab"], ["https://work.example/own", "page"]]);
+  env.document.base = env.element("base", { target: "results" });
+  assert.ok(!env.gesture([env.link("https://work.example/framed")], {}).defaultPrevented);
+  assert.equal(routes(env).length, 2);
+});
+
 test("a route wins over links to other sites: the click is routed, not peeked", () => {
   const env = environment();
   env.handlers.peekConfig(siteConfig());
