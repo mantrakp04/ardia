@@ -41,10 +41,10 @@ export const SWITCHES = {
     removeBy: "2026-12-15",
     live: false,
   },
-  focusedWindowFirst: {
-    about: "A launch with several windows builds the focused one first and opens the others behind it after (state/windows/windowOpenOrder.ts).",
-    owner: "launch",
-    removeBy: "2026-12-15",
+  lazyProfiles: {
+    about: "A launch loads only the profiles its windows show; the others, and their extensions, load when first opened (state/profiles/profileLoading.ts).",
+    owner: "profiles",
+    removeBy: "2027-01-15",
     live: false,
   },
   sidebarSlide: {

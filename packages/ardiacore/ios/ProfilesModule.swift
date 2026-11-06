@@ -3,11 +3,14 @@ import ExpoModulesCore
 public class ProfilesModule: Module {
   public func definition() -> ModuleDefinition {
     Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
     Self.calls.function
   }
 
   static let calls = CallTable(domain: "profiles", handlers: [
+    "loaded": { _, reply in reply.ok(["profiles": ArdiaHost.loadedProfiles]) },
     "release": { args, reply in
       ArdiaHost.releaseProfile(args.profile)
       reply.ok()

@@ -114,6 +114,7 @@ export const SETTING_SPECS = {
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
+  loadProfilesWhenOpened: flag(true),
   keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),
   showFullUrl: flag(false, SYNCED),

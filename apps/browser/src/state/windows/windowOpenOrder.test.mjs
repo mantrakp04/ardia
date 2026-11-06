@@ -29,20 +29,3 @@ test("after launch: only the windows asked for, the focused one last so it comes
   assert.deepEqual(windowOpens(state(["a", "b", "c"], "a"), ["c"], false), [{ id: "c", focus: false }]);
   assert.deepEqual(windowOpens(state(["a", "b", "c"], "c"), ["b", "c"], false), [{ id: "b", focus: false }, { id: "c", focus: true }]);
 });
-
-test("switched off (focusedWindowFirst): a launch opens them as before, the focused one last", async () => {
-  const { docs } = await import("../../test-native/index.ts");
-  const ks = await import("../../platform/killSwitches.ts");
-  docs.set("switches-cache.json", JSON.stringify({ version: 1, switches: { focusedWindowFirst: false } }));
-  ks.reloadSwitches();
-  try {
-    assert.deepEqual(windowOpens(state(["a", "b", "c"], "b"), ["a", "b", "c"], true), [
-      { id: "a", focus: false },
-      { id: "c", focus: false },
-      { id: "b", focus: true },
-    ]);
-  } finally {
-    docs.delete("switches-cache.json");
-    ks.reloadSwitches();
-  }
-});

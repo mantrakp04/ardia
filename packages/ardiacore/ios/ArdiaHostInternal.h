@@ -19,6 +19,7 @@ NSMutableDictionary<NSString *, NSMutableArray *> *ProfileWaiters();
 NSMutableSet<NSString *> *DeletedProfiles();
 NSMutableSet<NSString *> *ReleasedPrivateNames();
 NSMutableDictionary<NSString *, void (^)(ArdiaCoreProfile *)> *DeletionsAfterLoad();
+NSArray<NSString *> *LoadedDataProfileNames();
 NSString *InstalledDataDirectory();
 bool IsTeamSigned();
 extern ArdiaBootstrapDelegate *gBootstrap;
