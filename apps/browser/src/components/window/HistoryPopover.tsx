@@ -10,7 +10,9 @@ import { closeHistoryMenu, closeHistoryMenuOf, goToHistoryItem, historyFavicons,
 
 const FAVICON_X = PANEL.inset + (PANEL.iconSlot - 16) / 2;
 
-export function HistoryPopover({ tabId, windowId, anchors }: { tabId: string; windowId: string; anchors: { back: number; forward: number } }) {
+export const historyPopoverLeft = (buttonCenter: number) => Math.max(POPOVER_MARGIN, buttonCenter - FAVICON_X - 2);
+
+export function HistoryPopover({ tabId, windowId, left, top = POPOVER_MARGIN }: { tabId: string; windowId: string; left: { back: number; forward: number }; top?: number }) {
   const menu = useHistoryMenu((s) => (s.menu?.tabId === tabId ? s.menu : null));
   const profileId = useTab(tabId, (t) => t?.profileId ?? "");
   const favicons = useMemo(() => {
@@ -31,7 +33,7 @@ export function HistoryPopover({ tabId, windowId, anchors }: { tabId: string; wi
   };
 
   return (
-    <Popover width="s" top={POPOVER_MARGIN} left={Math.max(POPOVER_MARGIN, (menu.direction < 0 ? anchors.back : anchors.forward) - FAVICON_X - 2)} onDismiss={closeHistoryMenu}>
+    <Popover width="s" top={top} left={menu.direction < 0 ? left.back : left.forward} onDismiss={closeHistoryMenu}>
       <View style={{ paddingVertical: PANEL.listPadding }}>
         {menu.items.map((item) => (
           <Row key={item.key} item={item} favicon={favicons.get(item.url) ?? null} onOpen={(e) => open(item, e)} />

@@ -93,8 +93,10 @@ test("the floating sidebar stays out for what's anchored in it: its menus, renam
   });
 });
 
-test("a page popover holds the floating sidebar only when it hangs off the sidebar's address field", async () => {
-  assert.equal((await heldWhileOpen(({ w }) => peekHeld(w), { addressBar: "sidebar" })).popover, true);
+test("a page popover and the history menu hold the floating sidebar only when they hang off the sidebar's address field and buttons", async () => {
+  const held = await heldWhileOpen(({ w }) => peekHeld(w), { addressBar: "sidebar" });
+  assert.equal(held.popover, true);
+  assert.equal(held.historyMenu, true);
 });
 
 test("the auto-hidden toolbar stays shown for what's anchored in it: its menus, the command panel, Find, a page popover, the history menu and an extension popup", async () => {
