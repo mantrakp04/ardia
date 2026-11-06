@@ -8,7 +8,7 @@ A route is one condition and one destination. The condition is `URL Contains <pa
 
 - **Contains** is a case-insensitive substring match on the whole URL, path, query and fragment included, so `github.com`
   matches `https://github.com/mantrakp04/ardia` and `https://example.com/?next=https://github.com/x`.
-- **Is equal to** compares the URL and the pattern without their scheme, query, fragment, case and one trailing slash:
+- **Is equal to** compares the URL and the pattern without their scheme, query, fragment, case and trailing slashes:
   `linear.app/team` equals `https://Linear.app/team/?utm=1#top` and not `https://linear.app/team/issue-1` or
   `www.linear.app/team`. Nothing else is normalized (ports, `www.`, percent escapes, IDN).
 - Only `http(s)` URLs match. A route with a blank pattern never matches.
@@ -65,7 +65,7 @@ patches and an engine-side matcher for it); this version stays in the app so it 
 
 ## Cold launch
 
-When a link from another app launches Ardia, native parks it in the last profile before JS runs (`ArdiaCoreHost.mm`).
+When a link from another app launches Ardia, native parks it in the last profile before JS runs (`packages/ardiacore/ios/ArdiaHost+Launch.mm`).
 With routes saved, it parks a link only if no route matches it (the same Contains and Is equal to rules, on the same URL text) and the default
 destination uses the most recent profile (Most Recent Profile or Little Ardia without a chosen profile), and it shows the
 early Little Ardia window only when the default is Little Ardia without a chosen profile, so a link that may route never makes a request with the wrong profile's cookies.

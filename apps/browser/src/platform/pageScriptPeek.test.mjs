@@ -646,7 +646,7 @@ test("a click on a link another profile's route matches is routed instead of nav
   assert.equal(routes(env).length, before);
 });
 
-test("is equal to routes the exact page only, compared without scheme, case, query and a trailing slash", () => {
+test("is equal to routes the exact page only, compared without scheme, case, query and trailing slashes", () => {
   const env = environment();
   env.handlers.routeConfig({ routes: [{ match: "equals", pattern: "docs.example/home", profile: "work" }], self: "personal" });
   assert.ok(env.gesture([env.link("HTTP://Docs.example/home/?tab=1#top")], {}).defaultPrevented);

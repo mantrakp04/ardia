@@ -78,7 +78,7 @@ state="$("$ac" eval "$migrated" '
   return JSON.stringify({
     urls: tabs.map((t) => t.url),
     pinned: tabs.filter((t) => t.pin).map((t) => t.url),
-    little: s.settings.linkRouting?.defaultDestination?.kind === "little",
+    otherApps: s.settings.linkRouting?.defaultDestination?.kind ?? null,
     size: s.settings.littleArdiaSize,
     shortcut: s.settings.shortcuts?.newLittleArdia ?? null,
     bookmark: JSON.stringify(s.bookmarks).includes("Migration Bookmark") && JSON.stringify(s.bookmarks).includes("ardia://downloads"),
@@ -87,7 +87,7 @@ echo "$state"
 has() { node -e 'const s = JSON.parse(process.argv[1]); process.exit(eval(process.argv[2]) ? 0 : 1)' "$state" "$1" && echo 1 || echo 0; }
 check "tabs, with app URLs in today's scheme" "$(has 's.urls.includes("ardia://history") && s.urls.some((u) => u.startsWith("https://example.com"))')"
 check "the pinned tab" "$(has 's.pinned.some((u) => u.startsWith("https://example.com"))')"
-check "settings" "$(has 's.little === false && s.size[0] === 810')"
+check "settings" "$(has 's.otherApps === "recent" && s.size[0] === 810')"
 check "the custom shortcut" "$(has 'JSON.stringify(s.shortcut) === JSON.stringify(["cmd+opt+y"])')"
 check "the bookmark (Chrome's profile)" "$(has 's.bookmark')"
 cookie="$("$ac" page "$migrated" example.com 'document.cookie' 2>/dev/null || true)"

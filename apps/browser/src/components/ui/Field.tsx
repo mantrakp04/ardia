@@ -194,6 +194,7 @@ export function PopUp<T extends string>({
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const current = options.find((o) => o.value === value);
+  const labelled = accessibilityLabel ? { accessibilityRole: "button" as const, accessibilityLabel, accessibilityValue: { text: current?.title ?? "" } } : {};
   const open = async () => {
     const items: MenuItem[] = options.flatMap((o) => [
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
@@ -204,7 +205,7 @@ export function PopUp<T extends string>({
   };
   return (
     <View {...hoverProps} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-      <Pressable disabled={disabled} onPress={open} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityValue={{ text: current?.title ?? "" }}>
+      <Pressable disabled={disabled} onPress={open} {...labelled}>
         {({ pressed }) => (
           <View
             style={{

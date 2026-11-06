@@ -84,19 +84,30 @@ export function routeTypedUrl(url: string, from: { windowId: string; tabId?: str
 }
 
 let started = false;
+const FIRST_RETRY_MS = 250;
+const LAST_RETRY_MS = 30_000;
 
 export function startLinkRouting() {
   if (started) return;
   started = true;
   let sent = "";
+  let retryMs = FIRST_RETRY_MS;
   const sync = () => {
     const routes = pageLinkRoutes(store());
     const json = JSON.stringify(routes);
     if (json === sent) return;
     sent = json;
-    setLinkRoutes(routes).catch(() => {
-      if (sent === json) sent = "";
-    });
+    setLinkRoutes(routes).then(
+      () => {
+        retryMs = FIRST_RETRY_MS;
+      },
+      () => {
+        if (sent !== json) return;
+        sent = "";
+        setTimeout(sync, retryMs);
+        retryMs = Math.min(retryMs * 2, LAST_RETRY_MS);
+      },
+    );
   };
   sync();
   useBrowser.subscribe(sync);

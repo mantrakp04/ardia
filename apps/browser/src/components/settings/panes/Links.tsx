@@ -3,7 +3,7 @@ import { Button, ContextMenuArea, Group, PopUp, space, Symbol, Text, TextField, 
 import { showMenu } from "../../../state/app/system";
 import { updateSettings } from "../../../state/settings/actions";
 import { decodeDestination, encodeDestination, useDestinationOptions, useLinkRouting, useRecentProfileId, withCurrentDestination } from "../../../state/linkRouting/hooks";
-import { newLinkRouteId, withDefaultDestination, withoutRoute, withRoute, withRouteChanged, withRouteMoved, type LinkRoute, type RouteMatch } from "../../../lib/linkRouting";
+import { MAX_LINK_ROUTES, newLinkRouteId, withDefaultDestination, withoutRoute, withRoute, withRouteChanged, withRouteMoved, type LinkRoute, type RouteMatch } from "../../../lib/linkRouting";
 import { Row, SectionHeader } from "../Form";
 
 const APP = "Ardia";
@@ -35,7 +35,7 @@ export function LinksPane() {
     updateSettings({ linkRouting: withRoute(routing, { id: newLinkRouteId(), match: "contains", pattern: "", destination: { kind: "profile", profileId: recentProfileId } }) });
   return (
     <View>
-      <SectionHeader anchor="links.routes" title="Air Traffic Control" action={<Button title="New Route" icon="plus" onPress={addRoute} />} />
+      <SectionHeader anchor="links.routes" title="Air Traffic Control" action={<Button title="New Route" icon="plus" onPress={addRoute} disabled={routing.routes.length >= MAX_LINK_ROUTES} />} />
       <Group>
         {routing.routes.length === 0 ? (
           <EmptyRoutes />
@@ -46,7 +46,7 @@ export function LinksPane() {
         )}
       </Group>
 
-      <SectionHeader anchor="links.otherApps" />
+      <SectionHeader title="Links from other apps" />
       <Group>
         <Row anchor="links.otherApps">
           <OtherAppsDestinationPopUp />

@@ -17,6 +17,8 @@ export const LITTLE_ARDIA: RouteDestination = { kind: "little" };
 
 export const DEFAULT_LINK_ROUTING: LinkRouting = { routes: [], defaultDestination: LITTLE_ARDIA };
 
+export const MAX_LINK_ROUTES = 512;
+
 export type LinkPlacement =
   | { kind: "profile"; profileId: string }
   | { kind: "group"; profileId: string; groupKey: string }
@@ -59,7 +61,12 @@ function routeOf(value: unknown): LinkRoute | null {
 }
 
 export const isLinkRouting = (value: unknown): value is LinkRouting =>
-  isRecord(value) && Array.isArray(value.routes) && value.routes.every((route) => routeOf(route) !== null) && destinationOf(value.defaultDestination) !== null;
+  isRecord(value) &&
+  Array.isArray(value.routes) &&
+  value.routes.length <= MAX_LINK_ROUTES &&
+  value.routes.every((route) => routeOf(route) !== null) &&
+  new Set(value.routes.map((route) => (route as LinkRoute).id)).size === value.routes.length &&
+  destinationOf(value.defaultDestination) !== null;
 
 const NONEMPTY: JsonSchema = { type: "string", pattern: "[\\s\\S]" };
 
@@ -77,6 +84,7 @@ export const LINK_ROUTING_SCHEMA: JsonSchema = {
   properties: {
     routes: {
       type: "array",
+      maxItems: MAX_LINK_ROUTES,
       items: {
         type: "object",
         properties: { id: NONEMPTY, match: { enum: ["contains", "equals"] }, pattern: { type: "string" }, destination: DESTINATION_SCHEMA },
@@ -94,7 +102,7 @@ export function normalizeLinkRouting(value: unknown): LinkRouting {
   const routes: LinkRoute[] = [];
   for (const raw of Array.isArray(value.routes) ? value.routes : []) {
     const route = routeOf(raw);
-    if (!route || ids.has(route.id)) continue;
+    if (!route || ids.has(route.id) || routes.length >= MAX_LINK_ROUTES) continue;
     ids.add(route.id);
     routes.push(route);
   }

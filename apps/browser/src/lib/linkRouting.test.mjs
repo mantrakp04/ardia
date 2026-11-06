@@ -23,7 +23,7 @@ test("contains matches anywhere in the URL, case-insensitively, and never a non-
   assert.equal(routeMatches(route("r", "contains", "   ", work), "https://github.com"), false);
 });
 
-test("is equal to ignores the scheme, query, fragment, case and one trailing slash", () => {
+test("is equal to ignores the scheme, query, fragment, case and trailing slashes", () => {
   const r = route("r", "equals", "https://Linear.app/team/", work);
   assert.equal(routeMatches(r, "http://linear.app/team"), true);
   assert.equal(routeMatches(r, "https://linear.app/team/?utm=1#top"), true);
@@ -86,6 +86,13 @@ test("saved routing is normalized: malformed routes and duplicate ids drop, an u
     routes: [route("a", "contains", "x.com", work), route("d", "equals", "", RECENT), route("e", "contains", "z", { kind: "little", profileId: "work" })],
     defaultDestination: work,
   });
+});
+
+test("saved routing keeps the first 512 routes, as many as pages can match", () => {
+  const many = Array.from({ length: 600 }, (_, i) => route(`r${i}`, "contains", `site${i}.example`, work));
+  const kept = normalizeLinkRouting({ routes: many, defaultDestination: RECENT }).routes;
+  assert.equal(kept.length, 512);
+  assert.equal(kept.at(-1).id, "r511");
 });
 
 test("moving a route swaps it with its neighbour and stops at the ends", () => {
@@ -173,4 +180,21 @@ test("the Open in menu round-trips Little Ardia with and without a chosen profil
   for (const d of [LITTLE_ARDIA, { kind: "little", profileId: "work" }, RECENT, work, inbox]) assert.deepEqual(decodeDestination(encodeDestination(d)), d);
   assert.equal(encodeDestination(LITTLE_ARDIA), "little");
   assert.deepEqual(withCurrentDestination([], { kind: "little", profileId: "gone" }), [{ value: "little:gone", title: "Little Ardia (a deleted profile)" }]);
+});
+
+test("routes the page bridge refuses are sent again, later each time, until it takes them", async () => {
+  const stub = await import("../test-native/index.ts");
+  const { startLinkRouting } = await import("../state/linkRouting/actions.ts");
+  stub.pageLinkRoutes.failNext = 2;
+  S().hydrate({
+    profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 }, work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 0 } },
+    profileOrder: ["default", "work"],
+    windows: {},
+    tabs: {},
+    settings: { linkRouting: { routes: [route("a", "contains", "github.com", work)], defaultDestination: RECENT } },
+  });
+  startLinkRouting();
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.equal(stub.pageLinkRoutes.failNext, 0);
+  assert.deepEqual(stub.pageLinkRoutes.sent.at(-1), [{ match: "contains", pattern: "github.com", profile: "work" }]);
 });
