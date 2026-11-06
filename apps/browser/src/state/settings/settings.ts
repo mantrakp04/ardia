@@ -127,6 +127,7 @@ export const SETTING_SPECS = {
   compactToolbar: flag(false, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   spacesFollowAppearance: flag(true),
+  windowTranslucency: flag(true),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),

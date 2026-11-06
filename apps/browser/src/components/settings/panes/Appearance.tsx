@@ -24,6 +24,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 export function AppearancePane() {
   const appearance = useSettings((s) => s.appearance);
   const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
+  const windowTranslucency = useSettings((s) => s.windowTranslucency);
   const choose = (mode: Settings["appearance"]) => updateSettings({ appearance: mode });
   return (
     <View>
@@ -35,6 +36,9 @@ export function AppearancePane() {
           ))}
         </Box>
         <Group>
+          <Row anchor="appearance.windowTranslucency">
+            <Toggle value={windowTranslucency} onChange={(v) => updateSettings({ windowTranslucency: v })} />
+          </Row>
           <Row anchor="appearance.spacesFollowAppearance">
             <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
           </Row>
