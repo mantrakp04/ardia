@@ -165,6 +165,7 @@ function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: stri
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onWindowClose={onWindowClose}
+          onCrashed={current ? undefined : onWindowClose}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
       </View>
