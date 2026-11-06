@@ -278,7 +278,7 @@ export function ThemeEditor({
         <Slider stacked={stacked} label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
         <Box gap="xs">
           <Slider stacked={stacked} label="Pass-through blur" value={theme.translucency} onChange={(v, settle) => onChange({ ...theme, translucency: v }, settle)} />
-          <Text size="caption" tone="textSecondary">Set to zero for an opaque background without blur.</Text>
+          <Text size="caption" tone="textSecondary" style={full ? { marginLeft: LABEL + space.ml } : undefined}>Set to zero for an opaque background without blur.</Text>
         </Box>
         <Slider stacked={stacked} label="Noise" value={theme.grain} onChange={(v, settle) => onChange({ ...theme, grain: v }, settle)}>
           <PopUp
