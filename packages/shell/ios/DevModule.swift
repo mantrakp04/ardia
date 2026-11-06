@@ -134,7 +134,10 @@ public class DevModule: Module {
       let count = Int(probe["steps"] ?? 60), dx = CGFloat(probe["dx"] ?? 3), dy = CGFloat(probe["dy"] ?? 0)
       let interval = (probe["intervalMs"] ?? 8) / 1000
       if let x = probe["x"], let top = probe["top"] {
-        WindowMoveProbe.drag(window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
+        let settle = (probe["settleMs"] ?? 200) / 1000, keep = (probe["keep"] ?? 0) != 0
+        WindowMoveProbe.drag(window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval, settle: settle, keep: keep) {
+          promise.resolve($0)
+        }
       } else {
         WindowMoveProbe.steps(window, count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
       }

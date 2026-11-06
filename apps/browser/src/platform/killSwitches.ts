@@ -59,6 +59,12 @@ export const SWITCHES = {
     removeBy: "2026-12-15",
     live: false,
   },
+  serverWindowDrag: {
+    about: "The window server moves the window from our drag areas in the title-bar band, so those drags tile, snap and cross displays as macOS's own; off, every drag is our pointer-following loop (packages/shell ServerWindowDrag.swift).",
+    owner: "window",
+    removeBy: "2026-12-15",
+    live: false,
+  },
 } as const satisfies Record<string, SwitchDef>;
 
 export const EXPERIMENTS = {
@@ -67,13 +73,8 @@ export const EXPERIMENTS = {
     owner: "tab switch",
     removeBy: "2026-12-15",
   },
-  serverWindowDrag: {
-    about: "The window server moves the window from our drag areas at once, instead of waiting for mouseDown on the main thread (packages/shell ServerWindowDrag.swift).",
-    owner: "window",
-    removeBy: "2026-12-15",
-  },
   serverWindowDragAllOpen: {
-    about: "As serverWindowDrag, with every view in the titlebar band left open to window moves (a probe for the geometry work).",
+    about: "With serverWindowDrag, every view in the titlebar band is also left open to window moves (a probe for the geometry work).",
     owner: "window",
     removeBy: "2026-12-15",
   },

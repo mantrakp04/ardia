@@ -64,7 +64,7 @@ enum WindowMoveProbe {
 
   static func drag(
     _ window: NSWindow, x: CGFloat, top: CGFloat, count: Int, dx: CGFloat, dy: CGFloat, interval: TimeInterval,
-    done: @escaping ([String: Any]) -> Void
+    settle: TimeInterval = 0.2, keep: Bool = false, done: @escaping ([String: Any]) -> Void
   ) {
     guard let frameView = window.contentView?.superview, let restoreButtons = installButtons() else { return done(["error": "no frame view"]) }
     let origin = window.frame.origin
@@ -88,13 +88,21 @@ enum WindowMoveProbe {
       timer.invalidate()
       buttonsDown = false
       if let up = mouse(.leftMouseUp, window, screen: at) { NSApp.postEvent(up, atStart: false) }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+      let released = window.frame.origin
+      var after: [[Double]] = []
+      let sampler = Timer(timeInterval: 1.0 / 60, repeats: true) { _ in after.append([window.frame.minX, window.frame.minY]) }
+      RunLoop.main.add(sampler, forMode: .common)
+      DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
+        sampler.invalidate()
         restoreButtons()
         let end = window.frame.origin
-        window.setFrameOrigin(origin)
+        let screen = window.screen.map { NSStringFromRect($0.frame) } ?? "nil"
+        if !keep { window.setFrameOrigin(origin) }
         done([
           "hit": hit, "serverOwnsPress": serverOwns, "moved": [end.x - origin.x, end.y - origin.y],
           "pointerTravel": [dx * CGFloat(count), dy * CGFloat(count)], "backSteps": backSteps, "samples": origins.count,
+          "start": [origin.x, origin.y], "released": [released.x, released.y], "end": [end.x, end.y], "screen": screen,
+          "afterRelease": after, "path": origins,
         ])
       }
     }
