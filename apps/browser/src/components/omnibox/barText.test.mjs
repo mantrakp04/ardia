@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { barReducer, initialBar, selectionTracker } = await import("./barText.ts");
+const { barReducer, initialBar, previewText, selectionTracker } = await import("./barText.ts");
 
 const fresh = (text = "", none = 0) => initialBar(null, text, none);
 const run = (state, ...events) => events.reduce(barReducer, state);
@@ -69,10 +69,10 @@ test("the New Tab box comes back from a tab switch with its scope and the text i
   assert.deepEqual(restored.pendingSelection, { start: 0, end: 0 });
 });
 
-test("a calculator row copies its answer into the field, selected, without moving the row", () => {
+test("a calculator row copies its answer into the field, selected, with the top row highlighted since the row is gone", () => {
   const s = run(fresh(), { kind: "typed", text: "2+2", suppress: false, selected: 0 }, { kind: "selected", index: 1 }, { kind: "calculated", text: "4" });
   assert.equal(s.typed, "4");
-  assert.equal(s.selected, 1);
+  assert.equal(s.selected, 0);
   assert.deepEqual(s.pendingSelection, { start: 0, end: 1 });
 });
 
@@ -107,4 +107,13 @@ test("a key reads the selection from before its own caret move, and an older mov
   sel.collapse();
   assert.deepEqual(sel.current, { start: 0, end: 0 });
   assert.deepEqual(sel.before, { start: 0, end: 10 });
+});
+
+test("a highlighted row shows its query or address in the field, other rows keep what was typed", () => {
+  assert.equal(previewText({ kind: "search", query: "lebron james age", url: "https://duckduckgo.com/?q=lebron+james+age", engine: "DuckDuckGo", suggested: true }), "lebron james age");
+  assert.equal(previewText({ kind: "page", url: "https://www.example.com/", title: "Example", favicon: null }), "example.com");
+  assert.equal(previewText({ kind: "page", url: "https://example.com/a?b=1", title: "A", favicon: null }), "example.com/a?b=1");
+  assert.equal(previewText({ kind: "action", id: "settings", title: "Settings" }), null);
+  assert.equal(previewText({ kind: "calc", expression: "2+2", value: "4", url: "" }), null);
+  assert.equal(previewText(undefined), null);
 });
