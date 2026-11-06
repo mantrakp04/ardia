@@ -3289,7 +3289,8 @@ try {
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
         .catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await pipWindows())}`); });
-      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab)
+      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab ||
+          video.subrole !== "AXSystemFloatingWindow")
         throw new Error(`not styled as on CEF: ${JSON.stringify(video)}`);
       await sleep(800);
       const videoShown = (await pipWindows())?.find((w) => w.window === video.window) ?? video;
