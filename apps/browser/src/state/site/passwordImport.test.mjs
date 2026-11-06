@@ -13,7 +13,10 @@ globalThis.acTestNativeModules = {
     save: async (_profile, origin, username, password) => {
       const realm = realmOf(origin);
       const key = `${realm} ${username}`;
-      if (stored.has(key)) throw new Error("Could not save the password (invalid, or already saved)");
+      if (stored.has(key)) {
+        if (stored.get(key) === password) return JSON.stringify({ ok: true });
+        throw new Error("A different password is already saved for this login");
+      }
       stored.set(key, password);
       if (realm !== `${origin}/`) throw new Error("The password store didn't take the change");
       return JSON.stringify({ ok: true });
@@ -38,4 +41,24 @@ test("a CSV login whose address has no scheme is saved under its site's origin",
   assert.deepEqual(warnings, []);
   assert.deepEqual(result, { saved: 2, skipped: 0 });
   assert.deepEqual([...stored.keys()].sort(), ["https://example.com/ ann", "https://shop.example.org/ bob"]);
+});
+
+test("importing the same CSV again reports every login as saved", async (t) => {
+  const warned = [];
+  t.mock.method(console, "warn", (message) => warned.push(message));
+  const before = [...stored.entries()].sort();
+  const result = await importPasswordsCsv("work");
+  assert.deepEqual(warned, []);
+  assert.deepEqual(result, { saved: 2, skipped: 0 });
+  assert.deepEqual([...stored.entries()].sort(), before);
+});
+
+test("a login saved with another password is skipped and left as it was", async (t) => {
+  const warned = [];
+  t.mock.method(console, "warn", (message) => warned.push(message));
+  csv = [{ url: "example.com/login", username: "ann", password: "changed" }];
+  const result = await importPasswordsCsv("work");
+  assert.equal(warned.length, 1);
+  assert.deepEqual(result, { saved: 0, skipped: 1 });
+  assert.equal(stored.get("https://example.com/ ann"), "pw1");
 });
