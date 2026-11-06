@@ -97,7 +97,7 @@ struct ArdiaPageFocusState {
   __weak NSView *devTools;
   BOOL onActivate{};
   BOOL keepsOutgoing{};
-  CFTimeInterval activatedAt{};
+  CFTimeInterval expiresAt{};
   __weak NSWindow *activatedIn;
 };
 
@@ -211,6 +211,7 @@ struct ArdiaPageFocusState {
 - (void)storePageFocusFrom:(NSResponder *)responder;
 - (void)requestFocusRestore;
 - (void)requestFocusRestoreIn:(NSWindow *)window;
+- (void)requestFocusOnFirstShow;
 - (void)restoreFocusIfDue;
 - (void)focusAfterLoad;
 @end
