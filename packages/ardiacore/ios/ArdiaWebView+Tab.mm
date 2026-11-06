@@ -1,5 +1,6 @@
 #import "ArdiaWebViewInternal.h"
 #import "ArdiaEarlyWindow.h"
+#import "ArdiaPictureInPicture.h"
 
 #import <objc/runtime.h>
 
@@ -48,6 +49,7 @@ const NSUInteger kNewTabLinksKept = 4;
   const BOOL shownEarly = [ArdiaEarlyWindow holdsPage:tab];
   [LiveViews() addObject:self];
   InstallControlPressMonitor();
+  ardia_pip::InstallSystemFloatingSubrole();
   _tab = tab;
   _life.attached();
   tab.delegate = self;

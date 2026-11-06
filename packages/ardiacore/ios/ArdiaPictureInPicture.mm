@@ -2,6 +2,7 @@
 #import "ArdiaLaunchConfig.h"
 #import "ArdiaChromeWindowHost.h"
 #import "ArdiaPiPThrowMath.h"
+#import "ArdiaRuntime.h"
 
 #import <dlfcn.h>
 #import <objc/runtime.h>
@@ -154,6 +155,18 @@ NSString *DevShowAlpha(NSWindow *window, float alpha) {
 namespace ardia_pip {
 
 void WatchZoom() { InstallZoomMonitor(); }
+
+void InstallSystemFloatingSubrole() {
+  static BOOL installed;
+  if (installed) return;
+  installed = ardia_runtime::ReplaceMethod(
+      NSClassFromString(@"NativeWidgetMacFramelessNSWindow"), @selector(accessibilitySubrole), ^id(IMP original) {
+        return ^NSAccessibilitySubrole(NSWindow *window) {
+          if (IsChromeFloatingWindow(window) || [ArdiaPiPController forWindow:window]) return NSAccessibilitySystemFloatingWindowSubrole;
+          return ((NSAccessibilitySubrole(*)(NSWindow *, SEL))original)(window, @selector(accessibilitySubrole));
+        };
+      });
+}
 
 void TabRequestedActivation(ArdiaWebView *view) {
   for (NSWindow *window in NSApp.windows)
