@@ -5,6 +5,7 @@ export type ThemeTexture = (typeof THEME_TEXTURES)[number];
 export type ThemeMode = "auto" | "light" | "dark";
 
 export type ThemeBackdropProps = {
+  backgroundBlurEnabled: boolean;
   themeColors: number[];
   themeOpacity: number;
   themeBaseAlpha: number;
