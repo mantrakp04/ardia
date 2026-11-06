@@ -1,6 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, pinKeyOf } from "../browser/model";
 import { folderIn, folderLabel, folderMembers, tileFolderOf } from "./tileFolders";
 
 export const useTileFolderMembers = (windowId: string, folderId: string) => useBrowser(useShallow((s) => folderMembers(s, windowId, folderId)));
@@ -20,3 +20,5 @@ export const useSelectionInGroup = (windowId: string, groupId: string) =>
     const selection = s.selection[windowId];
     return !!selection?.length && !!s.groups[groupId]?.tabIds.some((id) => selection.includes(id));
   });
+
+export const useTileKeys = (tabIds: string[]) => useBrowser(useShallow((s) => tabIds.map((id) => (s.tabs[id] ? pinKeyOf(s.tabs[id]!) : id))));

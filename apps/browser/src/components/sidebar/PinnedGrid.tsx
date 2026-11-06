@@ -6,7 +6,7 @@ import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
 import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "../../state/browser/hooks";
-import { useIsSelected } from "../../state/pins/hooks";
+import { useIsSelected, useTileKeys } from "../../state/pins/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
 import { returnShownTabToPinnedUrl } from "../../state/sidebar/actions";
@@ -28,6 +28,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
   const balanced = useSettings((st) => st.balancedTopApps);
   const { columns, width } = pinGrid(count, innerWidth, balanced);
   const slots = usePinSlots(tabs);
+  const tileKeys = useTileKeys(tabs);
   const tail = useDragItem(tailKey("tiles"), { kind: "tail", tabIds: [], section: "tiles" });
   const dragging = useDragging();
   const addressBar = useAddressBarInSidebar();
@@ -48,7 +49,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
           return folderId ? (
             <FolderTile key={cellKey(cell)} folderId={folderId} width={width} sliding={dragging} x={x} y={y} />
           ) : (
-            <PinnedTile key={cellKey(cell)} tabId={cell} width={width} sliding={dragging} x={x} y={y} />
+            <PinnedTile key={tileKeys[i]} tabId={cell} width={width} sliding={dragging} x={x} y={y} />
           );
         })}
       </GlassGroup>

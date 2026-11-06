@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { useBrowser, type BrowserState } from "../browser/store";
+import { activeTabId, engineProfile } from "../browser/model";
 import type { SplitView, Tab } from "../browser/types";
 import { tabEngine } from "../engines/engines";
 import { holderOf } from "../pins/pinShare";
@@ -82,6 +82,8 @@ export const useWarmTabIds = (windowId: string, pagerPages: PagerPage[] | null, 
 
 export const useSplitsOf = (tabIds: string[]) => useBrowser(useShallow((s) => tabIds.map((id) => splitOf(s, id)).filter((v): v is SplitView => !!v)));
 
+export const paneKeyOf = (s: Pick<BrowserState, "profiles">, t: Pick<Tab, "id" | "profileId">) => `${t.id}|${engineProfile(s, t.profileId)}`;
+
 export function useShownPaneKeys(mounted: string[], panes: object): string[] {
   const shownMemo = useRef<{ mounted?: string[]; panes?: object; tabs?: object; keys: string[]; ids: string[]; found: (Tab | undefined)[] }>({ keys: [], ids: [], found: [] });
   return useBrowser(
@@ -95,7 +97,7 @@ export function useShownPaneKeys(mounted: string[], panes: object): string[] {
           const t = s.tabs[memo.ids[i]!];
           const was = found[i];
           if (t === was) continue;
-          if (!t || !was || t.createdAt !== was.createdAt || t.profileId !== was.profileId) same = false;
+          if (!t || !was || t.createdAt !== was.createdAt || engineProfile(s, t.profileId) !== engineProfile(s, was.profileId)) same = false;
           else {
             if (found === memo.found) found = found.slice();
             found[i] = t;
@@ -111,7 +113,7 @@ export function useShownPaneKeys(mounted: string[], panes: object): string[] {
       const keys = found
         .filter((t): t is Tab => !!t)
         .sort((a, b) => a.createdAt - b.createdAt)
-        .map((t) => `${t.id}|${t.profileId}`);
+        .map((t) => paneKeyOf(s, t));
       shownMemo.current = { mounted, panes, tabs: s.tabs, keys, ids, found };
       return keys;
     }),

@@ -77,11 +77,14 @@ export function useRowHover(windowId: string, target: Target | null) {
     watchCovered(windowId, refresh, false);
     if (target) releaseAnchor(windowId, target.id);
   }, [away]);
+  const targetId = target?.id;
+  useEffect(() => {
+    if (!targetId) return;
+    return () => releaseAnchor(windowId, targetId);
+  }, [windowId, targetId]);
   useEffect(
     () => () => {
-      const { windowId, target } = latest.current;
-      watchCovered(windowId, refresh, false);
-      if (target) releaseAnchor(windowId, target.id);
+      watchCovered(latest.current.windowId, refresh, false);
     },
     [],
   );
