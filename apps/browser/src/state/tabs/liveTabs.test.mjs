@@ -649,3 +649,18 @@ test("Chrome selecting a Peek's source dismisses the Peek instead of bouncing ba
   assert.equal(shown(win.w), "a");
   assert.equal(chromeShown(win.strip), "a");
 });
+
+test("an extension's switch to a tab in another space that shares data shows that space, and Chrome keeps the pick", async () => {
+  const win = windowWith("a");
+  const home = S().windows[win.w].profileId;
+  const work = S().createProfile({ name: "Work", shareWith: home });
+  const b = S().newTab(win.w, { url: "b.com", profileId: work, background: true });
+  await settle(win);
+  assert.equal(shown(win.w), "a");
+  assert.equal(chromeShown(win.strip), "a");
+  chrome.activate(b);
+  await settle(win);
+  assert.equal(S().windows[win.w].profileId, work);
+  assert.equal(shown(win.w), "b");
+  assert.equal(chromeShown(win.strip), "b", "the app doesn't send the old tab back");
+});
