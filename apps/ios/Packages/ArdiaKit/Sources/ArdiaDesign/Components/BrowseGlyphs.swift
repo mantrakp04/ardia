@@ -18,7 +18,7 @@ public struct IncognitoEyes: View {
         guard isOpen else { continue }
         let pupilSize = CGSize(width: eyeWidth * 0.46, height: size.height * 0.4)
         let pupil = CGRect(
-          x: eye.midX - pupilSize.width / 2 + eyeWidth * 0.08,
+          x: eye.midX - pupilSize.width / 2 - eyeWidth * 0.08,
           y: eye.midY - pupilSize.height / 2 + size.height * 0.08,
           width: pupilSize.width,
           height: pupilSize.height
