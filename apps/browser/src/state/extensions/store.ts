@@ -33,6 +33,8 @@ export type SidePanel = {
   profile: string;
   pageProfile: string;
   url: string;
+  tabId?: string;
+  hidden?: boolean;
 };
 
 export const useExtensions = create<ExtensionsStore>()(() => ({ lists: {}, actions: {}, popup: null, install: null, pinDialog: null, sidePanels: {} }));
