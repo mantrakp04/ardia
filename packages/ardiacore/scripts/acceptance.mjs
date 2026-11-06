@@ -63,7 +63,7 @@ const usesPageA = [
   "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "picture-in-picture-opt-out", "pip-window", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
@@ -361,6 +361,7 @@ const server = createServer((req, res) => {
         const v = document.getElementById("v"); v.srcObject = stream;
         return v.play().then(() => "ok", (e) => e.name);
       };
+      if (location.search.includes("optout")) document.getElementById("v").disablePictureInPicture = true;
       if (location.search.includes("docpip"))
         navigator.mediaSession.setActionHandler("enterpictureinpicture", async () => {
           const w = await documentPictureInPicture.requestWindow({ width: 320, height: 180 });
@@ -3347,6 +3348,59 @@ try {
     }
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     return results;
+  });
+
+  await check("picture-in-picture-opt-out", async () => {
+    const optedOut = (t) => cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture", returnByValue: true }).then((r) => r.result.value);
+    const manualTab = await openTab(`${base}/video?optout`, "Video");
+    let manual;
+    try {
+      await evalApp(`return ac.webviews.get("${manualTab.id}").setMuted(true)`);
+      const t = await startVideo(manualTab.id, false);
+      const own = (await cdp(t, "Runtime.evaluate", {
+        expression: "document.getElementById('v').requestPictureInPicture().then(() => 'entered', (e) => e.name)",
+        awaitPromise: true, userGesture: true, returnByValue: true,
+      })).result.value;
+      if (own !== "InvalidStateError") throw new Error(`the page's own requestPictureInPicture wasn't refused: ${own}`);
+      await pipByHand(manualTab.id);
+      const on = await until("manual PiP of a disablePictureInPicture video", async () => lastEvent(manualTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
+      const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (element !== "v" || (await optedOut(t)) !== true) throw new Error(`in PiP: element ${element}, disablePictureInPicture ${await optedOut(t)}`);
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture = true; true" });
+      await sleep(700);
+      const afterRewrite = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (afterRewrite !== "v") throw new Error("the page writing disablePictureInPicture again closed PiP");
+      await evalApp(`return ac.webviews.get("${manualTab.id}").exitPictureInPicture()`);
+      await until("manual PiP off", async () => {
+        const e = await lastEvent(manualTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 5000);
+      manual = { pageOwnRequest: own, on: on.payload, element };
+    } finally {
+      await closeTab(manualTab.id);
+    }
+    const autoTab = await openTab(`${secureBase}/video?auto&file&optout`, "Video");
+    let auto;
+    try {
+      const t = await startVideo(autoTab.id, true);
+      await until("live.playingAudio", async () => (await live(autoTab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying with video", async () => lastEvent(autoTab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      const out = await until("auto PiP of a disablePictureInPicture video", async () => lastEvent(autoTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 8000);
+      const kept = await optedOut(t);
+      await evalApp(`ac.actions.switchToTab("${autoTab.id}"); return true`);
+      const back = await until("auto PiP ended", async () => {
+        const e = await lastEvent(autoTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 8000);
+      if (kept !== true) throw new Error(`auto PiP changed the page's disablePictureInPicture: ${kept}`);
+      auto = { out: out.payload, back: back.payload };
+    } finally {
+      await closeTab(autoTab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+    return { manual, auto };
   });
 
   await check("pip-window", async () => {
