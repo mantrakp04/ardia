@@ -268,6 +268,7 @@ export const generalRows = {
       rows: {
         theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
         windowTranslucency: {
+          advanced: true,
           title: "Window translucency",
           description: "Turn off to use a solid background and reduce rendering work.",
           keywords: ["opaque", "transparency", "blur", "performance", "scroll", "background"],

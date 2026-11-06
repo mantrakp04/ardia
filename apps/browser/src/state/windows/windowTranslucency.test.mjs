@@ -13,7 +13,7 @@ import { launchBackdrop } from "./launchBackdrop.ts";
 import { flushPersistence, loadSession, startPersistence } from "../session/persist.ts";
 import { docs } from "../../test-native/index.ts";
 import { search } from "../../components/settings/searchMatch.ts";
-import { SETTINGS_INDEX } from "../../components/settings/settingsIndex.ts";
+import { SETTINGS_INDEX, setting } from "../../components/settings/settingsIndex.ts";
 
 const S = () => useBrowser.getState();
 const preset = { color: "plum" };
@@ -33,6 +33,7 @@ test("window translucency defaults on, persists false, and stays device-local", 
   assert.ok(!SYNCED_SETTINGS.includes("windowTranslucency"));
   assert.ok(isConfigSettingKey("windowTranslucency"));
   assert.equal(search(SETTINGS_INDEX, "opaque")[0].entry.id, "appearance.windowTranslucency");
+  assert.equal(setting("appearance.windowTranslucency").advanced, true);
 });
 
 test("disabling window translucency preserves cached preset and custom colours and blur amounts", () => {
@@ -95,23 +96,27 @@ test("the saved startup backdrop follows the global override and the selected cu
   }
 });
 
-test("changing translucency saves both the preference and early startup material for the next launch", () => {
-  docs.clear();
+test("changing translucency saves and restores both choices and their early startup material", () => {
   provideProfileLooks({ accent: () => "", theme: profileTheme });
-  const stop = startPersistence();
-  try {
-    const window = S().createWindow({ url: "https://example.com/" });
-    S().setFocusedWindow(window);
-    for (const enabled of [false, true, false]) {
+  for (const enabled of [false, true]) {
+    docs.clear();
+    const stop = startPersistence();
+    try {
+      const window = S().createWindow({ url: "https://example.com/" });
+      S().setFocusedWindow(window);
       S().updateSettings({ windowTranslucency: enabled });
       flushPersistence();
       const saved = JSON.parse(docs.get("session.json"));
       assert.equal(saved.settings.windowTranslucency, enabled);
       assert.equal(saved.launchBackdrop.backgroundBlurEnabled, enabled);
+    } finally {
+      stop();
     }
-  } finally {
-    stop();
+    S().hydrate({ settings: { windowTranslucency: !enabled } });
+    assert.equal(S().settings.windowTranslucency, !enabled);
+    const restored = loadSession();
+    S().hydrate(restored);
+    assert.equal(S().settings.windowTranslucency, enabled);
+    assert.equal(launchBackdrop(S(), restored.focusedWindowId).backgroundBlurEnabled, enabled);
   }
-  S().hydrate(loadSession());
-  assert.equal(S().settings.windowTranslucency, false);
 });
