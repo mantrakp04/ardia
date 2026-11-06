@@ -90,6 +90,7 @@ enum CommandTable {
     case keyboardShortcuts
     case copyDiagnostics
     case recordPerformanceIssue
+    case discardPerformanceRecording
     case toolTour
     case videoTour
     case releaseNotes
@@ -206,6 +207,7 @@ enum CommandTable {
     "keyboardShortcuts": "Keyboard Shortcuts",
     "copyDiagnostics": "Copy Diagnostics",
     "recordPerformanceIssue": "Record Performance Issue…",
+    "discardPerformanceRecording": "Discard Performance Recording",
     "toolTour": "Tool Tour",
     "videoTour": "Video Tour",
     "releaseNotes": "Release Notes",

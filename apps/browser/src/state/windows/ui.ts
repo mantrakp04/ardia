@@ -11,12 +11,14 @@ export type UiSlice = {
     focusOrder: string[];
     appDark: boolean;
     lastProfileId: string | null;
+    performanceRecording: boolean;
   };
   windowUi: Record<string, WindowUi>;
   find: Record<string, FindState>;
 
   setFocusedWindow(id: string): void;
   setAppDark(dark: boolean): void;
+  setPerformanceRecording(recording: boolean): void;
   openPanel(windowId: string, initialText?: string, newTab?: NewTabTarget): void;
   closePanel(windowId: string): void;
   setDownloadsOpen(windowId: string, open: boolean): void;
@@ -31,7 +33,7 @@ export function patchWindowUi(s: BrowserState, windowId: string, patch: Partial<
 }
 
 export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, get) => ({
-  ui: { focusOrder: [], appDark: true, lastProfileId: null },
+  ui: { focusOrder: [], appDark: true, lastProfileId: null, performanceRecording: false },
   windowUi: {},
   find: {},
 
@@ -46,6 +48,10 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
 
   setAppDark(appDark) {
     if (get().ui.appDark !== appDark) set((s) => ({ ui: { ...s.ui, appDark } }));
+  },
+
+  setPerformanceRecording(performanceRecording) {
+    if (get().ui.performanceRecording !== performanceRecording) set((s) => ({ ui: { ...s.ui, performanceRecording } }));
   },
 
   openPanel(windowId, initialText = "", newTab) {
