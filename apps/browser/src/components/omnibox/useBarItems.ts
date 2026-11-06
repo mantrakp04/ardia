@@ -50,7 +50,7 @@ export function useBarItems({
   const inline = useInlineCompletion(input, typed, suppressCompletion || scope ? "" : completion);
   const shownCompletion = inline.shown;
   const value = typed + shownCompletion;
-  const selectedIndex = selected < 0 && idle ? -1 : Math.min(Math.max(selected, 0), items.length - 1);
+  const selectedIndex = Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
   const tabScope = useMemo(
     () => (!scope && edited ? offeredScope(typed, shownCompletion, windowId) : null),
