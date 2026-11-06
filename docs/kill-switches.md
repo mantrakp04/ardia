@@ -51,7 +51,7 @@ updater, so it never fetches.
 | `focusedWindowFirst` | a launch opens every window at once, the focused one last | no |
 | `sidebarSlide` | hiding or showing the sidebar jumps instead of sliding (it stays mounted either way); with the address bar in the sidebar, a hidden sidebar's bar moves to a toolbar on the card and the peek is Dia's | yes |
 | `sidebarSlideLean` | every step of the slide lays the traffic lights out (AppKit then rewalks the window's views); read natively, once a launch: `ChromeWindows.swift` | no |
-| `serverWindowDrag` | the title-bar band stays Chromium's, so every window drag is our pointer-following loop (no macOS tiling or edge snapping); read natively, once a launch: `ServerWindowDrag.swift` | no |
+| `serverWindowDrag` | the title-bar band stays Chromium's, so every window drag is our pointer-following loop (no macOS tiling or edge snapping), placed through AppKit's constrain with none of its re-fits held; read natively, once a launch: `ServerWindowDrag.swift`, `WindowMove.swift` | no |
 
 ## Experiments (off by default; `EXPERIMENTS`)
 

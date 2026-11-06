@@ -60,7 +60,7 @@ export const SWITCHES = {
     live: false,
   },
   serverWindowDrag: {
-    about: "The window server moves the window from our drag areas in the title-bar band, so those drags tile, snap and cross displays as macOS's own; off, every drag is our pointer-following loop (packages/shell ServerWindowDrag.swift).",
+    about: "The window server moves the window from our drag areas in the title-bar band, so those drags tile, snap and cross displays as macOS's own, and our pointer-following loop holds AppKit's re-fits of the frames it places; off, every drag is the loop with AppKit's constrain, as before (packages/shell ServerWindowDrag.swift, WindowMove.swift).",
     owner: "window",
     removeBy: "2026-12-15",
     live: false,
