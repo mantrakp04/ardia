@@ -7,43 +7,43 @@ import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live
 import { connectGoogleDrive } from "../../../state/live/googleAuth";
 import { isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
-import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
+import { accountOf, live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
-import { useProfileRecords } from "../../../state/profiles/hooks";
-import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
+import { extensionsProfileId } from "../../../state/extensions/store";
+import { openUrlFromSettings, replaceSettingsPlace, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
 import { Box, Button, DialogActions, DialogTitle, Divider, proseLineHeight, Sheet, space, Text, TextField, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { FormField, Group, Row, SectionHeader } from "../Form";
+import { FormField, Group, ProfilePicker, Row, SectionHeader } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
 
-export function LiveFoldersPane() {
-  const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
-  const profiles = useProfileRecords();
+export function LiveFoldersPane({ profileId: chosen }: { profileId: string | null }) {
+  const [profileId] = useState(() => extensionsProfileId(chosen));
+  const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter((f) => f?.profileId === profileId)));
   useLive((s) => s.status);
   useLive((s) => s.hidden);
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
   return (
     <View>
-      <SectionHeader anchor="liveFolders.folders" />
+      <SectionHeader anchor="liveFolders.folders" action={<ProfilePicker value={profileId} onChange={(id) => replaceSettingsPlace(id)} />} />
       <Box gap="xl">
         {folders.map((f) => (
-          <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
+          <FolderGroup key={f.id} folder={f} searchable={f.id === firstPullRequests} />
         ))}
       </Box>
 
       <SectionHeader title="Pull Requests" />
       <Group>
-        <SourceRow id="github" />
-        <SourceRow id="bitbucket" />
+        <SourceRow id="github" profileId={profileId} />
+        <SourceRow id="bitbucket" profileId={profileId} />
       </Group>
 
       <SectionHeader title="Documents" />
       <Group>
-        <SourceRow id="notion" />
-        <SourceRow id="confluence" />
-        <SourceRow id="gdrive" />
+        <SourceRow id="notion" profileId={profileId} />
+        <SourceRow id="confluence" profileId={profileId} />
+        <SourceRow id="gdrive" profileId={profileId} />
       </Group>
       {isMocked ? (
         <Text size="caption" tone="warning" style={NOTE_TOP}>
@@ -54,10 +54,10 @@ export function LiveFoldersPane() {
   );
 }
 
-function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; profileName: string; searchable: boolean }) {
+function FolderGroup({ folder, searchable }: { folder: LiveFolder; searchable: boolean }) {
   return (
     <Group>
-      <Row title={folder.name} description={`${profileName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
+      <Row title={folder.name} description={`${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
         <Box row gap="s">
           <Button title="Refresh" onPress={() => void manualRefresh(folder.id)} />
           <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(folder.id)} />
@@ -87,8 +87,8 @@ function connectedAs(id: LiveSourceId, account: LiveAccount): string {
   return id === "github" || id === "gdrive" ? `${account.name} (${account.login})` : account.name;
 }
 
-function SourceRow({ id }: { id: LiveSourceId }) {
-  const account = useLive((s) => s.accounts[id]);
+function SourceRow({ id, profileId }: { id: LiveSourceId; profileId: string }) {
+  const account = useLive((s) => s.accounts[profileId]?.[id]);
   const source = SOURCES[id];
   return (
     <Row
@@ -98,16 +98,16 @@ function SourceRow({ id }: { id: LiveSourceId }) {
       description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
     >
       {account ? (
-        <Button title="Disconnect" onPress={() => void disconnect(id)} />
+        <Button title="Disconnect" onPress={() => void disconnect(profileId, id)} />
       ) : (
-        <Button title="Connect…" onPress={() => showSettingsSheet(<ConnectSheet id={id} />)} />
+        <Button title="Connect…" onPress={() => showSettingsSheet(<ConnectSheet id={id} profileId={profileId} />)} />
       )}
     </Row>
   );
 }
 
 
-function ConnectSheet({ id }: { id: LiveSourceId }) {
+function ConnectSheet({ id, profileId }: { id: LiveSourceId; profileId: string }) {
   const source = SOURCES[id];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,19 +126,19 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   let body: ReactNode;
   switch (id) {
     case "github":
-      body = <GithubConnect busy={busy} run={run} />;
+      body = <GithubConnect profileId={profileId} busy={busy} run={run} />;
       break;
     case "bitbucket":
-      body = <BitbucketConnect busy={busy} run={run} />;
+      body = <BitbucketConnect profileId={profileId} busy={busy} run={run} />;
       break;
     case "notion":
-      body = <NotionConnect busy={busy} run={run} />;
+      body = <NotionConnect profileId={profileId} busy={busy} run={run} />;
       break;
     case "confluence":
-      body = <ConfluenceConnect busy={busy} run={run} />;
+      body = <ConfluenceConnect profileId={profileId} busy={busy} run={run} />;
       break;
     case "gdrive":
-      body = <GoogleConnect busy={busy} run={run} />;
+      body = <GoogleConnect profileId={profileId} busy={busy} run={run} />;
       break;
   }
   return (
@@ -154,7 +154,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   );
 }
 
-type ConnectProps = { busy: boolean; run(task: () => Promise<void>): Promise<void> };
+type ConnectProps = { profileId: string; busy: boolean; run(task: () => Promise<void>): Promise<void> };
 
 const NOTE_TOP = { marginTop: space.ml } as const;
 const BODY_TOP = { marginTop: space.l } as const;
@@ -170,7 +170,7 @@ function Help({ children }: { children: ReactNode }) {
   );
 }
 
-function GithubConnect({ busy, run }: ConnectProps) {
+function GithubConnect({ profileId, busy, run }: ConnectProps) {
   const [token, setToken] = useState("");
   const [clientId, setClientId] = useState(live().config.githubClientId);
   const [flow, setFlow] = useState<DeviceFlow | null>(null);
@@ -179,10 +179,10 @@ function GithubConnect({ busy, run }: ConnectProps) {
   const signIn = () =>
     run(async () => {
       updateConfig({ githubClientId: clientId.trim() });
-      const f = await startGithubDeviceFlow(clientId.trim());
+      const f = await startGithubDeviceFlow(profileId, clientId.trim());
       setFlow(f);
       copyText(f.userCode);
-      openUrlFromSettings(f.verificationUri);
+      openUrlFromSettings(f.verificationUri, profileId);
       await f.done;
     });
 
@@ -195,7 +195,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
         </Text>
         <DialogActions>
           <Button title="Cancel" onPress={() => (flow.cancel(), setFlow(null))} />
-          <Button title="Open GitHub" kind="primary" onPress={() => openUrlFromSettings(flow.verificationUri)} />
+          <Button title="Open GitHub" kind="primary" onPress={() => openUrlFromSettings(flow.verificationUri, profileId)} />
         </DialogActions>
       </View>
     );
@@ -206,11 +206,11 @@ function GithubConnect({ busy, run }: ConnectProps) {
         Paste a personal access token (classic: "repo" and "read:org" scopes; fine-grained: read access to pull requests, checks and metadata).
       </Help>
       <FormField label="Personal access token">
-        <TextField value={token} onChangeText={setToken} placeholder="ghp_…" secure onSubmit={() => token && void run(() => connectGithub(token))} />
+        <TextField value={token} onChangeText={setToken} placeholder="ghp_…" secure onSubmit={() => token && void run(() => connectGithub(profileId, token))} />
       </FormField>
       <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
-        <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!token.trim() || busy} onPress={() => void run(() => connectGithub(token))} />
+        <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!token.trim() || busy} onPress={() => void run(() => connectGithub(profileId, token))} />
       </DialogActions>
       <Divider thick style={SPLIT} />
       <Help>Or sign in with your own GitHub OAuth app (Settings › Developer settings › OAuth Apps, with Device Flow enabled).</Help>
@@ -224,10 +224,10 @@ function GithubConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function BitbucketConnect({ busy, run }: ConnectProps) {
-  const [user, setUser] = useState(live().config.bitbucketUser);
+function BitbucketConnect({ profileId, busy, run }: ConnectProps) {
+  const [user, setUser] = useState(() => accountOf(profileId, "bitbucket")?.user ?? "");
   const [token, setToken] = useState("");
-  const go = () => void run(() => connectBitbucket(user, token));
+  const go = () => void run(() => connectBitbucket(profileId, user, token));
   return (
     <View>
       <Help>Create an API token (bitbucket.org › Personal settings › API tokens, with read access to pull requests and repositories), then enter your Atlassian account email with it. Bitbucket can't search review requests across repositories, so the folder lists your own pull requests.</Help>
@@ -245,9 +245,9 @@ function BitbucketConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function NotionConnect({ busy, run }: ConnectProps) {
+function NotionConnect({ profileId, busy, run }: ConnectProps) {
   const [token, setToken] = useState("");
-  const go = () => void run(() => connectNotion(token));
+  const go = () => void run(() => connectNotion(profileId, token));
   return (
     <View>
       <Help>Create an internal integration at notion.so/my-integrations (read content; read user information for editor names), copy its secret, and share the pages or teamspaces you want with it (••• › Connections).</Help>
@@ -262,12 +262,11 @@ function NotionConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function ConfluenceConnect({ busy, run }: ConnectProps) {
-  const config = live().config;
-  const [site, setSite] = useState(config.confluenceSite);
-  const [email, setEmail] = useState(config.confluenceEmail);
+function ConfluenceConnect({ profileId, busy, run }: ConnectProps) {
+  const [site, setSite] = useState(() => accountOf(profileId, "confluence")?.site ?? "");
+  const [email, setEmail] = useState(() => accountOf(profileId, "confluence")?.user ?? "");
   const [token, setToken] = useState("");
-  const go = () => void run(() => connectConfluence(site, email, token));
+  const go = () => void run(() => connectConfluence(profileId, site, email, token));
   return (
     <View>
       <Help>Create an API token at id.atlassian.com › Security › API tokens, then enter your Confluence Cloud site and account email.</Help>
@@ -288,15 +287,15 @@ function ConfluenceConnect({ busy, run }: ConnectProps) {
   );
 }
 
-function GoogleConnect({ busy, run }: ConnectProps) {
+function GoogleConnect({ profileId, busy, run }: ConnectProps) {
   const [clientId, setClientId] = useState(live().config.googleClientId);
   const [secret, setSecret] = useState("");
   const go = () =>
     void run(async () => {
-      const windowId = settingsBrowserWindow();
+      const windowId = settingsBrowserWindow(profileId);
       if (!windowId) throw new Error("Open a browser window first");
       void focusWindow(windowId);
-      await connectGoogleDrive(windowId, clientId, secret);
+      await connectGoogleDrive(windowId, profileId, clientId, secret);
     });
   return (
     <View>
