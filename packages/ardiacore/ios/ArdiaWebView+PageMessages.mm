@@ -26,7 +26,7 @@ NSDictionary *SelectionState(NSDictionary *d) {
   return @{@"text" : text, @"rect" : @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)}};
 }
 
-BOOL gDisplayMediaPicker = NO;
+BOOL gDisplayMediaPicker = YES;
 }
 
 static BOOL gSelectionPopover = YES;
@@ -96,6 +96,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 + (void)setDisplayMediaPicker:(BOOL)enabled {
   gDisplayMediaPicker = enabled;
+  ArdiaCoreEngine.pagesPickDisplayMedia = enabled;
 }
 
 + (void)setSelectionPopoverEnabled:(BOOL)enabled {

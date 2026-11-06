@@ -20,17 +20,18 @@ function page({ active = false, policyAllows = true } = {}) {
   const nativeCalls = [];
   const real = new WeakSet();
   class MediaDevices {}
+  const nativeGetDisplayMedia = {
+    getDisplayMedia() {
+      nativeCalls.push(this);
+      if (!real.has(this)) return Promise.reject(new TypeError(illegal));
+      const options = arguments[0];
+      if (options !== undefined && options !== null && typeof options !== "object" && typeof options !== "function")
+        return Promise.reject(new TypeError(badOptions));
+      return new Promise(() => {});
+    },
+  }.getDisplayMedia;
   Object.defineProperty(MediaDevices.prototype, "getDisplayMedia", {
-    value: {
-      getDisplayMedia() {
-        nativeCalls.push(this);
-        if (!real.has(this)) return Promise.reject(new TypeError(illegal));
-        const options = arguments[0];
-        if (options !== undefined && options !== null && typeof options !== "object" && typeof options !== "function")
-          return Promise.reject(new TypeError(badOptions));
-        return new Promise(() => {});
-      },
-    }.getDisplayMedia,
+    value: nativeGetDisplayMedia,
     writable: true,
     enumerable: true,
     configurable: true,
@@ -61,10 +62,18 @@ function page({ active = false, policyAllows = true } = {}) {
     "apply",
     "handlers",
     "DOMException",
-    `${helper}${source}return installDisplayMedia;`,
+    `${helper}${source}return { installDisplayMedia, restoreDisplayMedia };`,
   )(navigator, document, (kind, data) => sent.push({ kind, data }), Reflect.apply, handlers, DOMException);
-  install();
-  return { devices, proto: MediaDevices.prototype, shim: MediaDevices.prototype.getDisplayMedia, sent, nativeCalls, install };
+  return {
+    devices,
+    proto: MediaDevices.prototype,
+    native: nativeGetDisplayMedia,
+    shim: MediaDevices.prototype.getDisplayMedia,
+    sent,
+    nativeCalls,
+    install: install.installDisplayMedia,
+    restore: install.restoreDisplayMedia,
+  };
 }
 
 const rejection = async (promise) => {
@@ -141,8 +150,30 @@ test("a page's own request without a click is refused; with a click it opens the
   assert.deepEqual(clicked.nativeCalls, []);
 });
 
-test("installing twice keeps the one shim", () => {
+test("the shim is in place as soon as the page script runs, before Ardia's config arrives (#914)", async () => {
   const p = page();
+  assert.notEqual(p.shim, p.native);
+  assert.equal(await rejection(p.devices.getDisplayMedia()), "InvalidStateError: getDisplayMedia() requires transient activation (user gesture).");
+  assert.deepEqual(p.nativeCalls, []);
+});
+
+test("config without Ardia's picker gives the page Chrome's own method back, and config with it installs the shim again", () => {
+  const p = page();
+  p.restore();
+  assert.equal(p.proto.getDisplayMedia, p.native);
   p.install();
-  assert.equal(p.proto.getDisplayMedia, p.shim);
+  assert.notEqual(p.proto.getDisplayMedia, p.native);
+  assert.equal(Function.prototype.toString.call(p.proto.getDisplayMedia), "function () { [native code] }");
+});
+
+test("config doesn't wrap a page's own wrapper of the shim a second time", () => {
+  const p = page();
+  const wrapper = function getDisplayMedia(...args) {
+    return p.shim.apply(this, args);
+  };
+  p.proto.getDisplayMedia = wrapper;
+  p.install();
+  assert.equal(p.proto.getDisplayMedia, wrapper);
+  p.restore();
+  assert.equal(p.proto.getDisplayMedia, wrapper);
 });

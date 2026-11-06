@@ -23,6 +23,15 @@ namespace {
 
 constexpr base::TimeDelta kGrantLifetime = base::Seconds(15);
 
+bool g_pages_pick_display_media = true;
+
+bool IsNativeDisplayCapture(blink::mojom::MediaStreamType type) {
+  return type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE ||
+         type == blink::mojom::MediaStreamType::DISPLAY_AUDIO_CAPTURE ||
+         type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE_THIS_TAB ||
+         type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE_SET;
+}
+
 class DesktopCaptureGrant : public content::WebContentsUserData<DesktopCaptureGrant> {
  public:
   ~DesktopCaptureGrant() override = default;
@@ -64,6 +73,20 @@ void ShareAudio(content::DesktopMediaID& media_id, const std::string& audio) {
   }
 }
 
+}
+
+void SetPagesPickDisplayMedia(bool pages_pick) {
+  g_pages_pick_display_media = pages_pick;
+}
+
+bool PagesPickDisplayMedia() {
+  return g_pages_pick_display_media;
+}
+
+bool RefusesNativeDisplayCapture(const content::MediaStreamRequest& request) {
+  return g_pages_pick_display_media &&
+         (IsNativeDisplayCapture(request.video_type) ||
+          IsNativeDisplayCapture(request.audio_type));
 }
 
 bool IsDesktopCaptureSystemAudioSupported() {

@@ -172,14 +172,21 @@
   for (const e of mediaEvents) document.addEventListener(e, onMediaEvent, true);
   const detachedMediaWatchers = [];
   const play = HTMLMediaElement.prototype.play;
-  HTMLMediaElement.prototype.play = function () {
-    if (!tracked.has(this) && !this.isConnected) {
-      tracked.add(this);
-      for (const e of mediaEvents) this.addEventListener(e, onMediaEvent);
-      for (const watch of detachedMediaWatchers) guard(watch)(this);
+  const pausedState = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused").get;
+  const connectedState = Object.getOwnPropertyDescriptor(Node.prototype, "isConnected").get;
+  HTMLMediaElement.prototype.play = asNative(play, (target, self, args) => {
+    let media = false;
+    try {
+      apply(pausedState, self, []);
+      media = true;
+    } catch (e) {}
+    if (media && !tracked.has(self) && !apply(connectedState, self, [])) {
+      tracked.add(self);
+      for (const e of mediaEvents) self.addEventListener(e, onMediaEvent);
+      for (const watch of detachedMediaWatchers) guard(watch)(self);
     }
-    return play.apply(this, arguments);
-  };
+    return apply(target, self, args);
+  });
 
   const proto = session && Object.getPrototypeOf(session);
   if (proto) {
@@ -379,9 +386,11 @@
   addEventListener("resize", () => eyeField && requestAnimationFrame(placeEye));
   addEventListener("pagehide", conceal);
 
+  let pageNotification = null;
   const installNotifications = () => {
     const NativeNotification = window.Notification;
-    if (!NativeNotification || NativeNotification.__ac) return !!NativeNotification;
+    if (!NativeNotification || NativeNotification === pageNotification) return !!NativeNotification;
+    const pageNotifications = new WeakSet();
     const live = new Map();
     let seq = 0;
     const show = (title, options, fire) => {
@@ -407,9 +416,9 @@
     };
     class PageNotification extends EventTarget {
       constructor(title, options) {
-        if (!new.target) throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator.");
         if (arguments.length < 1) throw new TypeError("Failed to construct 'Notification': 1 argument required, but only 0 present.");
         super();
+        pageNotifications.add(this);
         options = options || {};
         const fields = { title: String(title), body: String(options.body ?? ""), tag: String(options.tag ?? ""),
           icon: String(options.icon ?? ""), data: options.data ?? null, silent: !!options.silent,
@@ -434,27 +443,46 @@
         Object.defineProperty(this, "_id", { value: id });
         setTimeout(() => this._fire("show"), 0);
       }
-      close() {
-        if (!this._id || !live.has(this._id)) return;
-        live.delete(this._id);
-        send("notificationClose", { id: this._id });
-        setTimeout(() => this._fire("close"), 0);
-      }
-      static get permission() { return NativeNotification.permission; }
-      static requestPermission(callback) { return NativeNotification.requestPermission(callback); }
-      static get maxActions() { return NativeNotification.maxActions || 0; }
+    }
+    const closeNotification = (n) => {
+      if (!n._id || !live.has(n._id)) return;
+      live.delete(n._id);
+      send("notificationClose", { id: n._id });
+      setTimeout(() => n._fire("close"), 0);
+    };
+    const nativeClose = NativeNotification.prototype.close;
+    Object.defineProperty(PageNotification.prototype, "close", {
+      value: asNative(nativeClose, (target, self, args) => (pageNotifications.has(self) ? closeNotification(self) : apply(target, self, args))),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+    for (const key of ["permission", "maxActions", "requestPermission"]) {
+      const native = Object.getOwnPropertyDescriptor(NativeNotification, key);
+      if (native) Object.defineProperty(PageNotification, key, native);
     }
     Object.defineProperty(PageNotification, "name", { value: "Notification" });
-    Object.defineProperty(PageNotification, "__ac", { value: true });
-    window.Notification = PageNotification;
+    Object.defineProperty(PageNotification, "length", { value: 1 });
+    pageNotification = asNative(PageNotification, () => {
+      throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    });
+    Object.defineProperty(PageNotification.prototype, "constructor", { value: pageNotification, writable: true, configurable: true });
+    window.Notification = pageNotification;
     const Registration = window.ServiceWorkerRegistration;
-    if (Registration && Registration.prototype.showNotification) {
-      Registration.prototype.showNotification = function (title, options) {
-        if (NativeNotification.permission !== "granted")
-          return Promise.reject(new TypeError("No notification permission has been granted for this origin."));
-        show(title, options);
+    const nativeShow = Registration && Registration.prototype.showNotification;
+    const activeWorker = nativeShow && Object.getOwnPropertyDescriptor(Registration.prototype, "active");
+    if (nativeShow && activeWorker && activeWorker.get) {
+      Registration.prototype.showNotification = asNative(nativeShow, (target, self, args) => {
+        let worker = null;
+        try {
+          worker = apply(activeWorker.get, self, []);
+        } catch (e) {
+          return apply(target, self, args);
+        }
+        if (!worker || args.length < 1 || NativeNotification.permission !== "granted") return apply(target, self, args);
+        show(args[0], args[1]);
         return Promise.resolve();
-      };
+      });
     }
     handlers.notification = ({ id, action }) => {
       const n = live.get(id);
@@ -474,11 +502,19 @@
   const displayRequests = new Map();
   let displaySeq = 0;
   let displayMediaShim = null;
+  let nativeGetDisplayMedia = null;
+  const restoreDisplayMedia = () => {
+    const devices = navigator.mediaDevices;
+    const proto = devices && Object.getPrototypeOf(devices);
+    if (!proto || !displayMediaShim || proto.getDisplayMedia !== displayMediaShim) return;
+    proto.getDisplayMedia = nativeGetDisplayMedia;
+    displayMediaShim = null;
+  };
   const installDisplayMedia = () => {
     const devices = navigator.mediaDevices;
     const proto = devices && Object.getPrototypeOf(devices);
-    if (!proto || !proto.getDisplayMedia || proto.getDisplayMedia === displayMediaShim) return;
-    const nativeGetDisplayMedia = proto.getDisplayMedia;
+    if (!proto || !proto.getDisplayMedia || displayMediaShim) return;
+    nativeGetDisplayMedia = proto.getDisplayMedia;
     const getUserMedia = proto.getUserMedia;
     const deviceChangeHandler = Object.getOwnPropertyDescriptor(proto, "ondevicechange");
     const brandCheck = deviceChangeHandler && deviceChangeHandler.get;
@@ -533,6 +569,7 @@
       ]).then(request.resolve, request.reject);
     };
   };
+  installDisplayMedia();
 
   const PO = window.PerformanceObserver;
   const disconnect = PO && PO.prototype.disconnect;
@@ -918,6 +955,7 @@
     if (blockAutoplay)
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
     if (config.displayMediaPicker) installDisplayMedia();
+    else restoreDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };

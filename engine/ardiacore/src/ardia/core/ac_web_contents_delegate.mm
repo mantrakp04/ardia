@@ -3,10 +3,12 @@
 #import <AppKit/AppKit.h>
 
 #include "base/auto_reset.h"
+#include "base/logging.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/unload_controller.h"
+#include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_browser_window.h"
@@ -16,6 +18,7 @@
 #include "ardia/core/ac_app_urls.h"
 #include "ardia/core/ac_page_channel.h"
 #import "ardia/core/ardiacore_internal.h"
+#include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/url_constants.h"
 
@@ -141,6 +144,14 @@ void ACWebContentsDelegate::RequestMediaAccessPermission(
     content::WebContents* web_contents,
     const content::MediaStreamRequest& request,
     content::MediaResponseCallback callback) {
+  if (RefusesNativeDisplayCapture(request)) {
+    LOG(WARNING) << "ArdiaCore: refused a native display capture request from "
+                 << request.security_origin << "; Ardia's picker answers getDisplayMedia";
+    std::move(callback).Run(blink::mojom::StreamDevicesSet(),
+                            blink::mojom::MediaStreamRequestResult::PERMISSION_DENIED,
+                            nullptr);
+    return;
+  }
   content::MediaStreamRequest granted(request);
   ApplyDesktopCaptureGrant(web_contents, granted);
   KeepAudioCaptureFake(granted);

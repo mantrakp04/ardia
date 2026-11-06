@@ -24,6 +24,10 @@ bool IsDesktopCaptureApplicationAudioSupported();
 void ApplyDesktopCaptureGrant(content::WebContents* contents,
                               content::MediaStreamRequest& request);
 
+void SetPagesPickDisplayMedia(bool pages_pick);
+bool PagesPickDisplayMedia();
+bool RefusesNativeDisplayCapture(const content::MediaStreamRequest& request);
+
 }
 
 #endif
