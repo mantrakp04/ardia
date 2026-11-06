@@ -155,6 +155,41 @@ NSString *FullScreenProbe(NSWindow *window, NSString *argument) {
   return @"started";
 }
 
+NSString *SnapshotFrameView(NSWindow *window, NSString *path) {
+  NSView *frameView = window.contentView.superview;
+  CALayer *layer = frameView.layer;
+  if (!layer || !path.length) return @"no frame layer";
+  const CGFloat scale = window.backingScaleFactor ?: 2;
+  const NSSize size = frameView.bounds.size;
+  NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                   pixelsWide:(NSInteger)(size.width * scale)
+                                                                   pixelsHigh:(NSInteger)(size.height * scale)
+                                                                bitsPerSample:8
+                                                              samplesPerPixel:4
+                                                                     hasAlpha:YES
+                                                                     isPlanar:NO
+                                                               colorSpaceName:NSDeviceRGBColorSpace
+                                                                  bytesPerRow:0
+                                                                 bitsPerPixel:0];
+  NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+  CGContextRef cg = context.CGContext;
+  __block CGColorRef background = NULL;
+  [window.effectiveAppearance performAsCurrentDrawingAppearance:^{
+    background = CGColorRetain(window.backgroundColor.CGColor);
+  }];
+  CGContextSetFillColorWithColor(cg, background);
+  CGColorRelease(background);
+  CGContextFillRect(cg, CGRectMake(0, 0, size.width * scale, size.height * scale));
+  CGContextScaleCTM(cg, scale, scale);
+  if (frameView.isFlipped || layer.isGeometryFlipped) {
+    CGContextTranslateCTM(cg, 0, size.height);
+    CGContextScaleCTM(cg, 1, -1);
+  }
+  [layer renderInContext:cg];
+  NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+  return [png writeToFile:path atomically:YES] ? @"ok" : @"write failed";
+}
+
 NSString *FullScreen(NSWindow *window, NSString *argument) {
   ArdiaCoreWindow *coreWindow = [ArdiaWindowController forNSWindow:window].coreWindow;
   if (!coreWindow) return @"not an ArdiaCore window";
@@ -500,6 +535,11 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       if (amount.length) SetFullScreenRevealAmount(w, amount.doubleValue);
       return JSONText(FullScreenRevealState(w), @"{}");
     },
+    @"fullScreenLightsHover" : ^NSString *(NSWindow *w, NSString *inside) {
+      SetFullScreenLightsPointerInside(w, inside.boolValue);
+      return JSONText(FullScreenRevealState(w), @"{}");
+    },
+    @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },
     @"children" : ^NSString *(NSWindow *w, NSString *) {
       NSMutableArray *children = [NSMutableArray array];
       for (NSWindow *child in w.childWindows)
