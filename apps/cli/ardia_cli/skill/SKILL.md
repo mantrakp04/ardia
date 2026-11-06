@@ -1,6 +1,7 @@
 ---
 name: ardia
-description: Drive the user's running Ardia browser from the terminal with `ardia exec` (Python and pydoll over the Chrome DevTools Protocol) or `ardia browse` (agent-browser's commands: snapshot with @refs, click, fill, screenshot). Use when a task needs a real browser with the user's logins, to read the page the user is looking at, open pages, click, type, take screenshots or run JavaScript; to write, test and install userscripts that change how sites look or behave; to change Ardia's settings, shortcuts or colour theme through its config files; to run Ardia's own commands or react to its tab and window events with hooks; or to set up and run a daily report built from the sites the user pins and visits.
+description: >-
+  Drive the user's running Ardia browser from the terminal with `ardia exec` (Python and pydoll over the Chrome DevTools Protocol) or `ardia browse` (agent-browser's commands: snapshot with @refs, click, fill, screenshot). Use when a task needs a real browser with the user's logins, to read the page the user is looking at, open pages, click, type, take screenshots or run JavaScript; to write, test and install userscripts that change how sites look or behave; to change Ardia's settings, shortcuts or colour theme through its config files; to run Ardia's own commands or react to its tab and window events with hooks; or to set up and run a daily report built from the sites the user pins and visits.
 ---
 
 # Driving Ardia with `ardia exec`
