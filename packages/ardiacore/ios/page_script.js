@@ -5,6 +5,18 @@
   const handlers = Object.create(null);
   const { stringify: toJSON, parse: fromJSON } = JSON;
   const apply = Reflect.apply;
+  const asNative = (native, call) => {
+    const { getPrototypeOf: protoOf, setPrototypeOf: setProtoOf } = Reflect;
+    const disguised = new Proxy(native, {
+      apply: (target, self, args) => call(target, self, args),
+      setPrototypeOf(target, next) {
+        for (let link = next; link !== null; link = protoOf(link))
+          if (link === disguised || link === target) throw new TypeError("Cyclic __proto__ value");
+        return setProtoOf(target, next);
+      },
+    });
+    return disguised;
+  };
   const { keys, setPrototypeOf } = Object;
   const { isArray } = Array;
   const { isFinite } = Number;
@@ -461,23 +473,39 @@
 
   const displayRequests = new Map();
   let displaySeq = 0;
+  let displayMediaShim = null;
   const installDisplayMedia = () => {
     const devices = navigator.mediaDevices;
     const proto = devices && Object.getPrototypeOf(devices);
-    if (!proto || !proto.getDisplayMedia || proto.getDisplayMedia.__ac) return;
+    if (!proto || !proto.getDisplayMedia || proto.getDisplayMedia === displayMediaShim) return;
+    const nativeGetDisplayMedia = proto.getDisplayMedia;
     const getUserMedia = proto.getUserMedia;
+    const deviceChangeHandler = Object.getOwnPropertyDescriptor(proto, "ondevicechange");
+    const brandCheck = deviceChangeHandler && deviceChangeHandler.get;
+    const isMediaDevices = (self) => {
+      if (!brandCheck) return self === devices;
+      try {
+        apply(brandCheck, self, []);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
     const activation = navigator.userActivation;
     const activationProto = activation && Object.getPrototypeOf(activation);
     const activationState = activationProto && Object.getOwnPropertyDescriptor(activationProto, "isActive");
     const isActive = activationState && activationState.get;
     const policy = document.featurePolicy;
     const allowsFeature = policy && policy.allowsFeature;
-    const getDisplayMedia = function getDisplayMedia(constraints) {
-      if (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]))
-        return Promise.reject(new DOMException('Access to the feature "display-capture" is disallowed by permissions policy.', "NotAllowedError"));
+    const nativeRejects = (self, options) =>
+      !isMediaDevices(self) ||
+      (options !== undefined && options !== null && typeof options !== "object" && typeof options !== "function") ||
+      (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]));
+    displayMediaShim = asNative(nativeGetDisplayMedia, (target, self, args) => {
+      const constraints = args[0];
+      if (nativeRejects(self, constraints)) return apply(target, self, args);
       if (activation && isActive && !apply(isActive, activation, []))
         return Promise.reject(new DOMException("getDisplayMedia() requires transient activation (user gesture).", "InvalidStateError"));
-      const self = this;
       return new Promise((resolve, reject) => {
         const id = ++displaySeq;
         const options = constraints || {};
@@ -485,9 +513,8 @@
         const windowAudio = options.windowAudio === "exclude" || options.windowAudio === "window" ? options.windowAudio : "system";
         send("displayMedia", { id, audio: !!options.audio, systemAudio: options.systemAudio !== "exclude", windowAudio });
       });
-    };
-    Object.defineProperty(getDisplayMedia, "__ac", { value: true });
-    proto.getDisplayMedia = getDisplayMedia;
+    });
+    proto.getDisplayMedia = displayMediaShim;
     handlers.displayMedia = ({ id, sourceId, audio }) => {
       const request = displayRequests.get(id);
       if (!request) return;
@@ -833,16 +860,15 @@
             if (!anyProgressed()) needsProtectedPlayback(keySystem);
           });
       };
-      const wrapped = {
-        requestMediaKeySystemAccess(keySystem, configurations) {
-          const result = apply(requestAccess, this, arguments);
-          if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
-            const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
-            apply(then, result, [null, () => onRefused(keySystem, activated)]);
-          }
-          return result;
-        },
-      }.requestMediaKeySystemAccess;
+      const wrapped = asNative(requestAccess, (target, self, args) => {
+        const result = apply(target, self, args);
+        const keySystem = args[0];
+        if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+          const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
+          apply(then, result, [null, () => onRefused(keySystem, activated)]);
+        }
+        return result;
+      });
       Object.defineProperty(NavigatorType.prototype, "requestMediaKeySystemAccess", {
         ...Object.getOwnPropertyDescriptor(NavigatorType.prototype, "requestMediaKeySystemAccess"),
         value: wrapped,
