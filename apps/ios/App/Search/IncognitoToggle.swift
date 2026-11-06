@@ -14,7 +14,7 @@ struct IncognitoToggle: View {
             .foregroundStyle(.white.opacity(0.75))
             .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
         }
-        IncognitoEyes(isOpen: !isOn)
+        IncognitoEyes(isOpen: isOn)
           .frame(width: 22)
           .foregroundStyle(isOn ? Color.white.opacity(0.85) : BrowsePalette.foregroundTertiary)
       }
