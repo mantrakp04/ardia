@@ -44,6 +44,7 @@ export function ExtensionSidePanel() {
 
   useEffect(() => {
     if (panel) setShown(panel);
+    else setKept((k) => k.filter((p) => panelTabOpen(p.tabId)));
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (!finished || entryNow.current) return;
       setShown(undefined);
@@ -53,7 +54,11 @@ export function ExtensionSidePanel() {
   useEffect(() => {
     if (!panel) return;
     setShown(panel);
-    setKept((k) => (k.some((p) => panelKey(p) === panelKey(panel)) ? k : [...k, panel]).filter((p) => alive(p, panelKey(panel))));
+    setKept((k) => {
+      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(p, panelKey(panel)));
+      const next = k.filter(keep);
+      return next.some((p) => panelKey(p) === panelKey(panel)) ? next : [...next, panel];
+    });
   }, [panel && panelKey(panel)]);
   useEffect(
     () =>
@@ -155,7 +160,7 @@ function PanelCard({ windowId, panel, current }: { windowId: string; panel: Side
           warm={!current}
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
-          onWindowClose={() => closeSidePanel(windowId, extensionId)}
+          onWindowClose={current ? () => closeSidePanel(windowId, extensionId) : undefined}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
       </View>
