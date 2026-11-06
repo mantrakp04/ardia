@@ -96,6 +96,68 @@ test("a tab without a panel of its own hides the panel, and coming back shows th
   panels.closeSidePanel(w);
 });
 
+test("closing one tab's side panel keeps the other tab's panel", async () => {
+  const { w, a, b, asked, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(2, "chrome-extension://ext/panel.html?tabId=a");
+  panels.closeSidePanelOnTab(w);
+  assert.equal(E().sidePanels[w].hidden, true, "A's panel is closed");
+  assert.equal(panels.panelClosedOnTab(w, a), true);
+  assert.deepEqual(panels.wantedSidePanels(), [[w, "ext"]], "the window keeps its panel for B");
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(3, "chrome-extension://ext/panel.html?tabId=b");
+  assert.equal(E().sidePanels[w].hidden, undefined, "B's panel shows again");
+  assert.equal(E().sidePanels[w].tabId, b);
+  S().activate(a);
+  await panels.syncSidePanel(w);
+  assert.equal(E().sidePanels[w].hidden, true, "A stays closed");
+  assert.equal(asked.length, 4, "A's closed panel isn't asked for again");
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(4, "chrome-extension://ext/panel.html?tabId=b");
+  panels.closeSidePanelOnTab(w);
+  assert.equal(E().sidePanels[w], undefined, "closing the last tab's panel closes it for the window");
+  assert.deepEqual(panels.wantedSidePanels(), []);
+});
+
+test("opening the side panel again on a tab where it was closed brings it back", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  panels.closeSidePanelOnTab(w);
+  assert.equal(panels.panelClosedOnTab(w, b), true);
+  const reopened = panels.toggleSidePanel(w, "ext");
+  await answer(2, "chrome-extension://ext/panel.html?tabId=b");
+  await reopened;
+  assert.equal(panels.panelClosedOnTab(w, b), false);
+  assert.equal(E().sidePanels[w].hidden, undefined);
+  assert.equal(E().sidePanels[w].tabId, b);
+  panels.closeSidePanel(w);
+  assert.equal(panels.panelClosedOnTab(w, a), false, "a full close forgets the closed tabs");
+});
+
+test("the X on the only open panel closes it for the window", async () => {
+  const { w, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  panels.closeSidePanelOnTab(w);
+  assert.equal(E().sidePanels[w], undefined);
+  assert.deepEqual(panels.wantedSidePanels(), []);
+});
+
 test("opening the side panel from a tab without one while it is hidden opens instead of closing", async () => {
   const { w, b, answer } = setup();
   const opened = panels.openSidePanel(w, "ext");

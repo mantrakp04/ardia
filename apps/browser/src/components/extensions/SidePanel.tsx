@@ -9,7 +9,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, panelTabOpen, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, closeSidePanelOnTab, findExtension, panelClosedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -44,10 +44,16 @@ export function ExtensionSidePanel() {
     entryNow.current = entry;
   });
 
+  const changedAt = useRef<{ state: string; tab?: string }>({ state: "closed" });
+
   useEffect(() => {
     if (panel) setShown(panel);
-    else setKept((k) => k.filter((p) => panelTabOpen(p.tabId)));
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
+    else setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelClosedOnTab(windowId, p.tabId)));
+    const tab = shownReadyTab(windowId);
+    const before = changedAt.current;
+    const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
+    changedAt.current = { state, tab };
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (!finished || entryNow.current) return;
       setShown(undefined);
       setKept([]);
@@ -151,7 +157,7 @@ function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: stri
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
-        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
+        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanelOnTab(windowId)} />
       </Box>
       <Divider />
       <View style={PAGE}>
