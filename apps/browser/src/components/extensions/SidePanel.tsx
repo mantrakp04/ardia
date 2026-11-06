@@ -111,9 +111,11 @@ export function ExtensionSidePanel() {
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
-        {kept.map((p) => (
-          <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={!!panel && panelKey(p) === panelKey(shown)} />
-        ))}
+        {kept.map((p) => {
+          const current = !!panel && panelKey(p) === panelKey(shown);
+          const close = () => (current ? closeSidePanel(windowId, p.extensionId) : setKept((k) => k.filter((x) => panelKey(x) !== panelKey(p))));
+          return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
+        })}
         <View
           {...responder.panHandlers}
           onDoubleClick={() => updateSettings({ extensionSidePanelWidth: 360 })}
@@ -124,7 +126,7 @@ export function ExtensionSidePanel() {
   );
 }
 
-function PanelCard({ windowId, panel, current }: { windowId: string; panel: SidePanel; current: boolean }) {
+function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: string; panel: SidePanel; current: boolean; onWindowClose: () => void }) {
   const { extensionId, profile, pageProfile, url } = panel;
   const theme = useTheme();
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
@@ -162,7 +164,7 @@ function PanelCard({ windowId, panel, current }: { windowId: string; panel: Side
           warm={!current}
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
-          onWindowClose={current ? () => closeSidePanel(windowId, extensionId) : undefined}
+          onWindowClose={onWindowClose}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
       </View>
