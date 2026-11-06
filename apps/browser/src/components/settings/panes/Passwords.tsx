@@ -148,7 +148,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
   const unlocked = usePasswordsUnlocked(profile);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
@@ -159,24 +159,25 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
 
   const save = async () => {
     setError("");
-    setSaving(true);
+    setBusy(true);
     const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
-    setSaving(false);
+    setBusy(false);
     if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
     onChanged();
     closeSettingsSheet();
   };
   const remove = async () => {
+    setBusy(true);
     const { confirmed } = await confirm({
       title: `Delete the password for ${hostLabel(saved.origin)}?`,
       message: "You won't be able to sign in with it automatically any more.",
       confirmTitle: "Delete",
       destructive: true,
     });
-    if (!confirmed) return;
+    if (!confirmed) return setBusy(false);
     await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
     onChanged();
     closeSettingsSheet();
@@ -220,18 +221,18 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
           </Text>
         ) : null}
       </View>
-      <DialogActions leading={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
+      <DialogActions leading={<Button title="Delete" kind="destructive" disabled={busy} onPress={() => void remove()} />}>
         {editing ? (
           <>
             <Button
               title="Cancel"
-              disabled={saving}
+              disabled={busy}
               onPress={() => {
                 setError("");
                 setEditing(false);
               }}
             />
-            <Button title="Save" kind="primary" disabled={!password || saving} onPress={() => void save()} />
+            <Button title="Save" kind="primary" disabled={!password || busy} onPress={() => void save()} />
           </>
         ) : (
           <>
