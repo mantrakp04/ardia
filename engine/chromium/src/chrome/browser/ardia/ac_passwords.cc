@@ -55,12 +55,19 @@ std::string OriginOf(const pp::PasswordUiEntry& entry) {
              : WithoutSlash(entry.affiliated_domains[0].signon_realm);
 }
 
+bool HasOrigin(const pp::PasswordUiEntry& entry, const std::string& origin) {
+  return std::any_of(entry.affiliated_domains.begin(),
+                     entry.affiliated_domains.end(), [&](const auto& domain) {
+                       return WithoutSlash(domain.signon_realm) == origin;
+                     });
+}
+
 const pp::PasswordUiEntry* Find(const Entries& entries,
                                 const std::string& origin,
                                 const std::string& username) {
   for (const pp::PasswordUiEntry& entry : entries) {
     if (!entry.is_passkey && entry.username == username &&
-        OriginOf(entry) == origin) {
+        HasOrigin(entry, origin)) {
       return &entry;
     }
   }
@@ -407,17 +414,18 @@ AC_PROFILE_CALL(ac_passwords_add,
       std::move(*session), call.TakeReply(),
       base::BindOnce(
           [](std::string origin, std::string username, ardia::Secret password,
-             Session session, Reply reply, const Entries&) {
+             Session session, Reply reply, const Entries& entries) {
             std::u16string password16 = ardia::UTF16Of(password);
             const bool added = session.delegate->AddPassword(
                 origin, base::UTF8ToUTF16(username), password16, u"", false);
             ardia::Cleanse(password16);
-            if (!added) {
+            const auto saved =
+                ardia::Saved(origin, username, std::move(password));
+            if (!added && !saved.Run(session.delegate.get(), entries)) {
               return reply.Error(
                   "Could not save the password (invalid, or already saved)");
             }
-            ardia::Settle(std::move(session), std::move(reply),
-                          ardia::Saved(origin, username, std::move(password)),
+            ardia::Settle(std::move(session), std::move(reply), saved,
                           ardia::kSettleChecks);
           },
           origin, call.String("username"), std::move(password)));

@@ -373,6 +373,7 @@ const fakeModules = {
     },
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
+        if (!/^https?:\/\/[^/?#]+$/i.test(origin)) throw new Error("Could not save the password (invalid, or already saved)");
         logins().set(`${origin}\n${username}`, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
         return JSON.stringify({ ok: true });
       },

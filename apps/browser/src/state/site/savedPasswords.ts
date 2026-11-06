@@ -56,7 +56,12 @@ export async function revealPassword(profile: string, origin: string, username: 
   return askedAt === revocations ? password : null;
 }
 
-export const originOfLogin = (url: string) => /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url)?.[1] ?? url;
+const SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+export const originOfLogin = (url: string) => {
+  const trimmed = url.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i.exec(SCHEME.test(trimmed) ? trimmed : `https://${trimmed}`)?.[0] ?? trimmed;
+};
 
 export type PasswordImport = { saved: number; skipped: number } | "cancelled";
 

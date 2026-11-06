@@ -56,7 +56,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     try {
       const result = await importPasswordsCsv(profile);
       if (result === "cancelled") return;
-      setImportStatus(`Imported ${plural(result.saved, "password")}.`);
+      const skipped = result.skipped ? ` ${plural(result.skipped, "login")} couldn't be saved.` : "";
+      setImportStatus(`Imported ${plural(result.saved, "password")}.${skipped}`);
       load();
     } catch (e) {
       setImportStatus(`Couldn't import that file: ${(e as Error).message}`);
@@ -146,6 +147,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [password, setPassword] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
   const unlocked = usePasswordsUnlocked(profile);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
@@ -155,10 +157,12 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   }, [unlocked]);
 
   const save = async () => {
-    await updatePassword(profile, saved.origin, saved.username, {
+    setError("");
+    const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
+    if (!changed) return setError("Couldn't save the change. The saved password is unchanged.");
     onChanged();
     closeSettingsSheet();
   };
@@ -207,6 +211,11 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
             )}
           </Row>
         </Group>
+        {error ? (
+          <Text size="caption" tone="destructive" style={ERROR}>
+            {error}
+          </Text>
+        ) : null}
       </View>
       <DialogActions leading={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
         {editing ? (
@@ -228,5 +237,6 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
 const LOCKED = { alignItems: "center", marginTop: settingsLayout.emptyTop } as const;
 const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
+const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
 const MONO = { fontFamily: "Menlo" } as const;
