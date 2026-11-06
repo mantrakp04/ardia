@@ -162,7 +162,7 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
-    if (!changed) return setError("Couldn't save the change. The saved password is unchanged.");
+    if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
     onChanged();
     closeSettingsSheet();
   };

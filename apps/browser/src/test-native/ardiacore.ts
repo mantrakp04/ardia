@@ -373,11 +373,21 @@ const fakeModules = {
     },
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
-        if (!/^https?:\/\/[^/?#]+$/i.test(origin)) throw new Error("Could not save the password (invalid, or already saved)");
-        logins().set(`${origin}\n${username}`, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
+        const key = `${origin}\n${username}`;
+        if (!/^https?:\/\/[^/?#]+$/i.test(origin) || (logins().has(key) && logins().get(key)!.password !== password)) {
+          throw new Error("Could not save the password (invalid, or already saved)");
+        }
+        logins().set(key, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
         return JSON.stringify({ ok: true });
       },
-      update: () => unfaked("ArdiaPasswords", "update"),
+      update: async (_profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null) => {
+        const entry = logins().get(`${origin}\n${username}`);
+        if (!entry) throw new Error("No such password");
+        const renamed = newUsername ?? username;
+        logins().delete(`${origin}\n${username}`);
+        logins().set(`${origin}\n${renamed}`, { ...entry, username: renamed, password: newPassword ?? entry.password });
+        return JSON.stringify({ ok: true });
+      },
     },
   ),
   ArdiaAutofill: domain(
