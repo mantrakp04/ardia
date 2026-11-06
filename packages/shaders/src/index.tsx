@@ -29,8 +29,8 @@ export function holdThemedWindowsKeyLook(on: boolean) {
   void BackdropModule.holdKeyLook(on);
 }
 
-export function WindowBackdrop({ angle = 180, grainOpacity = 0.09, grainScale = 1, ...props }: WindowBackdropProps) {
-  return <NativeBackdrop pointerEvents="none" angle={angle} grainOpacity={grainOpacity} grainScale={grainScale} {...props} />;
+export function WindowBackdrop({ angle = 180, grainOpacity = 0.09, grainScale = 1, backgroundBlurEnabled = true, ...props }: WindowBackdropProps) {
+  return <NativeBackdrop pointerEvents="none" angle={angle} grainOpacity={grainOpacity} grainScale={grainScale} backgroundBlurEnabled={backgroundBlurEnabled} {...props} />;
 }
 
 const rect = (r: Rect) => [r.x, r.y, r.width, r.height];

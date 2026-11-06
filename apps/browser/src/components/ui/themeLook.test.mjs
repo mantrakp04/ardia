@@ -119,3 +119,25 @@ test("no theme the old colour pad could make changes appearance in light mode, n
     assert.equal(profileTheme({ color: "plum", theme }, true).backdrop.themeAppearance, "auto", spec.name);
   }
 });
+
+test("zero pass-through blur disables the material independently of tint opacity and intensity", () => {
+  assert.equal(P.PRESET_BACKDROP.backgroundBlurEnabled, true);
+  for (const intensity of [0, 0.5, 1]) {
+    for (const a of [0, 0.4, 1]) {
+      const stops = THEME.stops.map((stop) => ({ ...stop, color: { ...stop.color, a } }));
+      for (const translucency of [0, 0.001, 0.5, 1]) {
+        const theme = { ...THEME, stops, intensity, translucency };
+        for (const dark of [false, true]) assert.equal(themeBackdrop(theme, dark).backgroundBlurEnabled, translucency > 0);
+      }
+    }
+  }
+});
+
+test("the resolved light or dark look decides whether its material is enabled", () => {
+  const theme = { ...THEME, translucency: 0, dark: { ...THEME, translucency: 1 } };
+  assert.equal(profileTheme({ color: "plum", theme }, false).backdrop.backgroundBlurEnabled, false);
+  assert.equal(profileTheme({ color: "plum", theme }, true).backdrop.backgroundBlurEnabled, true);
+  const inverse = { ...theme, translucency: 1, dark: { ...THEME, translucency: 0 } };
+  assert.equal(profileTheme({ color: "plum", theme: inverse }, false).backdrop.backgroundBlurEnabled, true);
+  assert.equal(profileTheme({ color: "plum", theme: inverse }, true).backdrop.backgroundBlurEnabled, false);
+});
