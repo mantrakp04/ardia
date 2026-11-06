@@ -154,6 +154,7 @@ export function ContentCard() {
       {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
+          windowId={windowId}
           left={peek[0] === -Infinity ? Math.max(activeRect.x, peek[1] - origin.x) + POPOVER_MARGIN : Infinity}
           top={activeRect.y + POPOVER_MARGIN}
           room={peek[0] === -Infinity ? size.width : Math.min(size.width, peek[0] - origin.x)}

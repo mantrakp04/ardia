@@ -63,7 +63,7 @@ const SURFACES: Record<Surface, { open: (at: Where) => boolean; watch: Watch[] }
 };
 
 export const HOLDS: Record<Held, { chrome: Chrome | null; surfaces: Surface[] }> = {
-  peek: { chrome: "sidebar", surfaces: ["menu", "rename", "iconPicker", "hoverCard", "downloads", "popover"] },
+  peek: { chrome: "sidebar", surfaces: ["menu", "rename", "iconPicker", "hoverCard", "downloads", "popover", "historyMenu"] },
   toolbar: { chrome: "toolbar", surfaces: ["menu", "panel", "find", "popover", "historyMenu", "extensionPopup"] },
   hover: { chrome: null, surfaces: ["menu", "rename", "iconPicker", "downloads", "popover", "panel", "find", "historyMenu", "extensionPopup"] },
 };
