@@ -6,7 +6,7 @@ final class WebKitContentBlocker {
   static let shared = WebKitContentBlocker()
   static let changed = Notification.Name("ArdiaContentBlockerDidChange")
 
-  private static let format = "f2"
+  private static let format = "f3"
   private static let ruleBudget = 140_000
   private static let ignoreTopDocuments =
     #"{"action":{"type":"ignore-previous-rules"},"trigger":{"load-context":["top-frame"],"resource-type":["document"],"url-filter":".*"}}"#
@@ -71,9 +71,12 @@ final class WebKitContentBlocker {
     apply(controller)
   }
 
-  func configure(_ preferences: WKWebpagePreferences, for url: URL) {
-    guard preferences.responds(to: NSSelectorFromString("_setContentBlockersEnabled:")) else { return }
-    preferences.setValue(!trusted((url.host ?? "").lowercased()), forKey: "contentBlockersEnabled")
+  @discardableResult
+  func configure(_ preferences: WKWebpagePreferences, for url: URL) -> Bool {
+    guard preferences.responds(to: NSSelectorFromString("_setContentBlockersEnabled:")) else { return false }
+    let exempt = trusted((url.host ?? "").lowercased())
+    preferences.setValue(!exempt, forKey: "contentBlockersEnabled")
+    return exempt
   }
 
   func whenReady(within seconds: Double, _ then: @escaping () -> Void) {
@@ -258,7 +261,7 @@ final class WebKitContentBlocker {
   }
 
   private static func assemble(_ rulesets: [String], from directory: URL) -> [String] {
-    var prefix: [Substring] = [], blocks: [Rule] = [], allows: [Rule] = [], cosmetic: [Substring] = []
+    var blocks: [Rule] = [], allows: [Rule] = [], cosmetic: [Substring] = []
     var texts: [String] = []
     for id in rulesets {
       guard let data = try? Data(contentsOf: directory.appendingPathComponent("\(id).rules")),
@@ -272,7 +275,7 @@ final class WebKitContentBlocker {
         let priority = Int(line[line.index(after: line.startIndex)..<tab]) ?? 1
         let json = line[line.index(after: tab)...]
         switch tag {
-        case "p": prefix.append(json)
+        case "p": blocks.append(Rule(priority: priority, exception: false, json: json))
         case "b": blocks.append(Rule(priority: priority, exception: false, json: json))
         case "a": allows.append(Rule(priority: priority, exception: true, json: json))
         case "c": cosmetic.append(json)
@@ -285,13 +288,12 @@ final class WebKitContentBlocker {
     }
     blocks.sort(by: ordered)
     var out: [String] = []
-    if !blocks.isEmpty || !prefix.isEmpty {
-      let budget = max(1000, ruleBudget - prefix.count - allows.count - 1)
+    if !blocks.isEmpty {
+      let budget = max(1000, ruleBudget - allows.count - 1)
       var start = 0
       repeat {
         let end = min(blocks.count, start + budget)
-        var parts = out.isEmpty ? prefix : []
-        parts += (blocks[start..<end] + allows).sorted(by: ordered).map(\.json)
+        var parts = (blocks[start..<end] + allows).sorted(by: ordered).map(\.json)
         parts.append(Substring(ignoreTopDocuments))
         out.append("[" + parts.joined(separator: ",") + "]")
         start = end

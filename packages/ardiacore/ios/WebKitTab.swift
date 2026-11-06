@@ -474,7 +474,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
       }
       if flags.contains(.option) { return decide(.download) }
     }
-    if action.targetFrame?.isMainFrame == true { WebKitContentBlocker.shared.configure(preferences, for: url) }
+    if action.targetFrame?.isMainFrame == true, !applyBlockerPolicy(action, preferences: preferences, in: webView) { return decide(.cancel) }
     decide(action.shouldPerformDownload ? .download : .allow)
   }
 
@@ -578,6 +578,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction,
                windowFeatures: WKWindowFeatures) -> WKWebView? {
     let child = WebKitWebView(frame: .zero, configuration: configuration)
+    child.navigationDelegate = WebKitPopupPolicy.shared
     let id = WebKitHub.shared.transfers.offer(child)
     let flags = action.modifierFlags
     let popup = windowFeatures.width != nil || windowFeatures.height != nil

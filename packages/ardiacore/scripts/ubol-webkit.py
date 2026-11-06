@@ -411,10 +411,9 @@ def convert_network(rules, stats):
             stats["skipped"] += 1
             continue
         if exclusions:
-            for t in made:
-                prefix.append((priority, {"trigger": t, "action": {"type": wk}}))
-            for t in exclusions:
-                prefix.append((priority, {"trigger": t, "action": {"type": "ignore-previous-rules"}}))
+            group = [{"trigger": t, "action": {"type": wk}} for t in made]
+            group += [{"trigger": t, "action": {"type": "ignore-previous-rules"}} for t in exclusions]
+            prefix.append((priority, group))
             continue
         target = block if action == "block" else allow
         target.extend((priority, {"trigger": t, "action": {"type": wk}}) for t in made)
@@ -534,7 +533,9 @@ def write_rules(path, sections):
     lines = []
     for tag, rules in sections:
         for priority, rule in rules:
-            lines.append(tag + str(priority) + "\t" + json.dumps(rule, separators=(",", ":"), sort_keys=True))
+            group = rule if isinstance(rule, list) else [rule]
+            text = ",".join(json.dumps(r, separators=(",", ":"), sort_keys=True) for r in group)
+            lines.append(tag + str(priority) + "\t" + text)
     raw = ("\n".join(lines) + "\n").encode()
     compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
     open(path, "wb").write(compressor.compress(raw) + compressor.flush())
@@ -587,7 +588,7 @@ def main():
             "group": detail.get("group") or "",
             "lang": detail.get("lang") or "",
             "name": detail.get("name") or rid,
-            "network": len(prefix) + len(block) + len(allow),
+            "network": sum(len(g) for _, g in prefix) + len(block) + len(allow),
             "cosmetic": len(specific_rules) + len(generic_rules),
             "converted": stats["converted"],
             "skipped": stats["skipped"],
