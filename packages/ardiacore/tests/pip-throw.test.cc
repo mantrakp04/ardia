@@ -292,17 +292,37 @@ int main() {
   CHECK(PickCorner(middle, {-1000, -650}, screen) == kBottomLeft);
   CHECK(PickCorner(middle, {1000, -650}, screen) == kBottomRight);
   CHECK(PickCorner(middle, {0, 0}, screen) == kNoCorner);
-  CHECK(PickCorner(middle, {0, 1000}, screen) == kNoCorner);
-  CHECK(PickCorner(middle, {1000, 0}, screen) == kTopRight || PickCorner(middle, {1000, 0}, screen) == kBottomRight);
+  CHECK(PickCorner(middle, {0, 1000}, screen) == kTopRight);
   CHECK(PickCorner({1300, 200}, {1000, 0}, screen) == kBottomRight);
   CHECK(PickCorner({1300, 800}, {1000, 0}, screen) == kTopRight);
-  CHECK(PickCorner({200, 200}, {1000, 0}, screen) == kBottomRight);
-  CHECK(PickCorner({1400, 100}, {0, 1000}, screen) == kTopRight);
-  CHECK(PickCorner({-100, 491}, {1000, 900}, screen) == kTopRight);
+  CHECK(PickCorner({200, 200}, {1000, 0}, screen) == kBottomLeft);
+  CHECK(PickCorner({200, 200}, {2000, 0}, screen) == kBottomRight);
+  CHECK(PickCorner({1250, 800}, {0, 1000}, screen) == kTopRight);
+  CHECK(PickCorner({1250, 200}, {-400, 400}, screen) == kBottomRight);
+  CHECK(PickCorner({1250, 200}, {-2500, 1200}, screen) == kTopLeft);
+  CHECK(PickCorner({1250, 800}, {0, 3000}, screen) == kTopRight);
+  CHECK(PickCorner({300, 800}, {300, -300}, screen) == kTopLeft);
+  CHECK(Near(Projected({0, 0}, {1000, -500}).x, 1000 * kProjectionSeconds));
 
-  CHECK(AngleApart(0.1, 2 * kPi - 0.1) < 0.2 + 1e-12);
-  CHECK(Near(AngleApart(-kPi, kPi), 0));
-  CHECK(Near(AngleApart(kPi / 2, -kPi / 2), kPi));
+  {
+    const Screen two[] = {{{0, 0, 1800, 1169}, {0, 0, 1800, 1129}}, {{-306, 1169, 2560, 1440}, {-306, 1169, 2560, 1409}}};
+    CHECK(ScreenNearest({900, 500}, two, 2) == 0);
+    CHECK(ScreenNearest({900, 2000}, two, 2) == 1);
+    CHECK(ScreenNearest({5000, 500}, two, 2) == 1);
+    CHECK(ScreenNearest({0, 0}, two, 0) == -1);
+  }
+
+  {
+    const Rect area{0, 0, 1512, 945};
+    const Rect nearRight{1200, 400, 285, 160}, middleWindow{600, 400, 285, 160}, nearLeft{20, 400, 285, 160};
+    CHECK(FlungOffSide(nearRight, {1500, 100}, area, false, false) == kFlungRight);
+    CHECK(FlungOffSide(nearRight, {1500, 100}, area, false, true) == kFlungNowhere);
+    CHECK(FlungOffSide(nearRight, {100, 1500}, area, false, false) == kFlungNowhere);
+    CHECK(FlungOffSide(nearRight, {-1500, 0}, area, false, false) == kFlungNowhere);
+    CHECK(FlungOffSide(middleWindow, {3000, 0}, area, false, false) == kFlungNowhere);
+    CHECK(FlungOffSide(nearLeft, {-800, 0}, area, false, false) == kFlungLeft);
+    CHECK(FlungOffSide(nearLeft, {-800, 0}, area, true, false) == kFlungNowhere);
+  }
 
   {
     Rect r = CornerFrame(kTopRight, 468, 263, visible);
@@ -516,8 +536,9 @@ int main() {
     CHECK(w.x == 200 && w.y == 283);
     const Point spot{w.x + grab.x, w.y + grab.y}, cursor{300, 650};
     CHECK(spot.x == 300 && spot.y == 303);
-    CHECK(PickCorner(spot, {2000, 0}, one[0].frame) == kBottomRight);
-    CHECK(PickCorner(cursor, {2000, 0}, one[0].frame) == kTopRight);
+    CHECK(PickCorner({w.x + w.w / 2, w.y + w.h / 2}, {2000, 0}, one[0].visible) == kTopRight);
+    CHECK(PickCorner({w.x + w.w / 2, w.y + w.h / 2}, {2000, -1000}, one[0].visible) == kBottomRight);
+    CHECK(PickCorner(cursor, {2000, 0}, one[0].visible) == kTopRight);
   }
 
   {
@@ -570,7 +591,14 @@ int main() {
         break;
       }
     }
-    CHECK(settled > 1.5 && settled < 3.5);
+    CHECK(settled > 1.6 * kResponse && settled < 3.9 * kResponse);
+    CHECK(std::fabs(settled - 0.82) < 0.05);
+    double stashSettled = -1;
+    for (int frame = 0; frame < 600 && stashSettled < 0; frame++) {
+      const double t = frame / 120.0;
+      if (Resolved(SpringAt(-1000, 0, t, kSettleResponse), SpringAt(0, 0, t, kSettleResponse))) stashSettled = t;
+    }
+    CHECK(stashSettled > 0 && stashSettled < settled - 0.05);
     double overshoot = 0;
     for (int frame = 0; frame < 600; frame++) overshoot = std::max(overshoot, SpringAt(-1000, 0, frame / 120.0).offset);
     CHECK(overshoot > 0 && overshoot < 2);

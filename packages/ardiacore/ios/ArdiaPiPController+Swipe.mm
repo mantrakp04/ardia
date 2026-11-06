@@ -119,7 +119,7 @@ static __weak NSWindow *gSwipeMomentum;
   const double interval = (args.count > 3 ? args[3].doubleValue : 8) / 1000, pause = (args.count > 4 ? args[4].doubleValue : 0) / 1000;
   NSWindow *window = _window;
   const NSRect frame = window.frame;
-  const NSPoint grab = NSMakePoint(NSWidth(frame) * 0.5, NSHeight(frame) * 0.3);
+  const NSPoint grab = args.count > 6 ? NSMakePoint(args[5].doubleValue, args[6].doubleValue) : NSMakePoint(NSWidth(frame) * 0.5, NSHeight(frame) * 0.3);
   const NSPoint start = NSMakePoint(NSMinX(frame) + grab.x, NSMinY(frame) + grab.y);
   auto post = [=](double seconds, NSEventType type, NSPoint screen) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
