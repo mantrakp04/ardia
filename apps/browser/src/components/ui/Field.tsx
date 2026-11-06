@@ -112,9 +112,11 @@ export function TextField({
   invalid,
   width,
   style,
+  accessibilityLabel,
 }: {
   value: string;
   onChangeText: (text: string) => void;
+  accessibilityLabel?: string;
   placeholder?: string;
   autoFocus?: boolean;
   secure?: boolean;
@@ -160,6 +162,7 @@ export function TextField({
           onBlur={onBlur}
           keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
           onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
+          accessibilityLabel={accessibilityLabel}
           style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
         />
       </View>
@@ -179,16 +182,19 @@ export function PopUp<T extends string>({
   onChange,
   minWidth = 120,
   disabled,
+  accessibilityLabel,
 }: {
   value: T;
   options: Option<T>[];
   onChange: (value: T) => void;
   minWidth?: number;
   disabled?: boolean;
+  accessibilityLabel?: string;
 }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const current = options.find((o) => o.value === value);
+  const labelled = accessibilityLabel ? { accessibilityLabel, accessibilityValue: { text: current?.title ?? "" } } : {};
   const open = async () => {
     const items: MenuItem[] = options.flatMap((o) => [
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
@@ -199,7 +205,7 @@ export function PopUp<T extends string>({
   };
   return (
     <View {...hoverProps} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-      <Pressable disabled={disabled} onPress={open}>
+      <Pressable disabled={disabled} onPress={open} accessibilityRole="button" {...labelled}>
         {({ pressed }) => (
           <View
             style={{

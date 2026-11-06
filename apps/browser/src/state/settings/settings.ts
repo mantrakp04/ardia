@@ -13,6 +13,7 @@ import {
   isProviderEntryList,
   type ProviderEntry,
 } from "@ardia/core";
+import { DEFAULT_LINK_ROUTING, isLinkRouting, LINK_ROUTING_SCHEMA, normalizeLinkRouting, RECENT, type LinkRouting } from "../../lib/linkRouting";
 import type { StateCreator } from "zustand";
 import { fromLegacyUrl } from "../../lib/legacy";
 import type { BrowserState } from "../browser/store";
@@ -130,7 +131,7 @@ export const SETTING_SPECS = {
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
-  openLinksInLittleArdia: flag(true),
+  linkRouting: shaped<LinkRouting>(DEFAULT_LINK_ROUTING, isLinkRouting, LINK_ROUTING_SCHEMA),
   littleArdiaOpensNewTabLinks: flag(true, SYNCED),
   littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth), { type: "array", prefixItems: [WIDTH, WIDTH], minItems: 2, maxItems: 2 }),
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
@@ -230,6 +231,20 @@ export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {
   const legacy = !raw.chosen ? Object.keys(raw) : null;
   const { chosen, inferred, ...settings } = raw;
   return { ...doc, settings, settingsMeta: { chosen: legacy ?? (isStringList(chosen) ? chosen : []), inferred: legacy ?? (isStringList(inferred) ? inferred : []) } };
+}
+
+export function sessionWithLinkRouting(doc: SavedObject): SavedObject {
+  if (!isFields(doc.settings) || (!("openLinksInLittleArdia" in doc.settings) && !("linkRouting" in doc.settings))) return doc;
+  const { openLinksInLittleArdia, linkRouting, ...settings } = doc.settings;
+  const migrated = linkRouting !== undefined ? normalizeLinkRouting(linkRouting) : openLinksInLittleArdia === false ? { ...DEFAULT_LINK_ROUTING, defaultDestination: RECENT } : undefined;
+  const { chosen, inferred } = parseSettingsMeta(doc.settingsMeta);
+  const without = (keys: string[]) => keys.filter((k) => k !== "openLinksInLittleArdia");
+  const explicit = !chosen.includes("linkRouting") && (chosen.includes("openLinksInLittleArdia") || openLinksInLittleArdia === false);
+  return {
+    ...doc,
+    settings: { ...settings, ...(migrated ? { linkRouting: migrated } : {}) },
+    settingsMeta: { chosen: explicit ? [...without(chosen), "linkRouting"] : without(chosen), inferred: without(inferred) },
+  };
 }
 
 function withNewTabButtonPosition(saved: Partial<Settings & SettingsMeta> | undefined): Partial<Settings & SettingsMeta> | undefined {

@@ -39,6 +39,18 @@ test("settings left off the allowlist and unknown keys are reported and never ap
   ]);
 });
 
+test("the old openLinksInLittleArdia switch sets linkRouting's default, keeps the routes, and says what replaced it", () => {
+  const routes = [{ id: "r", match: "contains", pattern: "github.com", destination: { kind: "profile", profileId: "default" } }];
+  const current = { ...DEFAULT_SETTINGS, linkRouting: { routes, defaultDestination: { kind: "little" } } };
+  const off = read({ openLinksInLittleArdia: false }, {}, current);
+  assert.deepEqual(off.patch, { linkRouting: { routes, defaultDestination: { kind: "recent" } } });
+  assert.deepEqual(off.problems, ["config.json: openLinksInLittleArdia is now linkRouting's defaultDestination"]);
+  const recent = { ...DEFAULT_SETTINGS, linkRouting: { routes, defaultDestination: { kind: "recent" } } };
+  assert.deepEqual(read({ openLinksInLittleArdia: true }, {}, recent).patch, { linkRouting: { routes, defaultDestination: { kind: "little" } } });
+  const both = read({ openLinksInLittleArdia: false, linkRouting: { routes: [], defaultDestination: { kind: "little" } } }, {}, current);
+  assert.deepEqual(both.patch, { linkRouting: { routes: [], defaultDestination: { kind: "little" } } });
+});
+
 test("searchEngine must name an engine that exists, a custom one included", () => {
   assert.deepEqual(read({ searchEngine: "duckduckgo" }).patch, { searchEngine: "duckduckgo" });
   assert.match(read({ searchEngine: "askjeeves" }).problems[0], /^config\.json: searchEngine must name an existing engine \(google, /);

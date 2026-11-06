@@ -42,7 +42,7 @@ test("a full set of choices survives a round trip in a short code", () => {
 
 test("every onboarding layout, look and tab key is in the code, and nothing private is", () => {
   assert.deepEqual([...SETUP_SETTING_KEYS].sort(), Object.keys(ARC.settings).sort());
-  for (const key of ["searchEngine", "commandBarPreference", "customSearchUrl", "openLinksInLittleArdia", "shortcuts", "mutedSites"]) {
+  for (const key of ["searchEngine", "commandBarPreference", "customSearchUrl", "linkRouting", "shortcuts", "mutedSites"]) {
     assert.ok(!SETUP_SETTING_KEYS.includes(key), `${key} stays out of setup codes`);
   }
 });

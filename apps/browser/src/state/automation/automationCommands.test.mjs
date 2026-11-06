@@ -21,7 +21,7 @@ test("a command whose setting config files leave out is never automatable", () =
 });
 
 test("commands that set a setting in runCommand's own cases touch only allowlisted settings", () => {
-  for (const [command, key] of [["toggleAddressBar", "addressBar"], ["toggleSidebarSide", "sidebarSide"], ["toggleBookmarksBar", "bookmarksBar"], ["toggleOpenLinksInLittleArdia", "openLinksInLittleArdia"]]) {
+  for (const [command, key] of [["toggleAddressBar", "addressBar"], ["toggleSidebarSide", "sidebarSide"], ["toggleBookmarksBar", "bookmarksBar"], ["toggleOpenLinksInLittleArdia", "linkRouting"]]) {
     assert.ok(isAutomatable(command), command);
     assert.ok(isConfigSettingKey(key), key);
   }

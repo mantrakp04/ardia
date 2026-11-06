@@ -1,12 +1,14 @@
 import { discardOffered, type OpenWindowRequest } from "../../platform/tabs";
 import { openWindow } from "../browser/actions";
-import { useBrowser } from "../browser/store";
+import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { peekSourceOf } from "../peek/peek";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
 import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
+import { openAtPlacement } from "../linkRouting/actions";
+import { placeLinkFromProfile } from "../linkRouting/placement";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
@@ -41,6 +43,7 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   const s = useBrowser.getState();
   const w = s.windows[page.windowId];
   if (!w) return;
+  if (request.routed) return openRoutedLink(s, request, page, w, gated);
   const peekSource = peekSourceOf(s, page.tabId);
   if (disposition === "current" || (disposition === "peek" && (peekSource || isSmall(s, w.id)))) {
     if (page.tabId) s.navigate(page.tabId, url, { userInitiated: false });
@@ -69,6 +72,16 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
   s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
+}
+
+function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageRef, w: BrowserState["windows"][string], gated: boolean) {
+  const { url, disposition } = request;
+  const how = disposition === "background" ? "background" : disposition === "window" ? "window" : "foreground";
+  const placement = w.kind === "private" ? null : placeLinkFromProfile(s, url, page.profileId, { windowId: w.id, tabId: page.tabId });
+  if (placement) return void openAtPlacement(placement, { url, how, from: { windowId: w.id, tabId: page.tabId }, gated });
+  if (how === "foreground" && request.opens !== "tab" && page.tabId) return s.navigate(page.tabId, url, { userInitiated: true, gated });
+  if (how === "window") return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: page.profileId, url });
+  s.newTab(w.id, { url, openerId: page.tabId, profileId: page.profileId, background: how === "background", gated });
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {

@@ -1,5 +1,6 @@
 import { isFields } from "../../lib/decode";
 import type { JsonSchema } from "../../lib/jsonSchema";
+import { LITTLE_ARDIA, RECENT, withDefaultDestination } from "../../lib/linkRouting";
 import { THEME_NAME } from "../../lib/themeFile";
 import { CONFIG_EXCLUDED_KEYS, isConfigSettingKey } from "../settings/configAllowlist";
 import { SETTING_SPECS, searchEngines, type SettingKey, type Settings } from "../settings/settings";
@@ -82,6 +83,11 @@ function requested(doc: Record<string, unknown>, settings: Settings): Requested 
   for (const [key, value] of Object.entries(given)) {
     if (EXCLUDED.has(key)) {
       problems.push(`${CONFIG_FILE}: ${key} can't be set from a file`);
+      continue;
+    }
+    if (key === "openLinksInLittleArdia" && typeof value === "boolean") {
+      problems.push(`${CONFIG_FILE}: openLinksInLittleArdia is now linkRouting's defaultDestination`);
+      if (!Object.hasOwn(given, "linkRouting")) values.linkRouting = withDefaultDestination(settings.linkRouting, value ? LITTLE_ARDIA : RECENT);
       continue;
     }
     if (!isConfigSettingKey(key)) {

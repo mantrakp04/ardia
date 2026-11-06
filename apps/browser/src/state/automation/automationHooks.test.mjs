@@ -235,7 +235,7 @@ test("link.opening routes or drops links from other apps before any tab exists",
     { name: "slack-work", on: "link.opening", from: ["com.tinyspeck.slackmacgap"], route: { open: "tab" } },
   ]);
   approveRule(approvalFor(useHookRules.getState().hooks[1]).key);
-  S().updateSettings({ openLinksInLittleArdia: true });
+  S().updateSettings({ linkRouting: { routes: [], defaultDestination: { kind: "little" } } });
   const w = S().createWindow({ url: "https://a.example/" });
   const tabs = () => Object.keys(S().tabs).length;
   const before = tabs();
@@ -453,6 +453,34 @@ test("an explicit tab target runs before Peek and the command panel, and a missi
   assert.deepEqual(call("run", { command: "togglePin", tab: other }, conn).result, { ok: true });
   assert.ok(S().tabs[other].pin);
   assert.equal(S().tabs[shown].pin, null);
+});
+
+test("a link from another app that a hook rewrote opens at the default destination, past the routes", async () => {
+  fresh([
+    { name: "strip", on: "tab.opening", match: "https://github.com/*", rewrite: [{ match: "https://github.com/*", to: "{origin}{path}" }] },
+    { name: "drop-ads", on: "link.opening", match: "https://ads.example/*", drop: true },
+  ]);
+  await controlOn();
+  const work = S().createProfile({ name: "Work" });
+  S().updateSettings({ linkRouting: { routes: [{ id: "gh", match: "contains", pattern: "github.com", destination: { kind: "profile", profileId: work } }], defaultDestination: { kind: "recent" } } });
+  const w = S().createWindow({ url: "https://a.example/" });
+  const personal = S().windows[w].profileId;
+  openExternalUrls(["https://github.com/a?utm=1"], undefined, { bundleId: "com.apple.mail", appName: "Mail" });
+  await wait(20);
+  const opened = Object.values(S().tabs).find((t) => t.url === "https://github.com/a");
+  assert.deepEqual([opened?.windowId, opened?.profileId], [w, personal]);
+});
+
+test("a batch of links from another app places each one against the profile used last before the batch", async () => {
+  fresh();
+  const work = S().createProfile({ name: "Work" });
+  S().updateSettings({ linkRouting: { routes: [{ id: "gh", match: "contains", pattern: "github.com", destination: { kind: "profile", profileId: work } }], defaultDestination: { kind: "recent" } } });
+  const w = S().createWindow({ url: "https://a.example/" });
+  const personal = S().windows[w].profileId;
+  openExternalUrls(["https://github.com/b", "https://plain.example/"]);
+  await wait(20);
+  const profileOf = (url) => Object.values(S().tabs).find((t) => t.url === url)?.profileId;
+  assert.deepEqual([profileOf("https://github.com/b"), profileOf("https://plain.example/")], [work, personal]);
 });
 
 test("a rewritten navigation goes out as not user-initiated; an unchanged one keeps its value", async () => {

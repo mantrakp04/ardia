@@ -25,6 +25,32 @@ test("every setting is either on the config allowlist or deliberately left out, 
   ]);
 });
 
+test("linkRouting's schema and validator take real routings and refuse broken ones alike", () => {
+  const spec = SETTING_SPECS.linkRouting;
+  const route = (destination, match = "contains", id = "r") => ({ id, match, pattern: "github.com", destination });
+  const cases = [
+    [true, { routes: [], defaultDestination: { kind: "little" } }],
+    [true, { routes: [route({ kind: "little", profileId: "work" })], defaultDestination: { kind: "little", profileId: "default" } }],
+    [true, { routes: [route({ kind: "profile", profileId: "work" }), route({ kind: "group", profileId: "default", groupKey: "g" }, "equals", "s")], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [], defaultDestination: { kind: "little", profileId: 7 } }],
+    [false, { routes: [], defaultDestination: { kind: "little", profileId: "" } }],
+    [false, { routes: [route({ kind: "profile", profileId: "" })], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [route({ kind: "group", profileId: "work", groupKey: "" })], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [route({ kind: "recent" }, "contains", "")], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [route({ kind: "profile" })], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [route({ kind: "group", profileId: "default" })], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [route({ kind: "recent" }, "starts")], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [{ id: "r", match: "contains", pattern: "x" }], defaultDestination: { kind: "recent" } }],
+    [false, { routes: [], defaultDestination: { kind: "elsewhere" } }],
+    [false, { routes: [] }],
+    [true, { routes: Array.from({ length: 512 }, (_, i) => route({ kind: "recent" }, "contains", `r${i}`)), defaultDestination: { kind: "recent" } }],
+    [false, { routes: Array.from({ length: 513 }, (_, i) => route({ kind: "recent" }, "contains", `r${i}`)), defaultDestination: { kind: "recent" } }],
+  ];
+  for (const [expected, value] of cases) assert.deepEqual([accepts(spec.schema, value), spec.valid(value)], [expected, expected], JSON.stringify(value));
+  const twins = { routes: [route({ kind: "recent" }), route({ kind: "recent" })], defaultDestination: { kind: "recent" } };
+  assert.equal(spec.valid(twins), false, "only the app can refuse two routes with one id; JSON Schema can't say it");
+});
+
 test("each setting's schema and its validator agree on its default and on every sample", () => {
   for (const key of SETTING_KEYS) {
     const spec = SETTING_SPECS[key];
