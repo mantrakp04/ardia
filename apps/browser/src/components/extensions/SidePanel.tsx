@@ -38,9 +38,11 @@ export function ExtensionSidePanel() {
   const [shown, setShown] = useState(panel);
   const [kept, setKept] = useState<SidePanel[]>(panel ? [panel] : []);
   const shownKey = useRef("");
-  shownKey.current = panel && shown ? panelKey(shown) : "";
   const entryNow = useRef(entry);
-  entryNow.current = entry;
+  useEffect(() => {
+    shownKey.current = panel && shown ? panelKey(shown) : "";
+    entryNow.current = entry;
+  });
 
   useEffect(() => {
     if (panel) setShown(panel);
@@ -57,9 +59,9 @@ export function ExtensionSidePanel() {
     setKept((k) => {
       const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(p, panelKey(panel)));
       const next = k.filter(keep);
-      return next.some((p) => panelKey(p) === panelKey(panel)) ? next : [...next, panel];
+      return next.some((p) => panelKey(p) === panelKey(panel)) ? next.map((p) => (panelKey(p) === panelKey(panel) ? panel : p)) : [...next, panel];
     });
-  }, [panel && panelKey(panel)]);
+  }, [panel && panelKey(panel), panel?.tabId]);
   useEffect(
     () =>
       useBrowser.subscribe((s, prev) => {

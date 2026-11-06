@@ -63,6 +63,19 @@ test("A→B→A shows A's side panel whatever order Chrome answers in", async ()
   panels.closeSidePanel(w);
 });
 
+test("two tabs with the same panel URL: the panel follows the tab that is shown", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/shared.html");
+  await opened;
+  assert.equal(E().sidePanels[w].tabId, a);
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/shared.html");
+  assert.equal(E().sidePanels[w].tabId, b);
+  panels.closeSidePanel(w);
+});
+
 test("a tab without a panel of its own hides the panel, and coming back shows the same one", async () => {
   const { w, a, b, asked, answer } = setup();
   const opened = panels.openSidePanel(w, "ext");

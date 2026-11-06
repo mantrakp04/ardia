@@ -72,6 +72,6 @@ export async function syncSidePanel(windowId: string): Promise<void> {
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, tabId: readyTab };
   const now = useExtensions.getState().sidePanels[windowId];
-  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && !now.hidden) return;
+  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && now.tabId === panel.tabId && !now.hidden) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
 }
