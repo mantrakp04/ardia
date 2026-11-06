@@ -10,7 +10,8 @@ const slice = (from, to) => {
   return script.slice(start, end);
 };
 const helper = slice("  const asNative = ", "  const { keys, setPrototypeOf } = Object;\n");
-const source = slice("  const displayRequests = new Map();\n", "  const PO = window.PerformanceObserver;\n");
+const source = slice("  const displayRequests = new Map();\n", "  const receive = (kind, json) => {\n");
+const gate = slice("  const web = ", "  const isTop = ");
 
 const illegal = "Failed to execute 'getDisplayMedia' on 'MediaDevices': Illegal invocation";
 const badOptions = "Failed to execute 'getDisplayMedia' on 'MediaDevices': The provided value is not of type 'DisplayMediaStreamOptions'.";
@@ -47,6 +48,8 @@ function page({ active = false, policyAllows = true } = {}) {
   });
   const devices = new MediaDevices();
   real.add(devices);
+  const otherWindowDevices = new MediaDevices();
+  real.add(otherWindowDevices);
   class UserActivation {
     get isActive() {
       return active;
@@ -66,6 +69,7 @@ function page({ active = false, policyAllows = true } = {}) {
   )(navigator, document, (kind, data) => sent.push({ kind, data }), Reflect.apply, handlers, DOMException);
   return {
     devices,
+    otherWindowDevices,
     proto: MediaDevices.prototype,
     native: nativeGetDisplayMedia,
     shim: MediaDevices.prototype.getDisplayMedia,
@@ -176,4 +180,29 @@ test("config doesn't wrap a page's own wrapper of the shim a second time", () =>
   assert.equal(p.proto.getDisplayMedia, wrapper);
   p.restore();
   assert.equal(p.proto.getDisplayMedia, wrapper);
+});
+
+test("another window's mediaDevices (a method borrowed across frames) goes to Chrome's own method, where the engine's click rule decides", () => {
+  const p = page({ active: true });
+  p.shim.call(p.otherWindowDevices, { video: true });
+  assert.deepEqual(p.nativeCalls, [p.otherWindowDevices]);
+  assert.deepEqual(p.sent, []);
+});
+
+const runsIn = (protocol, top, origin) =>
+  new Function("location", "window", "self", `${gate}return "bridge";`)({ protocol }, top ? { top: null } : { top: {} }, { origin });
+const topWindow = (protocol, origin) => {
+  const window = {};
+  window.top = window;
+  return new Function("location", "window", "self", `${gate}return "bridge";`)({ protocol }, window, { origin });
+};
+
+test("the bridge runs in web pages and in same-origin about:blank and srcdoc child frames, not in top-level or opaque blank documents", () => {
+  assert.equal(topWindow("https:", "https://meet.example"), "bridge");
+  assert.equal(runsIn("about:", false, "https://meet.example"), "bridge");
+  assert.equal(runsIn("about:", false, "http://127.0.0.1:8080"), "bridge");
+  assert.equal(typeof topWindow("about:", "https://meet.example"), "function");
+  assert.equal(typeof runsIn("about:", false, "null"), "function");
+  assert.equal(typeof runsIn("data:", false, "null"), "function");
+  assert.equal(typeof runsIn("chrome-extension:", false, "chrome-extension://abc"), "function");
 });

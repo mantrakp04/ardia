@@ -5,8 +5,9 @@
 
 #include <string>
 
+#include "content/public/browser/media_stream_request.h"
+
 namespace content {
-struct MediaStreamRequest;
 class WebContents;
 }
 
@@ -26,7 +27,9 @@ void ApplyDesktopCaptureGrant(content::WebContents* contents,
 
 void SetPagesPickDisplayMedia(bool pages_pick);
 bool PagesPickDisplayMedia();
-bool RefusesNativeDisplayCapture(const content::MediaStreamRequest& request);
+bool AnswerNativeDisplayCapture(content::WebContents* contents,
+                                const content::MediaStreamRequest& request,
+                                content::MediaResponseCallback* callback);
 
 }
 

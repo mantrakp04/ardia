@@ -128,7 +128,9 @@ a signature that drifts on either side is a compile error, not a crash at the fi
 (Some changes are direct instead: `ChromeMain` making ArdiaCore's main delegate, the PiP window factory, the `CHECK`s made tolerant of a Browser without a `BrowserView`.) ArdiaCore sets the patches' hooks as
 the browser process starts (`ACMainDelegate::PreSandboxStartup`), in `ardiacore::InstallChromeHooks` (`ac_seams.mm`: the
 browser window factory (H1), reserved and global accelerators, history eligibility, DNR rule matches, the extension
-installed bubble, action popups, the password bubble, the extension install prompt, device choosers, the Cast dialog,
+installed bubble, action popups, the password bubble, the extension install prompt, device choosers, media access
+requests (`g_ardia_media_access_request` in `MediaCaptureDevicesDispatcher`: a page's screen capture without a click is
+refused for every delegate, Document Picture-in-Picture's included), the Cast dialog,
 extension side panels, hidden windows, windows without tabs, docked DevTools' changes, the WebContentsDelegate (H2), and
 `g_ardia_viewless_browsers`, which apply.sh's toast and reading mode hooks read). Hooks that need a started browser are
 installed in one list, `ardiacore::OnEngineStarted` (`ardiacore_engine.mm`: permission prompts, external apps, host

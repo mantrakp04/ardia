@@ -56,7 +56,7 @@ const usesPageA = [
   "cmd-click", "evaluate", "tab-strips", "tab-switch", "status-text", "load-error", "chrome-strings",
   "context-menu-search", "duplicate-and-reopen", "device-chooser", "bluetooth-chooser",
   "bluetooth-settings", "cast-dialog", "cast-routes", "theme-commit", "user-selection",
-  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures",
+  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures", "blank-frame-share", "pip-share-without-click",
   "restore-after-close", "discard-outcomes", "memory-saver", "capture-picture", "unresponsive", "permission-dismissed",
   "save-page", "activate-request", "extension-popup-and-panel", "scroll-zoom", "print-preview",
   "extension-prompts", "traffic-lights-after-profile-switch", "extension-configure",
@@ -332,6 +332,27 @@ const server = createServer((req, res) => {
         const c = new OffscreenCanvas(bitmap.width, bitmap.height), g = c.getContext("2d");
         g.drawImage(bitmap, 0, 0);
         return Array.from(g.getImageData(bitmap.width >> 1, bitmap.height >> 1, 1, 1).data.slice(0, 3));
+      };
+    </script>`));
+  if (url.pathname === "/blank-share")
+    return res.end(page("Blank Share", `<iframe id="blank"></iframe><iframe id="srcdoc" srcdoc="<p>srcdoc</p>"></iframe>`, `<script>
+      window.__share = {};
+      window.__streams = [];
+      window.share = (kind) => {
+        window.__share[kind] = "pending";
+        document.getElementById(kind).contentWindow.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { window.__streams.push(s); window.__share[kind] = "live"; }, (e) => (window.__share[kind] = e.name));
+        return true;
+      };
+    </script>`));
+  if (url.pathname === "/pip-share")
+    return res.end(page("PiP Share", "pip share", `<script>
+      window.openPip = async () => { window.__pip = await documentPictureInPicture.requestWindow({ width: 320, height: 180 }); return "ok"; };
+      window.pipShare = () => {
+        window.__pipShare = "pending";
+        window.__pip.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { s.getTracks().forEach((t) => t.stop()); window.__pipShare = "live"; }, (e) => (window.__pipShare = e.name));
+        return true;
       };
     </script>`));
   if (url.pathname === "/media") return res.end(page("Media", `<audio id="tone" src="/tone.wav" loop></audio>`));
@@ -1489,6 +1510,69 @@ try {
       await closeTab(other.id);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
       await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
+    }
+  });
+
+  await check("blank-frame-share", async () => {
+    const target = await openTab(`${base}/capture-target?blank`, "Capture Target", true);
+    const tab = await openTab(`${base}/blank-share`, "Blank Share");
+    let t = null;
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      t = await pageFor(tab.id, "/blank-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      await until("the srcdoc frame", async () => (await value("document.getElementById('srcdoc').contentDocument?.body?.textContent === 'srcdoc'")) || null, 5000);
+      const asks = async () => (await eventsOf(tab.id)).filter((x) => x.name === "displayMediaRequest").length;
+      const results = {};
+      for (const kind of ["blank", "srcdoc"]) {
+        await until(`no click active before ${kind}`, async () => (await value("navigator.userActivation.isActive")) === false || null, 8000);
+        const asked = await asks();
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})` });
+        const unclicked = await until(`${kind} without a click`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          return v !== "pending" ? v : null;
+        }, 5000);
+        if (unclicked !== "InvalidStateError" || (await asks()) !== asked) throw new Error(`${kind} without a click: ${unclicked}, picker asks ${(await asks()) - asked}`);
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})`, userGesture: true });
+        await until(`Ardia's picker for ${kind}`, async () => ((await asks()) > asked ? true : null), 10000);
+        const source = await evalApp(`return ac.webviews.get("${target.id}").mediaCaptureSourceId()`);
+        if (!source) throw new Error("no capture source id for the target tab");
+        await evalApp(`globalThis.acSharePicker.answerDisplayMedia("${tab.id}", ${JSON.stringify(source)}); return true`);
+        const clicked = await until(`${kind} live`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          if (v !== "pending" && v !== "live") throw new Error(`${kind} with a click: ${v}`);
+          return v === "live" ? v : null;
+        }, 15000);
+        results[kind] = { unclicked, clicked };
+      }
+      return results;
+    } finally {
+      if (t) await cdp(t, "Runtime.evaluate", { expression: "window.__streams.forEach((s) => s.getTracks().forEach((x) => x.stop())); true" }).catch(() => null);
+      await closeTab(tab.id);
+      await closeTab(target.id);
+    }
+  });
+
+  await check("pip-share-without-click", async () => {
+    const tab = await openTab(`${base}/pip-share`, "PiP Share");
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      const t = await pageFor(tab.id, "/pip-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      const opened = (await cdp(t, "Runtime.evaluate", { expression: "openPip()", awaitPromise: true, userGesture: true, returnByValue: true })).result.value;
+      if (opened !== "ok") throw new Error(`requestWindow: ${opened}`);
+      await sleep(5500);
+      await until("the click expired", async () => (await value("navigator.userActivation.isActive")) === false || null, 5000);
+      await cdp(t, "Runtime.evaluate", { expression: "pipShare()" });
+      const result = await until("the PiP window's request answered", async () => {
+        const v = await value("window.__pipShare");
+        return v !== "pending" ? v : null;
+      }, 5000);
+      if (result !== "InvalidStateError") throw new Error(`getDisplayMedia in the PiP window without a click: ${result}`);
+      return { opened, result };
+    } finally {
+      await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`).catch(() => null);
+      await closeTab(tab.id);
     }
   });
 

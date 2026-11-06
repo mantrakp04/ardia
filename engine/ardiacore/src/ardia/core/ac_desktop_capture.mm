@@ -83,10 +83,25 @@ bool PagesPickDisplayMedia() {
   return g_pages_pick_display_media;
 }
 
-bool RefusesNativeDisplayCapture(const content::MediaStreamRequest& request) {
-  return g_pages_pick_display_media &&
-         (IsNativeDisplayCapture(request.video_type) ||
-          IsNativeDisplayCapture(request.audio_type));
+bool AnswerNativeDisplayCapture(content::WebContents* contents,
+                                const content::MediaStreamRequest& request,
+                                content::MediaResponseCallback* callback) {
+  if (!g_pages_pick_display_media || request.request_type == blink::MEDIA_DEVICE_UPDATE ||
+      !(IsNativeDisplayCapture(request.video_type) ||
+        IsNativeDisplayCapture(request.audio_type))) {
+    return false;
+  }
+  content::RenderFrameHost* frame =
+      content::RenderFrameHost::FromID(request.render_process_id, request.render_frame_id);
+  if (frame && frame->HasTransientUserActivation()) {
+    return false;
+  }
+  LOG(WARNING) << "ArdiaCore: refused " << request.security_origin
+               << "'s native display capture without a click";
+  std::move(*callback).Run(blink::mojom::StreamDevicesSet(),
+                           blink::mojom::MediaStreamRequestResult::NO_TRANSIENT_ACTIVATION,
+                           nullptr);
+  return true;
 }
 
 bool IsDesktopCaptureSystemAudioSupported() {
