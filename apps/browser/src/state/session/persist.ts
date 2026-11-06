@@ -17,7 +17,7 @@ import { parseSettingsMeta, sessionWithNewTabLinksInLittleArdia, sessionWithSett
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
-import { profilesAfterSharingSetting } from "../pins/topApps";
+import { sessionWithOwnTopApps } from "../pins/topAppsSplit";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
@@ -126,10 +126,11 @@ type SavedSession = Omit<HydrateData, "history" | "bookmarks" | "downloads"> & {
 };
 
 export function parseSession(json: string | null | undefined): SavedSession | null {
-  const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
-  if (!raw) return null;
+  const saved = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
+  if (!saved) return null;
+  const raw = sessionWithOwnTopApps(saved);
   return {
-    profiles: profilesAfterSharingSetting(byProfile(raw.profiles, profileOk), raw.settings),
+    profiles: byProfile(raw.profiles, profileOk),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
