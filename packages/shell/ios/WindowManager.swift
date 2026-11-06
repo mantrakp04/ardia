@@ -288,14 +288,31 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   private func placeSmall(_ window: NSWindow, size: CGSize?, pointer: NSPoint?) {
     let mouse = pointer ?? NSEvent.mouseLocation
-    let screen = (pointer == nil && NSApp.isActive ? NSApp.keyWindow?.screen : nil)
+    let pointed = (pointer == nil && NSApp.isActive ? NSApp.keyWindow?.screen : nil)
       ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+    let otherAppFrames = Self.otherAppWindowFrames()
+    let showsNoOtherAppFullScreen = { (screen: NSScreen) in Self.displayBounds(screen).map(otherAppFrames.contains) != true }
+    let screen = pointed.map { showsNoOtherAppFullScreen($0) ? $0 : NSScreen.screens.first(where: showsNoOtherAppFullScreen) ?? $0 }
     guard let visible = screen?.visibleFrame else { return window.center() }
     let width = min(max(size?.width ?? 900, window.minSize.width), visible.width)
     let height = min(max(size?.height ?? 640, window.minSize.height), visible.height)
     let lift = min(visible.height * 0.05, (visible.height - height) / 2)
     let origin = NSPoint(x: (visible.midX - width / 2).rounded(), y: (visible.midY - height / 2 + lift).rounded())
     window.setFrame(NSRect(origin: origin, size: NSSize(width: width.rounded(), height: height.rounded())), display: false)
+  }
+
+  private static func displayBounds(_ screen: NSScreen) -> CGRect? {
+    (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID).map(CGDisplayBounds)
+  }
+
+  private static func otherAppWindowFrames() -> [CGRect] {
+    let ownPid = ProcessInfo.processInfo.processIdentifier
+    let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    return windows.compactMap { info in
+      guard info[kCGWindowLayer as String] as? Int == 0, info[kCGWindowOwnerPID as String] as? pid_t != ownPid,
+            let bounds = info[kCGWindowBounds as String] as? NSDictionary else { return nil }
+      return CGRect(dictionaryRepresentation: bounds)
+    }
   }
 
   private func place(_ window: NSWindow, frame: CGRect?) {
