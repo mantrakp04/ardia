@@ -22,7 +22,9 @@ test("a launch with sharing on at start sends one perf_launch with launch_ms, ho
   journeys.launchCommitted();
   journeys.launchCommitted();
   assert.equal(journeys.devJourneys().pending.length, 1);
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  const deadline = Date.now() + 10_000;
+  while (journeys.devJourneys().pending[0]?.usable === undefined && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.notEqual(journeys.devJourneys().pending[0]?.usable, undefined);
   track.markFirstWindow();
   journeys.launchCommitted();
   journeys.emitJourneys();

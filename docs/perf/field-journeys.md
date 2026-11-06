@@ -125,6 +125,7 @@ SELECT properties['$app_version'] AS version, count() AS launches,
   countIf(properties['cold'] = 'true') AS cold_launches
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC
 ```
 
@@ -140,6 +141,7 @@ SELECT properties['$app_version'] AS version, properties['first_of_version'] AS 
   round(quantile(0.5)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p50, round(quantile(0.75)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p75
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version, first_of_version
 ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC, first_of_version DESC
 ```
