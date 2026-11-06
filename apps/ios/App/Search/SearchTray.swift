@@ -52,9 +52,8 @@ struct SearchTray<Drag: Gesture>: View {
       highlightedID = nil
     }
     .onChange(of: app.isIncognito) { _, _ in rebuildModel() }
-    .onChange(of: app.settings.isShowingOnboarding) { _, showing in
-      isFocused = !showing
-    }
+    .onChange(of: app.settings.isShowingOnboarding) { _, _ in isFocused = mayFocus }
+    .onChange(of: app.browse.isVoicePresented) { _, _ in isFocused = mayFocus }
     .sensoryFeedback(.selection, trigger: scrubTicks)
     .sensoryFeedback(.impact(weight: .light), trigger: scrubReleases)
   }
@@ -304,7 +303,11 @@ struct SearchTray<Drag: Gesture>: View {
     if model == nil { rebuildModel() }
     text = request.initialText
     model?.update(request.initialText)
-    if !app.settings.isShowingOnboarding { isFocused = true }
+    if mayFocus { isFocused = true }
+  }
+
+  private var mayFocus: Bool {
+    !app.settings.isShowingOnboarding && !app.browse.isVoicePresented
   }
 
   private func rebuildModel() {
