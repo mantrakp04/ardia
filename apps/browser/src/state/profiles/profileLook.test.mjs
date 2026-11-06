@@ -58,3 +58,10 @@ test("picking an icon from the switcher turns icons on, and clearing one leaves 
   assert.equal(S().profiles.work.icon, null);
   assert.equal(S().settings.profileSwitcherIcons, true);
 });
+
+test("Large is a 13 pt glyph with a 13 pt gap, a 26 pt cell, and Default keeps #140's 11 in 18", async () => {
+  const { switcherIconSizes } = await import("../../components/profiles/tokens.ts");
+  assert.deepEqual(switcherIconSizes.default, { icon: 11, gap: 7 });
+  assert.deepEqual(switcherIconSizes.large, { icon: 13, gap: 13 });
+  assert.deepEqual(Object.keys(switcherIconSizes), ["default", "large"]);
+});

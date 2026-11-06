@@ -18,6 +18,7 @@ import { Page } from "./MockPages";
 import type { SceneOpts } from "./scene";
 import { tracker, useDemo } from "./timeline";
 import { MockSwitcher } from "./Switcher";
+import type { SwitcherIconSize } from "../../profiles/tokens";
 import { mockInk, mockMotion, sceneMs } from "./tokens";
 
 const INSET = { x: 8, top: 5, bottom: 13 };
@@ -98,8 +99,9 @@ function Window({ width, height, settings, accent, theme: custom, focus, switche
   }, [focus]);
   const palette = useBasePaletteValue();
   const look = lookFor(dark, accent, palette);
-  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent, palette }), [shape.addressInSidebar, systemDark, accent, palette]);
-  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent, palette)} accent={accent} custom={custom ?? null} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} />;
+  const iconSize = settings.profileSwitcherIconSize ?? DEFAULT_SETTINGS.profileSwitcherIconSize;
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent, palette, iconSize }), [shape.addressInSidebar, systemDark, accent, palette, iconSize]);
+  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent, palette)} accent={accent} custom={custom ?? null} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} iconSize={iconSize} />;
   return (
     <View style={{ width, height }}>
       <WindowFrame g={g} look={look} edge={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light} style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
@@ -158,9 +160,9 @@ function AccentBackdrop({ g, look, accent, custom }: { g: Geo; look: Look; accen
   );
 }
 
-type WindowStateProps = { g: Geo; look: Look; accent: string; custom: ProfileTheme | null; lay: Animated.Value; addr: Animated.Value; site: Animated.Value; icons: Animated.Value | null };
+type WindowStateProps = { g: Geo; look: Look; accent: string; custom: ProfileTheme | null; lay: Animated.Value; addr: Animated.Value; site: Animated.Value; icons: Animated.Value | null; iconSize: SwitcherIconSize };
 
-const WindowState = memo(function WindowState({ g, look, accent, custom, lay, addr, site, icons }: WindowStateProps) {
+const WindowState = memo(function WindowState({ g, look, accent, custom, lay, addr, site, icons, iconSize }: WindowStateProps) {
   const s = g.s;
   const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a * s, b * s] });
   const fade = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
@@ -189,7 +191,7 @@ const WindowState = memo(function WindowState({ g, look, accent, custom, lay, ad
         {icons ? (
           <>
             <MockSwitcher g={g} look={look} icons={false} style={{ opacity: fade(icons, 1, 0) }} />
-            <MockSwitcher g={g} look={look} icons style={{ opacity: icons }} />
+            <MockSwitcher g={g} look={look} icons size={iconSize} style={{ opacity: icons }} />
           </>
         ) : null}
         <FieldPlate
