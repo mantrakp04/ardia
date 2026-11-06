@@ -231,7 +231,7 @@ struct SearchTray<Drag: Gesture>: View {
   private func rowMenu(_ suggestion: SearchSuggestion) -> some View {
     switch suggestion.kind {
     case .query:
-      Button(isIncognito ? "Search in New Tab" : "Search in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyeglasses") {
+      Button(isIncognito ? "Search in New Tab" : "Search in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyes") {
         leave()
         app.isIncognito.toggle()
         app.openSearch(suggestion.query)
@@ -242,7 +242,7 @@ struct SearchTray<Drag: Gesture>: View {
       }
     default:
       if let link = suggestion.url.flatMap(URL.init(string:)) {
-        Button(isIncognito ? "Open in New Tab" : "Open in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyeglasses") {
+        Button(isIncognito ? "Open in New Tab" : "Open in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyes") {
           openSwitchingMode(link)
         }
         Button("Copy Link", systemImage: "link") {

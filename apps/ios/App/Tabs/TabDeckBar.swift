@@ -46,9 +46,9 @@ struct TabDeckBar: View {
     .contextMenu {
       if isIncognito {
         Button("New Tab", systemImage: "plus", action: newRegularTab)
-        Button("New Incognito Tab", systemImage: "eyeglasses", action: newTab)
+        Button("New Incognito Tab", systemImage: "eyes", action: newTab)
       } else {
-        Button("New Incognito Tab", systemImage: "eyeglasses", action: newIncognitoTab)
+        Button("New Incognito Tab", systemImage: "eyes", action: newIncognitoTab)
         if canReopen {
           Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward", action: reopen)
         }
