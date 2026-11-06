@@ -42,6 +42,8 @@ NSString *PopupOriginText(NSString *url) {
 @implementation ArdiaPopupOriginStrip {
   NSImageView *_glyph;
   NSTextField *_origin;
+  NSButton *_copy;
+  NSString *_url;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -53,8 +55,16 @@ NSString *PopupOriginText(NSString *url) {
   _origin.font = [NSFont systemFontOfSize:12];
   _origin.textColor = NSColor.labelColor;
   _origin.lineBreakMode = NSLineBreakByTruncatingHead;
+  _copy = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"doc.on.doc" accessibilityDescription:@"Copy URL"]
+                             target:self
+                             action:@selector(copyURL)];
+  _copy.bordered = NO;
+  _copy.toolTip = @"Copy URL";
+  _copy.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:11 weight:NSFontWeightMedium];
+  _copy.contentTintColor = NSColor.secondaryLabelColor;
   [self addSubview:_glyph];
   [self addSubview:_origin];
+  [self addSubview:_copy];
   [self setFrameSize:frame.size];
   return self;
 }
@@ -73,7 +83,14 @@ NSString *PopupOriginText(NSString *url) {
   const CGFloat text = ceil(_origin.intrinsicContentSize.height);
   _glyph.frame = NSMakeRect(inset, floor((size.height - glyph) / 2), glyph, glyph);
   const CGFloat left = inset + glyph + gap;
-  _origin.frame = NSMakeRect(left, floor((size.height - text) / 2), MAX(size.width - left - inset, 0), text);
+  _copy.frame = NSMakeRect(MAX(size.width - inset - glyph, left), floor((size.height - glyph) / 2), glyph, glyph);
+  _origin.frame = NSMakeRect(left, floor((size.height - text) / 2), MAX(NSMinX(_copy.frame) - gap - left, 0), text);
+}
+
+- (void)copyURL {
+  if (!_url.length) return;
+  [NSPasteboard.generalPasteboard clearContents];
+  [NSPasteboard.generalPasteboard setString:_url forType:NSPasteboardTypeString];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
@@ -85,6 +102,8 @@ NSString *PopupOriginText(NSString *url) {
 }
 
 - (void)showURL:(NSString *)url security:(NSString *)level {
+  _url = [url copy];
+  _copy.enabled = _url.length > 0;
   _origin.stringValue = PopupOriginText(url);
   NSString *scheme = [NSURLComponents componentsWithString:url].scheme.lowercaseString;
   if (!level) level = [scheme isEqualToString:@"http"] || [scheme isEqualToString:@"ws"] ? @"insecure" : @"none";
