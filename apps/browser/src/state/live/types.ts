@@ -1,4 +1,4 @@
-export type LiveSourceId = "github" | "bitbucket" | "notion" | "confluence" | "gdrive";
+export type LiveSourceId = "github" | "bitbucket" | "gitlab" | "notion" | "confluence" | "gdrive";
 export type LiveFolderKind = "pullRequests" | "documents";
 
 export type LiveFolder = {
@@ -75,9 +75,11 @@ export type FolderStatus = {
 
 export class LiveError extends Error {
   kind: LiveErrorKind;
-  constructor(kind: LiveErrorKind, message: string) {
+  status?: number;
+  constructor(kind: LiveErrorKind, message: string, status?: number) {
     super(message);
     this.kind = kind;
+    this.status = status;
   }
 }
 

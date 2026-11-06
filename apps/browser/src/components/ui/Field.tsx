@@ -1,6 +1,6 @@
 import { OutsidePressArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { useEffect, useRef, type Ref } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
 import { useTheme } from "./theme";
 import { capsule, opacity, proseLineHeight, radius, space, font as typeScale } from "./tokens";
@@ -103,6 +103,7 @@ export function TextField({
   placeholder,
   autoFocus,
   secure,
+  textContentType,
   onSubmit,
   onEscape,
   onBlur,
@@ -118,6 +119,7 @@ export function TextField({
   placeholder?: string;
   autoFocus?: boolean;
   secure?: boolean;
+  textContentType?: TextInputProps["textContentType"];
   onSubmit?: () => void;
   onEscape?: () => void;
   onBlur?: () => void;
@@ -151,6 +153,7 @@ export function TextField({
           selectionColor={theme.selection}
           autoFocus={autoFocus}
           secureTextEntry={secure}
+          textContentType={textContentType}
           enableFocusRing={false}
           selectTextOnFocus={selectOnFocus}
           multiline={multiline}
