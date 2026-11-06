@@ -44,21 +44,23 @@ export function ExtensionSidePanel() {
     entryNow.current = entry;
   });
 
-  const changedAt = useRef<{ state: string; tab?: string }>({ state: "closed" });
+  const lastSeen = useRef<{ state: string; tab?: string }>({ state: "closed" });
 
   useEffect(() => {
     if (panel) setShown(panel);
     else setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelClosedOnTab(windowId, p.tabId)));
     const tab = shownReadyTab(windowId);
-    const before = changedAt.current;
+    const before = lastSeen.current;
     const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
-    changedAt.current = { state, tab };
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (!finished || entryNow.current) return;
       setShown(undefined);
       setKept([]);
     });
   }, [state]);
+  useEffect(() => {
+    lastSeen.current = { state, tab: shownReadyTab(windowId) };
+  });
   useEffect(() => {
     if (!panel) return;
     setShown(panel);

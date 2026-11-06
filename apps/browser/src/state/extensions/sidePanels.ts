@@ -98,6 +98,7 @@ export async function syncSidePanel(windowId: string): Promise<void> {
         : null;
   if (fetches.get(windowId) !== ticket) return;
   if (!shownIn(windowId, extensionId)) return closeSidePanel(windowId);
+  if (!url && readyTab) shownTabs.get(windowId)?.delete(readyTab);
   if (!url) return readyTab ? hideSidePanel(windowId) : closeSidePanel(windowId);
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, tabId: readyTab };

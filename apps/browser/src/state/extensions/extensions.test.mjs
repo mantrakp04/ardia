@@ -126,6 +126,25 @@ test("closing one tab's side panel keeps the other tab's panel", async () => {
   panels.closeSidePanelOnTab(w);
   assert.equal(E().sidePanels[w], undefined, "closing the last tab's panel closes it for the window");
   assert.deepEqual(panels.wantedSidePanels(), []);
+  assert.deepEqual(asked.map((x) => x.tabId), [a, b, a, b, b], "each panel URL was asked for the shown tab");
+});
+
+test("a tab whose panel was taken away no longer keeps the window's panel open", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  void panels.syncSidePanel(w);
+  await answer(2, null);
+  S().activate(a);
+  void panels.syncSidePanel(w);
+  await answer(3, "chrome-extension://ext/panel.html?tabId=a");
+  panels.closeSidePanelOnTab(w);
+  assert.equal(E().sidePanels[w], undefined);
+  assert.deepEqual(panels.wantedSidePanels(), []);
 });
 
 test("opening the side panel again on a tab where it was closed brings it back", async () => {
