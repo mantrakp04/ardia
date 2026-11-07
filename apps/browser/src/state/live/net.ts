@@ -16,6 +16,7 @@ export const endpoints = {
   githubGraphql: mock ? `${mock}/github/graphql` : "https://api.github.com/graphql",
   githubWeb: mock ? `${mock}/github` : "https://github.com",
   bitbucket: mock ? `${mock}/bitbucket/2.0` : "https://api.bitbucket.org/2.0",
+  gitlab: (site: string) => (mock ? `${mock}/gitlab/api/v4` : `${site.replace(/\/+$/, "")}/api/v4`),
   notion: mock ? `${mock}/notion/v1` : "https://api.notion.com/v1",
   confluence: (site: string) => (mock ? `${mock}/confluence` : site.replace(/\/$/, "")),
   googleAuth: mock ? `${mock}/google/auth` : "https://accounts.google.com/o/oauth2/v2/auth",
@@ -30,12 +31,12 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   } catch {
     throw new LiveError("network", "Couldn't connect");
   }
-  if (res.status === 401) throw new LiveError("signedOut", "Signed out");
-  if (res.status === 403 && res.headers.get("x-github-sso")) throw new LiveError("sso", "Needs Single Sign-On");
-  if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) throw new LiveError("rateLimited", "Rate Limit Exceeded");
+  if (res.status === 401) throw new LiveError("signedOut", "Signed out", res.status);
+  if (res.status === 403 && res.headers.get("x-github-sso")) throw new LiveError("sso", "Needs Single Sign-On", res.status);
+  if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) throw new LiveError("rateLimited", "Rate Limit Exceeded", res.status);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new LiveError(res.status === 403 ? "signedOut" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
+    throw new LiveError(res.status === 403 ? "signedOut" : "other", `${res.status} ${text.slice(0, 200)}`.trim(), res.status);
   }
   return (await res.json()) as T;
 }

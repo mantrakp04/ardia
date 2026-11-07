@@ -1,9 +1,11 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
-import { live, setAccount, updateConfig } from "./store";
+import { GITLAB_BATCH, mapGitlab, mergeRequestsQuery, normalizeGitlabSite, stopsApprovalProbe, type Approvals, type RawMR } from "./gitlab";
+import { changeGitlabSite, gitlabSiteRevision, invalidateGitlabRefreshes, live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
+import { useBrowser } from "../browser/store";
 
 export type LiveSource = {
   id: LiveSourceId;
@@ -110,6 +112,115 @@ const bitbucket: LiveSource = {
   },
 };
 
+const gitlabAuth = async () => ({ "PRIVATE-TOKEN": await secret("gitlab") });
+let gitlabConnections = 0;
+function checkGitlabConnection(revision: number) {
+  if (gitlabConnections || revision !== gitlabSiteRevision()) throw new LiveError("signedOut", "GitLab instance changed");
+}
+const gitlabFatal = (error: unknown) => error instanceof LiveError && (error.kind === "rateLimited" || error.kind === "signedOut");
+async function gitlabList(query: string, base: string, headers: { "PRIVATE-TOKEN": string }): Promise<RawMR[]> {
+  return request<RawMR[]>(`${base}/merge_requests?${mergeRequestsQuery(query)}`, { headers });
+}
+
+async function gitlabApprovals(mrs: RawMR[], base: string, headers: { "PRIVATE-TOKEN": string }): Promise<Record<string, Approvals>> {
+  const approvals: Record<string, Approvals> = {};
+  if (!mrs.length) return approvals;
+  for (let i = 0; i < mrs.length; i += GITLAB_BATCH) {
+    const batch = mrs.slice(i, i + GITLAB_BATCH);
+    const results = await Promise.allSettled(
+      batch.map(async (mr) => ({
+        key: `${mr.project_id}:${mr.iid}`,
+        value: await request<Approvals>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, { headers }),
+      })),
+    );
+    let stop = false;
+    for (const result of results) {
+      if (result.status === "fulfilled") approvals[result.value.key] = result.value.value;
+      else if (result.reason instanceof LiveError && result.reason.kind === "rateLimited") throw result.reason;
+      else if (stopsApprovalProbe(result.reason)) stop = true;
+      else if (gitlabFatal(result.reason)) throw result.reason;
+    }
+    if (stop) break;
+  }
+  return approvals;
+}
+
+const gitlab: LiveSource = {
+  id: "gitlab",
+  name: "GitLab",
+  kind: "pullRequests",
+  site: "https://gitlab.com",
+  async fetch(folder) {
+    const revision = gitlabSiteRevision();
+    const { gitlabSite, gitlabUserId } = live().config;
+    checkGitlabConnection(revision);
+    const headers = await gitlabAuth();
+    checkGitlabConnection(revision);
+    if (!gitlabUserId) throw new LiveError("signedOut", "Not signed in");
+    const base = endpoints.gitlab(gitlabSite);
+    const [authored, review] = await Promise.all([
+      folder.filters.authored ? gitlabList("scope=created_by_me", base, headers) : Promise.resolve([]),
+      folder.filters.reviewRequests
+        ? gitlabList(`scope=all&reviewer_id=${encodeURIComponent(gitlabUserId)}`, base, headers)
+        : Promise.resolve([]),
+    ]);
+    const key = (mr: RawMR) => `${mr.project_id}:${mr.iid}`;
+    const unique = [...new Map([...review, ...authored].map((mr) => [key(mr), mr])).values()];
+    const needsDetails = unique.filter((mr) => mr.head_pipeline === undefined);
+    const details = new Map<string, Partial<RawMR>>();
+    if (needsDetails.length) {
+      for (let i = 0; i < needsDetails.length; i += GITLAB_BATCH) {
+        const batch = needsDetails.slice(i, i + GITLAB_BATCH);
+        const results = await Promise.all(
+          batch.map((mr) => request<Partial<RawMR>>(`${base}/projects/${mr.project_id}/merge_requests/${mr.iid}`, { headers }).catch((error: unknown) => {
+            if (gitlabFatal(error)) throw error;
+            return null;
+          })),
+        );
+        results.forEach((detail, index) => {
+          if (detail) details.set(key(batch[index]!), detail);
+        });
+      }
+    }
+    const enrich = (mrs: RawMR[]) =>
+      mrs.map((mr) => {
+        const detail = details.get(key(mr));
+        if (!detail) return mr;
+        return {
+          ...mr,
+          ...(detail.head_pipeline !== undefined ? { head_pipeline: detail.head_pipeline } : {}),
+          ...(detail.changes_count !== undefined ? { changes_count: detail.changes_count } : {}),
+          ...(detail.detailed_merge_status !== undefined ? { detailed_merge_status: detail.detailed_merge_status } : {}),
+          ...(detail.has_conflicts !== undefined ? { has_conflicts: detail.has_conflicts } : {}),
+        };
+      });
+    const approvals = await gitlabApprovals(unique, base, headers);
+    return mapGitlab(enrich(authored), enrich(review), approvals);
+  },
+  async resolveGone(items) {
+    const mrs = items.filter((it) => it.source === "gitlab" && it.pr);
+    if (!mrs.length) return {};
+    const revision = gitlabSiteRevision();
+    const base = endpoints.gitlab(live().config.gitlabSite);
+    checkGitlabConnection(revision);
+    const headers = await gitlabAuth();
+    checkGitlabConnection(revision);
+    const out: Record<string, CompletionState> = {};
+    for (let i = 0; i < mrs.length; i += GITLAB_BATCH) {
+      await Promise.all(
+        mrs.slice(i, i + GITLAB_BATCH).map(async (item) => {
+          const [, projectId, iid] = item.id.split(":");
+          const mr = await request<{ state: string }>(`${base}/projects/${projectId}/merge_requests/${iid}`, { headers }).catch(() => null);
+          if (mr?.state === "merged") out[item.id] = "merged";
+          else if (mr?.state === "closed") out[item.id] = "closed";
+          else if (mr?.state === "opened" && (item.section === "review" || item.section === "team")) out[item.id] = "reviewed";
+        }),
+      );
+    }
+    return out;
+  },
+};
+
 const notionHeaders = (token: string) => ({ Authorization: `Bearer ${token}`, "Notion-Version": "2022-06-28", "Content-Type": "application/json" });
 
 const notion: LiveSource = {
@@ -169,7 +280,7 @@ const gdrive: LiveSource = {
   },
 };
 
-export const SOURCES: Record<LiveSourceId, LiveSource> = { github, bitbucket, notion, confluence, gdrive };
+export const SOURCES: Record<LiveSourceId, LiveSource> = { github, bitbucket, gitlab, notion, confluence, gdrive };
 
 const account = (login: string, name: string | null, avatar: string | null): LiveAccount => ({ login, name, avatar, connectedAt: Date.now() });
 
@@ -216,6 +327,34 @@ export async function connectBitbucket(user: string, token: string) {
   await setSecret("bitbucket", token.trim());
   updateConfig({ bitbucketUser: user.trim() });
   setAccount("bitbucket", account(me.account_id, me.display_name, me.links?.avatar?.href ?? null));
+}
+
+export async function connectGitlab(site: string, token: string): Promise<void> {
+  const base = normalizeGitlabSite(site);
+  let me: { id: number | string; username: string; name: string | null; avatar_url: string | null };
+  try {
+    me = await request<{ id: number | string; username: string; name: string | null; avatar_url: string | null }>(`${endpoints.gitlab(base)}/user`, {
+      headers: { "PRIVATE-TOKEN": token.trim() },
+    });
+  } catch (error) {
+    if (error instanceof LiveError && error.kind === "signedOut") throw new LiveError("signedOut", "GitLab didn't accept the token");
+    throw error;
+  }
+  const changingSite = live().config.gitlabSite !== base;
+  if (changingSite) invalidateGitlabRefreshes();
+  gitlabConnections++;
+  try {
+    await setSecret("gitlab", token.trim());
+    if (changingSite) {
+      const browser = useBrowser.getState();
+      for (const tab of Object.values(browser.tabs)) if (tab.liveItem?.itemId.startsWith("gitlab:")) browser.updateTab(tab.id, { liveItem: undefined });
+    }
+    changeGitlabSite(base);
+    updateConfig({ gitlabSite: base, gitlabUserId: String(me.id) });
+    setAccount("gitlab", account(me.username, me.name || null, me.avatar_url));
+  } finally {
+    gitlabConnections--;
+  }
 }
 
 export async function connectNotion(token: string) {
