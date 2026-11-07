@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 from ardia_cli.browse import snapshot
-from ardia_cli.browse.errors import BrowseError, ConnectionLost
+from ardia_cli.redact import redact
+from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, Gated
 
 SETTLE_LIMIT = 1.5
 FIRST_QUIET = 0.05
@@ -186,6 +187,7 @@ def as_data(report: dict) -> dict:
 
 
 def clean_url(url: str) -> str:
+    url = redact(url)
     try:
         parts = urlsplit(url)
         port = parts.port
@@ -219,6 +221,7 @@ def masked_pair(part: str) -> str:
 
 
 def masked_url(url: str) -> str:
+    url = redact(url)
     try:
         parts = urlsplit(url)
     except ValueError:
@@ -290,6 +293,8 @@ class NetworkWatch:
         try:
             await self.page.send("Network.enable", {"maxTotalBufferSize": WATCH_BUFFER, "maxResourceBufferSize": WATCH_BUFFER})
         except BrowseError as error:
+            if isinstance(error, (CdpError, Gated)):
+                self.enabled_here = False
             await self.stop()
             if isinstance(error, ConnectionLost):
                 raise
@@ -325,10 +330,27 @@ class NetworkWatch:
         self.enabled_here = False
         if self.page.network_on or self.page.session_id is None:
             return
+        cleanup = asyncio.ensure_future(self.disable(self.page.session_id))
+        cancelled = False
+        while not cleanup.done():
+            try:
+                await asyncio.shield(cleanup)
+            except asyncio.CancelledError:
+                cancelled = True
+        if cancelled:
+            raise asyncio.CancelledError
+
+    async def disable(self, session: str):
         try:
-            await asyncio.shield(asyncio.wait_for(self.page.send("Network.disable"), STOP_TIMEOUT))
-        except asyncio.CancelledError:
-            raise
+            await asyncio.wait_for(self.page.send("Network.disable"), STOP_TIMEOUT)
+            return
+        except Exception:
+            pass
+        if self.page.session_id != session:
+            return
+        self.page.detach()
+        try:
+            await asyncio.wait_for(self.page.browser.send("Target.detachFromTarget", {"sessionId": session}), STOP_TIMEOUT)
         except Exception:
             pass
 

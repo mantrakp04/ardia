@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ardia_cli import notes
 from ardia_cli.browse import changes, commands, daemon, fields, paths, snapshot
 from ardia_cli.browse import cli as browse_cli
-from ardia_cli.browse.errors import BrowseError, Usage
+from ardia_cli.browse.errors import BrowseError, Gated, Usage
 from ardia_cli.browse.state import State
 
 SCRATCH = Path.home() / "ardia-scratch"
@@ -209,6 +209,15 @@ class ChangesReport(unittest.TestCase):
         self.assertEqual(changes.clean_url("https://x/reset/k9f8a7s6d5f4g3h2j1k0l9/done"), "https://x/reset/…/done")
         self.assertEqual(changes.clean_url("https://x/api/events/42"), "https://x/api/events/42")
 
+    def test_a_registered_secret_is_masked_before_the_path_is_cut(self):
+        from ardia_cli import redact
+
+        secret = "ControlTokenAllLettersQwertyuiopAsdfgh"
+        redact.add_secret(secret)
+        url = "https://x/" + "a" * 180 + "/" + secret + "/tail"
+        for cleaned in (changes.clean_url(url), changes.masked_url(url), redact.redact(changes.clean_url(url))):
+            self.assertNotIn(secret[:8], cleaned)
+
     def test_page_urls_keep_their_shape_but_lose_sensitive_values(self):
         self.assertEqual(changes.masked_url("https://x/cb?code=abc&state=xyz&q=shoes#access_token=t"), "https://x/cb?code=…&state=…&q=shoes#…")
         self.assertEqual(changes.masked_url("https://x/s?q=a+b&page=2#top"), "https://x/s?q=a+b&page=2#top")
@@ -300,6 +309,67 @@ class NetworkWatchTest(unittest.TestCase):
 
         run(go())
 
+    def test_a_cancelled_stop_finishes_its_disable_before_the_next_command(self):
+        class Tab(WatchPage):
+            enabled = False
+
+            async def send(self, method, params=None, **kwargs):
+                self.sent.append(method)
+                if method == "Network.enable":
+                    self.enabled = True
+                if method == "Network.disable":
+                    await asyncio.sleep(0.3)
+                    self.enabled = False
+                return {}
+
+        async def go():
+            page = Tab()
+            watch = changes.NetworkWatch(page)
+            await watch.start()
+            stopping = asyncio.ensure_future(watch.stop())
+            await asyncio.sleep(0.05)
+            stopping.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await stopping
+            page.network_on = True
+            await page.send("Network.enable")
+            await asyncio.sleep(0.5)
+            return page
+
+        self.assertTrue(run(go()).enabled)
+
+    def test_an_unconfirmed_disable_drops_the_cdp_session(self):
+        detached = []
+
+        class Failing(WatchPage):
+            def __init__(self):
+                super().__init__()
+                self.browser = SimpleNamespace(send=self.browser_send)
+
+            async def send(self, method, params=None, **kwargs):
+                self.sent.append(method)
+                if method == "Network.disable":
+                    raise BrowseError("Network.disable got no answer in 2s")
+                return {}
+
+            async def browser_send(self, method, params=None, session=None, timeout=30):
+                detached.append((method, params))
+                return {}
+
+            def detach(self):
+                self.session_id = None
+
+        async def go():
+            page = Failing()
+            watch = changes.NetworkWatch(page)
+            await watch.start()
+            await watch.stop()
+            return page
+
+        page = run(go())
+        self.assertIsNone(page.session_id)
+        self.assertEqual(detached, [("Target.detachFromTarget", {"sessionId": "S"})])
+
     def test_capture_already_on_is_left_on(self):
         async def go():
             page = WatchPage(network_on=True)
@@ -336,7 +406,8 @@ class NetworkWatchTest(unittest.TestCase):
     def test_refused_network_capture_still_runs_the_action(self):
         class Refusing(WatchPage):
             async def send(self, method, params=None, **kwargs):
-                raise BrowseError("Network.enable isn't allowed for the ardia command")
+                self.sent.append(method)
+                raise Gated(method)
 
         async def go():
             page = Refusing()
@@ -347,6 +418,7 @@ class NetworkWatchTest(unittest.TestCase):
         page, watch = run(go())
         self.assertFalse(watch.watching)
         self.assertEqual(page.state.listeners, [])
+        self.assertEqual(page.sent, ["Network.enable"])
 
 
 class OutputCap(unittest.TestCase):
