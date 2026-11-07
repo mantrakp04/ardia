@@ -402,13 +402,13 @@ class DragInterception:
             raise
         self.page.input.mouse.interception = self
 
-    async def dispatch(self, kind: str, x: float, y: float):
+    async def dispatch(self, kind: str, x: float, y: float, timeout: float = 30):
         await self.page.send("Input.dispatchDragEvent", {"type": kind, "x": int(round(x)), "y": int(round(y)), "data": self.data, "modifiers": 0},
-                             input_event=True)
+                             input_event=True, timeout=timeout)
 
     async def page_started_drag(self) -> bool:
         try:
-            now = await input_counts(self.page, self.source_frame)
+            now = await self.page.call("() => ardiaBrowse.inputWatch()", frame=self.source_frame, timeout=CLEANUP_TIMEOUT)
         except BrowseError:
             return False
         return now.get("dragstart", 0) > self.before_source.get("dragstart", 0)
@@ -439,24 +439,26 @@ class DragInterception:
             self.data = await self.handed_over()
             await self.dispatch("dragEnter", x, y)
         await self.dispatch("dragOver", x, y)
-        self.ended = True
         await self.dispatch("drop", x, y)
+        self.ended = True
 
     async def _clean(self):
         page = self.page
         if page.input.mouse is not None:
             page.input.mouse.interception = None
         try:
-            if self.data is None and not self.ended:
-                if self.intercepted.done():
-                    self.data = self.intercepted.result()
-                elif await self.page_started_drag():
-                    with contextlib.suppress(asyncio.TimeoutError):
-                        self.data = await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
-            if self.data is not None and not self.ended:
-                self.ended = True
-                await self.dispatch("dragCancel", *self.position)
-            await page.input.release_all()
+            try:
+                if self.data is None and not self.ended:
+                    if self.intercepted.done():
+                        self.data = self.intercepted.result()
+                    elif await self.page_started_drag():
+                        with contextlib.suppress(asyncio.TimeoutError):
+                            self.data = await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
+                if self.data is not None and not self.ended:
+                    await self.dispatch("dragCancel", *self.position, timeout=CLEANUP_TIMEOUT)
+                    self.ended = True
+            finally:
+                await page.input.release_held()
         finally:
             if page.drag_intercepted is self.intercepted:
                 page.drag_intercepted = None
@@ -465,7 +467,7 @@ class DragInterception:
 
     async def finish(self):
         if self.cleanup is None:
-            self.cleanup = asyncio.ensure_future(asyncio.wait_for(self._clean(), CLEANUP_TIMEOUT + INTERCEPT_TIMEOUT))
+            self.cleanup = asyncio.ensure_future(self._clean())
             CLEANUPS.add(self.cleanup)
             self.cleanup.add_done_callback(CLEANUPS.discard)
         try:

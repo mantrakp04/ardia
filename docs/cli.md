@@ -219,8 +219,11 @@ source and moves toward the target; when the page starts a drag, Ardia hands it 
 `dragOver` along the rest of the path, then `drop` at the target, and the button is released. With `--humanize` the
 path is the same curved one a mouse drag takes; without it, it's one move. If the page started a drag (a trusted
 `dragstart` that wasn't cancelled) but the handover hasn't come by the release, it waits up to 1.5 s for it. On the way
-out, always, in a bounded (3.5 s) shielded cleanup: a drag that was handed over but not dropped gets a `dragCancel`,
-a held button is released while interception is still on, and only then is interception turned off. Interception
+out, always, one shielded cleanup that the command waits for (also when it's cancelled), so nothing it sends can land
+in the next command: a drag that was handed over but not confirmed dropped (a drop that failed or timed out
+included) gets a `dragCancel`; a held button is released, while interception is still on, even when the cancel
+fails; and only then is interception turned off. Each of its CDP calls is bounded (2 s, plus up to 1.5 s for a
+late handover), instead of one deadline that could cut a release short and leave it running. Interception
 belongs to the CDP session, so it also ends when the session disconnects. If the token policy refuses
 `Input.setInterceptDrags`, the command fails before any input with the gated message (`policy_refused`). It reports
 what happened: `✓ Done (HTML5 drag and drop)`, `the target didn't accept the drop` (the page cancelled no `dragover`, so

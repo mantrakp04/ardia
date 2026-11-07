@@ -207,32 +207,32 @@ class Input:
         target = FocusedKeyTarget(self.page, self.held_keys, element, guard) if element is not None else KeyTarget(self.page, self.held_keys)
         return keyboard_class(target)
 
-    async def release_all(self):
-        async def release():
-            for key, params in list(self.held_keys.items()):
-                up = {key_name: value for key_name, value in params.items() if key_name in ("key", "code", "windowsVirtualKeyCode")}
-                up["type"] = "keyUp"
-                try:
-                    await self.page.send("Input.dispatchKeyEvent", up, input_event=True)
-                finally:
-                    self.held_keys.pop(key, None)
-            if self.mouse is not None and self.mouse.held is not None:
-                button = self.mouse.held
-                x, y = self.mouse._position
-                try:
-                    await self.page.send(
-                        "Input.dispatchMouseEvent",
-                        {"type": "mouseReleased", "x": int(round(x)), "y": int(round(y)), "button": getattr(button, "value", button), "clickCount": 1},
-                        input_event=True,
-                    )
-                finally:
-                    self.mouse.held = None
-                    self.mouse._pressed_button = None
+    async def release_held(self):
+        for key, params in list(self.held_keys.items()):
+            up = {key_name: value for key_name, value in params.items() if key_name in ("key", "code", "windowsVirtualKeyCode")}
+            up["type"] = "keyUp"
+            try:
+                await self.page.send("Input.dispatchKeyEvent", up, input_event=True, timeout=RELEASE_TIMEOUT)
+            finally:
+                self.held_keys.pop(key, None)
+        if self.mouse is not None and self.mouse.held is not None:
+            button = self.mouse.held
+            x, y = self.mouse._position
+            try:
+                await self.page.send(
+                    "Input.dispatchMouseEvent",
+                    {"type": "mouseReleased", "x": int(round(x)), "y": int(round(y)), "button": getattr(button, "value", button), "clickCount": 1},
+                    input_event=True, timeout=RELEASE_TIMEOUT,
+                )
+            finally:
+                self.mouse.held = None
+                self.mouse._pressed_button = None
 
+    async def release_all(self):
         if not self.holding:
             return True
         try:
-            await asyncio.shield(asyncio.wait_for(release(), RELEASE_TIMEOUT))
+            await asyncio.shield(asyncio.wait_for(self.release_held(), RELEASE_TIMEOUT))
             return True
         except BaseException:
             self.held_keys.clear()

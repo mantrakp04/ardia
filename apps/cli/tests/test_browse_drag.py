@@ -1,4 +1,7 @@
 import asyncio
+import json
+import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -6,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli.browse import actions, commands, inputs
+from ardia_cli.browse import actions, commands, inputs, js
 from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 from ardia_cli.browse.page import Element
 
@@ -14,7 +17,8 @@ QUADS = {1: [10, 10, 110, 10, 110, 40, 10, 40], 2: [10, 200, 110, 200, 110, 230,
 
 
 class FakeRenderer:
-    def __init__(self, draggable=True, starts_drag=True, refused=(), failing=()):
+    def __init__(self, draggable=True, starts_drag=True, refused=(), failing=(), delays=None):
+        self.delays = dict(delays or {})
         self.main_frame = "F"
         self.frames = {"F": {"loader": "L"}}
         self.sent = []
@@ -63,6 +67,8 @@ class FakeRenderer:
     async def send(self, method, params=None, input_event=False, timeout=30, mutation=False):
         params = dict(params or {})
         kind = params.get("type")
+        if (method, kind) in self.delays:
+            await asyncio.sleep(self.delays[(method, kind)])
         if (method, kind) in self.failing or (method, params.get("enabled")) in self.failing:
             raise CdpError(method, "boom")
         if method in self.refused:
@@ -147,6 +153,44 @@ class HtmlDragTest(unittest.TestCase):
         self.assertEqual(kinds[-1], False)
         self.assertFalse(page.input.holding)
 
+    def test_cleanup_is_done_before_the_drag_returns(self):
+        page = FakeRenderer(failing={("Input.dispatchDragEvent", "dragOver")},
+                            delays={("Input.dispatchDragEvent", "dragCancel"): 0.25, ("Input.dispatchMouseEvent", "mouseReleased"): 0.1})
+
+        async def scenario():
+            with self.assertRaises(OutcomeUnknown):
+                await actions.drag(page, *ends(page), False)
+            settled = list(page.calls())
+            page.input.mouse.held = "left"
+            page.input.mouse._pressed_button = "left"
+            await asyncio.sleep(0.4)
+            return settled
+
+        with mock.patch.object(actions, "CLEANUP_TIMEOUT", 0.2), mock.patch.object(actions, "INTERCEPT_TIMEOUT", 0.1):
+            settled = asyncio.run(scenario())
+        self.assertEqual(page.input.mouse.held, "left", "a cleanup that outlived the drag released the next command's button")
+        self.assertEqual(page.calls(), settled)
+        kinds = [kind for _, kind in settled]
+        self.assertLess(kinds.index("dragCancel"), kinds.index("mouseReleased"))
+        self.assertEqual(kinds[-1], False)
+
+    def test_failed_drop_is_cancelled_before_the_release(self):
+        page = FakeRenderer(failing={("Input.dispatchDragEvent", "drop")})
+        with self.assertRaises(OutcomeUnknown):
+            asyncio.run(actions.drag(page, *ends(page), False))
+        kinds = [kind for _, kind in page.calls()]
+        self.assertIn("dragCancel", kinds)
+        self.assertLess(kinds.index("dragCancel"), kinds.index("mouseReleased"))
+        self.assertEqual(kinds[-1], False)
+
+    def test_failed_cancel_still_releases_before_disabling(self):
+        page = FakeRenderer(failing={("Input.dispatchDragEvent", "dragOver"), ("Input.dispatchDragEvent", "dragCancel")})
+        with self.assertRaises(OutcomeUnknown):
+            asyncio.run(actions.drag(page, *ends(page), False))
+        kinds = [kind for _, kind in page.calls()]
+        self.assertEqual(kinds[-2:], ["mouseReleased", False])
+        self.assertFalse(page.input.holding)
+
     def test_cancelled_drag_still_cleans_up(self):
         page = FakeRenderer()
 
@@ -208,6 +252,33 @@ class HtmlDragTest(unittest.TestCase):
         self.assertIn("plain mouse drag", commands.drag_text({"html5": True, "started": False, "dropped": False}))
         self.assertIn("didn't accept the drop", commands.drag_text({"html5": True, "started": True, "dropped": False}))
         self.assertEqual(commands.drag_text({"html5": True, "started": True, "dropped": True}), "✓ Done (HTML5 drag and drop)")
+
+
+WATCH_UNDER_NODE = """
+const vm = require("vm");
+const listeners = {};
+const context = { addEventListener: (type, listener) => (listeners[type] = listeners[type] || []).push(listener), document: { activeElement: null } };
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(process.argv[1], context);
+const watch = () => vm.runInContext("ardiaBrowse.inputWatch().dragstart", context);
+const start = (prevented) => {
+  const event = { isTrusted: true, defaultPrevented: false };
+  listeners.dragstart.forEach((listener) => listener(event));
+  event.defaultPrevented = prevented;
+};
+const seen = [watch()];
+for (const prevented of [true, true, false, true, false]) { start(prevented); seen.push(watch()); }
+console.log(JSON.stringify(seen));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "needs node to run the isolated-world library")
+class DragStartCountTest(unittest.TestCase):
+    def test_only_starts_the_page_let_through_count(self):
+        done = subprocess.run(["node", "-e", WATCH_UNDER_NODE, js.LIBRARY], capture_output=True, text=True, timeout=30)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout), [0, 0, 0, 1, 1, 2])
 
 
 class BackgroundTabTest(unittest.TestCase):

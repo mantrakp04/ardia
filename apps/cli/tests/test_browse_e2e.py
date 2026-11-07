@@ -227,12 +227,13 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(self.drag_report(session)["order"], ["delta", "bravo", "charlie", "alpha"])
         refused = json.loads(self.browse("drag", "#bravo", "#refuse", "--json", session=session).stdout)["data"]
         self.assertEqual((refused["html5"], refused["started"], refused["dropped"]), (True, True, False))
-        plain = self.browse("drag", "#locked", "#alpha", session=session).stdout
-        self.assertIn("plain mouse drag", plain)
+        for _ in range(2):
+            plain = self.browse("drag", "#locked", "#alpha", session=session).stdout
+            self.assertIn("plain mouse drag", plain)
         state = self.drag_report(session)
         self.assertEqual(state["order"], ["delta", "bravo", "charlie", "alpha"])
-        self.assertEqual(state["log"][-2:], ["dragend:bravo:none", "prevented"])
-        self.assertEqual(state["clicks"], 1, "only the plain mouse drag should click")
+        self.assertEqual(state["log"][-3:], ["dragend:bravo:none", "prevented", "prevented"])
+        self.assertEqual(state["clicks"], 2, "only the plain mouse drags should click")
         self.browse("drag", "#charlie", "#delta", session=session)
         self.assertEqual(self.drag_report(session)["order"], ["charlie", "delta", "bravo", "alpha"])
 
