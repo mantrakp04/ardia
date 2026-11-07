@@ -1,7 +1,7 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
 import { shownPageId } from "../peek/peek";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -17,9 +17,13 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
-export function takeSidePanelFocus(windowId: string, opened: number): boolean {
+const sameCard = (a: SidePanel, b: SidePanel) => a.extensionId === b.extensionId && a.pageProfile === b.pageProfile && a.url === b.url && a.opened === b.opened;
+
+export function takeSidePanelFocus(windowId: string, panel: SidePanel): boolean {
   const owed = focusOwed.get(windowId);
-  if (owed?.opened !== opened || useExtensions.getState().sidePanelLookups[windowId]) return false;
+  const { sidePanels, sidePanelLookups } = useExtensions.getState();
+  const now = sidePanels[windowId];
+  if (owed?.opened !== panel.opened || sidePanelLookups[windowId] || !now || !sameCard(now, panel)) return false;
   focusOwed.delete(windowId);
   return owed.page === shownPageId(useBrowser.getState(), windowId);
 }

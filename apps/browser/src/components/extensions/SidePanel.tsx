@@ -97,7 +97,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
   const [loaded, setLoaded] = useState(false);
   const lookingUp = useExtensions((e) => !!e.sidePanelLookups[windowId]);
   useEffect(() => {
-    if (loaded && takeSidePanelFocus(windowId, opened)) void web.current?.focus();
+    if (loaded && takeSidePanelFocus(windowId, panel)) void web.current?.focus();
   }, [loaded, opened, lookingUp]);
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";

@@ -29,7 +29,7 @@ const open = async (w, extensionId = "one") => {
   return E().sidePanels[w];
 };
 
-const take = (w, panel) => panels.takeSidePanelFocus(w, panel.opened);
+const take = (w, panel) => panels.takeSidePanelFocus(w, panel);
 
 function holdLookups() {
   const answer = native.extensionAnswers.sidePanelUrl;
@@ -110,6 +110,7 @@ test("a card that loads while a same-tab page lookup is in flight leaves focus f
   await sync;
   const second = E().sidePanels[w];
   assert.equal(second.url, "chrome-extension://one/a2.html");
+  assert.equal(take(w, first), false, "the replaced card, still on screen until the next render, retries and is refused");
   assert.equal(take(w, second), true);
   panels.closeSidePanel(w);
 });
