@@ -134,10 +134,26 @@ public class DevModule: Module {
       let count = Int(probe["steps"] ?? 60), dx = CGFloat(probe["dx"] ?? 3), dy = CGFloat(probe["dy"] ?? 0)
       let interval = (probe["intervalMs"] ?? 8) / 1000
       if let x = probe["x"], let top = probe["top"] {
-        WindowMoveProbe.drag(window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
+        let settle = (probe["settleMs"] ?? 200) / 1000, keep = (probe["keep"] ?? 0) != 0, replayStale = (probe["replayStale"] ?? 0) != 0
+        WindowMoveProbe.drag(
+          window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval, settle: settle, keep: keep, replayStale: replayStale
+        ) {
+          promise.resolve($0)
+        }
       } else {
         WindowMoveProbe.steps(window, count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
       }
+    }.runOnQueue(.main)
+
+    AsyncFunction("devWindowReplayAfterMove") { (id: String, rect: [Double]) -> [String: Any] in
+      guard let window = WindowManager.shared.window(id), rect.count == 4 else { return ["error": "no window \(id)"] }
+      return WindowMoveProbe.replayAfterMove(window, NSRect(x: rect[0], y: rect[1], width: rect[2], height: rect[3]))
+    }.runOnQueue(.main)
+
+    AsyncFunction("devSetWindowFrame") { (id: String, rect: [Double]) -> [Double] in
+      guard let window = WindowManager.shared.window(id), rect.count == 4 else { return [] }
+      window.setFrame(NSRect(x: rect[0], y: rect[1], width: rect[2], height: rect[3]), display: false)
+      return [window.frame.minX, window.frame.minY, window.frame.width, window.frame.height]
     }.runOnQueue(.main)
 
     AsyncFunction("devSnapshotWindow") { (windowId: String, path: String, transparent: Bool?) -> Bool in

@@ -220,7 +220,7 @@ export const writtenSeq = (state: ScopeState) => state.seq - (state.journal?.len
 
 export async function pull(state: ScopeState, transport: Transport, scope: string, clock: Clock, now: number, options: ScopeOptions = {}) {
   const { damagedGiveUp } = { ...DEFAULTS, ...options };
-  const listing = await transport.read(scope, Object.keys(state.files));
+  const listing = await transport.read(scope, Object.keys(state.files).filter((id) => state.files[id]!.k !== "bad"));
   const changed = new Set<string>();
   const parsed: { id: string; file: SyncFile }[] = [];
   const unreadable = listing.damaged.map(({ id }) => id);

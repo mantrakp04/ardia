@@ -16,6 +16,7 @@ import { SharePicker } from "../media/SharePicker";
 import { CastPicker } from "../media/CastPicker";
 import { DEVICE_CHOOSER_WIDTH, DeviceChooser } from "../site/DeviceChooser";
 import { NavigationOverlays } from "./SwipeOverlay";
+import { HISTORY_MENU_WIDTH, HistoryPopover } from "./HistoryPopover";
 import { TabWebView } from "./TabWebView";
 
 const fitLeft = (urlLeft: number, paneWidth: number, promptWidth: number) => Math.max(POPOVER_MARGIN, Math.min(urlLeft, paneWidth - promptWidth - POPOVER_MARGIN));
@@ -65,13 +66,13 @@ export function PageOverlays({
       <SharePicker tabId={tabId} paneWidth={width} />
       {!newTabShown && <DeviceChooser tabId={tabId} left={fitLeft(geometry.urlLeft, width, DEVICE_CHOOSER_WIDTH)} top={POPOVER_MARGIN} />}
       <CastPicker tabId={tabId} paneWidth={width} />
-      <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} />
+      <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} historyMenu={popovers} />
       <SelectionPopover tabId={tabId} zoom={zoom} />
     </>
   );
 }
 
-export function BesidePeekPopovers({ tabId, left, top, room }: { tabId: string; left: number; top: number; room: number }) {
+export function BesidePeekPopovers({ tabId, windowId, left, top, room }: { tabId: string; windowId: string; left: number; top: number; room: number }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const fit = (width: number) => ({ left: fitLeft(left, room, width), top });
   return (
@@ -79,6 +80,7 @@ export function BesidePeekPopovers({ tabId, left, top, room }: { tabId: string; 
       <SiteControls tabId={tabId} open={popover === "siteControls"} {...fit(SITE_PANEL.width)} />
       {popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...fit(BLOCKED_POPUPS_WIDTH)} />}
       <ZoomPopover tabId={tabId} open={popover === "zoom"} {...fit(ZOOM_POPOVER_WIDTH)} />
+      <HistoryPopover tabId={tabId} windowId={windowId} top={top} left={() => fitLeft(left, room, HISTORY_MENU_WIDTH)} />
     </>
   );
 }

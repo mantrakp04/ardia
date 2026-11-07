@@ -46,8 +46,10 @@ EDITING_SHORTCUTS = {
 
 
 def humanize_default(env: dict) -> bool:
-    value = (env.get("AGENT_BROWSER_NO_HUMANIZE") or "").strip().lower()
-    return value in ("", "0", "false", "no", "off")
+    def on(name: str) -> bool:
+        return (env.get(name) or "").strip().lower() not in ("", "0", "false", "no", "off")
+
+    return on("AGENT_BROWSER_HUMANIZE") and not on("AGENT_BROWSER_NO_HUMANIZE")
 
 
 def parse_key(name: str) -> tuple[str, str, int, str | None]:
@@ -102,9 +104,22 @@ def human_mouse_class():
 
     class HumanMouse(Mouse):
         held = None
+        interception = None
+
+        async def _dispatch_move(self, x: float, y: float, *, wait: bool = True) -> None:
+            interception = self.interception if self._pressed_button is not None else None
+            if interception is not None and interception.data is not None:
+                await interception.over(x, y)
+                self._position = (x, y)
+                return
+            await super()._dispatch_move(x, y, wait=wait)
+            if interception is not None:
+                await interception.moved(x, y)
 
         async def _dispatch_button(self, event_type, button, click_count: int = 1):
             pressed = getattr(event_type, "value", event_type) == "mousePressed"
+            if not pressed and self.interception is not None:
+                await self.interception.release(*self._position)
             if pressed:
                 self.held = button
             await super()._dispatch_button(event_type, button, click_count)
@@ -192,32 +207,32 @@ class Input:
         target = FocusedKeyTarget(self.page, self.held_keys, element, guard) if element is not None else KeyTarget(self.page, self.held_keys)
         return keyboard_class(target)
 
-    async def release_all(self):
-        async def release():
-            for key, params in list(self.held_keys.items()):
-                up = {key_name: value for key_name, value in params.items() if key_name in ("key", "code", "windowsVirtualKeyCode")}
-                up["type"] = "keyUp"
-                try:
-                    await self.page.send("Input.dispatchKeyEvent", up, input_event=True)
-                finally:
-                    self.held_keys.pop(key, None)
-            if self.mouse is not None and self.mouse.held is not None:
-                button = self.mouse.held
-                x, y = self.mouse._position
-                try:
-                    await self.page.send(
-                        "Input.dispatchMouseEvent",
-                        {"type": "mouseReleased", "x": int(round(x)), "y": int(round(y)), "button": getattr(button, "value", button), "clickCount": 1},
-                        input_event=True,
-                    )
-                finally:
-                    self.mouse.held = None
-                    self.mouse._pressed_button = None
+    async def release_held(self):
+        for key, params in list(self.held_keys.items()):
+            up = {key_name: value for key_name, value in params.items() if key_name in ("key", "code", "windowsVirtualKeyCode")}
+            up["type"] = "keyUp"
+            try:
+                await self.page.send("Input.dispatchKeyEvent", up, input_event=True, timeout=RELEASE_TIMEOUT)
+            finally:
+                self.held_keys.pop(key, None)
+        if self.mouse is not None and self.mouse.held is not None:
+            button = self.mouse.held
+            x, y = self.mouse._position
+            try:
+                await self.page.send(
+                    "Input.dispatchMouseEvent",
+                    {"type": "mouseReleased", "x": int(round(x)), "y": int(round(y)), "button": getattr(button, "value", button), "clickCount": 1},
+                    input_event=True, timeout=RELEASE_TIMEOUT,
+                )
+            finally:
+                self.mouse.held = None
+                self.mouse._pressed_button = None
 
+    async def release_all(self):
         if not self.holding:
             return True
         try:
-            await asyncio.shield(asyncio.wait_for(release(), RELEASE_TIMEOUT))
+            await asyncio.shield(asyncio.wait_for(self.release_held(), RELEASE_TIMEOUT))
             return True
         except BaseException:
             self.held_keys.clear()

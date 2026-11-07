@@ -1,0 +1,66 @@
+{
+  "from": "2026-11-06",
+  "to": "2026-11-07",
+  "build": "Ardia dev build with the ardia command (dev), not released yet",
+  "effort": "high",
+  "task": {
+    "id": "calendar",
+    "title": "Add these five November events to my Board calendar",
+    "app": "a calendar web app",
+    "checks": 5,
+    "source": "the chore from Aside’s launch video, re-pointed at a web calendar"
+  },
+  "models": [
+    {
+      "id": "sol",
+      "model": "GPT-6.1 Sol",
+      "versus": { "ardia": "sol-ardia-notes", "aside": "sol-aside-front", "cold": "sol-ardia-cold" },
+      "runs": [
+        { "id": "sol-ardia-cold", "agent": "Ardia + Codex", "ardia": true, "mode": "Hidden, cold", "runs": 5, "seconds": 24.0, "tokens": 83000 },
+        { "id": "sol-ardia-notes", "agent": "Ardia + Codex", "ardia": true, "mode": "Hidden, with notes", "runs": 3, "seconds": 23.0, "tokens": 83000 },
+        { "id": "sol-aside-front", "agent": "Aside", "ardia": false, "mode": "In front", "runs": 3, "seconds": 57.3, "tokens": 181000 },
+        { "id": "sol-aside-covered", "agent": "Aside", "ardia": false, "mode": "Window covered", "runs": 1, "seconds": 54.4, "tokens": 241000 },
+        { "id": "sol-aside-hidden", "agent": "Aside", "ardia": false, "mode": "Hidden", "runs": 4, "seconds": 120.5, "tokens": 206000 }
+      ]
+    },
+    {
+      "id": "opus",
+      "model": "Opus 5.5",
+      "versus": { "ardia": "opus-ardia-notes", "aside": "opus-aside-memory", "cold": "opus-ardia-cold" },
+      "runs": [
+        { "id": "opus-ardia-cold", "agent": "Ardia + Claude Code", "ardia": true, "mode": "Hidden, cold", "runs": 5, "seconds": 25.5, "tokens": 141000 },
+        { "id": "opus-ardia-notes", "agent": "Ardia + Claude Code", "ardia": true, "mode": "Hidden, with notes", "runs": 3, "seconds": 23.5, "tokens": 123000 },
+        { "id": "opus-aside-memory", "agent": "Aside", "ardia": false, "mode": "In front, with its memory", "runs": 3, "seconds": 29.2, "tokens": 148000 },
+        { "id": "opus-aside-hidden", "agent": "Aside", "ardia": false, "mode": "Hidden", "runs": 5, "seconds": 78.6, "tokens": 272000 }
+      ]
+    },
+    {
+      "id": "astra",
+      "model": "GPT-6 Astra",
+      "runs": [
+        { "id": "astra-aside-hidden", "agent": "Aside", "ardia": false, "mode": "Hidden", "runs": 4, "seconds": 115.2, "tokens": 266000 }
+      ]
+    }
+  ],
+  "fresh": {
+    "id": "expenses",
+    "title": "Finish the October expense report from receipts in a 200-email inbox",
+    "traps": [
+      "A canvas-only receipt",
+      "A cross-origin iframe",
+      "EUR to convert",
+      "A refunded charge",
+      "A September decoy",
+      "A custom date picker",
+      "A shadow-DOM category picker",
+      "A masked amount field",
+      "A wrong draft line",
+      "Drag-only reordering",
+      "Type SUBMIT to confirm"
+    ],
+    "runs": [
+      { "agent": "Ardia + Claude Code", "model": "Opus 5.5", "passed": 5, "of": 5, "seconds": 170, "tokens": 1800000 },
+      { "agent": "Ardia + Codex", "model": "GPT-6.1 Sol", "passed": 5, "of": 5, "seconds": 162, "tokens": 1370000 }
+    ]
+  }
+}

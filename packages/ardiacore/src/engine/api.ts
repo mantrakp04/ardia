@@ -74,6 +74,7 @@ export type EngineCalls = {
   "permissions.removeExternalAppAllowance": [Profile & { origin: string; scheme: string }, null];
   "permissions.devExternalLaunches": [{}, Record<string, unknown>[]];
 
+  "profiles.loaded": [{}, { profiles: string[] }];
   "profiles.release": [Profile, null];
   "profiles.deleteData": [Profile, { remaining: string[] }];
   "profiles.clearBrowsingData": [Profile & { types: BrowsingDataType[]; since: number | null }, null];
@@ -183,6 +184,7 @@ export type EngineCalls = {
   "webKit.devTouchStore": [Profile, boolean];
   "webKit.devHoldStore": [Profile, null];
   "webKit.devParkedTransfers": [{}, string[]];
+  "webKit.devContentBlocker": [{}, Record<string, unknown>];
   "webKit.passkeyAccess": [{}, PasskeyAccess];
   "webKit.requestPasskeyAccess": [{}, PasskeyAccess];
 };
@@ -206,6 +208,7 @@ export type EngineEvents = {
   "extensions.sync": { profile: string } & ExtensionSyncIntent;
   "history.changed": HistoryChangedBatch;
   "bookmarks.changed": { profile: string };
+  "profiles.loaded": { profile: string };
   "media.deviceChooser": DeviceChooser;
   "media.castDialog": CastDialog;
   "media.castRoutes": { profile: string; routes: CastRoute[] };

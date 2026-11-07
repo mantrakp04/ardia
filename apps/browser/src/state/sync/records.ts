@@ -7,12 +7,14 @@ export type DeviceTabs = { n: string; tabs: { u: string; t: string }[] };
 export type BookmarkValue = { k: "u" | "f"; p: string; t: string; u?: string; a: number; pos: string };
 export type HistoryValue = { t: string; n: number; vt: number[] };
 export type PasswordValue = { o: string; u: string; s: string };
+export type TopAppsRecord = { on: boolean };
 
 export const SHARE = "share:";
 export const DEVICE = "dev:";
 export const DEVICE_TABS = "tabs:";
 export const PROFILE = "prof:";
 export const PROFILE_THEME = "pth:";
+export const PROFILE_TOP_APPS = "pta:";
 export const BOOKMARK = "bm:";
 export const HISTORY = "h:";
 
@@ -41,3 +43,5 @@ export const passwordValue = decoder<PasswordValue>((v) => isString(v.o) && isSt
 export const profileRecord = decoder<ProfileRecord>(
   (v) => isString(v.n) && isString(v.c) && (v.i === undefined || v.i === null || isString(v.i)) && (v.d === undefined || v.d === true) && (v.o === undefined || v.o === true) && (v.th === undefined || v.th === null || isFields(v.th)),
 );
+
+export const topAppsRecord = decoder<TopAppsRecord>((v) => typeof v.on === "boolean");

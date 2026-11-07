@@ -6,6 +6,7 @@ import { bookmarkRoots, bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../
 import { historyOf, historyViewOf, MAX_HISTORY, MAX_VISIT_TIMES, withHistoryList } from "../history/history";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
+import { profileOpened } from "../profiles/profileLoading";
 import { isPeekTab } from "../peek/peek";
 import { fromSync } from "../pins/pinOrderChoices";
 import { fromLegacy } from "../../lib/legacy";
@@ -297,6 +298,7 @@ export function passwordsAdapter(profileId: string, logins: SealedPasswords = na
   const profile = () => engineProfile(useBrowser.getState(), profileId);
   const keyOf = (origin: string, username: string) => `pws:${origin}\n${username}`;
   const read = async () => {
+    if (!profileOpened(profile())) return null;
     const list = await logins.read(profile());
     if (!list) return null;
     return new Map(list.map((l) => [keyOf(l.origin, l.username), { o: l.origin, u: l.username, s: l.sealed, c: l.created }] as const));

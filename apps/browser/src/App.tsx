@@ -1,6 +1,6 @@
 import { WindowBackdrop } from "./components/ui";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { CommandPanel } from "./components/omnibox/CommandPanel";
 import { ContentCard } from "./components/window/ContentCard";
 import { BookmarkDialog } from "./components/bookmarks/BookmarkDialog";
@@ -8,6 +8,7 @@ import { EditBookmarkDialog } from "./components/bookmarks/EditBookmarkDialog";
 import { FolderMenus } from "./components/bookmarks/FolderMenus";
 import { ExtensionOverlays } from "./components/extensions/ExtensionOverlays";
 import { ExtensionSidePanel } from "./components/extensions/SidePanel";
+import { CrxDropArea } from "./components/extensions/CrxDropArea";
 import { DownloadMagnet, DownloadsPopover } from "./components/downloads/Downloads";
 import { UtilityWindow } from "./components/settings/UtilityWindow";
 import { isUtilityWindowId } from "./state/settings/settingsWindows";
@@ -67,7 +68,7 @@ function BrowserWindow() {
   );
 
   return (
-    <View style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <CrxDropArea style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
       <WindowProfile />
       <ProfileTint />
@@ -94,6 +95,6 @@ function BrowserWindow() {
       <CreateProfileHost />
       <SidebarOverlays windowWidth={width} />
       <OnboardingOverlay />
-    </View>
+    </CrxDropArea>
   );
 }

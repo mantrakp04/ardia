@@ -43,6 +43,9 @@ export function startDevHarness() {
     get history(): typeof import("../../state/history/history") {
       return require("../../state/history/history");
     },
+    get profileLoading(): typeof import("../../state/profiles/profileLoading") {
+      return require("../../state/profiles/profileLoading");
+    },
     get checkIn(): typeof import("../../state/onboarding/defaultBrowserCheckIn") {
       return require("../../state/onboarding/defaultBrowserCheckIn");
     },

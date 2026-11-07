@@ -153,7 +153,11 @@ Reading (`SyncVault.read`) handles files that aren't there in full yet:
   `ubiquitousItemDownloadingStatus` isn't current) are reported as pending, and
   `startDownloadingUbiquitousItem` is asked for them.
 - Files mid-copy (Dropbox, SMB) and empty files fail to open. They're reported as damaged, with
-  their age, and retried next cycle; a file that still fails after a day is given up on.
+  their age, and retried next cycle; a file that still fails after a day is given up on: it stops holding anything
+  back (no damage, no download counted), but every pull still asks for it and reads it once it opens, so a file that
+  arrives whole later is applied like a late file. A given-up file used to be skipped for good: a Mac that joined
+  while the other Mac's files couldn't be read for a day paired on its own and never listed that Mac's profiles,
+  while the other Mac listed its Personal (#514, tested in `fileHealth.test.ts` and `sharedData.test.mjs`).
 - Everything else is read in a coordinated read.
 - Nothing half-arrived is ever applied.
 

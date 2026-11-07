@@ -34,7 +34,7 @@ final class DevDraggingInfo: NSObject, NSDraggingInfo {
 
 enum DevDragSession {
   private static var pasteboard: NSPasteboard?
-  private static weak var target: FileDropView?
+  private static weak var target: NSView?
   private static var sequence = 0
 
   static func act(windowId: String, action: String, x: Double, y: Double, payload: [String: Any]) -> String {
@@ -64,37 +64,38 @@ enum DevDragSession {
     let types = Set(board.types ?? [])
     var under = frameView.hitTest(location)
     while let view = under, Set(view.registeredDraggedTypes).isDisjoint(with: types) { under = view.superview }
-    let ours = under as? FileDropView
     let name = { (view: NSView?) in view.map { NSStringFromClass(type(of: $0)) } ?? "none" }
     func finish() {
       pasteboard = nil
       target = nil
     }
+    let current = target as NSDraggingDestination?
     if action == "cancel" || action == "end" {
-      if action == "cancel" { target?.draggingExited(info) }
-      target?.draggingEnded(info)
+      if action == "cancel" { current?.draggingExited?(info) }
+      current?.draggingEnded?(info)
       finish()
       return action == "cancel" ? "cancelled" : "ended"
     }
     var operation: NSDragOperation = []
-    if ours !== target {
-      target?.draggingExited(info)
-      target = ours
-      operation = ours?.draggingEntered(info) ?? []
+    let destination = under as NSDraggingDestination?
+    if under !== target {
+      current?.draggingExited?(info)
+      target = under
+      operation = destination?.draggingEntered?(info) ?? []
     } else {
-      operation = ours?.draggingUpdated(info) ?? []
+      operation = destination?.draggingUpdated?(info) ?? []
     }
     guard action == "drop" else { return "\(name(under)) \(operation.rawValue)" }
     defer { finish() }
-    guard let view = ours, !operation.isEmpty else {
-      ours?.draggingExited(info)
-      ours?.draggingEnded(info)
+    guard let view = under, let destination, !operation.isEmpty else {
+      destination?.draggingExited?(info)
+      destination?.draggingEnded?(info)
       return "\(name(under)) refused"
     }
-    guard view.prepareForDragOperation(info) else { return "\(name(view)) refused prepare" }
-    let performed = view.performDragOperation(info)
-    view.concludeDragOperation(info)
-    view.draggingEnded(info)
+    guard destination.prepareForDragOperation?(info) ?? true else { return "\(name(view)) refused prepare" }
+    let performed = destination.performDragOperation?(info) ?? false
+    destination.concludeDragOperation?(info)
+    destination.draggingEnded?(info)
     return "\(name(view)) \(performed ? "performed" : "declined")"
   }
 }

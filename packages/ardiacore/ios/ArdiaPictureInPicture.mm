@@ -198,6 +198,8 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"alpha" : @(window.alphaValue),
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
+      @"subrole" : window.accessibilitySubrole ?: @"",
+      @"collectionBehavior" : @(window.collectionBehavior),
       @"styled" : @(controller != nil),
       @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
       @"cornerRadius" : @(content.cornerRadius),
@@ -229,6 +231,7 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
   else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
   else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"keepOnTop"]) controller.keepOnTop = !controller.keepOnTop;
   else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];

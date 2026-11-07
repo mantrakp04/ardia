@@ -165,6 +165,12 @@ export const toolRows = {
           keywords: ["sleep", "sleeping tabs", "moderate", "balanced", "maximum", "memory", "discard", "hibernate", "inactive tabs"],
         },
         batterySaver: { advanced: true, title: "Battery Saver", keywords: ["energy", "energy saver", "low power mode", "performance", "power"] },
+        loadProfilesWhenOpened: {
+          advanced: true,
+          title: "Load profiles when opened",
+          description: "A profile, its extensions and its data load the first time you open it, not all at launch, so Ardia uses less memory. Takes effect the next time you open Ardia.",
+          keywords: ["profiles", "memory", "ram", "startup", "launch", "extensions", "lazy", "defer", "performance"],
+        },
       },
     },
     {

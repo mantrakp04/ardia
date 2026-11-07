@@ -64,6 +64,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const backdrop = useMemo(() => opaqueCard(theme), [theme.card, theme.windowTint[0], theme.windowTint[1]]);
 
   const lastPage = useRef<string | null>(null);
+  const restore = useRef<string | null>(null);
   const pending = useRef<string | null>(navigation?.url ?? (adoptId ? (tab()?.url ?? null) : null));
 
   const seq = navigation?.seq;
@@ -149,6 +150,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
           adopted.current = url;
           updateTab(tabId, { page: loadedPage(navigationTo(url)) });
         }
+        if (lastPage.current === null && target !== null && !target.startsWith("about:")) restore.current = target;
+        if (!isLoading || (committedUrl && !isBlank(committedUrl))) restore.current = null;
+        const restoring = restore.current !== null;
         if (target !== null && isBlank(url) && !target.startsWith("about:") && untouched) {
           updateLive(tabId, { isLoading: true });
           return;
@@ -165,7 +169,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
           patchPage(tabId, { newTabShown: null });
         }
         if (fromNewTab.current && url && !isBlank(url)) patchPage(tabId, { backToNewTab: true });
-        updateTab(tabId, { url, title }, { isLoading, canGoBack, canGoForward, themeColor: shownTheme });
+        const shownTitle = !title && restoring ? (tab()?.title ?? title) : title;
+        updateTab(tabId, { url, title: shownTitle }, { isLoading, canGoBack, canGoForward, themeColor: shownTheme });
         dropOutlivedFavicon(tabId, url, isLoading);
         if (engine === "webkit") noteWebKitPage(tabId, { url, title, isLoading, committedUrl: committedUrl ?? "" });
         if (lastPage.current !== null && withoutFragment(url) !== lastPage.current) leftPage(tabId, url, lastPage.current, engine, peekOf !== undefined);

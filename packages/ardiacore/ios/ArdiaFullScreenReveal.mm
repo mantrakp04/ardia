@@ -199,6 +199,11 @@ void SuppressFullScreenTitlebar(NSWindow *window) {
   InstallTitlebarHeights([window.contentView.superview class]);
 }
 
+double FullScreenRevealAmount(NSWindow *window) {
+  ArdiaFullScreenReveal *reveal = window ? objc_getAssociatedObject(window, kRevealKey) : nil;
+  return reveal && IsWindowFullScreen(window) ? reveal->_amount : 0;
+}
+
 CGFloat FullScreenRevealHeight(NSWindow *window) {
   ArdiaFullScreenReveal *reveal = window ? objc_getAssociatedObject(window, kRevealKey) : nil;
   return reveal ? reveal->_height : 0;
@@ -251,12 +256,14 @@ NSDictionary *FullScreenRevealState(NSWindow *window) {
     @"pages" : pages,
     @"standardLightsHidden" : standard,
   } mutableCopy];
+  NSDictionary *band = FullScreenLightsBandState(window);
   if (lights)
     out[@"lights"] = @{
       @"top" : @(Top(lights)),
       @"left" : @(NSMinX([lights convertRect:lights.bounds toView:nil])),
       @"size" : SizeOf(lights),
-      @"hidden" : @(lights.hiddenOrHasHiddenAncestor),
+      @"hidden" : @(lights.hiddenOrHasHiddenAncestor || ![band[@"shown"] boolValue]),
+      @"band" : band ?: @{},
     };
   return out;
 }
