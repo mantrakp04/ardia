@@ -13,9 +13,10 @@ const listed = (w, profileId = S().windows[w].profileId) => S().windows[w].tabId
 const personal = () => profileFor(S(), "default").name;
 
 const asked = [];
+let answer = true;
 shellNativeModules.ArdiaDialogs.confirm = (options) => {
   asked.push(options);
-  return Promise.resolve({ confirmed: true, suppressed: false });
+  return Promise.resolve({ confirmed: answer, suppressed: false });
 };
 startWindowCloseGuard();
 
@@ -65,6 +66,19 @@ test("with sharing off every window still asks about its own tabs", async () => 
   assert.deepEqual(dialogs.map((d) => d.title), ["Close 3 tabs?"]);
   assert.equal(dialogs[0].message, `This window has 3 tabs open in your ${personal()} profile.`);
   assert.equal(dialogs[0].confirmTitle, "Close All Tabs");
+});
+
+test("cancelling the warning keeps the window and every tab", async () => {
+  const { a, b } = twoWindows();
+  await closeByUser(b);
+  answer = false;
+  try {
+    assert.deepEqual((await closeByUser(a)).map((d) => d.title), ["Close 3 tabs?"]);
+  } finally {
+    answer = true;
+  }
+  assert.ok(S().windows[a], "A stays open");
+  assert.equal(listed(a).length, 3, "with all three tabs");
 });
 
 test("with sharing on, a window asks only about the tabs that close with it", async () => {
