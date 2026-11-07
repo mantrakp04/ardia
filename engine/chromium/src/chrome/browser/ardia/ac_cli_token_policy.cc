@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -14,8 +15,10 @@
 #include "base/strings/strcat.h"
 #include "base/values.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
+#include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_agent_host_client.h"
+#include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
 namespace ardia {
@@ -235,6 +238,18 @@ bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame) {
   return !cli_token_policy_internal::Registry().contains(root_client) ||
          cli_token_policy_internal::IsWebFrame(frame);
+}
+
+std::set<int> TokenClientTabs() {
+  std::set<int> tabs;
+  for (const auto& [client, token_client] :
+       cli_token_policy_internal::Registry()) {
+    if (content::WebContents* contents =
+            token_client->root_host()->GetWebContents()) {
+      tabs.insert(sessions::SessionTabHelper::IdForTab(contents).id());
+    }
+  }
+  return tabs;
 }
 
 }

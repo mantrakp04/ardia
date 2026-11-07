@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -427,9 +428,18 @@ class ControlServer {
   }
 
   void Announce() {
-    if (!quitting_) {
-      Emit(kTopic, nullptr, Status());
+    if (quitting_) {
+      return;
     }
+    base::DictValue status = Status();
+    if (state_ == State::kRunning) {
+      base::ListValue tabs;
+      for (int tab : TokenClientTabs()) {
+        tabs.Append(tab);
+      }
+      status.Set("tabs", std::move(tabs));
+    }
+    Emit(kTopic, nullptr, std::move(status));
   }
 
   void Settle() {

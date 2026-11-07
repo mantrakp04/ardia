@@ -35,6 +35,7 @@ id AppTabIdValue(ArdiaCoreTab *_Nullable tab);
 ArdiaCoreTab *_Nullable TabWithAppTabId(NSString *_Nullable tabId);
 void HoldUntilHosted(ArdiaCoreTab *tab, NSString *event, NSDictionary *payload);
 void ReleaseHeldEvents(ArdiaCoreTab *tab);
+void ResendCliControlFor(ArdiaCoreTab *tab);
 void DropHeldEvent(NSString *event, NSString *eventId);
 
 NSString *AppDisposition(NSString *chromeDisposition);

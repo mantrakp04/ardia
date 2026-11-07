@@ -6,6 +6,7 @@ import { ink } from "../ui/tokens";
 import { usePage } from "../../state/tabs/pageState";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useMedia } from "../../state/media/media";
+import { useCliIndicator } from "../../state/app/cliControl";
 import { CAPTURE_DOT_RIM } from "./tokens";
 
 export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true }: { tabId: string; size?: number; pip?: boolean }) {
@@ -13,9 +14,25 @@ export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true 
     <>
       {pip && <PipBadge tabId={tabId} size={size} />}
       <CaptureBadge tabId={tabId} size={size} />
+      <CliBadge tabId={tabId} size={size} />
     </>
   );
 });
+
+function CliBadge({ tabId, size }: { tabId: string; size: number }) {
+  const theme = useTheme();
+  const controlled = useCliIndicator((s) => s.tabs.includes(tabId));
+  if (!controlled) return null;
+  const d = Math.round(size * 0.72);
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: "absolute", left: -d / 3, top: -d / 3, width: d, height: d, borderRadius: d / 2, backgroundColor: theme.textPrimary, alignItems: "center", justifyContent: "center" }}
+    >
+      <Symbol name="terminal.fill" size={d * 0.5} weight="bold" color={hex(theme.onPrimary)} style={{ width: d, height: d }} />
+    </View>
+  );
+}
 
 function PipBadge({ tabId, size }: { tabId: string; size: number }) {
   const theme = useTheme();
