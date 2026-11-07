@@ -167,3 +167,21 @@ test("bar groups reuse unchanged inputs and invalidate on group or profile chang
   unpinClosedGroup(groups[0].id, "default");
   assert.equal(closedGroupsOnBarForProfile(S(), "default").length, 0);
 });
+
+
+test("opening a saved group in a new window preserves existing pinned tabs and groups", () => {
+  const original = setup();
+  const pin = S().newTab(original, { url: "https://pinned.example/" });
+  S().pinTabs([pin], true);
+  const grouped = S().newTab(original, { url: "https://grouped.example/" });
+  S().groupTabs([grouped], { pinned: true, name: "Pinned group" });
+  const { entry } = close(original);
+  reopenClosedGroupInNewWindow(entry.id, "default");
+  const made = S().windowOrder.find((id) => id !== original);
+  for (const windowId of [original, made]) {
+    const tabs = S().windows[windowId].tabIds.map((id) => S().tabs[id]);
+    assert.ok(tabs.some((tab) => tab.url === "https://pinned.example/"));
+    assert.ok(tabs.some((tab) => tab.url === "https://grouped.example/"));
+    assert.ok(Object.values(S().groups).some((group) => group.windowId === windowId && group.pinned && group.name === "Pinned group"));
+  }
+});

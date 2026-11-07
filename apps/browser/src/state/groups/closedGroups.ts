@@ -1,6 +1,6 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { ClosedGroup } from "../browser/types";
-import { isIncognitoProfile } from "../browser/model";
+import { inPinnedContainer, isIncognitoProfile } from "../browser/model";
 import { removeTabs } from "../tabs/tabs";
 import { keptDeletedGroups, restoringGroup } from "../pins/closedTabs";
 
@@ -63,7 +63,7 @@ export function reopenClosedGroupInNewWindow(entryId: string, profileId: string)
   if (!entry) return;
   const windowId = s.createWindow({ profileId });
   const created = useBrowser.getState();
-  const blank = created.windows[windowId]?.tabIds ?? [];
+  const blank = (created.windows[windowId]?.tabIds ?? []).filter((id) => !created.tabs[id]?.url && !inPinnedContainer(created, id));
   useBrowser.setState(removeTabs(restoringGroup(created, entry, windowId, true), blank, false));
 }
 
