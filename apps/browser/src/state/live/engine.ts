@@ -4,7 +4,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { beginLiveRefresh, applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -36,6 +36,13 @@ export function manualRefresh(folderId: string): Promise<void> {
 }
 
 async function run(folderId: string) {
+  if (!live().folders[folderId]) return;
+  const refresh = beginLiveRefresh(folderId);
+  const fence = refresh ? await refresh.catch((error: unknown) => { console.warn("Couldn't claim the live folder refresh", error); return null; }) : undefined;
+  if (fence === null) {
+    if (live().folders[folderId]) setStatus(folderId, { state: "idle" });
+    return;
+  }
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();
@@ -83,11 +90,10 @@ async function run(folderId: string) {
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
   const succeeded = new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id)));
   fetchedSources.set(folderId, succeeded);
-  applyFetch(folderId, order(next), gone, Date.now(), quiet);
-  releaseShownRepos(folderId, succeeded);
+  applyFetch(folderId, order(next), gone, Date.now(), quiet, fence, succeeded);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
-  if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
+  if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving, fence), COMPLETION_MS);
 }
 
 function describe(source: LiveSourceId, error: unknown) {

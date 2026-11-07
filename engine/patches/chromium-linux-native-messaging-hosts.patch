@@ -1,0 +1,27 @@
+--- a/chrome/browser/extensions/api/messaging/launch_context_posix.cc
++++ b/chrome/browser/extensions/api/messaging/launch_context_posix.cc
+@@ -19,6 +19,10 @@
+ #include "chrome/common/chrome_paths.h"
+ #include "net/base/file_stream.h"
+ 
++#if BUILDFLAG(IS_LINUX)
++base::FilePath (*g_ardia_native_messaging_manifest)(const std::string& host_name) = nullptr;
++#endif
++
+ namespace extensions {
+ 
+ namespace {
+@@ -51,6 +55,13 @@
+     result = FindManifestInDir(chrome::DIR_CHROME_USER_NATIVE_MESSAGING, host_name);
+   }
+ 
++#if BUILDFLAG(IS_LINUX)
++  if (result.empty() && allow_user_level_hosts &&
++      g_ardia_native_messaging_manifest) {
++    result = g_ardia_native_messaging_manifest(host_name);
++  }
++#endif
++
+   if (result.empty()) {
+     result = FindManifestInDir(chrome::DIR_NATIVE_MESSAGING, host_name);
+   }

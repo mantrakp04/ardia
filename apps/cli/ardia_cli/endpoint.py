@@ -3,6 +3,7 @@ import json
 import os
 import re
 import stat
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
@@ -13,7 +14,36 @@ NOT_REACHABLE = (
     "Ardia isn't running, or \"Let the ardia command control Ardia\" is off in Settings."
 )
 CONTROL_FILE = "ArdiaControl.json"
-INSTALLED_DATA_DIR = Path.home() / "Library" / "Application Support" / "com.ardia.browser"
+LINUX = sys.platform.startswith("linux")
+
+
+def xdg_dir(variable: str, *fallback: str, absolute: bool = False) -> Path:
+    value = os.environ.get(variable)
+    if value and (os.path.isabs(value) or not absolute):
+        return Path(value)
+    return Path.home().joinpath(*fallback)
+
+
+def config_home(absolute: bool = False) -> Path:
+    return xdg_dir("XDG_CONFIG_HOME", ".config", absolute=absolute)
+
+
+def installed_data_dir(linux: bool | None = None) -> Path:
+    if not (LINUX if linux is None else linux):
+        return Path.home() / "Library" / "Application Support" / "com.ardia.browser"
+    override = os.environ.get("ARDIA_CONFIG_HOME")
+    return (Path(override) if override else config_home()) / "ardia"
+
+
+def chromium_dir(root: Path, linux: bool | None = None) -> Path:
+    return Path(root) if (LINUX if linux is None else linux) else Path(root) / "Chromium"
+
+
+def control_file_path(root: Path) -> Path:
+    return chromium_dir(root) / CONTROL_FILE
+
+
+INSTALLED_DATA_DIR = installed_data_dir()
 _BROWSER_PATH = re.compile(r"^/devtools/browser/[0-9A-Za-z-]{1,128}$")
 _TOKEN = re.compile(r"^[\x21-\x7e]{16,1024}$")
 _MAX_CONTROL_FILE = 64 * 1024
@@ -40,7 +70,7 @@ def resolve(ws: str | None = None, port: int | None = None, data_dir: str | None
     env_ws = os.environ.get("ARDIA_CDP_URL")
     if env_ws:
         return _from_ws(env_ws, "ARDIA_CDP_URL")
-    return from_control_file(data_root(data_dir) / "Chromium" / CONTROL_FILE)
+    return from_control_file(control_file_path(data_root(data_dir)))
 
 
 def data_root(data_dir: str | None = None) -> Path:
@@ -54,7 +84,7 @@ def explicit_data_root(data_dir: str | None = None) -> Path | None:
 
 
 def require_control(root: Path) -> Endpoint:
-    return from_control_file(root / "Chromium" / CONTROL_FILE)
+    return from_control_file(control_file_path(root))
 
 
 def _from_ws(url: str, source: str) -> Endpoint:

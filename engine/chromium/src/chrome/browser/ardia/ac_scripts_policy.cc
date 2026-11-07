@@ -25,6 +25,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/crx_file/id_util.h"
 #include "content/public/browser/navigation_handle.h"
@@ -199,7 +200,11 @@ class ScriptsPolicyProvider : public extensions::ManagementPolicy::Provider {
     base::FilePath user_data;
     if (base::PathService::Get(chrome::DIR_USER_DATA, &user_data) &&
         !user_data.empty()) {
+#if BUILDFLAG(IS_LINUX)
+      scripts_ = user_data.Append("Scripts");
+#else
       scripts_ = user_data.DirName().Append("Scripts");
+#endif
       folder_ = scripts_.Append("extension");
       designated_id_ = crx_file::id_util::GenerateIdForPath(folder_);
     }

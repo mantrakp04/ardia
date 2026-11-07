@@ -1,0 +1,9 @@
+module ardia.linux_page.mojom;
+
+interface PageHost {
+  Post(string kind, string json);
+};
+
+interface PageAgent {
+  Call(string kind, string json);
+};

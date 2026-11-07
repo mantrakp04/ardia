@@ -13,6 +13,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/ardia/ac_autofill_internal.h"
 #include "chrome/browser/ardia/ac_reauth.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
@@ -81,6 +82,15 @@ base::DictValue CardEntry(const autofill::CreditCard& card) {
 }
 
 using Ready = base::OnceCallback<void(PersonalDataManager*)>;
+
+std::u16string CardNumberPrompt() {
+#if BUILDFLAG(IS_LINUX)
+  return u"Show a saved card number";
+#else
+  return l10n_util::GetStringUTF16(
+      IDS_PAYMENTS_AUTOFILL_EDIT_CARD_MANDATORY_REAUTH_PROMPT);
+#endif
+}
 
 }
 
@@ -220,6 +230,10 @@ AC_PROFILE_CALL(ac_autofill_cards) {
 }
 
 AC_PROFILE_CALL(ac_autofill_card_number) {
+  if (!ardia::ReauthAvailable()) {
+    return call.TakeReply().Error(
+        "OS authentication is unavailable on this platform");
+  }
   ardia::autofill_internal::Load(
       call,
       base::BindOnce(
@@ -230,8 +244,7 @@ AC_PROFILE_CALL(ac_autofill_card_number) {
             }
             ardia::Reauth(
                 profile, device_reauth::DeviceAuthSource::kAutofill,
-                l10n_util::GetStringUTF16(
-                    IDS_PAYMENTS_AUTOFILL_EDIT_CARD_MANDATORY_REAUTH_PROMPT),
+                ardia::autofill_internal::CardNumberPrompt(),
                 base::TimeDelta(),
                 base::BindOnce(
                     [](std::string id, base::WeakPtr<PersonalDataManager> pdm,
@@ -240,6 +253,25 @@ AC_PROFILE_CALL(ac_autofill_card_number) {
                           authenticated && pdm ? pdm->payments_data_manager()
                                                      .GetCreditCardByGUID(id)
                                                : nullptr;
+#if BUILDFLAG(IS_LINUX)
+                      std::u16string raw =
+                          card ? card->GetRawInfo(autofill::CREDIT_CARD_NUMBER)
+                               : std::u16string();
+                      std::string utf8 = ardia::SecretUTF8(raw);
+                      std::string number =
+                          ardia::autofill_internal::Digits(utf8);
+                      ardia::Cleanse(raw);
+                      ardia::Cleanse(utf8);
+                      base::DictValue result;
+                      if (number.empty()) {
+                        result.Set("number", base::Value());
+                      } else {
+                        result.Set("number", number);
+                      }
+                      ardia::Cleanse(number);
+                      result.Set("authenticated", authenticated);
+                      reply.SendSecret(std::move(result));
+#else
                       std::string number =
                           card ? ardia::autofill_internal::Digits(
                                      base::UTF16ToUTF8(card->GetRawInfo(
@@ -253,6 +285,7 @@ AC_PROFILE_CALL(ac_autofill_card_number) {
                       }
                       result.Set("authenticated", authenticated);
                       reply.Send(std::move(result));
+#endif
                     },
                     id, pdm->GetWeakPtr(), std::move(reply)));
           },

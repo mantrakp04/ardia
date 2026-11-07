@@ -9,12 +9,14 @@ import stat
 import time
 from pathlib import Path
 
+from ardia_cli.endpoint import LINUX
 from ardia_cli.userscript import Build, Meta, ScriptError, check_glob, check_match, manifest_entries
 
 LOCK_TIMEOUT = 30
 STATUS_TIMEOUT = 10
 STATUS_POLL = 0.1
 RENAME_SWAP = 0x2
+RENAME_EXCHANGE = 0x2
 MAX_FILE = 64 * 1024 * 1024
 MAX_MANIFEST = 256 * 1024
 MAX_ENTRIES = 256
@@ -125,16 +127,23 @@ def remove_tree(dir_fd: int, name: str) -> None:
             pass
 
 
-_libc = None
+_exchange = None
+
+
+def exchange_call():
+    global _exchange
+    if _exchange is None:
+        libc = ctypes.CDLL(None, use_errno=True)
+        call = libc.renameat2 if LINUX else libc.renameatx_np
+        call.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        call.restype = ctypes.c_int
+        _exchange = (call, RENAME_EXCHANGE if LINUX else RENAME_SWAP)
+    return _exchange
 
 
 def swap(dir_fd: int, first: str, second: str) -> None:
-    global _libc
-    if _libc is None:
-        _libc = ctypes.CDLL(None, use_errno=True)
-        _libc.renameatx_np.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-        _libc.renameatx_np.restype = ctypes.c_int
-    if _libc.renameatx_np(dir_fd, os.fsencode(first), dir_fd, os.fsencode(second), RENAME_SWAP) != 0:
+    call, flag = exchange_call()
+    if call(dir_fd, os.fsencode(first), dir_fd, os.fsencode(second), flag) != 0:
         code = ctypes.get_errno()
         raise OSError(code, os.strerror(code), second)
 

@@ -63,7 +63,12 @@ def places(data_dir: str | None = None) -> Places:
     explicit = endpoint.explicit_data_root(data_dir)
     if explicit is not None:
         return Places(explicit / "config", explicit)
-    return Places(Path.home() / ".config" / "ardia", endpoint.INSTALLED_DATA_DIR)
+    return Places(default_folder(), endpoint.INSTALLED_DATA_DIR)
+
+
+def default_folder(linux: bool | None = None) -> Path:
+    linux = endpoint.LINUX if linux is None else linux
+    return endpoint.INSTALLED_DATA_DIR / "config" if linux else Path.home() / ".config" / "ardia"
 
 
 def is_theme_name(name) -> bool:

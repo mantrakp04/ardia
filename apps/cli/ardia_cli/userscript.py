@@ -4,6 +4,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -16,6 +17,7 @@ INCLUDE_MATCHES = ["*://*/*"]
 SOURCE_EXTENSIONS = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".css")
 SOURCE_URL_PREFIX = "ardia-userscript:///"
 CHROME_TARGET = "chrome130"
+ESBUILD_PACKAGE = "linux-x64" if sys.platform.startswith("linux") else "darwin-arm64"
 _HEADER = re.compile(r"^\s*//\s*==UserScript==\s*$")
 _FOOTER = re.compile(r"^\s*//\s*==/UserScript==\s*$")
 _ENTRY = re.compile(r"^\s*//\s*@([\w-]+(?::[\w-]+)?)(?:\s+(.*?))?\s*$")
@@ -214,10 +216,10 @@ def find_esbuild() -> str | None:
         return None
     for parent in here.parents:
         modules = parent / "node_modules"
-        native = modules / "@esbuild" / "darwin-arm64" / "bin" / "esbuild"
+        native = modules / "@esbuild" / ESBUILD_PACKAGE / "bin" / "esbuild"
         if os.access(native, os.X_OK):
             return str(native)
-        for candidate in sorted((modules / ".pnpm").glob("@esbuild+darwin-arm64@*/node_modules/@esbuild/darwin-arm64/bin/esbuild"), reverse=True):
+        for candidate in sorted((modules / ".pnpm").glob(f"@esbuild+{ESBUILD_PACKAGE}@*/node_modules/@esbuild/{ESBUILD_PACKAGE}/bin/esbuild"), reverse=True):
             if os.access(candidate, os.X_OK):
                 return str(candidate)
     return shutil.which("esbuild")
