@@ -16,6 +16,7 @@ public class ShellModule: Module {
 
     OnCreate {
       _ = installTextFieldSelectAll
+      _ = installViewSelectAll
       _ = installSubmenuAction
       _ = installInputSourceKeys
       _ = installScrollViewInsetFix

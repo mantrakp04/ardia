@@ -72,4 +72,11 @@ enum DroppedLinks {
   static func count(_ pasteboard: NSPasteboard) -> Int {
     items(pasteboard).count
   }
+
+  static func extensionPackages(_ pasteboard: NSPasteboard) -> [[String: String]] {
+    let files = fileURLs(pasteboard)
+    guard !files.isEmpty, files.count <= maxItems,
+          files.allSatisfy({ $0.pathExtension.lowercased() == "crx" && FileManager.default.fileExists(atPath: $0.path) }) else { return [] }
+    return files.map { ["kind": "file", "url": $0.absoluteString] }
+  }
 }

@@ -2,6 +2,7 @@
 import { base, homeUrl } from "../data/site";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
+import ComputerUse from "../components/ComputerUse.astro";
 import Bench from "../components/Bench.astro";
 import Closing from "../components/Closing.astro";
 import Footer from "../components/Footer.astro";
@@ -53,6 +54,7 @@ const jsonLd = [
 <Base title={`Mac browser benchmarks · ${versus}`} description={description} jsonLd={jsonLd}>
   <Header home={`${base}/`} current="benchmarks" />
   <main>
+    <ComputerUse page />
     <Bench page />
     {
       bench && (
