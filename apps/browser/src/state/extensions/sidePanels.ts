@@ -4,6 +4,9 @@ import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfi
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
+const opened = new Map<string, number>();
+const focusDue = new Map<string, number>();
+let openings = 0;
 
 const nextFetch = (windowId: string) => {
   const ticket = (fetches.get(windowId) ?? 0) + 1;
@@ -13,17 +16,21 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
-export const sidePanelKey = (panel: SidePanel) => `${panel.extensionId}|${panel.pageProfile}|${panel.url}`;
+export const sidePanelKey = (panel: SidePanel) => `${panel.extensionId}|${panel.pageProfile}|${panel.url}|${panel.opened}`;
 
-export function pendingPanelFocus(pending: string | null, shown: SidePanel | undefined, next: SidePanel | undefined): string | null {
-  if (!next) return null;
-  const key = sidePanelKey(next);
-  if (next.extensionId !== shown?.extensionId) return key;
-  return pending === key ? pending : null;
+export function takeSidePanelFocus(windowId: string, panel: SidePanel): boolean {
+  if (focusDue.get(windowId) !== panel.opened) return false;
+  focusDue.delete(windowId);
+  return true;
 }
 
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
   if (!shownIn(windowId, extensionId)) return Promise.resolve();
+  if (wanted.get(windowId) !== extensionId) {
+    openings += 1;
+    opened.set(windowId, openings);
+    focusDue.set(windowId, openings);
+  }
   wanted.set(windowId, extensionId);
   return syncSidePanel(windowId);
 }
@@ -32,6 +39,8 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   const id = wanted.get(windowId);
   if (!id || (extensionId && id !== extensionId)) return;
   wanted.delete(windowId);
+  opened.delete(windowId);
+  focusDue.delete(windowId);
   nextFetch(windowId);
   if (!useExtensions.getState().sidePanels[windowId]) return;
   useExtensions.setState((e) => {
@@ -68,7 +77,7 @@ export async function syncSidePanel(windowId: string): Promise<void> {
   if (fetches.get(windowId) !== ticket) return;
   if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);
   const s = useBrowser.getState();
-  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url };
+  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: opened.get(windowId) ?? 0 };
   const now = useExtensions.getState().sidePanels[windowId];
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
