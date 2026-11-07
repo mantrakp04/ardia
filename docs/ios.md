@@ -109,6 +109,11 @@ previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit
 - `swift test --package-path apps/ios/Packages/ArdiaKit` runs the package's Swift Testing suites on the Mac host:
   sync end to end over a real vault with a fake Mac, the browser layer (tabs, archive, blocking converter, omnibox,
   reader extraction in a real WKWebView), and the JavaScriptCore bridge.
+- `SyncThroughICloudTests` gives the fake Mac and the phone a folder each and carries files between them the way
+  iCloud Drive does: late, out of order, as `.name.icloud` placeholders, deletions before the files they replace,
+  and with "name 2" conflict copies and stray files. Its soak runs hours of random edits, sends and compactions on a
+  test clock and checks both sides converge, nothing the Mac still has disappears from the phone, every sent tab
+  arrives once and no seq is reused. iCloud's own delivery between devices is the one thing left for a real phone.
 - `pnpm --filter @ardia/sync test` includes the companion's tests and checks the bundles are current.
 - The app's own states are checked in the simulator (see the agent notes below).
 - CI (`.github/workflows/ios.yml`, on GitHub's `xcode-27` runner with Xcode 27.1) builds the `Ardia` scheme for the

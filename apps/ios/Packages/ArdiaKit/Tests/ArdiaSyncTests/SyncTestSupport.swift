@@ -51,6 +51,7 @@ final class FakeMac {
   let device = "macbookpro0000000000000000"
   let vault: SyncVault
   let keys: SyncKeys
+  var clock: TestClock?
   private let script: ScriptEngine
 
   static let source = """
@@ -59,6 +60,8 @@ final class FakeMac {
     const scopes = {};
     const stores = {};
     let clock = null;
+    let current = null;
+    const now = () => current ?? Date.now();
     const transport = {
       read: async (scope, known) => JSON.parse(__host.read(scope, JSON.stringify(known))),
       write: async (scope, payload) => __host.write(scope, payload),
@@ -80,10 +83,11 @@ final class FakeMac {
     S.macPut = ({ scope, key, value }) => { (stores[scope] ??= {})[key] = value; return true; };
     S.macDelete = ({ scope, key }) => { delete (stores[scope] ??= {})[key]; return true; };
     S.macStore = ({ scope }) => stores[scope] ?? {};
-    S.macSync = async ({ device, scopes: list }) => {
-      clock ??= new S.Clock(device);
+    S.macSync = async ({ device, scopes: list, at }) => {
+      current = at ?? null;
+      clock ??= new S.Clock(device, undefined, now);
       for (const scope of list) {
-        await S.syncScope({ scope, state: (scopes[scope] ??= S.emptyScope()), transport, adapters: [adapter(scope)], clock, device });
+        await S.syncScope({ scope, state: (scopes[scope] ??= S.emptyScope()), transport, adapters: [adapter(scope)], clock, device, now });
       }
       return true;
     };
@@ -116,7 +120,8 @@ final class FakeMac {
 
   func sync(_ scopes: [String]) throws {
     let list = String(decoding: try JSONEncoder().encode(scopes), as: UTF8.self)
-    _ = try script.callAsync(.sync, "macSync", json: [#"{"device":\#(json(device)),"scopes":\#(list)}"#])
+    let at = clock.map { String(Int($0.now.millisecondsSince1970)) } ?? "null"
+    _ = try script.callAsync(.sync, "macSync", json: [#"{"device":\#(json(device)),"scopes":\#(list),"at":\#(at)}"#])
   }
 
   func store(_ scope: String) throws -> [String: Any] {
