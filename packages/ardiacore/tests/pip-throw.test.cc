@@ -591,9 +591,19 @@ int main() {
     CHECK(Rescue({2200, 400, 468, 263}, only, 1, 0).x == 1512 - 468 && Rescue({2200, 400, 468, 263}, only, 1, 0).y == 400);
     CHECK(Rescue({500, 1300, 468, 263}, only, 1, 0).x == 500 && Rescue({500, 1300, 468, 263}, only, 1, 0).y == 945 - 263);
 
-    CHECK(Reachable({100, 774, 400, 225}, only, 1) && Reachable({100, 1100, 400, 225}, above, 2));
-    CHECK(!Reachable({500, 981, 468, 263}, only, 1) && Reachable({500, 981, 468, 263}, above, 2));
-    CHECK(!Reachable({1512 - 28, 400, 468, 263}, only, 1));
+    const Screen docked[] = {primary, {{0, 982, 1512, 1080}, {0, 1052, 1512, 985}}};
+    for (int drag = 0; drag < 2; drag++) {
+      Rect w{500, 600, 468, 263};
+      int outside = 0;
+      for (int i = 0; i < 900; i++) {
+        w = drag ? DragStep(w, {0, 1}, docked, 2) : SwipeStep(w, {0, 1}, docked, 2);
+        if (Shortfall(w, docked, 2) > 1e-9) outside++;
+      }
+      CHECK(outside == 0 && w.y == 1500 && Inside(w, docked[1].visible));
+    }
+    CHECK(Shortfall({500, 840, 468, 263}, docked, 2) <= 1e-9 && !Reachable({500, 840, 468, 263}, docked, 2));
+    CHECK(Shortfall({500, 981, 468, 263}, only, 1) > 0 && Shortfall({500, 981, 468, 263}, above, 2) <= 1e-9);
+    CHECK(Shortfall({100, 774, 400, 225}, only, 1) > 0 && Shortfall({1512 - 28, 400, 468, 263}, only, 1) > 0);
   }
 
   {
