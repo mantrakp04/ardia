@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { profileMenuItems } = await import("./profileMenu.ts");
+const { closeProfileIconPickerIfShown, useProfileIconPicker } = await import("./iconPicker.ts");
 
 const G = { control: "⌃", option: "⌥", shift: "⇧", command: "⌘" };
 const keys = (i) => (i.key ? ["control", "option", "shift", "command"].filter((m) => i.modifiers?.includes(m)).map((m) => G[m]).join("") + i.key.toUpperCase() : "");
@@ -53,4 +54,16 @@ test("a profile that shares data has a Share Top Apps check in its menu; one wit
   assert.ok(off.includes("Share Top Apps [square.grid.2x2]"));
   assert.ok(!off.some((l) => l.startsWith("✓ Share Top Apps")), "unchecked when off");
   assert.ok(!render(profileMenuItems(base)).some((l) => l.includes("Share Top Apps")));
+});
+
+const pickerFor = (profileId) => ({ profileId, windowId: "w", place: "settings", anchor: null });
+
+test("a stale picker's close leaves the picker opened after it alone", () => {
+  const stale = pickerFor("gone");
+  const shown = pickerFor("work");
+  useProfileIconPicker.setState({ picker: shown });
+  closeProfileIconPickerIfShown(stale);
+  assert.equal(useProfileIconPicker.getState().picker, shown);
+  closeProfileIconPickerIfShown(shown);
+  assert.equal(useProfileIconPicker.getState().picker, null);
 });

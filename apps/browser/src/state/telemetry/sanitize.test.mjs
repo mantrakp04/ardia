@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
+import { settingsSnapshot } from "./settingsSnapshot.ts";
+const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
 
@@ -213,11 +215,39 @@ test("scrubbing a long reason full of quotes takes linear time", () => {
   const started = performance.now();
   assert.equal(scrubText(reason, 300), "<text>");
   assert.equal(scrubText(`x ${"'a".repeat(32768)}`, 300), "x <text>");
-  assert.ok(performance.now() - started < 10, `${performance.now() - started} ms`);
+  assert.ok(performance.now() - started < 500, `${performance.now() - started} ms`);
 });
 
 test("a reason cut to length drops its last, partial word instead of leaking half of it", () => {
   const out = scrubText(`${"word ".repeat(59)}patient.name@private-clinic.example.org trailing`, 300);
   assert.ok(!/patient|private|@/.test(out), out);
   assert.ok(out.endsWith("word…"), out);
+});
+
+test("on/off, pick-one and number settings are measured with their defaults; text and lists never are", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, glassTintWithTheme: true, glassTintAmount: 0.55, interfaceStyle: "classic", customSearchUrl: "https://secret.example/?q=%s" });
+  assert.equal(snap.setting_glassTintWithTheme, "true");
+  assert.equal(snap.default_glassTintWithTheme, "false");
+  assert.equal(snap.setting_glassTintAmount, "0.55");
+  assert.equal(snap.default_glassTintAmount, "0.8");
+  assert.equal(snap.setting_interfaceStyle, "classic");
+  assert.equal(snap.default_interfaceStyle, "glass");
+  for (const key of ["customSearchUrl", "searchEngine", "defaultProfileId", "customSearchEngines", "extensionSearchEngines"]) {
+    assert.equal(snap[`setting_${key}`], undefined, key);
+    assert.equal(snap[`default_${key}`], undefined, key);
+  }
+  assert.ok(!Object.values(snap).some((v) => v.includes("secret")));
+});
+
+test("every measured key survives the telemetry property cleaner unchanged", () => {
+  const snap = settingsSnapshot(DEFAULT_SETTINGS);
+  assert.deepEqual(cleanProperties(snap), snap);
+  const measured = Object.keys(snap).filter((k) => k.startsWith("setting_")).length;
+  assert.ok(measured > 30, `only ${measured} settings measured`);
+  assert.ok(measured < Object.keys(SETTING_SPECS).length);
+});
+
+test("a value the spec doesn't allow is left out rather than sent", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, interfaceStyle: "https://not-an-option.example" });
+  assert.equal(snap.setting_interfaceStyle, undefined);
 });

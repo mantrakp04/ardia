@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -9,6 +9,7 @@ const { captureException, reportNativeCrashes } = await import("./errors.ts");
 
 globalThis.fetch = async () => ({ status: 200 });
 setSharing(true, "settings");
+after(() => setSharing(false, "settings"));
 
 const queued = () => JSON.parse(stub.docs.get("telemetry-queue.json") ?? "{}").events?.filter((e) => e.event === "$exception") ?? [];
 

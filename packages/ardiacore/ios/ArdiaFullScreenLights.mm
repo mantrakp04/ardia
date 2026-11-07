@@ -39,7 +39,6 @@ const void *kFullScreenLightsWatchKey = &kFullScreenLightsWatchKey;
     bounds = NSUnionRect(bounds, button.frame);
   }
   [lights setFrameSize:bounds.size];
-  lights.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
   [lights addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
                                                        options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
                                                          owner:lights
@@ -66,6 +65,85 @@ const void *kFullScreenLightsWatchKey = &kFullScreenLightsWatchKey;
 
 @end
 
+@interface ArdiaFullScreenLightsBand : NSView
+@property(nonatomic, readonly) ArdiaFullScreenLights *lights;
+@property(nonatomic, readonly) BOOL pointerInside;
+@property(nonatomic, readonly) BOOL shown;
+- (void)setPointerInside:(BOOL)inside;
+@end
+
+namespace {
+
+constexpr CGFloat kBandMargin = 10;
+
+constexpr NSTimeInterval kHoverFade = 0.15;
+
+}
+
+@implementation ArdiaFullScreenLightsBand {
+  double _revealAmount;
+}
+
+- (instancetype)initWithLights:(ArdiaFullScreenLights *)lights {
+  if (!(self = [super initWithFrame:NSZeroRect])) return nil;
+  _lights = lights;
+  self.wantsLayer = YES;
+  self.alphaValue = 0;
+  self.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+  [self addSubview:lights];
+  [self addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
+                                                     options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                       owner:self
+                                                    userInfo:nil]];
+  return self;
+}
+
+- (BOOL)isFlipped {
+  return YES;
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+  if (!_shown) return nil;
+  NSView *hit = [super hitTest:point];
+  return hit == self ? nil : hit;
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+  [self setPointerInside:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+  [self setPointerInside:NO];
+}
+
+- (void)setPointerInside:(BOOL)inside {
+  if (_pointerInside == inside) return;
+  _pointerInside = inside;
+  [self showAnimated:YES];
+}
+
+- (void)setRevealAmount:(double)amount {
+  _revealAmount = amount;
+  [self showAnimated:NO];
+}
+
+- (void)showAnimated:(BOOL)animated {
+  const CGFloat alpha = _pointerInside ? 1 : _revealAmount;
+  _shown = alpha > 0;
+  if (!animated) {
+    [self.layer removeAllAnimations];
+    self.alphaValue = alpha;
+    return;
+  }
+  if (self.alphaValue == alpha) return;
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+    context.duration = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 0 : kHoverFade;
+    self.animator.alphaValue = alpha;
+  }];
+}
+
+@end
+
 @interface NSTitlebarAccessoryViewController (ArdiaRevealAmount)
 - (double)revealAmount;
 - (void)setRevealAmount:(double)revealAmount;
@@ -88,42 +166,70 @@ namespace {
 
 const void *kTitlebarRevealWatchKey = &kTitlebarRevealWatchKey;
 
+ArdiaFullScreenLightsBand *LightsBand(NSWindow *window) {
+  return window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
+}
+
 }
 
 namespace ardia_window {
 
 NSView *FullScreenLightsView(NSWindow *window) {
-  return window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
+  return LightsBand(window).lights;
 }
 
 void PlaceFullScreenLights(NSWindow *window) {
-  ArdiaFullScreenLights *lights = window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
+  ArdiaFullScreenLightsBand *band = LightsBand(window);
+  ArdiaFullScreenLights *lights = band.lights;
   NSView *frameView = window.contentView.superview;
   NSView *close = lights.subviews.firstObject;
-  if (!lights || !frameView || !close) return;
+  if (!band || !frameView || !close) return;
   ArdiaWindowFullScreen *state = objc_getAssociatedObject(window, kWindowFullScreenKey);
-  lights.hidden = state.pageFullScreen;
+  band.hidden = state.pageFullScreen;
+  if (state.pageFullScreen) [band setPointerInside:NO];
   const NSSize size = close.frame.size;
   const NSPoint center = LightsCenter(window, objc_getAssociatedObject(window, kLightsCenterKey), size);
-  const CGFloat top = center.y - size.height / 2 + FullScreenRevealHeight(window);
-  [lights setFrameOrigin:NSMakePoint(center.x - size.width / 2,
-                                     frameView.isFlipped ? top : NSHeight(frameView.bounds) - top - NSHeight(lights.frame))];
+  const CGFloat windowTop = FullScreenRevealHeight(window);
+  const CGFloat lightsTop = center.y - size.height / 2 + windowTop;
+  const CGFloat left = center.x - size.width / 2 - kBandMargin;
+  const NSSize bandSize = NSMakeSize(NSWidth(lights.frame) + 2 * kBandMargin, lightsTop - windowTop + NSHeight(lights.frame) + kBandMargin);
+  [band setFrame:NSMakeRect(left, frameView.isFlipped ? windowTop : NSHeight(frameView.bounds) - windowTop - bandSize.height, bandSize.width,
+                            bandSize.height)];
+  [lights setFrameOrigin:NSMakePoint(kBandMargin, lightsTop - windowTop)];
+  [band setRevealAmount:FullScreenRevealAmount(window)];
+}
+
+void SetFullScreenLightsPointerInside(NSWindow *window, BOOL inside) {
+  [LightsBand(window) setPointerInside:inside];
+}
+
+NSDictionary *FullScreenLightsBandState(NSWindow *window) {
+  ArdiaFullScreenLightsBand *band = LightsBand(window);
+  if (!band) return nil;
+  return @{
+    @"shown" : @(band.shown),
+    @"pointerInside" : @(band.pointerInside),
+    @"alpha" : @(band.alphaValue),
+    @"frame" : @[ @(NSMinX(band.frame)), @(NSMinY([band convertRect:band.bounds toView:nil])), @(NSWidth(band.frame)), @(NSHeight(band.frame)) ],
+  };
 }
 }
 
 namespace {
 
 void ShowFullScreenLights(NSWindow *window, BOOL show) {
-  ArdiaFullScreenLights *lights = objc_getAssociatedObject(window, kFullScreenLightsKey);
+  ArdiaFullScreenLightsBand *band = LightsBand(window);
   if (!show) {
-    [lights removeFromSuperview];
+    [band removeFromSuperview];
     objc_setAssociatedObject(window, kFullScreenLightsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return;
   }
   NSView *frameView = window.contentView.superview;
-  if (lights || !frameView || !(lights = [ArdiaFullScreenLights lightsForWindow:window])) return;
-  objc_setAssociatedObject(window, kFullScreenLightsKey, lights, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  [frameView addSubview:lights positioned:NSWindowAbove relativeTo:nil];
+  ArdiaFullScreenLights *lights = nil;
+  if (band || !frameView || !(lights = [ArdiaFullScreenLights lightsForWindow:window])) return;
+  band = [[ArdiaFullScreenLightsBand alloc] initWithLights:lights];
+  objc_setAssociatedObject(window, kFullScreenLightsKey, band, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [frameView addSubview:band positioned:NSWindowAbove relativeTo:nil];
   PlaceFullScreenLights(window);
 }
 

@@ -242,6 +242,12 @@ export const generalRows = {
           description: "⌥⇧-click a tab to open it in a group with the current tab. (⌥⇧-clicking a link opens it in a split.)",
           keywords: ["option shift click", "split"],
         },
+        dragToGroupInTopStrip: {
+          shown: (_, env) => env.top,
+          title: "Drag a tab onto another to group them",
+          description: "With tabs across the top, dropping a tab on another makes a group, and dropping it on a group adds it. Off, dragging only reorders.",
+          keywords: ["drag", "drop", "group", "top tab strip", "horizontal tabs", "reorder"],
+        },
         autoGroupMeetingTabs: { advanced: true, title: "Automatically group tabs for meetings", keywords: ["calendar", "zoom", "meet", "call"] },
       },
     },

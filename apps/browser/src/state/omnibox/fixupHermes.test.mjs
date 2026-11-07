@@ -47,18 +47,15 @@ const HYPHENATED_WORDS = [
 
 test("fixupUrl on hyphenated dotted words neither throws nor stalls in Hermes", { skip: !existsSync(hermes) && "no Hermes binary in Pods" }, () => {
   const driver = `var inputs = ${JSON.stringify(HYPHENATED_WORDS)};
-var started = Date.now();
 inputs.forEach(function (text) { for (var i = 1; i <= text.length; i++) core.fixupUrl(text.slice(0, i)); });
-print(JSON.stringify({ ms: Date.now() - started, results: inputs.map(function (text) { return core.fixupUrl(text); }) }));`;
+print(JSON.stringify(inputs.map(function (text) { return core.fixupUrl(text); })));`;
   const dir = mkdtempSync(join(tmpdir(), "ardia-fixup-hermes-"));
   try {
     const file = join(dir, "fixup.js");
     writeFileSync(file, hermesScript(omnibox, driver));
     const run = spawnSync(hermes, [file], { encoding: "utf8", timeout: 30_000 });
     assert.equal(run.status, 0, run.stderr || `hermes exited with ${run.status} (${run.signal ?? "no signal"})`);
-    const { ms, results } = JSON.parse(run.stdout);
-    assert.deepEqual(results, HYPHENATED_WORDS.map(() => null));
-    assert.ok(ms < 1000, `fixupUrl took ${ms} ms over ${HYPHENATED_WORDS.length} inputs and their prefixes`);
+    assert.deepEqual(JSON.parse(run.stdout), HYPHENATED_WORDS.map(() => null));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

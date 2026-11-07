@@ -7,7 +7,7 @@ enum ServerWindowDrag {
   private static let regions = NSHashTable<NSView>.weakObjects()
   private static let opaqueRectSelector = NSSelectorFromString("_opaqueRectForWindowMoveWhenInTitlebar")
   private static let refreshSelector = NSSelectorFromString("_updateDragRegionForHiddenStateChange")
-  private static let enabled = LaunchConfig.shared.experimentOn("serverWindowDrag") || allOpen
+  private static let enabled = LaunchConfig.shared.switchOn("serverWindowDrag") || allOpen
   private static let allOpen = LaunchConfig.shared.experimentOn("serverWindowDragAllOpen")
 
   private static let refreshEvery: CFTimeInterval = 0.1

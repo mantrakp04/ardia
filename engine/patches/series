@@ -13,6 +13,7 @@ chromium chromium-helium-branding.patch
 chromium chromium-cef-carryover.patch
 chromium chromium-autofill-address-bubble-window.patch
 chromium chromium-device-chooser-hook.patch
+chromium chromium-media-access-hook.patch
 chromium chromium-cast-dialog-hook.patch
 chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
@@ -68,6 +69,7 @@ chromium chromium-temporary-tab-restore-hook.patch
 chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch
 chromium chromium-media-session-main-frame-handler.patch
+chromium chromium-pip-user-agent-ignores-page-opt-out.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch

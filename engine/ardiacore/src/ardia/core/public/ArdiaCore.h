@@ -91,6 +91,7 @@ ARDIACORE_EXPORT
                      origin:(nullable NSString*)origin
                       audio:(nullable NSString*)audio;
 @property(class, readonly) NSDictionary<NSString*, NSNumber*>* desktopCaptureAudio;
+@property(class) BOOL pagesPickDisplayMedia;
 - (void)offTheRecordProfileFor:(ArdiaCoreProfile*)profile
                     completion:(void (^)(ArdiaCoreProfile* _Nullable offTheRecord,
                                          NSString* _Nullable error))completion;

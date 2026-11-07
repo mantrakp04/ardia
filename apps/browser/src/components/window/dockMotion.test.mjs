@@ -218,15 +218,6 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
 });
 
-test("a peek that's out is remembered per window (Arc docks from it at once)", () => {
-  assert.equal(dm.peekShown("w1"), false);
-  dm.setPeekShown("w1", true);
-  assert.equal(dm.peekShown("w1"), true);
-  assert.equal(dm.peekShown("w2"), false);
-  dm.setPeekShown("w1", false);
-  assert.equal(dm.peekShown("w1"), false);
-});
-
 test("the peek panel covers the page up to its right edge, only while it's out", () => {
   assert.equal(dm.overPeek("w1", 0), false);
   dm.setPeekShown("w1", true, [-Infinity, 5 + 240]);

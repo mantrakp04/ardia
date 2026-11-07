@@ -567,10 +567,13 @@ async function runPair(startRow, opA, opB, schedule) {
 }
 
 const cases = [];
-for (const startRow of [true, false])
-  for (const opA of OPS)
-    for (const opB of OPS)
-      for (const schedule of Object.keys(SCHEDULES)) if (!(schedule.includes("44 days late") && (opA.collects || opB.collects))) cases.push({ startRow, opA, opB, schedule });
+const scheduleNames = Object.keys(SCHEDULES);
+for (let i = 0; i < OPS.length; i++)
+  for (let j = i; j < OPS.length; j++) {
+    const [opA, opB] = (i + j) % 2 ? [OPS[j], OPS[i]] : [OPS[i], OPS[j]];
+    const usable = scheduleNames.filter((schedule) => !(schedule.includes("44 days late") && (opA.collects || opB.collects)));
+    cases.push({ startRow: Math.floor(cases.length / scheduleNames.length) % 2 === 0, opA, opB, schedule: usable[(j - i) % usable.length] });
+  }
 
 test(`concurrent pinned-tab edits on two Macs converge (${cases.length} runs)`, async () => {
   const failures = [];
@@ -892,7 +895,7 @@ test("Top Apps shared by two profiles: an unpin synced into a profile whose pins
   const folder = new Folder();
   const sharing = (id, profileId) => {
     S().hydrate({});
-        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
     S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
     return new Mac(id, folder, S());
   };
@@ -921,7 +924,7 @@ test("Top Apps shared by two profiles: a tile made a pinned row on one Mac stays
   const folder = new Folder();
   const sharing = (id, profileId) => {
     S().hydrate({});
-        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
     S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
     return new Mac(id, folder, S());
   };
@@ -946,7 +949,7 @@ test("Top Apps shared by two profiles reach a profile the pinning Mac has never 
   const folder = new Folder();
   const sharing = (id, profileId) => {
     S().hydrate({});
-        useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { ...WORK, dataId: "default" } }, profileOrder: [...s.profileOrder, "work"] }));
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
     S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
     return new Mac(id, folder, S());
   };

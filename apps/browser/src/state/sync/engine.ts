@@ -25,6 +25,7 @@ import { profileScope } from "./records";
 import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
+import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
 
 export { onTabsReceived } from "./sentTabs";
 
@@ -77,7 +78,7 @@ function watchExtensions() {
   if (!doc.enabled) return;
   const s = useBrowser.getState();
   const watched = Object.entries(doc.profiles).filter(([id, l]) => l.enabled && s.profiles[id] && typeSynced(doc, "extensions", id));
-  const profiles = [...new Set(watched.map(([id]) => engineProfile(s, id)))];
+  const profiles = [...new Set(watched.map(([id]) => engineProfile(s, id)))].filter((engine) => profileOpened(engine));
   if (profiles.length) watchExtensionIntents(profiles);
 }
 
@@ -161,7 +162,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
         await settled();
       }
       pending += state.pending;
-      if (!retire && !isQuitting() && typeSynced(doc, "extensions", profileId)) await extensionsOf(profileId).reconcile(visible(state, EXTENSION_PREFIX), Date.now(), isQuitting);
+      if (!retire && !isQuitting() && typeSynced(doc, "extensions", profileId) && profileOpened(engineProfile(useBrowser.getState(), profileId))) await extensionsOf(profileId).reconcile(visible(state, EXTENSION_PREFIX), Date.now(), isQuitting);
       if (retire) {
         delete link.retire;
         if (!exists) {
@@ -352,6 +353,11 @@ export function startSync() {
     });
   }
   saveBeforeQuit(checkpoint);
+  onProfilesOpened(() => {
+    if (!doc.enabled || !doc.deviceId) return;
+    watchExtensions();
+    scheduleSync();
+  });
   useBrowser.subscribe((s, prev) => {
     if (!doc.enabled || cycle) return;
     if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.groups !== prev.groups) scheduleSync();

@@ -54,9 +54,14 @@ export const emitEvent = <E extends EventName>(name: E, data: EngineEvents[E]) =
   eventsOf(domain).emit(domain, { name, data });
 };
 
+export const engineCalls: { domain: string; verb: string; profile: string }[] = [];
+export const loadedEngineProfiles = new Set<string>([""]);
+export const profilesLoadedCall = { known: true };
+
 function domain<D extends string, Sync extends object>(name: D, handlers: Handlers<D>, sync?: Sync): FakeDomain & Sync {
   const fake: FakeDomain = {
     call: (verb, profile, json) => {
+      engineCalls.push({ domain: name, verb, profile });
       const handler = (handlers as Record<string, ((args: object) => unknown) | undefined>)[verb];
       if (!handler) return Promise.reject(Object.assign(new Error(`${name}.${verb} has no test fake yet`), { code: "ERR_UNKNOWN_CALL" }));
       const args = { ...(JSON.parse(json) as Record<string, unknown>), profile };
@@ -344,6 +349,10 @@ const fakeModules = {
     removeExternalAppAllowance: () => null,
   }),
   ArdiaProfiles: domain("profiles", {
+    loaded: () => {
+      if (!profilesLoadedCall.known) throw Object.assign(new Error("profiles.loaded isn't a call"), { code: "ERR_UNKNOWN_CALL" });
+      return { profiles: [...loadedEngineProfiles] };
+    },
     release: () => null,
     deleteData: ({ profile }) => (deletedProfileData.push(profile), { remaining: profileDataLeft.get(profile) ?? [] }),
     clearBrowsingData: () => null,

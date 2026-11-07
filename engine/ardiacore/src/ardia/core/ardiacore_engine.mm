@@ -355,6 +355,14 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
                               base::SysNSStringToUTF8(audio ?: @""));
 }
 
++ (BOOL)pagesPickDisplayMedia {
+  return ardiacore::PagesPickDisplayMedia();
+}
+
++ (void)setPagesPickDisplayMedia:(BOOL)pagesPick {
+  ardiacore::SetPagesPickDisplayMedia(pagesPick);
+}
+
 + (NSDictionary<NSString*, NSNumber*>*)desktopCaptureAudio {
   return @{
     @"system" : @(ardiacore::IsDesktopCaptureSystemAudioSupported()),

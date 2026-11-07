@@ -12,7 +12,7 @@ const { registerOmniboxProvider } = await import("../../state/omnibox/providers.
 const { heldIndex } = await import("./heldSelection.ts");
 
 const S = () => useBrowser.getState();
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const settle = () => new Promise((r) => setImmediate(r));
 const TEAM = { title: "Team", rows: [{ title: "Zebra board", url: "https://board.team.example/" }, { title: "Zebra wiki", url: "https://wiki.team.example/" }] };
 const LINEAR = { keyword: "go", title: "Linear", url: "https://linear.app/team/issue/{query}" };
 
@@ -32,13 +32,13 @@ const shown = (items) => items.map((s) => (s.kind === "provider" ? `provider:${s
 test("a global static provider streams in after the built-in rows, once approved", async () => {
   const w = setup([TEAM]);
   const h = bar(w, "zebra");
-  await wait(5);
+  await settle();
   assert.equal(shown(h.value.items).some((x) => x.startsWith("provider:")), false, "not approved: nothing");
   approveOmniboxProvider(providerApprovalKey(TEAM));
   h.rerender({ text: "zebr", scope: null });
   const first = shown(h.value.items);
   assert.equal(first.some((x) => x.startsWith("provider:")), false, "built-ins render first");
-  await wait(5);
+  await settle();
   const after = shown(h.value.items);
   assert.deepEqual(after.filter((x) => x.startsWith("provider:")), ["provider:Zebra board", "provider:Zebra wiki"]);
   assert.notEqual(after[0], "provider:Zebra board");
@@ -52,10 +52,10 @@ test("a keyword enters its provider by Space or Tab; only its rows show, the tem
   assert.equal(offeredScope("go", "", w)?.name, "Linear");
   const scope = keywordScope("t", w);
   const h = bar(w, "", scope);
-  await wait(5);
+  await settle();
   assert.deepEqual(shown(h.value.items), ["provider:Zebra board", "provider:Zebra wiki"], "nothing typed: every row");
   h.rerender({ text: "wiki", scope });
-  await wait(5);
+  await settle();
   assert.deepEqual(shown(h.value.items), ["provider:Zebra wiki"]);
   const go = bar(w, "ENG-7", keywordScope("go", w));
   assert.deepEqual(go.value.items.map((s) => s.url), ["https://linear.app/team/issue/ENG-7"]);
@@ -70,13 +70,13 @@ test("a program provider is off in a private window and its keyword never shadow
   const offGlobal = registerOmniboxProvider({ id: "progGlobal", title: "Prog", query: async (t) => (asked.push(t), [{ title: "From program", url: "https://prog.example/" }]) });
   assert.equal(keywordScope("go", w)?.providerId, "config:go");
   const h = bar(w, "zebra");
-  await wait(5);
+  await settle();
   assert.ok(shown(h.value.items).includes("provider:From program"));
   const privateWindow = S().createWindow({ url: "https://start.example/", kind: "private" });
   assert.equal(S().windows[privateWindow]?.kind, "private");
   asked.length = 0;
   const hp = bar(privateWindow, "zebra");
-  await wait(5);
+  await settle();
   assert.deepEqual(asked, [], "a private window never asks a program");
   assert.equal(keywordScope("go", privateWindow)?.providerId, "config:go", "the file's static keyword providers still work there");
   hp.unmount();
