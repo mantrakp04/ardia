@@ -85,7 +85,7 @@ bool TokenClient::FilterCommand(std::string& message, std::string* reply) {
                         "ardia: no attached session has that sessionId");
     return false;
   }
-  if (!MethodAllowed(*method)) {
+  if (!AllowedMethods().contains(*method)) {
     *reply = ErrorReply(*id, session, kMethodNotAllowed,
                         base::StrCat({"ardia: ", *method,
                                       " isn't allowed for the ardia command"}));

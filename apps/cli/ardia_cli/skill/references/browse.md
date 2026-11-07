@@ -50,8 +50,8 @@ another snapshot. `eval --stdin` runs JavaScript in the page when the page itsel
   interception: the page gets `dragstart`, `dragenter`/`dragover` and `drop` with its own `dataTransfer`, and no
   macOS drag session starts. The answer says `HTML5 drag and drop`, `the target didn't accept the drop`, or `plain
   mouse drag` when the page cancelled `dragstart`; `--json` has `started` and `dropped`. A reordered list often
-  shows `changes: none` (list items aren't in `snapshot -i`); check with `get text` or `snapshot -s`. An Ardia whose
-  policy doesn't allow interception yet refuses it with `policy_refused` before sending anything.
+  shows `changes: none` (list items aren't in `snapshot -i`); check with `get text` or `snapshot -s`. An older Ardia
+  whose policy doesn't allow interception refuses it with `policy_refused` before sending anything.
 - **Input is confirmed.** A click, key press, typing or scroll that the page never received fails with
   `input_not_delivered`; one it only partly received reports an unknown outcome. Check the page before retrying.
 - **Input is instant by default.** `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press

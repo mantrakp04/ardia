@@ -321,7 +321,6 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `legacySource=<home>` · `legacyCrashAfter=<step>` | The Netnyahoo → Ardia migration from a scratch home |
 | | `bangsUrl` · `onboarding` · `whatsNew` · `telemetry` · `liveMock=<url>` · `calendarFixture` | Debug builds only: bang list, run onboarding, show What's New, send telemetry, live folders from a mock, the calendar fixture |
 | | `cdpTabsVisible` | A tab that a DevTools-port client (`ARDIA_REMOTE_DEBUGGING_PORT`) attaches to stays visible to its renderer until that session detaches, as on the `ardia` command's token path (`ac_cli_visible_tabs.cc`; `docs/cli.md` › Input) |
-| | `cliDragInterception` | The `ardia` command's token path allows `Input.setInterceptDrags` and `Input.dispatchDragEvent` (refused otherwise), so the drag gate (`chromium-drag-start-event-id.patch`, `docs/engine-build.md`) can be tested before it ships |
 | | `loginsDelay=<profile\|account>:<ms>`, `loginsReleaseAfter=<profile\|account>`, `loginsTimeout=<s>` | Sync's password read (`ac_passwords_logins`): hold one store's answer, drop the read as a profile shutdown does once that store has answered, and the bridge's deadline (30 s otherwise) |
 | `ARDIA_PREWARM` | set | Not a setting: an older running app sets it on the staged update it prewarms, which then exits at once |
 

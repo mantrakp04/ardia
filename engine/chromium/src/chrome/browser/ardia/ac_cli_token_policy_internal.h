@@ -34,7 +34,6 @@ inline constexpr int kRefused = -32000;
 inline constexpr size_t kMaxPending = 4096;
 
 const std::set<std::string_view>& AllowedMethods();
-bool MethodAllowed(std::string_view method);
 bool NeedsResponse(const std::string& method, const base::DictValue& params);
 bool EditingCommandsAllowed(const base::Value* commands);
 

@@ -225,8 +225,7 @@ included) gets a `dragCancel`; a held button is released, while interception is 
 fails; and only then is interception turned off. Each of its CDP calls is bounded (2 s, plus up to 1.5 s for a
 late handover), instead of one deadline that could cut a release short and leave it running. Interception
 belongs to the CDP session, so it also ends when the session disconnects. If the token policy refuses
-`Input.setInterceptDrags`, the command fails before any input with the gated message (`policy_refused`), and it does
-today: HTML5 drag works against a `--port` test server, and on the token path only in a test instance launched with `--test cliDragInterception` (see Gated by the token policy). It reports
+`Input.setInterceptDrags` (an Ardia older than this engine), the command fails before any input with the gated message (`policy_refused`). Ardia hands a drag to a session only when the drag started from that session's own press (`docs/engine-build.md`, the control-token patch); sessions still share control of the tab, so one session's drag timing and payload aren't isolated from another session's. It reports
 what happened: `✓ Done (HTML5 drag and drop)`, `the target didn't accept the drop` (the page cancelled no `dragover`, so
 no `drop` event arrived) or `the page didn't start an HTML5 drag, so it was a plain mouse drag` (its `dragstart` was
 cancelled); `--json` has `html5`, `started` and `dropped`. It confirms delivery like other input (a `mousedown`, then a
@@ -450,7 +449,6 @@ implemented and works against a plain `--port` test server, so allowing the meth
 | `trace start\|stop`, `profiler start\|stop` | `Tracing.start`, `Tracing.end` |
 | `record start\|stop\|restart` | `Page.startScreencast` (and ffmpeg on PATH for the WebM) |
 | `stream enable` | `Page.startScreencast` |
-| `drag` of an HTML5 draggable | `Input.setInterceptDrags`, `Input.dispatchDragEvent`: refused on the token path until the engine's drag gate, which hands a drag only to the session whose own press and move started it, is reviewed; a test instance with `--test cliDragInterception` allows them; works on `--port` test servers |
 
 On the token path Ardia also strips `Cookie`, `Set-Cookie` and `Authorization` from network events, so
 `network requests` and HAR files never contain them.
