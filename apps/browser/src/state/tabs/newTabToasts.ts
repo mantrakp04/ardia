@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { BrowserWindow, Tab } from "../browser/types";
+import type { BrowserState } from "../browser/store";
+import type { Tab } from "../browser/types";
 import { isAsleep } from "./pageSession";
 
 export const NEW_TAB_TOAST_LIFETIME = 5000;
@@ -18,7 +19,7 @@ export type NewTabToast = {
 
 type ToastState = { items: NewTabToast[] };
 type Owner = Pick<Tab, "id" | "windowId" | "profileId" | "page">;
-type Browser = { tabs: Record<string, Tab>; windows: Record<string, BrowserWindow>; activate(id: string): void };
+type Browser = Pick<BrowserState, "tabs" | "windows" | "activate">;
 type Timing = { now(): number; set(run: () => void, ms: number): ReturnType<typeof setTimeout>; clear(timer: ReturnType<typeof setTimeout>): void };
 
 export function newTabToastCapacity(height: number): number {
