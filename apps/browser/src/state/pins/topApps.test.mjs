@@ -8,26 +8,10 @@ const stub = await import("../../test-native/index.ts");
 const folders = await import("./tileFolders.ts");
 const writes = await import("./syncWrites.ts");
 const topAppsMod = await import("./topApps.ts");
-const { newShownMemo, shownPaneKeys, useShownPaneKeys } = await import("../windows/card.ts");
-const { createRequire } = await import("node:module");
-const require = createRequire(import.meta.url);
-const React = require("react");
-const { renderToStaticMarkup } = require("react-dom/server");
+const { newShownMemo, shownPaneKeys } = await import("../windows/card.ts");
 
 const S = () => useBrowser.getState();
-const paneKeyOf = (id) => {
-  const initial = useBrowser.getInitialState();
-  const saved = { ...initial };
-  Object.assign(initial, S());
-  let keys;
-  const Probe = () => ((keys = useShownPaneKeys([id], {})), null);
-  try {
-    renderToStaticMarkup(React.createElement(Probe));
-  } finally {
-    Object.assign(initial, saved);
-  }
-  return keys.find((key) => key.startsWith(`${id}|`));
-};
+const paneKeyOf = (id) => shownPaneKeys({ current: newShownMemo() }, S(), [id], {}).find((key) => key.startsWith(`${id}|`));
 let optedOut = false;
 const reset = (shared = true) => {
   S().hydrate({});
