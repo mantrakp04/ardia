@@ -3363,13 +3363,13 @@ try {
         return e?.payload.playing && e.payload.muted ? e : null;
       }, 8000);
       await until("live.playingAudio", async () => (await live(first.id))?.playingAudio === true, 5000);
-      const stops = async () => (await eventsOf(first.id)).filter((x) => x.name === "media" && !x.payload?.playing).length;
-      const stopsBeforeBlip = await stops();
+      const blipFrom = (await eventsOf(first.id)).at(-1)?.t ?? 0;
+      const stopsSince = async (t) => (await eventsOf(first.id)).filter((x) => x.t > t && x.name === "media" && !x.payload?.playing).length;
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       await new Promise((r) => setTimeout(r, 700));
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').play(); true", userGesture: true });
       await new Promise((r) => setTimeout(r, 500));
-      if ((await stops()) !== stopsBeforeBlip) throw new Error("a 0.7 s pause reported the tab as silent");
+      if (await stopsSince(blipFrom)) throw new Error("a 0.7 s pause reported the tab as silent");
       const pausedAt = Date.now();
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       const off = await until("onMedia stopped", async () => {
