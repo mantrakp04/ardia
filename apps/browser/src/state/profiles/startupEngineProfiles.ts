@@ -1,10 +1,11 @@
+import type { Settings } from "../settings/settings";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, incognitoOriginal, isIncognitoProfile } from "../browser/model";
 import { engineProfiles } from "./engineProfiles";
 
 export let selectedProfileReads = false;
 
-export function configureProfileStartup(settings: { loadProfilesWhenOpened: boolean }) {
+export function configureProfileStartup(settings: Pick<Settings, "loadProfilesWhenOpened">) {
   selectedProfileReads = settings.loadProfilesWhenOpened;
 }
 

@@ -242,6 +242,8 @@ test("saving selected bookmarks retains an unopened profile's cached tree", asyn
   stub.bookmarkDbs.clear();
   stub.docs.set("bookmarks-cache.json", JSON.stringify({ version: 1, trees: { [work]: nodes } }));
   configureProfileStartup({ loadProfilesWhenOpened: true });
+  const { startProfileLoading } = await import("../profiles/profileLoading.ts");
+  const stopLoading = startProfileLoading();
   const stop = startBookmarks();
   try {
     for (let i = 0; i < 10; i++) await settle();
@@ -250,6 +252,7 @@ test("saving selected bookmarks retains an unopened profile's cached tree", asyn
     for (let i = 0; i < 10; i++) await settle();
   } finally {
     stop();
+    stopLoading();
     configureProfileStartup({ loadProfilesWhenOpened: false });
   }
   const cache = JSON.parse(stub.docs.get("bookmarks-cache.json"));
