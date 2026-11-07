@@ -7,7 +7,7 @@ using namespace ardia_runtime;
 @implementation ArdiaWebView (PageCommands)
 
 - (void)emitMedia {
-  const BOOL playing = _tab.audible;
+  const BOOL playing = _tab.recentlyAudible;
   const BOOL muted = _tab ? _tab.muted : _muted;
   [self emit:@"media" payload:@{@"playing" : @(playing), @"muted" : @(muted)}];
 }

@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/favicon/content/content_favicon_driver.h"
@@ -134,8 +135,14 @@ using ardiacore::NS;
                                     SkColorGetG(*color), SkColorGetB(*color)];
 }
 
-- (BOOL)audible {
-  return _contents && _contents->IsCurrentlyAudible();
+- (BOOL)recentlyAudible {
+  if (!_contents) {
+    return NO;
+  }
+  if (auto* helper = RecentlyAudibleHelper::FromWebContents(_contents)) {
+    return helper->WasRecentlyAudible();
+  }
+  return _contents->IsCurrentlyAudible();
 }
 
 - (BOOL)muted {

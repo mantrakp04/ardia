@@ -281,7 +281,7 @@ ARDIACORE_EXPORT
 
 @property(readonly, nullable) NSString* faviconURL;
 @property(readonly, nullable) NSString* themeColor;
-@property(readonly) BOOL audible;
+@property(readonly) BOOL recentlyAudible;
 @property(nonatomic) BOOL muted;
 @property(readonly) int browserId;
 @property(readonly, nullable) NSString* committedOrigin;
