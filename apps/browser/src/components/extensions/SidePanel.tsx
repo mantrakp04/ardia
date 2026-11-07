@@ -1,4 +1,4 @@
-import { Box, Button, Divider, springs, Text, WebView } from "../ui";
+import { Box, Button, Divider, springs, Text, WebView, type WebViewHandle } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
@@ -8,7 +8,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, showExtensionMenu, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -40,7 +40,7 @@ export function ExtensionSidePanel() {
   }, [!!panel]);
   useEffect(() => {
     if (panel) setShown(panel);
-  }, [panel?.url, panel?.extensionId]);
+  }, [panel?.url, panel?.extensionId, panel?.opened]);
 
   const width = dragWidth ?? savedWidth;
   const start = useRef(width);
@@ -91,8 +91,14 @@ export function ExtensionSidePanel() {
 }
 
 function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) {
-  const { extensionId, profile, pageProfile, url } = panel;
+  const { extensionId, profile, pageProfile, url, opened } = panel;
   const theme = useTheme();
+  const web = useRef<WebViewHandle>(null);
+  const [loaded, setLoaded] = useState(false);
+  const lookingUp = useExtensions((e) => !!e.sidePanelLookups[windowId]);
+  useEffect(() => {
+    if (loaded && takeSidePanelFocus(windowId, panel)) void web.current?.focus();
+  }, [loaded, opened, lookingUp]);
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;
@@ -117,12 +123,16 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
       <Divider />
       <View style={PAGE}>
         <WebView
+          ref={web}
           style={StyleSheet.absoluteFill}
           url={url}
           profile={pageProfile}
           standalone
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
+          onNavigationChange={({ isLoading }) => {
+            if (!isLoading) setLoaded(true);
+          }}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
