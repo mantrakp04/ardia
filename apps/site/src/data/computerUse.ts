@@ -173,3 +173,5 @@ export const computerUse = {
   rows: raw.tasks.map(rowOf),
   source: `${REPO}/tree/main/apps/cli/bench`,
 };
+
+export const showComputerUse: boolean = import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED;

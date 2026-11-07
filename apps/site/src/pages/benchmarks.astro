@@ -2,7 +2,6 @@
 import { base, homeUrl } from "../data/site";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
-import ComputerUse from "../components/ComputerUse.astro";
 import Bench from "../components/Bench.astro";
 import Closing from "../components/Closing.astro";
 import Footer from "../components/Footer.astro";
@@ -10,6 +9,8 @@ import { bench, BENCH_METHOD } from "../data/bench";
 import { scorecardOf } from "../data/benchScorecard";
 import { REPO } from "../data/release";
 import { breadcrumbs } from "../data/jsonLd";
+const ComputerUse =
+  import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED ? (await import("../components/ComputerUse.astro")).default : null;
 
 const home = homeUrl(Astro.site);
 const url = new URL("benchmarks/", home).href;
@@ -54,7 +55,7 @@ const jsonLd = [
 <Base title={`Mac browser benchmarks · ${versus}`} description={description} jsonLd={jsonLd}>
   <Header home={`${base}/`} current="benchmarks" />
   <main>
-    <ComputerUse page />
+    {ComputerUse && <ComputerUse page />}
     <Bench page />
     {
       bench && (

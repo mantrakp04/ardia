@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { constants, gzipSync } from "node:zlib";
 
+const computerUsePublished = false;
+
 function demo() {
   const demoDir = fileURLToPath(new URL("../../packages/demo/", import.meta.url));
   const demoVite = () => import(pathToFileURL(createRequire(join(demoDir, "package.json")).resolve("vite")).href);
@@ -79,5 +81,6 @@ export default defineConfig({
   build: { inlineStylesheets: "always", assets: "_assets" },
   image: { responsiveStyles: false },
   devToolbar: { enabled: false },
+  vite: { define: { "import.meta.env.COMPUTER_USE_PUBLISHED": JSON.stringify(computerUsePublished) } },
   integrations: [demo(), dist()],
 });
