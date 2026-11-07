@@ -2,17 +2,19 @@ import { memo, useContext, useEffect, useMemo, useReducer, useRef, useState } fr
 import { Animated, ScrollView, View } from "react-native";
 import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
+import { useStripLiveFolders } from "../../state/tabs/stripLive";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
+import { LiveFolderShelf } from "./LiveFolderShelf";
 import { chipKey, folderKey, type Strip } from "./model";
 import { NewTabButton } from "./NewTabButton";
 import { PinnedDock } from "./PinnedDock";
 import { SplitChip } from "./SplitChip";
-import { layoutDock, layoutStrip, revealOffset, tabsOf, type DragGeometry } from "./stripGroups";
+import { layoutDock, layoutStrip, revealOffset, shelfSpan, tabsOf, type DragGeometry } from "./stripGroups";
 import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
 import { FLARE, GAP } from "./tokens";
@@ -27,6 +29,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
   const parsed = useStripEntries(windowId, profileId);
   const activeId = useShownTabIdFor(windowId, profileId);
+  const liveFolders = useStripLiveFolders(windowId, profileId);
   const groupIds = parsed.flatMap((e) => (e.kind === "group" ? [e.id] : []));
   const chipWidths = useMeasuredWidths(groupIds.map(chipKey));
   const folderIds = parsed.flatMap((e) => (e.kind === "group" ? e.members.flatMap((m) => (m.kind === "folder" ? [m.id] : [])) : []));
@@ -45,7 +48,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
     held.current ??= { chip: last.current.chip, end: last.current.end };
     closedTo.current = activeId;
   }
-  const { chip, top, targets, memberWidth, spanOf: spanInStrip } = layoutStrip(parsed, activeId, pageWidth, { groupChip: chipOf, folderChip }, dock, held.current?.chip);
+  const { chip, top, targets, memberWidth, spanOf: spanInStrip } = layoutStrip(parsed, activeId, pageWidth, { groupChip: chipOf, folderChip }, dock, held.current?.chip, shelfSpan(liveFolders.length));
   last.current = { count, chip, end: stripEnd(top) };
   const spare = held.current ? Math.max(0, held.current.end - stripEnd(top)) : 0;
   const leave = () => {
@@ -107,6 +110,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
               style={{ flex: 1, marginLeft: flare - inset }}
               contentContainerStyle={{ alignItems: "flex-start", gap: GAP, paddingLeft: inset, paddingRight: flare }}
             >
+              {liveFolders.length ? <LiveFolderShelf folderIds={liveFolders} /> : null}
               {parsed.flatMap((e) => {
                 if (e.kind === "dock") return <PinnedDock key="dock" tabIds={e.ids} />;
                 const before = gap(slotIndex++);

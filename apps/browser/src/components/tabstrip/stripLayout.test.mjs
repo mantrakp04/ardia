@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { layoutDock, layoutStrip } = await import("./stripGroups.ts");
+const { layoutDock, layoutStrip, shelfSpan } = await import("./stripGroups.ts");
 
 const tab = (id, group = null) => ({ kind: "tab", id, group });
 const folder = (id, tabIds, group) => ({ kind: "folder", id, tabIds, group });
@@ -78,4 +78,16 @@ test("a held chip width keeps every tab where it was after a close, whatever roo
   assert.equal(held.chip, 156.5);
   assert.deepEqual(held.spanOf("c"), [156.5 + 4, 156.5]);
   assert.equal(layoutStrip(six.slice(1), "b", 1000, measured(), null).chip, 173);
+});
+
+test("live folders on the shelf before the dock push every span right by the shelf and narrow the tabs, leaving the dock where the tabs expect it", () => {
+  const entries = [dock(["p1"]), ...["x", "y", "z", "u", "v", "w"].map((id) => tab(id))];
+  const lead = shelfSpan(2);
+  const strip = layoutStrip(entries, "x", 1000, measured(), dockOf(entries), undefined, lead);
+  assert.equal(lead, 74.5);
+  assert.equal(strip.chip, 138);
+  assert.deepEqual(strip.spanOf("p1"), [74.5, 34]);
+  assert.deepEqual(strip.spanOf("x"), [74.5 + 38.5, 138]);
+  assert.equal(dockOf(entries).left, -38.5);
+  assert.equal(shelfSpan(0), 0);
 });

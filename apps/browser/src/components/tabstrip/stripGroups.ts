@@ -141,14 +141,15 @@ export type StripLayout = {
 
 const dockEntry = (entries: StripEntry[]) => entries.find((e): e is StripDock => e.kind === "dock");
 const dockTabs = (dock: StripDock, cell: string) => dock.members.get(cell) ?? [cell];
-const dockSpan = (dock: StripDock | undefined) => (dock?.ids.length ? dockWidth(dock.ids.length) + DOCK_GAP : 0);
+export const shelfSpan = (cells: number) => (cells ? dockWidth(cells) + DOCK_GAP : 0);
+const dockSpan = (dock: StripDock | undefined) => shelfSpan(dock?.ids.length ?? 0);
 
 export function layoutDock(dock: StripDock | undefined): Dock | null {
   if (!dock?.ids.length) return null;
   return { ids: dock.ids, left: -dockSpan(dock), geometry: dragGeometry(dock.ids.map((id) => ({ tabIds: dockTabs(dock, id), width: PINNED_CELL })), PINNED_SPACING) };
 }
 
-export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, heldChip?: number): StripLayout {
+export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null, heldChip?: number, lead = 0): StripLayout {
   const dock = dockEntry(entries);
   const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
   const groupChip = (g: StripGroupEntry) => measured.groupChip(g.id) ?? 0;
@@ -156,7 +157,7 @@ export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: 
   const visible = rows.flatMap((e) => (e.kind !== "group" ? [e] : e.collapsed ? e.members.filter((m) => holds(m, activeId)) : e.members));
   const chip = heldChip ?? stripTabWidth({
     pageWidth,
-    dockWidth: dockSpan(dock),
+    dockWidth: lead + dockSpan(dock),
     groups: rows.flatMap((e) => (e.kind === "group" ? [{ chip: groupChip(e), expanded: !e.collapsed, shown: e.members.some((m) => holds(m, activeId)) }] : [])),
     tabUnits: visible.reduce((n, m) => n + units(m, activeId), 0),
     fixed: visible.reduce((n, m) => n + (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET : GAP) : 0), 0),
@@ -183,10 +184,10 @@ export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: 
   const targets = rows.map((e) => (e.kind === "split" || e.kind === "folder" ? null : { kind: e.kind, id: e.id }));
   const spanOf = (tabId: string): [number, number] | null => {
     const cell = dock && dockLayout ? dockCellOf(dock.ids, (id) => dockTabs(dock, id), tabId) : -1;
-    if (cell >= 0) return [dockLayout!.geometry.lefts[cell]!, PINNED_CELL];
+    if (cell >= 0) return [lead + dockLayout!.geometry.lefts[cell]!, PINNED_CELL];
     const i = top.slots.findIndex((slot) => slot.tabIds.includes(tabId));
     if (i < 0) return null;
-    const left = dockSpan(dock) + top.lefts[i]!;
+    const left = lead + dockSpan(dock) + top.lefts[i]!;
     const row = rows[i]!;
     if (row.kind !== "group") return [left, top.slots[i]!.width];
     const at = row.members.findIndex((m) => holds(m, tabId));
