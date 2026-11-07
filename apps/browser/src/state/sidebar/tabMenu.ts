@@ -19,6 +19,7 @@ import { canSwitchEngine, ENGINE_NAMES, otherEngine, tabEngine } from "../engine
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 import { openMultiMenu } from "./multiTabMenu";
 import { tileFolderOf } from "../pins/tileFolders";
+import { sendTabFromMenu, sendTabMenuItem } from "../sync/menu";
 
 const store = () => useBrowser.getState();
 
@@ -136,6 +137,11 @@ function closeItems(f: Facts): MenuItem[] {
   ];
 }
 
+function sendItems(tab: Tab, f: Facts): MenuItem[] {
+  const send = f.incognito ? null : sendTabMenuItem(tab);
+  return send ? [send] : [];
+}
+
 export function tabMenuItems(s: BrowserState, windowId: string, tab: Tab, f: Facts = tabMenuFacts(s, windowId, tab)): TabMenuItem[] {
   return sections<TabMenuItem>(
     pinItems(s, tab, f),
@@ -146,12 +152,15 @@ export function tabMenuItems(s: BrowserState, windowId: string, tab: Tab, f: Fac
       { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
       { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
     ],
-    withAlternate(
-      { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
-      { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
-      f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
-      s,
-    ),
+    [
+      ...withAlternate(
+        { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
+        { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
+        f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
+        s,
+      ),
+      ...sendItems(tab, f),
+    ],
     [
       { id: "rename", title: "Rename…", symbol: "pencil" },
       ...(tab.customTitle ? [{ id: "resetName", title: "Reset Name" }] : []),
@@ -193,7 +202,7 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   if (typeof choice !== "string") return sendTab(windowId, tab.id, choice);
   const s = store();
   const t = { kind: "tab" as const, id: tab.id };
-  if (runCalendarMenu(choice)) return;
+  if (runCalendarMenu(choice) || sendTabFromMenu(choice, tab)) return;
   if (choice === "backToPin") s.returnToPinnedUrl(tab.id);
   else if (choice === "replacePin") s.setPinnedUrl(tab.id);
   else if (choice === "editPin") void editPinnedPage(windowId, tab.id);
