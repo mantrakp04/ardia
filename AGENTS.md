@@ -29,9 +29,10 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   place (it once committed an `ACClient.mm` that didn't compile). Check `git diff --cached` reads as you meant.
 - **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
   fails without one. A PR that arrives without an issue gets one opened for it, then linked.
-- **Vouch gates outside PRs.** A PR from someone not in `.github/VOUCHED.td` is closed by the Vouch workflow.
-  Only the owner decides who gets vouched: comment `vouch`, `vouch @user`, `denounce @user <reason>` or
-  `unvouch @user` on an issue or PR only when the owner asks.
+- **Vouch gates outside PRs.** A PR from someone who isn't a collaborator, a bot or in `.github/VOUCHED.td` is
+  closed by the Vouch workflow when it opens or reopens. Collaborators manage the list by commenting `vouch` (the
+  issue or PR author), `vouch @user`, `denounce @user <reason>` or `unvouch @user`; agents do it only when the
+  owner asks.
 - **Progress reports.** Keep them short and plain: what shipped, what's left, what needs the owner.
 - **Clean up.** Quit your test instances, stop the servers and background jobs you started, and never
   kill processes you didn't start.

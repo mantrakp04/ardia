@@ -15,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'pull_request_target' ||
-      (github.event.issue.pull_request && github.event.comment.body == '/recheck')
+      (github.event.issue.pull_request && github.event.issue.state == 'open' &&
+       github.event.comment.body == '/recheck')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

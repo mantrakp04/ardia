@@ -172,9 +172,9 @@ The fastest bug to fix is one with a screen recording. Include:
   "Linked issue" check and won't be reviewed. Several PRs can point at the same issue.
 - **Get vouched.** Pull requests come from people a maintainer has vouched for, using
   [vouch](https://github.com/mitchellh/vouch). The list is `.github/VOUCHED.td`; collaborators and bots are always
-  allowed, and everyone who has landed work before is already on it. A pull request from someone not on the list is
-  closed automatically. Start with the issue: when a maintainer wants the change, they comment `vouch` on your issue
-  or pull request, which adds you for good, and reopen the pull request. Issues stay open to everyone.
+  allowed. A pull request from anyone else is closed automatically when it's opened or reopened. Start with the
+  issue: when a maintainer wants the change, they comment `vouch` on your issue or pull request, which adds you to
+  the list until a maintainer removes you, and reopen the pull request. Issues stay open to everyone.
 - One change per PR. Describe it the way a user would notice it ("dragging a tab onto another groups them"), then
   how you checked it.
 - For anything visible, attach a recording or before-and-after captures, ideally next to Dia's.
