@@ -1,0 +1,18 @@
+--- a/chrome/browser/ui/views/media_router/media_remoting_dialog_view.cc
++++ b/chrome/browser/ui/views/media_router/media_remoting_dialog_view.cc
+@@ -46,8 +46,13 @@
+     std::move(permission_callback).Run(false);
+     return false;
+   }
+-  auto anchor = BrowserView::GetBrowserViewForBrowser(browser)
+-                    ->toolbar_button_provider()
++  BrowserView* const browser_view =
++      BrowserView::GetBrowserViewForBrowser(browser);
++  if (!browser_view) {
++    std::move(permission_callback).Run(false);
++    return false;
++  }
++  auto anchor = browser_view->toolbar_button_provider()
+                     ->GetPinnedToolbarActions()
+                     ->GetBubbleAnchor(kActionRouteMedia);
+   Profile* const profile =

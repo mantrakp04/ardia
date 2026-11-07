@@ -198,16 +198,13 @@ ArdiaVideoUpscalerKit* BuildKit(ArdiaVideoUpscalerKit* previous,
       if (output) {
         CVPixelBufferRelease(output);
       }
-      if (plan.vt_needs_pad) {
-        CVPixelBufferRef padded =
-            CreateBuffer(plan.vt_input.width(), plan.vt_input.height(),
-                         kit.configuration.sourcePixelBufferAttributes);
-        kit.paddedInput = padded;
-        if (padded) {
-          CVPixelBufferRelease(padded);
-        }
+      CVPixelBufferRef padded = CreateBuffer(plan.vt_input.width(), plan.vt_input.height(),
+                                             kit.configuration.sourcePixelBufferAttributes);
+      kit.paddedInput = padded;
+      if (padded) {
+        CVPixelBufferRelease(padded);
       }
-      if (!kit.vtOutput || (plan.vt_needs_pad && !kit.paddedInput)) {
+      if (!kit.vtOutput || !kit.paddedInput) {
         return nil;
       }
     }
