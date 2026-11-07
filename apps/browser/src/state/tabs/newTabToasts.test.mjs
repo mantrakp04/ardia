@@ -248,9 +248,10 @@ test("overflow, an obscuring pane and another profile defer the first appearance
   q.clear();
 });
 
-test("page permission and security prompts defer the production toast selection", async () => {
+test("page permission, security and engine-offer prompts defer the production toast selection", async () => {
   const { newTabToastPrompt } = await import("../../components/window/newTabToastProtection.ts");
   const { patchPage, usePages } = await import("./pageState.ts");
+  const { useEngineOffers } = await import("../engines/actions.ts");
   const w = S().createWindow();
   const id = activeTabId(S(), w);
   const toast = S().newTab(w, { background: true });
@@ -263,6 +264,13 @@ test("page permission and security prompts defer the production toast selection"
     patchPage(id, { [key]: null });
   }
   assert.equal(newTabToastPrompt(usePages.getState().pages[id], "siteControls"), true);
+  useEngineOffers.setState({ [id]: { site: "https://video.example", host: "video.example", keySystem: "com.widevine.alpha", canRemember: true } });
+  const offered = newTabToastPrompt(usePages.getState().pages[id], null, useEngineOffers.getState()[id]);
+  assert.equal(offered, true);
+  assert.deepEqual(visibleNewTabToasts(notices(), w, "default", 200, offered), []);
+  assert.equal(notices().find((t) => t.tabId === toast).appearedAt, null);
+  useEngineOffers.setState({}, true);
+  assert.equal(newTabToastPrompt(usePages.getState().pages[id], null, useEngineOffers.getState()[id]), false);
   assert.equal(newTabToastPrompt(usePages.getState().pages[id], null), false);
 });
 

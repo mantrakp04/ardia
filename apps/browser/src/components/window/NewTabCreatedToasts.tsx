@@ -10,6 +10,7 @@ import { usePages } from "../../state/tabs/pageState";
 import { useMedia } from "../../state/media/media";
 import { useCast } from "../../state/media/cast";
 import { useDeviceChooserOpen } from "../../state/site/deviceChoosers";
+import { useEngineOffers } from "../../state/engines/actions";
 import { newTabToastPrompt } from "./newTabToastProtection";
 import { newTabToastRect } from "./newTabToastGeometry";
 import { NEW_TAB_TOAST_INSET, NEW_TAB_TOAST_MOTION, SHADOWS, windowColors } from "./tokens";
@@ -36,7 +37,8 @@ export function NewTabCreatedToasts({ windowId, tabId, nativePage }: { windowId:
   const profileId = useWindow(windowId, (w) => w?.profileId);
   const engine = useTabEngine(tabId);
   const covered = useNewTabToastsCovered(windowId, tabId);
-  const prompt = usePages((s) => newTabToastPrompt(s.pages[tabId], s.popover[tabId]));
+  const engineOffer = useEngineOffers((offers) => offers[tabId]);
+  const prompt = usePages((s) => newTabToastPrompt(s.pages[tabId], s.popover[tabId], engineOffer));
   const pageLayout = usePages((s) => s.pages[tabId]?.pageLayout);
   const sharing = useMedia((s) => !!s.displayRequests[tabId]);
   const casting = useCast((s) => !!s.dialogs[tabId]);
