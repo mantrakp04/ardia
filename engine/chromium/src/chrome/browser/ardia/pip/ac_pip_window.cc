@@ -275,7 +275,6 @@ gfx::Rect ArdiaVideoOverlayWindow::CalculateAndUpdateWindowBounds() {
           edge,
           static_cast<float>(natural_size_.width()) / natural_size_.height(),
           GetMinimumSize(), max_size_, &rect);
-      UpdateLayerBoundsWithLetterboxing(rect.size());
     }
     if (!on_a_display) {
       const int margin = (work_area.width() - rect.width() +
@@ -285,6 +284,7 @@ gfx::Rect ArdiaVideoOverlayWindow::CalculateAndUpdateWindowBounds() {
                        work_area.bottom() - rect.height() - margin});
     }
     rect.AdjustToFit(work_area);
+    UpdateLayerBoundsWithLetterboxing(rect.size());
     return rect;
   }
   return VideoOverlayWindowViews::CalculateAndUpdateWindowBounds();
@@ -297,6 +297,7 @@ void ArdiaVideoOverlayWindow::ShowInactive() {
   SetOpacity(1.0f);
   views::Widget::ShowInactive();
   VideoOverlayWindowViews::ShowInactive();
+  UpdateLayerBoundsWithLetterboxing(GetBounds().size());
   if (fade_animator_) {
     fade_animator_->CancelAndReset();
   }
