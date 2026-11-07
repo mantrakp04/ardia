@@ -109,6 +109,14 @@ the same with it off). A wake right before the switch (the keyboard case: âŒ˜1â€
 so keys don't wake. xbench's CDP-driven switch doesn't click, so its row doesn't show this.
 (Its switch, `ARDIA_SWITCH_PREWARM`, went on 2026-10-26, after it shipped in 0.2.40.)
 
+**Same-site link click (GitHub issue #795, not yet measured).** The same per-view compositor is the suspected cause of a
+reported blank: a contributor saw a tab show only its background colour for about 60 ms after a same-site link click
+(that figure is their observation; this file has no measurement of it). The swap hides the old view before the new one
+takes its frame, and the hide dropped the old view's compositor and the frame with it. `chromium-keep-old-frame-on-swap.patch`
+is meant to keep that compositor and its last frame until the new view's first frame (or 4 s), so the old page stays on
+screen until the new one draws. It was written without a macOS build and has not been run on a device: the blank-free
+swap still needs a link click in a main window, recorded.
+
 **New tab (+26 ms).** In Chrome, `Target.createTarget` adds a tab that is already in its window. In Ardia the
 WebContents is made and starts loading in Chrome's strip, but it is only shown once the JS adopts it and React mounts
 its view. Until then it is hidden, so its first paint waits for the mount. Same cause as the switch: the page isn't

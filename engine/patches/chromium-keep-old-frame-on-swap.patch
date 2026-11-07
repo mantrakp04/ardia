@@ -1,0 +1,123 @@
+--- a/content/browser/renderer_host/browser_compositor_view_mac.h
++++ b/content/browser/renderer_host/browser_compositor_view_mac.h
+@@ -9,6 +9,7 @@
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/time/time.h"
++#include "base/timer/timer.h"
+ #include "components/viz/client/frame_evictor.h"
+ #include "components/viz/common/frame_sinks/begin_frame_source.h"
+ #include "components/viz/common/surfaces/local_surface_id.h"
+@@ -72,6 +73,8 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+   // no valid frame is available.
+   const gfx::CALayerParams* GetLastCALayerParams() const;
+ 
++  void ReleaseRetiredCompositor();
++
+   void SetBackgroundColor(SkColor background_color);
+   void TakeFallbackContentFrom(BrowserCompositorMac* other);
+ 
+@@ -189,6 +192,9 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+   raw_ptr<ui::AcceleratedWidgetMacNSView> accelerated_widget_mac_ns_view_ =
+       nullptr;
+   std::unique_ptr<ui::RecyclableCompositorMac> recyclable_compositor_;
++  std::unique_ptr<ui::RecyclableCompositorMac> retired_compositor_;
++  gfx::CALayerParams retired_ca_layer_params_;
++  base::OneShotTimer retired_compositor_timer_;
+ 
+   std::unique_ptr<DelegatedFrameHost> delegated_frame_host_;
+   std::unique_ptr<ui::LayerSurface> root_layer_;
+--- a/content/browser/renderer_host/browser_compositor_view_mac.mm
++++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
+@@ -29,6 +29,10 @@ namespace content {
+ 
+ namespace {
+ 
++constexpr base::TimeDelta kUnclaimedRetiredCompositorLifetime =
++    base::Milliseconds(100);
++constexpr base::TimeDelta kRetiredCompositorLifetime = base::Seconds(4);
++
+ // Weak pointers to all BrowserCompositorMac instances, used to
+ // - Determine if a spare RecyclableCompositorMac should be kept around (one
+ //   should be only if there exists at least one BrowserCompositorMac).
+@@ -74,6 +78,7 @@ BrowserCompositorMac::~BrowserCompositorMac() {
+   weak_factory_.InvalidateWeakPtrs();
+ 
+   TransitionToState(HasNoCompositor);
++  ReleaseRetiredCompositor();
+   delegated_frame_host_.reset();
+   root_layer_.reset();
+ 
+@@ -95,9 +100,16 @@ bool BrowserCompositorMac::ForceNewSurfaceId() {
+ }
+ 
+ const gfx::CALayerParams* BrowserCompositorMac::GetLastCALayerParams() const {
+-  if (!recyclable_compositor_)
+-    return nullptr;
+-  return recyclable_compositor_->widget()->GetCALayerParams();
++  if (recyclable_compositor_)
++    return recyclable_compositor_->widget()->GetCALayerParams();
++  if (retired_compositor_)
++    return &retired_ca_layer_params_;
++  return nullptr;
++}
++
++void BrowserCompositorMac::ReleaseRetiredCompositor() {
++  retired_compositor_timer_.Stop();
++  retired_compositor_.reset();
+ }
+ 
+ viz::FrameSinkId BrowserCompositorMac::GetRootFrameSinkId() {
+@@ -249,9 +261,25 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     root_layer_->parent()->Remove(root_layer_.get());
+   }
+   if (state_ == HasOwnCompositor) {
++    ReleaseRetiredCompositor();
++    const gfx::CALayerParams* last_ca_layer_params =
++        recyclable_compositor_->widget()->GetCALayerParams();
++    const bool retire_compositor =
++        new_state == HasNoCompositor && last_ca_layer_params;
++    if (retire_compositor) {
++      retired_ca_layer_params_ = last_ca_layer_params->CloneWithoutFence();
++      recyclable_compositor_->Suspend();
++    }
+     recyclable_compositor_->widget()->ResetNSView();
+     recyclable_compositor_->compositor()->SetRootLayer(nullptr);
+-    recyclable_compositor_.reset();
++    if (retire_compositor) {
++      retired_compositor_ = std::move(recyclable_compositor_);
++      retired_compositor_timer_.Start(
++          FROM_HERE, kUnclaimedRetiredCompositorLifetime, this,
++          &BrowserCompositorMac::ReleaseRetiredCompositor);
++    } else {
++      recyclable_compositor_.reset();
++    }
+   }
+ 
+   // The compositor is now detached. If this is the target state, we're done.
+@@ -309,6 +337,15 @@ void BrowserCompositorMac::TakeFallbackContentFrom(
+     BrowserCompositorMac* other) {
+   delegated_frame_host_->TakeFallbackContentFrom(
+       other->delegated_frame_host_.get());
++  if (other->retired_compositor_) {
++    retired_ca_layer_params_ =
++        other->retired_ca_layer_params_.CloneWithoutFence();
++    retired_compositor_ = std::move(other->retired_compositor_);
++    other->retired_compositor_timer_.Stop();
++    retired_compositor_timer_.Start(
++        FROM_HERE, kRetiredCompositorLifetime, this,
++        &BrowserCompositorMac::ReleaseRetiredCompositor);
++  }
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+--- a/content/browser/renderer_host/render_widget_host_view_mac.mm
++++ b/content/browser/renderer_host/render_widget_host_view_mac.mm
+@@ -218,6 +218,7 @@ void RenderWidgetHostViewMac::AcceleratedWidgetCALayerParamsUpdated(
+ 
+   // Update the contents that the NSView is displaying.
+   ns_view_->SetCALayerParams(std::move(ca_layer_params));
++  browser_compositor_->ReleaseRetiredCompositor();
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////
