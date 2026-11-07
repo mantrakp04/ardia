@@ -1106,7 +1106,7 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   await syncAll([a, b]);
   assert.deepEqual(list(a), list(b));
   assert.deepEqual(list(b), ["https://bank.example alice=hunter2", "https://mail.example alice=m41l", "https://shop.example bob=sh0p"]);
-  await save(b, "https://bank.example", "alice", "correct horse");
+  await b.with(() => passwords.updatePassword("", "https://bank.example", "alice", { password: "correct horse" }));
   await remove(b, "https://mail.example", "alice");
   await syncAll([b, a]);
   assert.deepEqual(list(a), ["https://bank.example alice=correct horse", "https://shop.example bob=sh0p"]);
@@ -1144,10 +1144,11 @@ test("passwords: a remote change saved in Chrome as quitting begins isn't sent b
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
   const save = (d, password) => d.with(() => passwords.savePassword("", "https://bank.example", "alice", password));
+  const change = (d, password) => d.with(() => passwords.updatePassword("", "https://bank.example", "alice", { password }));
   const list = (d) => [...stub.passwordStores.get(d.id).values()].map((l) => `${l.username}=${l.password}`);
   await save(a, "one");
   await syncAll([a, b]);
-  await save(a, "two");
+  await change(a, "two");
   await a.sync();
   let quitting = false;
   const logins = sealedLogins();
@@ -1155,7 +1156,7 @@ test("passwords: a remote change saved in Chrome as quitting begins isn't sent b
   await b.sync("default", { holdApply: () => quitting });
   assert.deepEqual(list(b), ["alice=two"], "Chrome has the change");
   await later();
-  await save(a, "three");
+  await change(a, "three");
   await a.sync();
   b.passwords = adapters.passwordsAdapter("default", sealedLogins())(true);
   await syncAll([b, a, b, a]);

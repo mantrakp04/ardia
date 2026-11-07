@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox - jordan@northwind.dev - Northwind Mail</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">N</span> Northwind Mail</div>
+  <form class="search" role="search" id="search-form">
+    <input id="search" type="search" placeholder="Search mail" aria-label="Search mail" autocomplete="off">
+  </form>
+  <div class="me" title="Jordan Lee (jordan@northwind.dev)">JL</div>
+</header>
+<div class="shell">
+  <nav class="nav" aria-label="Folders">
+    <button class="compose" type="button" id="compose">Compose</button>
+    <a class="folder" href="#/inbox" data-folder="inbox">Inbox <span id="unread-count" class="count"></span></a>
+    <a class="folder" href="#/starred" data-folder="starred">Starred</a>
+    <a class="folder" href="#/sent" data-folder="sent">Sent</a>
+    <a class="folder" href="#/drafts" data-folder="drafts">Drafts</a>
+    <a class="folder" href="#/archive" data-folder="archive">Archive</a>
+  </nav>
+  <section class="list-pane" aria-labelledby="list-title">
+    <div class="list-head"><h1 id="list-title">Inbox</h1><span id="list-meta" class="meta"></span></div>
+    <ul id="list" class="list" aria-labelledby="list-title"></ul>
+  </section>
+  <main id="reader" class="reader" aria-label="Reading pane" tabindex="-1">
+    <div class="empty">Select a message to read it.</div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

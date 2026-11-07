@@ -32,22 +32,13 @@ const rivalCopy: Record<string, string> = {
       <div class="cu-title">
         <p class="label kicker">Bring your own agent</p>
         <h2 class="poster cu-heading" id="cu-title" data-reveal>Computer use.</h2>
-        <p class="lede" data-reveal style="--i: 1">
-          Ardia ships zero AI. The agent you already pay for, Claude Code or Codex, drives a hidden, logged-in Ardia through
-          the <code>ardia</code> command while you keep working. Same chore, same model, against Aside’s in-browser agent.
-        </p>
-        <p class="label devbuild">Dev build · not released yet</p>
       </div>
-      <div class="cu-cmd" data-reveal style="--i: 2">
+      <div class="cu-cmd" data-reveal style="--i: 1">
         <p class="label cmd-label">Your agent’s first move</p>
         <pre class="cmd"><code><span class="prompt" aria-hidden="true">$ </span>ardia browse snapshot -i</code></pre>
-        <p class="cmd-note">It sees your real tabs and logins. Nothing in Ardia calls a model.</p>
+        <p class="cmd-note">How Claude Code or Codex starts driving a hidden, logged-in Ardia. Nothing in Ardia calls a model.</p>
       </div>
     </header>
-
-    <p class="label task">
-      The task: “{cu.task.title}” · {cu.task.app} · {cu.task.checks}/{cu.task.checks} checks passed on every run
-    </p>
 
     <ul class="cards" role="list">
       {
@@ -231,26 +222,10 @@ const rivalCopy: Record<string, string> = {
   .cu-heading {
     font-size: var(--t-h2);
   }
-  .lede {
-    margin-top: clamp(18px, 2vw, 28px);
-    max-width: 31em;
-    font-size: var(--t-body);
-    line-height: 1.5;
-    color: var(--ink-2);
-  }
   code {
     font-family: var(--mono);
     font-size: 0.86em;
     font-stretch: 87.5%;
-  }
-  .devbuild {
-    display: inline-block;
-    margin-top: 20px;
-    padding: 4px 10px;
-    color: var(--stamp);
-    border: 1.5px solid currentColor;
-    border-radius: 3px;
-    transform: rotate(-1.5deg);
   }
   .cu-cmd {
     grid-column: 9 / -1;
@@ -283,12 +258,6 @@ const rivalCopy: Record<string, string> = {
     font-size: var(--t-small);
     line-height: 1.4;
     color: var(--ink-2);
-  }
-  .task {
-    margin-bottom: 14px;
-    color: var(--ink-2);
-    text-transform: none;
-    letter-spacing: 0.02em;
   }
 
   .cards {

@@ -1,0 +1,102 @@
+# Browser-agent bench
+
+Claude Code and Codex driving Ardia through `ardia browse` against Aside's built-in agent. Every contender gets the
+same eight local web apps and the same prompt. A checker on the app's own server grades each run.
+
+```
+tasks.json          the registry both harnesses read
+tasks/benchhttp.py  the stdlib HTTP helpers every task server uses
+tasks/<id>/         server.py, fixture/ (the app), selftest.py (checker proof over HTTP)
+harness/bench.py    the Ardia-side harness and the plan runner (python3 -I harness/bench.py --help)
+plans/*.json        plans: tasks x contenders x repeats
+```
+
+## Tasks
+
+| id | app | ports | deadline |
+| --- | --- | --- | --- |
+| `calendar` | Calendar week view: add five events | 8791 | 480 s |
+| `expenses` | Mail plus Expenses (drag-only reorder): build and submit the October report from receipts | 8792-8794 | 900 s |
+| `research` | Developer docs with search, versions and nested pages, plus a questionnaire form | 8801-8802 | 600 s |
+| `booking` | Four-step flight booking: search, fares, passengers and seat map, review | 8811 | 600 s |
+| `shop` | Electronics shop: categories, specs, a coupon on another page, checkout | 8821 | 480 s |
+| `grid` | Virtualized inventory sheet: filter, sort, inline edits with validation, add a row, save | 8831 | 480 s |
+| `kanban` | Sprint board: HTML5 drag and drop (with a keyboard alternative), labels, due date, archive | 8841 | 480 s |
+| `multitab` | Inbox, team directory and room scheduler on three origins: book the meeting | 8851-8853 | 600 s |
+
+Each server is Python stdlib only, run from this folder as `python3 -I tasks/<id>/server.py`, on fixed ports, and
+stops on SIGTERM. Each server has these endpoints:
+
+- `POST /api/reset` puts everything back to its initial state.
+- `GET /api/check` returns `{pass, matched, total, completed_at_ms, reset_at_ms, details}`.
+  - `completed_at_ms` is when the user action that made the state pass happened, so a run's time to correct is
+    `completed_at_ms` minus the agent's start.
+  - `details` says what's wrong and what the user entered, never the expected values.
+  - A run where `reset_at_ms` moved (someone reset during the run) doesn't count as a pass.
+
+Neither endpoint is linked from the apps. `python3 -I tasks/<id>/selftest.py` (with the server running) checks
+three things:
+- a fresh state fails and leaks nothing;
+- the correct solution passes;
+- each trap fails.
+
+## Registry
+
+`tasks.json` is `{version, tasks: [...]}`. Each task has:
+
+| key | meaning |
+| --- | --- |
+| `id`, `title` | name and display title |
+| `server` | `{command, ports}`; command runs with this folder as cwd |
+| `start_url` | the tab that's open and active when the run starts |
+| `extra_urls` | other URLs the prompt names |
+| `preopen_extra` | open `extra_urls` as background tabs too (false for every task now) |
+| `reset`, `check` | `{method, url}` |
+| `deadline_s` | the run is killed after this |
+| `prompt` | the user's request, verbatim, the same for every contender |
+
+The Ardia side appends one line to the prompt, naming how to reach the instance: ``Use the `ardia` command with
+`--port 9371` to reach this Ardia instance.``
+
+## Running
+
+Copy a Release build into the bench home and run the copy. Never run the build in place (others rebuild it), and
+never point the harness at `/Applications`:
+
+```sh
+mkdir -p ~/ardia-scratch/bench-proper/app
+ditto apps/browser/build-engine-cli/Build/Products/Release/Ardia.app ~/ardia-scratch/bench-proper/app/Ardia.app
+cd apps/cli/bench
+python3 -I harness/bench.py freeze-cli
+python3 -I harness/bench.py run research claude try-1 --results ~/ardia-scratch/bench-proper/results/adhoc
+python3 -I harness/bench.py plan plans/full.json --dry-run
+python3 -I harness/bench.py plan plans/full.json --results ~/ardia-scratch/bench-proper/results/<name>
+python3 -I harness/bench.py stop
+```
+
+- **`freeze-cli`** snapshots `apps/cli` into its own venv. Every run uses that `ardia` (`--cli installed` uses
+  `~/.local/bin/ardia` instead), so edits made during a plan don't leak into it.
+- **Each Ardia-side run** does the following, in order:
+  1. Starts the task's server.
+  2. Reuses or launches one hidden instance: `open -g -n` with `ARDIA_BACKGROUND=1`, its own `ARDIA_DATA_DIR`, a
+     DevTools port and `ARDIA_TEST=cdpTabsVisible`.
+  3. Stops leftover `ardia browse` daemons and wipes the site notes. Every run is cold unless `--keep-notes`.
+  4. Resets the task and opens `start_url` as the only tab.
+  5. Installs the skill into a fresh workdir.
+  6. Starts `claude -p` (stream-json) or `codex exec --json`, with the agent's own variables stripped from its
+     environment.
+  7. Records the check, `notes_after`, tokens, turns, commands, focus and timing in `runs/<run_id>.json`.
+- **A plan** runs `tasks x contenders x repeats` one run at a time. Each round rotates the task order and the
+  contender order.
+  - Aside contenders shell out to `node ~/ardia-scratch/aside-bench/bin/aside_run.mjs <run_id> --task <id>
+    --registry tasks.json --out <results>/aside-raw --model <name> --visibility covered` (`BENCH_ASIDE_DRIVER`
+    overrides the path). Their record is normalized into `runs/<run_id>.json`.
+  - A plan resumes: finished runs are skipped, and runs that hit a harness error are retried.
+- **`summary.json`** is rewritten after every run, in a shape the site renders directly:
+  - `tasks` and `contenders` list what was run.
+  - `cells[]` has one entry per task and contender: `pass_rate`, `median_time_s`, `median_time_to_correct_s`,
+    `median_tokens` and `median_commands`.
+  - `overall[]` gives the same figures per contender.
+
+Scratch lives in `BENCH_HOME` (default `~/ardia-scratch/bench-proper`): `app/`, `cli/`, `devbin/`, `data-ardia/`,
+`work/`, `state/`, `logs/` and `results/`.
