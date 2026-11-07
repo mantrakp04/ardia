@@ -24,6 +24,10 @@ def ref_for(snapshot: str, needle: str) -> str:
     raise AssertionError(f"no ref for {needle} in:\n{snapshot}")
 
 
+def stat_mode(path: Path) -> int:
+    return path.stat().st_mode & 0o777
+
+
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -111,7 +115,7 @@ class BrowseEndToEnd(unittest.TestCase):
         return f"http://127.0.0.1:{self.http_port}/{name}"
 
     def report(self, session="e2e") -> dict:
-        return json.loads(self.browse("get", "text", "#report", session=session).stdout)
+        return json.loads(self.browse("get", "text", "#report", "--full", session=session).stdout)
 
     def test_core_loop(self):
         opened = self.browse("open", self.url("login.html"), "--show").stdout
@@ -121,7 +125,9 @@ class BrowseEndToEnd(unittest.TestCase):
         email = ref_for(snap, 'textbox "Email"')
         agree = ref_for(snap, 'checkbox "I agree"')
         go = ref_for(snap, 'button "Continue"')
-        self.assertEqual(self.browse("click", agree).stdout, "✓ Done\n")
+        clicked = self.browse("click", agree).stdout
+        self.assertTrue(clicked.startswith("✓ Done\nchanges:\n"), clicked)
+        self.assertIn(f'~ checkbox "I agree" [checked=true, ref={agree[1:]}] (was [checked=false])', clicked)
         self.assertEqual(self.browse("is", "checked", agree).stdout, "true\n")
         self.browse("fill", email, "agent@example.com")
         self.assertEqual(self.browse("get", "value", email).stdout, "agent@example.com\n")
@@ -149,9 +155,9 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("open", self.url("probe.html"), "--show", session=session)
         snap = self.browse("snapshot", "-i", session=session).stdout
         self.assertIn('button "Press me"', snap)
-        self.browse("click", "#target", session=session)
+        self.browse("click", "#target", "--humanize", session=session)
         text = "Hello Ardia 42"
-        self.browse("fill", "#field", text, session=session)
+        self.browse("fill", "#field", text, "--humanize", session=session)
         self.assertEqual(self.browse("get", "value", "#field", session=session).stdout, text + "\n")
         self.assertEqual(self.browse("get", "title", session=session).stdout, "Probe\n")
         self.browse("screenshot", str(SCRATCH / "probe.png"), session=session)
@@ -183,7 +189,7 @@ class BrowseEndToEnd(unittest.TestCase):
     def test_no_humanize_is_instant(self):
         session = "instant"
         self.browse("open", self.url("probe.html"), "--show", session=session)
-        self.browse("fill", "#field", "abc", "--no-humanize", session=session)
+        self.browse("fill", "#field", "abc", session=session)
         self.browse("click", "#target", "--no-humanize", session=session)
         events = self.report(session)["events"]
         down = next(index for index, event in enumerate(events) if event["type"] == "mousedown")
@@ -195,11 +201,41 @@ class BrowseEndToEnd(unittest.TestCase):
     def test_hidden_tab_refuses_input(self):
         session = "hidden"
         self.browse("open", self.url("probe.html"), "--show", session="hidden-front")
-        self.browse("open", self.url("probe.html"), session=session)
-        refused = self.browse("click", "#target", session=session, check=False)
-        self.assertEqual(refused.returncode, 1)
-        self.assertIn("background", refused.stderr)
+        opened = json.loads(self.browse("open", self.url("probe.html"), "--json", session=session).stdout)["data"]
+        self.assertTrue(opened["background"])
+        clicked = self.browse("click", "#target", session=session, check=False)
+        if opened["takesInput"]:
+            self.assertEqual(clicked.returncode, 0, clicked.stderr)
+        else:
+            self.assertEqual(clicked.returncode, 1)
+            self.assertIn(f"use: ardia browse tab {opened['tabId']} --show (or open <url> --show)", clicked.stderr)
+            self.assertIn("use: ardia browse tab", self.browse("open", self.url("probe.html#again"), session=session + "-2").stdout)
         self.browse("scroll", "down", "200", session=session)
+
+    def drag_report(self, session):
+        return json.loads(self.browse("get", "text", "#report", session=session).stdout)
+
+    def test_html5_drag_reorders_a_list(self):
+        session = "dnd"
+        self.browse("open", self.url("dnd.html"), "--show", session=session)
+        dragged = self.browse("drag", "#alpha", "#charlie", session=session).stdout
+        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nchanges:"), dragged)
+        state = self.drag_report(session)
+        self.assertEqual(state["order"], ["bravo", "charlie", "alpha", "delta"])
+        self.assertEqual(state["log"], ["dragstart:alpha", "drop:alpha>charlie", "dragend:alpha:move"])
+        self.browse("drag", "#delta", "#bravo", "--humanize", session=session)
+        self.assertEqual(self.drag_report(session)["order"], ["delta", "bravo", "charlie", "alpha"])
+        refused = json.loads(self.browse("drag", "#bravo", "#refuse", "--json", session=session).stdout)["data"]
+        self.assertEqual((refused["html5"], refused["started"], refused["dropped"]), (True, True, False))
+        for _ in range(2):
+            plain = self.browse("drag", "#locked", "#alpha", session=session).stdout
+            self.assertIn("plain mouse drag", plain)
+        state = self.drag_report(session)
+        self.assertEqual(state["order"], ["delta", "bravo", "charlie", "alpha"])
+        self.assertEqual(state["log"][-3:], ["dragend:bravo:none", "prevented", "prevented"])
+        self.assertEqual(state["clicks"], 2, "only the plain mouse drags should click")
+        self.browse("drag", "#charlie", "#delta", session=session)
+        self.assertEqual(self.drag_report(session)["order"], ["charlie", "delta", "bravo", "alpha"])
 
     def scratch_keychain(self) -> str:
         security = "/usr/bin/security"
@@ -243,7 +279,7 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("open", self.url("replace.html"), "--show", session=session)
         ref = ref_for(self.browse("snapshot", "-i", session=session).stdout, "Search the fixture")
         filled = json.loads(self.browse("fill", ref, "Chromium", "--json", session=session).stdout)
-        self.assertEqual(filled, {"success": True, "data": {"filled": ref, "retargeted": True}, "error": None})
+        self.assertEqual((filled["success"], filled["data"]["filled"], filled["data"]["retargeted"]), (True, ref, True))
         state = json.loads(self.browse("get", "text", "#report", session=session).stdout)
         self.assertEqual((state["mounted"], state["value"], state["otherValue"]), (True, "Chromium", ""))
         self.browse("open", self.url("replace.html"), session=session)
@@ -285,6 +321,129 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertTrue(all(row["box"]["y"] < height and row["box"]["y"] + row["box"]["height"] > 0 for row in annotated["annotations"]))
         self.assertLess(len(annotated["annotations"]), first.count("ref="))
         self.assertEqual(self.browse("snapshot", "-i", session=session).stdout, first)
+
+    def test_fill_sets_typed_inputs_and_snapshot_shows_them_whole(self):
+        session = "typed"
+        self.browse("open", self.url("form.html"), "--show", session=session)
+        snap = self.browse("snapshot", "-i", session=session).stdout
+        self.assertRegex(snap, r'- textbox "Date" \[type=date, ref=e\d+\]: 2026-11-06\n- textbox "Time" \[type=time, ref=e\d+\]\n')
+        self.assertIn('textbox "When" [type=datetime-local, ref=', snap)
+        self.assertIn('textbox "Week" [type=week, ref=', snap)
+        for text in (snap, self.browse("snapshot", session=session).stdout):
+            self.assertNotIn("spinbutton", text)
+            self.assertNotIn("picker", text)
+        lines = ["fill #d 2026-11-09", "fill #t 2:30pm", 'fill #dt "2026-11-09 14:30"', "fill #m 2026-11", "fill #w 2026-W46",
+                 "fill #c #3B82F6", "fill #r 55", "fill #name hello"]
+        done = json.loads(self.browse("batch", "--json", session=session, stdin="\n".join(lines) + "\n").stdout)
+        self.assertTrue(all(row["success"] for row in done), done)
+        self.assertEqual([row["result"].get("value") for row in done], ["2026-11-09", "14:30", "2026-11-09T14:30", "2026-11", "2026-W46", "#3b82f6", "60", None])
+        expected = {"d": "2026-11-09", "t": "14:30", "dt": "2026-11-09T14:30", "m": "2026-11", "w": "2026-W46", "c": "#3b82f6", "r": "60"}
+        state = self.report(session)
+        self.assertEqual({key: state["change"].get(key) for key in expected}, expected)
+        self.assertEqual({key: state["input"].get(key) for key in expected}, expected)
+        self.assertEqual(state["input"]["name"], "hello")
+        refused = self.browse("fill", "#d", "11/09/2026", "--json", session=session, check=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertEqual(json.loads(refused.stdout)["code"], "bad_value")
+        self.assertIn("YYYY-MM-DD", json.loads(refused.stdout)["error"])
+        self.assertEqual(self.browse("get", "value", "#d", session=session).stdout, "2026-11-09\n")
+        self.assertEqual(json.loads(self.browse("fill", "#t", "9:05 PM", "--json", session=session).stdout)["data"]["value"], "21:05")
+        self.assertIn('textbox "Date" [type=date, ref=', self.browse("snapshot", "-i", session=session).stdout)
+
+    def test_actions_report_changes_and_the_writes_they_caused(self):
+        session = "changes"
+        self.browse("open", self.url("form.html"), "--show", session=session)
+        snap = self.browse("snapshot", "-i", session=session).stdout
+        opened = self.browse("click", ref_for(snap, 'button "New item"'), session=session).stdout
+        self.assertTrue(opened.startswith("✓ Done\nchanges:\n"), opened)
+        title = ref_for(opened, 'textbox "Title"')
+        self.assertIn(f'+ textbox "Title" [required, ref={title[1:]}]', opened)
+        self.assertIn('+ textbox "Day" [type=date, required, ref=', opened)
+        self.assertIn(f'~ textbox "Title" [required, ref={title[1:]}]: Hello (was empty)', self.browse("fill", title, "Hello", session=session).stdout)
+        self.browse("fill", "#i-day", "2026-11-09", session=session)
+        self.browse("fill", "#i-at", "09:15", session=session)
+        selected = self.browse("select", "#i-kind", "Beta", session=session).stdout
+        self.assertIn(': Beta (was \'Alpha\')', selected)
+        saved = self.browse("click", "#save", session=session).stdout
+        self.assertIn(f"POST http://127.0.0.1:{self.http_port}/save?token=", saved)
+        self.assertNotIn("fixture-secret-token", saved)
+        data = json.loads(self.browse("click", "#open", "--json", session=session).stdout)["data"]["changes"]
+        self.assertEqual(data["network"], [])
+        self.assertIn(title[1:], [row["ref"] for row in data["added"]])
+        pressed = json.loads(self.browse("press", "Escape", "--json", session=session).stdout)["data"]["changes"]
+        self.assertIn(title[1:], [row["ref"] for row in pressed["removed"]])
+        self.browse("click", "#open", session=session)
+        self.browse("batch", session=session, stdin="fill #i-day 2026-11-10\nfill #i-at 10:00\nfill #i-title Again\n")
+        posted = json.loads(self.browse("press", "Enter", "--json", session=session).stdout)["data"]["changes"]["network"]
+        self.assertEqual([(row["method"], row["status"], row["type"]) for row in posted], [("POST", 501, "Fetch")])
+        self.assertEqual(posted[0]["url"], f"http://127.0.0.1:{self.http_port}/save?token=***&id=…")
+        self.assertEqual(self.report(session)["items"][-1], {"title": "Again", "day": "2026-11-10", "at": "10:00", "kind": "a"})
+        self.assertEqual(json.loads(self.browse("session", "info", "--json", session=session).stdout)["data"]["captures"], [])
+        self.browse("eval", "document.body.insertAdjacentHTML('beforeend', '<button>Late arrival</button>')", session=session)
+        later = self.browse("snapshot", "-i", "--diff", session=session).stdout
+        self.assertRegex(later, r'\+ button "Late arrival" \[ref=e\d+\]')
+        self.assertEqual(self.browse("snapshot", "-i", "--diff", session=session).stdout, "changes: none\n")
+        quiet = self.browse("click", "#name", "--no-changes", session=session).stdout
+        self.assertEqual(quiet, "✓ Done\n")
+
+    def test_a_session_without_a_tab_uses_the_shown_one(self):
+        self.browse("open", self.url("login.html#attach"), "--show", session="attach-src")
+        first = self.browse("get", "url", session="attach")
+        self.assertEqual(first.stdout, self.url("login.html#attach") + "\n")
+        self.assertIn("this session had no tab, so it uses the active one", first.stderr.lower())
+        again = self.browse("get", "title", session="attach")
+        self.assertEqual((again.stdout, again.stderr), ("Fixture Login\n", ""))
+
+    def test_site_notes_show_in_snapshots(self):
+        session = "notes"
+        site = f"127.0.0.1:{self.http_port}"
+        self.browse("open", self.url("login.html"), "--show", session=session)
+        self.assertEqual(self.browse("notes", session=session).stdout, f"(no notes for {site})\n")
+        self.assertIn(f"Saved the notes for {site}", self.browse("notes", "set", "Use the Continue button", session=session).stdout)
+        self.browse("notes", "append", "-", session=session, stdin="Second line\n")
+        snap = self.browse("snapshot", "-i", session=session).stdout
+        self.assertTrue(snap.startswith(f"# notes for {site} (ardia notes): Use the Continue button\n# Second line\n- link"), snap)
+        data = json.loads(self.browse("snapshot", "--json", session=session).stdout)["data"]
+        self.assertEqual(data["notes"]["site"], site)
+        folder = self.data / "Notes"
+        self.assertEqual(stat_mode(folder), 0o700)
+        self.assertEqual(stat_mode(folder / f"{site}.md"), 0o600)
+        self.assertEqual((folder / f"{site}.md").read_text(), "Use the Continue button\nSecond line\n")
+        refused = self.browse("notes", "set", site, "-", "--json", session=session, stdin="x" * 9000, check=False)
+        self.assertEqual((refused.returncode, json.loads(refused.stdout)["code"]), (1, "notes_too_large"))
+        self.assertIn(site, self.browse("notes", "list", session=session).stdout)
+        top = subprocess.run([sys.executable, "-m", "ardia_cli", "notes", "get", site, "--data-dir", str(self.data)], capture_output=True, text=True,
+                             timeout=60, env=dict(os.environ, PYTHONPATH=str(CLI)))
+        self.assertEqual(top.stdout, "Use the Continue button\nSecond line\n")
+        self.assertIn("Removed", self.browse("notes", "rm", session=session).stdout)
+        self.assertFalse(self.browse("snapshot", "-i", session=session).stdout.startswith("#"))
+
+    def test_text_output_is_capped(self):
+        session = "cap"
+        self.browse("open", self.url("many.html"), "--show", session=session)
+        capped = self.browse("snapshot", "-i", session=session).stdout
+        self.assertLessEqual(len(capped), 6300)
+        self.assertIn("rerun with --max-output", capped.splitlines()[-1])
+        self.assertIn("--full", capped.splitlines()[-1])
+        self.assertEqual(self.browse("snapshot", "-i", "--full", session=session).stdout.count("Button number"), 400)
+        self.assertLessEqual(len(self.browse("snapshot", "-i", "--max-output", "500", session=session).stdout), 700)
+        self.assertEqual(json.loads(self.browse("snapshot", "-i", "--json", session=session).stdout)["data"]["snapshot"].count("Button number"), 400)
+
+    def test_batch_fills_a_form_five_times_from_stdin(self):
+        session = "batch"
+        self.browse("open", self.url("form.html"), "--show", session=session)
+        opener = ref_for(self.browse("snapshot", "-i", session=session).stdout, 'button "New item"')
+        lines = ["# five items, one call"]
+        for index in range(5):
+            lines += [f"click {opener}", f'fill #i-title "Item {index}"', f"fill #i-day 2026-11-{9 + index:02d}", f"fill #i-at {9 + index}:30",
+                      "select #i-kind Beta", "click #save"]
+        started = time.monotonic()
+        done = self.browse("batch", "--bail", session=session, stdin="\n".join(lines) + "\n")
+        elapsed = time.monotonic() - started
+        self.assertEqual(done.stdout.count("POST http://"), 5, done.stdout)
+        self.assertEqual(self.report(session)["items"], [
+            {"title": f"Item {index}", "day": f"2026-11-{9 + index:02d}", "at": f"{9 + index:02d}:30", "kind": "b"} for index in range(5)])
+        self.assertLess(elapsed, 30)
 
     def test_refs_survive_idle_disconnect(self):
         session = "idle"
@@ -357,11 +516,11 @@ class BrowseTokenPath(unittest.TestCase):
         return True
 
     @classmethod
-    def browse(cls, *args, session="token", check=True, timeout=120):
+    def browse(cls, *args, session="token", check=True, timeout=120, stdin=None):
         env = dict(os.environ, PYTHONPATH=str(CLI))
         env.pop("AGENT_BROWSER_NO_HUMANIZE", None)
         done = subprocess.run([sys.executable, "-m", "ardia_cli", "browse", "--data-dir", str(cls.data), "--session", session, *args],
-                              capture_output=True, text=True, timeout=timeout, env=env)
+                              capture_output=True, text=True, timeout=timeout, env=env, input=stdin)
         if check and done.returncode:
             raise AssertionError(f"ardia browse {' '.join(args)} exited {done.returncode}: {done.stderr}{done.stdout}")
         return done
@@ -408,6 +567,44 @@ class BrowseTokenPath(unittest.TestCase):
         time.sleep(1)
         self.assertTrue(self.alive(self.pid))
         self.assertIn("service worker", self.browse("get", "title", session=session).stdout)
+
+    def test_changes_and_auto_attach_over_the_token_policy(self):
+        session = "token-changes"
+        self.browse("open", self.url("form.html"), "--show", session=session)
+        self.browse("click", "#open", session=session)
+        self.browse("batch", session=session, stdin="fill #i-title Token\nfill #i-day 2026-11-11\nfill #i-at 9:00 AM\n")
+        posted = json.loads(self.browse("click", "#save", "--json", session=session).stdout)["data"]["changes"]["network"]
+        self.assertEqual([(row["method"], row["status"]) for row in posted], [("POST", 501)])
+        self.assertEqual(json.loads(self.browse("session", "info", "--json", session=session).stdout)["data"]["captures"], [])
+        attached = self.browse("get", "url", session="token-attach")
+        self.assertEqual(attached.stdout, self.url("form.html") + "\n")
+        self.assertIn("uses the active one", attached.stderr)
+
+    def test_html5_drag_over_the_token_policy(self):
+        session = "token-dnd"
+        self.browse("open", self.url("dnd.html"), "--show", session=session)
+        done = self.browse("drag", "#alpha", "#charlie", "--json", session=session, check=False)
+        answer = json.loads(done.stdout)
+        if done.returncode:
+            self.assertEqual((answer["code"], answer["data"]["method"]), ("policy_refused", "Input.setInterceptDrags"))
+        else:
+            self.assertEqual((answer["data"]["started"], answer["data"]["dropped"]), (True, True))
+        order = json.loads(self.browse("get", "text", "#report", session=session).stdout)["order"]
+        self.assertEqual(order, ["alpha", "bravo", "charlie", "delta"] if done.returncode else ["bravo", "charlie", "alpha", "delta"])
+
+    def test_open_from_a_borrowed_tab_says_where_input_goes(self):
+        self.browse("open", self.url("login.html"), "--show", session="token-shown")
+        session = "token-borrow"
+        self.assertIn("uses the active one", self.browse("get", "url", session=session).stderr)
+        opened = self.browse("open", self.url("probe.html"), session=session).stdout
+        self.assertIn("since this session uses your tab", opened)
+        clicked = self.browse("click", "#target", session=session, check=False)
+        if "takes input without being shown" in opened:
+            self.assertEqual(clicked.returncode, 0, clicked.stderr)
+        else:
+            self.assertIn("use: ardia browse tab", opened)
+            self.assertEqual(clicked.returncode, 1)
+            self.assertIn("--show (or open <url> --show)", clicked.stderr)
 
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"

@@ -17,6 +17,7 @@ const DETAIL = { flex: 1 } as const;
 
 export function BookmarkRow({
   id,
+  top,
   windowId,
   profileId,
   showPath,
@@ -32,6 +33,7 @@ export function BookmarkRow({
   onDragEnd,
 }: {
   id: string;
+  top: number;
   windowId: string;
   profileId: string;
   showPath: boolean;
@@ -93,7 +95,7 @@ export function BookmarkRow({
       ref={targetRef as never}
       {...responder.panHandlers}
       {...hoverProps}
-      style={{ zIndex: dragging ? 10 : 0, opacity: dragging ? bookmarkList.dragOpacity : 1, transform: [{ translateY: dy }] }}
+      style={{ position: "absolute", top, left: 0, right: 0, zIndex: dragging ? 10 : 0, opacity: dragging ? bookmarkList.dragOpacity : 1, transform: [{ translateY: dy }] }}
     >
       <ContextMenuArea onContextMenu={() => void menu()}>
         <MouseArea onMiddleClick={() => open("background")}>

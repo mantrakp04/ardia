@@ -242,8 +242,26 @@ LIBRARY = r"""
         }
         Object.defineProperty(globalThis, "ardiaBrowseInput", { value: counts, enumerable: false });
       }
+      if (!globalThis.ardiaBrowseDragStarts) {
+        const drags = { accepted: 0, dragend: 0, drop: 0, dispatched: [] };
+        for (const type of ["dragstart", "dragend", "drop"]) {
+          addEventListener(type, (event) => {
+            if (!event.isTrusted) return;
+            if (type === "dragstart") drags.dispatched.push(event);
+            else drags[type] += 1;
+          }, { capture: true, passive: true });
+        }
+        Object.defineProperty(globalThis, "ardiaBrowseDragStarts", { value: drags, enumerable: false });
+      }
+      const drags = globalThis.ardiaBrowseDragStarts;
+      drags.accepted += drags.dispatched.filter((event) => !event.defaultPrevented).length;
+      drags.dispatched.length = 0;
       const active = document.activeElement;
-      return Object.assign({ activeFrame: !!active && (active.tagName === "IFRAME" || active.tagName === "FRAME") }, globalThis.ardiaBrowseInput);
+      return Object.assign({ activeFrame: !!active && (active.tagName === "IFRAME" || active.tagName === "FRAME") }, globalThis.ardiaBrowseInput, {
+        dragstart: drags.accepted,
+        dragend: drags.dragend,
+        drop: drags.drop,
+      });
     },
     overFrame(x, y) {
       const hit = document.elementFromPoint(x, y);
