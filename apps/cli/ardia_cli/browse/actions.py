@@ -1,7 +1,9 @@
 import asyncio
+import contextlib
 import json
 import random
 
+from ardia_cli.browse import fields
 from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
@@ -10,6 +12,10 @@ NOT_DELIVERED = (
     "{action} was sent, but the page received none of its {missing} events. The tab may not be on screen in Ardia "
     "(just switched, or covered by another tab); check it's shown (`ardia browse tab <id> --show`) before trying again"
 )
+INTERCEPT_TIMEOUT = 1.5
+CLEANUP_TIMEOUT = 2.0
+DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session"
+CLEANUPS: set = set()
 PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrived), so it may have had an effect"
 
 
@@ -304,13 +310,28 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         raise BrowseError(f"{element.label} is a <select>; use `ardia browse select {element.label} <value>`")
     if not info.get("editable") or info.get("disabled"):
         raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
+    if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
+        return False, await set_value(page, element, info["type"], text)
     loader = page.loader(element.frame)
     await focus_field(page, element, info, humanize, tolerate_detach=True)
     element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
     if text:
         await type_into(page, element, text, humanize, guard)
-    return retargeted
+    return retargeted, None
+
+
+async def set_value(page, element, kind: str, text: str) -> str:
+    wanted = fields.normalize(kind, text)
+    await page.focus_element(element)
+    outcome = await page.call(fields.SET_VALUE, element, wanted, frame=element.frame)
+    stored = outcome.get("stored")
+    if not outcome.get("set"):
+        raise BrowseError(
+            f"The {kind} input {element.label} refused {wanted!r} (it holds {stored!r}); {fields.FORMATS[kind]}",
+            data={"value": stored}, code="bad_value",
+        )
+    return stored
 
 
 async def type_text(page, element, text: str, humanize: bool):
@@ -350,31 +371,170 @@ async def select(page, element, values: list[str]):
     return await page.call("(el, values) => ardiaBrowse.selectOptions(el, values)", element, values, frame=element.frame)
 
 
-async def drag(page, source, target, humanize: bool):
-    info = await page.call(
-        "(el) => { const i = ardiaBrowse.info(el); let n = el; while (n && n.nodeType === 1) { if (n.draggable || n.getAttribute('draggable') === 'true') { i.draggable = true; break; } n = n.parentElement; } return i; }",
-        source, frame=source.frame,
-    )
-    if info.get("draggable"):
-        raise Gated(
-            "Input.setInterceptDrags",
-            "drag",
-            "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session",
-        )
-    x1, y1, _ = await target_point(page, source, humanize)
-    x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
+class DragInterception:
+    def __init__(self, page, source_frame: str, target_frame: str):
+        self.page = page
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+        self.intercepted: asyncio.Future | None = None
+        self.data: dict | None = None
+        self.ended = False
+        self.position = (0.0, 0.0)
+        self.before: dict = {}
+        self.before_source: dict = {}
+        self.cleanup: asyncio.Future | None = None
+        self.cleaned = True
+
+    async def start(self):
+        self.before = await input_counts(self.page, self.target_frame)
+        self.before_source = self.before if self.source_frame == self.target_frame else await input_counts(self.page, self.source_frame)
+        self.intercepted = asyncio.get_running_loop().create_future()
+        self.page.drag_intercepted = self.intercepted
+        self.cleaned = False
+        try:
+            await self.page.send("Input.setInterceptDrags", {"enabled": True})
+        except Gated:
+            self.page.drag_intercepted = None
+            self.cleaned = True
+            raise Gated("Input.setInterceptDrags", "drag", DRAG_GATED) from None
+        except BaseException:
+            await self.finish()
+            raise
+        self.page.input.mouse.interception = self
+
+    async def dispatch(self, kind: str, x: float, y: float, timeout: float = 30):
+        await self.page.send("Input.dispatchDragEvent", {"type": kind, "x": int(round(x)), "y": int(round(y)), "data": self.data, "modifiers": 0},
+                             input_event=True, timeout=timeout)
+
+    async def page_started_drag(self) -> bool:
+        try:
+            now = await self.page.call("() => ardiaBrowse.inputWatch()", frame=self.source_frame, timeout=CLEANUP_TIMEOUT)
+        except BrowseError:
+            return False
+        return now.get("dragstart", 0) > self.before_source.get("dragstart", 0)
+
+    async def handed_over(self) -> dict:
+        try:
+            return await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise OutcomeUnknown("drag", "the page started an HTML5 drag, but Ardia didn't hand it over in time") from None
+
+    async def moved(self, x: float, y: float):
+        self.position = (x, y)
+        if self.data is None and self.intercepted.done():
+            self.data = self.intercepted.result()
+            await self.dispatch("dragEnter", x, y)
+
+    async def over(self, x: float, y: float):
+        self.position = (x, y)
+        await self.dispatch("dragOver", x, y)
+
+    async def release(self, x: float, y: float):
+        self.position = (x, y)
+        if self.ended:
+            return
+        if self.data is None:
+            if not self.intercepted.done() and not await self.page_started_drag():
+                return
+            self.data = await self.handed_over()
+            await self.dispatch("dragEnter", x, y)
+        await self.dispatch("dragOver", x, y)
+        await self.dispatch("drop", x, y)
+        self.ended = True
+
+    async def _clean(self):
+        page = self.page
+        if page.input.mouse is not None:
+            page.input.mouse.interception = None
+        try:
+            try:
+                if self.data is None and not self.ended:
+                    if self.intercepted.done():
+                        self.data = self.intercepted.result()
+                    elif await self.page_started_drag():
+                        with contextlib.suppress(asyncio.TimeoutError):
+                            self.data = await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
+                if self.data is not None and not self.ended:
+                    await self.dispatch("dragCancel", *self.position, timeout=CLEANUP_TIMEOUT)
+                    self.ended = True
+            finally:
+                await page.input.release_held()
+        finally:
+            if page.drag_intercepted is self.intercepted:
+                page.drag_intercepted = None
+            await page.send("Input.setInterceptDrags", {"enabled": False}, timeout=CLEANUP_TIMEOUT)
+            self.cleaned = True
+
+    async def finish(self):
+        if self.cleanup is None:
+            self.cleanup = asyncio.ensure_future(self._clean())
+            CLEANUPS.add(self.cleanup)
+            self.cleanup.add_done_callback(CLEANUPS.discard)
+        try:
+            await asyncio.shield(self.cleanup)
+        except asyncio.CancelledError:
+            with contextlib.suppress(BaseException):
+                await asyncio.wait([self.cleanup])
+            raise
+        except Exception:
+            pass
+
+    async def dropped(self) -> bool | None:
+        try:
+            now = await input_counts(self.page, self.target_frame)
+        except BrowseError:
+            return None
+        return now.get("drop", 0) > self.before.get("drop", 0)
+
+
+async def draggable(page, element) -> bool:
+    return bool(await page.call(
+        "(el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) if (n.draggable || n.getAttribute('draggable') === 'true') return true; return false; }",
+        element, frame=element.frame, read=True,
+    ))
+
+
+def interrupted_drag(error: BrowseError) -> BrowseError:
+    if error.code in ("input_not_delivered", "input_unconfirmable", "tab_hidden", "policy_refused"):
+        return error
+    return OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position")
+
+
+async def drag(page, source, target, humanize: bool) -> dict:
+    interception = DragInterception(page, source.frame, target.frame) if await draggable(page, source) else None
+    if interception is not None:
+        await interception.start()
     mouse = page.input.mouse
     try:
-        await expect_input(page, source.frame, lambda: page.input.gesture("drag", lambda: mouse.drag(x1, y1, x2, y2, humanize=humanize)),
-                           {"mousedown": 1, "mouseup": 1}, "The drag")
-    except asyncio.CancelledError:
-        raise
-    except OutcomeUnknown:
-        raise
-    except BrowseError as error:
-        if error.code in ("input_not_delivered", "input_unconfirmable", "tab_hidden"):
+        x1, y1, _ = await target_point(page, source, humanize)
+        x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
+
+        async def run():
+            try:
+                await mouse.drag(x1, y1, x2, y2, humanize=humanize)
+            finally:
+                if interception is not None:
+                    await interception.finish()
+
+        needs = {"mousedown": 1, "mouseup": 1} if interception is None else {"mousedown": 1, "dragend|mouseup": 1}
+        try:
+            await expect_input(page, source.frame, lambda: page.input.gesture("drag", run), needs, "The drag")
+        except asyncio.CancelledError:
             raise
-        raise OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position") from None
+        except OutcomeUnknown:
+            raise
+        except BrowseError as error:
+            raise interrupted_drag(error) from None
+    finally:
+        if interception is not None:
+            await interception.finish()
+    if interception is None:
+        return {"html5": False}
+    started = interception.data is not None
+    outcome = {"html5": True, "started": started, "dropped": await interception.dropped() if started else False}
+    if not interception.cleaned:
+        outcome["interceptionLeftOn"] = True
+    return outcome
 
 
 async def scroll(page, direction: str, amount: float, humanize: bool, selector_element=None):
@@ -390,6 +550,6 @@ async def scroll(page, direction: str, amount: float, humanize: bool, selector_e
         ox, oy = await frame_offset(page, selector_element.frame)
         point = (ox + r["x"] + r["width"] * random.uniform(0.35, 0.65), oy + r["y"] + r["height"] * random.uniform(0.35, 0.65))
         frame = selector_element.frame
-    needs = {} if distance == 0 or await page.hidden() else {"wheel": 1}
+    needs = {} if distance == 0 or not await page.takes_input() else {"wheel": 1}
     await expect_input(page, frame, lambda: page.input.gesture("scroll", lambda: scroll_wheel(page, distance, vertical, humanize, point, frame, selector_element), allow_hidden=True),
                        needs, "The scroll")

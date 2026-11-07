@@ -272,6 +272,7 @@ export const profileDataLeft = new Map<string, string[]>();
 export const revealedTabs: string[] = [];
 export const discardedOffers: string[] = [];
 export const installedCrx: { path: string; profile: string }[] = [];
+export const crxInstallFailure: { next: string | null } = { next: null };
 export const linkRoute: { next: LinkRoute } = { next: {} };
 export const resolvedPermissions: { id: string; result: string; remember: boolean }[] = [];
 export const extensionAnswers = {
@@ -414,7 +415,13 @@ const fakeModules = {
     reload: async ({ profile, id }) => (await extensionAnswers.change("reload", id), await extensionEngine()?.reload(id, profile), { ok: true }),
     configure: async ({ id }) => (await extensionAnswers.change("configure", id), { ok: true }),
     chooseFolder: () => null,
-    installCrx: ({ profile, path }) => (installedCrx.push({ path: path, profile }), { id: "crx" }),
+    installCrx: ({ profile, path }) => {
+      const failure = crxInstallFailure.next;
+      crxInstallFailure.next = null;
+      if (failure) throw new Error(failure);
+      installedCrx.push({ path: path, profile });
+      return { id: "crx" };
+    },
     resolveInstallPrompt: () => null,
     actionStates: ({ tabId, ids }) => extensionAnswers.actionStates(tabId, ids),
     sidePanelUrl: ({ tabId, extensionId }) => extensionAnswers.sidePanelUrl(tabId, extensionId),
