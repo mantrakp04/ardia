@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { useBrowser, type BrowserState } from "../browser/store";
+import { activeTabId, engineProfile } from "../browser/model";
 import type { SplitView, Tab } from "../browser/types";
 import { tabEngine } from "../engines/engines";
 import { holderOf } from "../pins/pinShare";
@@ -82,40 +82,46 @@ export const useWarmTabIds = (windowId: string, pagerPages: PagerPage[] | null, 
 
 export const useSplitsOf = (tabIds: string[]) => useBrowser(useShallow((s) => tabIds.map((id) => splitOf(s, id)).filter((v): v is SplitView => !!v)));
 
-export function useShownPaneKeys(mounted: string[], panes: object): string[] {
-  const shownMemo = useRef<{ mounted?: string[]; panes?: object; tabs?: object; keys: string[]; ids: string[]; found: (Tab | undefined)[] }>({ keys: [], ids: [], found: [] });
-  return useBrowser(
-    useShallow((s) => {
-      const memo = shownMemo.current;
-      if (memo.mounted === mounted && memo.panes === panes) {
-        if (memo.tabs === s.tabs) return memo.keys;
-        let same = true;
-        let found = memo.found;
-        for (let i = 0; i < memo.ids.length && same; i++) {
-          const t = s.tabs[memo.ids[i]!];
-          const was = found[i];
-          if (t === was) continue;
-          if (!t || !was || t.createdAt !== was.createdAt || t.profileId !== was.profileId) same = false;
-          else {
-            if (found === memo.found) found = found.slice();
-            found[i] = t;
-          }
-        }
-        if (same) {
-          shownMemo.current = { ...memo, tabs: s.tabs, found };
-          return memo.keys;
-        }
+type ShownMemo = { mounted?: string[]; panes?: object; tabs?: object; profiles?: object; keys: string[]; ids: string[]; found: (Tab | undefined)[] };
+
+export const newShownMemo = (): ShownMemo => ({ keys: [], ids: [], found: [] });
+
+export const paneKeyOf = (s: Pick<BrowserState, "profiles">, t: Pick<Tab, "id" | "profileId">) => `${t.id}|${engineProfile(s, t.profileId)}`;
+
+export function shownPaneKeys(shownMemo: { current: ShownMemo }, s: BrowserState, mounted: string[], panes: object): string[] {
+  const memo = shownMemo.current;
+  if (memo.mounted === mounted && memo.panes === panes && memo.profiles === s.profiles) {
+    if (memo.tabs === s.tabs) return memo.keys;
+    let same = true;
+    let found = memo.found;
+    for (let i = 0; i < memo.ids.length && same; i++) {
+      const t = s.tabs[memo.ids[i]!];
+      const was = found[i];
+      if (t === was) continue;
+      if (!t || !was || t.createdAt !== was.createdAt || paneKeyOf(s, t) !== paneKeyOf(s, was)) same = false;
+      else {
+        if (found === memo.found) found = found.slice();
+        found[i] = t;
       }
-      const ids = [...new Set([...mounted, ...Object.keys(panes)])];
-      const found = ids.map((id) => s.tabs[id]);
-      const keys = found
-        .filter((t): t is Tab => !!t)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((t) => `${t.id}|${t.profileId}`);
-      shownMemo.current = { mounted, panes, tabs: s.tabs, keys, ids, found };
-      return keys;
-    }),
-  );
+    }
+    if (same) {
+      shownMemo.current = { ...memo, tabs: s.tabs, found };
+      return memo.keys;
+    }
+  }
+  const ids = [...new Set([...mounted, ...Object.keys(panes)])];
+  const found = ids.map((id) => s.tabs[id]);
+  const keys = found
+    .filter((t): t is Tab => !!t)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((t) => paneKeyOf(s, t));
+  shownMemo.current = { mounted, panes, tabs: s.tabs, profiles: s.profiles, keys, ids, found };
+  return keys;
+}
+
+export function useShownPaneKeys(mounted: string[], panes: object): string[] {
+  const shownMemo = useRef<ShownMemo>(newShownMemo());
+  return useBrowser(useShallow((s) => shownPaneKeys(shownMemo, s, mounted, panes)));
 }
 
 export function downloadNavigated(tabId: string, committedUrl: string | null | undefined, skipped: boolean | undefined) {
