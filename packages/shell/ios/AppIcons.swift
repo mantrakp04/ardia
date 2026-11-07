@@ -48,7 +48,7 @@ enum AppIcons {
 
   private static var cache: [String: NSImage] = [:]
 
-  static var base: NSImage = NSImage(named: "AppIcon") ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath) {
+  static var base: NSImage = NSImage(named: Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") as? String ?? "AppIcon") ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath) {
     didSet { cache.removeAll() }
   }
 
