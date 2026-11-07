@@ -32,7 +32,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Vouch gates outside PRs.** A PR from someone who isn't a collaborator, a bot or in `.github/VOUCHED.td` is
   closed by the Vouch workflow when it opens or reopens. Collaborators manage the list by commenting `vouch` (the
   issue or PR author), `vouch @user`, `denounce @user <reason>` or `unvouch @user`; agents do it only when the
-  owner asks.
+  owner asks. Wait for the "Update VOUCHED list" commit on `main` before reopening a closed PR, or comment
+  `/recheck` on an open one.
 - **Progress reports.** Keep them short and plain: what shipped, what's left, what needs the owner.
 - **Clean up.** Quit your test instances, stop the servers and background jobs you started, and never
   kill processes you didn't start.
