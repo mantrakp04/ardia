@@ -369,7 +369,7 @@ const fakeModules = {
     "passwords",
     {
       list: () => ({
-        passwords: [...(passwordStores.get(current.device)?.values() ?? [])].map((l) => ({ origin: l.origin, username: l.username, created: l.created, modified: l.created })),
+        passwords: [...(passwordStores.get(current.device)?.values() ?? [])].map((l) => ({ origin: l.url, username: l.username, created: l.created, modified: l.created })),
       }),
       unlock: () => ({ unlocked: true }),
       reveal: (args) => ({ password: passwordStores.get(current.device)?.get(loginKey(args))?.password ?? null }),
@@ -382,10 +382,24 @@ const fakeModules = {
     },
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
-        logins().set(`${origin}\n${username}`, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
+        const refused = new Error("Could not save the password (invalid, or already saved)");
+        if (!/^https?:\/\/[^/?#]+$/i.test(origin)) throw refused;
+        const stored = new URL(origin).origin;
+        const key = `${stored}\n${username}`;
+        const existing = logins().get(key);
+        if (existing && (existing.password !== password || stored !== origin)) throw refused;
+        if (!existing) logins().set(key, { origin: `${stored}/`, url: stored, username, password, created: Date.now() });
+        if (stored !== origin) throw new Error("The password store didn't take the change");
         return JSON.stringify({ ok: true });
       },
-      update: () => unfaked("ArdiaPasswords", "update"),
+      update: async (_profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null) => {
+        const entry = logins().get(`${origin}\n${username}`);
+        if (!entry) throw new Error("No such password");
+        const renamed = newUsername ?? username;
+        logins().delete(`${origin}\n${username}`);
+        logins().set(`${origin}\n${renamed}`, { ...entry, username: renamed, password: newPassword ?? entry.password });
+        return JSON.stringify({ ok: true });
+      },
     },
   ),
   ArdiaAutofill: domain(
