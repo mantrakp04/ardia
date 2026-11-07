@@ -1,10 +1,24 @@
 (function (post) {
   "use strict";
-  if (!/^(https?|file):$/.test(location.protocol)) return () => {};
+  const web = /^(https?|file):$/.test(location.protocol);
+  const sameOriginChild = location.protocol === "about:" && window !== window.top && /^https?:\/\//.test(self.origin);
+  if (!web && !sameOriginChild) return () => {};
   const isTop = window === window.top;
   const handlers = Object.create(null);
   const { stringify: toJSON, parse: fromJSON } = JSON;
   const apply = Reflect.apply;
+  const asNative = (native, call) => {
+    const { getPrototypeOf: protoOf, setPrototypeOf: setProtoOf } = Reflect;
+    const disguised = new Proxy(native, {
+      apply: (target, self, args) => call(target, self, args),
+      setPrototypeOf(target, next) {
+        for (let link = next; link !== null; link = protoOf(link))
+          if (link === disguised || link === target) throw new TypeError("Cyclic __proto__ value");
+        return setProtoOf(target, next);
+      },
+    });
+    return disguised;
+  };
   const { keys, setPrototypeOf } = Object;
   const { isArray } = Array;
   const { isFinite } = Number;
@@ -41,6 +55,78 @@
       }, ms);
     };
   };
+
+  const displayRequests = new Map();
+  let displaySeq = 0;
+  let displayMediaShim = null;
+  let nativeGetDisplayMedia = null;
+  const restoreDisplayMedia = () => {
+    const devices = navigator.mediaDevices;
+    const proto = devices && Object.getPrototypeOf(devices);
+    if (!proto || !displayMediaShim || proto.getDisplayMedia !== displayMediaShim) return;
+    proto.getDisplayMedia = nativeGetDisplayMedia;
+    displayMediaShim = null;
+  };
+  const installDisplayMedia = () => {
+    const devices = navigator.mediaDevices;
+    const proto = devices && Object.getPrototypeOf(devices);
+    if (!proto || !proto.getDisplayMedia || displayMediaShim) return;
+    nativeGetDisplayMedia = proto.getDisplayMedia;
+    const getUserMedia = proto.getUserMedia;
+    const activation = navigator.userActivation;
+    const activationProto = activation && Object.getPrototypeOf(activation);
+    const activationState = activationProto && Object.getOwnPropertyDescriptor(activationProto, "isActive");
+    const isActive = activationState && activationState.get;
+    const policy = document.featurePolicy;
+    const allowsFeature = policy && policy.allowsFeature;
+    const nativeRejects = (self, options) =>
+      self !== devices ||
+      (options !== undefined && options !== null && typeof options !== "object" && typeof options !== "function") ||
+      (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]));
+    displayMediaShim = asNative(nativeGetDisplayMedia, (target, self, args) => {
+      const constraints = args[0];
+      if (nativeRejects(self, constraints)) return apply(target, self, args);
+      if (activation && isActive && !apply(isActive, activation, []))
+        return Promise.reject(new DOMException("getDisplayMedia() requires transient activation (user gesture).", "InvalidStateError"));
+      return new Promise((resolve, reject) => {
+        const id = ++displaySeq;
+        const options = constraints || {};
+        displayRequests.set(id, { self, resolve, reject, constraints: options });
+        const windowAudio = options.windowAudio === "exclude" || options.windowAudio === "window" ? options.windowAudio : "system";
+        send("displayMedia", { id, audio: !!options.audio, systemAudio: options.systemAudio !== "exclude", windowAudio });
+      });
+    });
+    proto.getDisplayMedia = displayMediaShim;
+    handlers.displayMedia = ({ id, sourceId, audio }) => {
+      const request = displayRequests.get(id);
+      if (!request) return;
+      displayRequests.delete(id);
+      if (!sourceId) {
+        request.reject(new DOMException("Permission denied", "NotAllowedError"));
+        return;
+      }
+      const video = request.constraints.video;
+      const frameRate = (video && video.frameRate && (video.frameRate.max || video.frameRate.ideal || video.frameRate)) || 30;
+      apply(getUserMedia, request.self, [
+        {
+          audio: audio === true ? { mandatory: { chromeMediaSource: "desktop" } } : false,
+          video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId, maxWidth: 3840, maxHeight: 2160, maxFrameRate: +frameRate || 30 } },
+        },
+      ]).then(request.resolve, request.reject);
+    };
+  };
+  installDisplayMedia();
+
+  const receive = (kind, json) => {
+    const handler = handlers[kind];
+    if (handler) guard(handler)(fromJSON(json));
+  };
+  if (!web) {
+    const configureDisplayMedia = (config) => (config.displayMediaPicker ? installDisplayMedia() : restoreDisplayMedia());
+    handlers.config = configureDisplayMedia;
+    send("displayMediaHello", {});
+    return receive;
+  }
 
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
@@ -160,14 +246,21 @@
   for (const e of mediaEvents) document.addEventListener(e, onMediaEvent, true);
   const detachedMediaWatchers = [];
   const play = HTMLMediaElement.prototype.play;
-  HTMLMediaElement.prototype.play = function () {
-    if (!tracked.has(this) && !this.isConnected) {
-      tracked.add(this);
-      for (const e of mediaEvents) this.addEventListener(e, onMediaEvent);
-      for (const watch of detachedMediaWatchers) guard(watch)(this);
+  const pausedState = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "paused").get;
+  const connectedState = Object.getOwnPropertyDescriptor(Node.prototype, "isConnected").get;
+  HTMLMediaElement.prototype.play = asNative(play, (target, self, args) => {
+    let media = false;
+    try {
+      apply(pausedState, self, []);
+      media = true;
+    } catch (e) {}
+    if (media && !tracked.has(self) && !apply(connectedState, self, [])) {
+      tracked.add(self);
+      for (const e of mediaEvents) self.addEventListener(e, onMediaEvent);
+      for (const watch of detachedMediaWatchers) guard(watch)(self);
     }
-    return play.apply(this, arguments);
-  };
+    return apply(target, self, args);
+  });
 
   const proto = session && Object.getPrototypeOf(session);
   if (proto) {
@@ -367,9 +460,11 @@
   addEventListener("resize", () => eyeField && requestAnimationFrame(placeEye));
   addEventListener("pagehide", conceal);
 
+  let pageNotification = null;
   const installNotifications = () => {
     const NativeNotification = window.Notification;
-    if (!NativeNotification || NativeNotification.__ac) return !!NativeNotification;
+    if (!NativeNotification || NativeNotification === pageNotification) return !!NativeNotification;
+    const pageNotifications = new WeakSet();
     const live = new Map();
     let seq = 0;
     const show = (title, options, fire) => {
@@ -395,9 +490,9 @@
     };
     class PageNotification extends EventTarget {
       constructor(title, options) {
-        if (!new.target) throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator.");
         if (arguments.length < 1) throw new TypeError("Failed to construct 'Notification': 1 argument required, but only 0 present.");
         super();
+        pageNotifications.add(this);
         options = options || {};
         const fields = { title: String(title), body: String(options.body ?? ""), tag: String(options.tag ?? ""),
           icon: String(options.icon ?? ""), data: options.data ?? null, silent: !!options.silent,
@@ -422,27 +517,46 @@
         Object.defineProperty(this, "_id", { value: id });
         setTimeout(() => this._fire("show"), 0);
       }
-      close() {
-        if (!this._id || !live.has(this._id)) return;
-        live.delete(this._id);
-        send("notificationClose", { id: this._id });
-        setTimeout(() => this._fire("close"), 0);
-      }
-      static get permission() { return NativeNotification.permission; }
-      static requestPermission(callback) { return NativeNotification.requestPermission(callback); }
-      static get maxActions() { return NativeNotification.maxActions || 0; }
+    }
+    const closeNotification = (n) => {
+      if (!n._id || !live.has(n._id)) return;
+      live.delete(n._id);
+      send("notificationClose", { id: n._id });
+      setTimeout(() => n._fire("close"), 0);
+    };
+    const nativeClose = NativeNotification.prototype.close;
+    Object.defineProperty(PageNotification.prototype, "close", {
+      value: asNative(nativeClose, (target, self, args) => (pageNotifications.has(self) ? closeNotification(self) : apply(target, self, args))),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+    for (const key of ["permission", "maxActions", "requestPermission"]) {
+      const native = Object.getOwnPropertyDescriptor(NativeNotification, key);
+      if (native) Object.defineProperty(PageNotification, key, native);
     }
     Object.defineProperty(PageNotification, "name", { value: "Notification" });
-    Object.defineProperty(PageNotification, "__ac", { value: true });
-    window.Notification = PageNotification;
+    Object.defineProperty(PageNotification, "length", { value: 1 });
+    pageNotification = asNative(PageNotification, () => {
+      throw new TypeError("Failed to construct 'Notification': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
+    });
+    Object.defineProperty(PageNotification.prototype, "constructor", { value: pageNotification, writable: true, configurable: true });
+    window.Notification = pageNotification;
     const Registration = window.ServiceWorkerRegistration;
-    if (Registration && Registration.prototype.showNotification) {
-      Registration.prototype.showNotification = function (title, options) {
-        if (NativeNotification.permission !== "granted")
-          return Promise.reject(new TypeError("No notification permission has been granted for this origin."));
-        show(title, options);
+    const nativeShow = Registration && Registration.prototype.showNotification;
+    const activeWorker = nativeShow && Object.getOwnPropertyDescriptor(Registration.prototype, "active");
+    if (nativeShow && activeWorker && activeWorker.get) {
+      Registration.prototype.showNotification = asNative(nativeShow, (target, self, args) => {
+        let worker = null;
+        try {
+          worker = apply(activeWorker.get, self, []);
+        } catch (e) {
+          return apply(target, self, args);
+        }
+        if (!worker || args.length < 1 || NativeNotification.permission !== "granted") return apply(target, self, args);
+        show(args[0], args[1]);
         return Promise.resolve();
-      };
+      });
     }
     handlers.notification = ({ id, action }) => {
       const n = live.get(id);
@@ -458,54 +572,6 @@
     return true;
   };
   if (!installNotifications()) queueMicrotask(() => installNotifications() || setTimeout(installNotifications, 0));
-
-  const displayRequests = new Map();
-  let displaySeq = 0;
-  const installDisplayMedia = () => {
-    const devices = navigator.mediaDevices;
-    const proto = devices && Object.getPrototypeOf(devices);
-    if (!proto || !proto.getDisplayMedia || proto.getDisplayMedia.__ac) return;
-    const getUserMedia = proto.getUserMedia;
-    const activation = navigator.userActivation;
-    const activationProto = activation && Object.getPrototypeOf(activation);
-    const activationState = activationProto && Object.getOwnPropertyDescriptor(activationProto, "isActive");
-    const isActive = activationState && activationState.get;
-    const policy = document.featurePolicy;
-    const allowsFeature = policy && policy.allowsFeature;
-    const getDisplayMedia = function getDisplayMedia(constraints) {
-      if (policy && allowsFeature && !apply(allowsFeature, policy, ["display-capture"]))
-        return Promise.reject(new DOMException('Access to the feature "display-capture" is disallowed by permissions policy.', "NotAllowedError"));
-      if (activation && isActive && !apply(isActive, activation, []))
-        return Promise.reject(new DOMException("getDisplayMedia() requires transient activation (user gesture).", "InvalidStateError"));
-      const self = this;
-      return new Promise((resolve, reject) => {
-        const id = ++displaySeq;
-        const options = constraints || {};
-        displayRequests.set(id, { self, resolve, reject, constraints: options });
-        const windowAudio = options.windowAudio === "exclude" || options.windowAudio === "window" ? options.windowAudio : "system";
-        send("displayMedia", { id, audio: !!options.audio, systemAudio: options.systemAudio !== "exclude", windowAudio });
-      });
-    };
-    Object.defineProperty(getDisplayMedia, "__ac", { value: true });
-    proto.getDisplayMedia = getDisplayMedia;
-    handlers.displayMedia = ({ id, sourceId, audio }) => {
-      const request = displayRequests.get(id);
-      if (!request) return;
-      displayRequests.delete(id);
-      if (!sourceId) {
-        request.reject(new DOMException("Permission denied", "NotAllowedError"));
-        return;
-      }
-      const video = request.constraints.video;
-      const frameRate = (video && video.frameRate && (video.frameRate.max || video.frameRate.ideal || video.frameRate)) || 30;
-      apply(getUserMedia, request.self, [
-        {
-          audio: audio === true ? { mandatory: { chromeMediaSource: "desktop" } } : false,
-          video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId, maxWidth: 3840, maxHeight: 2160, maxFrameRate: +frameRate || 30 } },
-        },
-      ]).then(request.resolve, request.reject);
-    };
-  };
 
   const PO = window.PerformanceObserver;
   const disconnect = PO && PO.prototype.disconnect;
@@ -833,16 +899,15 @@
             if (!anyProgressed()) needsProtectedPlayback(keySystem);
           });
       };
-      const wrapped = {
-        requestMediaKeySystemAccess(keySystem, configurations) {
-          const result = apply(requestAccess, this, arguments);
-          if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
-            const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
-            apply(then, result, [null, () => onRefused(keySystem, activated)]);
-          }
-          return result;
-        },
-      }.requestMediaKeySystemAccess;
+      const wrapped = asNative(requestAccess, (target, self, args) => {
+        const result = apply(target, self, args);
+        const keySystem = args[0];
+        if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+          const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
+          apply(then, result, [null, () => onRefused(keySystem, activated)]);
+        }
+        return result;
+      });
       Object.defineProperty(NavigatorType.prototype, "requestMediaKeySystemAccess", {
         ...Object.getOwnPropertyDescriptor(NavigatorType.prototype, "requestMediaKeySystemAccess"),
         value: wrapped,
@@ -892,15 +957,12 @@
     if (blockAutoplay)
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
     if (config.displayMediaPicker) installDisplayMedia();
+    else restoreDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };
   send("hello", { top: isTop, url: location.href });
 
-  const receive = (kind, json) => {
-    const handler = handlers[kind];
-    if (handler) guard(handler)(fromJSON(json));
-  };
   if (!isTop) return receive;
 
   const parse = (css) => {

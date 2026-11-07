@@ -1,6 +1,5 @@
 import { layout } from "../ui/theme";
 import type { SplitView } from "../../state/browser/types";
-import { HEADER_TOOLS } from "./dockMotion";
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
@@ -82,22 +81,17 @@ export type ToolbarGeometry = {
 
 const geometries = new Map<string, ToolbarGeometry>();
 
-type ToolbarLead = { sidebarButton: boolean; lights?: boolean };
-
-export const LIGHTS_ROOM = HEADER_TOOLS.toggleX - layout.cardInset - layout.toolbarIconCenters[0];
-
-export function toolbarGeometry(o: ToolbarLead): ToolbarGeometry {
-  const key = `${o.sidebarButton}|${!!o.lights}`;
+export function toolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
+  const key = `${o.sidebarButton}`;
   let g = geometries.get(key);
   if (!g) geometries.set(key, (g = computeToolbarGeometry(o)));
   return g;
 }
 
-function computeToolbarGeometry(o: ToolbarLead): ToolbarGeometry {
+function computeToolbarGeometry(o: { sidebarButton: boolean }): ToolbarGeometry {
   const [c0, c1, c2, c3] = layout.toolbarIconCenters;
-  const room = o.lights ? LIGHTS_ROOM : 0;
-  if (o.sidebarButton) return { sidebarButton: c0 + room, back: c1 + room, forward: c2 + room, reload: c3 + room, urlLeft: layout.breadcrumbX - 8 + room };
-  const shift = c1 - c0 - room;
+  if (o.sidebarButton) return { sidebarButton: c0, back: c1, forward: c2, reload: c3, urlLeft: layout.breadcrumbX - 8 };
+  const shift = c1 - c0;
   return { sidebarButton: null, back: c1 - shift, forward: c2 - shift, reload: c3 - shift, urlLeft: layout.breadcrumbX - 8 - shift };
 }
 

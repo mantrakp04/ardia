@@ -13,6 +13,7 @@ import { focus, switchToTab } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { withDeadline } from "../../lib/deadline";
 import { isSilenced } from "../tabs/mute";
+import { noteNotificationShown } from "../automation/notificationEvents";
 
 const shown = new Map<string, string>();
 
@@ -49,6 +50,7 @@ export function showWebNotification(tabId: string, n: WebNotification) {
     if (shown.get(id) !== n.id) return;
     const now = useBrowser.getState();
     const current = now.tabs[tabId];
+    noteNotificationShown(tabId, n);
     void postNotification({
       id,
       title: n.title,

@@ -86,6 +86,17 @@ export const generalRows = {
   profiles: [
     { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
     {
+      section: "Shared data",
+      rows: {
+        shareTopApps: {
+          title: "Share Top Apps",
+          description:
+            "Profiles that share browsing data can show the same Top Apps, each one a single page you pick up where you left it in any of them. Pick which ones take part. A profile with its own data keeps its own Top Apps, since its logins and cookies are separate.",
+          keywords: ["pinned tabs", "favorites", "essentials", "spaces", "shared"],
+        },
+      },
+    },
+    {
       section: "Profile switcher",
       rows: {
         switcherIcons: {
@@ -230,6 +241,12 @@ export const generalRows = {
           title: "⌥⇧-click opens tab in group",
           description: "⌥⇧-click a tab to open it in a group with the current tab. (⌥⇧-clicking a link opens it in a split.)",
           keywords: ["option shift click", "split"],
+        },
+        dragToGroupInTopStrip: {
+          shown: (_, env) => env.top,
+          title: "Drag a tab onto another to group them",
+          description: "With tabs across the top, dropping a tab on another makes a group, and dropping it on a group adds it. Off, dragging only reorders.",
+          keywords: ["drag", "drop", "group", "top tab strip", "horizontal tabs", "reorder"],
         },
         autoGroupMeetingTabs: { advanced: true, title: "Automatically group tabs for meetings", keywords: ["calendar", "zoom", "meet", "call"] },
       },

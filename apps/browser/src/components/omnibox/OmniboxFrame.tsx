@@ -1,5 +1,5 @@
 import type { SearchScope } from "@ardia/core";
-import type { ReactNode, RefObject } from "react";
+import { memo, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
 import { Button, capsule, ContextMenuArea, useHover, useTheme } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
@@ -91,7 +91,7 @@ export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { 
   );
 }
 
-function DictateButton({ onPress }: { onPress(): void }) {
+const DictateButton = memo(function DictateButton({ onPress }: { onPress(): void }) {
   const theme = useTheme();
   const glass = useGlass();
   const { hovered, hoverProps } = useHover();
@@ -112,4 +112,4 @@ function DictateButton({ onPress }: { onPress(): void }) {
       />
     </View>
   );
-}
+});

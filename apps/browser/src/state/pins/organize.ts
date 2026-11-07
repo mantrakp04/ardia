@@ -15,6 +15,7 @@ export type OrganizeSlice = {
   selectionAnchors: Record<string, string>;
   pinChoices: PinChoices;
   pinSync: PinSync;
+  topAppsMerged: string;
 
   setSelection(windowId: string, ids: string[]): void;
   clickTab(windowId: string, tabId: string, mods?: ClickMods): void;
@@ -57,6 +58,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
   selectionAnchors: {},
   pinChoices: {},
   pinSync: {},
+  topAppsMerged: "",
 
   setSelection(windowId, ids) {
     set((s) => {

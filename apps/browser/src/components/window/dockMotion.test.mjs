@@ -79,13 +79,14 @@ test("with the address field in the sidebar the lights sit on Arc's header row, 
   assert.deepEqual(dm.lightsCenter(-px, py, arc), [25 + px, 24 + py], "in the peek panel");
 });
 
-test("the card's left edge runs from the window inset to 9 pt past the sidebar's rows, the same air as on every other side", async () => {
+test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card, the card frame's own thickness", async () => {
   const { layout } = await import("../ui/theme.ts");
   assert.equal(layout.cardInset, 9);
+  assert.equal(layout.sidebarInset, layout.cardInset, "rows start where the frame's thickness ends");
   assert.equal(dm.dockedCardInset(190) - (190 - layout.sidebarInset), layout.cardInset);
-  assert.equal(dm.cardInsetAt(1, 190, 9), 193);
+  assert.equal(dm.cardInsetAt(1, 190, 9), 190);
   assert.equal(dm.cardInsetAt(0, 190, 9), 9);
-  assert.equal(dm.cardInsetAt(0.5, 190, 9), 101);
+  assert.equal(dm.cardInsetAt(0.5, 190, 9), 99.5);
 });
 
 test("the motion flag is per window, and ending it twice is harmless", () => {
@@ -106,44 +107,36 @@ test("the toolbar's buttons don't move with the sidebar: the hidden sidebar's to
   assert.deepEqual([g.sidebarButton, g.back, g.forward, g.reload], [21, 56, 92, 127]);
 });
 
-test("with the sidebar on the right the window buttons stay at the window's top left, and the leading toolbar starts past them where the sidebar's own button sits", async () => {
-  const { layout } = await import("../ui/theme.ts");
-  const plain = toolbarGeometry({ sidebarButton: true });
-  const lit = toolbarGeometry({ sidebarButton: true, lights: true });
-  assert.equal(lit.sidebarButton + layout.cardInset, dm.HEADER_TOOLS.toggleX, "the toggle where Arc's header puts it, past the lights");
-  assert.ok(lit.sidebarButton - 15 + layout.cardInset > dm.HEADER_TOOLS.lightsRight, "its plate clears the lights");
-  for (const k of ["back", "forward", "reload", "urlLeft"]) assert.equal(lit[k] - plain[k], lit.sidebarButton - plain.sidebarButton, k);
-  const bare = toolbarGeometry({ sidebarButton: false, lights: true });
-  assert.equal(bare.back, lit.sidebarButton, "no sidebar button: back takes its place");
-  assert.equal(lit.urlLeft - lit.sidebarButton, plain.urlLeft - plain.sidebarButton, "the tour's spotlight maths, relative to the URL, is unchanged");
-  assert.equal(dm.headerToggleX(true), dm.HEADER_TOOLS.toggleX);
-  assert.equal(dm.headerToggleX(false), 27, "no lights in the header: the toggle sits at the header's own edge");
+test("with the sidebar on the right the window buttons ride it: anchored to the window's right edge, where the left sidebar would put them inside it", () => {
+  assert.deepEqual(dm.sidebarLightsCenter(false, 240, 0, 0, dm.LIGHTS_CENTER), [...dm.LIGHTS_CENTER]);
+  assert.deepEqual(dm.sidebarLightsCenter(true, 240, 0, 0, dm.LIGHTS_CENTER), [240 - dm.LIGHTS_CENTER[0], dm.LIGHTS_CENTER[1], "right"], "docked: 25 pt into the sidebar, as on the left");
+  assert.deepEqual(dm.sidebarLightsCenter(true, 240, 240, 0, dm.ARC_LIGHTS_CENTER), [-dm.ARC_LIGHTS_CENTER[0], dm.ARC_LIGHTS_CENTER[1], "right"], "hidden: past the right edge with the sidebar");
+  assert.deepEqual(dm.sidebarLightsCenter(true, 240, 100.3, 9), [240 - 25 - 100.5, dm.LIGHTS_CENTER[1] + 9, "right"], "half-point steps, as on the left");
 });
 
 test("the peek's span and hold mirror for a sidebar on the right", () => {
   assert.deepEqual(dm.peekSpan(240, false, 1200), [-Infinity, 245]);
   assert.deepEqual(dm.peekSpan(240, true, 1200), [955, Infinity]);
   const hold = dm.peekHoldWidth(240);
-  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold + 1, true, 1200), 10, hold, 700), true);
-  assert.equal(dm.inPeekHold(dm.fromSidebarEdge(1200 - hold - 1, true, 1200), 10, hold, 700), false);
-  assert.equal(dm.fromSidebarEdge(30, false, 1200), 30);
-  assert.deepEqual(dm.rightSidebarLightsCenter(false, false), dm.LIGHTS_CENTER, "Dia's layout: on the toolbar's row");
-  assert.deepEqual(dm.rightSidebarLightsCenter(true, false), [25, dm.LIGHTS_STRIP_HEIGHT / 2], "address bar in the sidebar: centred in the strip above the card");
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(-1, true), 10, hold, 700), true, "leaving the right strip toward the peek stays in the hold");
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(dm.PEEK_EDGE_STRIP - hold - 1, true), 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(dm.fromSidebarEdgeInStrip(dm.PEEK_EDGE_STRIP + 1, true), 10, hold, 700), false, "past the window's right edge");
+  assert.equal(dm.fromSidebarEdgeInStrip(30, false), 30);
 });
 
 test("the sidebar's own button (address bar in the sidebar) always fits; back, forward and reload as there's room, never overlapping", () => {
   assert.deepEqual(dm.navButtonsFitting(160).buttons, ["back"]);
   const narrow = dm.navButtonsFitting(190);
   assert.deepEqual(narrow.buttons, ["back", "forward"], "the default width keeps the back and forward pair, as Arc and Dia show it; reload gives way first");
-  assert.equal(narrow.step, 35, "Dia's pitch");
-  assert.deepEqual(dm.navButtonsFitting(209.5).buttons, ["back", "forward"]);
-  const tightest = dm.navButtonsFitting(210);
-  assert.deepEqual(tightest.buttons, ["back", "forward", "reload"], "reload is back from 210 pt, the buttons 30 pt apart");
+  assert.equal(narrow.step, 33.625, "closed up a little: the last plate ends on the field's edge, 9 pt in");
+  assert.deepEqual(dm.navButtonsFitting(212.5).buttons, ["back", "forward"]);
+  const tightest = dm.navButtonsFitting(213);
+  assert.deepEqual(tightest.buttons, ["back", "forward", "reload"], "reload is back from 213 pt, the buttons 30 pt apart");
   assert.ok(tightest.step >= 30 && tightest.step < 30.5);
-  const closing = dm.navButtonsFitting(220);
+  const closing = dm.navButtonsFitting(223);
   assert.deepEqual(closing.buttons, ["back", "forward", "reload"]);
   assert.ok(closing.step >= 30 && closing.step < 35, "closed up, plates apart");
-  assert.deepEqual(dm.navButtonsFitting(224.75), { buttons: ["back", "forward", "reload"], step: 35 });
+  assert.deepEqual(dm.navButtonsFitting(227.75), { buttons: ["back", "forward", "reload"], step: 35 });
   assert.deepEqual(dm.navButtonsFitting(400), { buttons: ["back", "forward", "reload"], step: 35 });
   assert.equal(dm.navButtonsFitting(100).buttons.length, 0);
   for (let w = 150; w <= 400; w += 0.5) {
@@ -223,15 +216,6 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.equal(dm.easeInOutCubic(1), 1);
   const peak = Math.max(...Array.from({ length: 60 }, (_, i) => springAt(i / 120, dm.ARC_PEEK_SPRING)));
   assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
-});
-
-test("a peek that's out is remembered per window (Arc docks from it at once)", () => {
-  assert.equal(dm.peekShown("w1"), false);
-  dm.setPeekShown("w1", true);
-  assert.equal(dm.peekShown("w1"), true);
-  assert.equal(dm.peekShown("w2"), false);
-  dm.setPeekShown("w1", false);
-  assert.equal(dm.peekShown("w1"), false);
 });
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {

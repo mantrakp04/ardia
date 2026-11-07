@@ -42,7 +42,7 @@ beforeEach(() => {
 
 test("nothing loads until the text has a '!', then the bundled list arrives", async () => {
   assert.equal(bangsFor("github react"), null);
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(bangStatus().loaded, false);
   bangsFor("!gh react");
   await loadBangs();
@@ -51,7 +51,11 @@ test("nothing loads until the text has a '!', then the bundled list arrives", as
   assert.equal(bangStatus().source, "bundled");
 });
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+const loaded = async () => {
+  await loadBangs();
+  await flush();
+};
 function slowLoad() {
   let release;
   const load = () => new Promise((resolve) => (release = () => resolve(loadBangs())));
@@ -72,11 +76,11 @@ test("Enter on a cold session waits for the local list, never for the refresh", 
   const opened = [];
   const enter = createBangSubmitter();
   enter.submit("!gh react", (url) => opened.push(url));
-  await wait(20);
+  await loaded();
   enter.submit("?!gh react !w", (url) => opened.push(url));
-  await wait(20);
+  await loaded();
   enter.submit("react !nope", (url) => opened.push(url));
-  await wait(20);
+  await loaded();
   assert.deepEqual(opened, ["https://github.com/search?q=react", null, null]);
   releaseRefresh?.();
 });
@@ -88,7 +92,7 @@ test("a later edit, pick, dismiss or Enter wins over a pending one, and each Ent
   enter.submit("!gh react", (url) => opened.push(["first", url]));
   enter.cancel();
   slow.release();
-  await wait(20);
+  await loaded();
   assert.deepEqual(opened, []);
 
   const slow2 = slowLoad();
@@ -96,24 +100,25 @@ test("a later edit, pick, dismiss or Enter wins over a pending one, and each Ent
   enter2.submit("!gh react", (url) => opened.push(["one", url]));
   enter2.submit("react !w", (url) => opened.push(["two", url]));
   slow2.release();
-  await wait(20);
+  await loaded();
   assert.deepEqual(opened, [["two", "https://wikipedia.org/w/index.php?search=react"]]);
   enter2.cancel();
-  await wait(20);
+  await flush();
   assert.equal(opened.length, 1);
 });
 
-test("a list that doesn't load in time gives the plain search, unless something newer happened", async () => {
+test("a list that doesn't load in time gives the plain search, unless something newer happened", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const opened = [];
   const never = () => new Promise(() => {});
   const enter = createBangSubmitter(never, 30);
   enter.submit("!gh react", (url) => opened.push(url));
-  await wait(60);
+  t.mock.timers.tick(30);
   assert.deepEqual(opened, [null]);
   enter.submit("!gh react", (url) => opened.push(url));
-  await wait(10);
+  t.mock.timers.tick(10);
   enter.cancel();
-  await wait(60);
+  t.mock.timers.tick(60);
   assert.deepEqual(opened, [null]);
   const failing = createBangSubmitter(() => Promise.reject(new Error("no list")), 30);
   failing.submit("!gh react", (url) => opened.push(url));
@@ -121,7 +126,8 @@ test("a list that doesn't load in time gives the plain search, unless something 
     throw new Error("no list");
   }, 30);
   throwing.submit("!gh react", (url) => opened.push(url));
-  await wait(60);
+  await flush();
+  t.mock.timers.tick(60);
   assert.deepEqual(opened, [null, null, null]);
 });
 
@@ -166,7 +172,8 @@ test("a list that couldn't be saved is not used, and its ETag isn't kept", async
   server([{ status: 200, body: heliumBody("new"), etag: '"v2"' }]);
   heldSaves.on = true;
   const pending = refreshBangs();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  for (const deadline = Date.now() + 5000; !heldSaves.queue.length && Date.now() < deadline; ) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(heldSaves.queue.length, 1);
   assert.equal(bangStatus().source, "bundled");
   assert.equal(bangStatus().etag, null);
   heldSaves.queue.shift()();

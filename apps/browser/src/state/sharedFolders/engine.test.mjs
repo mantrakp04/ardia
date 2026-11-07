@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 import { shellNativeModules } from "../../test-native/shell.ts";
 
 const shares = [];
@@ -68,7 +68,24 @@ const { bindFolder, sharedFolderOf, unbindFolder, useSharedFolders } = await imp
 const { shareFolder } = await import("./actions.ts");
 
 const S = () => useBrowser.getState();
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+mock.timers.enable({ apis: ["setTimeout"] });
+const flush = () => new Promise(setImmediate);
+async function wait(ms) {
+  for (let at = 0; at < ms; at += 5) {
+    mock.timers.tick(5);
+    await flush();
+  }
+}
+async function settled(promise) {
+  let done = false;
+  promise.then(() => (done = true), () => (done = true));
+  for (let at = 0; !done; at += 5) {
+    assert.ok(at < 60_000, "the round settles within a minute of fake time");
+    mock.timers.tick(5);
+    await flush();
+  }
+  return promise;
+}
 
 let persisting = false;
 function fresh() {
@@ -98,7 +115,7 @@ test("a session that can't be saved stops the round before any file changes or b
   listing = { exists: true, root: { entries: [{ kind: "link", file: "From Mac B.webloc", text: webloc("https://b.example/") }], manifest: null, manifestPending: false } };
   failing.add("session.json");
   events.length = 0;
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   assert.ok(S().groups && Object.values(S().tabs).some((t) => t.pinnedUrl === "https://b.example/"), "the sidebar shows the link");
   assert.deepEqual(events.filter((e) => e.startsWith("apply")), [], "no file is touched");
   assert.equal(sharedFolderOf(profileId, key).base.length, 0, "the base doesn't move");
@@ -108,7 +125,7 @@ test("a session that can't be saved stops the round before any file changes or b
 
   failing.delete("session.json");
   events.length = 0;
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   const imported = sharedFolderOf(profileId, key).base.find((b) => b.url === "https://b.example/")?.key;
   assert.ok(imported, "once the session lands, the base takes the link");
   assert.ok(landed.get("session.json").includes(imported), "the landed session holds the tab");
@@ -129,12 +146,12 @@ test("a session snapshot that never got staged stops the round too, and is stage
   listing = { exists: true, root: { entries: [{ kind: "link", file: "Staged.webloc", text: webloc("https://staged.example/") }], manifest: null, manifestPending: false } };
   unstageable.add("session.json");
   events.length = 0;
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   assert.deepEqual(events.filter((e) => e.startsWith("apply")), [], "no file is touched while the session can't be staged");
   assert.equal(sharedFolderOf(profileId, key).base.length, 0, "the base doesn't move");
   unstageable.delete("session.json");
   events.length = 0;
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   const imported = sharedFolderOf(profileId, key).base.find((b) => b.url === "https://staged.example/")?.key;
   assert.ok(imported, "the next round goes through");
   assert.ok(landed.get("session.json").includes(imported), "the session that landed holds the tab");
@@ -150,9 +167,9 @@ test("a folder unbound and bound again while its round reads changes neither bin
     unbindFolder(profileId, key);
     bindFolder(profileId, key, "/scratch/Ardia Shared/Elsewhere");
   };
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   await wait(400);
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   assert.deepEqual(events.filter((e) => e.startsWith(`apply ${oldPath} `)), [], "nothing is written for the old binding");
   assert.equal(sharedFolderOf(profileId, key).path, "/scratch/Ardia Shared/Elsewhere");
   assert.ok(!sharedFolderOf(profileId, key).base.some((b) => b.url === "https://old-folder.example/"), "the new binding never takes the old folder's links");
@@ -168,7 +185,7 @@ test("a read that fails after the folder was bound again doesn't mark the new bi
     bindFolder(profileId, key, "/scratch/Ardia Shared/Fresh");
     throw new Error("the old disk went away");
   };
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   assert.notEqual(useSharedFolders.getState().sync[`${profileId}\u0001${key}`]?.state, "error");
 });
 
@@ -183,10 +200,10 @@ test("Share Folder doesn't open the share sheet when the folder's first sync fai
   globalThis.acTestNativeModules.ArdiaSharedFolders.read = async () => {
     throw new Error("disk went away");
   };
-  await shareFolder(w, g);
+  await settled(shareFolder(w, g));
   globalThis.acTestNativeModules.ArdiaSharedFolders.read = read;
   assert.deepEqual(shares, [], "no share sheet for a folder whose links weren't written");
-  await shareFolder(w, g);
+  await settled(shareFolder(w, g));
   assert.equal(shares.length, 1, "once the folder syncs, Share Folder opens the sheet");
 });
 
@@ -202,7 +219,7 @@ test("unbinding and binding the same path again during a read still counts as a 
     bindFolder(profileId, key, path);
     replaced = sharedFolderOf(profileId, key);
   };
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   assert.equal(sharedFolderOf(profileId, key), replaced, "the round never saved a base over the new binding");
   assert.deepEqual(replaced.base, []);
   assert.deepEqual(events.filter((e) => e.startsWith("apply")), [], "nothing was written for the old binding's round");
@@ -218,7 +235,7 @@ test("Share Folder waits for a round that starts after it, not one already runni
   const key = pinKeyOf(S().groups[g]);
   bindFolder(profileId, key, "/scratch/Ardia Shared/Fourth");
   await wait(900);
-  await syncFolderNow(profileId, key);
+  await settled(syncFolderNow(profileId, key));
   let release;
   const gate = new Promise((r) => (release = r));
   duringRead = async () => {
@@ -231,7 +248,7 @@ test("Share Folder waits for a round that starts after it, not one already runni
   const sharing = shareFolder(w, g);
   await wait(20);
   release();
-  await Promise.all([running, sharing]);
+  await settled(Promise.all([running, sharing]));
   const reads = events.filter((e) => e.startsWith("read "));
   const shared = events.indexOf("share");
   assert.ok(shared >= 0, "the sheet opened");

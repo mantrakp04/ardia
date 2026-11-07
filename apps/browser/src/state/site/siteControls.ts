@@ -53,8 +53,7 @@ export async function setSitePermission(
   return readSiteSettings(page.profile, page.origin, page.engine);
 }
 
-export function blockerLabel(engine: PageEngine, blocker: { enabled: boolean; allowed: boolean } | null, blocked: number): string {
-  if (engine === "webkit") return "Chromium only for now";
+export function blockerLabel(blocker: { enabled: boolean; allowed: boolean } | null, blocked: number): string {
   if (!blocker) return "…";
   if (!blocker.enabled) return "Off in Settings";
   if (blocker.allowed) return "Off for this site";

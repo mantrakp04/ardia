@@ -186,7 +186,11 @@ let launchSent = false;
 type PreviousLaunch = { lastLaunchAt: number | null; lastQuitAt: number | null; firstOfVersion: boolean | null };
 let previousLaunch: PreviousLaunch = { lastLaunchAt: null, lastQuitAt: null, firstOfVersion: null };
 
+let firstRootCommitted = false;
+
 export function launchCommitted() {
+  if (firstRootCommitted) return;
+  firstRootCommitted = true;
   if (launch || launchSent || !on) return;
   const start = appInfo().processStart;
   if (!start) return;

@@ -24,6 +24,7 @@ const { useBrowser } = await import("../browser/store.ts");
 
 const { configureProfileStartup } = await import("../profiles/startupEngineProfiles.ts");
 configureProfileStartup({ loadProfilesWhenOpened: true });
+const { startProfileLoading } = await import("../profiles/profileLoading.ts");
 
 const waitFor = async (check) => {
   for (let i = 0; i < 100 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -45,6 +46,7 @@ test("generic favicons read selected profiles, reuse inactive cached icons and d
   globalThis.fetchFaviconForTest = async (src, profile) => (fetched.push({ src, profile }), null);
   globalThis.faviconsForTest = async (profile, pages) => (lookups.push({ profile, pages }), { pages: new Map(), icons: new Map() });
   globalThis.storedFavicons = [];
+  const stopLoading = startProfileLoading();
   const stop = startFavicons();
   const generic = mount(() => useFavicon(page));
   const cachedRow = mount(() => useFavicon(cachedPage));
@@ -67,6 +69,7 @@ test("generic favicons read selected profiles, reuse inactive cached icons and d
     cachedRow.unmount();
     explicit?.unmount();
     stop();
+    stopLoading();
     delete globalThis.faviconsForTest;
     delete globalThis.fetchFaviconForTest;
   }

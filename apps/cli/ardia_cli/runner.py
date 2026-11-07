@@ -276,12 +276,14 @@ def build_namespace(session: Session, filename: str, data_root=None) -> dict:
 
     from ardia_cli import control
 
-    async def run(command: str, arg: str | None = None, window=None):
+    async def run(command: str, arg: str | None = None, window=None, tab=None):
         params = {"command": command}
         if arg is not None:
             params["arg"] = arg
         if window is not None:
             params["window"] = window
+        if tab is not None:
+            params["tab"] = tab
         connection = await control.open_control(data_root)
         try:
             return await connection.call("run", params)
@@ -295,11 +297,11 @@ def build_namespace(session: Session, filename: str, data_root=None) -> dict:
         finally:
             await connection.close()
 
-    async def events(*names: str):
+    async def events(*names: str, full_urls: bool = False):
         wanted = control.check_events(names) or ["*"]
         connection = await control.open_control(data_root)
         try:
-            await connection.subscribe(wanted)
+            await connection.subscribe(wanted, {"fullUrls": True} if full_urls else None)
             while True:
                 yield await connection.next_event()
         finally:

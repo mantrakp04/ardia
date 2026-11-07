@@ -14,6 +14,7 @@ import { Favicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { AutomationRules } from "./AutomationRules";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
 const SOURCE_NOTICE = "Ardia is free software under the GNU General Public License v3, with no warranty.";
@@ -56,7 +57,6 @@ export function AdvancedPane() {
 
       <SectionHeader title="Performance" />
       <Group>
-        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
         <SettingToggle anchor="advanced.memorySaver" />
         <Row anchor="advanced.memorySaverMode" description={MEMORY_SAVER_MODES[memorySaverMode].description}>
           <PopUp
@@ -78,6 +78,7 @@ export function AdvancedPane() {
             minWidth={190}
           />
         </Row>
+        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
       </Group>
 
       <KeepActiveSites sites={keepActiveSites} />
@@ -93,6 +94,7 @@ export function AdvancedPane() {
       </Group>
 
       <CommandLineSection />
+      <AutomationRules />
 
       <SectionHeader title="Web engine" />
       <Group>

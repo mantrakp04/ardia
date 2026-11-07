@@ -20,6 +20,7 @@ export const CURATED = {
   ant: "P:bug L:bug T:bug M:bug-outline P:bug-beetle",
   "antenna.radiowaves.left.and.right.slash": "L:radio-tower T:antenna-bars-off M:access-point-off T:access-point-off",
   app: "L:square T:square-rounded P:square I:square M:square-rounded-outline",
+  "square.grid.2x2": "L:layout-grid T:layout-grid P:squares-four I:view-grid M:view-grid-outline",
   "app.badge": "L:app-window T:square-rounded-dot P:app-window M:application-outline",
   archivebox: "L:archive T:archive P:archive M:archive-outline I:archive",
   "arrow.clockwise": "L:rotate-cw T:rotate-clockwise P:arrow-clockwise I:refresh M:refresh",

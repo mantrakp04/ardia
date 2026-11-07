@@ -7,9 +7,9 @@ import { create } from "zustand";
 import { batchStoreUpdates, useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
-import { selectedProfileReads, startupEngineProfiles } from "../profiles/startupEngineProfiles";
 import { webviews } from "../../platform/webviews";
 import { changedPages, pagesWrittenSince, withPages, type PagesPair } from "./pagesWritten";
+import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
 
 type Icons = {
   pages: Record<string, string | null>;
@@ -191,7 +191,7 @@ const failedFetches = new Set<string>();
 
 function fetchMissing(profileId: string, url: string, src: string) {
   const key = cacheKey(profileId);
-  if (isIncognitoProfile(profileId) || !/^https?:/i.test(src)) return;
+  if (isIncognitoProfile(profileId) || !/^https?:/i.test(src) || !profileOpened(key)) return;
   const id = `${key}|${src}`;
   if (inflight.has(id) || failedFetches.has(id)) return;
   const pending = fetchFavicon(src, key)
@@ -235,13 +235,6 @@ function lookupOrder(profileId?: string): string[] {
   return [...new Set([...(profileId ? [profileId] : []), DEFAULT_PROFILE_ID, ...useBrowser.getState().profileOrder])];
 }
 
-function lookupReadOrder(profileId?: string): string[] {
-  const ids = lookupOrder(profileId);
-  if (!selectedProfileReads) return ids;
-  const selected = new Set(startupEngineProfiles(useBrowser.getState(), true));
-  return ids.filter((id) => isIncognitoProfile(id) || selected.has(cacheKey(id)));
-}
-
 export function resolveFavicon(url: string, src?: string | null, profileId?: string): ResolvedFavicon | null {
   if (!url) return null;
   for (const id of lookupOrder(profileId)) {
@@ -256,8 +249,10 @@ export const useAppearanceDark = () => useBrowser((s) => s.ui.appDark);
 function answered(url: string, profileId?: string): boolean {
   const { profiles } = useFavicons.getState();
   const page = withoutFragment(url);
-  return lookupReadOrder(profileId).every((id) => isIncognitoProfile(id) || profiles[cacheKey(id)]?.pages[page] !== undefined);
+  return lookupOrder(profileId).every((id) => !askable(id) || profiles[cacheKey(id)]?.pages[page] !== undefined);
 }
+
+const askable = (id: string) => !isIncognitoProfile(id) && profileOpened(cacheKey(id));
 
 type Watcher = { url: string; src?: string | null; profileId?: string; known?: boolean };
 const watchers = new Map<string, Set<Watcher>>();
@@ -266,8 +261,9 @@ function check(w: Watcher) {
   const known = answered(w.url, w.profileId);
   if (known === w.known) return;
   w.known = known;
-  if (!known) for (const id of lookupReadOrder(w.profileId)) ask(cacheKey(id), withoutFragment(w.url));
-  else if (w.src && w.profileId && lookupReadOrder(w.profileId).length && !resolveFavicon(w.url, w.src, w.profileId)) fetchMissing(w.profileId, w.url, w.src);
+  if (!known) {
+    for (const id of lookupOrder(w.profileId)) if (askable(id)) ask(cacheKey(id), withoutFragment(w.url));
+  } else if (w.src && w.profileId && !resolveFavicon(w.url, w.src, w.profileId)) fetchMissing(w.profileId, w.url, w.src);
 }
 
 function onFavicons(f: Favicons, prev: Favicons) {
@@ -374,15 +370,15 @@ export function startFavicons() {
       return { ...icons, pages: Object.fromEntries(Object.entries(icons.pages).filter(([page]) => !gone.has(page))) };
     });
   });
-  const stop = useBrowser.subscribe((s, prev) => {
-    if (s.ui.appDark !== prev.ui.appDark) appearanceChangedAt = Date.now();
-    if (selectedProfileReads && s.windows !== prev.windows
-      && JSON.stringify(startupEngineProfiles(s, true)) !== JSON.stringify(startupEngineProfiles(prev, true))) {
-      for (const set of watchers.values()) for (const w of set) {
+  const opened = onProfilesOpened(() => {
+    for (const set of [...watchers.values()])
+      for (const w of [...set]) {
         w.known = undefined;
         check(w);
       }
-    }
+  });
+  const stop = useBrowser.subscribe((s, prev) => {
+    if (s.ui.appDark !== prev.ui.appDark) appearanceChangedAt = Date.now();
     if (s.windows !== prev.windows && (changes.length || Object.keys(useFavicons.getState().profiles).some(isIncognitoProfile))) {
       const open = new Set(Object.values(s.windows).map((w) => w.profileId));
       for (const t of Object.values(s.tabs)) open.add(t.profileId);
@@ -394,6 +390,7 @@ export function startFavicons() {
   });
   return () => {
     history.remove();
+    opened();
     stop();
   };
 }

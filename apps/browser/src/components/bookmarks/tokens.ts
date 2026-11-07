@@ -11,7 +11,6 @@ export const bookmarkDialog = { belowField: space.xs, belowToolbar: space.xxs, r
 
 export const bookmarksBar = {
   overflowWidth: 28,
-  otherReserve: 150,
   dividerHeight: 14,
   dropLine: 2,
   dropLineRadius: capsule(2),

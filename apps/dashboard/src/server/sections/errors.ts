@@ -129,7 +129,7 @@ export async function errorsLogs(range: RangeKey, signal?: AbortSignal) {
      FROM telemetry.logs
      WHERE ${since(w.start)}
      GROUP BY source, level, text
-     ORDER BY 4 DESC
+     ORDER BY 4 DESC, 5 DESC, source, level, text
      LIMIT 60`,
     signal,
   );

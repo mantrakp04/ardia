@@ -60,7 +60,7 @@ using namespace ardia_pip;
   };
   auto rounded = [=] {
     CALayer *layer = window.contentView.layer;
-    return layer.cornerRadius == kCornerRadius && layer.masksToBounds && !window.opaque && window.hasShadow &&
+    return layer.cornerRadius == self.cornerRadius && layer.masksToBounds && !window.opaque && window.hasShadow &&
            self.overlay.layer.borderWidth == 1;
   };
   auto dragTo = [=](CGFloat x) {

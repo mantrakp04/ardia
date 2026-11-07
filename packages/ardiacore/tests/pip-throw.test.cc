@@ -315,6 +315,35 @@ int main() {
     CHECK(r.x == 1512 + 1920 - 10 - 300 && r.y == -190);
   }
 
+  {
+    CHECK(kSnappedRadius == 9 && kFreeRadius == 6);
+    CHECK(Near(kCornerInset + kSnappedRadius, kBrowserCardInset + kBrowserCardRadius));
+    const Rect zoomed{0, 0, 1512, 949}, beside{1512, -200, 1920, 1055};
+    for (Rect visible : {zoomed, beside})
+      for (Corner corner : {kTopLeft, kTopRight, kBottomLeft, kBottomRight})
+        for (double w : {336.0, 300.4, 468.0}) {
+          const Rect at = CornerFrame(corner, w, 189, visible);
+          CHECK(SnappedCorner(at, visible) == corner);
+          CHECK(CornerRadius(at, visible) == kSnappedRadius);
+          CHECK(CornerRadius(Shifted(at, 1, 0), visible) == kFreeRadius);
+          CHECK(CornerRadius(Shifted(at, 0, -1), visible) == kFreeRadius);
+        }
+    CHECK(SnappedCorner({1157, 19, 336, 189}, zoomed) == kNoCorner);
+    CHECK(CornerRadius({1157, 19, 336, 189}, zoomed) == kFreeRadius);
+    CHECK(SnappedCorner({1166, 10, 336, 189}, zoomed) == kBottomRight);
+    CHECK(SnappedCorner({1166, 10, 336, 189}, beside) == kNoCorner);
+    CHECK(SnappedCorner({1166.4, 10, 335.6, 189}, zoomed) == kBottomRight);
+
+    const Rect docked{0, 70, 1512, 879}, dockHidden{0, 0, 1512, 949}, menuBarHidden{0, 70, 1512, 911};
+    const Rect thrownBottom = CornerFrame(kBottomRight, 336, 189, docked), thrownTop = CornerFrame(kTopLeft, 336, 189, docked);
+    CHECK(CornerRadius(thrownBottom, docked) == kSnappedRadius);
+    CHECK(CornerRadius(thrownBottom, dockHidden) == kFreeRadius);
+    CHECK(CornerRadius(thrownTop, dockHidden) == kSnappedRadius);
+    CHECK(CornerRadius(thrownTop, menuBarHidden) == kFreeRadius);
+    CHECK(CornerRadius(thrownBottom, menuBarHidden) == kSnappedRadius);
+    CHECK(CornerRadius(CornerFrame(kBottomRight, 336, 189, dockHidden), dockHidden) == kSnappedRadius);
+  }
+
   CHECK(FingerDelta(5, 3, true).x == 5 && FingerDelta(5, 3, true).y == -3);
   CHECK(FingerDelta(5, 3, false).x == -5 && FingerDelta(5, 3, false).y == 3);
   CHECK(!SwipeFlings({6, 0}) && SwipeFlings({5, 4}) && SwipeFlings({-7, 0}));

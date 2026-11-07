@@ -9,6 +9,7 @@ const startup = await import("./startupEngineProfiles.ts");
 
 const { configureProfileStartup } = await import("./startupEngineProfiles.ts");
 configureProfileStartup({ loadProfilesWhenOpened: true });
+const { startProfileLoading } = await import("./profileLoading.ts");
 
 const settle = async () => {
   for (let i = 0; i < 10; i++) await new Promise((resolve) => setTimeout(resolve, 0));
@@ -21,7 +22,7 @@ test("experiment startup loads selected services and switching demand-loads the 
   const work = state().createProfile({ name: "Work" });
   const dormant = state().createProfile({ name: "Dormant" });
   const windowId = state().createWindow({ profileId: "default" });
-  const stops = [startHistory(), startBookmarks()];
+  const stops = [startProfileLoading(), startHistory(), startBookmarks()];
   try {
     await settle();
     assert.deepEqual(stub.historyWatches, [""]);
@@ -32,7 +33,7 @@ test("experiment startup loads selected services and switching demand-loads the 
     assert.deepEqual(Object.keys(state().bookmarksReady), ["", work]);
     assert.ok(!stub.historyWatches.includes(dormant));
     await reloadHistory();
-    assert.ok(stub.historyWatches.includes(dormant), "explicit reload still reads every profile");
+    assert.ok(!stub.historyWatches.includes(dormant), "reload preserves unopened profiles");
   } finally {
     stops.forEach((stop) => stop());
   }

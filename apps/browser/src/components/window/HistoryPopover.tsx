@@ -3,14 +3,18 @@ import { View } from "react-native";
 import { useTab } from "../../state/browser/hooks";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { openInternalPage } from "../../state/pages/urls";
-import { MenuRow, MenuSeparator, MouseArea, PANEL, Popover, POPOVER_MARGIN } from "../ui";
+import { MenuRow, MenuSeparator, MouseArea, PANEL, Popover, POPOVER_MARGIN, POPOVER_WIDTH } from "../ui";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
 import { modifiersOf } from "../../lib/keys";
 import { closeHistoryMenu, closeHistoryMenuOf, goToHistoryItem, historyFavicons, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
 
 const FAVICON_X = PANEL.inset + (PANEL.iconSlot - 16) / 2;
 
-export function HistoryPopover({ tabId, windowId, anchors }: { tabId: string; windowId: string; anchors: { back: number; forward: number } }) {
+export const HISTORY_MENU_WIDTH = POPOVER_WIDTH.s;
+
+export const underButton = (buttonCenter: number) => Math.max(POPOVER_MARGIN, buttonCenter - FAVICON_X - 2);
+
+export function HistoryPopover({ tabId, windowId, left, top }: { tabId: string; windowId: string; left: (direction: -1 | 1) => number; top: number }) {
   const menu = useHistoryMenu((s) => (s.menu?.tabId === tabId ? s.menu : null));
   const profileId = useTab(tabId, (t) => t?.profileId ?? "");
   const favicons = useMemo(() => {
@@ -31,7 +35,7 @@ export function HistoryPopover({ tabId, windowId, anchors }: { tabId: string; wi
   };
 
   return (
-    <Popover width="s" top={POPOVER_MARGIN} left={Math.max(POPOVER_MARGIN, (menu.direction < 0 ? anchors.back : anchors.forward) - FAVICON_X - 2)} onDismiss={closeHistoryMenu}>
+    <Popover width={HISTORY_MENU_WIDTH} top={top} left={left(menu.direction)} onDismiss={closeHistoryMenu}>
       <View style={{ paddingVertical: PANEL.listPadding }}>
         {menu.items.map((item) => (
           <Row key={item.key} item={item} favicon={favicons.get(item.url) ?? null} onOpen={(e) => open(item, e)} />

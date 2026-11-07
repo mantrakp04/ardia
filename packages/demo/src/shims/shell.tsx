@@ -11,6 +11,7 @@ export {
   ContextMenuArea,
   DockSelection,
   GlassEffect,
+  GlassGroup,
   OutsidePressArea,
   Surface,
   VisualEffect,
@@ -88,7 +89,7 @@ provideNativeModule("ArdiaDialogs", {
 provideNativeModule("ArdiaAppWindows", {
   windowIds: async () => [] as string[],
   windowFrame: async (_id: string): Promise<[number, number, number, number] | null> => null,
-  setTrafficLightsCenter: async (windowId: string, next: [number, number] | null) => setTrafficLightsCenter(windowId, next),
+  setTrafficLightsCenter: async (windowId: string, next: [number, number] | null, trailing: boolean) => setTrafficLightsCenter(windowId, next, trailing),
 });
 darkQuery?.addEventListener("change", (e) => appearance === "auto" && emitAppEvent({ type: "appearance", dark: e.matches }));
 

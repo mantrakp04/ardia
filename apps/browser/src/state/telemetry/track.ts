@@ -2,7 +2,7 @@ import { capture, isSharing } from "./client";
 import { appInfo } from "./transport";
 import { launchFirstWindow } from "./journeys";
 
-export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "typed";
+export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "provider" | "typed";
 
 type SuggestionLike = { kind: string; tabId?: string; bookmarked?: boolean; visited?: boolean } | undefined;
 
@@ -16,6 +16,7 @@ function suggestionType(s: SuggestionLike): SuggestionType {
     case "action":
     case "create":
     case "extension":
+    case "provider":
       return s.kind;
     default:
       return "url";

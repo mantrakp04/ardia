@@ -139,7 +139,10 @@ class FakeArdia:
         if method == "subscribe":
             self.subscriptions[writer] = list(params.get("events", []))
             self.subscribed.set()
-            return {"id": ident, "result": {"ok": True}}
+            hooks_served = [h["name"] for h in params.get("hooks", []) if isinstance(h, dict)]
+            if not hooks_served:
+                return {"id": ident, "result": {"ok": True}}
+            return {"id": ident, "result": {"ok": True, "served": hooks_served, "revisions": {n: f"rev-{n}" for n in hooks_served}}}
         if method == "run":
             if params.get("command") not in {c["id"] for c in COMMANDS}:
                 return {"id": ident, "error": {"code": "unknown_command", "message": f"unknown command {params.get('command')}"}}
@@ -429,8 +432,11 @@ class Methods(Base):
                 self.events = [event("tab.opened"), event("tab.opened")]
                 self.drops = [3, 0]
 
-            async def subscribe(self, names):
+            async def subscribe(self, names, extra=None):
                 pass
+
+            async def next_decide(self):
+                await asyncio.Event().wait()
 
             async def next_event(self):
                 if not self.events:
@@ -552,14 +558,14 @@ class On(Base):
 
         threading.Thread(target=feed, daemon=True).start()
         with mock.patch.dict(os.environ, {"ARDIA_TITLE": "stale", "ARDIA_TAB_ID": "stale"}):
-            status, _, err = self.run_cli("on", "tab.navigated,window.focused", "--match", "https://*.youtube.com/*", "--match", "https://*.vimeo.com/*", "--", sys.executable, "-I", "-c", RECORDER, str(self.out), "--match", "$ARDIA_URL")
+            status, _, err = self.run_cli("on", "tab.navigated,window.focused", "--full-urls", "--match", "https://*.youtube.com/*", "--match", "https://*.vimeo.com/*", "--", sys.executable, "-I", "-c", RECORDER, str(self.out), "--match", "$ARDIA_URL")
         self.assertEqual(status, 130, err)
         records = self.records()
         self.assertEqual(len(records), 1)
         self.assertEqual(json.loads(records[0]["stdin"]), navigated)
         self.assertEqual(records[0]["env"], {"ARDIA_EVENT": "tab.navigated", "ARDIA_WINDOW_ID": "1", "ARDIA_TAB_ID": "7", "ARDIA_PROFILE": "default", "ARDIA_URL": "https://www.youtube.com/watch?v=1", "ARDIA_TITLE": "Video x"})
         self.assertEqual(records[0]["argv"], ["--match", "$ARDIA_URL"])
-        self.assertEqual([p for m, p in server.requests if m == "subscribe"], [{"events": ["window.focused", "tab.navigated"]}])
+        self.assertEqual([p for m, p in server.requests if m == "subscribe"], [{"events": ["window.focused", "tab.navigated"], "fullUrls": True}])
 
     def test_needs_program_and_valid_input(self):
         status, _, err = self.run_cli("on", "tab.opened")
@@ -1010,10 +1016,24 @@ class LaunchAgent(Base):
     def test_list_reports_hooks(self):
         config = self.data / "config"
         config.mkdir()
-        (config / "hooks.json").write_text(json.dumps({"hooks": [{"name": "yt", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"]}]}))
+        (config / "hooks.json").write_text(json.dumps({"hooks": [
+            {"name": "yt", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"]},
+            {"name": "fresh", "on": "app.launched", "command": "newTab"},
+            {"name": "standup", "at": "09:55", "days": ["mon", "fri"], "command": "openSettings"},
+            {"name": "hourly", "every": "1h", "run": ["~/bin/tick"]},
+            {"name": "strip", "on": "tab.opening", "rewrite": [{"match": "https://*/*", "to": "{origin}{path}"}]},
+            {"name": "ask", "on": "link.opening", "run": ["~/bin/route"]},
+            {"name": "jira", "omnibox": {"title": "Jira", "keyword": "j"}, "run": ["~/bin/jira"]},
+        ]}))
         status, out, _ = self.run_cli("hooks", "list")
         self.assertEqual(status, 0)
-        self.assertIn("yt  on tab.navigated  match https://*.youtube.com/*  run ~/bin/yt-hook  timeout 60s", out)
+        self.assertIn("yt  [event]  on tab.navigated  match https://*.youtube.com/*  run ~/bin/yt-hook  timeout 60s", out)
+        self.assertIn("fresh  [command]  on app.launched  command newTab", out)
+        self.assertIn("standup  [scheduled]  at 09:55 on mon,fri  command openSettings", out)
+        self.assertIn("hourly  [scheduled]  every 1h  run ~/bin/tick  timeout 60s", out)
+        self.assertIn("strip  [decide]  on tab.opening  answers in Ardia (rewrite)", out)
+        self.assertIn("ask  [decide]  on link.opening  run ~/bin/route", out)
+        self.assertIn("jira  [omnibox]  omnibox Jira (keyword j)  run ~/bin/jira", out)
         self.assertIn("not installed", out)
         (config / "hooks.json").write_text('{"hooks": [{"name": "yt"}]}')
         status, _, err = self.run_cli("hooks", "list")

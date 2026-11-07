@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { isPeekTab, otherSitePeekTabIds, peekSourceOf, peekTabId } = await import("./peek.ts");
-const { PRESETS } = await import("../onboarding/presets.ts");
 const { DEFAULT_SETTINGS, splitLinkModifierOf } = await import("../settings/settings.ts");
 const peekModifierOf = (settings) => settings.peekModifier;
 const { stripPlan } = await import("../tabs/liveTabs.ts");
@@ -233,11 +232,6 @@ test("links to other sites peek only in Top Apps, pinned rows and pinned groups,
   assert.ok(!otherSitePeekTabIds(S()).includes(a));
   S().updateSettings({ peekLinksToOtherSites: false });
   assert.deepEqual(otherSitePeekTabIds(S()), []);
-});
-
-test("Arc and Zen setups peek links to other sites; every other setup leaves it off", () => {
-  for (const [preset, settings] of Object.entries(PRESETS))
-    assert.equal(settings.peekLinksToOtherSites, preset === "arc" || preset === "zen", preset);
 });
 
 test("another window taking a shared pin's page closes the peek opened from it", () => {

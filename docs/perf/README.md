@@ -401,6 +401,27 @@ shape.
 - `writes`, `writeKB`: document writes.
 - `startup.*`: marks from the bundle's start to the first window.
 
+## Profiles at launch (#801)
+
+A launch loads only the profiles its windows show (`state/profiles/profileLoading.ts`, switch `lazyProfiles`, setting
+Load profiles when opened). The deterministic count is the loaded profiles, `ac.engine.call("profiles.loaded")`, and the
+`--extension-process` renderers (one uBlock Origin per loaded profile): with one window on Personal, N profiles give 1
+and 1, against N and N with the setting off. Measured 2026-11-06 on a Release build, one window showing Personal, N
+profiles of 3 restored tabs each, no other extensions, physical footprint of the process tree after a 60 s idle, the
+setting off and on alternating launch by launch, two runs each (load average 3 to 10):
+
+| Profiles | All at launch | When opened | Saved |
+|---:|---:|---:|---:|
+| 2 | 499 MiB | 363 MiB | 136 MiB (27 %) |
+| 4 | 822 MiB | 351 MiB | 471 MiB (57 %) |
+| 8 | 1492 MiB | 393 MiB | 1099 MiB (74 %) |
+
+The first switch to a deferred profile, 8 profiles, 3 runs a side: the profile is loaded 2 ms after the switch, its
+bookmarks, history and favicons answered after 50 to 75 ms (19 to 28 ms preloaded), and its page's first contentful
+paint comes 2.1 to 2.2 s after the switch (0.1 to 0.3 s preloaded), nearly all of it the navigation hold until that
+profile's uBlock Origin rulesets are ready (`held 1 navigations … the first 2060 ms` in the app log), the same on a data
+folder where every profile had run before. Later switches cost what they did before.
+
 ## Rows that don't compare with CEF-era numbers (0.2.21 and older)
 
 | Row | Why | Compare instead |

@@ -3,6 +3,7 @@ import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { registerRow, setSidebarUi, sidebarUi } = await import("./sidebarUi.ts");
 const hover = await import("./hover.ts");
+const { cardReach } = await import("./hoverAim.ts");
 
 const W = "w";
 const HEIGHT = 800;
@@ -135,6 +136,37 @@ test("heading for the card from its row keeps it; stopping short for 200 ms hand
   assert.equal(shown(), "b");
 });
 
+test("card reach: a point on the card is covered; heading away or straight down past it is not aiming; a card on the left is aimed at leftward", () => {
+  const card = { x: 69, y: 48, width: 264, height: 152 };
+  const exit = { x: 45, y: 96 };
+  assert.equal(cardReach(card, exit, { x: 128, y: 74 }), "covered");
+  assert.equal(cardReach(card, null, { x: 100, y: 140 }), "covered");
+  assert.equal(cardReach(card, exit, { x: 66, y: 125 }), "aiming");
+  assert.equal(cardReach(card, exit, { x: 30, y: 110 }), "away");
+  assert.equal(cardReach(card, exit, { x: 47, y: 260 }), "away");
+  assert.equal(cardReach(card, null, { x: 55, y: 104 }), "away");
+  const leftCard = { x: 10, y: 100, width: 100, height: 80 };
+  assert.equal(cardReach(leftCard, { x: 150, y: 140 }, { x: 130, y: 145 }), "aiming");
+  assert.equal(cardReach(leftCard, { x: 150, y: 140 }, { x: 170, y: 140 }), "away");
+});
+
+test("heading for the card onto a row with no card of its own (an open group's header) still lets the card go", async (t) => {
+  fresh(t);
+  await cardFor(t, "tile");
+  hover.cardLaidOut({ x: 69, y: 48, width: 264, height: 152 });
+  leave("tile", at(45, 96));
+  let entered = false;
+  hover.rowEntered(W, null, at(55, 104), () => {
+    entered = true;
+    hover.rowShown(W, null);
+  }, () => {});
+  assert.equal(entered, false, "it waits for the aim");
+  t.mock.timers.tick(200);
+  assert.equal(entered, true);
+  t.mock.timers.tick(160);
+  assert.equal(shown(), null, "the header has no card: the tab's card leaves");
+});
+
 test("a row away from the card takes the hover at once", async (t) => {
   fresh(t);
   await cardFor(t, "tile");
@@ -222,7 +254,7 @@ test("a drag suppresses the card until it ends", async (t) => {
   assert.equal(shown(), "c");
 });
 
-test("the command panel over the rows takes their highlight, and a group's box follows the pointer", () => {
+test("the command panel over the rows takes their highlight", () => {
   let refreshed = 0;
   const refresh = () => refreshed++;
   hover.watchCovered(W, refresh, true);
@@ -233,8 +265,4 @@ test("the command panel over the rows takes their highlight, and a group's box f
   hover.watchCovered(W, refresh, false);
   hover.setRowsCovered(W, false);
   assert.equal(refreshed, 1, "a row that's no longer pointed isn't told");
-  hover.setGroupPointed("g", true);
-  assert.equal(hover.pointerOnGroup("g"), true);
-  hover.setGroupPointed("g", false);
-  assert.equal(hover.pointerOnGroup("g"), false);
 });
