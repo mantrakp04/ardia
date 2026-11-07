@@ -4,17 +4,9 @@ import { nextPinChoice, orderChoiceKey } from "./pinChoices";
 import { anchorsOf, pinnedAreaKeys } from "./pinnedArea";
 import type { TabGroup } from "../browser/types";
 import { isRegularWindow } from "../windows/small";
+import { writingFromSync } from "./syncWrites";
 
-let remote = 0;
-
-export function fromSync<T>(apply: () => T): T {
-  remote++;
-  try {
-    return apply();
-  } finally {
-    remote--;
-  }
-}
+export { fromSync } from "./syncWrites";
 
 function homes(s: BrowserState): Map<string, string> {
   const out = new Map<string, string>();
@@ -39,7 +31,7 @@ function groupsReordered(s: BrowserState, prev: BrowserState): boolean {
 }
 
 export function noteOrderChoices(s: BrowserState, prev: BrowserState) {
-  if (remote) return;
+  if (writingFromSync()) return;
   if (!groupsReordered(s, prev) && Object.values(s.windows).every((w) => w.tabIds === prev.windows[w.id]?.tabIds)) return;
   const homesBefore = homes(prev);
   let pinChoices = s.pinChoices;

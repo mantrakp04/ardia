@@ -91,6 +91,7 @@ ARDIACORE_EXPORT
                      origin:(nullable NSString*)origin
                       audio:(nullable NSString*)audio;
 @property(class, readonly) NSDictionary<NSString*, NSNumber*>* desktopCaptureAudio;
+@property(class) BOOL pagesPickDisplayMedia;
 - (void)offTheRecordProfileFor:(ArdiaCoreProfile*)profile
                     completion:(void (^)(ArdiaCoreProfile* _Nullable offTheRecord,
                                          NSString* _Nullable error))completion;
@@ -241,6 +242,7 @@ ARDIACORE_EXPORT
     contextMenuCommand:(NSString*)itemId
                   text:(NSString*)selection
              modifiers:(NSDictionary<NSString*, NSNumber*>*)modifiers;
+- (void)tab:(ArdiaCoreTab*)tab shareFromContextMenu:(NSDictionary<NSString*, id>*)share;
 - (void)tab:(ArdiaCoreTab*)tab didShowContextMenu:(NSArray<NSDictionary*>*)items;
 - (nullable NSDictionary<NSString*, id>*)tab:(ArdiaCoreTab*)tab
                               runContextMenu:(NSDictionary<NSString*, id>*)menu;
@@ -311,6 +313,8 @@ ARDIACORE_EXPORT
 - (void)reloadIgnoringCache;
 - (void)loadIfNeeded;
 @property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
+@property(readonly) int committedHTTPStatus;
+@property(readonly) int committedDocumentCount;
 @end
 
 @interface ArdiaCoreTab (Page)

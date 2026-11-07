@@ -7,7 +7,7 @@ import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow"
 import { ToolbarRowContext } from "../ui/toolbarRowContext";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
-import { useIsBookmarked, useSettings, useTab, useTabLive } from "../../state/browser/hooks";
+import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLive } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
 import { Button, ContextMenuArea, Divider, FadeLabel, font, ink, space, Symbol, Text, useHover, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
@@ -62,6 +62,7 @@ export function Toolbar({
 }) {
   const theme = useTheme();
   const sidebarHint = useShortcutHint("toggleSidebar");
+  const sidebarIcon = useSidebarSide(windowId) === "right" ? "sidebar.right" : "sidebar.left";
   const tab = useToolbarTab(tabId);
   const isLoading = useTabLive(tabId, (l) => l.isLoading);
   const palette = useSitePalette(tabId);
@@ -100,7 +101,7 @@ export function Toolbar({
           <Button variant="icon" toolbar
             style={at.sidebarButton}
             palette={palette}
-            icon="sidebar.left"
+            icon={sidebarIcon}
             look="row"
             onPress={() => toggleSidebar(windowId)}
             tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}

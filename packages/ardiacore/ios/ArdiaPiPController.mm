@@ -182,6 +182,14 @@ NSString *CornerName(int corner) {
                                               object:window
                                                queue:nil
                                           usingBlock:^(NSNotification *) { [weakSelf roundCorners]; }]];
+    [_observers addObject:[center addObserverForName:NSWindowDidChangeScreenNotification
+                                              object:window
+                                               queue:nil
+                                          usingBlock:^(NSNotification *) { [weakSelf screenChanged]; }]];
+    [_observers addObject:[center addObserverForName:NSApplicationDidChangeScreenParametersNotification
+                                              object:NSApp
+                                               queue:nil
+                                          usingBlock:^(NSNotification *) { [weakSelf screenChanged]; }]];
     [_observers addObject:[center addObserverForName:NSWindowWillStartLiveResizeNotification
                                               object:window
                                                queue:nil
@@ -209,19 +217,50 @@ NSString *CornerName(int corner) {
   NSView *content = _window.contentView;
   content.wantsLayer = YES;
   CALayer *layer = content.layer;
-  if (layer.cornerRadius != kCornerRadius || !layer.masksToBounds) {
-    layer.cornerRadius = kCornerRadius;
+  if (layer.cornerCurve != kCACornerCurveCircular || !layer.masksToBounds) {
     layer.cornerCurve = kCACornerCurveCircular;
     layer.masksToBounds = YES;
   }
   CALayer *rim = _overlay.layer;
-  rim.cornerRadius = kCornerRadius;
   rim.cornerCurve = kCACornerCurveCircular;
   rim.borderWidth = 1;
   rim.borderColor = [NSColor colorWithWhite:1 alpha:kRimAlpha].CGColor;
+  [self fitCorners:NO];
   _window.opaque = NO;
   _window.backgroundColor = NSColor.clearColor;
   dispatch_async(dispatch_get_main_queue(), ^{ [self->_window invalidateShadow]; });
+}
+
+- (CGFloat)cornerRadius {
+  return ardia_pip_throw::CornerRadius(ThrowRect(_window.frame), ThrowRect([self homeScreen].visibleFrame));
+}
+
+- (void)fitCorners:(BOOL)animated {
+  [self bendCornersTo:[self cornerRadius] animated:animated];
+}
+
+- (void)bendCornersTo:(CGFloat)radius animated:(BOOL)animated {
+  CALayer *content = _window.contentView.layer, *rim = _overlay.layer;
+  if (!content || !rim) return;
+  if (animated && content.cornerRadius == radius && rim.cornerRadius == radius) return;
+  __weak NSWindow *window = _window;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [CATransaction setCompletionBlock:^{ [window invalidateShadow]; }];
+  for (CALayer *layer in @[ content, rim ]) {
+    if (animated) {
+      CABasicAnimation *bend = [CABasicAnimation animationWithKeyPath:@"cornerRadius"];
+      bend.fromValue = @((layer.presentationLayer ?: layer).cornerRadius);
+      bend.toValue = @(radius);
+      bend.duration = kCornerBendDuration;
+      bend.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+      [layer addAnimation:bend forKey:@"cornerRadius"];
+    } else {
+      [layer removeAnimationForKey:@"cornerRadius"];
+    }
+    layer.cornerRadius = radius;
+  }
+  [CATransaction commit];
 }
 
 - (void)setKeepOnTop:(BOOL)keepOnTop {
@@ -256,8 +295,20 @@ NSString *CornerName(int corner) {
   [view exitPictureInPicture];
 }
 
+- (void)screenChanged {
+  NSScreen *screen = [self homeScreen];
+  if (_animating) return;
+  [self fitCorners:YES];
+  _lastScreenFit = @{
+    @"radius" : @([self cornerRadius]),
+    @"frame" : NSStringFromRect(_window.frame),
+    @"visibleFrame" : NSStringFromRect(screen.visibleFrame),
+  };
+}
+
 - (void)windowMoved {
   [self homeScreen];
+  if (!_animating) [self fitCorners:YES];
   if (_animating || (_swiping && NSProcessInfo.processInfo.systemUptime - _swipeLastAt < 1)) return;
   if (_swiping) [ArdiaPiPController abandonSwipeOn:_window];
   if (NSEvent.pressedMouseButtons & 1) _sawDrag = YES;
@@ -366,6 +417,7 @@ NSString *CornerName(int corner) {
     if (t < 1 && strongSelf) return;
     [timer invalidate];
     if (strongSelf) strongSelf->_animating = NO, strongSelf->_sawDrag = NO;
+    [strongSelf fitCorners:YES];
     [strongSelf rescueIfLost];
   }];
   [NSRunLoop.currentRunLoop addTimer:_slide forMode:NSRunLoopCommonModes];
@@ -391,6 +443,7 @@ NSString *CornerName(int corner) {
 
 - (void)throwTo:(NSRect)target velocity:(NSPoint)velocity corner:(int)corner {
   [self stopMotion];
+  [self bendCornersTo:ardia_pip_throw::kFreeRadius animated:NO];
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(settle) object:nil];
   _sawDrag = NO;
   if (_stashedEdge != ArdiaPiPEdgeNone) [self setStashedEdge:ArdiaPiPEdgeNone];
@@ -422,12 +475,15 @@ NSString *CornerName(int corner) {
     const NSPoint origin = done ? target.origin : NSMakePoint(round(NSMinX(target) + x.offset), round(NSMinY(target) + y.offset));
     if (!NSEqualPoints(origin, window.frame.origin)) {
       [window setFrameOrigin:origin];
-      if (trace.count < 1200) [trace addObject:@[ @(round(t * 10000) / 10000), @(origin.x), @(origin.y) ]];
+      CALayer *content = window.contentView.layer;
+      if (trace.count < 1200)
+        [trace addObject:@[ @(round(t * 10000) / 10000), @(origin.x), @(origin.y), @((content.presentationLayer ?: content).cornerRadius) ]];
     }
     if (!done) return;
     [timer invalidate];
     strongSelf->_animating = NO;
     record[@"settledAfter"] = @(t);
+    [strongSelf fitCorners:YES];
     [strongSelf rescueIfLost];
   }];
   [NSRunLoop.currentRunLoop addTimer:_slide forMode:NSRunLoopCommonModes];
@@ -533,7 +589,7 @@ NSString *CornerName(int corner) {
 }
 
 - (NSDictionary *)throwInfo {
-  return @{@"lastThrow" : _lastThrow ?: @{}, @"lastSwipe" : _lastSwipe ?: @{}, @"lastRelease" : _lastRelease ?: @{}, @"swiping" : @(_swiping)};
+  return @{@"lastThrow" : _lastThrow ?: @{}, @"lastSwipe" : _lastSwipe ?: @{}, @"lastRelease" : _lastRelease ?: @{}, @"lastScreenFit" : _lastScreenFit ?: @{}, @"swiping" : @(_swiping)};
 }
 
 @end

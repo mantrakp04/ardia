@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Pinecone · Sam Rivera</title><link rel="icon" href="favicon.svg">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;background:#f3f4f1;color:#1c2321;display:flex;overflow:hidden}
+.list{width:260px;background:#fff;border-right:1px solid #e3e6e1;padding:18px 12px}
+.brand{font-weight:800;font-size:18px;color:#16a34a;padding:0 8px 16px}
+.chat{display:flex;gap:10px;align-items:center;padding:10px 8px;border-radius:12px}.chat.on{background:#ecfdf3}
+.av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;flex:none}
+.who{font-weight:650;font-size:14px}.last{font-size:12.5px;color:#68716d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.main{flex:1;display:flex;flex-direction:column}
+.head{height:62px;background:#fff;border-bottom:1px solid #e3e6e1;display:flex;align-items:center;gap:12px;padding:0 22px;font-weight:650}
+.msgs{flex:1;padding:24px 28px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end}
+.m{max-width:62%;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.4;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);align-self:flex-start}
+.m.me{align-self:flex-end;background:#16a34a;color:#fff}
+.m.new{animation:pop .35s ease-out}@keyframes pop{from{transform:translateY(10px);opacity:0}}
+.box{margin:0 28px 24px;height:46px;border-radius:23px;background:#fff;border:1px solid #e3e6e1;display:flex;align-items:center;padding:0 18px;color:#9aa19d;font-size:14px}
+</style></head><body>
+<div class="list"><div class="brand">Pinecone</div>
+<div class="chat on"><div class="av" style="background:#f59e0b">SR</div><div><div class="who">Sam Rivera</div><div class="last" id="last">See you Saturday</div></div></div>
+<div class="chat"><div class="av" style="background:#6366f1">HL</div><div><div class="who">Hill walkers</div><div class="last">Maya: map's in the shared folder</div></div></div>
+<div class="chat"><div class="av" style="background:#0ea5e9">JP</div><div><div class="who">Jo Park</div><div class="last">thanks!!</div></div></div></div>
+<div class="main"><div class="head"><div class="av" style="background:#f59e0b;width:34px;height:34px;font-size:13px">SR</div>Sam Rivera</div>
+<div class="msgs" id="msgs"><div class="m">Train's at 8:14 on Saturday</div><div class="m me">Bringing the paper map</div><div class="m">See you Saturday</div></div>
+<div class="box">Message Sam</div></div>
+<script>
+const incoming="Running 5 min late, save me a seat on the train";
+document.addEventListener("pinecone:ask",()=>Notification.requestPermission());
+document.addEventListener("pinecone:message",()=>{const m=document.createElement("div");m.className="m new";m.textContent=incoming;document.getElementById("msgs").appendChild(m);document.getElementById("last").textContent=incoming;new Notification("Sam Rivera",{body:incoming,tag:"sam"});});
+</script>
+</body></html>

@@ -1,38 +1,45 @@
 import { defineConfig } from "astro/config";
-import { execFileSync, spawn } from "node:child_process";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { constants, gzipSync } from "node:zlib";
 
 function demo() {
-  let base = "/";
-  let devServer;
-  const demoDir = fileURLToPath(new URL("../demo/", import.meta.url));
-  const stopDevServer = () => {
-    devServer?.kill();
-    devServer = undefined;
-  };
+  const demoDir = fileURLToPath(new URL("../../packages/demo/", import.meta.url));
+  const demoVite = () => import(pathToFileURL(createRequire(join(demoDir, "package.json")).resolve("vite")).href);
+  const demoConfig = (demoBase) => ({ configFile: join(demoDir, "vite.config.ts"), root: demoDir, base: demoBase, clearScreen: false });
+  let demoBase = "/demo/";
+  let demoServer;
   return {
     name: "ardia:demo",
     hooks: {
       "astro:config:done": ({ config }) => {
-        base = config.base.endsWith("/") ? config.base : `${config.base}/`;
+        demoBase = `${config.base.replace(/\/?$/, "/")}demo/`;
       },
-      "astro:server:setup": ({ logger }) => {
-        if (process.env.PUBLIC_DEMO_URL || devServer) return;
-        devServer = spawn("pnpm", ["-C", demoDir, "exec", "vite", "--logLevel", "warn"], { stdio: ["ignore", "inherit", "inherit"] });
-        devServer.on("exit", (code) => {
-          if (code) logger.warn("the demo dev server exited; if 127.0.0.1:5191 is already serving it, that one is used");
-          devServer = undefined;
+      "astro:server:setup": async ({ server, logger }) => {
+        const { createServer } = await demoVite();
+        demoServer = await createServer({
+          ...demoConfig(demoBase),
+          logLevel: "warn",
+          server: { middlewareMode: true, hmr: { server: server.httpServer, path: "__demo_hmr" } },
         });
-        process.once("exit", stopDevServer);
-        logger.info("demo dev server on http://127.0.0.1:5191/");
+        const bare = demoBase.slice(0, -1);
+        server.middlewares.use((req, res, next) => {
+          const path = req.url?.split("?")[0];
+          if (path === bare || path?.startsWith(demoBase)) demoServer.middlewares(req, res, next);
+          else next();
+        });
+        logger.info(`demo served from ${demoBase}`);
       },
-      "astro:server:done": stopDevServer,
-      "astro:build:done": ({ dir, logger }) => {
+      "astro:server:done": async () => {
+        await demoServer?.close();
+        demoServer = undefined;
+      },
+      "astro:build:done": async ({ dir, logger }) => {
+        const { build } = await demoVite();
         const outDir = fileURLToPath(new URL("demo/", dir));
-        execFileSync("pnpm", ["-C", demoDir, "exec", "vite", "build", "--base", `${base}demo/`, "--outDir", outDir, "--emptyOutDir", "--logLevel", "warn"], { stdio: "inherit" });
+        await build({ ...demoConfig(demoBase), logLevel: "warn", build: { outDir, emptyOutDir: true } });
         logger.info(`built the demo into ${outDir}`);
       },
     },

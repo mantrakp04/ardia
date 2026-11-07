@@ -19,6 +19,7 @@
       "SurfaceModule",
       "VisualEffectModule",
       "GlassEffectModule",
+      "GlassGroupModule",
       "PopoverBubbleModule",
       "SystemModule",
       "FileDragModule",
@@ -37,7 +38,8 @@
       "CliModule",
       "UserScriptsModule",
       "ConfigModule",
-      "AutomationModule"
+      "AutomationModule",
+      "SystemSignalsModule"
     ]
   }
 }

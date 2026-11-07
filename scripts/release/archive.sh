@@ -17,6 +17,8 @@ esac
 echo "==> Content blocker"
 "$ardiacore/scripts/ubo.sh"
 [ -f "$ardiacore/vendor/ubo/ext/manifest.json" ] || die "uBlock Origin isn't installed ($ardiacore/scripts/ubo.sh)"
+"$ardiacore/scripts/ubol.sh"
+[ -f "$ardiacore/vendor/ubol-webkit/rules/rulesets.json" ] || die "uBlock Origin Lite's WebKit rules aren't built ($ardiacore/scripts/ubol.sh)"
 
 echo "==> Archive"
 (cd "$root/apps/browser" && ARDIACORE_FRAMEWORK="$framework" "$root/scripts/agent/locked" pod --wait 1800 -- \

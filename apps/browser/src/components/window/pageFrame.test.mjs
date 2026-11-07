@@ -58,12 +58,11 @@ test("page-frame insets release the real content area while keeping the top tab 
   assert.deepEqual(pageFrameInsets(false, 0), pageFrameInsets(false));
 });
 
-test("a docked sidebar keeps main's gap to the framed card and none without the frame", async () => {
-  const { pageFrameDockedLeft } = await import("./pageFrame.ts");
-  const { dockedCardLeft } = await import("./dockMotion.ts");
-  assert.equal(pageFrameDockedLeft(true, 240), dockedCardLeft(240));
-  assert.ok(pageFrameDockedLeft(true, 240) > 240);
-  assert.equal(pageFrameDockedLeft(false, 240), 240);
+test("a docked sidebar meets the framed card at main's edge and the page with no gap without the frame", async () => {
+  const { pageFrameDockedInset } = await import("./pageFrame.ts");
+  const { dockedCardInset } = await import("./dockMotion.ts");
+  assert.equal(pageFrameDockedInset(true, 240), dockedCardInset(240));
+  assert.equal(pageFrameDockedInset(false, 240), 240);
 });
 
 test("the existing settings adapter syncs an explicit frame choice and leaves the default unsent", () => {

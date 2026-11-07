@@ -11,7 +11,7 @@ import { NO_TOOLBAR, toolbarGeometry, type Rect, type ToolbarGeometry } from "./
 import { startPermissionPrompts } from "../../state/site/permissions";
 import { useFullscreenTab } from "../../state/tabs/pageState";
 import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
-import { dockMoving, usePeekEdge, whenDockStill } from "../../state/windows/dockMotion";
+import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
 import { startSelectionTools } from "../../state/site/selection";
@@ -100,9 +100,9 @@ export function ContentCard() {
     [windowId],
   );
 
-  const peekEdge = usePeekEdge(windowId);
+  const peek = usePeekSpan(windowId);
   const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const popoversOverCard = peek !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -151,12 +151,13 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(chrome.kind !== "none" && !chrome.autoHide ? toolbarRow.height : 0) + (barMode === "always" && !small && !hideWhileScrolling ? barHeight : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
-      {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
+      {size.width > 0 && popoversOverCard && origin && activeRect && peek !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          windowId={windowId}
+          left={peek[0] === -Infinity ? Math.max(activeRect.x, peek[1] - origin.x) + POPOVER_MARGIN : Infinity}
           top={activeRect.y + POPOVER_MARGIN}
-          room={size.width}
+          room={peek[0] === -Infinity ? size.width : Math.min(size.width, peek[0] - origin.x)}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}

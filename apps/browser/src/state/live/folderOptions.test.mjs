@@ -7,7 +7,8 @@ docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, fol
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, liveTabPlace } = await import("./rows.ts");
-const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
+const { liveFolderMenuItems } = await import("../sidebar/liveMenus.ts");
+const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, setRepoHidden, showAllIn, toggleStack, updateFolder, useLive } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
   id,
@@ -192,4 +193,152 @@ test("removing a folder forgets its Show More choices and the stacks only it sho
   removeFolder(id);
   assert.deepEqual(Object.keys(live().showAll), [`${other}:authored`]);
   assert.deepEqual(Object.keys(live().expandedStacks), ["shared"]);
+});
+
+const inRepo = (id, repo, source = "bitbucket") => ({ ...pr(id, 1, `h-${id}`, "main"), source, pr: { ...pr(id, 1, `h-${id}`, "main").pr, repo } });
+
+test("a hidden repo stays out through fetches and manual refreshes, keeps its open tabs out of the folder, and comes back read", async () => {
+  const id = createFolder("p", "pullRequests", ["bitbucket"]);
+  const work = inRepo("w", "acme/app");
+  const personal = inRepo("m", "me/dotfiles");
+  const { fetch, resolveGone } = SOURCES.bitbucket;
+  const asked = [];
+  SOURCES.bitbucket.fetch = async () => [work, personal];
+  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), {});
+  try {
+    await refreshFolder(id);
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    const shown = () => live().items[id].map((it) => it.id).sort();
+    assert.deepEqual(shown(), ["w"]);
+    await refreshFolder(id);
+    await manualRefresh(id);
+    assert.deepEqual(shown(), ["w"]);
+    assert.deepEqual(asked, [], "a hidden repo's pull requests aren't checked for closing, so they never play a completion");
+    const tabPlace = (itemId) => liveTabPlace(itemId, new Set(shown()), new Set([...(live().hidden[id] ?? []), ...live().repoHidden[id]].map((it) => it.id)));
+    assert.equal(tabPlace("m"), "hidden");
+
+    setRepoHidden(id, "bitbucket:me/dotfiles", false);
+    SOURCES.bitbucket.fetch = async () => Promise.reject(new Error("offline"));
+    await refreshFolder(id);
+    assert.equal(tabPlace("m"), "hidden", "while the fetch that would bring it back fails, its open tab still has no stray row");
+    SOURCES.bitbucket.fetch = async () => [work, personal];
+    await refreshFolder(id);
+    assert.deepEqual(shown(), ["m", "w"]);
+    assert.deepEqual(live().unread[id], []);
+  } finally {
+    Object.assign(SOURCES.bitbucket, { fetch, resolveGone });
+  }
+});
+
+test("hiding a repo on one service keeps the same-named repo on the other", () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  applyFetch(id, [inRepo("g", "acme/app", "github"), inRepo("b", "acme/app")], {});
+  setRepoHidden(id, "bitbucket:acme/app", true);
+  assert.deepEqual(live().items[id].map((it) => it.id), ["g"]);
+});
+
+test("hiding a repo also keeps aside its completed pull requests, so their open tabs get no stray row", () => {
+  const id = createFolder("p", "pullRequests", []);
+  const merged = inRepo("x", "me/dotfiles");
+  applyFetch(id, [merged], {});
+  applyFetch(id, [], { x: "merged" });
+  finishCompleting(id, ["x"]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  assert.deepEqual(live().completed[id], []);
+  assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
+});
+
+test("a pull request hidden until refresh stays hidden when its repo is hidden and shown again, and a manual refresh doesn't show a hidden repo's", async () => {
+  const id = createFolder("p", "pullRequests", []);
+  const parked = inRepo("p1", "me/dotfiles");
+  const other = inRepo("p2", "me/dotfiles");
+  applyFetch(id, [parked, other], {});
+  hideItems(id, [parked]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  setRepoHidden(id, "bitbucket:me/dotfiles", false);
+  applyFetch(id, [parked, other], {});
+  assert.deepEqual(live().items[id].map((it) => it.id), ["p2"]);
+
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  await manualRefresh(id);
+  assert.deepEqual(live().items[id], []);
+});
+
+const repoMenu = (id) => {
+  const submenu = liveFolderMenuItems("no-window", id).find((it) => it.id === "repos");
+  return {
+    enabled: submenu.enabled,
+    rows: submenu.children.map((it) => (it.separator ? "---" : `${it.checked === false ? "[ ]" : it.checked ? "[x]" : ""}${it.title}${it.enabled === false ? " (off)" : ""}`)),
+  };
+};
+
+test("the Repositories submenu lists every repo the folder knows, sorted, and names the service only when the folder has two", () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  assert.deepEqual(repoMenu(id), { enabled: false, rows: ["Show All Repositories (off)"] });
+  applyFetch(id, [inRepo("a", "zed/app"), inRepo("b", "acme/app"), inRepo("c", "me/parked")], {});
+  assert.deepEqual(repoMenu(id).rows, ["Show All Repositories (off)", "---", "[x]acme/app", "[x]me/parked", "[x]zed/app"]);
+  hideItems(id, [inRepo("c", "me/parked")]);
+  setRepoHidden(id, "bitbucket:zed/app", true);
+  applyFetch(id, [inRepo("b", "acme/app"), inRepo("g", "acme/app", "github")], {});
+  assert.deepEqual(repoMenu(id), {
+    enabled: true,
+    rows: ["Show All Repositories", "---", "[x]acme/app (Bitbucket)", "[x]acme/app (GitHub)", "[x]me/parked (Bitbucket)", "[ ]zed/app (Bitbucket)"],
+  });
+});
+
+test("a shown repo whose service left the folder lets its kept-aside pull requests go, so their open tabs aren't hidden for good", async () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  const { fetch } = SOURCES.github;
+  SOURCES.github.fetch = async () => [];
+  try {
+    applyFetch(id, [inRepo("m", "me/dotfiles")], {});
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    updateFolder(id, { sources: ["github"] });
+    setRepoHidden(id, "bitbucket:me/dotfiles", false);
+    await refreshFolder(id);
+    assert.deepEqual(live().repoHidden[id], []);
+  } finally {
+    SOURCES.github.fetch = fetch;
+  }
+});
+
+test("once its service leaves the folder, only a repo still hidden keeps its pull requests aside", async () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  const { fetch } = SOURCES.github;
+  SOURCES.github.fetch = async () => [];
+  try {
+    applyFetch(id, [inRepo("m", "me/dotfiles"), inRepo("w", "acme/app")], {});
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    setRepoHidden(id, "bitbucket:acme/app", true);
+    setRepoHidden(id, "bitbucket:acme/app", false);
+    updateFolder(id, { sources: ["github"] });
+    await refreshFolder(id);
+    assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["m"]);
+  } finally {
+    SOURCES.github.fetch = fetch;
+  }
+});
+
+test("removing a folder keeps the open state of a stack another folder holds in a hidden repo", () => {
+  const id = createFolder("default", "pullRequests");
+  const other = createFolder("default", "pullRequests");
+  const inStack = { ...pr("s1", 21, "h21", "main"), pr: { ...pr("s1", 21, "h21", "main").pr, repo: "me/stacked", stack: { id: "kept-stack", position: 1, size: 2 } } };
+  applyFetch(id, [inStack], {});
+  applyFetch(other, [inStack], {});
+  setRepoHidden(other, "github:me/stacked", true);
+  toggleStack("kept-stack");
+  removeFolder(id);
+  assert.ok("kept-stack" in live().expandedStacks);
+});
+
+test("a hidden repo's pull requests come back read when it's shown, even after the folder forgot seeing them", () => {
+  const id = createFolder("p", "pullRequests", ["github"]);
+  const other = { ...pr("x", 9, "nine", "main"), pr: { ...pr("x", 9, "nine", "main").pr, repo: "o/other" } };
+  applyFetch(id, [stacked[2], other], {});
+  setRepoHidden(id, "github:o/r", true);
+  useLive.setState((s) => ({ known: { ...s.known, [id]: s.known[id].filter((k) => k !== "c") } }));
+  setRepoHidden(id, "github:o/r", false);
+  applyFetch(id, [stacked[2], other], {});
+  assert.deepEqual(live().items[id].map((it) => it.id).sort(), ["c", "x"]);
+  assert.deepEqual(live().unread[id], [], "c was in the folder before its repo was hidden, so it isn't new");
 });

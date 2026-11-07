@@ -315,6 +315,8 @@ class TabBridge : public content::WebContentsObserver,
   bool temporary() const { return temporary_id_ != 0; }
   void set_made_ahead() { made_ahead_ = true; }
   bool made_ahead() const { return made_ahead_; }
+  int document_commits() const { return document_commits_; }
+  int document_http_status() const { return document_http_status_; }
   void ReportWillClose();
   const GURL& favicon_url() const { return favicon_url_; }
 
@@ -381,6 +383,8 @@ class TabBridge : public content::WebContentsObserver,
   int32_t temporary_id_ = 0;
   int32_t temporary_source_id_ = 0;
   bool made_ahead_ = false;
+  int document_commits_ = 0;
+  int document_http_status_ = 0;
   void NoteBlocked(const GURL& url);
   void ReportBlocked();
   void NoteBlockedByClient(const GURL& blocked_url, const GURL& url);

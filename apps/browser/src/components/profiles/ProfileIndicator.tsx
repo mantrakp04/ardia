@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Pressable, View } from "react-native";
 import { profileNameColor, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../../state/browser/hooks";
@@ -34,10 +35,11 @@ export function ProfileIndicator({ room }: { room: number }) {
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
   const { incognito, title, textWidth, shown, showName, width, color, profileId } = useIndicator(room);
+  const indicator = useRef<View>(null);
   if (!shown) return null;
 
   return (
-    <View {...hoverProps} tooltip={incognito ? undefined : "Switch between profiles"}>
+    <View {...hoverProps} ref={indicator} tooltip={incognito ? undefined : "Switch between profiles"}>
       <View pointerEvents="none" style={{ position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 }}>
         <Text
           numberOfLines={1}
@@ -48,7 +50,7 @@ export function ProfileIndicator({ room }: { room: number }) {
           {title}
         </Text>
       </View>
-      <ContextMenuArea onContextMenu={() => !incognito && void openProfileItemMenu(profileId, "sidebar", windowId)}>
+      <ContextMenuArea onContextMenu={() => !incognito && void openProfileItemMenu(profileId, "sidebar", windowId, indicator.current)}>
         <Pressable onPress={() => !incognito && void openProfileMenu(windowId)} disabled={incognito}>
           {({ pressed }) => (
             <View

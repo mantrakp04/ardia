@@ -20,6 +20,7 @@ export type BrowserCommand =
   | "reload"
   | "forceReload"
   | "toggleTabLayout"
+  | "toggleSidebarSide"
   | "toggleSidebar"
   | "openSplitPane"
   | "useSelectionForFind"

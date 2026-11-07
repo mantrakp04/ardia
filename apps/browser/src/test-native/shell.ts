@@ -6,6 +6,7 @@ import type {
   OpenWindowOptions,
   ShellNativeModules,
   SystemInfo,
+  SystemSignal,
   UserScriptsFolder,
   WindowEvent,
 } from "@ardia/shell";
@@ -39,7 +40,7 @@ export const launch: LaunchConfig = {
   test: {},
 };
 
-export type FakeWindow = OpenWindowOptions & { title?: string; trafficLightsCenter?: [number, number] | null };
+export type FakeWindow = OpenWindowOptions & { title?: string; trafficLightsCenter?: [number, number] | null; trafficLightsTrailing?: boolean };
 const shellEvents = nativeEvents();
 export const windows = {
   open: new Map<string, FakeWindow>(),
@@ -49,7 +50,8 @@ export const windows = {
 };
 export const emitAppEvent = (event: AppEvent) => shellEvents.emit("onAppEvent", event);
 export const emitCommand = (event: CommandEvent) => shellEvents.emit("onCommand", event);
-export const emitOpenURLs = (urls: string[], pointer?: [number, number]) => shellEvents.emit("onOpenURLs", { urls, pointer });
+export const emitOpenURLs = (urls: string[], pointer?: [number, number], source?: { bundleId: string | null; appName: string | null }) =>
+  shellEvents.emit("onOpenURLs", { urls, pointer, source });
 
 const shell: Modules["ArdiaShell"] = {
   addListener: shellEvents.addListener,
@@ -80,9 +82,9 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   },
   animateWindowClose: () => Promise.resolve(),
   restoreFullScreen: () => Promise.resolve(),
-  setTrafficLightsCenter: (id, center) => {
+  setTrafficLightsCenter: (id, center, trailing) => {
     const window = windows.open.get(id);
-    if (window) window.trafficLightsCenter = center;
+    if (window) Object.assign(window, { trafficLightsCenter: center, trafficLightsTrailing: trailing });
     return Promise.resolve();
   },
   setWindowTitle: (id, title) => {
@@ -91,7 +93,7 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
     return Promise.resolve();
   },
   windowIds: () => Promise.resolve([...windows.open.keys()]),
-  watchLeftEdge: () => Promise.resolve(),
+  watchSidebarEdge: () => Promise.resolve(),
   dragPreviewBegin: () => Promise.resolve(),
   dragPreviewPage: () => Promise.resolve(),
   dragPreviewUpdate: () => Promise.resolve(),
@@ -140,12 +142,14 @@ const documents: Modules["ArdiaDocuments"] = {
       if (heldSaves.on) heldSaves.queue.push(land);
       else land();
     }),
+  documentSaved: () => Promise.resolve(),
   removeDocument: (name) => void docs.delete(name),
 };
 
 const app: Modules["ArdiaApp"] = {
   setWindowActivity: () => Promise.resolve(),
   share: () => Promise.resolve(),
+  shareText: () => Promise.resolve(),
   shareVia: () => Promise.resolve(),
   isInDock: () => Promise.resolve(false),
   addToDock: () => Promise.resolve(false),
@@ -193,8 +197,8 @@ const dev: Modules["ArdiaDev"] = {
   devSnapshotWindow: () => Promise.resolve(false),
   devSetPointer: () => Promise.resolve(false),
   devSetMouseButtons: () => Promise.resolve(false),
-  devLeftEdgePointer: () => Promise.resolve(false),
-  devLeftEdgeStats: () => Promise.resolve({}),
+  devSidebarEdgePointer: () => Promise.resolve(false),
+  devSidebarEdgeStats: () => Promise.resolve({}),
   devHoverStats: () => Promise.resolve({}),
   devMenuCommand: () => Promise.resolve(),
   devTypeKeys: () => Promise.resolve([]),
@@ -202,6 +206,7 @@ const dev: Modules["ArdiaDev"] = {
   devClick: () => Promise.resolve({}),
   devShortcutRecording: () => Promise.resolve(false),
   devReceiveURLsWhenDetached: () => {},
+  devOpenURLDeliveries: async () => [],
   devURLDelivery: () => Promise.resolve({}),
 };
 
@@ -277,14 +282,16 @@ const userScripts: Modules["ArdiaUserScripts"] = {
   },
 };
 
-export const configFolder = { files: new Map<string, string>(), watched: [] as string[][], schemaWrites: [] as Record<string, string>[], arming: null as Promise<void> | null };
+export const configFolder = { files: new Map<string, string>(), stamps: new Map<string, string>(), watched: [] as string[][], schemaWrites: [] as Record<string, string>[], arming: null as Promise<void> | null };
 const configEvents = nativeEvents();
 export const emitConfigChange = () => configEvents.emit("onChange", {});
 const config: Modules["ArdiaConfig"] = {
   addListener: configEvents.addListener,
   readFile: (name) => {
     const text = configFolder.files.get(name);
-    return text === undefined ? { status: "missing" } : { status: "ok", text };
+    const stamp = configFolder.stamps.get(name);
+    const read = text === undefined ? ({ status: "missing" } as const) : ({ status: "ok", text } as const);
+    return stamp === undefined ? read : { ...read, stamp };
   },
   watch: (names) => {
     configFolder.watched.push(names);
@@ -329,6 +336,26 @@ const automation: Modules["ArdiaAutomation"] = {
   addListener: controlEvents.addListener,
 };
 
+export const systemSignals = {
+  idleThresholds: [] as number[],
+  holdsIncomingLinks: false,
+  hooksStamp: null as string | null,
+  approvedDownloadFolders: [] as string[],
+  moves: [] as { path: string; folder: string }[],
+  moveResult: { ok: false, reason: "notADownload" } as { ok: true; path: string } | { ok: false; reason: string },
+};
+const systemSignalEvents = nativeEvents();
+export const emitSystemSignal = (signal: SystemSignal) => systemSignalEvents.emit("onSystemSignal", signal);
+const systemSignalsModule: Modules["ArdiaSystemSignals"] = {
+  watchIdle: (thresholds) => void (systemSignals.idleThresholds = [...thresholds]),
+  holdsIncomingLinks: () => systemSignals.holdsIncomingLinks,
+  setHoldIncomingLinks: (hold, hooksStamp) => void Object.assign(systemSignals, { holdsIncomingLinks: hold, hooksStamp }),
+  setApprovedDownloadFolders: (folders) => void (systemSignals.approvedDownloadFolders = [...folders]),
+  moveCompletedDownload: async (path, folder) => (systemSignals.moves.push({ path, folder }), systemSignals.moveResult),
+  devPost: async (name) => (emitSystemSignal({ type: name === "willSleep" ? "sleep" : "wake" }), true),
+  addListener: systemSignalEvents.addListener,
+};
+
 export const shellNativeModules: Modules = {
   ArdiaShell: shell,
   ArdiaAppWindows: windowsModule,
@@ -354,4 +381,5 @@ export const shellNativeModules: Modules = {
   ArdiaUserScripts: userScripts,
   ArdiaConfig: config,
   ArdiaAutomation: automation,
+  ArdiaSystemSignals: systemSignalsModule,
 };

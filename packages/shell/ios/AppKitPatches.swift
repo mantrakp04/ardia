@@ -9,6 +9,13 @@ let installTextFieldSelectAll: Void = {
   class_addMethod(NSTextField.self, #selector(NSText.selectAll(_:)), imp_implementationWithBlock(block), "v@:@")
 }()
 
+let installSubmenuAction: Void = {
+  let submenuAction = NSSelectorFromString("submenuAction:")
+  guard !NSMenu.instancesRespond(to: submenuAction) else { return }
+  let block: @convention(block) (NSMenu, Any?) -> Void = { _, _ in }
+  class_addMethod(NSMenu.self, submenuAction, imp_implementationWithBlock(block), "v@:@")
+}()
+
 let installInputSourceKeys: Void = {
   let processKeyBindings = NSSelectorFromString("processInputKeyBindings:")
   let keyDown = #selector(NSResponder.keyDown(with:))

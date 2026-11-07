@@ -11,6 +11,7 @@ import { useBrowser } from "../browser/store";
 import { patchPage, pageOf, usePages } from "../tabs/pageState";
 import { startDeviceChoosers } from "./deviceChoosers";
 import { originForSecurityDisplay } from "../../lib/url";
+import { permissionGate } from "./permissionGate";
 
 const queues = new Map<string, PermissionRequest[]>();
 let started = false;
@@ -20,9 +21,36 @@ export function startPermissionPrompts() {
   started = true;
   startDeviceChoosers();
   onPermission((request) => {
-    if (request.tabId) enqueue(request.tabId, request);
+    if (request.tabId) gated(request.tabId, request);
   });
-  onPermissionDismissed(({ id }) => drop(id));
+  onPermissionDismissed(({ id }) => {
+    deciding.get(id)?.controller.abort();
+    deciding.delete(id);
+    drop(id);
+  });
+}
+
+const deciding = new Map<string, { controller: AbortController; tabId: string }>();
+
+function gated(tabId: string, request: PermissionRequest) {
+  const gate = permissionGate();
+  if (!gate) return enqueue(tabId, request);
+  const controller = new AbortController();
+  const settle = (verdict: "deny" | "ask") => {
+    if (controller.signal.aborted) return;
+    deciding.delete(request.id);
+    if (verdict === "deny") void resolvePermission(request.id, "deny", false);
+    else enqueue(tabId, request);
+  };
+  let verdict: ReturnType<typeof gate>;
+  try {
+    verdict = gate(request, controller.signal);
+  } catch {
+    verdict = "ask";
+  }
+  if (!(verdict instanceof Promise)) return settle(verdict);
+  deciding.set(request.id, { controller, tabId });
+  void verdict.then(settle, () => settle("ask"));
 }
 
 function enqueue(tabId: string, request: PermissionRequest) {
@@ -55,6 +83,12 @@ export function answerPermission(tabId: string, requestId: string, result: Permi
 }
 
 export function dismissPermissions(tabId: string) {
+  for (const [id, entry] of [...deciding]) {
+    if (entry.tabId !== tabId) continue;
+    deciding.delete(id);
+    entry.controller.abort();
+    void resolvePermission(id, "dismiss");
+  }
   for (const r of queues.get(tabId) ?? []) void resolvePermission(r.id, "dismiss");
   queues.delete(tabId);
   const current = pageOf(tabId).permission;

@@ -1,0 +1,104 @@
+diff --git a/third_party/blink/renderer/core/html/media/html_video_element.cc b/third_party/blink/renderer/core/html/media/html_video_element.cc
+--- a/third_party/blink/renderer/core/html/media/html_video_element.cc
++++ b/third_party/blink/renderer/core/html/media/html_video_element.cc
+@@ -423,8 +423,13 @@ void HTMLVideoElement::UpdatePictureInPictureAvailability() {
+     return;
+   }
+ 
++  const PictureInPictureController::Status status =
++      PictureInPictureController::From(GetDocument()).IsElementAllowed(*this);
++  const bool available_to_user_agent =
++      status == PictureInPictureController::Status::kEnabled ||
++      status == PictureInPictureController::Status::kDisabledByAttribute;
+   for (auto& observer : GetMediaPlayerObserverRemoteSet()) {
+-    observer->OnPictureInPictureAvailabilityChanged(SupportsPictureInPicture());
++    observer->OnPictureInPictureAvailabilityChanged(available_to_user_agent);
+   }
+ }
+ 
+@@ -1297,7 +1302,7 @@ void HTMLVideoElement::AttributeChanged(
+ 
+   UpdatePictureInPictureAvailability();
+ 
+-  if (params.new_value.IsNull()) {
++  if (params.new_value.IsNull() || !params.old_value.IsNull()) {
+     return;
+   }
+ 
+diff --git a/third_party/blink/renderer/modules/document_picture_in_picture/picture_in_picture_controller_impl.cc b/third_party/blink/renderer/modules/document_picture_in_picture/picture_in_picture_controller_impl.cc
+--- a/third_party/blink/renderer/modules/document_picture_in_picture/picture_in_picture_controller_impl.cc
++++ b/third_party/blink/renderer/modules/document_picture_in_picture/picture_in_picture_controller_impl.cc
+@@ -32,6 +32,7 @@
+ #include "third_party/blink/renderer/modules/document_picture_in_picture/document_picture_in_picture.h"
+ #include "third_party/blink/renderer/modules/document_picture_in_picture/document_picture_in_picture_event.h"
+ #include "third_party/blink/renderer/modules/picture_in_picture/picture_in_picture_event.h"
++#include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
+@@ -244,8 +245,13 @@ void PictureInPictureControllerImpl::OnEnteredPictureInPicture(
+   picture_in_picture_session_.Bind(
+       std::move(session_remote),
+       element->GetDocument().GetTaskRunner(TaskType::kMediaElementEvent));
+-  if (IsElementAllowedInternal(*element, is_immersive,
+-                               /*report_failure=*/true) != Status::kEnabled) {
++  const Status status = IsElementAllowedInternal(*element, is_immersive,
++                                                 /*report_failure=*/true);
++  const bool requested_by_user_agent =
++      !resolver || resolver->GetScriptState()->World().IsIsolatedWorld();
++  if (status != Status::kEnabled &&
++      !(requested_by_user_agent &&
++        status == Status::kDisabledByAttribute)) {
+     if (resolver &&
+         IsInParallelAlgorithmRunnable(resolver->GetExecutionContext(),
+                                       resolver->GetScriptState())) {
+diff --git a/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.cc b/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.cc
+--- a/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.cc
++++ b/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.cc
+@@ -12,6 +12,7 @@
+ #include "third_party/blink/renderer/core/frame/picture_in_picture_controller.h"
+ #include "third_party/blink/renderer/core/html/media/html_video_element.h"
+ #include "third_party/blink/renderer/modules/picture_in_picture/picture_in_picture_window.h"
++#include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
+ #include "third_party/blink/renderer/platform/wtf/functional.h"
+ 
+ namespace blink {
+@@ -46,7 +47,8 @@ HTMLVideoElementPictureInPicture::requestPictureInPicture(
+     ScriptState* script_state,
+     HTMLVideoElement& element,
+     ExceptionState& exception_state) {
+-  CheckIfPictureInPictureIsAllowed(element, exception_state);
++  CheckIfPictureInPictureIsAllowed(
++      element, script_state->World().IsIsolatedWorld(), exception_state);
+   if (exception_state.HadException())
+     return EmptyPromise();
+ 
+@@ -72,6 +74,7 @@ bool HTMLVideoElementPictureInPicture::FastHasAttribute(
+ // static
+ void HTMLVideoElementPictureInPicture::CheckIfPictureInPictureIsAllowed(
+     HTMLVideoElement& element,
++    bool requested_by_user_agent,
+     ExceptionState& exception_state) {
+   Document& document = element.GetDocument();
+   PictureInPictureController& controller =
+@@ -94,6 +97,9 @@ void HTMLVideoElementPictureInPicture::CheckIfPictureInPictureIsAllowed(
+       exception_state.ThrowSecurityError(kFeaturePolicyBlocked);
+       return;
+     case Status::kDisabledByAttribute:
++      if (requested_by_user_agent) {
++        break;
++      }
+       exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                         kDisablePictureInPicturePresent);
+       return;
+diff --git a/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.h b/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.h
+--- a/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.h
++++ b/third_party/blink/renderer/modules/picture_in_picture/html_video_element_picture_in_picture.h
+@@ -26,6 +26,7 @@ class HTMLVideoElementPictureInPicture {
+   static bool FastHasAttribute(const HTMLVideoElement&, const QualifiedName&);
+ 
+   static void CheckIfPictureInPictureIsAllowed(HTMLVideoElement&,
++                                               bool requested_by_user_agent,
+                                                ExceptionState&);
+ 
+   DEFINE_STATIC_ATTRIBUTE_EVENT_LISTENER(enterpictureinpicture,

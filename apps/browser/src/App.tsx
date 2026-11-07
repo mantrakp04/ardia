@@ -77,6 +77,7 @@ function BrowserWindow() {
         fullscreen={fullscreen}
         topTabs={topTabs}
         inset={pageFrameInsets(showPageFrame, topTabs ? TOP_STRIP_HEIGHT : 0)}
+        windowWidth={width}
         topStrip={
           topTabs
             ? { strip: <TopTabStrip width={width} hidden={fullscreen} />, peek: <TopStripPeek windowWidth={width} enabled={!fullscreen} /> }

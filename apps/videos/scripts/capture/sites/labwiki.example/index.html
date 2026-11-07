@@ -1,0 +1,113 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lab Wiki · Safety</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#1c1a16;--soft:#55514a;--mute:#938d83;--line:#e9e5dd;--amb:#f5b301;--amb2:#fff6d6;--bg:#fdfcf9}
+body{font-family:-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px;display:grid;grid-template-columns:262px 1fr;min-height:100vh}
+.tree{background:#f6f3ec;border-right:1px solid var(--line);padding:14px 10px;font-size:13px}
+.ws{display:flex;align-items:center;gap:9px;padding:2px 6px 12px}
+.ws i{width:28px;height:28px;border-radius:7px;background:#1c1a16;display:grid;place-items:center;font-style:normal}
+.ws b{font:600 15px Optima,"Avenir Next",sans-serif}
+.ws span{display:block;font-size:11px;color:var(--mute);font-weight:500}
+.srch{height:30px;border-radius:7px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;gap:7px;padding:0 9px;color:var(--mute);margin:0 4px 12px;font-size:12.5px}
+.srch kbd{margin-left:auto;font:10.5px Menlo,monospace;color:var(--mute)}
+.n{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;color:var(--soft);white-space:nowrap;overflow:hidden}
+.n svg{width:13px;height:13px;flex:none}
+.n .c{width:10px;color:var(--mute);font-size:9px;flex:none}
+.n.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.l1{padding-left:6px}.l2{padding-left:20px}.l3{padding-left:34px}.l4{padding-left:48px}.l5{padding-left:62px}
+.tree h6{font-size:10.5px;letter-spacing:.1em;color:var(--mute);padding:12px 6px 4px;font-weight:600}
+.main{min-width:0}
+.bar{height:48px;display:flex;align-items:center;gap:8px;padding:0 28px;border-bottom:1px solid var(--line);background:#fff;font-size:12.5px;color:var(--mute);white-space:nowrap}
+.bar b{color:var(--ink);font-weight:600}
+.bar .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{height:30px;padding:0 12px;border-radius:7px;border:1px solid var(--line);background:#fff;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px}
+.btn.p{background:var(--ink);border-color:var(--ink);color:#fff}
+.avs{display:flex}.avs i{width:24px;height:24px;border-radius:50%;border:2px solid #fff;margin-left:-6px;display:grid;place-items:center;font:700 9px -apple-system,sans-serif;color:#fff;font-style:normal}
+.page{display:grid;grid-template-columns:1fr 210px;gap:36px;max-width:1040px;padding:24px 28px 40px}
+.stripe{height:8px;border-radius:4px;background:repeating-linear-gradient(-45deg,#1c1a16 0 10px,var(--amb) 10px 20px);margin-bottom:18px}
+h1{font:600 36px/1.1 Optima,"Avenir Next",sans-serif;letter-spacing:-.01em;display:flex;align-items:center;gap:12px}
+h1 i{width:42px;height:42px;border-radius:10px;background:var(--amb);display:grid;place-items:center;font-style:normal}
+.meta{font-size:12.5px;color:var(--mute);margin:8px 0 16px;display:flex;gap:14px}
+.meta b{color:var(--soft);font-weight:600}
+.lead{font-size:16px;line-height:1.55;color:#34302a;margin-bottom:16px}
+.danger{display:flex;gap:12px;background:#fdecea;border:1px solid #f6c7c1;border-left:4px solid #d93025;border-radius:10px;padding:12px 14px;margin-bottom:18px;line-height:1.5;color:#6b1a12}
+.danger b{color:#a01d12}
+h2{font:600 21px Optima,"Avenir Next",sans-serif;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th{text-align:left;font-size:11.5px;color:var(--mute);font-weight:600;padding:8px 12px;background:#faf8f3;border-bottom:1px solid var(--line)}
+td{padding:8px 12px;border-bottom:1px solid #f2efe8;vertical-align:top}
+tr:last-child td{border:0}
+.ppe{display:inline-flex;gap:4px;flex-wrap:wrap}
+.ppe span{font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;background:#f1eee7;color:var(--soft);white-space:nowrap}
+.ppe span.y{background:var(--amb2);color:#8a6100}
+.ppe span.r{background:#fdecea;color:#b3261e}
+.hood{display:grid;grid-template-columns:1fr 200px;gap:16px;align-items:start}
+.hood img{width:200px;height:150px;object-fit:cover;border-radius:10px;display:block}
+.hood figcaption{font-size:11.5px;color:var(--mute);margin-top:5px}
+ol{padding-left:20px;line-height:1.6;color:#34302a}
+ol li{margin-bottom:4px}
+.side h5{font-size:11px;letter-spacing:.1em;color:var(--mute);font-weight:600;margin-bottom:8px}
+.toc a{display:block;padding:4px 0 4px 10px;border-left:2px solid var(--line);color:var(--soft);font-size:13px;text-decoration:none}
+.toc a.on{border-color:var(--amb);color:var(--ink);font-weight:600}
+.em{margin-top:20px;background:#1c1a16;color:#fff;border-radius:12px;padding:14px}
+.em h5{color:var(--amb)}
+.em div{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-top:1px solid #36322b}
+.em div:first-of-type{border:0}
+.em b{font:600 13px Menlo,monospace;color:#fff}
+.em span{color:#cfc8bb}
+.ack{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;color:var(--soft);line-height:1.45}
+.ack .pb{height:6px;border-radius:3px;background:#f1eee7;margin:8px 0 6px;overflow:hidden}
+.ack .pb i{display:block;width:78%;height:100%;background:var(--amb)}
+@media (max-width:1100px){body{grid-template-columns:220px 1fr}.page{grid-template-columns:1fr}.side{display:none}}
+</style></head><body>
+<aside class="tree">
+<div class="ws"><i><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1.5c3 2 4.4 4.2 4.4 6.4A4.4 4.4 0 0 1 3.6 8c0-2.2 1.4-4.4 4.4-6.5z" fill="#f5b301"/><path d="M8 6v8.5" stroke="#fff" stroke-width="1.5"/></svg></i><div><b>Halden Lab Wiki</b><span>Soil Ecology · 38 members</span></div></div>
+<div class="srch"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Search wiki<kbd>⌘K</kbd></div>
+<div class="n l1"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Getting started</div>
+<div class="n l1"><span class="c">▾</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Lab operations</div>
+<div class="n l2"><span class="c">▾</span><svg viewBox="0 0 16 16" fill="none" stroke="#b58700" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Safety</div>
+<div class="n l3 on"><span class="c"></span><svg viewBox="0 0 16 16" fill="none" stroke="#1c1a16" stroke-width="1.5"><path d="M3.5 1.5h6l3 3v10h-9z"/></svg>Safety overview</div>
+<div class="n l3"><span class="c">▾</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Chemical</div>
+<div class="n l4"><span class="c">▾</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Fume hoods</div>
+<div class="n l5"><span class="c"></span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M3.5 1.5h6l3 3v10h-9z"/></svg>Hood 2.16-A log</div>
+<div class="n l5"><span class="c"></span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M3.5 1.5h6l3 3v10h-9z"/></svg>Airflow checks</div>
+<div class="n l4"><span class="c"></span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M3.5 1.5h6l3 3v10h-9z"/></svg>Waste &amp; solvents</div>
+<div class="n l3"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Biological</div>
+<div class="n l3"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Molecular</div>
+<div class="n l3"><span class="c"></span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M3.5 1.5h6l3 3v10h-9z"/></svg>Field work</div>
+<div class="n l2"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Equipment</div>
+<div class="n l2"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Ordering</div>
+<div class="n l1"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Protocols</div>
+<div class="n l1"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Projects</div>
+<div class="n l1"><span class="c">▸</span><svg viewBox="0 0 16 16" fill="none" stroke="#938d83" stroke-width="1.5"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z"/></svg>Journal club</div>
+<h6>RECENT</h6>
+<div class="n l1">PCR Protocol v3</div><div class="n l1">Freezer B inventory</div>
+</aside>
+<div class="main">
+<div class="bar">Lab operations › Safety › <b>Safety overview</b><div class="r"><div class="avs"><i style="background:#b58700">IH</i><i style="background:#0d7a8a">PV</i><i style="background:#6b4fa8">OL</i></div><div class="btn">History</div><div class="btn">Share</div><div class="btn p">Edit</div></div></div>
+<div class="page">
+<article>
+<div class="stripe"></div>
+<h1><i><svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 3L22 20H2z" fill="#1c1a16"/><path d="M12 9v5.5M12 17v.6" stroke="#f5b301" stroke-width="2.2" stroke-linecap="round"/></svg></i>Safety</h1>
+<div class="meta"><span>Last edited <b>Oct 31, 2026</b> by <b>Ingrid Halden</b></span><span>Reviewed yearly</span><span>v14</span></div>
+<p class="lead">Required reading for everyone who works in rooms 2.14 to 2.18, including visiting students. Read it, sign the acknowledgement on the right, then ask Oskar for your hood and freezer induction.</p>
+<div class="danger"><svg width="20" height="20" viewBox="0 0 20 20" style="flex:none"><circle cx="10" cy="10" r="9" fill="#d93025"/><path d="M10 5.5v5.5M10 13.8v.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg><div><b>Never work alone with phenol or chloroform.</b> Both are used in DNA extraction. Use them only in a fume hood, with a second person in the room, nitrile over-gloves and the sash below the arrow.</div></div>
+<h2>PPE by task</h2>
+<table><thead><tr><th>Task</th><th>Where</th><th>You need</th></tr></thead><tbody>
+<tr><td>Root washing and sorting</td><td>Bench 2.14</td><td><span class="ppe"><span>Lab coat</span><span>Nitrile gloves</span></span></td></tr>
+<tr><td>DNA extraction (phenol)</td><td>Hood 2.16-A</td><td><span class="ppe"><span>Lab coat</span><span class="y">Goggles</span><span class="r">Double nitrile</span><span class="r">Buddy</span></span></td></tr>
+<tr><td>Autoclaving media</td><td>Room 2.18</td><td><span class="ppe"><span class="y">Heat gloves</span><span class="y">Face shield</span></span></td></tr>
+<tr><td>Liquid nitrogen grinding</td><td>Bench 2.15</td><td><span class="ppe"><span class="y">Cryo gloves</span><span class="y">Face shield</span><span>Closed shoes</span></span></td></tr>
+</tbody></table>
+<h2>Fume hoods</h2>
+<div class="hood"><ol><li>Check the airflow monitor reads green before you open the sash.</li><li>Work at least 15 cm inside the hood, sash at or below the arrow.</li><li>Log every solvent session in <b>Hood 2.16-A log</b>.</li><li>Report any alarm to the building desk, then to Ingrid.</li></ol><figure><img src="img/0.jpg" alt=""><figcaption>Hood 2.16-A, sash at working height</figcaption></figure></div>
+</article>
+<aside class="side">
+<h5>ON THIS PAGE</h5><div class="toc"><a class="on">Safety</a><a>PPE by task</a><a>Fume hoods</a><a>Spills</a><a>Waste</a><a>Field work</a></div>
+<div class="em"><h5>EMERGENCY</h5><div><span>Building desk</span><b>ext 4411</b></div><div><span>First aid, 2nd floor</span><b>ext 4420</b></div><div><span>Ingrid Halden</span><b>ext 2716</b></div><div><span>Eyewash</span><b>by door 2.16</b></div></div>
+<div class="ack"><b style="color:var(--ink)">Acknowledgement</b><div class="pb"><i></i></div>29 of 37 members signed for 2026<div class="btn p" style="margin-top:10px;justify-content:center">I've read this</div></div>
+</aside>
+</div></div>
+</body></html>

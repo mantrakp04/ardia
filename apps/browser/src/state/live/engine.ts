@@ -2,8 +2,9 @@ import { onWindowEvent } from "../../platform/windows";
 import { everySlowly } from "../../platform/slowTimers";
 import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
+import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -51,7 +52,11 @@ async function run(folderId: string) {
   if (!live().folders[folderId]) return;
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
   const listedByFilters = (it: LiveItem) => (it.section === "review" || it.section === "team" ? folder.filters.reviewRequests : folder.filters.authored);
-  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it);
+  const repoShown = (it: LiveItem) => {
+    const repo = repoKey(it);
+    return !repo || !live().folders[folderId]?.hiddenRepos.includes(repo);
+  };
+  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it) && repoShown(it);
 
   const landed = live();
   const ids = new Set(fetched.map((it) => it.id));
@@ -67,7 +72,7 @@ async function run(folderId: string) {
   const current = live();
   const prev = current.items[folderId] ?? [];
   const animating = new Set(current.completing[folderId] ?? []);
-  const next = [...fetched, ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
+  const next = [...fetched.filter(repoShown), ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
 
   const firstFailure = failed[0];
   if (firstFailure && failed.length === folder.sources.length && !prev.length && !before.status[folderId]?.lastFetch) {
@@ -76,8 +81,10 @@ async function run(folderId: string) {
   }
   const lastSources = fetchedSources.get(folderId);
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
-  fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
+  const succeeded = new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id)));
+  fetchedSources.set(folderId, succeeded);
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
+  releaseShownRepos(folderId, succeeded);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);

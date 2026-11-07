@@ -32,7 +32,7 @@ NSString *StateOf(ArdiaSavedSession *session, NSString *windowId) {
   NSDictionary *window = [session windowWithId:windowId];
   if (!window) return nil;
   NSMutableDictionary *state = [NSMutableDictionary dictionary];
-  for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"showPageFrame", @"hideToolbarWhileScrolling", @"showFullUrl" ])
+  for (NSString *key in @[ @"tabLayout", @"sidebarSide", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"showPageFrame", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
   if ([settings[@"compactToolbar"] isEqual:@YES]) state[@"s.compactToolbar"] = @YES;
   for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"profileId", @"incognito" ])
@@ -146,7 +146,8 @@ NSDictionary *WindowLayout(ArdiaWindowController *controller, ArdiaSavedSession 
     @"content" : ContentOf(session, controller.appWindowId) ?: @"",
   } mutableCopy];
   if (web.transferKey.length) layout[@"tab"] = web.transferKey;
-  if (NSValue *lights = ArdiaTrafficLightsCenter(window)) layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y) ];
+  if (NSValue *lights = ArdiaTrafficLightsCenter(window))
+    layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y), @(ArdiaTrafficLightsTrailing(window)) ];
   if (window.appearance.name) layout[@"appearance"] = window.appearance.name;
   if (NSColor *color = [web.pageBackgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace])
     layout[@"pageColor"] = @[ @(color.redComponent), @(color.greenComponent), @(color.blueComponent), @(color.alphaComponent) ];

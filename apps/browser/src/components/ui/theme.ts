@@ -162,7 +162,7 @@ export function selectedTabGlow(theme: Theme, setting: SelectedTabGlowLevel) {
   return { shadowColor: hex(theme.tabSelectedShadow), shadowOpacity: level.opacity, shadowRadius: theme.tabSelectedShadowRadius * level.spread };
 }
 
-const SIDEBAR_INSET = 6;
+const SIDEBAR_INSET = CARD_INSET;
 
 export const layout = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,

@@ -87,26 +87,38 @@ importers:
         specifier: ~5.9.2
         version: 5.9.3
 
-  apps/demo:
+  packages/ardiacore:
+    dependencies:
+      '@ardia/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.6
+        version: 24.13.6
+
+  packages/demo:
     dependencies:
       '@ardia/ardiacore':
         specifier: workspace:*
-        version: link:../../packages/ardiacore
+        version: link:../ardiacore
       '@ardia/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../core
       '@ardia/import':
         specifier: workspace:*
-        version: link:../../packages/import
+        version: link:../import
       '@ardia/shaders':
         specifier: workspace:*
-        version: link:../../packages/shaders
+        version: link:../shaders
       '@ardia/shell':
         specifier: workspace:*
-        version: link:../../packages/shell
+        version: link:../shell
       '@ardia/sync':
         specifier: workspace:*
-        version: link:../../packages/sync
+        version: link:../sync
       lucide-react:
         specifier: ^0.546.0
         version: 0.546.0(react@19.1.4)
@@ -165,18 +177,6 @@ importers:
       vite:
         specifier: ^7.1.9
         version: 7.3.7(@types/node@24.13.6)(lightningcss@1.33.0)(terser@5.51.2)(yaml@2.9.1)
-
-  packages/ardiacore:
-    dependencies:
-      '@ardia/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/core:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.6
-        version: 24.13.6
 
   packages/import:
     dependencies:

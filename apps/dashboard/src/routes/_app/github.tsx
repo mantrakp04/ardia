@@ -61,22 +61,20 @@ function GitHubBody({ data }: { data: SectionData<"github"> }) {
   const latest = data.releases.find((r) => !r.prerelease);
 
   const stars = useMemo(() => {
-    if (!data.starTimes?.length) return null;
-    const first = Math.min(Math.floor(data.starTimes[0]! / DAY) * DAY, DATA_START_MS);
+    if (!data.starDays?.length) return null;
+    const byDay = new Map<number, number>();
+    for (const { day, count } of data.starDays) {
+      const key = Math.floor(day / DAY) * DAY;
+      byDay.set(key, (byDay.get(key) ?? 0) + count);
+    }
+    const first = Math.min(Math.floor(data.starDays[0]!.day / DAY) * DAY, DATA_START_MS);
     const days: number[] = [];
     for (let t = first; t <= data.fetchedAt; t += DAY) days.push(t);
-    let i = 0;
+    const perDay = days.map((d) => byDay.get(d) ?? 0);
     let total = 0;
-    const cumulative = days.map((d) => {
-      while (i < data.starTimes!.length && data.starTimes![i]! < d + DAY) {
-        total++;
-        i++;
-      }
-      return total;
-    });
-    const perDay = days.map((d) => data.starTimes!.filter((t) => t >= d && t < d + DAY).length);
+    const cumulative = perDay.map((n) => (total += n));
     return { days, cumulative, perDay };
-  }, [data.starTimes, data.fetchedAt]);
+  }, [data.starDays, data.fetchedAt]);
 
   return (
     <>
@@ -91,7 +89,7 @@ function GitHubBody({ data }: { data: SectionData<"github"> }) {
       </Card>
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-5">
-        <Panel source="github" className="xl:col-span-3" title="Stars" description={stars ? "Total stars by day." : "Star history needs a GITHUB_TOKEN on the server (GitHub requires auth for it)."}>
+        <Panel source="github" className="xl:col-span-3" title="Stars" description={stars ? "Total stars by day." : "Star history didn't load from GitHub."}>
           {stars ? (
             <TimeSeriesChart buckets={stars.days} series={[{ key: "stars", label: "Stars", values: stars.cumulative, color: "var(--chart-5)" }]} step="day" height={260} />
           ) : (

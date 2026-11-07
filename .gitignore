@@ -51,3 +51,5 @@ dist/
 
 scripts/.notary.env
 *.p8
+apps/cli/ardia_cli/vendor/
+__pycache__/

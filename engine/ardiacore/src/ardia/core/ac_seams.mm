@@ -20,6 +20,7 @@
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_browser_window.h"
+#include "ardia/core/ac_desktop_capture.h"
 #include "ardia/core/ac_device_chooser.h"
 #include "ardia/core/ac_extension_shortcuts.h"
 #include "ardia/core/ac_extension_view.h"
@@ -157,6 +158,7 @@ void InstallChromeHooks() {
   g_ardia_password_bubble = &HandlePasswordBubble;
   g_ardia_extension_install_prompt = &HostExtensionInstallPrompt;
   g_ardia_device_chooser = &HandleDeviceChooser;
+  g_ardia_media_access_request = &AnswerNativeDisplayCapture;
   g_ardia_wants_cast_dialog = &WantsCastDialog;
   g_ardia_cast_dialog = &HandleCastDialog;
   g_ardia_extension_side_panel = &HandleExtensionSidePanel;

@@ -1,7 +1,7 @@
 import { SyncNative, type Adapter, type ExtensionsAdapter } from "../../platform/sync";
 import { useBrowser } from "../browser/store";
 import { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, inTodaysNames, passwordsAdapter, sharedDataAdapter } from "./adapters";
-import { profilesAdapter, profileThemesAdapter } from "./profileAdapters";
+import { profilesAdapter, profileThemesAdapter, profileTopAppsAdapter } from "./profileAdapters";
 import { settingsAdapter } from "./settingsAdapter";
 import { pinnedAreaAdapters } from "./pinned";
 import { extensionsAdapterFor } from "./extensions";
@@ -35,6 +35,7 @@ export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
     sharedDataAdapter(() => doc.profiles),
     profilesAdapter(enabledLinks),
     profileThemesAdapter(enabledLinks, () => doc.scopes[APP_SCOPE]?.records),
+    profileTopAppsAdapter(enabledLinks),
     deviceAdapter(id, deviceName),
   ];
 }

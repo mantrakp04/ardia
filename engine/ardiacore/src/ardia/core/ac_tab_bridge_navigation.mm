@@ -8,6 +8,7 @@
 #include "base/functional/bind.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -208,6 +209,11 @@ void TabBridge::DidFinishNavigation(content::NavigationHandle* handle) {
 
 void TabBridge::NavigationEntryCommitted(
     const content::LoadCommittedDetails& load_details) {
+  if (load_details.is_main_frame && load_details.is_in_active_page &&
+      !load_details.is_same_document) {
+    ++document_commits_;
+    document_http_status_ = load_details.http_status_code;
+  }
   ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeNavigationState:)];
 }

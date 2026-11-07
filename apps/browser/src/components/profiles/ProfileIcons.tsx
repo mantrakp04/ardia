@@ -1,10 +1,9 @@
-import type { IconMenuItem } from "../../state/profiles/profileMenu";
 import { Text } from "react-native";
 import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
 import { profileColors, profileSwitcher } from "./tokens";
-import { iconSymbol, symbolIcon } from "../../lib/customIcon";
+import { iconSymbol } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "house.fill", title: "Home" },
@@ -27,24 +26,32 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "heart.fill", title: "Personal" },
   { name: "star.fill", title: "Favorites" },
   { name: "moon.stars.fill", title: "Evenings" },
+  { name: "person.fill", title: "Me" },
+  { name: "person.2.fill", title: "Family" },
+  { name: "building.2.fill", title: "Office" },
+  { name: "terminal.fill", title: "Terminal" },
+  { name: "server.rack", title: "Servers" },
+  { name: "flask.fill", title: "Lab" },
+  { name: "lightbulb.fill", title: "Ideas" },
+  { name: "sparkles", title: "Side Projects" },
+  { name: "newspaper.fill", title: "News" },
+  { name: "film.fill", title: "Movies" },
+  { name: "headphones", title: "Podcasts" },
+  { name: "sportscourt.fill", title: "Sports" },
+  { name: "bicycle", title: "Cycling" },
+  { name: "fork.knife", title: "Food" },
+  { name: "gift.fill", title: "Gifts" },
+  { name: "stethoscope", title: "Health" },
+  { name: "chart.line.uptrend.xyaxis", title: "Stocks" },
+  { name: "envelope.fill", title: "Mail" },
+  { name: "bubble.left.and.bubble.right.fill", title: "Chat" },
+  { name: "calendar", title: "Calendar" },
+  { name: "mountain.2.fill", title: "Outdoors" },
+  { name: "beach.umbrella.fill", title: "Holiday" },
+  { name: "lock.fill", title: "Private" },
+  { name: "flame.fill", title: "Hot" },
+  { name: "bolt.fill", title: "Energy" },
 ];
-
-const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "🎨", "🎮", "🎵", "📚", "✈️", "🌱", "🔥", "⭐️", "🚀", "🐶", "🐱", "🦊", "🍀"];
-
-export function iconMenuItems(current: string | null, noneTitle = "Initial"): IconMenuItem[] {
-  return [
-    { value: { icon: null }, title: noneTitle, checked: !current },
-    { separator: true },
-    ...PROFILE_SYMBOLS.map((s) => ({ value: { icon: symbolIcon(s.name) }, title: s.title, symbol: s.name, checked: current === symbolIcon(s.name) })),
-    { separator: true },
-    {
-      id: "emoji",
-      title: "Emoji",
-      checked: !!current && !iconSymbol(current),
-      children: EMOJI.map((e) => ({ value: { icon: e }, title: e, checked: current === e })),
-    },
-  ];
-}
 
 export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
 

@@ -86,7 +86,9 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
 - Frame: x = sidebar width, top 6, right 7, bottom 7. Radius 10.
 - Ours: 9 pt on every side, in every layout, by the owner's choice (2026-10-27): top, right, bottom and left at the
   window's edge, between split panes and beside an extension's side panel, and in Little Ardia (below its bar). Docked
-  beside the sidebar the card starts 3 pt past it, so its rows (6 pt in) sit 9 pt from the card. The traffic lights
+  beside the sidebar the card starts at its edge and the sidebar's rows, field and tiles sit 9 pt in from both its
+  edges (owner, 2026-11-03: the sidebar's side matches the frame's thickness), so they're 9 pt from the window's edge and
+  9 pt from the card. Dia's own inset is 6 with the card at the sidebar's width. The traffic lights
   and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
 - Fill: `WindowContent/BaseTint`, #121212 at 60% (dark) or white at 80% (light), over the window
@@ -963,6 +965,7 @@ differs in a few places:
 - A window larger than its display stays on that display.
 - A window left unreachable at the end of any gesture, throw or slide animates back onto its display.
 - The pointer is hidden and warped only in a real run; test instances leave it alone.
+- In a corner (its frame exactly 10 pt in from two sides of the visible frame) its corners are 9 pt instead of 6, so they're concentric with a zoomed browser window's content card, which sits 9 pt in with a 10 pt radius (a tester's ask). The radius bends over 0.2 s, ease-in-out, once the window lands, and back to 6 when it moves off.
 
 Measured in a hidden instance (3440 × 1410 and 1512 × 949 visible frames, 501 × 282 and 336 × 189 windows): every throw landed exactly 10 pt
 from the corner, for example (2929, 10) bottom right and (10, 1118) top left. Every frame was within 1 pt of the spring

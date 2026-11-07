@@ -41,7 +41,7 @@ function fresh() {
 test("hello, unknown methods and malformed lines", async () => {
   fresh();
   await controlOn();
-  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 1 });
+  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 2 });
   const unknown = call("dance");
   assert.equal(unknown.error.code, "unknown_method");
   const bad = call(null, null, { raw: "not json" });
@@ -141,7 +141,7 @@ test("events: shapes, private windows left out, closes from the previous snapsho
   await controlOn();
   const connection = ++nextConnection;
   const from = stub.controlSocket.broadcasts.length;
-  assert.deepEqual(call("subscribe", { events: ["*"] }, { connection }).result, { ok: true });
+  assert.deepEqual(call("subscribe", { events: ["*"] }, { connection }).result, { ok: true, served: [] });
   const w = S().createWindow({ url: "https://a.example/" });
   const t = S().newTab(w, { url: "https://b.example/" });
   S().activate(t);
@@ -178,7 +178,7 @@ test("tab.navigated comes from commits only, with sameDocument for in-page chang
   fresh();
   await controlOn();
   const connection = ++nextConnection;
-  call("subscribe", { events: ["tab.navigated"] }, { connection });
+  call("subscribe", { events: ["tab.navigated"], fullUrls: true }, { connection });
   const w = S().createWindow({ url: "https://a.example/" });
   const t = model.activeTabId(S(), w);
   const from = stub.controlSocket.broadcasts.length;
@@ -257,7 +257,7 @@ test("same-document navigations in quick succession all arrive, in order", async
   fresh();
   await controlOn();
   const connection = ++nextConnection;
-  call("subscribe", { events: ["tab.navigated"] }, { connection });
+  call("subscribe", { events: ["tab.navigated"], fullUrls: true }, { connection });
   const w = S().createWindow({ url: "https://a.example/" });
   const t = model.activeTabId(S(), w);
   const from = stub.controlSocket.broadcasts.length;
@@ -276,19 +276,22 @@ test("same-document navigations in quick succession all arrive, in order", async
   ]);
 });
 
-test("the pill stays up until the run's reply is written", async () => {
+test("the pill stays up until the run's reply is written", async (t) => {
   fresh();
   await controlOn();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   S().createWindow({ url: "https://a.example/" });
   useCli.setState({ server: { state: "external", connections: 0, generation: 4, file: "" } });
   useCliIndicator.setState({ shown: false });
   stub.controlSocket.holdWrites = true;
   call("run", { command: "setAppearance", arg: "light" });
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+  t.mock.timers.tick(3200);
   assert.equal(useCliIndicator.getState().shown, true);
   stub.controlSocket.holdWrites = false;
   stub.writeHeldReplies();
-  await new Promise((resolve) => setTimeout(resolve, 3200));
+  t.mock.timers.tick(2999);
+  assert.equal(useCliIndicator.getState().shown, true);
+  t.mock.timers.tick(1);
   assert.equal(useCliIndicator.getState().shown, false);
   S().updateSettings({ cliControl: false });
 });

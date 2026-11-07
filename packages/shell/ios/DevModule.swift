@@ -57,7 +57,7 @@ public class DevModule: Module {
       post(0)
     }.runOnQueue(.main)
 
-    AsyncFunction("devMenuItems") { (title: String, perform: [String]?) -> [[String: Any]] in
+    AsyncFunction("devMenuItems") { (title: String, perform: [String]?, asTitleBar: Bool?) -> [[String: Any]] in
       var tiling: NSMenu?
       var flags: [String: Any] = [:]
       if title.hasPrefix("tiling:"), let window = WindowManager.shared.window(String(title.dropFirst(7))) {
@@ -93,7 +93,9 @@ public class DevModule: Module {
       if let perform, !perform.isEmpty {
         for (i, step) in perform.enumerated() {
           guard let index = menu.items.firstIndex(where: { $0.title == step && (i == perform.count - 1 || $0.submenu != nil) }) else { return [["error": "no \(step)"]] }
-          if i == perform.count - 1 { menu.performActionForItem(at: index) } else if let sub = menu.items[index].submenu { menu = sub }
+          if i < perform.count - 1, let sub = menu.items[index].submenu { menu = sub; continue }
+          let item = menu.items[index]
+          if asTitleBar == true, let action = item.action { NSApp.sendAction(action, to: item.target, from: item) } else { menu.performActionForItem(at: index) }
         }
       }
       return flags.isEmpty ? listed : [flags] + listed
@@ -120,6 +122,7 @@ public class DevModule: Module {
     }
 
     AsyncFunction("devURLDelivery") { () -> [String: Any] in DevModule.urlDelivery }.runOnQueue(.main)
+    AsyncFunction("devOpenURLDeliveries") { () -> [[String: Any]] in OpenURLInbox.testDeliveries }.runOnQueue(.main)
 
     AsyncFunction("devShortcutRecording") { () -> Bool in ShortcutRecorder.shared.isRecording }.runOnQueue(.main)
 
@@ -131,10 +134,26 @@ public class DevModule: Module {
       let count = Int(probe["steps"] ?? 60), dx = CGFloat(probe["dx"] ?? 3), dy = CGFloat(probe["dy"] ?? 0)
       let interval = (probe["intervalMs"] ?? 8) / 1000
       if let x = probe["x"], let top = probe["top"] {
-        WindowMoveProbe.drag(window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
+        let settle = (probe["settleMs"] ?? 200) / 1000, keep = (probe["keep"] ?? 0) != 0, replayStale = (probe["replayStale"] ?? 0) != 0
+        WindowMoveProbe.drag(
+          window, x: CGFloat(x), top: CGFloat(top), count: count, dx: dx, dy: dy, interval: interval, settle: settle, keep: keep, replayStale: replayStale
+        ) {
+          promise.resolve($0)
+        }
       } else {
         WindowMoveProbe.steps(window, count: count, dx: dx, dy: dy, interval: interval) { promise.resolve($0) }
       }
+    }.runOnQueue(.main)
+
+    AsyncFunction("devWindowReplayAfterMove") { (id: String, rect: [Double]) -> [String: Any] in
+      guard let window = WindowManager.shared.window(id), rect.count == 4 else { return ["error": "no window \(id)"] }
+      return WindowMoveProbe.replayAfterMove(window, NSRect(x: rect[0], y: rect[1], width: rect[2], height: rect[3]))
+    }.runOnQueue(.main)
+
+    AsyncFunction("devSetWindowFrame") { (id: String, rect: [Double]) -> [Double] in
+      guard let window = WindowManager.shared.window(id), rect.count == 4 else { return [] }
+      window.setFrame(NSRect(x: rect[0], y: rect[1], width: rect[2], height: rect[3]), display: false)
+      return [window.frame.minX, window.frame.minY, window.frame.width, window.frame.height]
     }.runOnQueue(.main)
 
     AsyncFunction("devSnapshotWindow") { (windowId: String, path: String, transparent: Bool?) -> Bool in
@@ -155,21 +174,21 @@ public class DevModule: Module {
       return true
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
+    AsyncFunction("devSidebarEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
       guard on else {
-        LeftEdgeWatcher.shared.pointerOverride = nil
-        LeftEdgeWatcher.shared.checkPointer()
+        SidebarEdgeWatcher.shared.pointerOverride = nil
+        SidebarEdgeWatcher.shared.checkPointer()
         return true
       }
       guard let window = WindowManager.shared.window(windowId) else { return false }
-      LeftEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
-      LeftEdgeWatcher.shared.checkPointer()
+      SidebarEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
+      SidebarEdgeWatcher.shared.checkPointer()
       return true
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgeStats") { (reset: Bool) -> [String: Any] in
-      let stats = LeftEdgeWatcher.shared.stats
-      if reset { LeftEdgeWatcher.shared.resetStats() }
+    AsyncFunction("devSidebarEdgeStats") { (reset: Bool) -> [String: Any] in
+      let stats = SidebarEdgeWatcher.shared.stats
+      if reset { SidebarEdgeWatcher.shared.resetStats() }
       return stats
     }.runOnQueue(.main)
 

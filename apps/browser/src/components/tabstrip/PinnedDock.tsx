@@ -134,7 +134,7 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
                   </View>
                 )}
                 <View pointerEvents="none">
-                  <FolderMosaic tabIds={tabIds} />
+                  <FolderMosaic tabIds={tabIds} scale="strip" />
                 </View>
               </View>
             )}

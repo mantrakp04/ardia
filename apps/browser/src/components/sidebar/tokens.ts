@@ -16,7 +16,6 @@ const DARK = {
   dragSilhouette: "#0F0F14",
   switcherFocus: "rgba(255,255,255,0.3)",
   switcherOutline: "rgba(255,255,255,0.15)",
-  pickerCellHover: "rgba(255,255,255,0.25)",
   badge: "rgba(255,255,255,0.9)",
   newTabLabel: "#FFFFFF8C",
   newTabIcon: "#FFFFFF40",
@@ -42,7 +41,6 @@ const LIGHT: typeof DARK = {
   dragSilhouette: "#FFFFFF",
   switcherFocus: "rgba(0,0,0,0.18)",
   switcherOutline: "rgba(0,0,0,0.1)",
-  pickerCellHover: "rgba(134,136,141,0.25)",
   badge: "rgba(0,0,0,0.75)",
   newTabLabel: "#00000080",
   newTabIcon: "#00000042",
@@ -70,7 +68,6 @@ export function sidebarTokens(theme: { dark: boolean }): SidebarTokens {
 export const SIDEBAR_SHADOW = {
   dragGhost: { color: ink.black, opacity: { dark: 0.45, light: 0.18 }, radius: 10, offset: [0, 4] },
   card: shadow.card,
-  iconPicker: shadow.sheet,
   searchTabs: shadow.dialog,
   tabSwitcher: { ...shadow.dialog, radius: 28, offset: [0, 12] },
 } satisfies Record<string, ShadowLevel>;
@@ -90,7 +87,7 @@ export const TILE_RIM = 1;
 
 export const TABULAR_NUMS: ("tabular-nums")[] = ["tabular-nums"];
 
-export const SIDEBAR_TYPE = { compact: font.small.fontSize, emoji: 18 } as const;
+export const SIDEBAR_TYPE = { compact: font.small.fontSize } as const;
 
 export function groupTint(color: GroupColor | null | undefined): string | null {
   return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;

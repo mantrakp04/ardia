@@ -59,6 +59,8 @@ source_set("core") {
     "ac_contents_background.mm",
     "ac_context_menu.h",
     "ac_context_menu.mm",
+    "ac_context_menu_share.h",
+    "ac_context_menu_share.mm",
     "ac_desktop_capture.h",
     "ac_desktop_capture.mm",
     "ac_devtools_call.h",

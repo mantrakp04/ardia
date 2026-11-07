@@ -2,8 +2,9 @@ import { useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { layout, useTheme } from "../ui/theme";
-import { useActiveTabId, useSettings, useTabLive, useWindowId } from "../../state/browser/hooks";
-import { openPanel, toggleSidebar } from "../../state/windows/actions";
+import { useActiveTabId, useSettings, useSidebarSide, useTabLive, useWindowId } from "../../state/browser/hooks";
+import { toggleSidebar } from "../../state/windows/actions";
+import { openEmptySidebarField } from "../../state/omnibox/barState";
 import { isAddressBarInSidebar } from "../../state/sidebar/current";
 import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
@@ -31,6 +32,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
   const toggle = useSettings((st) => st.showSidebarButton !== false);
+  const right = useSidebarSide(windowId) === "right";
   const sidebarHint = useShortcutHint("toggleSidebar");
   const { buttons, step } = navButtonsFitting(width, BUTTON, toggle);
   const shown = tab ? buttons : [];
@@ -48,7 +50,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
         <Button variant="icon" toolbar
           {...place(at[0]!)}
           palette={palette}
-          icon="sidebar.left"
+          icon={right ? "sidebar.right" : "sidebar.left"}
           glyph={GLYPH}
           onPress={() => toggleSidebar(windowId)}
           tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
@@ -149,7 +151,7 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
 function EmptyField({ windowId }: { windowId: string }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
-  const open = () => openPanel(windowId, "");
+  const open = () => openEmptySidebarField(windowId);
   return (
     <View {...hoverProps}>
       <Pressable onPress={open}>

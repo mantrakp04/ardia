@@ -120,6 +120,7 @@ const shortcuts = [
   ["⌘P", cmd("p", 35), { command: "print" }, "⌘P"],
   ["⌥⌘P", cmd("p", 35, "option"), { command: "printWithSystemDialog" }, "(Chrome's)"],
   ["⇧⌘I", cmd("I", 34, "shift"), { command: "emailPageLocation" }, "(Chrome's)"],
+  ["⌥⌘S", cmd("s", 1, "option"), { command: "share" }, "ours"],
   ["⌘Z", cmd("z", 6), { title: "Undo" }, "⌘Z"],
   ["⇧⌘Z", cmd("Z", 6, "shift"), { title: "Redo" }, "⇧⌘Z"],
   ["⌘X", cmd("x", 7), { title: "Cut" }, "⌘X", "clipboard"],
