@@ -1,14 +1,13 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel } from "./store";
+import { shownPageId } from "../peek/peek";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
-const opened = new Map<string, number>();
-const focusDue = new Map<string, number>();
-const lookups = new Map<string, number>();
-const waiting = new Map<string, { key: string; focus: () => void }>();
-let openings = 0;
+const openings = new Map<string, number>();
+const focusOwed = new Map<string, { opened: number; page: string | undefined }>();
+let lastOpening = 0;
 
 const nextFetch = (windowId: string) => {
   const ticket = (fetches.get(windowId) ?? 0) + 1;
@@ -18,39 +17,29 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
-export const sidePanelKey = (panel: SidePanel) => `${panel.extensionId}|${panel.pageProfile}|${panel.url}|${panel.opened}`;
-
-export function requestSidePanelFocus(windowId: string, panel: SidePanel, focus: () => void) {
-  if (focusDue.get(windowId) !== panel.opened) return;
-  if (lookups.has(windowId)) {
-    waiting.set(windowId, { key: sidePanelKey(panel), focus });
-    return;
-  }
-  focusDue.delete(windowId);
-  focus();
+export function takeSidePanelFocus(windowId: string, opened: number): boolean {
+  const owed = focusOwed.get(windowId);
+  if (owed?.opened !== opened || useExtensions.getState().sidePanelLookups[windowId]) return false;
+  focusOwed.delete(windowId);
+  return owed.page === shownPageId(useBrowser.getState(), windowId);
 }
 
-export function withdrawSidePanelFocus(windowId: string, panel: SidePanel) {
-  if (waiting.get(windowId)?.key === sidePanelKey(panel)) waiting.delete(windowId);
-}
-
-function leaveLookup(windowId: string) {
-  const left = (lookups.get(windowId) ?? 1) - 1;
-  if (left > 0) return void lookups.set(windowId, left);
-  lookups.delete(windowId);
-  const request = waiting.get(windowId);
-  if (!request) return;
-  waiting.delete(windowId);
-  const shown = useExtensions.getState().sidePanels[windowId];
-  if (shown && sidePanelKey(shown) === request.key) requestSidePanelFocus(windowId, shown, request.focus);
+function countLookup(windowId: string, by: number) {
+  useExtensions.setState((e) => {
+    const sidePanelLookups = { ...e.sidePanelLookups };
+    const left = (sidePanelLookups[windowId] ?? 0) + by;
+    if (left > 0) sidePanelLookups[windowId] = left;
+    else delete sidePanelLookups[windowId];
+    return { sidePanelLookups };
+  });
 }
 
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
   if (!shownIn(windowId, extensionId)) return Promise.resolve();
   if (wanted.get(windowId) !== extensionId) {
-    openings += 1;
-    opened.set(windowId, openings);
-    focusDue.set(windowId, openings);
+    lastOpening += 1;
+    openings.set(windowId, lastOpening);
+    focusOwed.set(windowId, { opened: lastOpening, page: shownPageId(useBrowser.getState(), windowId) });
   }
   wanted.set(windowId, extensionId);
   return syncSidePanel(windowId);
@@ -60,9 +49,8 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   const id = wanted.get(windowId);
   if (!id || (extensionId && id !== extensionId)) return;
   wanted.delete(windowId);
-  opened.delete(windowId);
-  focusDue.delete(windowId);
-  waiting.delete(windowId);
+  openings.delete(windowId);
+  focusOwed.delete(windowId);
   nextFetch(windowId);
   if (!useExtensions.getState().sidePanels[windowId]) return;
   useExtensions.setState((e) => {
@@ -84,11 +72,12 @@ export function closeSidePanelsOf(extensionId: string) {
 export async function syncSidePanel(windowId: string): Promise<void> {
   const extensionId = wanted.get(windowId);
   if (!extensionId) return;
-  lookups.set(windowId, (lookups.get(windowId) ?? 0) + 1);
+  if (focusOwed.get(windowId)?.page !== shownPageId(useBrowser.getState(), windowId)) focusOwed.delete(windowId);
+  countLookup(windowId, 1);
   try {
     await showSidePanel(windowId, extensionId);
   } finally {
-    leaveLookup(windowId);
+    countLookup(windowId, -1);
   }
 }
 
@@ -108,7 +97,7 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
   if (fetches.get(windowId) !== ticket) return;
   if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);
   const s = useBrowser.getState();
-  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: opened.get(windowId) ?? 0 };
+  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: openings.get(windowId) ?? 0 };
   const now = useExtensions.getState().sidePanels[windowId];
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && now.opened === panel.opened) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
