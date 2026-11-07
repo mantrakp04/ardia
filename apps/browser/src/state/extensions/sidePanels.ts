@@ -13,7 +13,14 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
-export const panelTakesFocus = (shown: SidePanel | undefined, next: SidePanel | undefined) => !!next && next.extensionId !== shown?.extensionId;
+export const sidePanelKey = (panel: SidePanel) => `${panel.extensionId}|${panel.pageProfile}|${panel.url}`;
+
+export function pendingPanelFocus(pending: string | null, shown: SidePanel | undefined, next: SidePanel | undefined): string | null {
+  if (!next) return null;
+  const key = sidePanelKey(next);
+  if (next.extensionId !== shown?.extensionId) return key;
+  return pending === key ? pending : null;
+}
 
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
   if (!shownIn(windowId, extensionId)) return Promise.resolve();

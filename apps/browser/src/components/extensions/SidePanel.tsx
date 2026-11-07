@@ -8,7 +8,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, panelTakesFocus, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, pendingPanelFocus, showExtensionMenu, sidePanelKey, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -31,11 +31,12 @@ export function ExtensionSidePanel() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
-  const focusOnLoad = useRef(false);
+  const focusOnLoad = useRef<string | null>(null);
+  const panelKey = panel ? sidePanelKey(panel) : null;
 
   useEffect(() => {
-    focusOnLoad.current = panelTakesFocus(shown, panel);
-  }, [panel?.extensionId]);
+    focusOnLoad.current = pendingPanelFocus(focusOnLoad.current, shown, panel);
+  }, [panelKey]);
   useEffect(() => {
     if (panel) setShown(panel);
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
@@ -83,7 +84,7 @@ export function ExtensionSidePanel() {
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
-        <PanelCard key={`${shown.extensionId}|${shown.pageProfile}|${shown.url}`} windowId={windowId} panel={shown} focusOnLoad={focusOnLoad} />
+        <PanelCard key={sidePanelKey(shown)} windowId={windowId} panel={shown} focusOnLoad={focusOnLoad} />
         <View
           {...responder.panHandlers}
           onDoubleClick={() => updateSettings({ extensionSidePanelWidth: 360 })}
@@ -94,7 +95,7 @@ export function ExtensionSidePanel() {
   );
 }
 
-function PanelCard({ windowId, panel, focusOnLoad }: { windowId: string; panel: SidePanel; focusOnLoad: MutableRefObject<boolean> }) {
+function PanelCard({ windowId, panel, focusOnLoad }: { windowId: string; panel: SidePanel; focusOnLoad: MutableRefObject<string | null> }) {
   const { extensionId, profile, pageProfile, url } = panel;
   const theme = useTheme();
   const web = useRef<WebViewHandle>(null);
@@ -130,8 +131,8 @@ function PanelCard({ windowId, panel, focusOnLoad }: { windowId: string; panel: 
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onNavigationChange={({ isLoading }) => {
-            if (isLoading || !focusOnLoad.current) return;
-            focusOnLoad.current = false;
+            if (isLoading || focusOnLoad.current !== sidePanelKey(panel)) return;
+            focusOnLoad.current = null;
             void web.current?.focus();
           }}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
