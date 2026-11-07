@@ -9,6 +9,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/find_in_page/find_notification_details.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -41,6 +42,7 @@ TabBridge::TabBridge(content::WebContents* contents)
   content::g_ardia_opacity_from_default_color = true;
   tab_ = [[ArdiaCoreTab alloc] initWithContents:contents];
   PageChannel::GetOrCreate(contents);
+  ObserveRecentlyAudible();
 }
 
 TabBridge::~TabBridge() = default;
@@ -328,7 +330,22 @@ void TabBridge::BlockedUrlAdded(int32_t popup_id, const GURL& url) {
                      weak_factory_.GetWeakPtr(), popup_id, popup));
 }
 
+void TabBridge::ObserveRecentlyAudible() {
+  if (recently_audible_) {
+    return;
+  }
+  if (auto* recently = RecentlyAudibleHelper::FromWebContents(web_contents())) {
+    recently_audible_ = recently->RegisterRecentlyAudibleChangedCallback(
+        base::BindRepeating(&TabBridge::RecentlyAudibleChanged, weak_factory_.GetWeakPtr()));
+  }
+}
+
 void TabBridge::OnAudioStateChanged(bool audible) {
+  ObserveRecentlyAudible();
+  [tab_ notify:@selector(tabDidChangeAudio:)];
+}
+
+void TabBridge::RecentlyAudibleChanged(bool recently_audible) {
   [tab_ notify:@selector(tabDidChangeAudio:)];
 }
 
