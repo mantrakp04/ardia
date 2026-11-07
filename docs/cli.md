@@ -226,7 +226,7 @@ fails; and only then is interception turned off. Each of its CDP calls is bounde
 late handover), instead of one deadline that could cut a release short and leave it running. Interception
 belongs to the CDP session, so it also ends when the session disconnects. If the token policy refuses
 `Input.setInterceptDrags`, the command fails before any input with the gated message (`policy_refused`), and it does
-today: HTML5 drag works against a `--port` test server, not yet on the token path (see Gated by the token policy). It reports
+today: HTML5 drag works against a `--port` test server, and on the token path only in a test instance launched with `--test cliDragInterception` (see Gated by the token policy). It reports
 what happened: `✓ Done (HTML5 drag and drop)`, `the target didn't accept the drop` (the page cancelled no `dragover`, so
 no `drop` event arrived) or `the page didn't start an HTML5 drag, so it was a plain mouse drag` (its `dragstart` was
 cancelled); `--json` has `html5`, `started` and `dropped`. It confirms delivery like other input (a `mousedown`, then a
@@ -450,7 +450,7 @@ implemented and works against a plain `--port` test server, so allowing the meth
 | `trace start\|stop`, `profiler start\|stop` | `Tracing.start`, `Tracing.end` |
 | `record start\|stop\|restart` | `Page.startScreencast` (and ffmpeg on PATH for the WebM) |
 | `stream enable` | `Page.startScreencast` |
-| `drag` of an HTML5 draggable | `Input.setInterceptDrags`, `Input.dispatchDragEvent`: refused on the token path until the engine can tell which input started a drag (a held or dropped CDP press let one session take another's drag); works on `--port` test servers |
+| `drag` of an HTML5 draggable | `Input.setInterceptDrags`, `Input.dispatchDragEvent`: refused on the token path until the engine's drag gate, which hands a drag only to the session whose own press and move started it, is reviewed; a test instance with `--test cliDragInterception` allows them; works on `--port` test servers |
 
 On the token path Ardia also strips `Cookie`, `Set-Cookie` and `Authorization` from network events, so
 `network requests` and HAR files never contain them.

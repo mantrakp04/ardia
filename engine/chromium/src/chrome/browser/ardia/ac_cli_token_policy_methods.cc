@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include "ardia/core/ac_launch_switches.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
@@ -13,6 +14,13 @@ namespace ardia {
 namespace cli_token_policy_internal {
 
 namespace {
+
+constexpr char kDragInterceptionTestKey[] = "cliDragInterception";
+
+bool IsDragInterceptionMethod(std::string_view method) {
+  return method == "Input.setInterceptDrags" ||
+         method == "Input.dispatchDragEvent";
+}
 
 const std::set<std::string>& AllowedEditingCommands() {
   static const base::NoDestructor<std::set<std::string>> commands({
@@ -138,6 +146,12 @@ const std::set<std::string_view>& AllowedMethods() {
       "Target.setDiscoverTargets",
   });
   return *methods;
+}
+
+bool MethodAllowed(std::string_view method) {
+  return AllowedMethods().contains(method) ||
+         (IsDragInterceptionMethod(method) &&
+          ardiacore::TestFlag(kDragInterceptionTestKey));
 }
 
 bool NeedsResponse(const std::string& method, const base::DictValue& params) {
