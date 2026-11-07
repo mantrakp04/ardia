@@ -3344,6 +3344,13 @@ try {
         return e?.payload.playing && e.payload.muted ? e : null;
       }, 8000);
       await until("live.playingAudio", async () => (await live(first.id))?.playingAudio === true, 5000);
+      const stops = async () => (await eventsOf(first.id)).filter((x) => x.name === "media" && !x.payload?.playing).length;
+      const stopsBeforeBlip = await stops();
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
+      await new Promise((r) => setTimeout(r, 700));
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').play(); true", userGesture: true });
+      await new Promise((r) => setTimeout(r, 500));
+      if ((await stops()) !== stopsBeforeBlip) throw new Error("a 0.7 s pause reported the tab as silent");
       const pausedAt = Date.now();
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       const off = await until("onMedia stopped", async () => {
@@ -3351,6 +3358,7 @@ try {
         return e && !e.payload.playing ? e : null;
       }, 8000);
       const stoppedAfterMs = Date.now() - pausedAt;
+      if (stoppedAfterMs < 1500) throw new Error(`the speaker went off ${stoppedAfterMs} ms after the sound stopped, not after Chrome's 2 s hold`);
       await until("live.playingAudio off", async () => (await live(first.id))?.playingAudio === false, 5000);
       await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`);
       const unmuted = await until("onMedia unmuted", async () => {

@@ -345,10 +345,11 @@ void TabBridge::OnRecentlyAudibleChanged(bool was_recently_audible) {
 }
 
 void TabBridge::OnAudioStateChanged(bool audible) {
-  EnsureAudibleObserved();
-  if (!audible_subscription_) {
-    [tab_ notify:@selector(tabDidChangeAudio:)];
+  if (audible_subscription_) {
+    return;
   }
+  EnsureAudibleObserved();
+  [tab_ notify:@selector(tabDidChangeAudio:)];
 }
 
 void TabBridge::DidUpdateAudioMutingState(bool muted) {
@@ -356,7 +357,7 @@ void TabBridge::DidUpdateAudioMutingState(bool muted) {
 }
 
 void TabBridge::WebContentsDestroyed() {
-  audible_subscription_.reset();
+  audible_subscription_ = {};
   if (popups_) {
     popups_->manager()->RemoveObserver(this);
     popups_ = nullptr;
