@@ -89,6 +89,11 @@ the tab is visible. Parked:
   each second it stays up;
 - sharing one compositor per window, as Chrome does, means rewriting how our tab views draw.
 
+The same per-view compositor blanked a page for about 60 ms on a same-site link click: the swap hides the old view
+before the new one takes its frame, which dropped the compositor and the frame with it. `chromium-keep-old-frame-on-swap.patch`
+keeps the hidden view's compositor and last frame until the new view's first frame (or 4 s), so the swap shows the old
+page until the new one draws.
+
 Shipped instead (2026-10-17): the link is woken on the user's intent. A native local monitor sees every left
 mouse-down and mouse-up in a window outside a page's rect (sidebar, toolbar, titlebar) and runs one no-op
 requestAnimationFrame in the shown page through page_script (`wakeFrames`), at most once per 100 ms per display.
