@@ -48,7 +48,7 @@
    delegated_frame_host_.reset();
    root_layer_.reset();
  
-@@ -95,9 +100,16 @@ bool BrowserCompositorMac::ForceNewSurfaceId() {
+@@ -95,9 +100,17 @@ bool BrowserCompositorMac::ForceNewSurfaceId() {
  }
  
  const gfx::CALayerParams* BrowserCompositorMac::GetLastCALayerParams() const {
@@ -65,10 +65,11 @@
 +void BrowserCompositorMac::ReleaseRetiredCompositor() {
 +  retired_compositor_timer_.Stop();
 +  retired_compositor_.reset();
++  retired_ca_layer_params_ = gfx::CALayerParams();
  }
  
  viz::FrameSinkId BrowserCompositorMac::GetRootFrameSinkId() {
-@@ -249,9 +261,25 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+@@ -249,9 +262,25 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
      root_layer_->parent()->Remove(root_layer_.get());
    }
    if (state_ == HasOwnCompositor) {
@@ -95,13 +96,12 @@
    }
  
    // The compositor is now detached. If this is the target state, we're done.
-@@ -309,6 +337,15 @@ void BrowserCompositorMac::TakeFallbackContentFrom(
+@@ -309,6 +338,14 @@ void BrowserCompositorMac::TakeFallbackContentFrom(
      BrowserCompositorMac* other) {
    delegated_frame_host_->TakeFallbackContentFrom(
        other->delegated_frame_host_.get());
 +  if (other->retired_compositor_) {
-+    retired_ca_layer_params_ =
-+        other->retired_ca_layer_params_.CloneWithoutFence();
++    retired_ca_layer_params_ = std::move(other->retired_ca_layer_params_);
 +    retired_compositor_ = std::move(other->retired_compositor_);
 +    other->retired_compositor_timer_.Stop();
 +    retired_compositor_timer_.Start(

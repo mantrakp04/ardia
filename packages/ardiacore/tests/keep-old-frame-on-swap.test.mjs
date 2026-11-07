@@ -51,6 +51,13 @@ test("a view that hides with a frame on screen keeps its compositor and last fra
   assert.match(compositor, /retired_compositor_ = std::move\(other->retired_compositor_\)/);
 });
 
+test("the last frame's parameters move to the new view and are cleared with the compositor, so no IOSurface send right outlives it", () => {
+  const compositor = added(compositorFile);
+  assert.match(compositor, /retired_ca_layer_params_ = std::move\(other->retired_ca_layer_params_\);/);
+  assert.doesNotMatch(compositor, /other->retired_ca_layer_params_\.CloneWithoutFence/);
+  assert.match(compositor, /void BrowserCompositorMac::ReleaseRetiredCompositor\(\) \{[^}]*retired_ca_layer_params_ = gfx::CALayerParams\(\);/);
+});
+
 test("the retired compositor is released once the new view has drawn its first frame", () => {
   const patch = patchText().split("\n");
   const update = patch.indexOf("   ns_view_->SetCALayerParams(std::move(ca_layer_params));");
@@ -66,12 +73,12 @@ test("a retired compositor is released after its lifetime, when the view hides a
   assert.match(compositor, /kRetiredCompositorLifetime = base::Seconds\(4\);/);
   assert.match(compositor, /retired_compositor_timer_\.Start\(\n\s+FROM_HERE, kUnclaimedRetiredCompositorLifetime, this,\n\s+&BrowserCompositorMac::ReleaseRetiredCompositor\);/);
   assert.match(compositor, /retired_compositor_timer_\.Start\(\n\s+FROM_HERE, kRetiredCompositorLifetime, this,\n\s+&BrowserCompositorMac::ReleaseRetiredCompositor\);/);
-  assert.match(compositor, /void BrowserCompositorMac::ReleaseRetiredCompositor\(\) \{\n {2}retired_compositor_timer_\.Stop\(\);\n {2}retired_compositor_\.reset\(\);/);
+  assert.match(compositor, /void BrowserCompositorMac::ReleaseRetiredCompositor\(\) \{\n {2}retired_compositor_timer_\.Stop\(\);\n {2}retired_compositor_\.reset\(\);\n {2}retired_ca_layer_params_ = gfx::CALayerParams\(\);/);
   assert.ok(patch.includes("   TransitionToState(HasNoCompositor);\n+  ReleaseRetiredCompositor();\n"));
   assert.ok(patch.includes("   if (state_ == HasOwnCompositor) {\n+    ReleaseRetiredCompositor();\n"));
 });
 
-test("a compositor retired by a hide is released at once unless the new view takes it over, which gives it the full lifetime", () => {
+test("a compositor retired by a hide is released after 100 ms unless the new view takes it over, which gives it 4 s", () => {
   const compositor = added(compositorFile);
   const retire = compositor.indexOf("retired_compositor_ = std::move(recyclable_compositor_)");
   const retireStart = compositor.indexOf("retired_compositor_timer_.Start(", retire);
@@ -144,12 +151,63 @@ test("the hunk check fails on an @@ line that is not a hunk header", () => {
   assert.notDeepEqual(hunkProblems(malformed).problems, []);
 });
 
-test("the patch adds no comments", () => {
-  for (const [file, lines] of addedLinesByFile(patchText())) {
-    for (const line of lines) {
-      assert.doesNotMatch(line, /^\s*(\/\/|\/\*|\*)/, `${file}: ${line}`);
+const scanLine = (text, inBlock) => {
+  let comment = inBlock && text.trim() !== "";
+  let block = inBlock;
+  let quote = null;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (block) {
+      if (char === "*" && next === "/") {
+        block = false;
+        index += 1;
+      }
+    } else if (quote) {
+      if (char === "\\") index += 1;
+      else if (char === quote) quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "/" && next === "/") {
+      return { comment: true, block: false };
+    } else if (char === "/" && next === "*") {
+      comment = true;
+      block = true;
+      index += 1;
     }
   }
+  return { comment, block };
+};
+
+const commentedAddedLines = (patch) => {
+  const found = [];
+  let file = "";
+  let inBlock = false;
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ b/")) {
+      file = line.slice("+++ b/".length);
+      inBlock = false;
+    } else if (line.startsWith("@@")) {
+      inBlock = false;
+    } else if (line.startsWith("+") || line.startsWith(" ")) {
+      const scanned = scanLine(line.slice(1), inBlock);
+      inBlock = scanned.block;
+      if (line.startsWith("+") && scanned.comment) found.push(`${file}: ${line.slice(1)}`);
+    }
+  }
+  return found;
+};
+
+test("the patch adds no comments", () => {
+  assert.deepEqual(commentedAddedLines(patchText()), []);
+});
+
+test("the comment check flags a trailing comment and a line inside a block comment, and passes code that only looks like one", () => {
+  const patchOf = (...body) => ["--- a/f", "+++ b/f", "@@ -1 +1 @@", ...body, ""].join("\n");
+  assert.equal(commentedAddedLines(patchOf("+  call();  // why")).length, 1);
+  assert.equal(commentedAddedLines(patchOf("+  call();  /* why */")).length, 1);
+  assert.equal(commentedAddedLines(patchOf(" /* upstream", "+ * added inside it", " */")).length, 1);
+  assert.deepEqual(commentedAddedLines(patchOf("+  value = *pointer;", '+  open("http://host/path");', "+  const char slash = '/';", "+      * scale;")), []);
 });
 
 test("the patch is listed in the engine build doc", () => {

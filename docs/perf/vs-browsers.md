@@ -113,8 +113,10 @@ so keys don't wake. xbench's CDP-driven switch doesn't click, so its row doesn't
 reported blank: a contributor saw a tab show only its background colour for about 60 ms after a same-site link click
 (that figure is their observation; this file has no measurement of it). The swap hides the old view before the new one
 takes its frame, and the hide dropped the old view's compositor and the frame with it. `chromium-keep-old-frame-on-swap.patch`
-is meant to keep that compositor and its last frame until the new view's first frame (or 4 s), so the old page stays on
-screen until the new one draws. It was written without a macOS build and has not been run on a device: the blank-free
+is meant to keep that compositor and its last frame until the new view's first frame, so the old page stays on screen
+until the new one draws. A hidden view's compositor that no new view takes over (a tab switch) is released after 100 ms;
+one the new view takes over is released at its first frame, or after 4 s if no frame comes, and a view that hides again or
+is destroyed releases it at once. It was written without a macOS build and has not been run on a device: the blank-free
 swap still needs a link click in a main window, recorded.
 
 **New tab (+26 ms).** In Chrome, `Target.createTarget` adds a tab that is already in its window. In Ardia the
