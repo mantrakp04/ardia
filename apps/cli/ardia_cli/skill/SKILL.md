@@ -54,6 +54,21 @@ EOF
 - Exit 0 done, 1 the command failed (read the message), 2 Ardia isn't reachable. On 2, tell the user to open Ardia
   and turn on Settings › "Let the ardia command control Ardia".
 
+## When something doesn't add up
+
+A command, flag or output that doesn't match this skill usually means the skill is older than the `ardia` installed.
+Refresh it from the installed CLI into the same place you read it from, then read `SKILL.md` again:
+
+```sh
+ardia --version
+ardia skills install --target claude-code
+ardia skills install --target codex --project
+```
+
+`--target` is `general`, `codex`, `claude-code`, `cursor` or `opencode`; add `--project` when the skill lives in
+the project (`./.claude/skills/ardia`, `./.agents/skills/ardia`, ...). If `ardia` itself is behind, Ardia updates it
+after its own update; ask the user to update Ardia.
+
 ## Etiquette
 
 It's the user's browser, signed in to their accounts.
