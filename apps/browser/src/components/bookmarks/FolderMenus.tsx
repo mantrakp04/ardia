@@ -77,6 +77,7 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
   const showUntitledUrls = useSettings((s) => s.showUntitledBookmarkUrls);
   const shown = useEased(!!drag);
   if (!drag || !node) return null;
+  const title = node.title || (node.kind === "url" && showUntitledUrls ? node.url : "");
   const toSidebar = node.kind === "folder" && overSidebar(drag.edge, drag.x);
   return (
     <Animated.View
@@ -91,11 +92,9 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
       }}
     >
       <Panel fill={theme.panel} radius={size.radius} border={toSidebar ? theme.accent : theme.popoverBorder} borderWidth={toSidebar ? bookmarksBar.dropRing : undefined} shadow={shadow.popover} style={StyleSheet.absoluteFill}>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: size.titleGap, paddingHorizontal: size.padding }}>
+        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: size.titleGap, paddingHorizontal: title ? size.padding : 0, justifyContent: title ? undefined : "center" }}>
           <ChipIcon size={size} favicon={node.kind === "url" ? node : undefined} icon={node.kind === "folder" ? "folder" : undefined} />
-          <Text lines={1} size={size.text} style={GHOST_TITLE}>
-            {node.title || (node.kind === "url" && showUntitledUrls ? node.url : "")}
-          </Text>
+          {!!title && <Text lines={1} size={size.text} style={GHOST_TITLE}>{title}</Text>}
         </View>
       </Panel>
     </Animated.View>

@@ -48,7 +48,7 @@ function render(element) {
   if (element == null || typeof element !== "object") return element;
   if (Array.isArray(element)) return element.flatMap((child) => render(child) ?? []);
   if (typeof element.type !== "string") {
-    const component = typeof element.type === "function" ? element.type : element.type.render;
+    const component = typeof element.type === "function" ? element.type : (element.type.render ?? element.type.type);
     const instance = mount(() => component(element.props, null));
     try {
       return render(instance.value);
