@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Calendar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --line:#e4e4e7; --muted:#71717a; --accent:#ef4444; --bg:#fff; --side:#f7f7f8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color:#18181b; background:var(--bg); height:100vh; display:flex; }
+  aside { width:200px; background:var(--side); border-right:1px solid var(--line); padding:14px; }
+  aside h2 { font-size:11px; color:var(--muted); text-transform:uppercase; margin:16px 0 6px; }
+  aside label { display:flex; gap:8px; align-items:center; padding:3px 0; }
+  .dot { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:22px; margin:0 auto 0 8px; font-weight:600; }
+  button { font:inherit; border:1px solid var(--line); background:#fff; border-radius:6px; padding:4px 10px; cursor:pointer; }
+  button.primary { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .grid { flex:1; overflow:auto; display:grid; grid-template-columns:56px repeat(7, 1fr); position:relative; }
+  .dayhead { position:sticky; top:0; background:#fff; z-index:2; border-bottom:1px solid var(--line); padding:6px; text-align:center; font-weight:500; }
+  .dayhead.today { color:var(--accent); }
+  .hour { height:44px; border-bottom:1px solid var(--line); font-size:10px; color:var(--muted); text-align:right; padding-right:6px; }
+  .cell { height:44px; border-bottom:1px solid var(--line); border-left:1px solid var(--line); position:relative; }
+  .ev { position:absolute; left:2px; right:2px; border-radius:4px; padding:2px 4px; font-size:11px; overflow:hidden; color:#fff; z-index:1; }
+  dialog { border:1px solid var(--line); border-radius:10px; padding:16px; width:320px; box-shadow:0 10px 30px rgba(0,0,0,.15); }
+  dialog label { display:block; margin:8px 0 2px; color:var(--muted); font-size:11px; }
+  dialog input, dialog select { width:100%; font:inherit; padding:5px; border:1px solid var(--line); border-radius:6px; }
+  .row { display:flex; gap:8px; } .row > div { flex:1; }
+  .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+  .err { color:var(--accent); font-size:11px; min-height:14px; margin-top:6px; }
+</style>
+</head>
+<body>
+<aside>
+  <h2>Calendars</h2>
+  <div id="cals"></div>
+</aside>
+<main>
+  <header>
+    <button id="prev" aria-label="Previous week">‹</button>
+    <button id="today">Today</button>
+    <button id="next" aria-label="Next week">›</button>
+    <h1 id="title"></h1>
+    <button id="add" class="primary" aria-label="New Event">+ New Event</button>
+  </header>
+  <div class="grid" id="grid"></div>
+</main>
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <strong>New Event</strong>
+    <label for="f-title">Title</label>
+    <input id="f-title" name="title" required>
+    <label for="f-cal">Calendar</label>
+    <select id="f-cal" name="calendar"></select>
+    <label for="f-date">Date</label>
+    <input id="f-date" name="date" type="date" required>
+    <div class="row">
+      <div><label for="f-start">Starts</label><input id="f-start" name="start" type="time" step="900" required></div>
+      <div><label for="f-end">Ends</label><input id="f-end" name="end" type="time" step="900" required></div>
+    </div>
+    <div class="err" id="err"></div>
+    <div class="actions">
+      <button type="button" id="cancel">Cancel</button>
+      <button type="submit" class="primary" id="save">Add Event</button>
+    </div>
+  </form>
+</dialog>
+<script>
+const CALENDARS = [
+  { id: "home", name: "Home", color: "#3b82f6" },
+  { id: "work", name: "Work", color: "#22c55e" },
+  { id: "board", name: "Board", color: "#a855f7" },
+  { id: "family", name: "Family", color: "#f59e0b" },
+];
+const TODAY = new Date(2026, 10, 6);
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+let weekStart = startOfWeek(TODAY);
+let events = [];
+
+function startOfWeek(d) { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); s.setHours(0,0,0,0); return s; }
+function iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function minutes(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function label(h) { return h === 0 ? "" : h === 12 ? "Noon" : h < 12 ? `${h} AM` : `${h - 12} PM`; }
+
+function renderCalendars() {
+  const box = document.getElementById("cals");
+  box.innerHTML = CALENDARS.map(c => `<label><input type="checkbox" checked disabled><span class="dot" style="background:${c.color}"></span>${c.name}</label>`).join("");
+  document.getElementById("f-cal").innerHTML = CALENDARS.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+}
+
+function render() {
+  const end = new Date(weekStart); end.setDate(end.getDate() + 6);
+  document.getElementById("title").textContent = `${MONTHS[weekStart.getMonth()]} ${weekStart.getFullYear()}`;
+  const grid = document.getElementById("grid");
+  let html = `<div class="dayhead"></div>`;
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart); d.setDate(d.getDate() + i); days.push(iso(d));
+    html += `<div class="dayhead ${iso(d) === iso(TODAY) ? "today" : ""}">${DAYS[i]} ${d.getDate()}</div>`;
+  }
+  for (let h = 0; h < 24; h++) {
+    html += `<div class="hour">${label(h)}</div>`;
+    for (let i = 0; i < 7; i++) html += `<div class="cell" data-date="${days[i]}" data-hour="${h}"></div>`;
+  }
+  grid.innerHTML = html;
+  for (const e of events) {
+    const col = days.indexOf(e.date);
+    if (col < 0) continue;
+    const startMin = minutes(e.start), endMin = minutes(e.end);
+    const cell = grid.querySelector(`.cell[data-date="${e.date}"][data-hour="${Math.floor(startMin / 60)}"]`);
+    const cal = CALENDARS.find(c => c.id === e.calendar);
+    const div = document.createElement("div");
+    div.className = "ev";
+    div.style.top = `${(startMin % 60) / 60 * 44}px`;
+    div.style.height = `${Math.max(16, (endMin - startMin) / 60 * 44 - 2)}px`;
+    div.style.background = cal ? cal.color : "#666";
+    div.textContent = `${e.title} · ${e.start}`;
+    cell.appendChild(div);
+  }
+  grid.scrollTop = 8 * 44;
+}
+
+async function load() { events = await (await fetch("/api/events")).json(); render(); }
+
+document.getElementById("prev").onclick = () => { weekStart.setDate(weekStart.getDate() - 7); render(); };
+document.getElementById("next").onclick = () => { weekStart.setDate(weekStart.getDate() + 7); render(); };
+document.getElementById("today").onclick = () => { weekStart = startOfWeek(TODAY); render(); };
+const dlg = document.getElementById("dlg");
+document.getElementById("add").onclick = () => {
+  document.getElementById("form").reset();
+  document.getElementById("f-cal").value = "home";
+  document.getElementById("f-date").value = iso(TODAY);
+  document.getElementById("err").textContent = "";
+  dlg.showModal();
+  document.getElementById("f-title").focus();
+};
+document.getElementById("cancel").onclick = () => dlg.close();
+document.getElementById("form").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  const e = Object.fromEntries(f.entries());
+  if (minutes(e.end) <= minutes(e.start)) { document.getElementById("err").textContent = "End time must be after the start time."; return; }
+  const res = await fetch("/api/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(e) });
+  if (!res.ok) { document.getElementById("err").textContent = "Couldn't save the event."; return; }
+  dlg.close();
+  await load();
+});
+
+renderCalendars();
+load();
+</script>
+</body>
+</html>

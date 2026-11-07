@@ -21,11 +21,10 @@ Repetitive work is one call: put the commands on stdin.
 ardia browse batch --bail <<'EOF'
 # lines are commands as you'd type them after `ardia browse`; # lines are skipped
 click @e10
-fill #title "Board prep"
-select #calendar board
-fill #date 2026-11-11
-fill #start 09:00
-fill #end 10:30
+fill #name "Ana Ruiz"
+select #group clients
+fill #email "ana@example.com"
+fill #phone "+1 555 0100"
 click #save
 EOF
 ```
@@ -46,7 +45,7 @@ another snapshot. `eval --stdin` runs JavaScript in the page when the page itsel
   `open <url> --show`; `AGENT_BROWSER_SHOW_TAB=1` for every tab). `--show` switches Ardia's window to the tab.
   Snapshots, `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in
   the background either way.
-- **`drag` does HTML5 drag and drop.** From a `draggable` source (sortable lists, kanban cards, links) it uses drag
+- **`drag` does HTML5 drag and drop.** From a `draggable` source (sortable lists, links, images) it uses drag
   interception: the page gets `dragstart`, `dragenter`/`dragover` and `drop` with its own `dataTransfer`, and no
   macOS drag session starts. The answer says `HTML5 drag and drop`, `the target didn't accept the drop`, or `plain
   mouse drag` when the page cancelled `dragstart`; `--json` has `started` and `dropped`. A reordered list often

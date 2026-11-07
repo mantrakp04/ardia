@@ -1,0 +1,47 @@
+[
+  {"section": "Get started", "items": [
+    {"slug": "overview", "title": "Introduction", "updated": "2025-11-03"},
+    {"slug": "quickstart", "title": "Quickstart", "updated": "2025-11-03"},
+    {"slug": "authentication", "title": "Authentication", "updated": "2025-06-17"},
+    {"group": "Core concepts", "items": [
+      {"slug": "concepts/streams", "title": "Streams", "updated": "2025-04-09"},
+      {"slug": "concepts/consumer-groups", "title": "Consumer groups and offsets", "updated": "2025-04-09"}
+    ]}
+  ]},
+  {"section": "Guides", "items": [
+    {"slug": "guides/publishing", "title": "Publishing events", "updated": "2025-04-09"},
+    {"slug": "guides/consuming", "title": "Consuming events", "updated": "2025-04-09"},
+    {"group": "Webhooks", "items": [
+      {"slug": "webhooks/overview", "title": "Webhooks", "updated": "2025-08-21"},
+      {"slug": "webhooks/signatures", "title": "Webhook signatures", "updated": "2025-08-21"}
+    ]}
+  ]},
+  {"section": "Platform", "items": [
+    {"slug": "platform/plans", "title": "Plans", "updated": "2025-09-30"},
+    {"slug": "platform/rate-limits", "title": "Rate limits", "updated": "2025-09-30"},
+    {"slug": "platform/quotas", "title": "Limits", "updated": "2025-08-21"},
+    {"slug": "platform/audit-logs", "title": "Audit logs", "updated": "2025-10-14"}
+  ]},
+  {"section": "API reference", "items": [
+    {"slug": "reference/overview", "title": "API overview", "updated": "2025-11-03"},
+    {"group": "Streams", "items": [
+      {"slug": "reference/list-streams", "title": "List streams", "updated": "2025-04-09"},
+      {"slug": "reference/create-stream", "title": "Create a stream", "updated": "2025-04-09"}
+    ]},
+    {"group": "Events", "items": [
+      {"slug": "reference/publish-event", "title": "Publish an event", "updated": "2025-04-09"},
+      {"slug": "reference/read-events", "title": "Read events", "updated": "2025-04-09"}
+    ]},
+    {"group": "Offsets", "items": [
+      {"slug": "reference/get-offsets", "title": "Get consumer offsets", "updated": "2026-10-28"},
+      {"slug": "reference/commit-offsets", "title": "Commit consumer offsets", "updated": "2026-10-28"}
+    ]},
+    {"group": "Webhooks", "items": [
+      {"slug": "reference/create-webhook", "title": "Create a webhook", "updated": "2025-08-21"}
+    ]}
+  ]},
+  {"section": "Resources", "items": [
+    {"slug": "resources/changelog", "title": "v2 changelog", "updated": "2026-10-28"},
+    {"slug": "resources/support", "title": "Support", "updated": "2025-09-30"}
+  ]}
+]

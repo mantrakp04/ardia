@@ -15,12 +15,12 @@ ardia browse snapshot -i
 ```
 
 A session with no tab uses the tab the user is looking at. `snapshot -i` lists what you can act on, with refs:
-`textbox "Title" [ref=e11]`, `combobox "Calendar" [ref=e12]: Home`, `button "Add Event" [ref=e30]`. Read pages
+`textbox "Name" [ref=e11]`, `combobox "Group" [ref=e12]: Personal`, `button "Save contact" [ref=e30]`. Read pages
 this way, not with `innerHTML`, page scripts or `get html`. If the snapshot starts with `# notes for <site>`, that's
 Ardia's memory of the site (see Memory below): read it before you plan.
 
 Every action prints what it changed: new nodes with refs you can use at once (a dialog that opened, with its
-fields), changed values, the URL, and the requests it caused (`POST …/api/events → 200`). So:
+fields), changed values, the URL, and the requests it caused (`POST …/api/contacts → 201`). So:
 
 - One snapshot, then act. Don't snapshot again after an action; its `changes:` already shows the new state.
 - Do repetitive work in a single `batch` on stdin, never one command per step:
@@ -28,13 +28,18 @@ fields), changed values, the URL, and the requests it caused (`POST …/api/even
 ```sh
 ardia browse batch --bail <<'EOF'
 click @e10
-fill @e11 "Board prep"
-select @e12 board
-fill @e13 2026-11-11
-fill @e14 09:00
-fill @e15 10:30
+fill @e11 "Ana Ruiz"
+select @e12 clients
+fill @e13 "ana@example.com"
+fill @e14 "+1 555 0100"
 click @e30
-notes append "New Event dialog: Title, Calendar (defaults to Home), Date, Starts, Ends; Add Event saves"
+click @e10
+fill @e11 "Tom Becker"
+select @e12 clients
+fill @e13 "tom@example.com"
+fill @e14 "+1 555 0101"
+click @e30
+notes append "Add contact dialog: Name, Group (defaults to Personal), Email, Phone; Save contact saves"
 EOF
 ```
 
@@ -57,9 +62,9 @@ the current site's page first. Keep it like a teammate's cheat sheet for that si
   fact, or `notes set "…"` to rewrite the page when it's stale or past about 800 characters (snapshot shows the
   first 1,000).
 - **Write what saves the next run a step:** how to do the common tasks there by control names and labels (refs
-  change between sessions), field formats and defaults that need changing (`Calendar defaults to Home`), pitfalls
-  that cost you a retry, and preferences the user stated (`work events go on Board`).
-- **Never write:** passwords, tokens, codes, personal data, or the task's own content (the events, messages or
+  change between sessions), field formats and defaults that need changing (`Group defaults to Personal`), pitfalls
+  that cost you a retry, and preferences the user stated (`clients go in the Clients group`).
+- **Never write:** passwords, tokens, codes, personal data, or the task's own content (the contacts, messages or
   values you entered).
 - `ardia notes list` shows every site with notes; `ardia notes get <site>` reads one without opening it.
 

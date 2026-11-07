@@ -11,7 +11,7 @@ import {
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText, systemInfo } from "../../../state/app/system";
 import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { currentEngineProfile } from "../../../state/browser/current";
@@ -56,7 +56,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     try {
       const result = await importPasswordsCsv(profile);
       if (result === "cancelled") return;
-      setImportStatus(`Imported ${plural(result.saved, "password")}.`);
+      const skipped = result.skipped ? ` ${plural(result.skipped, "login")} couldn't be saved.` : "";
+      setImportStatus(`Imported ${plural(result.saved, "password")}.${skipped}`);
       load();
     } catch (e) {
       setImportStatus(`Couldn't import that file: ${(e as Error).message}`);
@@ -146,7 +147,16 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [password, setPassword] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = useRef(true);
   const unlocked = usePasswordsUnlocked(profile);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
     if (unlocked) return;
@@ -155,21 +165,27 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   }, [unlocked]);
 
   const save = async () => {
-    await updatePassword(profile, saved.origin, saved.username, {
+    setError("");
+    setBusy(true);
+    const changed = await updatePassword(profile, saved.origin, saved.username, {
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
-    onChanged();
+    if (changed) onChanged();
+    if (!open.current) return;
+    setBusy(false);
+    if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
     closeSettingsSheet();
   };
   const remove = async () => {
+    setBusy(true);
     const { confirmed } = await confirm({
       title: `Delete the password for ${hostLabel(saved.origin)}?`,
       message: "You won't be able to sign in with it automatically any more.",
       confirmTitle: "Delete",
       destructive: true,
     });
-    if (!confirmed) return;
+    if (!confirmed) return setBusy(false);
     await deletePassword(profile, saved.origin, saved.username).catch(orWarn(false));
     onChanged();
     closeSettingsSheet();
@@ -207,12 +223,24 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
             )}
           </Row>
         </Group>
+        {error ? (
+          <Text size="caption" tone="destructive" style={ERROR}>
+            {error}
+          </Text>
+        ) : null}
       </View>
-      <DialogActions leading={<Button title="Delete" kind="destructive" onPress={() => void remove()} />}>
+      <DialogActions leading={<Button title="Delete" kind="destructive" disabled={busy} onPress={() => void remove()} />}>
         {editing ? (
           <>
-            <Button title="Cancel" onPress={() => setEditing(false)} />
-            <Button title="Save" kind="primary" disabled={!password} onPress={() => void save()} />
+            <Button
+              title="Cancel"
+              disabled={busy}
+              onPress={() => {
+                setError("");
+                setEditing(false);
+              }}
+            />
+            <Button title="Save" kind="primary" disabled={!password || busy} onPress={() => void save()} />
           </>
         ) : (
           <>
@@ -228,5 +256,6 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
 const LOCKED = { alignItems: "center", marginTop: settingsLayout.emptyTop } as const;
 const LOCK_ICON = { width: 36, height: 36 } as const;
 const SHEET_BODY = { marginTop: space.xl } as const;
+const ERROR = { marginTop: space.ml } as const;
 const CENTER = { alignItems: "center" } as const;
 const MONO = { fontFamily: "Menlo" } as const;

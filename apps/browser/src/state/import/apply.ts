@@ -28,6 +28,7 @@ import { live } from "../live/store";
 import type { LiveSourceId } from "../live/types";
 import { isWebPageUrl, withoutFragment } from "../../lib/url";
 import { focusedWindowOf } from "../windows/ui";
+import { originOfLogin } from "../site/savedPasswords";
 import { IDLE } from "../tabs/pageSession";
 
 export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "../../platform/importModule";
@@ -100,7 +101,7 @@ export function importHistory(profileId: string, entries: { url: string; title: 
 async function importPasswords(profileId: string, credentials: Credential[]): Promise<number> {
   let saved = 0;
   for (const c of credentials) {
-    const origin = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(c.realm?.startsWith("http") ? c.realm : c.url)?.[1];
+    const origin = originOfLogin(c.realm?.startsWith("http") ? c.realm : c.url);
     if (!origin || !c.password) continue;
     if (await savePassword(engineProfile(useBrowser.getState(), profileId), origin, c.username, c.password).catch(orWarn(false))) saved++;
   }

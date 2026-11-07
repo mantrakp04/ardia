@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprint 46 · Sync 2.0 · Planboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">◧</span> Planboard</div>
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Northwind Labs</a><span aria-hidden="true">/</span><a href="#">Sync 2.0</a><span aria-hidden="true">/</span><span aria-current="page">Sprint 46</span></nav>
+  <div class="me"><span class="avatar" aria-hidden="true">JL</span> Jordan Lee</div>
+</header>
+<section class="board-head">
+  <div>
+    <h1>Sprint 46</h1>
+    <p class="muted">Nov 2 – Nov 13, 2026 · Mobile &amp; Sync team</p>
+  </div>
+  <div class="board-actions">
+    <div id="team" class="team" aria-label="Team"></div>
+    <span id="sync-state" class="sync-state muted" role="status" aria-live="polite"></span>
+    <button id="open-archive" class="btn" type="button">Archived</button>
+  </div>
+</section>
+<main id="board" class="board" aria-label="Sprint 46 board"><p class="loading">Loading board…</p></main>
+<p id="dnd-help" class="sr">Press Space to pick up the card, arrow keys to move it, Space to drop, Escape to cancel. Press Enter to open it.</p>
+<div id="live" class="sr" aria-live="assertive" aria-atomic="true"></div>
+
+<div id="menu" class="menu" role="menu" hidden></div>
+
+<dialog id="details" class="details" aria-labelledby="d-title">
+  <form method="dialog" class="d-form" id="d-form">
+    <div class="d-head">
+      <div>
+        <p class="d-ref muted" id="d-ref"></p>
+        <h2 id="d-title"></h2>
+      </div>
+      <button type="button" class="icon" id="d-close" aria-label="Close">✕</button>
+    </div>
+    <div class="d-grid">
+      <div class="d-main">
+        <label for="d-desc" class="label">Description</label>
+        <textarea id="d-desc" rows="5"></textarea>
+        <fieldset class="labels">
+          <legend class="label">Labels</legend>
+          <div id="d-labels" class="chips"></div>
+        </fieldset>
+      </div>
+      <div class="d-side">
+        <label for="d-column" class="label">Status</label>
+        <select id="d-column"></select>
+        <label for="d-assignee" class="label">Assignee</label>
+        <select id="d-assignee"></select>
+        <label for="d-due" class="label">Due date</label>
+        <div class="due-row">
+          <input id="d-due" type="date" min="2026-01-01" max="2027-12-31">
+          <button type="button" class="btn small" id="d-due-clear">Clear</button>
+        </div>
+        <p class="err" id="d-error" role="alert"></p>
+        <p class="muted d-saved" id="d-saved" role="status" aria-live="polite"></p>
+        <div class="d-danger">
+          <button type="button" class="btn" id="d-archive">Archive</button>
+          <button type="button" class="btn danger-outline" id="d-delete">Delete</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm" class="confirm" aria-labelledby="c-title" aria-describedby="c-body">
+  <h2 id="c-title"></h2>
+  <p id="c-body"></p>
+  <div class="c-actions">
+    <button type="button" class="btn" id="c-cancel">Cancel</button>
+    <button type="button" class="btn primary" id="c-ok"></button>
+  </div>
+</dialog>
+
+<dialog id="archive" class="archive" aria-labelledby="a-title">
+  <div class="d-head">
+    <h2 id="a-title">Archived cards</h2>
+    <button type="button" class="icon" id="a-close" aria-label="Close">✕</button>
+  </div>
+  <ul id="a-list" class="a-list"></ul>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

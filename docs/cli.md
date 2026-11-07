@@ -389,16 +389,15 @@ Filling a form five times is one call:
 ```sh
 ardia browse snapshot -i
 ardia browse batch --bail <<'EOF'
-# one event per block; @e10 is "New Event" from the snapshot
+# one contact per block; @e10 is "Add contact" from the snapshot
 click @e10
-fill #f-title "Pipeline review"
-select #f-cal board
-fill #f-date 2026-11-09
-fill #f-start 10:00
-fill #f-end 11:00
+fill #name "Ana Ruiz"
+select #group clients
+fill #email "ana@example.com"
+fill #phone "+1 555 0100"
 click #save
 click @e10
-fill #f-title "Design partner call"
+fill #name "Tom Becker"
 …
 EOF
 ```

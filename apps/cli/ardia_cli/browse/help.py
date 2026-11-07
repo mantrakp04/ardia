@@ -116,7 +116,7 @@ Examples:
   ardia browse fill @e7 2026-11-09
   ardia browse batch <<'EOF'
   click @e10
-  fill #title "Board prep"
+  fill #name "Ana Ruiz"
   click #save
   EOF
   ardia browse find role button click --name Submit
