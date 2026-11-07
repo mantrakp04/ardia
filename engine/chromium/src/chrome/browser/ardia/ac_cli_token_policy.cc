@@ -233,8 +233,12 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame) {
-  return !cli_token_policy_internal::Registry().contains(root_client) ||
+  return !IsTokenClient(root_client) ||
          cli_token_policy_internal::IsWebFrame(frame);
+}
+
+bool IsTokenClient(content::DevToolsAgentHostClient* root_client) {
+  return cli_token_policy_internal::Registry().contains(root_client);
 }
 
 }

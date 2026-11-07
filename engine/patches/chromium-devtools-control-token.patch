@@ -454,19 +454,24 @@ diff --git a/content/browser/devtools/devtools_http_handler.h b/content/browser/
 diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/browser/devtools/devtools_agent_host_impl.cc
 --- a/content/browser/devtools/devtools_agent_host_impl.cc
 +++ b/content/browser/devtools/devtools_agent_host_impl.cc
-@@ -45,6 +45,11 @@
- #include <fcntl.h>
+@@ -46,6 +46,16 @@
  #include <io.h>
  #endif
-+
+ 
 +#include "ardia/core/ac_content_hooks.h"  // nogncheck
 +
 +bool (*g_ardia_devtools_may_attach)(content::DevToolsAgentHostClient* root_client,
 +                                    content::DevToolsAgentHost* host) = nullptr;
- 
++void (*g_ardia_devtools_session_attached)(
++    content::DevToolsAgentHostClient* root_client,
++    content::DevToolsAgentHost* host,
++    const void* session) = nullptr;
++void (*g_ardia_devtools_session_detached)(const void* session) = nullptr;
++
  namespace content {
  
-@@ -277,6 +282,11 @@
+ namespace {
+@@ -277,6 +287,11 @@
    return DevToolsAgentHostImpl::GetForId(id);
  }
  
@@ -478,7 +483,7 @@ diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/brow
  // static
  scoped_refptr<DevToolsAgentHost> DevToolsAgentHost::Forward(
      const std::string& id,
-@@ -319,6 +329,11 @@
+@@ -319,6 +334,11 @@
        !manager->delegate()->AllowInspectingTarget(this)) {
      return false;
    }
@@ -490,10 +495,31 @@ diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/brow
    session->SetAgentHost(this);
    if (!AttachSession(session)) {
      return false;
+@@ -331,6 +351,10 @@
+     NotifyAttached();
+   if (manager->delegate())
+     manager->delegate()->ClientAttached(session);
++  if (g_ardia_devtools_session_attached) {
++    g_ardia_devtools_session_attached(session->GetRootSession()->GetClient(),
++                                      this, session);
++  }
+   return true;
+ }
+ 
+@@ -362,6 +386,9 @@
+   std::unique_ptr<DevToolsSession> session_owned =
+       std::move(session_by_client_[session->GetClient()]);
+   DCHECK_EQ(session, session_owned.get());
++  if (g_ardia_devtools_session_detached) {
++    g_ardia_devtools_session_detached(session);
++  }
+   // Make sure we dispose session prior to reporting it to the host.
+   session->Dispose();
+   std::erase(sessions_, session);
 diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browser/devtools/protocol/input_handler.cc
 --- a/content/browser/devtools/protocol/input_handler.cc
 +++ b/content/browser/devtools/protocol/input_handler.cc
-@@ -56,7 +56,40 @@
+@@ -56,7 +56,47 @@
  #include "ui/gfx/geometry/point_f.h"
  #include "ui/gfx/range/range.h"
  
@@ -530,11 +556,18 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  return found && allowed;
 +}
 +
++bool ArdiaRestrictedSession(DevToolsSession* session) {
++  return g_ardia_devtools_may_input &&
++         (!session ||
++          !g_ardia_devtools_may_input(session->GetRootSession()->GetClient(),
++                                      nullptr));
++}
++
 +}  // namespace
  
  namespace {
  
-@@ -1124,6 +1157,12 @@
+@@ -1124,6 +1164,12 @@
      return;
    }
    auto* host = RenderWidgetHostImpl::From(view->GetRenderWidgetHost());
@@ -547,19 +580,19 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    auto point = *maybe_point;
  
    host->DragTargetDrop(drag_state_->data, point, point, event->GetModifiers(),
-@@ -1265,6 +1304,11 @@
-         widget_host->delegate()->GetFocusedRenderWidgetHost(widget_host);
-     if (target_host)
+@@ -1267,6 +1313,11 @@
        widget_host = target_host;
-+  }
-+
+   }
+ 
 +  if (!ArdiaMayInject(session(), host_, widget_host)) {
 +    callback->sendFailure(Response::InvalidParams("Not allowed"));
 +    return;
-   }
- 
++  }
++
    // We do not pass events to browser if there is no native key event
-@@ -1294,6 +1338,11 @@
+   // due to Mac needing the actual os_event.
+   if (event.native_key_code && allow_sending_input_to_browser_)
+@@ -1294,6 +1345,11 @@
        widget_host = target_host;
    }
  
@@ -571,7 +604,28 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    base::OnceClosure closure =
        base::BindOnce(&InsertTextCallback::sendSuccess, std::move(callback));
  
-@@ -1643,6 +1692,10 @@
+@@ -1478,6 +1534,10 @@
+   auto point = *maybe_point;
+   RenderWidgetHostImpl* widget_host =
+       RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
++  if (!ArdiaMayInject(session(), host_, widget_host)) {
++    callback->sendFailure(Response::InvalidParams("Not allowed"));
++    return;
++  }
+   auto mask =
+       static_cast<blink::DragOperationsMask>(data->GetDragOperationsMask());
+   std::unique_ptr<DropData> drop_data =
+@@ -1591,6 +1651,9 @@
+   if (*intercepted) {
+     return;
+   }
++  if (ArdiaRestrictedSession(session()) && !drag_controller_.initial_state_) {
++    return;
++  }
+   *intercepted = true;
+ 
+   auto items =
+@@ -1641,6 +1704,10 @@
  
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -582,7 +636,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    if (event->GetType() == blink::WebInputEvent::Type::kMouseWheel) {
      EnsureInjector(widget_host)
          ->InjectWheelEvent(static_cast<blink::WebMouseWheelEvent*>(event.get()),
-@@ -1659,6 +1712,13 @@
+@@ -1657,6 +1724,13 @@
      std::optional<double> timestamp,
      std::unique_ptr<DispatchTouchEventCallback> callback) {
    if (base::FeatureList::IsEnabled(features::kSyntheticPointerActions)) {
@@ -596,7 +650,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      DispatchSyntheticPointerActionTouch(
          event_type, std::move(touch_points), std::move(modifiers),
          std::move(timestamp), std::move(callback));
-@@ -1744,6 +1804,10 @@
+@@ -1741,6 +1815,10 @@
    }
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
