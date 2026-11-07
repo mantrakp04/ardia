@@ -80,6 +80,24 @@ test("with sharing on, a window asks only about the tabs that close with it", as
   assert.equal(listed(a).length, 3);
 });
 
+test("a window already closing keeps no copies: the next close asks about the tabs only it still holds", async () => {
+  const { a, b } = twoWindows();
+  const gates = [];
+  const animateWindowClose = shellNativeModules.ArdiaAppWindows.animateWindowClose;
+  shellNativeModules.ArdiaAppWindows.animateWindowClose = () => new Promise((resolve) => gates.push(resolve));
+  try {
+    assert.deepEqual((await closeByUser(a)).map((d) => d.title), [], "A's tabs stay open in B");
+    assert.ok(S().windows[a], "A is still in the store while it animates");
+    const dialogs = await closeByUser(b);
+    assert.deepEqual(dialogs.map((d) => d.title), ["Close 3 tabs?"]);
+    assert.equal(dialogs[0].message, `This window has 3 tabs open in your ${personal()} profile.`);
+  } finally {
+    gates.splice(0).forEach((resolve) => resolve());
+    shellNativeModules.ArdiaAppWindows.animateWindowClose = animateWindowClose;
+  }
+  await tick();
+});
+
 test("closing a window's last tab still asks about the tabs of its window", async () => {
   S().hydrate({});
   const a = S().createWindow({ url: "https://a1.com" });

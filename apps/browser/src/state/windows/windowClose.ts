@@ -3,7 +3,7 @@ import { onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
 import { tabsClosedWithWindow } from "../tabs/tabShare";
-import { isSmall } from "./small";
+import { isOpenRegularWindow, isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
 
@@ -23,7 +23,7 @@ async function requestClose(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
-  const closing = tabsClosedWithWindow(s, windowId).map((t) => t.id);
+  const closing = tabsClosedWithWindow(s, windowId, isOpenRegularWindow).map((t) => t.id);
   if (s.settings.warnBeforeClosingWindow && closing.length >= MIN_TABS) {
     const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
     if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
