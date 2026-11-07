@@ -23,11 +23,15 @@ async function requestClose(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
-  const closing = tabsClosedWithWindow(s, windowId, isOpenRegularWindow).map((t) => t.id);
-  if (s.settings.warnBeforeClosingWindow && closing.length >= MIN_TABS) {
+  for (let asked = 0; ; ) {
+    const now = useBrowser.getState();
+    if (!now.windows[windowId]) return;
+    const closing = tabsClosedWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
+    if (!now.settings.warnBeforeClosingWindow || closing.length < MIN_TABS || closing.length <= asked) break;
     const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
     if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
     if (!confirmed) return;
+    asked = closing.length;
   }
   closeWindowAnimated(windowId);
 }

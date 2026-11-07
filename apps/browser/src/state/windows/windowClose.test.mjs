@@ -14,8 +14,10 @@ const personal = () => profileFor(S(), "default").name;
 
 const asked = [];
 let answer = true;
+let held = null;
 shellNativeModules.ArdiaDialogs.confirm = (options) => {
   asked.push(options);
+  if (held) return new Promise((resolve) => held.push(() => resolve({ confirmed: true, suppressed: false })));
   return Promise.resolve({ confirmed: answer, suppressed: false });
 };
 startWindowCloseGuard();
@@ -110,6 +112,37 @@ test("a window already closing keeps no copies: the next close asks about the ta
     shellNativeModules.ArdiaAppWindows.animateWindowClose = animateWindowClose;
   }
   await tick();
+});
+
+test("a window whose shared tabs lose their other window while its warning is up asks again before closing them", async () => {
+  const { a, b } = twoWindows();
+  const work = S().createProfile({ name: "Work" });
+  S().newTab(a, { url: "https://w1.com", profileId: work, background: true });
+  S().newTab(a, { url: "https://w2.com", profileId: work, background: true });
+  const answers = [];
+  held = answers;
+  try {
+    asked.length = 0;
+    windows.emit({ type: "closeRequest", id: a });
+    await tick();
+    assert.deepEqual(asked.map((d) => d.title), ["Close 2 tabs?"], "A asks about its two Work tabs");
+    held = null;
+    assert.deepEqual((await closeByUser(b)).map((d) => d.title), [], "B's tabs stay open in A, which is still on screen");
+    assert.equal(S().windows[b], undefined);
+    held = answers;
+    answers.shift()();
+    await tick();
+    await tick();
+    assert.deepEqual(asked.map((d) => d.title), ["Close 5 tabs?"], "confirming A now loses the shared three too, so it asks again");
+    assert.ok(S().windows[a], "A waits for that answer");
+    answers.shift()();
+    await tick();
+    await tick();
+    assert.equal(S().windows[a], undefined, "A closed once confirmed");
+  } finally {
+    held = null;
+    answers.splice(0).forEach((resolve) => resolve());
+  }
 });
 
 test("closing a window's last tab still asks about the tabs of its window", async () => {
