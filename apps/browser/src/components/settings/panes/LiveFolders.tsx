@@ -1,12 +1,12 @@
 import { copyText } from "../../../state/app/system";
 import { focusWindow } from "../../../state/windows/nativeWindow";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
-import { connectGoogleDrive } from "../../../state/live/googleAuth";
-import { isMocked } from "../../../state/live/net";
-import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
+import { cancelSignIn, connectGoogleDrive, OAUTH_REDIRECT, signInGitea } from "../../../state/live/oauth";
+import { httpsSiteUrl, isMocked } from "../../../state/live/net";
+import { connectBitbucket, connectConfluence, connectGitea, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { useProfileRecords } from "../../../state/profiles/hooks";
@@ -36,6 +36,7 @@ export function LiveFoldersPane() {
       <SectionHeader title="Pull Requests" />
       <Group>
         <SourceRow id="github" />
+        <SourceRow id="gitea" />
         <SourceRow id="bitbucket" />
       </Group>
 
@@ -82,20 +83,22 @@ function FolderOption({ id, searchable, value, onChange }: { id: SettingId; sear
   );
 }
 
-function connectedAs(id: LiveSourceId, account: LiveAccount): string {
-  if (!account.name || account.name === account.login) return account.login;
-  return id === "github" || id === "gdrive" ? `${account.name} (${account.login})` : account.name;
+function connectedAs(id: LiveSourceId, account: LiveAccount, giteaSite: string): string {
+  const who =
+    !account.name || account.name === account.login ? account.login : id === "github" || id === "gitea" || id === "gdrive" ? `${account.name} (${account.login})` : account.name;
+  return id === "gitea" ? `${who} on ${giteaSite.replace(/^https?:\/\//, "")}` : who;
 }
 
 function SourceRow({ id }: { id: LiveSourceId }) {
   const account = useLive((s) => s.accounts[id]);
+  const giteaSite = useLive((s) => s.config.giteaSite);
   const source = SOURCES[id];
   return (
     <Row
       anchor={`liveFolders.${id}`}
       icon={<Favicon url={source.site} size={18} />}
       title={source.name}
-      description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
+      description={account ? `Connected as ${connectedAs(id, account, giteaSite)}` : undefined}
     >
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />
@@ -111,14 +114,23 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const open = useRef(false);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+      cancelSignIn();
+    };
+  }, []);
+  const showError = (e: unknown) => setError(e == null ? null : String((e as Error)?.message ?? e));
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
     setError(null);
     try {
       await task();
-      closeSettingsSheet();
+      if (open.current) closeSettingsSheet();
     } catch (e) {
-      setError(String((e as Error)?.message ?? e));
+      showError(e);
     } finally {
       setBusy(false);
     }
@@ -127,6 +139,9 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   switch (id) {
     case "github":
       body = <GithubConnect busy={busy} run={run} />;
+      break;
+    case "gitea":
+      body = <GiteaConnect busy={busy} run={run} showError={showError} />;
       break;
     case "bitbucket":
       body = <BitbucketConnect busy={busy} run={run} />;
@@ -161,6 +176,8 @@ const BODY_TOP = { marginTop: space.l } as const;
 const HELP = { lineHeight: proseLineHeight.small } as const;
 const CODE = { ...settingsType.code, textAlign: "center", marginTop: space.xl } as const;
 const SPLIT = { marginVertical: space.xl } as const;
+const REDIRECT = { marginBottom: space.ml } as const;
+const REDIRECT_URI = { flex: 1, fontFamily: settingsType.code.fontFamily } as const;
 
 function Help({ children }: { children: ReactNode }) {
   return (
@@ -219,6 +236,65 @@ function GithubConnect({ busy, run }: ConnectProps) {
       </FormField>
       <DialogActions>
         <Button title="Sign In with GitHub…" disabled={!clientId.trim() || busy} onPress={() => void signIn()} />
+      </DialogActions>
+    </View>
+  );
+}
+
+function GiteaConnect({ busy, run, showError }: ConnectProps & { showError(error: unknown): void }) {
+  const config = live().config;
+  const [site, setSite] = useState(config.giteaSite);
+  const [token, setToken] = useState("");
+  const [clientId, setClientId] = useState(config.giteaClientId);
+  const hasSite = !!site.trim();
+  const connect = () => void run(() => connectGitea(site, { token: token.trim() }));
+  const createToken = () => {
+    showError(null);
+    try {
+      const page = `${httpsSiteUrl(site)}/user/settings/applications`;
+      if (!settingsBrowserWindow()) throw new Error("Open a browser window first");
+      openUrlFromSettings(page);
+    } catch (e) {
+      showError(e);
+    }
+  };
+  const signIn = () =>
+    void run(async () => {
+      updateConfig({ giteaClientId: clientId.trim() });
+      const windowId = settingsBrowserWindow();
+      if (!windowId) throw new Error("Open a browser window first");
+      void focusWindow(windowId);
+      await signInGitea(windowId, site, clientId);
+    });
+  return (
+    <View>
+      <FormField label="Server">
+        <TextField value={site} onChangeText={setSite} placeholder="https://gitea.example.com" />
+      </FormField>
+      <Help>
+        Create an access token on your server (Settings › Applications) with read access to issue, repository and user. Works with Gitea and Forgejo, Codeberg included.
+      </Help>
+      <FormField label="Access token">
+        <TextField value={token} onChangeText={setToken} secure onSubmit={() => !busy && hasSite && token.trim() && connect()} />
+      </FormField>
+      <DialogActions>
+        <Button title="Create Token…" disabled={!hasSite} onPress={createToken} />
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!hasSite || !token.trim() || busy} onPress={connect} />
+      </DialogActions>
+      <Divider thick style={SPLIT} />
+      <Help>Or sign in with an OAuth2 application you create on your server (Settings › Applications), with Confidential Client turned off and this redirect URI:</Help>
+      <Box row center gap="m" style={REDIRECT}>
+        <Text selectable size="small" style={REDIRECT_URI}>
+          {OAUTH_REDIRECT}
+        </Text>
+        <Button title="Copy" onPress={() => copyText(OAUTH_REDIRECT)} />
+      </Box>
+      <FormField label="OAuth app client ID">
+        <TextField value={clientId} onChangeText={setClientId} />
+      </FormField>
+      <DialogActions>
+        <Button title={busy ? "Waiting for Gitea…" : "Sign In with Gitea…"} disabled={!hasSite || !clientId.trim() || busy} onPress={signIn} />
       </DialogActions>
     </View>
   );
