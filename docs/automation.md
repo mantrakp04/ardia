@@ -331,11 +331,10 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json` in the config folder (`docs/config.md`'s
   resolver, so a scratch instance uses its own). `list` shows each hook's kind (`event`, `command`, `decide`,
   `scheduled`, `omnibox`), trigger and action.
-- In `ardia exec`: `await run(command, arg=None, window=None, tab=None)`, `await windows()`, and
-  `async for e in events(*names, full_urls=False)`. With `--port`, `--ws` or `$ARDIA_CDP_URL` they need
-  `--data-dir` or `$ARDIA_DATA_DIR` and raise without one, so a test browser never drives the installed Ardia by
-  accident. Errors are `CommandError` (`.code`, `.message`) and `ControlUnreachable`; each call opens its own
-  connection.
+- From a script or a hook's program, call the commands: `ardia run … --json`, `ardia windows --json` and
+  `ardia events --json` give the same replies and lines as the socket, and `ardia browse` drives the pages. They
+  find the socket the same way (`--data-dir`, `$ARDIA_DATA_DIR`, else the installed app's), and the shared options
+  go before or after the command (`docs/cli.md`, Shared options).
 
 ### Running a hook
 

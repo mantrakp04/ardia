@@ -1,8 +1,10 @@
 # The `ardia` command
 
-`ardia` drives a running Ardia from the terminal with Python and [pydoll](https://pydoll.tech) 3.0. It's a separate
-download, not part of the app bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding
-or in Settings ("Let the ardia command control Ardia").
+`ardia` drives a running Ardia from the terminal. `ardia browse` is how an agent drives the browser: agent-browser's
+commands on top of [pydoll](https://pydoll.tech) 3.0. The other commands run Ardia's own commands, stream its events,
+run hooks and userscripts, edit its config and read its browsing data. It's a separate download, not part of the app
+bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding or in Settings ("Let the ardia
+command control Ardia").
 
 While it's connected, a pill floats over the bottom centre of the page ("ardia is controlling Ardia · Stop"; Stop turns
 the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after the
@@ -17,21 +19,16 @@ the pins into `pyproject.toml`).
 
 ## Commands
 
-- `ardia exec [CODE | -] [-f FILE] [--data-dir DIR] [--port N] [--ws URL] [--timeout S] [--json]` runs Python with
-  top-level `await`. In scope: `browser` (pydoll `Chrome`), `tab` (the page shown in Ardia's last focused window,
-  from `GET /ardia/active?token=…` on the token path, so it holds while the window is covered; `--port`/`--ws` test
-  servers fall back to visible and focused, else visible; with no page, as on New Tab, it's a placeholder that raises
-  `NoPageTab` on first use), `tabs` (http, https, about, data and blob pages, plus what `new_tab` opens, minus
-  the New Tab's prewarmed `about:blank`: on the token path every `about:blank` that isn't the active page, on test
-  servers the hidden ones),
-  `new_tab(url, background=True)`, `js(expression, tab=None)` (default: `tab`, else the last `new_tab`), `await pinned()`,
-  `await history(days=1, limit=200, profile=None, domains=False)` (see Browsing data), `await run(command, arg=None,
-  window=None)`, `await windows()` and `async for e in events(*names)` (see `docs/automation.md`), `By`, `Key`,
-  `asyncio`, pydoll's exports and its common exceptions. It prints the last expression's value. Exit 0 done, 1 the
-  code raised or timed out (default 300 s), 2 Ardia can't be reached or closed the browser socket (it watches the
-  socket, so turning the setting off ends an idle run at once), 130 interrupted.
 - `ardia browse <command> [args]` takes agent-browser's commands, flags and output against the running Ardia (see
   The `ardia browse` command).
+- `ardia pinned [--json] [--data-dir DIR]` lists the favorites and pinned tabs, and `ardia history [--days N]
+  [--limit N] [--profile P] [--domains] [--json] [--data-dir DIR]` the recent history (see Browsing data). `--days`
+  defaults to 1 and `--limit` to 200 (0 for no limit). A pin's `kind` is `favorite` for a Top Apps tile (`folder` is
+  its tile folder) and `pinned` for a pinned row or a tab in a pinned folder (`folder` is the folder). They read
+  `session.json` from version 2 on, the tab's `pin` field or the older `pinned` flag. Exit 0 done, 1 the data
+  couldn't be read or ran out of time, 2 Ardia can't be reached.
+- `ardia notes [args]` hands its arguments to `ardia_cli/notes.py` (`main(argv)`), with the shared options given
+  before `notes` put first. When the module isn't there it prints one line and exits 1; nothing else depends on it.
 - `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
   agent skill (`ardia_cli/skill`: `SKILL.md`, `references/pydoll.md` and `references/browse.md`) into `~/.agents/skills` (general, codex),
   `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
@@ -48,16 +45,36 @@ the pins into `pyproject.toml`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
   `docs/automation.md`).
-- `ardia --version`, `ardia --help`, `ardia exec --help`, `ardia scripts <command> --help`,
+- `ardia --version`, `ardia --help`, `ardia browse --help`, `ardia scripts <command> --help`,
   `ardia config <command> --help`, `ardia theme <command> --help`, `ardia hooks <command> --help` and `--help` on
-  each of `run`, `commands`, `windows`, `events` and `on`.
+  each of `pinned`, `history`, `run`, `commands`, `windows`, `events` and `on`.
 
-`exec` never quits Ardia: it refuses `browser.stop()`, and every WebSocket it opens checks each outgoing message (and
-refuses fragmented sends), so
-`Browser.close`, `Browser.crash` and `Browser.crashGpuProcess` never leave the process, whether sent one at a time, in
-an `execute_commands` batch (checked whole before anything is sent) or straight on the socket. On exit (normal, an
-exception or Ctrl-C) it closes only its own page and browser WebSockets. Its WebSockets always connect directly,
-ignoring `http_proxy`, `ws_proxy` and the like, so no proxy sees the token.
+`ardia exec` is gone: `ardia browse` is the one way to drive the browser. `ardia exec …` (and any other unknown
+command) prints `ardia: unknown command '…'` with where to go instead, and exits 2. What `exec` offered maps to
+`ardia browse` for pages, `ardia pinned` and `ardia history` for `pinned()` and `history()`, and `ardia run`,
+`ardia windows` and `ardia events` for `run()`, `windows()` and `events()`.
+
+### Shared options
+
+`--port N`, `--ws URL` and `--data-dir DIR`, plus `--timeout S` and `--json` where a command has them, go before the
+command or after it: `ardia --port 9222 browse snapshot` and `ardia browse --port 9222 snapshot` are the same, and so
+are `ardia --json windows`, `ardia windows --json` and `ardia hooks --data-dir DIR list`. `cli.py` moves the ones in
+front of (or between) the command words to just after them, so a flag written after the command wins over the same
+flag before it; arguments after `on`'s `--` are never touched. A command that doesn't take a flag given before it
+says so and exits 2 (`ardia: windows doesn't take --port`). For `browse` the flags go to the front of browse's own
+arguments, where its parser reads them; `browse` takes `--port`, `--ws`, `--data-dir` and `--json`, not `--timeout`.
+
+Each has an environment variable, and a flag wins over it: `ARDIA_PORT`, `ARDIA_WS`, `ARDIA_DATA_DIR`. The
+endpoint comes from `--ws`, else `--port`, else `$ARDIA_WS`, else `$ARDIA_PORT`, else `$ARDIA_CDP_URL`, else
+`<data dir>/Chromium/ArdiaControl.json` (see How it finds Ardia). For `browse`, `ARDIA_WS` or `ARDIA_PORT` is
+passed as `--ws`/`--port` only when its arguments have none of `--ws`, `--port` and `--cdp` (a `--port` after
+`stream` is the stream's own), so the session is keyed on the endpoint it really uses. A bad `ARDIA_PORT` exits 2.
+
+The CLI never quits Ardia: every DevTools WebSocket it opens (`browse`, `scripts test`; `ardia_cli/guard.py`) checks
+each outgoing message and refuses fragmented sends, so `Browser.close`, `Browser.crash` and `Browser.crashGpuProcess`
+never leave the process, whether sent one at a time, in an `execute_commands` batch (checked whole before anything is
+sent) or straight on the socket. Its WebSockets always connect directly, ignoring `http_proxy`, `ws_proxy` and the
+like, so no proxy sees the token.
 
 ## The `ardia browse` command
 
