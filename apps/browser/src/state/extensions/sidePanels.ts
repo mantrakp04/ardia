@@ -30,6 +30,10 @@ export function requestSidePanelFocus(windowId: string, panel: SidePanel, focus:
   focus();
 }
 
+export function withdrawSidePanelFocus(windowId: string, panel: SidePanel) {
+  if (waiting.get(windowId)?.key === sidePanelKey(panel)) waiting.delete(windowId);
+}
+
 function leaveLookup(windowId: string) {
   const left = (lookups.get(windowId) ?? 1) - 1;
   if (left > 0) return void lookups.set(windowId, left);

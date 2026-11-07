@@ -8,7 +8,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, requestSidePanelFocus, sidePanelKey, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, showExtensionMenu, requestSidePanelFocus, sidePanelKey, useExtensions, withdrawSidePanelFocus, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -94,6 +94,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
   const { extensionId, profile, pageProfile, url } = panel;
   const theme = useTheme();
   const web = useRef<WebViewHandle>(null);
+  useEffect(() => () => withdrawSidePanelFocus(windowId, panel), []);
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;

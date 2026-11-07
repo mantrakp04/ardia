@@ -267,3 +267,37 @@ test("closing and reopening while a lookup is in flight does not hand the old re
   assert.equal(take(w, second), true);
   panels.closeSidePanel(w);
 });
+
+test("a card that unmounts while its request waits for a lookup leaves the request for the card that replaces it", async () => {
+  const { w } = setup();
+  const panel = await open(w);
+  const held = holdLookups();
+  const sync = panels.syncSidePanel(w);
+  const calls = requestLater(w, panel);
+  panels.withdrawSidePanelFocus(w, panel);
+  held[0].resolve();
+  await sync;
+  assert.equal(E().sidePanels[w], panel);
+  assert.deepEqual(calls, []);
+  assert.equal(take(w, panel), true);
+  assert.equal(take(w, panel), false);
+  panels.closeSidePanel(w);
+});
+
+test("withdrawing the request of a card that is not the one waiting changes nothing", async () => {
+  const { w, b } = setup();
+  const first = await open(w);
+  S().activate(b);
+  await panels.syncSidePanel(w);
+  const second = E().sidePanels[w];
+  const held = holdLookups();
+  S().activate(b);
+  const sync = panels.syncSidePanel(w);
+  const calls = requestLater(w, second);
+  panels.withdrawSidePanelFocus(w, first);
+  held[0].resolve();
+  await sync;
+  assert.equal(E().sidePanels[w], second);
+  assert.deepEqual(calls, [second.url]);
+  panels.closeSidePanel(w);
+});
