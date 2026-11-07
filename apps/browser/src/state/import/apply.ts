@@ -140,7 +140,7 @@ function windowFor(profileId: string): string {
 export function openInWebStore(profileId: string, urls: string[]) {
   if (!urls.length) return;
   const windowId = windowFor(profileId);
-  urls.forEach((url, i) => useBrowser.getState().newTab(windowId, { url, profileId, background: i > 0 }));
+  urls.forEach((url, i) => useBrowser.getState().newTab(windowId, { url, profileId, background: i > 0, notify: false }));
 }
 
 export function importTabs(

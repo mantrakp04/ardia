@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
+import { newTabToasts } from "../tabs/newTabToasts";
 import { activeTabId, IDLE_LIVE, makeTab, navigationTo, without } from "../browser/model";
 import { forgetOpeners, insertionIndex } from "../tabs/openers";
 import { groupWithOpener } from "../pins/tabGrouping";
@@ -113,6 +114,7 @@ export const createPeekSlice: StateCreator<BrowserState, [], [], PeekSlice> = (s
     if (moved.openerId) s = groupWithOpener(s, tab.id, moved.openerId, false);
     if (activate) s = apply(s, activated(s, tab.id));
     set(s);
+    newTabToasts.add(get().tabs[tab.id]);
     return tab.id;
   },
 });

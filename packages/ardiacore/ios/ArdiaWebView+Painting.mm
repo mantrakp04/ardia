@@ -5,6 +5,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <React/UIView+React.h>
 
+#include <cmath>
+
 using namespace ardia_web_view;
 using namespace ardia_runtime;
 
@@ -108,7 +110,10 @@ BOOL Above(NSView *a, NSView *b) {
   if (NSView *fronted = _reveal.frontedPage; fronted.superview == self) fronted.frame = self.bounds;
   if (NSView *standIn = _standIn.page; standIn.superview == self) standIn.frame = self.bounds;
   NSView *page = _tab.view;
-  if (!page || page.superview != self) return;
+  if (!page || page.superview != self) {
+    [self emitPageLayout];
+    return;
+  }
   if (_devtoolsView) {
     NSRect devtools = NSZeroRect, pageFrame = self.bounds;
     [_tab devToolsLayoutForSize:self.bounds.size devTools:&devtools page:&pageFrame];
@@ -117,6 +122,29 @@ BOOL Above(NSView *a, NSView *b) {
   } else {
     page.frame = self.bounds;
   }
+  [self emitPageLayout];
+}
+
+- (void)emitPageLayout {
+  NSView *page = _tab.view;
+  NSDictionary *layout = nil;
+  if (page.superview == self && !_tab.discarded) {
+    const NSRect bounds = self.bounds;
+    const NSRect rect = NSIntersectionRect(page.frame, bounds);
+    const CGFloat x = NSMinX(rect) - NSMinX(bounds);
+    const CGFloat y = self.isFlipped ? NSMinY(rect) - NSMinY(bounds) : NSMaxY(bounds) - NSMaxY(rect);
+    if (std::isfinite(x) && std::isfinite(y) && std::isfinite(NSWidth(rect)) && std::isfinite(NSHeight(rect)) &&
+        std::isfinite(NSWidth(bounds)) && std::isfinite(NSHeight(bounds)) && NSWidth(bounds) > 0 && NSHeight(bounds) > 0) {
+      layout = @{
+        @"x" : @(x), @"y" : @(y), @"width" : @(MAX(0, NSWidth(rect))), @"height" : @(MAX(0, NSHeight(rect))),
+        @"containerWidth" : @(NSWidth(bounds)), @"containerHeight" : @(NSHeight(bounds)),
+      };
+    }
+  }
+  NSDictionary *payload = @{ @"layout" : layout ?: NSNull.null };
+  if ([_sent.pageLayout isEqualToDictionary:payload]) return;
+  _sent.pageLayout = payload;
+  [self emit:@"pageLayout" payload:payload];
 }
 
 - (BOOL)paints {

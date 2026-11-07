@@ -5,6 +5,8 @@ const DARK = {
   statusFill: "rgba(40,38,39,0.96)",
   statusBorder: "rgba(255,255,255,0.12)",
   statusText: "#FFFFFFD9",
+  newTabToastFill: "rgba(44,42,43,0.96)",
+  newTabToastBorder: "rgba(255,255,255,0.14)",
   crashedBackground: "#1C1A1B",
   frozenWash: "rgba(0,0,0,0.25)",
   swipeChevron: "#FFFFFFD9",
@@ -16,6 +18,8 @@ const LIGHT: typeof DARK = {
   statusFill: "rgba(250,249,250,0.97)",
   statusBorder: "rgba(0,0,0,0.12)",
   statusText: "#000000C7",
+  newTabToastFill: "rgba(255,255,255,0.96)",
+  newTabToastBorder: "rgba(0,0,0,0.1)",
   crashedBackground: "#F6F5F6",
   frozenWash: "rgba(255,255,255,0.4)",
   swipeChevron: "#000000D9",
@@ -39,6 +43,7 @@ export const SHADOWS = {
   status: { color: ink.black, opacity: { dark: 0.3, light: 0.1 }, radius: 6, offset: [0, 2] },
   sidebarPeek: shadow.peek,
   swipe: { color: ink.black, opacity: { dark: 0.25, light: 0.2 }, radius: 8, offset: [0, 2] },
+  newTabToast: { color: ink.black, opacity: { dark: 0.35, light: 0.14 }, radius: 12, offset: [0, 4] },
 } satisfies Record<string, ShadowLevel>;
 
 export const STATUS_MOTION = {
@@ -66,3 +71,11 @@ export const ARC_PEEK_OUT_MS = 150;
 export const ARC_HIDE_MS = duration.fast;
 
 export const PEEK_RADIUS = radius.panel;
+
+export const NEW_TAB_TOAST_MOTION = {
+  enter: { speed: 22, bounciness: 5 },
+  reducedEnter: { duration: 160 },
+  leave: { easing: curve.exit },
+} as const;
+
+export const NEW_TAB_TOAST_INSET = { top: 10, right: 24 } as const;
