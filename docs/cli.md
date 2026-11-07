@@ -232,7 +232,10 @@ cancelled); `--json` has `html5`, `started` and `dropped`. It confirms delivery 
 Chrome doesn't deliver mouse or keyboard input to a hidden tab, and a tab `open` puts in the background is hidden
 unless the engine keeps it live. An Ardia that does keeps a tab with a CLI CDP session attached visible to the
 renderer (a capturer count, as tab capture does) without switching the user's view, so the page reports
-`document.visibilityState === 'visible'` shortly after attaching. Input commands check visibility first; when the tab
+`document.visibilityState === 'visible'` shortly after attaching (about 90 ms) and gets a `visibilitychange` back to
+`hidden` when the session detaches or the connection closes, the idle disconnect included; its timers run unthrottled
+meanwhile. Ardia does this on the token path from engine 27cc5eff (`ac_cli_visible_tabs.cc`), and on a `--port` test
+instance only when it's launched with `--test cdpTabsVisible`. Input commands check visibility first; when the tab
 is hidden they poll it for up to 0.5 s, and the session remembers what it saw: a tab that turned visible on its own
 means background tabs take input (no more waiting), one that stayed hidden means this Ardia doesn't keep them live (no
 more waiting either; the next hidden tab is refused at once). A hidden tab fails with `code: "tab_hidden"` and the exact
@@ -443,7 +446,6 @@ implemented and works against a plain `--port` test server, so allowing the meth
 | `trace start\|stop`, `profiler start\|stop` | `Tracing.start`, `Tracing.end` |
 | `record start\|stop\|restart` | `Page.startScreencast` (and ffmpeg on PATH for the WebM) |
 | `stream enable` | `Page.startScreencast` |
-| `drag` of an HTML5 draggable | `Input.setInterceptDrags`, `Input.dispatchDragEvent` (see Input) |
 
 On the token path Ardia also strips `Cookie`, `Set-Cookie` and `Authorization` from network events, so
 `network requests` and HAR files never contain them.
