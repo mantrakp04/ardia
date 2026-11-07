@@ -9,7 +9,6 @@ import { isAsleep } from "../tabs/pageSession";
 
 export const MAX_CLOSED_TABS = 50;
 export const MAX_CLOSED_WINDOWS = 10;
-const MAX_CLOSED_GROUPS = 20;
 const PURGED_AFTER_MS = 7 * 86_400_000;
 function keptAWeek<T extends { closedAt: number }>(list: T[], now: number): T[] {
   const kept = list.filter((c) => now - c.closedAt < PURGED_AFTER_MS);
@@ -97,7 +96,7 @@ export function closingGroup(s: BrowserState, groupId: string, deleted = false):
   const next = showAboveGroup(s, closeQuietly(s, g.tabIds), g);
   if (!recordable) return next;
   if (deleted) return { ...next, deletedGroups: [...keptDeletedGroups(next.deletedGroups), entry] };
-  return { ...next, closedGroups: [...next.closedGroups, entry].slice(-MAX_CLOSED_GROUPS) };
+  return { ...next, closedGroups: [...next.closedGroups, entry] };
 }
 
 export function nestedSnapshot(s: Pick<BrowserState, "groups">, g: TabGroup): NestedGroupSnapshot[] {
@@ -196,8 +195,8 @@ function atSavedIndex(s: BrowserState, windowId: string, block: string[], index:
   return { ...s, windows: { ...s.windows, [windowId]: window }, groups: syncGroupOrder(s.groups, window) };
 }
 
-export function restoringGroup(s: BrowserState, entry: ClosedGroup, requested?: string | null): BrowserState {
-  const windowId = restoreTarget(s, entry.windowId, requested);
+export function restoringGroup(s: BrowserState, entry: ClosedGroup, requested?: string | null, preferRequested = false): BrowserState {
+  const windowId = preferRequested ? restoreTarget(s, requested ?? "", entry.windowId) : restoreTarget(s, entry.windowId, requested);
   if (!windowId) return s;
   let next: BrowserState = {
     ...s,
