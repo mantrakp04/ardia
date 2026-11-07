@@ -584,21 +584,16 @@ int main() {
     const Screen only[] = {primary};
     for (const Screen *layout : {beside, above, offset}) {
       const Rect onSecond = layout == above ? Rect{500, 1300, 468, 263} : Rect{2200, 400, 468, 263};
-      CHECK(OnAScreen(onSecond, layout, 2));
-      CHECK(!OnAScreen(onSecond, only, 1));
       CHECK(Reachable(onSecond, layout, 2) && !Reachable(onSecond, only, 1));
       const Rect rescued = Rescue(onSecond, only, 1, 0);
-      CHECK(Reachable(rescued, only, 1) && OnAScreen(rescued, only, 1) && Inside(rescued, primary.visible));
+      CHECK(Reachable(rescued, only, 1) && Inside(rescued, primary.visible));
     }
     CHECK(Rescue({2200, 400, 468, 263}, only, 1, 0).x == 1512 - 468 && Rescue({2200, 400, 468, 263}, only, 1, 0).y == 400);
     CHECK(Rescue({500, 1300, 468, 263}, only, 1, 0).x == 500 && Rescue({500, 1300, 468, 263}, only, 1, 0).y == 945 - 263);
 
-    CHECK(OnAScreen({1400, 400, 468, 263}, beside, 2) && OnAScreen({1400, 400, 468, 263}, only, 1));
-    CHECK(OnAScreen({1512 - 28, 400, 468, 263}, only, 1) && OnAScreen({-468 + 28, 400, 468, 263}, only, 1));
-    CHECK(!OnAScreen({1512, 400, 468, 263}, only, 1) && !OnAScreen({-468, 400, 468, 263}, only, 1));
-    CHECK(!OnAScreen({0, 982, 468, 263}, only, 1) && !OnAScreen({0, -263, 468, 263}, only, 1));
-    CHECK(!OnAScreen({2000, -500, 468, 263}, offset, 2) && OnAScreen({2000, -300, 468, 263}, offset, 2));
-    CHECK(!OnAScreen({100, 100, 468, 263}, only, 0));
+    CHECK(Reachable({100, 774, 400, 225}, only, 1) && Reachable({100, 1100, 400, 225}, above, 2));
+    CHECK(!Reachable({500, 981, 468, 263}, only, 1) && Reachable({500, 981, 468, 263}, above, 2));
+    CHECK(!Reachable({1512 - 28, 400, 468, 263}, only, 1));
   }
 
   {
