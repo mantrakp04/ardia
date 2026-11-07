@@ -29,16 +29,18 @@
    std::unique_ptr<ui::LayerSurface> root_layer_;
 --- a/content/browser/renderer_host/browser_compositor_view_mac.mm
 +++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
-@@ -29,6 +29,8 @@ namespace content {
+@@ -29,6 +29,10 @@ namespace content {
  
  namespace {
  
++constexpr base::TimeDelta kUnclaimedRetiredCompositorLifetime =
++    base::Milliseconds(100);
 +constexpr base::TimeDelta kRetiredCompositorLifetime = base::Seconds(4);
 +
  // Weak pointers to all BrowserCompositorMac instances, used to
  // - Determine if a spare RecyclableCompositorMac should be kept around (one
  //   should be only if there exists at least one BrowserCompositorMac).
-@@ -74,6 +76,7 @@ BrowserCompositorMac::~BrowserCompositorMac() {
+@@ -74,6 +78,7 @@ BrowserCompositorMac::~BrowserCompositorMac() {
    weak_factory_.InvalidateWeakPtrs();
  
    TransitionToState(HasNoCompositor);
@@ -46,7 +48,7 @@
    delegated_frame_host_.reset();
    root_layer_.reset();
  
-@@ -95,9 +98,16 @@ bool BrowserCompositorMac::ForceNewSurfaceId() {
+@@ -95,9 +100,16 @@ bool BrowserCompositorMac::ForceNewSurfaceId() {
  }
  
  const gfx::CALayerParams* BrowserCompositorMac::GetLastCALayerParams() const {
@@ -66,7 +68,7 @@
  }
  
  viz::FrameSinkId BrowserCompositorMac::GetRootFrameSinkId() {
-@@ -249,9 +259,25 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+@@ -249,9 +261,25 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
      root_layer_->parent()->Remove(root_layer_.get());
    }
    if (state_ == HasOwnCompositor) {
@@ -85,7 +87,7 @@
 +    if (retire_compositor) {
 +      retired_compositor_ = std::move(recyclable_compositor_);
 +      retired_compositor_timer_.Start(
-+          FROM_HERE, kRetiredCompositorLifetime, this,
++          FROM_HERE, kUnclaimedRetiredCompositorLifetime, this,
 +          &BrowserCompositorMac::ReleaseRetiredCompositor);
 +    } else {
 +      recyclable_compositor_.reset();
@@ -93,7 +95,7 @@
    }
  
    // The compositor is now detached. If this is the target state, we're done.
-@@ -309,6 +335,15 @@ void BrowserCompositorMac::TakeFallbackContentFrom(
+@@ -309,6 +337,15 @@ void BrowserCompositorMac::TakeFallbackContentFrom(
      BrowserCompositorMac* other) {
    delegated_frame_host_->TakeFallbackContentFrom(
        other->delegated_frame_host_.get());

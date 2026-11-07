@@ -59,13 +59,60 @@ test("the retired compositor is released once the new view has drawn its first f
   assert.ok(addedLinesByFile(patchText()).has(viewFile));
 });
 
-test("a retired compositor nobody takes is released on a bound, when the view hides again and on destruction", () => {
+test("a retired compositor is released after its lifetime, when the view hides again and on destruction", () => {
   const patch = patchText();
   const compositor = added(compositorFile);
-  assert.match(compositor, /retired_compositor_timer_\.Start\(/);
+  assert.match(compositor, /kUnclaimedRetiredCompositorLifetime =\n\s+base::Milliseconds\(100\);/);
+  assert.match(compositor, /kRetiredCompositorLifetime = base::Seconds\(4\);/);
+  assert.match(compositor, /retired_compositor_timer_\.Start\(\n\s+FROM_HERE, kUnclaimedRetiredCompositorLifetime, this,\n\s+&BrowserCompositorMac::ReleaseRetiredCompositor\);/);
+  assert.match(compositor, /retired_compositor_timer_\.Start\(\n\s+FROM_HERE, kRetiredCompositorLifetime, this,\n\s+&BrowserCompositorMac::ReleaseRetiredCompositor\);/);
   assert.match(compositor, /void BrowserCompositorMac::ReleaseRetiredCompositor\(\) \{\n {2}retired_compositor_timer_\.Stop\(\);\n {2}retired_compositor_\.reset\(\);/);
   assert.ok(patch.includes("   TransitionToState(HasNoCompositor);\n+  ReleaseRetiredCompositor();\n"));
   assert.ok(patch.includes("   if (state_ == HasOwnCompositor) {\n+    ReleaseRetiredCompositor();\n"));
+});
+
+test("a compositor retired by a hide is released at once unless the new view takes it over, which gives it the full lifetime", () => {
+  const compositor = added(compositorFile);
+  const retire = compositor.indexOf("retired_compositor_ = std::move(recyclable_compositor_)");
+  const retireStart = compositor.indexOf("retired_compositor_timer_.Start(", retire);
+  assert.ok(retire >= 0 && retireStart > retire);
+  assert.match(compositor.slice(retireStart, retireStart + 120), /kUnclaimedRetiredCompositorLifetime/);
+  const take = compositor.indexOf("retired_compositor_ = std::move(other->retired_compositor_)");
+  const takeStart = compositor.indexOf("retired_compositor_timer_.Start(", take);
+  assert.ok(take >= 0 && takeStart > take);
+  assert.match(compositor.slice(takeStart, takeStart + 120), /kRetiredCompositorLifetime/);
+});
+
+test("every hunk of the patch has the line counts its header declares", () => {
+  const lines = patchText().split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  let hunks = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = /^@@ -\d+,(\d+) \+\d+,(\d+) @@/.exec(lines[index]);
+    if (!header) continue;
+    hunks += 1;
+    let removed = 0;
+    let inserted = 0;
+    let cursor = index + 1;
+    while (cursor < lines.length && removed + inserted < Number(header[1]) + Number(header[2])) {
+      const marker = lines[cursor][0];
+      if (marker === " " || lines[cursor] === "") {
+        removed += 1;
+        inserted += 1;
+      } else if (marker === "-") {
+        removed += 1;
+      } else if (marker === "+") {
+        inserted += 1;
+      } else {
+        break;
+      }
+      cursor += 1;
+    }
+    assert.equal(removed, Number(header[1]), `${lines[index]} declares a different old length`);
+    assert.equal(inserted, Number(header[2]), `${lines[index]} declares a different new length`);
+    assert.ok(cursor >= lines.length || /^(@@|--- |\+\+\+ )/.test(lines[cursor]), `${lines[index]} is followed by extra lines`);
+  }
+  assert.ok(hunks > 0);
 });
 
 test("the patch adds no comments", () => {
