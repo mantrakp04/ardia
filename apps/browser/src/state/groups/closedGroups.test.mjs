@@ -61,7 +61,8 @@ test("closed groups cannot cross profiles or open in private windows", () => {
 test("deleting a closed group preserves separate seven-day recovery and rejects another profile", () => {
   const windowId = setup();
   const { entry } = close(windowId);
-  deleteClosedGroup(entry.id, "missing");
+  const otherProfile = S().createProfile({ name: "Other" });
+  deleteClosedGroup(entry.id, otherProfile);
   assert.equal(S().closedGroups.length, 1);
   deleteClosedGroup(entry.id, "default");
   assert.equal(S().closedGroups.length, 0);

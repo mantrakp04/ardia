@@ -48,7 +48,8 @@ test("candidate mounting stays bounded while measuring the first overflowing chi
       const result = barLayout(candidates, measured, width, 28, { gap, shrink: true, overflowing: true });
       assert.equal(result.overflowing, true);
       assert.ok(result.visible.every((id) => measured[id].x + measured[id].width <= width - 28));
-      assert.equal(groups.filter((id) => !result.visible.includes(id)).length, groups.length - result.visible.length);
+      const count = Math.max(0, Math.floor((width - 28 + gap) / minimum));
+      assert.deepEqual(result.visible, candidates.slice(0, count));
     }
   }
   assert.deepEqual(barCandidates(["a", "b"], 500, 18), ["a", "b"]);
