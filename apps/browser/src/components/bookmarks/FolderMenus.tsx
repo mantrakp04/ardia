@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useBookmarks } from "../../state/bookmarks/hooks";
+import { useSettings } from "../../state/browser/hooks";
 import { useBarDrag, watchBookmarkEscape } from "../../state/bookmarks/barDrag";
 import { closeFolderMenus, useFolderMenus, type FolderMenuPanel, type MenuRect } from "../../state/bookmarks/folderMenus";
 import { useActiveTabId, useWindowId } from "../../state/browser/hooks";
@@ -73,6 +74,7 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
   const size = useBarSize();
   const drag = useBarDrag(useShallow((s) => (s.windowId === windowId && s.source?.kind === "bookmark" ? { id: s.source.id, x: s.x, y: s.y, grab: s.grab, edge: s.sidebarEdge } : null)));
   const node = useBookmarks((b) => (drag ? b.nodes[drag.id] : undefined));
+  const showUntitledUrls = useSettings((s) => s.showUntitledBookmarkUrls);
   const shown = useEased(!!drag);
   if (!drag || !node) return null;
   const toSidebar = node.kind === "folder" && overSidebar(drag.edge, drag.x);
@@ -92,7 +94,7 @@ function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: size.titleGap, paddingHorizontal: size.padding }}>
           <ChipIcon size={size} favicon={node.kind === "url" ? node : undefined} icon={node.kind === "folder" ? "folder" : undefined} />
           <Text lines={1} size={size.text} style={GHOST_TITLE}>
-            {node.title || (node.kind === "url" ? node.url : "")}
+            {node.title || (node.kind === "url" && showUntitledUrls ? node.url : "")}
           </Text>
         </View>
       </Panel>
