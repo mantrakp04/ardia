@@ -8,7 +8,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, sidePanelKey, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, showExtensionMenu, requestSidePanelFocus, sidePanelKey, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -126,8 +126,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onNavigationChange={({ isLoading }) => {
-            if (isLoading || !takeSidePanelFocus(windowId, panel)) return;
-            void web.current?.focus();
+            if (!isLoading) requestSidePanelFocus(windowId, panel, () => void web.current?.focus());
           }}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}

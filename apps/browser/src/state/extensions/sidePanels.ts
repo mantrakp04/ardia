@@ -6,6 +6,8 @@ const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
 const opened = new Map<string, number>();
 const focusDue = new Map<string, number>();
+const lookups = new Map<string, number>();
+const waiting = new Map<string, { key: string; focus: () => void }>();
 let openings = 0;
 
 const nextFetch = (windowId: string) => {
@@ -18,10 +20,25 @@ export const wantedSidePanels = () => [...wanted];
 
 export const sidePanelKey = (panel: SidePanel) => `${panel.extensionId}|${panel.pageProfile}|${panel.url}|${panel.opened}`;
 
-export function takeSidePanelFocus(windowId: string, panel: SidePanel): boolean {
-  if (focusDue.get(windowId) !== panel.opened) return false;
+export function requestSidePanelFocus(windowId: string, panel: SidePanel, focus: () => void) {
+  if (focusDue.get(windowId) !== panel.opened) return;
+  if (lookups.has(windowId)) {
+    waiting.set(windowId, { key: sidePanelKey(panel), focus });
+    return;
+  }
   focusDue.delete(windowId);
-  return true;
+  focus();
+}
+
+function leaveLookup(windowId: string) {
+  const left = (lookups.get(windowId) ?? 1) - 1;
+  if (left > 0) return void lookups.set(windowId, left);
+  lookups.delete(windowId);
+  const request = waiting.get(windowId);
+  if (!request) return;
+  waiting.delete(windowId);
+  const shown = useExtensions.getState().sidePanels[windowId];
+  if (shown && sidePanelKey(shown) === request.key) requestSidePanelFocus(windowId, shown, request.focus);
 }
 
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
@@ -41,6 +58,7 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   wanted.delete(windowId);
   opened.delete(windowId);
   focusDue.delete(windowId);
+  waiting.delete(windowId);
   nextFetch(windowId);
   if (!useExtensions.getState().sidePanels[windowId]) return;
   useExtensions.setState((e) => {
@@ -62,6 +80,15 @@ export function closeSidePanelsOf(extensionId: string) {
 export async function syncSidePanel(windowId: string): Promise<void> {
   const extensionId = wanted.get(windowId);
   if (!extensionId) return;
+  lookups.set(windowId, (lookups.get(windowId) ?? 0) + 1);
+  try {
+    await showSidePanel(windowId, extensionId);
+  } finally {
+    leaveLookup(windowId);
+  }
+}
+
+async function showSidePanel(windowId: string, extensionId: string): Promise<void> {
   const ticket = nextFetch(windowId);
   const readyTab = shownReadyTab(windowId);
   const shown = useExtensions.getState().sidePanels[windowId];
