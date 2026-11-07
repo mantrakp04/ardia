@@ -388,9 +388,8 @@ const fakeModules = {
         const stored = new URL(origin).origin;
         const key = `${stored}\n${username}`;
         const existing = logins().get(key);
-        if (existing && (existing.password !== password || stored !== origin)) throw refused;
+        if (existing && existing.password !== password) throw refused;
         if (!existing) logins().set(key, { origin: `${stored}/`, url: stored, username, password, created: Date.now() });
-        if (stored !== origin) throw new Error("The password store didn't take the change");
         return JSON.stringify({ ok: true });
       },
       update: async (_profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null) => {

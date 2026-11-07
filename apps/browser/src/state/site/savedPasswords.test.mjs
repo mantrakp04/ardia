@@ -130,15 +130,22 @@ test("a CSV login with capitals in the host or the default port saves under the 
   assert.equal(await revealed("http://plain.example", "me"), "plain");
 });
 
-test("a login's origin is its scheme, host and port, whatever follows", () => {
-  assert.equal(originOfLogin("https://Example.com:8443/a/b?c#d"), "https://example.com:8443");
-  assert.equal(originOfLogin("HTTPS://Example.com:443/"), "https://example.com");
-  assert.equal(originOfLogin("http://example.com:80"), "http://example.com");
+test("a login's origin is its scheme, host and port, whatever follows, left for Chrome to canonicalise", () => {
+  assert.equal(originOfLogin("https://Example.com:8443/a/b?c#d"), "https://Example.com:8443");
   assert.equal(originOfLogin("https://example.com/a path/b"), "https://example.com");
   assert.equal(originOfLogin("http://example.com"), "http://example.com");
   assert.equal(originOfLogin("  mail.example.com/inbox "), "https://mail.example.com");
   assert.equal(originOfLogin("//example.com/login"), "https://example.com");
   assert.equal(originOfLogin("localhost:3000/login"), "https://localhost:3000");
+  assert.equal(originOfLogin("https://straße.de/login"), "https://straße.de");
+  assert.equal(originOfLogin("https://[2001:DB8::1]/login"), "https://[2001:DB8::1]");
+});
+
+test("a CSV login on an international or IPv6 host is saved", async () => {
+  const rows = [login("https://straße.de/login", "me", "idn"), login("https://[2001:DB8::1]/login", "me", "ip")];
+  assert.deepEqual(await importing(rows), { saved: 2, skipped: 0 });
+  assert.equal(await revealed(new URL("https://straße.de").origin, "me"), "idn");
+  assert.equal(await revealed("https://[2001:db8::1]", "me"), "ip");
 });
 
 test("a login url with no host has no origin", () => {

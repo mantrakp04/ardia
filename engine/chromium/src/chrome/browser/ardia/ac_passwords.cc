@@ -55,19 +55,12 @@ std::string OriginOf(const pp::PasswordUiEntry& entry) {
              : WithoutSlash(entry.affiliated_domains[0].signon_realm);
 }
 
-bool HasOrigin(const pp::PasswordUiEntry& entry, const std::string& origin) {
-  return std::ranges::any_of(
-      entry.affiliated_domains,
-      [&](const auto& d) { return WithoutSlash(d.signon_realm) == origin; });
-}
-
 const pp::PasswordUiEntry* Find(const Entries& entries,
                                 const std::string& origin,
-                                const std::string& username,
-                                bool any_domain = false) {
+                                const std::string& username) {
   for (const pp::PasswordUiEntry& entry : entries) {
     if (!entry.is_passkey && entry.username == username &&
-        (any_domain ? HasOrigin(entry, origin) : OriginOf(entry) == origin)) {
+        OriginOf(entry) == origin) {
       return &entry;
     }
   }
@@ -273,21 +266,27 @@ Check Saved(std::string origin, std::string username, Secret password) {
       [](const std::string& origin, const std::string& username,
          const Secret& password, PasswordsPrivateDelegate* delegate,
          const Entries& entries) {
-        const pp::PasswordUiEntry* entry =
-            Find(entries, origin, username, true);
-        if (!entry || !password.present()) {
-          return !!entry;
-        }
-        std::optional<password_manager::CredentialUIEntry> credential =
-            delegate->GetCredentialFromId(entry->id);
-        if (!credential) {
-          return false;
-        }
-        std::string saved = base::UTF16ToUTF8(credential->password);
-        const bool same = saved == password.value();
-        Cleanse(saved);
-        Cleanse(credential->password);
-        return same;
+        return std::ranges::any_of(entries, [&](const auto& entry) {
+          if (entry.is_passkey || entry.username != username ||
+              std::ranges::none_of(entry.affiliated_domains, [&](auto& d) {
+                return WithoutSlash(d.signon_realm) == origin;
+              })) {
+            return false;
+          }
+          if (!password.present()) {
+            return true;
+          }
+          std::optional<password_manager::CredentialUIEntry> credential =
+              delegate->GetCredentialFromId(entry.id);
+          if (!credential) {
+            return false;
+          }
+          std::string saved = base::UTF16ToUTF8(credential->password);
+          const bool same = saved == password.value();
+          Cleanse(saved);
+          Cleanse(credential->password);
+          return same;
+        });
       },
       std::move(origin), std::move(username), std::move(password));
 }
