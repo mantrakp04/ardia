@@ -373,12 +373,14 @@ const fakeModules = {
     },
     {
       save: async (_profile: string, origin: string, username: string, password: string) => {
-        const key = `${origin}\n${username}`;
+        const refused = new Error("Could not save the password (invalid, or already saved)");
+        if (!/^https?:\/\/[^/?#]+$/i.test(origin)) throw refused;
+        const stored = new URL(origin).origin;
+        const key = `${stored}\n${username}`;
         const existing = logins().get(key);
-        if (!/^https?:\/\/[^/?#]+$/i.test(origin) || (existing && existing.password !== password)) {
-          throw new Error("Could not save the password (invalid, or already saved)");
-        }
-        if (!existing) logins().set(key, { origin: `${origin}/`, url: origin, username, password, created: Date.now() });
+        if (existing && (existing.password !== password || stored !== origin)) throw refused;
+        if (!existing) logins().set(key, { origin: `${stored}/`, url: stored, username, password, created: Date.now() });
+        if (stored !== origin) throw new Error("The password store didn't take the change");
         return JSON.stringify({ ok: true });
       },
       update: async (_profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null) => {

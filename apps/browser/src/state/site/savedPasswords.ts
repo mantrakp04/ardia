@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { onAppEvent } from "../../platform/app";
 import { importModule } from "../../platform/importModule";
 import { orWarn } from "../../lib/fallback";
+import { originOf, webUrl } from "../../lib/urlParts";
 import { getPassword, savePassword, unlockPasswords } from "./passwords";
 
 const UNLOCK_MS = 5 * 60_000;
@@ -62,7 +63,9 @@ const ORIGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i;
 export const originOfLogin = (url: string) => {
   const trimmed = url.trim();
   const absolute = SCHEME.test(trimmed) ? trimmed : trimmed.startsWith("//") ? `https:${trimmed}` : `https://${trimmed}`;
-  return ORIGIN.exec(absolute)?.[0] ?? "";
+  const origin = ORIGIN.exec(absolute)?.[0];
+  const parts = origin ? webUrl(origin) : null;
+  return parts ? originOf(parts) : "";
 };
 
 export type PasswordImport = { saved: number; skipped: number } | "cancelled";

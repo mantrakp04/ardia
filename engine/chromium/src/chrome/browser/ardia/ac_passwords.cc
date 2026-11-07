@@ -56,18 +56,18 @@ std::string OriginOf(const pp::PasswordUiEntry& entry) {
 }
 
 bool HasOrigin(const pp::PasswordUiEntry& entry, const std::string& origin) {
-  return std::any_of(entry.affiliated_domains.begin(),
-                     entry.affiliated_domains.end(), [&](const auto& domain) {
-                       return WithoutSlash(domain.signon_realm) == origin;
-                     });
+  return std::ranges::any_of(
+      entry.affiliated_domains,
+      [&](const auto& d) { return WithoutSlash(d.signon_realm) == origin; });
 }
 
 const pp::PasswordUiEntry* Find(const Entries& entries,
                                 const std::string& origin,
-                                const std::string& username) {
+                                const std::string& username,
+                                bool any_domain = false) {
   for (const pp::PasswordUiEntry& entry : entries) {
     if (!entry.is_passkey && entry.username == username &&
-        HasOrigin(entry, origin)) {
+        (any_domain ? HasOrigin(entry, origin) : OriginOf(entry) == origin)) {
       return &entry;
     }
   }
@@ -273,7 +273,8 @@ Check Saved(std::string origin, std::string username, Secret password) {
       [](const std::string& origin, const std::string& username,
          const Secret& password, PasswordsPrivateDelegate* delegate,
          const Entries& entries) {
-        const pp::PasswordUiEntry* entry = Find(entries, origin, username);
+        const pp::PasswordUiEntry* entry =
+            Find(entries, origin, username, true);
         if (!entry || !password.present()) {
           return !!entry;
         }
@@ -419,8 +420,7 @@ AC_PROFILE_CALL(ac_passwords_add,
             const bool added = session.delegate->AddPassword(
                 origin, base::UTF8ToUTF16(username), password16, u"", false);
             ardia::Cleanse(password16);
-            const auto saved =
-                ardia::Saved(origin, username, std::move(password));
+            auto saved = ardia::Saved(origin, username, std::move(password));
             if (!added && !saved.Run(session.delegate.get(), entries)) {
               return reply.Error(
                   "Could not save the password (invalid, or already saved)");

@@ -116,8 +116,25 @@ test("a CSV login with another password than the saved one is skipped and the sa
   assert.equal(await revealed("https://changed.example", "me"), "first");
 });
 
+test("a CSV login with capitals in the host or the default port saves under the origin the store keeps", async (t) => {
+  const warnings = [];
+  t.mock.method(console, "warn", (message) => warnings.push(message));
+  const rows = [login("Caps.Example/login", "me", "caps"), login("https://port.example:443/x", "me", "port"), login("HTTP://Plain.Example:80", "me", "plain")];
+  const first = await importing(rows);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(first, { saved: 3, skipped: 0 });
+  assert.deepEqual(await importing(rows), { saved: 3, skipped: 0 });
+  assert.deepEqual(warnings, []);
+  assert.equal(await revealed("https://caps.example", "me"), "caps");
+  assert.equal(await revealed("https://port.example", "me"), "port");
+  assert.equal(await revealed("http://plain.example", "me"), "plain");
+});
+
 test("a login's origin is its scheme, host and port, whatever follows", () => {
-  assert.equal(originOfLogin("https://Example.com:8443/a/b?c#d"), "https://Example.com:8443");
+  assert.equal(originOfLogin("https://Example.com:8443/a/b?c#d"), "https://example.com:8443");
+  assert.equal(originOfLogin("HTTPS://Example.com:443/"), "https://example.com");
+  assert.equal(originOfLogin("http://example.com:80"), "http://example.com");
+  assert.equal(originOfLogin("https://example.com/a path/b"), "https://example.com");
   assert.equal(originOfLogin("http://example.com"), "http://example.com");
   assert.equal(originOfLogin("  mail.example.com/inbox "), "https://mail.example.com");
   assert.equal(originOfLogin("//example.com/login"), "https://example.com");

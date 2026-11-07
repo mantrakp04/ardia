@@ -11,7 +11,7 @@ import {
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText, systemInfo } from "../../../state/app/system";
 import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { currentEngineProfile } from "../../../state/browser/current";
@@ -149,7 +149,14 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const open = useRef(true);
   const unlocked = usePasswordsUnlocked(profile);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
   useEffect(() => void revealPassword(profile, saved.origin, saved.username).then(setPassword), []);
   useEffect(() => {
     if (unlocked) return;
@@ -164,9 +171,10 @@ function PasswordSheet({ profile, saved, onChanged }: { profile: string; saved: 
       username: username !== saved.username ? username : undefined,
       password: password ?? undefined,
     }).catch(orWarn(false));
+    if (changed) onChanged();
+    if (!open.current) return;
     setBusy(false);
     if (!changed) return setError("Couldn't confirm that the change was saved. It may still appear in the list in a moment.");
-    onChanged();
     closeSettingsSheet();
   };
   const remove = async () => {
