@@ -12,7 +12,7 @@ const FAMILY: Record<TrendFamily, { event: string; pairs: string; where: string 
   launch: {
     event: "perf_launch",
     pairs: `[(${LAUNCH_KIND}, ${LAUNCH_MS}), ('all', ${LAUNCH_MS})]`,
-    where: `properties['first_of_version'] IN ('true', 'false') AND properties['launch_ms'] != '' AND ${LAUNCH_MS} > 0 AND ${LAUNCH_MS} < 600000`,
+    where: `properties['first_of_version'] IN ('true', 'false') AND ${LAUNCH_MS} > 0 AND ${LAUNCH_MS} < 600000`,
   },
   switch: {
     event: "profile_switched",

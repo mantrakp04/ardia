@@ -28,7 +28,7 @@ export async function performanceAll(range: RangeKey, signal?: AbortSignal) {
          t.1 AS metric, t.2 AS grp, t.3 AS x
        FROM telemetry.events
        WHERE event IN ('perf_launch', 'perf_omnibox', 'profile_switched', 'perf_memory') AND ${since(w.start)} AND ${APP_SOURCE}
-         AND (event != 'perf_launch' OR (properties['first_of_version'] IN ('true', 'false') AND properties['launch_ms'] != '' AND ${launchMs} > 0 AND ${launchMs} < 600000))
+         AND (event != 'perf_launch' OR (properties['first_of_version'] IN ('true', 'false') AND ${launchMs} > 0 AND ${launchMs} < 600000))
          AND (event != 'perf_memory' OR toFloat64OrZero(properties['total_mb']) > 0)
          AND (event != 'profile_switched' OR properties['switch_ms'] != '')
      )

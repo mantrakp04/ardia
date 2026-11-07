@@ -191,7 +191,8 @@ using namespace ardia_host;
 
 - (ArdiaCoreWindow *)engineWindowForNewBrowserOfProfile:(ArdiaCoreProfile *)profile type:(NSString *)type {
   if (![type isEqualToString:@"normal"] && ![type isEqualToString:@"popup"]) return nil;
-  if ([type isEqualToString:@"normal"] && !profile.offTheRecord)
+  if ([type isEqualToString:@"popup"]) return ardia_host::PopupWindowForChromeBrowser(profile);
+  if (!profile.offTheRecord)
     if (ArdiaWindowController *made = [ArdiaWindowController chromeMadeWindowForProfile:profile]) return made.coreWindow;
   return [ArdiaWindowController strayWindowForProfile:profile].coreWindow;
 }

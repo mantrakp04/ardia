@@ -85,6 +85,10 @@ export const GlassFill = memo(function GlassFill({
 });
 
 export function GlassGroup({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
-  const Group = useGlass() ? NativeGlassGroup : View;
-  return <Group style={style}>{children}</Group>;
+  if (!useGlass()) return <View style={style}>{children}</View>;
+  return (
+    <NativeGlassGroup strength={CONTROL_GLASS_STRENGTH} style={style}>
+      {children}
+    </NativeGlassGroup>
+  );
 }

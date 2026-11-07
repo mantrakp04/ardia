@@ -13,17 +13,16 @@ import type { BrowserWindow, ParkedPins, SplitView, Tab } from "../browser/types
 import { downloadSession } from "../downloads/downloadsSlice";
 import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
 import { sessionWithCleanUpMinutes } from "../settings/cleanUpAfter";
-import { parseSettingsMeta, sessionWithSettingsMeta } from "../settings/settings";
+import { parseSettingsMeta, sessionWithNewTabLinksInLittleArdia, sessionWithSettingsMeta } from "../settings/settings";
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
-import { profilesAfterSharingSetting } from "../pins/topApps";
 import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
 const SAVE_DELAY_MS = 800;
-const SESSION_VERSION = 9;
-const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps };
+const SESSION_VERSION = 10;
+const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps, 9: sessionWithNewTabLinksInLittleArdia };
 const downloadsWithStagingPathOnly = (doc: SavedObject): SavedObject => ({
   ...doc,
   downloads: Array.isArray(doc.downloads)
@@ -129,7 +128,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
   return {
-    profiles: profilesAfterSharingSetting(byProfile(raw.profiles, profileOk), raw.settings),
+    profiles: byProfile(raw.profiles, profileOk),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
     settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,

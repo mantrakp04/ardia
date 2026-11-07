@@ -114,6 +114,7 @@ export const SETTING_SPECS = {
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
+  loadProfilesWhenOpened: flag(true),
   keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),
   showFullUrl: flag(false, SYNCED),
@@ -131,7 +132,7 @@ export const SETTING_SPECS = {
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
   openLinksInLittleArdia: flag(true),
-  littleArdiaOpensNewTabLinks: flag(false, SYNCED),
+  littleArdiaOpensNewTabLinks: flag(true, SYNCED),
   littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth), { type: "array", prefixItems: [WIDTH, WIDTH], minItems: 2, maxItems: 2 }),
   pageEngine: oneOf(["chromium", "webkit"], "chromium"),
   websiteEngines: shaped<Record<string, "chromium" | "webkit">>({}, (v) => isRecordOf(v, (e) => e === "chromium" || e === "webkit"), recordOf({ type: "string", enum: ["chromium", "webkit"] })),
@@ -254,6 +255,17 @@ function withoutBatterySaver(saved: (Partial<Settings & SettingsMeta> & { batter
     ...(rest.inferred ? { inferred: without(rest.inferred) } : {}),
     ...(explicit && rest.batterySaverWhen === undefined ? { batterySaverWhen: batterySaver ? "unplugged" : "never" } : {}),
   };
+}
+
+const NEW_TAB_LINKS_IN_LITTLE_ARDIA: SettingKey = "littleArdiaOpensNewTabLinks";
+
+export function sessionWithNewTabLinksInLittleArdia(doc: SavedObject): SavedObject {
+  if (!isFields(doc.settings) || doc.settings[NEW_TAB_LINKS_IN_LITTLE_ARDIA] !== false) return doc;
+  const { chosen, inferred } = parseSettingsMeta(doc.settingsMeta);
+  if (chosen.includes(NEW_TAB_LINKS_IN_LITTLE_ARDIA) && !inferred.includes(NEW_TAB_LINKS_IN_LITTLE_ARDIA)) return doc;
+  const { [NEW_TAB_LINKS_IN_LITTLE_ARDIA]: _untouchedOff, ...settings } = doc.settings;
+  const without = (keys: string[]) => keys.filter((k) => k !== NEW_TAB_LINKS_IN_LITTLE_ARDIA);
+  return { ...doc, settings, settingsMeta: { chosen: without(chosen), inferred: without(inferred) } };
 }
 
 export type SettingsSlice = {

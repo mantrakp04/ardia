@@ -1,5 +1,5 @@
-import { forwardRef, useMemo, useRef, type ReactNode } from "react";
-import { Animated, PanResponder, Pressable, StyleSheet, View, type LayoutRectangle } from "react-native";
+import { forwardRef, memo, useMemo, useRef, type ReactNode } from "react";
+import { Animated, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag } from "../../state/bookmarks/barDrag";
@@ -53,20 +53,20 @@ export function useBookmarkDragResponder(
   }, deps);
 }
 
-export function BarItem({
+export const BarItem = memo(function BarItem({
   id,
   windowId,
   profileId,
   hidden,
   offset,
-  onLayout,
+  onWidth,
 }: {
   id: string;
   windowId: string;
   profileId: string;
   hidden: boolean;
   offset: number;
-  onLayout: (r: LayoutRectangle) => void;
+  onWidth: (id: string, width: number) => void;
 }) {
   const node = useBookmarks((b) => b.nodes[id]);
   const size = useBarSize();
@@ -95,7 +95,7 @@ export function BarItem({
       ref={view}
       collapsable={false}
       {...responder.panHandlers}
-      onLayout={(e) => onLayout(e.nativeEvent.layout)}
+      onLayout={(e) => onWidth(id, e.nativeEvent.layout.width)}
       onMouseEnter={folder ? () => !barDragging() && folderMenuOpen(windowId) && openMenu(false) : undefined}
       pointerEvents={hidden ? "none" : "auto"}
       style={{ opacity: hidden || dragging ? 0 : 1, marginRight: size.itemGap, transform: [{ translateX: shift }] }}
@@ -115,7 +115,7 @@ export function BarItem({
       </ContextMenuArea>
     </Animated.View>
   );
-}
+});
 
 export const BarButton = forwardRef<View, {
   title?: string;

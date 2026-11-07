@@ -3,7 +3,7 @@ import { Animated, Pressable, View } from "react-native";
 import { concentric, ContextMenuArea, radius, space, Symbol } from "../ui";
 import { useTheme } from "../ui/theme";
 import { sidebarTokens } from "./tokens";
-import { useTab, useWindowId } from "../../state/browser/hooks";
+import { usePageProfileId, useTab, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useShownFolderTab, useTileFolderMembers } from "../../state/pins/hooks";
 import { useDragItem, useFolderTarget } from "./DragProvider";
 import { dismissHover } from "../../state/sidebar/hover";
@@ -23,6 +23,7 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
   const theme = useTheme();
   const windowId = useWindowId();
   const members = useTileFolderMembers(windowId, folderId);
+  const onScreen = usePageProfileId() === useWindowProfileId();
   const shown = useShownFolderTab(windowId, folderId);
   const open = useFolderPanel((u) => u.open?.windowId === windowId && u.open.folderId === folderId);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "folder", id: folderId });
@@ -36,7 +37,7 @@ export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x
   return (
     <Animated.View ref={wrapper.ref} style={[{ position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
       <FolderDropRing on={target} />
-      <View ref={(v) => registerRow(windowId, folderId, v)} {...hoverProps}>
+      <View ref={onScreen ? (v) => registerRow(windowId, folderId, v) : undefined} {...hoverProps}>
         <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
           <Pressable
             onPressIn={(e) => void (pressedAt.current = e.nativeEvent.timestamp)}

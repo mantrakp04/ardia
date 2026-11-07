@@ -105,10 +105,7 @@ new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties ar
 - **`fcp` is the page's own clock** (its time origin plus the entry's time); a page can't move it but can replace the
   observer before the script installs it: values more than 10 minutes off are dropped natively, outliers past 60 s in JS.
 - Builds before this change send `perf_launch` with `launch_ms` only, at the first window.
-- **Only the process's first window can start J1.** Sharing turned on after that window's first commit (onboarding)
-  sends no `perf_launch` for that session. Builds up to 0.2.44 started it at the next window's commit (Settings, Import):
-  `commit_ms` and `usable_ms` minutes after process start, `launch_ms` empty. Leave those rows out with
-  `properties['launch_ms'] != ''`.
+- Only the first window's root can start the launch. Up to 0.2.45-nightly.1, a window opened after sharing was turned on (during onboarding, say) started it, timed from process start: those rows have no `launch_ms`, an empty `first_of_version` and minutes in the other fields. The dashboard drops them through its `first_of_version` filter; queries here require `properties['launch_ms'] != ''`.
 
 ## Queries (ClickHouse)
 

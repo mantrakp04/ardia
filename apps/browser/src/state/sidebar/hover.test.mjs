@@ -150,6 +150,23 @@ test("card reach: a point on the card is covered; heading away or straight down 
   assert.equal(cardReach(leftCard, { x: 150, y: 140 }, { x: 170, y: 140 }), "away");
 });
 
+test("heading for the card onto a row with no card of its own (an open group's header) still lets the card go", async (t) => {
+  fresh(t);
+  await cardFor(t, "tile");
+  hover.cardLaidOut({ x: 69, y: 48, width: 264, height: 152 });
+  leave("tile", at(45, 96));
+  let entered = false;
+  hover.rowEntered(W, null, at(55, 104), () => {
+    entered = true;
+    hover.rowShown(W, null);
+  }, () => {});
+  assert.equal(entered, false, "it waits for the aim");
+  t.mock.timers.tick(200);
+  assert.equal(entered, true);
+  t.mock.timers.tick(160);
+  assert.equal(shown(), null, "the header has no card: the tab's card leaves");
+});
+
 test("a row away from the card takes the hover at once", async (t) => {
   fresh(t);
   await cardFor(t, "tile");
