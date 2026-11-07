@@ -16,8 +16,8 @@ ardia browse snapshot -i
 
 A session with no tab uses the tab the user is looking at. `snapshot -i` lists what you can act on, with refs:
 `textbox "Title" [ref=e11]`, `combobox "Calendar" [ref=e12]: Home`, `button "Add Event" [ref=e30]`. Read pages
-this way, not with `innerHTML`, page scripts or `get html`. If the snapshot starts with `# notes for <site>`, read
-them first: they're what earlier runs learned about this site.
+this way, not with `innerHTML`, page scripts or `get html`. If the snapshot starts with `# notes for <site>`, that's
+Ardia's memory of the site (see Memory below): read it before you plan.
 
 Every action prints what it changed: new nodes with refs you can use at once (a dialog that opened, with its
 fields), changed values, the URL, and the requests it caused (`POST …/api/events → 200`). So:
@@ -44,8 +44,24 @@ EOF
   (`YYYY-MM-DD`), time (`HH:MM`), color and range inputs directly. `select` takes the option's value or label.
 - Verify from the answers: each save's `POST … → 200` and the `changes:` lines. Don't reload or re-read the page to
   check unless something failed.
-- When you learned something non-obvious about a site (where a control is, what format a field wants), add one
-  `notes append "…"` line to your batch. It costs no extra step.
+- End the batch with a `notes` line that keeps Ardia's memory of the site current (below). It costs no extra step.
+
+## Memory
+
+Ardia keeps a short page of notes per site (`ardia notes`), shared by every agent the user runs. `snapshot` prints
+the current site's page first. Keep it like a teammate's cheat sheet for that site:
+
+- **Use it.** When the notes already describe what you need (where the control is, which fields a form has, what
+  formats they take), skip exploring and go straight to the batch. If they turn out wrong, fix them.
+- **Update it every time you finish work on a site,** as the last line of your batch: `notes append "…"` for one new
+  fact, or `notes set "…"` to rewrite the page when it's stale or past about 800 characters (snapshot shows the
+  first 1,000).
+- **Write what saves the next run a step:** how to do the common tasks there by control names and labels (refs
+  change between sessions), field formats and defaults that need changing (`Calendar defaults to Home`), pitfalls
+  that cost you a retry, and preferences the user stated (`work events go on Board`).
+- **Never write:** passwords, tokens, codes, personal data, or the task's own content (the events, messages or
+  values you entered).
+- `ardia notes list` shows every site with notes; `ardia notes get <site>` reads one without opening it.
 
 ## Reaching Ardia
 
