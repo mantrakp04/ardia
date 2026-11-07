@@ -157,6 +157,7 @@ void TabBridge::DidFinishNavigation(content::NavigationHandle* handle) {
   ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   EnsureFaviconObserved();
   EnsureZoomObserved();
+  EnsureAudibleObserved();
   if (made_ahead_ && handle->IsInPrimaryMainFrame() && handle->HasCommitted() &&
       !handle->GetURL().IsAboutBlank()) {
     made_ahead_ = false;
