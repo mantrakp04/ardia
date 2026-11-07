@@ -32,7 +32,8 @@ the pins into `pyproject.toml`).
   `ardia browse notes …`, with the shared options given before `notes` put first. When the module isn't there it
   prints one line and exits 1; nothing else depends on it.
 - `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
-  agent skill (`ardia_cli/skill`: `SKILL.md`, `references/pydoll.md` and `references/browse.md`) into `~/.agents/skills` (general, codex),
+  agent skill (`ardia_cli/skill`: a short `SKILL.md` on the fast path, with `references/browse.md`, `userscripts.md`,
+  `config.md`, `automation.md` and `daily-reports.md` read only when a task needs them) into `~/.agents/skills` (general, codex),
   `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
   `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It replaces only its own `ardia` folder.
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
