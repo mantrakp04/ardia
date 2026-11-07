@@ -40,7 +40,7 @@ export function ExtensionSidePanel() {
   }, [!!panel]);
   useEffect(() => {
     if (panel) setShown(panel);
-  }, [panel?.url, panel?.extensionId]);
+  }, [panel?.url, panel?.extensionId, panel?.opened]);
 
   const width = dragWidth ?? savedWidth;
   const start = useRef(width);

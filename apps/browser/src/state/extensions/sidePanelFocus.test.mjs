@@ -29,7 +29,7 @@ const open = async (w, extensionId = "one") => {
   return E().sidePanels[w];
 };
 
-test("a panel the user opens takes keyboard focus on its first finished load, once", async () => {
+test("a panel the user opens is granted one focus request, taken once", async () => {
   const { w } = setup();
   const panel = await open(w);
   assert.equal(panels.takeSidePanelFocus(w, panel), true);
@@ -37,7 +37,7 @@ test("a panel the user opens takes keyboard focus on its first finished load, on
   panels.closeSidePanel(w);
 });
 
-test("a tab switch that swaps the panel's page after it opened leaves keyboard focus where it is", async () => {
+test("a tab switch that swaps the panel's page after the request was taken makes no new request", async () => {
   const { w, b } = setup();
   const first = await open(w);
   assert.equal(panels.takeSidePanelFocus(w, first), true);
@@ -49,7 +49,7 @@ test("a tab switch that swaps the panel's page after it opened leaves keyboard f
   panels.closeSidePanel(w);
 });
 
-test("a swap of the panel's page before it finished loading passes the focus request to the page that replaced it, once", async () => {
+test("a swap of the panel's page before the request was taken passes it to the replacing panel, once", async () => {
   const { w, b } = setup();
   const first = await open(w);
   S().activate(b);
@@ -99,6 +99,21 @@ test("switching to another extension's panel asks for focus on its page", async 
   assert.equal(panels.takeSidePanelFocus(w, first), true);
   const second = await open(w, "two");
   assert.equal(second.extensionId, "two");
+  assert.equal(panels.takeSidePanelFocus(w, second), true);
+  panels.closeSidePanel(w);
+});
+
+test("reopening a panel before another panel's page lookup finishes gives the shown card a new focus request", async () => {
+  const { w } = setup();
+  const first = await open(w, "one");
+  assert.equal(panels.takeSidePanelFocus(w, first), true);
+  const away = panels.openSidePanel(w, "two");
+  const back = panels.openSidePanel(w, "one");
+  await Promise.all([away, back]);
+  const second = E().sidePanels[w];
+  assert.equal(second.extensionId, "one");
+  assert.notEqual(second.opened, first.opened);
+  assert.notEqual(panels.sidePanelKey(second), panels.sidePanelKey(first));
   assert.equal(panels.takeSidePanelFocus(w, second), true);
   panels.closeSidePanel(w);
 });
