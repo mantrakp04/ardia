@@ -7,7 +7,7 @@ import { pinnedGroupMembers } from "../browser/structure";
 import { shownTabIds } from "../tabs/shownTabs";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { beginLiveRefresh, applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { beginLiveRefresh, applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
 import { isPlaying, useMedia } from "../media/media";
@@ -97,8 +97,7 @@ async function run(folderId: string) {
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
   const succeeded = new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id)));
   fetchedSources.set(folderId, succeeded);
-  applyFetch(folderId, order(next), gone, Date.now(), quiet, fence);
-  releaseShownRepos(folderId, succeeded);
+  applyFetch(folderId, order(next), gone, Date.now(), quiet, fence, succeeded);
   markCompletedTabs(folderId, gone, ids);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);

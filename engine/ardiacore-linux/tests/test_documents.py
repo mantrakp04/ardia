@@ -260,6 +260,128 @@ int main() {
             result = subprocess.run([str(binary)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_repo_filter_state(self):
+        compiler = shutil.which('clang++') or shutil.which('c++')
+        self.assertIsNotNone(compiler)
+        folder = {'id': 'lf-a', 'profileId': 'logical', 'kind': 'pullRequests', 'name': 'A', 'icon': None, 'collapsed': False, 'sources': ['github'], 'filters': {'authored': True, 'reviewRequests': True}, 'groupStacks': True, 'showCompleted': True, 'hiddenRepos': [], 'createdAt': 0}
+        item = {'id': 'pr-1', 'source': 'github', 'url': 'https://example.test/pr/1', 'title': 'PR', 'subtitle': '', 'icon': None, 'updatedAt': 0}
+        scoped = {'id': 'lf-a', 'incarnation': 'folder:lf-a'}
+        repos = lambda expected, value: [{**scoped, 'type': 'field', 'target': 'folder', 'field': 'hiddenRepos', 'expected': expected, 'value': value}]
+        kept = lambda expected, value: [{**scoped, 'type': 'entry', 'target': 'repoHidden', 'key': 'pr-1', 'expected': expected, 'value': value}]
+        operations = {
+            'create': [{'type': 'create', 'id': 'lf-a', 'incarnation': 'folder:lf-a', 'value': folder}],
+            'create_bad': [{'type': 'create', 'id': 'lf-b', 'incarnation': 'folder:lf-b', 'value': {**folder, 'id': 'lf-b', 'hiddenRepos': 'acme/widgets'}}],
+            'hide_repo': repos([], ['acme/widgets']),
+            'hide_stale': repos([], ['acme/other']),
+            'hide_text': repos(['acme/widgets'], 'acme/widgets'),
+            'hide_twice': repos(['acme/widgets'], ['acme/widgets', 'acme/widgets']),
+            'hide_mixed': repos(['acme/widgets'], ['acme/widgets', 7]),
+            'keep_out': kept(None, item),
+            'keep_wrong_id': kept(None, {**item, 'id': 'pr-2'}),
+            'keep_stale': kept(None, item),
+            'release': kept(item, None),
+            'keep_out_again': kept(None, item),
+            'delete_folder': [{'type': 'delete', **scoped}],
+        }
+        main = r'''
+#include <cassert>
+#include <optional>
+#include "ardia/linux/ac_linux_documents.h"
+#include "ardia/linux/ac_linux_document_reducer.h"
+using namespace ardia;
+int main() {
+  std::optional<base::DictValue> disk;
+  auto read = [&](std::string_view name) {
+    LinuxDocumentRead result;
+    if (name == kLinuxLiveEnvelope && disk) { result.state = LinuxDocumentRead::State::kFound; result.value = disk->Clone(); }
+    return result;
+  };
+  auto write = [&](const base::DictValue& value) { disk = value.Clone(); return true; };
+  LinuxDocumentClient a{"a", "scope", true, true};
+'''
+        main += '\n'.join(f'  auto {name} = {cpp_value(value)};' for name, value in operations.items())
+        main += r'''
+  auto folder_repos = [&]() { return disk->FindDict("payload")->FindDict("folders")->FindDict("lf-a")->Find("hiddenRepos"); };
+  auto kept_out = [&]() { return disk->FindDict("payload")->FindDict("repoHidden")->Find("lf-a"); };
+  {
+    LinuxDocuments service("scope", "epoch", read, write);
+    assert(service.Watch(a, [](auto) {}).ok());
+    int sequence = 0;
+    auto commit = [&](const base::Value& operations) {
+      base::DictValue request;
+      request.Set("document", "live.json"); request.Set("epoch", "epoch");
+      request.Set("requestId", "a:" + std::to_string(sequence + 1));
+      request.Set("observedRevision", base::Value(0));
+      request.Set("operations", operations.Clone());
+      auto result = service.Commit(a, request);
+      if (result.ok() && *result.value.FindString("status") == "committed") ++sequence;
+      return result;
+    };
+    assert(disk->FindDict("payload")->FindDict("repoHidden")->size() == 0);
+    assert(commit(create_bad).code == "ERR_DOCUMENT_REQUEST");
+    assert(commit(create).ok());
+    assert(folder_repos()->GetList().size() == 0);
+    assert(commit(hide_repo).ok());
+    assert(folder_repos()->GetList().size() == 1);
+    assert(*commit(hide_stale).value.FindString("status") == "conflict");
+    for (const auto* invalid : {&hide_text, &hide_twice, &hide_mixed, &keep_wrong_id})
+      assert(commit(*invalid).code == "ERR_DOCUMENT_REQUEST");
+    assert(commit(keep_out).ok());
+    assert(kept_out()->GetList().size() == 1);
+    assert(*commit(keep_stale).value.FindString("status") == "conflict");
+    assert(commit(release).ok());
+    assert(kept_out()->GetList().size() == 0);
+    assert(commit(keep_out_again).ok());
+  }
+  auto older = disk->Clone();
+  auto payload = older.FindDict("payload")->Clone();
+  payload.Remove("repoHidden");
+  auto folders = payload.FindDict("folders")->Clone();
+  auto older_folder = folders.FindDict("lf-a")->Clone();
+  older_folder.Remove("hiddenRepos");
+  folders.Set("lf-a", std::move(older_folder));
+  payload.Set("folders", std::move(folders));
+  older.Set("payload", std::move(payload));
+  disk = older.Clone();
+  {
+    LinuxDocuments upgraded("scope", "next-epoch", read, write);
+    assert(upgraded.Watch(a, [](auto) {}).ok());
+    assert(folder_repos()->GetList().size() == 0);
+    assert(disk->FindDict("payload")->FindDict("repoHidden")->size() == 0);
+  }
+  auto with_entries = disk->Clone();
+  auto seeded = with_entries.FindDict("payload")->Clone();
+  auto entries = seeded.FindDict("repoHidden")->Clone();
+  base::ListValue listed;
+  listed.Append(keep_out.GetList()[0].GetDict().Find("value")->Clone());
+  entries.Set("lf-a", base::Value(std::move(listed)));
+  seeded.Set("repoHidden", std::move(entries));
+  with_entries.Set("payload", std::move(seeded));
+  disk = with_entries.Clone();
+  {
+    LinuxDocuments service("scope", "last-epoch", read, write);
+    LinuxDocumentClient fresh{"fresh", "scope", true, true};
+    assert(service.Watch(fresh, [](auto) {}).ok());
+    assert(kept_out()->GetList().size() == 1);
+    base::DictValue request;
+    request.Set("document", "live.json"); request.Set("epoch", "last-epoch");
+    request.Set("requestId", "fresh:1");
+    request.Set("observedRevision", base::Value(0));
+    request.Set("operations", delete_folder.Clone());
+    assert(service.Commit(fresh, request).ok());
+    assert(!disk->FindDict("payload")->FindDict("repoHidden")->contains("lf-a"));
+  }
+  auto corrupt = disk->Clone();
+  auto bad = corrupt.FindDict("payload")->Clone();
+  bad.Set("repoHidden", base::Value("malformed"));
+  corrupt.Set("payload", std::move(bad));
+  disk = corrupt.Clone();
+  LinuxDocuments rejected("scope", "fifth-epoch", read, write);
+  assert(rejected.Watch(a, [](auto) {}).code == "ERR_DOCUMENT_DATA");
+}
+'''
+        self.run_main(compiler, main)
+
     def test_meeting_badge_state(self):
         compiler = shutil.which('clang++') or shutil.which('c++')
         self.assertIsNotNone(compiler)

@@ -214,6 +214,7 @@ export function snapshotHostSession(s: BrowserState): HydrateData {
     closedTabs: s.closedTabs.filter((c) => publicProfile(c.tab.profileId)), closedWindows: s.closedWindows.filter(publicTabs),
     closedGroups: s.closedGroups.filter(publicTabs), deletedGroups: s.deletedGroups.filter(publicTabs), cleanedTabs: s.cleanedTabs.filter((c) => publicProfile(c.tab.profileId)),
     parkedPins: publicTable(s.parkedPins), pinChoices: publicTable(s.pinChoices), pinSync: publicTable(s.pinSync),
+    topAppsMerged: s.topAppsMerged,
     settings: s.settings,
   };
 }

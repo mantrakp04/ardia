@@ -46,5 +46,6 @@ export function sessionStatePatch(state: BrowserState, local: HydrateData, merge
   }
   const settings = shareSessionValue(state.settings, merged.settings ?? state.settings);
   if (settings !== state.settings) patch.settings = settings;
+  if (merged.topAppsMerged !== undefined && merged.topAppsMerged !== state.topAppsMerged) patch.topAppsMerged = merged.topAppsMerged;
   return patch as Partial<BrowserState>;
 }
