@@ -345,6 +345,7 @@ void TabBridge::OnRecentlyAudibleChanged(bool was_recently_audible) {
 }
 
 void TabBridge::OnAudioStateChanged(bool audible) {
+  EnsureAudibleObserved();
   if (!audible_subscription_) {
     [tab_ notify:@selector(tabDidChangeAudio:)];
   }

@@ -52,6 +52,14 @@ test("an instant audio flip reaches the host only when no helper reports the hel
   assert.match(flip, /if \(!audible_subscription_\) \{\s*\[tab_ notify:@selector\(tabDidChangeAudio:\)\];\s*\}/);
 });
 
+test("an instant audio flip subscribes to the helper before deciding, so the hold end is never missed", () => {
+  const flip = bodyOf(engine("ac_tab_bridge.mm"), "void TabBridge::OnAudioStateChanged(bool audible) {");
+  const ensure = flip.indexOf("EnsureAudibleObserved();");
+  const decide = flip.indexOf("if (!audible_subscription_)");
+  assert.ok(ensure >= 0, "the flip handler calls EnsureAudibleObserved()");
+  assert.ok(decide > ensure, "the subscription is established before the handler decides whether to notify");
+});
+
 test("the subscription is made where the other tab helpers are observed and dropped with the contents", () => {
   const destroyed = bodyOf(engine("ac_tab_bridge.mm"), "void TabBridge::WebContentsDestroyed() {");
   assert.match(destroyed, /audible_subscription_\.reset\(\);/);
