@@ -29,8 +29,8 @@ enum AppIcons {
   }
 
   static func restore() {
-    if IconStyle.shown(saved: current, theme: IconStyle.systemTheme) != "default" { apply() }
     watchStyle()
+    if IconStyle.shown(saved: current, theme: IconStyle.systemTheme) != "default" { apply() }
   }
 
   static func set(_ id: String, announce: Bool) {
@@ -124,11 +124,10 @@ enum AppIcons {
 }
 
 final class IconStyleWatcher: NSObject {
-  private let onChange: () -> Void
-  private var restyled = IconStyle.systemRestylesIcons
+  private let tracker: IconStyleTracker
 
   init(onChange: @escaping () -> Void) {
-    self.onChange = onChange
+    tracker = IconStyleTracker(theme: IconStyle.systemTheme, onChange: onChange)
     super.init()
     UserDefaults.standard.addObserver(self, forKeyPath: IconStyle.defaultsKey, options: [], context: nil)
   }
@@ -139,11 +138,7 @@ final class IconStyleWatcher: NSObject {
 
   override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
     DispatchQueue.main.async { [weak self] in
-      guard let self else { return }
-      let now = IconStyle.systemRestylesIcons
-      guard now != self.restyled else { return }
-      self.restyled = now
-      self.onChange()
+      self?.tracker.themeChanged(to: IconStyle.systemTheme)
     }
   }
 }

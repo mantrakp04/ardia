@@ -34,8 +34,8 @@ final class ArdiaDockTilePlugIn: NSObject, NSDockTilePlugIn {
     }
     let stored = CFPreferencesCopyAppValue(AppIcons.defaultsKey as CFString, bundleId as CFString) as? String
     saved = stored ?? UserDefaults.standard.string(forKey: cacheKey) ?? "default"
-    show()
     styleWatcher = IconStyleWatcher { [weak self] in self?.show() }
+    show()
   }
 
   private func show() {
