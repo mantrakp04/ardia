@@ -29,21 +29,30 @@ enum AppIcons {
   }
 
   static func restore() {
-    if current != "default" { apply(current) }
+    if IconStyle.shown(saved: current, theme: IconStyle.systemTheme) != "default" { apply() }
+    watchStyle()
   }
 
   static func set(_ id: String, announce: Bool) {
     guard variants.contains(where: { $0.id == id }) else { return }
     UserDefaults.standard.set(id, forKey: defaultsKey)
-    apply(id)
+    apply()
     if announce, let bundleId = Bundle.main.bundleIdentifier {
       DistributedNotificationCenter.default().postNotificationName(
         changedNotification(bundleId: bundleId), object: nil, userInfo: ["icon": id], deliverImmediately: true)
     }
   }
 
-  private static func apply(_ id: String) {
+  private static func apply() {
+    let id = IconStyle.shown(saved: current, theme: IconStyle.systemTheme)
     NSApp.applicationIconImage = id == "default" ? nil : image(id, size: 512)
+  }
+
+  private static var styleWatcher: IconStyleWatcher?
+
+  private static func watchStyle() {
+    guard styleWatcher == nil else { return }
+    styleWatcher = IconStyleWatcher { apply() }
   }
 
   private static var cache: [String: NSImage] = [:]
@@ -111,5 +120,30 @@ enum AppIcons {
           let tiff = image.tiffRepresentation,
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
     return "data:image/png;base64,\(png.base64EncodedString())"
+  }
+}
+
+final class IconStyleWatcher: NSObject {
+  private let onChange: () -> Void
+  private var restyled = IconStyle.systemRestylesIcons
+
+  init(onChange: @escaping () -> Void) {
+    self.onChange = onChange
+    super.init()
+    UserDefaults.standard.addObserver(self, forKeyPath: IconStyle.defaultsKey, options: [], context: nil)
+  }
+
+  deinit {
+    UserDefaults.standard.removeObserver(self, forKeyPath: IconStyle.defaultsKey)
+  }
+
+  override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      let now = IconStyle.systemRestylesIcons
+      guard now != self.restyled else { return }
+      self.restyled = now
+      self.onChange()
+    }
   }
 }
