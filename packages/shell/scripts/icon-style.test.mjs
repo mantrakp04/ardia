@@ -68,8 +68,20 @@ test("the style is watched before the icon is reconciled, so a change in between
   assert.ok(restore.includes("watchStyle()") && restore.includes("apply()"), "restore must watch the style and apply the icon");
   assert.ok(restore.indexOf("watchStyle()") < restore.indexOf("apply()"), "AppIcons.restore applies the icon before watching the style");
   const dockTile = body(read("docktile/DockTilePlugIn.swift"), "func setDockTile\\(");
-  assert.ok(dockTile.includes("styleWatcher = IconStyleWatcher") && dockTile.includes("show()"), "setDockTile must watch the style and show the tile");
-  assert.ok(dockTile.indexOf("styleWatcher = IconStyleWatcher") < dockTile.lastIndexOf("show()"), "the plug-in shows the tile before watching the style");
+  const watching = dockTile.indexOf("styleWatcher = IconStyleWatcher");
+  const showing = dockTile.search(/^ {4}show\(\)$/m);
+  assert.ok(watching >= 0 && showing >= 0, "setDockTile must watch the style and then show the tile with its own show() call");
+  assert.ok(watching < showing, "the plug-in shows the tile before watching the style");
+});
+
+test("the watcher resyncs its tracker once the observer is registered, so a style flip before registration is not missed", () => {
+  const watcher = read("ios/AppIcons.swift").match(/final class IconStyleWatcher[\s\S]*$/)?.[0] ?? "";
+  const init = body(watcher, "init\\(onChange");
+  const registered = init.indexOf("addObserver(");
+  const resynced = init.indexOf("tracker.themeChanged(to: IconStyle.systemTheme)");
+  assert.ok(registered >= 0, "the watcher must register its observer in init");
+  assert.ok(resynced >= 0, "the watcher must resync its tracker with the current style after registering");
+  assert.ok(registered < resynced, "the watcher resyncs its tracker before it registers the observer");
 });
 
 test("the Dock tile plug-in is built with the icon style rule", () => {

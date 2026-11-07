@@ -130,6 +130,7 @@ final class IconStyleWatcher: NSObject {
     tracker = IconStyleTracker(theme: IconStyle.systemTheme, onChange: onChange)
     super.init()
     UserDefaults.standard.addObserver(self, forKeyPath: IconStyle.defaultsKey, options: [], context: nil)
+    tracker.themeChanged(to: IconStyle.systemTheme)
   }
 
   deinit {
