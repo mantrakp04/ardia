@@ -138,7 +138,7 @@ export function DockedLayout({
               }
         }
       >
-        {!fullscreen && showPageFrame && <WindowDragRegion style={StyleSheet.absoluteFill} />}
+        {!fullscreen && <WindowDragRegion style={StyleSheet.absoluteFill} />}
         {children}
       </Animated.View>
       {topStrip &&

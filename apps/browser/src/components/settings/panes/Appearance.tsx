@@ -2,10 +2,10 @@ import type { AppIcon } from "../../../state/app/appSettings";
 import { Box, GlassFill, liquidGlass, PopUp, radius, space, Toggle } from "../../ui";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { useSettings, useShowPageFrame, useTabLayout } from "../../../state/browser/hooks";
+import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -154,14 +154,11 @@ function AddressBarPicker() {
 }
 
 function PageFramePicker() {
-  const showPageFrame = useShowPageFrame();
   return (
     <>
       <SectionHeader title="Window" />
       <Group>
-        <Row anchor="appearance.showPageFrame">
-          <Toggle value={showPageFrame} onChange={(v) => updateSettings({ showPageFrame: v })} />
-        </Row>
+        <SettingToggle anchor="appearance.showPageFrame" />
       </Group>
     </>
   );
