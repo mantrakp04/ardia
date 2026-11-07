@@ -206,6 +206,13 @@ std::string TokenClient::Refusal(const std::string& method,
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
       return "with the command line API";
     }
+  } else if (method == "Input.dispatchMouseEvent") {
+    const std::string* type = params.FindString("type");
+    const std::string* button = params.FindString("button");
+    if (type && (*type == "mousePressed" || *type == "mouseReleased") &&
+        (!button || *button == "none")) {
+      return "without a button";
+    }
   } else if (method == "Input.dispatchKeyEvent") {
     if (!EditingCommandsAllowed(params.Find("commands"))) {
       return "with those editing commands";

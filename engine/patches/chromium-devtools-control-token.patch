@@ -527,7 +527,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  #include <memory>
  #include <tuple>
  #include <utility>
-@@ -56,8 +57,53 @@
+@@ -56,10 +57,56 @@
  #include "ui/gfx/geometry/point_f.h"
  #include "ui/gfx/range/range.h"
  
@@ -542,9 +542,9 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +                                   content::RenderFrameHost* frame) = nullptr;
 +
  namespace content::protocol {
-+
-+namespace {
-+
+ 
+ namespace {
+ 
 +bool ArdiaMayInject(DevToolsSession* session,
 +                    RenderFrameHostImpl* host,
 +                    RenderWidgetHostImpl* widget) {
@@ -566,8 +566,9 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  });
 +  return found && allowed;
 +}
- 
-+constexpr size_t kArdiaDeliveredMouseEvents = 256;
++
++constexpr size_t kArdiaRecentMouseEvents = 256;
++constexpr base::TimeDelta kArdiaRecentMouseEventLifetime = base::Seconds(30);
 +
 +bool ArdiaRestrictedSession(DevToolsSession* session) {
 +  return g_ardia_devtools_may_input &&
@@ -578,10 +579,23 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +
 +}  // namespace
 +
- namespace {
- 
++namespace {
++
  gfx::PointF CssPixelsToPointF(double x, double y, float scale_factor) {
-@@ -754,9 +800,19 @@
+   return gfx::PointF(x * scale_factor, y * scale_factor);
+ }
+@@ -743,6 +790,10 @@
+       return;
+     }
+ 
++    if (mouse_event.GetType() == blink::WebInputEvent::Type::kMouseUp) {
++      owner_->ardia_press_.reset();
++    }
++
+     if (owner_->drag_controller_.HandleMouseEvent(*widget_host_, mouse_event,
+                                                   callback)) {
+       return;
+@@ -754,10 +805,21 @@
      // This may destroy the injector if the events get discarded.
      base::WeakPtr<InputHandler::InputInjector> weak_this =
          weak_ptr_factory_.GetWeakPtr();
@@ -589,20 +603,49 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +    ui::LatencyInfo latency;
 +    latency.set_trace_id(
 +        static_cast<int64_t>(base::trace_event::GetNextGlobalTraceId()));
++    injected_mouse_type_ = mouse_event.GetType();
++    injected_mouse_dispatched_ = false;
 +    widget_host_->ForwardMouseEventWithLatencyInfo(mouse_event, latency);
      if (!weak_this) {
        return;
-+    }
-+    if (input_queued_) {
-+      owner_->ardia_delivered_.emplace_back(widget_host_.get(),
-+                                            latency.trace_id());
-+      if (owner_->ardia_delivered_.size() > kArdiaDeliveredMouseEvents) {
-+        owner_->ardia_delivered_.pop_front();
-+      }
      }
++    injected_mouse_type_ = blink::WebInputEvent::Type::kUndefined;
++    if (injected_mouse_dispatched_) {
++      owner_->ArdiaRecordDelivered(
++          static_cast<RenderWidgetHost*>(widget_host_.get()), mouse_event,
++          latency.trace_id());
++    }
      if (!input_queued_) {
        pending_mouse_callbacks_.back()->sendSuccess();
-@@ -1124,6 +1180,12 @@
+       pending_mouse_callbacks_.pop_back();
+@@ -830,6 +892,16 @@
+                     const blink::WebInputEvent& event,
+                     InputEventSource source) override {
+     input_queued_ = true;
++  }
++
++  void OnInputEventDispatchedToRenderer(
++      const RenderWidgetHost& widget,
++      const blink::WebInputEvent& event) override {
++    if (blink::WebInputEvent::IsMouseEventType(event.GetType()) &&
++        event.GetType() == injected_mouse_type_ &&
++        (event.GetModifiers() & blink::WebInputEvent::kFromDebugger)) {
++      injected_mouse_dispatched_ = true;
++    }
+   }
+ 
+   void OnInputEventAck(const RenderWidgetHost& widget,
+@@ -882,6 +954,9 @@
+   // Callbacks for calls to Input.dispatchKey/MouseEvent that have been sent to
+   // the renderer, but that we haven't yet received an ack for.
+   bool input_queued_ = false;
++  blink::WebInputEvent::Type injected_mouse_type_ =
++      blink::WebInputEvent::Type::kUndefined;
++  bool injected_mouse_dispatched_ = false;
+   base::circular_deque<std::unique_ptr<DispatchKeyEventCallback>>
+       pending_key_callbacks_;
+   base::circular_deque<std::unique_ptr<DispatchMouseEventCallback>>
+@@ -1124,6 +1199,12 @@
      return;
    }
    auto* host = RenderWidgetHostImpl::From(view->GetRenderWidgetHost());
@@ -615,7 +658,19 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    auto point = *maybe_point;
  
    host->DragTargetDrop(drag_state_->data, point, point, event->GetModifiers(),
-@@ -1265,6 +1327,11 @@
+@@ -1267,6 +1348,11 @@
+       widget_host = target_host;
+   }
+ 
++  if (!ArdiaMayInject(session(), host_, widget_host)) {
++    callback->sendFailure(Response::InvalidParams("Not allowed"));
++    return;
++  }
++
+   // We do not pass events to browser if there is no native key event
+   // due to Mac needing the actual os_event.
+   if (event.native_key_code && allow_sending_input_to_browser_)
+@@ -1292,6 +1378,11 @@
          widget_host->delegate()->GetFocusedRenderWidgetHost(widget_host);
      if (target_host)
        widget_host = target_host;
@@ -626,20 +681,8 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +    return;
    }
  
-   // We do not pass events to browser if there is no native key event
-@@ -1294,6 +1361,11 @@
-       widget_host = target_host;
-   }
- 
-+  if (!ArdiaMayInject(session(), host_, widget_host)) {
-+    callback->sendFailure(Response::InvalidParams("Not allowed"));
-+    return;
-+  }
-+
    base::OnceClosure closure =
-       base::BindOnce(&InsertTextCallback::sendSuccess, std::move(callback));
- 
-@@ -1478,6 +1550,10 @@
+@@ -1478,6 +1569,10 @@
    auto point = *maybe_point;
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -650,7 +693,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    auto mask =
        static_cast<blink::DragOperationsMask>(data->GetDragOperationsMask());
    std::unique_ptr<DropData> drop_data =
-@@ -1573,10 +1649,29 @@
+@@ -1573,10 +1668,35 @@
    return scale_factor;
  }
  
@@ -668,23 +711,29 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  if (ArdiaRestrictedSession(session())) {
 +    const void* source_widget =
 +        source_frame ? source_frame->GetRenderWidgetHost() : nullptr;
-+    auto delivered = [&](int64_t id) {
-+      return id != -1 && std::ranges::find(ardia_delivered_,
-+                                         std::make_pair(source_widget, id)) !=
-+                           ardia_delivered_.end();
++    const base::TimeTicks oldest =
++        base::TimeTicks::Now() - kArdiaRecentMouseEventLifetime;
++    auto recent = [&](int64_t id) {
++      return std::ranges::any_of(ardia_recent_, [&](const auto& entry) {
++        return std::get<0>(entry) == source_widget &&
++               std::get<1>(entry) == id && std::get<2>(entry) >= oldest;
++      });
 +    };
-+    if (!source_widget || !event_info || !session() ||
++    if (!source_widget || !event_info || !session() || !ardia_press_ ||
++        event_info->press_event_id == -1 ||
++        event_info->trigger_event_id == -1 ||
++        *ardia_press_ !=
++            std::make_pair(source_widget, event_info->press_event_id) ||
++        !recent(event_info->trigger_event_id) ||
 +        !g_ardia_devtools_may_input(session()->GetRootSession()->GetClient(),
-+                                    source_frame) ||
-+        !delivered(event_info->press_event_id) ||
-+        !delivered(event_info->trigger_event_id)) {
++                                    source_frame)) {
 +      return;
 +    }
 +  }
    // Only allow when Input.setInterceptDrags is disabled.
    if (!intercept_drags_) {
      // If `last_mouse_move_` exists, then CDP is the currently handling mouse
-@@ -1641,6 +1736,10 @@
+@@ -1641,6 +1761,10 @@
  
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -695,7 +744,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    if (event->GetType() == blink::WebInputEvent::Type::kMouseWheel) {
      EnsureInjector(widget_host)
          ->InjectWheelEvent(static_cast<blink::WebMouseWheelEvent*>(event.get()),
-@@ -1657,6 +1756,13 @@
+@@ -1657,6 +1781,13 @@
      std::optional<double> timestamp,
      std::unique_ptr<DispatchTouchEventCallback> callback) {
    if (base::FeatureList::IsEnabled(features::kSyntheticPointerActions)) {
@@ -709,7 +758,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      DispatchSyntheticPointerActionTouch(
          event_type, std::move(touch_points), std::move(modifiers),
          std::move(timestamp), std::move(callback));
-@@ -1741,6 +1847,10 @@
+@@ -1741,6 +1872,10 @@
    }
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -720,6 +769,34 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  
    RenderWidgetHostViewBase* root_view = target->GetRootView();
    if (!root_view) {
+@@ -2301,7 +2436,27 @@
+   }
+ }
+ 
++void InputHandler::ArdiaRecordDelivered(const void* widget,
++                                        const blink::WebMouseEvent& event,
++                                        int64_t id) {
++  if (event.GetType() == blink::WebInputEvent::Type::kMouseDown) {
++    if (event.button != blink::WebPointerProperties::Button::kNoButton) {
++      ardia_press_.emplace(widget, id);
++    }
++    return;
++  }
++  const base::TimeTicks now = base::TimeTicks::Now();
++  ardia_recent_.emplace_back(widget, id, now);
++  while (ardia_recent_.size() > kArdiaRecentMouseEvents ||
++         now - std::get<2>(ardia_recent_.front()) >
++             kArdiaRecentMouseEventLifetime) {
++    ardia_recent_.pop_front();
++  }
++}
++
+ void InputHandler::ClearInputState() {
++  ardia_press_.reset();
++  ardia_recent_.clear();
+   while (!injectors_.empty())
+     (*injectors_.begin())->Cleanup();
+   // TODO(dgozman): cleanup touch callbacks as well?
 diff --git a/content/browser/devtools/render_frame_devtools_agent_host.cc b/content/browser/devtools/render_frame_devtools_agent_host.cc
 --- a/content/browser/devtools/render_frame_devtools_agent_host.cc
 +++ b/content/browser/devtools/render_frame_devtools_agent_host.cc
@@ -751,20 +828,30 @@ diff --git a/content/browser/devtools/render_frame_devtools_agent_host.cc b/cont
 diff --git a/content/browser/devtools/protocol/input_handler.h b/content/browser/devtools/protocol/input_handler.h
 --- a/content/browser/devtools/protocol/input_handler.h
 +++ b/content/browser/devtools/protocol/input_handler.h
-@@ -5,9 +5,12 @@
+@@ -5,9 +5,14 @@
  #ifndef CONTENT_BROWSER_DEVTOOLS_PROTOCOL_INPUT_HANDLER_H_
  #define CONTENT_BROWSER_DEVTOOLS_PROTOCOL_INPUT_HANDLER_H_
  
 +#include <cstdint>
 +#include <deque>
  #include <memory>
++#include <optional>
  #include <set>
  #include <string>
++#include <tuple>
 +#include <utility>
  #include <vector>
  
  #include "base/containers/flat_map.h"
-@@ -62,6 +65,8 @@
+@@ -16,6 +21,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/raw_ref.h"
+ #include "base/memory/weak_ptr.h"
++#include "base/time/time.h"
+ #include "content/browser/devtools/protocol/devtools_domain_handler.h"
+ #include "content/browser/devtools/protocol/input.h"
+ #include "content/browser/renderer_host/render_widget_host_view_base.h"
+@@ -62,6 +68,8 @@
    void StartDragging(const DropData& drop_data,
                       const blink::mojom::DragData& drag_data,
                       blink::DragOperationsMask drag_operations_mask,
@@ -773,7 +860,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.h b/content/browser
                       bool* intercepted);
    // DragEnded is used to inform CDP's InputHandler when a drag has ended. This
    // gets called whenever the Drag n' Drop APIs that end dragging get called
-@@ -220,6 +225,8 @@
+@@ -220,6 +228,8 @@
          const DropData& drop_data,
          const blink::mojom::DragData& drag_data,
          blink::DragOperationsMask drag_operations_mask,
@@ -782,11 +869,15 @@ diff --git a/content/browser/devtools/protocol/input_handler.h b/content/browser
          bool* intercepted);
      friend void InputHandler::DragEnded();
  
-@@ -359,6 +366,7 @@
+@@ -359,6 +369,11 @@
    std::optional<content::WebContents::ScopedIgnoreInputEvents>
        scoped_ignore_input_events_;
    bool intercept_drags_ = false;
-+  std::deque<std::pair<const void*, int64_t>> ardia_delivered_;
++  void ArdiaRecordDelivered(const void* widget,
++                            const blink::WebMouseEvent& event,
++                            int64_t id);
++  std::optional<std::pair<const void*, int64_t>> ardia_press_;
++  std::deque<std::tuple<const void*, int64_t, base::TimeTicks>> ardia_recent_;
    DragController drag_controller_;
    const bool allow_file_access_;
    const bool allow_sending_input_to_browser_ = false;
@@ -824,7 +915,17 @@ diff --git a/content/browser/devtools/devtools_instrumentation.cc b/content/brow
 diff --git a/content/browser/renderer_host/render_widget_host_impl.cc b/content/browser/renderer_host/render_widget_host_impl.cc
 --- a/content/browser/renderer_host/render_widget_host_impl.cc
 +++ b/content/browser/renderer_host/render_widget_host_impl.cc
-@@ -3239,7 +3239,7 @@
+@@ -2957,6 +2957,9 @@
+     bool dispatched_to_renderer) {
+   for (auto& observer : input_event_observers_) {
+     observer.OnInputEvent(*this, event, source);
++    if (dispatched_to_renderer) {
++      observer.OnInputEventDispatchedToRenderer(*this, event);
++    }
+   }
+   if (dispatched_to_renderer) {
+     delegate_->DidReceiveInputEvent(this, event);
+@@ -3239,7 +3242,7 @@
      bool intercepted = false;
      devtools_instrumentation::WillStartDragging(
          frame_tree_->root(), filtered_data, std::move(drag_data),
@@ -833,3 +934,16 @@ diff --git a/content/browser/renderer_host/render_widget_host_impl.cc b/content/
      if (intercepted) {
        return;
      }
+diff --git a/content/public/browser/render_widget_host.h b/content/public/browser/render_widget_host.h
+--- a/content/public/browser/render_widget_host.h
++++ b/content/public/browser/render_widget_host.h
+@@ -250,6 +250,9 @@
+     virtual void OnInputEvent(const RenderWidgetHost& host,
+                               const blink::WebInputEvent& event,
+                               InputEventSource source) {}
++    virtual void OnInputEventDispatchedToRenderer(
++        const RenderWidgetHost& host,
++        const blink::WebInputEvent& event) {}
+     virtual void OnInputEventAck(const RenderWidgetHost&,
+                                  blink::mojom::InputEventResultSource source,
+                                  blink::mojom::InputEventResultState state,
