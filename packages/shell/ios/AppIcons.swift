@@ -28,9 +28,11 @@ enum AppIcons {
     return variants.contains { $0.id == id } ? id : "default"
   }
 
+  private static var styleWatcher: IconStyleWatcher?
+
   static func restore() {
-    watchStyle()
-    if IconStyle.shown(saved: current, theme: IconStyle.systemTheme) != "default" { apply() }
+    if styleWatcher == nil { styleWatcher = IconStyleWatcher { apply() } }
+    if shown != "default" { apply() }
   }
 
   static func set(_ id: String, announce: Bool) {
@@ -43,16 +45,11 @@ enum AppIcons {
     }
   }
 
+  static var shown: String { IconStyle.shown(saved: current, theme: IconStyle.systemTheme) }
+
   private static func apply() {
-    let id = IconStyle.shown(saved: current, theme: IconStyle.systemTheme)
+    let id = shown
     NSApp.applicationIconImage = id == "default" ? nil : image(id, size: 512)
-  }
-
-  private static var styleWatcher: IconStyleWatcher?
-
-  private static func watchStyle() {
-    guard styleWatcher == nil else { return }
-    styleWatcher = IconStyleWatcher { apply() }
   }
 
   private static var cache: [String: NSImage] = [:]
@@ -120,26 +117,5 @@ enum AppIcons {
           let tiff = image.tiffRepresentation,
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return nil }
     return "data:image/png;base64,\(png.base64EncodedString())"
-  }
-}
-
-final class IconStyleWatcher: NSObject {
-  private let tracker: IconStyleTracker
-
-  init(onChange: @escaping () -> Void) {
-    tracker = IconStyleTracker(theme: IconStyle.systemTheme, onChange: onChange)
-    super.init()
-    UserDefaults.standard.addObserver(self, forKeyPath: IconStyle.defaultsKey, options: [], context: nil)
-    tracker.themeChanged(to: IconStyle.systemTheme)
-  }
-
-  deinit {
-    UserDefaults.standard.removeObserver(self, forKeyPath: IconStyle.defaultsKey)
-  }
-
-  override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
-    DispatchQueue.main.async { [weak self] in
-      self?.tracker.themeChanged(to: IconStyle.systemTheme)
-    }
   }
 }

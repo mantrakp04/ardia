@@ -13,23 +13,24 @@ enum IconStyle {
   }
 
   static var systemTheme: String? { UserDefaults.standard.string(forKey: defaultsKey) }
-
-  static var systemRestylesIcons: Bool { restylesIcons(theme: systemTheme) }
 }
 
-final class IconStyleTracker {
-  private var restyled: Bool
+final class IconStyleWatcher: NSObject {
+  private let defaults: UserDefaults
   private let onChange: () -> Void
 
-  init(theme: String?, onChange: @escaping () -> Void) {
-    restyled = IconStyle.restylesIcons(theme: theme)
+  init(_ defaults: UserDefaults = .standard, onChange: @escaping () -> Void) {
+    self.defaults = defaults
     self.onChange = onChange
+    super.init()
+    defaults.addObserver(self, forKeyPath: IconStyle.defaultsKey, options: [], context: nil)
   }
 
-  func themeChanged(to theme: String?) {
-    let now = IconStyle.restylesIcons(theme: theme)
-    guard now != restyled else { return }
-    restyled = now
-    onChange()
+  deinit {
+    defaults.removeObserver(self, forKeyPath: IconStyle.defaultsKey)
+  }
+
+  override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey: Any]?, context: UnsafeMutableRawPointer?) {
+    DispatchQueue.main.async { [weak self] in self?.onChange() }
   }
 }
