@@ -97,6 +97,8 @@ export function useWindowUi() {
 
 export const useSettings = <T>(select: (settings: Settings) => T): T => useBrowser((s) => select(s.settings));
 
+export const useShowPageFrame = (): boolean => useBrowser((s) => s.settings.showPageFrame !== false);
+
 export const useChosenSettings = (): readonly string[] => useBrowser((s) => s.settingsMeta.chosen);
 
 export function useIsBookmarked(url: string): boolean {
