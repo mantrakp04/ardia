@@ -50,6 +50,14 @@ def options(overrides=None):
     return opts
 
 
+def lane_paths(opts):
+    lane = opts.get("lane")
+    if not lane:
+        return DATA, INSTANCE, CODEX_FAKE_HOME
+    return (HOME / f"data-ardia-{lane}", registry.STATE_DIR / f"ardia-instance-{lane}.json",
+            HOME / f"codex-home-{lane}")
+
+
 def ardia_bin(opts):
     return str(DEV_BIN / "ardia") if opts["cli"] == "dev" else str(INSTALLED_ARDIA)
 
@@ -127,17 +135,18 @@ def instance_matches(opts, state):
 
 
 def launch(opts):
+    data, instance, _ = lane_paths(opts)
     app = app_path(opts)
     busy = listener_pids(opts["port"])
     if busy:
         raise SystemExit(f"port {opts['port']} is used by pid {busy}; run bench.py stop or pick --port")
-    if DATA.exists():
-        shutil.rmtree(DATA)
-    DATA.mkdir(parents=True)
-    (DATA / "onboarding.json").write_text(json.dumps({"version": 1, "completedAt": 1}))
-    logfile = DATA / "app.out.log"
+    if data.exists():
+        shutil.rmtree(data)
+    data.mkdir(parents=True)
+    (data / "onboarding.json").write_text(json.dumps({"version": 1, "completedAt": 1}))
+    logfile = data / "app.out.log"
     t0 = time.monotonic()
-    env_args = ["--env", "ARDIA_BACKGROUND=1", "--env", f"ARDIA_DATA_DIR={DATA}",
+    env_args = ["--env", "ARDIA_BACKGROUND=1", "--env", f"ARDIA_DATA_DIR={data}",
                 "--env", f"ARDIA_REMOTE_DEBUGGING_PORT={opts['port']}"]
     if opts["ardia_test"]:
         env_args += ["--env", f"ARDIA_TEST={opts['ardia_test']}"]
@@ -154,28 +163,29 @@ def launch(opts):
 
     pid, info = wait_until(owned_listener, 90, "Ardia DevTools port")
     state = {"pid": pid, "lstart": info["lstart"], "command": info["command"], "port": opts["port"],
-             "app": str(app), "ardia_test": opts["ardia_test"], "data": str(DATA)}
-    write_json(INSTANCE, state)
+             "app": str(app), "ardia_test": opts["ardia_test"], "data": str(data)}
+    write_json(instance, state)
     wait_until(lambda: "Browser" in devtools(opts, "GET", "/json/version"), 60, "DevTools /json/version", pid=pid)
     state["launch_s"] = round(time.monotonic() - t0, 2)
-    write_json(INSTANCE, state)
+    write_json(instance, state)
     log(f"launched Ardia pid {pid} on port {opts['port']} in {state['launch_s']} s")
     return state, False
 
 
 def ensure_instance(opts):
-    state = read_json(INSTANCE)
+    _, instance, _ = lane_paths(opts)
+    state = read_json(instance)
     if instance_matches(opts, state):
         return state, True
     if state and same_process(state):
-        quit_instance()
-    INSTANCE.unlink(missing_ok=True)
+        quit_instance(opts)
+    instance.unlink(missing_ok=True)
     return launch(opts)
 
 
-def browse_daemons():
+def browse_daemons(data):
     found = []
-    for f in (DATA / "Browse").glob("*.json") if (DATA / "Browse").is_dir() else []:
+    for f in (data / "Browse").glob("*.json") if (data / "Browse").is_dir() else []:
         try:
             pid = int(json.loads(f.read_text()).get("pid"))
         except (OSError, ValueError, TypeError, AttributeError):
@@ -186,8 +196,8 @@ def browse_daemons():
     return found
 
 
-def stop_browse_daemons():
-    pids = browse_daemons()
+def stop_browse_daemons(data):
+    pids = browse_daemons(data)
     for pid in pids:
         try:
             os.kill(pid, signal.SIGTERM)
@@ -326,15 +336,16 @@ def parse_codex(lines):
             "final_message": final, "errors": errors}
 
 
-def notes_snapshot():
-    notes = DATA / "Notes"
+def notes_snapshot(data):
+    notes = data / "Notes"
     return {f.name: f.read_text(errors="replace") for f in sorted(notes.glob("*.md"))} if notes.is_dir() else {}
 
 
-def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
+def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_agent_start=None):
     if agent not in MODELS:
         raise SystemExit("agent must be claude or codex")
     opts = options(overrides)
+    data, _, codex_home = lane_paths(opts)
     task = registry.task(task_id)
     model, effort = opts.get("model") or MODELS[agent][0], opts.get("effort") or MODELS[agent][1]
     deadline = int(opts.get("deadline_s") or task["deadline_s"])
@@ -347,9 +358,9 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
     cli = cli_info(opts)
     servers.start(task)
     state, reused = ensure_instance(opts)
-    stop_browse_daemons()
+    stop_browse_daemons(data)
     if not opts["keep_notes"]:
-        shutil.rmtree(DATA / "Notes", ignore_errors=True)
+        shutil.rmtree(data / "Notes", ignore_errors=True)
     baseline = reset_task(task)
     tab = prepare_tab(opts, task)
     workdir = WORK / run_id
@@ -360,12 +371,12 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
     sh([ardia_bin(opts), "skills", "install", "--target", target, "--project"], cwd=workdir,
        env=agent_env(opts)).check_returncode()
     prompt = f"{task['prompt']}\n\n{reach_line(opts)}"
-    extra = {"ARDIA_DATA_DIR": str(DATA)}
+    extra = {"ARDIA_DATA_DIR": str(data)}
     if opts["humanize"]:
         extra["AGENT_BROWSER_HUMANIZE"] = "1"
     if agent == "codex":
-        CODEX_FAKE_HOME.mkdir(parents=True, exist_ok=True)
-        extra.update({"HOME": str(CODEX_FAKE_HOME), "CODEX_HOME": str(Path.home() / ".codex")})
+        codex_home.mkdir(parents=True, exist_ok=True)
+        extra.update({"HOME": str(codex_home), "CODEX_HOME": str(Path.home() / ".codex")})
         cmd = codex_command(model, effort, workdir, prompt)
     else:
         cmd = claude_command(model, effort, prompt)
@@ -374,6 +385,8 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
     started_at = datetime.datetime.now().astimezone()
     log(f"{run_id}: {agent} on {task_id} (Ardia pid {state['pid']}, {'reused' if reused else 'launched'})")
     with open(events, "wb") as fo, open(stderr, "wb") as fe:
+        if on_agent_start:
+            on_agent_start()
         start_epoch = time.time()
         t0 = time.monotonic()
         proc = subprocess.Popen(cmd, cwd=workdir, env=env, stdin=subprocess.DEVNULL, stdout=fo, stderr=fe,
@@ -388,7 +401,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
         wall = time.monotonic() - t0
     front_after = front_pid()
     kill_group(proc, grace=2)
-    daemons = stop_browse_daemons()
+    daemons = stop_browse_daemons(data)
     try:
         check = http(task["check"]["method"], task["check"]["url"])
     except Exception as e:
@@ -401,7 +414,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
         "run_id": run_id, "side": "ardia", "contender": contender or f"ardia-{agent}", "agent": agent,
         "task": task_id, "started_at": started_at.isoformat(timespec="milliseconds"),
         "model": model, "effort": effort, "cli": cli, "humanize": opts["humanize"], "notes_kept": opts["keep_notes"],
-        "notes_after": notes_snapshot(),
+        "notes_after": notes_snapshot(data), "lane": opts.get("lane"),
         "wall_s": round(wall, 3), "timed_out": timed_out, "deadline_s": deadline, "exit_code": code,
         "pass": passed, "reset_by_agent": reset_by_agent,
         "time_to_correct_s": round(completed / 1000 - start_epoch, 3) if passed and completed else None,
@@ -421,15 +434,16 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None):
     return record
 
 
-def quit_instance():
-    state = read_json(INSTANCE)
-    stopped = stop_browse_daemons() if DATA.exists() else []
+def quit_instance(opts=None):
+    data, instance, _ = lane_paths(opts or {})
+    state = read_json(instance)
+    stopped = stop_browse_daemons(data) if data.exists() else []
     if not state:
         log("no recorded Ardia instance")
     elif not same_process(state):
         log(f"recorded Ardia pid {state['pid']} is gone or not ours; nothing to quit")
     else:
         log(f"Ardia pid {state['pid']} {'quit' if terminate(state) else 'still running'}")
-    INSTANCE.unlink(missing_ok=True)
+    instance.unlink(missing_ok=True)
     if stopped:
         log(f"stopped ardia browse daemons {stopped}")

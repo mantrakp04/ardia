@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from procs import listener_pids, proc_info, read_json, same_process, sh, termina
 
 STATE = registry.STATE_DIR / "servers.json"
 LOGS = registry.HOME / "logs"
+LOCK = threading.RLock()
 
 
 def recorded():
@@ -37,6 +39,11 @@ def cwd_of(pid):
 
 
 def start(task):
+    with LOCK:
+        return start_locked(task)
+
+
+def start_locked(task):
     if running(task):
         return recorded()[task["id"]]
     foreign = same_task_server(task)
@@ -62,6 +69,11 @@ def start(task):
 
 
 def stop(task_ids=None):
+    with LOCK:
+        return stop_locked(task_ids)
+
+
+def stop_locked(task_ids):
     state = recorded()
     stopped = []
     for tid in list(state):

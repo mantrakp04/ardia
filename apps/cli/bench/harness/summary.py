@@ -3,7 +3,7 @@ import statistics
 from pathlib import Path
 
 import registry
-from procs import read_json
+from procs import read_json, read_jsonl
 
 
 def median(values):
@@ -35,6 +35,42 @@ def cell(runs):
     }
 
 
+def brief(runs):
+    passed = [r for r in runs if r.get("pass")]
+    return {"runs": len(runs), "pass_rate": round(len(passed) / len(runs), 3) if runs else None,
+            "median_time_s": median(r.get("wall_s") for r in runs),
+            "median_time_to_correct_s": median(r.get("time_to_correct_s") for r in passed),
+            "median_tokens": median(tokens_total(r) for r in runs),
+            "median_lanes_active": median(r.get("lanes_active") or 1 for r in runs)}
+
+
+def serial_vs_parallel(runs):
+    valid = [r for r in runs if not r.get("harness_error")]
+    serial = [r for r in valid if (r.get("lanes_active") or 1) <= 1]
+    parallel = [r for r in valid if (r.get("lanes_active") or 1) > 1]
+    return {"serial": brief(serial), "parallel": brief(parallel)} if serial and parallel else None
+
+
+def parallel_block(results_dir, runs):
+    samples = read_jsonl(Path(results_dir) / "memory.jsonl")
+    sessions = {}
+    for s in samples:
+        sessions.setdefault(s.get("session"), []).append(s)
+    busy = [s["active"] for s in samples if s.get("active")]
+    lanes = [r.get("lanes_active") for r in runs if r.get("lanes_active")]
+    return {
+        "peak_memory_used_pct": max((s["used_pct"] for s in samples), default=None),
+        "median_memory_used_pct": median(s["used_pct"] for s in samples),
+        "avg_lanes": round(sum(busy) / len(busy), 2) if busy else None,
+        "max_lanes": max(busy, default=None),
+        "avg_lanes_active_at_start": round(sum(lanes) / len(lanes), 2) if lanes else None,
+        "total_wall_s": round(sum(max(x["t"] for x in v) - min(x["t"] for x in v) for v in sessions.values()), 1)
+        if sessions else None,
+        "sessions": len(sessions),
+        "samples": len(samples),
+    }
+
+
 def build(results_dir):
     results_dir = Path(results_dir)
     plan = read_json(results_dir / "plan.json", {})
@@ -46,7 +82,8 @@ def build(results_dir):
     by = {}
     for r in runs:
         by.setdefault((r["task"], r["contender"]), []).append(r)
-    cells = [dict(task=t, contender=c, **cell(by[(t, c)])) for t in task_ids for c in contender_ids if (t, c) in by]
+    cells = [dict(task=t, contender=c, **cell(by[(t, c)]), serial_vs_parallel=serial_vs_parallel(by[(t, c)]))
+             for t in task_ids for c in contender_ids if (t, c) in by]
     overall = []
     for c in contender_ids:
         mine = [r for r in runs if r["contender"] == c]
@@ -68,6 +105,7 @@ def build(results_dir):
                        for c in plan_contenders] or [{"id": c} for c in contender_ids],
         "cells": cells,
         "overall": overall,
+        "parallel": parallel_block(results_dir, runs),
         "metrics": {
             "pass_rate": "passing runs / runs (harness errors excluded)",
             "median_time_s": "median wall time of the agent, all runs",

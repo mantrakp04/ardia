@@ -19,7 +19,9 @@ Commands:
   freeze-cli [--src DIR]        snapshot apps/cli into a venv the runs use (BENCH_HOME/cli, linked from devbin/ardia)
   servers start|stop [TASK...]  start or stop task servers (all tasks when none named)
   run TASK claude|codex RUN_ID  one cold run against the hidden Ardia instance, record in --results/runs/RUN_ID.json
-  plan PLAN.json [--dry-run]    run tasks x contenders x repeats one at a time, rotating order per round
+  plan PLAN.json [--max-lanes N] [--dry-run]
+                                run tasks x contenders x repeats in parallel lanes gated on memory (default 6;
+                                1 is serial), never two runs on one task; --dry-run prints the simulated timeline
   summarize RESULTS_DIR         rewrite RESULTS_DIR/summary.json from its run records
   stop                          quit the hidden Ardia instance and every task server this harness started
 
@@ -54,6 +56,7 @@ def main():
     pl.add_argument("plan")
     pl.add_argument("--results")
     pl.add_argument("--dry-run", action="store_true")
+    pl.add_argument("--max-lanes", type=int, default=6)
     sm = sub.add_parser("summarize")
     sm.add_argument("results")
     sub.add_parser("stop")
@@ -80,7 +83,7 @@ def main():
                                               "timed_out", "matched", "total")}
                          | {"tokens": (rec["tokens"] or {}).get("total")}))
     elif a.cmd == "plan":
-        out = runner.execute(a.plan, a.results, a.dry_run)
+        out = runner.execute(a.plan, a.results, a.dry_run, a.max_lanes)
         if out:
             print(out / "summary.json")
     elif a.cmd == "summarize":
