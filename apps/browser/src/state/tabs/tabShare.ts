@@ -318,6 +318,10 @@ export function sharedElsewhere(s: BrowserState, t: Tab): boolean {
   return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && isRegularWindow(s.windows[x.windowId]));
 }
 
+export function tabsClosedWithWindow(s: BrowserState, windowId: string): Tab[] {
+  return (s.windows[windowId]?.tabIds ?? []).map((id) => s.tabs[id]).filter((t): t is Tab => !!t && !inPinnedContainer(s, t.id) && !sharedElsewhere(s, t));
+}
+
 export function sharedLastUsed(s: BrowserState): Map<string, number> | null {
   if (!sharesTabs(s)) return null;
   const member = listMember(s);
