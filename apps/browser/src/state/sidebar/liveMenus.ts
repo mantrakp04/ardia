@@ -118,10 +118,14 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
 }
 
 export async function openLiveFolderMenu(windowId: string, folderId: string) {
+  if (!live().folders[folderId]) return;
+  const choice = await showMenu(liveFolderMenuItems(windowId, folderId));
+  if (choice) await runLiveFolderChoice(windowId, folderId, choice);
+}
+
+export async function runLiveFolderChoice(windowId: string, folderId: string, choice: string) {
   const folder = live().folders[folderId];
   if (!folder) return;
-  const choice = await showMenu(liveFolderMenuItems(windowId, folderId));
-  if (!choice) return;
   const option = FOLDER_OPTIONS.find((key) => choice === `option:${key}`);
   if (choice === "refresh") void manualRefresh(folderId);
   else if (option) updateFolder(folderId, { [option]: !folder[option] });

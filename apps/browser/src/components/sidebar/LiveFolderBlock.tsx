@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { errorText, manualRefresh, statusText } from "../../state/live/engine";
+import { useFolderNote } from "../../state/live/hooks";
 import { folderRows, type FolderRow } from "../../state/live/rows";
 import { liveFolderIcon } from "../../state/live/sources";
 import { updateFolder, useLive } from "../../state/live/store";
@@ -91,13 +92,11 @@ function FolderRowView({ row, folderId, windowId }: { row: FolderRow; folderId: 
 }
 
 function FolderNote({ folderId }: { folderId: string }) {
-  const status = useLive((s) => s.status[folderId]);
-  const kind = useLive((s) => s.folders[folderId]?.kind);
-  const hidden = useLive((s) => s.hidden[folderId]?.length ?? 0);
-  if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return <NoteRow text="Loading…" spinner />;
-  if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
-  if (hidden) return <NoteRow text={`${hidden} hidden until you refresh`} onPress={() => void manualRefresh(folderId)} />;
-  return <NoteRow text={kind === "pullRequests" ? "No open pull requests" : "No recent documents"} />;
+  const note = useFolderNote(folderId);
+  if (note.kind === "loading") return <NoteRow text={note.text} spinner />;
+  if (note.kind === "error") return <NoteRow text={note.text} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
+  if (note.kind === "hidden") return <NoteRow text={note.text} onPress={() => void manualRefresh(folderId)} />;
+  return <NoteRow text={note.text} />;
 }
 
 function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; windowId: string; collapsed: boolean }) {

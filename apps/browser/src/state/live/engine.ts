@@ -110,6 +110,17 @@ function fetchText(folderId: string, now: number): string {
   return min < 1 ? "Updated just now" : min < 60 ? `Updated ${min} min ago` : `Updated ${Math.floor(min / 60)} hr ago`;
 }
 
+export type FolderNote = { kind: "loading" | "error" | "hidden" | "empty"; text: string };
+
+export function folderNote(s: Pick<ReturnType<typeof live>, "status" | "hidden" | "folders">, folderId: string): FolderNote {
+  const status = s.status[folderId];
+  const hidden = s.hidden[folderId]?.length ?? 0;
+  if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return { kind: "loading", text: "Loading…" };
+  if (status.error) return { kind: "error", text: errorText(status.error.kind, status.error.source) };
+  if (hidden) return { kind: "hidden", text: `${hidden} hidden until you refresh` };
+  return { kind: "empty", text: s.folders[folderId]?.kind === "pullRequests" ? "No open pull requests" : "No recent documents" };
+}
+
 export function errorText(kind: LiveError["kind"], source: LiveSourceId): string {
   const name = SOURCES[source].name;
   switch (kind) {
