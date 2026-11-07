@@ -126,6 +126,10 @@ A real iPhone and a real Mac on the same iCloud account: scan the code, pick the
 bookmarks and sent tabs go both ways; a relaunch and a reboot keep the folder bookmark; background refresh runs.
 The simulator can't sign in to iCloud Drive.
 
+Export compliance: sync encrypts with AES-GCM and HKDF from CryptoKit, so `ITSAppUsesNonExemptEncryption` is
+true. On the first App Store Connect upload, answer that the app uses standard encryption algorithms (mass market,
+no licence); availability in France may ask for a French encryption declaration.
+
 ## Agent notes
 
 - Build into your own derived data under your scratch folder:
