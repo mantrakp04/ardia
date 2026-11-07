@@ -63,10 +63,12 @@ export function MouseArea({ path, onMiddleClick, ...props }: MouseAreaProps) {
 export type DroppedItem = { kind: "file"; url: string } | { kind: "url"; url: string } | { kind: "text"; text: string };
 export type DropUpdate = { phase: "enter" | "move" | "exit" | "drop"; x: number; y: number; count: number; items: DroppedItem[] };
 export type FileDropAreaProps = ViewProps & {
+  accepts?: "links" | "extensionPackages";
   onDropUpdate?: (e: DropUpdate) => void;
 };
 
 type NativeFileDropAreaProps = ViewProps & {
+  accepts?: "links" | "extensionPackages";
   ref?: (instance: { nativeRef?: { current: View | null } } | null) => void;
   onDropUpdate?: (e: { nativeEvent: DropUpdate }) => void;
 };

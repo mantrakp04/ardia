@@ -36,11 +36,24 @@ def resolve(ws: str | None = None, port: int | None = None, data_dir: str | None
     if ws:
         return _from_ws(ws, "--ws")
     if port is not None:
-        return _from_port(port)
-    env_ws = os.environ.get("ARDIA_CDP_URL")
+        return _from_port(port, "--port")
+    env_ws = os.environ.get("ARDIA_WS")
     if env_ws:
-        return _from_ws(env_ws, "ARDIA_CDP_URL")
+        return _from_ws(env_ws, "ARDIA_WS")
+    env_port = os.environ.get("ARDIA_PORT")
+    if env_port:
+        return _from_port(env_port_number(env_port), "ARDIA_PORT")
+    env_cdp = os.environ.get("ARDIA_CDP_URL")
+    if env_cdp:
+        return _from_ws(env_cdp, "ARDIA_CDP_URL")
     return from_control_file(data_root(data_dir) / "Chromium" / CONTROL_FILE)
+
+
+def env_port_number(text: str) -> int:
+    try:
+        return int(text)
+    except ValueError:
+        raise EndpointError(f"ARDIA_PORT must be a port number, not {text!r}") from None
 
 
 def data_root(data_dir: str | None = None) -> Path:
@@ -66,11 +79,11 @@ def _from_ws(url: str, source: str) -> Endpoint:
     return Endpoint(url, source, True, instance=f"{parts.netloc}{parts.path}")
 
 
-def _from_port(port: int) -> Endpoint:
+def _from_port(port: int, source: str) -> Endpoint:
     import urllib.request
 
     if not 0 < port < 65536:
-        raise EndpointError(f"--port must be between 1 and 65535, not {port}")
+        raise EndpointError(f"{source} must be between 1 and 65535, not {port}")
     try:
         direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with direct.open(f"http://127.0.0.1:{port}/json/version", timeout=3) as response:
@@ -80,7 +93,7 @@ def _from_port(port: int) -> Endpoint:
     ws = info.get("webSocketDebuggerUrl") if isinstance(info, dict) else None
     if not isinstance(ws, str):
         raise EndpointError(f"127.0.0.1:{port}/json/version has no webSocketDebuggerUrl")
-    return _from_ws(ws, f"--port {port}")
+    return _from_ws(ws, f"{source} {port}")
 
 
 def _reason(error: Exception) -> str:

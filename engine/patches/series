@@ -18,11 +18,16 @@ chromium chromium-cast-dialog-hook.patch
 chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
 chromium chromium-storage-pressure-bubble-without-browser-view.patch
+chromium chromium-remoting-dialog-without-browser-view.patch
+chromium chromium-action-open-popup-without-active-tab.patch
 chromium chromium-initial-document-access.patch
 chromium chromium-hidden-window-current-window.patch
 chromium chromium-devtools-redock-display.patch
 chromium chromium-devtools-window-title.patch
+chromium chromium-global-trace-id-64bit.patch
+chromium chromium-drag-start-event-id.patch
 chromium chromium-devtools-control-token.patch
+chromium chromium-capture-wake-lock-awake-only.patch
 chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
 chromium chromium-webstore-direct.patch

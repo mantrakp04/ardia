@@ -37,10 +37,11 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
  namespace content {
  
  namespace {
-@@ -126,6 +148,26 @@ constexpr net::NetworkTrafficAnnotationTag
+@@ -125,6 +147,26 @@
+         policy_exception_justification:
            "Not implemented, only used in Devtools and is behind a switch."
        })");
- 
++
 +void SplitArdiaPath(std::string_view full,
 +                    std::string_view* path,
 +                    std::string_view* token) {
@@ -60,11 +61,10 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +    }
 +  }
 +}
-+
+ 
  bool RequestIsSafeToServe(const net::HttpServerRequestInfo& info) {
    // For browser-originating requests, serve only those that are coming from
-   // pages loaded off localhost or fixed IPs.
-@@ -268,6 +310,10 @@ void ServerStartedOnUI(base::WeakPtr<DevToolsHttpHandler> handler,
+@@ -268,6 +310,10 @@
          std::unique_ptr<DevToolsSocketFactory>(socket_factory),
          std::move(ip_address));
    } else {
@@ -75,7 +75,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
      TerminateOnUI(std::move(thread),
                    std::unique_ptr<ServerWrapper>(server_wrapper),
                    std::unique_ptr<DevToolsSocketFactory>(socket_factory));
-@@ -339,14 +385,51 @@ class DevToolsAgentHostClientImpl : public DevToolsAgentHostClient {
+@@ -339,16 +385,53 @@
        scoped_refptr<base::SingleThreadTaskRunner> task_runner,
        ServerWrapper* server_wrapper,
        int connection_id,
@@ -108,8 +108,8 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +    return ardia_token_client_
 +               ? ardia_token_client_->MayAttachToURL(url, is_webui)
 +               : DevToolsAgentHostClient::MayAttachToURL(url, is_webui);
-+  }
-+
+   }
+ 
 +  bool MayAttachToRenderFrameHost(
 +      RenderFrameHost* render_frame_host) override {
 +    return ardia_token_client_
@@ -126,10 +126,12 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +  bool MayWriteLocalFiles() override {
 +    return !ardia_token_client_ &&
 +           DevToolsAgentHostClient::MayWriteLocalFiles();
-   }
- 
++  }
++
    ~DevToolsAgentHostClientImpl() override {
-@@ -377,17 +460,37 @@ class DevToolsAgentHostClientImpl : public DevToolsAgentHostClient {
+     CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
+     if (agent_host_)
+@@ -377,17 +460,37 @@
                                 base::span<const uint8_t> message) override {
      CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M159);
      CHECK(agent_host == agent_host_.get(), base::NotFatalUntil::M159);
@@ -174,7 +176,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    }
  
   private:
-@@ -395,6 +498,16 @@ class DevToolsAgentHostClientImpl : public DevToolsAgentHostClient {
+@@ -395,6 +498,16 @@
    const raw_ptr<ServerWrapper> server_wrapper_;
    const int connection_id_;
    scoped_refptr<DevToolsAgentHost> agent_host_;
@@ -191,7 +193,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
  };
  
  static bool TimeComparator(scoped_refptr<DevToolsAgentHost> host1,
-@@ -421,6 +534,9 @@ DevToolsHttpHandler::~DevToolsHttpHandler() {
+@@ -421,6 +534,9 @@
    // by the targets. It is essential that this happens before we issue delete
    // soon for the server wrapper.
    connection_to_client_.clear();
@@ -201,21 +203,21 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    TerminateOnUI(std::move(thread_), std::move(server_wrapper_),
                  std::move(socket_factory_));
    delegate_ = nullptr;
-@@ -477,6 +593,13 @@ void ServerWrapper::OnHttpRequest(int connection_id,
+@@ -476,6 +592,13 @@
+   }
  
    server_->SetSendBufferSize(connection_id, kSendBufferSizeForDevTools);
- 
++
 +  if (base::StartsWith(info.path, "/ardia/", base::CompareCase::SENSITIVE)) {
 +    GetUIThreadTaskRunner({})->PostTask(
 +        FROM_HERE, base::BindOnce(&DevToolsHttpHandler::OnArdiaRequest,
 +                                  handler_, connection_id, info));
 +    return;
 +  }
-+
+ 
    if (base::StartsWith(info.path, "/json", base::CompareCase::SENSITIVE)) {
      GetUIThreadTaskRunner({})->PostTask(
-         FROM_HERE, base::BindOnce(&DevToolsHttpHandler::OnJsonRequest, handler_,
-@@ -595,7 +718,8 @@ void DevToolsHttpHandler::OnJsonRequest(
+@@ -595,7 +718,8 @@
      int connection_id,
      const net::HttpServerRequestInfo& info) {
    if (mode_ ==
@@ -225,10 +227,12 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
      Send404(connection_id);
      return;
    }
-@@ -775,9 +899,34 @@ void DevToolsHttpHandler::RespondToJsonList(int connection_id,
+@@ -773,11 +897,36 @@
+     }
+   }
    SendJson(connection_id, net::HTTP_OK, list_value, "");
- }
- 
++}
++
 +void DevToolsHttpHandler::OnArdiaRequest(
 +    int connection_id,
 +    const net::HttpServerRequestInfo& info) {
@@ -251,8 +255,8 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +    body.Set("targetId", target_id);
 +  }
 +  SendJson(connection_id, net::HTTP_OK, body, "");
-+}
-+
+ }
+ 
  void DevToolsHttpHandler::OnDiscoveryPageRequest(int connection_id) {
    if (mode_ ==
 -      DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
@@ -261,7 +265,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
      Send404(connection_id);
      return;
    }
-@@ -795,7 +944,8 @@ void DevToolsHttpHandler::OnDiscoveryPageRequest(int connection_id) {
+@@ -795,7 +944,8 @@
  void DevToolsHttpHandler::OnFrontendResourceRequest(int connection_id,
                                                      std::string_view path) {
    if (mode_ ==
@@ -271,7 +275,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
      Send404(connection_id);
      return;
    }
-@@ -834,6 +984,11 @@ void DevToolsHttpHandler::OnWebSocketRequest(
+@@ -834,6 +984,11 @@
    if (!thread_)
      return;
  
@@ -283,10 +287,12 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    bool is_same_origin =
        server_ip_address_ &&
        url::Origin::Create(
-@@ -855,6 +1010,29 @@ void DevToolsHttpHandler::OnWebSocketRequest(
+@@ -853,7 +1008,30 @@
+     Send403(connection_id, message);
+     LOG(ERROR) << message;
      return;
-   }
- 
++  }
++
 +  net::HttpServerRequestInfo ardia_routed;
 +  if (ardia_token_mode_) {
 +    std::string_view path;
@@ -306,14 +312,13 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +    }
 +    ardia_routed = request;
 +    ardia_routed.path = std::string(path);
-+  }
+   }
 +  const net::HttpServerRequestInfo& routed =
 +      ardia_token_mode_ ? ardia_routed : request;
-+
+ 
    // If we require user approval, we do not require guid.
    if (mode_ ==
-       DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
-@@ -870,28 +1048,32 @@ void DevToolsHttpHandler::OnWebSocketRequest(
+@@ -870,28 +1048,32 @@
      return;
    }
  
@@ -354,7 +359,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    scoped_refptr<DevToolsAgentHost> agent =
        DevToolsAgentHost::GetForId(target_id);
    if (!agent) {
-@@ -906,11 +1088,16 @@ void DevToolsHttpHandler::OnWebSocketRequest(
+@@ -906,11 +1088,16 @@
      return;
    }
  
@@ -375,7 +380,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
  }
  
  void DevToolsHttpHandler::OnWebSocketMessage(int connection_id,
-@@ -923,6 +1110,9 @@ void DevToolsHttpHandler::OnWebSocketMessage(int connection_id,
+@@ -923,6 +1110,9 @@
  
  void DevToolsHttpHandler::OnClose(int connection_id) {
    auto removed_count = connection_to_client_.erase(connection_id);
@@ -385,7 +390,7 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    if (delegate_ && removed_count > 0 &&
        mode_ ==
            DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
-@@ -937,6 +1127,8 @@ DevToolsHttpHandler::DevToolsHttpHandler(
+@@ -937,6 +1127,8 @@
      const base::FilePath& debug_frontend_dir,
      DevToolsAgentHost::RemoteDebuggingServerMode mode)
      : mode_(mode), delegate_(delegate) {
@@ -394,15 +399,15 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
    browser_guid_ =
        delegate_->IsBrowserTargetDiscoverable()
            ? kBrowserUrlPrefix
-@@ -975,6 +1167,18 @@ void DevToolsHttpHandler::ServerStarted(
+@@ -975,8 +1167,20 @@
    server_wrapper_ = std::move(server_wrapper);
    socket_factory_ = std::move(socket_factory);
    server_ip_address_ = std::move(ip_address);
 +  if (ardia_token_mode_) {
 +    ReportArdiaTokenServer();
 +  }
-+}
-+
+ }
+ 
 +void DevToolsHttpHandler::ReportArdiaTokenServer() {
 +  if (g_ardia_devtools_token_server && socket_factory_) {
 +    g_ardia_devtools_token_server(
@@ -410,10 +415,12 @@ diff --git a/content/browser/devtools/devtools_http_handler.cc b/content/browser
 +        server_ip_address_ ? server_ip_address_->port() : 0,
 +        connection_to_client_.size());
 +  }
- }
- 
++}
++
  void DevToolsHttpHandler::SendJson(int connection_id,
-@@ -1056,6 +1260,9 @@ void DevToolsHttpHandler::AcceptWebSocket(
+                                    net::HttpStatusCode status_code,
+                                    std::optional<base::ValueView> value,
+@@ -1056,6 +1260,9 @@
        DevToolsAgentHost::RemoteDebuggingServerMode::kWithApprovalOnly) {
      delegate_->SetActiveWebSocketConnections(connection_to_client_.size());
    }
@@ -454,19 +461,24 @@ diff --git a/content/browser/devtools/devtools_http_handler.h b/content/browser/
 diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/browser/devtools/devtools_agent_host_impl.cc
 --- a/content/browser/devtools/devtools_agent_host_impl.cc
 +++ b/content/browser/devtools/devtools_agent_host_impl.cc
-@@ -45,6 +45,11 @@
- #include <fcntl.h>
+@@ -46,6 +46,16 @@
  #include <io.h>
  #endif
-+
+ 
 +#include "ardia/core/ac_content_hooks.h"  // nogncheck
 +
 +bool (*g_ardia_devtools_may_attach)(content::DevToolsAgentHostClient* root_client,
 +                                    content::DevToolsAgentHost* host) = nullptr;
- 
++void (*g_ardia_devtools_session_attached)(
++    content::DevToolsAgentHostClient* root_client,
++    content::DevToolsAgentHost* host,
++    const void* session) = nullptr;
++void (*g_ardia_devtools_session_detached)(const void* session) = nullptr;
++
  namespace content {
  
-@@ -277,6 +282,11 @@
+ namespace {
+@@ -277,6 +287,11 @@
    return DevToolsAgentHostImpl::GetForId(id);
  }
  
@@ -478,7 +490,7 @@ diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/brow
  // static
  scoped_refptr<DevToolsAgentHost> DevToolsAgentHost::Forward(
      const std::string& id,
-@@ -319,6 +329,11 @@
+@@ -319,6 +334,11 @@
        !manager->delegate()->AllowInspectingTarget(this)) {
      return false;
    }
@@ -490,16 +502,40 @@ diff --git a/content/browser/devtools/devtools_agent_host_impl.cc b/content/brow
    session->SetAgentHost(this);
    if (!AttachSession(session)) {
      return false;
+@@ -331,6 +351,10 @@
+     NotifyAttached();
+   if (manager->delegate())
+     manager->delegate()->ClientAttached(session);
++  if (g_ardia_devtools_session_attached) {
++    g_ardia_devtools_session_attached(session->GetRootSession()->GetClient(),
++                                      this, session);
++  }
+   return true;
+ }
+ 
+@@ -362,6 +386,9 @@
+   std::unique_ptr<DevToolsSession> session_owned =
+       std::move(session_by_client_[session->GetClient()]);
+   DCHECK_EQ(session, session_owned.get());
++  if (g_ardia_devtools_session_detached) {
++    g_ardia_devtools_session_detached(session);
++  }
+   // Make sure we dispose session prior to reporting it to the host.
+   session->Dispose();
+   std::erase(sessions_, session);
 diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browser/devtools/protocol/input_handler.cc
 --- a/content/browser/devtools/protocol/input_handler.cc
 +++ b/content/browser/devtools/protocol/input_handler.cc
-@@ -56,7 +56,40 @@
+@@ -56,7 +56,51 @@
  #include "ui/gfx/geometry/point_f.h"
  #include "ui/gfx/range/range.h"
  
 +#include "ardia/core/ac_content_hooks.h"  // nogncheck
++#include "base/trace_event/trace_id_helper.h"
 +#include "content/browser/devtools/devtools_session.h"
 +#include "content/public/browser/web_contents.h"
++#include "third_party/blink/public/mojom/drag/drag.mojom.h"
++#include "ui/latency/latency_info.h"
 +
 +bool (*g_ardia_devtools_may_input)(content::DevToolsAgentHostClient* root_client,
 +                                   content::RenderFrameHost* frame) = nullptr;
@@ -530,11 +566,82 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
 +  return found && allowed;
 +}
 +
++
++bool ArdiaRestrictedSession(DevToolsSession* session) {
++  return g_ardia_devtools_may_input &&
++         (!session ||
++          !g_ardia_devtools_may_input(session->GetRootSession()->GetClient(),
++                                      nullptr));
++}
++
 +}  // namespace
  
  namespace {
  
-@@ -1124,6 +1157,12 @@
+@@ -741,6 +785,10 @@
+     if (!widget_host_) {
+       callback->sendFailure(Response::InternalError());
+       return;
++    }
++
++    if (mouse_event.GetType() == blink::WebInputEvent::Type::kMouseUp) {
++      owner_->ardia_press_.reset();
+     }
+ 
+     if (owner_->drag_controller_.HandleMouseEvent(*widget_host_, mouse_event,
+@@ -754,10 +802,23 @@
+     // This may destroy the injector if the events get discarded.
+     base::WeakPtr<InputHandler::InputInjector> weak_this =
+         weak_ptr_factory_.GetWeakPtr();
+-    widget_host_->ForwardMouseEvent(mouse_event);
++    ui::LatencyInfo latency;
++    latency.set_trace_id(
++        static_cast<int64_t>(base::trace_event::GetNextGlobalTraceId()));
++    injected_mouse_type_ = mouse_event.GetType();
++    injected_mouse_dispatched_ = false;
++    widget_host_->ForwardMouseEventWithLatencyInfo(mouse_event, latency);
+     if (!weak_this) {
+       return;
+     }
++    injected_mouse_type_ = blink::WebInputEvent::Type::kUndefined;
++    if (injected_mouse_dispatched_ &&
++        mouse_event.GetType() == blink::WebInputEvent::Type::kMouseDown &&
++        mouse_event.button != blink::WebPointerProperties::Button::kNoButton) {
++      owner_->ardia_press_.emplace(
++          static_cast<RenderWidgetHost*>(widget_host_.get()),
++          latency.trace_id());
++    }
+     if (!input_queued_) {
+       pending_mouse_callbacks_.back()->sendSuccess();
+       pending_mouse_callbacks_.pop_back();
+@@ -830,6 +891,16 @@
+                     const blink::WebInputEvent& event,
+                     InputEventSource source) override {
+     input_queued_ = true;
++  }
++
++  void OnInputEventDispatchedToRenderer(
++      const RenderWidgetHost& widget,
++      const blink::WebInputEvent& event) override {
++    if (blink::WebInputEvent::IsMouseEventType(event.GetType()) &&
++        event.GetType() == injected_mouse_type_ &&
++        (event.GetModifiers() & blink::WebInputEvent::kFromDebugger)) {
++      injected_mouse_dispatched_ = true;
++    }
+   }
+ 
+   void OnInputEventAck(const RenderWidgetHost& widget,
+@@ -882,6 +953,9 @@
+   // Callbacks for calls to Input.dispatchKey/MouseEvent that have been sent to
+   // the renderer, but that we haven't yet received an ack for.
+   bool input_queued_ = false;
++  blink::WebInputEvent::Type injected_mouse_type_ =
++      blink::WebInputEvent::Type::kUndefined;
++  bool injected_mouse_dispatched_ = false;
+   base::circular_deque<std::unique_ptr<DispatchKeyEventCallback>>
+       pending_key_callbacks_;
+   base::circular_deque<std::unique_ptr<DispatchMouseEventCallback>>
+@@ -1124,6 +1198,12 @@
      return;
    }
    auto* host = RenderWidgetHostImpl::From(view->GetRenderWidgetHost());
@@ -547,19 +654,19 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    auto point = *maybe_point;
  
    host->DragTargetDrop(drag_state_->data, point, point, event->GetModifiers(),
-@@ -1265,6 +1304,11 @@
-         widget_host->delegate()->GetFocusedRenderWidgetHost(widget_host);
-     if (target_host)
+@@ -1267,6 +1347,11 @@
        widget_host = target_host;
-+  }
-+
+   }
+ 
 +  if (!ArdiaMayInject(session(), host_, widget_host)) {
 +    callback->sendFailure(Response::InvalidParams("Not allowed"));
 +    return;
-   }
- 
++  }
++
    // We do not pass events to browser if there is no native key event
-@@ -1294,6 +1338,11 @@
+   // due to Mac needing the actual os_event.
+   if (event.native_key_code && allow_sending_input_to_browser_)
+@@ -1294,6 +1379,11 @@
        widget_host = target_host;
    }
  
@@ -571,7 +678,49 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    base::OnceClosure closure =
        base::BindOnce(&InsertTextCallback::sendSuccess, std::move(callback));
  
-@@ -1643,6 +1692,10 @@
+@@ -1478,6 +1568,10 @@
+   auto point = *maybe_point;
+   RenderWidgetHostImpl* widget_host =
+       RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
++  if (!ArdiaMayInject(session(), host_, widget_host)) {
++    callback->sendFailure(Response::InvalidParams("Not allowed"));
++    return;
++  }
+   auto mask =
+       static_cast<blink::DragOperationsMask>(data->GetDragOperationsMask());
+   std::unique_ptr<DropData> drop_data =
+@@ -1573,10 +1667,26 @@
+   return scale_factor;
+ }
+ 
+-void InputHandler::StartDragging(const content::DropData& drop_data,
+-                                 const blink::mojom::DragData& drag_data,
+-                                 blink::DragOperationsMask drag_operations_mask,
+-                                 bool* intercepted) {
++void InputHandler::StartDragging(
++    const content::DropData& drop_data,
++    const blink::mojom::DragData& drag_data,
++    blink::DragOperationsMask drag_operations_mask,
++    RenderFrameHost* source_frame,
++    const blink::mojom::DragEventSourceInfo* event_info,
++    bool* intercepted) {
++  if (ArdiaRestrictedSession(session())) {
++    const void* source_widget =
++        source_frame ? source_frame->GetRenderWidgetHost() : nullptr;
++    if (!source_widget || !event_info || !session() || !ardia_press_ ||
++        event_info->press_event_id == -1 ||
++        !event_info->trigger_from_debugger ||
++        *ardia_press_ !=
++            std::make_pair(source_widget, event_info->press_event_id) ||
++        !g_ardia_devtools_may_input(session()->GetRootSession()->GetClient(),
++                                    source_frame)) {
++      return;
++    }
++  }
+   // Only allow when Input.setInterceptDrags is disabled.
+   if (!intercept_drags_) {
+     // If `last_mouse_move_` exists, then CDP is the currently handling mouse
+@@ -1641,6 +1751,10 @@
  
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -582,7 +731,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
    if (event->GetType() == blink::WebInputEvent::Type::kMouseWheel) {
      EnsureInjector(widget_host)
          ->InjectWheelEvent(static_cast<blink::WebMouseWheelEvent*>(event.get()),
-@@ -1659,6 +1712,13 @@
+@@ -1657,6 +1771,13 @@
      std::optional<double> timestamp,
      std::unique_ptr<DispatchTouchEventCallback> callback) {
    if (base::FeatureList::IsEnabled(features::kSyntheticPointerActions)) {
@@ -596,7 +745,7 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
      DispatchSyntheticPointerActionTouch(
          event_type, std::move(touch_points), std::move(modifiers),
          std::move(timestamp), std::move(callback));
-@@ -1744,6 +1804,10 @@
+@@ -1741,6 +1862,10 @@
    }
    RenderWidgetHostImpl* widget_host =
        RenderWidgetHostImpl::From(target->GetRenderWidgetHost());
@@ -607,10 +756,18 @@ diff --git a/content/browser/devtools/protocol/input_handler.cc b/content/browse
  
    RenderWidgetHostViewBase* root_view = target->GetRootView();
    if (!root_view) {
+@@ -2302,6 +2427,7 @@
+ }
+ 
+ void InputHandler::ClearInputState() {
++  ardia_press_.reset();
+   while (!injectors_.empty())
+     (*injectors_.begin())->Cleanup();
+   // TODO(dgozman): cleanup touch callbacks as well?
 diff --git a/content/browser/devtools/render_frame_devtools_agent_host.cc b/content/browser/devtools/render_frame_devtools_agent_host.cc
 --- a/content/browser/devtools/render_frame_devtools_agent_host.cc
 +++ b/content/browser/devtools/render_frame_devtools_agent_host.cc
-@@ -532,6 +532,24 @@
+@@ -534,6 +534,24 @@
      return;
    }
    NavigationRequest* request = NavigationRequest::From(navigation_handle);
@@ -635,3 +792,111 @@ diff --git a/content/browser/devtools/render_frame_devtools_agent_host.cc b/cont
    for (auto* tracing : protocol::TracingHandler::ForAgentHost(this)) {
      tracing->ReadyToCommitNavigation(request);
    }
+diff --git a/content/browser/devtools/protocol/input_handler.h b/content/browser/devtools/protocol/input_handler.h
+--- a/content/browser/devtools/protocol/input_handler.h
++++ b/content/browser/devtools/protocol/input_handler.h
+@@ -5,9 +5,12 @@
+ #ifndef CONTENT_BROWSER_DEVTOOLS_PROTOCOL_INPUT_HANDLER_H_
+ #define CONTENT_BROWSER_DEVTOOLS_PROTOCOL_INPUT_HANDLER_H_
+ 
++#include <cstdint>
+ #include <memory>
++#include <optional>
+ #include <set>
+ #include <string>
++#include <utility>
+ #include <vector>
+ 
+ #include "base/containers/flat_map.h"
+@@ -62,6 +65,8 @@
+   void StartDragging(const DropData& drop_data,
+                      const blink::mojom::DragData& drag_data,
+                      blink::DragOperationsMask drag_operations_mask,
++                     RenderFrameHost* source_frame,
++                     const blink::mojom::DragEventSourceInfo* event_info,
+                      bool* intercepted);
+   // DragEnded is used to inform CDP's InputHandler when a drag has ended. This
+   // gets called whenever the Drag n' Drop APIs that end dragging get called
+@@ -220,6 +225,8 @@
+         const DropData& drop_data,
+         const blink::mojom::DragData& drag_data,
+         blink::DragOperationsMask drag_operations_mask,
++        RenderFrameHost* source_frame,
++        const blink::mojom::DragEventSourceInfo* event_info,
+         bool* intercepted);
+     friend void InputHandler::DragEnded();
+ 
+@@ -359,6 +366,7 @@
+   std::optional<content::WebContents::ScopedIgnoreInputEvents>
+       scoped_ignore_input_events_;
+   bool intercept_drags_ = false;
++  std::optional<std::pair<const void*, int64_t>> ardia_press_;
+   DragController drag_controller_;
+   const bool allow_file_access_;
+   const bool allow_sending_input_to_browser_ = false;
+diff --git a/content/browser/devtools/devtools_instrumentation.h b/content/browser/devtools/devtools_instrumentation.h
+--- a/content/browser/devtools/devtools_instrumentation.h
++++ b/content/browser/devtools/devtools_instrumentation.h
+@@ -450,6 +450,8 @@
+                        const DropData& drop_data,
+                        const blink::mojom::DragDataPtr drag_data,
+                        blink::DragOperationsMask drag_operations_mask,
++                       RenderFrameHost* source_frame,
++                       const blink::mojom::DragEventSourceInfo* event_info,
+                        bool* intercepted);
+ 
+ void DragEnded(FrameTreeNode& node);
+diff --git a/content/browser/devtools/devtools_instrumentation.cc b/content/browser/devtools/devtools_instrumentation.cc
+--- a/content/browser/devtools/devtools_instrumentation.cc
++++ b/content/browser/devtools/devtools_instrumentation.cc
+@@ -2173,11 +2173,14 @@
+                        const DropData& drop_data,
+                        const blink::mojom::DragDataPtr drag_data,
+                        blink::DragOperationsMask drag_operations_mask,
++                       RenderFrameHost* source_frame,
++                       const blink::mojom::DragEventSourceInfo* event_info,
+                        bool* intercepted) {
+   CHECK(main_frame_tree_node->frame_tree().root() == main_frame_tree_node,
+         base::NotFatalUntil::M159);
+   DispatchToAgents(main_frame_tree_node, &protocol::InputHandler::StartDragging,
+-                   drop_data, *drag_data, drag_operations_mask, intercepted);
++                   drop_data, *drag_data, drag_operations_mask, source_frame,
++                   event_info, intercepted);
+ }
+ 
+ void DragEnded(FrameTreeNode& node) {
+diff --git a/content/browser/renderer_host/render_widget_host_impl.cc b/content/browser/renderer_host/render_widget_host_impl.cc
+--- a/content/browser/renderer_host/render_widget_host_impl.cc
++++ b/content/browser/renderer_host/render_widget_host_impl.cc
+@@ -2957,6 +2957,9 @@
+     bool dispatched_to_renderer) {
+   for (auto& observer : input_event_observers_) {
+     observer.OnInputEvent(*this, event, source);
++    if (dispatched_to_renderer) {
++      observer.OnInputEventDispatchedToRenderer(*this, event);
++    }
+   }
+   if (dispatched_to_renderer) {
+     delegate_->DidReceiveInputEvent(this, event);
+@@ -3239,7 +3242,7 @@
+     bool intercepted = false;
+     devtools_instrumentation::WillStartDragging(
+         frame_tree_->root(), filtered_data, std::move(drag_data),
+-        drag_operations_mask, &intercepted);
++        drag_operations_mask, &source_rfh, event_info.get(), &intercepted);
+     if (intercepted) {
+       return;
+     }
+diff --git a/content/public/browser/render_widget_host.h b/content/public/browser/render_widget_host.h
+--- a/content/public/browser/render_widget_host.h
++++ b/content/public/browser/render_widget_host.h
+@@ -250,6 +250,9 @@
+     virtual void OnInputEvent(const RenderWidgetHost& host,
+                               const blink::WebInputEvent& event,
+                               InputEventSource source) {}
++    virtual void OnInputEventDispatchedToRenderer(
++        const RenderWidgetHost& host,
++        const blink::WebInputEvent& event) {}
+     virtual void OnInputEventAck(const RenderWidgetHost&,
+                                  blink::mojom::InputEventResultSource source,
+                                  blink::mojom::InputEventResultState state,
