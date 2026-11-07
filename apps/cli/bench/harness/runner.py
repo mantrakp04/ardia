@@ -52,6 +52,8 @@ def normalize_aside(raw, task_id, contender, run_id):
                                  if isinstance(raw.get("frontmost_episodes"), dict) else raw.get("frontmost_episodes")),
         "memory_state": raw.get("memory_state"),
         "raw_record": raw.get("_path"),
+        **({"harness_error": f"{raw.get('harness_reason') or 'aside driver'}: {raw.get('error')}"}
+           if raw.get("harness_error") or (raw.get("status") == "error" and not raw.get("sent_at")) else {}),
     }
 
 
