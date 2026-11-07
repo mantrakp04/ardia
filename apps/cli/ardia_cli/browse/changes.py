@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass, field
 from urllib.parse import parse_qsl, unquote, urlsplit
 
+from ardia_cli import command_metrics
 from ardia_cli.browse import snapshot
 from ardia_cli.redact import redact
 from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, Gated
@@ -392,7 +393,9 @@ async def observe(ctx, page, run):
     try:
         await watch.start()
         value = await run()
+        settling = command_metrics.clock()
         settled = await watch.settle(lambda: navigation_busy(page, navigations))
+        command_metrics.spent("settle_ms", settling)
     finally:
         await watch.stop()
     try:

@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import asdict, dataclass
 
+from ardia_cli import command_metrics
 from ardia_cli.browse.connection import Browser
 from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, StaleRef, Unreachable
 from ardia_cli.browse.page import Page
@@ -70,6 +71,8 @@ class State:
     async def connect(self):
         if self.connected:
             return
+        started = command_metrics.clock()
+        command_metrics.flag("reconnected_after_idle", self.instance is not None)
         if self.browser is not None and not self.browser.closed_by_us:
             self.lost = True
         if self.lost:
@@ -95,6 +98,7 @@ class State:
         except BrowseError:
             pass
         await self.refresh_targets()
+        command_metrics.spent("connect_ms", started)
 
     async def disconnect(self):
         browser, self.browser = self.browser, None
@@ -161,6 +165,7 @@ class State:
 
     async def page(self, target_id: str | None = None) -> Page:
         await self.connect()
+        started = command_metrics.clock()
         target_id = target_id or self.current
         if target_id is None:
             if self.pin_tab and self.extras.get("pinned_target"):
@@ -187,6 +192,7 @@ class State:
         if page.session_id is None or page.browser is not self.browser:
             await page.attach(self.browser)
         self.extras["had_tab"] = True
+        command_metrics.spent("attach_ms", started)
         return page
 
     async def attach_active(self) -> str:

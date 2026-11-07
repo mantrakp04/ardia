@@ -7,6 +7,7 @@ import sys
 import time
 from pathlib import Path
 
+from ardia_cli import command_metrics
 from ardia_cli.browse import paths
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Unreachable, Usage
 
@@ -89,6 +90,7 @@ def render(options: dict, result=None, error: BrowseError | None = None, name: s
     from ardia_cli.redact import redact
 
     code, out, err = _render(options, result, error, name)
+    command_metrics.rendered(name, result, error, out)
     return code, redact(out), redact(err)
 
 
@@ -319,7 +321,7 @@ class Daemon:
                 return
             gone.cancel()
             code, out, err = execute.result()
-            writer.write(encode_answer(code, out, err))
+            writer.write(encode_answer(code, out, err, command_metrics.answer_fields(request)))
             await writer.drain()
         except Exception:
             log.exception("request failed")
@@ -334,6 +336,7 @@ class Daemon:
     async def execute(self, request: dict) -> tuple[int, str, str]:
         from ardia_cli.browse.commands import ALIASES, Ctx
 
+        command_metrics.begin(request)
         argv = request.get("argv") or []
         options = request.get("options") or {}
         name = ALIASES.get(argv[0], argv[0]) if argv else ""
@@ -370,6 +373,9 @@ class Daemon:
             raise
         except Exception as error:
             log.exception("command %s crashed", name)
+            from ardia_cli import telemetry
+
+            telemetry.report_exception(error, "browse_daemon", self.config)
             return render(options, error=BrowseError(f"{name} failed: {type(error).__name__}: {error}"), name=name)
         return render(options, result=result, name=name)
 
@@ -397,8 +403,8 @@ class Daemon:
         return render(ctx.options, result=Result({"closed": True, "tabs": closed}, text), name="close")
 
 
-def encode_answer(code: int, out: str, err: str) -> bytes:
-    data = (json.dumps({"exit": code, "out": out, "err": err}, ensure_ascii=False) + "\n").encode()
+def encode_answer(code: int, out: str, err: str, fields: dict | None = None) -> bytes:
+    data = (json.dumps({"exit": code, "out": out, "err": err, **(fields or {})}, ensure_ascii=False) + "\n").encode()
     if len(data) <= MAX_RESPONSE:
         return data
     message = f"✗ The answer was too large ({len(data)} bytes, the limit is {MAX_RESPONSE}); narrow it (snapshot -s, -d, --max-output)\n"
@@ -437,6 +443,11 @@ def main():
     except paths.PathError as error:
         sys.stderr.write(f"ardia browse daemon: {error}\n")
         status = 2
+    except Exception as error:
+        from ardia_cli import telemetry
+
+        telemetry.report_exception(error, "browse_daemon", config, fatal=True)
+        raise
     finally:
         if lease:
             try:

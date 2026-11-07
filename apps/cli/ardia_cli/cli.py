@@ -130,8 +130,10 @@ def run_browse(hoisted: list[str], rest: list[str]) -> int:
     except UsageError as error:
         sys.stderr.write(f"✗ {error}\n")
         return 1
+    from ardia_cli import telemetry
     from ardia_cli.browse.cli import main as browse_main
 
+    telemetry.note_browse(argv)
     return browse_main(argv)
 
 
@@ -145,6 +147,9 @@ def run_notes(hoisted: list[str], rest: list[str]) -> int:
             raise
         sys.stderr.write("ardia notes isn't in this build of the ardia command\n")
         return 1
+    from ardia_cli import telemetry
+
+    telemetry.note_browse(hoisted + rest, command="notes")
     return notes.main(hoisted + rest)
 
 
@@ -188,11 +193,35 @@ def build_parser():
     return parser
 
 
+def command_label(path: list[str], rest: list[str]) -> list[str]:
+    if path:
+        return path[:2]
+    if rest and not rest[0].startswith("-"):
+        return [rest[0] if rest[0] in REMOVED_COMMANDS else "unknown"]
+    return ["none"]
+
+
+def option_names(parser, path: list[str]) -> set[str]:
+    names = set(parser._option_string_actions)
+    for name in path:
+        parser = subcommands(parser)[name]
+        names |= set(parser._option_string_actions)
+    return names
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
+    from ardia_cli import telemetry
+
+    return telemetry.track(argv, lambda: run(argv))
+
+
+def run(argv: list[str]) -> int:
+    from ardia_cli import telemetry
+
     leading: list[str] = []
     try:
         index = take_shared(argv, 0, leading)
@@ -207,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     try:
         path, hoisted, rest = arrange(parser, argv)
+        telemetry.note_command(*command_label(path, rest), allowed_flags=option_names(parser, path))
         if path:
             check_takes(parser, path, hoisted)
     except UsageError as error:

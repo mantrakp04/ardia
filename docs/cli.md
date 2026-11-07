@@ -645,6 +645,67 @@ formats, tracebacks included. pydoll's loggers stay at ERROR. The stream holds b
 registered token and releases everything on `flush()`, at exit and on SIGTERM or SIGHUP (exit 143). A token printed in
 two parts with an explicit flush between them gets through; that gap is accepted.
 
+## Crash reports and usage
+
+`ardia_cli/telemetry.py` records crash reports and usage only while the app's "Share anonymous crash reports and usage
+stats" is on for the data dir the command resolved (`--data-dir`, else `$ARDIA_DATA_DIR`, else the installed app's):
+`<data dir>/telemetry.json`, the app's own saved choice, must say `"sharing": true` with an `installId`. That id is the
+events' `distinct_id`, so the command's events join the install's. Nothing is recorded or sent when the file is
+missing, unreadable or says sharing is off, with `DO_NOT_TRACK` set (anything but empty, `0` or `false`) or
+`ARDIA_TELEMETRY=0` (or `false`, `off`, `no`), for a command pointed at a test endpoint (`--port`, `--ws`, `--cdp`,
+`ARDIA_PORT`, `ARDIA_WS`, `ARDIA_CDP_URL`, `AGENT_BROWSER_CDP`), or from a checkout (version `0.0.0.dev0`). `ardia
+--version` records nothing.
+
+The wire format is the app's: OTLP log records (`otlp.ts` `eventRecord`/`logsRequest`) posted as `application/json`
+to `https://ardia.dev/otel/v1/logs`, scope `ardia.analytics`, resource `service.name` `ardia-cli`, so they land in
+`telemetry.events` with `source = 'ardia-cli'`. Every event carries `$lib` `ardia-cli`, `cli_version`, `$os_version`,
+`arch`, `python_version`, `$environment` (`production` for the installed app's data dir, `test` for any other, `dev`
+from a checkout), `$geoip_disable` and `$process_person_profile: false`.
+
+- `cli_command`, one per run: `command` (the first command word; `unknown` for a word it doesn't know, `none` for
+  bare `ardia` and `--help`), `subcommand` (the second word; for `browse`, the browse command, or `other` when it
+  isn't one), `exit_code`, `error_code` (browse's `code`, such as `stale_ref`, `element_replaced` or
+  `connection_lost`, or `unhandled_exception`), and `flags`, the option names given, comma-separated, only names the
+  command's parser knows. Then times in whole ms and counts, each capped (an hour, 100 million): `total_ms` (process
+  start to exit) and `startup_ms` (process start until the command runs); for browse, `daemon_spawned` and
+  `daemon_start_ms` when it had to start the daemon, `connect_ms` with `reconnected_after_idle` when the daemon
+  (re)connected, `attach_ms` (finding and attaching the tab), the command itself as `snapshot_build_ms` for
+  `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
+  `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
+  `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
+  `output_chars` and `output_truncated`, `humanize`, `batch_steps`, and `cdp_calls` with `cdp_ms_total` (the
+  command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
+  (`command_metrics.py`).
+- `$exception` for a crash the CLI didn't handle (`source` and mechanism `cli_unhandled`, level `fatal`) or one inside
+  a browse daemon command (`browse_daemon`, level `error`; `fatal` when the daemon itself dies). It has the type and
+  no free text: the message is sent only when it's one of the fixed built-in messages that carry no input
+  (`FIXED_MESSAGES` in `telemetry_scrub.py`, like `division by zero` or `Event loop is closed`), or as
+  `[Errno N] <the system's text for N>` for an `OSError`; otherwise the value is the type again. Frames are module,
+  function and line, where a frame outside `ardia_cli`, the standard library and the bundled packages shows as
+  `<other>`. At most 10 per process, one per type, message and top frame. The daemon checks its own environment and
+  also each request's `telemetry` field, which the client sets from the command's own environment (opt-outs, test
+  endpoints, a checkout): it reports a command's crash only when that request was eligible, and a crash of the
+  daemon itself only when the last request it took was.
+
+It never sends argv values, URLs, page text, selectors, refs, typed text, JS, notes, file paths, cookies or anything
+from the page.
+
+Nothing waits on the network. Events go to `<data dir>/Telemetry/cli-queue.jsonl` (folder 0700, file 0600, under
+`cli-queue.lock`; at most 500 events and 256 KB, the oldest dropped). At exit, once at least 60 s have passed since the
+last flush started (`cli-flush.json`, read and updated under `cli-flush-claim.lock`, so concurrent commands start one),
+the command starts a detached `python -I` flusher with its config on stdin and the data dir made absolute. It holds
+`cli-flush.lock` so only one runs, drops events from another install id, posts batches of 100 (500 KB at most) with a
+5 s timeout and a 12 s budget, and removes what was accepted (2xx) or refused (400, or 413 for a single event). It
+reads `telemetry.json` again before every post: sharing turned off stops it and deletes the spool, a new install id
+stops it and drops the old id's events. Anything else keeps the events and backs off 30 s, doubling up to 30 minutes. With sharing off,
+the next command deletes the spool, and so does a flusher. The browse daemon only appends; the next command's exit
+sends it. Turning sharing off in the app stops new events at once; what's already spooled goes at the next `ardia`
+run.
+
+`ARDIA_TELEMETRY_URL` is for tests only: a loopback `http://` URL (`127.0.0.1`, `localhost` or `[::1]`) gets the
+posts instead of ardia.dev, from a checkout too, and any other value turns telemetry off. `tests/test_telemetry.py`
+runs against a local stub with fixture data dirs.
+
 ## Install and upgrade
 
 The app runs `install.sh` with its own environment minus every `ARDIA_*` variable, plus `ARDIA_CLI_HOME`,
