@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createUtilitySessionSnapshot, initialLinuxSession } from "./session.ts";
-import { linuxSessionShape, startHostPersistence } from "./hostSession.ts";
+import { linuxSessionShape, snapshotHostSession, startHostPersistence } from "./hostSession.ts";
+import { sessionStatePatch } from "./hostSessionState.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { mergeSession } from "./hostSessionMerge.ts";
 
@@ -637,3 +638,11 @@ for (const endsSession of [false, true]) {
     }
   });
 }
+
+test("the merged Top Apps circles survive a save and a canonical update from another window", () => {
+  const state = { ...useBrowser.getState(), topAppsMerged: "default,work" };
+  const local = snapshotHostSession(state);
+  assert.equal(local.topAppsMerged, "default,work");
+  assert.equal(sessionStatePatch(state, local, { ...local, topAppsMerged: "default,home" }).topAppsMerged, "default,home");
+  assert.equal("topAppsMerged" in sessionStatePatch(state, local, local), false);
+});

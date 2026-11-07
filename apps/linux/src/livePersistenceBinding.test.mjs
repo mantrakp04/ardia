@@ -27,7 +27,7 @@ globalThis.window = { __ardiaHost: {
     return JSON.stringify({ status: "committed", requestId: args.requestId, snapshot: snapshot() });
   },
 } };
-const { live, setLive, createFolder, updateCalendarSettings, dismissNowBadge } = await import("../../browser/src/state/live/store.ts");
+const { live, setLive, createFolder, removeFolder, setRepoHidden, updateCalendarSettings, dismissNowBadge } = await import("../../browser/src/state/live/store.ts");
 const { flushLinuxDocuments } = await import("./documentFlush.ts");
 
 test("Linux binding uses the canonical shared store, suppresses write echoes and preserves transient state", async () => {
@@ -71,4 +71,35 @@ test("Linux binding persists dismissed Now badges and the countdown lead through
   for (const listener of listeners) listener("ArdiaDocuments", "documents", { name: "documents.changed", data: { snapshot: snapshot(), clientId: "peer", requestId: "peer:2" } });
   assert.deepEqual(live().dismissedNow, { "peer/uid@1": now + 9_000_000 });
   assert.equal(live().calendar.countdownLead, 30);
+});
+
+test("Linux binding keeps a folder's hidden repos and their pull requests through canonical intents", async () => {
+  await new Promise((resolve) => setImmediate(resolve));
+  const pull = { id: "pr-1", source: "github", url: "https://example.test/pr/1", title: "PR", pr: { number: 1, repo: "acme/widgets" } };
+  const id = createFolder("logical", "pullRequests", ["github"]);
+  setLive((s) => ({ items: { ...s.items, [id]: [pull] } }));
+  await flushLinuxDocuments();
+  assert.deepEqual(payload.folders[id].hiddenRepos, []);
+  assert.deepEqual(payload.items[id], [pull]);
+
+  setRepoHidden(id, "github:acme/widgets", true);
+  await flushLinuxDocuments();
+  assert.deepEqual(payload.folders[id].hiddenRepos, ["github:acme/widgets"]);
+  assert.deepEqual(payload.items[id], []);
+  assert.deepEqual(payload.repoHidden[id], [pull]);
+
+  setRepoHidden(id, "github:acme/widgets", false);
+  setLive((s) => ({ repoHidden: { ...s.repoHidden, [id]: [] } }));
+  await flushLinuxDocuments();
+  assert.deepEqual(payload.folders[id].hiddenRepos, []);
+  assert.deepEqual(payload.repoHidden[id], []);
+
+  payload = { ...payload, repoHidden: { ...payload.repoHidden, [id]: [pull] } };
+  revision++;
+  for (const listener of listeners) listener("ArdiaDocuments", "documents", { name: "documents.changed", data: { snapshot: snapshot(), clientId: "peer", requestId: "peer:3" } });
+  assert.deepEqual(live().repoHidden[id], [pull]);
+
+  removeFolder(id);
+  await flushLinuxDocuments();
+  assert.equal(id in payload.repoHidden, false);
 });

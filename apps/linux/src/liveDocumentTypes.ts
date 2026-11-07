@@ -17,7 +17,7 @@ export type DocumentOperation = FieldOperation
   | { type: "delete"; id: string; incarnation: string }
   | { type: "place"; id: string; incarnation: string; after: string | null; expected: string | null }
   | { type: "member"; target: "hiddenCalendarIds" | "dismissedAlerts" | "known" | "unread"; id?: string; incarnation?: string; member: string; present: boolean }
-  | { type: "entry"; target: "items" | "hidden" | "completed"; id: string; incarnation: string; key: string; expected: unknown; value: unknown }
+  | { type: "entry"; target: "items" | "hidden" | "repoHidden" | "completed"; id: string; incarnation: string; key: string; expected: unknown; value: unknown }
   | { type: "claim"; id: string; incarnation: string }
   | { type: "refresh"; id: string; incarnation: string; generation: number; owner: string; operations: DocumentOperation[]; orders?: Partial<Record<"items" | "hidden" | "completed", string[]>> };
 export type DocumentCommit = { document: "live.json"; epoch: string; requestId: string; observedRevision: number; operations: DocumentOperation[] };

@@ -34,7 +34,7 @@ export function captureLiveIntent(before: LiveProjection, after: LiveProjection,
   members("hiddenCalendarIds", record(before.calendar).hiddenCalendarIds, record(after.calendar).hiddenCalendarIds);
   members("dismissedAlerts", before.dismissedAlerts, after.dismissedAlerts);
   for (const target of ["known", "unread"] as const) for (const id of Object.keys(record(after[target]))) if (foldersAfter[id]) members(target, record(before[target])[id], record(after[target])[id], id);
-  for (const target of ["items", "hidden", "completed"] as const) {
+  for (const target of ["items", "hidden", "repoHidden", "completed"] as const) {
     for (const id of new Set([...Object.keys(record(before[target])), ...Object.keys(record(after[target]))])) {
       if (!foldersAfter[id]) continue;
       const key = (entry: any) => target === "completed" ? entry.item.id : entry.id;
@@ -92,7 +92,7 @@ export function projectLiveIntent(payload: LiveProjection, operations: DocumentO
     }
     if (op.type === "create") { (result.folders ??= {})[op.id] = op.value; if (!(result.folderOrder ??= []).includes(op.id)) result.folderOrder.push(op.id); }
     if (op.type === "delete") {
-      for (const key of ["folders", "items", "hidden", "completed", "known", "unread", "expandedStacks"]) delete (result[key] ?? {})[op.id];
+      for (const key of ["folders", "items", "hidden", "repoHidden", "completed", "known", "unread", "expandedStacks"]) delete (result[key] ?? {})[op.id];
       result.folderOrder = list(result.folderOrder).filter((id) => id !== op.id);
     }
     if (op.type === "field") {

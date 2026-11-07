@@ -32,7 +32,10 @@ const host = {
       if (mode === "notOwner") return JSON.stringify({ status: "conflict", reason: "notOwner", requestId: request.requestId, snapshot: snapshot() });
       generations[operation.id] = ++generation;
     }
-    else payload = projectLiveIntent(payload, request.operations);
+    else {
+      payload = projectLiveIntent(payload, request.operations);
+      for (const { id } of request.operations.filter((op) => op.incarnation && op.type !== "place")) generations[id] = ++generation;
+    }
     watermark++; revision++;
     const response = { status: "committed", requestId: request.requestId, superseded, snapshot: snapshot() };
     receipts.set(request.requestId, response);
@@ -119,4 +122,20 @@ test("a refresh claim that fails settles the folder instead of rejecting into th
   assert.equal(live().status.f?.state, "idle");
   assert.equal(warnings.mock.callCount(), 1);
   await flushLinuxDocuments();
+});
+
+test("releasing a shown repo lands with its refresh, so the completion timer still cleans up", async (context) => {
+  await reset(context);
+  const released = { ...item, id: "released", pr: { number: 2, repo: "acme/widgets" } };
+  payload = { ...payload, repoHidden: { f: [released] } };
+  revision++; emit();
+  assert.deepEqual(live().repoHidden.f, [released]);
+  await refreshFolder("f"); await flushLinuxDocuments();
+  assert.deepEqual(payload.repoHidden.f, []);
+  assert.equal(requests.filter((request) => request.operations[0].type === "refresh").length, 1);
+  assert.deepEqual(live().completing.f, ["i"]);
+  context.mock.timers.tick(COMPLETION_MS); await flushLinuxDocuments();
+  assert.deepEqual(live().completing.f, []);
+  assert.deepEqual(payload.items.f, []);
+  assert.equal(payload.completed.f[0].item.id, "i");
 });

@@ -227,7 +227,16 @@ export function arrangeFolders(placed: { id: string; after: string | null }[]) {
 const MAX_KNOWN = 600;
 const MAX_COMPLETED = 20;
 
-export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set(), fence?: unknown) {
+function shownReposReleased(s: LiveState, folderId: string, fetchedSources: Set<LiveSourceId>): Partial<LiveState> {
+  const keptOut = s.repoHidden[folderId];
+  const folder = s.folders[folderId];
+  const repoStillHidden = (it: LiveItem) => !!folder?.hiddenRepos.includes(repoKey(it) ?? "");
+  const awaitingFetch = (it: LiveItem) => !!folder?.sources.includes(it.source) && !fetchedSources.has(it.source);
+  const still = keptOut?.filter((it) => repoStillHidden(it) || awaitingFetch(it));
+  return keptOut && still && still.length !== keptOut.length ? { repoHidden: { ...s.repoHidden, [folderId]: still } } : {};
+}
+
+export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set(), fence?: unknown, fetchedSources: Set<LiveSourceId> = new Set()) {
   const intent: LivePersistenceIntent = { kind: "refresh", folderId, fence, completionIds: [] };
   setLive((s) => {
     if (!s.folders[folderId]) return {};
@@ -263,6 +272,7 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
       completed: leaving.length || (s.completed[folderId] ?? []).length !== completed.length ? { ...s.completed, [folderId]: completed } : s.completed,
       completing: leaving.length ? { ...s.completing, [folderId]: [...(s.completing[folderId] ?? []), ...leaving.map((l) => l.id)] } : s.completing,
       status: { ...s.status, [folderId]: { state: "idle", lastFetch: now, error: null } },
+      ...shownReposReleased(s, folderId, fetchedSources),
     };
   }, intent);
 }
@@ -330,17 +340,6 @@ export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
       completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter((id) => !removed.has(id)) },
       completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item)) },
     };
-  });
-}
-
-export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSourceId>) {
-  setLive((s) => {
-    const keptOut = s.repoHidden[folderId];
-    const folder = s.folders[folderId];
-    const repoStillHidden = (it: LiveItem) => !!folder?.hiddenRepos.includes(repoKey(it) ?? "");
-    const awaitingFetch = (it: LiveItem) => !!folder?.sources.includes(it.source) && !fetchedSources.has(it.source);
-    const still = keptOut?.filter((it) => repoStillHidden(it) || awaitingFetch(it));
-    return keptOut && still && still.length !== keptOut.length ? { repoHidden: { ...s.repoHidden, [folderId]: still } } : {};
   });
 }
 

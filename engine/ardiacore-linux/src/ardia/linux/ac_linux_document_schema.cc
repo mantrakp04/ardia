@@ -109,7 +109,7 @@ bool Item(const base::Value& entry) {
 }
 
 bool Folder(base::DictValue& folder, const std::string& id) {
-  if (!Shape(folder, "|id|profileId|kind|name|icon|collapsed|sources|filters|groupStacks|showCompleted|createdAt|after|") ||
+  if (!Shape(folder, "|id|profileId|kind|name|icon|collapsed|sources|filters|groupStacks|showCompleted|hiddenRepos|createdAt|after|") ||
       !folder.FindString("id") || *folder.FindString("id") != id ||
       !folder.FindString("profileId") || !folder.FindString("kind") ||
       !Fields(folder, "|id|profileId|kind|name|icon|after|", "|collapsed|groupStacks|showCompleted|", "|createdAt|")) return false;
@@ -120,6 +120,8 @@ bool Folder(base::DictValue& folder, const std::string& id) {
       !Fields(*filters, "", "|authored|reviewRequests|", "")) return false;
   if (!folder.Find("groupStacks")) folder.Set("groupStacks", base::Value(true));
   if (!folder.Find("showCompleted")) folder.Set("showCompleted", base::Value(true));
+  if (auto* repos = folder.Find("hiddenRepos"); repos && !Strings(*repos)) return false;
+  if (!folder.Find("hiddenRepos")) folder.Set("hiddenRepos", base::Value(base::ListValue()));
   return true;
 }
 
@@ -134,12 +136,12 @@ int LinuxDocumentInteger(const base::DictValue& value, std::string_view key,
 std::optional<base::DictValue> NormalizeLinuxLive(const base::DictValue& payload) {
   int version = LinuxDocumentInteger(payload, "version", 0);
   if (version < 0 || version > 1 || (payload.Find("version") && !payload.Find("version")->is_int()) ||
-      !Shape(payload, "|version|folders|folderOrder|items|known|unread|hidden|completed|expandedStacks|accounts|config|calendar|meetingGroups|dismissedAlerts|dismissedNow|")) return std::nullopt;
+      !Shape(payload, "|version|folders|folderOrder|items|known|unread|hidden|repoHidden|completed|expandedStacks|accounts|config|calendar|meetingGroups|dismissedAlerts|dismissedNow|")) return std::nullopt;
   size_t nodes = 0;
   if (!JsonSafe(base::Value(payload.Clone()), 0, nodes)) return std::nullopt;
   base::DictValue result;
   result.Set("version", base::Value(1));
-  for (auto key : {"folders", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedNow"}) {
+  for (auto key : {"folders", "items", "known", "unread", "hidden", "repoHidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedNow"}) {
     if (payload.Find(key) && !payload.FindDict(key)) return std::nullopt;
     result.Set(key, payload.FindDict(key) ? payload.FindDict(key)->Clone() : base::DictValue());
   }
@@ -157,7 +159,7 @@ std::optional<base::DictValue> NormalizeLinuxLive(const base::DictValue& payload
   result.Set("folders", std::move(folders));
   for (const auto& id : result.Find("folderOrder")->GetList())
     if (!result.FindDict("folders")->contains(id.GetString())) return std::nullopt;
-  for (auto key : {"items", "hidden", "completed", "known", "unread"}) {
+  for (auto key : {"items", "hidden", "repoHidden", "completed", "known", "unread"}) {
     for (const auto& [id, entries] : *result.FindDict(key)) {
       if (!result.FindDict("folders")->contains(id) || !entries.is_list()) return std::nullopt;
       if (std::string_view(key) == "known" || std::string_view(key) == "unread") {
@@ -241,7 +243,7 @@ bool FieldValue(const std::string& target, const std::string& field,
   if (target == "folder") {
     if (field == "name") return value.is_string();
     if (field == "icon" || field == "after") return NullableString(&value);
-    if (field == "sources") return Strings(value);
+    if (field == "sources" || field == "hiddenRepos") return Strings(value);
     return std::set<std::string>{"collapsed", "groupStacks", "showCompleted", "filters.authored", "filters.reviewRequests"}.contains(field) && value.is_bool();
   }
   if (target == "calendar") {
@@ -315,7 +317,7 @@ bool Operation(const base::DictValue& op, bool nested) {
     const auto* value = op.Find("value");
     const auto* expected = op.Find("expected");
     return op.size() == 7 && Shape(op, "|type|target|id|incarnation|key|expected|value|") &&
-      target && (*target == "items" || *target == "hidden" || *target == "completed") &&
+      target && (*target == "items" || *target == "hidden" || *target == "repoHidden" || *target == "completed") &&
       Identifier(op, "id", 128) && Identifier(op, "incarnation") && Identifier(op, "key", 1024) && value && expected &&
       Entry(*value, *target == "completed", *op.FindString("key")) && Entry(*expected, *target == "completed", *op.FindString("key"));
   }

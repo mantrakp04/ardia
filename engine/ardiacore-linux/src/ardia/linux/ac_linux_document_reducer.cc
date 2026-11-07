@@ -69,7 +69,7 @@ std::string ApplyOne(base::DictValue& envelope, const base::DictValue& op,
   } else if (*type == "delete") {
     if (op.size() != 3 || !id || !Text(op, "incarnation")) return "invalid";
     if (!Existing(envelope, op)) return "conflict";
-    for (auto key : {"folders", "items", "hidden", "completed", "known", "unread", "expandedStacks"}) SetRecord(payload, key, *id, nullptr);
+    for (auto key : {"folders", "items", "hidden", "repoHidden", "completed", "known", "unread", "expandedStacks"}) SetRecord(payload, key, *id, nullptr);
     base::ListValue order;
     for (const auto& entry : payload.Find("folderOrder")->GetList()) if (entry.GetString() != *id) order.Append(entry.Clone());
     payload.Set("folderOrder", base::Value(std::move(order)));
@@ -139,7 +139,7 @@ std::string ApplyOne(base::DictValue& envelope, const base::DictValue& op,
     std::string key;
     if (*target == "folder") {
       if (op.size() != 7 || !Existing(envelope, op)) return "conflict";
-      if (std::set<std::string>{"name", "icon", "collapsed", "sources", "filters.authored", "filters.reviewRequests", "groupStacks", "showCompleted", "after"}.count(*field) == 0) return "invalid";
+      if (std::set<std::string>{"name", "icon", "collapsed", "sources", "filters.authored", "filters.reviewRequests", "groupStacks", "showCompleted", "hiddenRepos", "after"}.count(*field) == 0) return "invalid";
       auto folder = payload.FindDict("folders")->FindDict(*id)->Clone();
       if (field->starts_with("filters.")) {
         auto filters = folder.FindDict("filters")->Clone();
@@ -205,7 +205,7 @@ std::string ApplyOne(base::DictValue& envelope, const base::DictValue& op,
     const auto* key = Text(op, "key");
     const auto* value = op.Find("value");
     if (op.size() != 7 || !id || !target || !key || !value || !op.Find("expected") ||
-        (*target != "items" && *target != "hidden" && *target != "completed")) return "invalid";
+        (*target != "items" && *target != "hidden" && *target != "repoHidden" && *target != "completed")) return "invalid";
     if (!Existing(envelope, op)) return "conflict";
     if (!value->is_none() && EntryId(*value, *target == "completed") != *key) return "invalid";
     auto entries = payload.FindDict(*target)->Clone();
