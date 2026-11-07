@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Drag list</title>
+<style>
+body { font: 14px system-ui; margin: 24px; }
+#list { padding: 0; margin: 0; }
+#list li { list-style: none; width: 260px; padding: 12px; margin: 6px 0; background: #e8eefc; border-radius: 6px; cursor: grab; }
+#refuse, #locked { width: 260px; padding: 16px 12px; margin-top: 16px; border-radius: 6px; }
+#refuse { background: #fbe9e9; }
+#locked { background: #eee; }
+</style>
+</head>
+<body>
+<ul id="list">
+<li draggable="true" id="alpha">Alpha</li>
+<li draggable="true" id="bravo">Bravo</li>
+<li draggable="true" id="charlie">Charlie</li>
+<li draggable="true" id="delta">Delta</li>
+</ul>
+<div id="refuse">No drops here</div>
+<div id="locked" draggable="true">Locked</div>
+<pre id="report"></pre>
+<script>
+const list = document.getElementById("list");
+const state = { order: [], log: [], clicks: 0 };
+const report = () => {
+  state.order = [...list.children].map((item) => item.id);
+  document.getElementById("report").textContent = JSON.stringify(state);
+};
+list.addEventListener("dragstart", (event) => {
+  event.dataTransfer.setData("text/plain", event.target.id);
+  event.dataTransfer.effectAllowed = "move";
+  state.log.push("dragstart:" + event.target.id);
+  report();
+});
+list.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+});
+list.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const moved = document.getElementById(event.dataTransfer.getData("text/plain"));
+  const over = event.target.closest("li");
+  if (moved && over && moved !== over) {
+    const items = [...list.children];
+    list.insertBefore(moved, items.indexOf(moved) < items.indexOf(over) ? over.nextSibling : over);
+  }
+  state.log.push("drop:" + (moved ? moved.id : "?") + ">" + (over ? over.id : "?"));
+  report();
+});
+document.addEventListener("dragend", (event) => {
+  state.log.push("dragend:" + event.target.id + ":" + event.dataTransfer.dropEffect);
+  report();
+});
+document.getElementById("locked").addEventListener("dragstart", (event) => {
+  event.preventDefault();
+  state.log.push("prevented");
+  report();
+});
+document.addEventListener("click", () => {
+  state.clicks += 1;
+  report();
+});
+report();
+</script>
+</body>
+</html>

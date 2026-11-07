@@ -15,7 +15,7 @@ VALUE_FLAGS = {
 }
 BOOL_FLAGS = {
     "--json", "--no-humanize", "--humanize", "--content-boundaries", "--annotate", "--no-auto-dialog", "--pin-tab", "--no-pin-tab",
-    "--debug", "--capture-console", "--show",
+    "--debug", "--capture-console", "--show", "--full", "--no-changes",
 }
 LAUNCH_ONLY = {
     "--headed": False, "--profile": True, "--executable-path": True, "--extension": True, "--args": True, "--user-agent": True,
@@ -32,7 +32,7 @@ LAUNCH_HINTS = {
     "--download-path": "pass the path to `ardia browse download <sel> <path>` instead",
 }
 VALUE_FLAGS -= set(LAUNCH_HINTS)
-COMMAND_OWNS = {"stream": {"--port"}, "screenshot": {"--annotate"}}
+COMMAND_OWNS = {"stream": {"--port"}, "screenshot": {"--annotate", "--full"}, "diff": {"--full"}}
 LOCAL_AUTH = {"save", "list", "show", "delete"}
 
 
@@ -95,11 +95,19 @@ def options_from(found: dict, env: dict) -> dict:
         humanize = False
     if found.get("humanize"):
         humanize = True
+    max_output = found.get("max_output") or env.get("AGENT_BROWSER_MAX_OUTPUT")
+    if max_output is not None:
+        try:
+            max_output = int(max_output)
+        except ValueError:
+            raise Usage(f"--max-output takes a number of characters, not {max_output}") from None
     options = {
         "json": found.get("json") or truthy(env.get("AGENT_BROWSER_JSON")),
         "humanize": humanize,
         "timeout_ms": env.get("AGENT_BROWSER_DEFAULT_TIMEOUT") or 25000,
-        "max_output": found.get("max_output") or env.get("AGENT_BROWSER_MAX_OUTPUT"),
+        "max_output": max_output,
+        "full": bool(found.get("full")),
+        "no_changes": bool(found.get("no_changes")),
         "content_boundaries": found.get("content_boundaries") or truthy(env.get("AGENT_BROWSER_CONTENT_BOUNDARIES")),
         "annotate": found.get("annotate") or truthy(env.get("AGENT_BROWSER_ANNOTATE")),
         "screenshot_dir": found.get("screenshot_dir"),
@@ -165,8 +173,10 @@ def print_result(result, as_json: bool, options: dict) -> int:
 
 
 def print_error(error: BrowseError, as_json: bool) -> int:
+    from ardia_cli import telemetry
     from ardia_cli.browse.daemon import render
 
+    telemetry.note_error_code(error.code)
     code, out, err = render({"json": as_json}, error=error)
     write(out, sys.stdout)
     write(err, sys.stderr)
@@ -248,6 +258,13 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             data = plugins.call(root, positional[0], positional[1], payload)
             return Result(data if isinstance(data, dict) else {"result": data}, json.dumps(data, ensure_ascii=False, indent=2))
         raise Usage(f"Unknown plugin subcommand: {action}")
+    if command == "notes":
+        from ardia_cli import notes
+
+        request = notes.parse_args(args)
+        if request.text == "-":
+            request.text = read_stdin_text()
+        return notes.run_request(root, request, None)
     if command == "read":
         parsed, positional = parse(args, readurl.FLAGS)
         return readurl.run(positional[0], parsed, options)
@@ -267,6 +284,24 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             return Result({"sessions": rows}, "\n".join(lines) if rows else "No active sessions")
         return None
     return None
+
+
+def notes_need_page(args: list[str]) -> bool:
+    from ardia_cli import notes
+
+    try:
+        return notes.parse_args(args).site is None and notes.parse_args(args).action != "list"
+    except BrowseError:
+        return False
+
+
+def read_stdin_text() -> str:
+    from ardia_cli import notes
+
+    text = sys.stdin.read(notes.MAX_NOTE * 4 + 1)
+    if len(text) > notes.MAX_NOTE * 4:
+        raise Usage(f"stdin is over {notes.MAX_NOTE * 4} characters; notes hold at most {notes.MAX_NOTE // 1024} KB per site")
+    return text
 
 
 def read_has_url(args: list[str]) -> bool:
@@ -341,12 +376,15 @@ def run(argv: list[str]) -> int:
             return paths.browse_dir(root)
 
         local_auth = command == "auth" and (args[:1] or ["list"])[0] in LOCAL_AUTH
-        if local_auth or command == "plugin" or (command == "read" and read_has_url(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
+        local_notes = command == "notes" and not notes_need_page(args)
+        if local_auth or local_notes or command == "plugin" or (command == "read" and read_has_url(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
             result = run_local(command, args, root, options, dir_fd_factory, None)
             if result is not None:
                 return print_result(result, as_json, options)
         stdin = None
-        if (command in ("eval", "addinitscript") and "--stdin" in args) or (command == "batch" and not [a for a in args if not a.startswith("--")] and not sys.stdin.isatty()):
+        if command == "notes" and "-" in args:
+            stdin = read_stdin_text()
+        elif (command in ("eval", "addinitscript") and "--stdin" in args) or (command == "batch" and not [a for a in args if not a.startswith("--")] and not sys.stdin.isatty()):
             stdin = sys.stdin.read()
         if command == "close" and "--all" in args:
             return close_all(root, as_json, options)
@@ -362,7 +400,10 @@ def run(argv: list[str]) -> int:
         finally:
             os.close(dir_fd)
         env_subset = {name: value for name, value in env.items() if name.startswith("AGENT_BROWSER_")}
-        answer = client.request(sock, {"argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin})
+        from ardia_cli import telemetry
+
+        request = {"argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env)}
+        answer = client.request(sock, request)
     except BrowseError as error:
         return print_error(error, as_json)
     except endpoints.EndpointError as error:
@@ -374,6 +415,7 @@ def run(argv: list[str]) -> int:
     except KeyboardInterrupt:
         sys.stderr.write("✗ interrupted\n")
         return 130
+    telemetry.note_answer(answer)
     write(answer.get("out") or "", sys.stdout)
     write(answer.get("err") or "", sys.stderr)
     return int(answer.get("exit") or 0)
