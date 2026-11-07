@@ -60,3 +60,13 @@ test("settings and their bookkeeping save apart, read back the same, and a chang
   assert.deepEqual(S().settingsMeta, { chosen: ["tabLayout", "appearance"], inferred: [] });
   assert.equal(S().settings.appearance, "light");
 });
+
+test("loading profiles when opened defaults on and the off choice survives persistence", () => {
+  S().hydrate({});
+  assert.equal(S().settings.loadProfilesWhenOpened, true);
+  const stop = startPersistence();
+  S().updateSettings({ loadProfilesWhenOpened: false });
+  flushPersistence();
+  assert.equal(loadSession().settings.loadProfilesWhenOpened, false);
+  stop();
+});

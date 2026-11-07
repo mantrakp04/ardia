@@ -211,7 +211,7 @@ export function startHistory() {
   if (moving) afterFirstWindow(migrate);
   else migrate();
   const stop = useBrowser.subscribe((s, prev) => {
-    if (s.profiles !== prev.profiles && !moving) loadAll(s);
+    if ((s.profiles !== prev.profiles) && !moving) loadAll(s);
   });
   const opened = onProfilesOpened(() => {
     if (!moving) loadAll(store());

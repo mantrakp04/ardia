@@ -3,14 +3,13 @@ import { useBrowser } from "../browser/store";
 import { plural, profileFor } from "../browser/model";
 import type { Profile } from "../browser/types";
 import { bookmarkRoots } from "../bookmarks/bookmarks";
-import { historyOf } from "../history/history";
+import { historyOf, historyViewOf } from "../history/history";
 import type { Settings } from "../settings/settings";
 import { useLookValue } from "../tabs/tabWatch";
 import { useBasePaletteValue } from "../config/hooks";
 import type { BasePalette } from "../../lib/themeFile";
 import { topAppSiblings } from "../pins/topApps";
 import { sharingProfiles } from "./profiles";
-import { useProfileOpened } from "./profileLoading";
 
 export function useProfileRecords(): Record<string, Profile>;
 export function useProfileRecords<T>(select: (profiles: Record<string, Profile>) => T): T;
@@ -46,7 +45,6 @@ export const useCreateProfileShareDefault = (windowId: string | null): string =>
   useBrowser((s) => (windowId && s.windows[windowId]?.kind !== "private" ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));
 
 export const useProfileDataStats = (profileId: string): string => {
-  const opened = useProfileOpened(profileId);
   return useBrowser((s) => {
     const roots = bookmarkRoots(s, profileId);
     let bookmarks = 0;
@@ -56,7 +54,7 @@ export const useProfileDataStats = (profileId: string): string => {
       if (n?.kind === "folder") n.children.forEach(walk);
     };
     if (roots) [roots.bar, roots.other].forEach(walk);
-    const history = opened ? `${plural(historyOf(s, profileId).length, "page")} in history` : "History not loaded yet";
+    const history = historyViewOf(s, profileId)?.ready ? `${plural(historyOf(s, profileId).length, "page")} in history` : "History not loaded yet";
     return `${history} · ${plural(bookmarks, "bookmark")}`;
   });
 };

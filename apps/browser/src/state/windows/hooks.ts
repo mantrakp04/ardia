@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { focusedWindowOf } from "./ui";
+import { selectedProfileReads } from "../profiles/startupEngineProfiles";
 
 export const useWindowUiOf = <T>(windowId: string, select: (ui: BrowserState["windowUi"][string] | undefined) => T): T =>
   useBrowser((s) => select(s.windowUi[windowId]));
@@ -12,7 +13,7 @@ export const useNativeWindowProfile = (windowId: string) =>
     useShallow((s): [profile: string, neighbours: string, selection: string] => {
       const w = s.windows[windowId];
       if (!w) return ["", "[]", ""];
-      const at = w.kind === "private" ? -1 : s.profileOrder.indexOf(w.profileId);
+      const at = selectedProfileReads || w.kind === "private" ? -1 : s.profileOrder.indexOf(w.profileId);
       const next = at < 0 ? [] : [s.profileOrder[at - 1], s.profileOrder[at + 1]].filter((p): p is string => !!p).map((id) => engineProfile(s, id));
       return [engineProfile(s, w.profileId), JSON.stringify(next), w.profileId];
     }),

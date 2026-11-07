@@ -201,7 +201,7 @@ function saveCache() {
   const s = store();
   const trees: CacheDoc["trees"] = {};
   for (const [engine, state] of engines) {
-    if (!(state.shadow || state.shown) || !engineProfiles(s).includes(engine)) continue;
+    if (!(state.shadow ?? state.shown) || !engineProfiles(s).includes(engine)) continue;
     trees[engine] = [...flatFromStore(s.bookmarks, engine).nodes.keys()].map((id) => s.bookmarks.nodes[id]!);
   }
   try {
