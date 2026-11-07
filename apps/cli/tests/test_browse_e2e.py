@@ -201,11 +201,40 @@ class BrowseEndToEnd(unittest.TestCase):
     def test_hidden_tab_refuses_input(self):
         session = "hidden"
         self.browse("open", self.url("probe.html"), "--show", session="hidden-front")
-        self.browse("open", self.url("probe.html"), session=session)
-        refused = self.browse("click", "#target", session=session, check=False)
-        self.assertEqual(refused.returncode, 1)
-        self.assertIn("background", refused.stderr)
+        opened = json.loads(self.browse("open", self.url("probe.html"), "--json", session=session).stdout)["data"]
+        self.assertTrue(opened["background"])
+        clicked = self.browse("click", "#target", session=session, check=False)
+        if opened["takesInput"]:
+            self.assertEqual(clicked.returncode, 0, clicked.stderr)
+        else:
+            self.assertEqual(clicked.returncode, 1)
+            self.assertIn(f"use: ardia browse tab {opened['tabId']} --show (or open <url> --show)", clicked.stderr)
+            self.assertIn("use: ardia browse tab", self.browse("open", self.url("probe.html#again"), session=session + "-2").stdout)
         self.browse("scroll", "down", "200", session=session)
+
+    def drag_report(self, session):
+        return json.loads(self.browse("get", "text", "#report", session=session).stdout)
+
+    def test_html5_drag_reorders_a_list(self):
+        session = "dnd"
+        self.browse("open", self.url("dnd.html"), "--show", session=session)
+        dragged = self.browse("drag", "#alpha", "#charlie", session=session).stdout
+        self.assertTrue(dragged.startswith("✓ Done (HTML5 drag and drop)\nchanges:"), dragged)
+        state = self.drag_report(session)
+        self.assertEqual(state["order"], ["bravo", "charlie", "alpha", "delta"])
+        self.assertEqual(state["log"], ["dragstart:alpha", "drop:alpha>charlie", "dragend:alpha:move"])
+        self.browse("drag", "#delta", "#bravo", "--humanize", session=session)
+        self.assertEqual(self.drag_report(session)["order"], ["delta", "bravo", "charlie", "alpha"])
+        refused = json.loads(self.browse("drag", "#bravo", "#refuse", "--json", session=session).stdout)["data"]
+        self.assertEqual((refused["html5"], refused["started"], refused["dropped"]), (True, True, False))
+        plain = self.browse("drag", "#locked", "#alpha", session=session).stdout
+        self.assertIn("plain mouse drag", plain)
+        state = self.drag_report(session)
+        self.assertEqual(state["order"], ["delta", "bravo", "charlie", "alpha"])
+        self.assertEqual(state["log"][-2:], ["dragend:bravo:none", "prevented"])
+        self.assertEqual(state["clicks"], 1, "only the plain mouse drag should click")
+        self.browse("drag", "#charlie", "#delta", session=session)
+        self.assertEqual(self.drag_report(session)["order"], ["charlie", "delta", "bravo", "alpha"])
 
     def scratch_keychain(self) -> str:
         security = "/usr/bin/security"
@@ -549,6 +578,32 @@ class BrowseTokenPath(unittest.TestCase):
         attached = self.browse("get", "url", session="token-attach")
         self.assertEqual(attached.stdout, self.url("form.html") + "\n")
         self.assertIn("uses the active one", attached.stderr)
+
+    def test_html5_drag_over_the_token_policy(self):
+        session = "token-dnd"
+        self.browse("open", self.url("dnd.html"), "--show", session=session)
+        done = self.browse("drag", "#alpha", "#charlie", "--json", session=session, check=False)
+        answer = json.loads(done.stdout)
+        if done.returncode:
+            self.assertEqual((answer["code"], answer["data"]["method"]), ("policy_refused", "Input.setInterceptDrags"))
+        else:
+            self.assertEqual((answer["data"]["started"], answer["data"]["dropped"]), (True, True))
+        order = json.loads(self.browse("get", "text", "#report", session=session).stdout)["order"]
+        self.assertEqual(order, ["alpha", "bravo", "charlie", "delta"] if done.returncode else ["bravo", "charlie", "alpha", "delta"])
+
+    def test_open_from_a_borrowed_tab_says_where_input_goes(self):
+        self.browse("open", self.url("login.html"), "--show", session="token-shown")
+        session = "token-borrow"
+        self.assertIn("uses the active one", self.browse("get", "url", session=session).stderr)
+        opened = self.browse("open", self.url("probe.html"), session=session).stdout
+        self.assertIn("since this session uses your tab", opened)
+        clicked = self.browse("click", "#target", session=session, check=False)
+        if "takes input without being shown" in opened:
+            self.assertEqual(clicked.returncode, 0, clicked.stderr)
+        else:
+            self.assertIn("use: ardia browse tab", opened)
+            self.assertEqual(clicked.returncode, 1)
+            self.assertIn("--show (or open <url> --show)", clicked.stderr)
 
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"

@@ -108,6 +108,11 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   an existing `<key>.sock` as stale and unlink it; it binds with umask 0177 so the socket is 0600 from the start,
   records the socket's inode, and at exit unlinks it only if it's still that inode. Both ends check the other's
   uid with `LOCAL_PEERCRED`; the client also checks the socket is a socket, owned and 0600.
+- Files are created with `openat(dir_fd, …, O_CREAT)`, retried up to four more times on `ENOENT`
+  (`paths.open_at`): on macOS, when several processes create the same new file through a directory descriptor at
+  once, all but one get `ENOENT` on the first try (racing eight processes for one new lock, seven failed in nearly
+  every round; the second try always succeeded). A path that really is missing still fails after the retries.
+  `tests/test_browse.py` races eight processes for one new lock and expects exactly one holder.
 - The client starts the daemon (`python -I -c`, its config on stdin, never argv or env) when the socket doesn't
   answer, and waits up to 15 s. A request is one JSON line; the daemon serializes commands, so one gesture never
   interleaves with another, and cancels a command whose client went away (Ctrl-C).
@@ -204,16 +209,39 @@ another frame. The listeners add no DOM and nothing the page's world can enumera
 
 Held keys and buttons are tracked before each dispatch, and a gesture that's interrupted releases them in a
 bounded (2 s), shielded `finally`; `keydown` and `mouse down` stay held across commands on purpose (and keep the
-connection up). An interrupted drag reports an unknown outcome. HTML5 `draggable` sources are refused: without
-`Input.setInterceptDrags` (gated) a synthetic drag becomes a real macOS drag session.
+connection up). An interrupted drag reports an unknown outcome.
 
-Chrome doesn't deliver mouse or keyboard input to a hidden tab, and a tab `open` puts in the background is hidden.
-Input commands check `document.visibilityState` first and fail with an explanation instead of reporting a click
-that never happened. `open --show`, `tab new --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` show the tab
+`drag` from an HTML5 draggable (the source or an ancestor has `draggable`, as links and images do by default) goes
+through drag interception, the way Playwright does it, since a synthetic mouse drag would start a real macOS drag
+session. It turns on `Input.setInterceptDrags` for the tab's CDP session before sending anything, presses on the
+source and moves toward the target; when the page starts a drag, Ardia hands it over as `Input.dragIntercepted`
+(the `dataTransfer` items), and from then on each point of the path is an `Input.dispatchDragEvent`: `dragEnter`,
+`dragOver` along the rest of the path, then `drop` at the target, and the button is released. With `--humanize` the
+path is the same curved one a mouse drag takes; without it, it's one move. If the page started a drag (a trusted
+`dragstart` that wasn't cancelled) but the handover hasn't come by the release, it waits up to 1.5 s for it. On the way
+out, always, in a bounded (3.5 s) shielded cleanup: a drag that was handed over but not dropped gets a `dragCancel`,
+a held button is released while interception is still on, and only then is interception turned off. Interception
+belongs to the CDP session, so it also ends when the session disconnects. If the token policy refuses
+`Input.setInterceptDrags`, the command fails before any input with the gated message (`policy_refused`). It reports
+what happened: `✓ Done (HTML5 drag and drop)`, `the target didn't accept the drop` (the page cancelled no `dragover`, so
+no `drop` event arrived) or `the page didn't start an HTML5 drag, so it was a plain mouse drag` (its `dragstart` was
+cancelled); `--json` has `html5`, `started` and `dropped`. It confirms delivery like other input (a `mousedown`, then a
+`dragend` or `mouseup`) and ends with its changes. A source that isn't draggable takes the plain mouse path.
+`tests/fixtures/browse/dnd.html` is a sortable list; the end-to-end test reorders it both ways.
+
+Chrome doesn't deliver mouse or keyboard input to a hidden tab, and a tab `open` puts in the background is hidden
+unless the engine keeps it live. An Ardia that does keeps a tab with a CLI CDP session attached visible to the
+renderer (a capturer count, as tab capture does) without switching the user's view, so the page reports
+`document.visibilityState === 'visible'` shortly after attaching. Input commands check visibility first; when the tab
+is hidden they poll it for up to 0.5 s, and the session remembers what it saw: a tab that turned visible on its own
+means background tabs take input (no more waiting), one that stayed hidden means this Ardia doesn't keep them live (no
+more waiting either; the next hidden tab is refused at once). A hidden tab fails with `code: "tab_hidden"` and the exact
+fix, `[t2] is a background tab, … use: ardia browse tab t2 --show (or open <url> --show)` (`data.use` carries the
+command). `open --show`, `tab new --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` show the tab
 (`Target.activateTarget`, retried until the page reports visible). `scroll` on a hidden tab keeps pydoll's
 humanized timing but applies each step with `scrollBy` in the isolated world; `record` and `stream` refuse a hidden
-tab (it paints no frames). Making background tabs take input would need an engine change (for example keeping CLI
-tabs visible to the renderer, as a capture does).
+tab (it paints no frames). The tab probe that picks the active tab on `--port`/`--ws` reads visibility straight after
+attaching, before an engine that keeps attached tabs live has made them visible.
 
 ### What the page can see
 
@@ -251,7 +279,12 @@ probed through a flat session and an isolated world, then detached). It errors (
 page, as on New Tab. Once a session's tab closes it doesn't move on to whatever the user is looking at: commands
 fail with `tab_gone` until `tab active`, `tab <id>` or `open`. The session keeps the tab it took, and the command's stderr says so once (`→ This session had no
 tab, so it uses the active one: [t1] Title - URL`). `open` never navigates a tab taken this way: it opens its own
-background tab, as with no tab; to navigate the user's tab, pick it with `tab <id>` or `tab active`. `close` and `tab close` close only tabs this session opened; the guard refuses `Browser.close` on every
+background tab, as with no tab; to navigate the user's tab, pick it with `tab <id>` or `tab active`. `open` stays in
+the background and never switches the user's view unless `--show`. When it opens a background tab it checks whether
+the tab takes input (`--json`: `tabId`, `background`, `takesInput`) and says so in its own output when the session
+borrowed the user's tab or the tab won't take input, so an agent learns it before its first click fails:
+`→ Opened in its own background tab [t2], since this session uses your tab [t1]; this Ardia doesn't deliver input
+there. use: ardia browse tab t2 --show (or open <url> --show)`, or `…; it takes input without being shown`. `close` and `tab close` close only tabs this session opened; the guard refuses `Browser.close` on every
 socket. `tab list` shows the user's tabs too (minus prewarmed `about:blank` pages). `alert` and `beforeunload`
 dialogs are accepted, as in agent-browser, unless `--no-auto-dialog`. `get cdp-url` refuses any URL that carries a
 token or other credentials, however it was chosen (the token path, `--ws`, `$ARDIA_CDP_URL`); it prints only a
@@ -282,7 +315,7 @@ prints the whole snapshot after a line saying so. It takes no `-s` or `-d`.
 
 ### Changes after actions
 
-After `click`, `dblclick`, `fill`, `type`, `select`, `check`/`uncheck`, `press`, `keyboard type|inserttext` and
+After `click`, `dblclick`, `fill`, `type`, `select`, `check`/`uncheck`, `press`, `keyboard type|inserttext`, `drag` and
 `find … <action>`, the answer ends with what the action changed, so an agent rarely needs another snapshot:
 
 ```
@@ -410,7 +443,7 @@ implemented and works against a plain `--port` test server, so allowing the meth
 | `trace start\|stop`, `profiler start\|stop` | `Tracing.start`, `Tracing.end` |
 | `record start\|stop\|restart` | `Page.startScreencast` (and ffmpeg on PATH for the WebM) |
 | `stream enable` | `Page.startScreencast` |
-| `drag` of an HTML5 draggable | `Input.setInterceptDrags` |
+| `drag` of an HTML5 draggable | `Input.setInterceptDrags`, `Input.dispatchDragEvent` (see Input) |
 
 On the token path Ardia also strips `Cookie`, `Set-Cookie` and `Authorization` from network events, so
 `network requests` and HAR files never contain them.

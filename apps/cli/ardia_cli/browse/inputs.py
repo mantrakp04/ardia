@@ -104,9 +104,22 @@ def human_mouse_class():
 
     class HumanMouse(Mouse):
         held = None
+        interception = None
+
+        async def _dispatch_move(self, x: float, y: float, *, wait: bool = True) -> None:
+            interception = self.interception if self._pressed_button is not None else None
+            if interception is not None and interception.data is not None:
+                await interception.over(x, y)
+                self._position = (x, y)
+                return
+            await super()._dispatch_move(x, y, wait=wait)
+            if interception is not None:
+                await interception.moved(x, y)
 
         async def _dispatch_button(self, event_type, button, click_count: int = 1):
             pressed = getattr(event_type, "value", event_type) == "mousePressed"
+            if not pressed and self.interception is not None:
+                await self.interception.release(*self._position)
             if pressed:
                 self.held = button
             await super()._dispatch_button(event_type, button, click_count)

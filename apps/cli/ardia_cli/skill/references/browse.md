@@ -11,7 +11,7 @@ ardia browse fill @e5 "user@example.com"
 ardia browse fill @e7 2026-11-09         # date/time/color/range inputs get their value set
 ardia browse press Enter
 ardia browse snapshot -i --diff          # only what changed since the last snapshot
-ardia browse open example.com --show     # a new tab of your own in Ardia's sidebar, shown so input reaches it
+ardia browse open example.com --show     # a new tab of your own in Ardia's sidebar, shown (needed for input on older Ardia)
 ardia browse close                       # closes only the tabs this session opened
 ```
 
@@ -39,16 +39,25 @@ another snapshot. `eval --stdin` runs JavaScript in the page when the page itsel
   at (stderr says which, once). `open` opens a new background tab of the session's own (never navigating the user's
   tab unless you picked it with `tab <id>` or `tab active`); later `open`s navigate that tab. `close` closes the tabs this session opened, never the browser. `tab list` shows the
   user's tabs too; `tab close` refuses theirs.
-- **Background tabs get no input.** Chrome doesn't deliver mouse or keyboard events to a hidden tab, so `click`,
-  `fill`, `type`, `press`, `hover`, `drag` and `mouse` fail with a clear error on a background tab. Use
-  `open --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` (Ardia switches its window to the tab). Snapshots,
-  `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in the background.
+- **Background tabs take input only on an Ardia that keeps them live.** Chrome doesn't deliver mouse or keyboard
+  events to a hidden tab. A newer Ardia keeps a tab the CLI is attached to live without switching the user's view,
+  so input just works there. On one that doesn't, `open` says so in its own output, and `click`, `fill`, `type`,
+  `press`, `hover`, `drag` and `mouse` fail with the fix to run: `use: ardia browse tab t2 --show` (or
+  `open <url> --show`; `AGENT_BROWSER_SHOW_TAB=1` for every tab). `--show` switches Ardia's window to the tab.
+  Snapshots, `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in
+  the background either way.
+- **`drag` does HTML5 drag and drop.** From a `draggable` source (sortable lists, kanban cards, links) it uses drag
+  interception: the page gets `dragstart`, `dragenter`/`dragover` and `drop` with its own `dataTransfer`, and no
+  macOS drag session starts. The answer says `HTML5 drag and drop`, `the target didn't accept the drop`, or `plain
+  mouse drag` when the page cancelled `dragstart`; `--json` has `started` and `dropped`. A reordered list often
+  shows `changes: none` (list items aren't in `snapshot -i`); check with `get text` or `snapshot -s`. An Ardia whose
+  policy doesn't allow interception yet refuses it with `policy_refused` before sending anything.
 - **Input is confirmed.** A click, key press, typing or scroll that the page never received fails with
   `input_not_delivered`; one it only partly received reports an unknown outcome. Check the page before retrying.
 - **Input is instant by default.** `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press
   timing, wheel scrolling with momentum and typing per character with varying gaps and no typos. `--no-humanize` is
   accepted and changes nothing.
-- **Actions report what changed.** After `click`, `fill`, `type`, `select`, `check`, `press` and `keyboard`, the
+- **Actions report what changed.** After `click`, `fill`, `type`, `select`, `check`, `press`, `keyboard` and `drag`, the
   answer ends with `changes:`: `+` nodes added (with refs you can use at once), `~` changed (`(was …)`), `-` removed,
   `url:`/`title:` changes, and the non-GET requests the action caused with their status (query values masked). It
   waits up to 1.5 s for them. `--json` has it in `data.changes`; `--no-changes` skips it.

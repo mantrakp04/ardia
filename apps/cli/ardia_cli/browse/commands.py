@@ -257,18 +257,31 @@ async def cmd_open(ctx: Ctx, argv):
     state = ctx.state
     await state.connect()
     url = normalize_url(args[0]) if args else None
-    if state.current and state.current in state.target_infos and state.current != state.extras.get("attached"):
+    show = wants_show(ctx, options)
+    borrowed = state.extras.get("attached") if state.current and state.current == state.extras.get("attached") else None
+    background = None
+    if state.current and state.current in state.target_infos and not borrowed:
         page = await state.page()
         await apply_open_options(ctx, page)
         if url:
             await navigate(ctx, page, url)
-        if wants_show(ctx, options):
+        if show:
             await show_tab(ctx, page)
     else:
-        page = await new_tab(ctx, url, options.get("label"), show=wants_show(ctx, options))
+        page = await new_tab(ctx, url, options.get("label"), show=show)
+        if not show:
+            background = await page.takes_input()
     await page.refresh_frames()
     title = await page_title(page)
-    return Result({"url": page.url, "title": title}, f"✓ {title}\n  {page.url}")
+    data = {"url": page.url, "title": title}
+    text = f"✓ {title}\n  {page.url}"
+    if background is not None:
+        tab = state.tab_id(page.target_id)
+        data.update({"tabId": tab, "background": True, "takesInput": background})
+        if borrowed or not background:
+            where = f"→ Opened in its own background tab [{tab}]" + (f", since this session uses your tab [{state.tab_id(borrowed)}]" if borrowed else "")
+            text += f"\n{where}; " + ("it takes input without being shown" if background else f"this Ardia doesn't deliver input there. use: ardia browse tab {tab} --show (or open <url> --show)")
+    return Result(data, text)
 
 
 @command("back", "forward")
@@ -531,8 +544,22 @@ async def cmd_drag(ctx: Ctx, argv):
     target_page, target = await resolve(ctx, args[1])
     if target_page is not page:
         raise BrowseError("Both ends of a drag must be in the same tab")
-    await actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize"))
-    return Result({"dragged": args[0], "to": args[1]})
+    outcome, report = await changes.observe(ctx, page, lambda: actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"dragged": args[0], "to": args[1], **outcome}, drag_text(outcome)), report)
+
+
+def drag_text(outcome: dict) -> str:
+    if not outcome.get("html5"):
+        return "✓ Done"
+    if not outcome.get("started"):
+        text = "✓ Done (the page didn't start an HTML5 drag, so it was a plain mouse drag)"
+    elif outcome.get("dropped") is False:
+        text = "✓ Done (HTML5 drag; the target didn't accept the drop, so the page got no drop event)"
+    else:
+        text = "✓ Done (HTML5 drag and drop)"
+    if outcome.get("interceptionLeftOn"):
+        text += "\n  Ardia didn't confirm drag interception was turned off; it ends when this session disconnects (30 s idle)"
+    return text
 
 
 @command("upload")

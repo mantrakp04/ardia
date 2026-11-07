@@ -32,6 +32,19 @@ def scratch_dir(test) -> Path:
     return path
 
 
+def race_for_lock(root: str, name: str, barrier, results):
+    fd = paths.browse_dir(Path(root), create=False)
+    barrier.wait(10)
+    try:
+        lock = paths.take_lock(name, fd)
+    except OSError as error:
+        results.put(f"{type(error).__name__}: {error}")
+        barrier.wait(10)
+        return
+    results.put("busy" if lock is None else "held")
+    barrier.wait(10)
+
+
 class RecordingExecutor:
     def __init__(self):
         self.commands = []
@@ -388,6 +401,24 @@ class PathsTest(unittest.TestCase):
         self.assertTrue(paths.lock_held("k.lock", fd))
         os.close(first)
         self.assertFalse(paths.lock_held("k.lock", fd))
+
+    def test_processes_racing_to_create_one_lock_get_one_holder(self):
+        import multiprocessing
+
+        context = multiprocessing.get_context("fork")
+        contenders = 8
+        for round_number in range(6):
+            root = scratch_dir(self)
+            paths.browse_dir(root)
+            barrier = context.Barrier(contenders)
+            results = context.Queue()
+            racers = [context.Process(target=race_for_lock, args=(str(root), f"new-{round_number}.lock", barrier, results)) for _ in range(contenders)]
+            for racer in racers:
+                racer.start()
+            outcomes = sorted(results.get(timeout=30) for _ in racers)
+            for racer in racers:
+                racer.join(10)
+            self.assertEqual(outcomes, ["busy"] * (contenders - 1) + ["held"], f"round {round_number}")
 
     def test_long_socket_paths_bind_relative(self):
         root = scratch_dir(self) / ("deep-" * 20)

@@ -63,6 +63,7 @@ class State:
         self.restarted = False
         self.target_infos: dict[str, dict] = {}
         self.listeners: list = []
+        self.background_live: bool | None = None
 
     @property
     def connected(self) -> bool:

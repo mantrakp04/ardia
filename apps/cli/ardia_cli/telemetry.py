@@ -38,7 +38,6 @@ SEND_BUDGET_S = 12
 FLUSH_DEADLINE_S = 30
 LOCK_ATTEMPTS = 5
 LOCK_RETRY_S = 0.002
-CREATE_ATTEMPTS = 3
 TEST_ENDPOINT_FLAGS = frozenset({"--port", "--ws", "--cdp"})
 TEST_ENDPOINT_ENV = ("ARDIA_WS", "ARDIA_PORT", "ARDIA_CDP_URL", "AGENT_BROWSER_CDP")
 INSTALL_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -407,13 +406,7 @@ def open_folder(root: Path, create: bool = True) -> int:
 def take_lock(name: str, dir_fd: int) -> int | None:
     from ardia_cli.browse import paths
 
-    for attempt in range(CREATE_ATTEMPTS):
-        try:
-            return paths.take_lock(name, dir_fd)
-        except FileNotFoundError:
-            if attempt + 1 == CREATE_ATTEMPTS:
-                raise
-    return None
+    return paths.take_lock(name, dir_fd)
 
 
 def spool_lock(dir_fd: int) -> int | None:

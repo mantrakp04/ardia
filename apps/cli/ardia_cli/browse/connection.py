@@ -23,6 +23,7 @@ EVENTS = (
     "Page.javascriptDialogClosed",
     "Page.frameDetached",
     "Page.screencastFrame",
+    "Input.dragIntercepted",
     "Runtime.consoleAPICalled",
     "Runtime.exceptionThrown",
     "Runtime.executionContextsCleared",
