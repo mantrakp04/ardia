@@ -400,7 +400,7 @@ const writtenSeq = (state            ) => state.seq - (state.journal?.length ?? 
 
 async function pull(state            , transport           , scope        , clock       , now        , options               = {}) {
   const { damagedGiveUp } = { ...DEFAULTS, ...options };
-  const listing = await transport.read(scope, Object.keys(state.files));
+  const listing = await transport.read(scope, Object.keys(state.files).filter((id) => state.files[id] .k !== "bad"));
   const changed = new Set        ();
   const parsed                                   = [];
   const unreadable = listing.damaged.map(({ id }) => id);
@@ -546,8 +546,10 @@ __define("packages/sync/src/fileHealth.ts", function (exports, __require) {
                                                                                                             
 
 function noteFileHealth(state            , files             , now        , giveUp        ) {
+  const setAside = (id        ) => state.files[id]?.k === "bad";
   for (const id of files.read) delete state.damaged[id];
   for (const id of files.unreadable) {
+    if (setAside(id)) continue;
     const since = Math.min(state.damaged[id] ?? now, now);
     if (now - since > giveUp) {
       state.files[id] = { d: "", k: "bad", at: now };
@@ -557,8 +559,9 @@ function noteFileHealth(state            , files             , now        , give
     }
   }
   for (const id of Object.keys(state.damaged)) if (!files.present.has(id)) delete state.damaged[id];
-  state.pending = files.pending.length;
-  if (files.pending.length) state.pendingSince = Object.fromEntries(files.pending.map((id) => [id, Math.min(state.pendingSince?.[id] ?? now, now)]));
+  const pending = files.pending.filter((id) => !setAside(id));
+  state.pending = pending.length;
+  if (pending.length) state.pendingSince = Object.fromEntries(pending.map((id) => [id, Math.min(state.pendingSince?.[id] ?? now, now)]));
   else delete state.pendingSince;
 }
 
