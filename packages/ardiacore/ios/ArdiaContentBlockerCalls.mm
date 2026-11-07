@@ -67,6 +67,12 @@ NSString *OriginOf(NSString *extensionId) { return [NSString stringWithFormat:@"
 
 namespace ardia_content_blocker {
 
+bool IsHiddenPageWindow(NSWindow *window) {
+  for (ArdiaCoreWindow *pageWindow in PageWindows().allValues)
+    if (window && pageWindow.window == window) return true;
+  return false;
+}
+
 ArdiaContentBlockerPage *HiddenPage(NSString *key, NSString *profile, ArdiaCoreProfile *p, NSString *extensionId, NSString *file) {
   ArdiaContentBlockerPage *page = Pages()[key];
   if (page.tab.closed) [page fail:@"closed"];

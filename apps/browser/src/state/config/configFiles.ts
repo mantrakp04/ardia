@@ -8,6 +8,7 @@ import { focusedWindowOf } from "../windows/ui";
 import { useBasePalette } from "./basePalette";
 import { CONFIG_FILE, launchRestoreSession, readConfig } from "./configSettings";
 import { schemaFiles } from "./configSchema";
+import { reloadHooks } from "../automation/hookRules";
 
 const RECONCILE_DELAY_MS = 100;
 
@@ -81,7 +82,7 @@ function report(problems: string[]) {
 function watchNames() {
   if (theme.name === watching) return;
   watching = theme.name;
-  watchConfigFiles(["config.json", ...(theme.name ? [themeFile(theme.name)] : [])]).then(changed, (error: unknown) => console.warn("[config] couldn't watch the config folder", error));
+  watchConfigFiles(["config.json", "hooks.json", ...(theme.name ? [themeFile(theme.name)] : [])]).then(changed, (error: unknown) => console.warn("[config] couldn't watch the config folder", error));
 }
 
 export function reconcileConfig() {
@@ -112,6 +113,7 @@ function changed() {
   timer = setTimeout(() => {
     timer = undefined;
     reconcileConfig();
+    reloadHooks();
     writeSchemas();
   }, RECONCILE_DELAY_MS);
 }
@@ -133,8 +135,6 @@ export function startConfigFiles(roles: RolePalettes) {
     showProblems();
   });
 }
-
-export const reconcilePendingForTests = () => timer !== undefined;
 
 export function resetConfigFilesForTests() {
   clearTimeout(timer);

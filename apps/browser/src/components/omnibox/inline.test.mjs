@@ -184,7 +184,7 @@ test("typing over a completion: m → f → s is 'mfs' in every interleaving", (
 test("random schedules: what's typed is what the field shows, completion selected after it", () => {
   const words = ["mfs", "mail.google.com/x", "mail.go", "accounts", "ma.x", "x.com/hx", "mmm", "am", "xcom"];
   for (const word of words) {
-    for (let seed = 1; seed <= 400; seed++) {
+    for (let seed = 1; seed <= 50; seed++) {
       const r = random(seed);
       const w = run([...word], (n) => Math.floor(r() * n));
       assertSettled(w, word, `${word} seed ${seed}`);

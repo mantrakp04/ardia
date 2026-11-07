@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { editDistance, groupByPane, search } from "./searchMatch.ts";
-import { SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
+import { ADVANCED_PANES, SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
 
 const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
@@ -62,6 +62,11 @@ test("results group by pane, best group first, best row first", () => {
   assert.equal(new Set(panes).size, panes.length);
 });
 
+test("every pane keeps a basic setting unless it hides whole", () => {
+  const panes = new Set(SETTINGS.map((s) => s.pane));
+  for (const pane of panes) if (!ADVANCED_PANES.has(pane)) assert.ok(SETTINGS.some((s) => s.pane === pane && !s.advanced), pane);
+});
+
 test("an empty query finds nothing", () => {
   assert.deepEqual(ids(""), []);
   assert.deepEqual(ids("   "), []);
@@ -109,11 +114,11 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   const unshown = (settings, env) => new Set(unshownSettings({ ...DEFAULT_SETTINGS, ...settings }, env).split("\n").filter(Boolean));
   const across = unshown({}, { top: true });
   for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
-  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], []);
+  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], ["tabs.dragToGroupInTopStrip"]);
   assert.ok(unshown({}, { top: false, glass: true }).has("appearance.glassTintAmount"));
   for (const id of ["appearance.interfaceStyle", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]) assert.ok(unshown({}, { top: false }).has(id), id);
   const classic = unshown({ interfaceStyle: "classic" }, { top: false, glass: true });
-  assert.deepEqual([...classic], ["appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
+  assert.deepEqual([...classic], ["tabs.dragToGroupInTopStrip", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
   assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.memorySaverMode"));
   assert.ok(unshown({ pageEngine: "webkit" }, { top: false }).has("engines.protectedVideo"));
 });

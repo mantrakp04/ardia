@@ -30,6 +30,8 @@ export type NewTabOptions = {
   wakeAdoptId?: AdoptId;
   notify?: boolean;
   newTabCommand?: boolean;
+  gated?: boolean;
+  replaced?: boolean;
 };
 
 
@@ -256,7 +258,7 @@ export function withNewTab(s: BrowserState, windowId: string, o: NewTabOptions =
   const profileId = w.kind === "private" ? w.profileId : o.profileId && s.profiles[o.profileId] ? o.profileId : w.profileId;
   const url = o.url ? resolveTyped(s.settings, o.url) : "";
   const tab = makeTab(windowId, profileId, url, { ...o.snapshot, pin: o.pinned === false ? null : (o.snapshot?.pin ?? (o.pinned ? TILE_PIN : null)) });
-  if (tab.page.kind === "loaded" && !o.snapshot) tab.page = loadedPage(navigationTo(url, true));
+  if (tab.page.kind === "loaded" && !o.snapshot) tab.page = loadedPage(navigationTo(url, !o.replaced));
   tab.openerId = o.openerId ?? null;
   tab.pinnedUrl = tab.pin ? pinHome({ pinnedUrl: tab.pinnedUrl, url }, true) : tab.pinnedUrl || null;
   if (o.adoptId) tab.page = adoptedPage(o.adoptId);

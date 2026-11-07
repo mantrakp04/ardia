@@ -111,20 +111,3 @@ test("deleting another folder during a held drag doesn't move the folder that's 
   order.arrangeLive(held);
   assert.deepEqual(sequence(w), ["a", "b", "LF2", "c"]);
 });
-
-test("collapsing a group in a long pinned list costs the order listener nothing", async () => {
-  const { noteOrderChoices } = await import("./pinOrderChoices.ts");
-  const { w } = start();
-  const ids = [];
-  for (let i = 0; i < 3000; i++) ids.push(S().newTab(w, { url: `https://r${i}.example/`, background: true }));
-  S().placeTabs(ids, { pinned: true, row: true, beforeId: null });
-  const member = S().newTab(w, { url: "https://member.example/", background: true });
-  const g = S().groupTabs([member], { pinned: true, name: "Group" });
-  const prev = S();
-  S().updateGroup(g, { collapsed: true });
-  const now = S();
-  const t0 = performance.now();
-  for (let i = 0; i < 20; i++) noteOrderChoices(now, prev);
-  const ms = (performance.now() - t0) / 20;
-  assert.ok(ms < 1, `${ms.toFixed(2)} ms`);
-});

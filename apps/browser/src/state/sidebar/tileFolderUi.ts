@@ -45,8 +45,9 @@ export async function toggleFolderPanel(windowId: string, folderId: string) {
   const open = folderPanel();
   if (open?.windowId === windowId && open.folderId === folderId) return closeFolderPanel();
   dismissHover();
+  const profileId = store().windows[windowId]?.profileId;
   const anchor = await measureRow(windowId, folderId);
-  if (anchor) useFolderPanel.setState({ open: { windowId, folderId, anchor } });
+  if (anchor && store().windows[windowId]?.profileId === profileId) useFolderPanel.setState({ open: { windowId, folderId, anchor } });
 }
 
 const store = () => useBrowser.getState();

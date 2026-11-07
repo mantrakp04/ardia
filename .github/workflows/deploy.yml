@@ -35,7 +35,7 @@ jobs:
             site:
               - "infra/site/**"
               - "apps/site/**"
-              - "apps/demo/**"
+              - "packages/demo/**"
               - "apps/browser/src/**"
               - "packages/*/src/**"
               - "packages/*/package.json"

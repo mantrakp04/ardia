@@ -18,7 +18,7 @@ NSString *const kSwitchesCacheDocument = @"switches-cache.json";
 NSArray<NSString *> *InstanceKeys() {
   return @[
     @"jsLocation", @"chromiumSwitches", @"downloadsDir", @"updateFeed", @"allowAudio", @"allowOcclusion", @"releaseNotes",
-    @"cliHome", @"cliBinDir", @"cliUrl", @"syncFolder", @"importSourceDir", @"importSafariHome",
+    @"cliHome", @"cliBinDir", @"cliUrl", @"syncFolder", @"sharedFolders", @"importSourceDir", @"importSafariHome",
   ];
 }
 
@@ -44,7 +44,7 @@ NSArray<NSString *> *AppTestKeys() {
 
 NSArray<NSString *> *KeysWhoseValuesHoldCommas() {
   return @[
-    @"chromiumSwitches", @"downloadsDir", @"updateFeed", @"cliHome", @"cliBinDir", @"cliUrl", @"syncFolder", @"importSourceDir",
+    @"chromiumSwitches", @"downloadsDir", @"updateFeed", @"cliHome", @"cliBinDir", @"cliUrl", @"syncFolder", @"sharedFolders", @"importSourceDir",
     @"importSafariHome", @"importSecret", @"cliInstallScript", @"legacySource", @"bangsUrl", @"liveMock",
   ];
 }

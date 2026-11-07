@@ -105,6 +105,7 @@ new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties ar
 - **`fcp` is the page's own clock** (its time origin plus the entry's time); a page can't move it but can replace the
   observer before the script installs it: values more than 10 minutes off are dropped natively, outliers past 60 s in JS.
 - Builds before this change send `perf_launch` with `launch_ms` only, at the first window.
+- Only the first window's root can start the launch. Up to 0.2.45-nightly.1, a window opened after sharing was turned on (during onboarding, say) started it, timed from process start: those rows have no `launch_ms`, an empty `first_of_version` and minutes in the other fields. The dashboard drops them through its `first_of_version` filter.
 
 ## Queries (ClickHouse)
 

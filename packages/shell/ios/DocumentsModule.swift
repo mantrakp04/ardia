@@ -6,6 +6,11 @@ public class DocumentsModule: Module {
 
     Function("readDocument") { (name: String) -> String? in DocumentStore.read(name) }
     Function("writeDocument") { (name: String, contents: String) in try DocumentStore.write(name, contents) }
+    AsyncFunction("documentSaved") { (name: String, promise: Promise) in
+      try DocumentStore.whenSaved(name) { error in
+        if let error { promise.reject("ERR_SAVE_DOCUMENT", error.localizedDescription) } else { promise.resolve(nil) }
+      }
+    }
     Function("removeDocument") { (name: String) in try DocumentStore.remove(name) }
     AsyncFunction("saveDocument") { (name: String, contents: String, promise: Promise) in
       try DocumentStore.write(name, contents) { error in

@@ -3,6 +3,7 @@
 #include <string>
 #include <string_view>
 
+#include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -181,7 +182,7 @@ bool IsWebHost(content::DevToolsAgentHost* host) {
 
 bool IsWebTarget(const std::string* target_id) {
   return target_id &&
-         IsWebHost(content::DevToolsAgentHost::GetForId(*target_id).get());
+         IsWebHost(content::ArdiaDevToolsAgentHostForId(*target_id));
 }
 
 }

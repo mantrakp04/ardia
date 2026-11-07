@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 39 }
+    Constant("apiVersion") { () -> Int in 48 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }
@@ -18,6 +18,10 @@ public class AppModule: Module {
 
     AsyncFunction("share") { (url: String, title: String?, windowId: String?, anchor: [Double]?, promise: Promise) in
       SharePicker.show(url: url, title: title, windowId: windowId, anchor: anchor) { promise.resolve(nil) }
+    }.runOnQueue(.main)
+
+    AsyncFunction("shareText") { (text: String, windowId: String?, anchor: [Double]?, promise: Promise) in
+      SharePicker.show(text: text, windowId: windowId, anchor: anchor) { promise.resolve(nil) }
     }.runOnQueue(.main)
 
     AsyncFunction("shareVia") { (service: String, url: String, title: String?, windowId: String?) in

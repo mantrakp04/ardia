@@ -18,6 +18,11 @@ export const generalRows = {
           keywords: ["close window", "confirm"],
         },
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        littleArdiaOpensNewTabLinks: {
+          title: "Open new-tab links inside Little Ardia",
+          description: "A link that would open a new tab loads in Little Ardia instead of behind it, in the main window. ⌘-click still opens it behind.",
+          keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
+        },
       },
     },
     {
@@ -81,6 +86,17 @@ export const generalRows = {
   profiles: [
     { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
     {
+      section: "Shared data",
+      rows: {
+        shareTopApps: {
+          title: "Share Top Apps",
+          description:
+            "Profiles that share browsing data can show the same Top Apps, each one a single page you pick up where you left it in any of them. Pick which ones take part. A profile with its own data keeps its own Top Apps, since its logins and cookies are separate.",
+          keywords: ["pinned tabs", "favorites", "essentials", "spaces", "shared"],
+        },
+      },
+    },
+    {
       section: "Profile switcher",
       rows: {
         switcherIcons: {
@@ -106,6 +122,12 @@ export const generalRows = {
     {
       section: "Tab layout",
       rows: {
+        sidebarSide: {
+          title: "Sidebar position",
+          description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
+          keywords: ["right", "left", "side", "position", "flip", "mirror", "sidebar on the right", "right sidebar", "arc"],
+          shown: inSidebar,
+        },
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",
@@ -219,6 +241,12 @@ export const generalRows = {
           title: "⌥⇧-click opens tab in group",
           description: "⌥⇧-click a tab to open it in a group with the current tab. (⌥⇧-clicking a link opens it in a split.)",
           keywords: ["option shift click", "split"],
+        },
+        dragToGroupInTopStrip: {
+          shown: (_, env) => env.top,
+          title: "Drag a tab onto another to group them",
+          description: "With tabs across the top, dropping a tab on another makes a group, and dropping it on a group adds it. Off, dragging only reorders.",
+          keywords: ["drag", "drop", "group", "top tab strip", "horizontal tabs", "reorder"],
         },
         autoGroupMeetingTabs: { advanced: true, title: "Automatically group tabs for meetings", keywords: ["calendar", "zoom", "meet", "call"] },
       },

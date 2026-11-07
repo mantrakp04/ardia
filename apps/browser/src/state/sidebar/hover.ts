@@ -184,6 +184,7 @@ export function rowEntered(windowId: string, target: Target | null, event: Hover
 export function rowShown(windowId: string, target: Target | null) {
   underPointer = target?.id ?? null;
   if (target) hoverEnter(windowId, target);
+  else hoverLeave();
 }
 
 export function rowLeft(windowId: string, target: Target | null, event: HoverPointerEvent, onPage: boolean) {

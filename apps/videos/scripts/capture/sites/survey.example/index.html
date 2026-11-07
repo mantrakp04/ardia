@@ -1,0 +1,108 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Field Survey Form</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--g:#1f8a4c;--g2:#e6f5ec;--ink:#15211b;--soft:#4f5d55;--mute:#86928b;--line:#dfe6e1;--bg:#f3f6f3}
+body{font-family:ui-rounded,"SF Pro Rounded",-apple-system,"Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .in{max-width:1180px;margin:0 auto;padding:0 28px;height:64px;display:flex;align-items:center;gap:12px}
+.mk{width:38px;height:38px;border-radius:11px;background:var(--g);display:grid;place-items:center}
+.nm b{display:block;font-size:16.5px;letter-spacing:-.01em}
+.nm span{font-size:12.5px;color:var(--mute)}
+.stepper{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--soft);white-space:nowrap}
+.stepper .pb{width:160px;height:7px;border-radius:4px;background:#e3ebe5;overflow:hidden}
+.stepper .pb i{display:block;width:46%;height:100%;background:var(--g);border-radius:4px}
+.sync{height:30px;padding:0 11px;border-radius:15px;background:var(--g2);color:var(--g);font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sync:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--g)}
+.av{width:34px;height:34px;border-radius:50%;background:#f2c86b;color:#5a3a00;font-weight:700;font-size:12.5px;display:grid;place-items:center}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 28px 40px;display:grid;grid-template-columns:1fr 300px;gap:22px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 1px 2px rgba(20,40,30,.04)}
+.fh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px}
+.fh h1{font-size:22px;letter-spacing:-.02em}
+.fh p{color:var(--soft);margin-top:3px;font-size:13.5px}
+.fh .tag{margin-left:auto;font-size:12px;font-weight:600;color:#8a5a00;background:#fff4d9;border-radius:8px;padding:5px 9px;white-space:nowrap}
+.fb{padding:16px 22px 6px;display:grid;grid-template-columns:repeat(6,1fr);gap:14px 16px}
+.f{display:flex;flex-direction:column;gap:6px}
+.f.s2{grid-column:span 2}.f.s3{grid-column:span 3}.f.s4{grid-column:span 4}.f.s6{grid-column:span 6}
+label{font-size:12.5px;font-weight:600;color:var(--soft);display:flex;gap:6px;align-items:center}
+label em{font-style:normal;color:#c2412c}
+label small{font-weight:500;color:var(--mute);margin-left:auto}
+.in2{height:42px;border:1.5px solid var(--line);border-radius:10px;display:flex;align-items:center;padding:0 12px;font-size:14.5px;gap:8px;background:#fff;white-space:nowrap;overflow:hidden}
+.in2.fo{border-color:var(--g);box-shadow:0 0 0 4px rgba(31,138,76,.14)}
+.in2 .u{margin-left:auto;color:var(--mute);font-size:13px}
+.in2 .car{width:1.5px;height:20px;background:var(--g);margin-left:-6px}
+.in2.sel:after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(45deg) translateY(-3px)}
+.in2 code{font:600 14px ui-monospace,Menlo,monospace;letter-spacing:.02em}
+.in2 i{font-style:italic;color:var(--mute);font-size:13px}
+.loc{height:42px;padding:0 12px;border-radius:10px;background:var(--g2);color:var(--g);font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tempbox{display:flex;align-items:center;gap:10px}
+.thermo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+.delta{grid-column:span 6;display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#e9f6ee,#fff3ea);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--soft)}
+.delta b{color:var(--g);font-size:15px}
+.delta .scale{margin-left:auto;width:200px;height:8px;border-radius:4px;background:linear-gradient(90deg,#1a9850,#d9ef8b,#fdae61,#d73027);position:relative}
+.delta .scale i{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--ink)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chips span{height:36px;padding:0 14px;border-radius:18px;border:1.5px solid var(--line);display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--soft)}
+.chips span.on{border-color:var(--g);background:var(--g2);color:var(--g);font-weight:600}
+.chips span.on:before{content:"✓";font-weight:700}
+.up{display:flex;gap:10px}
+.ph{width:112px;height:84px;border-radius:10px;overflow:hidden;position:relative;flex:none}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph span{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;padding:2px 6px;border-radius:5px;font-weight:600}
+.drop{flex:1;height:84px;border:2px dashed #c7d6cc;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--soft);background:#fafcfa;font-size:13.5px}
+.drop b{color:var(--g)}
+.drop small{display:block;color:var(--mute);font-size:12px;margin-top:2px}
+.ff{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--line);margin-top:12px}
+.ff p{font-size:12.5px;color:var(--mute)}
+.bt{height:44px;padding:0 20px;border-radius:11px;font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.bt.s{margin-left:auto;border:1.5px solid var(--line);color:var(--soft);background:#fff}
+.bt.p{background:var(--g);color:#fff;box-shadow:0 6px 14px -6px rgba(31,138,76,.7)}
+.side .card{padding:16px 16px 10px;margin-bottom:16px}
+.side h3{font-size:14.5px;margin-bottom:3px}
+.side .sub{font-size:12.5px;color:var(--mute);margin-bottom:10px}
+.mini{height:150px;border-radius:10px;overflow:hidden;margin-bottom:10px;background:#eef1ea}
+.mini svg{display:block;width:100%;height:100%}
+.st{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #edf2ee;font-size:13px}
+.st i{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:700}
+.st i.d{background:var(--g);color:#fff}.st i.n{border:2px solid var(--g);color:var(--g)}.st i.t{border:1.5px solid #ccd6cf;color:var(--mute)}
+.st code{font:12.5px ui-monospace,Menlo,monospace;color:var(--soft)}
+.st span{margin-left:auto;color:var(--mute);font-size:12px}
+.tip{background:#fffaf0;border:1px solid #f3e2b8;border-radius:14px;padding:13px 14px;font-size:12.5px;color:#6b5420;line-height:1.5}
+.tip b{display:block;color:#5a4410;margin-bottom:2px}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr}.side{display:none}.stepper .pb{width:100px}}
+</style></head><body>
+<header><div class="in">
+<div class="mk"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 2.5c4.6 2.8 6.8 6.2 6.8 9.6a6.8 6.8 0 0 1-13.6 0c0-3.4 2.2-6.8 6.8-9.6z" fill="#fff"/><path d="M12 7v14.5M12 12l3-2.6M12 15.5l-3-2.6" stroke="#1f8a4c" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+<div class="nm"><b>Port Alder Street Trees</b><span>Summer heat field study · 2026</span></div>
+<div class="stepper">Today: <b style="color:var(--ink)">14 of 30</b> done<div class="pb"><i></i></div></div>
+<div class="sync">Saved offline</div><div class="av">NV</div>
+</div></header>
+<div class="wrap">
+<form class="card" onsubmit="return false">
+<div class="fh"><div><h1>New field reading</h1><p>One reading per tree. Take shade and sun temperatures within two minutes of each other.</p></div><span class="tag">Heat advisory · 33 °C</span></div>
+<div class="fb">
+<div class="f s2"><label>Site ID <em>*</em></label><div class="in2"><code>PA-03-1142</code></div></div>
+<div class="f s2"><label>Location</label><div class="loc"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1f8a4c" stroke-width="1.8"><path d="M14 2L2 7.2l5.2 1.6L8.8 14z"/></svg>Merrow Ave &amp; 4th · ±4 m</div></div>
+<div class="f s2"><label>Time</label><div class="in2">Jul 23 · 15:04</div></div>
+<div class="f s4"><label>Tree species <em>*</em><small>142 in census</small></label><div class="in2 sel">London plane <i>Platanus × acerifolia</i></div></div>
+<div class="f s2"><label>Trunk diameter</label><div class="in2">48<span class="u">cm</span></div></div>
+<div class="f s3"><label>Shade temperature <em>*</em><small>under canopy</small></label><div class="tempbox"><div class="thermo" style="background:#e6f5ec"><svg width="12" height="18" viewBox="0 0 12 18"><path d="M4 2.5a2 2 0 0 1 4 0v8a3.6 3.6 0 1 1-4 0z" fill="none" stroke="#1f8a4c" stroke-width="1.6"/><circle cx="6" cy="13.6" r="1.8" fill="#1f8a4c"/></svg></div><div class="in2" style="flex:1">29.4<span class="u">°C</span></div></div></div>
+<div class="f s3"><label>Sun temperature <em>*</em><small>open sidewalk</small></label><div class="tempbox"><div class="thermo" style="background:#fdece4"><svg width="12" height="18" viewBox="0 0 12 18"><path d="M4 2.5a2 2 0 0 1 4 0v8a3.6 3.6 0 1 1-4 0z" fill="none" stroke="#d2522b" stroke-width="1.6"/><circle cx="6" cy="13.6" r="1.8" fill="#d2522b"/><path d="M6 5v7" stroke="#d2522b" stroke-width="1.6"/></svg></div><div class="in2 fo" style="flex:1">41.2<span class="car"></span><span class="u">°C</span></div></div></div>
+<div class="delta"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1f8a4c" stroke-width="1.8"><path d="M8 2v12M3.5 9.5L8 14l4.5-4.5"/></svg>Shade is <b>11.8 °C cooler</b> than open sidewalk at this tree<div class="scale"><i style="left:22%"></i><i style="left:78%"></i></div></div>
+<div class="f s6"><label>Ground under the tree</label><div class="chips"><span class="on">Asphalt</span><span>Concrete</span><span>Brick pavers</span><span>Grass</span><span>Mulch / soil</span></div></div>
+<div class="f s6"><label>Photos<small>1 of 3</small></label><div class="up"><div class="ph"><img src="img/0.jpg" alt=""><span>IMG_0412</span></div><div class="drop"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#1f8a4c" stroke-width="1.8"><rect x="3" y="6" width="22" height="17" rx="3"/><circle cx="14" cy="14.5" r="4.5"/><path d="M10 6l1.6-2.5h4.8L18 6"/></svg><div><b>Add a photo</b> or drag it here<small>Crown, trunk and the ground around it · JPG or HEIC</small></div></div></div></div>
+</div>
+<div class="ff"><p>Readings sync when you're back online.</p><div class="bt s">Save draft</div><button class="bt p" style="border:0;font-family:inherit">Submit reading<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button></div>
+</form>
+<aside class="side">
+<div class="card"><h3>Today's route</h3><div class="sub">District 3 · Merrow Ave corridor</div>
+<div class="mini"><svg viewBox="0 0 268 150"><rect width="268" height="150" fill="#eef1ea"/><g stroke="#fff" stroke-width="5"><path d="M0 30H268M0 75H268M0 120H268M40 0V150M110 0V150M180 0V150M245 0V150"/></g><path d="M0 18 L268 92" stroke="#f6d27a" stroke-width="6"/><rect x="186" y="82" width="56" height="34" rx="3" fill="#cfe3c2"/><path d="M40 30 L110 30 L110 75 L180 75 L180 120 L245 120" fill="none" stroke="#1f8a4c" stroke-width="3" stroke-dasharray="5 4"/><g fill="#1f8a4c"><circle cx="40" cy="30" r="5"/><circle cx="75" cy="30" r="5"/><circle cx="110" cy="52" r="5"/></g><circle cx="145" cy="75" r="7" fill="#fff" stroke="#1f8a4c" stroke-width="3"/><g fill="#fff" stroke="#9aa79f" stroke-width="2"><circle cx="180" cy="98" r="4.5"/><circle cx="212" cy="120" r="4.5"/><circle cx="245" cy="120" r="4.5"/></g></svg></div>
+<div class="st"><i class="d">✓</i><code>PA-03-1140</code><span>Honey locust · 14:41</span></div>
+<div class="st"><i class="d">✓</i><code>PA-03-1141</code><span>Red maple · 14:52</span></div>
+<div class="st"><i class="n">15</i><code>PA-03-1142</code><span style="color:var(--g);font-weight:600">Now</span></div>
+<div class="st"><i class="t">16</i><code>PA-03-1143</code><span>Linden · 60 m</span></div></div>
+<div class="tip"><b>Measuring tip</b>Hold the probe 1 m above the ground and keep it out of your own shadow. Wait for the reading to settle for 20 seconds.</div>
+</aside>
+</div>
+</body></html>

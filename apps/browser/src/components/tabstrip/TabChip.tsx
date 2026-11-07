@@ -44,6 +44,7 @@ export function DraggableChip({
   out?: GroupOut;
 }) {
   const active = useIsActiveTab(tabId);
+  const dragToGroup = useSettings((s) => s.dragToGroupInTopStrip);
   const strip = useContext(DockContext);
   const latestStrip = useRef(strip);
   latestStrip.current = strip;
@@ -66,7 +67,7 @@ export function DraggableChip({
     gap: GAP,
     range,
     cross: dock ? tabIn(() => latestStrip.current, from, width) : undefined,
-    targets: !group && from >= 0 ? strip?.targets : undefined,
+    targets: dragToGroup && !group && from >= 0 ? strip?.targets : undefined,
     drop: (dx, ids) => {
       if (!member) return false;
       const at = leaveIndex(member.top, member.slot, member.chip, member.expanded, member.left + dx, width);
@@ -185,7 +186,7 @@ export function OntoRing({ width }: { width: number | Animated.Value }) {
   );
 }
 
-export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pressed: boolean; children: React.ReactNode }) {
+export function ItemRow({ hovered, pressed, padded = true, children }: { hovered: boolean; pressed: boolean; padded?: boolean; children: React.ReactNode }) {
   const theme = useTheme();
   return (
     <View
@@ -199,8 +200,8 @@ export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pres
         backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: CHIP_PAD.left,
-        paddingRight: CHIP_PAD.right,
+        paddingLeft: padded ? CHIP_PAD.left : 0,
+        paddingRight: padded ? CHIP_PAD.right : 0,
       }}
     >
       {children}

@@ -1,8 +1,8 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
 import { useTheme } from "../ui/theme";
-import { useIsBookmarked, useTab } from "../../state/browser/hooks";
+import { useIsBookmarked, useSidebarSide, useTab } from "../../state/browser/hooks";
 import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { returnToPinnedUrl } from "../../state/pins/actions";
@@ -23,7 +23,8 @@ import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
 import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
-import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
+import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
+import { hoverCardAt } from "./hoverPlacement";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
@@ -42,13 +43,17 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const { drawn, leaving, entering, motion } = useHoverCardMotion(windowId, target);
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
-  const edge = usePlayerEdge(windowId, shown?.anchor);
-  useHoverCardPlacement(motion, shown ? hoverCardOrigin(shown.anchor, player ? edge : undefined) : null, { width, height });
+  const side = useSidebarSide(windowId);
+  const frame = useMemo(() => ({ side, windowWidth: width }), [side, width]);
+  const edge = usePlayerEdge(windowId, shown?.anchor, frame);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, side, player ? edge : undefined) : null, { width, height });
   if (!shown) return null;
   return (
-    <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
-      <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
-    </Animated.View>
+    <HoverCardFrameProvider value={frame}>
+      <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
+        <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
+      </Animated.View>
+    </HoverCardFrameProvider>
   );
 }
 
@@ -62,8 +67,9 @@ function HoverContent({ hover, windowId, player, windowHeight }: { hover: Hover;
 }
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
+  const origin = useHoverCardOrigin(anchor);
   return (
-    <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...hoverCardOrigin(anchor) }}>
+    <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...origin }}>
       {children}
     </HoverPanel>
   );
@@ -108,7 +114,8 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
         {tab.url ? (
           <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
-            label={bookmarked ? "Bookmarked" : "Bookmark"}
+            active={bookmarked}
+            label="Bookmark"
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}

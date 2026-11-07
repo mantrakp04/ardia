@@ -33,6 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)deleteProfileData:(NSString *)profile completion:(void (^)(NSArray<NSString *> *remaining))completion
     NS_SWIFT_NAME(deleteProfileData(_:completion:));
 + (void)releaseProfile:(NSString *)profile;
+@property(class, readonly) NSArray<NSString *> *loadedProfiles;
 + (BOOL)stopCapture:(NSString *)tabId NS_SWIFT_NAME(stopCapture(tabId:));
 + (BOOL)showAutofillSuggestions:(NSString *)tabId passwords:(BOOL)passwords NS_SWIFT_NAME(showAutofillSuggestions(tabId:passwords:));
 + (int)chromeTabIdOfTab:(NSString *)tabId NS_SWIFT_NAME(chromeTabId(ofTab:));
@@ -50,6 +51,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (int)runWithArgc:(int)argc
               argv:(char *_Nullable *_Nonnull)argv
           delegate:(id<NSApplicationDelegate> (^)(void))makeDelegate NS_SWIFT_NAME(run(argc:argv:delegate:));
++ (nullable NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url NS_SWIFT_NAME(senderOfOpenedURL(_:));
+@property(class, readonly) BOOL holdsIncomingLinks;
++ (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(nullable NSString *)hooksStamp NS_SWIFT_NAME(setHoldIncomingLinks(_:hooksStamp:));
++ (NSString *)fileStampOfDescriptor:(int)fd NS_SWIFT_NAME(fileStamp(ofDescriptor:));
+@property(class, readonly) NSString *missingFileStamp;
 
 @end
 

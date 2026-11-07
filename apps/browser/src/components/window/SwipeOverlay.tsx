@@ -1,5 +1,5 @@
 import { devRegister } from "../dev/devRegister";
-import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, concentric, radius, space, Surface, Symbol, Text, VisualEffect } from "../ui";
+import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, concentric, POPOVER_MARGIN, radius, space, Surface, Symbol, Text, VisualEffect } from "../ui";
 import { swipeHaptic } from "../../state/app/system";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
@@ -8,7 +8,7 @@ import { spring as springOf, springSpec, type SpringSpec } from "../ui/motion";
 import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, SWIPE_PILL_SPRING, windowColors } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
-import { HistoryPopover } from "./HistoryPopover";
+import { underButton, HistoryPopover } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
 import type { ToolbarGeometry } from "./geometry";
 import {
@@ -35,11 +35,14 @@ function spring(value: Animated.Value, toValue: number, spec: SpringSpec, native
   return Animated.spring(value, { toValue, ...springOf(spec), useNativeDriver: native });
 }
 
-export function NavigationOverlays({ tabId, windowId, geometry }: { tabId: string; windowId: string; geometry: ToolbarGeometry }) {
+const rowsAboveSelected = (count: number, selected: number) => count - 1 - selected;
+const listTop = (height: number, count: number, selected: number) => height / 2 - ROW / 2 - LIST_PAD - rowsAboveSelected(count, selected) * ROW;
+
+export function NavigationOverlays({ tabId, windowId, geometry, historyMenu }: { tabId: string; windowId: string; geometry: ToolbarGeometry; historyMenu: boolean }) {
   return (
     <>
       <SwipeOverlay tabId={tabId} />
-      <HistoryPopover tabId={tabId} windowId={windowId} anchors={{ back: geometry.back, forward: geometry.forward }} />
+      {historyMenu && <HistoryPopover tabId={tabId} windowId={windowId} top={POPOVER_MARGIN} left={(direction) => underButton(direction < 0 ? geometry.back : geometry.forward)} />}
     </>
   );
 }
@@ -106,7 +109,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
       spring(v.h, height, springSpec.snappy),
       spring(v.top, top, springSpec.snappy),
       spring(v.radius, corner, springSpec.snappy),
-    ]).start();
+    ], { stopTogether: false }).start();
   };
 
   const setConfirmed = (confirmed: boolean) => {
@@ -134,7 +137,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     g.selected = 0;
     g.listY = lastDy.current;
     swipeHaptic("generic");
-    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, height / 2 - LIST_PAD - ROW / 2, LIST_RADIUS);
+    v.pill.setValue(rowsAboveSelected(list.length, 0) * ROW);
+    layoutTo(LIST_WIDTH, list.length * ROW + LIST_PAD * 2, listTop(height, list.length, 0), LIST_RADIUS);
     Animated.timing(v.list, { toValue: 1, ...SWIPE_MOTION.list, useNativeDriver: true }).start();
     setShown((s) => (s ? { ...s, list, selected: 0 } : s));
   };
@@ -145,7 +149,11 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     if (index === g.selected) return;
     g.selected = index;
     swipeHaptic("alignment");
-    spring(v.pill, index * ROW, SWIPE_PILL_SPRING, true).start();
+    const count = g.list!.length;
+    Animated.parallel([
+      spring(v.top, listTop(sizeRef.current.height, count, index), SWIPE_PILL_SPRING),
+      spring(v.pill, rowsAboveSelected(count, index) * ROW, SWIPE_PILL_SPRING),
+    ], { stopTogether: false }).start();
     setShown((s) => (s ? { ...s, selected: index } : s));
   };
 
@@ -285,7 +293,7 @@ function DestinationList({ tabId, items, selected, appear, pill }: { tabId: stri
           transform: [{ translateY: pill }],
         }}
       />
-      {items.map((item, i) => (
+      {items.map((item, i) => ({ item, i })).reverse().map(({ item, i }) => (
         <View key={item.key} style={{ height: ROW, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xl, gap: space.ml }}>
           <View style={{ width: 16, height: 16, borderRadius: radius.control, overflow: "hidden" }}>
             {item.offset === "newTab" ? <NewTabIcon /> : <Favicon url={item.url} favicon={favicons.get(item.url) ?? null} />}

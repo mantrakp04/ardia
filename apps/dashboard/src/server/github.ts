@@ -4,7 +4,7 @@ import { isDev, serverEnv } from "./env";
 
 const REPO = "mantrakp04/ardia";
 const TTL_MS = 10 * 60_000;
-const MAX_STAR_PAGES = 10;
+const DAY_MS = 86_400_000;
 
 export type Release = {
   tag: string;
@@ -28,7 +28,7 @@ export type GitHubData = {
   openIssues: number;
   pushedAt: string;
   releases: Release[];
-  starTimes: number[] | null;
+  starDays: { day: number; count: number }[] | null;
   rateLimitRemaining: number | null;
   error: string | null;
 };
@@ -78,21 +78,14 @@ async function load(): Promise<GitHubData> {
   ]);
   const releases = { body: releasePages.flatMap((p) => (p ? (p.body as RawRelease[]) : [])), remaining: releasePages[0]?.remaining ?? NaN };
   const r = repo.body as { stargazers_count: number; forks_count: number; subscribers_count: number; open_issues_count: number; pushed_at: string };
-  let starTimes: number[] | null = null;
-  const pages = Math.ceil(r.stargazers_count / 100);
-  if (pages > 0 && pages <= MAX_STAR_PAGES && (await token())) {
-    try {
-      const all = await Promise.all(
-        Array.from({ length: pages }, (_, i) => gh(`repos/${REPO}/stargazers?per_page=100&page=${i + 1}`, "application/vnd.github.star+json")),
-      );
-      starTimes = all
-        .flatMap((p) => p.body as { starred_at: string }[])
-        .map((s) => Date.parse(s.starred_at))
-        .filter(Number.isFinite)
-        .sort((a, b) => a - b);
-    } catch {
-      starTimes = null;
-    }
+  let starDays: GitHubData["starDays"] = null;
+  try {
+    const weeks = (await gh(`repos/${REPO}/stargazers/history`)).body as { week: number; days: number[] }[];
+    starDays = weeks
+      .flatMap((w) => w.days.map((count, i) => ({ day: w.week * 1000 + i * DAY_MS, count })))
+      .sort((a, b) => a.day - b.day);
+  } catch {
+    starDays = null;
   }
   const count = (assets: RawRelease["assets"], test: (name: string) => boolean) =>
     assets.filter((a) => test(a.name)).reduce((s, a) => s + a.download_count, 0);
@@ -122,7 +115,7 @@ async function load(): Promise<GitHubData> {
           assets: rel.assets.map((a) => ({ name: a.name, downloads: a.download_count })).sort((a, b) => b.downloads - a.downloads),
         };
       }),
-    starTimes,
+    starDays,
     rateLimitRemaining: Number.isFinite(releases.remaining) ? releases.remaining : null,
     error: null,
   };

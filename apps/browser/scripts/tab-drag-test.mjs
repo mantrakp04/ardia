@@ -22,16 +22,18 @@ const rep = reporter(join(scratch, "tab-drag-test.log"), { name: "tab-drag-test"
 const tab = (id, windowId, pinned = false) => ({ id, windowId, pinned, lastActiveAt: id === "t1" ? 2 : 1 });
 const fixture = () => session({
   profiles: [{ id: "default", name: "Personal", color: "plum" }],
-  settings: { tabLayout: "top" },
+  settings: { tabLayout: "top", dragToGroupInTopStrip: true },
   windows: [
     { id: "w1", tabIds: ["p1", "p2", "t1", "t2", "t3", "t4"], activeTabIds: { default: "t1" }, frame: [80, 80, 1280, 800], createdAt: 1 },
     { id: "w2", tabIds: ["l1"], activeTabIds: { default: "l1" }, frame: [200, 120, 1100, 700], createdAt: 2 },
     { id: "w3", tabIds: ["g1", "g2", "x1"], activeTabIds: { default: "x1" }, frame: [140, 100, 1200, 760], createdAt: 3 },
     { id: "w5", tabIds: ["a1", "a2"], activeTabIds: { default: "a2" }, frame: [100, 60, 560, 420], createdAt: 5 },
     { id: "w6", tabIds: ["b1", "b2", "b3"], activeTabIds: { default: "b1" }, frame: [700, 60, 560, 420], createdAt: 6 },
+    { id: "w7", tabIds: ["c1", "c2", "c3"], activeTabIds: { default: "c3" }, frame: [160, 140, 1000, 600], createdAt: 7 },
   ],
   tabs: [tab("p1", "w1", true), tab("p2", "w1", true), tab("t1", "w1"), tab("t2", "w1"), tab("t3", "w1"), tab("t4", "w1"), tab("l1", "w2"),
-    tab("g1", "w3"), tab("g2", "w3"), tab("x1", "w3"), tab("a1", "w5"), tab("a2", "w5"), tab("b1", "w6"), tab("b2", "w6"), tab("b3", "w6")],
+    tab("g1", "w3"), tab("g2", "w3"), tab("x1", "w3"), tab("a1", "w5"), tab("a2", "w5"), tab("b1", "w6"), tab("b2", "w6"), tab("b3", "w6"),
+    tab("c1", "w7"), tab("c2", "w7"), tab("c3", "w7")],
   groups: [{ id: "grp", windowId: "w3", profileId: "default", name: "Group", icon: null, color: null, collapsed: false, pinned: false, tabIds: ["g1", "g2"], createdAt: 1 }],
 });
 
@@ -245,6 +247,24 @@ try {
     assert.deepEqual(await run(`return [loose("w3"), st().groups.grp.tabIds];`), [["g2", "g1", "x1"], ["g2", "g1"]]);
   });
 
+  await check("a tab let go on another tab's middle only reorders with Drag a tab onto another to group them off, and groups the two with it on", async () => {
+    const groupsIn = () => run(`return Object.values(st().groups).filter((g) => g.windowId === "w7").map((g) => g.tabIds);`);
+    const dropOnSecond = async () => {
+      const items = await run(`return tabItems("w7");`);
+      const at = (i) => Math.round((items[i][0] + items[i][1]) / 2);
+      return drag("w7", [[at(0), 21], [at(0) + 20, 21], [at(1) - 10, 21], [at(1), 21], [at(1), 21]]);
+    };
+    await run(`st().updateSettings({ dragToGroupInTopStrip: false }); return settle(400);`);
+    assert.equal(await dropOnSecond(), 0, "window drags");
+    assert.deepEqual(await groupsIn(), [], "setting off: no group");
+    assert.deepEqual(await tabsOf("w7"), ["c2", "c1", "c3"], "setting off: a reorder");
+    await run(`st().updateSettings({ dragToGroupInTopStrip: true }); return settle(400);`);
+    assert.equal(await dropOnSecond(), 0, "window drags");
+    const groups = await groupsIn();
+    assert.equal(groups.length, 1, `setting on: one group ${JSON.stringify(groups)}`);
+    assert.deepEqual([...groups[0]].sort(), ["c1", "c2"]);
+  });
+
   await check("a tab dragged onto another window's tabs: the strip makes room at the pointer, and it lands there", async () => {
     await run(`ac.store.setState((s) => ({ ui: { ...s.ui, focusOrder: ["w6", "w5", ...s.ui.focusOrder.filter((id) => id !== "w6" && id !== "w5")] } })); return 1;`);
     const from = await run(`return tabItems("w5");`);
@@ -436,7 +456,7 @@ try {
   });
 
   await check("sidebar auto-hidden: a row dragged within the peeking sidebar reorders instead of splitting, and Esc cancels a drag", async () => {
-    const edge = (p) => run(`return ac.shell.devLeftEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
+    const edge = (p) => run(`return ac.shell.devSidebarEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
     await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900);`);
     try {
       await edge({ x: -4, y: 300 });
@@ -463,7 +483,7 @@ try {
       assert.ok(cancelled.ended !== null && cancelled.ended < 150 + 16 * 12 * 7, `Esc ended the drag before the release: ${cancelled.ended}`);
       assert.equal(await edge({ x: 800, y: 400 }), false, "it hides once the pointer leaves");
     } finally {
-      await run(`return ac.shell.devLeftEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
+      await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
     }
   });
 

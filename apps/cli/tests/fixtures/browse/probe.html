@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Probe</title>
+<style>
+  body { font: 16px system-ui; margin: 24px; }
+  #target { display: inline-block; padding: 12px 24px; margin: 40px 0 0 300px; background: #ddd; cursor: pointer; }
+  #report { display: none; }
+</style>
+<script>
+  (() => {
+    const baseline = new Set(Object.getOwnPropertyNames(window));
+    const state = {
+      webdriver: navigator.webdriver === true,
+      consoleGetter: 0,
+      mutations: 0,
+      mutationSamples: [],
+      events: [],
+      newGlobals: [],
+    };
+    const reads = { name: 0, message: 0, calls: 0 };
+    setInterval(() => {
+      const error = new Error("probe");
+      Object.defineProperty(error, "message", { configurable: true, get() { reads.message += 1; return "probe"; } });
+      Object.defineProperty(error, "name", { configurable: true, get() { reads.name += 1; return "Probe"; } });
+      reads.calls += 1;
+      console.debug("probe", error);
+      state.consoleGetter = Math.max(0, reads.name - reads.message);
+      state.consoleReads = reads;
+    }, 100);
+    const report = () => {
+      state.webdriver = state.webdriver || navigator.webdriver === true;
+      state.newGlobals = Object.getOwnPropertyNames(window).filter((name) => !baseline.has(name) && name !== "probeState");
+      const node = document.getElementById("report");
+      if (node) node.textContent = JSON.stringify(state);
+    };
+    window.probeState = state;
+    const log = (event) => {
+      const entry = { type: event.type, t: performance.now(), trusted: event.isTrusted };
+      if (event.type.startsWith("key")) entry.key = event.key;
+      if (event.type.startsWith("mouse") || event.type === "click") { entry.x = event.clientX; entry.y = event.clientY; entry.buttons = event.buttons; }
+      if (state.events.length < 5000) state.events.push(entry);
+      report();
+    };
+    for (const type of ["mousemove", "mousedown", "mouseup", "click", "keydown", "keyup", "input", "wheel", "scroll"]) {
+      window.addEventListener(type, log, true);
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      const own = document.getElementById("report");
+      new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.target === own || own.contains(record.target)) continue;
+          state.mutations += 1;
+          if (state.mutationSamples.length < 20) {
+            state.mutationSamples.push({ type: record.type, target: record.target.nodeName, attribute: record.attributeName || null });
+          }
+        }
+      }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+      setInterval(report, 100);
+      report();
+    });
+  })();
+</script>
+</head>
+<body>
+<h1>Probe</h1>
+<div id="target" role="button" tabindex="0">Press me</div>
+<p><label for="field">Name</label> <input id="field" type="text" autocomplete="off"></p>
+<p id="clicked"></p>
+<pre id="report"></pre>
+</body>
+</html>

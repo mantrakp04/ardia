@@ -1953,7 +1953,7 @@ test("only evidence that the anchor left the rows after the order record ends th
 
 const { compact } = await import("@ardia/sync");
 
-async function deletedWhileAway(OldMac, withGroup) {
+async function deletedWhileAway(OldMac) {
   const realNow = Date.now;
   let shift = 0;
   Date.now = () => realNow() + shift;
@@ -1964,9 +1964,8 @@ async function deletedWhileAway(OldMac, withGroup) {
     const w = a.with(() => {
       const w = S().createWindow({ url: "https://home.example/" });
       const open = (h) => S().newTab(w, { url: `https://${h}.example/`, background: true });
-      const [r, x, m] = ["r", "x", "member"].map(open);
+      const [r, x] = ["r", "x"].map(open);
       S().placeTabs([r, x], { pinned: true, row: true, beforeId: null });
-      if (withGroup) S().groupTabs([m], { pinned: true, name: "Group" });
       return w;
     });
     other.with(() => S().createWindow({ url: "https://other-home.example/" }));
@@ -1994,13 +1993,8 @@ async function deletedWhileAway(OldMac, withGroup) {
 }
 
 test("a pinned row deleted while a Mac was away past tombstone retention stays deleted when it comes back", async () => {
-  const { a, c, other } = await deletedWhileAway(Device, false);
+  const { a, c, other } = await deletedWhileAway(Device);
   for (const d of [a, c, other]) assert.deepEqual(pinnedAreaOf(d), ["row:r", "row:y"], d.id);
-});
-
-test.skip("known: a group anchored to a row whose tombstone was collected shows the same order on every Mac (a snapshot leaves no tombstone, so the order can't tell a deleted anchor from one still on its way; accepted)", async () => {
-  const { a, c } = await deletedWhileAway(PreInterleaveMac, true);
-  assert.deepEqual(pinnedAreaOf(a), pinnedAreaOf(c));
 });
 
 test("a bookmark made while another adapter is still reading survives that sync", async () => {

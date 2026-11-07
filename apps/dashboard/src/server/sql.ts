@@ -9,7 +9,7 @@ import {
   SITE_SOURCES,
   visitorOnSql,
   type SiteEvent,
-} from "../../../site/src/data/telemetry";
+} from "../../../site/src/data/telemetry.ts";
 import type { Step, Window } from "../lib/range";
 
 const TYPED_COLUMNS_LIVE = true;

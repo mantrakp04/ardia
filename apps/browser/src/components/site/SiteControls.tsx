@@ -189,7 +189,7 @@ function SiteControlsPanel({
     ) : null,
   ].filter(Boolean);
 
-  const blockerValue = blockerLabel(pageEngine, blocker, blocked);
+  const blockerValue = blockerLabel(blocker, blocked);
   const shownPermissions = featured ? permissionList.filter((p) => featured.has(p.type)) : [];
   const otherPermissions = permissionList.filter((p) => !featured?.has(p.type));
   const value = (p: SitePermission) => (settings ? choiceTitle(p.type, permissionValue(p.type, settings, sound) ?? "ask") : "…");
@@ -208,9 +208,9 @@ function SiteControlsPanel({
               icon="shield.lefthalf.filled"
               title="Block Ads & Trackers"
               value={blockerValue}
-              on={pageEngine !== "webkit" && !!blocker?.enabled && !blocker.allowed}
+              on={!!blocker?.enabled && !blocker.allowed}
               onPress={
-                !blocker || pageEngine === "webkit"
+                !blocker
                   ? undefined
                   : blocker.enabled
                     ? () => void toggleBlocker(blocker.allowed)

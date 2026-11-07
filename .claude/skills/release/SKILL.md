@@ -125,7 +125,12 @@ update themselves from the network, as uBO's do everywhere):
 ```bash
 scripts/update-ubo.sh     # "uBO <x> is the latest release", or "uBO <old> -> <new> (sha256 …)"
 git add packages/ardiacore/scripts/ubo.sh && git commit -m "Content blocker: uBlock Origin <new>"   # only if it moved
+scripts/update-ubol.sh    # WebKit pages: uBlock Origin Lite's Safari rulesets, converted to WebKit content rules
+git add packages/ardiacore/scripts/ubol.sh && git commit -m "WebKit content blocker: uBlock Origin Lite <new>"   # only if it moved
 ```
+
+WebKit pages block with uBlock Origin Lite's rulesets (its Safari build), which, like uBOL everywhere, change only
+with a new uBOL release, so they are as fresh as the last Ardia release that moved `UBOL_VERSION`.
 
 It checks the zip against GitHub's SHA-256 digest and the manifest's version, rewrites the pin in
 `packages/ardiacore/scripts/ubo.sh` and installs it into `packages/ardiacore/vendor/ubo`. Verify after release.sh

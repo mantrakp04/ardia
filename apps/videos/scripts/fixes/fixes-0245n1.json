@@ -1,0 +1,254 @@
+{
+  "id": "fixes-0245n1",
+  "footage": "footage/0245n1",
+  "segments": [
+    {
+      "scene": "lazyprof",
+      "title": "Profiles load when you open them",
+      "body": "Eight profiles, idle after launch, then a switch to P4. With the setting off every profile starts at launch: 1,832 MiB. Now only the one on screen does, 346 MiB, and P4 starts the first time you open it.",
+      "note": "Before: the setting off",
+      "cam": [
+        0,
+        0,
+        1600,
+        1156
+      ],
+      "in": {
+        "before": 3.83,
+        "after": 0.07
+      },
+      "length": 9.3
+    },
+    {
+      "scene": "wkblock",
+      "title": "WebKit pages block ads and trackers",
+      "body": "Daily Mail in a WebKit tab. 0.2.44 loaded its display ads and a video ad; now uBlock Origin Lite's lists keep them out, and Site Controls counts what it blocked. Headline and photos blurred for the film.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "in": {
+        "before": 0.9,
+        "after": 0.0
+      },
+      "length": 13.0,
+      "rate": 1.5
+    },
+    {
+      "scene": "bmfreeze",
+      "title": "A big bookmarks bar no longer freezes Ardia",
+      "body": "2,500 bookmarks imported with the bar set to Always. 0.2.44 never drew the bar and ignored a tab switch for 40 s. Now the import takes half a second, tabs switch at once and the » menu opens.",
+      "note": "Captured at 1 to 3 fps under load",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 46.0,
+      "rate": 4
+    },
+    {
+      "scene": "ytv-pip",
+      "title": "Picture in Picture works on YouTube TV",
+      "body": "A playing video that tells the browser it can't go into Picture in Picture, as YouTube TV's player does. Site Controls › Picture in Picture did nothing in 0.2.44; now it opens.",
+      "cam": [
+        0,
+        0,
+        1472,
+        972
+      ],
+      "in": {
+        "before": 1.93,
+        "after": 0.17
+      },
+      "length": 6.0
+    },
+    {
+      "scene": "monitor852",
+      "title": "A window dragged to another display stays where you drop it",
+      "body": "A drag onto a shorter second display on macOS 27. 0.2.44 shrank the window and stopped it following the pointer; now it keeps its size and lands where it's dropped.",
+      "cam": [
+        0,
+        0,
+        1280,
+        688
+      ],
+      "in": {
+        "before": 1.0,
+        "after": 1.0
+      },
+      "length": 7.8
+    },
+    {
+      "scene": "fslights",
+      "title": "Full screen hides the window buttons",
+      "body": "Full screen, at rest and through a menu bar reveal. 0.2.44 kept the buttons up the whole time; now they show with the menu bar, or when the pointer nears them, and hide again.",
+      "cam": [
+        0,
+        0,
+        640,
+        360
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 7.2
+    },
+    {
+      "scene": "peekhist",
+      "title": "The history menu opens beside a peeking sidebar",
+      "body": "Sidebar hidden with the address bar in it, then a long press on Back. 0.2.44 opened the menu under the sidebar and let it slide away; now the menu opens beside it and the sidebar stays until it closes.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 7.5
+    },
+    {
+      "scene": "groupclose",
+      "title": "Preview cards leave at a group's header",
+      "body": "A tab's hover card, then the pointer moves onto its group's header. 0.2.44 kept the card up until the click; now it goes about half a second later.",
+      "cam": [
+        0,
+        0,
+        610,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 10.5,
+      "rate": 1.5
+    },
+    {
+      "scene": "topapps",
+      "title": "Top Apps stay in their own profile",
+      "body": "Personal and Work share browsing data. 0.2.44 merged their Top Apps, so unpinning Gmail in Work took it out of Personal too. Now each keeps the tiles it had, and edits stay put.",
+      "cam": [
+        0,
+        0,
+        1140,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 7.8
+    },
+    {
+      "scene": "sync514",
+      "title": "A second Mac joining sync lists the first's profiles",
+      "body": "Mac B's Settings › Sync, after it joined while Mac A's files were still downloading. 0.2.44 never read them again and listed none of A's profiles; now Work, School and Side Project show up to add.",
+      "cam": [
+        820,
+        110,
+        820,
+        540
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 12.0,
+      "rate": 1.5
+    },
+    {
+      "scene": "ynab903",
+      "title": "YNAB and other sites with fraud checks load again",
+      "body": "A page running the same tamper checks on screen sharing. 0.2.44 failed them, so it showed Something Went Wrong on every load; now the budget loads.",
+      "note": "A YNAB-like test page",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 5.1
+    },
+    {
+      "scene": "picker914",
+      "title": "No page opens the screen picker without a click",
+      "body": "A page asks to share the screen while it loads, and again from a frame, with no click. 0.2.44 opened Chrome's own picker and set off screen recording checks; now both calls are refused.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 4.3
+    },
+    {
+      "scene": "pipwm777",
+      "title": "Tiling window managers leave Picture in Picture alone",
+      "body": "AeroSpace's rules applied to the Picture in Picture window over a workspace switch. 0.2.44's counted as a dialog bound to the browser and was pulled back 61 times; now it's a popup that floats over every workspace.",
+      "note": "AeroSpace's switch emulated",
+      "cam": [
+        0,
+        0,
+        1280,
+        1052
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 4.5
+    },
+    {
+      "scene": "stylus757",
+      "title": "Signing in from an extension opens its own window",
+      "body": "Stylus › Options › Sync to cloud › Google Drive › Connect. 0.2.44 put Google's sign-in page among your tabs; now it opens in its own window and your tabs stay as they were.",
+      "cam": [
+        0,
+        0,
+        1280,
+        800
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 7.9
+    },
+    {
+      "scene": "tilecolor",
+      "title": "Top Apps tiles look as they did in 0.2.43",
+      "body": "A swipe from the Red space to the Green one. 0.2.44 drew the tiles noticeably whiter, with a brighter edge; now their glass is back to 0.2.43's.",
+      "cam": [
+        0,
+        0,
+        400,
+        640
+      ],
+      "in": {
+        "before": 0,
+        "after": 0
+      },
+      "length": 5.5
+    }
+  ]
+}

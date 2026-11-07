@@ -9,7 +9,7 @@ import { groupLabel } from "../../state/pins/tabGrouping";
 import { splitRowPanes } from "../../state/splits/splits";
 import { isSilenced } from "../../state/tabs/mute";
 import { groupEntries, keptEntry } from "../../state/sidebar/entries";
-import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
+import { GROUP_BORDER, GROUP_INDENT, GROUP_RADIUS } from "./geometry";
 import { headGap } from "../../state/sidebar/geometry";
 import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
@@ -138,7 +138,6 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const { fill, stroke } = groupSurface(shot.color, tokens);
-  const pad = shot.members.length || !shot.collapsed ? GROUP_PAD : 0;
   return (
     <View style={{ paddingVertical: GROUP_BORDER }}>
       {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
@@ -154,7 +153,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: pad, paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

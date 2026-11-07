@@ -1,6 +1,6 @@
 # Dashboard: Triage
 
-`/triage` in the dashboard (`apps/dashboard`) shows the feedback-triage data that `ardia-db` mirrors into the `sandbox` database on the telemetry ClickHouse: requests, the reply queue, people, releases and GitHub issues. It sits behind the same Hexclave sign-in and `DASHBOARD_ALLOWED_EMAILS` allowlist as every other page.
+`/triage` in the dashboard (`apps/dashboard`) shows the feedback-triage data that `ardia-db` mirrors into the `sandbox` database on the telemetry ClickHouse: requests, the reply queue, people, releases and GitHub issues. It sits behind the same Hexclave sign-in and admin gate as every other page: a verified primary email and `is_admin: true` in the user's client read-only metadata.
 
 ## Credentials
 
@@ -38,3 +38,11 @@ Each waiting draft has a **Recheck** button, and the toolbar has **Recheck all N
 4. The routine lists flagged drafts with `python3 recheck_replies.py list` (`--json` for machine use), re-verifies and edits them, then runs `python3 recheck_replies.py clear ID … [--note "…"]` (or `clear --all`), which sets `last_checked_at` to now and `needs_recheck` back to 0. `recheck_replies.py touch ID …` stamps `last_checked_at` without a flag. The next `ch_sync.py` run mirrors the result and the pill clears.
 
 `needs_recheck` (UInt8), `recheck_requested_at` and `last_checked_at` (nullable DateTime64) are columns of `sandbox.ardia_replies` and of the `ardia_v_reply_queue` view. `ch_sync.py` adds any column missing from an existing ClickHouse table on start, so older mirrors pick them up without a rebuild.
+
+## Snooze
+
+Each waiting draft has **Snooze 1 day** next to Mark sent and Skip. Snooze never changes a reply's status: it hides the draft from **Waiting** (and from the overview's waiting counts) for 24 hours, after which it shows up in Waiting again by itself. Snoozed drafts are listed under the **Snoozed** filter with a "snoozed until …" note and an **Unsnooze** button.
+
+1. The button inserts a row in `sandbox.ardia_reply_actions` with `status = 'snooze'` (or `'unsnooze'`). The status overlay ignores these rows; the newest snooze/unsnooze press decides `snoozed_until` (press time + 24h, or none). Because `ardia_reply_actions` is append-only and never truncated, a sync can't undo a snooze.
+2. `ch_sync.py` folds each press into SQLite as `replies.snoozed_until` / `replies.snooze_changed_at` (status untouched; an older press than the recorded one is skipped) and mirrors `snoozed_until` to `sandbox.ardia_replies.snoozed_until` and `ardia_v_reply_queue`. With no press on record, the dashboard falls back to that mirrored column.
+3. Scripts that want "waiting and not snoozed" can use `db.WAITING_SQL`.

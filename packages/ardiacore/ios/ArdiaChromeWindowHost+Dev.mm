@@ -42,80 +42,6 @@ NSEvent *Key(NSWindow *window, NSEventType type, NSEventModifierFlags flags, NSS
 
 namespace {
 
-NSDictionary *ProbeFrame(NSWindow *window, ArdiaWindowFullScreen *state, CFTimeInterval start, NSSize before) {
-  NSView *content = window.contentView;
-  CALayer *layer = content.layer;
-  if (!layer) return nil;
-  const CGFloat scale = 0.125;
-  const NSSize size = content.bounds.size;
-  const size_t w = MAX(1, (size_t)ceil(size.width * scale)), h = MAX(1, (size_t)ceil(size.height * scale));
-  NSMutableData *pixels = [NSMutableData dataWithLength:w * h * 4];
-  CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-  CGContextRef context = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, w * 4, space,
-                                               (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
-  CGColorSpaceRelease(space);
-  if (!context) return nil;
-  CGContextScaleCTM(context, scale, scale);
-  if (content.isFlipped || layer.geometryFlipped) {
-    CGContextTranslateCTM(context, 0, size.height);
-    CGContextScaleCTM(context, 1, -1);
-  }
-  [layer renderInContext:context];
-  CGContextRelease(context);
-  NSMutableDictionary *frame = [@{
-    @"t" : @(round((CACurrentMediaTime() - start) * 1000)),
-    @"size" : @[ @(size.width), @(size.height) ],
-    @"cover" : @(state.covered),
-    @"covers" : @(state.covers),
-    @"transitioning" : @(state.transitioning),
-  } mutableCopy];
-  if (!NSEqualSizes(before, NSZeroSize) && !NSEqualSizes(before, size)) {
-    NSMutableArray<NSView *> *views = [NSMutableArray arrayWithArray:content.subviews];
-    for (NSUInteger i = 0; i < views.count && i < 64; i++) {
-      if (NSEqualSizes(views[i].frame.size, before)) {
-        frame[@"relayout"] = @YES;
-        break;
-      }
-      [views addObjectsFromArray:views[i].subviews];
-    }
-  }
-  NSView *page = state.probedTab.view;
-  if (!page.window || page.window != window) return frame;
-  const NSRect r = [page convertRect:page.bounds toView:content];
-  const CGFloat top = content.isFlipped ? NSMinY(r) : size.height - NSMaxY(r);
-  frame[@"page"] = @[ @(NSMinX(r)), @(top), @(NSWidth(r)), @(NSHeight(r)) ];
-  const long x0 = lround(NSMinX(r) * scale), y0 = lround(top * scale);
-  const long x1 = MIN((long)w, lround(NSMaxX(r) * scale)), y1 = MIN((long)h, lround((top + NSHeight(r)) * scale));
-  if (x1 - x0 < 8 || y1 - y0 < 6) return frame;
-  const uint8_t *p = (const uint8_t *)pixels.bytes;
-  NSMutableDictionary<NSNumber *, NSNumber *> *counts = [NSMutableDictionary dictionary];
-  double sums[6][8][3] = {};
-  long cells[6][8] = {}, n = 0, most = 0;
-  for (long y = y0; y < y1; y++) {
-    for (long x = x0; x < x1; x++) {
-      const uint8_t *px = p + (y * w + x) * 4;
-      NSNumber *key = @(((px[0] >> 3) << 10) | ((px[1] >> 3) << 5) | (px[2] >> 3));
-      const long c = counts[key].longValue + 1;
-      counts[key] = @(c);
-      most = MAX(most, c);
-      const long gy = (y - y0) * 6 / (y1 - y0), gx = (x - x0) * 8 / (x1 - x0);
-      for (int k = 0; k < 3; k++) sums[gy][gx][k] += px[k];
-      cells[gy][gx]++;
-      n++;
-    }
-  }
-  NSMutableArray *grid = [NSMutableArray array];
-  for (int gy = 0; gy < 6; gy++)
-    for (int gx = 0; gx < 8; gx++) {
-      const long c = MAX(1, cells[gy][gx]);
-      [grid addObject:[NSString stringWithFormat:@"%02x%02x%02x", (int)(sums[gy][gx][0] / c), (int)(sums[gy][gx][1] / c),
-                                                 (int)(sums[gy][gx][2] / c)]];
-    }
-  frame[@"uniform"] = @(round((double)most / n * 1000) / 1000);
-  frame[@"grid"] = grid;
-  return frame;
-}
-
 NSString *JSONText(id object, NSString *fallback) {
   NSData *json = [NSJSONSerialization dataWithJSONObject:object options:0 error:nil];
   return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : fallback;
@@ -131,28 +57,39 @@ NSString *Recorder(NSMutableArray<NSString *> *log) {
 
 using DevHandler = NSString * (^)(NSWindow *window, NSString *argument);
 
-NSString *FullScreenProbe(NSWindow *window, NSString *argument) {
-  static NSMutableArray *frames;
-  static NSTimer *timer;
-  if (!argument) return JSONText(frames ?: @[], @"[]");
-  ArdiaCoreWindow *coreWindow = [ArdiaWindowController forNSWindow:window].coreWindow;
-  ArdiaWindowFullScreen *state = coreWindow ? [ArdiaWindowFullScreen ofWindow:coreWindow create:YES] : nil;
-  if (!state) return @"not an ArdiaCore window";
-  [timer invalidate];
-  frames = [NSMutableArray array];
-  const CFTimeInterval start = CACurrentMediaTime(), until = start + MAX(0, argument.doubleValue) / 1000;
-  __weak NSWindow *weakWindow = window;
-  timer = [NSTimer timerWithTimeInterval:1.0 / 60
-                                 repeats:YES
-                                   block:^(NSTimer *t) {
-                                     NSWindow *w = weakWindow;
-                                     if (!w || CACurrentMediaTime() > until) return [t invalidate];
-                                     NSArray *last = [frames.lastObject objectForKey:@"size"];
-                                     const NSSize before = last ? NSMakeSize([last[0] doubleValue], [last[1] doubleValue]) : NSZeroSize;
-                                     if (NSDictionary *frame = ProbeFrame(w, state, start, before)) [frames addObject:frame];
-                                   }];
-  [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
-  return @"started";
+NSString *SnapshotFrameView(NSWindow *window, NSString *path) {
+  NSView *frameView = window.contentView.superview;
+  CALayer *layer = frameView.layer;
+  if (!layer || !path.length) return @"no frame layer";
+  const CGFloat scale = window.backingScaleFactor ?: 2;
+  const NSSize size = frameView.bounds.size;
+  NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                   pixelsWide:(NSInteger)(size.width * scale)
+                                                                   pixelsHigh:(NSInteger)(size.height * scale)
+                                                                bitsPerSample:8
+                                                              samplesPerPixel:4
+                                                                     hasAlpha:YES
+                                                                     isPlanar:NO
+                                                               colorSpaceName:NSDeviceRGBColorSpace
+                                                                  bytesPerRow:0
+                                                                 bitsPerPixel:0];
+  NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+  CGContextRef cg = context.CGContext;
+  __block CGColorRef background = NULL;
+  [window.effectiveAppearance performAsCurrentDrawingAppearance:^{
+    background = CGColorRetain(window.backgroundColor.CGColor);
+  }];
+  CGContextSetFillColorWithColor(cg, background);
+  CGColorRelease(background);
+  CGContextFillRect(cg, CGRectMake(0, 0, size.width * scale, size.height * scale));
+  CGContextScaleCTM(cg, scale, scale);
+  if (frameView.isFlipped || layer.isGeometryFlipped) {
+    CGContextTranslateCTM(cg, 0, size.height);
+    CGContextScaleCTM(cg, 1, -1);
+  }
+  [layer renderInContext:cg];
+  NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+  return [png writeToFile:path atomically:YES] ? @"ok" : @"write failed";
 }
 
 NSString *FullScreen(NSWindow *window, NSString *argument) {
@@ -480,7 +417,7 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       gPageCoverOff = ![on isEqualToString:@"1"];
       return @(!gPageCoverOff).stringValue;
     },
-    @"fullScreenProbe" : ^NSString *(NSWindow *w, NSString *ms) { return FullScreenProbe(w, ms); },
+    @"fullScreenProbe" : ^NSString *(NSWindow *w, NSString *ms) { return [ArdiaChromeWindowHost devFullScreenProbe:ms window:w]; },
     @"fakeFullScreenOcclusionMs" : ^NSString *(NSWindow *, NSString *ms) {
       gActedOcclusionGap = ms.doubleValue == -1 ? NAN : ms.doubleValue / 1000;
       return [NSString stringWithFormat:@"%.0f", ms.doubleValue];
@@ -500,6 +437,11 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       if (amount.length) SetFullScreenRevealAmount(w, amount.doubleValue);
       return JSONText(FullScreenRevealState(w), @"{}");
     },
+    @"fullScreenLightsHover" : ^NSString *(NSWindow *w, NSString *inside) {
+      SetFullScreenLightsPointerInside(w, inside.boolValue);
+      return JSONText(FullScreenRevealState(w), @"{}");
+    },
+    @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },
     @"children" : ^NSString *(NSWindow *w, NSString *) {
       NSMutableArray *children = [NSMutableArray array];
       for (NSWindow *child in w.childWindows)
@@ -513,6 +455,8 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     @"fakeActiveClicks" : ^NSString *(NSWindow *w, NSString *a) { return FakeActiveClicks(w, a); },
     @"click" : ^NSString *(NSWindow *w, NSString *a) { return Click(w, a); },
     @"mouse" : ^NSString *(NSWindow *w, NSString *a) { return MouseEvent(w, a); },
+    @"pageMove" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::PageMoveAt(w, WindowPoint(w, a)); },
+    @"focusState" : ^NSString *(NSWindow *, NSString *) { return ardia_host::FocusState(); },
     @"drag" : ^NSString *(NSWindow *w, NSString *a) { return Drag(w, a); },
     @"type" : ^NSString *(NSWindow *w, NSString *a) { return TypeText(w, a); },
     @"reserved" : ^NSString *(NSWindow *w, NSString *a) { return Reserved(w, a); },

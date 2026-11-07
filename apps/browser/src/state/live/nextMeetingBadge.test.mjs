@@ -39,13 +39,11 @@ docs.set(
   }),
 );
 
-const { badgeText, COUNTDOWN_LEADS, DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, nowBadgeEvent } = await import("./meetings.ts");
+const { badgeText, COUNTDOWN_LEADS, keepDismissedNow, nowBadgeEvent } = await import("./meetings.ts");
 const { dismissNowBadge, live } = await import("./store.ts");
 
 test("the countdown appears only within the chosen lead", () => {
   const events = [meeting("design", 12, 30)];
-  assert.deepEqual(COUNTDOWN_LEADS, [5, 10, 15, 30, 60]);
-  assert.equal(DEFAULT_COUNTDOWN_LEAD, 60);
   assert.equal(badgeText(events, NOW), "12m");
   assert.equal(badgeText(events, NOW, 60), "12m");
   assert.equal(badgeText(events, NOW, 15), "12m");

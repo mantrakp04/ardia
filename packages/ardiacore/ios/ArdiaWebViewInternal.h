@@ -89,6 +89,8 @@ struct ArdiaCommits {
   __weak ArdiaCoreTab *tab;
   NSString *url;
   double at{};
+  int httpStatus{};
+  int documents{};
 };
 
 struct ArdiaPageFocusState {
@@ -136,6 +138,7 @@ struct ArdiaPageFocusState {
   BOOL _pinned;
   NSView *_devtoolsView;
   CFTimeInterval _linkDropAt;
+  NSMutableArray<NSDictionary<NSString *, id> *> *_newTabLinks;
   id _sightObserver;
 }
 - (ArdiaWindowController *)controller;
@@ -160,7 +163,13 @@ struct ArdiaPageFocusState {
 - (void)takePageReports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
-- (void)announceOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition tries:(int)tries;
+- (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)announceOpenedTab:(ArdiaCoreTab *)tab
+                  adoptId:(NSString *)adoptId
+              disposition:(NSString *)disposition
+                  inPlace:(BOOL)inPlace
+                    tries:(int)tries;
+- (void)noteNewTabLink:(nullable NSString *)url;
 - (void)tabRemovedFromWindow:(ArdiaCoreWindow *)window;
 - (void)tabActivatedByChrome:(BOOL)chromes;
 - (void)devToolsChanged:(NSView *)devToolsView;

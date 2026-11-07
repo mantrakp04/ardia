@@ -1,0 +1,51 @@
+{
+  "id": "fixes-0244n7",
+  "segments": [
+    {
+      "scene": "stripscroll",
+      "title": "The strip scrolls clear of the window buttons",
+      "body": "Horizontal tabs, more than fit. ⌃Tab past the last visible tab scrolls the strip. 0.2.44-nightly.6 slid Top Apps and the tabs under the window buttons; now they're cut off at the strip's edge.",
+      "layout": "stack",
+      "cam": [0, 0, 820, 52],
+      "lead": 1.0,
+      "tail": 3.6
+    },
+    {
+      "scene": "stripclose",
+      "title": "The next × stays under the pointer",
+      "body": "Scrolled to the end, three clicks on the same ×. 0.2.44-nightly.6 shifted the strip after the first close, so the next click selected a tab. Now the next tab's × lands where the pointer is, until you move away.",
+      "layout": "stack",
+      "cam": [0, 0, 820, 52],
+      "lead": 1.3,
+      "tail": 4.4
+    },
+    {
+      "scene": "stripsplit",
+      "title": "A split tab opens wherever you click it",
+      "body": "A click near the bottom edge of a split tab in the top strip. 0.2.44-nightly.6 only took clicks on its title and icons, so nothing happened; now the whole pill opens the split.",
+      "layout": "stack",
+      "cam": [0, 0, 820, 52],
+      "lead": 1.3,
+      "tail": 3.0
+    },
+    {
+      "scene": "pipcorner",
+      "title": "PiP's corners nest in the window's",
+      "body": "Picture in Picture flung into the corner of a zoomed window. 0.2.44-nightly.6 kept a 6 pt curve that sat off the window's rounded corner; at rest in a corner it now bends to 9 pt, concentric with it.",
+      "layout": "side",
+      "cam": [0, 0, 1512, 949],
+      "zoom": { "cam": [1352, 841, 160, 100.4], "from": 2.3, "to": 3.4 },
+      "lead": 1.3,
+      "tail": 4.2
+    },
+    {
+      "scene": "sharetopapps",
+      "title": "Each profile picks whether it shares Top Apps",
+      "body": "Settings › Profiles › Shared data. 0.2.44-nightly.6 had one switch for every profile that shares data. Now each has its own: Work opts out and keeps its own Top Apps, while Personal and School still share.",
+      "layout": "side",
+      "cam": [214, 140, 606, 480],
+      "lead": 1.6,
+      "tail": 3.4
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Street Tree Census</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#1b365d;--navy2:#24497c;--sun:#f2b632;--ink:#1c2430;--soft:#4f5b6b;--mute:#7d8796;--line:#dfe3ea;--bg:#f4f6f9;--ok:#2e7d4f}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+.gov{background:#0f2340;color:#c9d4e4;font-size:12px}
+.gov .in{max-width:1220px;margin:0 auto;padding:6px 28px;display:flex;gap:10px;align-items:center}
+.gov svg{width:16px;height:11px}
+.gov .r{margin-left:auto;display:flex;gap:18px}
+header{background:var(--navy);color:#fff}
+header .in{max-width:1220px;margin:0 auto;padding:0 28px;height:62px;display:flex;align-items:center;gap:14px}
+.seal{width:36px;height:36px;border-radius:50%;background:var(--sun);display:grid;place-items:center}
+.brand b{display:block;font-size:17px;letter-spacing:-.01em}
+.brand span{font-size:12px;color:#aebfd6}
+header nav{display:flex;gap:4px;margin-left:36px;font-size:14px;font-weight:500;white-space:nowrap}
+header nav span{padding:8px 12px;border-radius:7px;color:#d7e0ec}
+header nav .on{background:rgba(255,255,255,.12);color:#fff}
+.q{margin-left:auto;width:250px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--mute);font-size:13px}
+.q kbd{margin-left:auto;font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--mute)}
+.head{background:#fff;border-bottom:1px solid var(--line)}
+.head .in{max-width:1220px;margin:0 auto;padding:16px 28px 0}
+.crumb{font-size:12.5px;color:var(--mute);margin-bottom:12px}
+.crumb a{color:var(--navy2)}
+.row{display:flex;align-items:flex-start;gap:24px}
+.ds-ic{width:52px;height:52px;border-radius:12px;background:#e7f1ea;display:grid;place-items:center;flex:none}
+h1{font-size:27px;letter-spacing:-.02em;font-weight:700;line-height:1.15;display:flex;align-items:center;gap:12px}
+.badge{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:5px;background:#e3f2e8;color:var(--ok);letter-spacing:0}
+.badge.b{background:#e6eef9;color:var(--navy2)}
+.sub{color:var(--soft);margin-top:6px;font-size:14px;line-height:1.5;max-width:640px}
+.sub b{color:var(--ink);font-weight:600}
+.dl{margin-left:auto;display:flex;gap:8px;flex:none;padding-top:4px}
+.btn{height:38px;padding:0 15px;border-radius:8px;font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap}
+.btn.p{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn svg{width:15px;height:15px}
+.tabs{display:flex;gap:26px;margin-top:16px;font-size:14px;font-weight:500;color:var(--soft)}
+.tabs span{padding:10px 0 12px;display:flex;gap:7px;align-items:center}
+.tabs .on{color:var(--navy);box-shadow:inset 0 -3px 0 var(--sun);font-weight:600}
+.tabs i{font-style:normal;font-size:11px;background:var(--bg);border-radius:10px;padding:1px 7px;color:var(--mute)}
+.body{max-width:1220px;margin:0 auto;padding:18px 28px 40px;display:grid;grid-template-columns:1fr 330px;gap:20px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stat span{font-size:12px;color:var(--mute)}
+.stat b{display:block;font-size:22px;letter-spacing:-.02em;margin-top:3px}
+.stat small{font-size:11.5px;color:var(--ok);font-weight:600}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:14.5px;font-weight:650}
+.ph .f{margin-left:auto;display:flex;gap:8px}
+.chip{height:28px;padding:0 10px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;display:flex;align-items:center;gap:6px;color:var(--soft);background:#fff;white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;padding:9px 14px;background:#fafbfc;border-bottom:1px solid var(--line);white-space:nowrap}
+th.n,td.n{text-align:right;font-variant-numeric:tabular-nums}
+td{padding:8.5px 14px;border-bottom:1px solid #eef1f5;white-space:nowrap}
+tr:nth-child(even) td{background:#fcfdfe}
+td .sp{display:flex;align-items:center;gap:9px}
+td .dot{width:9px;height:9px;border-radius:50%;flex:none}
+td em{color:var(--mute);font-size:12.5px;margin-left:2px}
+.share{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar{width:84px;height:6px;border-radius:3px;background:#edf0f4;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--navy2);border-radius:3px}
+.foot{display:flex;justify-content:space-between;padding:10px 14px;font-size:12.5px;color:var(--mute)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+.card .ph{border-bottom:0}
+.map{position:relative;height:236px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.map svg{display:block;width:100%;height:100%}
+.zoom{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;background:#fff;border-radius:7px;box-shadow:0 1px 4px rgba(0,0,0,.18);font-size:15px;font-weight:600;color:var(--soft)}
+.zoom span{width:28px;height:28px;display:grid;place-items:center}
+.zoom span+span{border-top:1px solid var(--line)}
+.leg{display:flex;flex-wrap:wrap;gap:6px 12px;padding:10px 14px;font-size:12px;color:var(--soft)}
+.leg span{display:flex;align-items:center;gap:5px}
+.leg i{width:8px;height:8px;border-radius:50%}
+dl{padding:4px 14px 8px}
+dl div{display:flex;justify-content:space-between;padding:7.5px 0;border-bottom:1px solid #eef1f5;font-size:13px}
+dl div:last-child{border:0}
+dt{color:var(--mute)}dd{font-weight:500;text-align:right}
+dd a{color:var(--navy2)}
+@media (max-width:1100px){.body{grid-template-columns:1fr 290px}header nav span:nth-child(n+4){display:none}.stats{grid-template-columns:repeat(2,1fr)}td.hide,th.hide{display:none}}
+</style></head><body>
+<div class="gov"><div class="in"><svg viewBox="0 0 16 11"><rect width="16" height="11" fill="#2a5aa0"/><rect y="4" width="16" height="3" fill="#f2b632"/></svg>An official website of the City of Port Alder<div class="r"><span>311 Services</span><span>City Council</span><span>Español</span></div></div></div>
+<header><div class="in">
+<div class="seal"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 3l3.2 5.6H8.8z M12 7.5l4.4 7.2H7.6z" fill="#1b365d"/><rect x="11" y="14.5" width="2" height="4" fill="#1b365d"/><path d="M4 20.5h16" stroke="#1b365d" stroke-width="1.8"/></svg></div>
+<div class="brand"><b>Port Alder Open Data</b><span>City data, free to use</span></div>
+<nav><span class="on">Datasets</span><span>Maps</span><span>Dashboards</span><span>Developers</span><span>Suggest data</span></nav>
+<div class="q"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7d8796" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Search 1,206 datasets<kbd>/</kbd></div>
+</div></header>
+<section class="head"><div class="in">
+<div class="crumb"><a>Datasets</a> › <a>Environment</a> › <a>Parks &amp; Urban Forestry</a> › Street Tree Census</div>
+<div class="row">
+<div class="ds-ic"><svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="11" r="8" fill="#2e7d4f"/><circle cx="9" cy="13" r="5" fill="#3f9a63"/><rect x="13" y="16" width="2.4" height="9" rx="1" fill="#6b4a2e"/></svg></div>
+<div><h1>Street Tree Census 2025 <span class="badge">Public</span><span class="badge b">Updated weekly</span></h1>
+<p class="sub">Every tree in the public right-of-way, surveyed block by block by Urban Forestry crews and volunteers. Published by <b>Parks &amp; Urban Forestry</b> · Last updated <b>Oct 28, 2026</b> · 48,213 rows · 14 columns</p></div>
+<div class="dl">
+<div class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="#1c2430" stroke-width="1.6"><path d="M5 4L1.5 8 5 12M11 4l3.5 4-3.5 4"/></svg>API</div>
+<div class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="#1c2430" stroke-width="1.7"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10"/></svg>JSON</div>
+<div class="btn p"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.7"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10"/></svg>Download CSV</div>
+</div></div>
+<div class="tabs"><span class="on">Overview</span><span>Data table <i>48,213</i></span><span>Map</span><span>Charts</span><span>Changelog <i>52</i></span><span>Discussion <i>9</i></span></div>
+</div></section>
+<div class="body">
+<main>
+<div class="stats">
+<div class="stat"><span>Trees surveyed</span><b>48,213</b><small>+1,184 this year</small></div>
+<div class="stat"><span>Species</span><b>142</b><small>+6 new</small></div>
+<div class="stat"><span>City canopy cover</span><b>31.6%</b><small>+0.8 pts</small></div>
+<div class="stat"><span>Open planting sites</span><b>6,940</b><small style="color:#b26a00">priority: 1,212</small></div>
+</div>
+<div class="panel">
+<div class="ph"><h2>Trees by species</h2><div class="f"><span class="chip">All districts ▾</span><span class="chip">Condition: any ▾</span><span class="chip">Sort: count ▾</span></div></div>
+<table><thead><tr><th>Species</th><th class="n">Count</th><th class="n">Avg canopy m²</th><th class="n hide">Avg DBH cm</th><th class="n">Share</th></tr></thead><tbody id="tb"></tbody></table>
+<div class="foot"><span>Showing 12 of 142 species</span><span>Source: field census, rows 1–48,213</span></div>
+</div>
+</main>
+<aside>
+<div class="card"><div class="ph"><h2>Map preview</h2><span class="chip" style="margin-left:auto">Open map ↗</span></div>
+<div class="map"><svg id="map" viewBox="0 0 330 236" preserveAspectRatio="xMidYMid slice"></svg><div class="zoom"><span>+</span><span>−</span></div></div>
+<div class="leg"><span><i style="background:#2e7d4f"></i>Plane</span><span><i style="background:#d1495b"></i>Maple</span><span><i style="background:#edae49"></i>Locust</span><span><i style="background:#3a6ea5"></i>Linden</span><span><i style="background:#8d6cab"></i>Other</span></div></div>
+<div class="card"><div class="ph"><h2>About this dataset</h2></div>
+<dl><div><dt>Updated</dt><dd>Oct 28, 2026, 06:00</dd></div><div><dt>Data owner</dt><dd>Urban Forestry Division</dd></div><div><dt>Update frequency</dt><dd>Weekly</dd></div><div><dt>Coverage</dt><dd>All 9 districts</dd></div><div><dt>Licence</dt><dd><a>Port Alder Open Licence 2.0</a></dd></div><div><dt>Downloads</dt><dd>12,804</dd></div></dl></div>
+</aside>
+</div>
+<script>
+const rows=[["London plane","Platanus × acerifolia",7412,86.4,48.2,"#2e7d4f"],["Red maple","Acer rubrum",5936,41.7,31.5,"#d1495b"],["Honey locust","Gleditsia triacanthos",5108,38.9,29.8,"#edae49"],["Littleleaf linden","Tilia cordata",4377,44.2,30.1,"#3a6ea5"],["Pin oak","Quercus palustris",3651,72.8,41.6,"#8d6cab"],["Norway maple","Acer platanoides",3214,52.3,35.9,"#d1495b"],["Ginkgo","Ginkgo biloba",2880,18.6,22.4,"#8d6cab"],["Japanese zelkova","Zelkova serrata",2405,39.5,26.7,"#8d6cab"],["Callery pear","Pyrus calleryana",2196,21.3,24.0,"#8d6cab"],["Silver linden","Tilia tomentosa",1748,47.9,32.2,"#3a6ea5"],["Hackberry","Celtis occidentalis",1532,55.1,33.8,"#8d6cab"],["Sweetgum","Liquidambar styraciflua",1290,49.6,34.5,"#8d6cab"]];
+const total=48213;document.getElementById("tb").innerHTML=rows.map(r=>{const sh=r[2]/total*100;return `<tr><td><div class="sp"><span class="dot" style="background:${r[5]}"></span>${r[0]}<em>${r[1]}</em></div></td><td class="n">${r[2].toLocaleString("en-US")}</td><td class="n">${r[3].toFixed(1)}</td><td class="n hide">${r[4].toFixed(1)}</td><td class="n"><div class="share">${sh.toFixed(1)}%<div class="bar"><i style="width:${(sh/16*100).toFixed(0)}%"></i></div></div></td></tr>`}).join("");
+let s=11;const r=()=>(s=(s*9301+49297)%233280)/233280;const m=document.getElementById("map");let h=`<rect width="330" height="236" fill="#eef0ea"/><path d="M0 188 C60 176 110 206 170 196 S270 170 330 182 V236 H0Z" fill="#c9dcef"/><path d="M0 188 C60 176 110 206 170 196 S270 170 330 182" fill="none" stroke="#b2cbe4" stroke-width="2"/><path d="M214 30 L284 22 L296 84 L226 96Z" fill="#d5e8cf"/><g transform="rotate(-8 165 118)">`;
+for(let x=-40;x<380;x+=34)h+=`<path d="M${x} -40 V280" stroke="#fff" stroke-width="${x%136===0?6:3.4}"/>`;
+for(let y=-40;y<300;y+=27)h+=`<path d="M-40 ${y} H380" stroke="#fff" stroke-width="${y%108===0?6:3.4}"/>`;
+h+=`</g><path d="M-10 60 L340 150" stroke="#fde7b0" stroke-width="7"/><path d="M-10 60 L340 150" stroke="#f6c860" stroke-width="1.4"/>`;
+const cs=["#2e7d4f","#2e7d4f","#d1495b","#edae49","#3a6ea5","#8d6cab","#8d6cab"];
+for(let i=0;i<420;i++){const x=r()*330,y=r()*236;const water=y>176+Math.sin(x/40)*10;if(water)continue;h+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9" fill="${cs[Math.floor(r()*cs.length)]}" fill-opacity=".85"/>`}
+h+=`<g font-family="-apple-system,sans-serif" font-size="8.5" fill="#5d6876" font-weight="600"><text x="230" y="60">Alder Commons</text><text x="16" y="222" fill="#5f84ad" font-style="italic">Harbor Reach</text><text x="120" y="96" transform="rotate(14 120 96)">Merrow Ave</text></g>`;
+m.innerHTML=h;
+</script>
+</body></html>

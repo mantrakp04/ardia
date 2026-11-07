@@ -1,4 +1,4 @@
-import { showMenu, Symbol, type MenuItem } from "@ardia/shell";
+import { OutsidePressArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { useEffect, useRef, type Ref } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import { curve, duration } from "./motion";
@@ -130,10 +130,9 @@ export function TextField({
 }) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        {
-          width,
+    <OutsidePressArea style={[{ width }, style]}>
+      <View
+        style={{
           height: multiline ? MULTILINE_HEIGHT : 24,
           borderRadius: radius.control,
           justifyContent: multiline ? "flex-start" : "center",
@@ -142,30 +141,29 @@ export function TextField({
           backgroundColor: theme.field,
           borderWidth: StyleSheet.hairlineWidth * 2,
           borderColor: invalid ? theme.destructive : theme.fieldBorder,
-        },
-        style,
-      ]}
-    >
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.textTertiary}
-        selectionColor={theme.selection}
-        autoFocus={autoFocus}
-        secureTextEntry={secure}
-        enableFocusRing={false}
-        selectTextOnFocus={selectOnFocus}
-        multiline={multiline}
-        autoCorrect={mono ? false : undefined}
-        spellCheck={mono ? false : undefined}
-        onSubmitEditing={onSubmit}
-        onBlur={onBlur}
-        keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
-        onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
-        style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
-      />
-    </View>
+        }}
+      >
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.textTertiary}
+          selectionColor={theme.selection}
+          autoFocus={autoFocus}
+          secureTextEntry={secure}
+          enableFocusRing={false}
+          selectTextOnFocus={selectOnFocus}
+          multiline={multiline}
+          autoCorrect={mono ? false : undefined}
+          spellCheck={mono ? false : undefined}
+          onSubmitEditing={onSubmit}
+          onBlur={onBlur}
+          keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
+          onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
+          style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
+        />
+      </View>
+    </OutsidePressArea>
   );
 }
 

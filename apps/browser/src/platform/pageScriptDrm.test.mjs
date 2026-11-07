@@ -7,6 +7,10 @@ const start = script.indexOf("    const NavigatorType = window.Navigator;\n");
 const end = script.indexOf("  } catch (e) {}\n", start);
 assert.ok(start > 0 && end > start, "page_script.js has the DRM block");
 const source = script.slice(start, end);
+const helperStart = script.indexOf("  const asNative = ");
+const helperEnd = script.indexOf("  const { keys, setPrototypeOf } = Object;\n", helperStart);
+assert.ok(helperStart > 0 && helperEnd > helperStart, "page_script.js has asNative");
+const asNative = new Function(`${script.slice(helperStart, helperEnd)}return asNative;`)();
 
 class HTMLMediaElement {
   constructor(state = {}) {
@@ -26,9 +30,11 @@ function page(supported) {
   const documentListeners = {};
   class Navigator {}
   Object.defineProperty(Navigator.prototype, "requestMediaKeySystemAccess", {
-    value(keySystem) {
-      return supported.includes(keySystem) ? Promise.resolve({ keySystem }) : Promise.reject(new Error("NotSupportedError"));
-    },
+    value: {
+      requestMediaKeySystemAccess(keySystem, configurations) {
+        return supported.includes(keySystem) ? Promise.resolve({ keySystem }) : Promise.reject(new Error("NotSupportedError"));
+      },
+    }.requestMediaKeySystemAccess,
     writable: true,
     enumerable: true,
     configurable: true,
@@ -47,8 +53,8 @@ function page(supported) {
       } catch (e) {}
     };
   const detachedMediaWatchers = [];
-  const run = new Function("window", "apply", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", source);
-  run({ Navigator }, Reflect.apply, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers);
+  const run = new Function("window", "apply", "asNative", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", source);
+  run({ Navigator }, Reflect.apply, asNative, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers);
   const advance = (ms) => {
     now += ms;
     for (let due; (due = timers.filter((t) => t.at <= now).sort((a, b) => a.at - b.at)[0]); ) {
@@ -232,5 +238,8 @@ test("Clear Key and supported systems aren't reported, and the method keeps its 
   assert.equal(descriptor.enumerable, true);
   assert.equal(descriptor.value.name, "requestMediaKeySystemAccess");
   assert.equal(descriptor.value.length, 2);
+  assert.equal("prototype" in descriptor.value, false);
+  assert.throws(() => new descriptor.value(), TypeError);
+  assert.equal(Function.prototype.toString.call(descriptor.value), "function () { [native code] }");
   assert.equal(Object.hasOwn(navigator, "requestMediaKeySystemAccess"), false);
 });
