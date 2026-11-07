@@ -6,7 +6,9 @@ Usage: ardia browse <command> [args] [options]
 Same commands, flags and output (text and --json) as agent-browser, so an agent that
 knows `agent-browser <args>` can type `ardia browse <args>`. It drives the running Ardia
 over the ardia command's control connection (Settings > "Let the ardia command control
-Ardia"), through pydoll. Mouse, scroll and typing are humanized by default.
+Ardia"), through pydoll. Input is instant unless --humanize. Actions print what they changed
+(nodes with refs, URL, title, the POSTs they caused), a session with no tab uses the user's
+active tab, and text output stops at about 6,000 characters (--full for all of it).
 
 Core Commands:
   open [url]                 Open url in a new background tab of this session (later opens reuse it)
@@ -14,7 +16,7 @@ Core Commands:
   click <sel>                Click element (or @ref) [--new-tab]
   dblclick <sel>             Double-click element
   type <sel> <text>          Type into element
-  fill <sel> <text>          Clear, then type
+  fill <sel> <text>          Clear, then type (date/time/color/range inputs: set the value)
   press <key>                Press key (Enter, Tab, Control+a, Meta+a)
   keydown <key> / keyup <key>  Hold or release a key
   keyboard type <text>       Type at the current focus (humanized keystrokes)
@@ -31,7 +33,7 @@ Core Commands:
   wait <sel|ms>              Wait for element or time; --text, --url, --load, --fn, --state
   screenshot [sel] [path]    Screenshot [--full] [--annotate]
   pdf <path>                 Save as PDF
-  snapshot                   Accessibility tree with refs [-i] [-c] [-d n] [-s sel] [-u]
+  snapshot                   Accessibility tree with refs [-i] [-c] [-d n] [-s sel] [-u] [--diff]
   eval <js>                  Run JavaScript in the page [-b base64] [--stdin]
   close [--all]              Close the tabs this session opened and end the session
 
@@ -63,7 +65,8 @@ React:       react tree | inspect <id> | renders start|stop | suspense [--only-d
 Performance: vitals [url]
 Audit:       a11y [url] [--tags t1,t2] [--selector css]
 Init:        addinitscript <js> | removeinitscript <id>   (page main world, by request)
-Batch:       batch [--bail] ["cmd args" | '["cmd","arg"]' ...]  (or one command per stdin line)
+Batch:       batch [--bail] ["cmd args" | '["cmd","arg"]' ...]  (or one command per stdin line; # comments)
+Notes:       notes [get|set|append|list|rm] [site] [text|-]   (plain per-site notes, shown atop snapshot)
 Auth Vault:  auth save <name> --url <https url> --username <u> [--password-stdin]
              auth login <name> [--username-selector s] [--password-selector s] [--submit-selector s]
              auth login <name> --credential-provider <plugin> [--item ref] [--url url]
@@ -76,7 +79,9 @@ Options:
   --session <name>        Command-state namespace: its own tabs, refs and captures (AGENT_BROWSER_SESSION)
   --namespace <name>      Separate set of sessions (AGENT_BROWSER_NAMESPACE)
   --json                  JSON output (AGENT_BROWSER_JSON)
-  --no-humanize           Instant input for this command (AGENT_BROWSER_NO_HUMANIZE=1 for all)
+  --humanize              Humanized mouse, scroll and typing (AGENT_BROWSER_HUMANIZE=1 for all)
+  --no-humanize           Instant input (the default; AGENT_BROWSER_NO_HUMANIZE=1 forces it)
+  --no-changes            Don't report what an action changed (skips its snapshots and network watch)
   --data-dir <dir>        Ardia data dir to find (default $ARDIA_DATA_DIR, else the installed app's)
   --port <n>, --cdp <n>   A plain DevTools test server on 127.0.0.1:n (testing only)
   --ws <url>              A browser WebSocket URL
@@ -85,7 +90,8 @@ Options:
   --init-script <path>    With open: register a page init script (repeatable)
   --annotate              Screenshot: draw numbered labels for the refs
   --screenshot-dir/-format/-quality   Screenshot defaults (AGENT_BROWSER_SCREENSHOT_*)
-  --max-output <chars>    Truncate page output (AGENT_BROWSER_MAX_OUTPUT)
+  --max-output <chars>    Cap text output (default 6000, 0 for none; AGENT_BROWSER_MAX_OUTPUT)
+  --full                  Don't cap text output
   --content-boundaries    Wrap page output in markers (AGENT_BROWSER_CONTENT_BOUNDARIES)
   --no-auto-dialog        Don't accept alert/beforeunload dialogs (AGENT_BROWSER_NO_AUTO_DIALOG)
   --pin-tab, --no-pin-tab Fail with tab_gone instead of falling back when the session's tab closes
@@ -107,6 +113,12 @@ Examples:
   ardia browse snapshot -i
   ardia browse click @e2
   ardia browse fill @e3 "user@example.com"
+  ardia browse fill @e7 2026-11-09
+  ardia browse batch <<'EOF'
+  click @e10
+  fill #title "Board prep"
+  click #save
+  EOF
   ardia browse find role button click --name Submit
   ardia browse screenshot --annotate page.png
 """
@@ -116,14 +128,20 @@ COMMANDS = {
             "Without a tab, opens a new background tab in Ardia's sidebar (the user's own tab is never navigated\n"
             "unless the session picked it with `tab <id>`). Later opens navigate the session's tab. A URL without a\n"
             "scheme gets https:// (http:// for localhost). Prints the title and URL.",
-    "snapshot": "ardia browse snapshot [-i] [-c] [-d <n>] [-s <sel>] [-u]\n\n"
+    "snapshot": "ardia browse snapshot [-i] [-c] [-d <n>] [-s <sel>] [-u] [--diff]\n\n"
                 "Accessibility tree with refs (@e1, @e2...). -i interactive only, -c compact, -d depth, -s scope to a\n"
-                "selector or @ref, -u include link URLs. Refs belong to this snapshot's document: a navigation, a new\n"
-                "document or an Ardia restart makes them stale, and a stale ref is reported, never guessed.",
-    "click": "ardia browse click <sel> [--new-tab] [--button left|right|middle] [--no-humanize]\n\n"
-             "Moves the mouse along a curved path from where it last was and presses with human timing. Fails\n"
-             "with `covered by <...>` when another element sits on top of the target.",
-    "fill": "ardia browse fill <sel> <text> [--no-humanize]\n\nClicks into the field, clears it (select all, Backspace), then types per character.",
+                "selector or @ref, -u include link URLs, --diff only what changed since this session's last snapshot\n"
+                "of the document. Date and time inputs show as one textbox with their value. Site notes, when there\n"
+                "are any, come first. Refs belong to this snapshot's document: a navigation, a new document or an\n"
+                "Ardia restart makes them stale, and a stale ref is reported, never guessed.",
+    "click": "ardia browse click <sel> [--new-tab] [--button left|right|middle] [--humanize] [--no-changes]\n\n"
+             "Clicks the element (with --humanize along a curved mouse path with human timing) and prints what\n"
+             "changed: nodes added, changed or removed with their refs, URL and title, and non-GET requests it\n"
+             "caused. Fails with `covered by <...>` when another element sits on top of the target.",
+    "fill": "ardia browse fill <sel> <text> [--humanize] [--no-changes]\n\nFocuses the field, clears it (select all, Backspace), then types per character. Date, time,\n"
+            "datetime-local, month, week, color and range inputs get their value set instead (YYYY-MM-DD, HH:MM or\n"
+            "2:30 PM, YYYY-MM-DDTHH:MM, YYYY-MM, YYYY-Www, #rrggbb, a number), with input and change events; a bad\n"
+            "value fails with the format. Prints what changed.",
     "type": "ardia browse type <sel> <text> [--no-humanize]\n\nTypes into the element without clearing it.",
     "press": "ardia browse press <key> [--no-humanize]\n\nKeys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
              "Modifiers: Control, Alt, Shift, Meta (Meta+a selects all on macOS).",
@@ -155,7 +173,12 @@ COMMANDS = {
             "Passwords live in the macOS login Keychain (via /usr/bin/security, written on its stdin, never argv).\n"
             "--password is refused. login checks the page's committed origin and frame against the saved https\n"
             "origins before typing and stops if the page navigates, the frame changes or focus leaves the field.",
-    "batch": "ardia browse batch [--bail] [\"cmd args\" | '[\"cmd\",\"arg\"]' ...]\n\nRuns commands in order in one call; without arguments, one command per stdin line.",
+    "batch": "ardia browse batch [--bail] [\"cmd args\" | '[\"cmd\",\"arg\"]' ...]\n\nRuns commands in order in one call; without arguments, one command per stdin line (a heredoc\n"
+             "works; blank lines and # lines are skipped). Lines use shell quoting or a JSON array. Each answer,\n"
+             "with its changes, is printed in order. --bail stops at the first failure. eval --stdin runs JS loops.",
+    "notes": "ardia browse notes [get|set|append|list|rm] [site] [text|-]  (also `ardia notes`)\n\n"
+             "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
+             "Without a site it's the session tab's. - reads stdin. snapshot prints a site's notes first.",
     "close": "ardia browse close [--all]\n\nCloses only the tabs this session opened (never the browser) and ends the session. --all does it for every session.",
     "record": "ardia browse record start <path.webm> [url] | stop | restart <path.webm> [url]\n\nNeeds Page.startScreencast (not allowed by Ardia's policy yet) and ffmpeg on PATH.",
     "stream": "ardia browse stream enable [--port n] [--input] | disable | status\n\nBinds 127.0.0.1 only, with its own random token in the URL; view only unless --input. Needs Page.startScreencast.",

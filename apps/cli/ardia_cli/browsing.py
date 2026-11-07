@@ -21,24 +21,22 @@ COPY_ATTEMPTS = 3
 HISTORY_BUDGET = 20
 MAX_ROWS = 200_000
 PROGRESS_STEPS = 1000
-EXIT_JOIN = 1.0
 _work_dirs: set[str] = set()
-_workers: set = set()
 _state = threading.Lock()
 _closing = False
 MAX_SESSION_BYTES = 256 * 1024 * 1024
 PRIVATE_PREFIXES = ("incognito", "guest", "private", "System Profile", "Guest Profile")
-NO_DATA_DIR = (
-    "{name}() needs Ardia's data dir, and --port/--ws/$ARDIA_CDP_URL don't say where it is: "
-    "pass --data-dir DIR or set $ARDIA_DATA_DIR"
-)
 
 
 class BrowsingDataError(RuntimeError):
-    __module__ = "__main__"
+    pass
 
 
 class OutOfTime(BrowsingDataError):
+    pass
+
+
+class NotRunning(BrowsingDataError):
     pass
 
 
@@ -75,67 +73,16 @@ def _shut_down() -> None:
     global _closing
     with _state:
         _closing = True
-        workers = list(_workers)
-    deadline = time.monotonic() + EXIT_JOIN
-    for worker in workers:
-        worker.join(max(0.0, deadline - time.monotonic()))
-    with _state:
         leftovers = list(_work_dirs)
     for work in leftovers:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def run_bounded(function, *args, budget: float = HISTORY_BUDGET, **kwargs):
-    import asyncio
-
-    loop = asyncio.get_running_loop()
-    future = loop.create_future()
-    deadline = time.monotonic() + budget
-
-    def settle(outcome, error):
-        if future.done():
-            return
-        if error is not None:
-            future.set_exception(error)
-        else:
-            future.set_result(outcome)
-
-    def work():
-        try:
-            outcome, error = function(*args, deadline=deadline, **kwargs), None
-        except BaseException as caught:
-            outcome, error = None, caught
-        finally:
-            with _state:
-                _workers.discard(threading.current_thread())
-        try:
-            loop.call_soon_threadsafe(settle, outcome, error)
-        except RuntimeError:
-            pass
-
-    worker = threading.Thread(target=work, name=f"ardia-{function.__name__}", daemon=True)
-    with _state:
-        if _closing:
-            raise OutOfTime(f"{function.__name__}() stopped: the command is exiting")
-        _workers.add(worker)
-    worker.start()
-
-    async def wait():
-        try:
-            return await asyncio.wait_for(asyncio.shield(future), budget + 1)
-        except asyncio.TimeoutError:
-            raise OutOfTime(f"{function.__name__}() ran out of time") from None
-
-    return wait()
-
-
-def checked_root(root: Path | None, name: str) -> Path:
-    if root is None:
-        raise BrowsingDataError(NO_DATA_DIR.format(name=name))
+def checked_root(root: Path) -> Path:
     try:
         require_control(root)
     except EndpointError as error:
-        raise BrowsingDataError(str(error)) from None
+        raise NotRunning(str(error)) from None
     return root
 
 
@@ -165,7 +112,8 @@ def read_session(root: Path, deadline: float) -> dict:
         session = json.loads(raw)
     except ValueError:
         raise BrowsingDataError(f"{path} isn't valid JSON (Ardia may be writing it; try again)") from None
-    return session if isinstance(session, dict) and session.get("version") == 2 else {}
+    version = session.get("version") if isinstance(session, dict) else None
+    return session if isinstance(version, int) and not isinstance(version, bool) and version >= 2 else {}
 
 
 def is_private(profile_id: str) -> bool:
@@ -177,9 +125,23 @@ def profile_names(session: dict) -> dict[str, str]:
     return {pid: (p.get("name") or pid) for pid, p in profiles.items() if isinstance(p, dict) and not is_private(pid)}
 
 
-def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
+def pin_place(tab: dict) -> tuple[str, str | None] | None:
+    pin = tab.get("pin")
+    if isinstance(pin, dict):
+        if pin.get("as") == "row":
+            return "pinned", None
+        if pin.get("as") == "tile":
+            folder = pin.get("folder")
+            return "favorite", (folder.get("name") or None) if isinstance(folder, dict) else None
+        return None
+    if tab.get("pinned") is True:
+        return ("pinned", None) if tab.get("pinnedAsRow") is True else ("favorite", None)
+    return None
+
+
+def pinned(root: Path, deadline: float | None = None) -> list[dict]:
     deadline = deadline if deadline is not None else time.monotonic() + HISTORY_BUDGET
-    root = checked_root(root, "pinned")
+    root = checked_root(root)
     session = read_session(root, deadline)
     names = profile_names(session)
     order = [pid for pid in session.get("profileOrder") or [] if pid in names] + [pid for pid in names if pid not in (session.get("profileOrder") or [])]
@@ -217,10 +179,11 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
                 continue
             key = tab.get("pinKey") or tab_id
             group = pinned_groups.get(tab_id)
-            if tab.get("pinned"):
-                add(tab.get("profileId", ""), key, tab, "favorite", None, False)
-            elif group:
-                add(tab.get("profileId", ""), key, tab, "pinned", group.get("name") or None, False)
+            place = pin_place(tab)
+            if group and not (place and place[0] == "favorite"):
+                place = ("pinned", group.get("name") or None)
+            if place:
+                add(tab.get("profileId", ""), key, tab, *place, False)
     for profile_id, parked in (session.get("parkedPins") or {}).items():
         if not isinstance(parked, dict):
             continue
@@ -229,8 +192,8 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
             if not isinstance(tab, dict):
                 continue
             group_id = tab.get("groupId")
-            kind = "pinned" if group_id else "favorite"
-            add(tab.get("profileId") or profile_id, tab.get("id", ""), tab, kind, folders.get(group_id) or None if group_id else None, True)
+            place = ("pinned", folders.get(group_id) or None) if group_id else pin_place(tab) or ("favorite", None)
+            add(tab.get("profileId") or profile_id, tab.get("id", ""), tab, *place, True)
     return [row for _, row in sorted(rows, key=lambda item: item[0])]
 
 
@@ -282,7 +245,7 @@ def snapshot(history: Path, work: Path, deadline: float) -> tuple[Path, str]:
         if _closing or time.monotonic() > backup_deadline:
             raise sqlite3.OperationalError("Ardia holds History locked")
 
-    out_of_time(deadline, "history()")
+    out_of_time(deadline, "reading history")
     try:
         source = connect(uri, backup_deadline, uri=True, timeout=BUSY_TIMEOUT_MS / 1000)
         try:
@@ -353,9 +316,9 @@ def iso(webkit_us: int) -> str:
     return datetime.fromtimestamp(webkit_us / 1_000_000 - WEBKIT_EPOCH_OFFSET).astimezone().isoformat(timespec="seconds")
 
 
-def history(root: Path | None, days: float = 1, limit: int | None = 200, profile: str | None = None, domains: bool = False, deadline: float | None = None) -> list[dict]:
+def history(root: Path, days: float = 1, limit: int | None = 200, profile: str | None = None, domains: bool = False, deadline: float | None = None) -> list[dict]:
     deadline = deadline if deadline is not None else time.monotonic() + HISTORY_BUDGET
-    root = checked_root(root, "history")
+    root = checked_root(root)
     if not isinstance(days, (int, float)) or days <= 0:
         raise BrowsingDataError("days must be a positive number")
     if limit is not None and (not isinstance(limit, int) or limit <= 0):
@@ -365,7 +328,7 @@ def history(root: Path | None, days: float = 1, limit: int | None = 200, profile
     cutoff = int((time.time() - days * 86400 + WEBKIT_EPOCH_OFFSET) * 1_000_000)
     rows: list[dict] = []
     for label, folder in profiles:
-        out_of_time(deadline, "history()")
+        out_of_time(deadline, "reading history")
         work = new_work_dir()
         try:
             os.chmod(work, 0o700)
@@ -384,13 +347,13 @@ def history(root: Path | None, days: float = 1, limit: int | None = 200, profile
                 )
                 found = []
                 while batch := cursor.fetchmany(1000):
-                    out_of_time(deadline, "history()")
+                    out_of_time(deadline, "reading history")
                     found.extend(batch)
                     if len(found) >= MAX_ROWS:
                         break
             except sqlite3.OperationalError as error:
                 if time.monotonic() > deadline:
-                    raise OutOfTime("history() ran out of time") from None
+                    raise OutOfTime("reading history ran out of time") from None
                 raise BrowsingDataError(f"can't read {folder.name}'s history ({error})") from None
             finally:
                 connection.close()

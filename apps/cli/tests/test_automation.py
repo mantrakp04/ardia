@@ -18,7 +18,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import automation_cli, cli, control, endpoint, hooks, runner
+from ardia_cli import automation_cli, cli, control, endpoint, hooks
 
 SCRATCH = Path.home() / "ardia-scratch"
 COMMANDS = [
@@ -1039,48 +1039,6 @@ class LaunchAgent(Base):
         status, _, err = self.run_cli("hooks", "list")
         self.assertEqual(status, 1)
         self.assertEqual(self.calls, [])
-
-
-class ExecHelpers(Base):
-    def namespace(self, root):
-        session = SimpleNamespace(browser=None, opened=[])
-        with mock.patch.dict(sys.modules, {}):
-            try:
-                return runner.build_namespace(session, "<test>", root)
-            except ImportError as error:
-                self.skipTest(f"pydoll isn't installed: {error}")
-
-    def test_helpers_over_the_socket(self):
-        server = self.serve()
-        namespace = self.namespace(self.data)
-
-        async def check():
-            self.assertEqual(await namespace["windows"](), WINDOWS)
-            self.assertEqual(await namespace["run"]("selectTab", "2", window=1), {"ok": True})
-            with self.assertRaises(namespace["CommandError"]):
-                await namespace["run"]("nope")
-            stream = namespace["events"]("tab.opened")
-            first = asyncio.ensure_future(stream.__anext__())
-            await asyncio.get_running_loop().run_in_executor(None, server.subscribed.wait, 5)
-            server.emit(event("tab.opened", windowId=1, tabId=3, url="https://a.test/", title="A"))
-            got = await asyncio.wait_for(first, 5)
-            await stream.aclose()
-            return got
-
-        got = asyncio.run(check())
-        self.assertEqual(got["data"]["tabId"], 3)
-        self.assertIn(("run", {"command": "selectTab", "arg": "2", "window": 1}), server.requests)
-
-    def test_need_data_dir_with_explicit_endpoint(self):
-        namespace = self.namespace(None)
-
-        async def check():
-            for call in (namespace["windows"](), namespace["run"]("newTab")):
-                with self.assertRaises(namespace["ControlUnreachable"]) as caught:
-                    await call
-                self.assertIn("needs --data-dir or $ARDIA_DATA_DIR", str(caught.exception))
-
-        asyncio.run(check())
 
 
 class Help(Base):

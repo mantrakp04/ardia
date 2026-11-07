@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "base/functional/callback.h"
+#include "chrome/browser/ardia/ac_cli_visible_tabs.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -170,6 +171,7 @@ void InstallChromeHooks() {
   g_ardia_live_tab_skips_restore = &LiveTabSkipsRestore;
   g_ardia_omits_from_session_service = &OmitsFromSessionService;
   g_ardia_viewless_browsers = true;
+  ardia::InstallCliVisibleTabs();
 }
 
 }
