@@ -112,6 +112,9 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 @interface ArdiaPiPController (Workspaces)
 @end
 
+@interface ArdiaPiPController (Placement)
+@end
+
 @interface ArdiaPiPController (Swipe)
 + (BOOL)handleSwipe:(NSEvent *)event;
 + (void)abandonSwipeOn:(NSWindow *)window;
