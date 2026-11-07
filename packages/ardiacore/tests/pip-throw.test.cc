@@ -552,6 +552,56 @@ int main() {
   }
 
   {
+    const Screen primary{{0, 0, 1512, 982}, {0, 0, 1512, 945}};
+    const Screen beside[] = {primary, {{1512, 0, 1920, 1080}, {1512, 0, 1920, 1055}}};
+    const Screen above[] = {primary, {{0, 982, 1920, 1080}, {0, 982, 1920, 1055}}};
+    const Screen offset[] = {primary, {{1512, -200, 1920, 1080}, {1512, -200, 1920, 1055}}};
+    for (int drag = 0; drag < 2; drag++) {
+      Rect w{1000, 400, 468, 263};
+      for (int i = 0; i < 1200; i++) w = drag ? DragStep(w, {1, 0}, beside, 2) : SwipeStep(w, {1, 0}, beside, 2);
+      CHECK(w.x == 2200 && w.y == 400 && Inside(w, beside[1].visible));
+      for (int i = 0; i < 1200; i++) w = drag ? DragStep(w, {-1, 0}, beside, 2) : SwipeStep(w, {-1, 0}, beside, 2);
+      CHECK(w.x == 1000 && w.y == 400 && Inside(w, beside[0].visible));
+
+      Rect up{500, 600, 468, 263};
+      for (int i = 0; i < 700; i++) up = drag ? DragStep(up, {0, 1}, above, 2) : SwipeStep(up, {0, 1}, above, 2);
+      CHECK(up.x == 500 && up.y == 1300 && Inside(up, above[1].visible));
+      for (int i = 0; i < 700; i++) up = drag ? DragStep(up, {0, -1}, above, 2) : SwipeStep(up, {0, -1}, above, 2);
+      CHECK(up.x == 500 && up.y == 600 && Inside(up, above[0].visible));
+
+      Rect level{1000, 400, 468, 263};
+      for (int i = 0; i < 1200; i++) level = drag ? DragStep(level, {1, 0}, offset, 2) : SwipeStep(level, {1, 0}, offset, 2);
+      CHECK(level.x == 2200 && level.y == 400 && Inside(level, offset[1].visible));
+
+      Rect high{1000, 945 - 263, 468, 263};
+      for (int i = 0; i < 1200; i++) high = drag ? DragStep(high, {1, 0}, offset, 2) : SwipeStep(high, {1, 0}, offset, 2);
+      CHECK(high.x == 1511 && high.y == 945 - 263);
+      for (int i = 0; i < 100; i++) high = drag ? DragStep(high, {0, -1}, offset, 2) : SwipeStep(high, {0, -1}, offset, 2);
+      for (int i = 0; i < 700; i++) high = drag ? DragStep(high, {1, 0}, offset, 2) : SwipeStep(high, {1, 0}, offset, 2);
+      CHECK(high.x > 1512 + 468 && Inside(high, offset[1].visible));
+    }
+
+    const Screen only[] = {primary};
+    for (const Screen *layout : {beside, above, offset}) {
+      const Rect onSecond = layout == above ? Rect{500, 1300, 468, 263} : Rect{2200, 400, 468, 263};
+      CHECK(OnAScreen(onSecond, layout, 2));
+      CHECK(!OnAScreen(onSecond, only, 1));
+      CHECK(Reachable(onSecond, layout, 2) && !Reachable(onSecond, only, 1));
+      const Rect rescued = Rescue(onSecond, only, 1, 0);
+      CHECK(Reachable(rescued, only, 1) && OnAScreen(rescued, only, 1) && Inside(rescued, primary.visible));
+    }
+    CHECK(Rescue({2200, 400, 468, 263}, only, 1, 0).x == 1512 - 468 && Rescue({2200, 400, 468, 263}, only, 1, 0).y == 400);
+    CHECK(Rescue({500, 1300, 468, 263}, only, 1, 0).x == 500 && Rescue({500, 1300, 468, 263}, only, 1, 0).y == 945 - 263);
+
+    CHECK(OnAScreen({1400, 400, 468, 263}, beside, 2) && OnAScreen({1400, 400, 468, 263}, only, 1));
+    CHECK(OnAScreen({1512 - 28, 400, 468, 263}, only, 1) && OnAScreen({-468 + 28, 400, 468, 263}, only, 1));
+    CHECK(!OnAScreen({1512, 400, 468, 263}, only, 1) && !OnAScreen({-468, 400, 468, 263}, only, 1));
+    CHECK(!OnAScreen({0, 982, 468, 263}, only, 1) && !OnAScreen({0, -263, 468, 263}, only, 1));
+    CHECK(!OnAScreen({2000, -500, 468, 263}, offset, 2) && OnAScreen({2000, -300, 468, 263}, offset, 2));
+    CHECK(!OnAScreen({100, 100, 468, 263}, only, 0));
+  }
+
+  {
     SpringState a = SpringAt(500, 0, 0);
     CHECK(Near(a.offset, 500) && Near(a.velocity, 0));
     a = SpringAt(0, 1000, 0);

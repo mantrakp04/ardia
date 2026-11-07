@@ -110,6 +110,14 @@ inline int LargestOverlap(Rect r, const Screen *screens, int count) {
   return best;
 }
 
+inline bool OnAScreen(Rect r, const Screen *screens, int count) {
+  for (int i = 0; i < count; i++) {
+    const Rect &f = screens[i].frame;
+    if (std::min(r.maxX(), f.maxX()) > std::max(r.x, f.x) && std::min(r.maxY(), f.maxY()) > std::max(r.y, f.y)) return true;
+  }
+  return false;
+}
+
 enum Side : int { kAbove, kBelow, kLeft, kRight };
 
 inline bool DisplayBeyond(Rect window, int current, const Screen *screens, int count, Side side) {
