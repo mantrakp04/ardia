@@ -83,18 +83,27 @@ test("a compositor retired by a hide is released at once unless the new view tak
   assert.match(compositor.slice(takeStart, takeStart + 120), /kRetiredCompositorLifetime/);
 });
 
-test("every hunk of the patch has the line counts its header declares", () => {
-  const lines = patchText().split("\n");
+const hunkHeader = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
+
+const hunkProblems = (patch) => {
+  const lines = patch.split("\n");
   if (lines.at(-1) === "") lines.pop();
+  const problems = [];
   let hunks = 0;
   for (let index = 0; index < lines.length; index += 1) {
-    const header = /^@@ -\d+,(\d+) \+\d+,(\d+) @@/.exec(lines[index]);
-    if (!header) continue;
+    if (!lines[index].startsWith("@@")) continue;
+    const header = hunkHeader.exec(lines[index]);
+    if (!header) {
+      problems.push(`${lines[index]} is not a hunk header`);
+      continue;
+    }
     hunks += 1;
+    const oldLength = Number(header[1] ?? 1);
+    const newLength = Number(header[2] ?? 1);
     let removed = 0;
     let inserted = 0;
     let cursor = index + 1;
-    while (cursor < lines.length && removed + inserted < Number(header[1]) + Number(header[2])) {
+    while (cursor < lines.length && removed + inserted < oldLength + newLength) {
       const marker = lines[cursor][0];
       if (marker === " " || lines[cursor] === "") {
         removed += 1;
@@ -108,11 +117,31 @@ test("every hunk of the patch has the line counts its header declares", () => {
       }
       cursor += 1;
     }
-    assert.equal(removed, Number(header[1]), `${lines[index]} declares a different old length`);
-    assert.equal(inserted, Number(header[2]), `${lines[index]} declares a different new length`);
-    assert.ok(cursor >= lines.length || /^(@@|--- |\+\+\+ )/.test(lines[cursor]), `${lines[index]} is followed by extra lines`);
+    if (removed !== oldLength) problems.push(`${lines[index]} declares a different old length`);
+    if (inserted !== newLength) problems.push(`${lines[index]} declares a different new length`);
+    if (cursor < lines.length && !/^(@@|--- |\+\+\+ )/.test(lines[cursor])) problems.push(`${lines[index]} is followed by extra lines`);
   }
+  return { hunks, problems };
+};
+
+test("every hunk of the patch has the line counts its header declares", () => {
+  const { hunks, problems } = hunkProblems(patchText());
+  assert.deepEqual(problems, []);
   assert.ok(hunks > 0);
+});
+
+test("the hunk check reads a header that leaves out the count of a one-line side as 1", () => {
+  const valid = ["--- a/f", "+++ b/f", "@@ -72 +73,2 @@", "-old", "+new", "+extra", "@@ -80,2 +82 @@", " kept", "-gone", ""].join("\n");
+  assert.deepEqual(hunkProblems(valid), { hunks: 2, problems: [] });
+  const wrongNew = ["--- a/f", "+++ b/f", "@@ -72 +73 @@", "-old", "+new", "+extra", ""].join("\n");
+  assert.notDeepEqual(hunkProblems(wrongNew).problems, []);
+  const wrongOld = ["--- a/f", "+++ b/f", "@@ -72 +73 @@", "-old", "-older", "+new", ""].join("\n");
+  assert.notDeepEqual(hunkProblems(wrongOld).problems, []);
+});
+
+test("the hunk check fails on an @@ line that is not a hunk header", () => {
+  const malformed = ["--- a/f", "+++ b/f", "@@ -72,1 +73,1", "-old", "+new", ""].join("\n");
+  assert.notDeepEqual(hunkProblems(malformed).problems, []);
 });
 
 test("the patch adds no comments", () => {
