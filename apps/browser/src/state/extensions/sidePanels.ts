@@ -1,6 +1,6 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions, type SidePanel } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -12,6 +12,8 @@ const nextFetch = (windowId: string) => {
 };
 
 export const wantedSidePanels = () => [...wanted];
+
+export const panelTakesFocus = (shown: SidePanel | undefined, next: SidePanel | undefined) => !!next && next.extensionId !== shown?.extensionId;
 
 export function openSidePanel(windowId: string, extensionId: string): Promise<void> {
   if (!shownIn(windowId, extensionId)) return Promise.resolve();
