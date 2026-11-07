@@ -171,6 +171,19 @@ test("imported tabs and extension-store import openings do not announce user-cre
   assert.deepEqual(notices(), []);
 });
 
+test("tabs that extensions or Chromium open on their own stay silent", async () => {
+  const { openRequestedTab } = await import("../extensions/tabsRequests.ts");
+  const { engineProfile } = await import("../browser/model.ts");
+  const w = S().createWindow({ url: "https://example.com/", chromeWindow: "chrome-1" });
+  const profile = engineProfile(S(), S().windows[w].profileId);
+  const before = S().windows[w].tabIds.length;
+  openRequestedTab({ action: "adoptInto", chromeWindow: "chrome-1", adoptId: "x", url: "https://example.org/made", profile, active: false, focused: false });
+  openRequestedTab({ action: "adopt", adoptId: "x", url: "https://example.org/stray", profile });
+  assert.ok(Object.values(S().tabs).some((t) => t.url === "https://example.org/made"));
+  assert.ok(S().windows[w].tabIds.length > before);
+  assert.deepEqual(notices(), []);
+});
+
 test("Little Ardia redirects a user-created tab to a new main window and announces it once", () => {
   const little = S().createWindow({ kind: "small", url: "https://example.com/" });
   const id = S().newTab(little, { url: "https://example.org/", background: true });
@@ -248,20 +261,20 @@ test("overflow, an obscuring pane and another profile defer the first appearance
   q.clear();
 });
 
-test("page permission, security and engine-offer prompts defer the production toast selection", async () => {
+test("page permission, security, engine-offer, crash and hang overlays defer the production toast selection", async () => {
   const { newTabToastPrompt } = await import("../../components/window/newTabToastProtection.ts");
   const { patchPage, usePages } = await import("./pageState.ts");
   const { useEngineOffers } = await import("../engines/actions.ts");
   const w = S().createWindow();
   const id = activeTabId(S(), w);
   const toast = S().newTab(w, { background: true });
-  for (const key of ["permission", "passwordPrompt", "autofillPrompt", "externalApp"]) {
-    patchPage(id, { [key]: { id: "request" } });
+  for (const key of ["permission", "passwordPrompt", "autofillPrompt", "externalApp", "crashed", "unresponsive"]) {
+    patchPage(id, { [key]: key === "unresponsive" ? true : { id: "request" } });
     const blocked = newTabToastPrompt(usePages.getState().pages[id], null);
     assert.equal(blocked, true, key);
     assert.deepEqual(visibleNewTabToasts(notices(), w, "default", 200, blocked), []);
     assert.equal(notices().find((t) => t.tabId === toast).appearedAt, null);
-    patchPage(id, { [key]: null });
+    patchPage(id, { [key]: key === "unresponsive" ? false : null });
   }
   assert.equal(newTabToastPrompt(usePages.getState().pages[id], "siteControls"), true);
   useEngineOffers.setState({ [id]: { site: "https://video.example", host: "video.example", keySystem: "com.widevine.alpha", canRemember: true } });

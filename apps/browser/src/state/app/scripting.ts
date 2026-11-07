@@ -96,7 +96,7 @@ async function runScriptCommand(request: ScriptCommand): Promise<Record<string, 
         const at = Math.max(request.index, pinned);
         index = at < view.length ? w.tabIds.indexOf(view[at]!) : w.tabIds.length;
       }
-      const tabId = s.newTab(windowId, { url: request.url, index });
+      const tabId = s.newTab(windowId, { url: request.url, index, notify: false });
       return { windowId, tabId };
     }
     case "setURL":
