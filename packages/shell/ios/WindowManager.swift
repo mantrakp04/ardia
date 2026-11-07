@@ -42,7 +42,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
   var keyWindowId: String? { id(of: NSApp.keyWindow) ?? id(of: NSApp.mainWindow) }
 
   func closeForeignKeyWindow() -> Bool {
-    guard keyWindowId == nil, let key = NSApp.keyWindow, !(key is NSPanel), key.styleMask.contains(.closable)
+    guard let key = NSApp.keyWindow, id(of: key) == nil, key.styleMask.contains(.closable),
+      key is NSPanel ? key.styleMask.contains(.titled) && key.sheetParent == nil : id(of: NSApp.mainWindow) == nil
     else { return false }
     key.performClose(nil)
     return true
