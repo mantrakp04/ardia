@@ -316,9 +316,3 @@ async def _connect_socket(sock: socket.socket, path: Path, timeout: float) -> No
         raise unreachable() from None
     except OSError as error:
         raise unreachable(f"{path.name}: {error.strerror or error}") from None
-
-
-async def open_control(data_root: Path | None) -> Connection:
-    if data_root is None:
-        raise Unreachable("the control socket needs --data-dir or $ARDIA_DATA_DIR when --port, --ws or $ARDIA_CDP_URL picks the browser")
-    return await connect(Path(data_root) / SOCKET_FILE)

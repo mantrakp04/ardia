@@ -18,12 +18,15 @@ export function crxPath(url: string): string | null {
 const toast = (windowId: string, message: string) =>
   showToast(windowId, "Couldn't add the extension", message, { icon: "puzzlepiece.extension" });
 
+export function takesCrxDrops(windowId: string): boolean {
+  const w = useBrowser.getState().windows[windowId];
+  return !!w && w.kind !== "private";
+}
+
 export function installDroppedCrx(windowId: string, urls: string[]): string[] {
   const paths = urls.map(crxPath);
-  if (!paths.some(Boolean)) return urls;
+  if (!paths.some(Boolean) || !takesCrxDrops(windowId)) return urls;
   const s = useBrowser.getState();
-  const w = s.windows[windowId];
-  if (!w || w.kind === "private") return urls;
   const profile = extensionProfile(s, windowId);
   for (const path of paths) if (path) void installExtensionCrx(path, profile).catch((error: Error) => toast(windowId, error.message));
   return urls.filter((_, i) => !paths[i]);

@@ -18,6 +18,8 @@ source_set("ardia") {
     "ac_cli_token_policy_internal.h",
     "ac_cli_token_policy_methods.cc",
     "ac_cli_token_policy_web_targets.cc",
+    "ac_cli_visible_tabs.cc",
+    "ac_cli_visible_tabs.h",
     "ac_cookies.cc",
     "ac_downloads.cc",
     "ac_engine.cc",

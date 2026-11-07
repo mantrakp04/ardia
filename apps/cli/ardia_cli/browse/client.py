@@ -75,15 +75,20 @@ def ensure_daemon(dir_fd: int, key: str, config: dict) -> socket.socket:
     sock = connect(dir_fd, f"{key}.sock")
     if sock is not None:
         return sock
+    from ardia_cli import telemetry
+
     process = spawn(dir_fd, key, config)
-    deadline = time.monotonic() + START_TIMEOUT
+    spawned = time.monotonic()
+    deadline = spawned + START_TIMEOUT
     while time.monotonic() < deadline:
         sock = connect(dir_fd, f"{key}.sock")
         if sock is not None:
+            telemetry.note_daemon_start(spawned)
             return sock
         if process.poll() is not None:
             sock = connect(dir_fd, f"{key}.sock")
             if sock is not None:
+                telemetry.note_daemon_start(spawned)
                 return sock
             if not paths.lock_held(f"{key}.lock", dir_fd):
                 raise Unreachable(f"the ardia browse daemon exited before it listened: {log_tail(dir_fd, key) or 'no output'}")
