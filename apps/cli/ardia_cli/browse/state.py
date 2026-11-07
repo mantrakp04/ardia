@@ -6,6 +6,13 @@ from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, Stale
 from ardia_cli.browse.page import Page
 
 PAGE_SCHEMES = ("http:", "https:", "about:", "data:", "blob:", "file:")
+ACTIVE_TIMEOUT = 3.0
+PROBE_TIMEOUT = 3.0
+UNKNOWN = object()
+NO_PAGE = (
+    "The user isn't on a web page right now (New Tab or another Ardia view) and this session has no tab yet. "
+    "Open one with `ardia browse open <url>`, or pick one with `ardia browse tab list` and `ardia browse tab <id>`"
+)
 
 
 @dataclass
@@ -113,6 +120,7 @@ class State:
         self.opened.discard(target_id)
         self.frames.pop(target_id, None)
         self.target_infos.pop(target_id, None)
+        self.extras.get("views", {}).pop(target_id, None)
         for label, owner in list(self.labels.items()):
             if owner == target_id:
                 del self.labels[label]
@@ -161,11 +169,13 @@ class State:
                     data={"targetId": self.extras.get("pinned_target")},
                     code="tab_gone",
                 )
-            raise BrowseError(
-                "This session has no tab yet. Open one with `ardia browse open <url>`, or pick one of the user's tabs "
-                "with `ardia browse tab list` and `ardia browse tab <id>`",
-                code="no_tab",
-            )
+            if self.extras.get("had_tab"):
+                raise BrowseError(
+                    "This session's tab was closed. Pick one with `ardia browse tab active` or `ardia browse tab <id>`, or open one with "
+                    "`ardia browse open <url>`",
+                    code="tab_gone",
+                )
+            target_id = await self.attach_active()
         if target_id not in self.target_infos:
             await self.refresh_targets()
             if target_id not in self.target_infos:
@@ -176,7 +186,82 @@ class State:
             page = self.pages[target_id] = Page(self, target_id)
         if page.session_id is None or page.browser is not self.browser:
             await page.attach(self.browser)
+        self.extras["had_tab"] = True
         return page
+
+    async def attach_active(self) -> str:
+        target_id = await self.active_target()
+        if target_id is UNKNOWN:
+            target_id = await self.shown_target()
+        if not target_id:
+            raise BrowseError(NO_PAGE, code="no_tab")
+        await self.refresh_targets()
+        if target_id not in self.target_infos:
+            raise BrowseError(NO_PAGE, code="no_tab")
+        self.current = target_id
+        self.extras["attached"] = target_id
+        if self.pin_tab:
+            self.extras["pinned_target"] = target_id
+        info = self.target_infos[target_id]
+        label = " - ".join(part for part in (info.get("title"), info.get("url")) if part)
+        self.extras["notice"] = f"→ This session had no tab, so it uses the active one: [{self.tab_id(target_id)}] {label}"
+        return target_id
+
+    async def active_target(self):
+        endpoint = self.endpoint
+        if endpoint is None or not endpoint.active:
+            return UNKNOWN
+
+        def fetch():
+            import json
+            import urllib.request
+
+            direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            with direct.open(endpoint.active, timeout=ACTIVE_TIMEOUT) as response:
+                return json.loads(response.read(64 * 1024))
+
+        try:
+            answer = await asyncio.wait_for(asyncio.to_thread(fetch), ACTIVE_TIMEOUT + 1)
+        except Exception:
+            return UNKNOWN
+        if answer is None:
+            return None
+        target_id = answer.get("targetId") if isinstance(answer, dict) else UNKNOWN
+        return target_id if target_id is None or isinstance(target_id, str) else UNKNOWN
+
+    async def shown_target(self) -> str | None:
+        await self.refresh_targets()
+        candidates = [target_id for target_id, info in self.target_infos.items() if info.get("url") != "about:blank"]
+        probes = await asyncio.gather(*(self.probe(target_id) for target_id in candidates))
+        focused = [target_id for target_id, (visible, has_focus) in zip(candidates, probes) if visible and has_focus]
+        visible = [target_id for target_id, (shown, _) in zip(candidates, probes) if shown]
+        return (focused or visible or [None])[0]
+
+    async def probe(self, target_id: str) -> tuple[bool, bool]:
+        from ardia_cli.browse.page import WORLD_NAME
+
+        try:
+            attached = await self.browser.send("Target.attachToTarget", {"targetId": target_id, "flatten": True}, timeout=PROBE_TIMEOUT)
+        except BrowseError:
+            return False, False
+        session = attached["sessionId"]
+        try:
+            tree = await self.browser.send("Page.getFrameTree", None, session, PROBE_TIMEOUT)
+            frame = tree["frameTree"]["frame"]["id"]
+            world = await self.browser.send("Page.createIsolatedWorld", {"frameId": frame, "worldName": WORLD_NAME}, session, PROBE_TIMEOUT)
+            result = await self.browser.send("Runtime.evaluate", {
+                "expression": "[document.visibilityState === 'visible', document.hasFocus()]",
+                "contextId": world["executionContextId"], "returnByValue": True,
+            }, session, PROBE_TIMEOUT)
+            visible, focused = (result.get("result") or {}).get("value") or (False, False)
+            return bool(visible), bool(focused)
+        except (BrowseError, KeyError, TypeError, ValueError):
+            return False, False
+        finally:
+            try:
+                await self.browser.send("Target.detachFromTarget", {"sessionId": session}, timeout=PROBE_TIMEOUT)
+            except BrowseError:
+                pass
 
     def frame_for(self, page: Page) -> str | None:
         frame = self.frames.get(page.target_id)

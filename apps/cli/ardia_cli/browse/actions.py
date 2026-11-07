@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 
+from ardia_cli.browse import fields
 from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
@@ -304,13 +305,28 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         raise BrowseError(f"{element.label} is a <select>; use `ardia browse select {element.label} <value>`")
     if not info.get("editable") or info.get("disabled"):
         raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
+    if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
+        return False, await set_value(page, element, info["type"], text)
     loader = page.loader(element.frame)
     await focus_field(page, element, info, humanize, tolerate_detach=True)
     element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
     if text:
         await type_into(page, element, text, humanize, guard)
-    return retargeted
+    return retargeted, None
+
+
+async def set_value(page, element, kind: str, text: str) -> str:
+    wanted = fields.normalize(kind, text)
+    await page.focus_element(element)
+    outcome = await page.call(fields.SET_VALUE, element, wanted, frame=element.frame)
+    stored = outcome.get("stored")
+    if not outcome.get("set"):
+        raise BrowseError(
+            f"The {kind} input {element.label} refused {wanted!r} (it holds {stored!r}); {fields.FORMATS[kind]}",
+            data={"value": stored}, code="bad_value",
+        )
+    return stored
 
 
 async def type_text(page, element, text: str, humanize: bool):

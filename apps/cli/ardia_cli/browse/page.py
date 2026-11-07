@@ -367,7 +367,7 @@ class Page:
                 "column": details.get("columnNumber"),
                 "timestamp": params.get("timestamp"),
             })
-        elif method.startswith("Network."):
+        elif method.startswith("Network.") and self.network_on:
             self.on_network(method, params)
         self.state.on_page_event(self, method, params)
 

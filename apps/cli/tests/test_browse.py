@@ -105,9 +105,11 @@ class KeysTest(unittest.TestCase):
         self.assertEqual(inputs.parse_key("esc")[0], "Escape")
 
     def test_humanize_env(self):
-        self.assertTrue(inputs.humanize_default({}))
-        self.assertTrue(inputs.humanize_default({"AGENT_BROWSER_NO_HUMANIZE": "0"}))
+        self.assertFalse(inputs.humanize_default({}))
         self.assertFalse(inputs.humanize_default({"AGENT_BROWSER_NO_HUMANIZE": "1"}))
+        self.assertTrue(inputs.humanize_default({"AGENT_BROWSER_HUMANIZE": "1"}))
+        self.assertFalse(inputs.humanize_default({"AGENT_BROWSER_HUMANIZE": "0"}))
+        self.assertFalse(inputs.humanize_default({"AGENT_BROWSER_HUMANIZE": "1", "AGENT_BROWSER_NO_HUMANIZE": "1"}))
 
 
 class FakePage:
@@ -304,10 +306,16 @@ class GlobalsTest(unittest.TestCase):
                 browse_cli.split_globals(["open", flag, "x"])
 
     def test_humanize_options(self):
-        self.assertTrue(browse_cli.options_from({}, {})["humanize"])
+        self.assertFalse(browse_cli.options_from({}, {})["humanize"])
+        self.assertTrue(browse_cli.options_from({}, {"AGENT_BROWSER_HUMANIZE": "1"})["humanize"])
         self.assertFalse(browse_cli.options_from({}, {"AGENT_BROWSER_NO_HUMANIZE": "1"})["humanize"])
-        self.assertFalse(browse_cli.options_from({"no_humanize": True}, {})["humanize"])
+        self.assertFalse(browse_cli.options_from({"no_humanize": True}, {"AGENT_BROWSER_HUMANIZE": "1"})["humanize"])
         self.assertTrue(browse_cli.options_from({"humanize": True}, {"AGENT_BROWSER_NO_HUMANIZE": "1"})["humanize"])
+        self.assertFalse(commands.Ctx(None, {}, "/", {}, None).humanize)
+        found, _ = browse_cli.split_globals(["click", "@e1", "--humanize", "--full", "--no-changes"])
+        self.assertEqual(found, {"humanize": True, "full": True, "no_changes": True})
+        found, rest = browse_cli.split_globals(["screenshot", "--full", "a.png"])
+        self.assertEqual((found, rest), ({}, ["screenshot", "--full", "a.png"]))
 
     def test_cdp_alias(self):
         self.assertEqual(browse_cli.endpoint_choice({"cdp": "9222"}, {}), (None, 9222, None))
@@ -577,7 +585,7 @@ class RenderTest(unittest.TestCase):
     def test_page_output_limits(self):
         result = commands.Result({}, "x" * 50, page_content=True)
         _, out, _ = daemon.render({"max_output": "10"}, result=result)
-        self.assertTrue(out.startswith("x" * 10 + "\n[truncated 40"))
+        self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters; rerun with --max-output 50 or --full"))
         _, out, _ = daemon.render({"content_boundaries": True}, result=commands.Result({}, "hi", page_content=True))
         self.assertRegex(out, r"^<<<PAGE_CONTENT [0-9a-f]{8}>>>\nhi\n<<<END_PAGE_CONTENT [0-9a-f]{8}>>>\n$")
 

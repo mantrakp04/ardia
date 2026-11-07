@@ -5,22 +5,39 @@ drives the Ardia the user is running instead of a headless browser. If you know 
 where you'd type `agent-browser`.
 
 ```sh
-ardia browse open example.com --show     # a new tab in Ardia's sidebar, shown so input reaches it
-ardia browse snapshot -i                 # interactive elements with refs
-ardia browse click @e3
+ardia browse snapshot -i                 # no tab yet? it uses the tab the user is looking at
+ardia browse click @e3                   # prints what changed: new fields with refs, URL, POSTs it caused
 ardia browse fill @e5 "user@example.com"
+ardia browse fill @e7 2026-11-09         # date/time/color/range inputs get their value set
 ardia browse press Enter
-ardia browse wait --load networkidle
-ardia browse snapshot -i                 # refs change after the page changes
-ardia browse screenshot result.png
+ardia browse snapshot -i --diff          # only what changed since the last snapshot
+ardia browse open example.com --show     # a new tab of your own in Ardia's sidebar, shown so input reaches it
 ardia browse close                       # closes only the tabs this session opened
 ```
 
+Repetitive work is one call: put the commands on stdin.
+
+```sh
+ardia browse batch --bail <<'EOF'
+# lines are commands as you'd type them after `ardia browse`; # lines are skipped
+click @e10
+fill #title "Board prep"
+select #calendar board
+fill #date 2026-11-11
+fill #start 09:00
+fill #end 10:30
+click #save
+EOF
+```
+
+Each command's answer is printed in order with its changes, so you can check every save (`POST … → 200`) without
+another snapshot. `eval --stdin` runs JavaScript in the page when the page itself should loop.
+
 ## What's different from agent-browser
 
-- **It's the user's browser.** Their tabs, cookies and logins. `open` without a session tab opens a new background
-  tab; later `open`s navigate that tab. The user's own tabs are only touched after `tab <id>` (or `tab active`, the
-  one they're looking at). `close` closes the tabs this session opened, never the browser. `tab list` shows the
+- **It's the user's browser.** Their tabs, cookies and logins. A session with no tab uses the tab the user is looking
+  at (stderr says which, once). `open` opens a new background tab of the session's own (never navigating the user's
+  tab unless you picked it with `tab <id>` or `tab active`); later `open`s navigate that tab. `close` closes the tabs this session opened, never the browser. `tab list` shows the
   user's tabs too; `tab close` refuses theirs.
 - **Background tabs get no input.** Chrome doesn't deliver mouse or keyboard events to a hidden tab, so `click`,
   `fill`, `type`, `press`, `hover`, `drag` and `mouse` fail with a clear error on a background tab. Use
@@ -28,9 +45,21 @@ ardia browse close                       # closes only the tabs this session ope
   `get`, `is`, `find ... text`, `eval`, screenshots, `scroll` (script-driven there) and `wait` work in the background.
 - **Input is confirmed.** A click, key press, typing or scroll that the page never received fails with
   `input_not_delivered`; one it only partly received reports an unknown outcome. Check the page before retrying.
-- **Input is humanized by default**: curved mouse paths that start where the last one ended, human press timing,
-  wheel scrolling with momentum, typing per character with varying gaps and no typos. `--no-humanize` on one
-  command, or `AGENT_BROWSER_NO_HUMANIZE=1` for all, makes it instant. `keyboard inserttext` is always instant.
+- **Input is instant by default.** `--humanize` (or `AGENT_BROWSER_HUMANIZE=1`) gives curved mouse paths, human press
+  timing, wheel scrolling with momentum and typing per character with varying gaps and no typos. `--no-humanize` is
+  accepted and changes nothing.
+- **Actions report what changed.** After `click`, `fill`, `type`, `select`, `check`, `press` and `keyboard`, the
+  answer ends with `changes:`: `+` nodes added (with refs you can use at once), `~` changed (`(was …)`), `-` removed,
+  `url:`/`title:` changes, and the non-GET requests the action caused with their status (query values masked). It
+  waits up to 1.5 s for them. `--json` has it in `data.changes`; `--no-changes` skips it.
+- **`fill` sets typed inputs.** Date `YYYY-MM-DD`, time `HH:MM` (or `2:30 PM`), datetime-local
+  `YYYY-MM-DDTHH:MM`, month `YYYY-MM`, week `YYYY-Www`, color `#rrggbb`, range a number. Snapshots show those
+  inputs as one `textbox "Date" [type=date, ref=e7]: 2026-11-06`. A bad value fails naming the format.
+- **Output is capped** at about 6,000 characters of text, with a last line saying how to get the rest (`--full` or
+  `--max-output N`; or narrow with `snapshot -s <sel>`). `--json` is never cut.
+- **Site notes.** `ardia notes set "…"` (or `append`, `get`, `list`, `rm`; `-` reads stdin) keeps plain notes for the
+  current site (or a `host[:port]` you name), up to 8 KB. `snapshot` prints them first, so write down what you
+  learn about a site (where things are, what format a field wants) for next time.
 - **Refs go stale for real.** A ref belongs to its document: after a navigation, a new document or an Ardia restart
   it's reported as stale (`Stale ref @e4: ... Run snapshot again`), never guessed. An element keeps its number
   across snapshots of the same page, and a number never moves to another element.

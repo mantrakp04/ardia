@@ -9,7 +9,7 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ardia_cli.browse import actions, snapshot
+from ardia_cli.browse import actions, changes, snapshot
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Gated, OutcomeUnknown, Usage
 from ardia_cli.browse.state import parse_ref, wait_until
 
@@ -45,7 +45,7 @@ class Ctx:
 
     @property
     def humanize(self) -> bool:
-        return self.options.get("humanize", True)
+        return self.options.get("humanize", False)
 
     @property
     def timeout(self) -> float:
@@ -257,7 +257,7 @@ async def cmd_open(ctx: Ctx, argv):
     state = ctx.state
     await state.connect()
     url = normalize_url(args[0]) if args else None
-    if state.current and state.current in state.target_infos:
+    if state.current and state.current in state.target_infos and state.current != state.extras.get("attached"):
         page = await state.page()
         await apply_open_options(ctx, page)
         if url:
@@ -326,18 +326,53 @@ async def cmd_pushstate(ctx: Ctx, argv):
 
 @command("snapshot")
 async def cmd_snapshot(ctx: Ctx, argv):
+    from ardia_cli import notes
+
     options, args = parse(
         argv,
-        {"--interactive": "bool", "--compact": "bool", "--depth": "value", "--selector": "value", "--urls": "bool", "--cursor": "bool"},
+        {"--interactive": "bool", "--compact": "bool", "--depth": "value", "--selector": "value", "--urls": "bool", "--cursor": "bool", "--diff": "bool"},
         {"-i": "--interactive", "-c": "--compact", "-d": "--depth", "-s": "--selector", "-u": "--urls", "-C": "--cursor"},
     )
     selector = options.get("selector") or (args[0] if args else None)
-    page = await ctx.state.page()
     depth = int(options["depth"]) if options.get("depth") is not None else None
+    if options.get("diff") and (selector or depth is not None):
+        raise Usage("snapshot --diff compares the whole page, so it takes no -s or -d")
+    page = await ctx.state.page()
+    await page.refresh_frames()
+    before = changes.previous(ctx.state, page) if options.get("diff") else None
     text, _ = await snapshot.take(ctx.state, page, bool(options.get("interactive")), bool(options.get("compact")), depth, selector, bool(options.get("urls")))
     origin = page.frames.get(page.main_frame, {}).get("origin") or page.url
     data = {"origin": origin if origin.endswith("/") else origin + "/", "refs": ctx.state.refs_json(), "snapshot": text}
-    return Result(data, text or "(empty page)", page_content=True)
+    body = text or "(empty page)"
+    if options.get("diff"):
+        if before is None:
+            data["changes"] = None
+            body = "(no earlier snapshot of this document in this session, so here is all of it)\n" + body
+        else:
+            report = changes.diff(before, ctx.state.extras["views"][page.target_id])
+            data["changes"] = changes.as_data(report)
+            body = changes.render(report)
+    root = ctx.state.config.get("data_root")
+    site, header = notes.header(Path(root), page.url) if root else (None, None)
+    if header:
+        data["notes"] = {"site": site, "header": header}
+        body = header + "\n" + body
+    return Result(data, body, page_content=True)
+
+
+@command("notes")
+async def cmd_notes(ctx: Ctx, argv):
+    from ardia_cli import notes
+
+    request = notes.parse_args(argv)
+    if request.text == "-":
+        request.text = ctx.stdin or ""
+    url = None
+    if request.site is None and request.action != "list":
+        page = await ctx.state.page()
+        await page.refresh_frames()
+        url = page.url
+    return notes.run_request(Path(ctx.state.config["data_root"]), request, url)
 
 
 async def resolve(ctx: Ctx, selector: str):
@@ -358,8 +393,8 @@ async def cmd_click(ctx: Ctx, argv):
         tab = await new_tab(ctx, href)
         ctx.state.current = previous or tab.target_id
         return Result({"clicked": args[0], "newTab": ctx.state.tab_id(tab.target_id), "url": tab.url})
-    await actions.click(page, element, humanize, 1, options.get("button") or "left")
-    return Result({"clicked": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize, 1, options.get("button") or "left"))
+    return changes.attach(Result({"clicked": args[0]}), report)
 
 
 @command("dblclick")
@@ -367,8 +402,8 @@ async def cmd_dblclick(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "dblclick <selector>")
     page, element = await resolve(ctx, args[0])
-    await actions.click(page, element, ctx.humanize and not options.get("no_humanize"), 2)
-    return Result({"clicked": args[0], "count": 2})
+    _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, ctx.humanize and not options.get("no_humanize"), 2))
+    return changes.attach(Result({"clicked": args[0], "count": 2}), report)
 
 
 @command("hover")
@@ -394,8 +429,16 @@ async def cmd_fill(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "fill <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted = await actions.fill(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return typed_result("filled", args[0], retargeted)
+    text = " ".join(args[1:])
+    (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(filled_result("filled", args[0], retargeted, text, stored), report)
+
+
+def filled_result(key: str, selector: str, retargeted: bool, text: str, stored: str | None) -> Result:
+    if stored is None:
+        return typed_result(key, selector, retargeted)
+    note = "✓ Done" if stored == text else f"✓ Done (the field holds {stored or 'nothing'})"
+    return Result({key: selector, "value": stored}, note)
 
 
 def typed_result(key: str, selector: str, retargeted: bool) -> Result:
@@ -410,8 +453,8 @@ async def cmd_type(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool", "--delay": "value"})
     need(args, 2, "type <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted = await actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return typed_result("typed", args[0], retargeted)
+    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(typed_result("typed", args[0], retargeted), report)
 
 
 @command("press")
@@ -421,9 +464,9 @@ async def cmd_press(ctx: Ctx, argv):
     page = await ctx.state.page()
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
-    await actions.expect_input(page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)),
-                               {"keydown": 1}, "The key press")
-    return Result({"pressed": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"))
+    return changes.attach(Result({"pressed": args[0]}), report)
 
 
 @command("keydown", "keyup")
@@ -447,17 +490,18 @@ async def cmd_keyboard(ctx: Ctx, argv):
     if args[0] == "inserttext":
         frame = ctx.state.frame_for(page) or page.main_frame
         await page.require_visible()
-        await actions.expect_input(page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-                                   {"beforeinput|input": 1} if text else {}, "The text insert")
-        return Result({"inserted": True})
+        _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+            page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
+            {"beforeinput|input": 1} if text else {}, "The text insert"))
+        return changes.attach(Result({"inserted": True}), report)
     if args[0] != "type":
         raise Usage(f"Unknown keyboard subcommand: {args[0]} (type or inserttext)")
     keyboard = page.input.keyboard()
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
-    await actions.expect_input(page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)),
-                               {"keydown": len(text)}, "The typing")
-    return Result({"typed": True})
+    _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"))
+    return changes.attach(Result({"typed": True}), report)
 
 
 @command("check", "uncheck")
@@ -466,8 +510,8 @@ async def cmd_check(ctx: Ctx, argv):
     need(args, 1, f"{ctx.command} <selector>")
     page, element = await resolve(ctx, args[0])
     wanted = ctx.command == "check"
-    await actions.set_checked(page, element, wanted, ctx.humanize and not options.get("no_humanize"))
-    return Result({"checked" if wanted else "unchecked": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, wanted, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"checked" if wanted else "unchecked": args[0]}), report)
 
 
 @command("select")
@@ -475,8 +519,8 @@ async def cmd_select(ctx: Ctx, argv):
     _, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "select <selector> <value...>")
     page, element = await resolve(ctx, args[0])
-    await actions.select(page, element, args[1:])
-    return Result({"selected": args[1:]})
+    _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, args[1:]))
+    return changes.attach(Result({"selected": args[1:]}), report)
 
 
 @command("drag")
@@ -696,7 +740,7 @@ async def cmd_get(ctx: Ctx, argv):
 
         parts = urlsplit(url)
         if not ctx.state.endpoint.explicit or parts.query or parts.username or parts.password or "token" in url.lower():
-            raise BrowseError("This CDP URL carries a control token, so ardia browse never prints it; use `ardia exec` to drive the browser from Python")
+            raise BrowseError("This CDP URL carries a control token, so ardia browse never prints it; drive the page with ardia browse commands (`eval` for JavaScript)")
         return Result({"cdpUrl": url}, url)
     page = await ctx.state.page()
     if what == "title":
@@ -759,7 +803,7 @@ async def cmd_is(ctx: Ctx, argv):
     return Result({"origin": origin + "/" if origin else origin, what: bool(value)}, "true" if value else "false")
 
 
-FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "hover", "focus", "dblclick", "text")
+FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
 
 
 @command("find")
@@ -803,20 +847,24 @@ async def cmd_find(ctx: Ctx, argv):
     element.label = f"@{ref}"
     humanize = ctx.humanize and not options.get("no_humanize")
     if action == "click":
-        await actions.click(page, element, humanize)
-        return Result({"clicked": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize))
+        return changes.attach(Result({"clicked": f"@{ref}"}), report)
     if action == "dblclick":
-        await actions.click(page, element, humanize, 2)
-        return Result({"clicked": f"@{ref}", "count": 2})
+        _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize, 2))
+        return changes.attach(Result({"clicked": f"@{ref}", "count": 2}), report)
     if action == "fill":
-        retargeted = await actions.fill(page, element, " ".join(rest[1:]), humanize)
-        return typed_result("filled", f"@{ref}", retargeted)
+        text = " ".join(rest[1:])
+        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize))
+        return changes.attach(filled_result("filled", f"@{ref}", retargeted, text, stored), report)
     if action == "type":
-        retargeted = await actions.type_text(page, element, " ".join(rest[1:]), humanize)
-        return typed_result("typed", f"@{ref}", retargeted)
+        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize))
+        return changes.attach(typed_result("typed", f"@{ref}", retargeted), report)
     if action in ("check", "uncheck"):
-        await actions.set_checked(page, element, action == "check", humanize)
-        return Result({action + "ed": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, action == "check", humanize))
+        return changes.attach(Result({action + "ed": f"@{ref}"}), report)
+    if action == "select":
+        _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, rest[1:]))
+        return changes.attach(Result({"selected": rest[1:]}), report)
     if action == "hover":
         await actions.hover(page, element, humanize)
         return Result({"hovered": f"@{ref}"})
@@ -881,6 +929,7 @@ async def cmd_tab(ctx: Ctx, argv):
     await state.refresh_targets()
     target_id = state.find_tab(action)
     state.current = target_id
+    state.extras.pop("attached", None)
     if state.pin_tab:
         state.extras["pinned_target"] = target_id
     page = await state.page(target_id)
@@ -934,7 +983,7 @@ async def cmd_frame(ctx: Ctx, argv):
         described = await page.send("DOM.describeNode", {"backendNodeId": element.backend_id})
         frame_id = (described.get("node") or {}).get("frameId")
         if not frame_id or frame_id not in page.frames:
-            raise BrowseError(f"{target} isn't an iframe this tab can reach (a cross-process iframe needs `ardia exec`)")
+            raise BrowseError(f"{target} isn't an iframe this tab can reach (ardia browse doesn't attach cross-process iframes)")
     ctx.state.frames[page.target_id] = frame_id
     return Result({"frame": frame_id, "url": page.frames[frame_id]["url"]})
 
@@ -1381,7 +1430,7 @@ async def cmd_session(ctx: Ctx, argv):
 @command("batch")
 async def cmd_batch(ctx: Ctx, argv):
     options, args = parse(argv, {"--bail": "bool"})
-    lines = args if args else [line for line in (ctx.stdin or "").splitlines() if line.strip()]
+    lines = args if args else [line for line in (ctx.stdin or "").splitlines() if line.strip() and not line.lstrip().startswith("#")]
     runs = []
     for line in lines:
         line = line.strip()

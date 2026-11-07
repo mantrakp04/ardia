@@ -14,6 +14,7 @@ CONNECTED_IDLE = 30.0
 DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
 MAX_RESPONSE = 256 * 1024 * 1024
+OUTPUT_CAP = 6000
 SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
@@ -78,6 +79,12 @@ def sanitize(value):
     return value
 
 
+def redact_text(text: str) -> str:
+    from ardia_cli.redact import redact
+
+    return redact(text)
+
+
 def render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
     from ardia_cli.redact import redact
 
@@ -108,13 +115,23 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
     text = result.text
     if text is None:
         return code, "", ""
-    if result.page_content:
-        limit = options.get("max_output")
-        if limit and len(text) > int(limit):
-            text = text[: int(limit)] + f"\n[truncated {len(text) - int(limit)} characters]"
-        if options.get("content_boundaries"):
-            text = boundary(text)
+    text = cap(redact_text(text), options)
+    if result.page_content and options.get("content_boundaries"):
+        text = boundary(text)
     return code, text + "\n", ""
+
+
+def cap(text: str, options: dict) -> str:
+    if options.get("full"):
+        return text
+    limit = options.get("max_output")
+    limit = OUTPUT_CAP if limit is None else int(limit)
+    if limit <= 0 or len(text) <= limit:
+        return text
+    cut = text.rfind("\n", 0, limit + 1)
+    cut = cut if cut >= limit * 0.8 else limit
+    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters; rerun with --max-output {len(text)} or --full, "
+                         "or narrow it (snapshot -s <sel>, -d <n>)]")
 
 
 class Daemon:
@@ -334,21 +351,27 @@ class Daemon:
                 return self.refuse_closing(options, name)
             if self.state.lost:
                 return render(options, error=ConnectionLost(), name=name)
-            try:
-                result = await dispatch(ctx, name, argv[1:])
-            except BrowseError as error:
-                if isinstance(error, ConnectionLost) or (self.state.browser is not None and not self.state.browser.alive and not self.state.browser.closed_by_us):
-                    self.state.lost = True
-                    error = error if isinstance(error, ConnectionLost) else ConnectionLost()
-                if isinstance(error, Unreachable) and self.state.instance is None:
-                    self.state.restarted = True
-                return render(options, error=error, name=name)
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:
-                log.exception("command %s crashed", name)
-                return render(options, error=BrowseError(f"{name} failed: {type(error).__name__}: {error}"), name=name)
-            return render(options, result=result, name=name)
+            self.state.extras.pop("notice", None)
+            code, out, err = await self.answer(ctx, name, argv, options)
+            notice = self.state.extras.pop("notice", None)
+            return code, out, (redact_text(notice) + "\n" if notice else "") + err
+
+    async def answer(self, ctx, name, argv, options) -> tuple[int, str, str]:
+        try:
+            result = await dispatch(ctx, name, argv[1:])
+        except BrowseError as error:
+            if isinstance(error, ConnectionLost) or (self.state.browser is not None and not self.state.browser.alive and not self.state.browser.closed_by_us):
+                self.state.lost = True
+                error = error if isinstance(error, ConnectionLost) else ConnectionLost()
+            if isinstance(error, Unreachable) and self.state.instance is None:
+                self.state.restarted = True
+            return render(options, error=error, name=name)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            log.exception("command %s crashed", name)
+            return render(options, error=BrowseError(f"{name} failed: {type(error).__name__}: {error}"), name=name)
+        return render(options, result=result, name=name)
 
     async def close(self, ctx):
         from ardia_cli.browse.commands import Result

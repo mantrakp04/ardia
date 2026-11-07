@@ -46,8 +46,10 @@ EDITING_SHORTCUTS = {
 
 
 def humanize_default(env: dict) -> bool:
-    value = (env.get("AGENT_BROWSER_NO_HUMANIZE") or "").strip().lower()
-    return value in ("", "0", "false", "no", "off")
+    def on(name: str) -> bool:
+        return (env.get(name) or "").strip().lower() not in ("", "0", "false", "no", "off")
+
+    return on("AGENT_BROWSER_HUMANIZE") and not on("AGENT_BROWSER_NO_HUMANIZE")
 
 
 def parse_key(name: str) -> tuple[str, str, int, str | None]:
