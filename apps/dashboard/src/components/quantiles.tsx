@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatExact } from "@/lib/format";
 
@@ -9,12 +10,14 @@ export function QuantileRows({
   dimension,
   color = "var(--chart-2)",
   empty = "No samples in this range",
+  wrapRow,
 }: {
   rows: QuantileRow[];
   format: (n: number) => string;
   dimension: string;
   color?: string;
   empty?: string;
+  wrapRow?: (row: QuantileRow, node: ReactElement) => ReactElement;
 }) {
   if (!rows.length) return <p className="py-6 text-center text-sm text-muted-foreground">{empty}</p>;
   const max = Math.max(...rows.map((r) => r.p90), 1) * 1.15;
@@ -42,8 +45,7 @@ export function QuantileRows({
       <ul className="grid gap-1">
         {rows.map((r) => (
           <li key={r.key}>
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
+            <QuantileRowHover row={r} format={format} wrapRow={wrapRow}>
                 <div
                   tabIndex={0}
                   className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-md px-0.5 py-1 text-sm outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring/50 sm:h-8 sm:grid-cols-[10rem_1fr_auto] sm:py-0"
@@ -60,15 +62,23 @@ export function QuantileRows({
                     <span className="text-muted-foreground"> · {format(r.p90)} · {format(r.p99)}</span>
                   </span>
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="start" className="text-xs">
-                {r.label}: median <span className="font-semibold tnum">{format(r.p50)}</span>, p90 {format(r.p90)}, p99 {format(r.p99)} over{" "}
-                <span className="tnum">{formatExact(r.count)}</span> samples
-              </TooltipContent>
-            </Tooltip>
+            </QuantileRowHover>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function QuantileRowHover({ row, format, wrapRow, children }: { row: QuantileRow; format: (n: number) => string; wrapRow?: (row: QuantileRow, node: ReactElement) => ReactElement; children: ReactElement }) {
+  if (wrapRow) return wrapRow(row, children);
+  return (
+    <Tooltip delayDuration={80}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top" align="start" className="text-xs">
+        {row.label}: median <span className="font-semibold tnum">{format(row.p50)}</span>, p90 {format(row.p90)}, p99 {format(row.p99)} over{" "}
+        <span className="tnum">{formatExact(row.count)}</span> samples
+      </TooltipContent>
+    </Tooltip>
   );
 }

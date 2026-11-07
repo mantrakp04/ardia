@@ -5,9 +5,9 @@ import { switchOn } from "../../state/app/switches";
 import { layout, useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowDragRegion } from "../ui";
-import { useSettings, useSidebarSide, useWindowId } from "../../state/browser/hooks";
+import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
-import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
+import { useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
@@ -22,7 +22,7 @@ import {
   dockState,
   dockedCardInset,
   edgeWatchWidth,
-  fromSidebarEdge,
+  fromSidebarEdgeInStrip,
   inPeekHold,
   peekHoldWidth,
   peekSpan,
@@ -33,7 +33,6 @@ import {
   ARC_LIGHTS_CENTER,
   devPeeks,
   peekShown,
-  rightSidebarLightsCenter,
   setDockMoving,
   setPeekShown,
   useDockMotion,
@@ -101,12 +100,10 @@ export function DockedLayout({
   const windowId = useWindowId();
   const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
   const right = useSidebarSide(windowId) === "right";
-  const addressInSidebar = useAddressBarInSidebar();
-  const compact = useSettings((st) => st.compactToolbar);
   const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? sidebarWidth;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const toolbarLights = useToolbarLightsCenter();
-  const lights = right ? rightSidebarLightsCenter(addressInSidebar, compact) : addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
+  const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
   const { dock, away } = useSidebarDock(open, !fullscreen, arc);
   const sideInset = right ? inset.right : inset.left;
   const edge = useMemo(
@@ -161,7 +158,6 @@ export function DockedLayout({
           lights={lights}
           right={right}
           windowWidth={windowWidth}
-          followToolbar={right && !addressInSidebar}
         />
       )}
     </>
@@ -177,7 +173,6 @@ function SidebarDock({
   lights,
   right,
   windowWidth,
-  followToolbar,
 }: {
   dock: Animated.Value;
   open: boolean;
@@ -187,7 +182,6 @@ function SidebarDock({
   lights: readonly [number, number];
   right: boolean;
   windowWidth: number;
-  followToolbar: boolean;
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
@@ -200,7 +194,7 @@ function SidebarDock({
   const state = dockState({ open, fullscreen, moving, peekLive: peek.live });
   const holdWidth = peekHoldWidth(width);
   const holdHeight = useRef(Infinity);
-  const inHold = (x: number, y: number) => inPeekHold(fromSidebarEdge(x, right, windowWidth), y, holdWidth, holdHeight.current);
+  const inHold = (stripX: number, y: number) => inPeekHold(fromSidebarEdgeInStrip(stripX, right), y, holdWidth, holdHeight.current);
   const peeking = state === "peeking";
   const shown = shownAs(state);
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
@@ -234,7 +228,7 @@ function SidebarDock({
     () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12 * outward, width * outward] }),
     [peek.slide, width, outward],
   );
-  useSidebarLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights, fixed: right, followToolbar });
+  useSidebarLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights, right });
   const edgeSide = right ? "right" : "left";
   const sidebar = useMemo(
     () => (

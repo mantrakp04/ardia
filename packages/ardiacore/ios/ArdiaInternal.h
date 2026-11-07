@@ -43,11 +43,15 @@ void InstallActivationGuardsEarly();
 void InstallActivationGuardsLate();
 bool Background();
 void LogActivation(NSString *what);
+void WatchFocusChanges();
+NSString *FocusState();
+NSString *PageMoveAt(NSWindow *window, NSPoint point);
 void SetAppActive(bool active);
 void ActToggleFullScreen(NSWindow *window);
 void InstallTestCrashGuard(NSString *_Nullable dataDir);
 
 void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaWebView *_Nullable opener);
+ArdiaCoreWindow *_Nullable PopupWindowForChromeBrowser(ArdiaCoreProfile *profile);
 bool IsReservedKeyEvent(NSEvent *event);
 bool IsReservedBinding(NSString *key, NSString *unshiftedKey, NSEventModifierFlags modifiers);
 NSUInteger PopupWindowCount();

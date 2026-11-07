@@ -15,6 +15,7 @@ import { useTheme } from "../ui/theme";
 import { capsule, font, radius, space, weight, withAlpha } from "../ui/tokens";
 import { folderKey, type GroupOut } from "./model";
 import type { StripMember } from "../../state/tabs/topStrip";
+import { TabIcon } from "../sidebar/TabIcon";
 import { SplitChip } from "./SplitChip";
 import { MEMBERS_INSET, type DragGeometry } from "./stripGroups";
 import { DraggableChip, TabChip } from "./TabChip";
@@ -145,7 +146,7 @@ export function StripGroupIcon({ icon, tint }: { icon: string | null; tint: stri
   if (!hasOwnGroupIcon(icon)) return <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />;
   const symbol = iconSymbol(icon);
   if (symbol) return <Symbol name={symbol} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13, height: 13 }} />;
-  return <Text style={{ width: 13, fontSize: font.small.fontSize, textAlign: "center" }}>{icon}</Text>;
+  return <TabIcon url="" icon={icon} />;
 }
 
 function GroupGlyph({ color }: { color: string }) {

@@ -37,6 +37,19 @@ export const updateReplyStatus = createServerFn({ method: "POST" })
     return setReplyStatus(data.id, data.status, context.email);
   });
 
+export const snoozeReply = createServerFn({ method: "POST" })
+  .middleware([requireAllowed])
+  .validator((input: { id: number; snooze: boolean }) => {
+    const id = Number(input?.id);
+    if (!Number.isInteger(id) || id <= 0 || id > 4_294_967_295) throw new Error("Not a reply id");
+    if (typeof input?.snooze !== "boolean") throw new Error("snooze must be true or false");
+    return { id, snooze: input.snooze };
+  })
+  .handler(async ({ data, context }) => {
+    const { setReplySnooze } = await import("../server/triage/replies");
+    return setReplySnooze(data.id, data.snooze, context.email);
+  });
+
 export const requestReplyRecheck = createServerFn({ method: "POST" })
   .middleware([requireAllowed])
   .validator((input: { ids: number[] }) => {

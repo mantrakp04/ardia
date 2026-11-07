@@ -1,0 +1,163 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Office Hours</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--or:#e8590c;--or2:#fff0e6;--ink:#1f1a17;--soft:#544b45;--mute:#948a83;--line:#ece6e1;--bg:#faf8f6;--gr:#18805b;--gr2:#e2f4ec;--bl:#3b63c9;--bl2:#e8eefc}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{height:58px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 22px;gap:12px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.015em}
+.logo i{width:32px;height:32px;border-radius:9px;background:var(--or);display:grid;place-items:center}
+.logo small{font-weight:500;color:var(--mute);font-size:12.5px;margin-left:2px;letter-spacing:0}
+.crs{display:flex;align-items:center;gap:6px;margin-left:16px;border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:13px;font-weight:600;white-space:nowrap}
+.crs i{width:8px;height:8px;border-radius:2px;background:#1d4d33}
+header nav{display:flex;gap:20px;margin-left:20px;font-size:13.5px;color:var(--soft);font-weight:500;white-space:nowrap}
+header nav .on{color:var(--or);font-weight:650}
+.hr{margin-left:auto;display:flex;gap:12px;align-items:center}
+.me{width:32px;height:32px;border-radius:50%;background:#1d4d33;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.app{display:grid;grid-template-columns:226px 1fr 286px;height:calc(100vh - 58px);min-height:700px}
+.left{background:#fff;border-right:1px solid var(--line);padding:16px 12px;overflow:hidden}
+.mini{margin-bottom:16px}
+.mh{display:flex;align-items:center;font-weight:650;font-size:13.5px;margin-bottom:8px}
+.mh span{margin-left:auto;display:flex;gap:10px;color:var(--mute)}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11.5px}
+.mg b{font-size:10.5px;color:var(--mute);font-weight:600;padding:3px 0}
+.mg span{padding:5px 0;border-radius:6px;color:var(--soft);font-variant-numeric:tabular-nums;position:relative}
+.mg span.o{color:#c9c1bb}
+.mg span.wk{background:var(--or2);color:var(--or);font-weight:650;border-radius:0}
+.mg span.wk.s{border-radius:6px 0 0 6px}.mg span.wk.e{border-radius:0 6px 6px 0}
+.mg span.td{background:var(--or);color:#fff;font-weight:700;border-radius:6px}
+.mg span.dot:after{content:"";position:absolute;left:50%;bottom:1px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--gr)}
+.sec{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:650;margin:6px 0 8px}
+.ta{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;margin-bottom:4px}
+.ta.on{background:var(--bg)}
+.ta .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;flex:none}
+.ta b{display:block;font-size:13.5px;font-weight:600}
+.ta small{font-size:12px;color:var(--mute)}
+.ta .cb{margin-left:auto;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;flex:none}
+.loc{margin-top:14px;padding:11px 12px;border-radius:10px;background:var(--bg);font-size:12.5px;color:var(--soft);line-height:1.5}
+.loc b{color:var(--ink)}
+.cal{display:flex;flex-direction:column;min-width:0;background:#fff}
+.ch{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.ch h1{white-space:nowrap;font-size:21px;font-weight:700;letter-spacing:-.02em}
+.ch .wk{white-space:nowrap;font-size:13.5px;color:var(--soft);font-weight:500}
+.nv{display:flex;gap:4px}
+.nv span{width:30px;height:30px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;color:var(--soft)}
+.today{height:30px;padding:0 11px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;font-size:13px;font-weight:600}
+.seg{margin-left:auto;display:flex;background:var(--bg);border-radius:9px;padding:3px;font-size:12.5px;font-weight:600}
+.seg span{padding:5px 11px;border-radius:7px;color:var(--soft)}
+.seg .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.days{display:grid;grid-template-columns:54px repeat(5,1fr);border-bottom:1px solid var(--line)}
+.days div{padding:8px 10px;font-size:12px;color:var(--mute);font-weight:600;border-left:1px solid var(--line)}
+.days div:first-child{border:0}
+.days div b{display:block;font-size:20px;color:var(--ink);font-weight:650;letter-spacing:-.02em}
+.days div.td{color:var(--or)}
+.days div.td b{color:#fff;background:var(--or);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:17px;margin-top:2px}
+.grid{position:relative;flex:1;display:grid;grid-template-columns:54px repeat(5,1fr);overflow:hidden}
+.hrs div{height:58px;font-size:11px;color:var(--mute);text-align:right;padding-right:8px;transform:translateY(4px);font-variant-numeric:tabular-nums}
+.col{position:relative;border-left:1px solid var(--line);background:repeating-linear-gradient(180deg,transparent 0 57px,var(--line) 57px 58px)}
+.col.td{background:repeating-linear-gradient(180deg,transparent 0 57px,var(--line) 57px 58px),#fffaf6}
+.ev{position:absolute;left:5px;right:5px;border-radius:8px;padding:5px 8px;font-size:12px;line-height:1.3;overflow:hidden}
+.ev b{display:block;font-size:12.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev small{display:block;font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev small+small{opacity:.7}
+.ev.open{background:#fff;border:1.5px dashed #9fd4bf;color:var(--gr)}
+.ev.open b{color:var(--gr)}
+.ev.drop{background:var(--bl2);color:#2d4c9c;border-left:3px solid var(--bl)}
+.ev.full{background:#f3f0ed;color:#a39890;border-left:3px solid #d4ccc5}
+.ev.inst{background:#e6efe9;color:#1d4d33;border-left:3px solid #1d4d33}
+.ev.mine{background:var(--or);color:#fff;box-shadow:0 4px 14px rgba(232,89,12,.35)}
+.ev.sel{background:var(--gr2);border:2px solid var(--gr);color:#0f5f42;box-shadow:0 0 0 4px rgba(24,128,91,.14)}
+.slots{display:flex;gap:3px;margin-top:4px}
+.slots i{flex:1;height:5px;border-radius:3px;background:#9fd4bf}
+.slots i.t{background:#e2dcd6}
+.now{position:absolute;left:54px;right:0;height:2px;background:var(--or);z-index:5}
+.now:before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--or)}
+.now span{position:absolute;left:-52px;top:-8px;font-size:10.5px;font-weight:700;color:var(--or);background:#fff;padding:1px 3px}
+.right{background:var(--bg);border-left:1px solid var(--line);padding:16px}
+.bk{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.bk .tg{display:inline-flex;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gr);background:var(--gr2);padding:4px 8px;border-radius:6px}
+.bk h3{font-size:18px;font-weight:700;letter-spacing:-.015em;margin:9px 0 2px}
+.bk .t{font-size:13.5px;color:var(--soft)}
+.who{display:flex;align-items:center;gap:10px;margin:12px 0;padding:10px;border-radius:10px;background:var(--bg)}
+.who .av{width:36px;height:36px;border-radius:50%;background:#c27c12;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12.5px}
+.who b{display:block;font-size:13.5px}
+.who small{font-size:12px;color:var(--mute)}
+.pick{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px}
+.pick span{text-align:center;padding:7px 0;border-radius:8px;border:1px solid var(--line);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.pick .on{background:var(--gr);border-color:var(--gr);color:#fff}
+.pick .x{color:#c9c1bb;text-decoration:line-through;background:#faf8f6}
+.fl{font-size:12px;font-weight:600;color:var(--soft);margin-bottom:5px}
+.inp{border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;margin-bottom:10px;display:flex;align-items:center}
+.inp span{margin-left:auto;color:var(--mute)}
+.ta2{border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;color:var(--soft);height:62px;line-height:1.4;margin-bottom:12px}
+.mode{display:flex;gap:6px;margin-bottom:12px}
+.mode span{flex:1;text-align:center;padding:7px 0;border-radius:8px;border:1px solid var(--line);font-size:12.5px;font-weight:600}
+.mode .on{border-color:var(--or);color:var(--or);background:var(--or2)}
+.go{height:40px;border-radius:10px;background:var(--or);color:#fff;font-weight:700;font-size:14px;display:grid;place-items:center}
+.up{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.up h4{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.up .r{display:flex;align-items:center;gap:10px;font-size:13px}
+.up i{width:4px;height:34px;border-radius:2px;background:var(--or);flex:none}
+.up small{display:block;color:var(--mute);font-size:12px}
+@media (max-width:1100px){.app{grid-template-columns:1fr 272px}.left{display:none}header nav{display:none}}
+</style></head><body>
+<header>
+<div class="logo"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/></svg></i>Office Hours<small>Alder State</small></div>
+<div class="crs"><i></i>BIO 210 · Fall 2026 ▾</div>
+<nav><span class="on">Book</span><span>My bookings</span><span>Queue</span><span>Help</span></nav>
+<div class="hr"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#544b45" stroke-width="1.5"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11zM6.5 14h3"/></svg><span class="me">MK</span></div>
+</header>
+<div class="app">
+<div class="left">
+<div class="mini"><div class="mh">October 2026<span>‹ ›</span></div>
+<div class="mg" id="mg"></div></div>
+<div class="sec">Teaching team</div>
+<div class="ta on"><span class="av" style="background:#c27c12">TM</span><div><b>Theo Marsh</b><small>TA · Labs, enzymes</small></div><span class="cb" style="background:#c27c12"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span></div>
+<div class="ta on"><span class="av" style="background:#3b63c9">LO</span><div><b>Lena Okafor</b><small>TA · Quizzes, stats</small></div><span class="cb" style="background:#3b63c9"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span></div>
+<div class="ta"><span class="av" style="background:#1d4d33">IV</span><div><b>Dr. Imara Voss</b><small>Instructor</small></div><span class="cb" style="border:1.5px solid #d8d0c9"></span></div>
+<div class="sec" style="margin-top:14px">Show</div>
+<div class="ta" style="padding:4px 8px"><span class="cb" style="margin:0;background:#18805b"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span><small style="color:#1f1a17;font-size:13px">Bookable 15-min slots</small></div>
+<div class="ta" style="padding:4px 8px"><span class="cb" style="margin:0;background:#3b63c9"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span><small style="color:#1f1a17;font-size:13px">Drop-in sessions</small></div>
+<div class="loc"><b>Bio Sciences 214</b>, second floor, by the cold room. Online slots get a meeting link by email.</div>
+</div>
+<div class="cal">
+<div class="ch"><h1>Office Hours</h1><span class="wk">Week 6 · Oct 5–9</span><div class="nv"><span>‹</span><span>›</span></div><span class="today">Today</span><div class="seg"><span>Day</span><span class="on">Week</span><span>List</span></div></div>
+<div class="days"><div></div><div>MON<b>5</b></div><div class="td">TUE<b>6</b></div><div>WED<b>7</b></div><div>THU<b>8</b></div><div>FRI<b>9</b></div></div>
+<div class="grid" id="grid"><div class="hrs" id="hrs"></div><div class="col"></div><div class="col td"></div><div class="col"></div><div class="col"></div><div class="col"></div>
+<div class="now" style="top:250px"><span>13:18</span></div></div>
+</div>
+<div class="right">
+<div class="bk"><span class="tg">Open · 3 of 4 slots left</span><h3>Lab 4 help with Theo</h3><div class="t">Tue Oct 6 · 14:00–15:00 · Bio Sciences 214</div>
+<div class="who"><span class="av">TM</span><div><b>Theo Marsh</b><small>Teaching assistant · replies in ~1 h</small></div></div>
+<div class="fl">Pick a 15-minute slot</div>
+<div class="pick"><span class="x">14:00</span><span class="on">14:15</span><span>14:30</span><span>14:45</span></div>
+<div class="fl">How do you want to meet?</div>
+<div class="mode"><span class="on">In person</span><span>Online</span></div>
+<div class="fl">What do you want to go over?</div>
+<div class="inp">Lab 4: Enzymes<span>▾</span></div>
+<div class="ta2">My O₂ readings at 55 °C are higher than the class curve. Bringing my data sheet.</div>
+<div class="go">Book 14:15</div>
+</div>
+<div class="up"><h4>Your bookings</h4><div class="r"><i></i><div><b>Thu Oct 8 · 11:00</b><small>Lena Okafor · Quiz 3 review</small></div></div></div>
+</div>
+</div>
+<script>
+const days=["Mo","Tu","We","Th","Fr","Sa","Su"];let m=days.map(d=>`<b>${d}</b>`).join("");
+const len=31,prev=[28,29,30];prev.forEach(n=>m+=`<span class="o">${n}</span>`);
+for(let d=1;d<=len;d++){let c="";if(d>=5&&d<=9)c="wk"+(d===5?" s":d===9?" e":"");if(d===6)c="td";if([7,8,13,14,15,20,22].includes(d))c+=" dot";m+=`<span class="${c}">${d}</span>`}
+m+=`<span class="o">1</span>`;document.getElementById("mg").innerHTML=m;
+const H0=9,PX=58;document.getElementById("hrs").innerHTML=Array.from({length:10},(_,i)=>`<div>${String(H0+i).padStart(2,"0")}:00</div>`).join("");
+const y=h=>(h-H0)*PX,cols=document.querySelectorAll(".col");
+const ev=[[0,10,11.5,"full","Theo Marsh","Fully booked",[1,1,1,1,1,1]],[0,13,14,"drop","Drop-in: Lena","Quiz prep · BS 214"],[0,15.5,16.5,"open","Lena Okafor","2 of 4 open",[1,1,0,0]],
+[1,9.5,10.5,"full","Lena Okafor","Fully booked"],[1,12,13,"inst","Dr. Imara Voss","Instructor hours · Hollis 3F"],[1,14,15,"sel","Lab 4 help","3 of 4 open",[1,0,0,0]],[1,15.5,16.5,"open","Lena Okafor","Online · 4 open",[0,0,0,0]],
+[2,11,12.5,"drop","Drop-in: Theo","Lab reports · BS 214"],[2,14,15,"open","Theo Marsh","1 of 4 open",[1,1,1,0]],
+[3,10,11,"open","Lena Okafor","2 of 4 open",[1,1,0,0]],[3,11,11.25,"mine","You · Lena","Quiz 3 review"],[3,13.5,15,"drop","Review session","Midterm prep · Hollis 120"],
+[4,9.5,10.5,"open","Theo Marsh","4 open",[0,0,0,0]],[4,12,13,"full","Lena Okafor","Fully booked"],[4,14,16,"drop","Drop-in: both TAs","Open lab · BS 214"]];
+ev.forEach(([c,a,b,k,t,s,sl])=>{const e=document.createElement("div");e.className="ev "+k;e.style.top=y(a)+2+"px";e.style.height=Math.max(20,(b-a)*PX-4)+"px";
+const tm=v=>String(Math.floor(v)).padStart(2,"0")+":"+String(Math.round(v%1*60)).padStart(2,"0");
+e.innerHTML=(b-a)<.5?`<b style="font-size:11.5px">${tm(a)} ${t}</b>`:`<b>${t}</b><small>${tm(a)}–${tm(b)}</small><small>${s}</small>`+(sl&&(b-a)>=1?`<div class="slots">${sl.map(x=>`<i class="${x?"t":""}"></i>`).join("")}</div>`:"");
+cols[c].appendChild(e)});
+document.querySelector(".now").style.top=y(13.3)+"px";
+</script>
+</body></html>

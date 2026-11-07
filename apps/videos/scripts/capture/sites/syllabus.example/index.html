@@ -1,0 +1,147 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>BIO 210 Syllabus</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--alder:#1d4d33;--alder2:#e6efe9;--gold:#e3a72f;--gold2:#fbf1dc;--ink:#1c2420;--soft:#4b5750;--mute:#86918a;--line:#e1e5e2;--bg:#f6f7f5}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+.serif{font-family:Charter,"Iowan Old Style",Georgia,serif}
+header{background:var(--alder);color:#fff}
+header .in{height:54px;padding:0 22px;display:flex;align-items:center;gap:12px}
+.uni{display:flex;align-items:center;gap:10px}
+.uni b{font:600 17px/1 Charter,"Iowan Old Style",Georgia,serif;letter-spacing:.01em}
+.uni small{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#b9d0c1;margin-top:3px}
+header nav{display:flex;gap:4px;margin-left:30px;font-size:13.5px;font-weight:500;white-space:nowrap}
+header nav span{padding:7px 11px;border-radius:7px;color:#cfe0d5}
+header nav .on{background:rgba(255,255,255,.14);color:#fff}
+.hs{margin-left:auto;display:flex;align-items:center;gap:14px}
+.bell{position:relative}
+.bell i{position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--gold);border:2px solid var(--alder)}
+.me{width:32px;height:32px;border-radius:50%;background:var(--gold);color:var(--alder);display:grid;place-items:center;font-weight:700;font-size:12px}
+.band{position:relative;height:118px;overflow:hidden}
+.band img{width:100%;height:100%;object-fit:cover;object-position:center 40%;display:block}
+.band:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(17,48,31,.92) 0%,rgba(17,48,31,.72) 45%,rgba(17,48,31,.2) 100%)}
+.band .t{position:absolute;left:22px;bottom:18px;z-index:2;color:#fff}
+.band .code{font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--gold)}
+.band h2{font:600 26px/1.15 Charter,"Iowan Old Style",Georgia,serif;margin-top:4px}
+.band p{font-size:13px;color:#cfe0d5;margin-top:4px}
+.band .r{position:absolute;right:22px;bottom:18px;z-index:2;display:flex;gap:8px}
+.bb{height:34px;padding:0 13px;border-radius:8px;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid rgba(255,255,255,.22)}
+.bb.g{background:var(--gold);border-color:var(--gold);color:#1c2420}
+.app{display:grid;grid-template-columns:196px 1fr 300px;gap:0}
+.cnav{background:#fff;border-right:1px solid var(--line);padding:14px 10px;min-height:700px}
+.cnav span{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:8px;font-size:13.5px;color:var(--soft);font-weight:500}
+.cnav span svg{width:15px;height:15px;flex:none}
+.cnav .on{background:var(--alder2);color:var(--alder);font-weight:650}
+.cnav em{margin-left:auto;font-style:normal;font-size:11px;background:var(--gold);color:#1c2420;border-radius:9px;padding:1px 6px;font-weight:700}
+.cnav hr{border:0;border-top:1px solid var(--line);margin:10px 6px}
+.cnav .lab{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:4px 11px;font-weight:600}
+main{padding:18px 24px 40px;min-width:0}
+.hd{display:flex;align-items:flex-start;gap:16px}
+h1{font:600 28px/1.1 Charter,"Iowan Old Style",Georgia,serif;letter-spacing:-.01em}
+.who{display:flex;gap:16px;margin-top:9px;font-size:13px;color:var(--soft);flex-wrap:wrap}
+.who b{color:var(--ink);font-weight:600}
+.who span{display:flex;align-items:center;gap:6px}
+.who i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:9.5px;font-weight:700;color:#fff}
+.upd{margin-left:auto;font-size:12px;color:var(--mute);white-space:nowrap;text-align:right}
+.upd b{display:block;color:var(--alder);font-size:12.5px}
+.desc{margin:14px 0 16px;font:15px/1.55 Charter,"Iowan Old Style",Georgia,serif;color:#2c3630;max-width:720px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.ph h3{font-size:14.5px;font-weight:650}
+.ph .f{margin-left:auto;display:flex;gap:6px}
+.chip{height:27px;padding:0 10px;border-radius:7px;border:1px solid var(--line);font-size:12px;font-weight:600;display:flex;align-items:center;color:var(--soft);white-space:nowrap}
+.chip.on{background:var(--alder);border-color:var(--alder);color:#fff}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);font-weight:650;text-align:left;padding:8px 12px;background:#fafbfa;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #eef1ef;font-size:13px;vertical-align:top}
+td.hide{white-space:nowrap}
+td.w{font-weight:700;color:var(--alder);white-space:nowrap;width:40px}
+td.d{color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums;font-size:12.5px}
+td b{font-weight:600;display:block}
+td small{color:var(--mute);font-size:12px}
+tr.now td{background:var(--gold2)}
+tr.now td.w{box-shadow:inset 3px 0 0 var(--gold)}
+tr.past td{color:#9aa39d}
+tr.past td b{color:#7d8781}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap;margin:1px 4px 1px 0}
+.lab4{background:var(--alder2);color:var(--alder)}
+.qz{background:#e9edfb;color:#2c4bb8}
+.ex{background:#fbe4e1;color:#b23a2a}
+.dn{background:#eef1ef;color:#8a948e}
+aside{padding:18px 22px 40px 0}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.card h4{font-size:13.5px;font-weight:650;margin-bottom:10px;display:flex}
+.card h4 span{margin-left:auto;font-size:12px;color:var(--mute);font-weight:500}
+.stack{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;margin-bottom:12px}
+.gw{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;border-top:1px solid #f0f2f0}
+.gw:first-of-type{border:0}
+.gw i{width:10px;height:10px;border-radius:3px;flex:none}
+.gw small{color:var(--mute);font-size:12px}
+.gw b{margin-left:auto;font-variant-numeric:tabular-nums;font-size:14px}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;text-align:center}
+.scale div{background:var(--bg);border-radius:7px;padding:6px 0;font-size:11.5px;color:var(--mute)}
+.scale b{display:block;font-size:15px;color:var(--ink)}
+.kd{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.kd .dt{width:38px;text-align:center;border-radius:7px;background:var(--alder2);color:var(--alder);padding:3px 0;flex:none}
+.kd .dt small{display:block;font-size:9.5px;font-weight:700;letter-spacing:.08em}
+.kd .dt b{font-size:15px}
+.kd span{color:var(--mute);font-size:12px;display:block}
+@media (max-width:1100px){.app{grid-template-columns:170px 1fr 268px}header nav span:nth-child(n+4){display:none}td.hide,th.hide{display:none}}
+</style></head><body>
+<header><div class="in">
+<div class="uni"><svg width="30" height="34" viewBox="0 0 30 34"><path d="M15 1l13 5v10c0 8-6 14-13 17C8 30 2 24 2 16V6z" fill="#e3a72f"/><path d="M15 8c5 4 6 10 0 17-6-7-5-13 0-17z" fill="#1d4d33"/><path d="M15 12v14" stroke="#e3a72f" stroke-width="1.4"/></svg><div><b>Alder State University</b><small>Learning Commons</small></div></div>
+<nav><span>Dashboard</span><span class="on">Courses</span><span>Calendar</span><span>Inbox</span><span>Library</span></nav>
+<div class="hs"><span class="bell"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.5"><path d="M4 11V7a4 4 0 0 1 8 0v4l1.5 1.5h-11zM6.5 14h3"/></svg><i></i></span><span class="me">MK</span></div>
+</div></header>
+<div class="band"><img src="img/0.jpg" alt=""><div class="t"><div class="code">BIO 210 · SECTION 02 · FALL 2026</div><h2>Cell &amp; Molecular Biology</h2><p>Tue / Thu 10:30–11:50 · Hollis Hall 120 · Labs in Bio Sciences 214</p></div>
+<div class="r"><span class="bb"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6"><path d="M2 4h4l1.5 2H14v7H2z"/></svg>Course folder</span><span class="bb g"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1c2420" stroke-width="1.7"><path d="M8 2v8m-3.5-3.5L8 10l3.5-3.5M3 13h10"/></svg>Syllabus PDF</span></div></div>
+<div class="app">
+<div class="cnav">
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><path d="M2 7l6-5 6 5v7H2z"/></svg>Home</span>
+<span class="on"><svg viewBox="0 0 16 16" fill="none" stroke="#1d4d33" stroke-width="1.5"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>Syllabus</span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Modules</span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><path d="M6 2h4M7 2v4L3 13a1 1 0 0 0 1 1.5h8A1 1 0 0 0 13 13L9 6V2"/></svg>Lab manual</span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M5.5 8l2 2 3-4"/></svg>Quizzes<em>1</em></span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5 1.5v3M11 1.5v3"/></svg>Office hours</span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><path d="M3 13V8M7 13V4M11 13V9M14 13H2"/></svg>Grades</span>
+<span><svg viewBox="0 0 16 16" fill="none" stroke="#4b5750" stroke-width="1.5"><path d="M2 12V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2.5"/></svg>Discussions<em>4</em></span>
+<hr><div class="lab">Shared by your TA</div>
+<span><svg viewBox="0 0 16 16" fill="#e3a72f"><path d="M1.5 4a1 1 0 0 1 1-1h3.5l1.5 1.7h6a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>BIO 210 folder</span>
+</div>
+<main>
+<div class="hd"><div><h1>BIO 210 Syllabus</h1>
+<div class="who"><span><i style="background:#1d4d33">IV</i><b>Dr. Imara Voss</b> instructor</span><span><i style="background:#c27c12">TM</i><b>Theo Marsh</b> TA</span><span><i style="background:#3d6db5">LO</i><b>Lena Okafor</b> TA</span></div></div>
+<div class="upd"><b>Week 6 of 15</b>Updated Sep 30, 2026</div></div>
+<p class="desc">How cells build, read and regulate their molecules. We start with membranes and proteins, spend a month on enzymes and metabolism, and finish with gene expression. Weekly labs put each idea on the bench.</p>
+<div class="panel">
+<div class="ph"><h3>Weekly schedule</h3><div class="f"><span class="chip on">All weeks</span><span class="chip">Labs</span><span class="chip">Due dates</span></div></div>
+<table><thead><tr><th>Wk</th><th>Dates</th><th>Topic</th><th class="hide">Reading</th><th>Lab &amp; due</th></tr></thead><tbody>
+<tr class="past"><td class="w">3</td><td class="d">Sep 15–17</td><td><b>Membranes and transport</b><small>Diffusion, channels, pumps</small></td><td class="hide">Ch. 5</td><td><span class="pill dn">Lab 2 ✓</span><span class="pill dn">Quiz 1 ✓</span></td></tr>
+<tr class="past"><td class="w">4</td><td class="d">Sep 22–24</td><td><b>Protein structure</b><small>Folding, domains, denaturation</small></td><td class="hide">Ch. 3.2–3.5</td><td><span class="pill dn">Lab 3 ✓</span></td></tr>
+<tr class="past"><td class="w">5</td><td class="d">Sep 29–Oct 1</td><td><b>Energy and ATP</b><small>Free energy, coupling</small></td><td class="hide">Ch. 6.1–6.3</td><td><span class="pill dn">Quiz 2 ✓</span></td></tr>
+<tr class="now"><td class="w">6</td><td class="d">Oct 6–8</td><td><b>Enzymes and catalysis</b><small>Active sites, kinetics, temperature and pH</small></td><td class="hide">Ch. 6.4–6.5</td><td><span class="pill lab4">Lab 4: Enzymes</span><span class="pill qz">Practice Quiz 3</span></td></tr>
+<tr><td class="w">7</td><td class="d">Oct 13–15</td><td><b>Enzyme regulation</b><small>Inhibitors, allostery, feedback</small></td><td class="hide">Ch. 6.6</td><td><span class="pill qz">Quiz 3 · Oct 15</span></td></tr>
+<tr><td class="w">8</td><td class="d">Oct 20–22</td><td><b>Midterm week</b><small>Review session Mon 18:00</small></td><td class="hide">Ch. 3–6</td><td><span class="pill ex">Midterm · Oct 22</span></td></tr>
+<tr><td class="w">9</td><td class="d">Oct 27–29</td><td><b>Cellular respiration</b><small>Glycolysis, Krebs cycle</small></td><td class="hide">Ch. 7</td><td><span class="pill lab4">Lab 5: Yeast respiration</span></td></tr>
+<tr><td class="w">10</td><td class="d">Nov 3–5</td><td><b>Photosynthesis</b><small>Light reactions, Calvin cycle</small></td><td class="hide">Ch. 8</td><td><span class="pill lab4">Lab 6: Pigments</span></td></tr>
+</tbody></table>
+</div>
+</main>
+<aside>
+<div class="card"><h4>Grading weights<span>100%</span></h4>
+<div class="stack"><i style="flex:30;background:#1d4d33"></i><i style="flex:15;background:#3d6db5"></i><i style="flex:20;background:#e3a72f"></i><i style="flex:25;background:#c0503a"></i><i style="flex:10;background:#9bb5a4"></i></div>
+<div class="gw"><i style="background:#1d4d33"></i><div>Lab reports<br><small>10 labs, lowest dropped</small></div><b>30%</b></div>
+<div class="gw"><i style="background:#3d6db5"></i><div>Quizzes<br><small>6 quizzes online</small></div><b>15%</b></div>
+<div class="gw"><i style="background:#e3a72f"></i><div>Midterm<br><small>Oct 22, in class</small></div><b>20%</b></div>
+<div class="gw"><i style="background:#c0503a"></i><div>Final exam<br><small>Cumulative</small></div><b>25%</b></div>
+<div class="gw"><i style="background:#9bb5a4"></i><div>Participation<br><small>Clickers and discussion</small></div><b>10%</b></div>
+</div>
+<div class="card"><h4>Grade scale</h4><div class="scale"><div><b>A</b>90+</div><div><b>B</b>80+</div><div><b>C</b>70+</div><div><b>D</b>60+</div><div><b>F</b>&lt;60</div></div></div>
+<div class="card"><h4>Coming up</h4>
+<div class="kd"><div class="dt"><small>OCT</small><b>6</b></div><div>Lab 4: Enzymes<span>Pre-lab due 9:00</span></div></div>
+<div class="kd"><div class="dt"><small>OCT</small><b>15</b></div><div>Quiz 3<span>Enzymes and regulation</span></div></div>
+</div>
+</aside>
+</div>
+</body></html>

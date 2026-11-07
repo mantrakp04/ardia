@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaTabParking.h"
 
 using namespace ardia_web_view;
 
@@ -80,6 +81,18 @@ static ArdiaWebView *ViewForKey(NSString *key) {
     if (!tab || tab.closed || !page || page.superview || [ArdiaTabRegistry viewForTab:tab]) return;
     [view frontPage:page profile:tab.profile];
   });
+}
+
++ (BOOL)discardOffered:(NSString *)adoptId {
+  if (![adoptId hasPrefix:@"ardiacore:"]) return NO;
+  ArdiaCoreTab *tab = [ArdiaTabRegistry offeredTab:adoptId];
+  if (!tab || tab.closed || [ArdiaTabRegistry viewForTab:tab] || [ArdiaTabParking linkMarkForTab:tab]) return NO;
+  if (NSView *page = tab.view)
+    for (ArdiaWebView *view in LiveViews().allObjects)
+      if (view->_reveal.frontedPage == page) [view dropFront];
+  if ([ArdiaTabRegistry takeOffered:adoptId] != tab) return NO;
+  [tab close];
+  return YES;
 }
 
 - (BOOL)onlyShownInWindow {

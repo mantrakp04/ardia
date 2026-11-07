@@ -18,9 +18,9 @@ bool IsRendererDebugURL(NSString *url) {
   return [hosts containsObject:c.host.lowercaseString ?: @""];
 }
 
-NSString *CurrentEntryURL(ArdiaCoreTab *tab) {
+NSString *CommittedEntryURL(ArdiaCoreTab *tab) {
   for (NSDictionary *entry in tab.navigationEntries)
-    if ([entry[@"current"] boolValue]) return entry[@"url"];
+    if ([entry[@"committed"] boolValue]) return entry[@"url"];
   return nil;
 }
 
@@ -70,8 +70,10 @@ NSString *PNGDataURL(NSImage *image) {
     withInitial[@"initialDocumentAccessed"] = @(_tab.initialDocumentAccessed);
     withInitial[@"committedInitial"] = @(_tab.committedInitial);
     if (ArdiaWebView.reportsCommits) {
+      [self noteDocumentCommits];
       withInitial[@"committedUrl"] = [self committedURL];
       withInitial[@"committedAt"] = @(_commits.at);
+      if (_commits.httpStatus > 0) withInitial[@"httpStatus"] = @(_commits.httpStatus);
     }
     navigation = withInitial;
   }
@@ -92,13 +94,24 @@ NSString *PNGDataURL(NSImage *image) {
   _commits.tab = _tab;
   _commits.url = nil;
   _commits.at = 0;
+  _commits.httpStatus = 0;
+  _commits.documents = _tab.committedDocumentCount;
+}
+
+- (void)noteDocumentCommits {
+  [self followCommitsOfTab];
+  const int documents = _tab.committedDocumentCount;
+  if (documents == _commits.documents) return;
+  _commits.documents = documents;
+  _commits.at = NSDate.date.timeIntervalSince1970 * 1000;
+  _commits.httpStatus = _tab.committedHTTPStatus;
 }
 
 - (NSString *)committedURL {
   [self followCommitsOfTab];
   NSString *visible = _tab.url ?: @"";
   if (_commits.url && [visible isEqualToString:_commits.url]) return _commits.url;
-  if ([CurrentEntryURL(_tab) isEqualToString:visible]) _commits.url = visible;
+  if ([CommittedEntryURL(_tab) isEqualToString:visible]) _commits.url = visible;
   return _commits.url ?: @"";
 }
 
@@ -146,8 +159,7 @@ NSString *PNGDataURL(NSImage *image) {
 }
 
 - (void)tabDidCommitDocument:(ArdiaCoreTab *)tab {
-  [self followCommitsOfTab];
-  _commits.at = NSDate.date.timeIntervalSince1970 * 1000;
+  [self noteDocumentCommits];
   ArdiaFieldMarkNow(_transferKey, @"commit");
   [ArdiaEarlyWindow pageCommitted:tab shownURL:_shownURL];
   _reports.theme = nil;

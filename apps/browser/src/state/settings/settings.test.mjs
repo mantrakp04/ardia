@@ -11,6 +11,10 @@ test("every default passes its own check", () => {
   for (const key of SETTING_KEYS) assert.ok(SETTING_SPECS[key].valid(DEFAULT_SETTINGS[key]), key);
 });
 
+test("dragging a tab onto another in the top tab strip groups them only once turned on", () => {
+  assert.equal(DEFAULT_SETTINGS.dragToGroupInTopStrip, false);
+});
+
 test("a saved value of the wrong kind reads as the default, and the rest is kept", () => {
   const settings = parseSettings({
     tabLayout: "diagonal",

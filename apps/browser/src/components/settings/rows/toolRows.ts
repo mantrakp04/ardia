@@ -165,6 +165,12 @@ export const toolRows = {
           keywords: ["sleep", "sleeping tabs", "moderate", "balanced", "maximum", "memory", "discard", "hibernate", "inactive tabs"],
         },
         batterySaver: { advanced: true, title: "Battery Saver", keywords: ["energy", "energy saver", "low power mode", "performance", "power"] },
+        loadProfilesWhenOpened: {
+          advanced: true,
+          title: "Load profiles when opened",
+          description: "A profile, its extensions and its data load the first time you open it, not all at launch, so Ardia uses less memory. Takes effect the next time you open Ardia.",
+          keywords: ["profiles", "memory", "ram", "startup", "launch", "extensions", "lazy", "defer", "performance"],
+        },
       },
     },
     {
@@ -190,6 +196,17 @@ export const toolRows = {
       rows: {
         cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "terminal", "devtools", "automation", "remote debugging"] },
         cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "terminal", "install"] },
+      },
+    },
+    {
+      section: "Automation",
+      rows: {
+        automationRules: {
+          advanced: true,
+          title: "Automation rules",
+          description: "Rules from hooks.json and config.json that rewrite or route links, pick folders, run programs or read what you type stay off until you approve them here. Editing a rule needs a new approval.",
+          keywords: ["hooks", "hooks.json", "approve", "launchActions", "address bar providers", "rules"],
+        },
       },
     },
     {

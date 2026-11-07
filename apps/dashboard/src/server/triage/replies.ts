@@ -3,6 +3,13 @@ import { count, sqlString, text, time, triageDatabase, triageExec, triageRows } 
 export const REPLY_STATUSES = ["drafted", "sent", "skipped"] as const;
 export type ReplyStatus = (typeof REPLY_STATUSES)[number];
 export const RECHECK_ACTION = "recheck";
+// Snooze hides a drafted reply from the default queue for SNOOZE_HOURS, then it comes back on its own.
+// Both are rows in ardia_reply_actions (append-only, never truncated by ch_sync.py), so a sync can't clobber them;
+// ch_sync.py also folds them into SQLite replies.snoozed_until, which it mirrors back as ardia_replies.snoozed_until.
+export const SNOOZE_ACTION = "snooze";
+export const UNSNOOZE_ACTION = "unsnooze";
+export const SNOOZE_HOURS = 24;
+const STATUS_ACTIONS = REPLY_STATUSES.map((s) => `'${s}'`).join(", ");
 
 const ACTIONS_TABLE = "ardia_reply_actions";
 
@@ -14,7 +21,10 @@ export function ensureReplyActions(signal?: AbortSignal): Promise<void> {
        reply_id UInt32, status LowCardinality(String), at DateTime64(3, 'UTC'), actor String
      ) ENGINE = MergeTree ORDER BY (reply_id, at)`,
     signal,
-  ).catch((error) => {
+  )
+    // ch_sync.py adds this too; adding it here keeps the dashboard working if it deploys before the next sync
+    .then(() => triageExec(`ALTER TABLE ${triageDatabase()}.ardia_replies ADD COLUMN IF NOT EXISTS snoozed_until Nullable(DateTime64(3, 'UTC'))`, signal))
+    .catch((error) => {
     actionsReady = null;
     throw error;
   });
@@ -24,13 +34,21 @@ export function ensureReplyActions(signal?: AbortSignal): Promise<void> {
 export function effectiveRepliesSql() {
   const db = triageDatabase();
   const fromSource = "a.last_status IS NULL OR (rp.status != 'drafted' AND rp.status_at > a.last_at)";
+  // the newest snooze/unsnooze press wins; without one, use what the pipeline mirrored (ardia_replies.snoozed_until)
+  const snoozedUntil = `if(sz.last_kind IS NULL, rp.snoozed_until, if(sz.last_kind = '${SNOOZE_ACTION}', sz.last_at + INTERVAL ${SNOOZE_HOURS} HOUR, NULL))`;
+  const status = `if(${fromSource}, rp.status, a.last_status)`;
   return `SELECT rp.*,
-       if(${fromSource}, rp.status, a.last_status) AS effective_status,
+       ${status} AS effective_status,
        if(${fromSource}, rp.status_at, a.last_at) AS effective_at,
-       a.last_actor AS actor
+       a.last_actor AS actor,
+       ${snoozedUntil} AS effective_snoozed_until,
+       sz.last_actor AS snoozed_by,
+       (${status}) = 'drafted' AND ifNull((${snoozedUntil}) > now64(3, 'UTC'), 0) AS is_snoozed
      FROM ${db}.ardia_replies AS rp FINAL
      LEFT JOIN (SELECT reply_id, argMax(status, at) AS last_status, max(at) AS last_at, argMax(actor, at) AS last_actor
-                FROM ${db}.${ACTIONS_TABLE} WHERE status != '${RECHECK_ACTION}' GROUP BY reply_id) AS a ON a.reply_id = rp.id`;
+                FROM ${db}.${ACTIONS_TABLE} WHERE status IN (${STATUS_ACTIONS}) GROUP BY reply_id) AS a ON a.reply_id = rp.id
+     LEFT JOIN (SELECT reply_id, argMax(status, at) AS last_kind, max(at) AS last_at, argMax(actor, at) AS last_actor
+                FROM ${db}.${ACTIONS_TABLE} WHERE status IN ('${SNOOZE_ACTION}', '${UNSNOOZE_ACTION}') GROUP BY reply_id) AS sz ON sz.reply_id = rp.id`;
 }
 
 export async function loadReplies(signal?: AbortSignal) {
@@ -43,6 +61,7 @@ export async function loadReplies(signal?: AbortSignal) {
             e.request_id AS request_id, r.title AS request_title, r.status AS request_status,
             e.person_id AS person_id, p.display_name AS person_name, p.x_handle AS x_handle,
             e.needs_recheck AS needs_recheck, e.recheck_requested_at AS recheck_requested_at, e.last_checked_at AS last_checked_at,
+            e.effective_snoozed_until AS snoozed_until, e.snoozed_by AS snoozed_by,
             rc.pressed_at AS recheck_pressed_at, rc.pressed_by AS recheck_pressed_by
      FROM (${effectiveRepliesSql()}) AS e
      LEFT JOIN (SELECT reply_id, max(at) AS pressed_at, argMax(actor, at) AS pressed_by
@@ -82,6 +101,8 @@ export async function loadReplies(signal?: AbortSignal) {
       recheckQueued,
       recheckRequestedAt: recheckQueued ? (recheckPressedAt ?? time(r.recheck_requested_at)) : null,
       recheckRequestedBy: recheckQueued ? text(r.recheck_pressed_by) : null,
+      snoozedUntil: time(r.snoozed_until),
+      snoozedBy: text(r.snoozed_by),
     };
   });
 }
@@ -120,4 +141,21 @@ export async function requestRecheck(ids: number[], actor: string, signal?: Abor
   const values = unique.map((id) => `(${id}, '${RECHECK_ACTION}', ${at}, ${sqlString(actor)})`).join(", ");
   await triageExec(`INSERT INTO ${db}.${ACTIONS_TABLE} (reply_id, status, at, actor) VALUES ${values}`, signal);
   return { ids: unique, at: time(stamp[0]?.at) };
+}
+
+export async function setReplySnooze(id: number, snooze: boolean, actor: string, signal?: AbortSignal) {
+  await ensureReplyActions(signal);
+  const db = triageDatabase();
+  const exists = await triageRows(`SELECT count() AS n FROM ${db}.ardia_replies FINAL WHERE id = ${id}`, signal);
+  if (!count(exists[0]?.n)) throw new Error(`Reply ${id} doesn't exist`);
+  const stamp = await triageRows(
+    `SELECT toString(now64(3, 'UTC')) AS at, toString(now64(3, 'UTC') + INTERVAL ${SNOOZE_HOURS} HOUR) AS until`,
+    signal,
+  );
+  const kind = snooze ? SNOOZE_ACTION : UNSNOOZE_ACTION;
+  await triageExec(
+    `INSERT INTO ${db}.${ACTIONS_TABLE} (reply_id, status, at, actor) VALUES (${id}, '${kind}', ${sqlString(String(stamp[0]?.at))}, ${sqlString(actor)})`,
+    signal,
+  );
+  return { id, at: time(stamp[0]?.at), snoozedUntil: snooze ? time(stamp[0]?.until) : null, snoozedBy: snooze ? actor : null };
 }

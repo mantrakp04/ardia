@@ -1,0 +1,91 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lumo Changelog</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#1b1410;--soft:#5e534c;--mute:#a1958c;--line:#ece6e1;--coral:#ff6b3d;--bg:#fff}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14.5px}
+header{border-bottom:1px solid var(--line)}
+header .in{max-width:1140px;margin:0 auto;padding:0 32px;height:60px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.lg{display:flex;align-items:center;gap:8px;font:700 20px/1 "Avenir Next",sans-serif;letter-spacing:-.02em}
+.mark{width:26px;height:26px;border-radius:50%;background:var(--coral);position:relative}
+.mark:after{content:"";position:absolute;inset:6px;border-radius:50%;border:3px solid #fff;border-left-color:transparent;transform:rotate(-30deg)}
+.lg span{font:500 15px -apple-system,sans-serif;color:var(--mute);margin-left:4px}
+header nav{display:flex;gap:22px;margin-left:30px;color:var(--soft);font-size:14px}
+header nav .on{color:var(--ink);font-weight:600}
+.sub{margin-left:auto;display:flex;gap:8px;align-items:center}
+.sub .in2{height:36px;width:210px;border:1px solid var(--line);border-radius:18px;padding:0 14px;display:flex;align-items:center;color:var(--mute);font-size:13px}
+.sub .b{height:36px;padding:0 16px;border-radius:18px;background:var(--ink);color:#fff;font-weight:600;font-size:13px;display:flex;align-items:center}
+.wrap{max-width:1140px;margin:0 auto;padding:28px 32px 40px;display:grid;grid-template-columns:190px 1fr;gap:44px}
+aside{position:sticky;top:20px;align-self:start}
+aside h6{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-bottom:10px;font-weight:600}
+aside a{display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;color:var(--soft);text-decoration:none;font-size:13.5px}
+aside a span{color:var(--mute);font-size:12px}
+aside a.on{background:#fff1ea;color:#c2410c;font-weight:600}
+aside a.on span{color:#e07a52}
+aside .rss{margin-top:16px;font-size:12.5px;color:var(--mute);padding:0 10px}
+.ver{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;color:var(--mute)}
+.ver b{font:600 12px ui-monospace,Menlo,monospace;color:#fff;background:var(--ink);border-radius:6px;padding:3px 8px}
+.ver .lt{font-weight:700;font-size:11px;letter-spacing:.08em;color:#c2410c;background:#fff1ea;border-radius:6px;padding:3px 8px}
+h1{font:600 40px/1.08 "New York",ui-serif,Georgia,serif;letter-spacing:-.02em;margin-bottom:10px}
+.lede{font:18px/1.5 "New York",ui-serif,Georgia,serif;color:var(--soft);max-width:680px;margin-bottom:20px}
+.hero{height:280px;border-radius:20px;background:radial-gradient(120% 140% at 0% 0%,#ffd1bb 0%,#ff9a72 38%,#ff6b3d 70%,#e5532b 100%);position:relative;overflow:hidden;margin-bottom:24px}
+.hero .ttl{position:absolute;left:34px;top:34px;color:#fff}
+.hero .ttl b{display:block;font:700 72px/0.9 "Avenir Next",sans-serif;letter-spacing:-.05em}
+.hero .ttl span{display:block;font:500 16px/1.4 "Avenir Next",sans-serif;margin-top:12px;max-width:260px;color:#ffeadf}
+.ph{position:absolute;width:176px;height:340px;border-radius:30px;background:#1b1410;padding:7px;box-shadow:0 30px 50px -20px rgba(80,20,0,.6)}
+.ph .s{height:100%;border-radius:24px;background:#fff8f2;overflow:hidden;font-family:ui-rounded,-apple-system,sans-serif;padding:26px 12px 0}
+.ph h4{font-size:13px;margin-bottom:8px}
+.stk{background:#fff;border-radius:12px;padding:8px;margin-bottom:7px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.stk small{display:block;font-size:8.5px;color:var(--mute);font-weight:700;letter-spacing:.06em;margin-bottom:5px}
+.stk div{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;padding:3px 0}
+.stk div i{width:13px;height:13px;border-radius:50%;border:1.5px solid #e3d3c6;flex:none}
+.stk div i.y{background:var(--coral);border-color:var(--coral)}
+.stk .ln{width:1.5px;height:7px;background:#f2c3ae;margin-left:6px;padding:0}
+.wk{display:flex;gap:4px;align-items:flex-end;height:60px;padding:6px 4px 0}
+.wk i{flex:1;border-radius:4px 4px 2px 2px;background:#ffd2bf}
+.wk i.c{background:var(--coral)}
+.stk .wk{display:flex;height:60px;align-items:flex-end;gap:4px;padding:6px 2px 0}.stk .wk i{width:auto;flex:1;border:0;border-radius:3px 3px 1px 1px}
+h2{font:600 22px/1.2 "New York",ui-serif,Georgia,serif;margin:22px 0 10px;display:flex;align-items:center;gap:10px}
+.pill{font:700 11px -apple-system,sans-serif;letter-spacing:.06em;border-radius:6px;padding:4px 8px}
+.p-new{background:#dcfce7;color:#15803d}.p-imp{background:#e0f2fe;color:#0369a1}.p-fix{background:#fef3c7;color:#b45309}
+ul{list-style:none}
+li{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #f5f0ec;line-height:1.5;color:#3a302a}
+li:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--coral);margin-top:9px;flex:none}
+li b{color:var(--ink)}
+li code{font:12.5px ui-monospace,Menlo,monospace;background:#f6f2ef;border-radius:4px;padding:1px 5px}
+.meta{display:flex;gap:16px;margin-top:16px;font-size:13px;color:var(--mute)}
+@media (max-width:1100px){.wrap{grid-template-columns:1fr}aside{display:none}header nav span:nth-child(n+3){display:none}}
+</style></head><body>
+<header><div class="in"><div class="lg"><span class="mark"></span>lumo<span>changelog</span></div><nav><span>Product</span><span>Pricing</span><span class="on">Changelog</span><span>Help</span></nav><div class="sub"><div class="in2">you@example.com</div><div class="b">Get updates</div></div></div></header>
+<div class="wrap">
+<aside><h6>Releases</h6>
+<a class="on">2.0 · Habit stacks<span>Nov 18</span></a><a>1.9.3<span>Oct 9</span></a><a>1.9.2<span>Sep 26</span></a><a>1.9 · Weekly review<span>Sep 12</span></a><a>1.8.4<span>Aug 21</span></a><a>1.8 · Reminders<span>Aug 2</span></a><a>1.7<span>Jul 8</span></a><a>1.6<span>Jun 14</span></a>
+<div class="rss">RSS · JSON feed</div></aside>
+<main>
+<div class="ver"><b>v2.0</b><span class="lt">LATEST</span>November 18, 2026 · iPhone and Android</div>
+<h1>Lumo 2.0: habits that come in a chain</h1>
+<p class="lede">The biggest update since launch. Stack habits after a cue you already have, look back on your week every Sunday, and stop losing streaks to time zones.</p>
+<div class="hero"><div class="ttl"><b>2.0</b><span>Habit stacks, weekly review, reminders that travel with you.</span></div>
+<div class="ph" style="right:240px;top:40px;transform:rotate(-6deg)"><div class="s"><h4>After coffee</h4><div class="stk"><small>STACK · 3 HABITS</small><div><i class="y"></i>Make coffee</div><div class="ln"></div><div><i class="y"></i>Read 10 pages</div><div class="ln"></div><div><i></i>Plan the day</div></div><div class="stk"><small>EVENING</small><div><i></i>Stretch 5 min</div><div class="ln"></div><div><i></i>Phone on charger</div></div></div></div>
+<div class="ph" style="right:46px;top:24px;transform:rotate(5deg)"><div class="s"><h4>Your week</h4><div class="stk"><small>SHOWED UP</small><div style="font-size:22px;font-weight:800;padding:0">6 of 7 days</div><div class="wk"><i class="c" style="height:80%"></i><i class="c" style="height:95%"></i><i class="c" style="height:60%"></i><i style="height:20%"></i><i class="c" style="height:88%"></i><i class="c" style="height:100%"></i><i class="c" style="height:70%"></i></div></div><div class="stk"><small>BEST HABIT</small><div>Morning walk · 7/7</div></div></div></div>
+</div>
+<h2><span class="pill p-new">NEW</span>What's new</h2>
+<ul>
+<li><span><b>Habit stacks.</b> Chain habits after a cue (“after coffee”, “when I get home”) and check them off in order. Stacks have their own streak.</span></li>
+<li><span><b>Weekly review.</b> Every Sunday evening, a one-screen look back: days you showed up, your best habit, and one to make smaller.</span></li>
+<li><span><b>Home screen widget</b> for today's habits, with check-off right from the widget on iPhone.</span></li>
+</ul>
+<h2><span class="pill p-imp">IMPROVED</span>Better</h2>
+<ul>
+<li><span><b>Reminders follow your time zone.</b> Fly from Port Alder to anywhere and your 7:30 nudge arrives at 7:30 local.</span></li>
+<li><span>Onboarding is down to four screens and starts with picking three habits.</span></li>
+</ul>
+<h2><span class="pill p-fix">FIXED</span>Fixed</h2>
+<ul>
+<li><span>Streaks no longer reset at midnight on Daylight Saving day. Sorry, everyone in March.</span></li>
+<li><span>Exported CSV now includes notes. Field <code>note</code> was empty since 1.8.</span></li>
+</ul>
+<div class="meta"><span>Build 2.0 (418)</span><span>Requires iOS 17 or Android 12</span><span>Thanks to 1,204 beta testers</span></div>
+</main></div>
+</body></html>

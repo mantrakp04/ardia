@@ -21,14 +21,12 @@ export const dockedCardInset = (sidebarWidth: number) => sidebarWidth + layout.s
 
 export const cardInsetAt = (dock: number, sidebarWidth: number, inset: number) => inset + (dockedCardInset(sidebarWidth) - inset) * dock;
 
-export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: 7, lightsRight: 70.75 + 7 } as const;
-
-export const headerToggleX = (lightsInHeader: boolean) => (lightsInHeader ? HEADER_TOOLS.toggleX : HEADER_TOOLS.toggleX - HEADER_TOOLS.lightsRight + HEADER_TOOLS.edge);
+export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: layout.sidebarInset + 1 } as const;
 
 export type HeaderButton = "back" | "forward" | "reload";
 
-export function navButtonsFitting(width: number, button = 30, toggle = true, toggleX: number = HEADER_TOOLS.toggleX): { buttons: HeaderButton[]; step: number } {
-  const { pitch, edge } = HEADER_TOOLS;
+export function navButtonsFitting(width: number, button = 30, toggle = true): { buttons: HeaderButton[]; step: number } {
+  const { toggleX, pitch, edge } = HEADER_TOOLS;
   const span = width - edge - button / 2 - (toggle ? toggleX : toggleX - pitch);
   const count = Math.max(0, Math.min(3, Math.floor(span / button)));
   const buttons: HeaderButton[] = count === 3 ? ["back", "forward", "reload"] : count === 2 ? ["back", "forward"] : count === 1 ? ["back"] : [];
@@ -56,7 +54,7 @@ export const peekHoldWidth = (sidebarWidth: number) => PEEK_ORIGIN[0] + sidebarW
 
 export const inPeekHold = (x: number, y: number, holdWidth: number, holdHeight: number) => x >= 0 && x < holdWidth && y >= 0 && y < holdHeight;
 
-export const fromSidebarEdge = (x: number, right: boolean, windowWidth: number) => (right ? windowWidth - x : x);
+export const fromSidebarEdgeInStrip = (stripX: number, right: boolean) => (right ? PEEK_EDGE_STRIP - stripX : stripX);
 
 export const peekSpan = (sidebarWidth: number, right: boolean, windowWidth: number): readonly [number, number] =>
   right ? [windowWidth - PEEK_ORIGIN[0] - sidebarWidth, Infinity] : [-Infinity, PEEK_ORIGIN[0] + sidebarWidth];

@@ -15,6 +15,7 @@ export * from "./menus";
 export * from "./notifications";
 export * from "./scripting";
 export * from "./system";
+export * from "./systemSignals";
 export * from "./translation";
 export * from "./updater";
 export * from "./userScripts";

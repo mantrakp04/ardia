@@ -66,7 +66,7 @@ const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
 export class NoCommandWindowError extends Error {}
 
-export function runCommand({ command, arg, windowId: requested }: CommandEvent, { strictWindow = false } = {}) {
+export function runCommand({ command, arg, windowId: requested }: CommandEvent, { strictWindow = false, tabId: targetTab = null }: { strictWindow?: boolean; tabId?: string | null } = {}) {
   if (isAppCommand(command)) return APP_COMMAND_HANDLERS[command](requested);
   const s = useBrowser.getState();
 
@@ -75,8 +75,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     if (command === "findInPage" && requested === SETTINGS_WINDOW_ID) return focusSettingsSearch();
     requested = null;
   }
-  if (isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
-  if (runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
+  const targeted = targetTab && s.tabs[targetTab] && (!requested || s.tabs[targetTab]!.windowId === requested) ? targetTab : null;
+  if (targetTab && !targeted) throw new NoCommandWindowError(`Tab ${targetTab} isn't open in that window.`);
+  if (!targeted && isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
+  if (!targeted && runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
   const settings = settingChange(command, arg, s.settings);
   if (settings) return s.updateSettings(settings);
 
@@ -115,7 +117,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
   }
 
   const invokedFrom = requested;
-  if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
+  if (!targeted && isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
     if (!requested && strictWindow) throw new NoCommandWindowError(`${command} needs a main window and none is open.`);
     if (requested) focus(requested);
@@ -137,12 +139,12 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     }
     return;
   }
-  const tabId = (LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId);
+  const tabId = targeted ?? ((LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId));
   const tab = tabId ? s.tabs[tabId] : undefined;
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;
   const ui = s.windowUi[windowId];
-  if (runSidebarCommand(command, arg, windowId)) return;
+  if (!targeted && runSidebarCommand(command, arg, windowId)) return;
 
   switch (command) {
     case "newTab":
@@ -159,6 +161,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "") : undefined;
       return ui?.panel.open ? s.closePanel(windowId) : undefined;
     case "closeTab":
+      if (targeted) return void closeTab(targeted);
       if (ui?.panel.newTab) {
         closeNewTabBar(windowId);
         if (NEW_TAB_BAR_POLICY.closeTabKeyOnlyDismissesBar || !tabId) return;

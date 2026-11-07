@@ -41,10 +41,10 @@ export const SWITCHES = {
     removeBy: "2026-12-15",
     live: false,
   },
-  focusedWindowFirst: {
-    about: "A launch with several windows builds the focused one first and opens the others behind it after (state/windows/windowOpenOrder.ts).",
-    owner: "launch",
-    removeBy: "2026-12-15",
+  lazyProfiles: {
+    about: "A launch loads only the profiles its windows show; the others, and their extensions, load when first opened (state/profiles/profileLoading.ts).",
+    owner: "profiles",
+    removeBy: "2027-01-15",
     live: false,
   },
   sidebarSlide: {
@@ -59,6 +59,12 @@ export const SWITCHES = {
     removeBy: "2026-12-15",
     live: false,
   },
+  serverWindowDrag: {
+    about: "The window server moves the window from our drag areas in the title-bar band, so those drags tile, snap and cross displays as macOS's own, and our pointer-following loop holds AppKit's re-fits of the frames it places; off, every drag is the loop with AppKit's constrain, as before (packages/shell ServerWindowDrag.swift, WindowMove.swift).",
+    owner: "window",
+    removeBy: "2026-12-15",
+    live: false,
+  },
 } as const satisfies Record<string, SwitchDef>;
 
 export const EXPERIMENTS = {
@@ -67,13 +73,8 @@ export const EXPERIMENTS = {
     owner: "tab switch",
     removeBy: "2026-12-15",
   },
-  serverWindowDrag: {
-    about: "The window server moves the window from our drag areas at once, instead of waiting for mouseDown on the main thread (packages/shell ServerWindowDrag.swift).",
-    owner: "window",
-    removeBy: "2026-12-15",
-  },
   serverWindowDragAllOpen: {
-    about: "As serverWindowDrag, with every view in the titlebar band left open to window moves (a probe for the geometry work).",
+    about: "With serverWindowDrag, every view in the titlebar band is also left open to window moves (a probe for the geometry work).",
     owner: "window",
     removeBy: "2026-12-15",
   },

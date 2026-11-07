@@ -1,0 +1,117 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Beta Signups</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0f172a;--soft:#475569;--mute:#94a3b8;--line:#e2e8f0;--sky:#0284c7;--sky2:#e0f2fe;--bg:#f8fafc;--up:#059669}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:13px;display:grid;grid-template-columns:64px 1fr;min-height:100vh}
+.rail{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:8px}
+.rail .lg{width:36px;height:36px;border-radius:10px;background:var(--sky);display:grid;place-items:center;margin-bottom:10px}
+.rail .it{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--mute)}
+.rail .it.on{background:var(--sky2);color:var(--sky)}
+.rail svg{width:19px;height:19px}
+.main{min-width:0;padding:0 24px 30px}
+.top{height:62px;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.top h1{font-size:20px;letter-spacing:-.02em}
+.top .proj{display:flex;align-items:center;gap:7px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--soft);font-weight:500}
+.top .proj i{width:16px;height:16px;border-radius:50%;background:#ff6b3d}
+.live{display:flex;align-items:center;gap:6px;color:var(--up);font-weight:600;font-size:12px}
+.live:before{content:"";width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 4px #d1fae5}
+.top .r{margin-left:auto;display:flex;gap:8px}
+.seg{display:flex;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg span{padding:7px 11px;color:var(--soft);font-weight:500}.seg span+span{border-left:1px solid var(--line)}
+.seg .on{background:var(--ink);color:#fff}
+.btn{height:32px;padding:0 12px;border-radius:8px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;gap:6px;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.k{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden}
+.k span{color:var(--soft);font-weight:500;font-size:12.5px}
+.k b{display:block;font-size:30px;letter-spacing:-.03em;margin:6px 0 4px;font-variant-numeric:tabular-nums}
+.k small{font-weight:600;font-size:12px;color:var(--up)}
+.k small em{font-style:normal;color:var(--mute);font-weight:500}
+.k svg{position:absolute;right:12px;bottom:14px;width:84px;height:30px}
+.k.hl{background:linear-gradient(135deg,#0369a1,#0284c7);color:#fff;border-color:#0284c7}
+.k.hl span,.k.hl small em{color:#bae6fd}.k.hl small{color:#fff}
+.row{display:grid;grid-template-columns:1fr 330px;gap:14px;margin-top:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card h2{font-size:14px;display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.card h2 .lgd{margin-left:auto;display:flex;gap:12px;font-size:12px;font-weight:500;color:var(--soft)}
+.card h2 .lgd i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}
+.card .sub{color:var(--mute);font-size:12px;margin-bottom:6px}
+#chart{display:block;width:100%;height:auto}
+.src .r2{display:grid;grid-template-columns:110px 1fr 52px;align-items:center;gap:10px;padding:7px 0;font-size:12.5px}
+.src .bar{height:8px;border-radius:4px;background:#f1f5f9;overflow:hidden}
+.src .bar i{display:block;height:100%;border-radius:4px;background:var(--sky)}
+.src .r2 b{text-align:right;font-variant-numeric:tabular-nums}
+.src .r2 span{color:var(--soft)}
+.split{display:flex;align-items:center;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.split .dn{width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--sky) 0 61%,#fbbf24 61% 100%);display:grid;place-items:center}
+.split .dn div{width:42px;height:42px;border-radius:50%;background:#fff}
+.split p{font-size:12.5px;color:var(--soft);line-height:1.7}
+.split p b{color:var(--ink);font-variant-numeric:tabular-nums}
+.split p i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.feed{margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.fi{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #f1f5f9;font-size:12.5px}
+.fi:first-of-type{border:0}
+.fi i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:10px;color:#fff;flex:none}
+.fi span{color:var(--mute);margin-left:auto;white-space:nowrap}.fi span.tag{margin-left:0;color:var(--soft)}
+.fi code{font:12px ui-monospace,Menlo,monospace;color:var(--soft)}
+.tag{font-size:10.5px;font-weight:600;border-radius:4px;padding:1px 6px;background:#f1f5f9;color:var(--soft)}
+.goal .pb{height:10px;border-radius:5px;background:#f1f5f9;overflow:hidden;margin:12px 0 8px}
+.goal .pb i{display:block;height:100%;width:83%;background:linear-gradient(90deg,#38bdf8,#0284c7);border-radius:5px}
+.goal p{font-size:12.5px;color:var(--soft);display:flex;justify-content:space-between}
+.goal b{font-size:24px;letter-spacing:-.02em}
+@media (max-width:1100px){.row{grid-template-columns:1fr 290px}.kpis .k svg{display:none}.feed{grid-template-columns:1fr 1fr}.feed .card:nth-child(3){display:none}}
+</style></head><body>
+<nav class="rail"><div class="lg"><svg width="20" height="20" viewBox="0 0 20 20"><rect x="3" y="11" width="3.4" height="6" rx="1.2" fill="#fff"/><rect x="8.3" y="6" width="3.4" height="11" rx="1.2" fill="#fff"/><rect x="13.6" y="3" width="3.4" height="14" rx="1.2" fill="#bae6fd"/></svg></div>
+<div class="it on"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 16l4-6 4 3 6-8"/></svg></div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5M14 4.5a3 3 0 0 1 0 5.5M16 12.5c1.2.6 2 1.9 2.4 3.5"/></svg></div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h12v12H4zM4 9h12M9 9v7"/></svg></div>
+<div class="it"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 3v14M3 10h14"/></svg></div>
+<div class="it" style="margin-top:auto"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2.2M10 15.3v2.2M2.5 10h2.2M15.3 10h2.2M4.7 4.7l1.6 1.6M13.7 13.7l1.6 1.6M4.7 15.3l1.6-1.6M13.7 6.3l1.6-1.6"/></svg></div></nav>
+<div class="main">
+<div class="top"><h1>Beta signups</h1><span class="proj"><i></i>Lumo · waitlist ▾</span><span class="live">Live · 38 people on the page now</span>
+<div class="r"><div class="seg"><span>24h</span><span>7d</span><span class="on">30d</span><span>All</span></div><div class="btn">Oct 4 – Nov 2 ▾</div><div class="btn">Export</div></div></div>
+<div class="kpis">
+<div class="k hl"><span>Total signups</span><b id="tot">12,480</b><small>+38.2% <em>vs. previous 30 days</em></small></div>
+<div class="k"><span>Today</span><b>612</b><small>+94 <em>since 9 am</em></small><svg viewBox="0 0 84 30"><path d="M0 24 L12 22 L24 23 L36 18 L48 19 L60 12 L72 9 L84 4" fill="none" stroke="#0284c7" stroke-width="2"/></svg></div>
+<div class="k"><span>Activated (first habit)</span><b>41.2%</b><small>+3.4 pts <em>this week</em></small><svg viewBox="0 0 84 30"><path d="M0 20 L14 21 L28 17 L42 18 L56 13 L70 12 L84 9" fill="none" stroke="#059669" stroke-width="2"/></svg></div>
+<div class="k"><span>Came from a referral</span><b>27.0%</b><small style="color:#d97706">−1.1 pts <em>this week</em></small><svg viewBox="0 0 84 30"><path d="M0 10 L14 8 L28 12 L42 11 L56 14 L70 13 L84 16" fill="none" stroke="#d97706" stroke-width="2"/></svg></div>
+</div>
+<div class="row">
+<div class="card"><h2>Signups per day<span class="lgd"><span><i style="background:#0284c7"></i>Signups</span><span><i style="background:#fbbf24"></i>Activated</span></span></h2><div class="sub">Waitlist form + in-app invites, Oct 4 – Nov 2</div><svg id="chart" viewBox="0 0 640 250"></svg></div>
+<div class="card src"><h2>Top sources</h2><div class="sub">Share of signups, last 30 days</div>
+<div class="r2"><span>Friend referral</span><div class="bar"><i style="width:84%"></i></div><b>3,370</b></div>
+<div class="r2"><span>Press preview</span><div class="bar"><i style="width:66%"></i></div><b>2,640</b></div>
+<div class="r2"><span>Search</span><div class="bar"><i style="width:52%"></i></div><b>2,118</b></div>
+<div class="r2"><span>Newsletter</span><div class="bar"><i style="width:39%"></i></div><b>1,604</b></div>
+<div class="r2"><span>Community posts</span><div class="bar"><i style="width:30%"></i></div><b>1,231</b></div>
+<div class="r2"><span>Direct</span><div class="bar"><i style="width:25%"></i></div><b>1,017</b></div>
+<div class="split"><div class="dn"><div></div></div><p><i style="background:#0284c7"></i>iPhone <b>61%</b> · 7,613<br><i style="background:#fbbf24"></i>Android <b>39%</b> · 4,867</p></div></div>
+</div>
+<div class="feed">
+<div class="card"><h2>Latest signups</h2>
+<div class="fi"><i style="background:#f97316">A</i><code>a•••@inbox.example</code><span>12 s ago</span></div>
+<div class="fi"><i style="background:#0ea5e9">K</i><code>k•••@post.example</code><span>40 s ago</span></div>
+<div class="fi"><i style="background:#8b5cf6">T</i><code>t•••@mail.example</code><span>1 min ago</span></div></div>
+<div class="card"><h2>Top cities</h2>
+<div class="fi"><span class="tag">1</span>Port Alder<span>1,942</span></div>
+<div class="fi"><span class="tag">2</span>Weller Bay<span>1,208</span></div>
+<div class="fi"><span class="tag">3</span>Marrow Hill<span>866</span></div></div>
+<div class="card goal"><h2>Launch goal</h2><b>12,480 <span style="font-size:14px;color:var(--mute);font-weight:500">/ 15,000</span></b><div class="pb"><i></i></div><p><span>83% of goal</span><span>16 days to Nov 18</span></p></div>
+</div>
+</div>
+<script>
+let s=5;const r=()=>(s=(s*9301+49297)%233280)/233280;
+const n=30,vals=[],act=[];
+for(let i=0;i<n;i++){let v=180+i*9+Math.sin(i/2.2)*30+r()*40;if(i===11)v+=520;if(i===12)v+=260;if(i>=13)v+=120;if(i===26)v+=220;if(i===29)v=612;vals.push(v);act.push(v*(.34+i*.0035+r()*.04))}
+const W=640,H=250,L=36,R=6,T=14,B=26,mx=1000;
+const X=i=>L+i*(W-L-R)/(n-1),Y=v=>T+(1-v/mx)*(H-T-B);
+let g=`<defs><linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0284c7" stop-opacity=".28"/><stop offset="1" stop-color="#0284c7" stop-opacity="0"/></linearGradient></defs>`;
+for(const t of [0,250,500,750,1000])g+=`<path d="M${L} ${Y(t)}H${W-R}" stroke="#eef2f6"/><text x="${L-8}" y="${Y(t)+4}" text-anchor="end" font-size="10" fill="#94a3b8" font-family="-apple-system,sans-serif">${t}</text>`;
+const line=a=>a.map((v,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join("");
+g+=`<path d="${line(vals)}L${X(n-1)} ${Y(0)}L${X(0)} ${Y(0)}Z" fill="url(#a)"/><path d="${line(vals)}" fill="none" stroke="#0284c7" stroke-width="2.4" stroke-linejoin="round"/><path d="${line(act)}" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="4 3"/>`;
+const lab=["Oct 4","Oct 11","Oct 18","Oct 25","Nov 1"];[0,7,14,21,28].forEach((i,k)=>g+=`<text x="${X(i)}" y="${H-6}" text-anchor="middle" font-size="10" fill="#94a3b8" font-family="-apple-system,sans-serif">${lab[k]}</text>`);
+g+=`<g font-family="-apple-system,sans-serif" font-size="10.5" font-weight="600"><path d="M${X(11)} ${Y(vals[11])-6}V${T+8}" stroke="#0f172a" stroke-dasharray="2 2"/><rect x="${X(11)-58}" y="${T-6}" width="116" height="20" rx="6" fill="#0f172a"/><text x="${X(11)}" y="${T+8}" text-anchor="middle" fill="#fff">Press preview · 1,021</text><path d="M${X(26)} ${Y(vals[26])-6}V${T+52}" stroke="#0284c7" stroke-dasharray="2 2"/><rect x="${X(26)-52}" y="${T+34}" width="104" height="20" rx="6" fill="#e0f2fe"/><text x="${X(26)}" y="${T+48}" text-anchor="middle" fill="#0369a1">Referrals open</text></g><circle cx="${X(29)}" cy="${Y(612)}" r="4.5" fill="#fff" stroke="#0284c7" stroke-width="2.4"/>`;
+document.getElementById("chart").innerHTML=g;
+</script>
+</body></html>

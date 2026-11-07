@@ -104,6 +104,10 @@ async function shoot(scene, name, side) {
     env: { ...(injected ? { DYLD_INSERT_LIBRARIES: injected } : {}), ...(scene.env ?? {}) },
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
+  if (scene.seed) {
+    mkdirSync(data, { recursive: true });
+    scene.seed(data, side);
+  }
   let instance = await start(app, options);
   try {
     await sleep(scene.boot ?? 6000);

@@ -215,8 +215,12 @@ void Shield(ArdiaEarlyShown *s) {
 
 void ApplyLights(NSWindow *window, NSDictionary *layout) {
   NSArray *lights = layout[@"lights"];
-  if ([lights isKindOfClass:NSArray.class] && lights.count == 2 && [lights[0] isKindOfClass:NSNumber.class] && [lights[1] isKindOfClass:NSNumber.class])
-    [ArdiaChromeWindowHost setTrafficLightsCenter:[NSValue valueWithPoint:NSMakePoint([lights[0] doubleValue], [lights[1] doubleValue])] inWindow:window];
+  if (![lights isKindOfClass:NSArray.class] || lights.count < 2 || lights.count > 3) return;
+  for (id part in lights)
+    if (![part isKindOfClass:NSNumber.class]) return;
+  [ArdiaChromeWindowHost setTrafficLightsCenter:[NSValue valueWithPoint:NSMakePoint([lights[0] doubleValue], [lights[1] doubleValue])]
+                                       trailing:lights.count == 3 && [lights[2] boolValue]
+                                       inWindow:window];
 }
 
 }

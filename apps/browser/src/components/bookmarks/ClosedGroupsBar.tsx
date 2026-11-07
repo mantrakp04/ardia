@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, type LayoutRectangle } from "react-native";
 import { useSettings, useWindow } from "../../state/browser/hooks";
 import { openClosedGroupMenu, openClosedGroupsOverflowMenu } from "../../state/bookmarks/closedGroupMenus";
@@ -13,9 +13,9 @@ import { useBarSize } from "./barSize";
 import { bookmarksBar } from "./tokens";
 import { barCandidates, barLayout } from "./barLayout";
 
-type Props = { windowId: string; maxWidth: number; onWidth: (width: number) => void };
+type Props = { windowId: string; maxWidth: number };
 
-export function ClosedGroupsBar({ windowId, maxWidth, onWidth }: Props) {
+export function ClosedGroupsBar({ windowId, maxWidth }: Props) {
   const profileId = useWindow(windowId, (window) => window?.kind === "main" ? window.profileId : "");
   const groups = useClosedGroupsForProfile(profileId);
   const shown = useSettings((s) => s.showClosedGroupsInBookmarksBar);
@@ -30,9 +30,6 @@ export function ClosedGroupsBar({ windowId, maxWidth, onWidth }: Props) {
   const visibleIds = new Set(visible);
   const fits = (id: string) => visibleIds.has(id);
   const hidden = groups.filter((group) => !fits(group.id));
-  useEffect(() => {
-    onWidth(shown && groups.length ? width : 0);
-  }, [shown, groups.length, width, onWidth]);
   if (!shown || !groups.length) return null;
   return (
     <View style={{ width, height: size.item, overflow: "hidden", flexShrink: 0 }}>

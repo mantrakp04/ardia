@@ -2,22 +2,20 @@ import { createGunzip } from "node:zlib";
 import { windowFor, type RangeKey } from "../lib/range";
 import { num, query, str } from "./clickhouse";
 import { serverEnv } from "./env";
+import type { ReplayCondition, ReplayMatch, ReplaySort } from "../lib/replay-query";
+import { buildReplayList, buildReplayOptions, CUSTOMIZE_EVENT, DOWNLOAD_EVENT, REPLAY_PAGE_SIZE } from "./replay-sql";
 import { prop, since } from "./sql";
 
 export const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const KEPT_DAYS = 30;
 const DAY = 86_400_000;
-const PAGE_SIZE = 50;
 
 export type ReplayFilters = {
   range: RangeKey;
   page: number;
-  minDuration: number;
-  clicks: boolean;
-  device: string;
-  url: string;
-  download: "" | "yes" | "no";
-  sort: "newest" | "longest" | "clicks";
+  conditions: ReplayCondition[];
+  match: ReplayMatch;
+  sort: ReplaySort;
 };
 
 const deviceName = (type: string, os: string) => {
@@ -33,68 +31,54 @@ function replayStart(range: RangeKey) {
   return Math.max(w.start, keptFrom);
 }
 
-export async function listReplays(filters: ReplayFilters, signal?: AbortSignal) {
+const choices = (value: unknown) => ((value as unknown[] | undefined) ?? []).map(str).filter(Boolean);
+
+export async function listReplays(filters: ReplayFilters, signal?: AbortSignal): Promise<ReplayList> {
   const from = replayStart(filters.range);
-  const chunkFilter = `event = '$replay_chunk' AND ${since(from)} AND session_id != ''`;
-  const [chunks, pages, downloads] = await Promise.all([
-    query(
-      `SELECT session_id, min(toInt64OrZero(properties['first_timestamp'])), max(toInt64OrZero(properties['last_timestamp'])), count(),
-         sum(toUInt32OrZero(properties['clicks'])), sum(toUInt64OrZero(properties['bytes']))
-       FROM telemetry.events WHERE ${chunkFilter}
-       GROUP BY session_id`,
-      signal,
-    ),
-    query(
-      `SELECT session_id, count(), argMin(properties['$current_url'], timestamp), any(${prop("$device_type")}), any(${prop("$os")}), any(${prop("$browser")}), any(${prop("$geoip_country_code")})
-       FROM telemetry.events
-       WHERE event = '$pageview' AND ${since(from)} AND session_id IN (SELECT session_id FROM telemetry.events WHERE ${chunkFilter})
-       GROUP BY session_id`,
-      signal,
-    ),
-    query(
-      `SELECT DISTINCT session_id FROM telemetry.events
-       WHERE event = 'download_clicked' AND ${since(from)} AND session_id IN (SELECT session_id FROM telemetry.events WHERE ${chunkFilter})`,
-      signal,
-    ),
-  ]);
-  const downloadedSessions = new Set(downloads.map((r) => str(r[0])));
-  const pageBySession = new Map(pages.map((r) => [str(r[0]), r]));
-  let rows = chunks.map((r) => {
-    const id = str(r[0]);
-    const p = pageBySession.get(id);
-    const start = num(r[1]);
-    const end = num(r[2]);
-    return {
-      id,
-      start,
-      durationS: Math.max(0, Math.round((end - start) / 1000)),
-      chunks: num(r[3]),
-      clicks: num(r[4]),
-      bytes: num(r[5]),
-      pages: p ? num(p[1]) : 0,
-      firstUrl: p ? str(p[2]) : "",
-      device: p ? deviceName(str(p[3]), str(p[4])) : "Unknown",
-      browser: p ? str(p[5]) : "",
-      country: p ? str(p[6]) : "",
-      downloaded: downloadedSessions.has(id),
-    };
-  });
-  const devices = [...new Set(rows.map((r) => r.device))].sort();
-  const url = filters.url.trim().toLowerCase();
-  rows = rows.filter(
-    (r) =>
-      r.durationS >= filters.minDuration &&
-      (!filters.clicks || r.clicks > 0) &&
-      (!filters.device || r.device === filters.device) &&
-      (!filters.download || r.downloaded === (filters.download === "yes")) &&
-      (!url || r.firstUrl.toLowerCase().includes(url)),
-  );
-  rows.sort((a, b) => (filters.sort === "longest" ? b.durationS - a.durationS : filters.sort === "clicks" ? b.clicks - a.clicks : b.start - a.start) || b.start - a.start);
-  const total = rows.length;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(Math.max(1, filters.page), pageCount);
-  return { from, total, page, pageCount, pageSize: PAGE_SIZE, devices, rows: rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) };
+  const list = buildReplayList({ from, conditions: filters.conditions, match: filters.match, sort: filters.sort, page: filters.page });
+  const [rows, [options]] = await Promise.all([query(list.sql, signal, undefined, list.params), query(buildReplayOptions(from), signal)]);
+  if (!rows.length && filters.page > 1) return listReplays({ ...filters, page: 1 }, signal);
+  const total = rows.length ? num(rows[0]!.at(-1)) : 0;
+  return {
+    from,
+    total,
+    page: filters.page,
+    pageCount: Math.max(1, Math.ceil(total / REPLAY_PAGE_SIZE)),
+    pageSize: REPLAY_PAGE_SIZE,
+    options: {
+      device: [...new Set([...choices(options?.[0]), "Unknown"])],
+      browser: choices(options?.[1]),
+      os: choices(options?.[2]),
+      country: choices(options?.[3]),
+      referrer: choices(options?.[4]),
+    },
+    rows: rows.map((r) => ({
+      id: str(r[0]),
+      start: num(r[1]),
+      durationS: num(r[2]),
+      clicks: num(r[3]),
+      bytes: num(r[4]),
+      pages: num(r[5]),
+      firstUrl: str(r[6]),
+      device: str(r[7]),
+      browser: str(r[8]),
+      country: str(r[9]),
+      downloaded: num(r[10]) === 1,
+      customized: num(r[11]) === 1,
+    })),
+  };
 }
+
+export type ReplayRow = { id: string; start: number; durationS: number; clicks: number; bytes: number; pages: number; firstUrl: string; device: string; browser: string; country: string; downloaded: boolean; customized: boolean };
+export type ReplayList = {
+  from: number;
+  total: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  options: { device: string[]; browser: string[]; os: string[]; country: string[]; referrer: string[] };
+  rows: ReplayRow[];
+};
 
 function replaysBase() {
   const url = serverEnv("REPLAYS_URL") ?? (serverEnv("REPLAYS_HOST") ? `http://${serverEnv("REPLAYS_HOST")}:8888/buckets/replays/` : null);
@@ -107,7 +91,7 @@ function replayHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-const TIMELINE_EVENTS = ["$pageview", "$autocapture", "$rageclick", "$dead_click", "$exception", "download_clicked", "github_clicked", "screenshot_opened", "release_notes_viewed", "send_to_mac_clicked", "notify_clicked"];
+const TIMELINE_EVENTS = ["$pageview", "$autocapture", "$rageclick", "$dead_click", "$exception", DOWNLOAD_EVENT, CUSTOMIZE_EVENT, "github_clicked", "screenshot_opened", "release_notes_viewed", "send_to_mac_clicked", "notify_clicked"];
 const SESSION_CACHE = { freshMs: 60_000, keepMs: 5 * 60_000 };
 const FETCH_TIMEOUT_MS = 10_000;
 const DEADLINE_MS = 30_000;

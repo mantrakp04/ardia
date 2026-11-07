@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseSession } from "./persist.ts";
 
-for (const version of [9, 10]) {
+for (const version of [9, 10, 11]) {
   test(`version ${version} closed and deleted groups reject broken metadata and keep legacy nullable fields`, () => {
     const valid = [
       { id: "g", name: "", icon: null, color: null, pinned: false },

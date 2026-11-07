@@ -146,7 +146,8 @@ NSDictionary *WindowLayout(ArdiaWindowController *controller, ArdiaSavedSession 
     @"content" : ContentOf(session, controller.appWindowId) ?: @"",
   } mutableCopy];
   if (web.transferKey.length) layout[@"tab"] = web.transferKey;
-  if (NSValue *lights = ArdiaTrafficLightsCenter(window)) layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y) ];
+  if (NSValue *lights = ArdiaTrafficLightsCenter(window))
+    layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y), @(ArdiaTrafficLightsTrailing(window)) ];
   if (window.appearance.name) layout[@"appearance"] = window.appearance.name;
   if (NSColor *color = [web.pageBackgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace])
     layout[@"pageColor"] = @[ @(color.redComponent), @(color.greenComponent), @(color.blueComponent), @(color.alphaComponent) ];

@@ -21,6 +21,7 @@ import { currentBarActions } from "../../state/omnibox/barActions";
 import { useBangs } from "../../state/omnibox/bangs";
 import { useBarExtensions } from "./extensions";
 import { historyHosts } from "../../state/omnibox/knownHosts";
+import { useProviderSections } from "./useProviderSections";
 
 const NO_REMOTE: string[] = [];
 const EMPTY: SuggestionResult = { items: [], completion: "" };
@@ -101,13 +102,15 @@ export function useSuggestions({
   const bang = useMemo(() => (bangs ? findBang(query, bangs) : null), [bangs, query]);
   useEffect(() => {
     const q = query.replace(/^\?/, "").trim();
-    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history") {
+    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history" || scope?.kind === "provider") {
       fetcher.cancel();
       return;
     }
     fetcher.request(fromEngine, q, (list) => setRemote({ text: query, list }));
   }, [active, suggestionsOn, query, bang, fromEngine, scope, fetcher]);
   useEffect(() => () => fetcher.cancel(), [fetcher]);
+
+  const providers = useProviderSections({ text, active, scope, windowId, skip: !!bang });
 
   const remoteList = useMemo(() => {
     if (remote.text === query) return remote.list;
@@ -117,7 +120,7 @@ export function useSuggestions({
   }, [remote, query]);
 
   return useMemo(() => {
-    if (!active || !query) return EMPTY;
+    if (!active || (!query && scope?.kind !== "provider")) return EMPTY;
     return buildSuggestions(text, source, {
       engine,
       preference,
@@ -129,6 +132,7 @@ export function useSuggestions({
       scope,
       preventInline,
       bangs,
+      providers,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, providers]);
 }

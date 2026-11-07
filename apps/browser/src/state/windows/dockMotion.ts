@@ -1,20 +1,23 @@
 import { create } from "zustand";
 import { CARD_INSET } from "../../lib/windowLayout";
 import { compactLift, toolbarRowOf } from "../../lib/toolbarRow";
+import type { LightsPlace } from "../../platform/windows";
 
 export const LIGHTS_CENTER: readonly [number, number] = [25, CARD_INSET + 21];
 const COMPACT_LIGHTS_CENTER: readonly [number, number] = [LIGHTS_CENTER[0], LIGHTS_CENTER[1] - compactLift(toolbarRowOf(true))];
 export const toolbarLightsCenter = (compact: boolean): readonly [number, number] => (compact ? COMPACT_LIGHTS_CENTER : LIGHTS_CENTER);
 export const ARC_LIGHTS_CENTER: readonly [number, number] = [25, 24];
 export const TOP_STRIP_LIGHTS_CENTER: readonly [number, number] = [20.75, 20.75];
-export const LIGHTS_STRIP_HEIGHT = 30;
-export const LIGHTS_STRIP_CENTER: readonly [number, number] = [LIGHTS_CENTER[0], LIGHTS_STRIP_HEIGHT / 2];
-
-export const rightSidebarLightsCenter = (arc: boolean, compact: boolean): readonly [number, number] => (arc ? LIGHTS_STRIP_CENTER : toolbarLightsCenter(compact));
 
 export function lightsCenter(offset: number, down = 0, base: readonly [number, number] = LIGHTS_CENTER): [number, number] {
   const dx = Math.round(offset * 2) / 2;
   return [base[0] - dx, base[1] + down];
+}
+
+export function sidebarLightsCenter(right: boolean, width: number, offset: number, down = 0, base: readonly [number, number] = LIGHTS_CENTER): LightsPlace {
+  if (!right) return lightsCenter(offset, down, base);
+  const [x, y] = lightsCenter(-offset, down, base);
+  return [width - x, y, "right"];
 }
 
 export type PeekSpan = readonly [from: number, to: number];

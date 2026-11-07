@@ -154,6 +154,10 @@ static void (^gQuitCancelledHandler)(void);
   if (p) [engine releaseProfile:p];
 }
 
++ (NSArray<NSString *> *)loadedProfiles {
+  return ardia_host::LoadedDataProfileNames();
+}
+
 + (BOOL)stopCapture:(NSString *)tabId {
   ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
   return [tab stopCapture];
@@ -313,6 +317,7 @@ static void (^gQuitCancelledHandler)(void);
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
+    @"focus" : ardia_host::FocusState(),
   };
 }
 

@@ -17,9 +17,11 @@ export type AppEvent =
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
+export type OpenURLSource = { bundleId: string | null; appName: string | null };
+
 type ShellEvents = {
   onAppEvent: (e: AppEvent) => void;
-  onOpenURLs: (e: { urls: string[]; pointer?: [number, number] }) => void;
+  onOpenURLs: (e: { urls: string[]; pointer?: [number, number]; source?: OpenURLSource }) => void;
 };
 
 export type ShellNative = {

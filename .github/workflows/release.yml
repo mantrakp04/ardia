@@ -138,6 +138,10 @@ jobs:
           key: ubo-${{ hashFiles('packages/ardiacore/scripts/ubo.sh') }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
+          path: packages/ardiacore/vendor/ubol-webkit
+          key: ubol-webkit-${{ hashFiles('packages/ardiacore/scripts/ubol.sh', 'packages/ardiacore/scripts/ubol-webkit.py') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
           path: ~/Library/Caches/ardia-cli-build
           key: ardia-cli-${{ hashFiles('apps/cli/scripts/build.sh', 'apps/cli/requirements.lock') }}
       - name: Pods

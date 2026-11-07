@@ -12,6 +12,7 @@ sees the shell's `XDG_CONFIG_HOME`, so honouring it would make the app and the C
 ```
 ~/.config/ardia/
   config.json          settings and the theme choice
+  hooks.json           automation hooks (docs/automation.md)
   themes/<name>.json   colour overrides
   config.schema.json   written by the app
   theme.schema.json    written by the app
@@ -47,9 +48,77 @@ Ardia never creates the folder. `ardia config init` does, or the user does.
   whatever it has. Fixed commands can't be rebound. The app translates to its stored form (`[key, ...modifiers]`); a
   command's own default shortcut drops its override. Each entry stands alone: a bad one is reported and skipped, the
   others apply.
+- `launchActions` is a list of up to 20 Ardia command ids (`"newTab"`, or `"selectTab:2"` for a variant) that the app
+  runs itself, once per launch, after the session is restored and the first window is up, in the focused window: no
+  CLI control and no LaunchAgent needed. `"launchActions": ["newTab"]` keeps your tabs and lands on a new tab.
+  Only commands the ardia command may run (`docs/automation.md`) are accepted; an unknown id or variant makes the
+  whole setting invalid, with a message naming it (`config.json: launchActions: fooBar isn't a command`). Actions
+  from the safe list (`newTab`, `newWindow`, `newLittleArdia`, `focusCommandBar`, `toggleSidebar`, `nextTab`,
+  `previousTab`, `selectTab`, `selectLastTab`) run at once; any other waits for approval in Settings › Advanced ›
+  Automation. Re-reading config.json never runs them again. The setting isn't synced: it belongs to this Mac.
 - `theme` is a theme name (`^[a-z0-9][a-z0-9_-]*$`, the file `themes/<name>.json`) or `null`. A bad value, or a
   `config.json` that doesn't parse, keeps the theme that is showing.
 - Unknown keys inside `settings` are reported and ignored. Other top-level keys are ignored.
+
+### Address bar providers
+
+`settings.omniboxProviders` adds your own rows to the address bar. Each entry is one provider; a bad entry (or a bad
+row in it) is reported and skipped, the others apply.
+
+```json
+"omniboxProviders": [
+  { "keyword": "go", "title": "Linear", "url": "https://linear.app/team/issue/{query}" },
+  { "keyword": "t", "title": "Team", "rows": [{ "title": "Wiki", "url": "https://wiki.example.com" }] },
+  { "keyword": "pkg", "title": "npm", "suggest": "https://example.com/suggest?q={query}", "url": "https://www.npmjs.com/search?q={query}" },
+  { "title": "Docs", "suggest": "https://docs.example.com/suggest?q={query}", "global": true }
+]
+```
+
+- `keyword` (1–32 characters, no spaces or `/ ? # : @ . !`): typing it, then Space or Tab, enters the provider, shown
+  as a chip like a site search. Only its rows show and Enter takes the first one (if none has arrived yet, Enter
+  waits for the first). Backspace or Escape leaves it, as in a site search. A provider's keyword wins over a search
+  engine's and a site's.
+- Without a keyword a provider is **global**: its rows join the normal list in their own section, at most 3 per
+  provider and 6 in all, below the first three history, bookmark and tab rows. They are never the inline completion
+  or what Enter opens by default, and never push a built-in row out.
+- `rows`: a static list of `{ title, url, subtitle?, icon? }` (up to 200), matched against every word you type.
+- `url`: a link template; `{query}` is what you typed after the keyword, URL-encoded. Needs a keyword.
+- `suggest`: a suggestion endpoint, `https` with `{query}`. It may answer OpenSearch suggestions (`["q", [texts],
+  [descriptions], [urls]]`; a text without a URL goes through `url`, else it's dropped) or `[{ "title", "url" }]`.
+  Without a keyword it needs `"global": true`, since it then receives everything you type that doesn't look like an
+  address.
+- `title` names the provider on its chip and on each of its rows (default: the template's host).
+
+**Approval.** A `suggest` endpoint and every global provider stay off until approved in Ardia. The approval is for
+the exact definition: editing the entry needs a new one. Static keyword lists and URL templates send nothing and
+need none. Pending ones appear in Settings › Advanced › Automation; in code they're `pendingOmniboxProviders()` and
+`approveOmniboxProvider(key)` (`apps/browser/src/state/omnibox/`); approvals are kept in the app's data dir with
+the other automation approvals and listed in Settings › Advanced › Automation (`docs/automation.md` › Approvals).
+
+**Safety.** Rows only open `http` and `https` URLs (never `javascript:`, `data:`, `file:`, `chrome:` or Ardia's own
+pages). Titles are capped at 120 characters and subtitles at 160, with control and bidi characters removed, and each
+row shows the destination's host and the provider's title, which Ardia sets. Icons are `https` URLs or
+`data:image` (png, jpeg, gif, webp, ico) up to 16 KB. Suggestion requests carry only what you typed: no cookies,
+referrer, page, history or profile. They go only to `https` URLs on a plain DNS hostname: no IP
+literal of any form (dotted, short, octal, hex or decimal IPv4, IPv6), no percent-encoding, user info or backslash,
+a canonical port, and not `localhost` or a private suffix (`.local`, `.internal`, `.lan`, `.home.arpa`, `.test`,
+`.onion`…). A DNS name that resolves to a private or loopback address is not blocked: Ardia checks the URL, not
+what the name resolves to. They wait 120 ms after the last key, are cancelled by the next key, give up after 1.5 s, keep at most 4
+requests in flight, and are cached for 5 minutes per profile. A reply over 128 KB (by its Content-Length, or as soon
+as JS sees more than that arrive) is aborted and dropped. That's early cancellation, not a hard memory bound:
+React Native's network task appends the bytes it receives before JS hears about them, so a fast endpoint can
+deliver more before the abort lands. Only endpoints the user approved are ever fetched. A reply whose final URL
+isn't allowed is dropped. Remote, program and extension providers never run in a private window; static lists and
+templates do. A test instance (`docs/agent-brief.md` › Launch variables) may also use `http://127.0.0.1` (written
+exactly so) endpoints, for fixtures; other builds refuse them.
+
+**Extensions' `chrome.omnibox` keywords** don't reach Ardia's bar yet. The engine lists them (`ac_search_engines.cc`,
+`isOmniboxExtension`), but Ardia's location bar has no `OmniboxController`, so nothing calls
+`ExtensionOmniboxEventRouter::OnInputStarted/OnInputChanged/OnInputCancelled/OnInputEntered` or listens to
+`OmniboxSuggestionsWatcher`. Wiring them needs engine calls (`ac_omnibox_input_*` wrapping those statics, plus an
+`extensions.omniboxSuggestions` event from the watcher and the stored default suggestion). Accepting a row would also
+hand the input to the extension (`OnInputEntered`) instead of opening a checked URL, which this design avoids, so it
+stays off until that's decided.
 
 ### The file wins
 

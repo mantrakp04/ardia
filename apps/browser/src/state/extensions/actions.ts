@@ -5,6 +5,7 @@ import {
   inspectUnpackedExtension,
   installExtension,
   listExtensions,
+  reloadExtension,
   resolveExtensionInstallPrompt,
   setExtensionEnabled,
   uninstallExtension,
@@ -26,8 +27,6 @@ import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, use
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
 import { extensionPageUrl, extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 import { errorText } from "../../lib/errors";
-
-export { reloadExtension } from "../../platform/extensions";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -141,37 +140,41 @@ export async function removeExtension(profile: string, ext: InstalledExtension, 
   if (!confirmed) return;
   if (useExtensions.getState().popup?.extensionId === ext.id) closeExtensionPopup();
   closeSidePanelsOf(ext.id);
-  try {
-    await uninstallExtension(ext.id, profile);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, "remove", () => uninstallExtension(ext.id, profile));
 }
 
 export async function setEnabled(profile: string, id: string, enabled: boolean) {
   patchExtension(profile, id, { enabled, state: enabled ? "ENABLED" : "DISABLED" });
-  try {
-    await setExtensionEnabled(id, profile, enabled);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, enabled ? "turn on" : "turn off", () => setExtensionEnabled(id, profile, enabled));
 }
 
 export async function setPinned(profile: string, id: string, pinned: boolean) {
   patchExtension(profile, id, { pinned });
-  try {
-    await configureExtension(id, profile, { pinned });
-  } catch {
-    await refreshExtensions(profile);
-  }
+  const done = await changed(pinned ? "pin" : "unpin", () => configureExtension(id, profile, { pinned }));
+  if (!done) await refreshExtensions(profile);
 }
 
 export async function configure(profile: string, id: string, options: Parameters<typeof configureExtension>[2]) {
+  await changeThenRefresh(profile, "configure", () => configureExtension(id, profile, options));
+}
+
+export async function reload(profile: string, id: string) {
+  await changeThenRefresh(profile, "reload", () => reloadExtension(id, profile));
+}
+
+async function changed(what: string, change: () => Promise<void>): Promise<boolean> {
   try {
-    await configureExtension(id, profile, options);
-  } finally {
-    await refreshExtensions(profile);
+    await change();
+    return true;
+  } catch (error) {
+    console.warn(`[extensions] ${what} failed`, error);
+    return false;
   }
+}
+
+async function changeThenRefresh(profile: string, what: string, change: () => Promise<void>) {
+  await changed(what, change);
+  await refreshExtensions(profile);
 }
 
 function patchExtension(profile: string, id: string, patch: Partial<InstalledExtension>) {

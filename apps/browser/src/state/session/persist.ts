@@ -13,7 +13,7 @@ import type { BrowserWindow, ParkedPins, SplitView, Tab } from "../browser/types
 import { downloadSession } from "../downloads/downloadsSlice";
 import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
 import { sessionWithCleanUpMinutes } from "../settings/cleanUpAfter";
-import { parseSettingsMeta, sessionWithSettingsMeta } from "../settings/settings";
+import { parseSettingsMeta, sessionWithNewTabLinksInLittleArdia, sessionWithSettingsMeta } from "../settings/settings";
 import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
@@ -21,8 +21,8 @@ import { isFields, isString, isStringList } from "../../lib/decode";
 import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithClosedGroupBarVisibility, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
 const SAVE_DELAY_MS = 800;
-const SESSION_VERSION = 10;
-const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps, 9: sessionWithClosedGroupBarVisibility };
+const SESSION_VERSION = 11;
+const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps, 9: sessionWithNewTabLinksInLittleArdia, 10: sessionWithClosedGroupBarVisibility };
 const downloadsWithStagingPathOnly = (doc: SavedObject): SavedObject => ({
   ...doc,
   downloads: Array.isArray(doc.downloads)
@@ -87,6 +87,7 @@ const SESSION_FIELDS = {
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
   pinSync: field(["pinSync"], (s) => publicProfiles(s.pinSync)),
+  topAppsMerged: field(["topAppsMerged"], (s) => s.topAppsMerged),
   closedGroups: field(["closedGroups"], (s) => s.closedGroups.filter((c) => c.tabs.every(publicTab))),
   deletedGroups: field(["deletedGroups"], (s) => s.deletedGroups.filter((c) => c.tabs.every(publicTab))),
   cleanedTabs: field(["cleanedTabs"], (s) => s.cleanedTabs.filter((c) => publicTab(c.tab))),
@@ -150,6 +151,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, parkedSplitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
+    topAppsMerged: typeof raw.topAppsMerged === "string" ? raw.topAppsMerged : undefined,
     closedGroups: rows(raw.closedGroups, closedGroupOk),
     deletedGroups: rows(raw.deletedGroups, closedGroupOk),
     cleanedTabs: rows(raw.cleanedTabs, closedTabOk),
@@ -263,8 +265,14 @@ export function resumePersistence() {
   resume();
 }
 
+let restoredAtLaunch = false;
+
+export const sessionRestoredAtLaunch = () => restoredAtLaunch;
+
 export function startPersistence(overrides: LaunchOverrides = {}) {
-  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
+  const loaded = loadSession(overrides);
+  restoredAtLaunch = !!loaded?.windowOrder?.length;
+  useBrowser.getState().hydrate(loaded ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();

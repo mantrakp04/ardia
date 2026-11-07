@@ -8,6 +8,9 @@ import type { Settings } from "../settings/settings";
 import { useLookValue } from "../tabs/tabWatch";
 import { useBasePaletteValue } from "../config/hooks";
 import type { BasePalette } from "../../lib/themeFile";
+import { topAppSiblings } from "../pins/topApps";
+import { sharingProfiles } from "./profiles";
+import { useProfileOpened } from "./profileLoading";
 
 export function useProfileRecords(): Record<string, Profile>;
 export function useProfileRecords<T>(select: (profiles: Record<string, Profile>) => T): T;
@@ -20,6 +23,10 @@ export function useProfileOrder<T>(select: (order: string[]) => T): T;
 export function useProfileOrder<T>(select?: (order: string[]) => T) {
   return useBrowser((s) => (select ? select(s.profileOrder) : s.profileOrder));
 }
+
+export const useDataSharingProfileIds = (): string[] => useBrowser(useShallow((s) => s.profileOrder.filter((id) => sharingProfiles(s, id).length > 0)));
+
+export const useTopAppSiblingNames = (profileId: string): string[] => useBrowser(useShallow((s) => topAppSiblings(s, profileId).map((id) => s.profiles[id]!.name)));
 
 export const useProfileName = (profileId: string): string => useBrowser((s) => profileFor(s, profileId).name);
 
@@ -38,8 +45,9 @@ export function useProfileLooks<T>(pages: readonly { id: string }[], look: Profi
 export const useCreateProfileShareDefault = (windowId: string | null): string =>
   useBrowser((s) => (windowId && s.windows[windowId]?.kind !== "private" ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));
 
-export const useProfileDataStats = (profileId: string): string =>
-  useBrowser((s) => {
+export const useProfileDataStats = (profileId: string): string => {
+  const opened = useProfileOpened(profileId);
+  return useBrowser((s) => {
     const roots = bookmarkRoots(s, profileId);
     let bookmarks = 0;
     const walk = (id: string) => {
@@ -48,5 +56,7 @@ export const useProfileDataStats = (profileId: string): string =>
       if (n?.kind === "folder") n.children.forEach(walk);
     };
     if (roots) [roots.bar, roots.other].forEach(walk);
-    return `${plural(historyOf(s, profileId).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
+    const history = opened ? `${plural(historyOf(s, profileId).length, "page")} in history` : "History not loaded yet";
+    return `${history} · ${plural(bookmarks, "bookmark")}`;
   });
+};

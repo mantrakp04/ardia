@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Groceries</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;background:#f6f3ec;color:#1d1a15;-webkit-font-smoothing:antialiased;display:flex;justify-content:center;padding-top:70px}
+main{width:520px}
+h1{font-size:34px;font-weight:800;letter-spacing:-0.02em;margin-bottom:22px}
+form{display:flex;gap:10px;margin-bottom:22px}
+input{flex:1;height:48px;border-radius:14px;border:1.5px solid #d9d2c3;background:#fff;font:inherit;font-size:17px;padding:0 16px;outline:none}
+input:focus{border-color:#3b7a3b}
+button{height:48px;border-radius:14px;border:0;background:#3b7a3b;color:#fff;font:inherit;font-size:16px;font-weight:700;padding:0 22px}
+ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+li{background:#fff;border-radius:14px;padding:15px 18px;font-size:17px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 #e4ddd0}
+li::before{content:"";width:18px;height:18px;border-radius:6px;border:1.5px solid #b9b09e}
+li.new{animation:pop .35s ease-out}
+@keyframes pop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+</style></head><body>
+<main><h1>Groceries</h1>
+<form id="f"><input id="item" aria-label="New item" placeholder="Add an item"><button type="submit">Add</button></form>
+<ul id="list"><li>Rye flour</li><li>Butter</li><li>Eggs</li></ul></main>
+<script>
+document.getElementById("f").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = document.getElementById("item");
+  if (!input.value.trim()) return;
+  const li = document.createElement("li");
+  li.className = "new";
+  li.textContent = input.value.trim();
+  document.getElementById("list").prepend(li);
+  input.value = "";
+});
+</script>
+</body></html>

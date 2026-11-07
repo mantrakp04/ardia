@@ -16,6 +16,7 @@ export type Profile = {
   dataId?: string;
   theme?: ProfileTheme | null;
   pinnedCollapsed?: boolean;
+  shareTopApps?: true;
 };
 
 type WindowBase = {

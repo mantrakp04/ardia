@@ -88,6 +88,8 @@ struct ArdiaCommits {
   __weak ArdiaCoreTab *tab;
   NSString *url;
   double at{};
+  int httpStatus{};
+  int documents{};
 };
 
 struct ArdiaPageFocusState {
