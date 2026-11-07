@@ -329,12 +329,16 @@ display link in the browser process (docs/perf/README.md, idle 5 s: 12–18 time
 
 ```json
 {
-  "date": "2026-10-16",
+  "date": "2026-11-09",
   "machine": { "model": "MacBook Pro (Mac17,9)", "chip": "Apple M5 Pro", "cores": 15, "ram": "48 GB", "macOS": "27.2 (26B5112a)" },
-  "browsers": { "ardia": { "name": "Ardia", "version": "0.2.37", "chromium": "154.0.8037.97" }, "dia": {}, "helium": {}, "chrome": {} },
+  "harness": 1,
+  "browsers": {
+    "ardia": { "name": "Ardia", "version": "0.2.46", "chromium": "155.0.8059.84", "measured": "2026-11-09" },
+    "dia": { "name": "Dia", "version": "1.53.0", "chromium": "155.0.8059.80", "measured": "2026-10-16" }, "helium": {}, "chrome": {}
+  },
   "rows": [
-    { "id": "newtab", "label": "New tab → first paint", "unit": "ms", "lowerIsBetter": true, "best": "chrome",
-      "browsers": { "ardia": { "name": "Ardia", "version": "0.2.37", "chromium": "154.0.8037.97", "median": 80, "min": 71.3, "max": 81.1, "n": 5 } } }
+    { "id": "newtab", "label": "New tab → first paint", "unit": "ms", "lowerIsBetter": true, "best": "ardia",
+      "browsers": { "ardia": { "name": "Ardia", "version": "0.2.46", "chromium": "155.0.8059.84", "median": 54.9, "min": 52.1, "max": 57, "n": 3, "measured": "2026-11-09" } } }
   ],
   "method": "docs/perf/vs-browsers.md",
   "notes": ["…"]
@@ -347,6 +351,13 @@ display link in the browser process (docs/perf/README.md, idle 5 s: 12–18 time
 - A browser that can't be measured on a row has `median: null` and a `note`. `best` is the best median, not a win:
   compare ranges.
 - A variant run under its base name (`chrome-bg` as `chrome`) has `variant` set.
+- `date` is the newest measurement. `browsers.<name>.measured` is the day that browser's xbench rows were measured, and
+  each row entry carries its own `measured` once a merge has written it; a file without them means every browser was
+  measured on `date`. The site shows one date while they agree and "Ardia 0.2.46 measured Nov 9 · Dia 1.53.0 and Helium
+  0.19.3.1 measured Oct 19, 2026" once they don't, and a row whose Ardia entry is older than Ardia's headline date (a row
+  xbench doesn't measure, like Speedometer 3 or power) says "Ardia 0.2.38-nightly.8 from Oct 19" in its meta line.
+- `harness` is xbench's `HARNESS` revision. Bump it in the same commit as any change to what a row measures or how
+  (pages, flags, timings, the processes counted); a merge refuses rivals stored under another revision.
 
 ## Background-only Chrome (A/B, rejected)
 
@@ -392,16 +403,53 @@ Paint timing over CDP works with the screen locked: a locked-screen round of Ard
 
 ## Running it
 
+Every stable release re-measures Ardia alone and keeps the stored rivals; Dia and Helium are measured again only when
+a full rerun is due.
+
+### Ardia alone, every stable release
+
+The release skill's step 4d (`.claude/skills/release/SKILL.md`), after the perf gate, on the build that passed it:
+
 ```sh
-OUT=/tmp/ac-xbench/final
-node apps/browser/scripts/perf/xbench.mjs run --out $OUT --browsers ardia,dia,helium,chrome --rounds 5 --launches 2 \
-  --gate off --allow-focus --base dia=/tmp/ac-xbench/dia-home --deadline 112   # run_in_background; rerun to resume
-node apps/browser/scripts/perf/xbench.mjs report --out $OUT --browsers ardia,dia,helium,chrome --json apps/site/src/data/bench.json
-node apps/browser/scripts/perf/xbench.mjs clean --out $OUT --browsers ardia,dia,helium,chrome
+V=<version>; X=$HOME/ardia-scratch/xbench-$V
+mkdir -p $X/apps/ardia && cp -Rc dist/$V-rc/export/Ardia.app $X/apps/ardia/   # dist/$V/export without an rc
+codesign --force --deep --sign - $X/apps/ardia/Ardia.app   # ad hoc, as the stored rows' Ardia and Helium ran
+node apps/browser/scripts/perf/xbench.mjs run --out $X/out --apps $X/apps --browsers ardia --rounds 3 --launches 2 \
+  --gate off --deadline 60   # run_in_background; about 35 min; rerun to resume
+node apps/browser/scripts/perf/xbench.mjs report --out $X/out --apps $X/apps --browsers ardia \
+  --rivals-from apps/site/src/data/bench.json --json apps/site/src/data/bench.json --md $X/table.md
+node apps/browser/scripts/perf/xbench.mjs clean --out $X/out --apps $X/apps --browsers ardia
 ```
 
-- **Run time.** A full run takes about 2 h 10 min. From the next run, sessions add the settled idle windows, about
-  2.5 min more each.
+- **What the merge keeps.** `--rivals-from` takes every browser the run didn't measure from the stored file with its
+  own figures, version and `measured` date, replaces Ardia's entries on the rows it measured, recomputes `best`, keeps
+  the rows xbench doesn't make (Speedometer 3, power) as they were, and keeps the stored `notes`.
+- **3 rounds of 2 launches** gives Ardia the stored rows' n (6 per launch row, 3 sessions).
+- **It refuses** (exit 65, nothing written) when this Mac's model or chip differ from the file's `machine`, or the
+  harness revision differs: measure every browser again then. `--force` merges anyway and records why in `forced`.
+- **It flags a full rerun, and never blocks.** The report prints `full rerun due: …` when a kept rival is over 60 days
+  older than this run, or the copy in `/Applications` (its Info.plist only; never launched) is a new major or minor
+  version of what was measured. Say so in the release report; the release goes on.
+
+### Every browser (a full rerun)
+
+When it's flagged, or the method changed. It needs the owner for Dia's throwaway sign-in (`signin`), the copies from
+Method (Dia from the vendor's DMG, chmod a-w; Helium's background-only copy from `prepare-bg --browsers helium`, run
+as `helium-bg` and reported as `helium`), and about 2.5 h:
+
+```sh
+OUT=$HOME/ardia-scratch/xbench-full; APPS=$HOME/ardia-scratch/xbench-apps
+node apps/browser/scripts/perf/xbench.mjs run --out $OUT --apps $APPS --browsers ardia,dia,helium-bg,chrome --rounds 5 \
+  --launches 2 --gate off --allow-focus --base dia=$HOME/ardia-scratch/dia-home --deadline 112   # run_in_background; rerun to resume
+node apps/browser/scripts/perf/xbench.mjs report --out $OUT --apps $APPS --browsers ardia,dia,helium-bg,chrome \
+  --rivals-from apps/site/src/data/bench.json --json apps/site/src/data/bench.json
+node apps/browser/scripts/perf/xbench.mjs clean --out $OUT --apps $APPS --browsers ardia,dia,helium-bg,chrome
+```
+
+`--rivals-from` with every browser measured replaces all of their xbench rows and still keeps the Speedometer 3 and
+power rows, which then show their own dates.
+
+- **Run time.** A full run takes about 2 h 10 min, plus about 2.5 min per session for the settled idle windows.
 - **A new Ardia build.** Add it as `--app ardia-main=<app>` beside `ardia` for a drift check against at least one
   competitor.
 - **A/Bs.** `--env ardia=ARDIA_INSTANCE=chromiumSwitches=…` (or any K=V) runs a variant without touching the others.

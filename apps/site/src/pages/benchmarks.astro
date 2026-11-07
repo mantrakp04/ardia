@@ -37,7 +37,7 @@ const jsonLd = [
           creator: organization,
           publisher: organization,
           dateModified: bench.measured,
-          temporalCoverage: bench.measured,
+          temporalCoverage: bench.span,
           isAccessibleForFree: true,
           license: "https://www.gnu.org/licenses/gpl-3.0.html",
           keywords: ["browser benchmark", "Mac browser", "Arc alternative", "Dia", "Helium", "Chromium", "memory", "launch time", "power"],
@@ -70,7 +70,7 @@ const jsonLd = [
               <div class="fact">
                 <dt>The Mac</dt>
                 <dd>
-                  {bench.machine}, on {bench.date}. It’s the owner’s working Mac in normal use, so the browsers take turns and share
+                  {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, on ${bench.date}.`} It’s the owner’s working Mac in normal use, so the browsers take turns and share
                   whatever else is going on.
                 </dd>
               </div>
