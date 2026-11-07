@@ -13,7 +13,7 @@ export const isRegularWindow = (w: BrowserWindow | undefined): w is MainWindow =
 export const isSmall = (s: Pick<BrowserState, "windows">, windowId?: string | null): boolean =>
   !!windowId && s.windows[windowId]?.kind === "small";
 
-export const isOpenRegularWindow = (w: BrowserWindow | undefined): w is BrowserWindow => isRegularWindow(w) && !isWindowClosing(w.id);
+export const isOpenRegularWindow = (w: BrowserWindow | undefined): boolean => isRegularWindow(w) && !isWindowClosing(w.id);
 
 export function mainWindowFor(s: BrowserState, profileId?: string): string | undefined {
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isOpenRegularWindow(s.windows[id]));
