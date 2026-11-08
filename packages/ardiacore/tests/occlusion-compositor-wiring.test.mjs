@@ -71,3 +71,10 @@ test("docs/engine-build.md lists the occlusion patch", () => {
   const docs = read("../../../docs/engine-build.md");
   assert.ok(docs.includes(`\`${patchName}\``), `docs/engine-build.md has no row for ${patchName}`);
 });
+
+test("docs/engine-build.md says what an occluded window keeps held", () => {
+  const docs = read("../../../docs/engine-build.md");
+  const row = docs.split("\n").find((line) => line.includes(`\`${patchName}\``)) ?? "";
+  assert.ok(row.includes("GPU memory") && row.includes("IOSurface"), "the row does not name the memory an occluded window holds");
+  assert.ok(/until then/.test(row), "the row does not say when the memory is given back");
+});
