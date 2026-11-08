@@ -52,11 +52,16 @@ the pins into `pyproject.toml`).
   script, notes), plus `references/troubleshooting.md`, `script.md`, `userscripts.md`, `config.md`, `automation.md`
   and `daily-reports.md` read only when a task needs them) into `~/.agents/skills` (general, codex),
   `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
-  `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It replaces only its own `ardia` folder (a
-  `SKILL.md` starting `name: ardia`, never a link) and adds each folder it wrote to `$ARDIA_CLI_HOME/skills.json`.
-  `ardia skills refresh` rewrites, with the running CLI's skill, every folder in that list and every user-level
-  folder above that already holds the ardia skill, skips links and anyone else's folder, and drops from the list the
-  folders that no longer hold it. `install.sh` runs it after each upgrade, so installed copies follow the CLI.
+  `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It writes each file it ships in place (temp file,
+  then rename, so a linked file is replaced, never written through) plus a `.ardia-skill` marker (vendor, version and
+  the files it wrote), removes only files an earlier marker listed that it no longer ships, and leaves every other
+  file alone. A folder counts as ours only when it isn't a link and its marker is a plain file naming vendor
+  `ardia`, or, for copies from before the marker, when it holds exactly the files of a layout the CLI once shipped,
+  none of them links, under a `SKILL.md` starting `name: ardia`; anything else, a foreign skill named ardia
+  included, is refused. Each folder it wrote goes into `$ARDIA_CLI_HOME/skills.json`. `ardia skills refresh`
+  rewrites every folder in that list and every user-level folder above that is ours, prints `skipped <folder>` for
+  the ones that aren't, refuses a linked subfolder, and keeps only our folders in the list. `install.sh` runs it after
+  each upgrade, so installed copies follow the CLI.
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
 - `ardia config path|init|get|set|unset|list|edit|check` reads, writes and checks `config.json` (see
   `docs/config.md`, The ardia command). Never needs Ardia running.

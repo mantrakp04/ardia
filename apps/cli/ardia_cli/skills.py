@@ -1,10 +1,11 @@
+import contextlib
 import json
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
 SKILL_NAME = "ardia"
+MARKER = ".ardia-skill"
 TARGETS = {
     "general": (".agents/skills", ".agents/skills"),
     "codex": (".agents/skills", ".agents/skills"),
@@ -18,34 +19,139 @@ def skill_source() -> Path:
     return Path(__file__).resolve().parent / "skill"
 
 
-def is_ours(folder: Path) -> bool:
-    try:
-        head = (folder / "SKILL.md").read_text(encoding="utf-8")[:200]
-    except OSError:
-        return False
-    return head.startswith("---\nname: ardia\n")
-
-
 def destination(target: str, project: bool) -> Path:
     user_dir, project_dir = TARGETS[target]
     base = Path.cwd() / project_dir if project else Path.home() / user_dir
     return base / SKILL_NAME
 
 
-def install_into(folder: Path) -> None:
-    folder.parent.mkdir(parents=True, exist_ok=True)
-    if folder.is_symlink() or (folder.exists() and not is_ours(folder)):
-        raise FileExistsError(f"{folder} exists and isn't the ardia skill; move it away first")
-    staging = Path(tempfile.mkdtemp(prefix=".ardia-skill-", dir=folder.parent))
+LEGACY_LAYOUTS = (
+    ("SKILL.md", "references/pydoll.md"),
+    ("SKILL.md", "references/browse.md", "references/pydoll.md"),
+    ("SKILL.md", "references/automation.md", "references/browse.md", "references/config.md",
+     "references/daily-reports.md", "references/userscripts.md"),
+    ("SKILL.md", "references/automation.md", "references/config.md", "references/daily-reports.md",
+     "references/script.md", "references/troubleshooting.md", "references/userscripts.md"),
+)
+
+
+def shipped_files() -> list[str]:
+    source = skill_source()
+    files = []
+    for root, dirs, names in os.walk(source):
+        dirs[:] = sorted(name for name in dirs if name != "__pycache__")
+        for name in names:
+            if not name.endswith(".pyc"):
+                files.append((Path(root) / name).relative_to(source).as_posix())
+    return sorted(files)
+
+
+def known_layouts() -> set[frozenset]:
+    return {frozenset(layout) for layout in LEGACY_LAYOUTS} | {frozenset(shipped_files())}
+
+
+def safe_relative(name) -> bool:
+    if not isinstance(name, str) or not name or name.startswith("/") or "\\" in name:
+        return False
+    parts = name.split("/")
+    return all(part not in ("", ".", "..") for part in parts) and parts[0] != MARKER
+
+
+def marked_files(folder: Path) -> list[str] | None:
+    marker = folder / MARKER
+    if marker.is_symlink() or not marker.is_file():
+        return None
     try:
-        fresh = staging / SKILL_NAME
-        shutil.copytree(skill_source(), fresh, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-        if folder.exists():
-            old = staging / "old"
-            os.rename(folder, old)
-        os.rename(fresh, folder)
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("vendor") != "ardia" or not isinstance(data.get("files"), list):
+        return None
+    return [name for name in data["files"] if safe_relative(name)]
+
+
+def plain_files(folder: Path) -> set[str] | None:
+    files = set()
+    for root, dirs, names in os.walk(folder):
+        for name in dirs + names:
+            path = Path(root) / name
+            if path.is_symlink() or not (path.is_dir() or path.is_file()):
+                return None
+        files.update((Path(root) / name).relative_to(folder).as_posix() for name in names)
+    return files
+
+
+def owned_files(folder: Path) -> list[str] | None:
+    if folder.is_symlink() or not folder.is_dir():
+        return None
+    marked = marked_files(folder)
+    if marked is not None:
+        return marked
+    files = plain_files(folder)
+    if files is None or frozenset(files) not in known_layouts():
+        return None
+    try:
+        head = (folder / "SKILL.md").read_text(encoding="utf-8")[:200]
+    except OSError:
+        return None
+    return sorted(files) if head.startswith("---\nname: ardia\n") else None
+
+
+def real_parent(folder: Path, name: str) -> Path:
+    parent = folder
+    for part in name.split("/")[:-1]:
+        parent = parent / part
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise FileExistsError(f"{parent} isn't a plain folder; move it away first")
+        if not parent.exists():
+            parent.mkdir()
+    return parent
+
+
+def write_file(folder: Path, name: str, data: bytes) -> None:
+    parent = real_parent(folder, name)
+    handle, staging = tempfile.mkstemp(prefix=".ardia-skill-", dir=parent)
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write(data)
+        os.chmod(staging, 0o644)
+        os.replace(staging, parent / name.split("/")[-1])
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(staging)
+        raise
+
+
+def remove_file(folder: Path, name: str) -> None:
+    parent = folder
+    for part in name.split("/")[:-1]:
+        parent = parent / part
+        if parent.is_symlink() or not parent.is_dir():
+            return
+    path = parent / name.split("/")[-1]
+    if not path.is_symlink() and path.is_file():
+        path.unlink()
+
+
+def install_into(folder: Path) -> None:
+    previous: list[str] = []
+    if folder.is_symlink() or folder.exists():
+        owned = owned_files(folder)
+        if owned is None:
+            raise FileExistsError(f"{folder} exists and isn't the ardia skill (no {MARKER} marker); move it away first")
+        previous = owned
+    else:
+        folder.mkdir(parents=True)
+    source = skill_source()
+    files = shipped_files()
+    for name in files:
+        write_file(folder, name, (source / name).read_bytes())
+    for name in sorted(set(previous) - set(files)):
+        remove_file(folder, name)
+    from ardia_cli import __version__
+
+    marker = {"vendor": "ardia", "version": __version__, "files": files}
+    write_file(folder, MARKER, (json.dumps(marker, indent=2) + "\n").encode("utf-8"))
 
 
 def record_path() -> Path:
@@ -97,7 +203,10 @@ def refresh() -> int:
     status = 0
     kept = []
     for folder in dict.fromkeys(recorded_folders() + user_folders):
-        if folder.is_symlink() or not is_ours(folder):
+        if not (folder.is_symlink() or folder.exists()):
+            continue
+        if owned_files(folder) is None:
+            print(f"skipped {folder}: not installed by ardia skills install (no {MARKER} marker)")
             continue
         kept.append(folder)
         try:
