@@ -22,7 +22,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
     return (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
-        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
+        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. The first space goes into your selected profile (named after the space while it's still the untouched Personal) and the others become new profiles. The spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
         <Group>
           {spacesOf(source).map((s) => (
             <SelectRow

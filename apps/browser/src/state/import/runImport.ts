@@ -18,6 +18,7 @@ import {
   type ImportedExtension,
   type ImportKind,
   type ImportResult,
+  type SpaceSuggestion,
 } from "./apply";
 import { diaProfilesFor } from "./diaTabs";
 import {
@@ -79,10 +80,10 @@ async function destination(
   color?: string,
   emoji?: string,
   shareWith?: string | null,
-  fromSpace = false,
+  adopts?: SpaceSuggestion,
 ): Promise<string> {
   if (index === 0) {
-    if (fromSpace) adoptSpaceIdentity(target, { name, color, emoji });
+    if (adopts) adoptSpaceIdentity(target, adopts);
     return target;
   }
   const clash = profileNamed(name);
@@ -142,8 +143,8 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, fromSpace = false) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith, fromSpace);
+  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, adopts?: SpaceSuggestion) =>
+    destination(target, destinationIndex++, name, color, emoji, shareWith, adopts);
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
@@ -187,7 +188,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       let first: string | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
-        const dest = await nextDestination(name, space.color, space.emoji, first, true);
+        const dest = await nextDestination(name, space.color, space.emoji, first, space);
         first ??= dest;
         const r = importArcSpace(dest, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });

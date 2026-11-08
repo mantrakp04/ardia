@@ -32,7 +32,7 @@ import { focusedWindowOf } from "../windows/ui";
 import { originOfLogin } from "../site/savedPasswords";
 import { IDLE } from "../tabs/pageSession";
 
-export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "../../platform/importModule";
+export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSuggestion, SpaceSummary } from "../../platform/importModule";
 
 export type ImportCounts = { bookmarks: number; history: number; tabs: number; passwords: number; cookies: number; addresses: number; cards: number };
 
@@ -277,12 +277,16 @@ export function defaultTarget(): string {
   return w && w.kind !== "private" ? w.profileId : s.settings.defaultProfileId;
 }
 
-export function adoptSpaceIdentity(profileId: string, space: { name: string; color?: string; emoji?: string }): void {
+export function adoptSpaceIdentity(profileId: string, space: Pick<SpaceSuggestion, "name" | "color" | "emoji">): void {
   const s = useBrowser.getState();
   const profile = s.profiles[profileId];
   const name = space.name.trim();
   const untouched =
-    profile?.name === DEFAULT_PROFILE.name && profile.color === DEFAULT_PROFILE.color && profile.icon === DEFAULT_PROFILE.icon && !profile.theme;
+    profileId === DEFAULT_PROFILE.id &&
+    profile?.name === DEFAULT_PROFILE.name &&
+    profile.color === DEFAULT_PROFILE.color &&
+    profile.icon == null &&
+    !profile.theme;
   if (!profile || !untouched || !name || s.profileOrder.length !== 1) return;
   s.updateProfile(profileId, { name, icon: space.emoji ?? null });
   const color = profileColorFor(space.color);

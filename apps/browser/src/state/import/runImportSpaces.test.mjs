@@ -93,6 +93,33 @@ test("a profile with its own icon keeps its look", async () => {
   assert.equal(S().profiles.default.icon, "🌱");
 });
 
+test("a first space with no name leaves the starter profile's name alone", async () => {
+  begin([space("a", "", { emoji: "💼", color: "#2a6ef5" })]);
+  await runImport(new Set(["spaces"]));
+  assert.deepEqual(named(), ["Personal"]);
+  assert.equal(S().profiles.default.icon, null);
+  assert.equal(S().profiles.default.color, "plum");
+});
+
+test("a profile named Personal that is not the starter is not renamed", async () => {
+  begin([space("a", "Work", { emoji: "💼" })], "mine");
+  useBrowser.setState({
+    profiles: { mine: { id: "mine", name: "Personal", color: "plum", icon: null, createdAt: 1 } },
+    profileOrder: ["mine"],
+  });
+  await runImport(new Set(["spaces"]));
+  assert.deepEqual(named(), ["Personal"]);
+  assert.equal(S().profiles.mine.icon, null);
+});
+
+test("a starter profile saved without an icon still takes the first space's name", async () => {
+  begin([space("a", "Work", { emoji: "💼" })]);
+  useBrowser.setState({ profiles: { default: { id: "default", name: "Personal", color: "plum", createdAt: 0 } } });
+  await runImport(new Set(["spaces"]));
+  assert.deepEqual(named(), ["Work"]);
+  assert.equal(S().profiles.default.icon, "💼");
+});
+
 test("a profile picked out of several is not renamed", async () => {
   begin([space("a", "Work"), space("b", "Home")]);
   S().createProfile({ name: "Other" });
