@@ -126,14 +126,15 @@ test("a request is consumed only once the page is attached, shown and not hidden
   assert.match(gate, /\) return;/);
 });
 
-test("only the tab the strip shows as active takes focus, so a background split pane keeps the source pane's focus", () => {
+test("only the tab the strip shows as active takes focus, and a visible tab that is not active yet keeps its request", () => {
   const body = settle();
   const consumed = body.indexOf("[ArdiaTabRegistry takeFirstShowFocusOfTab:_tab]");
   const check = "if (!controller || [ArdiaTabStrip activeTabInWindow:controller profile:_tab.profile] != _tab) return;";
   const active = body.indexOf(check);
   const requested = body.indexOf("[self requestFocusRestoreIn:window];");
-  assert.ok(active > consumed, "the active tab is checked once the request is taken");
-  assert.ok(requested > active, "focus is requested after the active-tab check");
+  assert.ok(active >= 0, "settling checks that the strip lists this tab as active");
+  assert.ok(consumed > active, "the request is taken only after the active-tab check, so a split pane that is not active keeps it");
+  assert.ok(requested > consumed, "focus is requested after the request is taken");
 });
 
 test("a request is settled when the page is attached, when the view becomes visible, when painting is applied and when it is unhidden", () => {
