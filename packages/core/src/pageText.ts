@@ -52,7 +52,7 @@ export function tabPageText(row: { url: string; title: string; customTitle?: str
   const titles = [row.customTitle.toLowerCase(), text.titleLower];
   if (listed && listed.titleLower !== text.titleLower) titles.push(listed.titleLower);
   const titleLower = titles.join("\n");
-  const renamed = { ...text, titleLower, titleWords: wordsOf(titleLower) };
+  const renamed = { ...(listed ?? text), titleLower, titleWords: wordsOf(titleLower) };
   renamedTexts.set(row, { listed, text: renamed });
   return renamed;
 }

@@ -188,8 +188,23 @@ test("a typed address keeps opening the saved page, even when a renamed tab is o
     const first = items[0];
     assert.equal(first?.kind === "page" && first.url, saved, `${typed}: opens the saved page first`);
     assert.equal(first?.kind === "page" && first.tabId, undefined, `${typed}: first row opens, it does not switch`);
-    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === open && i.title === "Work board"), `${typed}: the tab keeps its Switch to Tab row`);
+    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === saved && i.title === "Work board"), `${typed}: the tab keeps its Switch to Tab row`);
   }
+});
+
+test("a renamed tab on a fragment of a saved page leaves the path completion and the saved address as they were", () => {
+  const saved = "https://example.com/docs/guide";
+  const hist = [...history, { url: saved, title: "Guide", favicon: null, visits: 4, lastVisit: now - 3000 }];
+  const tab = { id: "t7", url: `${saved}#intro`, title: "Guide", customTitle: "Work board", favicon: null };
+  for (const typed of ["example.com/docs/g", "example.com/docs/guide"]) {
+    const alone = buildSuggestions(typed, { tabs: [], history: hist }, { now });
+    assert.equal(alone.completion === "", typed.endsWith("guide"), `${typed}: the saved page completes unless it is typed in full`);
+    const renamed = buildSuggestions(typed, { tabs: [tab], history: hist }, { now });
+    assert.equal(renamed.completion, alone.completion, `${typed}: the completion is the same`);
+    assert.equal(renamed.items[0]?.kind === "page" && renamed.items[0].url, saved, `${typed}: the first row opens the saved address`);
+  }
+  const switching = buildSuggestions("work board", { tabs: [tab], history: hist }, { now }).items.find((i) => i.kind === "page");
+  assert.deepEqual(switching?.kind === "page" && { url: switching.url, title: switching.title, tabId: switching.tabId }, { url: saved, title: "Work board", tabId: "t7" });
 });
 
 test("a tab without a custom title keeps showing its page title", () => {

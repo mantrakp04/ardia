@@ -200,7 +200,7 @@ function tabPageText(t: TabRow, listed?: PageText): PageText {
   if (!t.customTitle) return text;
   const titles = [t.customTitle.toLowerCase(), text.titleLower];
   if (listed && listed.titleLower !== text.titleLower) titles.push(listed.titleLower);
-  return { ...text, titleLower: titles.join("\n") };
+  return { ...(listed ?? text), titleLower: titles.join("\n") };
 }
 
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
@@ -221,7 +221,7 @@ function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId
       extra.push({ url: t.url, title: t.customTitle || t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
     } else if (t.customTitle) {
       renamed.add(key);
-      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
+      extra.push({ url: listed.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
     }
   }
   return { tabIds, extra, renamed };
