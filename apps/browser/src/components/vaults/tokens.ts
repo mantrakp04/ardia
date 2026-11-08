@@ -1,24 +1,40 @@
 import { PANEL } from "../ui/Popover";
 import { POPOVER_WIDTH, space } from "../ui/tokens";
 
-const TWO_LINE_ROW = 40;
+const CREDENTIAL_ROW = 42;
+const FOOTER_ROW = 22;
+const ROW_INSET = 7;
+const FOOTER_TEXT_INSET = 15;
 
 export const VAULT_MENU = {
   gap: space.xs,
   minWidth: POPOVER_WIDTH.s,
-  maxWidth: POPOVER_WIDTH.l,
-  row: TWO_LINE_ROW,
-  compactRow: PANEL.rowHeight,
-  listPad: PANEL.inset - (TWO_LINE_ROW - PANEL.iconSlot) / 2,
-  footerPad: PANEL.listPadding,
-  maxList: TWO_LINE_ROW * 7,
-  minList: TWO_LINE_ROW * 2,
+  maxWidth: 420,
+  row: CREDENTIAL_ROW,
+  compactRow: FOOTER_ROW,
+  listPad: space.m,
+  separatorGap: space.xs,
+  footerBottom: space.m,
+  rowInset: ROW_INSET,
+  rowPadding: 10,
+  footerPadding: FOOTER_TEXT_INSET - ROW_INSET,
+  separatorInset: FOOTER_TEXT_INSET,
+  rowRadius: 5,
+  iconGap: space.l,
+  touchID: 24,
+  maxList: CREDENTIAL_ROW * 7,
+  minList: CREDENTIAL_ROW * 2,
   searchHeight: 36,
+  icon: { box: 26, glyph: 14, radius: 6 },
   badge: { box: 16, glyph: 9 },
   unlockBadge: { box: 20, glyph: 11 },
   spinner: 12,
   textGap: 1,
   badgeAlpha: 0.16,
+  glassTint: 0.35,
+  glassVeil: 0.55,
+  detailAlpha: 0.72,
+  glassSurface: { dark: "#3F3F3F", light: "#DBDBDB" },
 } as const;
 
 export const VAULT_CODE = { ring: 16, stroke: 2, tick: 1000, expiringMs: 5000 } as const;

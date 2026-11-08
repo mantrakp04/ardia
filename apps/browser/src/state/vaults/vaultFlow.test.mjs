@@ -11,6 +11,7 @@ const { noteVaultKey } = await import("./fill.ts");
 const offers = await import("./saveOffer.ts");
 const { pendingFor } = await import("./pendingTotp.ts");
 const { vaultBarActions } = await import("./barActions.ts");
+const touch = await import("./touchID.ts");
 
 const S = () => useBrowser.getState();
 const caps = { totp: true, save: true, selfHosted: true, masterPassword: true, touchID: false };
@@ -55,30 +56,137 @@ test("nothing opens on an insecure page or with suggestions turned off", async (
   S().updateSettings({ vaultSuggestOnFocus: true });
 });
 
-test("focusing a login field with a match opens the menu and tells the page", async () => {
+test("focusing a login field with a match opens the menu on its first login and tells the page", async () => {
   const { tabId } = await setup();
   menu.noteVaultField(tabId, field());
   await settle();
   assert.equal(menu.vaultMenuOf(tabId)?.field, "password");
-  assert.deepEqual(calls.at(-1), ["menu", true, false]);
+  assert.equal(menu.vaultMenuOf(tabId)?.selected, 0);
+  assert.deepEqual(calls.at(-1), ["menu", true, true], "the page hands Enter to the menu");
   menu.noteVaultField(tabId, field({ rect: { x: 10, y: 60, width: 240, height: 28 } }));
   assert.equal(menu.vaultMenuOf(tabId)?.rect.y, 60, "rect updates follow the field");
 });
 
-test("arrow then enter fills the highlighted login into the reporting frame, and remembers its code", async () => {
+test("enter fills the highlighted login into the reporting frame, and remembers its code", async () => {
   const { tabId } = await setup();
   menu.noteVaultField(tabId, field());
   await settle();
   noteVaultKey(tabId, { frameId: "other", key: "ArrowDown" });
-  assert.equal(menu.vaultMenuOf(tabId)?.selected, -1, "keys from another frame are ignored");
-  noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
-  assert.deepEqual(calls.at(-1), ["menu", true, true], "the page takes Enter once a row is highlighted");
+  assert.equal(menu.vaultMenuOf(tabId)?.selected, 0, "keys from another frame are ignored");
   noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
   await settle();
   const fill = calls.find((c) => c[0] === "fill")[1];
   assert.deepEqual({ ...fill }, { frameId: "f1", origin: "https://github.com", provider: "bitwarden", id: "gh", fields: ["username", "password"], userChose: false });
   assert.equal(menu.vaultMenuOf(tabId), null);
   assert.equal(pendingFor(store.currentPendingTotp(), "https://github.com", Date.now())?.id, "gh");
+});
+
+test("declining Touch ID or the Mac password keeps the menu open with no error and fills nothing", async () => {
+  const { tabId } = await setup();
+  const fill = handle.fillFromVault;
+  handle.fillFromVault = async (r) => (calls.push(["fill", r]), { filled: [], error: "notAuthorized" });
+  try {
+    menu.noteVaultField(tabId, field());
+    await settle();
+    noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
+    noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
+    await settle();
+    const open = menu.vaultMenuOf(tabId);
+    assert.ok(open, "the menu stays up to try again");
+    assert.equal(open.error, null);
+    assert.equal(open.busy, null);
+    assert.equal(pendingFor(store.currentPendingTotp(), "https://github.com", Date.now()), null, "no code is queued for a login that wasn't filled");
+  } finally {
+    handle.fillFromVault = fill;
+  }
+});
+
+test("Escape keeps the menu away when the same field gets focus back, until it's clicked", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  noteVaultKey(tabId, { frameId: "f1", key: "Escape" });
+  assert.equal(menu.vaultMenuOf(tabId), null);
+  menu.noteVaultField(tabId, field({ focused: false, rect: null }));
+  menu.noteVaultField(tabId, field());
+  await settle();
+  assert.equal(menu.vaultMenuOf(tabId), null, "coming back from another app doesn't reopen it");
+  menu.noteVaultField(tabId, field({ clicked: true }));
+  await settle();
+  assert.ok(menu.vaultMenuOf(tabId), "a click on the field brings it back");
+});
+
+test("a field focused again while the menu is open hands the keys back to the menu", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
+  calls.length = 0;
+  menu.noteVaultField(tabId, field({ focused: false, rect: null }));
+  menu.noteVaultField(tabId, field());
+  assert.deepEqual(calls.at(-1), ["menu", true, true]);
+});
+
+test("a field already focused gets the menu once its manager unlocks", async () => {
+  const { tabId } = await setup("locked");
+  native.vaultFakes.items = [login];
+  menu.noteVaultField(tabId, field({ kind: "username" }));
+  await settle();
+  menu.closeVaultMenu(tabId);
+  const stop = menu.startVaultMenus();
+  try {
+    native.vaultFakes.providers = [provider("unlocked")];
+    await store.loadVaultProviders();
+    await settle();
+    await settle();
+    assert.ok(menu.vaultMenuOf(tabId), "the menu offers the login without a refocus");
+  } finally {
+    stop();
+  }
+});
+
+test("on demand needs a focused field with a position", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field({ focused: false, rect: null }));
+  assert.equal(menu.openVaultMenuOnDemand(tabId), false);
+  assert.equal(menu.vaultMenuOf(tabId), null);
+});
+
+test("leaving the menu puts the highlight back on the first login", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  menu.hoverVaultMenu(tabId, true);
+  menu.selectVaultRow(tabId, 1);
+  assert.equal(menu.vaultMenuOf(tabId)?.selected, 1, "hovering Other Passwords highlights it");
+  menu.hoverVaultMenu(tabId, false);
+  assert.equal(menu.vaultMenuOf(tabId)?.selected, 0);
+  assert.deepEqual(calls.at(-1), ["menu", true, true]);
+});
+
+test("typing in the field closes the menu and keeps it closed until the field is clicked", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  noteVaultKey(tabId, { frameId: "f1", key: "Escape" });
+  assert.equal(menu.vaultMenuOf(tabId), null);
+  menu.noteVaultField(tabId, field({ rect: { x: 10, y: 100, width: 240, height: 28 } }));
+  await settle();
+  assert.equal(menu.vaultMenuOf(tabId), null);
+});
+
+test("a touch fills the row the fingerprint is on, and nothing once it's disarmed", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  touch.armVaultTouchID(tabId, null);
+  assert.equal(touch.fillArmedRow(), false);
+  touch.armVaultTouchID(tabId, "login:bitwarden/gh");
+  assert.equal(touch.fillArmedRow(), true);
+  await settle();
+  assert.equal(calls.find((c) => c[0] === "fill")?.[1].id, "gh");
+  touch.armVaultTouchID(tabId, null);
+  assert.equal(touch.fillArmedRow(), false);
 });
 
 test("enter with nothing highlighted closes the menu so the form can submit", async () => {
@@ -129,7 +237,8 @@ test("a locked manager offers its unlock row and keeps its items out of memory",
   menu.noteVaultField(tabId, field());
   await settle();
   const rows = menu.rowsOfMenu(menu.vaultMenuOf(tabId));
-  assert.deepEqual(rows.map((r) => r.kind), ["unlock", "allPasswords", "settings"]);
+  assert.deepEqual(rows.map((r) => r.kind), ["unlock", "allPasswords"]);
+  assert.equal(menu.vaultMenuOf(tabId).selected, 0, "with nothing to fill, the unlock row is the one Touch ID acts on");
 });
 
 test("locking drops the index and pending codes", async () => {

@@ -1,27 +1,38 @@
 import { useEffect, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
+import type { VaultHighlight } from "../../state/vaults/highlight";
 import type { VaultRow } from "../../state/vaults/menuModel";
 import { itemKey } from "../../state/vaults/menuModel";
+import { siteLabel } from "../../state/vaults/originMatch";
 import { forgetVaultCode, loadVaultCode } from "../../state/vaults/codes";
 import { noteCodeUnavailable } from "../../state/vaults/fill";
 import { noteVaultMenuPress } from "../../state/vaults/menu";
 import { useVaultCode, useVaultProvider } from "../../state/vaults/hooks";
-import { Favicon } from "../favicon/Favicon";
-import { ActivitySpinner, menuRowFill, PANEL, Symbol, tabularNums, Text, useTheme } from "../ui";
-import { BrandBadge, CountdownRing, formatCode } from "./VaultParts";
+import { ActivitySpinner, ink, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
+import { CountdownRing, formatCode, VaultAppIcon } from "./VaultParts";
 import { VAULT_MENU } from "./tokens";
 
-export const rowHeight = (row: VaultRow) => (row.kind === "login" || row.kind === "otp" ? VAULT_MENU.row : VAULT_MENU.compactRow);
+export const rowHeight = (row: VaultRow) => (row.kind === "allPasswords" || row.kind === "suggest" || row.kind === "settings" ? VAULT_MENU.compactRow : VAULT_MENU.row);
 
-const faviconUrl = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`);
+const withScheme = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`);
+const itemSite = (urls: readonly string[]) => (urls[0] ? siteLabel(withScheme(urls[0])) : "");
 
-const SLOT = { width: PANEL.iconSlot, height: PANEL.iconSlot, alignItems: "center", justifyContent: "center" } as const;
 const TEXT = { flex: 1, minWidth: 0, gap: VAULT_MENU.textGap } as const;
 const SPINNER = { width: VAULT_MENU.spinner, height: VAULT_MENU.spinner } as const;
-const GLYPH = { width: PANEL.iconSlot, height: PANEL.iconSlot } as const;
+const TOUCH_ID = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID } as const;
 
-function RowShell({ height, selected, onHover, onPress, children }: { height: number; selected: boolean; onHover: () => void; onPress: () => void; children: ReactNode }) {
+type Ink = { title: string; detail: string; icon: string };
+
+function useInk(highlight: VaultHighlight | null): Ink {
   const theme = useTheme();
+  if (!highlight) return { title: theme.textPrimary, detail: withAlpha(theme.dark ? ink.white : ink.black, VAULT_MENU.detailAlpha), icon: theme.icon };
+  const on = highlight.onLight ? ink.black : ink.white;
+  return { title: on, detail: on, icon: on };
+}
+
+function RowShell({ height, compact, selected, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink) => ReactNode }) {
+  const lit = useInk(highlight);
+  const plain = useInk(null);
   return (
     <View onMouseEnter={onHover}>
       <Pressable onPressIn={noteVaultMenuPress} onPress={onPress}>
@@ -29,16 +40,16 @@ function RowShell({ height, selected, onHover, onPress, children }: { height: nu
           <View
             style={{
               height,
-              marginHorizontal: PANEL.rowInset,
-              paddingHorizontal: PANEL.rowPadding,
-              borderRadius: PANEL.rowRadius,
+              marginHorizontal: VAULT_MENU.rowInset,
+              paddingHorizontal: compact ? VAULT_MENU.footerPadding : VAULT_MENU.rowPadding,
+              borderRadius: VAULT_MENU.rowRadius,
               flexDirection: "row",
               alignItems: "center",
-              gap: PANEL.iconGap,
-              backgroundColor: pressed || selected ? menuRowFill(theme, pressed) : undefined,
+              gap: VAULT_MENU.iconGap,
+              backgroundColor: selected || pressed ? highlight.fill : undefined,
             }}
           >
-            {children}
+            {children(selected || pressed ? lit : plain)}
           </View>
         )}
       </Pressable>
@@ -46,14 +57,14 @@ function RowShell({ height, selected, onHover, onPress, children }: { height: nu
   );
 }
 
-function Lines({ title, detail, mono }: { title: string; detail?: string; mono?: boolean }) {
+function Lines({ title, detail, ink, mono }: { title: string; detail?: string; ink: Ink; mono?: boolean }) {
   return (
     <View style={TEXT}>
-      <Text lines={1} weight={mono ? "semibold" : undefined} style={mono ? tabularNums : undefined}>
+      <Text lines={1} weight={detail ? "medium" : undefined} color={ink.title} style={mono ? tabularNums : undefined}>
         {title}
       </Text>
       {detail ? (
-        <Text lines={1} size="caption" tone="textSecondary">
+        <Text lines={1} size="caption" color={ink.detail}>
           {detail}
         </Text>
       ) : null}
@@ -61,11 +72,7 @@ function Lines({ title, detail, mono }: { title: string; detail?: string; mono?:
   );
 }
 
-function Trailing({ busy, provider, name }: { busy: boolean; provider: string; name: string }) {
-  return busy ? <ActivitySpinner style={SPINNER} /> : <BrandBadge provider={provider} tooltip={name} />;
-}
-
-function CodeLine({ tabId, seq, row }: { tabId: string; seq: number; row: Extract<VaultRow, { kind: "otp" }> }) {
+function CodeLine({ tabId, seq, row, ink }: { tabId: string; seq: number; row: Extract<VaultRow, { kind: "otp" }>; ink: Ink }) {
   const key = itemKey(row.item);
   const code = useVaultCode(key);
   useEffect(() => {
@@ -81,8 +88,9 @@ function CodeLine({ tabId, seq, row }: { tabId: string; seq: number; row: Extrac
   const live = code && typeof code === "object" ? code : null;
   return (
     <>
-      <View style={SLOT}>{live ? <CountdownRing key={live.expiresAt} expiresAt={live.expiresAt} period={live.period} /> : <ActivitySpinner style={SPINNER} />}</View>
-      <Lines title={live ? formatCode(live.code) : "••• •••"} detail={row.item.title} mono />
+      <VaultAppIcon provider={row.item.provider} />
+      <Lines title={live ? formatCode(live.code) : "••• •••"} detail={row.item.username || row.item.title || itemSite(row.item.urls)} ink={ink} mono />
+      {live ? <CountdownRing key={live.expiresAt} expiresAt={live.expiresAt} period={live.period} /> : <ActivitySpinner style={SPINNER} />}
     </>
   );
 }
@@ -92,6 +100,8 @@ export function VaultRowView({
   seq,
   row,
   selected,
+  highlight,
+  touchSlot,
   busy,
   site,
   onHover,
@@ -101,68 +111,61 @@ export function VaultRowView({
   seq: number;
   row: VaultRow;
   selected: boolean;
+  highlight: VaultHighlight;
+  touchSlot: boolean;
   busy: boolean;
   site: string;
   onHover: () => void;
   onPress: () => void;
 }) {
-  const theme = useTheme();
-  const provider = useVaultProvider(row.kind === "login" || row.kind === "otp" ? row.item.provider : row.kind === "unlock" ? row.provider : "");
-  const name = provider?.name ?? "";
-  const shell = (children: ReactNode) => (
-    <RowShell height={rowHeight(row)} selected={selected} onHover={onHover} onPress={onPress}>
+  const provider = useVaultProvider(row.kind === "unlock" ? row.provider : "");
+  const spinner = busy ? <ActivitySpinner style={SPINNER} /> : null;
+  const shell = (children: (ink: Ink) => ReactNode) => (
+    <RowShell height={rowHeight(row)} compact={rowHeight(row) === VAULT_MENU.compactRow} selected={selected} highlight={highlight} onHover={onHover} onPress={onPress}>
       {children}
     </RowShell>
   );
   switch (row.kind) {
-    case "login":
-      return shell(
+    case "login": {
+      const where = itemSite(row.item.urls) || site;
+      const title = row.item.username || row.item.title || where;
+      const detail = row.item.username ? where : row.item.title ? where : "";
+      return shell((ink) => (
         <>
-          <View style={SLOT}>
-            {row.item.urls[0] ? <Favicon url={faviconUrl(row.item.urls[0])} /> : <Symbol name="key.fill" size={PANEL.iconSize} color={theme.textTertiary} style={GLYPH} />}
-          </View>
-          <Lines title={row.item.title || site} detail={row.item.username || undefined} />
-          <Trailing busy={busy} provider={row.item.provider} name={name} />
-        </>,
-      );
+          <VaultAppIcon provider={row.item.provider} />
+          <Lines title={title} detail={detail || undefined} ink={ink} />
+          {spinner ?? (touchSlot ? <Symbol name="touchid" size={VAULT_MENU.touchID} color={ink.title} style={TOUCH_ID} /> : null)}
+        </>
+      ));
+    }
     case "otp":
-      return shell(
+      return shell((ink) => (
         <>
-          <CodeLine tabId={tabId} seq={seq} row={row} />
-          <Trailing busy={busy} provider={row.item.provider} name={name} />
-        </>,
-      );
+          <CodeLine tabId={tabId} seq={seq} row={row} ink={ink} />
+          {spinner}
+        </>
+      ));
     case "generate":
-      return shell(
+      return shell((ink) => (
         <>
-          <Symbol name="key.fill" size={PANEL.iconSize} color={theme.accent} style={GLYPH} />
-          <Lines title="Use Strong Password" />
-          {busy ? <ActivitySpinner style={SPINNER} /> : null}
-        </>,
-      );
+          <VaultAppIcon provider="" symbol="key.fill" neutral />
+          <Lines title="Use Strong Password" ink={ink} />
+          {spinner}
+        </>
+      ));
     case "unlock":
-      return shell(
+      return shell((ink) => (
         <>
-          <View style={SLOT}>
-            <BrandBadge provider={row.provider} box={VAULT_MENU.unlockBadge.box} glyph={VAULT_MENU.unlockBadge.glyph} />
-          </View>
-          <Lines title={`Unlock ${row.name}`} />
-          {busy ? <ActivitySpinner style={SPINNER} /> : provider?.capabilities.touchID ? <Symbol name="touchid" size={PANEL.iconSize} color={theme.icon} style={GLYPH} /> : null}
-        </>,
-      );
+          <VaultAppIcon provider={row.provider} />
+          <Lines title={`Unlock ${row.name}`} ink={ink} />
+          {spinner ?? (touchSlot ? <Symbol name="touchid" size={VAULT_MENU.touchID} color={ink.title} style={TOUCH_ID} /> : null)}
+        </>
+      ));
     case "allPasswords":
-      return shell(
-        <>
-          <Symbol name="magnifyingglass" size={PANEL.iconSize} color={theme.icon} style={GLYPH} />
-          <Lines title="All Passwords…" />
-        </>,
-      );
+      return shell((ink) => <Lines title="Other Passwords…" ink={ink} />);
+    case "suggest":
+      return shell((ink) => <Lines title="Suggest New Password" ink={ink} />);
     case "settings":
-      return shell(
-        <>
-          <Symbol name="gearshape" size={PANEL.iconSize} color={theme.icon} style={GLYPH} />
-          <Lines title="Password Settings" />
-        </>,
-      );
+      return shell((ink) => <Lines title="Password Settings…" ink={ink} />);
   }
 }

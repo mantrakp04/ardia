@@ -17,11 +17,18 @@ protocol VaultProvider: Sendable {
   func signOut(_ cli: VaultCLI) async
   func configure(_ cli: VaultCLI, server: String?) async -> String?
   func items(_ cli: VaultCLI) async throws -> [VaultItem]
+  func itemsAndPasswords(_ cli: VaultCLI) async throws -> VaultItemList
   func secret(_ cli: VaultCLI, id: String, field: VaultField) async throws -> String
   func save(_ cli: VaultCLI, login: VaultNewLogin) async throws -> VaultItem
 }
 
+struct VaultItemList: Sendable {
+  var items: [VaultItem]
+  var passwords: [String: String] = [:]
+}
+
 extension VaultProvider {
+  func itemsAndPasswords(_ cli: VaultCLI) async throws -> VaultItemList { VaultItemList(items: try await items(cli)) }
   var setup: VaultSetup? { nil }
   var environment: [String: String] { [:] }
 

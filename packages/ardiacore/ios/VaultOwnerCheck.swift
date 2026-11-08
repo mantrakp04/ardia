@@ -2,7 +2,31 @@ import Foundation
 import LocalAuthentication
 
 enum VaultOwnerCheck {
+  private static let grantLifetime: TimeInterval = 10
+  private static let grantLock = NSLock()
+  nonisolated(unsafe) private static var grantedAt: Date?
+
+  static func grant() {
+    grantLock.lock()
+    grantedAt = Date()
+    grantLock.unlock()
+  }
+
+  private static func takeGrant() -> Bool {
+    grantLock.lock()
+    defer { grantLock.unlock() }
+    let fresh = grantedAt.map { Date().timeIntervalSince($0) < grantLifetime } ?? false
+    grantedAt = nil
+    return fresh
+  }
+
+  static var biometricsAvailable: Bool {
+    var problem: NSError?
+    return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &problem)
+  }
+
   static func confirm(_ reason: String) async -> Bool {
+    if takeGrant() { return true }
     let config = LaunchConfig.shared
     if config.background {
       let granted = config.testValue("reauth") == "granted"

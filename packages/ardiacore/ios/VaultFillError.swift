@@ -4,4 +4,5 @@ enum VaultFillError: String, Error, Sendable {
   case insecure
   case notFound
   case failed
+  case notAuthorized
 }

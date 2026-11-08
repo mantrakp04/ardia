@@ -19,6 +19,7 @@ export type VaultProviderState = {
   capabilities: VaultCapabilities;
   install: { command: string; url: string };
   setup?: { kind: VaultSetupKind; appURL?: string };
+  touchUnlock?: boolean;
 };
 
 export type VaultItem = {

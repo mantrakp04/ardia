@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, View } from "react-native";
 import { brandAccent, brandOf } from "../../state/vaults/brands";
+import { NEUTRAL_BRAND_ACCENT } from "../../state/vaults/tokens";
 import { capsule, curve, ink, radius, reduceMotion, Symbol, useTheme, withAlpha } from "../ui";
 import { VAULT_CODE, VAULT_MENU } from "./tokens";
 
@@ -13,6 +14,17 @@ export function BrandBadge({ provider, box = VAULT_MENU.badge.box, glyph = VAULT
       style={{ width: box, height: box, borderRadius: box > VAULT_MENU.unlockBadge.box ? radius.tile : radius.control, backgroundColor: solid ? accent : withAlpha(accent, VAULT_MENU.badgeAlpha), alignItems: "center", justifyContent: "center" }}
     >
       <Symbol name={brandOf(provider).symbol} size={glyph} weight="semibold" color={solid ? theme.onAccent : accent} style={{ width: box, height: box }} />
+    </View>
+  );
+}
+
+export function VaultAppIcon({ provider, symbol, neutral }: { provider: string; symbol?: string; neutral?: boolean }) {
+  const theme = useTheme();
+  const { box, glyph, radius: corner } = VAULT_MENU.icon;
+  const fill = neutral ? NEUTRAL_BRAND_ACCENT : brandAccent(provider);
+  return (
+    <View style={{ width: box, height: box, borderRadius: corner, backgroundColor: fill, alignItems: "center", justifyContent: "center" }}>
+      <Symbol name={symbol ?? brandOf(provider).symbol} size={glyph} weight="semibold" color={theme.onAccent} style={{ width: box, height: box }} />
     </View>
   );
 }

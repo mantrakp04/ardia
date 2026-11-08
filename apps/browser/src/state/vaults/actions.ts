@@ -1,6 +1,8 @@
 import {
   cancelVaultSignIn,
   configureVault,
+  copyFromVault,
+  type VaultCopyField,
   lockVault,
   refreshVault,
   signInVault,
@@ -71,4 +73,11 @@ export function signInError(result: VaultSignInResult, name: string): string {
   if (result.ok) return "";
   if (result.error && result.error !== FAILED) return result.error;
   return `${name} didn't respond. Try again.`;
+}
+
+export type VaultCopyOutcome = "copied" | "declined" | "failed";
+
+export async function copyFromManager(provider: string, id: string, field: VaultCopyField): Promise<VaultCopyOutcome> {
+  const done = await copyFromVault(provider, id, field).catch(() => null);
+  return done?.copied ? "copied" : done?.declined ? "declined" : "failed";
 }

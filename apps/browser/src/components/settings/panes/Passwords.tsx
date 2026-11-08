@@ -25,6 +25,15 @@ import { passwordAutofill, setPasswordAutofillFor } from "../../../state/setting
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { PasswordManagersSection } from "./PasswordManagers";
+import { useVaultLogins } from "../../../state/vaults/hooks";
+import { loadAllVaultItems } from "../../../state/vaults/store";
+import { siteLabel } from "../../../state/vaults/originMatch";
+import type { VaultItem } from "../../../state/vaults/types";
+import { brandOf } from "../../../state/vaults/brands";
+import { BrandBadge } from "../../vaults/VaultParts";
+import { VaultLoginSheet, vaultItemUrl } from "../../vaults/VaultLoginSheet";
+
+type SavedEntry = { key: string; site: string; username: string; url: string; saved?: SavedPassword; item?: VaultItem };
 
 export function PasswordsPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
@@ -67,7 +76,18 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     else setExportStatus("");
   };
 
-  const shown = (list ?? []).filter((p) => matchesQuery(query, p.origin, p.username));
+  const vaultLogins = useVaultLogins();
+  useEffect(() => {
+    if (unlocked) void loadAllVaultItems();
+  }, [unlocked]);
+  const entries: SavedEntry[] = [
+    ...(list ?? []).map((p) => ({ key: `saved|${p.origin}|${p.username}`, site: hostLabel(p.origin), username: p.username, url: p.origin, saved: p })),
+    ...vaultLogins.map((item) => {
+      const url = vaultItemUrl(item);
+      return { key: `vault|${item.provider}|${item.id}`, site: url ? siteLabel(url) : item.title, username: item.username, url, item };
+    }),
+  ].sort((a, b) => a.site.localeCompare(b.site) || a.username.localeCompare(b.username));
+  const shown = entries.filter((e) => matchesQuery(query, e.url || e.site, e.username) || (!!e.item && matchesQuery(query, e.item.title, "")));
 
   return (
     <View>
@@ -102,19 +122,23 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         </Box>
       ) : (
         <>
-          <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
+          <SectionHeader title={list ? plural(entries.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
           <Group>
             {list && shown.length === 0 ? (
               <Row title={query ? "No passwords match" : "No saved passwords"} />
             ) : (
-              shown.map((p) => (
+              shown.map((e) => (
                 <Row
-                  key={`${p.origin}|${p.username}`}
-                  icon={<Favicon url={p.origin} />}
-                  title={hostLabel(p.origin)}
-                  description={p.username || "(no username)"}
-                  onPress={() => showSettingsSheet(<PasswordSheet profile={profile} saved={p} onChanged={load} />)}
-                />
+                  key={e.key}
+                  icon={e.url ? <Favicon url={e.url} /> : <BrandBadge provider={e.item?.provider ?? ""} />}
+                  title={e.site}
+                  description={e.username || "(no username)"}
+                  onPress={() =>
+                    showSettingsSheet(e.saved ? <PasswordSheet profile={profile} saved={e.saved} onChanged={load} /> : <VaultLoginSheet item={e.item!} site={e.site} />)
+                  }
+                >
+                  {e.item ? <BrandBadge provider={e.item.provider} tooltip={brandOf(e.item.provider).name} /> : null}
+                </Row>
               ))
             )}
           </Group>

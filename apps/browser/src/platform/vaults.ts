@@ -13,12 +13,15 @@ export const configureVault = (provider: string, server: string | null) => call(
 export const copyFromVault = (provider: string, id: string, field: VaultCopyField) => call("vaults.copy", { provider, id, field });
 export const vaultTotp = (provider: string, id: string) => call("vaults.totp", { provider, id });
 export const cancelVaultSignIn = (provider: string) => call("vaults.cancelSignIn", { provider });
-export const setVaultOptions = (idleLockMinutes: number, touchID: boolean) => call("vaults.setOptions", { idleLockMinutes, touchID });
+export const setVaultOptions = (idleLockMinutes: number, touchID: boolean, askBeforeFilling: boolean, loadPasswordsWhenUsed: boolean) =>
+  call("vaults.setOptions", { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed });
+export const vaultBiometrics = () => call("vaults.biometrics", {}).then((r) => r.available);
 
 export const signInVault = (provider: string, fields: VaultSignInFields) => signInToVault(provider, fields);
 export const unlockVault = (provider: string, password: string | null) => unlockNativeVault(provider, password);
 
 export const onVaultChanged = (listener: (state: VaultProviderState) => void) => on("vaults.changed", ({ provider }) => listener(provider));
+export const onVaultTouchID = (listener: () => void) => on("vaults.touchID", () => listener());
 export const onVaultItemsChanged = (listener: (provider: string) => void) => on("vaults.itemsChanged", ({ provider }) => listener(provider));
 
 export type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultFillField, VaultKeyPress, VaultSubmission } from "@ardia/ardiacore";

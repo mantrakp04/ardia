@@ -196,10 +196,11 @@ export type EngineCalls = {
   "vaults.signOut": [{ provider: VaultProviderId }, VaultProviderState];
   "vaults.configure": [{ provider: VaultProviderId; server?: string | null }, VaultProviderState];
   "vaults.cancelSignIn": [{ provider: VaultProviderId }, VaultProviderState];
-  "vaults.copy": [{ provider: VaultProviderId; id: string; field: VaultSecretField }, { copied: boolean; clearsAfter: number }];
+  "vaults.copy": [{ provider: VaultProviderId; id: string; field: VaultSecretField }, { copied: boolean; declined?: boolean; clearsAfter: number }];
   "vaults.totp": [{ provider: VaultProviderId; id: string }, VaultTotp | null];
   "vaults.generate": [{}, { length: number }];
-  "vaults.setOptions": [{ idleLockMinutes: number; touchID: boolean }, Record<string, never>];
+  "vaults.setOptions": [{ idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean }, Record<string, never>];
+  "vaults.biometrics": [{}, { available: boolean }];
 };
 
 export type EngineEvents = {
@@ -227,4 +228,5 @@ export type EngineEvents = {
   "media.castRoutes": { profile: string; routes: CastRoute[] };
   "vaults.changed": { provider: VaultProviderState };
   "vaults.itemsChanged": { provider: VaultProviderId };
+  "vaults.touchID": Record<string, never>;
 };

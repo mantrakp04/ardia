@@ -55,7 +55,7 @@ async function copyBest(windowId: string, origin: string, field: VaultCopyField)
   if (!item) return;
   const done = await copyFromVault(item.provider, item.id, field).catch(() => null);
   if (done?.copied) showToast(windowId, COPIED[field], undefined, { icon: "doc.on.doc", key: "vaultCopy" });
-  else showToast(windowId, field === "totp" ? "This login has no one-time code" : "Couldn't copy from your password manager", undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
+  else if (!done?.declined) showToast(windowId, field === "totp" ? "This login has no one-time code" : "Couldn't copy from your password manager", undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
 }
 
 export function runVaultAction(id: VaultActionId, s: BrowserState, windowId: string) {

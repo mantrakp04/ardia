@@ -1,11 +1,14 @@
 import { create } from "zustand";
 import { webviews } from "../../platform/webviews";
 import { useBrowser } from "../browser/store";
-import { activeTab } from "../browser/model";
+import { activeTabId } from "../browser/model";
+import { peekTabId } from "../peek/peek";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
+import { refreshVaultBiometrics } from "./biometrics";
 import { hasMatchRow, menuRows, type MenuMode, type VaultRow } from "./menuModel";
 import { isSecureOrigin } from "./originMatch";
 import { pendingFor } from "./pendingTotp";
-import { allVaultItems, anyVaultConnected, currentPendingTotp, currentVaultProviders, loadAllVaultItems } from "./store";
+import { allVaultItems, anyVaultConnected, currentPendingTotp, currentVaultProviders, loadAllVaultItems, useVaults } from "./store";
 import type { VaultFieldEvent, VaultFieldKind, VaultRect } from "./types";
 
 export type FrameId = VaultFieldEvent["frameId"];
@@ -47,6 +50,25 @@ function closeAfterBlur(tabId: string, menuSeq: number) {
   closeVaultMenu(tabId);
 }
 const otpSeenAt = new Map<string, number>();
+
+type Quiet = { frameId: FrameId; kind: VaultFieldKind; until: number | null };
+const quiet = new Map<string, Quiet>();
+export const AFTER_FILL_QUIET_MS = 1500;
+
+export function quietVaultField(tabId: string, menu: Pick<VaultMenu, "frameId" | "field">, forMs: number | null) {
+  quiet.set(tabId, { frameId: menu.frameId, kind: menu.field, until: forMs === null ? null : Date.now() + forMs });
+}
+
+function isQuiet(tabId: string, event: Pick<VaultFieldEvent, "frameId" | "kind">) {
+  const hush = quiet.get(tabId);
+  if (!hush) return false;
+  const same = hush.frameId === event.frameId && hush.kind === event.kind;
+  if (!same || (hush.until !== null && Date.now() > hush.until)) {
+    quiet.delete(tabId);
+    return false;
+  }
+  return true;
+}
 
 export const otpFieldSeenSince = (origin: string, since: number) => (otpSeenAt.get(origin) ?? 0) >= since;
 
@@ -104,8 +126,10 @@ function openMenu(tabId: string, field: FieldSeen, onDemand: boolean) {
     hovered: false,
     noTotp: [],
   };
-  setMenu(tabId, menu);
-  tellPage(tabId, field.frameId, true);
+  const resting = restingRow(rowsOfMenu(menu));
+  setMenu(tabId, { ...menu, selected: resting });
+  tellPage(tabId, field.frameId, true, resting >= 0);
+  refreshVaultBiometrics();
 }
 
 const suggestOnFocus = () => useBrowser.getState().settings.vaultSuggestOnFocus;
@@ -130,31 +154,46 @@ export function noteVaultField(tabId: string, event: VaultFieldEvent) {
     return;
   }
   if (event.kind === "otp") otpSeenAt.set(event.origin, Date.now());
-  if (menu && menu.frameId === event.frameId && menu.field === event.kind) return patchVaultMenu(tabId, { rect: event.rect, origin: event.origin });
+  if (menu && menu.frameId === event.frameId && menu.field === event.kind) {
+    patchVaultMenu(tabId, { rect: event.rect, origin: event.origin });
+    return tellPage(tabId, menu.frameId, true, menu.selected >= 0);
+  }
   if (menu) closeVaultMenu(tabId);
-  if (sameField || !event.main || !event.rect || !suggestOnFocus() || !anyVaultConnected() || !isSecureOrigin(event.origin)) return;
+  const clicked = event.clicked === true;
+  if (clicked) quiet.delete(tabId);
+  else if (isQuiet(tabId, event)) return;
+  if ((sameField && !clicked) || !event.main || !event.rect || !suggestOnFocus() || !anyVaultConnected() || !isSecureOrigin(event.origin)) return;
   void offerOnFocus(tabId, seen);
 }
 
 export function openVaultMenuOnDemand(tabId: string): boolean {
   const field = lastVaultField(tabId);
-  if (!field || !anyVaultConnected()) return false;
+  if (!field?.focused || !field.rect || !anyVaultConnected()) return false;
   openMenu(tabId, field, true);
   void loadAllVaultItems();
   return true;
+}
+
+export function restingRow(rows: readonly VaultRow[]) {
+  const fill = rows.findIndex((r) => r.kind === "login" || r.kind === "otp");
+  return fill >= 0 ? fill : rows.findIndex((r) => r.kind === "unlock");
 }
 
 export const selectVaultRow = (tabId: string, selected: number) => patchVaultMenu(tabId, { selected });
 export function hoverVaultMenu(tabId: string, hovered: boolean) {
   const menu = vaultMenuOf(tabId);
   if (!hovered && menu && menu.mode !== "search" && !menu.busy && lastVaultField(tabId)?.focused === false) return closeVaultMenu(tabId);
+  if (!hovered && menu && menu.mode === "matches" && !menu.busy) return patchVaultMenu(tabId, { hovered, selected: restingRow(rowsOfMenu(menu)) });
   patchVaultMenu(tabId, { hovered });
 }
 export const searchVaultMenu = (tabId: string, query: string) => patchVaultMenu(tabId, { query, selected: query ? 0 : -1 });
 export const showAllPasswords = (tabId: string) => patchVaultMenu(tabId, { mode: "search", query: "", selected: -1, error: null });
 export function showVaultMatches(tabId: string) {
-  if (vaultMenuOf(tabId)?.mode === "search") void webviews.get(tabId)?.focus();
-  patchVaultMenu(tabId, { mode: "matches", query: "", selected: -1, error: null });
+  const menu = vaultMenuOf(tabId);
+  if (!menu) return;
+  if (menu.mode === "search") void webviews.get(tabId)?.focus();
+  const matches = { ...menu, mode: "matches" as const, query: "" };
+  patchVaultMenu(tabId, { mode: "matches", query: "", selected: restingRow(rowsOfMenu(matches)), error: null });
 }
 
 export function noteAutofillSuggestions(tabId: string, count: number) {
@@ -164,16 +203,42 @@ export function noteAutofillSuggestions(tabId: string, count: number) {
 
 export function forgetVaultPage(tabId: string) {
   closeVaultMenu(tabId);
+  quiet.delete(tabId);
   useVaultMenus.setState((s) => (s.fields[tabId] ? { fields: { ...s.fields, [tabId]: null } } : s));
 }
 
+function shownTabIds(s: ReturnType<typeof useBrowser.getState>, windowId: string): string[] {
+  const active = activeTabId(s, windowId);
+  const peek = peekTabId(s, windowId);
+  return [...(peek ? [peek] : []), ...(active ? (splitTabIdsOf(splitOf(s, active)) ?? [active]) : [])];
+}
+
+function offerToFocusedFields() {
+  if (!suggestOnFocus() || !anyVaultConnected()) return;
+  for (const [tabId, field] of Object.entries(useVaultMenus.getState().fields)) {
+    if (!field?.focused || !field.main || !field.rect || vaultMenuOf(tabId) || isQuiet(tabId, field) || !isSecureOrigin(field.origin)) continue;
+    void offerOnFocus(tabId, field);
+  }
+}
+
 export function startVaultMenus() {
-  return useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs && s.windows === prev.windows) return;
+  const stopTabs = useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.windows === prev.windows && s.splits === prev.splits) return;
     for (const [tabId, menu] of Object.entries(menus())) {
       if (!menu) continue;
       const tab = s.tabs[tabId];
-      if (!tab || activeTab(s, tab.windowId)?.id !== tabId) closeVaultMenu(tabId);
+      if (!tab || !shownTabIds(s, tab.windowId).includes(tabId)) closeVaultMenu(tabId);
     }
   });
+  const unlockedCount = () => useVaults.getState().providers.filter((p) => p.state === "unlocked").length;
+  let unlocked = unlockedCount();
+  const stopVaults = useVaults.subscribe(() => {
+    const now = unlockedCount();
+    if (now > unlocked) offerToFocusedFields();
+    unlocked = now;
+  });
+  return () => {
+    stopTabs();
+    stopVaults();
+  };
 }

@@ -1,6 +1,6 @@
-import type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultKeyPress, VaultSubmission } from "../../platform/vaults";
+import type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultItem, VaultKeyPress, VaultSubmission } from "../../platform/vaults";
 
-export type { VaultFieldKind, VaultFillError };
+export type { VaultFieldKind, VaultFillError, VaultItem };
 export type VaultRect = VaultFieldRect;
 export type VaultFieldEvent = VaultField;
 export type VaultKeyEvent = VaultKeyPress;

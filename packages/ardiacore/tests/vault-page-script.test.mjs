@@ -9,7 +9,9 @@ const end = script.indexOf("\n  } catch (e) {}", start);
 assert.ok(start > 0 && end > start, "page_script.js has the vault block");
 const vaultBlock = script.slice(start + "  try {\n".length, end);
 
+const focusState = { el: null };
 const simple = (sel) => {
+  if (sel.trim() === ":focus") return (el) => el === focusState.el;
   const m = sel.trim().match(/^([a-z*]*)((?:\[[^\]]+\])*)$/i);
   assert.ok(m, `the fake DOM understands ${sel}`);
   const attrs = [...m[2].matchAll(/\[([a-z-]+)(?:="?([^"\]]*)"?)?\]/gi)].map((a) => [a[1], a[2]]);
@@ -194,7 +196,10 @@ function makePage({ origin = "https://example.com", path = "/login", top = true 
     path.push(win);
     return path;
   };
+  focusState.el = null;
   const fire = (target, type, extra = {}) => {
+    if (type === "focusin") focusState.el = target;
+    if (type === "focusout" && focusState.el === target) focusState.el = null;
     const event = new FakeEvent(type);
     Object.assign(event, { isTrusted: true, target, path: pathOf(target) }, extra);
     for (const t of [win, document]) for (const l of t.listeners) if (l.type === type && !event.stopped) l.fn(event);
@@ -278,8 +283,8 @@ test("focusing a login field reports it with a top-frame rect, and blur reports 
   page.fire(user, "focusin");
   page.fire(user, "focusout");
   assert.deepEqual(page.of("vaultField"), [
-    { kind: "username", focused: true, rect: { x: 10, y: 20, width: 200, height: 30 }, formHasPassword: true, autocomplete: "username" },
-    { kind: "username", focused: false, rect: null, formHasPassword: true, autocomplete: "username" },
+    { kind: "username", focused: true, rect: { x: 10, y: 20, width: 200, height: 30 }, formHasPassword: true, autocomplete: "username", clicked: false },
+    { kind: "username", focused: false, rect: null, formHasPassword: true, autocomplete: "username", clicked: false },
   ]);
 });
 
@@ -288,7 +293,7 @@ test("subframes send no rect, and a first-step username field says the form has 
   const user = page.input({ type: "email", name: "identifier", id: "identifierId" });
   page.body.append(page.el("form", {}, user, new page.FakeButton({ type: "button", text: "Next" })));
   page.fire(user, "focusin");
-  assert.deepEqual(page.of("vaultField"), [{ kind: "username", focused: true, rect: null, formHasPassword: false, autocomplete: "" }]);
+  assert.deepEqual(page.of("vaultField"), [{ kind: "username", focused: true, rect: null, formHasPassword: false, autocomplete: "", clicked: false }]);
 });
 
 test("hidden, disabled, readonly, tiny, aria-hidden and search fields are ignored", () => {
@@ -320,6 +325,56 @@ test("scroll and resize resend the rect at most once per animation frame while f
   const reports = page.of("vaultField");
   assert.equal(reports.length, scrolls + 1);
   assert.deepEqual(reports.at(-1).rect, { x: 10, y: 5, width: 200, height: 30 });
+});
+
+test("a click on the focused field says so, so a dismissed menu can come back", () => {
+  const page = makePage();
+  const { user } = loginForm(page);
+  page.fire(user, "focusin");
+  page.fire(user, "mousedown");
+  assert.deepEqual(page.of("vaultField").map((r) => r.clicked), [false, true]);
+});
+
+test("a readonly field that the page unlocks on focus is picked up a frame later", () => {
+  const page = makePage();
+  const user = page.input({ type: "email", name: "email", autocomplete: "username", readonly: "" });
+  const pass = page.input({ type: "password", name: "password", autocomplete: "current-password" });
+  page.body.append(page.el("form", {}, user, pass));
+  page.fire(user, "focusin");
+  assert.deepEqual(page.of("vaultField"), []);
+  delete user.attrs.readonly;
+  assert.equal(page.frames.length, 1);
+  page.frames.shift()();
+  assert.equal(page.of("vaultField").at(-1)?.kind, "username");
+});
+
+test("while the menu is open the field's rect follows the page, and a removed field reports a blur", () => {
+  const page = makePage();
+  const { user } = loginForm(page);
+  page.fire(user, "focusin");
+  page.handlers.vaultMenu({ open: true, highlighted: false });
+  const before = page.of("vaultField").length;
+  page.frames.shift()();
+  assert.equal(page.of("vaultField").length, before, "an unchanged rect sends nothing");
+  user.rect = { left: 10, top: 64, width: 200, height: 30 };
+  page.frames.shift()();
+  assert.deepEqual(page.of("vaultField").at(-1).rect, { x: 10, y: 64, width: 200, height: 30 });
+  user.parentNode.children.splice(user.parentNode.children.indexOf(user), 1);
+  user.parentNode = null;
+  page.frames.shift()();
+  assert.equal(page.of("vaultField").at(-1).focused, false);
+  assert.equal(page.frames.length, 0, "the watch stops once the field is gone");
+});
+
+test("typing in the field while the menu is open closes it and gives Enter back to the page", () => {
+  const page = makePage();
+  const { user } = loginForm(page);
+  page.fire(user, "focusin");
+  page.handlers.vaultMenu({ open: true, highlighted: true });
+  page.type(user, "j");
+  assert.deepEqual(page.of("vaultKey"), [{ key: "Escape" }]);
+  const enter = page.fire(user, "keydown", { key: "Enter" });
+  assert.equal(enter.stopped ?? false, false, "Enter reaches the page");
 });
 
 test("a fill refuses a different origin and fills nothing", () => {

@@ -12,6 +12,9 @@ actor VaultBroker {
   private var loading: [String: Task<[VaultItem], Error>] = [:]
   private var versions: [String: String] = [:]
   private var refreshing: Task<Void, Never>?
+  private var ownerNeededForPasswords = true
+  private var loadPasswordsWhenUsed = false
+  private var cachedPasswords: [String: [String: VaultCacheSnapshot.Password]] = [:]
 
   func providerStates() -> [VaultProviderState] {
     if refreshing == nil {
@@ -71,6 +74,7 @@ actor VaultBroker {
     }
     sessions.signedOut(id)
     dropItems(id, announce: true)
+    VaultCache.delete(id)
     return await currentState(provider)
   }
 
@@ -103,8 +107,9 @@ actor VaultBroker {
     return await currentState(provider)
   }
 
-  func copy(_ id: String, item: String, field: VaultField) async -> Bool {
+  func copy(_ id: String, item: String, field: VaultField) async -> Bool? {
     guard let provider = VaultRegistry.provider(id) else { return false }
+    if field == .password, !(await ownerAllows("copy your password")) { return nil }
     let outcome = await secret(provider, item: item, field: field)
     guard case .success(let value) = outcome else { return false }
     return await VaultClipboard.copy(value)
@@ -118,7 +123,20 @@ actor VaultBroker {
     return VaultTotp.make(code: code, period: period)
   }
 
-  func setOptions(idleLockMinutes: Int, touchID: Bool) {
+  private func ownerAllows(_ reason: String) async -> Bool {
+    guard ownerNeededForPasswords else { return true }
+    return await VaultOwnerCheck.confirm(reason)
+  }
+
+  func setOptions(idleLockMinutes: Int, touchID: Bool, askBeforeFilling: Bool, loadPasswordsWhenUsed whenUsed: Bool) {
+    ownerNeededForPasswords = askBeforeFilling
+    loadPasswordsWhenUsed = whenUsed
+    if whenUsed {
+      cachedPasswords = [:]
+      for provider in VaultRegistry.providers {
+        if cachedItems[provider.id] != nil { persist(provider.id) } else { VaultCache.stripPasswords(provider.id) }
+      }
+    }
     sessions.setOptions(idleLockMinutes: idleLockMinutes, touchID: touchID)
     guard !touchID else { return }
     for provider in VaultRegistry.providers { sessions.dropStored(provider.id) }
@@ -139,6 +157,7 @@ actor VaultBroker {
       let field: VaultField? = name == "otp" ? .totp : VaultField(rawValue: name)
       if let field, !wanted.contains(field) { wanted.append(field) }
     }
+    if wanted.contains(.password), !(await ownerAllows("fill your password")) { return .failure(.notAuthorized) }
     var values: [String: String] = [:]
     for field in wanted {
       if field == .username && !item.username.isEmpty {
@@ -248,46 +267,100 @@ actor VaultBroker {
     return result
   }
 
+  private func cacheAccount(_ id: String) -> String {
+    let state = states[id]
+    return "\(state?.account ?? "")@\(state?.server ?? "")"
+  }
+
+  private func persist(_ id: String) {
+    guard let items = cachedItems[id] else { return }
+    let snapshot = VaultCacheSnapshot(
+      account: cacheAccount(id), savedAt: (fetchedAt[id] ?? Date()).timeIntervalSince1970,
+      entries: items.map { VaultCacheSnapshot.Entry(item: $0, totpPeriod: $0.totpPeriod) },
+      passwords: loadPasswordsWhenUsed ? [:] : cachedPasswords[id] ?? [:])
+    VaultCache.save(id, snapshot)
+  }
+
+  private func restoreFromDisk(_ id: String) {
+    guard cachedItems[id] == nil, let snapshot = VaultCache.load(id, account: cacheAccount(id)) else { return }
+    cachedItems[id] = snapshot.items
+    cachedPasswords[id] = loadPasswordsWhenUsed ? [:] : snapshot.passwords
+    fetchedAt[id] = Date(timeIntervalSince1970: snapshot.savedAt)
+  }
+
   private func items(of provider: any VaultProvider) async -> [VaultItem] {
     let id = provider.id
     guard sessions.session(id) != nil else { return [] }
-    if let cached = cachedItems[id], let at = fetchedAt[id], Date().timeIntervalSince(at) < Self.itemsLifetime { return cached }
+    restoreFromDisk(id)
+    if let cached = cachedItems[id] {
+      if Date().timeIntervalSince(fetchedAt[id] ?? .distantPast) >= Self.itemsLifetime, loading[id] == nil {
+        Task { _ = await self.fetchItems(provider) }
+      }
+      return cached
+    }
+    return await fetchItems(provider)
+  }
+
+  private func fetchItems(_ provider: any VaultProvider) async -> [VaultItem] {
+    let id = provider.id
     if let pending = loading[id] { return (try? await pending.value) ?? [] }
     guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return [] }
     let queue = lane(id)
-    let task = Task { try await queue.run { try await provider.items(cli) } }
+    let listing = Task { try await queue.run { try await provider.itemsAndPasswords(cli) } }
+    let task = Task { try await listing.value.items }
     loading[id] = task
     defer { loading[id] = nil }
     do {
-      let fresh = try await task.value
+      let fresh = try await listing.value
       guard sessions.session(id) != nil else { return [] }
       let previous = cachedItems[id]
-      cachedItems[id] = fresh
+      cachedItems[id] = fresh.items
       fetchedAt[id] = Date()
+      mergePasswords(id, fresh)
+      persist(id)
       sessions.touch(id)
-      if previous != fresh { announceItems(id) }
-      return fresh
+      if previous != fresh.items { announceItems(id) }
+      return fresh.items
     } catch {
       await fail(provider, error)
-      return []
+      return cachedItems[id] ?? []
     }
+  }
+
+  private func mergePasswords(_ id: String, _ fresh: VaultItemList) {
+    guard !loadPasswordsWhenUsed else { return cachedPasswords[id] = [:] }
+    let old = cachedPasswords[id] ?? [:]
+    var kept: [String: VaultCacheSnapshot.Password] = [:]
+    for item in fresh.items {
+      if let password = fresh.passwords[item.id] {
+        kept[item.id] = VaultCacheSnapshot.Password(value: password, itemUpdatedAt: item.updatedAt)
+      } else if let cached = old[item.id], cached.itemUpdatedAt == item.updatedAt {
+        kept[item.id] = cached
+      }
+    }
+    cachedPasswords[id] = kept
   }
 
   private func freshItem(_ provider: any VaultProvider, _ itemId: String) async -> VaultItem? {
-    if let at = fetchedAt[provider.id], Date().timeIntervalSince(at) < Self.itemsLifetime,
-      let found = cachedItems[provider.id]?.first(where: { $0.id == itemId })
-    {
-      return found
-    }
-    fetchedAt[provider.id] = nil
-    return await items(of: provider).first { $0.id == itemId }
+    if let found = await items(of: provider).first(where: { $0.id == itemId }) { return found }
+    return await fetchItems(provider).first { $0.id == itemId }
   }
 
   private func secret(_ provider: any VaultProvider, item: String, field: VaultField) async -> Result<String, VaultFillError> {
-    guard sessions.session(provider.id) != nil, let cli = VaultCLI.make(for: provider, sessions: sessions) else { return .failure(.locked) }
+    let id = provider.id
+    guard sessions.session(id) != nil, let cli = VaultCLI.make(for: provider, sessions: sessions) else { return .failure(.locked) }
+    let listed = cachedItems[id]?.first { $0.id == item }
+    if field == .password, !loadPasswordsWhenUsed, let listed, let hit = cachedPasswords[id]?[item], hit.itemUpdatedAt == listed.updatedAt {
+      sessions.touch(id)
+      return .success(hit.value)
+    }
     do {
-      let value = try await lane(provider.id).run { try await provider.secret(cli, id: item, field: field) }
-      sessions.touch(provider.id)
+      let value = try await lane(id).run { try await provider.secret(cli, id: item, field: field) }
+      sessions.touch(id)
+      if field == .password, !loadPasswordsWhenUsed, let listed {
+        cachedPasswords[id, default: [:]][item] = VaultCacheSnapshot.Password(value: value, itemUpdatedAt: listed.updatedAt)
+        persist(id)
+      }
       return .success(value)
     } catch {
       await fail(provider, error)
@@ -305,6 +378,7 @@ actor VaultBroker {
     case .signedOut:
       sessions.signedOut(provider.id)
       dropItems(provider.id, announce: true)
+      VaultCache.delete(provider.id)
       _ = await currentState(provider)
     default:
       break
@@ -312,12 +386,15 @@ actor VaultBroker {
   }
 
   private func dropItems(_ id: String, announce: Bool) {
+    cachedPasswords[id] = nil
     let had = !(cachedItems.removeValue(forKey: id) ?? []).isEmpty
     fetchedAt[id] = nil
     if announce && had { announceItems(id) }
   }
 
-  private func publish(_ state: VaultProviderState) -> VaultProviderState {
+  private func publish(_ fresh: VaultProviderState) -> VaultProviderState {
+    var state = fresh
+    state.touchUnlock = state.state == .locked && sessions.hasStoredSession(state.id)
     guard states[state.id] != state else { return state }
     states[state.id] = state
     let payload: [String: Any] = ["provider": state.jsonObject()]

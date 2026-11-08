@@ -9,6 +9,7 @@ export type VaultRow =
   | { key: string; kind: "unlock"; provider: string; name: string }
   | { key: string; kind: "login"; item: VaultItem; userChose: boolean }
   | { key: string; kind: "allPasswords" }
+  | { key: string; kind: "suggest" }
   | { key: string; kind: "settings" };
 
 export type MenuMode = "matches" | "search";
@@ -29,10 +30,9 @@ export const MAX_SEARCH_ROWS = 100;
 
 export const itemKey = (item: Pick<VaultItem, "provider" | "id">) => `${item.provider}/${item.id}`;
 const loginRow = (item: VaultItem, userChose: boolean): VaultRow => ({ key: `login:${itemKey(item)}`, kind: "login", item, userChose });
-const FOOTER: VaultRow[] = [
-  { key: "allPasswords", kind: "allPasswords" },
-  { key: "settings", kind: "settings" },
-];
+const OTHER_PASSWORDS: VaultRow = { key: "allPasswords", kind: "allPasswords" };
+const SETTINGS: VaultRow = { key: "settings", kind: "settings" };
+const SUGGEST: VaultRow = { key: "suggest", kind: "suggest" };
 
 export const hasMatchRow = (rows: readonly VaultRow[]) => rows.some((r) => r.kind === "login" || r.kind === "otp" || r.kind === "generate" || r.kind === "unlock");
 
@@ -66,7 +66,8 @@ export function menuRows(input: MenuInput): VaultRow[] {
   else rows.push(...ranked.map((r) => loginRow(r.item, r.tier < TIER.subdomain)));
   const locked = input.providers.filter((p) => p.state === "locked").sort((a, b) => (providerOrder.get(a.id) ?? 0) - (providerOrder.get(b.id) ?? 0));
   rows.push(...locked.map((p): VaultRow => ({ key: `unlock:${p.id}`, kind: "unlock", provider: p.id, name: p.name })));
-  return [...rows, ...FOOTER];
+  const footer = input.field === "password" && unlocked.size ? [OTHER_PASSWORDS, SUGGEST] : [OTHER_PASSWORDS];
+  return hasMatchRow(rows) ? [...rows, ...footer] : [...rows, ...footer, SETTINGS];
 }
 
 export type MenuKeyResult = { selected: number; action: "none" | "move" | "activate" | "close" };

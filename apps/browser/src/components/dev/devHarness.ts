@@ -103,6 +103,9 @@ export function startDevHarness() {
     get settingsNav(): typeof import("../../state/settings/settingsWindows").useSettingsNav {
       return require("../../state/settings/settingsWindows").useSettingsNav;
     },
+    get savedPasswords(): typeof import("../../state/site/savedPasswords") {
+      return require("../../state/site/savedPasswords");
+    },
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
     },

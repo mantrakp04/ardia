@@ -122,7 +122,9 @@ struct BitwardenVault: VaultProvider {
     return await applyServer(cli, server ?? "")
   }
 
-  func items(_ cli: VaultCLI) async throws -> [VaultItem] {
+  func items(_ cli: VaultCLI) async throws -> [VaultItem] { try await itemsAndPasswords(cli).items }
+
+  func itemsAndPasswords(_ cli: VaultCLI) async throws -> VaultItemList {
     guard let session = cli.session else { throw VaultError.locked }
     let environment = ["BW_SESSION": session]
     let now = Date().timeIntervalSince1970
@@ -138,7 +140,15 @@ struct BitwardenVault: VaultProvider {
     let result = await cli.run(["list", "items", "--nointeraction"], environment: environment, timeout: Self.listTimeout)
     try check(result)
     guard let list = VaultJSON.parse(result.stdout) as? [Any] else { throw VaultError.failed("Bitwarden's item list didn't read.") }
-    return list.compactMap { entry in (entry as? [String: Any]).flatMap { loginItem($0) } }
+    var listed = VaultItemList(items: [])
+    for case let entry as [String: Any] in list {
+      guard let item = loginItem(entry) else { continue }
+      listed.items.append(item)
+      if let password = VaultJSON.dict(entry["login"]).flatMap({ VaultJSON.string($0["password"]) }), !password.isEmpty {
+        listed.passwords[item.id] = password
+      }
+    }
+    return listed
   }
 
   func secret(_ cli: VaultCLI, id: String, field: VaultField) async throws -> String {

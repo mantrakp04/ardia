@@ -699,8 +699,13 @@
       const r = apply(vaultRectOf, el, []);
       return { x: r.left, y: r.top, width: r.width, height: r.height };
     };
-    const vaultReport = (el, info, focused) =>
-      send("vaultField", { kind: info.kind, focused, rect: focused ? vaultRect(el) : null, formHasPassword: info.formHasPassword, autocomplete: info.autocomplete });
+    let vaultSentRect = null;
+    const vaultSameRect = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+    const vaultReport = (el, info, focused, clicked) => {
+      const rect = focused ? vaultRect(el) : null;
+      vaultSentRect = rect;
+      send("vaultField", { kind: info.kind, focused, rect, formHasPassword: info.formHasPassword, autocomplete: info.autocomplete, clicked: !!clicked });
+    };
     const vaultBlur = () => {
       const el = vaultFocused;
       const info = vaultFocusedInfo;
@@ -708,9 +713,14 @@
       vaultMenuOpen = vaultMenuHighlighted = false;
       if (el && info) vaultReport(el, info, false);
     };
-    const vaultFocus = (el) => {
+    const vaultStillFocused = (el) => !!el && el.isConnected && !!apply(vaultClosest, el, [":focus"]);
+    const vaultFocus = (el, retried) => {
       const info = vaultIsInput(el) ? vaultKindOf(el) : null;
-      if (!info) return;
+      if (!info) {
+        if (!retried && vaultIsInput(el) && el.readOnly)
+          apply(vaultNextFrame, window, [guard(() => vaultStillFocused(el) && !vaultFocused && vaultFocus(el, true))]);
+        return;
+      }
       vaultLastField = el;
       vaultFocused = el;
       vaultFocusedInfo = info;
@@ -718,7 +728,26 @@
     };
     const vaultResend = () => {
       vaultRectQueued = false;
-      if (vaultFocused && vaultFocusedInfo && vaultFocused.isConnected) vaultReport(vaultFocused, vaultFocusedInfo, true);
+      if (vaultFocused && !vaultFocused.isConnected) return vaultBlur();
+      if (vaultFocused && vaultFocusedInfo) vaultReport(vaultFocused, vaultFocusedInfo, true);
+    };
+    let vaultWatching = false;
+    const vaultWatch = () => {
+      if (!vaultMenuOpen || !vaultFocused) {
+        vaultWatching = false;
+        return;
+      }
+      if (!vaultFocused.isConnected) {
+        vaultWatching = false;
+        return vaultBlur();
+      }
+      if (isTop && !vaultSameRect(vaultRect(vaultFocused), vaultSentRect)) vaultReport(vaultFocused, vaultFocusedInfo, true);
+      apply(vaultNextFrame, window, [guard(vaultWatch)]);
+    };
+    const vaultStartWatch = () => {
+      if (vaultWatching || !vaultMenuOpen) return;
+      vaultWatching = true;
+      apply(vaultNextFrame, window, [guard(vaultWatch)]);
     };
     const vaultQueueRect = () => {
       if (!isTop || !vaultFocused || vaultRectQueued) return;
@@ -776,7 +805,9 @@
     apply(vaultListen, document, [
       "mousedown",
       guard((e) => {
-        if (e.isTrusted && vaultFocused && vaultTargetOf(e) === vaultFocused) vaultReport(vaultFocused, vaultFocusedInfo, true);
+        if (!e.isTrusted) return;
+        const el = vaultTargetOf(e);
+        if (vaultFocused && el === vaultFocused) vaultReport(vaultFocused, vaultFocusedInfo, true, true);
       }),
       vaultOptions,
     ]);
@@ -789,6 +820,10 @@
           vaultTyped.delete(el);
           vaultFilledByUs.delete(el);
         } else if (e.isTrusted) vaultTyped.add(el);
+        if (e.isTrusted && vaultMenuOpen && el === vaultFocused) {
+          vaultMenuOpen = vaultMenuHighlighted = false;
+          send("vaultKey", { key: "Escape" });
+        }
       }),
       vaultOptions,
     ]);
@@ -901,6 +936,7 @@
     handlers.vaultMenu = (message) => {
       vaultMenuOpen = !!(message && message.open === true) && !!vaultFocused;
       vaultMenuHighlighted = vaultMenuOpen && message.highlighted === true;
+      vaultStartWatch();
     };
   } catch (e) {}
 

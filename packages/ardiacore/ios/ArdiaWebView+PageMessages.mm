@@ -292,7 +292,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
         @"kind" : kind,
         @"focused" : @(focused),
         @"rect" : box,
-        @"formHasPassword" : @(Flag(dict, @"formHasPassword"))
+        @"formHasPassword" : @(Flag(dict, @"formHasPassword")),
+        @"clicked" : @(Flag(dict, @"clicked"))
       }];
 }
 

@@ -164,13 +164,14 @@ export type VaultField = {
   focused: boolean;
   rect: VaultFieldRect | null;
   formHasPassword: boolean;
+  clicked?: boolean;
 };
 export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab";
 export type VaultKeyPress = { frameId: string; key: VaultKey };
 export type VaultSubmission = { frameId: string; origin: string; username: string };
 export type VaultFillField = "username" | "password" | "totp";
 export type VaultFilledField = "username" | "password" | "newPassword" | "otp";
-export type VaultFillError = "locked" | "originMismatch" | "insecure" | "notFound" | "failed";
+export type VaultFillError = "locked" | "originMismatch" | "insecure" | "notFound" | "failed" | "notAuthorized";
 export type VaultFillRequest = { frameId: string; origin: string; provider: string; id: string; fields: VaultFillField[]; userChose?: boolean };
 export type VaultFillResult = { filled: VaultFilledField[]; error?: VaultFillError };
 export type VaultSavedItem = {

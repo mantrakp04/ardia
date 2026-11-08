@@ -22,7 +22,7 @@ ArdiaWebView+PageTab ── fillValues / save ───────────�
 | File | Role |
 | --- | --- |
 | `VaultsModule.swift` | The Expo module `ArdiaVaults`: the `vaults.*` call table, the `vaults` event channel, and the two secret-taking functions `signIn(provider, fieldsJSON)` and `unlock(provider, password)`. |
-| `VaultBroker.swift` | The one actor every caller goes through. Caches provider states and item lists (60 s), serialises every CLI call per provider through a `VaultLane`, emits `vaults.changed` and `vaults.itemsChanged`, and runs the fill and save checks. |
+| `VaultBroker.swift` | The one actor every caller goes through. Caches provider states and item lists (served at once, refreshed in the background after 60 s), serialises every CLI call per provider through a `VaultLane`, emits `vaults.changed` and `vaults.itemsChanged`, and runs the fill and save checks. |
 | `VaultProvider.swift` | The protocol a manager implements, plus shared helpers (`makeState`, `signedIn`, `needs`, `failed`, `checked`). |
 | `VaultRegistry.swift` | The list of managers. |
 | `VaultCLI.swift` | One resolved binary plus its environment and the provider's slice of the session store. Providers only ever run commands through it. |
@@ -46,6 +46,23 @@ own gate on top of the CLI: a manager is unlocked only while the session store h
 
 Lock forgets the session; sign out also tells the CLI to log out. When a CLI reports that the vault is locked or signed
 out, the broker drops the session and the cached items and publishes the new state.
+
+### The local copy
+
+`VaultCache.swift` keeps one AES-GCM sealed file per manager in `<data dir>/Password Managers/Cache/<id>.vault` (0600,
+excluded from backups), with a random 256-bit key in the login keychain (`vault-cache-key`; the test sandbox's file in
+a hidden instance). Each file is bound to the manager's account and server and is read only while that manager is
+unlocked, so it never fills anything a locked or signed-out manager wouldn't. It holds the item list and, unless
+Load Passwords When Used is on, passwords:
+
+- After an unlock the list comes from the file at once; a list older than 60 s is refreshed in the background
+  (stale while revalidate) and the file rewritten. Only a manager with no copy at all waits for its CLI.
+- Bitwarden's `list items` already carries each password, so every password is cached with no extra call. Other
+  managers cache a password the first time it is fetched.
+- A cached password is used only while its item's `updatedAt` is unchanged; a changed or deleted item drops it.
+- Sign out (or the CLI reporting signed out) deletes the file; lock keeps it. Load Passwords When Used
+  (`vaultLoadPasswordsWhenUsed`, off by default) strips every stored password and fetches each one from the CLI when it
+  is used.
 
 `vaults.providers` answers at once from the cached states (or a placeholder: `notInstalled` when no binary is found,
 otherwise `locked`) and starts one background refresh, which emits `vaults.changed` for each state that differs.
@@ -90,13 +107,23 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
 8. **Auto-lock.** After the idle timeout (default 30 minutes without a list, fill, copy, code or save), and on sleep,
    screen lock or fast user switch, every manager locks and `vaults.changed` is emitted. Sleep, screen lock and fast
    user switch also wipe every tab's captured logins (`ArdiaVaultCapture wipeAll`).
-9. **Clipboard.** Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
+9. **Owner check before passwords.** With Ask Before Filling on (the default, `vaultAskBeforeFilling`, sent as
+   `askBeforeFilling` in `vaults.setOptions`), `VaultBroker.fillValues` refuses any fill that includes a password, and
+   `copy` refuses a password copy, until the Mac owner confirms with Touch ID or the login password
+   (`VaultOwnerCheck`). A refused fill answers `notAuthorized` and the menu stays open with no error; a refused copy
+   answers `declined` and shows no toast. Usernames and one-time codes don't ask. The fill menu also shows Apple's
+   embedded Touch ID view (`VaultTouchIDView`, `LAAuthenticationView`) on the selected login, or the first one: a
+   touch on the sensor grants the broker one owner check for 10 s (`grantOwner`) and emits `vaults.touchID`; JS fills
+   the row it armed (`state/vaults/touchID.ts`), with no dialog. Apple's glyph is drawn transparent and the row shows
+   the `touchid` symbol in its own text colour instead. Without Touch ID, or after a lockout, Return or a click asks through the system prompt instead.
+   `vaults.biometrics` says whether Touch ID can be used.
+10. **Clipboard.** Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
    pasteboard is cleared after 90 s if nothing else was copied since.
-10. **Test instances.** In a hidden test instance (`ARDIA_BACKGROUND=1` with `ARDIA_DATA_DIR`, `VaultSandbox`), binaries are looked up only in `<data dir>/Password Managers/bin`,
+11. **Test instances.** In a hidden test instance (`ARDIA_BACKGROUND=1` with `ARDIA_DATA_DIR`, `VaultSandbox`), binaries are looked up only in `<data dir>/Password Managers/bin`,
     each CLI gets its own state folder under `<data dir>/Password Managers/<id>` (`OP_CONFIG_DIR`,
     `BITWARDENCLI_APPDATA_DIR`, `PROTON_PASS_SESSION_DIR` with the file key provider), and the keychain copy goes to
     `<data dir>/Password Managers.json` (0600) instead of the real keychain. In background mode the owner check never
-    prompts (it answers from `ARDIA_TEST=reauth=granted`), copies go to a private pasteboard, and sleep or screen lock
+    prompts (it answers from `ARDIA_TEST=reauth=granted`) and the Touch ID view draws its glyph without arming, copies go to a private pasteboard, and sleep or screen lock
     of the owner's Mac doesn't lock the test's vaults.
 
 ### Known limits
@@ -236,3 +263,9 @@ What the core already does for the new manager, so the provider must not repeat 
 binary, the environment, timeouts and output caps, one call at a time, the state and item caches, `vaults.changed`
 and `vaults.itemsChanged`, idle and sleep lock, origin checks before a fill, the clipboard, and dropping the session
 when the CLI reports locked or signed out.
+
+## Saved Passwords
+
+Settings › Passwords lists Ardia's own saved passwords and the logins of every unlocked manager in one list, sorted by
+site and searched together; a manager's login carries its badge. Its sheet copies the username, and copies the
+password through the broker (owner check first); a manager's password never reaches JS, so it isn't shown.

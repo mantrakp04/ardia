@@ -86,6 +86,9 @@ export function PasswordManagersSection() {
       <View style={GROUP_GAP}>
         <Group>
           <SettingToggle anchor="passwords.vaultSuggestOnFocus" />
+          <SettingToggle anchor="passwords.vaultAskBeforeFilling" />
+          <SettingToggle anchor="passwords.vaultLoadPasswordsWhenUsed" />
+          <SettingToggle anchor="passwords.vaultMenuGlass" />
           <SettingToggle anchor="passwords.vaultSaveOffer" />
           <Row anchor="passwords.vaultSaveTarget">
             <PopUp value={target} options={targetOptions} onChange={(v) => updateSettings({ vaultSaveTarget: v === ASK ? "" : v })} />

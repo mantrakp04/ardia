@@ -52,6 +52,7 @@ export {
   WebView,
   WindowBackdrop,
   WindowDragRegion,
+  VaultTouchID,
   WindowProfile,
   type DroppedItem,
   type DropUpdate,
@@ -61,5 +62,6 @@ export {
   type SwipeAreaHandle,
   type SwipeEvent,
   type SymbolProps,
+  type VaultTouchIDEnd,
   type WebViewHandle,
 } from "./native";
