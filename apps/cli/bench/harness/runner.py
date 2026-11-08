@@ -60,6 +60,7 @@ def normalize_aside(raw, task_id, contender, run_id):
         "raw_record": raw.get("_path"),
         **({"harness_error": f"{raw.get('harness_reason') or 'aside driver'}: {raw.get('error')}"}
            if raw.get("harness_error") or (raw.get("status") == "error" and not raw.get("sent_at")) else {}),
+        **({"harness_error": f"memory contaminated: {raw.get('error')}"} if raw.get("status") == "memory_contaminated" else {}),
     }
 
 
