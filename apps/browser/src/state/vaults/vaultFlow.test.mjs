@@ -187,13 +187,13 @@ test("a touch fills the selected login, and nothing once it's disarmed", async (
   await settle();
   const seq = menu.vaultMenuOf(tabId).seq;
   touch.armVaultTouchID(tabId, null);
-  assert.equal(touch.fillArmedRow(), false);
+  assert.equal(touch.grantVaultTouch(tabId, seq), false);
   touch.armVaultTouchID(tabId, seq);
-  assert.equal(touch.fillArmedRow(), true);
+  assert.equal(touch.grantVaultTouch("another-tab", seq), false, "a grant for another tab fills nothing here");
+  assert.equal(touch.grantVaultTouch(tabId, seq + 1), false, "nor one for another menu");
+  assert.equal(touch.grantVaultTouch(tabId, seq), true);
   await settle();
   assert.equal(calls.find((c) => c[0] === "fill")?.[1].id, "gh");
-  touch.armVaultTouchID(tabId, null);
-  assert.equal(touch.fillArmedRow(), false);
 });
 
 test("enter with nothing highlighted closes the menu so the form can submit", async () => {
@@ -504,7 +504,7 @@ test("a Touch ID retry flips back to ready, and lockout takes the fingerprint aw
   assert.equal(menu.vaultMenuOf(tabId).touch, "ready", "a status from an older menu is ignored");
   touch.noteVaultTouchStatus(tabId, opened.seq, "lockout");
   touch.armVaultTouchID(tabId, opened.seq);
-  assert.equal(touch.fillArmedRow(), false);
+  assert.equal(touch.grantVaultTouch(tabId, opened.seq), false);
   assert.deepEqual(fills(), []);
   noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
   await settle();
@@ -524,8 +524,8 @@ test("a Touch ID grant fills the row selected at that moment and submits, even i
     touch.armVaultTouchID(tabId, opened.seq);
     touch.noteVaultTouchStatus(tabId, opened.seq, "granted");
     menu.selectVaultRow(tabId, 0);
-    touch.fillArmedRow();
-    assert.equal(fills().length, 1, "the matching vaults.touchID event doesn't fill twice");
+    touch.noteVaultTouchStatus(tabId, opened.seq, "granted");
+    assert.equal(fills().length, 1, "one touch fills once");
     assert.equal(`login:bitwarden/${fills()[0].id}`, armedKey);
     assert.equal(fills()[0].submit, true);
     assert.equal(menu.vaultMenuOf(tabId).touch, "granted");
@@ -555,7 +555,7 @@ test("an expired Touch ID grant says so and arms again", async () => {
   assert.equal(now.error, fillModule.TOUCH_ID_EXPIRED);
   assert.equal(now.busy, null);
   assert.ok(touch.touchIDGlyphShown(now.touch));
-  assert.equal(touch.fillArmedRow(), true, "the next touch can fill");
+  assert.equal(touch.grantVaultTouch(tabId, opened.seq), true, "the next touch can fill");
   await settle();
   assert.equal(menu.vaultMenuOf(tabId), null);
 });
@@ -595,7 +595,7 @@ test("filling a login never copies its one-time code", async () => {
   assert.ok(!vaultBarActions(S(), w).some((a) => /code/i.test(a.id) || /code/i.test(a.title)));
 });
 
-const submitted = (over = {}) => ({ frameId: "f1", origin: "https://github.com", username: "", newPassword: false, generated: false, ...over });
+const submitted = (over = {}) => ({ frameId: "f1", origin: "https://github.com", username: "", usernameFrom: over.username ? "form" : "", trusted: true, newPassword: false, generated: false, ...over });
 const offerOf = (tabId) => offers.useVaultSaveOffers.getState()[tabId] ?? null;
 
 test("a new password with a known username saves at once", async () => {
@@ -605,14 +605,17 @@ test("a new password with a known username saves at once", async () => {
   assert.equal(offerOf(tabId), null);
 });
 
-test("a generated password with no username on the page saves under the login used last on the site, when that login is for a sibling", async () => {
+test("a remembered login's username never saves by itself; it's the suggestion in the offer", async () => {
   const { tabId } = await setup();
   accounts.rememberVaultAccount("https://login.example.com", login);
   native.vaultFakes.items = [{ ...login, urls: ["https://login.example.com"] }];
   await store.loadAllVaultItems(true);
   await offers.noteVaultSubmitted(tabId, submitted({ origin: "https://signup.example.com", generated: true }));
-  assert.equal(saves()[0]?.username, "octo");
-  assert.equal(offerOf(tabId), null);
+  assert.deepEqual(saves(), []);
+  assert.equal(offerOf(tabId)?.username, "octo");
+  assert.equal(offerOf(tabId)?.needsUsername, false);
+  await offers.saveVaultOffer(tabId);
+  assert.equal(saves()[0].username, "octo", "the guess is sent as the username");
 });
 
 test("a generated password with no username anywhere asks for one, and saves with what's typed", async () => {
@@ -694,16 +697,80 @@ after(() => {
   for (const tabId of Object.keys(offers.useVaultSaveOffers.getState())) offers.dismissVaultOffer(tabId);
 });
 
-test("with no username on the page, the login just filled in this tab names the new password", async () => {
+test("the login just filled in this tab is only a suggestion for a new password", async () => {
   const { tabId } = await setup();
   native.vaultFakes.items = [{ ...login, urls: ["https://login.example.com"] }];
   await store.loadAllVaultItems(true);
   menu.noteVaultField(tabId, field({ origin: "https://login.example.com", clicked: true }));
   noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
   await settle();
-  accounts.reloadVaultAccounts();
   native.docs.delete(accounts.VAULT_ACCOUNTS_DOC);
   accounts.reloadVaultAccounts();
   await offers.noteVaultSubmitted(tabId, submitted({ origin: "https://app.example.com", newPassword: true }));
-  assert.equal(saves()[0]?.username, "octo");
+  assert.deepEqual(saves(), []);
+  assert.equal(offerOf(tabId)?.username, "octo");
+});
+
+test("a password change whose username only came from a fallback still gets the offer", async () => {
+  const { tabId } = await setup();
+  accounts.rememberVaultAccount("https://github.com", login);
+  await offers.noteVaultSubmitted(tabId, submitted({ newPassword: true }));
+  assert.deepEqual(saves(), []);
+  assert.equal(offerOf(tabId)?.username, "octo", "kept, so the person decides");
+});
+
+test("a username guessed from the page, not the form, never saves by itself", async () => {
+  const { tabId } = await setup();
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "guess@example.com", usernameFrom: "nearby", newPassword: true }));
+  assert.deepEqual(saves(), []);
+  assert.equal(offerOf(tabId)?.username, "guess@example.com");
+  offers.dismissVaultOffer(tabId);
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "octo", usernameFrom: "page", newPassword: true }));
+  assert.equal(offerOf(tabId)?.username, "octo", "a page guess that matches a saved login is not a password change");
+});
+
+test("a submit the page made itself never saves by itself", async () => {
+  const { tabId } = await setup();
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "script@example.com", newPassword: true, trusted: false }));
+  assert.deepEqual(saves(), []);
+  assert.equal(offerOf(tabId)?.username, "script@example.com");
+});
+
+test("one automatic save per page load; the next asks, and a new page saves again", async () => {
+  const { tabId } = await setup();
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "one@example.com", newPassword: true }));
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "two@example.com", newPassword: true }));
+  assert.deepEqual(saves().map((s) => s.origin), ["https://github.com"]);
+  assert.equal(offerOf(tabId)?.username, "two@example.com");
+  offers.dismissVaultOffer(tabId);
+  menu.forgetVaultPage(tabId);
+  await offers.noteVaultSubmitted(tabId, submitted({ username: "three@example.com", newPassword: true }));
+  assert.equal(saves().length, 2);
+});
+
+test("a submission that arrives while the same save is running is ignored", async () => {
+  const { tabId } = await setup();
+  const pending = deferred();
+  await withHandle({ saveToVault: async (r) => (calls.push(["save", r]), pending.promise) }, async () => {
+    const first = offers.noteVaultSubmitted(tabId, submitted({ username: "slow@example.com", newPassword: true }));
+    await settle();
+    await settle();
+    assert.equal(saves().length, 1);
+    await new Promise((r) => setTimeout(r, offers.SAME_SUBMISSION_MS + 50));
+    await offers.noteVaultSubmitted(tabId, submitted({ username: "SLOW@example.com", newPassword: true }));
+    pending.resolve({ saved: true });
+    await first;
+  });
+  assert.equal(saves().length, 1);
+  assert.equal(offerOf(tabId), null);
+});
+
+test("a grant with nothing left to fill re-arms the sensor", async () => {
+  const { tabId } = await setup();
+  const opened = await openMenuNow(tabId);
+  touch.armVaultTouchID(tabId, opened.seq);
+  menu.selectVaultRow(tabId, menu.rowsOfMenu(opened).findIndex((r) => r.kind === "allPasswords"));
+  touch.noteVaultTouchStatus(tabId, opened.seq, "granted");
+  assert.deepEqual(fills(), []);
+  assert.equal(menu.vaultMenuOf(tabId).touchRearms, 1);
 });

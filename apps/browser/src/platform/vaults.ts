@@ -21,7 +21,6 @@ export const signInVault = (provider: string, fields: VaultSignInFields) => sign
 export const unlockVault = (provider: string, password: string | null) => unlockNativeVault(provider, password);
 
 export const onVaultChanged = (listener: (state: VaultProviderState) => void) => on("vaults.changed", ({ provider }) => listener(provider));
-export const onVaultTouchID = (listener: () => void) => on("vaults.touchID", () => listener());
 export const onVaultItemsChanged = (listener: (provider: string) => void) => on("vaults.itemsChanged", ({ provider }) => listener(provider));
 
 export type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultFillField, VaultKeyPress, VaultPasswordStyle, VaultSubmission, VaultTouchIDStatus } from "@ardia/ardiacore";

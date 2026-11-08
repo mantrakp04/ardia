@@ -30,20 +30,29 @@ export const useVaultSaveOffers = create<Record<string, VaultSaveOffer | null>>(
 export const SAVE_OFFER_MS = PENDING_TOTP_MS;
 export const SAME_SUBMISSION_MS = 2000;
 
-type SaveInput = { enabled: boolean; origin: string; username: string; providers: readonly VaultProviderState[]; items: readonly VaultItem[]; preferred: string };
+type SaveInput = { enabled: boolean; origin: string; username: string; providers: readonly VaultProviderState[]; items: readonly VaultItem[]; preferred: string; checkSaved?: boolean };
 export type SaveDecision = { offer: false; alreadySaved: boolean } | { offer: true; targets: string[]; target: string };
 
 export const saveTargets = (providers: readonly VaultProviderState[]) => providers.filter((p) => p.state === "unlocked" && p.capabilities.save).map((p) => p.id);
 
 export const chooseSaveTarget = (targets: readonly string[], preferred: string) => (targets.includes(preferred) ? preferred : (targets[0] ?? ""));
 
-export function decideSave({ enabled, origin, username, providers, items, preferred }: SaveInput): SaveDecision {
+export function decideSave({ enabled, origin, username, providers, items, preferred, checkSaved = true }: SaveInput): SaveDecision {
   const unlocked = new Set(providers.filter((p) => p.state === "unlocked").map((p) => p.id));
-  if (loginSavedIn(items.filter((i) => unlocked.has(i.provider)), origin, username)) return { offer: false, alreadySaved: true };
+  if (checkSaved && loginSavedIn(items.filter((i) => unlocked.has(i.provider)), origin, username)) return { offer: false, alreadySaved: true };
   const targets = saveTargets(providers);
   if (!enabled || !isSecureOrigin(origin) || !targets.length) return { offer: false, alreadySaved: false };
   const target = chooseSaveTarget(targets, preferred);
   return { offer: true, targets: target === preferred ? [target] : targets, target };
+}
+
+export const FORM_USERNAME_SOURCES: ReadonlySet<string> = new Set(["form", "step"]);
+
+export const usernameFromForm = (event: Pick<VaultSubmittedEvent, "username" | "usernameFrom">) => !!event.username.trim() && FORM_USERNAME_SOURCES.has(event.usernameFrom ?? "");
+
+export function mayAutoSave(event: Pick<VaultSubmittedEvent, "username" | "usernameFrom" | "newPassword" | "generated" | "trusted">): boolean {
+  if (!event.username.trim()) return false;
+  return event.generated === true || (event.newPassword === true && event.trusted === true && usernameFromForm(event));
 }
 
 export function knownUsername(tabId: string, event: Pick<VaultSubmittedEvent, "origin" | "username">, items: readonly VaultItem[]): string {
@@ -58,7 +67,27 @@ type Claim = { origin: string; at: number; offered: boolean };
 const claims = new Map<string, Claim>();
 const expiries = new Map<string, ReturnType<typeof setTimeout>>();
 const recent = new Map<string, { key: string; at: number }>();
+const saving = new Set<string>();
+const pageLoads = new Map<string, number>();
+const autoSavedOn = new Map<string, Set<string>>();
 let seq = 0;
+
+const pageLoadOf = (tabId: string) => pageLoads.get(tabId) ?? 0;
+
+export function forgetVaultPageSaves(tabId: string) {
+  pageLoads.set(tabId, pageLoadOf(tabId) + 1);
+  autoSavedOn.delete(tabId);
+}
+
+const autoSaveSlot = (load: number, origin: string) => `${load}\n${origin}`;
+const autoSavedAlready = (tabId: string, load: number, origin: string) => autoSavedOn.get(tabId)?.has(autoSaveSlot(load, origin)) ?? false;
+function spendAutoSave(tabId: string, load: number, origin: string) {
+  const used = autoSavedOn.get(tabId) ?? new Set<string>();
+  used.add(autoSaveSlot(load, origin));
+  autoSavedOn.set(tabId, used);
+}
+
+const savingKey = (origin: string, username: string) => `${origin}\n${username.trim().toLowerCase()}`;
 
 export function vaultClaimsPasswordPrompt(tabId: string, prompt: { origin: string; state: string }, now = Date.now()): boolean {
   const claim = claims.get(tabId);
@@ -104,30 +133,52 @@ function showOffer(tabId: string, origin: string, captured: string, username: st
 }
 
 export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEvent) {
-  if (seenJustNow(tabId, event, Date.now())) return;
+  const load = pageLoadOf(tabId);
+  if (saving.has(savingKey(event.origin, event.username)) || seenJustNow(tabId, event, Date.now())) return;
   await loadAllVaultItems();
   const settings = useBrowser.getState().settings;
   const items = allVaultItems();
-  const automatic = settings.vaultAutoSave && (event.newPassword === true || event.generated === true);
-  const username = automatic ? knownUsername(tabId, event, items) : event.username.trim();
-  const decision = decideSave({ enabled: settings.vaultSaveOffer, origin: event.origin, username, providers: currentVaultProviders(), items, preferred: settings.vaultSaveTarget });
-  if (!decision.offer) {
-    if (decision.alreadySaved) claim(tabId, event.origin, false);
-    return discard(tabId, event.origin);
+  const page = event.username.trim();
+  const fresh = event.newPassword === true || event.generated === true;
+  const base = { enabled: settings.vaultSaveOffer, origin: event.origin, providers: currentVaultProviders(), items, preferred: settings.vaultSaveTarget };
+  if (!fresh) {
+    const decision = decideSave({ ...base, username: page });
+    if (!decision.offer) {
+      if (decision.alreadySaved) claim(tabId, event.origin, false);
+      return discard(tabId, event.origin);
+    }
+    return showOffer(tabId, event.origin, page, page, decision);
   }
-  if (!automatic || !username || decision.targets.length > 1) {
-    const captured = event.username.trim();
-    return showOffer(tabId, event.origin, captured, username, decision);
+  if (usernameFromForm(event)) {
+    const changed = decideSave({ ...base, username: page });
+    if (!changed.offer && changed.alreadySaved) {
+      claim(tabId, event.origin, false);
+      return discard(tabId, event.origin);
+    }
   }
+  const guess = knownUsername(tabId, event, items);
+  const decision = decideSave({ ...base, username: guess, checkSaved: false });
+  if (!decision.offer) return discard(tabId, event.origin);
+  const auto =
+    settings.vaultAutoSave &&
+    mayAutoSave(event) &&
+    decision.targets.length === 1 &&
+    !autoSavedAlready(tabId, load, event.origin) &&
+    decideSave({ ...base, username: page }).offer;
+  if (!auto) return showOffer(tabId, event.origin, page, guess, decision);
+  spendAutoSave(tabId, load, event.origin);
   claim(tabId, event.origin, true);
-  const saved = await saveLogin(tabId, event.origin, decision.target, username !== event.username.trim() ? username : null);
-  if (!saved) showOffer(tabId, event.origin, event.username.trim(), username, decision, saveError(decision.target));
+  const saved = await saveLogin(tabId, event.origin, decision.target, null, page);
+  if (!saved) showOffer(tabId, event.origin, page, page, decision, saveError(decision.target));
 }
 
-async function saveLogin(tabId: string, origin: string, target: string, username: string | null): Promise<boolean> {
+async function saveLogin(tabId: string, origin: string, target: string, username: string | null, savedAs: string): Promise<boolean> {
   const web = webviews.get(tabId);
   const request = { provider: target, origin, title: siteLabel(origin), ...(username !== null ? { username } : {}) };
+  const key = savingKey(origin, savedAs);
+  saving.add(key);
   const result = web ? await web.saveToVault(request).catch(() => null) : null;
+  saving.delete(key);
   if (!result?.saved) return false;
   if (result.item) rememberVaultAccount(origin, result.item);
   void loadVaultItems(target, true);
@@ -170,7 +221,7 @@ export async function saveVaultOffer(tabId: string) {
   if (!offer || !canSaveVaultOffer(offer)) return;
   const username = offer.username.trim();
   patchOffer(tabId, offer.seq, { busy: true, error: null, username });
-  const saved = await saveLogin(tabId, offer.origin, offer.target, username !== offer.captured ? username : null);
+  const saved = await saveLogin(tabId, offer.origin, offer.target, username !== offer.captured ? username : null, offer.captured);
   if (offerOf(tabId)?.seq !== offer.seq) return;
   if (!saved) return patchOffer(tabId, offer.seq, { busy: false, error: saveError(offer.target) });
   setOffer(tabId, null);

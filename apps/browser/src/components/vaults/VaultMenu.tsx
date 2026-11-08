@@ -168,7 +168,7 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
             {list.map(view)}
             {touchTarget >= 0 ? (
               <View pointerEvents="none" style={{ ...TOUCH_ID_SLOT, top: VAULT_MENU.listPad + offsets[touchTarget]! + (rowHeight(list[touchTarget]!) - VAULT_MENU.touchID) / 2 }}>
-                <VaultTouchID armed={touchArmed} onStatus={(status) => noteVaultTouchStatus(tabId, menu.seq, status)} style={TOUCH_ID_SIZE} />
+                <VaultTouchID key={menu.touchRearms} armed={touchArmed} onStatus={(status) => noteVaultTouchStatus(tabId, menu.seq, status)} style={TOUCH_ID_SIZE} />
               </View>
             ) : null}
           </ScrollView>

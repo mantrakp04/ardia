@@ -275,17 +275,21 @@ when the CLI reports locked or signed out.
 
 - **Generated passwords.** `VaultPasswordGenerator` makes four styles (`strong`: four groups of five joined by
   hyphens; `alphanumeric`: 20 letters and digits; `easyToType`: lowercase and digits only, no Shift; `passphrase`:
-  four words from the EFF Short Wordlist 1, one capitalized, one digit). When the field's `maxlength` is shorter, the
+  five words from the EFF Short Wordlist 1, one capitalized, one digit; four when the field is short). When the field's `maxlength` is shorter, the
   style shrinks or falls back to letters and digits of that length. The password never leaves native code.
 - **Submitting.** With `submit: true` the page script waits two frames, checks the origin and form are unchanged and
   nothing required is still empty, then clicks the form's sign-in button, or calls `requestSubmit()`, or presses
   Enter on the last field. At most once per fill.
-- **Saving new passwords.** A submission carries `newPassword` and `generated`. With Save New Passwords Automatically
-  on (`vaultAutoSave`, default on) a new password on a secure page saves at once to the default manager, unless that
-  username is already saved for the site. The username comes from the page (the form, a hidden
-  `autocomplete="username"` field, an email field, an earlier identifier step, or an email shown near the form), then
-  the login last used on the site, then the last username filled in the tab; with none, the save popover asks for an
-  email or username and sends it as the `username` override.
+- **Saving new passwords.** A submission carries `newPassword`, `generated`, `usernameFrom` (`form`, `step`, `page`,
+  `nearby` or none) and `trusted` (a real click or Enter, or our Touch ID submit; a page's own `requestSubmit()` is
+  not). With Save New Passwords Automatically on (`vaultAutoSave`, default on) a password saves at once to the
+  default manager only when it was generated, or is a new password from a trusted submit with a username from the
+  form or an earlier step, that username isn't saved for the site yet, one manager is the target, and nothing was
+  saved automatically on this page load. Every other new password gets the save popover, prefilled with the best
+  guess (the page's username, then the login last used on the site, then the last username filled in the tab) and
+  asking for an email or username when there is none; it sends the `username` override. Identical submissions while
+  a save runs are ignored.
+- **Auto-submit only after Touch ID.** Native honours `submit` only when that fill used a fresh Touch ID grant.
 - **Remembered logins.** The login last filled or saved per site (registrable domain) is kept as its item key in
   `vault-accounts.json` (at most 500, least recently used dropped) and is ranked first and selected when the menu opens.
 

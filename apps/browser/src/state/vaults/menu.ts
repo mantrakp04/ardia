@@ -6,6 +6,7 @@ import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 import { rememberedVaultAccount } from "./accounts";
 import { refreshVaultBiometrics } from "./biometrics";
+import { forgetVaultPageSaves } from "./saveOffer";
 import { hasFillRow, hasMatchRow, menuRows, restingRow, type MenuMode, type VaultRow } from "./menuModel";
 import { isSecureOrigin } from "./originMatch";
 import { pendingFor } from "./pendingTotp";
@@ -35,6 +36,7 @@ export type VaultMenu = {
   remembered: string | null;
   touch: VaultTouchPhase;
   touchRetries: number;
+  touchRearms: number;
 };
 
 type FieldSeen = VaultFieldEvent & { at: number };
@@ -156,6 +158,7 @@ const blankMenu = (field: FieldSeen, onDemand: boolean): VaultMenu => ({
   remembered: rememberedVaultAccount(field.origin),
   touch: "off",
   touchRetries: 0,
+  touchRearms: 0,
 });
 
 function openMenu(tabId: string, field: FieldSeen, onDemand: boolean) {
@@ -273,6 +276,7 @@ export function noteAutofillSuggestions(tabId: string, count: number) {
 
 export function forgetVaultPage(tabId: string) {
   closeVaultMenu(tabId);
+  forgetVaultPageSaves(tabId);
   quiet.delete(tabId);
   declined.delete(tabId);
   told.delete(tabId);

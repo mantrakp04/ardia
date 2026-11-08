@@ -1,4 +1,4 @@
-import { onVaultTouchID, type VaultTouchIDStatus } from "../../platform/vaults";
+import type { VaultTouchIDStatus } from "../../platform/vaults";
 import { activateVaultRow, BY_TOUCH_ID } from "./fill";
 import { patchVaultMenu, rowsOfMenu, vaultMenuOf, type VaultMenu, type VaultTouchPhase } from "./menu";
 import type { VaultRow } from "./menuModel";
@@ -24,18 +24,16 @@ export function touchRowOf(menu: VaultMenu): VaultRow | null {
   return row && isTouchRow(row) ? row : null;
 }
 
-function armedMenu() {
-  if (!armed) return null;
-  const menu = vaultMenuOf(armed.tabId);
-  return menu && menu.seq === armed.seq ? { tabId: armed.tabId, menu } : null;
-}
-
-export function fillArmedRow(): boolean {
-  const target = armedMenu();
-  const row = target && touchRowOf(target.menu);
-  if (!target || !row) return false;
-  patchVaultMenu(target.tabId, { touch: "granted" }, target.menu.seq);
-  activateVaultRow(target.tabId, row, BY_TOUCH_ID);
+export function grantVaultTouch(tabId: string, menuSeq: number): boolean {
+  const menu = vaultMenuOf(tabId);
+  if (!armed || armed.tabId !== tabId || armed.seq !== menuSeq || !menu || menu.seq !== menuSeq || menu.busy) return false;
+  const row = touchRowOf(menu);
+  if (!row) {
+    patchVaultMenu(tabId, { touch: "off", touchRearms: menu.touchRearms + 1 }, menuSeq);
+    return false;
+  }
+  patchVaultMenu(tabId, { touch: "granted" }, menuSeq);
+  activateVaultRow(tabId, row, BY_TOUCH_ID);
   return true;
 }
 
@@ -49,12 +47,9 @@ export function noteVaultTouchStatus(tabId: string, menuSeq: number, status: Vau
     case "retry":
       return patchVaultMenu(tabId, { touch: "retry", touchRetries: menu.touchRetries + 1 }, menuSeq);
     case "granted":
-      if (armed?.tabId !== tabId || armed.seq !== menuSeq) armVaultTouchID(tabId, menuSeq);
-      return void fillArmedRow();
+      return void grantVaultTouch(tabId, menuSeq);
     case "unavailable":
     case "lockout":
       return patchVaultMenu(tabId, { touch: status }, menuSeq);
   }
 }
-
-export const startVaultTouchID = () => onVaultTouchID(() => void fillArmedRow());

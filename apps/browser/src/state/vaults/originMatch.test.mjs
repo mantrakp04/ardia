@@ -87,7 +87,8 @@ test("a login counts as saved only for the same site and the same username, igno
   assert.equal(loginSavedIn(items, "https://example.com", "other@example.com"), false);
   assert.equal(loginSavedIn(items, "https://example.org", "me@example.com"), false);
   assert.equal(loginSavedIn(items, "https://app.example.com", "me@example.com"), true);
-  assert.equal(loginSavedIn([item("y", ["https://login.example.com"], { username: "me" })], "https://app.example.com", "me"), false);
+  assert.equal(loginSavedIn([item("y", ["https://login.example.com"], { username: "me" })], "https://app.example.com", "me"), true, "a sibling counts, so a save never duplicates it");
+  assert.equal(loginSavedIn([item("z", ["https://example.org"], { username: "me" })], "https://app.example.com", "me"), false);
   assert.equal(loginSavedIn([], "https://example.com", ""), false);
 });
 

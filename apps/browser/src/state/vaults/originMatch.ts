@@ -135,7 +135,7 @@ export const bestItem = (items: readonly VaultItem[], origin: string) => rankIte
 export const sameUsername = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export const loginSavedIn = (items: readonly VaultItem[], origin: string, username: string) =>
-  items.some((item) => sameUsername(item.username, username) && itemTier(item, origin) >= TIER.subdomain);
+  items.some((item) => sameUsername(item.username, username) && itemTier(item, origin) >= TIER.sibling);
 
 export function sameSite(a: string, b: string): boolean {
   const x = parseSite(a);

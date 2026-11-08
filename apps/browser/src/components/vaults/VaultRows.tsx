@@ -30,7 +30,7 @@ export const GENERATOR_COPY: Record<VaultPasswordStyle, { title: string; detail?
   strong: { title: "New Strong Password" },
   alphanumeric: { title: "New Strong Password", detail: "Without Special Characters" },
   easyToType: { title: "New Strong Password", detail: "Easy to Type" },
-  passphrase: { title: "New Memorable Password", detail: "Four Words" },
+  passphrase: { title: "New Memorable Password", detail: "Five Words" },
 };
 
 type Ink = { title: string; detail: string; icon: string };
