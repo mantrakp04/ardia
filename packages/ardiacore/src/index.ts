@@ -18,6 +18,7 @@ export * from "./bookmarks";
 export * from "./swipe";
 export * from "./tabs";
 export * from "./webkit";
+export * from "./vaults";
 export { call, on, type CallArgs, type CallName, type CallResult, type EventName } from "./engine/call";
 export type { EngineCalls, EngineEvents } from "./engine/api";
 export { nativeModule, type ArdiaCoreNativeModules } from "./nativeModules";

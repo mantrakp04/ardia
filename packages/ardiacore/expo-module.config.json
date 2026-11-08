@@ -20,7 +20,8 @@
       "BookmarksModule",
       "FaviconsModule",
       "SwipeModule",
-      "WebKitModule"
+      "WebKitModule",
+      "VaultsModule"
     ]
   }
 }

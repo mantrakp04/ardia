@@ -20,6 +20,7 @@ import type { ClearSiteDataResult, SiteSettings, SiteSettingType, SiteSettingVal
 import type { LinkRoute, TabStripCommand, TabStripTransaction } from "../tabs";
 import type { PageCookie, PageEngine, PasskeyAccess } from "../webkit";
 import type { DisplayMediaSource } from "../pageTypes";
+import type { VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultTotp } from "../vaults";
 
 type Profile = { profile: string };
 type Done = Record<string, never> | null;
@@ -187,6 +188,18 @@ export type EngineCalls = {
   "webKit.devContentBlocker": [{}, Record<string, unknown>];
   "webKit.passkeyAccess": [{}, PasskeyAccess];
   "webKit.requestPasskeyAccess": [{}, PasskeyAccess];
+
+  "vaults.providers": [{}, VaultProviderState[]];
+  "vaults.refresh": [{ provider: VaultProviderId }, VaultProviderState];
+  "vaults.items": [{ provider?: VaultProviderId }, VaultItem[]];
+  "vaults.lock": [{ provider: VaultProviderId }, VaultProviderState];
+  "vaults.signOut": [{ provider: VaultProviderId }, VaultProviderState];
+  "vaults.configure": [{ provider: VaultProviderId; server?: string | null }, VaultProviderState];
+  "vaults.cancelSignIn": [{ provider: VaultProviderId }, VaultProviderState];
+  "vaults.copy": [{ provider: VaultProviderId; id: string; field: VaultSecretField }, { copied: boolean; clearsAfter: number }];
+  "vaults.totp": [{ provider: VaultProviderId; id: string }, VaultTotp | null];
+  "vaults.generate": [{}, { length: number }];
+  "vaults.setOptions": [{ idleLockMinutes: number; touchID: boolean }, Record<string, never>];
 };
 
 export type EngineEvents = {
@@ -212,4 +225,6 @@ export type EngineEvents = {
   "media.deviceChooser": DeviceChooser;
   "media.castDialog": CastDialog;
   "media.castRoutes": { profile: string; routes: CastRoute[] };
+  "vaults.changed": { provider: VaultProviderState };
+  "vaults.itemsChanged": { provider: VaultProviderId };
 };

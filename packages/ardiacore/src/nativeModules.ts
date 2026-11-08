@@ -20,6 +20,10 @@ export type ArdiaCoreNativeModules = {
     update(profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null): Secret;
   };
   ArdiaAutofill: { saveCard(profile: string, card: CardInput, number: string | null): Secret };
+  ArdiaVaults: {
+    signIn(provider: string, fieldsJSON: string): Secret;
+    unlock(provider: string, password: string | null): Secret;
+  };
   ArdiaSwipe: SwipeModule;
 };
 
