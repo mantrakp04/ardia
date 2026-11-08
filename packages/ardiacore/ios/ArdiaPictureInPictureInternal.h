@@ -13,8 +13,7 @@ struct Screen;
 - (void)_setPreventsActivation:(BOOL)prevents;
 - (BOOL)_preventsActivation;
 - (NSInteger)_resizeDirectionForMouseLocation:(NSPoint)location;
-- (void)setActivationIndependence:(BOOL)independence;
-- (bool)activationIndependence;
+- (BOOL)_isNonactivatingPanel;
 @end
 
 namespace ardia_pip {

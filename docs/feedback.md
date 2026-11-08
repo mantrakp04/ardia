@@ -64,7 +64,7 @@ contract the app, the CLI, the feedback service and the dashboard build against.
   page address and diagnostics never go to GitHub. The form says so.
 - Issue labels follow the repo's rule: `feedback` on every report, plus `bug` for bug and slow,
   `enhancement` for idea, and nothing more for other.
-- Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report.
+- Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report. Production runs that way for now. To turn issues on, create the Hexclave secret `FEEDBACK_GITHUB_ISSUES_TOKEN` (fine-grained, Issues read and write on `mantrakp04/ardia`), add `GITHUB_ISSUES_TOKEN: secret(SECRETS.feedbackGithubIssuesToken)` back to `infra/feedback/hexclave.deploy.ts`, create the `feedback` label, and redeploy with `infra/feedback/deploy.sh`.
 - Kept forever for now, like all telemetry.
 - `node infra/feedback/server.mjs --local <dir>` runs it with no ClickHouse, SeaweedFS or GitHub, writing
   to `<dir>`, for tests. The app reads `ARDIA_FEEDBACK_URL`, the CLI `ARDIA_FEEDBACK_URL` too.

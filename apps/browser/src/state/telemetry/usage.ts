@@ -26,19 +26,56 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0 };
+let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (counts.tabs || counts.windows) {
+  if (Object.values(counts).some(Boolean)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
+      capture_indicators_cleared: counts.captureIndicatorsCleared,
+      full_screens_entered: counts.fullScreens,
+      sidebar_peeks: counts.sidebarPeeks,
+      sidebar_peek_bounces: counts.sidebarPeekBounces,
+      cli_tab_edits: counts.cliTabEdits,
+      cli_group_edits: counts.cliGroupEdits,
+      cli_edit_failures: counts.cliEditFailures,
+      popover_press_closes: counts.popoverPressCloses,
+      popover_escape_closes: counts.popoverEscapeCloses,
+      tab_switcher_opens: counts.tabSwitcherOpens,
+      tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0 };
+  counts = { ...NO_COUNTS };
   countsSince = Date.now();
+}
+
+export function noteCaptureIndicatorCleared() {
+  counts.captureIndicatorsCleared++;
+}
+
+export function noteCliEdits(tabEdits: number, groupEdits: number, failures: number) {
+  counts.cliTabEdits += tabEdits;
+  counts.cliGroupEdits += groupEdits;
+  counts.cliEditFailures += failures;
+}
+
+export function notePopoverClosed(by: "press" | "escape") {
+  if (by === "press") counts.popoverPressCloses++;
+  else counts.popoverEscapeCloses++;
+}
+
+export function noteTabSwitcherOpened(closedLeftOut: number) {
+  counts.tabSwitcherOpens++;
+  counts.tabSwitcherClosedLeftOut += closedLeftOut;
+}
+
+export function noteSidebarPeek(bounce: boolean) {
+  counts.sidebarPeeks++;
+  if (bounce) counts.sidebarPeekBounces++;
 }
 
 const size = (o: object) => Object.keys(o).length;
@@ -51,6 +88,7 @@ function watchStore() {
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
+        if (before && !before.fullScreen && w.fullScreen) counts.fullScreens++;
         if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
