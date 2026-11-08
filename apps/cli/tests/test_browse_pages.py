@@ -1,0 +1,424 @@
+import asyncio
+import io
+import json
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from ardia_cli.browse import cli as browse_cli
+from ardia_cli.browse import commands, daemon, readpages, script
+from ardia_cli.browse.errors import BrowseError, OutcomeUnknown, Usage
+
+SCRATCH = Path.home() / "ardia-scratch"
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+class Links(unittest.TestCase):
+    def test_a_plain_pattern_is_a_substring_and_star_matches_anything(self):
+        links = ["http://s/p/a", "http://s/c/docks?page=2", "http://s/p/b", "http://s/blog/p/x", "http://s/"]
+        self.assertEqual(readpages.pick_links(links, "/p/"), ["http://s/p/a", "http://s/p/b", "http://s/blog/p/x"])
+        self.assertEqual(readpages.pick_links(links, "s/p/*"), ["http://s/p/a", "http://s/p/b"])
+        self.assertEqual(readpages.pick_links(links, "page=*"), ["http://s/c/docks?page=2"])
+        self.assertEqual(readpages.pick_links(links, ""), links)
+
+    def test_the_listing_itself_is_skipped(self):
+        self.assertEqual(readpages.pick_links(["http://s/p/a", "http://s/p/b"], "/p/", "http://s/p/a#top"), ["http://s/p/b"])
+
+    def test_no_match_names_some_links(self):
+        message = readpages.no_links_message("/item/", "http://s/c", ["http://s/p/a?x=1", "http://s/p/b"])
+        self.assertEqual(message, "No link on http://s/c matches '/item/' (2 links, such as /p/a?x=1, /p/b)")
+        self.assertEqual(readpages.no_links_message("/p/", "http://s/", []), "The page has no links to read (http://s/)")
+
+
+class Urls(unittest.TestCase):
+    def test_arguments_and_stdin_lines_dedupe_in_order(self):
+        urls = readpages.wanted_urls({"stdin": True}, ["example.com/a", "-"], "# picked\nhttp://x/1 http://x/2\n\nexample.com/a\n")
+        self.assertEqual(urls, ["https://example.com/a", "http://x/1", "http://x/2"])
+
+    def test_paths_resolve_against_the_tab(self):
+        self.assertEqual(readpages.wanted_urls({}, ["/p/a", "?page=2", "../b"], None, "http://s/c/docks?page=1"),
+                         ["http://s/p/a", "http://s/c/docks?page=2", "http://s/b"])
+        with self.assertRaises(Usage):
+            readpages.wanted_urls({}, ["/p/a"], None, None)
+
+    def test_limits(self):
+        self.assertEqual(readpages.parse_limit(None), readpages.DEFAULT_LIMIT)
+        for bad in ("0", "101", "ten"):
+            with self.assertRaises(Usage):
+                readpages.parse_limit(bad)
+        self.assertEqual(readpages.page_timeout({"timeout": "1500"}), 1.5)
+
+
+class Rendering(unittest.TestCase):
+    def test_pages_are_headed_by_title_and_url(self):
+        records = [{"url": "http://s/p/a", "finalUrl": "http://s/p/a", "title": "Dock A", "text": "Two displays: Yes"},
+                   {"url": "http://s/p/b", "error": "couldn't load it: net::ERR_CONNECTION_REFUSED"}]
+        self.assertEqual(readpages.render(records, {}),
+                         "=== [1/2] Dock A\nhttp://s/p/a\nTwo displays: Yes\n\n=== [2/2] ✗ http://s/p/b\ncouldn't load it: net::ERR_CONNECTION_REFUSED")
+        self.assertEqual(readpages.render(records[:1], {}), "=== Dock A\nhttp://s/p/a\nTwo displays: Yes")
+
+    def test_the_cap_is_shared_so_every_page_shows(self):
+        records = [{"url": f"http://s/p/{n}", "title": f"P{n}", "text": "\n".join(f"spec {n}.{k}: value" for k in range(400))} for n in range(10)]
+        records[3]["text"] = "short page"
+        text = readpages.render(records, {})
+        self.assertLessEqual(len(text), daemon.OUTPUT_CAP)
+        for n in range(10):
+            self.assertIn(f"=== [{n + 1}/10] P{n}\nhttp://s/p/{n}\n", text)
+        self.assertIn("short page", text)
+        self.assertTrue(text.endswith("or read part of each page with -s <selector>]"), text[-200:])
+        self.assertIn(" characters]\n\n=== [", text)
+        _, out, _ = daemon.render({}, result=commands.Result({}, text))
+        self.assertNotIn("output capped", out)
+        full = readpages.render(records, {"full": True})
+        self.assertNotIn("pages cut", full)
+        self.assertGreater(len(text), daemon.OUTPUT_CAP - 400)
+        self.assertEqual(readpages.render(records, {"max_output": 0}), full)
+
+    def test_shares_give_short_pages_their_length_and_split_the_rest(self):
+        self.assertEqual(readpages.shares([100, 5000, 5000], 3100), [100, 1500, 1500])
+        self.assertEqual(readpages.shares([10, 20], 1000), [10, 20])
+
+
+class FakeBrowser:
+    def __init__(self, state, delay=0.02):
+        self.state = state
+        self.delay = delay
+        self.created = []
+        self.closed = []
+        self.live = 0
+        self.peak = 0
+
+    async def send(self, method, params=None, session=None, timeout=30):
+        if method == "Target.createTarget":
+            target = f"R{len(self.created) + 1}"
+            self.created.append(target)
+            return {"targetId": target}
+        if method == "Target.closeTarget":
+            self.closed.append(params["targetId"])
+            return {}
+        raise AssertionError(method)
+
+
+class FakeReader:
+    def __init__(self, state, target_id, browser, fail=()):
+        self.state = state
+        self.target_id = target_id
+        self.session_id = "S" + target_id
+        self.browser = browser
+        self.fail = fail
+        self.url = "about:blank"
+
+    async def attach(self, browser):
+        if self.target_id in self.state.refuse_attach:
+            raise BrowseError("Target.attachToTarget: No target with given id found")
+
+
+def reader_state():
+    state = SimpleNamespace(opened=set(), target_infos={}, pages={}, connected=True, refuse_attach=set())
+    state.browser = FakeBrowser(state)
+
+    async def connect():
+        return None
+
+    def forget(target_id):
+        state.opened.discard(target_id)
+        state.pages.pop(target_id, None)
+        state.target_infos.pop(target_id, None)
+
+    state.connect = connect
+    state.forget_target = forget
+    return state
+
+
+class ReadingTabs(unittest.TestCase):
+    def setUp(self):
+        self.state = reader_state()
+        self.ctx = commands.Ctx(self.state, {}, "/", {}, None, "read")
+        self.visits = []
+
+        async def read_in(ctx, page, url, selector, timeout, options):
+            browser = self.state.browser
+            browser.live += 1
+            browser.peak = max(browser.peak, browser.live)
+            self.visits.append((page.target_id, url))
+            await asyncio.sleep(browser.delay)
+            browser.live -= 1
+            if url.endswith("/boom"):
+                return {"url": url, "source": "browser", "error": "couldn't load it: net::ERR_FAILED"}
+            return {"url": url, "finalUrl": url, "title": url.rsplit("/", 1)[1], "text": f"text of {url}", "source": "browser"}
+
+        page_class = lambda state, target_id: FakeReader(state, target_id, state.browser)
+        patches = [mock.patch.object(readpages, "read_in", read_in), mock.patch("ardia_cli.browse.page.Page", page_class)]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_at_most_four_tabs_reused_and_all_closed(self):
+        urls = [f"http://s/p/{n}" for n in range(10)] + ["http://s/boom"]
+        records = run(readpages.read_tabs(self.ctx, urls, None, 5, {}))
+        self.assertEqual([record["url"] for record in records], urls)
+        self.assertEqual(len(self.state.browser.created), 4)
+        self.assertLessEqual(self.state.browser.peak, 4)
+        self.assertEqual(sorted(self.state.browser.closed), sorted(self.state.browser.created))
+        self.assertEqual(self.state.opened, set())
+        self.assertEqual(self.state.pages, {})
+        self.assertEqual(records[-1]["error"], "couldn't load it: net::ERR_FAILED")
+
+    def test_a_cancelled_read_still_closes_its_tabs(self):
+        self.state.browser.delay = 5
+
+        async def go():
+            task = asyncio.ensure_future(readpages.read_tabs(self.ctx, [f"http://s/p/{n}" for n in range(6)], None, 5, {}))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        run(go())
+        self.assertEqual(len(self.state.browser.created), 4)
+        self.assertEqual(sorted(self.state.browser.closed), sorted(self.state.browser.created))
+        self.assertEqual(self.state.opened, set())
+
+    def test_a_tab_that_fails_to_attach_is_still_closed(self):
+        self.state.refuse_attach.add("R1")
+        with self.assertRaises(BrowseError):
+            run(readpages.read_tabs(self.ctx, ["http://s/p/1"], None, 5, {}))
+        self.assertEqual(self.state.browser.closed, ["R1"])
+        self.assertEqual(self.state.opened, set())
+
+    def test_one_url_uses_one_tab(self):
+        run(readpages.read_tabs(self.ctx, ["http://s/p/1"], None, 5, {}))
+        self.assertEqual(self.state.browser.created, ["R1"])
+
+    def test_a_failed_page_makes_the_command_fail_but_keeps_the_others(self):
+        records = run(readpages.read_tabs(self.ctx, ["http://s/p/1", "http://s/boom"], None, 5, {}))
+        result = readpages.result_for(records, {}, {})
+        self.assertTrue(result.failed)
+        self.assertIn("text of http://s/p/1", result.text)
+        code, out, _ = daemon.render({}, result=result)
+        self.assertEqual(code, 1)
+
+
+class ReadRouting(unittest.TestCase):
+    def ctx(self, stdin=None):
+        return commands.Ctx(SimpleNamespace(), {}, "/", {}, stdin, "read")
+
+    def test_urls_go_to_the_browser_and_one_http_url_keeps_the_fetch(self):
+        with mock.patch.object(readpages, "run", mock.AsyncMock(return_value="pages")) as pages, \
+                mock.patch("ardia_cli.browse.readurl.run", return_value="fetched") as fetched:
+            self.assertEqual(run(commands.cmd_read(self.ctx(), ["http://a/", "http://b/"])), "pages")
+            self.assertEqual(run(commands.cmd_read(self.ctx(), ["http://a/"])), "pages")
+            self.assertEqual(run(commands.cmd_read(self.ctx(), ["--links", "/p/", "-s", "main"])), "pages")
+            self.assertEqual(run(commands.cmd_read(self.ctx(), ["http://a/", "--http"])), "fetched")
+            self.assertEqual(run(commands.cmd_read(self.ctx(), ["http://a/", "--llms", "index"])), "fetched")
+        self.assertEqual(pages.await_count, 3)
+        self.assertEqual(pages.await_args_list[2].args[1], {"links": "/p/", "selector": "main"})
+
+    def test_http_reads_run_without_the_browser(self):
+        self.assertTrue(browse_cli.read_runs_locally(["http://a/", "http://b/", "--http"]))
+        self.assertTrue(browse_cli.read_runs_locally(["http://a/", "--raw"]))
+        self.assertFalse(browse_cli.read_runs_locally(["http://a/", "http://b/"]))
+        self.assertFalse(browse_cli.read_runs_locally(["--links", "/p/", "--http"]))
+        self.assertFalse(browse_cli.read_runs_locally(["/p/a", "--http"]))
+        self.assertFalse(browse_cli.read_runs_locally([]))
+
+    def test_http_mode_refuses_a_selector(self):
+        with self.assertRaises(Usage):
+            readpages.run_local({"selector": "main", "http": True}, ["http://a/"], None, {})
+
+    def test_local_http_reads_each_url(self):
+        def fake(url, options, global_options):
+            if "bad" in url:
+                raise BrowseError(f"{url} answered HTTP 404")
+            return commands.Result({"content": f"body {url}", "finalUrl": url, "title": "T " + url[-2:]}, "")
+
+        with mock.patch("ardia_cli.browse.readurl.run", side_effect=fake):
+            result = readpages.run_local({"http": True}, ["http://a/1", "http://a/bad"], None, {})
+        self.assertEqual(result.data["pages"][0], {"url": "http://a/1", "source": "http", "finalUrl": "http://a/1", "title": "T /1", "text": "body http://a/1"})
+        self.assertIn("=== [2/2] ✗ http://a/bad\nhttp://a/bad answered HTTP 404", result.text)
+        self.assertTrue(result.failed)
+
+
+class ScriptPieces(unittest.TestCase):
+    def test_timeouts(self):
+        self.assertEqual(script.parse_timeout(None), script.DEFAULT_TIMEOUT)
+        self.assertEqual(script.parse_timeout("2m"), 120)
+        self.assertEqual(script.parse_timeout("30s"), 30)
+        self.assertEqual(script.parse_timeout("1500"), 1.5)
+        for bad in ("11m", "0", "soon"):
+            with self.assertRaises(Usage):
+                script.parse_timeout(bad)
+
+    def test_the_wrapper_keeps_line_numbers_one_off(self):
+        wrapped = script.wrap("const a = 1;\nreturn a;")
+        self.assertEqual(wrapped.splitlines()[1:3], ["const a = 1;", "return a;"])
+        self.assertTrue(wrapped.endswith(f"//# sourceURL={script.SOURCE_URL}"))
+        self.assertEqual(script.source_line("a\nb\nc", 9), 3)
+        self.assertEqual(script.source_line("a\nb\nc", 2), 2)
+
+    def test_close_and_nested_scripts_are_refused(self):
+        ctx = commands.Ctx(SimpleNamespace(), {}, "/", {}, "page.goto('x')", "script")
+        for argv in (["close"], ["quit"], ["script"], [], ["click", 3]):
+            answer = run(script.answer_call(ctx, argv))
+            self.assertFalse(answer["ok"], argv)
+
+    def test_commands_run_through_the_normal_dispatch_without_the_script_as_stdin(self):
+        seen = []
+
+        async def fake_dispatch(ctx, name, argv):
+            seen.append((name, argv, ctx.stdin))
+            return commands.Result({"url": "http://s/"}, "http://s/")
+
+        ctx = commands.Ctx(SimpleNamespace(), {"json": True}, "/", {}, "the script", "script")
+        with mock.patch.object(daemon, "dispatch", fake_dispatch):
+            answer = run(script.answer_call(ctx, ["goto", "http://s/"]))
+        self.assertEqual(seen, [("open", ["http://s/"], None)])
+        self.assertEqual(answer, {"ok": True, "text": "http://s/", "data": {"url": "http://s/"}})
+
+    def test_an_unknown_outcome_stops_the_script(self):
+        async def fake_dispatch(ctx, name, argv):
+            raise OutcomeUnknown("`click`", "Ardia didn't answer")
+
+        ctx = commands.Ctx(SimpleNamespace(), {}, "/", {}, None, "script")
+        with mock.patch.object(daemon, "dispatch", fake_dispatch):
+            with self.assertRaises(OutcomeUnknown):
+                run(script.answer_call(ctx, ["click", "#go"]))
+
+
+class FakeController:
+    def __init__(self, replies, hang=False):
+        self.replies = list(replies)
+        self.hang = hang
+        self.answers = []
+        self.target_id = "C1"
+        self.evaluated = []
+
+    async def send(self, method, params=None, timeout=30, mutation=False):
+        if method == "Runtime.evaluate":
+            self.evaluated.append(params["expression"])
+            if "__ardiaScript.start" in params["expression"] and "syntax(" in params["expression"]:
+                return {"exceptionDetails": {"lineNumber": 2, "exception": {"description": "SyntaxError: Unexpected token ')'\n    at x"}}}
+            return {"result": {"objectId": "H"}}
+        if method == "Runtime.callFunctionOn":
+            if "reply" in params["functionDeclaration"]:
+                self.answers.append([arg["value"] for arg in params["arguments"]])
+                return {"result": {"value": True}}
+            if "logs()" in params["functionDeclaration"]:
+                return {"result": {"value": {"logs": ["before the hang"]}}}
+            if not self.replies:
+                if self.hang:
+                    await asyncio.sleep(60)
+                raise AssertionError("no more messages")
+            return {"result": {"value": self.replies.pop(0)}}
+        raise AssertionError(method)
+
+
+class ScriptRuns(unittest.TestCase):
+    def run_script(self, controller, source="page.goto('x')", seconds=5, dispatch=None):
+        state = SimpleNamespace(connected=True, pages={})
+        closed = []
+
+        async def connect():
+            return None
+
+        state.connect = connect
+        state.forget_target = lambda target_id: closed.append(target_id)
+        state.browser = SimpleNamespace(send=mock.AsyncMock(return_value={}))
+        ctx = commands.Ctx(state, {}, "/", {}, source, "script")
+
+        async def fake_dispatch(ctx, name, argv):
+            return commands.Result({"text": f"{name} {' '.join(argv)}"}, f"✓ {name}")
+
+        with mock.patch.object(script, "open_controller", mock.AsyncMock(return_value=controller)), \
+                mock.patch.object(daemon, "dispatch", dispatch or fake_dispatch):
+            try:
+                return run(script.run(ctx, source, seconds)), closed
+            except BrowseError as error:
+                return error, closed
+
+    def test_requests_run_in_order_and_the_value_is_printed(self):
+        controller = FakeController([
+            {"kind": "request", "type": "call", "id": 1, "argv": ["get", "text", "h1"], "line": 2},
+            {"kind": "request", "type": "sleep", "id": 2, "ms": 1, "line": 3},
+            {"kind": "done", "value": [{"name": "Dock"}], "logs": ["read 1 page"]},
+        ])
+        result, closed = self.run_script(controller)
+        self.assertEqual(controller.answers[0], [1, {"ok": True, "text": "✓ get", "data": {"text": "get text h1"}}])
+        self.assertEqual(controller.answers[1][0], 2)
+        self.assertEqual(result.text, 'read 1 page\n[\n  {\n    "name": "Dock"\n  }\n]')
+        self.assertEqual(result.data, {"value": [{"name": "Dock"}], "logs": ["read 1 page"]})
+        self.assertEqual(closed, ["C1"])
+
+    def test_a_failed_command_reports_the_script_line(self):
+        controller = FakeController([{"kind": "error", "message": "Element not found: #nope", "name": "Error", "line": 4,
+                                      "code": "not_found", "command": ["click", "#nope"], "logs": ["opened"]}])
+        error, closed = self.run_script(controller, "a\nb\nc\nd\ne")
+        self.assertEqual(error.message, "line 4: Element not found: #nope (in `click '#nope'`)\nlogged before that:\nopened")
+        self.assertEqual(error.code, "not_found")
+        self.assertEqual(error.data["line"], 4)
+        self.assertEqual(closed, ["C1"])
+
+    def test_a_syntax_error_names_its_line(self):
+        error, closed = self.run_script(FakeController([]), "const a = 1;\nsyntax(;\nreturn a;")
+        self.assertEqual(error.message, "line 2: SyntaxError: Unexpected token ')'")
+        self.assertEqual(error.code, "script_syntax")
+        self.assertEqual(closed, ["C1"])
+
+    def test_a_thrown_type_error_keeps_its_name(self):
+        controller = FakeController([{"kind": "error", "message": "x is not a function", "name": "TypeError", "line": 1, "logs": []}])
+        error, _ = self.run_script(controller)
+        self.assertEqual(error.message, "line 1: TypeError: x is not a function")
+
+    def test_the_timeout_names_the_command_in_flight_and_its_line(self):
+        async def slow_dispatch(ctx, name, argv):
+            await asyncio.sleep(30)
+
+        controller = FakeController([{"kind": "request", "type": "call", "id": 1, "argv": ["click", "#go"], "line": 7}])
+        error, closed = self.run_script(controller, "x\n" * 9, seconds=0.2, dispatch=slow_dispatch)
+        self.assertEqual(error.code, "timeout")
+        self.assertTrue(error.message.startswith("The script timed out after 0.2s, in `click '#go'` at line 7; that command was cut off, "
+                                                 "so its outcome is unknown."), error.message)
+        self.assertIn("logged before that:\nbefore the hang", error.message)
+        self.assertEqual(closed, ["C1"])
+
+    def test_a_script_stuck_in_its_own_code_times_out_too(self):
+        error, closed = self.run_script(FakeController([], hang=True), seconds=0.2)
+        self.assertEqual(error.code, "timeout")
+        self.assertTrue(error.message.startswith("The script timed out after 0.2s. Give it longer"), error.message)
+        self.assertEqual(closed, ["C1"])
+
+    def test_unawaited_commands_are_reported(self):
+        result, _ = self.run_script(FakeController([{"kind": "done", "undefined": True, "unawaited": 2, "logs": []}]))
+        self.assertEqual(result.text, "[2 commands the script didn't await never ran]")
+        result, _ = self.run_script(FakeController([{"kind": "done", "undefined": True, "logs": []}]))
+        self.assertEqual(result.text, "✓ Done")
+
+
+class ScriptSource(unittest.TestCase):
+    def setUp(self):
+        SCRATCH.mkdir(exist_ok=True)
+        self.dir = Path(tempfile.mkdtemp(prefix="browse-script-", dir=SCRATCH))
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+
+    def test_a_file_or_stdin(self):
+        (self.dir / "loop.js").write_text("return 1;\n")
+        self.assertEqual(browse_cli.script_source(["loop.js", "--timeout", "2m"], str(self.dir)), "return 1;\n")
+        with mock.patch.object(sys, "stdin", io.StringIO("return 2;")):
+            self.assertEqual(browse_cli.script_source([], str(self.dir)), "return 2;")
+        with self.assertRaises(Usage):
+            browse_cli.script_source(["missing.js"], str(self.dir))
+        with self.assertRaises(Usage):
+            browse_cli.script_source(["a.js", "b.js"], str(self.dir))
+
+
+if __name__ == "__main__":
+    unittest.main()

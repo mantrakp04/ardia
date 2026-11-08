@@ -266,8 +266,12 @@ def run_local(command: str, args: list[str], root: Path, options: dict, dir_fd_f
             request.text = read_stdin_text()
         return notes.run_request(root, request, None)
     if command == "read":
-        parsed, positional = parse(args, readurl.FLAGS)
-        return readurl.run(positional[0], parsed, options)
+        from ardia_cli.browse import readpages
+
+        parsed, positional = parse(args, readpages.flags(), readpages.ALIASES)
+        if readpages.single_fetch(parsed, positional):
+            return readurl.run(positional[0], parsed, options)
+        return readpages.run_local(parsed, positional, read_stdin_urls(args), options)
     if command == "session":
         action = args[0] if args else None
         if action == "id":
@@ -304,15 +308,53 @@ def read_stdin_text() -> str:
     return text
 
 
-def read_has_url(args: list[str]) -> bool:
-    from ardia_cli.browse import readurl
+def read_args(args: list[str]):
+    from ardia_cli.browse import readpages
     from ardia_cli.browse.commands import parse
 
     try:
-        _, positional = parse(args, readurl.FLAGS)
+        return parse(args, readpages.flags(), readpages.ALIASES)
     except Usage:
-        return False
-    return bool(positional)
+        return None
+
+
+def read_runs_locally(args: list[str]) -> bool:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    return parsed is not None and readpages.runs_locally(*parsed)
+
+
+def read_stdin_urls(args: list[str]) -> str | None:
+    from ardia_cli.browse import readpages
+
+    parsed = read_args(args)
+    if parsed is None or not readpages.reads_stdin(*parsed):
+        return None
+    return sys.stdin.read(readpages.MAX_STDIN)
+
+
+def script_source(args: list[str], cwd: str) -> str:
+    from ardia_cli.browse import script
+    from ardia_cli.browse.commands import parse
+
+    parsed, positional = parse(args, {"--timeout": "value", "--stdin": "bool"})
+    if len(positional) > 1:
+        raise Usage("Usage: ardia browse script [file.js] [--timeout 90s]; quote the script in a heredoc on stdin, or put it in a file")
+    if positional and positional[0] != "-":
+        path = Path(cwd, os.path.expanduser(positional[0]))
+        try:
+            with open(path, encoding="utf-8") as handle:
+                source = handle.read(script.MAX_SOURCE + 1)
+        except OSError as error:
+            raise Usage(f"Can't read {positional[0]}: {error.strerror or error}") from None
+    elif positional or parsed.get("stdin") or not sys.stdin.isatty():
+        source = sys.stdin.read(script.MAX_SOURCE + 1)
+    else:
+        raise Usage("ardia browse script reads the script from a file or stdin: ardia browse script <<'EOF' … EOF")
+    if len(source) > script.MAX_SOURCE:
+        raise Usage(f"The script is over {script.MAX_SOURCE // 1024} KB")
+    return source
 
 
 def main(argv: list[str]) -> int:
@@ -377,7 +419,7 @@ def run(argv: list[str]) -> int:
 
         local_auth = command == "auth" and (args[:1] or ["list"])[0] in LOCAL_AUTH
         local_notes = command == "notes" and not notes_need_page(args)
-        if local_auth or local_notes or command == "plugin" or (command == "read" and read_has_url(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
+        if local_auth or local_notes or command == "plugin" or (command == "read" and read_runs_locally(args)) or (command == "session" and args[:1] in (["id"], ["list"])):
             result = run_local(command, args, root, options, dir_fd_factory, None)
             if result is not None:
                 return print_result(result, as_json, options)
@@ -386,6 +428,10 @@ def run(argv: list[str]) -> int:
             stdin = read_stdin_text()
         elif (command in ("eval", "addinitscript") and "--stdin" in args) or (command == "batch" and not [a for a in args if not a.startswith("--")] and not sys.stdin.isatty()):
             stdin = sys.stdin.read()
+        elif command == "read":
+            stdin = read_stdin_urls(args)
+        elif command == "script":
+            stdin = script_source(args, os.getcwd())
         if command == "close" and "--all" in args:
             return close_all(root, as_json, options)
         idle = found.get("idle_timeout") or env.get("AGENT_BROWSER_IDLE_TIMEOUT_MS")

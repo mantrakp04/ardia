@@ -21,7 +21,7 @@ ALIASES = {
 MUTATING = {
     "open", "click", "dblclick", "type", "fill", "press", "keyboard", "keydown", "keyup", "hover", "check", "uncheck",
     "select", "drag", "upload", "download", "scroll", "scrollintoview", "mouse", "back", "forward", "reload", "tab",
-    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close",
+    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script",
 }
 KNOWN_SCHEMES = ("http", "https", "about", "data", "file", "blob", "chrome", "view-source")
 LOOPBACK = re.compile(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/|$)")
@@ -1350,20 +1350,35 @@ async def cmd_removeinitscript(ctx: Ctx, argv):
 
 @command("read")
 async def cmd_read(ctx: Ctx, argv):
-    from ardia_cli.browse import readurl
+    from ardia_cli.browse import readpages, readurl
 
-    options, args = parse(argv, readurl.FLAGS)
-    if args:
-        return readurl.run(args[0], options, ctx.options)
-    if options.get("llms") or options.get("require_md"):
+    options, args = parse(argv, readpages.flags(), readpages.ALIASES)
+    if readpages.single_fetch(options, args):
+        return await asyncio.to_thread(readurl.run, args[0], options, ctx.options)
+    if readpages.wants_pages(options, args):
+        return await readpages.run(ctx, options, args)
+    if options.get("llms") or options.get("require_md") or options.get("http"):
         page = await ctx.state.page()
         return readurl.run(page.url, options, ctx.options)
     page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
-    content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
+    selector = options.get("selector")
+    if selector:
+        content = await page.call("(s) => ardiaBrowse.queryAll(s).map((el) => ardiaBrowse.readable(el)).filter(Boolean).join('\\n\\n')",
+                                  selector, frame=frame, read=True)
+    else:
+        content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
     content = readurl.post_process(content, options)
     return Result({"content": content, "contentType": "text/html", "finalUrl": page.url, "source": "active-tab-html", "truncated": False, "url": page.url},
                   content, page_content=True)
+
+
+@command("script")
+async def cmd_script(ctx: Ctx, argv):
+    from ardia_cli.browse import script
+
+    options, _ = parse(argv, {"--timeout": "value", "--stdin": "bool"})
+    return await script.run(ctx, ctx.stdin or "", script.parse_timeout(options.get("timeout")))
 
 
 @command("vitals")

@@ -12,7 +12,7 @@ active tab, and text output stops at about 6,000 characters (--full for all of i
 
 Core Commands:
   open [url]                 Open url in a new background tab of this session (later opens reuse it)
-  read [url]                 Fetch agent-readable text, or read the session tab's rendered DOM
+  read [url...]              Read pages' text in background tabs (--links <pattern>: every matching link; -s sel)
   click <sel>                Click element (or @ref) [--new-tab]
   dblclick <sel>             Double-click element
   type <sel> <text>          Type into element
@@ -66,6 +66,7 @@ Performance: vitals [url]
 Audit:       a11y [url] [--tags t1,t2] [--selector css]
 Init:        addinitscript <js> | removeinitscript <id>   (page main world, by request)
 Batch:       batch [--bail] ["cmd args" | '["cmd","arg"]' ...]  (or one command per stdin line; # comments)
+Script:      script [file.js] [--timeout 90s]   (JS on stdin: loops over pages with page.goto/click/text, read())
 Notes:       notes [get|set|append|list|rm] [site] [text|-]   (plain per-site notes, shown atop snapshot)
 Auth Vault:  auth save <name> --url <https url> --username <u> [--password-stdin]
              auth login <name> [--username-selector s] [--password-selector s] [--submit-selector s]
@@ -120,6 +121,12 @@ Examples:
   click #save
   EOF
   ardia browse find role button click --name Submit
+  ardia browse read --links /p/ -s table.specs
+  ardia browse script <<'EOF'
+  const out = [];
+  for (const url of await page.links("/p/")) { await page.goto(url); out.push({ name: await page.text("h1") }); }
+  return out;
+  EOF
   ardia browse screenshot --annotate page.png
 """
 
@@ -179,6 +186,40 @@ COMMANDS = {
     "notes": "ardia browse notes [get|set|append|list|rm] [site] [text|-]  (also `ardia notes`)\n\n"
              "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
              "Without a site it's the session tab's. - reads stdin. snapshot prints a site's notes first.",
+    "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list]\n\n"
+            "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"
+            "scripts ran) and prints its title, URL and text: the page's <main>, else its body, or what -s matches.\n"
+            "Tabs close when it's done. With no URL it reads the session's tab. --links <pattern> reads every link on the session's tab whose URL contains the\n"
+            "pattern (* matches anything), in page order; --list only prints those links. URLs can also come one per line\n"
+            "on stdin (--stdin or -), and /paths resolve against the session's tab. At most 20 pages unless --limit (100).\n"
+            "The text output shares the output cap between pages (--full or --max-output for more; --json has all of it).\n"
+            "--http fetches outside the browser instead (no logins, no page scripts; faster on public docs), and so do\n"
+            "--llms index|full, --require-md, --raw, --outline and --filter, which also work on the session's tab's URL.\n"
+            "Exit 1 when any page failed (its block says why).",
+    "script": "ardia browse script [file.js] [--timeout 90s]   (or the script on stdin)\n\n"
+              "Runs a short JavaScript program that drives pages, so a loop over many pages is one call. It runs in a\n"
+              "blank background page of its own, and every page action is one of ardia browse's commands on this session\n"
+              "(the same tab, refs, rules and change reports), so nothing a command refuses works here either.\n\n"
+              "  page.goto(url)  back()  reload()        page.click(sel)  fill(sel, text)  type(sel, text)  press(key)\n"
+              "  page.select(sel, value)  check(sel)  uncheck(sel)  hover(sel)  scroll(dir, px)\n"
+              "  page.text(sel?)  value(sel)  attr(sel, name)  count(sel)  visible(sel)  url()  title()\n"
+              "  page.snapshot('-i -s main')  page.links(pattern?)  page.wait(sel | ms | {text, url, load, fn})\n"
+              "  page.evaluate(fn, arg)   (runs in the page's main world, like eval)\n"
+              "  read(urls | {links, selector})  -> [{url, title, text, error}]   (as `read`, in background tabs)\n"
+              "  browse('tab', 'list')  -> {text, data}   (any other command)\n"
+              "  log(...) / console.log(...)   sleep(ms)   return value   (printed as JSON)\n\n"
+              "Actions return their answer text with what changed. A selector is CSS, @eN, text=… or xpath=…; a /path\n"
+              "resolves against the tab. A failed command throws (err.code, err.message); uncaught, the script stops and\n"
+              "says which line. It stops at --timeout (default 90s, at most 10m), and after any command whose outcome is\n"
+              "unknown. Output is capped like other commands.\n\n"
+              "  ardia browse script <<'EOF'\n"
+              "  const rows = [];\n"
+              "  for (const url of await page.links('/p/')) {\n"
+              "    await page.goto(url);\n"
+              "    rows.push({ name: await page.text('h1'), price: await page.text('.price') });\n"
+              "  }\n"
+              "  return rows;\n"
+              "  EOF",
     "close": "ardia browse close [--all]\n\nCloses only the tabs this session opened (never the browser) and ends the session. --all does it for every session.",
     "record": "ardia browse record start <path.webm> [url] | stop | restart <path.webm> [url]\n\nNeeds Page.startScreencast (not allowed by Ardia's policy yet) and ffmpeg on PATH.",
     "stream": "ardia browse stream enable [--port n] [--input] | disable | status\n\nBinds 127.0.0.1 only, with its own random token in the URL; view only unless --input. Needs Page.startScreencast.",

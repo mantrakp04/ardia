@@ -130,6 +130,7 @@ LIBRARY = r"""
         if (tag === "LI") { flush(); const t = norm(node.innerText); if (t) lines.push("- " + t); return; }
         if (tag === "PRE") { flush(); lines.push("```"); lines.push(node.innerText.replace(/\n+$/, "")); lines.push("```"); return; }
         if (tag === "INPUT" || tag === "IMG") { if (tag === "IMG" && node.alt) buffer += " " + node.alt + " "; return; }
+        if ((tag === "TD" || tag === "TH") && node.previousElementSibling) buffer += " | ";
         const block = BLOCK.test(tag) || style.display === "block" || style.display === "flex" || style.display === "grid";
         if (block) flush();
         for (const child of node.childNodes) walk(child);
