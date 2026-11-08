@@ -4,7 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { startPinHandoff } = await import("../pins/pinHandoff.ts");
 const { webviews, webviewRef } = await import("../../platform/webviews.ts");
-const { noteAppBadge, noteUnreadFavicon, noteUnreadPageEnded, noteUnreadPageLive, tabUnread } = await import("./unread.ts");
+const { forgetUnreadIfGone, unreadSignalTabs, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded, tabUnread } = await import("./unread.ts");
 
 const S = () => useBrowser.getState();
 mock.timers.enable({ apis: ["setTimeout"] });
@@ -76,16 +76,41 @@ test("an icon that was already badged or drawn at load never becomes the baselin
   assert.equal(shown(a), "dot");
 });
 
-test("a discarded or crashed page shows nothing until it runs again", () => {
+test("a discarded or crashed page shows nothing until its replacement has finished loading", () => {
   const { a } = setup();
   S().updateTab(a, { title: "Inbox (3) - Mail" });
   noteAppBadge(a, { origin: "https://mail.example", count: 9, flag: false });
   assert.equal(shown(a), "9");
   noteUnreadPageEnded(a);
   assert.equal(shown(a), null);
-  noteUnreadPageLive(a);
-  assert.equal(shown(a), "3");
+  noteUnreadLoading(a, false);
+  assert.equal(shown(a), null, "a late event from the old page doesn't bring it back");
+  noteUnreadLoading(a, true);
+  assert.equal(shown(a), null, "the old title still reported while loading doesn't count");
+  noteAppBadge(a, { origin: "https://mail.example", count: 2, flag: false });
+  assert.equal(shown(a), "2", "a badge the new document sets shows at once");
+  noteAppBadge(a, { origin: "https://mail.example", count: null, flag: false });
+  assert.equal(shown(a), null);
+  S().updateTab(a, { title: "Inbox (4) - Mail" });
+  noteUnreadLoading(a, false);
+  assert.equal(shown(a), "4");
   noteUnreadPageEnded(a);
+  assert.equal(shown(a), null);
+});
+
+test("a tab's signals stay while its page lives and go when the tab closes or sleeps", () => {
+  const { w, a } = setup();
+  const b = S().newTab(w, { url: "https://chat.example/", background: true });
+  const c = S().newTab(w, { url: "https://news.example/", background: true });
+  noteAppBadge(b, { origin: "https://chat.example", count: 1, flag: false });
+  noteAppBadge(c, { origin: "https://news.example", count: 1, flag: false });
+  forgetUnreadIfGone(b);
+  assert.equal(shown(b), "1", "a page moving to another window keeps its badge");
+  S().closeTab(b);
+  forgetUnreadIfGone(b);
+  S().updateTab(c, { page: { kind: "asleep" } });
+  forgetUnreadIfGone(c);
+  assert.deepEqual(unreadSignalTabs().filter((id) => id === b || id === c), []);
   assert.equal(shown(a), null);
 });
 

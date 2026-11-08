@@ -9,25 +9,18 @@ import { useTabValue } from "./tabWatch";
 export type { Unread } from "../../lib/unread";
 
 type FaviconSeen = { origin: string; home: string; badged: boolean };
-type PageSignals = { app: ReadonlyMap<string, Unread | null>; favicon: FaviconSeen | null; ended: boolean };
+type PagePhase = "running" | "ended" | "reloading";
+type PageSignals = { app: ReadonlyMap<string, Unread | null>; favicon: FaviconSeen | null; phase: PagePhase };
 
 const ORIGINS_PER_TAB = 8;
-const PRUNE_EVERY = 64;
-const NO_SIGNALS: PageSignals = { app: new Map(), favicon: null, ended: false };
+const NO_SIGNALS: PageSignals = { app: new Map(), favicon: null, phase: "running" };
 
 const signals = new Map<string, PageSignals>();
 const listeners = new Map<string, Set<() => void>>();
-let writes = 0;
 
 const signalsOf = (tabId: string) => signals.get(tabId) ?? NO_SIGNALS;
 
-function pruneClosed() {
-  const tabs = useBrowser.getState().tabs;
-  for (const id of [...signals.keys()]) if (!tabs[id]) signals.delete(id);
-}
-
 function write(tabId: string, next: PageSignals) {
-  if (++writes % PRUNE_EVERY === 0) pruneClosed();
   signals.set(tabId, next);
   for (const listener of [...(listeners.get(tabId) ?? [])]) listener();
 }
@@ -53,7 +46,7 @@ export function noteAppBadge(tabId: string, { origin, count, flag }: AppBadge) {
   app.delete(origin);
   app.set(origin, unread);
   while (app.size > ORIGINS_PER_TAB) app.delete(app.keys().next().value!);
-  write(tabId, { ...was, app, ended: false });
+  write(tabId, { ...was, app });
 }
 
 export function noteUnreadFavicon(tabId: string, pageUrl: string, favicon: string) {
@@ -68,14 +61,21 @@ export function noteUnreadFavicon(tabId: string, pageUrl: string, favicon: strin
 }
 
 export function noteUnreadPageEnded(tabId: string) {
-  const was = signals.get(tabId);
-  if (was?.ended) return;
-  write(tabId, { app: new Map(), favicon: null, ended: true });
+  if (signals.get(tabId)?.phase === "ended") return;
+  write(tabId, { app: new Map(), favicon: null, phase: "ended" });
 }
 
-export function noteUnreadPageLive(tabId: string) {
+export function noteUnreadLoading(tabId: string, isLoading: boolean) {
   const was = signals.get(tabId);
-  if (was?.ended) write(tabId, { ...was, ended: false });
+  if (was?.phase === "ended" && isLoading) write(tabId, { ...was, phase: "reloading" });
+  else if (was?.phase === "reloading" && !isLoading) write(tabId, { ...was, phase: "running" });
+}
+
+export const unreadSignalTabs = () => [...signals.keys()];
+
+export function forgetUnreadIfGone(tabId: string) {
+  const t = useBrowser.getState().tabs[tabId];
+  if (!t || !hasOwnOrSharedPage(t)) signals.delete(tabId);
 }
 
 type TabSide = { source: string | null; origin: string; title: Unread | null };
@@ -89,9 +89,10 @@ const tabSide = (tabId: string, t: Tab | undefined): TabSide => {
 const sameSide = (a: TabSide, b: TabSide) => a.source === b.source && a.origin === b.origin && sameUnread(a.title, b.title);
 
 export function unreadFrom(side: TabSide, page: PageSignals): Unread | null {
-  if (!side.source || !side.origin || page.ended) return null;
+  if (!side.source || !side.origin || page.phase === "ended") return null;
   const app = page.app.get(side.origin);
   if (app) return app;
+  if (page.phase !== "running") return null;
   if (side.title) return side.title;
   return page.favicon && page.favicon.badged && page.favicon.origin === side.origin ? UNREAD_DOT : null;
 }

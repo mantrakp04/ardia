@@ -32,9 +32,10 @@ const STAR_MEANS_UNREAD = ["slack.com"];
 
 const looksLikeYear = (digits: string) => digits.length === 4 && +digits >= 1900 && +digits <= 2100;
 
-function countOf(digits: string, plus: string): Unread | null {
+function countOf(raw: string, plus: string): Unread | null {
+  const digits = raw.replace(/,/g, "");
   if (looksLikeYear(digits)) return null;
-  const n = Number(digits.replace(/,/g, ""));
+  const n = Number(digits);
   if (!Number.isFinite(n) || n <= 0) return null;
   return unreadCount(n, !!plus);
 }

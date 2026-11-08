@@ -610,7 +610,7 @@
       setTimeout(guard(sendBadge), wait);
     };
     const afterChrome = (result, count) => {
-      if (result && typeof result === "object") apply(promiseThen, result, [() => noteBadge(count), ignore]);
+      if (result && typeof result === "object") guard(() => apply(promiseThen, result, [() => noteBadge(count), ignore]))();
       return result;
     };
     const install = (name, native, run) =>

@@ -58,6 +58,7 @@ test("ordinary numbers in titles are not counts", () => {
     "Rocky (2) - Movies",
     "(2024) Year in review",
     "2024 unread messages from the archive",
+    "2,024 unread messages from the archive",
     "Top 10 Movies of 2024 (Ranked) - Site",
     "The Best Laptops of 2024 (Tested) | Example",
     "iPhone 15 Pro (128GB) - Apple",

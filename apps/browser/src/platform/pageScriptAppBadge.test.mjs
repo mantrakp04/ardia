@@ -112,6 +112,26 @@ test("a call Chrome rejects reports nothing", async () => {
   assert.deepEqual(p.sent, []);
 });
 
+test("a page that breaks Promise lookups can't make an accepted call throw", async () => {
+  const p = badgePage();
+  const original = Object.getOwnPropertyDescriptor(Promise.prototype, "constructor");
+  Object.defineProperty(Promise.prototype, "constructor", {
+    get() {
+      throw new Error("page trap");
+    },
+    configurable: true,
+  });
+  let result;
+  try {
+    result = p.navigator.setAppBadge(3);
+  } finally {
+    Object.defineProperty(Promise.prototype, "constructor", original);
+  }
+  assert.ok(result instanceof Promise);
+  await result;
+  assert.deepEqual(p.nativeCalls, [["set", 3]]);
+});
+
 test("another receiver goes to Chrome untouched and reports nothing", async () => {
   const p = badgePage();
   const stranger = {};
