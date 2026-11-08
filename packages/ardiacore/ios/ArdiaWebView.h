@@ -96,12 +96,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)fillVaultFrame:(NSString *)frameId
                 origin:(NSString *)origin
                 values:(NSDictionary<NSString *, NSString *> *)values
-            completion:(void (^)(NSArray<NSString *> *filled))completion NS_SWIFT_NAME(fillVault(frame:origin:values:completion:));
+                submit:(BOOL)submit
+            completion:(void (^)(NSArray<NSString *> *filled))completion NS_SWIFT_NAME(fillVault(frame:origin:values:submit:completion:));
 - (void)setVaultMenuInFrame:(NSString *)frameId
                        open:(BOOL)open
                 highlighted:(BOOL)highlighted NS_SWIFT_NAME(setVaultMenu(frameId:open:highlighted:));
 - (void)keepVaultLogin:(NSString *)username password:(NSString *)password origin:(NSString *)origin
     NS_SWIFT_NAME(keepVaultLogin(username:password:origin:));
+- (void)keepGeneratedVaultPassword:(NSString *)password origin:(NSString *)origin
+    NS_SWIFT_NAME(keepGeneratedVaultPassword(_:origin:));
 - (nullable NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin NS_SWIFT_NAME(takeVaultLogin(origin:));
 - (void)discardVaultLogin:(NSString *)origin NS_SWIFT_NAME(discardVaultCapture(origin:));
 + (void)wipeVaultCaptures NS_SWIFT_NAME(wipeVaultCaptures());

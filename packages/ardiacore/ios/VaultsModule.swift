@@ -23,7 +23,7 @@ public class VaultsModule: Module {
     }
 
     View(VaultTouchIDView.self) {
-      Events("onEnded")
+      Events("onStatus")
       Prop("armed") { (view: VaultTouchIDView, value: Bool?) in view.armed = value ?? false }
     }
 
@@ -89,7 +89,7 @@ public class VaultsModule: Module {
     "copy": { args, reply in
       let id = try VaultsModule.provider(args)
       let item = try args.text("id")
-      let field: VaultField = try args.choice("field")
+      guard let field = VaultCopyField(rawValue: try args.text("field")) else { return reply.ok(VaultsModule.copied(false)) }
       VaultsModule.answer(reply) { VaultsModule.copied(await VaultBroker.shared.copy(id, item: item, field: field)) }
     },
     "totp": { args, reply in
@@ -98,7 +98,11 @@ public class VaultsModule: Module {
       VaultsModule.answer(reply) { await VaultBroker.shared.totp(id, item: item)?.jsonObject() }
     },
     "biometrics": { _, reply in reply.ok(["available": VaultOwnerCheck.biometricsAvailable]) },
-    "generate": { _, reply in reply.ok(["length": VaultPasswordGenerator.generate().count]) },
+    "generate": { args, reply in
+      let style = VaultPasswordStyle(named: try args.optionalText("style"))
+      let maxLength = try args.optionalDouble("maxLength").flatMap { $0.isFinite ? Int(min(max($0, 0), 4096)) : nil }
+      reply.ok(["length": VaultPasswordGenerator.generate(style: style, maxLength: maxLength).count])
+    },
     "setOptions": { args, reply in
       let minutes = try args.double("idleLockMinutes")
       let touchID = try args.bool("touchID")

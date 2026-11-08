@@ -62,6 +62,6 @@ export {
   type SwipeAreaHandle,
   type SwipeEvent,
   type SymbolProps,
-  type VaultTouchIDEnd,
+  type VaultTouchIDStatus,
   type WebViewHandle,
 } from "./native";

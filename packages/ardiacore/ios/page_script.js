@@ -465,6 +465,22 @@
     const vaultSetValue = vaultValue.set;
     const vaultGetValue = vaultValue.get;
     const vaultFormOf = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "form").get;
+    const vaultCheckedOf = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked").get;
+    const vaultMaxLengthOf = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "maxLength").get;
+    const vaultRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+    const vaultClick = HTMLElement.prototype.click;
+    const vaultStyleProperty = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "style");
+    const vaultInlineStyleOf = vaultStyleProperty && vaultStyleProperty.get;
+    const vaultCSSValue = CSSStyleDeclaration.prototype.getPropertyValue;
+    const vaultCSSPriority = CSSStyleDeclaration.prototype.getPropertyPriority;
+    const vaultCSSSet = CSSStyleDeclaration.prototype.setProperty;
+    const vaultCSSRemove = CSSStyleDeclaration.prototype.removeProperty;
+    const VaultKeyboardEvent = KeyboardEvent;
+    const vaultDefine = Object.defineProperty;
+    const vaultTimer = window.setTimeout;
+    const vaultClearTimer = window.clearTimeout;
+    const vaultMedia = window.matchMedia;
+    const vaultTrim = String.prototype.trim;
     const vaultDispatch = EventTarget.prototype.dispatchEvent;
     const vaultListen = EventTarget.prototype.addEventListener;
     const VaultEvent = Event;
@@ -676,16 +692,25 @@
       const inputs = vaultInputsIn(scope).filter(vaultUsable);
       if (!inputs.includes(el)) inputs.push(el);
       const kind = vaultClassify(vaultDescribe(el, scope, inputs));
-      return kind ? { kind, formHasPassword: inputs.some(vaultIsPassword), autocomplete: vaultAttr(el, "autocomplete").slice(0, 64) } : null;
+      if (!kind) return null;
+      const maxLength = apply(vaultMaxLengthOf, el, []);
+      return {
+        kind,
+        formHasPassword: inputs.some(vaultIsPassword),
+        autocomplete: vaultAttr(el, "autocomplete").slice(0, 64),
+        maxLength: typeof maxLength === "number" && maxLength > 0 ? maxLength : 0,
+      };
     };
 
     const vaultTyped = new WeakSet();
     const vaultFilledByUs = new WeakSet();
     let vaultLastField = null;
+    let vaultLastInfo = null;
     let vaultFocused = null;
     let vaultFocusedInfo = null;
     let vaultMenuOpen = false;
     let vaultMenuHighlighted = false;
+    let vaultClearedSent = false;
     let vaultRectQueued = false;
     let vaultStepUser = null;
     let vaultLastSubmit = null;
@@ -704,7 +729,15 @@
     const vaultReport = (el, info, focused, clicked) => {
       const rect = focused ? vaultRect(el) : null;
       vaultSentRect = rect;
-      send("vaultField", { kind: info.kind, focused, rect, formHasPassword: info.formHasPassword, autocomplete: info.autocomplete, clicked: !!clicked });
+      send("vaultField", {
+        kind: info.kind,
+        focused,
+        rect,
+        formHasPassword: info.formHasPassword,
+        autocomplete: info.autocomplete,
+        maxLength: info.maxLength,
+        clicked: !!clicked,
+      });
     };
     const vaultBlur = () => {
       const el = vaultFocused;
@@ -722,8 +755,10 @@
         return;
       }
       vaultLastField = el;
+      vaultLastInfo = info;
       vaultFocused = el;
       vaultFocusedInfo = info;
+      vaultClearedSent = false;
       vaultReport(el, info, true);
     };
     const vaultResend = () => {
@@ -755,33 +790,158 @@
       apply(vaultNextFrame, window, [guard(vaultResend)]);
     };
 
+    const VAULT_EMAIL_TEXT = /^[^\s@<>()[\]\\,;:"']{1,64}@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,24}$/i;
+    const VAULT_PLACEHOLDER_EMAIL = /^(name|you|your.?name|your.?email|email|user|username|someone|john.?doe|jane.?doe)@/i;
+    const VAULT_NO_TEXT_TAGS = ["script", "style", "template", "noscript", "title", "textarea", "option", "select"];
+    const vaultTrimmed = (text) => apply(vaultTrim, String(text || ""), []);
+    const vaultFilledValueOf = (el) => vaultTrimmed(vaultValueOf(el));
+    const vaultDocumentInputs = () => {
+      const root = document.documentElement;
+      return root ? vaultInputsIn(root) : [];
+    };
+    const vaultEmailTextIn = (root) => {
+      const all = apply(vaultQuery, root, ["*"]);
+      if (all.length > 3000) return "";
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (el.children && el.children.length > 1) continue;
+        if (VAULT_NO_TEXT_TAGS.includes(vaultLowered(el.tagName))) continue;
+        const text = vaultTrimmed(vaultTextOf(el, 121));
+        if (!text || text.length > 120 || !vaultHas(VAULT_EMAIL_TEXT, text) || vaultHas(VAULT_PLACEHOLDER_EMAIL, text)) continue;
+        if (apply(vaultClosest, el, ['a[href^="mailto:"], [aria-hidden="true"]'])) continue;
+        return text;
+      }
+      return "";
+    };
+    const vaultEmailNear = (scope) => {
+      let node = scope && scope.nodeType === 1 ? scope : null;
+      for (let depth = 0; node && depth <= 3; depth++, node = vaultParentOf(node)) {
+        const found = vaultEmailTextIn(node);
+        if (found) return found;
+      }
+      return "";
+    };
+    const vaultUsernameFor = (scope, inputs, fields) => {
+      const inScope = fields.find((f) => f.kind === "username" && vaultFilledValueOf(f.el));
+      if (inScope) return vaultFilledValueOf(inScope.el);
+      const scopeEmail = inputs.find((el) => vaultTypeOf(el) === "email" && vaultFilledValueOf(el));
+      if (scopeEmail) return vaultFilledValueOf(scopeEmail);
+      const everywhere = vaultDocumentInputs().filter((el) => !vaultIsPassword(el));
+      const tokened = everywhere.find((el) => ["username", "email"].includes(vaultTokens(vaultAttr(el, "autocomplete"))) && vaultFilledValueOf(el));
+      if (tokened) return vaultFilledValueOf(tokened);
+      const shownEmail = everywhere.find((el) => vaultTypeOf(el) === "email" && vaultUsable(el) && vaultFilledValueOf(el));
+      if (shownEmail) return vaultFilledValueOf(shownEmail);
+      if (vaultStepUser && vaultNow() - vaultStepUser.at < 600000) return vaultStepUser.username;
+      return vaultEmailNear(scope);
+    };
+
     const vaultSubmitFrom = (scope) => {
       if (!scope) return;
-      const { fields } = vaultFieldsIn(scope);
+      const { inputs, fields } = vaultFieldsIn(scope);
       const secrets = fields.filter((f) => (f.kind === "password" || f.kind === "newPassword") && vaultValueOf(f.el) && (vaultTyped.has(f.el) || vaultFilledByUs.has(f.el)));
-      const user = fields.find((f) => f.kind === "username" && vaultValueOf(f.el));
       if (!secrets.length) {
-        if (user && !fields.some((f) => f.kind === "password" || f.kind === "newPassword")) vaultStepUser = { username: vaultValueOf(user.el), at: vaultNow() };
+        const user = fields.find((f) => f.kind === "username" && vaultFilledValueOf(f.el));
+        if (user && !fields.some((f) => f.kind === "password" || f.kind === "newPassword")) vaultStepUser = { username: vaultFilledValueOf(user.el).slice(0, 1024), at: vaultNow() };
         return;
       }
       const fresh = secrets.filter((f) => f.kind === "newPassword");
       if (fresh.length >= 2 && vaultValueOf(fresh[0].el) !== vaultValueOf(fresh[1].el)) return;
       const chosen = fresh.length ? fresh[0] : secrets[0];
       const password = vaultValueOf(chosen.el);
-      const stepUser = vaultStepUser && vaultNow() - vaultStepUser.at < 600000 ? vaultStepUser.username : "";
-      const username = (user ? vaultValueOf(user.el) : stepUser).slice(0, 1024);
+      const username = vaultUsernameFor(scope, inputs, fields).slice(0, 1024);
       const now = vaultNow();
       if (vaultLastSubmit && vaultLastSubmit.username === username && vaultLastSubmit.length === password.length && now - vaultLastSubmit.at < 1000) return;
       vaultLastSubmit = { username, length: password.length, at: now };
       send("vaultSubmit", { username, password, newPassword: chosen.kind === "newPassword" });
     };
     const VAULT_SUBMIT_TEXT = /log.?in|sign.?in|sign.?up|continue|next|submit|register|create|save|enter|\bgo\b|\bok\b|weiter|anmelden|connexion|iniciar|entrar|accedi/;
+    const VAULT_NOT_SUBMIT = /forgot|reset|google|apple|facebook|microsoft|github|twitter|passkey|\bsso\b|cancel|\bback\b|show|hide|reveal|another|different|help/;
+    const vaultButtonTextOf = (button) => vaultLowered(vaultTextOf(button, 60) + " " + vaultAttr(button, "value") + " " + vaultAttr(button, "aria-label"));
+    const vaultButtonTypeOf = (button) => vaultLowered(button.type || vaultAttr(button, "type"));
     const vaultSubmitButtonOf = (el) => {
       const button = el && el.nodeType === 1 ? apply(vaultClosest, el, ['button, input[type="submit"], input[type="image"], [role="button"]']) : null;
       if (!button) return null;
-      const type = vaultLowered(button.type || vaultAttr(button, "type"));
+      const type = vaultButtonTypeOf(button);
       if ((type === "submit" || type === "image") && apply(vaultClosest, button, ["form"])) return button;
-      return vaultHas(VAULT_SUBMIT_TEXT, vaultLowered(vaultTextOf(button, 60) + " " + vaultAttr(button, "value") + " " + vaultAttr(button, "aria-label"))) ? button : null;
+      return vaultHas(VAULT_SUBMIT_TEXT, vaultButtonTextOf(button)) ? button : null;
+    };
+    const vaultSubmitControlIn = (scope) => {
+      const buttons = Array.from(apply(vaultQuery, scope, ['button, input[type="submit"], input[type="image"], [role="button"]'])).filter(
+        (b) => !b.disabled && vaultAttr(b, "aria-disabled") !== "true" && !vaultHidden(b) && !vaultHas(VAULT_NOT_SUBMIT, vaultButtonTextOf(b)),
+      );
+      const worded = (b) => vaultHas(VAULT_SUBMIT_TEXT, vaultButtonTextOf(b));
+      const typed = buttons.filter((b) => ["submit", "image"].includes(vaultButtonTypeOf(b)) && apply(vaultClosest, b, ["form"]));
+      return typed.find(worded) || typed[0] || buttons.find(worded) || null;
+    };
+
+    const VAULT_TINT_LIGHT = "rgba(250, 220, 90, 0.35)";
+    const VAULT_TINT_DARK = "rgba(250, 220, 90, 0.22)";
+    const VAULT_TINT_HOLD = 600;
+    const VAULT_TINT_FADE = 900;
+    const VAULT_TRANSITION_PARTS = ["transition-property", "transition-duration", "transition-timing-function", "transition-delay"];
+    const vaultTints = new WeakMap();
+    const vaultPrefers = (query) => {
+      try {
+        const list = vaultMedia ? apply(vaultMedia, window, [query]) : null;
+        return !!(list && list.matches);
+      } catch (e) {
+        return false;
+      }
+    };
+    const vaultDarkScheme = (el) => {
+      const style = apply(vaultStyleOf, window, [el]);
+      const scheme = vaultLowered(style && style.colorScheme);
+      if (!vaultHas(/dark/, scheme)) return false;
+      return !vaultHas(/light/, scheme) || vaultPrefers("(prefers-color-scheme: dark)");
+    };
+    const vaultInlineOf = (el) => (vaultInlineStyleOf ? apply(vaultInlineStyleOf, el, []) : el.style);
+    const vaultReadStyle = (style, name) => ({ value: apply(vaultCSSValue, style, [name]), priority: apply(vaultCSSPriority, style, [name]) });
+    const vaultWriteStyle = (style, name, saved) =>
+      saved.value ? apply(vaultCSSSet, style, [name, saved.value, saved.priority]) : apply(vaultCSSRemove, style, [name]);
+    const vaultSetOurStyle = (tint, name, value) => {
+      apply(vaultCSSSet, tint.style, [name, value, "important"]);
+      tint.ours[name] = apply(vaultCSSValue, tint.style, [name]);
+    };
+    const vaultRestoreStyle = (tint, name) => {
+      if (!(name in tint.ours)) return;
+      if (apply(vaultCSSValue, tint.style, [name]) === tint.ours[name]) vaultWriteStyle(tint.style, name, tint.saved[name]);
+      delete tint.ours[name];
+    };
+    const vaultUntint = (el) => {
+      const tint = vaultTints.get(el);
+      if (!tint) return;
+      vaultTints.delete(el);
+      for (const timer of tint.timers) apply(vaultClearTimer, window, [timer]);
+      vaultRestoreStyle(tint, "background-color");
+      for (const name of VAULT_TRANSITION_PARTS) vaultRestoreStyle(tint, name);
+    };
+    const vaultLater = (fn, ms) => apply(vaultTimer, window, [guard(fn), ms]);
+    const vaultTint = (el) => {
+      vaultUntint(el);
+      const style = vaultInlineOf(el);
+      if (!style) return;
+      const saved = {};
+      for (const name of ["background-color", ...VAULT_TRANSITION_PARTS]) saved[name] = vaultReadStyle(style, name);
+      const tint = { style, saved, ours: {}, timers: [] };
+      vaultTints.set(el, tint);
+      const reduced = vaultPrefers("(prefers-reduced-motion: reduce)");
+      vaultSetOurStyle(tint, "transition-property", "none");
+      vaultSetOurStyle(tint, "background-color", vaultDarkScheme(el) ? VAULT_TINT_DARK : VAULT_TINT_LIGHT);
+      if (reduced) {
+        tint.timers.push(vaultLater(() => vaultUntint(el), VAULT_TINT_FADE));
+        return;
+      }
+      tint.timers.push(
+        vaultLater(() => {
+          if (vaultTints.get(el) !== tint) return;
+          vaultSetOurStyle(tint, "transition-property", "background-color");
+          vaultSetOurStyle(tint, "transition-duration", VAULT_TINT_FADE + "ms");
+          vaultSetOurStyle(tint, "transition-timing-function", "ease-out");
+          vaultSetOurStyle(tint, "transition-delay", "0s");
+          vaultRestoreStyle(tint, "background-color");
+          tint.timers.push(vaultLater(() => vaultTints.get(el) === tint && vaultUntint(el), VAULT_TINT_FADE + 50));
+        }, VAULT_TINT_HOLD),
+      );
     };
 
     const vaultOptions = { capture: true };
@@ -789,7 +949,12 @@
       "focusin",
       guard((e) => {
         const el = vaultTargetOf(e);
-        if (el === vaultFocused) return;
+        if (el === vaultFocused) {
+          const info = vaultKindOf(el);
+          if (!info) return vaultBlur();
+          vaultFocusedInfo = vaultLastInfo = info;
+          return vaultReport(el, info, true);
+        }
         if (vaultFocused) vaultBlur();
         vaultFocus(el);
       }),
@@ -807,6 +972,7 @@
       guard((e) => {
         if (!e.isTrusted) return;
         const el = vaultTargetOf(e);
+        if (!vaultFocused && vaultIsInput(el) && vaultStillFocused(el)) vaultFocus(el);
         if (vaultFocused && el === vaultFocused) vaultReport(vaultFocused, vaultFocusedInfo, true, true);
       }),
       vaultOptions,
@@ -816,14 +982,22 @@
       guard((e) => {
         const el = vaultTargetOf(e);
         if (!vaultIsInput(el)) return;
-        if (!vaultValueOf(el)) {
+        const empty = !vaultValueOf(el);
+        if (empty) {
           vaultTyped.delete(el);
           vaultFilledByUs.delete(el);
         } else if (e.isTrusted) vaultTyped.add(el);
-        if (e.isTrusted && vaultMenuOpen && el === vaultFocused) {
+        if (!e.isTrusted) return;
+        vaultUntint(el);
+        if (el !== vaultFocused) return;
+        if (vaultMenuOpen) {
           vaultMenuOpen = vaultMenuHighlighted = false;
-          send("vaultKey", { key: "Escape" });
+          send("vaultKey", { key: "Typed" });
+        } else if (empty && !vaultClearedSent) {
+          vaultClearedSent = true;
+          send("vaultKey", { key: "Cleared" });
         }
+        if (!empty) vaultClearedSent = false;
       }),
       vaultOptions,
     ]);
@@ -860,6 +1034,10 @@
           send("vaultKey", { key });
           if (key !== "Enter" || !passesToPage) return;
         }
+        if (!vaultMenuOpen && vaultFocused && el === vaultFocused && key === "ArrowDown" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          send("vaultKey", { key: "ArrowDown" });
+          return;
+        }
         if (key === "Enter" && vaultIsInput(el)) vaultSubmitFrom(vaultContainerOf(el));
       }),
       vaultOptions,
@@ -867,6 +1045,16 @@
     apply(vaultListen, window, ["scroll", vaultQueueRect, { capture: true, passive: true }]);
     apply(vaultListen, window, ["resize", vaultQueueRect]);
     apply(vaultListen, window, ["pagehide", guard(vaultBlur)]);
+    apply(vaultListen, window, [
+      "pageshow",
+      guard((e) => {
+        if (!e.persisted) return;
+        const el = vaultFocused || vaultLastField;
+        vaultFocused = vaultFocusedInfo = null;
+        vaultMenuOpen = vaultMenuHighlighted = false;
+        if (vaultStillFocused(el)) vaultFocus(el);
+      }),
+    ]);
 
     const vaultPut = (el, value) => {
       apply(vaultSetValue, el, [value]);
@@ -876,11 +1064,11 @@
     };
     const vaultFill = (message) => {
       const anchor = vaultLastField;
-      if (!message || typeof message.origin !== "string" || message.origin !== vaultOrigin()) return [];
-      if (!anchor || !anchor.isConnected || !vaultUsable(anchor)) return [];
+      if (!message || typeof message.origin !== "string" || message.origin !== vaultOrigin()) return null;
+      if (!anchor || !anchor.isConnected || !vaultUsable(anchor)) return null;
       const scope = vaultContainerOf(anchor);
       const { inputs, fields } = vaultFieldsIn(scope);
-      if (!inputs.includes(anchor)) return [];
+      if (!inputs.includes(anchor)) return null;
       const anchorField = fields.find((f) => f.el === anchor);
       const anchorKind = anchorField ? anchorField.kind : null;
       const passwords = inputs.filter(vaultIsPassword);
@@ -889,7 +1077,7 @@
       const touched = [];
       const put = (el, value, name) => {
         vaultPut(el, value);
-        touched.push(el);
+        if (!touched.includes(el)) touched.push(el);
         if (!filled.includes(name)) filled.push(name);
       };
       const text = (v) => typeof v === "string" && v.length > 0 && v.length <= 4096;
@@ -917,25 +1105,92 @@
           if (target) put(target, message.otp, "otp");
         }
       }
+      touched.sort((a, b) => inputs.indexOf(a) - inputs.indexOf(b));
       if (touched.length) {
-        const last = Math.max(...touched.map((el) => inputs.indexOf(el)));
+        const last = inputs.indexOf(touched[touched.length - 1]);
         const next = inputs.slice(last + 1).find((el) => VAULT_TEXT_TYPES.includes(vaultTypeOf(el)) && !vaultValueOf(el));
         const submit = next ? null : Array.from(apply(vaultQuery, scope, ['button, input[type="submit"]'])).find((b) => vaultLowered(b.type) === "submit" && !vaultHidden(b));
         const focusTarget = next || submit;
         if (focusTarget) apply(vaultFocusOn, focusTarget, []);
       }
-      return filled;
+      return { filled, touched, scope, anchor, origin: message.origin, at: vaultNow() };
+    };
+
+    const VAULT_SUBMIT_WINDOW = 1000;
+    const vaultSubmittedFills = new Set();
+    const vaultTextTypes = ["text", "email", "tel", "url", "number", "password", "search", ""];
+    const vaultBlocksSubmit = (el, inputs) => {
+      if (el.disabled || vaultTypeOf(el) === "hidden") return false;
+      if (apply(vaultAttrOf, el, ["required"]) === null && vaultAttr(el, "aria-required") !== "true") return false;
+      const type = vaultTypeOf(el);
+      if (type === "checkbox") return !apply(vaultCheckedOf, el, []);
+      if (type === "radio") {
+        const name = vaultAttr(el, "name");
+        return !inputs.some((other) => vaultTypeOf(other) === "radio" && (other === el || (name && vaultAttr(other, "name") === name)) && apply(vaultCheckedOf, other, []));
+      }
+      return vaultTextTypes.includes(type) && !vaultHidden(el) && !vaultValueOf(el);
+    };
+    const vaultPressEnter = (el) => {
+      let proceed = true;
+      for (const type of ["keydown", "keypress", "keyup"]) {
+        if (type === "keypress" && !proceed) continue;
+        const code = type === "keypress" ? 13 : 0;
+        const init = { key: "Enter", code: "Enter", keyCode: 13, which: 13, charCode: code, bubbles: true, cancelable: true, composed: true };
+        const event = new VaultKeyboardEvent(type, init);
+        for (const name of ["keyCode", "which", "charCode"]) {
+          if (event[name] === init[name]) continue;
+          try {
+            vaultDefine(event, name, { value: init[name], configurable: true });
+          } catch (e) {}
+        }
+        const result = apply(vaultDispatch, el, [event]);
+        if (type === "keydown") proceed = result !== false;
+      }
+    };
+    const vaultAutoSubmit = (fill) => {
+      const { scope, origin, touched } = fill;
+      if (vaultNow() - fill.at > VAULT_SUBMIT_WINDOW) return;
+      if (vaultOrigin() !== origin || !scope.isConnected) return;
+      const inputs = vaultInputsIn(scope);
+      const shown = inputs.filter(vaultUsable);
+      const kept = touched.filter((el) => el.isConnected && vaultValueOf(el));
+      if (!kept.length) return;
+      if (shown.some((el) => vaultIsPassword(el) && !vaultValueOf(el))) return;
+      if (inputs.some((el) => vaultBlocksSubmit(el, inputs))) return;
+      const anchor = fill.anchor.isConnected ? fill.anchor : kept[kept.length - 1];
+      const button = vaultSubmitControlIn(scope);
+      const form = apply(vaultFormOf, anchor, []);
+      vaultSubmitFrom(scope);
+      if (button) return apply(vaultClick, button, []);
+      if (form) {
+        if (typeof vaultRequestSubmit === "function") return apply(vaultRequestSubmit, form, []);
+        return apply(vaultDispatch, form, [new VaultEvent("submit", { bubbles: true, cancelable: true })]);
+      }
+      vaultPressEnter(kept[kept.length - 1]);
+    };
+    const vaultQueueSubmit = (id, fill) => {
+      if (vaultSubmittedFills.has(id)) return;
+      vaultSubmittedFills.add(id);
+      if (vaultSubmittedFills.size > 32) vaultSubmittedFills.delete(vaultSubmittedFills.values().next().value);
+      apply(vaultNextFrame, window, [guard(() => apply(vaultNextFrame, window, [guard(() => vaultAutoSubmit(fill))]))]);
     };
     handlers.vaultFill = (message) => {
-      let filled = [];
+      let fill = null;
       try {
-        filled = vaultFill(message);
+        fill = vaultFill(message);
       } catch (e) {}
-      send("vaultFilled", { id: message && typeof message.id === "string" ? message.id : "", filled });
+      const id = message && typeof message.id === "string" ? message.id : "";
+      send("vaultFilled", { id, filled: fill ? fill.filled : [] });
+      if (!fill || !fill.touched.length) return;
+      for (const el of fill.touched) guard(vaultTint)(el);
+      if (message.submit === true && id) vaultQueueSubmit(id, fill);
     };
     handlers.vaultMenu = (message) => {
-      vaultMenuOpen = !!(message && message.open === true) && !!vaultFocused;
+      const open = !!(message && message.open === true);
+      if (open && !vaultFocused && vaultStillFocused(vaultLastField)) vaultFocus(vaultLastField);
+      vaultMenuOpen = open && !!vaultFocused;
       vaultMenuHighlighted = vaultMenuOpen && message.highlighted === true;
+      if (open && !vaultMenuOpen && vaultLastField && vaultLastInfo) vaultReport(vaultLastField, vaultLastInfo, false);
       vaultStartWatch();
     };
   } catch (e) {}

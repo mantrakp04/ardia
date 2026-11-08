@@ -1,6 +1,7 @@
 #import "ArdiaVaultCapture.h"
 
 static const NSTimeInterval kLoginLifetime = 180;
+static const NSTimeInterval kGeneratedLifetime = 1800;
 static const NSTimeInterval kRepeatWindow = 2;
 static const NSTimeInterval kFillTimeout = 4;
 static const NSUInteger kMaxFrames = 64;
@@ -22,6 +23,7 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
   NSMutableDictionary<NSString *, NSString *> *_frameOrigins;
   NSMutableDictionary<NSString *, NSDictionary *> *_logins;
   NSMutableDictionary<NSString *, NSDictionary *> *_fills;
+  NSMutableDictionary<NSString *, NSDictionary *> *_generated;
 }
 
 - (instancetype)init {
@@ -29,6 +31,7 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
     _frameOrigins = [NSMutableDictionary dictionary];
     _logins = [NSMutableDictionary dictionary];
     _fills = [NSMutableDictionary dictionary];
+    _generated = [NSMutableDictionary dictionary];
     [LiveCaptures() addObject:self];
   }
   return self;
@@ -36,6 +39,7 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
 
 - (void)dealloc {
   [_logins removeAllObjects];
+  [_generated removeAllObjects];
 }
 
 - (void)noteFieldInFrame:(NSString *)frameId origin:(NSString *)origin {
@@ -65,8 +69,8 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
   [self dropExpiredLogins];
   NSDictionary *previous = _logins[origin];
   const NSTimeInterval now = Now();
-  if (previous && [previous[@"username"] isEqualToString:username] && [previous[@"password"] isEqualToString:password] &&
-      now - [previous[@"at"] doubleValue] < kRepeatWindow)
+  if (previous && ![previous[@"generated"] boolValue] && [previous[@"username"] isEqualToString:username] &&
+      [previous[@"password"] isEqualToString:password] && now - [previous[@"at"] doubleValue] < kRepeatWindow)
     return NO;
   if (!previous && _logins.count >= kMaxLogins) [_logins removeAllObjects];
   _logins[origin] = @{@"username" : username ?: @"", @"password" : password, @"at" : @(now)};
@@ -86,7 +90,30 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
 }
 
 - (void)discardLogin:(NSString *)origin {
-  if (origin.length) [_logins removeObjectForKey:origin];
+  if (!origin.length) return;
+  [_logins removeObjectForKey:origin];
+  [_generated removeObjectForKey:origin];
+}
+
+- (void)keepGeneratedPassword:(NSString *)password origin:(NSString *)origin {
+  if (!origin.length || !password.length) return;
+  if (!_generated[origin] && _generated.count >= kMaxLogins) [_generated removeAllObjects];
+  _generated[origin] = @{@"password" : [password copy], @"at" : @(Now())};
+  if (![self keepLogin:@"" password:password origin:origin]) return;
+  NSMutableDictionary *login = [_logins[origin] mutableCopy];
+  login[@"generated"] = @YES;
+  _logins[origin] = login;
+}
+
+- (BOOL)isGeneratedPassword:(NSString *)password origin:(NSString *)origin {
+  NSDictionary *generated = origin.length ? _generated[origin] : nil;
+  if (!generated) return NO;
+  if (Now() - [generated[@"at"] doubleValue] >= kGeneratedLifetime) {
+    [_generated removeObjectForKey:origin];
+    return NO;
+  }
+  NSString *kept = generated[@"password"];
+  return kept.length && password.length && [kept isEqualToString:password];
 }
 
 - (NSString *)awaitFillInFrame:(NSString *)frameId reply:(void (^)(NSArray<NSString *> *filled))reply {
@@ -111,6 +138,7 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
 
 - (void)wipe {
   [_logins removeAllObjects];
+  [_generated removeAllObjects];
   [_frameOrigins removeAllObjects];
   for (NSString *fillId in _fills.allKeys) [self finishFill:fillId frame:_fills[fillId][@"frame"] filled:@[]];
 }

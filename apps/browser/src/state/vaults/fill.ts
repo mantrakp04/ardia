@@ -1,16 +1,31 @@
-import { copyFromVault, type VaultFillField, type VaultItem } from "../../platform/vaults";
+import type { VaultFillField, VaultItem, VaultPasswordStyle } from "../../platform/vaults";
 import { webviews } from "../../platform/webviews";
-import { showToast } from "../app/toasts";
-import { useBrowser } from "../browser/store";
 import { unlockProvider, openPasswordSettings } from "./actions";
+import { noteFilledUsername, rememberVaultAccount } from "./accounts";
 import { brandOf } from "./brands";
-import { AFTER_FILL_QUIET_MS, closeVaultMenu, restingRow, patchVaultMenu, quietVaultField, rowsOfMenu, showAllPasswords, showVaultMatches, vaultMenuOf, otpFieldSeenSince, type VaultMenu } from "./menu";
-import { itemKey, menuKey, type VaultRow } from "./menuModel";
-import { OTP_FIELD_WAIT_MS, rememberPending } from "./pendingTotp";
+import {
+  AFTER_FILL_QUIET_MS,
+  dismissVaultMenu,
+  offerVaultMenuAgain,
+  patchVaultMenu,
+  quietVaultField,
+  reopenVaultMenuFromKey,
+  resyncVaultPage,
+  restingRowOf,
+  rowsOfMenu,
+  showAllPasswords,
+  showVaultMatches,
+  vaultMenuOf,
+  type VaultMenu,
+} from "./menu";
+import { menuKey, SUGGEST_STYLE, type VaultRow } from "./menuModel";
+import { rememberPending } from "./pendingTotp";
 import { currentPendingTotp, loadVaultItems, setPendingTotp, vaultProviderOf } from "./store";
 import type { VaultFillError, VaultKeyEvent } from "./types";
 
 const managerName = (provider: string) => vaultProviderOf(provider)?.name ?? brandOf(provider).name;
+
+export const TOUCH_ID_EXPIRED = "Touch ID timed out. Try again.";
 
 export function fillErrorText(error: VaultFillError | string, provider: string): string {
   switch (error) {
@@ -27,89 +42,85 @@ export function fillErrorText(error: VaultFillError | string, provider: string):
   }
 }
 
-const windowOf = (tabId: string) => useBrowser.getState().tabs[tabId]?.windowId;
+export type VaultFillHow = { submit: boolean; touchID: boolean };
+export const BY_HAND: VaultFillHow = { submit: false, touchID: false };
+export const BY_TOUCH_ID: VaultFillHow = { submit: true, touchID: true };
 
-function copyCodeIfNoField(tabId: string, origin: string, item: VaultItem, filledAt: number) {
-  setTimeout(() => {
-    if (otpFieldSeenSince(origin, filledAt)) return;
-    void copyFromVault(item.provider, item.id, "totp").then(
-      ({ copied }) => {
-        const windowId = windowOf(tabId);
-        if (copied && windowId) showToast(windowId, "Copied One-Time Code", undefined, { icon: "number.circle", key: "vaultCode" });
-      },
-      () => {},
-    );
-  }, OTP_FIELD_WAIT_MS);
-}
-
-function afterLoginFill(tabId: string, origin: string, item: VaultItem) {
+function rememberCode(origin: string, item: VaultItem) {
   if (item.hasTotp === false) return;
-  const at = Date.now();
-  setPendingTotp(rememberPending(currentPendingTotp(), { origin, provider: item.provider, id: item.id, at }));
-  copyCodeIfNoField(tabId, origin, item, at);
+  setPendingTotp(rememberPending(currentPendingTotp(), { origin, provider: item.provider, id: item.id, at: Date.now() }));
 }
 
-async function fillItem(tabId: string, menu: VaultMenu, item: VaultItem, userChose: boolean) {
+function finishFill(tabId: string, menu: VaultMenu) {
+  quietVaultField(tabId, menu, AFTER_FILL_QUIET_MS);
+  dismissVaultMenu(tabId, true);
+}
+
+async function fillItem(tabId: string, menu: VaultMenu, row: VaultRow, item: VaultItem, userChose: boolean, how: VaultFillHow) {
   const web = webviews.get(tabId);
   const fields: VaultFillField[] = menu.field === "otp" ? ["totp"] : ["username", "password"];
-  patchVaultMenu(tabId, { busy: `login:${itemKey(item)}`, error: null }, menu.seq);
-  const result = web
-    ? await web.fillFromVault({ frameId: menu.frameId, origin: menu.origin, provider: item.provider, id: item.id, fields, userChose }).catch(() => ({ filled: [], error: "failed" as const }))
-    : { filled: [], error: "failed" as const };
+  patchVaultMenu(tabId, { busy: row.key, error: null }, menu.seq);
+  const request = { frameId: menu.frameId, origin: menu.origin, provider: item.provider, id: item.id, fields, userChose, submit: how.submit };
+  const result = web ? await web.fillFromVault(request).catch(() => ({ filled: [], error: "failed" as const })) : { filled: [], error: "failed" as const };
   if (vaultMenuOf(tabId)?.seq !== menu.seq) return;
-  if (result.error === "notAuthorized") return patchVaultMenu(tabId, { busy: null, error: null }, menu.seq);
+  if (result.error === "notAuthorized") {
+    return patchVaultMenu(tabId, { busy: null, error: how.touchID ? TOUCH_ID_EXPIRED : null, touch: "off" }, menu.seq);
+  }
   if (result.error) {
     if (result.error === "locked" || result.error === "notFound") void loadVaultItems(item.provider, true);
-    return patchVaultMenu(tabId, { busy: null, error: fillErrorText(result.error, item.provider) }, menu.seq);
+    return patchVaultMenu(tabId, { busy: null, error: fillErrorText(result.error, item.provider), touch: "off" }, menu.seq);
   }
-  quietVaultField(tabId, menu, AFTER_FILL_QUIET_MS);
-  closeVaultMenu(tabId, true);
-  if (menu.field !== "otp") afterLoginFill(tabId, menu.origin, item);
+  rememberVaultAccount(menu.origin, item);
+  if (menu.field !== "otp") noteFilledUsername(tabId, menu.origin, item.username);
+  finishFill(tabId, menu);
+  if (menu.field !== "otp") rememberCode(menu.origin, item);
 }
 
-async function fillGenerated(tabId: string, menu: VaultMenu) {
+async function fillGenerated(tabId: string, menu: VaultMenu, row: VaultRow, style: VaultPasswordStyle) {
   const web = webviews.get(tabId);
-  patchVaultMenu(tabId, { busy: "generate", error: null }, menu.seq);
-  const result = web ? await web.fillGeneratedPassword({ frameId: menu.frameId, origin: menu.origin }).catch(() => null) : null;
+  patchVaultMenu(tabId, { busy: row.key, error: null }, menu.seq);
+  const request = { frameId: menu.frameId, origin: menu.origin, style, ...(menu.maxLength > 0 ? { maxLength: menu.maxLength } : {}) };
+  const result = web ? await web.fillGeneratedPassword(request).catch(() => null) : null;
   if (vaultMenuOf(tabId)?.seq !== menu.seq) return;
   if (!result?.filled.length) return patchVaultMenu(tabId, { busy: null, error: "Couldn't fill a password here. Try again." }, menu.seq);
-  quietVaultField(tabId, menu, AFTER_FILL_QUIET_MS);
-  closeVaultMenu(tabId, true);
+  finishFill(tabId, menu);
 }
 
-async function unlockFromMenu(tabId: string, menu: VaultMenu, provider: string) {
-  patchVaultMenu(tabId, { busy: `unlock:${provider}`, error: null }, menu.seq);
+async function unlockFromMenu(tabId: string, menu: VaultMenu, row: VaultRow, provider: string) {
+  patchVaultMenu(tabId, { busy: row.key, error: null }, menu.seq);
   const result = await unlockProvider(provider, null);
   if (vaultMenuOf(tabId)?.seq !== menu.seq) return;
   if (result.ok) {
     await loadVaultItems(provider, true);
     const now = vaultMenuOf(tabId);
-    return patchVaultMenu(tabId, { busy: null, selected: now ? restingRow(rowsOfMenu(now)) : -1 }, menu.seq);
+    return patchVaultMenu(tabId, { busy: null, touch: "off", selected: now ? restingRowOf(now) : -1 }, menu.seq);
   }
   if (result.needs === "password") {
-    closeVaultMenu(tabId);
+    dismissVaultMenu(tabId);
     return openPasswordSettings();
   }
-  patchVaultMenu(tabId, { busy: null, error: `Couldn't unlock ${managerName(provider)}. Try again.` }, menu.seq);
+  patchVaultMenu(tabId, { busy: null, touch: "off", error: `Couldn't unlock ${managerName(provider)}. Try again.` }, menu.seq);
 }
 
-export function activateVaultRow(tabId: string, row: VaultRow) {
+export function activateVaultRow(tabId: string, row: VaultRow, how: VaultFillHow = BY_HAND) {
   const menu = vaultMenuOf(tabId);
   if (!menu || menu.busy) return;
   switch (row.kind) {
     case "login":
-      return void fillItem(tabId, menu, row.item, row.userChose || menu.mode === "search");
+      return void fillItem(tabId, menu, row, row.item, row.userChose || menu.mode === "search", how);
     case "otp":
-      return void fillItem(tabId, menu, row.item, false);
+      return void fillItem(tabId, menu, row, row.item, false, how);
     case "generate":
+      return void fillGenerated(tabId, menu, row, row.style);
     case "suggest":
-      return void fillGenerated(tabId, menu);
+      return void fillGenerated(tabId, menu, row, SUGGEST_STYLE);
     case "unlock":
-      return void unlockFromMenu(tabId, menu, row.provider);
+      return void unlockFromMenu(tabId, menu, row, row.provider);
     case "allPasswords":
       return showAllPasswords(tabId);
+    case "openPasswords":
     case "settings":
-      closeVaultMenu(tabId);
+      dismissVaultMenu(tabId);
       return openPasswordSettings();
   }
 }
@@ -122,7 +133,7 @@ export function stepVaultMenu(tabId: string, key: string) {
   if (action === "close") {
     if (menu.mode === "search" && key === "Escape") return showVaultMatches(tabId);
     if (key === "Escape") quietVaultField(tabId, menu, null);
-    return closeVaultMenu(tabId, menu.mode === "search");
+    return dismissVaultMenu(tabId, menu.mode === "search");
   }
   if (action === "move") return patchVaultMenu(tabId, { selected, error: null });
   if (action === "activate") activateVaultRow(tabId, rows[selected]!);
@@ -130,7 +141,16 @@ export function stepVaultMenu(tabId: string, key: string) {
 
 export function noteVaultKey(tabId: string, event: VaultKeyEvent) {
   const menu = vaultMenuOf(tabId);
-  if (menu && menu.frameId === event.frameId && menu.mode !== "search") stepVaultMenu(tabId, event.key);
+  const ours = !!menu && menu.frameId === event.frameId;
+  if (event.key === "Typed") return void (ours && menu.mode !== "search" && dismissVaultMenu(tabId));
+  if (event.key === "Cleared") return ours ? undefined : offerVaultMenuAgain(tabId, event.frameId);
+  if (!ours) {
+    if (event.key === "ArrowDown") reopenVaultMenuFromKey(tabId, event.frameId);
+    else resyncVaultPage(tabId, event.frameId);
+    return;
+  }
+  if (menu.hidden || menu.mode === "search") return;
+  stepVaultMenu(tabId, event.key);
 }
 
 export const noteCodeUnavailable = (tabId: string, seq: number, key: string) => {

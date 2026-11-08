@@ -1,15 +1,16 @@
-import type { VaultItem, VaultProviderState } from "../../platform/vaults";
-import { rankItems, searchItems, TIER } from "./originMatch";
+import type { VaultItem, VaultPasswordStyle, VaultProviderState } from "../../platform/vaults";
+import { fillsWithoutChoice, rankItems, searchItems, TIER } from "./originMatch";
 import type { PendingTotp } from "./pendingTotp";
 import type { VaultFieldKind } from "./types";
 
 export type VaultRow =
-  | { key: string; kind: "generate" }
+  | { key: string; kind: "generate"; style: VaultPasswordStyle }
   | { key: string; kind: "otp"; item: VaultItem; pending: boolean }
   | { key: string; kind: "unlock"; provider: string; name: string }
   | { key: string; kind: "login"; item: VaultItem; userChose: boolean }
   | { key: string; kind: "allPasswords" }
   | { key: string; kind: "suggest" }
+  | { key: string; kind: "openPasswords" }
   | { key: string; kind: "settings" };
 
 export type MenuMode = "matches" | "search";
@@ -23,18 +24,27 @@ export type MenuInput = {
   items: readonly VaultItem[];
   pending: PendingTotp | null;
   noTotp: ReadonlySet<string>;
+  remembered?: string | null;
 };
 
 export const MAX_CODE_ROWS = 4;
 export const MAX_SEARCH_ROWS = 100;
 
+export const GENERATOR_STYLES: readonly VaultPasswordStyle[] = ["strong", "alphanumeric", "easyToType", "passphrase"];
+export const SUGGEST_STYLE: VaultPasswordStyle = "strong";
+
+export const FOOTER_KINDS: ReadonlySet<VaultRow["kind"]> = new Set(["allPasswords", "suggest", "openPasswords", "settings"]);
+
 export const itemKey = (item: Pick<VaultItem, "provider" | "id">) => `${item.provider}/${item.id}`;
-const loginRow = (item: VaultItem, userChose: boolean): VaultRow => ({ key: `login:${itemKey(item)}`, kind: "login", item, userChose });
+const loginRow = (item: VaultItem, origin: string): VaultRow => ({ key: `login:${itemKey(item)}`, kind: "login", item, userChose: !fillsWithoutChoice(item, origin) });
+const generateRow = (style: VaultPasswordStyle): VaultRow => ({ key: `generate:${style}`, kind: "generate", style });
 const OTHER_PASSWORDS: VaultRow = { key: "allPasswords", kind: "allPasswords" };
 const SETTINGS: VaultRow = { key: "settings", kind: "settings" };
 const SUGGEST: VaultRow = { key: "suggest", kind: "suggest" };
+const OPEN_PASSWORDS: VaultRow = { key: "openPasswords", kind: "openPasswords" };
 
 export const hasMatchRow = (rows: readonly VaultRow[]) => rows.some((r) => r.kind === "login" || r.kind === "otp" || r.kind === "generate" || r.kind === "unlock");
+export const hasFillRow = (rows: readonly VaultRow[]) => rows.some((r) => r.kind === "login" || r.kind === "otp" || r.kind === "generate");
 
 function codeRows(input: MenuInput, ranked: ReturnType<typeof rankItems>): VaultRow[] {
   const out: VaultRow[] = [];
@@ -51,23 +61,34 @@ function codeRows(input: MenuInput, ranked: ReturnType<typeof rankItems>): Vault
   return out;
 }
 
+function unlockRows(input: MenuInput): VaultRow[] {
+  const order = new Map(input.providers.map((p, i) => [p.id, i]));
+  return input.providers
+    .filter((p) => p.state === "locked")
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    .map((p): VaultRow => ({ key: `unlock:${p.id}`, kind: "unlock", provider: p.id, name: p.name }));
+}
+
 export function menuRows(input: MenuInput): VaultRow[] {
-  const providerOrder = new Map(input.providers.map((p, i) => [p.id, i]));
   const unlocked = new Set(input.providers.filter((p) => p.state === "unlocked").map((p) => p.id));
   const items = input.items.filter((i) => unlocked.has(i.provider));
-  if (input.mode === "search") {
-    const ranked = new Map(rankItems(items, input.origin).map((r) => [itemKey(r.item), r.tier]));
-    return searchItems(items, input.query, MAX_SEARCH_ROWS).map((item) => loginRow(item, (ranked.get(itemKey(item)) ?? TIER.none) < TIER.subdomain));
+  if (input.mode === "search") return searchItems(items, input.query, MAX_SEARCH_ROWS).map((item) => loginRow(item, input.origin));
+  if (input.field === "newPassword") {
+    const generators = unlocked.size ? GENERATOR_STYLES.map(generateRow) : [];
+    return [...generators, ...unlockRows(input), OPEN_PASSWORDS];
   }
-  const rows: VaultRow[] = [];
-  if (input.field === "newPassword" && unlocked.size) rows.push({ key: "generate", kind: "generate" });
-  const ranked = rankItems(items, input.origin);
-  if (input.field === "otp") rows.push(...codeRows(input, ranked));
-  else rows.push(...ranked.map((r) => loginRow(r.item, r.tier < TIER.subdomain)));
-  const locked = input.providers.filter((p) => p.state === "locked").sort((a, b) => (providerOrder.get(a.id) ?? 0) - (providerOrder.get(b.id) ?? 0));
-  rows.push(...locked.map((p): VaultRow => ({ key: `unlock:${p.id}`, kind: "unlock", provider: p.id, name: p.name })));
+  const ranked = rankItems(items, input.origin, input.remembered ?? null);
+  const rows: VaultRow[] = input.field === "otp" ? codeRows(input, ranked) : ranked.map((r) => loginRow(r.item, input.origin));
+  rows.push(...unlockRows(input));
   const footer = input.field === "password" && unlocked.size ? [OTHER_PASSWORDS, SUGGEST] : [OTHER_PASSWORDS];
   return hasMatchRow(rows) ? [...rows, ...footer] : [...rows, ...footer, SETTINGS];
+}
+
+export function restingRow(rows: readonly VaultRow[], remembered: string | null = null) {
+  const own = remembered ? rows.findIndex((r) => (r.kind === "login" || r.kind === "otp") && itemKey(r.item) === remembered) : -1;
+  if (own >= 0) return own;
+  const fill = rows.findIndex((r) => r.kind === "login" || r.kind === "otp" || r.kind === "generate");
+  return fill >= 0 ? fill : rows.findIndex((r) => r.kind === "unlock");
 }
 
 export type MenuKeyResult = { selected: number; action: "none" | "move" | "activate" | "close" };

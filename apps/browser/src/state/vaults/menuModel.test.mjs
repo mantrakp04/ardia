@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hasMatchRow, menuKey, menuRows, MAX_CODE_ROWS } from "./menuModel.ts";
+import { hasFillRow, hasMatchRow, menuKey, menuRows, MAX_CODE_ROWS, restingRow } from "./menuModel.ts";
 
 const provider = (id, state = "unlocked") => ({ id, name: id, state, capabilities: { totp: true, save: true, selfHosted: false, masterPassword: false, touchID: false }, install: { command: "", url: "" } });
 const item = (id, urls, extra = {}) => ({ provider: "bitwarden", id, title: id, username: "me", urls, hasTotp: false, ...extra });
@@ -30,12 +30,41 @@ test("login fields list matches best first; a sibling is marked as the person's 
   assert.deepEqual(rows.slice(0, 2).map((r) => r.userChose), [false, true]);
 });
 
-test("new password fields offer a strong password first, sign-in password fields suggest one last, only with a manager unlocked", () => {
-  assert.equal(menuRows({ ...base, field: "newPassword" })[0].kind, "generate");
-  assert.ok(!kinds(menuRows({ ...base, field: "newPassword" })).includes("suggest"));
+test("new password fields offer the four generators, then Open Passwords, and no saved logins", () => {
+  const rows = menuRows({ ...base, field: "newPassword", items: [item("a", ["example.com"])] });
+  assert.deepEqual(rows.map((r) => r.key), ["generate:strong", "generate:alphanumeric", "generate:easyToType", "generate:passphrase", "openPasswords"]);
+  assert.deepEqual(rows.slice(0, 4).map((r) => r.style), ["strong", "alphanumeric", "easyToType", "passphrase"]);
+  assert.equal(restingRow(rows), 0, "New Strong Password is ready for Return");
+});
+
+test("new password fields keep unlock rows between the generators and the footer", () => {
+  const providers = [provider("bitwarden"), provider("protonpass", "locked")];
+  assert.deepEqual(kinds(menuRows({ ...base, field: "newPassword", providers })).slice(-2), ["unlock:protonpass", "openPasswords"]);
+  const locked = menuRows({ ...base, field: "newPassword", providers: [provider("bitwarden", "locked")] });
+  assert.deepEqual(kinds(locked), ["unlock:bitwarden", "openPasswords"], "nothing to generate into until a manager unlocks");
+});
+
+test("sign-in password fields suggest a new password last, only with a manager unlocked", () => {
   assert.ok(!kinds(menuRows({ ...base, field: "username" })).includes("suggest"));
   assert.ok(!kinds(menuRows({ ...base, providers: [provider("bitwarden", "locked")] })).includes("suggest"));
-  assert.notEqual(menuRows({ ...base, field: "newPassword", providers: [provider("bitwarden", "locked")] })[0].kind, "generate");
+  assert.deepEqual(kinds(menuRows({ ...base, items: [item("a", ["example.com"])] })), ["login:a", "allPasswords", "suggest"]);
+});
+
+test("the remembered login is first among equals and the resting row", () => {
+  const items = [item("a", ["example.com"], { favorite: true }), item("b", ["example.com"])];
+  const rows = menuRows({ ...base, items, remembered: "bitwarden/b" });
+  assert.deepEqual(kinds(rows).slice(0, 2), ["login:b", "login:a"]);
+  assert.equal(restingRow(rows, "bitwarden/b"), 0);
+  const sibling = menuRows({ ...base, items: [item("own", ["example.com"]), item("sib", ["login.example.com"])], remembered: "bitwarden/sib" });
+  assert.deepEqual(kinds(sibling).slice(0, 2), ["login:own", "login:sib"]);
+  assert.equal(restingRow(sibling, "bitwarden/sib"), 1, "still the one selected, below the better match");
+  assert.equal(restingRow(sibling, "bitwarden/gone"), 0);
+});
+
+test("only login, code and generator rows count as something to fill", () => {
+  assert.equal(hasFillRow(menuRows({ ...base, providers: [provider("bitwarden", "locked")] })), false);
+  assert.equal(hasFillRow(menuRows({ ...base, field: "newPassword" })), true);
+  assert.equal(hasFillRow(menuRows({ ...base, items: [item("a", ["example.com"])] })), true);
 });
 
 test("one-time code fields put the pending item first and skip items without codes", () => {

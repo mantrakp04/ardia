@@ -12,7 +12,6 @@ const ACTIONS = {
   "vault:fill": { title: "Fill Password", icon: "key.fill", keywords: ["autofill", "password manager", "login", "sign in"] },
   "vault:copyPassword": { title: "Copy Password", icon: "key", keywords: ["password manager", "copy login"] },
   "vault:copyUsername": { title: "Copy Username", icon: "person.crop.circle", keywords: ["password manager", "copy email", "copy login"] },
-  "vault:copyCode": { title: "Copy One-Time Code", icon: "number.circle", keywords: ["totp", "2fa", "two factor", "verification code", "otp"] },
   "vault:lock": { title: "Lock Password Managers", icon: "lock", keywords: ["lock vault", "1password", "bitwarden", "proton pass"] },
 } as const;
 
@@ -32,7 +31,6 @@ function shownIds(s: BrowserState, windowId: string): VaultActionId[] {
   const best = origin ? bestItem(allVaultItems(), origin) : null;
   if (origin) ids.push("vault:fill");
   if (best) ids.push("vault:copyPassword", "vault:copyUsername");
-  if (best && best.hasTotp !== false) ids.push("vault:copyCode");
   if (currentVaultProviders().some((p) => p.state === "unlocked")) ids.push("vault:lock");
   return ids;
 }
@@ -47,15 +45,15 @@ export function vaultBarActions(s: BrowserState, windowId: string): CommandActio
   }));
 }
 
-const COPIED: Record<VaultCopyField, string> = { password: "Copied Password", username: "Copied Username", totp: "Copied One-Time Code" };
-const COPY_FIELD: Partial<Record<VaultActionId, VaultCopyField>> = { "vault:copyPassword": "password", "vault:copyUsername": "username", "vault:copyCode": "totp" };
+const COPIED: Record<VaultCopyField, string> = { password: "Copied Password", username: "Copied Username" };
+const COPY_FIELD: Partial<Record<VaultActionId, VaultCopyField>> = { "vault:copyPassword": "password", "vault:copyUsername": "username" };
 
 async function copyBest(windowId: string, origin: string, field: VaultCopyField) {
   const item = bestItem(allVaultItems(), origin);
   if (!item) return;
   const done = await copyFromVault(item.provider, item.id, field).catch(() => null);
   if (done?.copied) showToast(windowId, COPIED[field], undefined, { icon: "doc.on.doc", key: "vaultCopy" });
-  else if (!done?.declined) showToast(windowId, field === "totp" ? "This login has no one-time code" : "Couldn't copy from your password manager", undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
+  else if (!done?.declined) showToast(windowId, "Couldn't copy from your password manager", undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
 }
 
 export function runVaultAction(id: VaultActionId, s: BrowserState, windowId: string) {

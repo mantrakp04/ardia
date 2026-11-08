@@ -58,18 +58,18 @@ extension WebKitTab: PageTab {
 
   func discard(unload: Bool) -> String { Self.unsupported }
 
-  func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool,
+  func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool, submit: Bool,
                      _ completion: @escaping ([String: Any]) -> Void) {
     completion(["filled": [String](), "error": VaultFillError.failed.rawValue])
   }
 
-  func fillGeneratedPassword(frameId: String, origin: String, _ completion: @escaping ([String: Any]) -> Void) {
+  func fillGeneratedPassword(frameId: String, origin: String, style: String, maxLength: Int?, _ completion: @escaping ([String: Any]) -> Void) {
     completion(["filled": [String]()])
   }
 
   func setVaultMenu(frameId: String, open: Bool, highlighted: Bool) {}
 
-  func saveToVault(provider: String, origin: String, title: String?, _ completion: @escaping ([String: Any]) -> Void) {
+  func saveToVault(provider: String, origin: String, title: String?, username: String?, _ completion: @escaping ([String: Any]) -> Void) {
     completion(["saved": false, "error": VaultFillError.notFound.rawValue])
   }
 

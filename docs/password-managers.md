@@ -114,10 +114,15 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    answers `declined` and shows no toast. Usernames and one-time codes don't ask. The fill menu also shows Apple's
    embedded Touch ID view (`VaultTouchIDView`, `LAAuthenticationView`) on the selected login, or the first one: a
    touch on the sensor grants the broker one owner check for 10 s (`grantOwner`) and emits `vaults.touchID`; JS fills
-   the row it armed (`state/vaults/touchID.ts`), with no dialog. Apple's glyph is drawn transparent and the row shows
+   the row that was armed at the moment of the match (`state/vaults/touchID.ts`), with no dialog, and asks the page to
+   submit the form (`submit: true`); a click or Return never submits. The view reports `onStatus` (`ready` while the
+   sensor listens, `retry` after a finger that didn't match, `granted`, and the terminal `unavailable` and
+   `lockout`), which the row shows as the glyph, a red shake with Try Again, and a check. It listens only while the
+   app is active and its window is key, re-arms after a system cancel (backing off to 2 s after five in 3 s), and
+   ignores replies from an older attempt. Apple's glyph is drawn transparent and the row shows
    the `touchid` symbol in its own text colour instead. Without Touch ID, or after a lockout, Return or a click asks through the system prompt instead.
    `vaults.biometrics` says whether Touch ID can be used.
-10. **Clipboard.** Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
+10. **Clipboard.** Only usernames and passwords are ever copied; one-time codes are filled, never copied. Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
    pasteboard is cleared after 90 s if nothing else was copied since.
 11. **Test instances.** In a hidden test instance (`ARDIA_BACKGROUND=1` with `ARDIA_DATA_DIR`, `VaultSandbox`), binaries are looked up only in `<data dir>/Password Managers/bin`,
     each CLI gets its own state folder under `<data dir>/Password Managers/<id>` (`OP_CONFIG_DIR`,
@@ -130,6 +135,8 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
 
 - Bitwarden items with master password re-prompt are left out of the list, because the CLI can't honour re-prompt.
 - Bitwarden's new-device email code has no CLI flag; the sign-in error suggests the personal API key instead.
+- A changed password for a login that's already saved isn't written back: providers can create logins but not edit
+  them, so a change-password submission for a saved username saves nothing.
 - A Proton Pass session lock can only be lifted with `pass-cli session unlock` in Terminal.
 - 1Password's list has no one-time code flag, so `hasTotp` is unknown there and `vaults.totp` answers `null` when the
   item has none.
@@ -147,9 +154,9 @@ Calls (`call("vaults.<name>", args)`, typed in `packages/ardiacore/src/engine/ap
 | `items` | `{provider?}` | `VaultItem[]` (empty for a locked manager) |
 | `lock`, `signOut`, `cancelSignIn` | `{provider}` | `VaultProviderState` |
 | `configure` | `{provider, server?}` | `VaultProviderState` (`message` says why a change was refused) |
-| `copy` | `{provider, id, field: "username" \| "password" \| "totp"}` | `{copied, clearsAfter}` |
+| `copy` | `{provider, id, field: "username" \| "password"}` | `{copied, clearsAfter}` |
 | `totp` | `{provider, id}` | `{code, period, expiresAt} \| null` |
-| `generate` | `{}` | `{length}` |
+| `generate` | `{style?, maxLength?}` | `{length}` |
 | `setOptions` | `{idleLockMinutes, touchID}` | `{}` |
 
 Secret functions (`packages/ardiacore/src/vaults.ts`): `signInToVault(provider, fields)` and
@@ -263,6 +270,24 @@ What the core already does for the new manager, so the provider must not repeat 
 binary, the environment, timeouts and output caps, one call at a time, the state and item caches, `vaults.changed`
 and `vaults.itemsChanged`, idle and sleep lock, origin checks before a fill, the clipboard, and dropping the session
 when the CLI reports locked or signed out.
+
+## Filling and saving
+
+- **Generated passwords.** `VaultPasswordGenerator` makes four styles (`strong`: four groups of five joined by
+  hyphens; `alphanumeric`: 20 letters and digits; `easyToType`: lowercase and digits only, no Shift; `passphrase`:
+  four words from the EFF Short Wordlist 1, one capitalized, one digit). When the field's `maxlength` is shorter, the
+  style shrinks or falls back to letters and digits of that length. The password never leaves native code.
+- **Submitting.** With `submit: true` the page script waits two frames, checks the origin and form are unchanged and
+  nothing required is still empty, then clicks the form's sign-in button, or calls `requestSubmit()`, or presses
+  Enter on the last field. At most once per fill.
+- **Saving new passwords.** A submission carries `newPassword` and `generated`. With Save New Passwords Automatically
+  on (`vaultAutoSave`, default on) a new password on a secure page saves at once to the default manager, unless that
+  username is already saved for the site. The username comes from the page (the form, a hidden
+  `autocomplete="username"` field, an email field, an earlier identifier step, or an email shown near the form), then
+  the login last used on the site, then the last username filled in the tab; with none, the save popover asks for an
+  email or username and sends it as the `username` override.
+- **Remembered logins.** The login last filled or saved per site (registrable domain) is kept as its item key in
+  `vault-accounts.json` (at most 500, least recently used dropped) and is ranked first and selected when the menu opens.
 
 ## Saved Passwords
 

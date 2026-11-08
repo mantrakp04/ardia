@@ -5,7 +5,7 @@ import { findNodeHandle, type NativeSyntheticEvent } from "react-native";
 import type { FaviconImage } from "./favicons";
 import { ArdiaError, ardiaError } from "@ardia/core";
 import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
-import type { DiscardOutcome, VaultFilledField, VaultFillResult, VaultSaveResult, WebViewHandle, WebViewProps } from "./pageTypes";
+import type { DiscardOutcome, VaultFilledField, VaultFillResult, VaultPasswordStyle, VaultSaveResult, WebViewHandle, WebViewProps } from "./pageTypes";
 import type { PageCookie } from "./webkit";
 
 type NativeHandle = Omit<
@@ -31,10 +31,10 @@ type NativeHandle = Omit<
   loadUrl(url: string, userInitiated?: boolean): Promise<void>;
   resolvePasswordPrompt(answer: string, username: string | null, password: string | null): Promise<void>;
   discard(unload: boolean): Promise<DiscardOutcome>;
-  fillFromVault(frameId: string, origin: string, provider: string, id: string, fields: string[], userChose: boolean): Promise<VaultFillResult>;
-  fillGeneratedPassword(frameId: string, origin: string): Promise<{ filled: VaultFilledField[] }>;
+  fillFromVault(frameId: string, origin: string, provider: string, id: string, fields: string[], userChose: boolean, submit: boolean): Promise<VaultFillResult>;
+  fillGeneratedPassword(frameId: string, origin: string, style: VaultPasswordStyle, maxLength: number | null): Promise<{ filled: VaultFilledField[] }>;
   setVaultMenu(frameId: string, open: boolean, highlighted: boolean): Promise<void>;
-  saveToVault(provider: string, origin: string, title: string | null): Promise<VaultSaveResult>;
+  saveToVault(provider: string, origin: string, title: string | null, username: string | null): Promise<VaultSaveResult>;
   discardVaultCapture(origin: string): Promise<void>;
 };
 
@@ -43,6 +43,9 @@ let NativeWebKitView: typeof NativeWebView | undefined;
 const webKitView = () => (NativeWebKitView ??= requireNativeViewManager<NativeProps>("ArdiaWebKit"));
 
 const VIEW_RETRIES = 3;
+const LONGEST_GENERATED_PASSWORD = 4096;
+const generatedLengthLimit = (maxLength: number | undefined) =>
+  maxLength !== undefined && Number.isFinite(maxLength) && maxLength > 0 ? Math.min(Math.floor(maxLength), LONGEST_GENERATED_PASSWORD) : null;
 const isViewMissing = (error: unknown) =>
   (error as { code?: unknown } | null)?.code === "ERR_ARGUMENT_CAST" &&
   /Unable to find the '\w+' view with tag/.test(String((error as { message?: unknown }).message));
@@ -115,11 +118,15 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       setFrozen: (frozen) => call(undefined, (n) => n.setFrozen(frozen)),
       fillFromVault: (r) =>
         call<VaultFillResult>({ filled: [], error: "failed" }, (n) =>
-          n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false),
+          n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false, r.submit === true),
         ),
-      fillGeneratedPassword: (r) => call<{ filled: VaultFilledField[] }>({ filled: [] }, (n) => n.fillGeneratedPassword(r.frameId, r.origin)),
+      fillGeneratedPassword: (r) =>
+        call<{ filled: VaultFilledField[] }>({ filled: [] }, (n) =>
+          n.fillGeneratedPassword(r.frameId, r.origin, r.style ?? "strong", generatedLengthLimit(r.maxLength)),
+        ),
       setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open, r.open && r.highlighted)),
-      saveToVault: (r) => call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null)),
+      saveToVault: (r) =>
+        call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null, r.username ?? null)),
       discardVaultCapture: (r) => call(undefined, (n) => n.discardVaultCapture(r.origin)),
     };
   });

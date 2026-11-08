@@ -24,4 +24,4 @@ export const onVaultChanged = (listener: (state: VaultProviderState) => void) =>
 export const onVaultTouchID = (listener: () => void) => on("vaults.touchID", () => listener());
 export const onVaultItemsChanged = (listener: (provider: string) => void) => on("vaults.itemsChanged", ({ provider }) => listener(provider));
 
-export type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultFillField, VaultKeyPress, VaultSubmission } from "@ardia/ardiacore";
+export type { VaultField, VaultFieldKind, VaultFieldRect, VaultFillError, VaultFillField, VaultKeyPress, VaultPasswordStyle, VaultSubmission, VaultTouchIDStatus } from "@ardia/ardiacore";

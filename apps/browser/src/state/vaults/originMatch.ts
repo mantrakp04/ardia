@@ -2,8 +2,8 @@ import { punycodeEncode } from "@ardia/core";
 import type { VaultItem } from "../../platform/vaults";
 import { REGISTRY_LABELS, REGISTRY_SUFFIXES, SHARED_HOSTING_SUFFIXES } from "./suffixes";
 
-export type MatchTier = 0 | 1 | 2 | 3;
-export const TIER = { none: 0, sibling: 1, subdomain: 2, exact: 3 } as const;
+export type MatchTier = 0 | 1 | 2 | 3 | 4;
+export const TIER = { none: 0, sibling: 1, subdomain: 2, www: 3, exact: 4 } as const;
 
 type Site = { scheme: "http" | "https"; host: string; port: string; portGiven: boolean };
 
@@ -74,10 +74,11 @@ export function matchTier(pageOrigin: string, itemUrl: string): MatchTier {
   const item = parseSite(itemUrl);
   if (!page || !item || !isSecureOrigin(pageOrigin)) return TIER.none;
   if (!portsMatch(page, item)) return TIER.none;
+  if (page.host === item.host) return TIER.exact;
   const ph = bare(page.host);
   const ih = bare(item.host);
-  if (ph === ih) return TIER.exact;
-  if (isIp(ph) || isIp(ih)) return TIER.none;
+  if (isIp(page.host) || isIp(item.host)) return TIER.none;
+  if (ph === ih) return TIER.www;
   if (nestsUnder(ph, ih) || nestsUnder(ih, ph)) return TIER.subdomain;
   const site = registrableDomain(ph);
   return site && site === registrableDomain(ih) ? TIER.sibling : TIER.none;
@@ -86,21 +87,47 @@ export function matchTier(pageOrigin: string, itemUrl: string): MatchTier {
 export const itemTier = (item: Pick<VaultItem, "urls">, origin: string): MatchTier =>
   item.urls.reduce<MatchTier>((best, url) => Math.max(best, matchTier(origin, url)) as MatchTier, TIER.none);
 
+const unbracketed = (host: string) => host.replace(/^\[(.*)\]$/, "$1");
+
+export function nativeHostsMatch(first: string, second: string): boolean {
+  const one = unbracketed(first);
+  const other = unbracketed(second);
+  if (!one || !other) return false;
+  if (one === other) return true;
+  if (isIp(one) || isIp(other)) return false;
+  const [shorter, longer] = one.length <= other.length ? [one, other] : [other, one];
+  if (!shorter.includes(".") || shorter.startsWith(".") || isRegistrySuffix(shorter) || isSharedHosting(longer)) return false;
+  return longer.endsWith(`.${shorter}`);
+}
+
+export function fillsWithoutChoice(item: Pick<VaultItem, "urls">, origin: string): boolean {
+  const page = parseSite(origin);
+  if (!page || !isSecureOrigin(origin)) return false;
+  return item.urls.some((url) => {
+    const saved = parseSite(url);
+    if (!saved || (saved.portGiven && saved.port !== page.port)) return false;
+    return nativeHostsMatch(saved.host, page.host);
+  });
+}
+
 export type RankedItem = { item: VaultItem; tier: MatchTier };
 
-const byRank = (a: RankedItem, b: RankedItem) =>
+const keyOf = (item: Pick<VaultItem, "provider" | "id">) => `${item.provider}/${item.id}`;
+
+const byRank = (preferred: string | null) => (a: RankedItem, b: RankedItem) =>
   b.tier - a.tier ||
+  Number(keyOf(b.item) === preferred) - Number(keyOf(a.item) === preferred) ||
   Number(!!b.item.favorite) - Number(!!a.item.favorite) ||
   (b.item.updatedAt ?? 0) - (a.item.updatedAt ?? 0) ||
   a.item.title.localeCompare(b.item.title) ||
   a.item.username.localeCompare(b.item.username);
 
-export function rankItems(items: readonly VaultItem[], origin: string): RankedItem[] {
+export function rankItems(items: readonly VaultItem[], origin: string, preferred: string | null = null): RankedItem[] {
   if (!isSecureOrigin(origin)) return [];
   return items
     .map((item) => ({ item, tier: itemTier(item, origin) }))
     .filter((r) => r.tier > TIER.none)
-    .sort(byRank);
+    .sort(byRank(preferred));
 }
 
 export const bestItem = (items: readonly VaultItem[], origin: string) => rankItems(items, origin).find((r) => r.tier >= TIER.subdomain)?.item ?? null;
@@ -137,3 +164,9 @@ export function searchItems(items: readonly VaultItem[], query: string, limit = 
 }
 
 export const siteLabel = (origin: string) => bare(parseSite(origin)?.host ?? origin);
+
+export function siteKey(origin: string): string {
+  const host = parseSite(origin)?.host;
+  if (!host) return "";
+  return registrableDomain(host) || host;
+}

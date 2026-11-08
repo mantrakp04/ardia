@@ -107,19 +107,20 @@ enum PageViewDefinition {
       }.runOnQueue(.main)
 
       AsyncFunction("fillFromVault") {
-        (view: V, frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool?, promise: Promise) in
-        view.page.fillFromVault(frameId: frameId, origin: origin, provider: provider, id: id, fields: fields, userChose: userChose ?? false) {
-          promise.resolve($0)
-        }
+        (view: V, frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool?, submit: Bool?, promise: Promise) in
+        view.page.fillFromVault(
+          frameId: frameId, origin: origin, provider: provider, id: id, fields: fields, userChose: userChose ?? false, submit: submit ?? false
+        ) { promise.resolve($0) }
       }.runOnQueue(.main)
-      AsyncFunction("fillGeneratedPassword") { (view: V, frameId: String, origin: String, promise: Promise) in
-        view.page.fillGeneratedPassword(frameId: frameId, origin: origin) { promise.resolve($0) }
+      AsyncFunction("fillGeneratedPassword") { (view: V, frameId: String, origin: String, style: String?, maxLength: Double?, promise: Promise) in
+        let limit = maxLength.flatMap { $0.isFinite && $0 > 0 ? Int(min($0, 4096)) : nil }
+        view.page.fillGeneratedPassword(frameId: frameId, origin: origin, style: style ?? "", maxLength: limit) { promise.resolve($0) }
       }.runOnQueue(.main)
       AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool, highlighted: Bool) in
         view.page.setVaultMenu(frameId: frameId, open: open, highlighted: highlighted)
       }.runOnQueue(.main)
-      AsyncFunction("saveToVault") { (view: V, provider: String, origin: String, title: String?, promise: Promise) in
-        view.page.saveToVault(provider: provider, origin: origin, title: title) { promise.resolve($0) }
+      AsyncFunction("saveToVault") { (view: V, provider: String, origin: String, title: String?, username: String?, promise: Promise) in
+        view.page.saveToVault(provider: provider, origin: origin, title: title, username: username) { promise.resolve($0) }
       }.runOnQueue(.main)
       AsyncFunction("discardVaultCapture") { (view: V, origin: String) in
         view.page.discardVaultCapture(origin: origin)

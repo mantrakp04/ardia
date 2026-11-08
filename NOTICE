@@ -25,3 +25,5 @@ Ardia builds on and ships third-party software under its own licenses, including
 - The !bang list by Kagi Search and imput (MIT, see third_party/bangs/LICENSE), from Helium's
   services.helium.imput.net/bangs.json: a snapshot in packages/core/src/bangList.ts
 - React Native and React Native macOS (MIT)
+- The EFF Short Wordlist 1 by the Electronic Frontier Foundation (CC BY 3.0 US,
+  https://www.eff.org/dice): the memorable password words in packages/ardiacore/ios/VaultWordList.swift

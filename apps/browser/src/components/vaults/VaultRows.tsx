@@ -1,18 +1,18 @@
-import { useEffect, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import type { VaultHighlight } from "../../state/vaults/highlight";
-import type { VaultRow } from "../../state/vaults/menuModel";
-import { itemKey } from "../../state/vaults/menuModel";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { touchRetryInk, type VaultHighlight } from "../../state/vaults/highlight";
+import { FOOTER_KINDS, itemKey, type VaultRow } from "../../state/vaults/menuModel";
 import { siteLabel } from "../../state/vaults/originMatch";
 import { forgetVaultCode, loadVaultCode } from "../../state/vaults/codes";
 import { noteCodeUnavailable } from "../../state/vaults/fill";
-import { noteVaultMenuPress } from "../../state/vaults/menu";
-import { useVaultCode, useVaultProvider } from "../../state/vaults/hooks";
-import { ActivitySpinner, ink, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
+import { noteVaultMenuPress, type VaultTouchPhase } from "../../state/vaults/menu";
+import { useVaultCode } from "../../state/vaults/hooks";
+import { ActivitySpinner, capsule, curve, ink, reduceMotion, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
 import { CountdownRing, formatCode, VaultAppIcon } from "./VaultParts";
-import { VAULT_MENU } from "./tokens";
+import { VAULT_MENU, VAULT_TOUCH } from "./tokens";
+import type { VaultPasswordStyle } from "../../state/vaults/types";
 
-export const rowHeight = (row: VaultRow) => (row.kind === "allPasswords" || row.kind === "suggest" || row.kind === "settings" ? VAULT_MENU.compactRow : VAULT_MENU.row);
+export const rowHeight = (row: VaultRow) => (FOOTER_KINDS.has(row.kind) ? VAULT_MENU.compactRow : VAULT_MENU.row);
 
 const withScheme = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`);
 const itemSite = (urls: readonly string[]) => (urls[0] ? siteLabel(withScheme(urls[0])) : "");
@@ -20,8 +20,22 @@ const itemSite = (urls: readonly string[]) => (urls[0] ? siteLabel(withScheme(ur
 const TEXT = { flex: 1, minWidth: 0, gap: VAULT_MENU.textGap } as const;
 const SPINNER = { width: VAULT_MENU.spinner, height: VAULT_MENU.spinner } as const;
 const TOUCH_ID = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID } as const;
+const LAYER = { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" } as const;
+const DISC = { position: "absolute", width: VAULT_TOUCH.retryDisc, height: VAULT_TOUCH.retryDisc, borderRadius: capsule(VAULT_TOUCH.retryDisc) } as const;
+const TRAILING = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID, alignItems: "center", justifyContent: "center" } as const;
+
+export const TRY_AGAIN = "Try Again";
+
+export const GENERATOR_COPY: Record<VaultPasswordStyle, { title: string; detail?: string }> = {
+  strong: { title: "New Strong Password" },
+  alphanumeric: { title: "New Strong Password", detail: "Without Special Characters" },
+  easyToType: { title: "New Strong Password", detail: "Easy to Type" },
+  passphrase: { title: "New Memorable Password", detail: "Four Words" },
+};
 
 type Ink = { title: string; detail: string; icon: string };
+
+export type VaultTouchState = { phase: VaultTouchPhase; retries: number };
 
 function useInk(highlight: VaultHighlight | null): Ink {
   const theme = useTheme();
@@ -30,7 +44,7 @@ function useInk(highlight: VaultHighlight | null): Ink {
   return { title: on, detail: on, icon: on };
 }
 
-function RowShell({ height, compact, selected, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink) => ReactNode }) {
+function RowShell({ height, compact, selected, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink, lit: boolean) => ReactNode }) {
   const lit = useInk(highlight);
   const plain = useInk(null);
   return (
@@ -49,7 +63,7 @@ function RowShell({ height, compact, selected, highlight, onHover, onPress, chil
               backgroundColor: selected || pressed ? highlight.fill : undefined,
             }}
           >
-            {children(selected || pressed ? lit : plain)}
+            {children(selected || pressed ? lit : plain, selected || pressed)}
           </View>
         )}
       </Pressable>
@@ -57,19 +71,104 @@ function RowShell({ height, compact, selected, highlight, onHover, onPress, chil
   );
 }
 
-function Lines({ title, detail, ink, mono }: { title: string; detail?: string; ink: Ink; mono?: boolean }) {
+function useTryAgain(retries: number) {
+  const [shown, setShown] = useState(false);
+  const first = useRef(retries);
+  useEffect(() => {
+    if (retries === first.current) return;
+    setShown(true);
+    const timer = setTimeout(() => setShown(false), VAULT_TOUCH.tryAgainMs);
+    return () => clearTimeout(timer);
+  }, [retries]);
+  return shown;
+}
+
+function useCrossfade(on: boolean, ms: number) {
+  const value = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    const run = Animated.timing(value, { toValue: on ? 1 : 0, duration: ms, easing: curve.enter, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [on]);
+  return value;
+}
+
+function Swap({ from, to, showTo, color, size, weight, mono }: { from: string; to: string; showTo: boolean; color: string; size?: "caption"; weight?: "medium"; mono?: boolean }) {
+  const fade = useCrossfade(showTo, VAULT_TOUCH.crossfadeMs);
+  if (from === to) return <Text lines={1} size={size} weight={weight} color={color} style={mono ? tabularNums : undefined}>{from}</Text>;
   return (
-    <View style={TEXT}>
-      <Text lines={1} weight={detail ? "medium" : undefined} color={ink.title} style={mono ? tabularNums : undefined}>
-        {title}
-      </Text>
-      {detail ? (
-        <Text lines={1} size="caption" color={ink.detail}>
-          {detail}
+    <View>
+      <Animated.View style={{ opacity: fade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+        <Text lines={1} size={size} weight={weight} color={color} style={mono ? tabularNums : undefined}>
+          {from}
         </Text>
-      ) : null}
+      </Animated.View>
+      <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: fade }}>
+        <Text lines={1} size={size} weight={weight} color={color}>
+          {to}
+        </Text>
+      </Animated.View>
     </View>
   );
+}
+
+function Lines({ title, detail, ink, mono, strong, tryAgain }: { title: string; detail?: string; ink: Ink; mono?: boolean; strong?: boolean; tryAgain?: boolean }) {
+  const weight = strong || detail ? "medium" : undefined;
+  const swapTitle = !!tryAgain && !detail;
+  return (
+    <View style={TEXT}>
+      <Swap from={title} to={swapTitle ? TRY_AGAIN : title} showTo={swapTitle} color={ink.title} weight={weight} mono={mono} />
+      {detail ? <Swap from={detail} to={tryAgain ? TRY_AGAIN : detail} showTo={!!tryAgain} color={ink.detail} size="caption" /> : null}
+    </View>
+  );
+}
+
+function TouchGlyph({ touch, ink, fill }: { touch: VaultTouchState; ink: Ink; fill: string | null }) {
+  const theme = useTheme();
+  const still = reduceMotion() === true;
+  const shake = useRef(new Animated.Value(0)).current;
+  const first = useRef(touch.retries);
+  const granted = touch.phase === "granted";
+  const check = useCrossfade(granted, VAULT_TOUCH.grantMs);
+  useEffect(() => {
+    if (still || touch.retries === first.current) return;
+    shake.setValue(0);
+    const run = Animated.timing(shake, { toValue: 1, duration: VAULT_TOUCH.shakeMs, easing: curve.enter, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [touch.retries]);
+  const retry = touch.phase === "retry";
+  const red = touchRetryInk(fill, theme.destructive);
+  const steps = VAULT_TOUCH.shakeSteps;
+  const translateX = shake.interpolate({ inputRange: steps.map((_, i) => i / (steps.length - 1)), outputRange: [...steps] });
+  const checkScale = check.interpolate({ inputRange: [0, 1], outputRange: [VAULT_TOUCH.grantFrom, 1] });
+  return (
+    <Animated.View style={{ ...TRAILING, transform: still ? [] : [{ translateX }] }}>
+      <Animated.View style={{ ...LAYER, opacity: check.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+        {retry && red.disc ? <View style={{ ...DISC, backgroundColor: red.disc }} /> : null}
+        <Symbol name="touchid" size={VAULT_MENU.touchID} color={retry ? red.glyph : ink.title} style={TOUCH_ID} />
+      </Animated.View>
+      <Animated.View style={{ ...LAYER, opacity: check, transform: still ? [] : [{ scale: checkScale }] }}>
+        <Symbol name="checkmark.circle.fill" size={VAULT_MENU.touchID} color={ink.title} style={TOUCH_ID} />
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+function GrantedThenSpinner({ touch, ink, fill }: { touch: VaultTouchState; ink: Ink; fill: string | null }) {
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), VAULT_TOUCH.grantMs + VAULT_TOUCH.grantHoldMs);
+    return () => clearTimeout(timer);
+  }, []);
+  if (waited) return <ActivitySpinner style={SPINNER} />;
+  return <TouchGlyph touch={touch} ink={ink} fill={fill} />;
+}
+
+function Trailing({ busy, touch, ink, fill }: { busy: boolean; touch: VaultTouchState | null; ink: Ink; fill: string | null }) {
+  if (busy && touch?.phase === "granted") return <GrantedThenSpinner touch={touch} ink={ink} fill={fill} />;
+  if (busy) return <ActivitySpinner style={SPINNER} />;
+  return touch ? <TouchGlyph touch={touch} ink={ink} fill={fill} /> : null;
 }
 
 function CodeLine({ tabId, seq, row, ink }: { tabId: string; seq: number; row: Extract<VaultRow, { kind: "otp" }>; ink: Ink }) {
@@ -101,7 +200,7 @@ export function VaultRowView({
   row,
   selected,
   highlight,
-  touchSlot,
+  touch,
   busy,
   site,
   onHover,
@@ -112,29 +211,29 @@ export function VaultRowView({
   row: VaultRow;
   selected: boolean;
   highlight: VaultHighlight;
-  touchSlot: boolean;
+  touch: VaultTouchState | null;
   busy: boolean;
   site: string;
   onHover: () => void;
   onPress: () => void;
 }) {
-  const provider = useVaultProvider(row.kind === "unlock" ? row.provider : "");
-  const spinner = busy ? <ActivitySpinner style={SPINNER} /> : null;
-  const shell = (children: (ink: Ink) => ReactNode) => (
-    <RowShell height={rowHeight(row)} compact={rowHeight(row) === VAULT_MENU.compactRow} selected={selected} highlight={highlight} onHover={onHover} onPress={onPress}>
+  const tryAgain = useTryAgain(touch?.retries ?? 0) && !!touch && !busy;
+  const shell = (children: (ink: Ink, lit: boolean) => ReactNode) => (
+    <RowShell height={rowHeight(row)} compact={FOOTER_KINDS.has(row.kind)} selected={selected} highlight={highlight} onHover={onHover} onPress={onPress}>
       {children}
     </RowShell>
   );
+  const trailing = (ink: Ink, lit: boolean) => <Trailing busy={busy} touch={touch} ink={ink} fill={lit ? highlight.fill : null} />;
   switch (row.kind) {
     case "login": {
       const where = itemSite(row.item.urls) || site;
       const title = row.item.username || row.item.title || where;
       const detail = row.item.username ? where : row.item.title ? where : "";
-      return shell((ink) => (
+      return shell((ink, lit) => (
         <>
           <VaultAppIcon provider={row.item.provider} />
-          <Lines title={title} detail={detail || undefined} ink={ink} />
-          {spinner ?? (touchSlot ? <Symbol name="touchid" size={VAULT_MENU.touchID} color={ink.title} style={TOUCH_ID} /> : null)}
+          <Lines title={title} detail={detail || undefined} ink={ink} tryAgain={tryAgain} />
+          {trailing(ink, lit)}
         </>
       ));
     }
@@ -142,29 +241,38 @@ export function VaultRowView({
       return shell((ink) => (
         <>
           <CodeLine tabId={tabId} seq={seq} row={row} ink={ink} />
-          {spinner}
+          {busy ? <ActivitySpinner style={SPINNER} /> : null}
         </>
       ));
-    case "generate":
+    case "generate": {
+      const copy = GENERATOR_COPY[row.style];
       return shell((ink) => (
         <>
           <VaultAppIcon provider="" symbol="key.fill" neutral />
-          <Lines title="Use Strong Password" ink={ink} />
-          {spinner}
+          <Lines title={copy.title} detail={copy.detail} ink={ink} strong />
+          {busy ? <ActivitySpinner style={SPINNER} /> : null}
         </>
       ));
+    }
     case "unlock":
-      return shell((ink) => (
+      return shell((ink, lit) => (
         <>
           <VaultAppIcon provider={row.provider} />
-          <Lines title={`Unlock ${row.name}`} ink={ink} />
-          {spinner ?? (touchSlot ? <Symbol name="touchid" size={VAULT_MENU.touchID} color={ink.title} style={TOUCH_ID} /> : null)}
+          <Lines title={`Unlock ${row.name}`} ink={ink} tryAgain={tryAgain} />
+          {trailing(ink, lit)}
         </>
       ));
     case "allPasswords":
       return shell((ink) => <Lines title="Other Passwords…" ink={ink} />);
     case "suggest":
-      return shell((ink) => <Lines title="Suggest New Password" ink={ink} />);
+      return shell((ink) => (
+        <>
+          <Lines title="Suggest New Password" ink={ink} />
+          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+        </>
+      ));
+    case "openPasswords":
+      return shell((ink) => <Lines title="Open Passwords" ink={ink} />);
     case "settings":
       return shell((ink) => <Lines title="Password Settings…" ink={ink} />);
   }

@@ -12,6 +12,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSDictionary<NSString *, NSString *> *)takeLogin:(NSString *)origin;
 - (void)discardLogin:(NSString *)origin;
 
+- (void)keepGeneratedPassword:(NSString *)password origin:(NSString *)origin;
+- (BOOL)isGeneratedPassword:(NSString *)password origin:(NSString *)origin;
+
 - (NSString *)awaitFillInFrame:(NSString *)frameId reply:(void (^)(NSArray<NSString *> *filled))reply;
 - (void)finishFill:(NSString *)fillId frame:(NSString *)frameId filled:(NSArray<NSString *> *)filled;
 

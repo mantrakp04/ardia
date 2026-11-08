@@ -19,7 +19,7 @@ import type { PasswordExportStatus, SavedPassword } from "../passwords";
 import type { ClearSiteDataResult, SiteSettings, SiteSettingType, SiteSettingValue } from "../siteSettings";
 import type { LinkRoute, TabStripCommand, TabStripTransaction } from "../tabs";
 import type { PageCookie, PageEngine, PasskeyAccess } from "../webkit";
-import type { DisplayMediaSource } from "../pageTypes";
+import type { DisplayMediaSource, VaultPasswordStyle } from "../pageTypes";
 import type { VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultTotp } from "../vaults";
 
 type Profile = { profile: string };
@@ -198,7 +198,7 @@ export type EngineCalls = {
   "vaults.cancelSignIn": [{ provider: VaultProviderId }, VaultProviderState];
   "vaults.copy": [{ provider: VaultProviderId; id: string; field: VaultSecretField }, { copied: boolean; declined?: boolean; clearsAfter: number }];
   "vaults.totp": [{ provider: VaultProviderId; id: string }, VaultTotp | null];
-  "vaults.generate": [{}, { length: number }];
+  "vaults.generate": [{ style?: VaultPasswordStyle; maxLength?: number }, { length: number }];
   "vaults.setOptions": [{ idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean }, Record<string, never>];
   "vaults.biometrics": [{}, { available: boolean }];
 };

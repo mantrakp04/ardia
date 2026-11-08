@@ -69,6 +69,7 @@ export function PasswordManagersSection() {
   const providers = useVaultProviders();
   const loaded = useVaultsLoaded();
   const saveTarget = useSettings((s) => s.vaultSaveTarget);
+  const saveOffer = useSettings((s) => s.vaultSaveOffer);
   const lockAfter = useSettings((s) => s.vaultIdleLockMinutes);
   useEffect(() => void reloadProviders(), []);
   const savers = providers.filter((p) => p.capabilities.save);
@@ -90,6 +91,7 @@ export function PasswordManagersSection() {
           <SettingToggle anchor="passwords.vaultLoadPasswordsWhenUsed" />
           <SettingToggle anchor="passwords.vaultMenuGlass" />
           <SettingToggle anchor="passwords.vaultSaveOffer" />
+          {saveOffer ? <SettingToggle anchor="passwords.vaultAutoSave" /> : null}
           <Row anchor="passwords.vaultSaveTarget">
             <PopUp value={target} options={targetOptions} onChange={(v) => updateSettings({ vaultSaveTarget: v === ASK ? "" : v })} />
           </Row>

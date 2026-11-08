@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bestItem, isRegistrySuffix, isSecureOrigin, isSharedHosting, loginSavedIn, matchTier, parseSite, rankItems, registrableDomain, sameSite, searchItems, TIER } from "./originMatch.ts";
+import { bestItem, fillsWithoutChoice, isRegistrySuffix, isSecureOrigin, isSharedHosting, loginSavedIn, matchTier, parseSite, rankItems, registrableDomain, sameSite, searchItems, siteKey, TIER } from "./originMatch.ts";
 
 const item = (id, urls, extra = {}) => ({ provider: "bitwarden", id, title: id, username: `${id}@example.com`, urls, hasTotp: false, ...extra });
 
@@ -49,9 +49,12 @@ test("exact host beats subdomain beats a sibling on the same site", () => {
   assert.deepEqual(ranked.map((r) => r.item.id), ["exact", "parent", "sibling"]);
 });
 
-test("www is the same host as the bare domain", () => {
-  assert.equal(matchTier("https://www.example.com", "https://example.com"), TIER.exact);
-  assert.equal(matchTier("https://example.com", "www.example.com"), TIER.exact);
+test("www is the bare domain, one step below the exact host", () => {
+  assert.equal(matchTier("https://www.example.com", "https://example.com"), TIER.www);
+  assert.equal(matchTier("https://example.com", "www.example.com"), TIER.www);
+  assert.equal(matchTier("https://www.example.com", "www.example.com"), TIER.exact);
+  const ranked = rankItems([item("bare", ["example.com"]), item("www", ["www.example.com"])], "https://www.example.com");
+  assert.deepEqual(ranked.map((r) => r.item.id), ["www", "bare"]);
 });
 
 test("a saved http address still matches its https page, and hosts compare case-insensitively", () => {
@@ -127,4 +130,76 @@ test("suffix rules mirror the native VaultOriginMatch", () => {
   assert.equal(isSharedHosting("alice.vercel.app"), true);
   assert.equal(registrableDomain("co.uk"), "");
   assert.equal(registrableDomain("x.a.github.io"), "x.a.github.io");
+});
+
+const CASES = [
+  ["https://github.com", "https://github.com/login", "exact"],
+  ["https://github.com", "github.com", "exact"],
+  ["https://github.com", "github.com/login?next=%2F#top", "exact"],
+  ["https://github.com", "https://user@github.com", "exact"],
+  ["https://www.github.com", "github.com", "www"],
+  ["https://github.com", "https://www.github.com/session", "www"],
+  ["https://accounts.google.com", "google.com", "subdomain"],
+  ["https://google.com", "accounts.google.com", "subdomain"],
+  ["https://www.google.com", "https://accounts.google.com", "subdomain"],
+  ["https://a.b.example.com", "b.example.com", "subdomain"],
+  ["https://mail.google.com", "https://accounts.google.com", "sibling"],
+  ["https://a.b.example.com", "c.example.com", "sibling"],
+  ["https://login.example.co.uk", "https://shop.example.co.uk", "sibling"],
+  ["https://example.co.uk", "https://example.co.uk/account", "exact"],
+  ["https://other.co.uk", "https://example.co.uk", "none"],
+  ["https://alice.github.io", "https://alice.github.io/app", "exact"],
+  ["https://alice.github.io", "https://bob.github.io", "none"],
+  ["https://alice.github.io", "github.io", "none"],
+  ["https://app.alice.github.io", "https://alice.github.io", "none"],
+  ["https://shop.myshopify.com", "https://other.myshopify.com", "none"],
+  ["http://localhost:3000", "localhost:3000", "exact"],
+  ["http://localhost:3000", "http://localhost:3000/signin", "exact"],
+  ["http://localhost:3000", "localhost:4000", "none"],
+  ["http://127.0.0.1:8080", "127.0.0.1:8080", "exact"],
+  ["https://192.168.1.10", "https://192.168.1.10/admin", "exact"],
+  ["https://192.168.1.10", "https://192.168.1.11", "none"],
+  ["https://10.0.0.1", "https://1.10.0.0.1", "none"],
+  ["https://[2001:db8::1]", "https://[2001:db8::1]/", "exact"],
+  ["https://example.com:8443", "example.com:8443/login", "exact"],
+  ["https://example.com:8443", "example.com", "none"],
+  ["https://example.com", "http://example.com:80", "none"],
+  ["https://xn--bcher-kva.de", "bücher.de", "exact"],
+  ["https://shop.xn--bcher-kva.de", "https://konto.bücher.de", "sibling"],
+  ["https://example.com", "example.com.evil.net", "none"],
+  ["https://example.com", "ftp://example.com", "none"],
+  ["https://example.com", "   ", "none"],
+];
+
+test("origin tiers across real saved addresses", () => {
+  for (const [page, saved, tier] of CASES) assert.equal(matchTier(page, saved), TIER[tier], `${saved} on ${page}`);
+});
+
+test("rows only fill without the person's choice where the native check would agree", () => {
+  const at = (urls, origin) => fillsWithoutChoice(item("x", urls), origin);
+  assert.equal(at(["github.com"], "https://github.com"), true);
+  assert.equal(at(["github.com"], "https://www.github.com"), true);
+  assert.equal(at(["accounts.google.com"], "https://google.com"), true);
+  assert.equal(at(["accounts.google.com"], "https://mail.google.com"), false, "siblings need the person's choice");
+  assert.equal(at(["login.example.com"], "https://www.example.com"), false, "www only folds for display, natively it's a sibling");
+  assert.equal(at(["example.com:8443"], "https://example.com"), false);
+  assert.equal(at(["http://localhost:3000"], "http://localhost:3000"), true);
+  assert.equal(at(["alice.github.io"], "https://bob.github.io"), false);
+  assert.equal(at(["example.com"], "http://example.com"), false);
+});
+
+test("the remembered login leads its own tier but never jumps a better match", () => {
+  const items = [item("fav", ["example.com"], { favorite: true }), item("mine", ["example.com"]), item("sib", ["login.example.com"])];
+  assert.deepEqual(rankItems(items, "https://example.com", "bitwarden/mine").map((r) => r.item.id), ["mine", "fav", "sib"]);
+  assert.deepEqual(rankItems(items, "https://example.com", "bitwarden/sib").map((r) => r.item.id), ["fav", "mine", "sib"]);
+  assert.deepEqual(rankItems(items, "https://example.com", "bitwarden/gone").map((r) => r.item.id), ["fav", "mine", "sib"]);
+});
+
+test("a site key is the registrable domain, or the host where there isn't one", () => {
+  assert.equal(siteKey("https://accounts.google.com"), "google.com");
+  assert.equal(siteKey("https://www.example.co.uk"), "example.co.uk");
+  assert.equal(siteKey("https://alice.github.io"), "alice.github.io");
+  assert.equal(siteKey("http://localhost:3000"), "localhost");
+  assert.equal(siteKey("https://192.168.1.10"), "192.168.1.10");
+  assert.equal(siteKey("not a url"), "");
 });

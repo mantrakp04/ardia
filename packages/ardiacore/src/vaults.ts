@@ -3,7 +3,7 @@ import { nativeModule } from "./nativeModules";
 
 export type VaultProviderId = "1password" | "bitwarden" | "protonpass" | (string & {});
 export type VaultState = "notInstalled" | "signedOut" | "locked" | "unlocked" | "unavailable";
-export type VaultSecretField = "username" | "password" | "totp";
+export type VaultSecretField = "username" | "password";
 export type VaultCapabilities = { totp: boolean; save: boolean; selfHosted: boolean; masterPassword: boolean; touchID: boolean };
 export type VaultSetupKind = "desktopIntegration" | "browserSignIn" | "credentials";
 

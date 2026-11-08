@@ -37,6 +37,19 @@ export const VAULT_MENU = {
   glassSurface: { dark: "#3F3F3F", light: "#DBDBDB" },
 } as const;
 
+export const VAULT_TOUCH = {
+  shakeMs: 320,
+  shakeSteps: [0, 5, -3.6, 2.4, -1.4, 0.6, 0],
+  grantMs: 160,
+  grantFrom: 0.9,
+  grantHoldMs: 260,
+  tryAgainMs: 1600,
+  crossfadeMs: 150,
+  retryDisc: 22,
+} as const;
+
+export const VAULT_SAVE = { fieldGap: 6 } as const;
+
 export const VAULT_CODE = { ring: 16, stroke: 2, tick: 1000, expiringMs: 5000 } as const;
 
 export const VAULT_SETTINGS = { brandTile: 28, brandGlyph: 14, sheetTile: 36, sheetGlyph: 18, commandMinHeight: 32, spinner: 14, copiedMs: 1500 } as const;

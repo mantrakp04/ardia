@@ -71,6 +71,7 @@ export const privacyRows = {
         vaultLoadPasswordsWhenUsed: { title: "Load Passwords When Used", keywords: ["cache", "offline", "local copy", "faster", "encrypted", "fetch"] },
         vaultMenuGlass: { title: "Glass Menu", keywords: ["fill menu", "liquid glass", "translucent", "apple passwords", "look"] },
         vaultSaveOffer: { title: "Offer to Save", keywords: ["save login", "new password", "save prompt"] },
+        vaultAutoSave: { title: "Save New Passwords Automatically", keywords: ["auto save", "new password", "sign up", "generated password", "strong password"] },
         vaultSaveTarget: { title: "Save New Logins To", keywords: ["default manager", "save to", "destination"] },
         vaultIdleLockMinutes: { title: "Lock After", keywords: ["auto lock", "timeout", "idle", "touch id"] },
       },

@@ -107,10 +107,10 @@ actor VaultBroker {
     return await currentState(provider)
   }
 
-  func copy(_ id: String, item: String, field: VaultField) async -> Bool? {
+  func copy(_ id: String, item: String, field: VaultCopyField) async -> Bool? {
     guard let provider = VaultRegistry.provider(id) else { return false }
     if field == .password, !(await ownerAllows("copy your password")) { return nil }
-    let outcome = await secret(provider, item: item, field: field)
+    let outcome = await secret(provider, item: item, field: field.field)
     guard case .success(let value) = outcome else { return false }
     return await VaultClipboard.copy(value)
   }

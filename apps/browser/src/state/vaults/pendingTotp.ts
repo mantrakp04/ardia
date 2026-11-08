@@ -1,7 +1,6 @@
 import { sameSite } from "./originMatch";
 
 export const PENDING_TOTP_MS = 3 * 60_000;
-export const OTP_FIELD_WAIT_MS = 2_000;
 
 export type PendingTotp = { origin: string; provider: string; id: string; at: number };
 

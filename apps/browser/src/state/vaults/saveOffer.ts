@@ -4,17 +4,31 @@ import { webviews } from "../../platform/webviews";
 import { showToast } from "../app/toasts";
 import { useBrowser } from "../browser/store";
 import { patchPage, pageOf } from "../tabs/pageState";
+import { filledUsername, rememberedVaultAccount, rememberVaultAccount } from "./accounts";
 import { brandOf } from "./brands";
+import { itemKey } from "./menuModel";
 import { isSecureOrigin, loginSavedIn, sameSite, siteLabel } from "./originMatch";
 import { PENDING_TOTP_MS } from "./pendingTotp";
 import { allVaultItems, currentVaultProviders, loadAllVaultItems, loadVaultItems, vaultProviderOf } from "./store";
 import type { VaultSubmittedEvent } from "./types";
 
-export type VaultSaveOffer = { seq: number; origin: string; username: string; targets: string[]; target: string; busy: boolean; error: string | null };
+export type VaultSaveOffer = {
+  seq: number;
+  origin: string;
+  captured: string;
+  username: string;
+  editing: boolean;
+  needsUsername: boolean;
+  targets: string[];
+  target: string;
+  busy: boolean;
+  error: string | null;
+};
 
 export const useVaultSaveOffers = create<Record<string, VaultSaveOffer | null>>()(() => ({}));
 
 export const SAVE_OFFER_MS = PENDING_TOTP_MS;
+export const SAME_SUBMISSION_MS = 2000;
 
 type SaveInput = { enabled: boolean; origin: string; username: string; providers: readonly VaultProviderState[]; items: readonly VaultItem[]; preferred: string };
 export type SaveDecision = { offer: false; alreadySaved: boolean } | { offer: true; targets: string[]; target: string };
@@ -32,9 +46,18 @@ export function decideSave({ enabled, origin, username, providers, items, prefer
   return { offer: true, targets: target === preferred ? [target] : targets, target };
 }
 
+export function knownUsername(tabId: string, event: Pick<VaultSubmittedEvent, "origin" | "username">, items: readonly VaultItem[]): string {
+  const typed = event.username.trim();
+  if (typed) return typed;
+  const remembered = rememberedVaultAccount(event.origin);
+  const login = remembered ? items.find((i) => itemKey(i) === remembered) : undefined;
+  return login?.username.trim() || filledUsername(tabId, event.origin).trim();
+}
+
 type Claim = { origin: string; at: number; offered: boolean };
 const claims = new Map<string, Claim>();
 const expiries = new Map<string, ReturnType<typeof setTimeout>>();
+const recent = new Map<string, { key: string; at: number }>();
 let seq = 0;
 
 export function vaultClaimsPasswordPrompt(tabId: string, prompt: { origin: string; state: string }, now = Date.now()): boolean {
@@ -61,26 +84,56 @@ function claim(tabId: string, origin: string, offered: boolean) {
   if (chrome && vaultClaimsPasswordPrompt(tabId, chrome)) patchPage(tabId, { passwordPrompt: null });
 }
 
+function seenJustNow(tabId: string, event: VaultSubmittedEvent, now: number) {
+  const key = [event.origin, event.username.trim().toLowerCase(), event.newPassword ? 1 : 0, event.generated ? 1 : 0].join("\n");
+  const last = recent.get(tabId);
+  if (last && last.key === key && now - last.at < SAME_SUBMISSION_MS) return true;
+  recent.set(tabId, { key, at: now });
+  return false;
+}
+
+const managerName = (id: string) => vaultProviderOf(id)?.name ?? brandOf(id).name;
+const saveError = (id: string) => `Couldn't save to ${managerName(id)}. Try again.`;
+
+function showOffer(tabId: string, origin: string, captured: string, username: string, decision: Extract<SaveDecision, { offer: true }>, error: string | null = null) {
+  const old = offerOf(tabId);
+  if (old && old.origin !== origin) discard(tabId, old.origin);
+  const needsUsername = !username;
+  setOffer(tabId, { seq: ++seq, origin, captured, username, editing: needsUsername, needsUsername, targets: decision.targets, target: decision.target, busy: false, error });
+  claim(tabId, origin, true);
+}
+
 export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEvent) {
+  if (seenJustNow(tabId, event, Date.now())) return;
   await loadAllVaultItems();
   const settings = useBrowser.getState().settings;
-  const decision = decideSave({
-    enabled: settings.vaultSaveOffer,
-    origin: event.origin,
-    username: event.username,
-    providers: currentVaultProviders(),
-    items: allVaultItems(),
-    preferred: settings.vaultSaveTarget,
-  });
+  const items = allVaultItems();
+  const automatic = settings.vaultAutoSave && (event.newPassword === true || event.generated === true);
+  const username = automatic ? knownUsername(tabId, event, items) : event.username.trim();
+  const decision = decideSave({ enabled: settings.vaultSaveOffer, origin: event.origin, username, providers: currentVaultProviders(), items, preferred: settings.vaultSaveTarget });
   if (!decision.offer) {
     if (decision.alreadySaved) claim(tabId, event.origin, false);
     return discard(tabId, event.origin);
   }
-  const old = offerOf(tabId);
-  if (old && old.origin !== event.origin) discard(tabId, old.origin);
-  const offer: VaultSaveOffer = { seq: ++seq, origin: event.origin, username: event.username, targets: decision.targets, target: decision.target, busy: false, error: null };
-  setOffer(tabId, offer);
+  if (!automatic || !username || decision.targets.length > 1) {
+    const captured = event.username.trim();
+    return showOffer(tabId, event.origin, captured, username, decision);
+  }
   claim(tabId, event.origin, true);
+  const saved = await saveLogin(tabId, event.origin, decision.target, username !== event.username.trim() ? username : null);
+  if (!saved) showOffer(tabId, event.origin, event.username.trim(), username, decision, saveError(decision.target));
+}
+
+async function saveLogin(tabId: string, origin: string, target: string, username: string | null): Promise<boolean> {
+  const web = webviews.get(tabId);
+  const request = { provider: target, origin, title: siteLabel(origin), ...(username !== null ? { username } : {}) };
+  const result = web ? await web.saveToVault(request).catch(() => null) : null;
+  if (!result?.saved) return false;
+  if (result.item) rememberVaultAccount(origin, result.item);
+  void loadVaultItems(target, true);
+  const windowId = useBrowser.getState().tabs[tabId]?.windowId;
+  if (windowId) showToast(windowId, `Saved to ${managerName(target)}`, undefined, { icon: "checkmark.circle.fill" });
+  return true;
 }
 
 const patchOffer = (tabId: string, s: number, patch: Partial<VaultSaveOffer>) => {
@@ -93,6 +146,18 @@ export const chooseVaultTarget = (tabId: string, target: string) => {
   if (offer && offer.targets.includes(target)) patchOffer(tabId, offer.seq, { target, error: null });
 };
 
+export function editVaultOfferUsername(tabId: string) {
+  const offer = offerOf(tabId);
+  if (offer && !offer.busy) patchOffer(tabId, offer.seq, { editing: true });
+}
+
+export function setVaultOfferUsername(tabId: string, username: string) {
+  const offer = offerOf(tabId);
+  if (offer && !offer.busy) patchOffer(tabId, offer.seq, { username, error: null });
+}
+
+export const canSaveVaultOffer = (offer: Pick<VaultSaveOffer, "busy" | "needsUsername" | "username">) => !offer.busy && (!offer.needsUsername || !!offer.username.trim());
+
 export function dismissVaultOffer(tabId: string) {
   const offer = offerOf(tabId);
   if (!offer) return;
@@ -102,15 +167,11 @@ export function dismissVaultOffer(tabId: string) {
 
 export async function saveVaultOffer(tabId: string) {
   const offer = offerOf(tabId);
-  const web = webviews.get(tabId);
-  if (!offer || offer.busy) return;
-  const name = vaultProviderOf(offer.target)?.name ?? brandOf(offer.target).name;
-  patchOffer(tabId, offer.seq, { busy: true, error: null });
-  const result = web ? await web.saveToVault({ provider: offer.target, origin: offer.origin, title: siteLabel(offer.origin) }).catch(() => null) : null;
+  if (!offer || !canSaveVaultOffer(offer)) return;
+  const username = offer.username.trim();
+  patchOffer(tabId, offer.seq, { busy: true, error: null, username });
+  const saved = await saveLogin(tabId, offer.origin, offer.target, username !== offer.captured ? username : null);
   if (offerOf(tabId)?.seq !== offer.seq) return;
-  if (!result?.saved) return patchOffer(tabId, offer.seq, { busy: false, error: `Couldn't save to ${name}. Try again.` });
+  if (!saved) return patchOffer(tabId, offer.seq, { busy: false, error: saveError(offer.target) });
   setOffer(tabId, null);
-  void loadVaultItems(offer.target, true);
-  const windowId = useBrowser.getState().tabs[tabId]?.windowId;
-  if (windowId) showToast(windowId, `Saved to ${name}`, undefined, { icon: "checkmark.circle.fill" });
 }

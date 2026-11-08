@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, View } from "react-native";
 import { activateVaultRow, stepVaultMenu } from "../../state/vaults/fill";
-import { closeVaultMenu, hoverVaultMenu, restingRow, searchVaultMenu, selectVaultRow, showVaultMatches, type VaultMenu as MenuState } from "../../state/vaults/menu";
-import type { VaultRow } from "../../state/vaults/menuModel";
+import { closeVaultMenu, hoverVaultMenu, offerToFocusedField, restingRowOf, searchVaultMenu, selectVaultRow, setVaultMenuOffscreen, showVaultMatches, type VaultMenu as MenuState } from "../../state/vaults/menu";
+import { FOOTER_KINDS, type VaultRow } from "../../state/vaults/menuModel";
 import { siteLabel } from "../../state/vaults/originMatch";
 import { useVaultMenu, useVaultMenuGlass, useVaultMenuRows, useVaultProviders, useVaultTouchID } from "../../state/vaults/hooks";
+import { noteVaultTouchStatus, touchIDGlyphShown } from "../../state/vaults/touchID";
 import { useWindowInFront } from "../../state/windows/inFront";
 import { armVaultTouchID } from "../../state/vaults/touchID";
 import { vaultHighlight } from "../../state/vaults/highlight";
@@ -19,7 +20,10 @@ type Area = { width: number; height: number };
 export function VaultMenuHost({ tabId, zoom }: { tabId: string; zoom: number }) {
   const menu = useVaultMenu(tabId);
   const [area, setArea] = useState<Area>({ width: 0, height: 0 });
-  useEffect(() => () => closeVaultMenu(tabId), [tabId]);
+  useEffect(() => {
+    offerToFocusedField(tabId);
+    return () => closeVaultMenu(tabId);
+  }, [tabId]);
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={(e) => setArea(e.nativeEvent.layout)}>
       {menu && area.width > 0 ? <MenuPanel key={menu.seq} tabId={tabId} menu={menu} zoom={zoom} area={area} /> : null}
@@ -27,7 +31,6 @@ export function VaultMenuHost({ tabId, zoom }: { tabId: string; zoom: number }) 
   );
 }
 
-const FOOTER_KINDS = new Set<VaultRow["kind"]>(["allPasswords", "suggest", "settings"]);
 const footerHeight = (rows: number) => rows * VAULT_MENU.compactRow + 2 * VAULT_MENU.separatorGap + VAULT_MENU.footerBottom;
 
 function placement(menu: MenuState, zoom: number, area: Area, height: number) {
@@ -77,7 +80,7 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
     if (height) Animated.timing(appear, { toValue: 1, ...VAULT_MENU_MOTION, useNativeDriver: true }).start();
   }, [height > 0]);
   useEffect(() => {
-    if (place.offscreen) closeVaultMenu(tabId);
+    setVaultMenuOffscreen(tabId, menu.seq, place.offscreen);
   }, [place.offscreen]);
   const list = rows.filter((r) => !FOOTER_KINDS.has(r.kind));
   const footer = rows.filter((r) => FOOTER_KINDS.has(r.kind));
@@ -94,7 +97,6 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
     else if (end > scrollTop.current + listRoom) scroll.current?.scrollTo({ y: end - listRoom, animated: false });
   }, [menu.selected]);
   const touchIDReady = useVaultTouchID();
-  const [touchIDEnded, setTouchIDEnded] = useState(false);
   const windowId = useTab(tabId, (t) => t?.windowId);
   const inFront = useWindowInFront(windowId);
   const providers = useVaultProviders();
@@ -102,16 +104,16 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   const selectedRow = list[shownSelected];
   const touchable = (row: VaultRow | undefined) =>
     row?.kind === "login" || (row?.kind === "unlock" && !!providers.find((p) => p.id === row.provider)?.touchUnlock);
-  const touchTarget = !touchIDReady || touchIDEnded || !touchable(selectedRow) ? -1 : shownSelected;
+  const touchTarget = !touchIDReady || menu.hidden || !touchIDGlyphShown(menu.touch) || !touchable(selectedRow) ? -1 : shownSelected;
   useEffect(() => {
-    if (inFront && !menu.hovered && menu.mode === "matches") selectVaultRow(tabId, restingRow(rows));
+    if (inFront && !menu.hovered && menu.mode === "matches") selectVaultRow(tabId, restingRowOf(menu));
   }, [inFront]);
-  const armedKey = touchTarget >= 0 && !menu.busy ? list[touchTarget]!.key : null;
-  useEffect(() => {
-    armVaultTouchID(tabId, armedKey);
-    return () => armVaultTouchID(tabId, null);
-  }, [tabId, armedKey]);
   const touchArmed = touchTarget >= 0 && !menu.busy;
+  useEffect(() => {
+    armVaultTouchID(tabId, touchArmed ? menu.seq : null);
+    return () => armVaultTouchID(tabId, null);
+  }, [tabId, touchArmed, menu.seq]);
+  const touch = { phase: menu.touch, retries: menu.touchRetries };
   const site = siteLabel(menu.origin);
   const view = (row: VaultRow, index: number) => (
     <VaultRowView
@@ -122,15 +124,16 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
       site={site}
       selected={shownSelected === index}
       highlight={highlight}
-      touchSlot={index === touchTarget}
-      busy={menu.busy === row.key || ((row.kind === "generate" || row.kind === "suggest") && menu.busy === "generate")}
+      touch={index === touchTarget ? touch : null}
+      busy={menu.busy === row.key}
       onHover={() => menu.selected !== index && selectVaultRow(tabId, index)}
       onPress={() => activateVaultRow(tabId, row)}
     />
   );
-  const motion = still ? { opacity: height ? 1 : 0 } : { opacity: appear };
+  const motion = menu.hidden ? { opacity: 0 } : still ? { opacity: height ? 1 : 0 } : { opacity: appear };
   return (
     <Animated.View
+      pointerEvents={menu.hidden ? "none" : "auto"}
       onMouseEnter={() => hoverVaultMenu(tabId, true)}
       onMouseLeave={() => hoverVaultMenu(tabId, false)}
       onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
@@ -165,11 +168,7 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
             {list.map(view)}
             {touchTarget >= 0 ? (
               <View pointerEvents="none" style={{ ...TOUCH_ID_SLOT, top: VAULT_MENU.listPad + offsets[touchTarget]! + (rowHeight(list[touchTarget]!) - VAULT_MENU.touchID) / 2 }}>
-                <VaultTouchID
-                  armed={touchArmed}
-                  onEnded={() => setTouchIDEnded(true)}
-                  style={TOUCH_ID_SIZE}
-                />
+                <VaultTouchID armed={touchArmed} onStatus={(status) => noteVaultTouchStatus(tabId, menu.seq, status)} style={TOUCH_ID_SIZE} />
               </View>
             ) : null}
           </ScrollView>

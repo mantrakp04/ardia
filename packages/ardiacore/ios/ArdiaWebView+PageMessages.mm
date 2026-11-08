@@ -46,7 +46,15 @@ static ArdiaVaultCapture *VaultCaptureOf(ArdiaCoreTab *tab) {
 
 static NSArray<NSString *> *VaultFieldKinds() { return @[ @"username", @"password", @"newPassword", @"otp" ]; }
 
-static NSArray<NSString *> *VaultKeys() { return @[ @"ArrowDown", @"ArrowUp", @"Enter", @"Escape", @"Tab" ]; }
+static NSArray<NSString *> *VaultKeys() { return @[ @"ArrowDown", @"ArrowUp", @"Enter", @"Escape", @"Tab", @"Typed", @"Cleared" ]; }
+
+static const double kVaultMaxLength = 4096;
+
+static NSInteger VaultMaxLength(NSDictionary *d) {
+  double value;
+  if (!Finite(d, @"maxLength", &value) || value <= 0) return 0;
+  return (NSInteger)floor(MIN(value, kVaultMaxLength));
+}
 
 static BOOL VaultWebOrigin(NSString *origin) { return [origin hasPrefix:@"https://"] || [origin hasPrefix:@"http://"]; }
 
@@ -293,7 +301,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
         @"focused" : @(focused),
         @"rect" : box,
         @"formHasPassword" : @(Flag(dict, @"formHasPassword")),
-        @"clicked" : @(Flag(dict, @"clicked"))
+        @"clicked" : @(Flag(dict, @"clicked")),
+        @"maxLength" : @(VaultMaxLength(dict))
       }];
 }
 
@@ -301,8 +310,16 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   NSString *password = Field<NSString>(dict, @"password");
   NSString *username = Text(dict, @"username", 1024) ?: @"";
   if (!VaultWebOrigin(origin) || !password.length || password.length > 4096) return;
-  if (![VaultCaptureOf(tab) keepLogin:username password:password origin:origin]) return;
-  [self emit:@"vaultSubmitted" payload:@{@"frameId" : frameId, @"origin" : origin, @"username" : username}];
+  ArdiaVaultCapture *capture = VaultCaptureOf(tab);
+  if (![capture keepLogin:username password:password origin:origin]) return;
+  [self emit:@"vaultSubmitted"
+      payload:@{
+        @"frameId" : frameId,
+        @"origin" : origin,
+        @"username" : username,
+        @"newPassword" : @(Flag(dict, @"newPassword")),
+        @"generated" : @([capture isGeneratedPassword:password origin:origin])
+      }];
 }
 
 - (NSString *)vaultOriginOfFrame:(NSString *)frameId {
@@ -312,6 +329,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 - (void)fillVaultFrame:(NSString *)frameId
                 origin:(NSString *)origin
                 values:(NSDictionary<NSString *, NSString *> *)values
+                submit:(BOOL)submit
             completion:(void (^)(NSArray<NSString *> *filled))completion {
   ArdiaVaultCapture *capture = VaultCaptureOf(_tab);
   if (!capture || !VaultWebOrigin(origin) || ![[capture originOfFrame:frameId] isEqualToString:origin]) return completion(@[]);
@@ -322,6 +340,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   }
   if (!message.count) return completion(@[]);
   message[@"origin"] = origin;
+  if (submit) message[@"submit"] = @YES;
   message[@"id"] = [capture awaitFillInFrame:frameId reply:completion];
   [self callFrame:frameId kind:@"vaultFill" json:JSONText(message)];
 }
@@ -336,6 +355,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (void)keepVaultLogin:(NSString *)username password:(NSString *)password origin:(NSString *)origin {
   [VaultCaptureOf(_tab) keepLogin:username password:password origin:origin];
+}
+
+- (void)keepGeneratedVaultPassword:(NSString *)password origin:(NSString *)origin {
+  [VaultCaptureOf(_tab) keepGeneratedPassword:password origin:origin];
 }
 
 - (NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin {

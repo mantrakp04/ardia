@@ -165,14 +165,24 @@ export type VaultField = {
   rect: VaultFieldRect | null;
   formHasPassword: boolean;
   clicked?: boolean;
+  maxLength?: number;
 };
-export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab";
+export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab" | "Typed" | "Cleared";
 export type VaultKeyPress = { frameId: string; key: VaultKey };
-export type VaultSubmission = { frameId: string; origin: string; username: string };
+export type VaultSubmission = { frameId: string; origin: string; username: string; newPassword: boolean; generated: boolean };
+export type VaultPasswordStyle = "strong" | "alphanumeric" | "easyToType" | "passphrase";
 export type VaultFillField = "username" | "password" | "totp";
 export type VaultFilledField = "username" | "password" | "newPassword" | "otp";
 export type VaultFillError = "locked" | "originMismatch" | "insecure" | "notFound" | "failed" | "notAuthorized";
-export type VaultFillRequest = { frameId: string; origin: string; provider: string; id: string; fields: VaultFillField[]; userChose?: boolean };
+export type VaultFillRequest = {
+  frameId: string;
+  origin: string;
+  provider: string;
+  id: string;
+  fields: VaultFillField[];
+  userChose?: boolean;
+  submit?: boolean;
+};
 export type VaultFillResult = { filled: VaultFilledField[]; error?: VaultFillError };
 export type VaultSavedItem = {
   provider: string;
@@ -185,7 +195,7 @@ export type VaultSavedItem = {
   favorite?: boolean;
   updatedAt?: number;
 };
-export type VaultSaveRequest = { provider: string; origin: string; title?: string };
+export type VaultSaveRequest = { provider: string; origin: string; title?: string; username?: string };
 export type VaultSaveResult = { saved: boolean; item?: VaultSavedItem; error?: string };
 
 export type WebViewProps = ViewProps & {
@@ -296,7 +306,7 @@ export type WebViewHandle = {
   setFrozen(frozen: boolean): Promise<void>;
 
   fillFromVault(request: VaultFillRequest): Promise<VaultFillResult>;
-  fillGeneratedPassword(request: { frameId: string; origin: string }): Promise<{ filled: VaultFilledField[] }>;
+  fillGeneratedPassword(request: { frameId: string; origin: string; style?: VaultPasswordStyle; maxLength?: number }): Promise<{ filled: VaultFilledField[] }>;
   setVaultMenu(request: { frameId: string; open: boolean; highlighted: boolean }): Promise<void>;
   saveToVault(request: VaultSaveRequest): Promise<VaultSaveResult>;
   discardVaultCapture(request: { origin: string }): Promise<void>;

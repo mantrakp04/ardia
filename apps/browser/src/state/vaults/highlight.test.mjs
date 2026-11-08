@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { luminance } from "../../lib/color.ts";
-import { vaultHighlight } from "./highlight.ts";
+import { touchRetryInk, vaultHighlight } from "./highlight.ts";
 
 const DARK_GLASS = "#3F3F3F";
 const LIGHT_GLASS = "#DBDBDB";
@@ -26,4 +26,17 @@ test("any site colour stays readable and stands apart from the glass in both app
       assert.ok(ratio(ink(h), h.fill) >= 4.5, `${color} on ${surface}: text ${ratio(ink(h), h.fill).toFixed(2)}`);
       assert.ok(ratio(h.fill, surface) >= 1.6, `${color} on ${surface}: apart ${ratio(h.fill, surface).toFixed(2)}`);
     }
+});
+
+test("the Touch ID retry glyph is red where red reads, and white on a red disc on a fill it doesn't", () => {
+  const RED = "#FF3B30";
+  assert.deepEqual(touchRetryInk(null, RED), { glyph: RED, disc: null });
+  assert.deepEqual(touchRetryInk("#FFFFFF", RED), { glyph: RED, disc: null });
+  const onBlue = touchRetryInk("#0A84FF", RED);
+  assert.equal(onBlue.disc, RED, "red on an accent highlight is too close to read");
+  assert.ok(ratio(onBlue.glyph, onBlue.disc) >= 3);
+  for (const fill of ["#0A84FF", "#FF2D55", "#34C759", "#FFD60A", "#1C1C1E"]) {
+    const shown = touchRetryInk(fill, RED);
+    assert.ok(ratio(shown.glyph, shown.disc ?? fill) >= 3, fill);
+  }
 });
