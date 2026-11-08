@@ -25,6 +25,7 @@ function ErrorsPage() {
   const w = windowFor(range);
   const exceptions = useSection("errors.exceptions");
   const logs = useSection("errors.logs");
+  const agentFeedback = useSection("feedback.cli");
   const [showNoise, setShowNoise] = useState(false);
   const all = exceptions.data?.groups ?? [];
   const real = all.filter((g) => !g.noise);
@@ -157,7 +158,53 @@ function ErrorsPage() {
           )}
         </Loaded>
       </Panel>
+
+      <Panel source="app" title="Agent feedback" description="Notes coding agents sent with ardia feedback: what got in their way using the CLI. Opt-in installs only, scrubbed and capped at 1,000 characters on the Mac.">
+        <Loaded query={agentFeedback} skeleton={<TableSkeleton rows={6} columns={5} />}>
+          {(rows) => (
+            <DataTable
+              dense
+              rows={rows}
+              rowKey={(r) => r.id}
+              initialSort={{ key: "at", desc: true }}
+              limit={20}
+              empty="No agent feedback in this range"
+              expand={(r) => <FeedbackDetail row={r} />}
+              columns={[
+                { key: "at", header: "When", sort: (r) => r.at, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatAgo(r.at)}</span> },
+                { key: "agent", header: "Agent", sort: (r) => r.agent, cell: (r) => <span className="whitespace-nowrap">{r.agent}</span> },
+                { key: "text", header: "Feedback", sort: (r) => r.text, cell: (r) => <span className="line-clamp-2 max-w-[42rem] text-xs break-words">{r.text}</span> },
+                { key: "command", header: "Command", sort: (r) => r.command, cell: (r) => <span className="line-clamp-1 max-w-[16rem] font-mono text-[11px] break-all text-muted-foreground">{r.command || "–"}</span> },
+                { key: "version", header: "CLI", sort: (r) => r.version, cell: (r) => <span className="font-mono text-[11px] whitespace-nowrap text-muted-foreground">{r.version}{r.environment && r.environment !== "production" ? ` · ${r.environment}` : ""}</span> },
+              ]}
+            />
+          )}
+        </Loaded>
+      </Panel>
     </>
+  );
+}
+
+function FeedbackDetail({ row }: { row: SectionData<"feedback.cli">[number] }) {
+  return (
+    <div className="grid gap-3 px-4 py-4 text-xs sm:px-5">
+      <p className="text-sm whitespace-pre-wrap break-words">{row.text}{row.truncated ? " …" : ""}</p>
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-muted-foreground">
+        <span>{formatDateTime(row.at)}</span>
+        {row.command ? <span className="font-mono break-all">{row.command}</span> : null}
+        <span className="font-mono">install {row.install.slice(0, 8)}</span>
+      </div>
+      {row.recent.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          <span className="text-muted-foreground">Before it </span>
+          {row.recent.map((name, i) => (
+            <span key={i} className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10.5px]">
+              {name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

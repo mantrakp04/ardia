@@ -19,5 +19,6 @@ export const SECTION_NAMES = [
   "site.vitals",
   "errors.exceptions",
   "errors.logs",
+  "feedback.cli",
   "github",
 ] as const;
