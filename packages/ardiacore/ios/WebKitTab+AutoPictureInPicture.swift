@@ -1,6 +1,11 @@
 import AppKit
 
 extension WebKitTab {
+  var autoPictureInPictureRule: WebKitAutoPictureInPicture {
+    get { webView?.autoPictureInPictureRule ?? WebKitAutoPictureInPicture() }
+    set { webView?.autoPictureInPictureRule = newValue }
+  }
+
   func watchSight() {
     stopWatchingSight()
     guard !closed, let window else { return }
