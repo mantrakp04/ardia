@@ -3,8 +3,10 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 
-const { applyHistoryChange } = await import("./engineSync.ts");
+const { applyHistoryChanges } = await import("./engineSync.ts");
 const { MAX_HISTORY, MAX_VISIT_TIMES } = await import("./history.ts");
+
+const applyHistoryChange = (list, change) => applyHistoryChanges(list, [change]);
 
 const shown = (url) => /^(https?|file):/i.test(url);
 
@@ -100,33 +102,87 @@ test("a title change returns the same list when nothing differs, else a copy wit
   assert.equal(keeps[1].title, list[1].title, "an empty title keeps the old one");
 });
 
+function randomChange(rand, list, step, clock) {
+  const pick = rand();
+  const known = list.length ? list[Math.floor(rand() * list.length)] : null;
+  if (pick < 0.45) {
+    const url = known && rand() < 0.5 ? known.url : `https://new.test/${Math.floor(rand() * 60)}`;
+    const tie = rand();
+    const at = tie < 0.1 && known ? known.lastVisit : tie < 0.8 ? clock.tick(1 + Math.floor(rand() * 500)) : Math.floor(rand() * clock.now);
+    return { kind: "visit", profile: "", url: rand() < 0.05 ? "chrome://settings" : url, title: rand() < 0.5 ? `T${step}` : "", visits: 1 + Math.floor(rand() * 5), at };
+  }
+  if (pick < 0.85) {
+    const rows = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => {
+      const target = list.length && rand() < 0.8 ? list[Math.floor(rand() * list.length)] : null;
+      return { url: target?.url ?? "https://absent.test/", title: rand() < 0.3 ? "" : `R${step}`, visits: rand() < 0.5 ? (target?.visits ?? 1) : 1 + Math.floor(rand() * 9) };
+    });
+    if (rows.length > 1 && rand() < 0.3) rows[1] = { ...rows[1], url: rows[0].url };
+    return { kind: "modified", profile: "", rows };
+  }
+  const urls = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => (known && rand() < 0.8 ? list[Math.floor(rand() * list.length)].url : "https://absent.test/"));
+  return { kind: "deleted", profile: "", all: false, urls };
+}
+
+const clockFrom = (now) => ({
+  now,
+  tick(by) {
+    return (this.now += by);
+  },
+});
+
 test("the real functions match the straightforward ones on random changes", () => {
   const rand = random(7);
+  const clock = clockFrom(2_000_000);
   let real = view(40);
   let spec = real;
-  let clock = 2_000_000;
   for (let step = 0; step < 600; step++) {
-    const pick = rand();
-    const known = real.length ? real[Math.floor(rand() * real.length)] : null;
-    let change;
-    if (pick < 0.45) {
-      const url = known && rand() < 0.5 ? known.url : `https://new.test/${Math.floor(rand() * 60)}`;
-      const at = rand() < 0.8 ? (clock += 1 + Math.floor(rand() * 500)) : Math.floor(rand() * clock);
-      change = { kind: "visit", profile: "", url: rand() < 0.05 ? "chrome://settings" : url, title: rand() < 0.5 ? `T${step}` : "", visits: 1 + Math.floor(rand() * 5), at };
-    } else if (pick < 0.85) {
-      const rows = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => {
-        const target = real.length && rand() < 0.8 ? real[Math.floor(rand() * real.length)] : null;
-        return { url: target?.url ?? "https://absent.test/", title: rand() < 0.3 ? "" : `R${step}`, visits: rand() < 0.5 ? (target?.visits ?? 1) : 1 + Math.floor(rand() * 9) };
-      });
-      if (rows.length > 1 && rand() < 0.3) rows[1] = { ...rows[1], url: rows[0].url };
-      change = { kind: "modified", profile: "", rows };
-    } else {
-      change = { kind: "deleted", profile: "", all: false, urls: known && rand() < 0.8 ? [known.url] : ["https://absent.test/"] };
-    }
+    const change = randomChange(rand, real, step, clock);
     real = applyHistoryChange(real, change);
     spec = reference(spec, change);
     assert.deepEqual(real, spec, `step ${step}: ${JSON.stringify(change)}`);
   }
+});
+
+test("a batch of changes lands the same as the changes one at a time", () => {
+  const rand = random(11);
+  const clock = clockFrom(2_000_000);
+  let real = view(40);
+  let spec = real;
+  for (let round = 0; round < 150; round++) {
+    const batch = [];
+    let seen = spec;
+    for (let i = 0, n = 1 + Math.floor(rand() * 30); i < n; i++) {
+      const change = randomChange(rand, seen, round * 100 + i, clock);
+      batch.push(change);
+      seen = reference(seen, change);
+    }
+    real = applyHistoryChanges(real, batch);
+    spec = seen;
+    assert.deepEqual(real, spec, `round ${round}: ${JSON.stringify(batch)}`);
+  }
+});
+
+test("a batch that changes nothing returns the same list", () => {
+  const list = view(6);
+  const batch = [
+    { kind: "visit", profile: "", url: list[2].url, title: "x", visits: 1, at: list[2].visitTimes[0] },
+    { kind: "visit", profile: "", url: "chrome-extension://abc/page.html", title: "x", visits: 1, at: 5 },
+    { kind: "modified", profile: "", rows: [{ url: list[3].url, title: list[3].title, visits: list[3].visits }] },
+    { kind: "deleted", profile: "", all: false, urls: ["https://absent.test/"] },
+  ];
+  assert.equal(applyHistoryChanges(list, batch), list);
+});
+
+test("a batch of a thousand visits into a full list stays one pass over it", () => {
+  const list = view(MAX_HISTORY);
+  const batch = Array.from({ length: 1000 }, (_, i) => ({ kind: "visit", profile: "", url: i % 2 ? list[i * 7].url : `https://replay.test/${i}`, title: "R", visits: 1, at: 2_000_000 + i }));
+  const started = performance.now();
+  const next = applyHistoryChanges(list, batch);
+  const took = performance.now() - started;
+  assert.equal(next.length, MAX_HISTORY);
+  assert.equal(next[0].url, list[999 * 7].url);
+  assert.equal(next[1].url, "https://replay.test/998");
+  assert.ok(took < 500, `a thousand visits into ${MAX_HISTORY} URLs took ${Math.round(took)} ms`);
 });
 
 test("the view holds at most MAX_HISTORY URLs, dropping the oldest", () => {

@@ -146,6 +146,21 @@ test("history.json moves into Chrome once: Chrome's own visits aren't doubled, a
   assert.equal(await migrateHistoryFile({ keepMs: 0 }), "none");
 });
 
+test("history.json entries without visit times move with their last visit, and an entry with no time at all isn't given one", async () => {
+  reset();
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const now = Date.now();
+  const bare = (url, lastVisit) => ({ url, title: url, favicon: null, visits: 1, lastVisit });
+  const list = [bare("https://dated.com/", now - DAY), bare("https://undated.com/", 0), { url: "https://missing.com/", title: "", favicon: null, visits: 1 }, bare("https://negative.com/", -5)];
+  stub.docs.set("history.json", JSON.stringify({ version: 2, history: { default: list } }));
+
+  assert.equal(await migrateHistoryFile({ keepMs: 0 }), "moved");
+  const times = (url) => stub.chromeHistory("").get(url)?.visits;
+  assert.deepEqual(times("https://dated.com/"), [now - DAY], "the one time it has");
+  for (const url of ["https://undated.com/", "https://missing.com/", "https://negative.com/"]) assert.equal(times(url), undefined, `${url} has no visit at 1970`);
+});
+
 test("history.json's move goes before watching Chrome's history; the view then has the moved visits", async () => {
   reset();
   stub.docs.clear();
