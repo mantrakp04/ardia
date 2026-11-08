@@ -36,6 +36,19 @@ enum DevDragSession {
   private static var pasteboard: NSPasteboard?
   private static weak var target: NSView?
   private static var sequence = 0
+  private static let appKitDragHitTest = NSSelectorFromString("_hitTest:dragTypes:")
+
+  private static func dragDestination(in frameView: NSView, at location: NSPoint, types: Set<NSPasteboard.PasteboardType>) -> NSView? {
+    if frameView.responds(to: appKitDragHitTest), let method = class_getMethodImplementation(type(of: frameView), appKitDragHitTest) {
+      typealias DragHitTest = @convention(c) (NSView, Selector, UnsafePointer<NSPoint>, NSSet) -> Unmanaged<NSView>?
+      let hit = unsafeBitCast(method, to: DragHitTest.self)
+      var point = location
+      return hit(frameView, appKitDragHitTest, &point, NSSet(array: types.map(\.rawValue)))?.takeUnretainedValue()
+    }
+    var under = frameView.hitTest(location)
+    while let view = under, Set(view.registeredDraggedTypes).isDisjoint(with: types) { under = view.superview }
+    return under
+  }
 
   static func act(windowId: String, action: String, x: Double, y: Double, payload: [String: Any]) -> String {
     guard let window = WindowManager.shared.window(windowId), let content = window.contentView, let frameView = content.superview else { return "no window" }
@@ -62,8 +75,7 @@ enum DevDragSession {
     let location = content.convert(local, to: nil)
     let info = DevDraggingInfo(window: window, location: location, pasteboard: board, sequence: sequence)
     let types = Set(board.types ?? [])
-    var under = frameView.hitTest(location)
-    while let view = under, Set(view.registeredDraggedTypes).isDisjoint(with: types) { under = view.superview }
+    let under = dragDestination(in: frameView, at: location, types: types)
     let name = { (view: NSView?) in view.map { NSStringFromClass(type(of: $0)) } ?? "none" }
     func finish() {
       pasteboard = nil

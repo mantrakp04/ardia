@@ -13,8 +13,9 @@ import { dragGeometry, type DragGeometry } from "./stripGroups";
 import { ItemRow, useWebsiteBand } from "./TabChip";
 import { CHIP_LABEL_GAP, CHIP_PAD, GAP, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
+import { useStripCardHover } from "./StripHoverCard";
 import { TabPressArea } from "../sidebar/TabPressArea";
-import { tabTitle, tabTooltip } from "../../state/browser/model";
+import { tabTitle } from "../../state/browser/model";
 
 export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: string[]; width: number; geometry: DragGeometry; from: number; group: string | null }) {
   const theme = useTheme();
@@ -51,15 +52,15 @@ function SplitPart({ tabId, first, last, ink }: { tabId: string; first: boolean;
   const tab = useTab(tabId);
   const focused = useIsActiveTab(tabId);
   const drag = useStripDrag({ tabId, ids: () => [tabId], pinned: false, groupId: null, geometry: NO_SLOTS, from: -1, width: 0, gap: 0, axis: "y" });
+  const card = useStripCardHover(windowId, tabId, drag.ref);
   if (!tab) return null;
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} style={{ flex: 1, alignSelf: "stretch", opacity: drag.style.opacity }}>
+    <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} style={{ flex: 1, alignSelf: "stretch", opacity: drag.style.opacity }}>
       <TabPressArea
         windowId={windowId}
         tab={tab}
         style={PART_FILL}
         pressStyle={{ flex: 1, flexDirection: "row", alignItems: "center", paddingLeft: first ? CHIP_PAD.left : 0, paddingRight: last ? CHIP_PAD.right : 0 }}
-        tooltip={tabTooltip(tab)}
       >
         {first ? (
           <Symbol name="rectangle.split.2x1" size={11} color={ink?.secondary ?? theme.textSecondary} style={SPLIT_GLYPH} />

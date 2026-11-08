@@ -1,16 +1,19 @@
 import { listTasks, type EngineTask } from "../../platform/performance";
 import { onExtensionsChanged } from "../../platform/extensions";
-import { onAppEvent } from "../../platform/app";
+import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
-import { SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
+import { appIconSetting, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
 import { utcDay } from "./daily";
-import { percentile } from "./transport";
+import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
+import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
+import { emitTabPresses } from "./tabPresses";
+import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
 const HOUR_MS = 60 * 60_000;
@@ -106,6 +109,7 @@ async function sampleMemory() {
       else if (t.type === "renderer") renderers++;
     }
     if (!total) return;
+    noteAppMemory(mb(total));
     capture("perf_memory", {
       total_mb: mb(total),
       browser_mb: mb(browser),
@@ -127,25 +131,46 @@ function emitOmniboxLatency() {
 function snapshotSettings() {
   const today = utcDay(Date.now());
   if (!isSharing() || settingsSnapshotDay() === today) return;
-  capture(SETTINGS_SNAPSHOT_EVENT, settingsSnapshot(useBrowser.getState().settings));
   markSettingsSnapshot(today);
+  const settings = settingsSnapshot(useBrowser.getState().settings);
+  void currentAppIcon()
+    .catch(() => null)
+    .then((icon) => capture(SETTINGS_SNAPSHOT_EVENT, { ...settings, ...appIconSetting(icon) }));
 }
+
+let previousContext: SavedContext | null = null;
+let launchCrashRead: ReturnType<typeof setTimeout> | undefined;
 
 function hourly() {
   snapshotSettings();
   emitCounts();
   emitOmniboxLatency();
   emitJourneys();
+  emitTabPresses();
   void sampleMemory();
+  void reportNativeCrashes([previousContext, ...contextSamples()]).then(() => recordContext());
+}
+
+const rebootedSince = (lastLaunchAt: number | null) => {
+  const boot = appInfo().bootTime;
+  return lastLaunchAt != null && boot != null ? boot > lastLaunchAt : null;
+};
+
+async function launchEvents(session: NonNullable<ReturnType<typeof startClient>>) {
+  const hardware = await hardwareProperties();
+  const previous = session.previous === "unclean" ? { ...contextProperties(session.context, "prev_", Date.now()), rebooted_since: rebootedSince(session.lastLaunchAt) } : {};
+  capture("app_launched", { previous_session: session.previous, ...hardware, ...previous });
+  if (session.updatedFrom) capture("app_updated", { from_version: session.updatedFrom });
 }
 
 export function startUsage() {
   const session = startClient();
   if (session) {
-    capture("app_launched", { previous_session: session.previous });
-    if (session.updatedFrom) capture("app_updated", { from_version: session.updatedFrom });
-    setTimeout(() => void reportNativeCrashes(), 5000);
+    previousContext = session.context;
+    void launchEvents(session);
+    launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
   }
+  startContextSamples();
   startJourneys(session);
   watchStore();
   watchSync();
@@ -154,13 +179,20 @@ export function startUsage() {
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
-  onAppEvent((e) => e.type === "willQuit" && sessionEnding());
+  onAppEvent((e) => {
+    if (e.type === "willQuit") {
+      clearTimeout(launchCrashRead);
+      stopContextSamples();
+      sessionEnding();
+    } else if (e.type === "quitCancelled") startContextSamples();
+  });
 }
 
 export function sessionEnding() {
   if (!isSharing()) return;
   emitCounts();
   emitOmniboxLatency();
+  emitTabPresses();
   journeysEnding();
   capture("app_session_ended", { duration_minutes: Math.round((Date.now() - startedAt) / 60_000) });
   endSession();

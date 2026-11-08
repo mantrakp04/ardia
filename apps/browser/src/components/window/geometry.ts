@@ -3,7 +3,6 @@ import type { SplitView } from "../../state/browser/types";
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
-const PANE_GAP = layout.cardInset;
 const MIN_PANE = 220;
 
 export type Divider = { kind: "root"; index: number; rect: Rect; vertical: boolean } | { kind: "stack"; rect: Rect; vertical: boolean };
@@ -23,7 +22,7 @@ function cut(total: number, sizes: number[], gap: number): { start: number; size
   });
 }
 
-export function splitGeometry(split: SplitView, width: number, height: number, gap = PANE_GAP): SplitGeometry {
+export function splitGeometry(split: SplitView, width: number, height: number, gap: number): SplitGeometry {
   const horizontal = split.orientation === "horizontal";
   const slots = split.slots;
   const sizes = slots.map((slot) => slot.size);
@@ -59,7 +58,7 @@ export function splitGeometry(split: SplitView, width: number, height: number, g
   return { panes, dividers };
 }
 
-export function resize(sizes: number[], a: number, delta: number, total: number, gap = PANE_GAP): number[] {
+export function resize(sizes: number[], a: number, delta: number, total: number, gap: number): number[] {
   const free = Math.max(1, total - gap * (sizes.length - 1));
   const px = sizes.map((f) => f * free);
   const pair = px[a]! + px[a + 1]!;

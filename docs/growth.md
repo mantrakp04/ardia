@@ -155,6 +155,45 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   `~/.config/ardia/telemetry-secrets.env`.
   hekuto reads the same tables as `reader` through a Composio ClickHouse connection (Basic auth, base URL
   `https://ardia.dev/_ch`); `/_ch/` takes Basic auth for `reader` only.
+- **Crash and diagnostics fields (opt-in, since 0.2.45-nightly.3):** every field is a count, a size, a
+  duration, a fixed name or yes/no, in `properties` like everything else, so no schema change. Code:
+  `apps/browser/src/state/telemetry/diagnostics.ts`, `errors.ts`, `tabPresses.ts`, `packages/shell/ios/CrashReports.swift`.
+  - `$exception` with `source` `native_crash` (the app process) or `helper_crash` (a page, GPU or other helper
+    process, read from macOS's `Chromium Helper*.ips` reports of this copy's helpers; the process type comes from the
+    crashed process's main thread name, `CrRendererMain`, `CrGpuMain`, `CrUtilityMain`). New fields: `crash_process`
+    (`browser`, `renderer`, `gpu`, `utility`, `alerts`, `plugin`), `crashed_version` and `crashed_build` (the app version
+    that crashed, which is the previous one when the report is found after an update; empty for helpers),
+    `crashed_engine_version` (helpers), `crash_termination` (`SIGNAL`, `CODESIGNING`…), `crash_uptime_s` (how
+    long the process ran), `crash_vm_writable_mb` (the report's `Writable regions: Total=`, the virtual size of its
+    writable regions, not what it wrote), and the context saved before the crash:
+    `ctx_tabs`, `ctx_windows`, `ctx_profiles`, `ctx_footprint_mb` (the app process's physical footprint),
+    `ctx_app_memory_mb` (every Ardia process, from the last hourly memory sample), `ctx_free_disk_gb` (0.1 GB under
+    10 GB, whole GB above), `ctx_memory_pressure` (`normal`, `warning`, `critical`), `ctx_page_processes_gone`,
+    `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
+    sampled at or before the crash (the report's `captureTime`; the file's date only decides which reports are new)
+    in the session that crashed, else none. Native exception reasons are never sent, only the exception's type, name
+    and stack (older builds sent a scrubbed reason in `$exception_values`). Before 0.2.45-nightly.3 a report from an
+    older version was dropped (the native reader required the running binary's UUID, JS the running version), so a
+    crash found at the first launch after an update never arrived. Crash reports are now read 1 s after an unclean
+    launch (5 s otherwise) and again every hour, and the queue goes out 2 s after an unclean launch.
+  - `app_launched` adds, every launch: `chip`, `gpu`, `memory_gb`, `displays`, `max_scale`, `hw_decode_av1`,
+    `hw_decode_vp9`, `hw_decode_hevc`, `hw_decode_h264` (VideoToolbox's `VTIsHardwareDecodeSupported`). After an
+    unclean session it adds that session's last context as `prev_*` (the `ctx_*` names) and `rebooted_since` (the Mac
+    restarted since that session started).
+  - `page_process_gone` (a page's renderer stopped: `reason` `crashed`, `killed`, `oom`, `launchFailed`, `integrity`,
+    `abnormal` or `unknown`, `exit_code`, `visible` (the tab was on screen), `tabs`, `windows`, `profiles`,
+    `session_min`, `gone_this_session`, `memory_pressure`). At most 30 per session. GPU and utility process exits aren't
+    visible to the app yet (their crash reports are, through `helper_crash`).
+  - `tab_presses` (hourly and at quit, when there were any): `presses` on sidebar rows, pinned tiles and top-strip
+    chips, `clicks` (the press opened the tab), `drag_clicks` (it became a drag and was rescued as a click),
+    `drags`, `unanswered` (a press that got neither before the next one), `page_click_ms_p50`/`_p75`/`page_click_n`
+    (from opening a tab with a press to the first press in its page, within 60 s).
+  - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
+  - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
+    (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
+    sent only with a crash report or an unclean launch. Turning sharing off also drops uncounted tab presses.
+  - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
+    usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views
   leave those out.
 - **History and old versions:** `posthog_events` (`source = 'posthog-cloud'` in the view) is the history from

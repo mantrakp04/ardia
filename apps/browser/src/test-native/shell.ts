@@ -2,6 +2,9 @@ import type {
   AppEvent,
   BangListReply,
   CommandEvent,
+  CrashReport,
+  DiagnosticsSample,
+  HardwareInfo,
   LaunchConfig,
   OpenWindowOptions,
   ShellNativeModules,
@@ -28,6 +31,11 @@ export const docs = new Map<string, string>();
 export const heldSaves = { on: false, queue: [] as (() => void)[] };
 export const bangListServer: { reply: ((etag: string | null) => Promise<BangListReply>) | null } = { reply: null };
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
+export const diagnostics: { crashReports: CrashReport[]; hardware: HardwareInfo; sample: DiagnosticsSample } = {
+  crashReports: [],
+  hardware: { chip: "Apple M1", gpu: "Apple M1", memoryGB: 16, displays: 1, maxScale: 2, hardwareDecode: { av1: false, vp9: true, hevc: true, h264: true } },
+  sample: { footprintMB: 500, freeDiskGB: 100 },
+};
 export const launch: LaunchConfig = {
   dataDirectory: null,
   configDirectory: "/config",
@@ -162,7 +170,9 @@ const app: Modules["ArdiaApp"] = {
   playIntroMusic: () => Promise.resolve(),
   setIntroMusicMuted: () => Promise.resolve(),
   stopIntroMusic: () => Promise.resolve(),
-  crashReports: () => Promise.resolve([]),
+  crashReports: (since) => Promise.resolve(diagnostics.crashReports.filter((r) => (r.fileTime ?? r.time) > since)),
+  hardwareInfo: () => Promise.resolve(structuredClone(diagnostics.hardware)),
+  diagnosticsSample: () => Promise.resolve({ ...diagnostics.sample }),
 };
 
 const updater: Modules["ArdiaUpdater"] = {
@@ -372,7 +382,7 @@ export const shellNativeModules: Modules = {
   ArdiaCalendar: calendar,
   ArdiaKeychain: keychain,
   ArdiaGlassEffect: { isLiquidGlass: () => false },
-  ArdiaDockSelection: { iconTheme: () => Promise.resolve(null) },
+  ArdiaDockSelection: { iconTheme: () => Promise.resolve(null), iconAccent: () => Promise.resolve(null) },
   ArdiaInlineCompletion: { complete: () => Promise.resolve(0) },
   ArdiaTranslate: translate,
   ArdiaMagnifyArea: magnifyArea,

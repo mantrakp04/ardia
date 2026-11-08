@@ -88,6 +88,9 @@ export function startDevHarness() {
     get sidebarHover(): typeof import("../../state/sidebar/hover") & typeof import("../sidebar/hoverMotion") {
       return { ...require("../../state/sidebar/hover"), ...require("../sidebar/hoverMotion") };
     },
+    get stripHover(): typeof import("../../state/tabs/stripHover") {
+      return require("../../state/tabs/stripHover");
+    },
     get windowLayout(): typeof import("../../state/windows/layout") {
       return require("../../state/windows/layout");
     },
@@ -105,6 +108,9 @@ export function startDevHarness() {
     },
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
+    },
+    get unread(): typeof import("../../state/tabs/unread") {
+      return require("../../state/tabs/unread");
     },
     get syncSheets(): typeof import("../settings/panes/SyncSheets") {
       return require("../settings/panes/SyncSheets");

@@ -289,6 +289,8 @@ export async function usersOptedIn(range: RangeKey, signal?: AbortSignal) {
 const NAMES: Record<string, string> = {
   suggestion_chosen: "Omnibox suggestion chosen",
   perf_memory: "Memory sample",
+  page_process_gone: "Page process gone",
+  tab_presses: "Tab presses",
   settings_section_opened: "Settings section opened",
   command_bar_opened: "Command bar opened",
   usage_counts: "Usage counts",

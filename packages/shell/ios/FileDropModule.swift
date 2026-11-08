@@ -10,7 +10,10 @@ public class FileDropModule: Module {
     View(FileDropView.self) {
       Events("onDropUpdate")
       Prop("accepts") { (view: FileDropView, accepts: String?) in
-        view.extensionPackagesOnly = accepts == "extensionPackages"
+        view.accepts = accepts ?? "links"
+      }
+      Prop("enabled") { (view: FileDropView, enabled: Bool?) in
+        view.enabled = enabled ?? true
       }
     }
 

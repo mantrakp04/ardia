@@ -13,21 +13,17 @@ LOAD_GRACE = 5.0
 SETTLE_LIMIT = 3.0
 SETTLE_QUIET = 0.3
 SETTLE_POLL = 0.1
+SAME_DOCUMENT_WAIT = 3.0
 MIN_USEFUL = 120
 CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
 
 LINKS = r"""() => {
   const out = [];
-  const seen = new Set();
   for (const a of document.querySelectorAll("a[href]")) {
     let url;
     try { url = new URL(a.getAttribute("href"), document.baseURI); } catch (e) { continue; }
-    if (url.protocol !== "http:" && url.protocol !== "https:") continue;
-    url.hash = "";
-    if (seen.has(url.href)) continue;
-    seen.add(url.href);
-    out.push(url.href);
+    if (url.protocol === "http:" || url.protocol === "https:") out.push(url.href);
   }
   return out;
 }"""
@@ -49,7 +45,13 @@ EXTRACT = r"""(selector) => {
   return { title: document.title || "", text, matched: roots.length, status };
 }"""
 
-SETTLE_PROBE = "() => [document.readyState, document.body ? (document.body.innerText || '').length : 0]"
+SETTLE_PROBE = r"""() => {
+  const text = document.body ? document.body.innerText || "" : "";
+  let hash = 0;
+  for (let index = 0; index < text.length; index++) hash = (hash * 31 + text.charCodeAt(index)) | 0;
+  const busy = /(^|\n)\s*loading(\.\.\.|…)?\s*(\n|$)/i.test(text) || !!document.querySelector("[aria-busy=true]");
+  return [document.readyState, text.length + ":" + hash, busy];
+}"""
 HTTP_ONLY = ("llms", "require_md", "raw")
 
 
@@ -121,9 +123,23 @@ def link_matcher(pattern: str):
     return lambda url: regex.search(url) is not None
 
 
+def canonical_link(url: str) -> str:
+    base, hash_mark, fragment = url.partition("#")
+    return url if hash_mark and fragment.startswith(("/", "!")) else base
+
+
+def distinct_links(raw: list[str]) -> list[str]:
+    out = []
+    for url in raw:
+        url = canonical_link(url)
+        if url not in out:
+            out.append(url)
+    return out
+
+
 def pick_links(links: list[str], pattern: str, skip: str | None = None) -> list[str]:
     matches = link_matcher(pattern)
-    current = (skip or "").split("#", 1)[0]
+    current = canonical_link(skip or "")
     return [url for url in links if matches(url) and url != current]
 
 
@@ -250,7 +266,7 @@ async def collect_links(ctx, pattern: str):
     page = await ctx.state.page()
     await page.refresh_frames()
     frame = ctx.state.frame_for(page) or page.main_frame
-    links = await page.call(LINKS, frame=frame, read=True) or []
+    links = distinct_links(await page.call(LINKS, frame=frame, read=True) or [])
     return page.url, links, pick_links(links, pattern, page.url)
 
 
@@ -265,21 +281,49 @@ async def open_reader(state, opened: list[str]):
     return page
 
 
+async def probe(page):
+    try:
+        return tuple(await page.call(SETTLE_PROBE, frame=page.main_frame, read=True))
+    except BrowseError:
+        return None, None, True
+
+
 async def settle(page, deadline: float):
     loop = asyncio.get_running_loop()
     last = None
     since = loop.time()
     while loop.time() < deadline:
-        try:
-            ready, size = await page.call(SETTLE_PROBE, frame=page.main_frame, read=True)
-        except BrowseError:
-            ready, size = None, None
+        ready, fingerprint, busy = await probe(page)
         now = loop.time()
-        if (ready, size) != last:
-            last, since = (ready, size), now
-        elif ready == "complete" and now - since >= SETTLE_QUIET:
+        if (ready, fingerprint, busy) != last:
+            last, since = (ready, fingerprint, busy), now
+        elif ready == "complete" and not busy and now - since >= SETTLE_QUIET:
             return
         await asyncio.sleep(SETTLE_POLL)
+
+
+async def route_changed(page, before, deadline: float):
+    loop = asyncio.get_running_loop()
+    while loop.time() < deadline:
+        _, fingerprint, busy = await probe(page)
+        if busy or fingerprint != before:
+            return
+        await asyncio.sleep(SETTLE_POLL / 2)
+
+
+def same_document(page, url: str) -> bool:
+    current = page.url or ""
+    return "#" in url and not current.startswith("about:") and current.partition("#")[0] == url.partition("#")[0]
+
+
+async def before_navigating(page, url: str):
+    return (await probe(page))[1] if same_document(page, url) else None
+
+
+async def after_same_document(page, before, deadline: float):
+    loop = asyncio.get_running_loop()
+    await route_changed(page, before, min(deadline, loop.time() + SAME_DOCUMENT_WAIT))
+    await settle(page, min(deadline, loop.time() + SETTLE_LIMIT))
 
 
 async def goto(ctx, page, url: str, timeout: float):
@@ -288,6 +332,7 @@ async def goto(ctx, page, url: str, timeout: float):
 
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
+    before = await before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=timeout)
     except Gated:
@@ -301,7 +346,9 @@ async def goto(ctx, page, url: str, timeout: float):
             await wait_for_load(page, loader, min(LOAD_GRACE, max(deadline - loop.time(), 0.1)), "load")
         except BrowseError:
             pass
-    await settle(page, min(deadline, loop.time() + SETTLE_LIMIT))
+        await settle(page, min(deadline, loop.time() + SETTLE_LIMIT))
+    else:
+        await after_same_document(page, before, deadline)
     await page.refresh_frames()
 
 

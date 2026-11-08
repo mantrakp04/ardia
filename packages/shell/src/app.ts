@@ -36,20 +36,38 @@ export type SystemInfo = {
   updatePrewarm?: { build?: string; at?: number; ms?: number; status?: number } | null;
 };
 
+export type CrashProcess = "browser" | "renderer" | "gpu" | "utility" | "alerts" | "plugin";
+
 export type CrashReport = {
   incidentId?: string;
   time: number;
+  fileTime: number;
+  process: CrashProcess;
   appVersion?: string;
   build?: string;
+  engineVersion?: string;
+  terminationNamespace?: string;
+  uptimeSeconds?: number;
+  vmWritableMB?: number;
   exceptionType?: string;
   signal?: string;
   frames: NativeFrame[];
   exceptionName?: string;
-  exceptionReason?: string;
   exceptionSubtype?: string;
   exceptionFrames?: NativeFrame[];
   images?: { name: string; uuid: string }[];
 };
+
+export type HardwareInfo = {
+  chip: string;
+  gpu?: string;
+  memoryGB: number;
+  displays: number;
+  maxScale: number;
+  hardwareDecode: { av1: boolean; vp9: boolean; hevc: boolean; h264: boolean };
+};
+
+export type DiagnosticsSample = { footprintMB?: number; freeDiskGB?: number };
 
 type NativeFrame = { image: string; symbol?: string; symbolOffset?: number; offset?: number };
 
@@ -82,4 +100,6 @@ export type AppNative = {
   setIntroMusicMuted(muted: boolean): Promise<void>;
   stopIntroMusic(fade: number): Promise<void>;
   crashReports(since: number): Promise<CrashReport[]>;
+  hardwareInfo(): Promise<HardwareInfo>;
+  diagnosticsSample(): Promise<DiagnosticsSample>;
 };

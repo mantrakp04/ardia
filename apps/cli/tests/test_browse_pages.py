@@ -41,6 +41,57 @@ class Links(unittest.TestCase):
         self.assertEqual(readpages.no_links_message("/p/", "http://s/", []), "The page has no links to read (http://s/)")
 
 
+class HashRoutes(unittest.TestCase):
+    def test_route_fragments_are_kept_and_in_page_anchors_dropped(self):
+        self.assertEqual(readpages.canonical_link("http://s/a#top"), "http://s/a")
+        self.assertEqual(readpages.canonical_link("http://s/#/people/42"), "http://s/#/people/42")
+        self.assertEqual(readpages.canonical_link("http://s/#!/legacy/7"), "http://s/#!/legacy/7")
+        self.assertEqual(readpages.canonical_link("http://s/a#"), "http://s/a")
+
+    def test_links_dedupe_on_the_full_url_and_patterns_see_the_route(self):
+        raw = ["http://s/#/people/1", "http://s/#top", "http://s/#/people/2", "http://s/#/people/1", "http://s/", "http://s/#!/legacy/7"]
+        links = readpages.distinct_links(raw)
+        self.assertEqual(links, ["http://s/#/people/1", "http://s/", "http://s/#/people/2", "http://s/#!/legacy/7"])
+        self.assertEqual(readpages.pick_links(links, "/people/", "http://s/#/"), ["http://s/#/people/1", "http://s/#/people/2"])
+        self.assertEqual(readpages.pick_links(links, "#!/", "http://s/"), ["http://s/#!/legacy/7"])
+        self.assertEqual(readpages.pick_links(links, "s/", "http://s/#notes"), ["http://s/#/people/1", "http://s/#/people/2", "http://s/#!/legacy/7"])
+
+
+class SameDocumentRead(unittest.TestCase):
+    def test_a_hash_route_read_waits_for_the_route_to_render(self):
+        class RoutedPage:
+            def __init__(self):
+                self.text = "Person 1 Engineer 11"
+                self.url = "http://s/#/people/1"
+                self.main_frame = "F"
+                self.lifecycle = {}
+
+            async def send(self, method, params=None, timeout=30, mutation=False):
+                self.url = params["url"]
+                self.text = "Loading…"
+
+                async def render():
+                    await asyncio.sleep(0.5)
+                    self.text = "Person 2 Engineer 22"
+
+                asyncio.ensure_future(render())
+                return {"frameId": "F"}
+
+            async def call(self, function, *args, frame=None, read=False, **kwargs):
+                return ["complete", self.text, "loading" in self.text.lower()]
+
+            async def refresh_frames(self):
+                return {}
+
+        page = RoutedPage()
+
+        async def go():
+            await readpages.goto(None, page, "http://s/#/people/2", 5)
+            return page.text
+
+        self.assertEqual(run(go()), "Person 2 Engineer 22")
+
+
 class Urls(unittest.TestCase):
     def test_arguments_and_stdin_lines_dedupe_in_order(self):
         urls = readpages.wanted_urls({"stdin": True}, ["example.com/a", "-"], "# picked\nhttp://x/1 http://x/2\n\nexample.com/a\n")

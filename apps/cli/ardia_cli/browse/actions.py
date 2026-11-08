@@ -5,7 +5,7 @@ import random
 import re
 
 from ardia_cli.browse import fields
-from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
+from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
 DELIVERY_TIMEOUT = 1.5
@@ -19,6 +19,8 @@ DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a 
 CLEANUPS: set = set()
 PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrived), so it may have had an effect"
 SUGGESTION_TIMEOUT = 4.0
+LAYOUT_WAIT = 2.0
+SANE_VIEWPORT = {"width": 1280, "height": 800}
 SUGGESTION_HINT_WAIT = 1.2
 SUGGESTION_SETTLE = 0.35
 EXACT = 3
@@ -177,6 +179,41 @@ def _outside(r, vp, margin=4) -> bool:
     return r["y"] < margin or r["y"] + min(r["height"], vp["height"] * 0.8) > vp["height"] - margin or r["x"] < 0 or r["x"] + min(r["width"], vp["width"]) > vp["width"]
 
 
+async def laid_out(page):
+    vp = await viewport(page)
+    if vp["width"] >= 1 and vp["height"] >= 1:
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + LAYOUT_WAIT
+    while loop.time() < deadline:
+        await asyncio.sleep(0.1)
+        vp = await viewport(page)
+        if vp["width"] >= 1 and vp["height"] >= 1:
+            return
+    if "emulation" not in page.state.leases:
+        try:
+            await page.send("Emulation.setDeviceMetricsOverride", {**SANE_VIEWPORT, "deviceScaleFactor": 0, "mobile": False})
+        except (Gated, CdpError):
+            pass
+        else:
+            page.temporary_metrics = True
+            vp = await viewport(page)
+            if vp["width"] >= 1 and vp["height"] >= 1:
+                return
+    raise BrowseError(
+        f"This tab has no size yet ({vp['width']}×{vp['height']}: Ardia hasn't laid it out), so there's nowhere to click. Show it with "
+        f"`ardia browse tab {page.state.tab_id(page.target_id)} --show`, or wait a moment and retry", code="no_viewport",
+    )
+
+
+async def restore_metrics(page):
+    if not getattr(page, "temporary_metrics", False):
+        return
+    page.temporary_metrics = False
+    with contextlib.suppress(BrowseError):
+        await page.send("Emulation.clearDeviceMetricsOverride", timeout=CLEANUP_TIMEOUT)
+
+
 async def scroll_into_view(page, element, humanize: bool):
     if not humanize or element.frame != page.main_frame:
         await page.send("DOM.scrollIntoViewIfNeeded", {"backendNodeId": element.backend_id})
@@ -211,6 +248,7 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if not info.get("connected"):
         raise BrowseError(f"Element {element.label} was removed from the page")
+    await laid_out(page)
     await scroll_into_view(page, element, humanize)
     quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
     best = None
@@ -232,6 +270,13 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
         if cover and humanize:
             cx, cy = (left + right) / 2, (top + bottom) / 2
             cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
+        if cover and cover.startswith("nothing"):
+            vp = await viewport(page)
+            raise BrowseError(
+                f"Element {element.label} is outside the visible page (its middle is at {cx - ox:.0f},{cy - oy:.0f} in a {vp['width']}×{vp['height']} "
+                "viewport), so a click there would land on nothing. Scroll it into view (scrollintoview), or snapshot again if the page moved",
+                data={"point": [cx, cy], "viewport": [vp["width"], vp["height"]]}, code="outside_viewport",
+            )
         if cover:
             raise BrowseError(
                 f"Element {element.label} is covered by {cover}; interact with that element first, snapshot again, then retry",
@@ -334,9 +379,20 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
     await focus_field(page, element, info, humanize, tolerate_detach=True)
     element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
-    if text:
+    if text and inserts_at_once(info, humanize, guard):
+        await insert_text(page, element, text)
+    elif text:
         await type_into(page, element, text, humanize, guard)
     return retargeted, None
+
+
+def inserts_at_once(info: dict, humanize: bool, guard) -> bool:
+    return not humanize and guard is None and (info.get("tag") == "textarea" or info.get("tag") not in ("input",) and bool(info.get("editable")))
+
+
+async def insert_text(page, element, text: str):
+    await expect_input(page, element.frame, lambda: page.input.gesture("fill", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
+                       {"beforeinput|input": 1}, "The text insert")
 
 
 async def set_value(page, element, kind: str, text: str) -> str:

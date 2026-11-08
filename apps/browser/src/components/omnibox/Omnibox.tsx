@@ -28,6 +28,7 @@ import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
 import { BarField } from "./BarField";
 import { destinationLabel } from "./GoButton";
 import { BottomRow, DropdownFrame, PanelFrame } from "./OmniboxFrame";
+import { ScopePulse } from "./ScopePulse";
 import { barKeyDown, barKeyDownEvents, type BarKeyEvent } from "./omniboxKeys";
 import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
@@ -342,6 +343,7 @@ export function Omnibox({
   );
 
   const onBarContextMenu = () => void onContextMenu();
+  const pulse = <ScopePulse scope={scope} shape={variant} profileId={profileId} />;
   if (dropdown)
     return (
       <DropdownFrame
@@ -351,6 +353,7 @@ export function Omnibox({
         scope={scope}
         field={field}
         list={suggestionList}
+        pulse={pulse}
         onSiteControls={currentUrl ? barActions.siteControls : null}
       />
     );
@@ -362,6 +365,7 @@ export function Omnibox({
       scope={scope}
       field={field}
       list={listAway ? null : suggestionList}
+      pulse={pulse}
       hero={hero}
       rowHeight={fieldRowHeight}
       bottom={

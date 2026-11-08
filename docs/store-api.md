@@ -49,7 +49,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
 ## Actions
-- Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `moveTabToProfile`,
+- Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `returnRefusedMove`, `moveTabToProfile`,
   `mergeAllWindows`, `reopenClosed` / `reopenClosedTab` / `reopenClosedWindow`, `restoreClosed`.
   Little Ardia (Little Arc): `createWindow({ small: true, url })` makes a `kind: "small"` window with one tab (state/windows/small.ts),
   in `lastActiveProfile(s)` unless `profileId` says otherwise; never private.

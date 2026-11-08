@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { MAX_BODY_BYTES } from "./config";
 import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
 import { cleanProperties } from "./sanitize";
+import { readContext, type SavedContext } from "./savedContext";
 import type { RequestLogEntry } from "./requestLog";
 import { appInfo, mayPost, post } from "./transport";
 import { uuidv4, uuidv7 } from "./ids";
@@ -34,6 +35,7 @@ type Session = {
   lastQuitAt: number | null;
   lastBuild: string | null;
   settingsDay: string | null;
+  context: SavedContext | null;
 };
 type Sharing = { sharing: false; installId: null } | { sharing: true; installId: string };
 type Saved = Session & Sharing;
@@ -50,6 +52,7 @@ const DEFAULT: Saved = {
   lastQuitAt: null,
   lastBuild: null,
   settingsDay: null,
+  context: null,
 };
 
 function readSaved(doc: SavedObject | null): Saved {
@@ -66,6 +69,7 @@ function readSaved(doc: SavedObject | null): Saved {
     lastQuitAt: numberOr(doc.lastQuitAt, null),
     lastBuild: stringOr(doc.lastBuild, null),
     settingsDay: stringOr(doc.settingsDay, null),
+    context: readContext(doc.context),
   };
 }
 
@@ -318,7 +322,7 @@ export function setSharing(on: boolean, source: SharingSource) {
   if (!on) {
     for (const abort of inflight) abort.abort();
     inflight.clear();
-    save({ sharing: false, installId: null, sessionOpen: false, decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
+    save({ sharing: false, installId: null, sessionOpen: false, context: null, decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
     clearQueue();
     return;
   }
@@ -355,6 +359,7 @@ type ClientSession = {
   lastLaunchAt: number | null;
   lastQuitAt: number | null;
   firstOfVersion: boolean;
+  context: SavedContext | null;
 };
 
 export function startClient(): ClientSession | null {
@@ -373,9 +378,9 @@ export function startClient(): ClientSession | null {
   const updatedFrom = saved.lastVersion && saved.lastVersion !== version ? saved.lastVersion : null;
   const build = appInfo().appBuild;
   const firstOfVersion = saved.lastVersion !== version || (saved.lastBuild != null && saved.lastBuild !== build);
-  const last = { lastLaunchAt: saved.lastLaunchAt, lastQuitAt: saved.lastQuitAt, firstOfVersion };
+  const last = { lastLaunchAt: saved.lastLaunchAt, lastQuitAt: saved.lastQuitAt, firstOfVersion, context: saved.context };
   save({ sessionOpen: true, lastVersion: version, lastBuild: build, lastLaunchAt: appInfo().processStart ?? Date.now() });
-  scheduleFlush(10_000);
+  scheduleFlush(previous === "unclean" ? 2_000 : 10_000);
   return { previous, updatedFrom, ...last };
 }
 
@@ -387,6 +392,7 @@ export function endSession() {
 
 export const settingsSnapshotDay = () => saved.settingsDay;
 export const markSettingsSnapshot = (day: string) => save({ settingsDay: day });
+export const saveContext = (context: SavedContext | null) => saved.sharing && save({ context });
 
 export const crashCursor = () => saved.crashCursor;
 export const advanceCrashCursor = (to: number) => to > saved.crashCursor && save({ crashCursor: to });

@@ -305,7 +305,7 @@ static void TryEarlyLittleWindow() {
   ArdiaCoreTab *tab = ArdiaTabParking.firstLinkTab;
   NSString *mark = tab ? [ArdiaTabParking linkMarkForTab:tab] : nil;
   NSString *focused = session.focusedWindowId;
-  if (mark) [ArdiaEarlyWindow showLittleWindowForLink:tab mark:mark url:url frame:frame profile:profile backdrop:backdrop like:focused];
+  if (mark) [ArdiaEarlyWindow showLittleWindowForLink:tab mark:mark url:url frame:frame profile:profile backdrop:backdrop settings:settings like:focused];
 }
 
 namespace ardia_host {

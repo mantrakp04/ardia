@@ -3,9 +3,16 @@ import { CARD_INSET } from "../../lib/windowLayout";
 import { compactLift, toolbarRowOf } from "../../lib/toolbarRow";
 import type { LightsPlace } from "../../platform/windows";
 
-export const LIGHTS_CENTER: readonly [number, number] = [25, CARD_INSET + 21];
-const COMPACT_LIGHTS_CENTER: readonly [number, number] = [LIGHTS_CENTER[0], LIGHTS_CENTER[1] - compactLift(toolbarRowOf(true))];
-export const toolbarLightsCenter = (compact: boolean): readonly [number, number] => (compact ? COMPACT_LIGHTS_CENTER : LIGHTS_CENTER);
+const LIGHTS_X = 25;
+const LIGHTS_BELOW_CARD_TOP = 21;
+export const LIGHTS_CENTER: readonly [number, number] = [LIGHTS_X, CARD_INSET + LIGHTS_BELOW_CARD_TOP];
+const lightsCenters = new Map<string, readonly [number, number]>();
+export function toolbarLightsCenter(compact: boolean, frame: number = CARD_INSET): readonly [number, number] {
+  const key = `${compact}:${frame}`;
+  let center = lightsCenters.get(key);
+  if (!center) lightsCenters.set(key, (center = [LIGHTS_X, frame + LIGHTS_BELOW_CARD_TOP - (compact ? compactLift(toolbarRowOf(true)) : 0)]));
+  return center;
+}
 export const ARC_LIGHTS_CENTER: readonly [number, number] = [25, 24];
 export const TOP_STRIP_LIGHTS_CENTER: readonly [number, number] = [20.75, 20.75];
 

@@ -107,6 +107,7 @@ class WindowHost : public TabStripModelObserver,
 
   void ConfirmCloseWithDownloads(int count, base::OnceCallback<void(bool)> callback);
   void NotifyCloseCancelled();
+  void NotifyCanTakeTabs();
   void QuitCancelled();
 
   [[nodiscard]] base::AutoReset<OpenOrigin> ScopedPendingOpen(OpenOrigin origin) {
@@ -158,6 +159,7 @@ class WindowHost : public TabStripModelObserver,
   std::unique_ptr<views::Widget> widget_;
   NSView* __strong host_view_;
   std::map<Profile*, raw_ptr<Browser>> browsers_;
+  std::map<const Browser*, base::CallbackListSubscription> close_cancelled_;
   raw_ptr<Profile> active_profile_ = nullptr;
   CloseState close_state_ = CloseState::kOpen;
   raw_ptr<Browser> asking_ = nullptr;

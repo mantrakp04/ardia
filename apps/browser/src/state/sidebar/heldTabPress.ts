@@ -2,6 +2,7 @@ import type { GestureResponderEvent } from "react-native";
 import { modifiersOf } from "../../lib/keys";
 import { clickTab } from "./actions";
 import { dismissHover } from "./hover";
+import { notePressEnded, notePressStarted } from "../telemetry/tabPresses";
 
 export const TAB_CLICK_SLOP = 10;
 
@@ -13,12 +14,20 @@ const pressStart = (e: GestureResponderEvent) => (e as WithHistory).touchHistory
 
 export function holdTabPress(windowId: string, tabId: string, press: GestureResponderEvent) {
   heldPress = { windowId, tabId, startedAt: pressStart(press) };
+  notePressStarted();
+}
+
+export function clickHeldTabPress(tabId: string) {
+  heldPress = null;
+  notePressEnded("click", tabId);
 }
 
 export function endHeldTabPress(tabIds: string[], release: GestureResponderEvent | null) {
   const held = heldPress;
   heldPress = null;
-  if (!held || !release || !tabIds.includes(held.tabId) || held.startedAt === undefined || held.startedAt !== pressStart(release)) return;
+  if (!held) return;
+  if (!release || !tabIds.includes(held.tabId) || held.startedAt === undefined || held.startedAt !== pressStart(release)) return notePressEnded("drag");
+  notePressEnded("dragClick", held.tabId);
   dismissHover();
   clickTab(held.windowId, held.tabId, modifiersOf(release));
 }
