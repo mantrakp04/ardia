@@ -148,6 +148,14 @@ class FakeChrome {
     f.s.tabs.splice(at, 0, f.tab);
     this.emit(f.id, null);
   }
+  activateBehindStaleFlag(key) {
+    const f = this.find(key);
+    f.s.active = f.tab.browser;
+    f.s.pickedOnClose = true;
+    this.emit(f.id, null);
+    f.s.pickedOnClose = false;
+    this.emit(f.id, null);
+  }
   activate(key, cmd = null) {
     const f = this.find(key);
     f.s.active = f.tab.browser;
@@ -333,6 +341,18 @@ test("the tab Chrome shows after a close doesn't override the app's successor ru
   await settle(win);
   assert.equal(shown(win.w), "a", "the store's pick stands");
   assert.equal(chromeShown(win.strip), "a", "and Chrome shows it too");
+});
+
+test("an extension that shows another tab and then discards the shown one is obeyed, whatever the strip last said about a close", async () => {
+  const win = windowWith("a", "b", "c");
+  await settle(win);
+  const [a, b] = S().windows[win.w].tabIds;
+  assert.equal(shown(win.w), "a");
+  chrome.activateBehindStaleFlag(b);
+  await settle(win);
+  assert.equal(shown(win.w), "b", "the tab the extension showed");
+  assert.equal(chromeShown(win.strip), "b", "Chrome isn't put back on the tab being discarded");
+  assert.ok(S().tabs[a], "the discarded tab stays in the sidebar");
 });
 
 test("a command on its way wins over Chrome's earlier change; stale transactions are dropped", async () => {

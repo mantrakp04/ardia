@@ -84,8 +84,8 @@ export function chromeChanged(
   if (!pending.active) {
     const active = after.tabs.find((t) => t.active);
     const previous = before?.tabs.find((t) => t.active);
-    const left =
-      after.activePickedOnClose ?? (!!previous && !after.tabs.some((t) => t.browser === previous.browser));
+    const gone = !!previous && !after.tabs.some((t) => t.browser === previous.browser);
+    const left = gone && (after.activePickedOnClose ?? true);
     if (known(s, active) && taken.has(active.key)) s = show(s, active.key);
     else if (known(s, active) && stayed(active) && active.browser !== previous?.browser && !left) s = show(s, active.key);
     else if (known(s, active)) {
