@@ -4,6 +4,8 @@ import { Panel } from "@/components/blocks";
 import { ListSkeleton, Loaded } from "@/components/section";
 import { LeadVideo, ReplyCard, queueStatus, useNow, type Lead, type QueueStatus, type Reply } from "@/components/triage/reply-card";
 import { FilterSelect, SearchBox, SyncedNote, Toolbar, matches, optionsOf, useTriage } from "@/components/triage/shared";
+import { LeadSortControl } from "@/components/triage/lead-sort";
+import { compareLeads, type LeadSort } from "@/lib/lead-sort";
 import { TweetCard } from "@/components/triage/tweet-card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatExact } from "@/lib/format";
@@ -22,13 +24,6 @@ const FILTERS = [
 
 type Filter = (typeof FILTERS)[number][0];
 
-const SORTS = [
-  ["newest", "Newest"],
-  ["reach", "Most followers"],
-] as const;
-
-type Sort = (typeof SORTS)[number][0];
-
 const leadStatus = (lead: Lead, reply: Reply | undefined, now: number): QueueStatus =>
   reply ? queueStatus(reply, now) : lead.status === "dismissed" ? "skipped" : "drafted";
 
@@ -36,7 +31,7 @@ function TriageLeads() {
   const query = useTriage("replies");
   const now = useNow();
   const [filter, setFilter] = useState<Filter>("drafted");
-  const [sort, setSort] = useState<Sort>("newest");
+  const [sort, setSort] = useState<LeadSort>("newest");
   const [feature, setFeature] = useState("");
   const [search, setSearch] = useState("");
   const leads = query.data?.leads ?? [];
@@ -49,7 +44,7 @@ function TriageLeads() {
         (!feature || l.feature === feature) &&
         matches(search, l.text, l.author.handle, l.author.name, l.topic, replyOf(l)?.text),
     );
-    return rows.sort((a, b) => (sort === "reach" ? (b.author.followers ?? 0) - (a.author.followers ?? 0) : (b.createdAt ?? 0) - (a.createdAt ?? 0)));
+    return rows.sort((a, b) => compareLeads(a, b, sort));
   }, [leads, replyById, filter, feature, search, sort, now]);
   const counts = (status: QueueStatus) => leads.filter((l) => leadStatus(l, replyOf(l), now) === status).length;
   const withVideo = leads.filter((l) => l.video).length;
@@ -65,13 +60,7 @@ function TriageLeads() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        <ToggleGroup type="single" value={sort} onValueChange={(v) => v && setSort(v as Sort)} aria-label="Sort leads" className="rounded-lg border bg-card p-0.5">
-          {SORTS.map(([value, label]) => (
-            <ToggleGroupItem key={value} value={value} className="h-7 rounded-md px-2.5 text-xs text-muted-foreground data-[state=on]:bg-foreground data-[state=on]:text-background">
-              {label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <LeadSortControl value={sort} onChange={setSort} />
         <FilterSelect label="Feature" value={feature} onChange={setFeature} options={optionsOf(leads, (l) => l.feature)} />
         <SearchBox value={search} onChange={setSearch} placeholder="Search posts, handles, drafts…" />
         <span className="text-xs text-muted-foreground">

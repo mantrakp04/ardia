@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
+import { LeadSortControl } from "@/components/triage/lead-sort";
+import { compareLeads, type LeadSort } from "@/lib/lead-sort";
 import { Panel } from "@/components/blocks";
 import { ListSkeleton, Loaded } from "@/components/section";
 import { ReplyCard, SNOOZE_LABEL, StatusButton, queueStatus, useNow, useRecheck, type Lead, type QueueStatus, type Reply } from "@/components/triage/reply-card";
@@ -37,6 +39,7 @@ function TriageReplies() {
   const [filter, setFilter] = useState<Filter>("drafted");
   const now = useNow();
   const [search, setSearch] = useState("");
+  const [leadSort, setLeadSort] = useState<LeadSort>("newest");
   const replies = query.data?.replies ?? [];
   const leadByReply = useMemo(() => new Map<number, Lead>((query.data?.leads ?? []).filter((l) => l.replyId != null).map((l) => [l.replyId!, l])), [query.data?.leads]);
   const groups = useMemo(() => {
@@ -46,9 +49,10 @@ function TriageReplies() {
       const group = leadByReply.has(r.id) ? "lead" : r.platform;
       byGroup.set(group, [...(byGroup.get(group) ?? []), r]);
     }
+    byGroup.get("lead")?.sort((a, b) => compareLeads(leadByReply.get(a.id), leadByReply.get(b.id), leadSort));
     const rank = (group: string) => (PLATFORM_ORDER.includes(group) ? PLATFORM_ORDER.indexOf(group) : PLATFORM_ORDER.length);
     return [...byGroup].sort((a, b) => rank(a[0]) - rank(b[0]));
-  }, [replies, filter, search, now, leadByReply]);
+  }, [replies, filter, search, now, leadByReply, leadSort]);
   const counts = (status: QueueStatus) => replies.filter((r) => queueStatus(r, now) === status).length;
   const recheckAll = useRecheck();
   const recheckable = groups.flatMap(([, rows]) => rows).filter((r) => r.status === "drafted" && !r.recheckQueued).map((r) => r.id);
@@ -90,6 +94,7 @@ function TriageReplies() {
             <>
               {groups.map(([group, rows]) => (
                 <Panel key={group} title={`${groupLabel(group)} · ${formatExact(rows.length)}`} description={groupDescription(group)}>
+                  {group === "lead" ? <div className="mb-3"><LeadSortControl value={leadSort} onChange={setLeadSort} /></div> : null}
                   <ul className="grid gap-2.5">
                     {rows.map((r) => (
                       <ReplyCard key={r.id} reply={r} now={now} lead={leadByReply.get(r.id)} />
