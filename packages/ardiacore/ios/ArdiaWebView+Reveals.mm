@@ -79,6 +79,7 @@ static ArdiaWebView *ViewForKey(NSString *key) {
       NSLog(@"[ardiacore-vis] %@ front %@ offered=%d closed=%d superview=%@ adopted=%d", key, offer, tab != nil, tab.closed,
             page.superview.className, [ArdiaTabRegistry viewForTab:tab] != nil);
     if (!tab || tab.closed || !page || page.superview || [ArdiaTabRegistry viewForTab:tab]) return;
+    ardia_host::StopPageSwapFade(tab);
     [view frontPage:page profile:tab.profile];
   });
 }
