@@ -24,6 +24,7 @@ import {
   edgeWatchWidth,
   fromSidebarEdgeInStrip,
   inPeekHold,
+  peekBleed,
   peekHoldWidth,
   peekSpan,
   shownAs,
@@ -223,8 +224,6 @@ function SidebarDock({
   useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth, peekAt.left)), [windowId, peek.live, width, right, windowWidth, peekAt.left]);
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
-  const panel = useRef(false);
-  if (peeking) panel.current = true;
   const away = state === "fullscreen" || state === "away";
   const outward = right ? -1 : 1;
   const slideOut = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-width * outward, 0] }), [dock, width, outward]);
@@ -253,14 +252,7 @@ function SidebarDock({
   const fade = peeking && !arc;
   const panelOn = useRef(new Animated.Value(0)).current;
   useLayoutEffect(() => panelOn.setValue(peeking ? 1 : 0), [panelOn, peeking]);
-  const panelOpacity = useMemo(
-    () => (arc ? panelOn : Animated.multiply(panelOn, peek.slide)),
-    [arc, panelOn, peek.slide],
-  );
-  const peekStyle = {
-    opacity: fade ? peek.slide : 1,
-    transform: [{ translateX: peeking ? peekIn : 0 }],
-  };
+  const bleed = peekBleed(peekAt.left);
 
   return (
     <>
@@ -298,16 +290,16 @@ function SidebarDock({
           transform: [{ translateX: slideOut }],
         }}
       >
-        {panel.current && (
-          <Animated.View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, peekStyle, { opacity: panelOpacity }]}
-          >
-            <Panel fill={theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
-          </Animated.View>
-        )}
-        <Animated.View style={[{ flex: 1 }, peekStyle, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>
-          {sidebar}
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade ? peek.slide : 1, transform: [{ translateX: peeking ? peekIn : 0 }] }]}>
+          {strip.current && (
+            <Animated.View
+              pointerEvents="none"
+              style={{ position: "absolute", top: 0, bottom: 0, [edgeSide]: -bleed, [right ? "left" : "right"]: 0, opacity: panelOn }}
+            >
+              <Panel fill={theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
+            </Animated.View>
+          )}
+          <View style={[{ flex: 1 }, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>{sidebar}</View>
         </Animated.View>
       </Animated.View>
     </>

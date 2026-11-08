@@ -38,6 +38,9 @@ export function navButtonsFitting(width: number, button = 30, toggle = true, tog
 
 export const PEEK_EDGE_STRIP = 8;
 export const PEEK_HOLD_SLACK = 24;
+export const PEEK_BLEED = 16;
+
+export const peekBleed = (peekLeft: number) => (peekLeft > 0 ? 0 : PEEK_BLEED);
 
 export type DockState = "fullscreen" | "docked" | "peeking" | "hiding" | "away";
 export type DockInput = { open: boolean; fullscreen: boolean; moving: boolean; peekLive: boolean };

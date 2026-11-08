@@ -247,8 +247,18 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.equal(dm.easeInOutCubic(0), 0);
   assert.equal(dm.easeInOutCubic(0.5), 0.5);
   assert.equal(dm.easeInOutCubic(1), 1);
-  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => springAt(i / 120, dm.ARC_PEEK_SPRING)));
-  assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
+  const peak = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING)));
+  const arcPeak = Math.max(...ARC_PEEK_IN.flat().map(([, x]) => x));
+  assert.ok(Math.abs(peak - arcPeak) < 0.002, `the panel's overshoot ${peak}, Arc's ${arcPeak}`);
+});
+
+test("flush with the window's edge, the peek's fill runs on past it, so the spring's overshoot moves the panel without opening a gap of page at the window's edge", async () => {
+  const { SIDEBAR_MAX_WIDTH } = await import("../sidebar/tokens.ts");
+  const overshoot = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING))) - 1;
+  const flush = dm.cardFrameOf(PAGE_FRAME.min).peek;
+  assert.equal(flush.left, 0);
+  assert.ok(dm.peekBleed(flush.left) > overshoot * (SIDEBAR_MAX_WIDTH + 12), `bleed ${dm.peekBleed(flush.left)} against ${overshoot * (SIDEBAR_MAX_WIDTH + 12)} pt`);
+  assert.equal(dm.peekBleed(DEFAULT_PEEK.left), 0, "an inset card keeps its own rounded edge and moves as Arc's does");
 });
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {
