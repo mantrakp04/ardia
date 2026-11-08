@@ -14,6 +14,7 @@ export type OpenWindowOptions = {
   frame?: [number, number, number, number] | null;
   incognito?: boolean;
   title?: string;
+  titleOverride?: string;
   focus?: boolean;
   kind?: "browser" | "small" | "settings" | "import";
   profile?: string;

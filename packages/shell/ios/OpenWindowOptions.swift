@@ -4,6 +4,7 @@ struct OpenWindowOptions: Record {
   @Field var frame: CGRect?
   @Field var incognito: Bool = false
   @Field var title: String = ""
+  @Field var titleOverride: String?
   @Field var focus: Bool = true
   @Field var kind: WindowKind = .browser
   @Field var profile: String?

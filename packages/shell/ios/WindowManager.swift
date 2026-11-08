@@ -83,6 +83,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     let kind = options.kind, title = options.title, frame = options.frame, claim = options.claim
     let small = kind == .small
     if kind != .browser && !small { return openAux(id: id, kind: kind, title: title) }
+    if let titleOverride = options.titleOverride { titleOverrides[id] = titleOverride }
     guard let makeWindow = WindowHost.makeWindow, let makeContentView = WindowHost.makeContentView else { return }
     if !small, ArdiaChromeWindowHost.takeDismissedAppWindow(id) {
       ShellEvents.send(.window, ["type": "close", "id": id])
@@ -230,6 +231,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func setTitleOverride(id: String, title: String?) {
     titleOverrides[id] = title
+    if let index = pending.firstIndex(where: { $0.id == id }) { pending[index].options.titleOverride = title }
     guard let entry = managed[id], entry.hostsChrome else { return }
     ChromeWindows.setTitleOverride(title, in: entry.window)
   }

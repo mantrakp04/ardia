@@ -117,6 +117,19 @@ test("the shell keeps each window's override, applies it when the window is show
   assert.match(bodyOf(windowManager, "func close(id: String", "\n  }\n"), /titleOverrides\[id\] = nil/);
 });
 
+test("a window's first override travels with the open request, so it is applied before the window is ordered", () => {
+  const openOptions = read("../../shell/ios/OpenWindowOptions.swift");
+  assert.match(openOptions, /@Field var titleOverride: String\?/);
+  assert.match(shellWindows, /titleOverride\?: string;/);
+  const open = bodyOf(windowManager, "func open(id: String, _ options: OpenWindowOptions, focus: Bool)", "\n  }\n");
+  const stored = open.indexOf("if let titleOverride = options.titleOverride { titleOverrides[id] = titleOverride }");
+  assert.ok(stored > 0);
+  assert.ok(stored < open.indexOf("ChromeWindows.makeWindow("));
+  assert.ok(stored < open.indexOf("return show("));
+  const set = bodyOf(windowManager, "func setTitleOverride(id: String, title: String?)", "\n  }\n");
+  assert.match(set, /pending\[index\]\.options\.titleOverride = title/);
+});
+
 test("a popup window names itself through the engine's title override, not by writing the window title", () => {
   const update = bodyOf(popupWindow, "- (void)updateTitle {");
   assert.match(update, /\[_coreWindow setTitleOverride:/);

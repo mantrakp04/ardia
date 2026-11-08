@@ -48,7 +48,7 @@ export const launch: LaunchConfig = {
   test: {},
 };
 
-export type FakeWindow = OpenWindowOptions & { title?: string; titleOverride?: string | null; trafficLightsCenter?: [number, number] | null; trafficLightsTrailing?: boolean };
+export type FakeWindow = OpenWindowOptions & { title?: string; trafficLightsCenter?: [number, number] | null; trafficLightsTrailing?: boolean };
 const shellEvents = nativeEvents();
 export const windows = {
   open: new Map<string, FakeWindow>(),
@@ -102,7 +102,7 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   },
   setWindowTitleOverride: (id, title) => {
     const window = windows.open.get(id);
-    if (window) window.titleOverride = title;
+    if (window) window.titleOverride = title ?? undefined;
     return Promise.resolve();
   },
   windowIds: () => Promise.resolve([...windows.open.keys()]),

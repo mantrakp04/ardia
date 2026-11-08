@@ -122,7 +122,8 @@ test("title override: a chromium page owns its window title, any other active ta
   const sync = start(native);
   sync.sync(S());
   const overrides = () => native.of("setTitleOverride").map((c) => c.slice(1));
-  assert.deepEqual(overrides(), [[w, "New Tab"]]);
+  assert.equal(native.of("open")[0][2].titleOverride, "New Tab");
+  assert.deepEqual(overrides(), []);
 
   let prev = S();
   const page = S().newTab(w, { url: "https://a.example/" });
@@ -158,6 +159,18 @@ test("title override: a chromium page owns its window title, any other active ta
   assert.deepEqual(overrides().at(-1), [w, "New Tab"]);
 });
 
+test("title override: a window whose active tab is a chromium page opens with no override, so the engine's title stands", () => {
+  reset();
+  const w = S().createWindow();
+  const page = S().newTab(w, { url: "https://a.example/" });
+  S().updateTab(page, { title: "Alpha", page: loaded("https://a.example/") });
+  const native = fakePort();
+  const sync = start(native);
+  sync.sync(S());
+  assert.equal("titleOverride" in native.of("open")[0][2], false);
+  assert.deepEqual(native.of("setTitleOverride"), []);
+});
+
 test("startup sweep: closes native windows the store doesn't have, keeps utility windows, titles the rest", async () => {
   reset();
   const a = S().createWindow();
@@ -168,7 +181,7 @@ test("startup sweep: closes native windows the store doesn't have, keeps utility
   assert.deepEqual(native.of("close"), [["close", "orphan"]]);
   assert.deepEqual(native.of("setTitle"), [["setTitle", a, windowTitle(S(), a)]]);
   assert.deepEqual(native.of("setTitleOverride").at(-1), ["setTitleOverride", a, "New Tab"]);
-  assert.deepEqual(native.of("setTitleOverride").map((c) => c[1]), [a, a]);
+  assert.deepEqual(native.of("setTitleOverride").map((c) => c[1]), [a]);
 });
 
 test("a window the user closed is forgotten: the same id opening again gets its title and override sent again", () => {
@@ -178,7 +191,7 @@ test("a window the user closed is forgotten: the same id opening again gets its 
   const sync = start(native);
   sync.sync(S());
   const before = S();
-  assert.deepEqual(native.of("setTitleOverride"), [["setTitleOverride", a, "New Tab"]]);
+  assert.deepEqual(native.of("open").map((c) => c[2].titleOverride), ["New Tab"]);
   native.emit({ type: "close", id: a });
   const after = S();
   assert.equal(after.windows[a], undefined);
@@ -186,7 +199,8 @@ test("a window the user closed is forgotten: the same id opening again gets its 
   useBrowser.setState(before, true);
   sync.sync(before, after);
   assert.equal(native.of("open").filter((c) => c[1] === a).length, 2);
-  assert.deepEqual(native.of("setTitleOverride"), [["setTitleOverride", a, "New Tab"], ["setTitleOverride", a, "New Tab"]]);
+  assert.deepEqual(native.of("open").map((c) => c[2].titleOverride), ["New Tab", "New Tab"]);
+  assert.deepEqual(native.of("setTitleOverride"), []);
 });
 
 test("full screen comes back oldest first", () => {
