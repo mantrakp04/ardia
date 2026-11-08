@@ -30,7 +30,7 @@ function PipBadge({ tabId, size }: { tabId: string; size: number }) {
   return (
     <View pointerEvents="none" style={{ position: "absolute", right: -d / 3, top: -d / 3 }}>
       <Dot size={d} color={tokens.badge}>
-        <Symbol name="pip.fill" size={d * 0.55} weight="bold" color={hex(theme.onPrimary)} style={{ width: d, height: d }} />
+        <Symbol name="pip.fill" size={d * 0.55} weight="bold" color={hex(theme.onPrimary)} centerInk style={{ width: d, height: d }} />
       </Dot>
     </View>
   );
@@ -45,7 +45,7 @@ function CaptureBadge({ tabId, size }: { tabId: string; size: number }) {
     return (
       <View pointerEvents="none" style={{ position: "absolute", right: -d / 3, bottom: -d / 3 }}>
         <Dot size={d} color={theme.destructive}>
-          <Symbol name="rectangle.inset.filled" size={d * 0.5} weight="bold" color={ink.white} style={{ width: d, height: d }} />
+          <Symbol name="rectangle.inset.filled" size={d * 0.5} weight="bold" color={ink.white} centerInk style={{ width: d, height: d }} />
         </Dot>
       </View>
     );
