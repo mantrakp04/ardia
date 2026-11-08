@@ -3,6 +3,7 @@ import AppKit
 #if DEBUG
 enum WindowMoveProbe {
   private static var buttonsDown = false
+  private static var dragRunning = false
 
   private static func dirtyViews(_ view: NSView) -> Int {
     view.subviews.reduce(view.needsLayout || view.needsDisplay ? 1 : 0) { $0 + dirtyViews($1) }
@@ -94,6 +95,7 @@ enum WindowMoveProbe {
     _ window: NSWindow, x: CGFloat, top: CGFloat, count: Int, dx: CGFloat, dy: CGFloat, interval: TimeInterval,
     settle: TimeInterval = 0.2, keep: Bool = false, replayStale: Bool = false, done: @escaping ([String: Any]) -> Void
   ) {
+    guard !dragRunning else { return done(["error": "a probe drag is already running"]) }
     guard let frameView = window.contentView?.superview, let restoreButtons = installButtons() else { return done(["error": "no frame view"]) }
     let origin = window.frame.origin
     let local = NSPoint(x: x, y: frameView.bounds.height - top)
@@ -110,8 +112,12 @@ enum WindowMoveProbe {
     var ended = began
     var backSteps = 0
     var step = 0
+    guard let down = mouse(.leftMouseDown, window, screen: pointer) else {
+      restoreButtons()
+      return done(["error": "no event"])
+    }
+    dragRunning = true
     buttonsDown = true
-    guard let down = mouse(.leftMouseDown, window, screen: pointer) else { return done(["error": "no event"]) }
     NSApp.postEvent(down, atStart: false)
     let timer = Timer(timeInterval: interval, repeats: true) { timer in
       let now = window.frame.origin
@@ -139,6 +145,7 @@ enum WindowMoveProbe {
       DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
         sampler.invalidate()
         restoreButtons()
+        dragRunning = false
         let pacing = pacingReport(from: began, to: CACurrentMediaTime())
         let end = window.frame.origin
         let screen = window.screen.map { NSStringFromRect($0.frame) } ?? "nil"

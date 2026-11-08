@@ -67,6 +67,21 @@ test("WindowMovePacer source is wired to the window's display link at the displa
   assert.ok(!pacer.includes("setFrameOrigin"), "the pacer places through the closure it is given");
 });
 
+test("WindowMoveProbe.drag refuses a second probe while one is running, so it cannot clear the first one's trace or stack the pressed-button override", () => {
+  const probe = read("WindowMoveProbe.swift");
+  const drag = between(probe, "static func drag(", "\n#endif");
+  const refuse = drag.indexOf("guard !dragRunning else { return done([\"error\": \"a probe drag is already running\"]) }");
+  assert.ok(refuse >= 0, "drag starts a second probe over a running one");
+  assert.ok(refuse < drag.indexOf("installButtons()"), "the refusal comes before the pressed-button override is installed a second time");
+  assert.ok(refuse < drag.indexOf("WindowMove.moveTimes = []"), "the refusal comes before the running probe's trace is cleared");
+  assert.equal(count(drag, "dragRunning = true"), 1, "a probe marks itself running once it has its mouse-down");
+  assert.ok(drag.indexOf("dragRunning = true") > drag.indexOf("guard let down"), "a probe that has no mouse-down never marks itself running");
+  const noEvent = between(drag, "guard let down", "dragRunning = true");
+  assert.match(noEvent, /restoreButtons\(\)/, "a probe with no mouse-down puts the pressed-button override back");
+  const afterSettle = drag.slice(drag.indexOf("DispatchQueue.main.asyncAfter"));
+  assert.match(afterSettle, /restoreButtons\(\)\s*dragRunning = false/, "a probe is over, and the next may start, once the override is back");
+});
+
 test("WindowMoveProbe.drag source reports placements per frame and the spread of the gaps between placements", () => {
   const probe = read("WindowMoveProbe.swift");
   assert.match(probe, /WindowMove\.moveTimes = \[\]/);
