@@ -106,6 +106,9 @@ export function startDevHarness() {
     get preload(): typeof import("../../state/tabs/prewarm") {
       return require("../../state/tabs/prewarm");
     },
+    get unread(): typeof import("../../state/tabs/unread") {
+      return require("../../state/tabs/unread");
+    },
     get syncSheets(): typeof import("../settings/panes/SyncSheets") {
       return require("../settings/panes/SyncSheets");
     },

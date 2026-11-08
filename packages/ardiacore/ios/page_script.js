@@ -573,6 +573,42 @@
   };
   if (!installNotifications()) queueMicrotask(() => installNotifications() || setTimeout(installNotifications, 0));
 
+  if (isTop && window.isSecureContext && window.Navigator) {
+    const navigatorProto = window.Navigator.prototype;
+    const badgeCount = (contents) => {
+      if (contents === undefined) return null;
+      const n = Number(contents);
+      if (!isFinite(n) || n < 0 || n > Number.MAX_SAFE_INTEGER) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is outside the 'unsigned long long' value range.");
+      return Math.trunc(n);
+    };
+    const reportBadge = (count) => send("appBadge", count === null ? { flag: true } : { count });
+    const badgeMethod = (name, decide) => {
+      const native = navigatorProto[name];
+      if (typeof native === "function") {
+        navigatorProto[name] = asNative(native, (target, self, args) => {
+          const result = apply(target, self, args);
+          if (self === navigator) guard(() => reportBadge(decide(args)))();
+          return result;
+        });
+        return;
+      }
+      const shim = {
+        [name]() {
+          try {
+            const count = decide([arguments[0]]);
+            if (this === navigator) reportBadge(count);
+          } catch (e) {
+            return Promise.reject(e);
+          }
+          return Promise.resolve();
+        },
+      }[name];
+      Object.defineProperty(navigatorProto, name, { value: shim, writable: true, enumerable: true, configurable: true });
+    };
+    badgeMethod("setAppBadge", (args) => badgeCount(args[0]));
+    badgeMethod("clearAppBadge", () => 0);
+  }
+
   const PO = window.PerformanceObserver;
   const disconnect = PO && PO.prototype.disconnect;
   const { addEventListener: listen, removeEventListener: unlisten } = EventTarget.prototype;

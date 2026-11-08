@@ -41,6 +41,7 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
+import { noteAppBadge, noteUnreadFavicon } from "../../state/tabs/unread";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -195,7 +196,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteIconPage(tabId);
         updateTab(tabId, { favicon });
         noteFavicon(tabId, favicon);
+        noteUnreadFavicon(tabId, tab()?.url ?? "", favicon);
       }}
+      onAppBadge={(badge) => noteAppBadge(tabId, badge)}
       onMedia={({ playing, muted }) => {
         updateLive(tabId, { playingAudio: playing });
         if (!muted && isTabSilenced(tabId)) void webviews.get(tabId)?.setMuted(true);

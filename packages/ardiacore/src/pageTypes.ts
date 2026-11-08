@@ -18,6 +18,8 @@ export type NavigationState = {
   httpStatus?: number;
 };
 
+export type AppBadge = { origin: string; count: number | null; flag: boolean };
+
 export type MediaState = { playing: boolean; muted: boolean };
 
 export type NowPlaying = {
@@ -209,6 +211,7 @@ export type WebViewProps = ViewProps & {
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onAppBadge?: (badge: AppBadge) => void;
 };
 
 export type WebViewHandle = {

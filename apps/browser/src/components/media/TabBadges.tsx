@@ -7,12 +7,14 @@ import { usePage } from "../../state/tabs/pageState";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useMedia } from "../../state/media/media";
 import { CAPTURE_DOT_RIM } from "./tokens";
+import { UnreadBadge } from "../unread/UnreadBadge";
 
 export const TabBadges = memo(function TabBadges({ tabId, size = 16, pip = true }: { tabId: string; size?: number; pip?: boolean }) {
   return (
     <>
       {pip && <PipBadge tabId={tabId} size={size} />}
       <CaptureBadge tabId={tabId} size={size} />
+      <UnreadBadge tabId={tabId} />
     </>
   );
 });
