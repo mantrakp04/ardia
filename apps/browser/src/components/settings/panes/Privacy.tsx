@@ -78,9 +78,7 @@ export function PrivacyPane() {
       <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
       <Group>
         {problem !== null && (
-          <Row title="Ad blocking isn't available" description={problem}>
-            <Button title="Retry" onPress={refresh} />
-          </Row>
+          <BlockerUnavailable problem={problem} retry={refresh} />
         )}
         {CATEGORIES.filter((c) => c.anchor).map((c) => (
           <Row key={c.id} anchor={c.anchor}>
@@ -137,8 +135,16 @@ const FAILURE = { marginTop: space.ml } as const;
 const LISTS = { maxHeight: 420, marginTop: space.m } as const;
 const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
 
+function BlockerUnavailable({ problem, retry }: { problem: string; retry: () => void }) {
+  return (
+    <Row title="Ad blocking isn't available" description={problem}>
+      <Button title="Retry" onPress={retry} />
+    </Row>
+  );
+}
+
 function FilterListsSheet() {
-  const [blocker, refresh] = useContentBlocker();
+  const [blocker, refresh, problem] = useContentBlocker();
   const failure = useBlockingFailure((s) => s.message);
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
@@ -148,6 +154,11 @@ function FilterListsSheet() {
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
       <DialogTitle subtitle={setting("privacy.filterLists").description}>Advanced Ad Block Settings</DialogTitle>
+      {problem !== null && (
+        <Group>
+          <BlockerUnavailable problem={problem} retry={refresh} />
+        </Group>
+      )}
       <ScrollView style={LISTS}>
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];

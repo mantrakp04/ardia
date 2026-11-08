@@ -39,24 +39,36 @@ export const useBlockingFailure = create<{ message: string | null }>()(() => ({ 
 let visit = 0;
 let unsettled = 0;
 let queue: Promise<void> = Promise.resolve();
+let failedChange: string | null = null;
 
 export function clearBlockingFailure() {
   visit++;
+  failedChange = null;
   useBlockingFailure.setState({ message: null });
 }
 
-function reportingFailure(change: (s: ContentBlockerState) => Promise<void>) {
+function reportingFailure(key: string, change: (s: ContentBlockerState) => Promise<void>) {
   const mine = visit;
-  if (!unsettled) useBlockingFailure.setState({ message: null });
+  if (!unsettled) {
+    failedChange = null;
+    useBlockingFailure.setState({ message: null });
+  }
   unsettled++;
   const settled = queue.then(async () => {
     try {
       const read = await attemptRead();
       if (read.state === null) throw new Error(read.problem);
       await change(read.state);
+      if (failedChange === key) {
+        failedChange = null;
+        useBlockingFailure.setState({ message: null });
+      }
     } catch (error) {
       console.error(error);
-      if (mine === visit) useBlockingFailure.setState({ message: `Couldn't change content blocking. ${errorText(error)}` });
+      if (mine === visit) {
+        failedChange = key;
+        useBlockingFailure.setState({ message: `Couldn't change content blocking. ${errorText(error)}` });
+      }
     } finally {
       unsettled--;
     }
@@ -65,6 +77,7 @@ function reportingFailure(change: (s: ContentBlockerState) => Promise<void>) {
   return settled;
 }
 
-export const changeBlockingCategory = (category: FilterListCategory, on: boolean) => reportingFailure((s) => setBlockingCategory(s, category, on));
+export const changeBlockingCategory = (category: FilterListCategory, on: boolean) =>
+  reportingFailure(`category ${category} ${on}`, (s) => setBlockingCategory(s, category, on));
 
-export const changeFilterList = (id: string, on: boolean) => reportingFailure((s) => setFilterList(s, id, on));
+export const changeFilterList = (id: string, on: boolean) => reportingFailure(`list ${id} ${on}`, (s) => setFilterList(s, id, on));

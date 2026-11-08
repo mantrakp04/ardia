@@ -114,6 +114,7 @@ const liveBlocker = (lists, { enabled = false, refusing = null } = {}) => {
   const wrapped = native.call;
   native.call = async (verb, profile, json) => {
     const args = JSON.parse(json);
+    if (verb === "state" || verb === "setListEnabled" || verb === "setEnabled") calls.push([verb, args]);
     await new Promise((resolve) => setTimeout(resolve, 1));
     if (verb === "state") return JSON.stringify({ ...live, allowedHosts: [], version: "1", stats: { ready: true } });
     if (verb === "setListEnabled") {
@@ -184,10 +185,15 @@ test("a change made while the blocker can't be read shows its reason and sends n
 
 test("a change that works shows nothing and reports nothing", async () => {
   await withBlocker([list("easylist", "ads", true, true)], { enabled: true }, async (live) => {
+    calls.length = 0;
     const errors = await quietly(() => changeBlockingCategory("ads", false));
     assert.equal(failure(), null);
     assert.deepEqual(errors, []);
     assert.equal(live.enabled, false);
+    assert.deepEqual(
+      calls.filter(([verb]) => verb !== "state").map(([verb, args]) => `${verb} ${"id" in args ? `${args.id} ` : ""}${args.enabled}`),
+      ["setListEnabled easylist false", "setEnabled false"],
+    );
   });
 });
 
@@ -227,7 +233,7 @@ test("a failure that lands after leaving the pane is not shown on return", async
   }
 });
 
-test("an earlier change that fails still shows its failure when a later one works", async () => {
+test("a change that fails keeps its failure when a different change works after it", async () => {
   await withBlocker([list("easylist", "ads", false, true)], {}, async () => {
     const gate = hanging();
     try {
@@ -238,6 +244,25 @@ test("an earlier change that fails still shows its failure when a later one work
         await Promise.all([earlier, later]);
       });
       assert.equal(failure(), "Couldn't change content blocking. early failure");
+      assert.equal(errors.length, 1);
+    } finally {
+      gate.restore();
+    }
+  });
+});
+
+test("the same change made again and working takes the failure of the first one away", async () => {
+  await withBlocker([list("easylist", "ads", false, true)], {}, async (live) => {
+    const gate = hanging();
+    try {
+      const errors = await quietly(async () => {
+        const first = changeFilterList("easylist", true);
+        const again = changeFilterList("easylist", true);
+        await gate.fail(new Error("early failure"));
+        await Promise.all([first, again]);
+      });
+      assert.equal(live.lists[0].enabled, true);
+      assert.equal(failure(), null);
       assert.equal(errors.length, 1);
     } finally {
       gate.restore();
