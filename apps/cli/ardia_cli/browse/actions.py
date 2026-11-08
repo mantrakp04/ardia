@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import random
+import re
 
 from ardia_cli.browse import fields
 from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
@@ -17,6 +18,12 @@ CLEANUP_TIMEOUT = 2.0
 DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session"
 CLEANUPS: set = set()
 PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrived), so it may have had an effect"
+SUGGESTION_TIMEOUT = 4.0
+SUGGESTION_HINT_WAIT = 1.2
+SUGGESTION_SETTLE = 0.35
+SUGGESTION_STALE = 1.0
+MAX_SUGGESTIONS = 8
+EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 
 
 async def input_counts(page, frame):
@@ -369,6 +376,117 @@ async def set_checked(page, element, wanted: bool, humanize: bool):
 async def select(page, element, values: list[str]):
     await page.focus_element(element)
     return await page.call("(el, values) => ardiaBrowse.selectOptions(el, values)", element, values, frame=element.frame)
+
+
+def plain(text) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def match_level(value: str, item: dict) -> int:
+    wanted = plain(value)
+    if not wanted:
+        return 0
+    if plain(item["text"]) == wanted:
+        return 3
+    pieces = list(item.get("pieces") or []) + EMAIL.findall(item["text"])
+    if any(plain(piece) == wanted for piece in pieces):
+        return 2
+    return 1 if wanted in plain(item["text"]) else 0
+
+
+def pick_suggestion(value: str, items: list[dict], where: str) -> int:
+    levels = [match_level(value, item) for item in items]
+    best = max(levels, default=0)
+    listed = ", ".join(f'"{item["text"]}"' for item in items[:MAX_SUGGESTIONS]) + (f" (and {len(items) - MAX_SUGGESTIONS} more)" if len(items) > MAX_SUGGESTIONS else "")
+    if best == 0:
+        if not items:
+            raise BrowseError(f'No suggestions appeared in {where} for "{value}"', data={"suggestions": []}, code="no_match")
+        raise BrowseError(f'None of the suggestions in {where} match "{value}": {listed}', data={"suggestions": [item["text"] for item in items]}, code="no_match")
+    top = [index for index, level in enumerate(levels) if level == best]
+    if len(top) > 1:
+        names = ", ".join(f'"{items[index]["text"]}"' for index in top[:MAX_SUGGESTIONS])
+        raise BrowseError(
+            f'"{value}" matches {len(top)} suggestions in {where}: {names}. Give the full text or the email to pick one',
+            data={"suggestions": [items[index]["text"] for index in top]}, code="ambiguous",
+        )
+    return top[0]
+
+
+def unique_match(value: str, items: list[dict]) -> bool:
+    try:
+        pick_suggestion(value, items, "")
+    except BrowseError:
+        return False
+    return True
+
+
+async def combo_kind(page, element) -> str | None:
+    return await page.call("(el) => ardiaBrowse.comboKind(el)", element, frame=element.frame, read=True)
+
+
+async def suggestions_now(page, element):
+    remote = await page.call("(el) => ardiaBrowse.suggestions(el)", element, frame=element.frame, by_value=False, read=True)
+    items = await page.call("() => globalThis.ardiaBrowseSuggestions || []", frame=element.frame, read=True)
+    options = await page.elements_from(remote, element.frame, "suggestion", 200)
+    return options, items[: len(options)]
+
+
+async def suggestion_signature(page, element) -> tuple:
+    return tuple(item["text"] for item in (await suggestions_now(page, element))[1])
+
+
+def suggestions_ready(items: list[dict], value: str | None, steady: float, fresh: bool) -> bool:
+    if not items or steady < SUGGESTION_SETTLE:
+        return False
+    if not fresh:
+        return steady >= SUGGESTION_STALE
+    return value is None or any(match_level(value, item) for item in items) or steady >= SUGGESTION_SETTLE * 3
+
+
+async def settled_suggestions(page, element, value: str | None, timeout: float, stale: tuple = ()):
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    deadline = started + timeout
+    last = None
+    since = started
+    while True:
+        options, items = await suggestions_now(page, element)
+        now = loop.time()
+        signature = tuple(item["text"] for item in items)
+        if signature != last:
+            last, since = signature, now
+        if suggestions_ready(items, value, now - since, not stale or signature != stale) or now >= deadline:
+            return options, items
+        await asyncio.sleep(0.1)
+
+
+async def choose(page, element, values: list[str], humanize: bool, where: str, timeout: float = SUGGESTION_TIMEOUT) -> list[dict]:
+    kind = await combo_kind(page, element)
+    if kind is None:
+        raise BrowseError(f"{element.label} isn't a <select> or a combobox, so there's nothing to pick from; use fill or click", code="not_selectable")
+    picked = []
+    for value in values:
+        if kind == "datalist":
+            known = await page.call("(el) => ardiaBrowse.datalistValues(el)", element, frame=element.frame, read=True)
+            index = pick_suggestion(value, [{"text": item, "pieces": []} for item in known], where)
+            await fill(page, element, known[index], humanize)
+            picked.append({"value": value, "picked": known[index]})
+            continue
+        stale = await suggestion_signature(page, element)
+        if kind == "typeahead":
+            await fill(page, element, value, humanize)
+        else:
+            expanded = await page.call("(el) => el.getAttribute('aria-expanded') === 'true'", element, frame=element.frame, read=True)
+            stale = () if not expanded else stale
+            if not expanded:
+                await click(page, element, humanize)
+        options, items = await settled_suggestions(page, element, value, timeout, stale)
+        index = pick_suggestion(value, items, where)
+        option = options[index]
+        option.label = f'the suggestion "{items[index]["text"]}"'
+        await click(page, option, humanize)
+        picked.append({"value": value, "picked": items[index]["text"]})
+    return picked
 
 
 class DragInterception:

@@ -177,6 +177,7 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
         raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
     target_id = result["targetId"]
     state.opened.add(target_id)
+    state.registry.note_opened(state.instance, target_id)
     state.target_infos.setdefault(target_id, {"targetId": target_id, "url": "about:blank", "title": "", "type": "page"})
     state.tab_id(target_id)
     if label:
@@ -203,11 +204,21 @@ async def show_tab(ctx: Ctx, page):
         if loop.time() >= nudge:
             await ctx.state.browser.send("Target.activateTarget", {"targetId": page.target_id})
             nudge = loop.time() + 1
-        if not await page.hidden():
+        if not await page.hidden() and await tab_shown(ctx.state, page) is not False:
             return
         if loop.time() >= deadline:
             raise BrowseError("Ardia didn't show the tab; switch to it in Ardia, or try `ardia browse tab <id> --show` again")
         await asyncio.sleep(0.1)
+
+
+async def tab_shown(state, page) -> bool | None:
+    try:
+        infos = (await state.browser.send("Target.getTargets", {"filter": [{"type": "tab"}]})).get("targetInfos") or []
+    except BrowseError:
+        return None
+    await page.refresh_frames()
+    same = [info for info in infos if info.get("type") == "tab" and info.get("url") == page.url and isinstance(info.get("embedderData"), dict)]
+    return bool(same[0]["embedderData"].get("tabActive")) if len(same) == 1 else None
 
 
 async def apply_open_options(ctx: Ctx, page):
@@ -424,8 +435,8 @@ async def cmd_hover(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "hover <selector>")
     page, element = await resolve(ctx, args[0])
-    await actions.hover(page, element, ctx.humanize and not options.get("no_humanize"))
-    return Result({"hovered": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.hover(page, element, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"hovered": args[0]}), report)
 
 
 @command("focus")
@@ -433,8 +444,8 @@ async def cmd_focus(ctx: Ctx, argv):
     _, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "focus <selector>")
     page, element = await resolve(ctx, args[0])
-    await page.focus_element(element)
-    return Result({"focused": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: page.focus_element(element))
+    return changes.attach(Result({"focused": args[0]}), report)
 
 
 @command("fill")
@@ -443,8 +454,23 @@ async def cmd_fill(ctx: Ctx, argv):
     need(args, 2, "fill <selector> <text>")
     page, element = await resolve(ctx, args[0])
     text = " ".join(args[1:])
-    (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, ctx.humanize and not options.get("no_humanize")))
-    return changes.attach(filled_result("filled", args[0], retargeted, text, stored), report)
+    humanize = ctx.humanize and not options.get("no_humanize")
+    typeahead = await actions.combo_kind(page, element) == "typeahead"
+
+    async def run():
+        stale = await actions.suggestion_signature(page, element) if typeahead and text else ()
+        filled = await actions.fill(page, element, text, humanize)
+        found = (await actions.settled_suggestions(page, element, None, actions.SUGGESTION_HINT_WAIT, stale))[1] if typeahead and text else []
+        return filled, found
+
+    ((retargeted, stored), found), report = await changes.observe(ctx, page, run)
+    result = filled_result("filled", args[0], retargeted, text, stored)
+    if found:
+        result.data["suggestions"] = [item["text"] for item in found]
+        best = text if actions.unique_match(text, found) else found[0]["text"]
+        result.text += (f"\n→ {len(found)} suggestion{'s' if len(found) != 1 else ''} showing, none picked. "
+                        f"To pick one: ardia browse select {args[0]} {shlex.quote(best)}")
+    return changes.attach(result, report)
 
 
 def filled_result(key: str, selector: str, retargeted: bool, text: str, stored: str | None) -> Result:
@@ -529,11 +555,26 @@ async def cmd_check(ctx: Ctx, argv):
 
 @command("select")
 async def cmd_select(ctx: Ctx, argv):
-    _, args = parse(argv, {"--no-humanize": "bool"})
+    options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "select <selector> <value...>")
     page, element = await resolve(ctx, args[0])
-    _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, args[1:]))
-    return changes.attach(Result({"selected": args[1:]}), report)
+    return await select_in(ctx, page, element, args[0], args[1:], ctx.humanize and not options.get("no_humanize"))
+
+
+async def select_in(ctx: Ctx, page, element, selector: str, values: list[str], humanize: bool) -> Result:
+    if await actions.combo_kind(page, element) == "select":
+        _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, values))
+        return changes.attach(Result({"selected": values}), report)
+    where = await field_name(page, element, selector)
+    picked, report = await changes.observe(ctx, page, lambda: actions.choose(page, element, values, humanize, where))
+    text = "\n".join(f'✓ Picked "{item["picked"]}"' + (f' for "{item["value"]}"' if plain(item["picked"]) != plain(item["value"]) else "") for item in picked)
+    return changes.attach(Result({"selected": values, "picked": [item["picked"] for item in picked]}, text), report)
+
+
+async def field_name(page, element, selector: str) -> str:
+    names = await page.call("(el) => ardiaBrowse.labelText(el).concat([el.getAttribute('placeholder') || ''])", element, frame=element.frame, read=True)
+    name = next((" ".join(str(item).split()) for item in names or [] if str(item).strip()), "")
+    return f'"{name}" ({selector})' if name else selector
 
 
 @command("drag")
@@ -571,11 +612,15 @@ async def cmd_upload(ctx: Ctx, argv):
         if not os.path.isfile(item):
             raise BrowseError(f"No such file: {item}")
     page, element = await resolve(ctx, args[0])
-    try:
-        await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
-    except Gated:
-        raise Gated("DOM.setFileInputFiles", "upload") from None
-    return Result({"uploaded": files})
+
+    async def run():
+        try:
+            await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
+        except Gated:
+            raise Gated("DOM.setFileInputFiles", "upload") from None
+
+    _, report = await changes.observe(ctx, page, run)
+    return changes.attach(Result({"uploaded": files}), report)
 
 
 @command("scroll")
@@ -587,8 +632,8 @@ async def cmd_scroll(ctx: Ctx, argv):
     element = None
     if options.get("selector"):
         page, element = await resolve(ctx, options["selector"])
-    await actions.scroll(page, direction, amount, ctx.humanize and not options.get("no_humanize"), element)
-    return Result({"scrolled": True})
+    _, report = await changes.observe(ctx, page, lambda: actions.scroll(page, direction, amount, ctx.humanize and not options.get("no_humanize"), element))
+    return changes.attach(Result({"scrolled": True}), report)
 
 
 @command("scrollintoview")
@@ -831,26 +876,41 @@ async def cmd_is(ctx: Ctx, argv):
 
 
 FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
+FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
+MAX_CANDIDATES = 8
+
+
+def find_arguments(args: list[str], name: str | None) -> tuple[str, list[str], str | None]:
+    locator, args = args[0], list(args[1:])
+    if "=" in locator and locator.split("=", 1)[0] in FIND_LOCATORS:
+        locator, first = locator.split("=", 1)
+        args.insert(0, first)
+    if locator == "role" and args and args[0] in FIND_ACTIONS and len(args) > 1 and args[1] not in FIND_ACTIONS:
+        args[0], args[1] = args[1], args[0]
+    if locator == "role" and name is None and len(args) >= 2 and args[1] not in FIND_ACTIONS:
+        name = args.pop(1)
+    return locator, args, name
 
 
 @command("find")
 async def cmd_find(ctx: Ctx, argv):
     options, args = parse(argv, {"--name": "value", "--exact": "bool", "--no-humanize": "bool"})
-    need(args, 2, "find <locator> <value> [action] [text]")
-    locator = args[0]
+    need(args, 1, "find <locator> <value> [action] [text]")
+    locator, args, wanted_name = find_arguments(args, options.get("name"))
+    need(args, 1, "find <locator> <value> [action] [text]")
     page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
     exact = bool(options.get("exact"))
     if locator == "nth":
-        need(args, 3, "find nth <index> <selector> [action] [text]")
-        index, value, rest = int(args[1]), args[2], args[3:]
+        need(args, 2, "find nth <index> <selector> [action] [text]")
+        index, value, rest = int(args[0]), args[1], args[2:]
     else:
-        value, rest = args[1], args[2:]
+        value, rest = args[0], args[1:]
     element = None
     role = ""
     name = ""
     if locator == "role":
-        element, role, name = await find_role(page, frame, value, options.get("name"), exact)
+        element, role, name = await find_role(ctx, page, frame, value, wanted_name, exact)
     elif locator == "text":
         element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findText(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"text={value}")
     elif locator == "label":
@@ -890,37 +950,68 @@ async def cmd_find(ctx: Ctx, argv):
         _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, action == "check", humanize))
         return changes.attach(Result({action + "ed": f"@{ref}"}), report)
     if action == "select":
-        _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, rest[1:]))
-        return changes.attach(Result({"selected": rest[1:]}), report)
+        return await select_in(ctx, page, element, f"@{ref}", rest[1:], humanize)
     if action == "hover":
-        await actions.hover(page, element, humanize)
-        return Result({"hovered": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.hover(page, element, humanize))
+        return changes.attach(Result({"hovered": f"@{ref}"}), report)
     if action == "focus":
-        await page.focus_element(element)
-        return Result({"focused": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: page.focus_element(element))
+        return changes.attach(Result({"focused": f"@{ref}"}), report)
     text = await page.call("(el) => (el.innerText != null ? el.innerText : el.textContent || '').trim()", element, frame=element.frame)
     return Result({"ref": f"@{ref}", "text": text}, text, page_content=True)
 
 
-async def find_role(page, frame, role, name, exact):
-    tree = await page.send("Accessibility.getFullAXTree", {"frameId": frame}, timeout=60)
-    wanted = role.lower()
-    for node in tree.get("nodes") or []:
-        if node.get("ignored"):
+def plain(text: str) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def role_candidates(nodes: list, role: str, name: str | None, exact: bool) -> tuple[list, str]:
+    wanted = snapshot.ROLE_NAMES.get(role, role).lower()
+    of_role = []
+    for node in nodes:
+        if node.get("ignored") or node.get("backendDOMNodeId") is None:
             continue
         node_role = str((node.get("role") or {}).get("value") or "")
-        if node_role.lower() != wanted or node.get("backendDOMNodeId") is None:
-            continue
-        node_name = str((node.get("name") or {}).get("value") or "").strip()
-        if name is not None:
-            if exact and node_name != name:
-                continue
-            if not exact and name.lower() not in node_name.lower():
-                continue
+        if snapshot.ROLE_NAMES.get(node_role, node_role).lower() == wanted:
+            of_role.append((node, " ".join(str((node.get("name") or {}).get("value") or "").split())))
+    if name is None:
+        return of_role, "role"
+    target = plain(name)
+    same = [item for item in of_role if (item[1] == " ".join(name.split()) if exact else plain(item[1]) == target)]
+    if same or exact:
+        return same, "exact"
+    return [item for item in of_role if target in plain(item[1])], "partial"
+
+
+async def find_role(ctx, page, frame, role, name, exact):
+    tree = await page.send("Accessibility.getFullAXTree", {"frameId": frame}, timeout=60)
+    nodes = tree.get("nodes") or []
+    found, how = role_candidates(nodes, role, name, exact)
+    shown = snapshot.ROLE_NAMES.get(role, role)
+    resolved = []
+    for node, node_name in found[:MAX_CANDIDATES + 1]:
         element = await page.resolve_backend(node["backendDOMNodeId"], frame, f"role={role}")
         if element is not None:
-            return element, node_role, node_name
-    return None, role, name or ""
+            resolved.append((element, node_name))
+    if len(resolved) == 1 or (resolved and name is None):
+        element, node_name = resolved[0]
+        return element, shown, node_name
+    if not resolved:
+        close = list(dict.fromkeys(node_name for _, node_name in role_candidates(nodes, role, None, False)[0] if node_name))[:MAX_CANDIDATES]
+        named = f' named "{name}"' if name is not None else ""
+        hint = f"; the {shown}s here are: " + ", ".join(f'"{text}"' for text in close) if close and name is not None else ""
+        raise BrowseError(f"No {shown}{named} on this page{hint}", data={"candidates": close}, code="not_found")
+    listed = []
+    for element, node_name in resolved[:MAX_CANDIDATES]:
+        listed.append({"ref": "@" + ctx.state.add_ref(page, element, shown, node_name), "name": node_name})
+    more = f" (and {len(found) - MAX_CANDIDATES} more)" if len(found) > MAX_CANDIDATES else ""
+    kind = "are named exactly" if how == "exact" else "have names containing"
+    fix = "Use one of their refs" if how == "exact" else "Use a ref, or the full name"
+    lines = "\n".join(f'  {shown} "{item["name"]}" [ref={item["ref"][1:]}]' for item in listed)
+    raise BrowseError(
+        f'{len(found)} {shown}s {kind} "{name}"{more}, so nothing was clicked. {fix}:\n{lines}',
+        data={"candidates": listed}, code="ambiguous",
+    )
 
 
 @command("tab")
@@ -930,20 +1021,24 @@ async def cmd_tab(ctx: Ctx, argv):
     await state.connect()
     action = args[0] if args else "list"
     if action == "list":
+        from ardia_cli.browse import tabs as tab_registry
+
         await state.refresh_targets()
-        tabs = state.describe_tabs()
-        lines = [f"{'→' if tab['active'] else ' '} [{tab['tabId']}] {tab['title'] or tab['url']} - {tab['url']}" for tab in tabs]
-        return Result({"tabs": tabs}, "\n".join(lines) or "No tabs")
+        tabs = state.describe_tabs(await tab_registry.app_tab_map(state))
+        return Result({"tabs": tabs}, "\n".join(tab_line(tab, state.session) for tab in tabs) or "No tabs")
     if action == "new":
         page = await new_tab(ctx, args[1] if len(args) > 1 else None, options.get("label"), show=wants_show(ctx, options))
         return Result({"tabId": state.tab_id(page.target_id), "targetId": page.target_id, "url": page.url}, page.url or "about:blank")
     if action == "close":
         await state.refresh_targets()
-        target_id = state.find_tab(args[1]) if len(args) > 1 else state.current
+        target_id = await state.find_tab(args[1]) if len(args) > 1 else state.current
         if target_id is None:
             raise BrowseError("This session has no current tab to close")
         if target_id not in state.opened:
             raise BrowseError(f"Tab [{state.tab_id(target_id)}] is one of the user's tabs; ardia browse only closes tabs this session opened")
+        users = state.registry.others(state.instance)[1].get(target_id)
+        if users:
+            raise BrowseError(f"Tab [{state.tab_id(target_id)}] is in use by session {', '.join(users)}, so it stays open", code="tab_in_use")
         tab = state.tab_id(target_id)
         await state.browser.send("Target.closeTarget", {"targetId": target_id})
         state.forget_target(target_id)
@@ -954,7 +1049,7 @@ async def cmd_tab(ctx: Ctx, argv):
             raise BrowseError("The user isn't on a web page right now (New Tab or another Ardia view)")
         action = target_id
     await state.refresh_targets()
-    target_id = state.find_tab(action)
+    target_id = await state.find_tab(action)
     state.current = target_id
     state.extras.pop("attached", None)
     if state.pin_tab:
@@ -963,7 +1058,23 @@ async def cmd_tab(ctx: Ctx, argv):
     if wants_show(ctx, options):
         await show_tab(ctx, page)
     title = await page_title(page)
-    return Result({"tabId": state.tab_id(target_id), "targetId": target_id, "title": title, "url": page.url}, f"✓ {title}\n  {page.url}")
+    from ardia_cli.browse import tabs as tab_registry
+
+    await tab_registry.app_tab_map(state)
+    data = {"tabId": state.tab_id(target_id), "appTabId": state.app_tabs.get(target_id), "targetId": target_id, "title": title, "url": page.url}
+    return Result(data, f"✓ {title}\n  {page.url}")
+
+
+def tab_line(tab: dict, session: str) -> str:
+    notes = []
+    if tab.get("openedBy"):
+        notes.append("opened by this session" if tab["openedBySession"] else f"opened by session {tab['openedBy']}")
+    users = [user for user in tab.get("usedBy") or [] if user != tab.get("openedBy")]
+    if users:
+        notes.append(f"in use by session {', '.join(users)}")
+    app = f" {tab['appTabId']} " if tab.get("appTabId") else ""
+    extra = f" ({'; '.join(notes)})" if notes else ""
+    return f"{'→' if tab['active'] else ' '} [{tab['tabId']}]{app} {tab['title'] or tab['url']} - {tab['url']}{extra}"
 
 
 async def user_active_tab(state):

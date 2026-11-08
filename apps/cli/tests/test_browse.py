@@ -470,6 +470,114 @@ class ClaimsTest(unittest.TestCase):
         self.assertEqual([n for n in os.listdir(root / "Browse" / "claims") if n.endswith(".json") and not n.startswith(".")], [])
 
 
+class TabIdsTest(unittest.TestCase):
+    def registries(self):
+        from ardia_cli.browse.tabs import Registry
+
+        fd = paths.browse_dir(scratch_dir(self))
+        self.addCleanup(os.close, fd)
+        locks = [paths.take_lock(f"{key}.lock", fd) for key in ("ka", "kb")]
+        for lock in locks:
+            self.addCleanup(os.close, lock)
+        return fd, Registry(fd, "ka", "one"), Registry(fd, "kb", "two")
+
+    def test_every_session_numbers_a_tab_the_same_and_ids_never_shift(self):
+        _, one, two = self.registries()
+        self.assertEqual(one.numbers("I", ["A", "B"]), {"A": "t1", "B": "t2"})
+        self.assertEqual(two.numbers("I", ["C", "B"]), {"C": "t3", "B": "t2"})
+        self.assertEqual(one.numbers("I", ["C"], present=["A", "C"]), {"C": "t3"})
+        self.assertEqual(two.numbers("I", ["D", "A"]), {"D": "t4", "A": "t1"})
+        self.assertEqual(one.target_of("I", "t4"), "D")
+        self.assertIsNone(one.target_of("I", "t2"))
+        self.assertEqual(one.numbers("J", ["A"]), {"A": "t1"})
+        self.assertIsNone(one.target_of("J", "t4"))
+
+    def test_sessions_see_what_others_opened_and_use_until_they_end(self):
+        fd, one, two = self.registries()
+        one.note_opened("I", "A")
+        one.note_using("I", "A")
+        two.note_using("I", "A")
+        self.assertEqual(two.others("I"), ({"A": "one"}, {"A": ["one"]}))
+        self.assertEqual(one.others("I"), ({}, {"A": ["two"]}))
+        one.forget()
+        self.assertEqual(two.others("I"), ({}, {}))
+
+    def test_a_session_that_died_without_cleaning_up_is_ignored(self):
+        from ardia_cli.browse.tabs import Registry
+
+        fd, one, _ = self.registries()
+        ghost = Registry(fd, "gone", "ghost")
+        ghost.note_opened("I", "A")
+        ghost.note_using("I", "A")
+        self.assertEqual(one.others("I"), ({}, {}))
+
+    def state_with(self, registry, targets):
+        state = State({"session": registry.session}, lambda: None)
+        state.registry = registry
+        state.instance = "I"
+        state.target_infos = {target: {"targetId": target, "url": url, "title": target} for target, url in targets.items()}
+        return state
+
+    def test_app_tab_ids_pair_only_unique_addresses(self):
+        from ardia_cli.browse import tabs
+
+        rows = [{"id": "tab-a", "url": "http://a/"}, {"id": "tab-b", "url": "http://b/"}, {"id": "tab-b2", "url": "http://b/"}, {"id": "tab-c", "url": "http://c/"}]
+        infos = {"A": {"url": "http://a/"}, "B": {"url": "http://b/"}, "C1": {"url": "http://c/"}, "C2": {"url": "http://c/"}}
+        self.assertEqual(tabs.pair_by_url(rows, infos), {"A": "tab-a"})
+
+    def test_tab_accepts_the_app_tab_id_and_explains_asleep_and_duplicate_tabs(self):
+        from ardia_cli.browse import tabs
+
+        _, one, _ = self.registries()
+        state = self.state_with(one, {"A": "http://a/", "B1": "http://b/", "B2": "http://b/"})
+        windows = [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/"}, {"id": "tab-b", "url": "http://b/"}, {"id": "tab-s", "url": "http://s/"}]}]
+
+        async def fake_windows(state):
+            return windows
+
+        with mock.patch.object(tabs, "app_windows", fake_windows):
+            self.assertEqual(asyncio.run(state.find_tab("tab-a")), "A")
+            for ref, code in (("tab-s", "tab_asleep"), ("tab-b", "ambiguous_tab"), ("tab-zz", "tab_not_found")):
+                with self.assertRaises(BrowseError) as caught:
+                    asyncio.run(state.find_tab(ref))
+                self.assertEqual(caught.exception.code, code, ref)
+        self.assertEqual(asyncio.run(state.find_tab(state.tab_id("B2"))), "B2")
+
+    def test_a_session_follows_its_tab_when_ardia_replaces_the_page(self):
+        from ardia_cli.browse import tabs
+
+        _, one, _ = self.registries()
+        state = self.state_with(one, {"OLD": "http://a/"})
+        state.current = "OLD"
+        state.app_tabs["OLD"] = "tab-a"
+        state.extras["had_tab"] = True
+        state.forget_target("OLD")
+        state.target_infos = {"NEW": {"targetId": "NEW", "url": "http://a/", "title": "A"}}
+
+        async def refresh():
+            return list(state.target_infos.values())
+
+        async def fake_windows(state):
+            return [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/", "title": "A"}]}]
+
+        state.refresh_targets = refresh
+        with mock.patch.object(tabs, "app_windows", fake_windows):
+            self.assertEqual(asyncio.run(state.follow_lost_tab()), "NEW")
+        self.assertEqual(state.current, "NEW")
+        self.assertIn("follows it", state.extras["notice"])
+        state.forget_target("NEW")
+        state.target_infos = {}
+        with mock.patch.object(tabs, "app_windows", fake_windows), self.assertRaises(BrowseError) as caught:
+            asyncio.run(state.follow_lost_tab())
+        self.assertEqual(caught.exception.code, "tab_asleep")
+        state.app_tabs.clear()
+        state.extras["lost_tab"] = {"target": "X", "app": None, "tab": "t9"}
+        with self.assertRaises(BrowseError) as closed:
+            asyncio.run(state.follow_lost_tab())
+        self.assertEqual(closed.exception.code, "tab_gone")
+        self.assertIn("[t9] was closed", closed.exception.message)
+
+
 def ax(node_id, role, name="", parent=None, children=(), backend=None, value=None, props=None, ignored=False):
     node = {"nodeId": node_id, "role": {"value": role}, "name": {"value": name}, "childIds": list(children), "ignored": ignored}
     if parent:

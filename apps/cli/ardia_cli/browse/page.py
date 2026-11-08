@@ -291,8 +291,6 @@ class Page:
     async def takes_input(self) -> bool:
         if not await self.hidden():
             return True
-        if self.state.background_live is False:
-            return False
         loop = asyncio.get_running_loop()
         deadline = loop.time() + LIVE_WAIT
         while loop.time() < deadline:

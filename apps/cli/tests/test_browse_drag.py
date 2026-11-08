@@ -303,7 +303,7 @@ class BackgroundTabTest(unittest.TestCase):
         self.assertTrue(state.background_live)
         asyncio.run(page.require_visible())
 
-    def test_old_engine_refuses_with_the_exact_hint_and_stops_waiting(self):
+    def test_old_engine_refuses_with_the_exact_hint(self):
         page, state = self.make_page()
         with mock.patch("ardia_cli.browse.page.LIVE_WAIT", 0.15):
             with self.assertRaises(BrowseError) as caught:
@@ -313,13 +313,13 @@ class BackgroundTabTest(unittest.TestCase):
         self.assertIn("use: ardia browse tab t3 --show (or open <url> --show)", caught.exception.message)
         self.assertEqual(caught.exception.data["use"], "ardia browse tab t3 --show")
 
-        async def timed():
-            loop = asyncio.get_running_loop()
-            started = loop.time()
-            self.assertFalse(await page.takes_input())
-            return loop.time() - started
-
-        self.assertLess(asyncio.run(timed()), 0.05)
+    def test_one_tab_that_stayed_hidden_does_not_refuse_the_next_one_at_once(self):
+        page, state = self.make_page()
+        with mock.patch("ardia_cli.browse.page.LIVE_WAIT", 0.15):
+            self.assertFalse(asyncio.run(page.takes_input()))
+        later, _ = self.make_page(flips_after=2)
+        later.state = state
+        self.assertTrue(asyncio.run(later.takes_input()))
 
 
 if __name__ == "__main__":

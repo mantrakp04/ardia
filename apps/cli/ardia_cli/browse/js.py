@@ -211,6 +211,59 @@ LIBRARY = r"""
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return picked.map((o) => o.value);
     },
+    comboKind(el) {
+      if (el.tagName === "SELECT") return "select";
+      const role = (el.getAttribute("role") || "").toLowerCase();
+      const auto = (el.getAttribute("aria-autocomplete") || "").toLowerCase();
+      const editable = el.isContentEditable || ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") && !el.readOnly);
+      if (el.tagName === "INPUT" && el.list) return "datalist";
+      if (editable && (role === "combobox" || role === "searchbox" && auto || auto === "list" || auto === "both" || el.closest("[role=combobox]"))) return "typeahead";
+      if (role === "combobox" || (el.getAttribute("aria-haspopup") || "").toLowerCase() === "listbox") return "button";
+      return null;
+    },
+    popupsOf(el) {
+      const ids = [];
+      for (const node of [el, el.closest("[role=combobox]")]) {
+        if (!node) continue;
+        for (const key of ["aria-controls", "aria-owns"]) ids.push(...(node.getAttribute(key) || "").split(/\s+/).filter(Boolean));
+      }
+      const active = el.getAttribute("aria-activedescendant");
+      const roots = ids.map((id) => el.ownerDocument.getElementById(id)).filter(Boolean);
+      const activeNode = active && el.ownerDocument.getElementById(active);
+      if (activeNode) roots.push(activeNode.closest("[role=listbox]") || activeNode.parentElement);
+      return roots;
+    },
+    suggestions(el) {
+      const seen = new Set();
+      const out = [];
+      const add = (node) => {
+        if (seen.has(node) || !api.visible(node) || node.closest("select, datalist")) return;
+        if (node.getAttribute("aria-disabled") === "true") return;
+        seen.add(node);
+        out.push(node);
+      };
+      const roots = api.popupsOf(el);
+      for (const root of roots) {
+        if (root.getAttribute("role") === "option") add(root);
+        for (const node of root.querySelectorAll("[role=option]")) add(node);
+      }
+      if (!out.length && !roots.some((root) => api.visible(root))) {
+        for (const list of deep(document).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node))) {
+          for (const node of list.querySelectorAll("[role=option]")) add(node);
+        }
+      }
+      const texts = out.map((node) => ({
+        text: norm(node.getAttribute("aria-label") || node.innerText || node.textContent),
+        pieces: [node.getAttribute("aria-label"), node.getAttribute("data-value"), node.getAttribute("value"),
+          ...String(node.innerText || node.textContent || "").split(/\n|·|•|\||—| - /)].map(norm).filter(Boolean),
+        selected: node.getAttribute("aria-selected") === "true",
+      }));
+      Object.defineProperty(globalThis, "ardiaBrowseSuggestions", { value: texts, configurable: true, enumerable: false });
+      return out.slice(0, 200);
+    },
+    datalistValues(el) {
+      return el.list ? Array.from(el.list.options).map((o) => o.value) : [];
+    },
     storage(kind, op, key, value) {
       const store = kind === "session" ? sessionStorage : localStorage;
       if (op === "set") { store.setItem(key, value); return null; }

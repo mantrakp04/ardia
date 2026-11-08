@@ -11,7 +11,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from ardia_cli import notes
-from ardia_cli.browse import changes, commands, daemon, fields, paths, snapshot
+from ardia_cli.browse import actions, changes, commands, daemon, fields, paths, snapshot
 from ardia_cli.browse import cli as browse_cli
 from ardia_cli.browse.errors import BrowseError, Gated, Usage
 from ardia_cli.browse.state import State
@@ -179,7 +179,7 @@ class ChangesReport(unittest.TestCase):
         self.assertEqual(changes.render(changes.diff(after, after)), "changes: none")
 
     def test_many_removed_nodes_fold_into_one_line_and_returning_ones_into_another(self):
-        before = view([row(f"e{index}", f'button "B{index}"') for index in range(1, 9)])
+        before = view([row(f"e{index}", f'button "B{index}"', name=f"B{index}") for index in range(1, 9)])
         after = view([row("e20", 'textbox "Title"')])
         report = changes.diff(before, after)
         self.assertIn("- 8 removed: e1 e2 e3 e4 e5 e6 e7 e8", changes.render(report))
@@ -190,6 +190,69 @@ class ChangesReport(unittest.TestCase):
         self.assertIn("+ 1 back as last shown: e1", text)
         self.assertIn('+ button "B2"', text)
         self.assertNotIn('+ button "B1"', text)
+
+    def test_a_long_run_of_options_is_one_line_that_keeps_the_selected_one(self):
+        times = [f"{hour}:{minute} {half}" for half in ("AM", "PM") for hour in (12, 1, 2, 3) for minute in ("00", "30")]
+        select = row("e7", 'combobox "Start time" [expanded=false, ref=e7]: 9:00 AM', role="combobox", name="Start time")
+        options = [row(f"e{8 + index}", f'option "{label}"', level=1, role="option", name=label, attrs=["selected"] if label == "2:30 AM" else [])
+                   for index, label in enumerate(times)]
+        save = row("e30", 'button "Save meeting"', name="Save meeting")
+        report = changes.diff(view([]), view([select, *options, save]))
+        self.assertEqual(changes.render(report), "\n".join([
+            "changes:",
+            '+ combobox "Start time" [expanded=false, ref=e7]: 9:00 AM',
+            '+   16 options in combobox "Start time" (12:00 AM … 3:30 PM; e8…e23)',
+            '+   option "2:30 AM"',
+            '+ button "Save meeting"',
+            changes.RUN_HINT,
+        ]))
+        self.assertEqual(len(changes.as_data(report)["added"]), 18)
+
+    def test_options_rerendered_under_an_existing_picker_name_it(self):
+        select = row("e7", 'combobox "Start time"', role="combobox", name="Start time")
+        before = view([select] + [row(f"e{index}", f'option "{index}"', level=1, role="option", name=str(index)) for index in range(8, 14)])
+        after = view([select] + [row(f"e{index}", f'option "{index}"', level=1, role="option", name=str(index)) for index in range(20, 26)])
+        text = changes.render(changes.diff(before, after))
+        self.assertIn('+ 6 options in combobox "Start time" (20 … 25; e20…e25)', text)
+        self.assertIn("- 6 removed: e8 e9 e10 e11 e12 e13", text)
+
+    def test_short_runs_and_mixed_roles_stay_verbatim(self):
+        rows = [row(f"e{index}", f'link "L{index}"', role="link", name=f"L{index}") for index in range(1, 6)]
+        rows.insert(2, row("e9", 'button "Buy"', name="Buy"))
+        text = changes.render(changes.diff(view([]), view(rows)))
+        self.assertEqual(text.splitlines()[1:], [f"+ {item['line']}" for item in rows])
+
+    def test_a_run_of_links_with_children_folds_them_and_counts_disabled(self):
+        rows = []
+        for index in range(1, 13):
+            rows.append(row(f"e{index * 2}", f'button "Seat {index}A"', name=f"Seat {index}A", attrs=["disabled"] if index % 2 else []))
+            rows.append(row(f"e{index * 2 + 1}", f'heading "Row {index}"', level=1, role="heading", name=f"Row {index}"))
+        text = changes.render(changes.diff(view([]), view(rows)))
+        self.assertEqual(text.splitlines()[1:3], ["+ 12 buttons (Seat 1A … Seat 12A; e2…e24; 6 disabled)", changes.RUN_HINT])
+        eleven = changes.render(changes.diff(view([]), view(rows[:22])))
+        self.assertIn('+ button "Seat 11A"', eleven)
+
+    def test_changed_runs_fold_too(self):
+        before = view([row(f"e{index}", f'option "R{index}"', role="option", name=f"R{index}", attrs=[]) for index in range(1, 8)])
+        after = view([row(f"e{index}", f'option "R{index}" Busy', role="option", name=f"R{index} Busy",
+                          attrs=["selected" if index == 3 else ""][:1 if index == 3 else 0]) for index in range(1, 8)])
+        text = changes.render(changes.diff(before, after))
+        self.assertIn("~ 7 options changed (R1 Busy … R7 Busy; e1…e7)", text)
+        self.assertIn('~ option "R3" Busy (was named \'R3\')', text)
+
+    def test_nodes_redrawn_as_they_were_are_one_line_with_their_new_refs(self):
+        chips = [row(f"e{index}", f'button "Remove {name}"', name=f"Remove {name}") for index, name in enumerate(["Ana", "Bo", "Cy"], 1)]
+        before = view(chips)
+        after = view([row(f"e{index + 10}", item["line"], name=item["name"]) for index, item in enumerate(chips, 1)]
+                     + [row("e14", 'button "Remove Di"', name="Remove Di")])
+        report = changes.diff(before, after)
+        self.assertEqual(changes.render(report), "\n".join([
+            "changes:",
+            '+ button "Remove Di"',
+            "+ 3 redrawn as they were, with new refs: e11…e13",
+        ]))
+        self.assertEqual(changes.as_data(report)["rerendered"], [{"ref": "e11", "was": "e1"}, {"ref": "e12", "was": "e2"}, {"ref": "e13", "was": "e3"}])
+        self.assertEqual(len(changes.as_data(report)["removed"]), 3)
 
     def test_a_new_document_lists_what_it_has(self):
         report = changes.diff(view([row("e1", "a")]), view([row("e5", "b")], loader="L2", url="http://y/"))
@@ -576,6 +639,121 @@ class SiteNotes(unittest.TestCase):
         with self.assertRaises(BrowseError) as caught:
             notes.run_request(scratch(self), notes.Request("get", None), "about:blank")
         self.assertEqual(caught.exception.code, "bad_site")
+
+
+class SummaryAndScopes(unittest.TestCase):
+    def test_a_summary_toggle_is_a_button_with_a_ref(self):
+        tree = [ax("1", "RootWebArea", "D", children=["2"]), ax("2", "DisclosureTriangle", "Main fare rules", parent="1", backend=2, props={"expanded": False})]
+        nodes = numbered(snapshot.build_tree(tree))
+        self.assertEqual(snapshot.render(nodes, interactive=True), '- button "Main fare rules" [expanded=false, ref=e2]')
+
+    def test_a_selector_scopes_to_every_match_with_something_in_the_tree(self):
+        tree = [
+            ax("1", "RootWebArea", "D", children=["2", "3"]),
+            ax("2", "dialog", "Cookies", parent="1", backend=2, ignored=True),
+            ax("3", "dialog", "Trigger", parent="1", backend=3, children=["4"]),
+            ax("4", "button", "When a webhook fires", parent="3", backend=4),
+        ]
+
+        class Page:
+            async def send(self, method, params=None, **kwargs):
+                return {"nodes": tree}
+
+        nodes = numbered(run(snapshot.frame_nodes(Page(), "F", scopes=[2, 3, 4])))
+        self.assertEqual(snapshot.render(nodes), '- dialog "Trigger"\n  - button "When a webhook fires" [ref=e4]')
+
+
+def role_tree(*names, role="button"):
+    return [ax(str(index), role, name, backend=index) for index, name in enumerate(names, 1)]
+
+
+class FindRole(unittest.TestCase):
+    def test_every_order_an_agent_writes(self):
+        cases = {
+            ("role", "button", "click"): ("role", ["button", "click"], "Go"),
+            ("role", "click", "button"): ("role", ["button", "click"], "Go"),
+            ("role", "button"): ("role", ["button"], "Go"),
+        }
+        for args, wanted in cases.items():
+            self.assertEqual(commands.find_arguments(list(args), "Go"), wanted)
+        self.assertEqual(commands.find_arguments(["role", "button", "When a webhook fires", "click"], None),
+                         ("role", ["button", "click"], "When a webhook fires"))
+        self.assertEqual(commands.find_arguments(["role", "button", "Delete"], None), ("role", ["button"], "Delete"))
+        self.assertEqual(commands.find_arguments(["role", "textbox", "fill", "hello"], None), ("role", ["textbox", "fill", "hello"], None))
+        self.assertEqual(commands.find_arguments(["role=button", "click"], "Go"), ("role", ["button", "click"], "Go"))
+        options, positionals = commands.parse(["role", "button", "--name", "Go", "click", "--exact"], {"--name": "value", "--exact": "bool"})
+        self.assertEqual((options, positionals), ({"name": "Go", "exact": True}, ["role", "button", "click"]))
+
+    def test_the_exact_name_beats_a_longer_one_that_contains_it(self):
+        nodes = role_tree("Discord wake · When a webhook fires · Active", "When a webhook fires")
+        found, how = commands.role_candidates(nodes, "button", "when a webhook  fires", False)
+        self.assertEqual(([node["backendDOMNodeId"] for node, _ in found], how), ([2], "exact"))
+
+    def test_partial_matches_only_without_an_exact_one(self):
+        found, how = commands.role_candidates(role_tree("Save draft", "Close"), "button", "save", False)
+        self.assertEqual(([name for _, name in found], how), (["Save draft"], "partial"))
+        self.assertEqual(commands.role_candidates(role_tree("Save draft"), "button", "save", True)[0], [])
+
+    def test_summary_answers_to_button(self):
+        found, _ = commands.role_candidates(role_tree("Main fare rules", role="DisclosureTriangle"), "button", "Main fare rules", False)
+        self.assertEqual(len(found), 1)
+
+    def test_ambiguous_names_list_candidates_with_refs_and_click_nothing(self):
+        class Page:
+            async def send(self, method, params=None, **kwargs):
+                return {"nodes": role_tree("Delete", "Delete", "Delete all")}
+
+            async def resolve_backend(self, backend, frame, label):
+                return SimpleNamespace(backend_id=backend, frame=frame, label=label)
+
+        state = SimpleNamespace(add_ref=lambda page, element, role, name: f"e{element.backend_id}")
+        ctx = SimpleNamespace(state=state)
+        with self.assertRaises(BrowseError) as caught:
+            run(commands.find_role(ctx, Page(), "F", "button", "Delete", False))
+        self.assertEqual(caught.exception.code, "ambiguous")
+        self.assertIn('2 buttons are named exactly "Delete"', caught.exception.message)
+        self.assertIn('button "Delete" [ref=e1]', caught.exception.message)
+        self.assertEqual([item["ref"] for item in caught.exception.data["candidates"]], ["@e1", "@e2"])
+        with self.assertRaises(BrowseError) as missing:
+            run(commands.find_role(ctx, Page(), "F", "button", "Archive", False))
+        self.assertEqual(missing.exception.code, "not_found")
+        self.assertIn('"Delete all"', missing.exception.message)
+
+
+def suggestion(text, *pieces):
+    return {"text": text, "pieces": list(pieces) or [text]}
+
+
+class Suggestions(unittest.TestCase):
+    PEOPLE = [
+        suggestion("Priya Raman priya.raman@northwind.dev · Engineering Manager", "Priya Raman", "priya.raman@northwind.dev", "Engineering Manager"),
+        suggestion("Priyanka Rao priyanka.rao@northwind.dev · Software Engineer", "Priyanka Rao", "priyanka.rao@northwind.dev", "Software Engineer"),
+        suggestion("Invite lena.vogt@kontor.io Guest outside Northwind", "Invite lena.vogt@kontor.io", "Guest outside Northwind"),
+    ]
+
+    def test_exact_text_then_a_whole_piece_or_email_then_a_unique_substring(self):
+        pick = lambda value: actions.pick_suggestion(value, self.PEOPLE, "Guests")
+        self.assertEqual(pick("Priya Raman"), 0)
+        self.assertEqual(pick("PRIYANKA.RAO@northwind.dev"), 1)
+        self.assertEqual(pick("lena.vogt@kontor.io"), 2)
+        self.assertEqual(pick("Raman"), 0)
+        self.assertEqual(actions.pick_suggestion("Blue", [suggestion("Blue Grey"), suggestion("Blue")], "Colour"), 1)
+
+    def test_two_matches_or_none_are_errors_that_list_the_suggestions(self):
+        with self.assertRaises(BrowseError) as caught:
+            actions.pick_suggestion("Pri", self.PEOPLE, '"Guests"')
+        self.assertEqual(caught.exception.code, "ambiguous")
+        self.assertIn('"Pri" matches 2 suggestions in "Guests"', caught.exception.message)
+        with self.assertRaises(BrowseError) as none:
+            actions.pick_suggestion("Zed", self.PEOPLE, "Guests")
+        self.assertEqual(none.exception.code, "no_match")
+        self.assertIn("Priyanka Rao", none.exception.message)
+
+    def test_a_list_left_over_from_before_typing_is_not_trusted_early(self):
+        self.assertFalse(actions.suggestions_ready(self.PEOPLE, "Priya Raman", 0.5, fresh=False))
+        self.assertTrue(actions.suggestions_ready(self.PEOPLE, "Priya Raman", actions.SUGGESTION_STALE, fresh=False))
+        self.assertTrue(actions.suggestions_ready(self.PEOPLE, "Priya Raman", actions.SUGGESTION_SETTLE, fresh=True))
+        self.assertFalse(actions.suggestions_ready([], None, 5, fresh=True))
 
 
 if __name__ == "__main__":

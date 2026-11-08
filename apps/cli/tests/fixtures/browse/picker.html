@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fixture Picker</title>
+<style>
+  body { font: 14px system-ui; margin: 24px; }
+  label { display: block; margin-top: 8px; }
+  .options { list-style: none; margin: 0; padding: 0; border: 1px solid #ccc; width: 360px; }
+  .options li { padding: 4px; cursor: pointer; }
+  .options li[aria-selected=true] { background: #def; }
+  .chips { list-style: none; padding: 0; }
+  .popup { position: absolute; top: 40px; right: 40px; background: #fff; border: 1px solid #999; list-style: none; padding: 4px; }
+  #report { display: none; }
+</style>
+</head>
+<body>
+<h1>Picker</h1>
+<button id="edit" type="button">Edit meeting</button>
+<div id="editor"></div>
+<label for="guest-input">Guests</label>
+<input id="guest-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="guest-options" autocomplete="off" placeholder="Add guests">
+<ul id="guest-options" class="options" role="listbox" aria-label="Suggestions" hidden></ul>
+<ul id="guests" class="chips" aria-label="Guests"></ul>
+<label id="color-label">Colour</label>
+<button id="color" type="button" role="combobox" aria-labelledby="color-label" aria-expanded="false" aria-controls="color-options">Pick a colour</button>
+<label for="city">City</label>
+<input id="city" list="cities" autocomplete="off">
+<datalist id="cities"><option value="Berlin"><option value="Boston"><option value="Lisbon"></datalist>
+<button id="results" type="button">Show results</button>
+<nav id="links" aria-label="Results"></nav>
+<pre id="report"></pre>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const PEOPLE = [
+    { name: "Priya Raman", email: "priya.raman@northwind.dev", title: "Engineering Manager" },
+    { name: "Priyanka Rao", email: "priyanka.rao@northwind.dev", title: "Software Engineer" },
+    { name: "Alex Morgan", email: "alex.morgan@northwind.dev", title: "Software Engineer" },
+    { name: "Alexis Moreau", email: "alexis.moreau@northwind.dev", title: "Designer" },
+    { name: "Hana Kim", email: "hana.kim@northwind.dev", title: "Product Manager" },
+  ];
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const state = { guests: [], suggestions: [], active: -1, seq: 0 };
+  const report = () => { $("report").textContent = JSON.stringify({ guests: state.guests.map((g) => g.email), color: $("color").dataset.value || null, city: $("city").value }); };
+  const input = $("guest-input");
+  const options = $("guest-options");
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+      if (key === "text") node.textContent = value;
+      else if (key.startsWith("on")) node[key] = value;
+      else node.setAttribute(key, value);
+    }
+    node.append(...children.filter(Boolean));
+    return node;
+  }
+  function close() { options.hidden = true; input.setAttribute("aria-expanded", "false"); state.active = -1; }
+  function render() {
+    options.replaceChildren(...state.suggestions.map((s, i) => el("li", { id: `opt-${i}`, role: "option", "aria-selected": String(i === state.active),
+      onmousedown: (event) => { event.preventDefault(); add(s); } },
+      el("div", { text: s.external ? `Invite ${s.email}` : s.name }), el("div", { text: s.external ? "Guest outside Northwind" : `${s.email} · ${s.title}` }))));
+    options.hidden = !state.suggestions.length;
+    input.setAttribute("aria-expanded", String(!options.hidden));
+  }
+  function renderChips() {
+    $("guests").replaceChildren(...state.guests.map((g, i) => el("li", {}, g.name || g.email,
+      el("button", { type: "button", "aria-label": `Remove ${g.name || g.email}`, text: "×", onclick: () => { state.guests.splice(i, 1); renderChips(); } }))));
+    report();
+  }
+  function add(s) {
+    if (!state.guests.some((g) => g.email === s.email)) state.guests.push(s);
+    input.value = "";
+    state.suggestions = [];
+    close();
+    renderChips();
+    input.focus();
+  }
+  function search() {
+    const q = input.value.trim().toLowerCase();
+    const seq = ++state.seq;
+    if (!q) { state.suggestions = []; close(); return; }
+    setTimeout(() => {
+      if (seq !== state.seq) return;
+      const taken = new Set(state.guests.map((g) => g.email));
+      const list = PEOPLE.filter((p) => !taken.has(p.email) && (p.name.toLowerCase().includes(q) || p.email.includes(q)));
+      if (EMAIL.test(q) && !PEOPLE.some((p) => p.email === q)) list.push({ email: q, external: true });
+      state.suggestions = list;
+      state.active = list.length ? 0 : -1;
+      render();
+    }, 250);
+  }
+  let timer = 0;
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 150); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); if (state.active >= 0 && !options.hidden) add(state.suggestions[state.active]); }
+  });
+  input.addEventListener("blur", () => setTimeout(close, 100));
+  function clock(minutes) {
+    const h = Math.floor(minutes / 60), m = minutes % 60;
+    return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  }
+  $("edit").onclick = () => {
+    const start = el("select", { id: "start", "aria-label": "Start time" });
+    for (let t = 0; t < 24 * 60; t += 30) start.append(el("option", { value: String(t), text: clock(t) }));
+    start.value = String(9 * 60);
+    $("editor").replaceChildren(el("label", { for: "start", text: "Start time" }), start, el("button", { type: "button", text: "Save meeting" }));
+  };
+  const COLORS = ["Red", "Green", "Blue", "Blue Grey"];
+  $("color").onclick = () => {
+    const open = document.getElementById("color-options");
+    if (open) { open.remove(); $("color").setAttribute("aria-expanded", "false"); return; }
+    const list = el("ul", { id: "color-options", role: "listbox", class: "popup", "aria-label": "Colours" },
+      ...COLORS.map((name) => el("li", { role: "option", text: name, onclick: () => { $("color").dataset.value = name; $("color").textContent = name; list.remove(); $("color").setAttribute("aria-expanded", "false"); report(); } })));
+    setTimeout(() => { document.body.append(list); $("color").setAttribute("aria-expanded", "true"); }, 120);
+  };
+  $("city").addEventListener("input", report);
+  $("results").onclick = () => {
+    $("links").replaceChildren(...Array.from({ length: 30 }, (_, i) => el("a", { href: `#item-${i + 1}`, text: `Result ${i + 1}` })));
+  };
+  report();
+</script>
+</body>
+</html>

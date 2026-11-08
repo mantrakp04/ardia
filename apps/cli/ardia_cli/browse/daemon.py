@@ -244,6 +244,10 @@ class Daemon:
             claims.release(self.dir_fd, self.key)
         except Exception:
             pass
+        try:
+            self.state.registry.forget()
+        except Exception:
+            pass
         os.close(self.lock_fd)
 
     async def _cleanup(self):
@@ -387,6 +391,7 @@ class Daemon:
         from ardia_cli.browse.commands import Result
 
         closed = 0
+        kept = []
         async with self.lock:
             if self.stopping:
                 return self.refuse_closing(ctx.options, "close")
@@ -395,8 +400,11 @@ class Daemon:
                 try:
                     await self.state.connect()
                     await self.state.refresh_targets()
+                    used = self.state.registry.others(self.state.instance)[1]
                     for target_id in list(self.state.opened):
-                        if target_id in self.state.target_infos:
+                        if target_id in self.state.target_infos and used.get(target_id):
+                            kept.append(f"[{self.state.tab_id(target_id)}], which session {', '.join(used[target_id])} uses")
+                        elif target_id in self.state.target_infos:
                             await self.state.browser.send("Target.closeTarget", {"targetId": target_id})
                             closed += 1
                         self.state.forget_target(target_id)
@@ -404,7 +412,9 @@ class Daemon:
                     pass
         self.stop.set()
         text = f"✓ Session {self.state.session} closed ({closed} tab{'s' if closed != 1 else ''} it opened)"
-        return render(ctx.options, result=Result({"closed": True, "tabs": closed}, text), name="close")
+        if kept:
+            text += f"; left open: {'; '.join(kept)}"
+        return render(ctx.options, result=Result({"closed": True, "tabs": closed, "keptOpen": kept}, text), name="close")
 
 
 def encode_answer(code: int, out: str, err: str, fields: dict | None = None) -> bytes:

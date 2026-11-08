@@ -455,6 +455,70 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("click", agree, session=session)
         self.assertEqual(self.browse("is", "checked", agree, session=session).stdout, "true\n")
 
+    def test_long_runs_in_a_change_report_are_one_line(self):
+        session = "runs"
+        self.browse("open", self.url("picker.html"), "--show", session=session)
+        edited = self.browse("click", "#edit", session=session).stdout
+        self.assertIn('+   48 options in combobox "Start time" (12:00 AM … 11:30 PM; ', edited)
+        self.assertRegex(edited, r'\+   option "9:00 AM" \[selected, ref=e\d+\]')
+        self.assertRegex(edited, r'\+ button "Save meeting" \[ref=e\d+\]')
+        self.assertNotIn('option "3:30 PM"', edited)
+        self.assertEqual(len(edited.splitlines()), 7, edited)
+        linked = self.browse("click", "#results", session=session).stdout
+        self.assertRegex(linked, r"\+ 30 links \(Result 1 … Result 30; e\d+…e\d+\)")
+        data = json.loads(self.browse("click", "#edit", "--json", session=session).stdout)["data"]["changes"]
+        self.assertGreaterEqual(len(data["rerendered"]), 48)
+        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout.count('option "'), 48)
+
+    def test_select_picks_from_a_typeahead_and_a_popup_combobox(self):
+        session = "typeahead"
+        self.browse("open", self.url("picker.html"), "--show", session=session)
+        filled = self.browse("fill", "#guest-input", "Priya R", session=session).stdout
+        self.assertIn("→ 1 suggestion showing, none picked. To pick one: ardia browse select #guest-input 'Priya R'", filled)
+        ambiguous = self.browse("select", "#guest-input", "Pri", "--json", session=session, check=False)
+        self.assertEqual(json.loads(ambiguous.stdout)["code"], "ambiguous")
+        picked = self.browse("select", "#guest-input", "Priya Raman", "alex.morgan@northwind.dev", "lena.vogt@kontor.io", session=session).stdout
+        self.assertTrue(picked.startswith('✓ Picked "Priya Raman priya.raman@northwind.dev · Engineering Manager" for "Priya Raman"\n'
+                                          '✓ Picked "Alex Morgan alex.morgan@northwind.dev · Software Engineer" for "alex.morgan@northwind.dev"\n'
+                                          '✓ Picked "Invite lena.vogt@kontor.io Guest outside Northwind" for "lena.vogt@kontor.io"\n'), picked)
+        self.assertRegex(picked, r'\+ button "Remove lena.vogt@kontor.io" \[ref=e\d+\]')
+        self.browse("select", "#color", "Blue", session=session)
+        self.browse("select", "#city", "lis", session=session)
+        state = self.report(session)
+        self.assertEqual(state, {"guests": ["priya.raman@northwind.dev", "alex.morgan@northwind.dev", "lena.vogt@kontor.io"], "color": "Blue", "city": "Lisbon"})
+        refused = self.browse("select", "#edit", "x", session=session, check=False)
+        self.assertIn("isn't a <select> or a combobox", refused.stderr)
+
+    def test_find_role_takes_the_name_the_snapshot_shows(self):
+        session = "find-role"
+        self.browse("open", self.url("disclosure.html"), "--show", session=session)
+        snap = self.browse("snapshot", "-i", session=session).stdout
+        self.assertRegex(snap, r'- button "Main fare rules" \[expanded=false, ref=e\d+\]')
+        toggled = self.browse("find", "role", "button", "Main fare rules", "click", session=session).stdout
+        self.assertIn('[expanded=true, ref=', toggled)
+        ambiguous = self.browse("find", "role", "button", "--name", "Delete", "click", session=session, check=False)
+        self.assertEqual(ambiguous.returncode, 1)
+        self.assertIn('2 buttons are named exactly "Delete", so nothing was clicked', ambiguous.stderr)
+        self.browse("find", "role", "button", "click", "--name", "Open trigger", session=session)
+        dialog = self.browse("snapshot", "-s", "[role=dialog]", session=session).stdout
+        self.assertTrue(dialog.startswith('- dialog "Trigger"\n  - button "When a webhook fires" [ref='), dialog)
+        self.browse("find", "role", "button", "--name", "when a webhook fires", "click", session=session)
+        missing = self.browse("find", "role", "button", "click", "--name", "Archive", session=session, check=False)
+        self.assertIn('No button named "Archive" on this page; the buttons here are:', missing.stderr)
+        self.assertEqual(self.report(session)["clicks"], ["Main fare rules", "open", "webhook"])
+
+    def test_sessions_share_tab_ids_and_close_keeps_a_tab_another_session_uses(self):
+        self.browse("open", self.url("login.html#shared"), session="opener")
+        opener = json.loads(self.browse("tab", "list", "--json", session="opener").stdout)["data"]["tabs"]
+        mine = next(tab for tab in opener if tab["openedBySession"])
+        other = json.loads(self.browse("tab", "list", "--json", session="watcher").stdout)["data"]["tabs"]
+        seen = next(tab for tab in other if tab["targetId"] == mine["targetId"])
+        self.assertEqual((seen["tabId"], seen["openedBy"]), (mine["tabId"], "opener"))
+        self.browse("tab", mine["tabId"], session="watcher")
+        closed = self.browse("close", session="opener").stdout
+        self.assertEqual(closed, f"✓ Session opener closed (0 tabs it opened); left open: [{mine['tabId']}], which session watcher uses\n")
+        self.assertEqual(self.browse("get", "url", session="watcher").stdout, self.url("login.html#shared") + "\n")
+
 
 
 SESSION_JS = (
@@ -605,6 +669,30 @@ class BrowseTokenPath(unittest.TestCase):
             self.assertIn("use: ardia browse tab", opened)
             self.assertEqual(clicked.returncode, 1)
             self.assertIn("--show (or open <url> --show)", clicked.stderr)
+
+    def test_a_background_tab_takes_clicks_and_typing_without_show(self):
+        self.browse("open", self.url("picker.html#behind"), "--show", session="token-behind-owner")
+        behind = json.loads(self.browse("tab", "list", "--json", session="token-behind-owner").stdout)["data"]["tabs"]
+        tab = next(item["tabId"] for item in behind if item["url"].endswith("#behind"))
+        self.browse("open", self.url("login.html#front"), "--show", session="token-front")
+        self.browse("tab", tab, session="token-behind")
+        clicked = self.browse("click", "#results", session="token-behind")
+        self.assertIn("+ 30 links (Result 1 … Result 30;", clicked.stdout)
+        self.assertNotIn("background tab", clicked.stderr)
+        self.browse("fill", "#city", "Lisbon", session="token-behind")
+        self.assertEqual(self.browse("get", "value", "#city", session="token-behind").stdout, "Lisbon\n")
+
+    def test_tab_takes_the_id_ardia_windows_prints(self):
+        self.browse("open", self.url("login.html#app-id"), session="token-app-opener")
+        windows = subprocess.run([sys.executable, "-m", "ardia_cli", "windows", "--json", "--data-dir", str(self.data)], capture_output=True, text=True,
+                                 timeout=60, env=dict(os.environ, PYTHONPATH=str(CLI)))
+        app_id = next(tab["id"] for window in json.loads(windows.stdout) for tab in window["tabs"] if tab["url"] == self.url("login.html#app-id"))
+        picked = self.browse("tab", app_id, "--json", session="token-app")
+        self.assertEqual(json.loads(picked.stdout)["data"]["appTabId"], app_id)
+        listed = self.browse("tab", "list", session="token-app").stdout
+        line = next(line for line in listed.splitlines() if "#app-id" in line)
+        self.assertIn(f"] {app_id}  Fixture Login - ", line)
+        self.assertIn("(opened by session token-app-opener)", line)
 
     def test_gated_commands_name_the_refused_method(self):
         session = "token-gated"
