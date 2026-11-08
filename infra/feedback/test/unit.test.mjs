@@ -151,6 +151,14 @@ test("scrubText removes emails, secrets, URL queries and home paths", () => {
     ["file:///Users/jane/a.html?x=1", "file:///Users/[user]/a.html"],
     ["Bearer short", "Bearer short"],
     ["the password field is broken", "the password field is broken"],
+    ["password=hunter2 then it failed", "password=[secret] then it failed"],
+    ["X-Api-Key: short-secret", "X-Api-Key: [secret]"],
+    ['Cookie: session="shortsecret"; other=anothersecret', "Cookie: [secret]"],
+    ["it sent Bearer abc123 and got 401", "it sent Bearer [secret] and got 401"],
+    ["OPENAI_API_KEY=abc123 python x.py", "OPENAI_API_KEY=[secret] python x.py"],
+    ["my sid=abc; done", "my sid=[secret]; done"],
+    ["curl -u me:pass https://x.com/a", "curl -u [secret] https://x.com/a"],
+    ["the session expired after auth, token refresh broke", "the session expired after auth, token refresh broke"],
   ];
   for (const [input, expected] of cases) assert.equal(scrubText(input), expected, input);
   const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\ndef\n-----END OPENSSH PRIVATE KEY-----";

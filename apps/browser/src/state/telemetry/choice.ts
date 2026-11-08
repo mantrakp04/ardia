@@ -141,6 +141,7 @@ export const isSharing = () => saved.sharing;
 
 let currentSession: string | null = null;
 export const sessionId = () => (currentSession ??= uuidv7());
+export const startNewSession = () => (currentSession = uuidv7());
 
 function readStateDoc(): SavedObject | null {
   const json = readDocument(STATE_DOC);

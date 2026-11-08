@@ -10,7 +10,7 @@ import { uuidv4, uuidv7 } from "./ids";
 import { parseSaved, versionedJson } from "../../lib/savedDocument";
 import { withDeadline } from "../../lib/deadline";
 import { isFields, isString } from "../../lib/decode";
-import { dismissAsk, isSharing, loadChoice, NO_WATCH, save, savedChoice as saved, sessionId, useTelemetry } from "./choice";
+import { dismissAsk, isSharing, loadChoice, NO_WATCH, save, savedChoice as saved, sessionId, startNewSession, useTelemetry } from "./choice";
 import { flushLocalNow, LOCAL_KEEP_DAYS, recordLocal } from "./localStore";
 
 const QUEUE_DOC = "telemetry-queue.json";
@@ -313,8 +313,10 @@ export function replaceInstallId(): string {
   generation++;
   for (const abort of inflight) abort.abort();
   inflight.clear();
-  if (current.sharing) save({ sharing: true, installId, context: null, ...NO_WATCH });
-  else save({ sharing: false, installId, context: null, ...NO_WATCH });
+  const session = startNewSession();
+  const keepsSharing = current.sharing && current.sharingUntil === null;
+  if (keepsSharing) save({ sharing: true, installId, sessionId: current.sessionId ? session : null, context: null, ...NO_WATCH });
+  else save({ sharing: false, installId, sessionId: current.sessionId ? session : null, context: null, ...NO_WATCH });
   clearQueue();
   return installId;
 }

@@ -121,7 +121,7 @@ AUTH_SCHEME = r"(?:bearer|basic|token|negotiate|ntlm|hoba|mutual|aws4-hmac-sha25
 DIGEST = re.compile(r"(?i)\bdigest(\s+)(?:[a-z][a-z0-9-]*\s*=\s*(?:" + QUOTED_VALUE + r"|[^,\s]+)(?:\s*,\s*)?)+")
 HEADER = re.compile(
     r"(?i)(?<![A-Za-z0-9-])((?:proxy-)?authorization|(?:set-)?cookie|x-[a-z0-9-]*(?:token|key|secret|auth|session|password)[a-z0-9-]*"
-    r"|api-key|private-token)([\"'`]?\s*:[ \t]*)((?:" + AUTH_SCHEME + r"[ \t]+)?(?:" + QUOTED_VALUE + r"|[^\r\n'\"`]+))"
+    r"|api-key|private-token)([\"'`]?\s*:[ \t]*)((?:" + AUTH_SCHEME + r"[ \t]+)?(?:" + QUOTED_VALUE + r"|(?:[^\r\n'\"`]|\"[^\"\r\n]*\")+))"
 )
 CREDENTIAL = r"(?=[A-Za-z0-9._~+/=-]*[0-9._~+/=-]|[A-Za-z]{20})[A-Za-z0-9._~+/=-]+"
 SCHEME_VALUE = re.compile(r"(?i)(?<![A-Za-z0-9])(bearer|basic)([ \t]+)(" + QUOTED_VALUE + r"|" + CREDENTIAL + r")")

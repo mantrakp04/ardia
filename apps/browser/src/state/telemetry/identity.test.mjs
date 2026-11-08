@@ -9,6 +9,7 @@ globalThis.fetch = async () => ({ status: 200 });
 const client = await import("./client.ts");
 const identity = await import("./identity.ts");
 const local = await import("./localStore.ts");
+const watch = await import("./watch.ts");
 const { anonymousIdentity } = await import("@ardia/core");
 
 const UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -70,6 +71,26 @@ test("Reset makes a new id, empties the queue and deletes the local copy", async
   assert.ok(events.every((e) => e.distinct_id === fresh));
   local.flushLocal();
   assert.ok(stub.telemetryLocal.records().every((r) => r.distinct_id !== old));
+});
+
+test("Reset starts a new session id, so events under the old and new ids share nothing", async () => {
+  const before = identity.telemetryIdentity().sessionId;
+  await identity.resetAnonymousId();
+  const after = identity.telemetryIdentity().sessionId;
+  assert.notEqual(after, before);
+  client.capture("after_reset");
+  local.flushLocal();
+  const last = stub.telemetryLocal.records().at(-1);
+  assert.equal(last.properties?.$session_id ?? last.$session_id, after);
+});
+
+test("Reset during a watch that turned sharing on ends sharing instead of keeping it on for good", async () => {
+  client.setSharing(false, "settings");
+  watch.startWatch("FB-TEST", 14);
+  assert.equal(client.isSharing(), true);
+  await identity.resetAnonymousId();
+  assert.equal(client.isSharing(), false);
+  assert.equal(watch.watchStatus(), null);
 });
 
 test("the short id is the first 8 characters", () => {

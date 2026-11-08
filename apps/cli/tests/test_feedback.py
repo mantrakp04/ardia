@@ -198,6 +198,7 @@ class ScrubTest(unittest.TestCase):
         self.assert_scrubbed("Basic dXNlcjpodW50ZXIy then it failed", "dXNlcjpodW50ZXIy", keep=("then it failed",))
         self.assert_scrubbed('it sent Bearer "quoted-secret" and got 401', "quoted-secret", keep=("it sent", "and got 401"))
         self.assert_scrubbed("Cookie: session=shortsecret; other=anothersecret", "shortsecret", "anothersecret")
+        self.assert_scrubbed('Cookie: session="shortsecret"; other=anothersecret', "shortsecret", "anothersecret")
         self.assert_scrubbed("Set-Cookie: sid=shortsecret; Path=/; HttpOnly", "shortsecret")
         self.assert_scrubbed("Proxy-Authorization: Basic zz", "zz")
         self.assert_scrubbed("X-Auth-Token: t1\nX-Goog-Api-Key: k1", "t1", "k1")

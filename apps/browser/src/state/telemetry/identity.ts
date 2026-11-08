@@ -3,6 +3,7 @@ import { capture, ensureInstallId, replaceInstallId } from "./client";
 import { savedChoice, sessionId } from "./choice";
 import { uuidv4 } from "./ids";
 import { clearLocalCopy } from "./localStore";
+import { stopWatch } from "./watch";
 
 export type { AnonymousAvatar };
 
@@ -26,6 +27,7 @@ export function reportIdentity(watch: boolean): ReportIdentity {
 export const shortInstallId = (id: string) => id.slice(0, 8);
 
 export async function resetAnonymousId(): Promise<string> {
+  stopWatch();
   await clearLocalCopy();
   const installId = replaceInstallId();
   capture("anonymous_id_reset");
