@@ -5,7 +5,7 @@ import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../l
 import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
-import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
+import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
 import { visibleSelection } from "../../lib/selectionContrast";
 
@@ -49,11 +49,11 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
-function visibleSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<ColorRoles, "tabSelected" | "pinnedSelectedFill"> {
-  const flipped = base.dark ? ink.white : ink.black;
+function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<ColorRoles, "tabSelected" | "pinnedSelectedFill"> {
+  if (base.dark) return { tabSelected: arcSelectedFill.dark, pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, ink.white, windowTint) };
   return {
-    tabSelected: visibleSelection(base.tabSelected, flipped, windowTint),
-    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, flipped, windowTint),
+    tabSelected: visibleSelection(arcSelectedFill.light, ink.black, windowTint),
+    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, ink.black, windowTint),
   };
 }
 
@@ -113,7 +113,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
     const windowTint = opaqueThemeTint(look, dark);
     theme = {
       ...preset,
-      ...visibleSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint),
+      ...arcSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint),
       profileColor: nearestPreset(accent),
       backdrop: {
         ...backdropTint(accent, false),
