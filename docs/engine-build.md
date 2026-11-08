@@ -628,6 +628,11 @@ In the app:
 - Desktop getUserMedia without a picked source is refused outright, with no prompt (as in Chrome, where
   only `getDisplayMedia` and its picker capture the screen). Only camera and microphone get a permission
   prompt.
+- A `getDisplayMedia` that goes on to Chromium's own picker (`AnswerNativeDisplayCapture` returns false for a
+  frame with a click) uses macOS's system picker: `BasicStartupComplete` turns on `media::kUseSCContentSharingPicker`
+  for the browser process, so the system builds the `SCContentFilter`. With Chromium's own filter, a share of one
+  of the app's own windows delivered black frames (#847). The feature is named by its symbol, so a Chromium bump
+  that renames it fails to compile.
 
 Verified in the app: a "Tab" track at 1558×1080 delivering frames, plus a "Tab Audio" track.
 

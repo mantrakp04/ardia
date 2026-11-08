@@ -11,6 +11,7 @@
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/environment.h"
+#include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -39,6 +40,7 @@
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/common/switches.h"
+#include "media/base/media_switches.h"
 #include "third_party/blink/public/common/switches.h"
 #include "content/public/common/result_codes.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
@@ -327,6 +329,10 @@ void MergeFeatures(base::CommandLine* command_line, const char* list, std::strin
                                                         : current + "," + std::string(features));
 }
 
+void EnableFeature(base::CommandLine* command_line, const base::Feature& feature) {
+  MergeFeatures(command_line, switches::kEnableFeatures, feature.name);
+}
+
 constexpr int kDiskSpaceCheckSeconds = 60;
 
 void QuietIdleTimers(base::CommandLine* command_line) {
@@ -358,6 +364,7 @@ std::optional<int> ACMainDelegate::BasicStartupComplete() {
     command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
     command_line->RemoveSwitch(switches::kMakeDefaultBrowser);
     MergeFeatures(command_line, switches::kEnableFeatures, "WebContentsDiscard");
+    EnableFeature(command_line, media::kUseSCContentSharingPicker);
     QuietIdleTimers(command_line);
   }
   if (command_line->HasSwitch(extensions::switches::kExtensionProcess)) {
