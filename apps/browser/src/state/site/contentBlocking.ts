@@ -29,4 +29,14 @@ export async function setBlockingCategory(s: ContentBlockerState, category: Filt
   return setLists(s, changed.map((l) => l.id), on);
 }
 
+export async function changeBlockingCategory(s: ContentBlockerState, category: FilterListCategory, on: boolean): Promise<string | null> {
+  try {
+    await setBlockingCategory(s, category, on);
+    return null;
+  } catch (error) {
+    console.error(error);
+    return `Couldn't change content blocking. ${errorText(error)}`;
+  }
+}
+
 export const setFilterList = (s: ContentBlockerState, id: string, on: boolean) => setLists(s, [id], on);

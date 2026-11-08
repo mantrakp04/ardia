@@ -27,10 +27,9 @@ import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../stat
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { updateSettings } from "../../../state/settings/actions";
-import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
+import { categoryOn, changeBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
-import { errorText } from "../../../lib/errors";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
   { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -69,13 +68,8 @@ export function PrivacyPane() {
       });
       if (!confirmed) return refresh();
     }
-    try {
-      await setBlockingCategory(blocker, c, on);
-    } catch (error) {
-      setFailure(`Couldn't change content blocking. ${errorText(error)}`);
-    } finally {
-      refresh();
-    }
+    setFailure(await changeBlockingCategory(blocker, c, on));
+    refresh();
   };
 
   return (

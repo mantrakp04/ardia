@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { requireNativeModule } from "expo-modules-core";
 
-const { setBlockingCategory, setFilterList, readContentBlocker } = await import("./contentBlocking.ts");
+const { setBlockingCategory, setFilterList, readContentBlocker, changeBlockingCategory } = await import("./contentBlocking.ts");
 
 const native = requireNativeModule("ArdiaContentBlocker");
 const calls = [];
@@ -80,6 +80,56 @@ test("a read that fails is a problem with the failure's text, and is logged", as
   const { result, warnings } = await answering(() => Promise.reject(new Error("the engine isn't running")), readContentBlocker);
   assert.deepEqual(result, { state: null, problem: "the engine isn't running" });
   assert.deepEqual(warnings, ["[engine] ad blocker unavailable: the engine isn't running"]);
+});
+
+const rejecting = async (run) => {
+  const wrapped = native.call;
+  native.call = () => Promise.reject(Object.assign(new Error("uBlock Origin didn't answer"), { code: "ERR_ENGINE" }));
+  const errors = [];
+  const report = console.error;
+  console.error = (...args) => errors.push(args[0]);
+  try {
+    return { result: await run(), errors };
+  } finally {
+    native.call = wrapped;
+    console.error = report;
+  }
+};
+
+test("a change the engine refuses answers with why and is reported as an error, not dropped", async () => {
+  const s = state(false, [list("easylist", "ads", false, true)]);
+  const { result, errors } = await rejecting(() => changeBlockingCategory(s, "ads", true));
+  assert.equal(result, "Couldn't change content blocking. uBlock Origin didn't answer");
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0] instanceof Error);
+  assert.equal(errors[0].message, "uBlock Origin didn't answer");
+});
+
+test("a category the blocker has no list for answers with why and is reported", async () => {
+  calls.length = 0;
+  const errors = [];
+  const report = console.error;
+  console.error = (...args) => errors.push(args[0]);
+  try {
+    assert.match(await changeBlockingCategory(state(false, []), "ads", true), /^Couldn't change content blocking\. .*no ads filter list/i);
+  } finally {
+    console.error = report;
+  }
+  assert.equal(errors.length, 1);
+  assert.deepEqual(calls, []);
+});
+
+test("a change that works answers nothing and reports nothing", async () => {
+  const errors = [];
+  const report = console.error;
+  console.error = (...args) => errors.push(args[0]);
+  try {
+    const s = state(true, [list("easylist", "ads", true, true)]);
+    assert.equal(await changeBlockingCategory(s, "ads", false), null);
+  } finally {
+    console.error = report;
+  }
+  assert.deepEqual(errors, []);
 });
 
 test("turning a list on while the blocker is off turns it on", async () => {
