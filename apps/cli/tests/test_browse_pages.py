@@ -74,7 +74,8 @@ class Rendering(unittest.TestCase):
         for n in range(10):
             self.assertIn(f"=== [{n + 1}/10] P{n}\nhttp://s/p/{n}\n", text)
         self.assertIn("short page", text)
-        self.assertTrue(text.endswith("or read part of each page with -s <selector>]"), text[-200:])
+        self.assertIn("Narrow it instead: -s <css> (one region per page)", text)
+        self.assertNotIn("--full", text)
         self.assertIn(" characters]\n\n=== [", text)
         _, out, _ = daemon.render({}, result=commands.Result({}, text))
         self.assertNotIn("output capped", out)
@@ -122,8 +123,34 @@ class FakeReader:
             raise BrowseError("Target.attachToTarget: No target with given id found")
 
 
+class FakeRegistry:
+    def __init__(self):
+        self.calls = []
+        self.temporary = set()
+        self.refuse = set()
+
+    def note_temporary(self, instance, target):
+        self.calls.append(("note_temporary", target))
+        self.temporary.add(target)
+
+    def temporaries(self, instance):
+        return sorted(self.temporary)
+
+    def drop_temporary(self, instance, target):
+        self.calls.append(("drop_temporary", target))
+        self.temporary.discard(target)
+
+    def reserve_close(self, instance, target):
+        self.calls.append(("reserve_close", target))
+        return target not in self.refuse
+
+    def finish_close(self, instance, target):
+        self.calls.append(("finish_close", target))
+        self.temporary.discard(target)
+
+
 def reader_state():
-    state = SimpleNamespace(opened=set(), target_infos={}, pages={}, connected=True, refuse_attach=set())
+    state = SimpleNamespace(opened=set(), target_infos={}, pages={}, connected=True, refuse_attach=set(), instance="I", registry=FakeRegistry(), extras={})
     state.browser = FakeBrowser(state)
 
     async def connect():
@@ -208,6 +235,57 @@ class ReadingTabs(unittest.TestCase):
         self.assertEqual(code, 1)
 
 
+class TemporaryOwnership(unittest.TestCase):
+    def test_reader_tabs_are_registered_and_closed_through_a_reservation(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        owned = []
+        target = run(temptabs.create(state, owned))
+        self.assertEqual(state.registry.calls, [("note_temporary", "R1")])
+        run(temptabs.release(state, owned))
+        self.assertEqual(state.registry.calls[1:], [("reserve_close", "R1"), ("finish_close", "R1")])
+        self.assertEqual(state.browser.closed, [target])
+        self.assertEqual(owned, [])
+
+    def test_a_tab_another_session_holds_is_left_open_and_no_longer_hidden(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.registry.refuse.add("R1")
+        owned = []
+        run(temptabs.create(state, owned))
+        run(temptabs.release(state, owned))
+        self.assertEqual(state.browser.closed, [])
+        self.assertEqual(state.registry.calls[-1], ("drop_temporary", "R1"))
+
+    def test_leftovers_of_a_dead_daemon_are_closed_on_the_next_run(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.registry.temporary = {"OLD1", "GONE"}
+        state.target_infos = {"OLD1": {"targetId": "OLD1", "url": "http://s/"}}
+        run(temptabs.sweep(state))
+        self.assertEqual(state.browser.closed, ["OLD1"])
+        self.assertEqual(state.registry.temporary, set())
+
+
+class SweepSparesLiveTabs(unittest.TestCase):
+    def test_a_nested_read_does_not_close_the_running_scripts_page(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.extras = {}
+        controller = []
+        run(temptabs.create(state, controller))
+        state.target_infos[controller[0]] = {"targetId": controller[0], "url": "about:blank"}
+        run(temptabs.sweep(state))
+        self.assertEqual(state.browser.closed, [])
+        run(temptabs.release(state, controller))
+        self.assertEqual(state.browser.closed, ["R1"])
+        self.assertEqual(state.extras["temporaries"], set())
+
+
 class ReadRouting(unittest.TestCase):
     def ctx(self, stdin=None):
         return commands.Ctx(SimpleNamespace(), {}, "/", {}, stdin, "read")
@@ -259,9 +337,10 @@ class ScriptPieces(unittest.TestCase):
                 script.parse_timeout(bad)
 
     def test_the_wrapper_keeps_line_numbers_one_off(self):
-        wrapped = script.wrap("const a = 1;\nreturn a;")
-        self.assertEqual(wrapped.splitlines()[1:3], ["const a = 1;", "return a;"])
-        self.assertTrue(wrapped.endswith(f"//# sourceURL={script.SOURCE_URL}"))
+        code, offset = script.worker_source("const a = 1;\nreturn a;")
+        self.assertEqual(code.splitlines()[offset:offset + 2], ["const a = 1;", "return a;"])
+        self.assertIn(f"const OFFSET = {offset};", code)
+        self.assertTrue(code.endswith(f"//# sourceURL={script.SOURCE_URL}"))
         self.assertEqual(script.source_line("a\nb\nc", 9), 3)
         self.assertEqual(script.source_line("a\nb\nc", 2), 2)
 
@@ -305,14 +384,15 @@ class FakeController:
     async def send(self, method, params=None, timeout=30, mutation=False):
         if method == "Runtime.evaluate":
             self.evaluated.append(params["expression"])
-            if "__ardiaScript.start" in params["expression"] and "syntax(" in params["expression"]:
-                return {"exceptionDetails": {"lineNumber": 2, "exception": {"description": "SyntaxError: Unexpected token ')'\n    at x"}}}
             return {"result": {"objectId": "H"}}
         if method == "Runtime.callFunctionOn":
+            if "this.start(" in params["functionDeclaration"]:
+                self.started = params["arguments"][0]["value"]
+                return {"result": {"value": True}}
             if "reply" in params["functionDeclaration"]:
                 self.answers.append([arg["value"] for arg in params["arguments"]])
                 return {"result": {"value": True}}
-            if "logs()" in params["functionDeclaration"]:
+            if "this.stop()" in params["functionDeclaration"]:
                 return {"result": {"value": {"logs": ["before the hang"]}}}
             if not self.replies:
                 if self.hang:
@@ -324,7 +404,7 @@ class FakeController:
 
 class ScriptRuns(unittest.TestCase):
     def run_script(self, controller, source="page.goto('x')", seconds=5, dispatch=None):
-        state = SimpleNamespace(connected=True, pages={})
+        state = SimpleNamespace(connected=True, pages={}, instance="I", registry=FakeRegistry(), target_infos={}, extras={})
         closed = []
 
         async def connect():
@@ -338,7 +418,11 @@ class ScriptRuns(unittest.TestCase):
         async def fake_dispatch(ctx, name, argv):
             return commands.Result({"text": f"{name} {' '.join(argv)}"}, f"✓ {name}")
 
-        with mock.patch.object(script, "open_controller", mock.AsyncMock(return_value=controller)), \
+        async def open_controller(state, owned):
+            owned.append(controller.target_id)
+            return controller
+
+        with mock.patch.object(script, "open_controller", open_controller), \
                 mock.patch.object(daemon, "dispatch", dispatch or fake_dispatch):
             try:
                 return run(script.run(ctx, source, seconds)), closed
@@ -368,8 +452,10 @@ class ScriptRuns(unittest.TestCase):
         self.assertEqual(closed, ["C1"])
 
     def test_a_syntax_error_names_its_line(self):
-        error, closed = self.run_script(FakeController([]), "const a = 1;\nsyntax(;\nreturn a;")
-        self.assertEqual(error.message, "line 2: SyntaxError: Unexpected token ')'")
+        controller = FakeController([{"kind": "error", "message": "SyntaxError: Unexpected token ';'", "name": "", "line": 2, "code": "script_syntax", "logs": []}])
+        error, closed = self.run_script(controller, "const a = 1;\nsyntax(;\nreturn a;")
+        self.assertEqual(error.message, "line 2: SyntaxError: Unexpected token ';'")
+        self.assertIn("syntax(;", controller.started)
         self.assertEqual(error.code, "script_syntax")
         self.assertEqual(closed, ["C1"])
 
@@ -418,6 +504,136 @@ class ScriptSource(unittest.TestCase):
             browse_cli.script_source(["missing.js"], str(self.dir))
         with self.assertRaises(Usage):
             browse_cli.script_source(["a.js", "b.js"], str(self.dir))
+
+
+class CompositeOutcomes(unittest.TestCase):
+    def ctx(self):
+        return commands.Ctx(SimpleNamespace(), {}, "/", {}, None, "script")
+
+    def test_batch_is_refused_inside_a_script(self):
+        answer = run(script.answer_call(self.ctx(), ["batch", "click #pay"]))
+        self.assertEqual(answer, {"ok": False, "error": "batch can't run inside a script; loop in the script instead", "code": "usage"})
+
+    def test_an_unknown_outcome_inside_a_composite_result_stops_the_script(self):
+        async def composite(ctx, name, argv):
+            result = commands.Result({"results": []}, "✗ unknown")
+            result.batch = [{"command": ["click", "#pay"], "success": False, "error": "the outcome of `click` is unknown", "code": "outcome_unknown"}]
+            result.failed = True
+            return result
+
+        with mock.patch.object(daemon, "dispatch", composite):
+            with self.assertRaises(OutcomeUnknown):
+                run(script.answer_call(self.ctx(), ["find", "text", "Pay", "click"]))
+
+    def test_a_failed_result_is_an_error_but_a_partly_failed_read_is_data(self):
+        async def failed(ctx, name, argv):
+            result = commands.Result({"pages": [{"url": "http://s/", "error": "boom"}]} if name == "read" else {}, "✗ part of it failed")
+            result.failed = True
+            return result
+
+        with mock.patch.object(daemon, "dispatch", failed):
+            self.assertEqual(run(script.answer_call(self.ctx(), ["diff", "url", "a", "b"])),
+                             {"ok": False, "error": "✗ part of it failed", "code": "failed"})
+            answer = run(script.answer_call(self.ctx(), ["read", "http://s/"]))
+        self.assertTrue(answer["ok"])
+        self.assertEqual(answer["data"]["pages"][0]["error"], "boom")
+
+
+class Redaction(unittest.TestCase):
+    def setUp(self):
+        from ardia_cli import redact
+
+        self.secret = "Tok3nThatCrossesTheCutBoundary0123456789abcdefghijklmn"
+        redact.add_secret(self.secret)
+
+    def assert_no_piece(self, text):
+        for size in range(8, len(self.secret) + 1):
+            self.assertNotIn(self.secret[:size], text)
+
+    def test_a_secret_on_a_cut_boundary_is_masked_before_budgeting(self):
+        for offset in range(0, 1200, 37):
+            records = [{"url": f"http://s/{n}", "title": "T", "text": "x" * (500 + offset) + self.secret + "y" * 3000} for n in range(4)]
+            self.assert_no_piece(readpages.render(records, {}))
+
+    def test_titles_and_urls_are_masked(self):
+        text = readpages.render([{"url": f"http://s/?token={self.secret}", "title": f"Hi {self.secret}", "text": "ok"}], {})
+        self.assert_no_piece(text)
+
+    def test_script_failure_logs_are_masked_before_their_tail_is_cut(self):
+        logs = ["z" * 2990 + self.secret] + ["w" * 40]
+        self.assert_no_piece(script.failure("line 1: boom", logs, {}).message)
+
+
+class Budget(unittest.TestCase):
+    def test_a_hundred_pages_fit_the_cap_and_say_what_was_left_out(self):
+        records = [{"url": f"http://s/p/{n}", "finalUrl": f"http://s/p/{n}", "title": f"Product {n}", "text": "spec: value\n" * 160} for n in range(100)]
+        text = readpages.render(records, {})
+        self.assertLessEqual(len(text), daemon.OUTPUT_CAP)
+        shown = [n for n in range(100) if f"=== [{n + 1}/100] Product {n}\n" in text]
+        self.assertEqual(shown, list(range(len(shown))))
+        self.assertGreater(len(shown), 5)
+        self.assertIn(f"+{100 - len(shown)} pages not shown", text)
+        self.assertIn("--max-output ", text)
+        _, out, _ = daemon.render({}, result=commands.Result({}, text))
+        self.assertNotIn("output capped", out)
+
+    def test_small_limits_still_fit(self):
+        records = [{"url": f"http://s/p/{n}", "title": f"P{n}", "text": "a" * 900} for n in range(30)]
+        for limit in (300, 1000, 2500):
+            text = readpages.render(records, {"max_output": limit})
+            self.assertLessEqual(len(text), limit, limit)
+            self.assertIn("pages not shown", text)
+
+    def test_shares_can_go_below_two_hundred(self):
+        self.assertEqual(readpages.shares([1000] * 10, 500), [50] * 10)
+
+
+class SlowCreate(FakeBrowser):
+    def __init__(self, state, create_delay):
+        super().__init__(state)
+        self.create_delay = create_delay
+
+    async def send(self, method, params=None, session=None, timeout=30):
+        if method == "Target.createTarget":
+            await asyncio.sleep(self.create_delay)
+        return await super().send(method, params, session, timeout)
+
+
+class CreationRace(unittest.TestCase):
+    def test_a_read_cancelled_while_its_tab_is_being_created_still_closes_it(self):
+        state = reader_state()
+        state.browser = SlowCreate(state, 0.2)
+        ctx = commands.Ctx(state, {}, "/", {}, None, "read")
+
+        async def go():
+            task = asyncio.ensure_future(readpages.read_tabs(ctx, ["http://s/p/1", "http://s/p/2"], None, 5, {}))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        with mock.patch("ardia_cli.browse.page.Page", lambda state, target_id: FakeReader(state, target_id, state.browser)):
+            run(go())
+        self.assertEqual(len(state.browser.created), 2)
+        self.assertEqual(sorted(state.browser.closed), sorted(state.browser.created))
+        self.assertEqual(state.opened, set())
+
+    def test_a_script_cancelled_while_its_controller_is_being_created_still_closes_it(self):
+        state = reader_state()
+        state.browser = SlowCreate(state, 0.2)
+        ctx = commands.Ctx(state, {}, "/", {}, "return 1", "script")
+
+        async def go():
+            task = asyncio.ensure_future(script.run(ctx, "return 1", 5))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        with mock.patch("ardia_cli.browse.page.Page", lambda state, target_id: FakeReader(state, target_id, state.browser)):
+            run(go())
+        self.assertEqual(state.browser.created, ["R1"])
+        self.assertEqual(state.browser.closed, ["R1"])
 
 
 if __name__ == "__main__":

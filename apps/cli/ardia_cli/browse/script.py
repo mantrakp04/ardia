@@ -9,134 +9,46 @@ MAX_TIMEOUT = 600.0
 MAX_SOURCE = 1024 * 1024
 LOG_LIMIT = 1024 * 1024
 CONTROL_TIMEOUT = 5.0
-CLOSE_TIMEOUT = 3.0
 SOURCE_URL = "ardia-script.js"
-REFUSED = ("close", "script")
+REFUSED = ("close", "script", "batch")
+FATAL = ("outcome_unknown", "connection_lost")
 TITLE = "ardia browse script"
 
 CONTROLLER = r"""
 (() => {
   if (globalThis.__ardiaScript) return globalThis.__ardiaScript;
-  const SOURCE = "ardia-script.js";
   const LOG_LIMIT = %(log_limit)d;
   const pending = [];
-  const waiting = new Map();
   const logs = [];
   let logSize = 0;
   let logsDropped = 0;
   let wake = null;
   let finished = null;
-  let nextId = 1;
-  const show = (value) => {
-    if (typeof value === "string") return value;
-    if (value === undefined) return "undefined";
-    if (value instanceof Error) return value.stack || String(value);
-    try { const text = JSON.stringify(value, null, 2); return text === undefined ? String(value) : text; } catch (e) { return String(value); }
-  };
-  const lineOf = (stack) => {
-    const match = new RegExp(SOURCE.replace(/[.]/g, "\\.") + ":(\\d+):(\\d+)").exec(String(stack || ""));
-    return match ? Math.max(Number(match[1]) - 1, 1) : null;
-  };
+  let worker = null;
+  let ready = false;
   const signal = () => { if (wake) { const resolve = wake; wake = null; resolve(); } };
-  const log = (...args) => {
-    const line = args.map(show).join(" ");
+  const finish = (result) => { if (!finished) finished = result; signal(); };
+  const keep = (line) => {
     if (logSize + line.length > LOG_LIMIT) { logsDropped += 1; return; }
     logs.push(line);
     logSize += line.length + 1;
   };
-  const request = (kind, payload) => {
-    const origin = new Error();
-    const line = lineOf(origin.stack);
-    const id = nextId++;
-    return new Promise((resolve, reject) => {
-      waiting.set(id, { resolve, reject, origin, line, argv: payload.argv });
-      pending.push({ id, type: kind, line, ...payload });
-      signal();
-    });
-  };
-  const words = (value) => value == null ? [] : (Array.isArray(value) ? value.map(String) : String(value).trim().split(/\s+/).filter(Boolean));
-  const browse = (...argv) => request("call", { argv: argv.flat().map(String) });
-  const absolute = async (url) => {
-    url = String(url);
-    if (!/^(\/|\.\.?\/|\?|#)/.test(url)) return url;
-    const base = (await browse("get", "url")).data.url;
-    return new URL(url, base).href;
-  };
-  const text = (answer) => answer.text;
-  const data = (key) => (answer) => (answer.data || {})[key];
-  const flags = (options, table) => {
-    const out = [];
-    for (const [key, flag] of Object.entries(table)) {
-      const value = options && options[key];
-      if (value === undefined || value === null || value === false) continue;
-      out.push(flag);
-      if (value !== true) out.push(String(value));
-    }
-    return out;
-  };
-  const read = async (what, options) => {
-    options = options || {};
-    let argv = ["read"];
-    if (what && typeof what === "object" && !Array.isArray(what)) { options = { ...what, ...options }; what = options.urls; }
-    for (const url of words(what)) argv.push(await absolute(url));
-    argv = argv.concat(flags(options, { links: "--links", selector: "-s", limit: "--limit", timeout: "--timeout", http: "--http" }));
-    return (await browse(argv)).data.pages;
-  };
-  const page = {
-    goto: async (url) => (await browse("open", await absolute(url))).data,
-    back: () => browse("back").then(data("url")),
-    forward: () => browse("forward").then(data("url")),
-    reload: () => browse("reload").then(data("url")),
-    click: (selector, options) => browse("click", selector, flags(options, { newTab: "--new-tab", button: "--button" })).then(text),
-    dblclick: (selector) => browse("dblclick", selector).then(text),
-    fill: (selector, value) => browse("fill", selector, String(value)).then(text),
-    type: (selector, value) => browse("type", selector, String(value)).then(text),
-    press: (key) => browse("press", key).then(text),
-    select: (selector, ...values) => browse("select", selector, ...values.flat()).then(text),
-    check: (selector) => browse("check", selector).then(text),
-    uncheck: (selector) => browse("uncheck", selector).then(text),
-    hover: (selector) => browse("hover", selector).then(text),
-    scroll: (direction, pixels) => browse("scroll", ...words(direction), ...words(pixels)).then(text),
-    text: (selector) => selector == null ? browse("read").then(data("content")) : browse("get", "text", selector).then(data("text")),
-    value: (selector) => browse("get", "value", selector).then(data("value")),
-    attr: (selector, name) => browse("get", "attr", selector, name).then(data("value")),
-    count: (selector) => browse("get", "count", selector).then(data("count")),
-    visible: (selector) => browse("is", "visible", selector).then(data("visible")),
-    url: () => browse("get", "url").then(data("url")),
-    title: () => browse("get", "title").then(data("title")),
-    snapshot: (options) => browse("snapshot", ...(typeof options === "string" || Array.isArray(options) ? words(options)
-      : flags(options, { interactive: "-i", compact: "-c", depth: "-d", selector: "-s", urls: "-u", diff: "--diff" }))).then(text),
-    links: (pattern) => browse("read", "--links", pattern == null ? "" : String(pattern), "--list").then(data("links"),
-      (error) => { if (error.code === "no_links") return []; throw error; }),
-    wait: (what, options) => {
-      if (typeof what === "number") return request("sleep", { ms: what }).then(() => undefined);
-      if (what && typeof what === "object") { options = what; what = undefined; }
-      return browse("wait", ...words(what), ...flags(options, { text: "--text", url: "--url", load: "--load", fn: "--fn", state: "--state", timeout: "--timeout" })).then(text);
-    },
-    evaluate: (fn, arg) => browse("eval", typeof fn === "function" ? "(" + fn + ")(" + (arg === undefined ? "" : JSON.stringify(arg)) + ")" : String(fn)).then(data("result")),
-  };
-  const sleep = (ms) => request("sleep", { ms: Number(ms) || 0 }).then(() => undefined);
-  const clean = (value) => {
-    if (value === undefined) return { undefined: true };
-    try { return { value: JSON.parse(JSON.stringify(value)) }; } catch (e) { return { value: show(value) }; }
-  };
   const api = {
-    start(run) {
-      (async () => {
-        try {
-          finished = { kind: "done", ...clean(await run()) };
-        } catch (error) {
-          finished = {
-            kind: "error",
-            message: error && error.message !== undefined ? String(error.message) : show(error),
-            name: error && error.name ? String(error.name) : "Error",
-            line: lineOf(error && error.stack),
-            code: error && error.code ? String(error.code) : null,
-            command: error && error.argv ? error.argv : null,
-          };
-        }
-        signal();
-      })();
+    start(source, offset) {
+      worker = new Worker(URL.createObjectURL(new Blob([source], { type: "text/javascript" })));
+      worker.onmessage = (event) => {
+        const message = event.data || {};
+        if (message.type === "ready") ready = true;
+        else if (message.type === "log") keep(String(message.line));
+        else if (message.type === "request") { pending.push(message.request); signal(); }
+        else if (message.type === "done") finish(message.result);
+      };
+      worker.onerror = (event) => {
+        event.preventDefault();
+        const text = String(event.message || "error").replace(/^Uncaught /, "");
+        const line = event.lineno ? Math.max(event.lineno - offset, 1) : null;
+        finish({ kind: "error", message: text, name: "", line, code: ready ? null : "script_syntax" });
+      };
       return true;
     },
     async next() {
@@ -147,28 +59,153 @@ CONTROLLER = r"""
       }
     },
     reply(id, answer) {
-      const entry = waiting.get(id);
-      if (!entry) return false;
-      waiting.delete(id);
-      if (answer.ok) { entry.resolve(answer); return true; }
-      const error = entry.origin;
-      error.message = answer.error;
-      error.code = answer.code || null;
-      error.argv = entry.argv || null;
-      entry.reject(error);
+      if (worker) worker.postMessage({ type: "reply", id, answer });
       return true;
     },
-    logs() { return { logs, logsDropped }; },
+    stop() {
+      if (worker) worker.terminate();
+      worker = null;
+      finish({ kind: "stopped" });
+      return { logs, logsDropped };
+    },
   };
-  Object.assign(globalThis, { page, browse, read, log, sleep, __ardiaScript: api });
-  console.log = log;
-  console.info = log;
-  console.warn = log;
-  console.error = log;
+  globalThis.__ardiaScript = api;
   document.title = %(title)s;
   return api;
 })()
 """
+
+WORKER = r"""const SOURCE = "ardia-script.js";
+const OFFSET = %(offset)d;
+const waiting = new Map();
+let nextId = 1;
+const show = (value) => {
+  if (typeof value === "string") return value;
+  if (value === undefined) return "undefined";
+  if (value instanceof Error) return value.stack || String(value);
+  try { const text = JSON.stringify(value, null, 2); return text === undefined ? String(value) : text; } catch (e) { return String(value); }
+};
+const lineOf = (stack) => {
+  const pattern = new RegExp(SOURCE.replace(/[.]/g, "\\.") + ":(\\d+):(\\d+)", "g");
+  for (const match of String(stack || "").matchAll(pattern)) {
+    if (Number(match[1]) > OFFSET) return Number(match[1]) - OFFSET;
+  }
+  return null;
+};
+const log = (...args) => postMessage({ type: "log", line: args.map(show).join(" ") });
+const request = (kind, payload) => {
+  const origin = new Error();
+  const line = lineOf(origin.stack);
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    waiting.set(id, { resolve, reject, origin, argv: payload.argv });
+    postMessage({ type: "request", request: { id, type: kind, line, ...payload } });
+  });
+};
+onmessage = (event) => {
+  const message = event.data || {};
+  if (message.type !== "reply") return;
+  const entry = waiting.get(message.id);
+  if (!entry) return;
+  waiting.delete(message.id);
+  const answer = message.answer || {};
+  if (answer.ok) { entry.resolve(answer); return; }
+  const error = entry.origin;
+  error.message = answer.error;
+  error.code = answer.code || null;
+  error.argv = entry.argv || null;
+  entry.reject(error);
+};
+const words = (value) => value == null ? [] : (Array.isArray(value) ? value.map(String) : String(value).trim().split(/\s+/).filter(Boolean));
+const browse = (...argv) => request("call", { argv: argv.flat().map(String) });
+const absolute = async (url) => {
+  url = String(url);
+  if (!/^(\/|\.\.?\/|\?|#)/.test(url)) return url;
+  const base = (await browse("get", "url")).data.url;
+  return new URL(url, base).href;
+};
+const text = (answer) => answer.text;
+const data = (key) => (answer) => (answer.data || {})[key];
+const flags = (options, table) => {
+  const out = [];
+  for (const [key, flag] of Object.entries(table)) {
+    const value = options && options[key];
+    if (value === undefined || value === null || value === false) continue;
+    out.push(flag);
+    if (value !== true) out.push(String(value));
+  }
+  return out;
+};
+const read = async (what, options) => {
+  options = options || {};
+  let argv = ["read"];
+  if (what && typeof what === "object" && !Array.isArray(what)) { options = { ...what, ...options }; what = options.urls; }
+  for (const url of words(what)) argv.push(await absolute(url));
+  argv = argv.concat(flags(options, { links: "--links", selector: "-s", limit: "--limit", timeout: "--timeout", http: "--http" }));
+  return (await browse(argv)).data.pages;
+};
+const page = {
+  goto: async (url) => (await browse("open", await absolute(url))).data,
+  back: () => browse("back").then(data("url")),
+  forward: () => browse("forward").then(data("url")),
+  reload: () => browse("reload").then(data("url")),
+  click: (selector, options) => browse("click", selector, flags(options, { newTab: "--new-tab", button: "--button" })).then(text),
+  dblclick: (selector) => browse("dblclick", selector).then(text),
+  fill: (selector, value) => browse("fill", selector, String(value)).then(text),
+  type: (selector, value) => browse("type", selector, String(value)).then(text),
+  press: (key) => browse("press", key).then(text),
+  select: (selector, ...values) => browse("select", selector, ...values.flat()).then(text),
+  check: (selector) => browse("check", selector).then(text),
+  uncheck: (selector) => browse("uncheck", selector).then(text),
+  hover: (selector) => browse("hover", selector).then(text),
+  scroll: (direction, pixels) => browse("scroll", ...words(direction), ...words(pixels)).then(text),
+  text: (selector) => selector == null ? browse("read").then(data("content")) : browse("get", "text", selector).then(data("text")),
+  value: (selector) => browse("get", "value", selector).then(data("value")),
+  attr: (selector, name) => browse("get", "attr", selector, name).then(data("value")),
+  count: (selector) => browse("get", "count", selector).then(data("count")),
+  visible: (selector) => browse("is", "visible", selector).then(data("visible")),
+  url: () => browse("get", "url").then(data("url")),
+  title: () => browse("get", "title").then(data("title")),
+  snapshot: (options) => browse("snapshot", ...(typeof options === "string" || Array.isArray(options) ? words(options)
+    : flags(options, { interactive: "-i", compact: "-c", depth: "-d", selector: "-s", urls: "-u", diff: "--diff" }))).then(text),
+  links: (pattern) => browse("read", "--links", pattern == null ? "" : String(pattern), "--list").then(data("links"),
+    (error) => { if (error.code === "no_links") return []; throw error; }),
+  wait: (what, options) => {
+    if (typeof what === "number") return request("sleep", { ms: what }).then(() => undefined);
+    if (what && typeof what === "object") { options = what; what = undefined; }
+    return browse("wait", ...words(what), ...flags(options, { text: "--text", url: "--url", load: "--load", fn: "--fn", state: "--state", timeout: "--timeout" })).then(text);
+  },
+  evaluate: (fn, arg) => browse("eval", typeof fn === "function" ? "(" + fn + ")(" + (arg === undefined ? "" : JSON.stringify(arg)) + ")" : String(fn)).then(data("result")),
+};
+const sleep = (ms) => request("sleep", { ms: Number(ms) || 0 }).then(() => undefined);
+const clean = (value) => {
+  if (value === undefined) return { undefined: true };
+  try { return { value: JSON.parse(JSON.stringify(value)) }; } catch (e) { return { value: show(value) }; }
+};
+const __ardiaRun = (run) => {
+  (async () => {
+    let result;
+    try {
+      result = { kind: "done", ...clean(await run()) };
+    } catch (error) {
+      result = {
+        kind: "error",
+        message: error && error.message !== undefined ? String(error.message) : show(error),
+        name: error && error.name ? String(error.name) : "Error",
+        line: lineOf(error && error.stack),
+        code: error && error.code ? String(error.code) : null,
+        command: error && error.argv ? error.argv : null,
+      };
+    }
+    postMessage({ type: "done", result });
+  })();
+};
+Object.assign(self, { page, browse, read, log, sleep });
+console.log = log;
+console.info = log;
+console.warn = log;
+console.error = log;
+postMessage({ type: "ready" });"""
 
 
 def parse_timeout(value) -> float:
@@ -183,8 +220,11 @@ def parse_timeout(value) -> float:
     return seconds
 
 
-def wrap(source: str) -> str:
-    return f"globalThis.__ardiaScript.start(async () => {{\n{source}\n}});\n//# sourceURL={SOURCE_URL}"
+def worker_source(source: str) -> tuple[str, int]:
+    api = WORKER % {"offset": 0}
+    offset = api.count("\n") + 2
+    api = WORKER % {"offset": offset}
+    return f"{api}\n__ardiaRun(async () => {{\n{source}\n}});\n//# sourceURL={SOURCE_URL}", offset
 
 
 def source_line(source: str, wrapped_line: int | None) -> int | None:
@@ -217,37 +257,23 @@ def tail(lines: list[str], limit: int = 3000) -> str:
 
 
 def failure(message: str, logs: list[str], data: dict, code: str | None = None) -> BrowseError:
-    body = message
+    from ardia_cli.redact import redact
+
+    logs = [redact(line) for line in logs]
+    body = redact(message)
     if logs:
         body += "\nlogged before that:\n" + tail(logs)
     return BrowseError(body, data={**data, "logs": logs}, code=code or "script_failed")
 
 
-async def open_controller(state):
-    from ardia_cli.browse.errors import Gated
+async def open_controller(state, owned: list[str]):
+    from ardia_cli.browse import temptabs
     from ardia_cli.browse.page import Page
 
-    try:
-        result = await state.browser.send("Target.createTarget", {"url": "about:blank", "background": True})
-    except Gated:
-        raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
-    target_id = result["targetId"]
+    target_id = await temptabs.create(state, owned)
     page = state.pages[target_id] = Page(state, target_id)
-    try:
-        await page.attach(state.browser)
-    except BaseException:
-        await close_controller(state, target_id)
-        raise
+    await page.attach(state.browser)
     return page
-
-
-async def close_controller(state, target_id: str):
-    try:
-        if state.connected:
-            await asyncio.wait_for(state.browser.send("Target.closeTarget", {"targetId": target_id}), CLOSE_TIMEOUT)
-    except Exception:
-        pass
-    state.forget_target(target_id)
 
 
 async def evaluate(page, expression: str, timeout: float = CONTROL_TIMEOUT, by_value: bool = True) -> dict:
@@ -274,15 +300,9 @@ async def install(page) -> str:
     return handle
 
 
-async def start(page, source: str):
-    result = await evaluate(page, wrap(source))
-    details = result.get("exceptionDetails")
-    if not details:
-        return
-    exception = details.get("exception") or {}
-    description = str(exception.get("description") or details.get("text") or "SyntaxError").split("\n")[0]
-    line = source_line(source, details.get("lineNumber"))
-    raise BrowseError(f"line {line}: {description}" if line else description, data={"line": line}, code="script_syntax")
+async def start(page, handle: str, source: str):
+    code, offset = worker_source(source)
+    await control(page, handle, "function (source, offset) { return this.start(source, offset); }", code, offset)
 
 
 async def answer_call(ctx, argv) -> dict:
@@ -292,6 +312,8 @@ async def answer_call(ctx, argv) -> dict:
     if not isinstance(argv, list) or not argv or not all(isinstance(word, str) for word in argv):
         return {"ok": False, "error": "browse() takes a command and its arguments as strings", "code": "usage"}
     name = ALIASES.get(argv[0], argv[0])
+    if name == "batch":
+        return {"ok": False, "error": "batch can't run inside a script; loop in the script instead", "code": "usage"}
     if name in REFUSED:
         return {"ok": False, "error": f"{name} can't run inside a script", "code": "usage"}
     sub = Ctx(ctx.state, dict(ctx.options), ctx.cwd, ctx.env, None, name)
@@ -300,11 +322,16 @@ async def answer_call(ctx, argv) -> dict:
         raise error
     if error is not None:
         return {"ok": False, "error": error.message, "code": error.code}
+    fatal = next((outcome for outcome in getattr(result, "batch", None) or [] if outcome.get("code") in FATAL), None)
+    if fatal is not None:
+        raise OutcomeUnknown(f"`{show_argv(argv)}`", fatal.get("error") or "a command inside it was cut off")
+    if getattr(result, "failed", False) and name != "read":
+        return {"ok": False, "error": result.text or f"{name} failed", "code": "failed"}
     return {"ok": True, "text": result.text, "data": json.loads(json.dumps(result.data, default=str))}
 
 
 async def drive(ctx, page, handle: str, source: str, current: dict):
-    await start(page, source)
+    await start(page, handle, source)
     while True:
         message = await control(page, handle, "function () { return this.next(); }", timeout=MAX_TIMEOUT + 30)
         if message.get("kind") != "request":
@@ -344,29 +371,25 @@ async def run(ctx, source: str, seconds: float):
         raise Usage("Usage: ardia browse script [file.js] (or the script on stdin: ardia browse script <<'EOF' … EOF)")
     if len(source) > MAX_SOURCE:
         raise Usage(f"The script is over {MAX_SOURCE // 1024} KB")
+    from ardia_cli.browse import temptabs
+
     state = ctx.state
     await state.connect()
+    await temptabs.sweep(state)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + seconds
     current: dict = {}
-    page = await open_controller(state)
+    owned: list[str] = []
     try:
+        page = await open_controller(state, owned)
         handle = await install(page)
         try:
             message = await asyncio.wait_for(drive(ctx, page, handle, source, current), max(deadline - loop.time(), 0.01))
         except asyncio.TimeoutError:
-            logs = await saved_logs(page, handle)
+            logs = await stopped_logs(page, handle)
             raise timed_out(seconds, current, source, logs) from None
     finally:
-        cleanup = asyncio.ensure_future(close_controller(state, page.target_id))
-        cancelled = False
-        while not cleanup.done():
-            try:
-                await asyncio.shield(cleanup)
-            except asyncio.CancelledError:
-                cancelled = True
-        if cancelled:
-            raise asyncio.CancelledError
+        await temptabs.release(state, owned)
     logs = list(message.get("logs") or [])
     if message.get("logsDropped"):
         logs.append(f"[{message['logsDropped']} more log lines dropped past {LOG_LIMIT // 1024} KB]")
@@ -387,9 +410,9 @@ async def run(ctx, source: str, seconds: float):
                   "\n".join(parts) if parts else "✓ Done", page_content=True)
 
 
-async def saved_logs(page, handle: str) -> list[str]:
+async def stopped_logs(page, handle: str) -> list[str]:
     try:
-        got = await control(page, handle, "function () { return this.logs(); }", timeout=2)
+        got = await control(page, handle, "function () { return this.stop(); }", timeout=CONTROL_TIMEOUT)
     except (BrowseError, asyncio.TimeoutError):
         return []
     return list((got or {}).get("logs") or [])

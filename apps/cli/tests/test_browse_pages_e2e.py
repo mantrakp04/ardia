@@ -1,85 +1,82 @@
+import asyncio
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_browse_e2e import CLI, DIRECT, FIXTURES, REPO, SERVE, free_port, wait_for
+from test_browse_e2e import CLI, DIRECT, FIXTURES, REPO, SERVE, SESSION_JS, free_port, wait_for
+
+sys.path.insert(0, str(CLI))
 
 APP = os.environ.get("ARDIA_BROWSE_E2E_APP")
 SCRATCH = Path(os.environ.get("ARDIA_BROWSE_PAGES_E2E_DIR", str(Path.home() / "ardia-scratch" / "browse-pages" / "e2e")))
 PORT = int(os.environ.get("ARDIA_BROWSE_PAGES_E2E_PORT") or 0)
 
 
-@unittest.skipUnless(APP, "set ARDIA_BROWSE_E2E_APP to a built Ardia.app (never /Applications) to run the end-to-end test")
-class ReadAndScriptEndToEnd(unittest.TestCase):
+def fetch_ok(url):
+    try:
+        with DIRECT.open(url, timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def page_targets(ws: str) -> dict[str, str]:
+    from ardia_cli import guard
+
+    async def ask():
+        connection = await guard.direct_connect(ws, max_size=1 << 24)
+        try:
+            await connection.send(json.dumps({"id": 1, "method": "Target.getTargets"}))
+            while True:
+                message = json.loads(await asyncio.wait_for(connection.recv(), 10))
+                if message.get("id") == 1:
+                    return {info["targetId"]: info.get("url", "") for info in message["result"]["targetInfos"] if info.get("type") == "page"}
+        finally:
+            await connection.close()
+
+    return asyncio.run(ask())
+
+
+class PagesChecks:
+    endpoint_args: list = []
+
     @classmethod
-    def setUpClass(cls):
-        if APP.startswith("/Applications/"):
-            raise unittest.SkipTest("never an installed app")
-        cls.data = SCRATCH / "data"
-        if cls.data.exists():
-            shutil.rmtree(cls.data)
-        cls.data.mkdir(parents=True)
+    def serve_fixtures(cls):
         cls.http_port = free_port()
         cls.server = subprocess.Popen([sys.executable, "-I", "-c", SERVE, str(cls.http_port)], cwd=FIXTURES, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        cls.port = PORT or free_port()
-        launched = subprocess.run([str(REPO / "scripts/agent/ac"), "launch", APP, "--data", str(cls.data), "--port", str(cls.port), "--js", "none",
-                                   "--test", "cdpTabsVisible", "--onboarded", "--no-wait"], capture_output=True, text=True, timeout=90)
-        if launched.returncode:
-            cls.server.terminate()
-            raise RuntimeError(launched.stderr or launched.stdout)
-
-        def devtools():
-            try:
-                with DIRECT.open(f"http://127.0.0.1:{cls.port}/json/version", timeout=2):
-                    return True
-            except OSError:
-                return False
-
-        try:
-            wait_for(devtools, 60, "the instance's DevTools port")
-            wait_for(lambda: cls.fetch_ok(f"http://127.0.0.1:{cls.http_port}/listing.html"), 10, "the fixture server")
-        except BaseException:
-            cls.tearDownClass()
-            raise
-
-    @staticmethod
-    def fetch_ok(url):
-        try:
-            with DIRECT.open(url, timeout=2):
-                return True
-        except OSError:
-            return False
 
     @classmethod
-    def tearDownClass(cls):
-        try:
-            cls.browse("close", "--all", check=False)
-        finally:
-            subprocess.run([str(REPO / "scripts/agent/ac"), "quit", str(cls.data)], capture_output=True, timeout=60)
-            cls.server.terminate()
-            cls.server.wait(10)
+    def browse_argv(cls, args, session):
+        return [sys.executable, "-m", "ardia_cli", "browse", *cls.endpoint_args, "--data-dir", str(cls.data), "--session", session, *args]
 
     @classmethod
     def browse(cls, *args, session="pages", check=True, timeout=120, stdin=None):
         env = dict(os.environ, PYTHONPATH=str(CLI))
-        done = subprocess.run([sys.executable, "-m", "ardia_cli", "browse", "--port", str(cls.port), "--data-dir", str(cls.data), "--session", session, *args],
-                              capture_output=True, text=True, timeout=timeout, env=env, input=stdin)
+        done = subprocess.run(cls.browse_argv(args, session), capture_output=True, text=True, timeout=timeout, env=env, input=stdin)
         if check and done.returncode:
             raise AssertionError(f"ardia browse {' '.join(args)} exited {done.returncode}: {done.stderr}{done.stdout}")
         return done
 
+    @classmethod
+    def browse_in_background(cls, *args, session="pages"):
+        env = dict(os.environ, PYTHONPATH=str(CLI))
+        return subprocess.Popen(cls.browse_argv(args, session), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+
     def url(self, name):
         return f"http://127.0.0.1:{self.http_port}/{name}"
 
+    def targets_with_urls(self) -> dict[str, str]:
+        return page_targets(self.browser_ws())
+
     def targets(self):
-        with DIRECT.open(f"http://127.0.0.1:{self.port}/json/list", timeout=5) as response:
-            return sorted(target["id"] for target in json.loads(response.read()) if target.get("type") == "page")
+        return sorted(self.targets_with_urls())
 
     def test_read_every_matching_link_renders_scripts_and_leaves_no_tabs(self):
         session = "read-links"
@@ -162,6 +159,152 @@ return rows.filter((row) => row.price < "$140");
         self.assertIn("close can't run inside a script", refused.stderr)
         self.assertEqual(self.targets(), before)
         self.assertEqual(self.browse("get", "title", session=session).stdout, "Dock 1 | Fixture Shop\n")
+
+    def test_another_session_cannot_adopt_a_reader_tab(self):
+        session = "reader-owner"
+        self.browse("open", self.url("listing.html"), session=session)
+        reading = self.browse_in_background("read", self.url("busy.html"), session=session)
+        try:
+            wait_for(lambda: any("busy.html" in url for url in self.targets_with_urls().values()), 15, "the reader tab")
+            reader = next(target for target, url in self.targets_with_urls().items() if "busy.html" in url)
+            listed = json.loads(self.browse("tab", "list", "--json", session="adopter").stdout)["data"]["tabs"]
+            self.assertEqual([tab for tab in listed if tab["targetId"] == reader], [])
+            adopted = self.browse("tab", reader, session="adopter", check=False)
+            self.assertEqual(adopted.returncode, 1, adopted.stdout)
+        finally:
+            out, err = reading.communicate(timeout=60)
+        self.assertEqual(reading.returncode, 0, err)
+        self.assertIn("=== Busy | Fixture Shop", out)
+        self.assertNotIn(reader, self.targets())
+
+    def test_a_daemon_killed_mid_read_has_its_tab_closed_by_the_next_run(self):
+        import signal
+
+        session = "reader-killed"
+        self.browse("open", self.url("listing.html"), session=session)
+        before = set(self.targets())
+        reading = self.browse_in_background("read", self.url("busy.html"), session=session)
+        try:
+            wait_for(lambda: any("busy.html" in url for url in self.targets_with_urls().values()), 15, "the reader tab")
+            orphan = next(target for target, url in self.targets_with_urls().items() if "busy.html" in url)
+            browse_dir = self.data / "Browse"
+            pid = next(meta["pid"] for meta in (json.loads(path.read_text()) for path in browse_dir.glob("*.json") if path.name[0] != ".")
+                       if isinstance(meta, dict) and meta.get("session") == session)
+            os.kill(pid, signal.SIGKILL)
+        finally:
+            reading.communicate(timeout=60)
+        self.assertIn(orphan, self.targets())
+        self.browse("open", self.url("listing.html"), session=session)
+        self.browse("read", self.url("item.html?n=1"), session=session)
+        self.assertNotIn(orphan, self.targets())
+        self.assertLessEqual(len(set(self.targets()) - before), 1)
+
+    def test_a_busy_script_times_out_and_its_page_goes(self):
+        session = "script-busy"
+        self.browse("open", self.url("item.html?n=1"), session=session)
+        before = self.targets()
+        started = time.monotonic()
+        spun = self.browse("script", "--timeout", "2s", stdin="log('spinning');\nwhile (true) {}", session=session, check=False)
+        self.assertEqual(spun.returncode, 1)
+        self.assertTrue(spun.stderr.startswith("✗ The script timed out after 2s."), spun.stderr)
+        self.assertIn("logged before that:\nspinning", spun.stderr)
+        self.assertLess(time.monotonic() - started, 20)
+        wait_for(lambda: self.targets() == before, 30, "the busy script's page to close")
+        self.assertEqual(self.browse("get", "title", session=session).stdout, "Dock 1 | Fixture Shop\n")
+
+
+@unittest.skipUnless(APP, "set ARDIA_BROWSE_E2E_APP to a built Ardia.app (never /Applications) to run the end-to-end test")
+class ReadAndScriptOverPort(PagesChecks, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if APP.startswith("/Applications/"):
+            raise unittest.SkipTest("never an installed app")
+        cls.data = SCRATCH / "data"
+        if cls.data.exists():
+            shutil.rmtree(cls.data)
+        cls.data.mkdir(parents=True)
+        cls.serve_fixtures()
+        cls.port = PORT or free_port()
+        cls.endpoint_args = ["--port", str(cls.port)]
+        launched = subprocess.run([str(REPO / "scripts/agent/ac"), "launch", APP, "--data", str(cls.data), "--port", str(cls.port), "--js", "none",
+                                   "--test", "cdpTabsVisible", "--onboarded", "--no-wait"], capture_output=True, text=True, timeout=90)
+        if launched.returncode:
+            cls.server.terminate()
+            raise RuntimeError(launched.stderr or launched.stdout)
+        try:
+            wait_for(lambda: fetch_ok(f"http://127.0.0.1:{cls.port}/json/version"), 60, "the instance's DevTools port")
+            wait_for(lambda: fetch_ok(f"http://127.0.0.1:{cls.http_port}/listing.html"), 10, "the fixture server")
+        except BaseException:
+            cls.tearDownClass()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.browse("close", "--all", check=False)
+        finally:
+            subprocess.run([str(REPO / "scripts/agent/ac"), "quit", str(cls.data)], capture_output=True, timeout=60)
+            cls.server.terminate()
+            cls.server.wait(10)
+
+    def browser_ws(self):
+        with DIRECT.open(f"http://127.0.0.1:{self.port}/json/version", timeout=5) as response:
+            return json.loads(response.read())["webSocketDebuggerUrl"]
+
+
+@unittest.skipUnless(APP, "set ARDIA_BROWSE_E2E_APP to a built Ardia.app (never /Applications) to run the end-to-end test")
+class ReadAndScriptOverToken(PagesChecks, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if APP.startswith("/Applications/"):
+            raise unittest.SkipTest("never an installed app")
+        cls.data = SCRATCH / "token-data"
+        if cls.data.exists():
+            shutil.rmtree(cls.data)
+        cls.data.mkdir(parents=True)
+        subprocess.run(["node", "-e", SESSION_JS, str(cls.data)], cwd=REPO, check=True, timeout=30)
+        cls.serve_fixtures()
+        log = str(cls.data / "app.out.log")
+        subprocess.run(["open", "-g", "-n", "--env", "ARDIA_BACKGROUND=1", "--env", f"ARDIA_DATA_DIR={cls.data}", "--stdout", log, "--stderr", log, APP],
+                       check=True, timeout=30)
+        control = cls.data / "Chromium" / "ArdiaControl.json"
+        cls.pid = None
+        try:
+            wait_for(control.exists, 60, "ArdiaControl.json")
+            cls.pid = json.loads(control.read_text())["pid"]
+            wait_for(lambda: fetch_ok(f"http://127.0.0.1:{cls.http_port}/listing.html"), 10, "the fixture server")
+        except BaseException:
+            cls.tearDownClass()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            if cls.pid:
+                cls.browse("close", "--all", check=False)
+        finally:
+            if cls.pid:
+                try:
+                    os.kill(cls.pid, 15)
+                    wait_for(lambda: not alive(cls.pid), 30, "the instance to quit")
+                except (ProcessLookupError, AssertionError):
+                    if alive(cls.pid):
+                        os.kill(cls.pid, 9)
+            cls.server.terminate()
+            cls.server.wait(10)
+
+    def browser_ws(self):
+        from ardia_cli import endpoint
+
+        return endpoint.resolve(data_dir=str(self.data)).ws
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 if __name__ == "__main__":

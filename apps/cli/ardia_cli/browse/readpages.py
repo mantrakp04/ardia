@@ -13,8 +13,8 @@ LOAD_GRACE = 5.0
 SETTLE_LIMIT = 3.0
 SETTLE_QUIET = 0.3
 SETTLE_POLL = 0.1
-MIN_SHARE = 200
-CLOSE_TIMEOUT = 3.0
+MIN_USEFUL = 120
+CUT_MARK = 24
 MAX_STDIN = 1024 * 1024
 
 LINKS = r"""() => {
@@ -168,8 +168,7 @@ def shares(lengths: list[int], budget: int) -> list[int]:
     order = sorted(range(len(lengths)), key=lambda index: lengths[index])
     left = max(budget, 0)
     for position, index in enumerate(order):
-        share = max(left // (len(order) - position), MIN_SHARE)
-        allowed[index] = min(lengths[index], share)
+        allowed[index] = min(lengths[index], left // (len(order) - position))
         left -= allowed[index]
     return allowed
 
@@ -179,7 +178,8 @@ def cut(text: str, limit: int) -> str:
         return text
     at = text.rfind("\n", 0, limit + 1)
     at = at if at >= limit * 0.8 else limit
-    return text[:at].rstrip() + f"\n… [+{len(text) - at:,} characters]"
+    kept = text[:at].rstrip()
+    return (kept + "\n" if kept else "") + f"… [+{len(text) - at:,} characters]"
 
 
 def header(record: dict, index: int, total: int) -> str:
@@ -191,32 +191,53 @@ def header(record: dict, index: int, total: int) -> str:
     return f"=== {place}{record.get('title') or '(no title)'}{status}\n{url}"
 
 
+def footer(limit: int, cut_any: bool, hidden: int, wanted: int) -> str:
+    parts = [f"pages cut to fit {limit:,} characters"] if cut_any else []
+    if hidden:
+        parts.append(f"+{hidden} page{'s' if hidden != 1 else ''} not shown")
+    return (f"[{'; '.join(parts)}. Narrow it instead: -s <css> (one region per page), a tighter --links pattern, or --limit <n>. "
+            f"Only if you need every line: --max-output {wanted}]")
+
+
 def render(records: list[dict], options: dict, extra: str = "") -> str:
     from ardia_cli.browse.daemon import OUTPUT_CAP
+    from ardia_cli.redact import redact
 
-    heads = [header(record, index + 1, len(records)) for index, record in enumerate(records)]
-    texts = [record.get("text") or ("" if record.get("error") else "(no text)") for record in records]
+    heads = [redact(header(record, index + 1, len(records))) for index, record in enumerate(records)]
+    texts = [redact(record.get("text") or ("" if record.get("error") else "(no text)")) for record in records]
+    extra = redact(extra)
     limit = None if options.get("full") else (OUTPUT_CAP if options.get("max_output") is None else int(options["max_output"]))
     whole = join(heads, texts, [extra])
     if not limit or limit <= 0 or len(whole) <= limit:
         return whole
+    for shown in range(len(records), -1, -1):
+        out = fit(heads[:shown], texts[:shown], len(records) - shown, limit, extra, len(whole) + 300)
+        if out is not None:
+            return out
+    return footer(limit, False, len(records), len(whole) + 300)[:limit]
+
+
+def fit(heads: list[str], texts: list[str], hidden: int, limit: int, extra: str, wanted: int) -> str | None:
     lengths = [len(text) for text in texts]
-    total = sum(lengths)
-    budget = limit - (len(whole) - total) - 24 * len(texts) - 220
+    needed = sum(min(length, MIN_USEFUL) for length in lengths)
+    longest = footer(limit, True, hidden, wanted)
+    budget = limit - len(join(heads, [""] * len(heads), [extra, longest])) - (CUT_MARK + 1) * len(texts)
     best = None
-    for _ in range(3):
+    for _ in range(4):
+        if budget < needed:
+            return best
         allowed = shares(lengths, budget)
-        footer = (f"[pages cut to fit {limit:,} characters ({sum(allowed):,} of {total:,} shown); rerun with "
-                  f"--max-output {len(whole) + 300} or --full, or read part of each page with -s <selector>]")
-        out = join(heads, [cut(text, room) for text, room in zip(texts, allowed)], [extra, footer])
+        cut_any = any(room < length for room, length in zip(allowed, lengths))
+        tail = [extra, footer(limit, cut_any, hidden, wanted)] if cut_any or hidden else [extra]
+        out = join(heads, [cut(text, room) for text, room in zip(texts, allowed)], tail)
         if len(out) > limit:
             budget -= len(out) - limit
             continue
-        if limit - len(out) < 40:
-            return out
         best = out
+        if not cut_any or limit - len(out) < 40:
+            return out
         budget += limit - len(out)
-    return best or out
+    return best
 
 
 def join(heads: list[str], texts: list[str], tail: list[str]) -> str:
@@ -234,30 +255,14 @@ async def collect_links(ctx, pattern: str):
 
 
 async def open_reader(state, opened: list[str]):
-    from ardia_cli.browse.errors import Gated
+    from ardia_cli.browse import temptabs
     from ardia_cli.browse.page import Page
 
-    try:
-        result = await state.browser.send("Target.createTarget", {"url": "about:blank", "background": True})
-    except Gated:
-        raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
-    target_id = result["targetId"]
-    opened.append(target_id)
-    state.opened.add(target_id)
+    target_id = await temptabs.create(state, opened)
     state.target_infos.setdefault(target_id, {"targetId": target_id, "url": "about:blank", "title": "", "type": "page"})
     page = state.pages[target_id] = Page(state, target_id)
     await page.attach(state.browser)
     return page
-
-
-async def close_readers(state, target_ids: list[str]):
-    for target_id in target_ids:
-        try:
-            if state.connected:
-                await asyncio.wait_for(state.browser.send("Target.closeTarget", {"targetId": target_id}), CLOSE_TIMEOUT)
-        except Exception:
-            pass
-        state.forget_target(target_id)
 
 
 async def settle(page, deadline: float):
@@ -320,8 +325,11 @@ async def read_in(ctx, page, url: str, selector: str | None, timeout: float, opt
 
 
 async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, options: dict) -> list[dict]:
+    from ardia_cli.browse import temptabs
+
     state = ctx.state
     await state.connect()
+    await temptabs.sweep(state)
     queue = list(enumerate(urls))
     records: list = [None] * len(urls)
     opened: list[str] = []
@@ -343,17 +351,12 @@ async def read_tabs(ctx, urls: list[str], selector: str | None, timeout: float, 
         for task in done:
             task.result()
     finally:
+        from ardia_cli.browse import temptabs
+
         for task in tasks:
             task.cancel()
-        cleanup = asyncio.ensure_future(close_readers(state, opened))
-        cancelled = False
-        while not cleanup.done():
-            try:
-                await asyncio.shield(cleanup)
-            except asyncio.CancelledError:
-                cancelled = True
-        if cancelled:
-            raise asyncio.CancelledError
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await temptabs.release(state, opened)
     return records
 
 
