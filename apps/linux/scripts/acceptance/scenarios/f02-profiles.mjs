@@ -1,4 +1,4 @@
-import { chmod } from "node:fs/promises";
+import { access, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { evaluate } from "../lib/cdp.mjs";
 import { privateLeaks } from "../lib/assertions.mjs";
@@ -153,6 +153,40 @@ export default {
       const marks = await readMarks(page.session);
       if (marks.cookie !== `default-${run}`) throw new Error(`default cookie lost across restart ${JSON.stringify(marks)}`);
       return { windows, marks };
+    });
+
+    const loadedProfiles = async () => {
+      const reply = await state.shell.call("profiles.loaded");
+      if (!reply.ok) throw new Error(`profiles.loaded failed: ${reply.message}`);
+      return reply.value.profiles;
+    };
+    const unshownProfile = async (name) => {
+      const profileId = await state.shell.state(`return s.createProfile({ name: ${js(name)} });`);
+      await waitSavedSession(state.scratch, (s) => !!s.profiles?.[profileId], { timeout: 10000 });
+      return { profileId, folder: join(state.scratch, `Profile ${profileId}`) };
+    };
+    const onDisk = (folder) => access(folder).then(() => true, () => false);
+
+    await t.check("a profile no window shows stays unloaded across a restart and loads once a window shows it", async () => {
+      const { profileId, folder } = await unshownProfile(`Unshown ${run}`);
+      state = await restartBrowser(t, state);
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      const atLaunch = await loadedProfiles();
+      if (atLaunch.includes(profileId) || await onDisk(folder)) throw new Error(`${profileId} loaded at launch: ${JSON.stringify(atLaunch)}`);
+      if (!atLaunch.includes("")) throw new Error(`the default profile isn't reported loaded: ${JSON.stringify(atLaunch)}`);
+      await state.shell.state(`s.switchProfile(windowId, ${js(profileId)}); return true;`);
+      await until(async () => (await loadedProfiles()).includes(profileId) && await onDisk(folder), { timeout: 20000, label: `${profileId} to load once shown`, abort: () => state.app.exitReason() });
+      await state.shell.state(`s.switchProfile(windowId, "default"); return true;`);
+      return { profileId, atLaunch };
+    });
+
+    await t.check("with Load profiles when opened off, every profile loads at launch", async () => {
+      await state.shell.state(`s.updateSettings({ loadProfilesWhenOpened: false }); return true;`);
+      const { profileId } = await unshownProfile(`Eager ${run}`);
+      await waitSavedSession(state.scratch, (s) => s.settings?.loadProfilesWhenOpened === false, { timeout: 10000 });
+      state = await restartBrowser(t, state);
+      await until(async () => (await loadedProfiles()).includes(profileId), { timeout: 20000, label: `${profileId} to load at launch`, abort: () => state.app.exitReason() });
+      return { profileId };
     });
   },
 };

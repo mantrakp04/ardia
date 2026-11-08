@@ -61,6 +61,17 @@ const core = await import("../../browser/src/platform/profiles.ts");
 
 const last = () => calls.at(-1);
 
+test("which profiles are loaded comes from native, and a later load arrives as an event", async () => {
+  replies.set("profiles.loaded", { value: { profiles: ["", "p-work"] } });
+  assert.deepEqual(await core.loadedProfiles(), ["", "p-work"]);
+  assert.deepEqual(last(), { name: "profiles.loaded", profile: "default", args: {} });
+  const heard = [];
+  const subscription = core.onProfileLoaded((profile) => heard.push(profile));
+  context.__ardiaEvent("ArdiaProfiles", "profiles", { name: "profiles.loaded", data: { profile: "p-late" } });
+  subscription.remove();
+  assert.deepEqual(heard, ["p-late"]);
+});
+
 test("site permission calls reach the native sites domain with the profile and exact arguments", async () => {
   replies.set("sites.settings", { value: { camera: { value: "allow", isDefault: false } } });
   assert.deepEqual(await sites.getSiteSettings("default", "https://a.test"), { camera: { value: "allow", isDefault: false } });

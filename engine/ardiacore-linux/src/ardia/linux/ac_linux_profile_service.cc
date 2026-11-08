@@ -82,6 +82,14 @@ class ChromeProfiles : public Registry::Backend, public ProfileObserver {
     return profile && profile->IsOffTheRecord();
   }
 
+  void Loaded(const std::string& id) override {
+    if (loaded_listener_) loaded_listener_.Run(id);
+  }
+
+  void set_loaded_listener(base::RepeatingCallback<void(const std::string&)> listener) {
+    loaded_listener_ = std::move(listener);
+  }
+
  private:
   static void CreateProfile(const base::FilePath& path, std::function<void(Profile*)> done, bool writable) {
     ProfileManager* manager = g_browser_process ? g_browser_process->profile_manager() : nullptr;
@@ -97,6 +105,7 @@ class ChromeProfiles : public Registry::Backend, public ProfileObserver {
     if (observations_.IsObservingSource(profile)) observations_.RemoveObservation(profile);
   }
 
+  base::RepeatingCallback<void(const std::string&)> loaded_listener_;
   Registry registry_{*this};
   base::ScopedMultiSourceObservation<Profile, ProfileObserver> observations_{this};
 };
@@ -183,6 +192,14 @@ std::optional<std::string> LinuxProfileNameForPath(std::string_view path) {
 
 bool ReleaseLinuxProfile(std::string_view id) {
   return Profiles().registry().Release(id);
+}
+
+std::vector<std::string> LoadedLinuxProfiles() {
+  return Profiles().registry().LoadedRegular();
+}
+
+void SetLinuxProfileLoadedListener(base::RepeatingCallback<void(const std::string&)> listener) {
+  Profiles().set_loaded_listener(std::move(listener));
 }
 
 }

@@ -55,6 +55,8 @@ struct FakeBackend : ProfileRegistry<FakeProfile>::Backend {
     loads.erase(loads.begin() + static_cast<long>(index));
     entry.second(Make(entry.first));
   }
+  std::vector<std::string> announced;
+  void Loaded(const std::string& id) override { announced.push_back(id); }
   int creates = 0;
   FakeProfile* ExistingOffTheRecord(FakeProfile* original) override { return original->child; }
   FakeProfile* CreateOffTheRecord(FakeProfile* original) override {
@@ -197,6 +199,46 @@ void LookupAndNoFallback() {
   assert(failed.calls == 1 && !failed.profile && failed.error == ProfileError::kUnavailable);
   backend.fail_loads = false;
   std::puts("lookup=ok no_fallback=ok");
+}
+
+void LoadedProfiles() {
+  using Names = std::vector<std::string>;
+  FakeBackend backend;
+  FakeProfile app{"Default"};
+  ProfileRegistry<FakeProfile> registry(backend);
+  registry.SetDefault(&app);
+  assert(registry.LoadedRegular() == Names{""});
+  Result pending, joined;
+  registry.Resolve("p-work", Into(pending));
+  registry.Resolve("p-work", Into(joined));
+  assert(registry.LoadedRegular() == Names{""} && backend.announced.empty());
+  backend.Finish();
+  assert(registry.LoadedRegular() == (Names{"", "p-work"}) && backend.announced == Names{"p-work"});
+  Result again;
+  registry.Resolve("p-work", Into(again));
+  assert(again.profile == pending.profile && backend.announced == Names{"p-work"});
+
+  backend.synchronous = true;
+  Result otr;
+  registry.Resolve("incognito:w-a@p-work", Into(otr));
+  assert(otr.profile && otr.profile->otr);
+  assert(registry.LoadedRegular() == (Names{"", "p-work"}) && backend.announced == Names{"p-work"});
+  backend.fail_loads = true;
+  Result refused;
+  registry.Resolve("p-gone", Into(refused));
+  assert(!refused.profile && registry.LoadedRegular() == (Names{"", "p-work"}) && backend.announced == Names{"p-work"});
+  backend.fail_loads = false;
+
+  backend.synchronous = false;
+  Result deleted_while_loading;
+  registry.Resolve("p-deleted", Into(deleted_while_loading));
+  registry.MarkDeleted("p-deleted");
+  backend.Finish();
+  assert(!deleted_while_loading.profile && backend.announced == Names{"p-work"});
+
+  backend.Destroy(registry, pending.profile);
+  assert(registry.LoadedRegular() == Names{""});
+  std::puts("loaded_profiles=ok");
 }
 
 void PrivateLifetime() {
@@ -382,6 +424,7 @@ int main() {
   StartupProfilePinning();
   Parsing();
   LookupAndNoFallback();
+  LoadedProfiles();
   PrivateLifetime();
   ReleaseAndDeleteDuringResolution();
   ReentrancyAndDestruction();
@@ -405,7 +448,7 @@ class ProfileRegistryTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             run = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-            for marker in ('private_ordinals=ok', 'private_window_access=ok', 'startup_pinned=ok', 'parsing=ok', 'no_fallback=ok', 'private_lifetime=ok', 'release_during_resolution=ok',
+            for marker in ('private_ordinals=ok', 'private_window_access=ok', 'startup_pinned=ok', 'parsing=ok', 'no_fallback=ok', 'loaded_profiles=ok', 'private_lifetime=ok', 'release_during_resolution=ok',
                            'delete_during_load=ok', 'reentrancy=ok', 'destruction=ok'):
                 self.assertIn(marker, run.stdout)
 

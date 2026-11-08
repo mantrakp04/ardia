@@ -1,7 +1,7 @@
 import type { ArdiaHost } from "./host";
 import { enqueueTab } from "./hostTabQueue.ts";
 import { queueTabPresentation } from "./hostTabPresentations.ts";
-import { hostProfile, invokeHost } from "./host.ts";
+import { hostProfile, hostSupports, invokeHost } from "./host.ts";
 
 export type HostTabEvent = { type: string; [key: string]: unknown };
 export type HostTabIdentity = { browserId: number; chromeTabId: number; state?: unknown };
@@ -17,6 +17,15 @@ export type HostPageFactory = (claim: string, nativeId: () => number | undefined
 export type TabViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean };
 
 const claims = new WeakMap<ArdiaHost, Map<string, HostTab>>();
+const ADOPTED_LIVE = ["tab", "ardiacore"];
+const ADOPTED_AS_COPIES = ["restore", "clone"];
+
+export function nativeAdoptId(adoptId: string | undefined, host: ArdiaHost): string | undefined {
+  const kind = adoptId?.slice(0, Math.max(0, adoptId.indexOf(":")));
+  if (!adoptId || !kind) return undefined;
+  if (ADOPTED_LIVE.includes(kind)) return adoptId;
+  return ADOPTED_AS_COPIES.includes(kind) && hostSupports("tab.adoptCopies", host) ? adoptId : undefined;
+}
 const UNORDERED_COMMANDS = new Set(["downloadFavicon", "webStoreRequest"]);
 
 export class HostTab {
@@ -63,7 +72,7 @@ export class HostTab {
     this.ready = enqueueTab(host, this.key, async () => {
       const previousClaim = owners.get(this.key)?.claim;
       const identity = await invokeHost<HostTabIdentity>("tab.create", {
-        ...options, claim: this.claim, ...(previousClaim ? { previousClaim } : {}), profile: hostProfile(options.profile, host), url: options.url ?? "about:blank",
+        ...options, adoptId: nativeAdoptId(options.adoptId, host), claim: this.claim, ...(previousClaim ? { previousClaim } : {}), profile: hostProfile(options.profile, host), url: options.url ?? "about:blank",
       }, host);
       if (!Number.isInteger(identity?.browserId) || identity.browserId <= 0 || !Number.isInteger(identity.chromeTabId) || identity.chromeTabId <= 0) throw new Error("Invalid Ardia tab identity");
       this.identity = identity;

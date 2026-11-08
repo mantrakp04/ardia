@@ -135,6 +135,7 @@ class ProfileRegistry {
     virtual bool OffTheRecordProfile(P* profile) const = 0;
     virtual void Later(std::function<void()> task) = 0;
     virtual bool Watch(P* profile) = 0;
+    virtual void Loaded(const std::string&) {}
   };
 
   explicit ProfileRegistry(Backend& backend) : backend_(backend) {}
@@ -172,6 +173,14 @@ class ProfileRegistry {
       if (candidate == profile && !deleted_.contains(id) && backend_.Usable(candidate)) return id;
     }
     return std::nullopt;
+  }
+
+  std::vector<std::string> LoadedRegular() const {
+    std::vector<std::string> names;
+    for (const auto& [id, candidate] : regular_) {
+      if (!deleted_.contains(id) && backend_.Usable(candidate)) names.push_back(id);
+    }
+    return names;
   }
 
   bool Hosts(std::string_view requested, const P* window_profile) const {
@@ -255,6 +264,7 @@ class ProfileRegistry {
         error = ProfileError::kUnavailable;
       } else {
         regular_[id] = loaded;
+        backend_.Loaded(id);
       }
       for (auto& waiter : node.mapped()) {
         waiter(loaded, error);

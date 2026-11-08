@@ -71,6 +71,51 @@ export default {
       return true;
     });
 
+    const twoPageTab = async () => {
+      const id = await state.shell.newTab(pages[0]);
+      await waitCommitted(state.shell, id, (u) => u === pages[0], { label: pages[0] });
+      await navigateTab(state.shell, id, pages[1], { committed: true });
+      return id;
+    };
+    const otherTabOn = (page, except) => until(() => state.shell.state(`return Object.values(s.tabs).find((t) => t.windowId === windowId && t.url === ${js(page)} && t.id !== ${js(except)})?.id ?? false;`), { timeout: 8000, label: `a new tab on ${page}` });
+    const hasBackHistory = (id) => until(() => state.shell.state(`const l = s.live[${js(id)}]; return l?.canGoBack ? l : false;`), { timeout: 8000, label: `back history in ${id}` });
+    let reopened;
+    await t.check("a closed tab reopens on its page", async () => {
+      const closing = await twoPageTab();
+      await state.shell.state(`s.closeTab(${js(closing)}); return true;`);
+      await until(() => state.shell.state(`return !s.tabs[${js(closing)}];`), { timeout: 8000, label: "the tab to close" });
+      await state.shell.command("reopenClosedTab");
+      reopened = await otherTabOn(pages[1], closing);
+      return waitCommitted(state.shell, reopened, (u) => u === pages[1], { label: `${pages[1]} in the reopened tab` });
+    });
+    await t.check("a reopened tab keeps its back history", async () => {
+      if (!reopened) throw new Error("no reopened tab");
+      return hasBackHistory(reopened);
+    });
+    await t.check("a duplicated tab opens on its page with its back history", async () => {
+      const source = await twoPageTab();
+      const copy = await state.shell.state(`return s.duplicateTab(${js(source)});`);
+      await waitCommitted(state.shell, copy, (u) => u === pages[1], { label: `${pages[1]} in the duplicate` });
+      const history = await hasBackHistory(copy);
+      await state.shell.state(`s.activate(${js(tabId)}); return true;`);
+      return history;
+    });
+
+    await t.check("a discarded tab reopens with its back history", async () => {
+      const id = await twoPageTab();
+      const other = await state.shell.newTab(pages[3]);
+      await state.shell.waitTabUrl(other, (u) => u === pages[3]);
+      const discarded = await state.shell.eval(`(async () => { try { return await ardiaLinux.webviews.get(${js(id)})?.discard(); } catch (e) { return "error " + e.message; } })()`);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await state.shell.state(`s.closeTab(${js(id)}); return true;`);
+      await until(() => state.shell.state(`return !s.tabs[${js(id)}];`), { timeout: 8000, label: "the discarded tab to close" });
+      await state.shell.command("reopenClosedTab");
+      const back = await otherTabOn(pages[1], id);
+      await waitCommitted(state.shell, back, (u) => u === pages[1], { label: `${pages[1]} in the reopened discarded tab` });
+      const live = await hasBackHistory(back);
+      await state.shell.state(`s.activate(${js(tabId)}); return true;`);
+      return { discarded, live };
+    });
     const zoomUrl = url.zoom("zoom.ardia.test") + `?run=${run}`;
     let base;
     await t.check("zoom in agrees across page scale, percentage and indicator", async () => {

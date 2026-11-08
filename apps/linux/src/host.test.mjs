@@ -13,6 +13,8 @@ import { adoptParkedPins } from "../../browser/src/state/pins/parkedPins.ts";
 import { splitTabIds } from "../../browser/src/state/splits/splits.ts";
 import { reloadBookmarks } from "../../browser/src/state/bookmarks/engineSync.ts";
 import { reloadHistory } from "../../browser/src/state/history/engineSync.ts";
+import { engineProfile } from "../../browser/src/state/browser/model.ts";
+import { useProfileLoading } from "../../browser/src/state/profiles/profileLoading.ts";
 import * as native from "../../browser/src/test-native/index.ts";
 
 function fixture(invoke = async () => null) {
@@ -514,6 +516,46 @@ test("production data bridges persist bookmark edits in Chrome and load history 
   } finally {
     again();
   }
+});
+
+test("a launch reads only the profiles its windows show, and another once a window shows it", async () => {
+  native.loadedEngineProfiles.clear();
+  native.loadedEngineProfiles.add("");
+  const { host } = fixture();
+  useBrowser.getState().hydrate(initialHostSession(host, null));
+  const work = useBrowser.getState().createProfile({ name: "Work" });
+  const engine = engineProfile(useBrowser.getState(), work);
+  const since = native.engineCalls.length;
+  const stop = startHostData();
+  const callsToWork = () => native.engineCalls.slice(since).filter((call) => call.profile === engine);
+  try {
+    await Promise.all([reloadBookmarks(), reloadHistory()]);
+    assert.deepEqual(callsToWork(), []);
+    useBrowser.getState().switchProfile("w_linux", work);
+    await Promise.all([reloadBookmarks(), reloadHistory()]);
+    assert.ok(callsToWork().some((call) => call.domain === "history"));
+    assert.ok(callsToWork().some((call) => call.domain === "bookmarks"));
+  } finally {
+    stop();
+    useProfileLoading.setState({ deferred: false, opened: {} });
+  }
+});
+
+test("a reopened or duplicated tab asks native for a copy only when the engine can make one", async () => {
+  const sent = async (adoptId, capabilities) => {
+    const f = fixture(async () => ({ browserId: 7, chromeTabId: 7 }));
+    f.host.bootstrap = { ...f.host.bootstrap, capabilities };
+    const tab = new HostTab(f.host, { key: `copy-${adoptId}`, profile: "", url: "https://example.com", adoptId }, () => {});
+    await tab.ready;
+    tab.dispose();
+    return f.requests.find(([method]) => method === "tab.create")[1].adoptId;
+  };
+  assert.equal(await sent("restore:t1", ["tab.adoptCopies"]), "restore:t1");
+  assert.equal(await sent("clone:t1", ["tab.adoptCopies"]), "clone:t1");
+  assert.equal(await sent("restore:t1", []), undefined);
+  assert.equal(await sent("clone:t1", undefined), undefined);
+  assert.equal(await sent("tab:41", []), "tab:41");
+  assert.equal(await sent("webkit:3", ["tab.adoptCopies"]), undefined);
 });
 
 test("tab creation buffers early native events and reports real native IDs", async () => {

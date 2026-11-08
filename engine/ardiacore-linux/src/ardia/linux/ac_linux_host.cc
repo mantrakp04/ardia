@@ -87,6 +87,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/pickle.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted_memory.h"
@@ -127,6 +128,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
@@ -149,6 +151,8 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/sessions/core/serialized_navigation_entry.h"
+#include "components/sessions/core/serialized_user_agent_override.h"
 #include "components/sessions/core/session_id.h"
 #include "components/version_info/version_info.h"
 #include "components/zoom/zoom_controller.h"
@@ -475,6 +479,51 @@ uint64_t NextPageBindingGeneration() {
 
 int TabId(content::WebContents* contents) {
   return sessions::SessionTabHelper::IdForTab(contents).id();
+}
+
+struct SavedNavigations {
+  int selected = 0;
+  std::vector<sessions::SerializedNavigationEntry> entries;
+};
+
+std::optional<SavedNavigations> UnpackNavigations(const std::string& state) {
+  const auto bytes = base::Base64Decode(state);
+  if (!bytes || bytes->empty()) return std::nullopt;
+  base::Pickle pickle = base::Pickle::WithUnownedBuffer(*bytes);
+  base::PickleIterator it(pickle);
+  int version = 0, selected = 0, count = 0;
+  if (!it.ReadInt(&version) || version != 1 || !it.ReadInt(&selected) || !it.ReadInt(&count) || count <= 0 ||
+      count > 1000) {
+    return std::nullopt;
+  }
+  SavedNavigations saved;
+  for (int i = 0; i < count; ++i) {
+    sessions::SerializedNavigationEntry entry;
+    if (!entry.ReadFromPickle(&it)) return std::nullopt;
+    saved.entries.push_back(std::move(entry));
+  }
+  saved.selected = std::clamp(selected, 0, count - 1);
+  return saved;
+}
+
+void IgnoreEngineReply(void*, const char*) {}
+
+void TagTabForRestore(content::WebContents* contents, const std::string& key) {
+  Profile* profile = contents ? Profile::FromBrowserContext(contents->GetBrowserContext()) : nullptr;
+  if (!profile || profile->IsOffTheRecord() || key.empty() || TabId(contents) <= 0) return;
+  const auto json = base::WriteJson(base::DictValue().Set("tab", TabId(contents)).Set("key", key));
+  if (json) ac_engine_call("ac_tab_restore_tag", profile->GetPath().value().c_str(), json->c_str(), &IgnoreEngineReply, nullptr);
+}
+
+struct RestoreTake {
+  base::OnceCallback<void(std::string)> done;
+};
+
+void TookRestoredTab(void* context, const char* json) {
+  std::unique_ptr<RestoreTake> take(static_cast<RestoreTake*>(context));
+  const auto value = json ? base::JSONReader::Read(json, base::JSON_PARSE_RFC) : std::nullopt;
+  const std::string* state = value && value->is_dict() ? value->GetDict().FindString("state") : nullptr;
+  std::move(take->done).Run(state ? *state : std::string());
 }
 
 bool RestoredTab(content::WebContents* contents) {
@@ -1301,6 +1350,8 @@ class ShellHostView : public views::View,
 
  private:
   std::map<int, base::WeakPtr<content::WebContents>> offered_;
+  std::map<std::string, uint64_t> pending_restores_;
+  uint64_t restore_tickets_ = 0;
   struct UnclaimedTab {
     base::WeakPtr<content::WebContents> contents;
     bool active = false;
@@ -1346,6 +1397,12 @@ class ShellHostView : public views::View,
                  base::OnceCallback<void(bool, base::Value)> done);
   void CreateTabIn(Profile* profile, const base::DictValue& args,
                    base::OnceCallback<void(bool, base::Value)> done);
+  void CreateTabFromCopy(Profile* profile, const base::DictValue& args, const std::string& kind,
+                         const std::string& source, base::OnceCallback<void(bool, base::Value)> done);
+  void CreateTabAdopting(Profile* profile, base::DictValue args, content::WebContents* inserted,
+                         base::OnceCallback<void(bool, base::Value)> done);
+  content::WebContents* InsertClone(Profile* profile, const std::string& source);
+  content::WebContents* InsertRestored(Profile* profile, const std::string& state);
   void TabCommand(const base::DictValue& args,
                   base::OnceCallback<void(bool, base::Value)> done);
   void SetViewport(const base::DictValue& args,
@@ -1789,6 +1846,11 @@ class HostMessageHandler : public content::WebUIMessageHandler,
       if (name == "profiles.release") {
         ardiacore::ReleaseLinuxProfile(profile);
         return Resolve(id, base::Value());
+      }
+      if (name == "profiles.loaded") {
+        base::ListValue loaded;
+        for (const std::string& engine_profile : ardiacore::LoadedLinuxProfiles()) loaded.Append(engine_profile);
+        return Resolve(id, base::Value(base::DictValue().Set("profiles", std::move(loaded))));
       }
       if (LinuxExtensionsHandles(name)) {
         return LinuxExtensionsCall(host_->ExtensionWindow(profile), profile, name, args.Find("args"),
@@ -2650,6 +2712,7 @@ base::DictValue ShellHostView::Bootstrap() const {
   capabilities.Append("engine.systemState");
   capabilities.Append("shell.inputRegions");
   capabilities.Append("pip.attach");
+  capabilities.Append("tab.adoptCopies");
   capabilities.Append("pip.viewport");
   capabilities.Append("pip.command");
   capabilities.Append("shell.glassRegions");
@@ -3665,6 +3728,11 @@ void BroadcastWindowEvent(const base::DictValue& event) {
   }
 }
 
+void BroadcastProfileLoaded(const std::string& profile) {
+  const auto event = base::DictValue().Set("name", "profiles.loaded").Set("data", base::DictValue().Set("profile", profile));
+  for (const auto& [id, host] : Hosts()) host->Event("ArdiaProfiles", "profiles", base::Value(event.Clone()));
+}
+
 ShellHostView* DevToolsLinkWindow(content::BrowserContext* profile, content::WebContents* holding) {
   ShellHostView* chosen = nullptr;
   for (const auto& [id, host] : Hosts()) {
@@ -4576,6 +4644,75 @@ void ShellHostView::CreateTab(
       }, GetWeakPtr(), renderer_generation_, args.Clone(), std::move(done)));
 }
 
+void ShellHostView::CreateTabFromCopy(Profile* profile, const base::DictValue& args, const std::string& kind,
+                                      const std::string& source, base::OnceCallback<void(bool, base::Value)> done) {
+  base::DictValue plain = args.Clone();
+  plain.Remove("adoptId");
+  if (kind == "clone") return CreateTabAdopting(profile, std::move(plain), InsertClone(profile, source), std::move(done));
+  if (profile->IsOffTheRecord() || source.empty()) return CreateTabIn(profile, plain, std::move(done));
+  const auto json = base::WriteJson(base::DictValue().Set("key", source));
+  if (!json) return CreateTabIn(profile, plain, std::move(done));
+  const std::string key = String(args, "key");
+  const uint64_t ticket = ++restore_tickets_;
+  pending_restores_[key] = ticket;
+  auto* take = new RestoreTake{base::BindOnce(
+      [](base::WeakPtr<ShellHostView> host, uint64_t generation, base::WeakPtr<Profile> profile, std::string key,
+         uint64_t ticket, base::DictValue args, base::OnceCallback<void(bool, base::Value)> done, std::string state) {
+        if (!host) return std::move(done).Run(false, base::Value("The window closed while the closed tab was restored"));
+        const auto pending = host->pending_restores_.find(key);
+        if (pending == host->pending_restores_.end() || pending->second != ticket) {
+          return std::move(done).Run(false, base::Value("The tab closed while it was restored"));
+        }
+        host->pending_restores_.erase(pending);
+        if (!host->browser_ || !host->handler_ || host->renderer_generation_ != generation || !profile ||
+            profile->ShutdownStarted()) {
+          return std::move(done).Run(false, base::Value("The window changed while the closed tab was restored"));
+        }
+        host->CreateTabAdopting(profile.get(), std::move(args), host->InsertRestored(profile.get(), state), std::move(done));
+      },
+      GetWeakPtr(), renderer_generation_, profile->GetWeakPtr(), key, ticket, std::move(plain), std::move(done))};
+  ac_engine_call("ac_tab_restore_take", profile->GetPath().value().c_str(), json->c_str(), &TookRestoredTab, take);
+}
+
+void ShellHostView::CreateTabAdopting(Profile* profile, base::DictValue args, content::WebContents* inserted,
+                                      base::OnceCallback<void(bool, base::Value)> done) {
+  if (inserted && TabId(inserted) > 0) {
+    offered_[TabId(inserted)] = inserted->GetWeakPtr();
+    args.Set("adoptId", "tab:" + base::NumberToString(TabId(inserted)));
+  }
+  CreateTabIn(profile, args, std::move(done));
+}
+
+content::WebContents* ShellHostView::InsertClone(Profile* profile, const std::string& source) {
+  content::WebContents* original = nullptr;
+  for (const auto& [window, host] : Hosts()) {
+    TabBinding* found = host->BindingForKey(source);
+    if (found && found->contents() && found->contents()->GetBrowserContext() == profile) original = found->contents();
+  }
+  BrowserWindowInterface* member = original ? EnsureMember(profile) : nullptr;
+  if (!member) return nullptr;
+  std::unique_ptr<content::WebContents> copy = original->Clone();
+  content::WebContents* raw = copy.get();
+  TabStripModel* model = member->GetTabStripModel();
+  app_operation_ = true;
+  model->InsertWebContentsAt(model->count(), std::move(copy), AddTabTypes::ADD_NONE);
+  app_operation_ = false;
+  return raw;
+}
+
+content::WebContents* ShellHostView::InsertRestored(Profile* profile, const std::string& state) {
+  auto saved = state.empty() ? std::nullopt : UnpackNavigations(state);
+  BrowserWindowInterface* member = saved ? EnsureMember(profile) : nullptr;
+  if (!member) return nullptr;
+  app_operation_ = true;
+  content::WebContents* contents = chrome::AddRestoredTab(
+      member, saved->entries, member->GetTabStripModel()->count(), saved->selected, std::string(), std::nullopt,
+      false, false, base::TimeTicks::Now(), base::Time::Now(), nullptr, sessions::SerializedUserAgentOverride(), {},
+      false, std::nullopt);
+  app_operation_ = false;
+  return contents;
+}
+
 void ShellHostView::CreateTabIn(
     Profile* profile, const base::DictValue& args,
     base::OnceCallback<void(bool, base::Value)> done) {
@@ -4592,6 +4729,18 @@ void ShellHostView::CreateTabIn(
   if (!url.is_valid() || url.SchemeIs("javascript") ||
       (url.SchemeIs("chrome") && url.host() == "ardia")) {
     return std::move(done).Run(false, base::Value("Invalid or reserved tab URL"));
+  }
+  pending_restores_.erase(key);
+  const std::string adoption = String(args, "adoptId");
+  const size_t adoption_colon = adoption.find(':');
+  const std::string adoption_kind = adoption_colon == std::string::npos ? std::string() : adoption.substr(0, adoption_colon);
+  if (adoption_kind == "restore" || adoption_kind == "clone") {
+    bool held = false;
+    for (const auto& [window, host] : Hosts()) {
+      TabBinding* existing = host->BindingForKey(key);
+      held = held || (existing && existing->contents());
+    }
+    if (!held) return CreateTabFromCopy(profile, args, adoption_kind, adoption.substr(adoption_colon + 1), std::move(done));
   }
   TabBinding* binding = BindingForKey(key);
   if (binding && !ardiacore::linux_contract::CanReclaim(binding->claim, String(args, "previousClaim"))) {
@@ -4741,6 +4890,7 @@ void ShellHostView::CreateTabIn(
   binding->ResetPageCommands();
   binding->temporary = args.FindBool("temporary").value_or(false);
   binding->claim = claim;
+  if (!binding->temporary) TagTabForRestore(binding->contents(), key);
   binding->renderer_generation = renderer_generation_;
   binding->transferable = false;
   AdoptDevTools(binding);
@@ -5858,6 +6008,7 @@ void ShellHostView::Invoke(
     return std::move(done).Run(true, base::Value());
   }
   if (method == "tab.close") {
+    pending_restores_.erase(String(args, "key"));
     TabBinding* binding = BindingForKey(String(args, "key"));
     if (!binding || !binding->contents()) {
       return std::move(done).Run(true, base::Value());
@@ -6724,6 +6875,7 @@ class HostRegistry : public BrowserCollectionObserver,
       if (profile_path_.empty()) {
         profile_path_ = browser->GetProfile()->GetPath();
         ardiacore::SetLinuxAppProfile(browser->GetProfile());
+        ardiacore::SetLinuxProfileLoadedListener(base::BindRepeating(&BroadcastProfileLoaded));
       }
       if (browser->GetProfile()->GetPath() != profile_path_) return;
     }

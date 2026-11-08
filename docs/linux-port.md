@@ -65,6 +65,12 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 
 - **Ownership.** Each real tab stays in Chromium's `TabStripModel`. Releasing a native tab detaches its viewport;
   only an explicit close ends the tab. Moving or remounting a UI view never closes its tab.
+- **Reopened and duplicated tabs.** As on macOS, every live tab is tagged with its key (`ac_tab_restore_tag`), so
+  Chromium's `TabRestoreService` keeps the key with a closed tab's navigations. Reopening a closed tab or window
+  (`restore:<key>`) takes them back (`ac_tab_restore_take`) and recreates the tab with `chrome::AddRestoredTab`, with
+  its back and forward history. Duplicating a tab (`clone:<key>`) clones its contents. Either falls back to loading
+  the URL when nothing was saved. The host advertises this as `tab.adoptCopies`; without it the shell sends neither
+  id, and the tab loads its URL instead of failing.
 - **Placement.** Rectangles arrive in CSS viewport coordinates and the host converts them. Native pages hide beneath
   browser overlays and clip themselves.
 - **Tracking.** `watchTabViewport` measures a page's rectangle, overlays and coverage only when something changes: a
@@ -202,6 +208,12 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   - A tab moved to another engine profile is recreated in the destination profile (`CreateTabIn` drops the old binding
     and its contents); a tab moved to another window keeps its contents only when the profile matches, and lands in
     the destination window's member for that profile.
+- **Profiles load when opened.** As on macOS, a launch loads only the profiles its windows show. The others, with their
+  extensions and uBlock Origin, load the first time a window shows one or a call needs their engine data.
+  `startHostData` starts the shared `state/profiles/profileLoading.ts`, which also honours Settings › Advanced ›
+  Performance › Load profiles when opened and the `lazyProfiles` kill switch. Native reports what `ProfileRegistry` has
+  loaded through the `profiles.loaded` call, and a later load through the event of the same name, to every window. An
+  engine without the call answers `ERR_UNKNOWN_CALL`, and every profile loads at launch.
 - **The window's active engine profile.** The Linux shell tells the host which engine profile the window shows
   (`ArdiaShell.setActiveProfile`, sent by `watchActiveProfile` in `hostWindowProfiles.ts` whenever the window's engine
   profile changes, with a sequence number so a late reply can't win). The extension toolbar, popups, side panels and

@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "ardia/linux/ac_linux_profiles.h"
 #include "base/functional/callback.h"
@@ -21,6 +22,8 @@ void ResolveLinuxProfile(std::string_view id, LinuxProfileDone done);
 std::optional<std::string> LinuxProfileName(const Profile* profile);
 std::optional<std::string> LinuxProfileNameForPath(std::string_view path);
 bool ReleaseLinuxProfile(std::string_view id);
+std::vector<std::string> LoadedLinuxProfiles();
+void SetLinuxProfileLoadedListener(base::RepeatingCallback<void(const std::string&)> listener);
 
 }
 
