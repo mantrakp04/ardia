@@ -48,8 +48,7 @@ test("WindowMove.follow places a pointer the display link left waiting when no d
     /guard var next = nextGestureEvent\(waiting: pacer\.untilStall\) else \{\s*pacer\.idle\(\)/,
     "pacer.idle() is the first thing the else branch of the guard does, so it runs only when the wait ended with no event",
   );
-  const received = loop.slice(loop.indexOf("var latest"));
-  assert.ok(!received.includes("pacer.idle()"), "a received event never takes the idle placement");
+  assert.equal(count(loop, "pacer.idle()"), 1, "pacer.idle() is called once in the whole loop, in the empty-wait branch, so a received event never takes the idle placement");
   const wait = between(source, "private static func nextGestureEvent(", "private static func place(");
   assert.match(wait, /min\(0\.1, stall \?\? 0\.1\)/, "the wait is the stall deadline when one is held, and the usual 0.1 s otherwise");
 });
@@ -73,6 +72,10 @@ test("WindowMoveProbe.drag source reports placements per frame and the spread of
   assert.match(probe, /WindowMove\.moveTimes = \[\]/);
   assert.match(probe, /WindowMove\.frameTimes = \[\]/);
   assert.match(probe, /"pacing": pacing/);
+  assert.match(probe, /"truncated": WindowMove\.moveTimes\.count >= WindowMove\.traceLimit \|\| WindowMove\.frameTimes\.count >= WindowMove\.traceLimit/, "a report built from a capped timestamp list says so");
+  const move = read("WindowMove.swift");
+  assert.match(move, /static func traceMove\(\) \{ if moveTimes\.count < traceLimit /);
+  assert.match(move, /static func traceFrame\(\) \{ if frameTimes\.count < traceLimit /);
   assert.ok(!probe.includes("pacingReport(from: began, to: ended)"), "ended is taken before the queued mouse-up is handled, so the report would leave out the placement that mouse-up makes");
   const afterSettle = probe.slice(probe.indexOf("DispatchQueue.main.asyncAfter"));
   assert.match(afterSettle, /let pacing = pacingReport\(from: began, to: CACurrentMediaTime\(\)\)/, "the report is built once the drag has ended and settled, so the mouse-up placement is in it");

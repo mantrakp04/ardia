@@ -88,8 +88,9 @@ enum WindowMove {
   #if DEBUG
   static var moveTimes: [CFTimeInterval] = []
   static var frameTimes: [CFTimeInterval] = []
-  static func traceMove() { if moveTimes.count < 20000 { moveTimes.append(CACurrentMediaTime()) } }
-  static func traceFrame() { if frameTimes.count < 20000 { frameTimes.append(CACurrentMediaTime()) } }
+  static let traceLimit = 20000
+  static func traceMove() { if moveTimes.count < traceLimit { moveTimes.append(CACurrentMediaTime()) } }
+  static func traceFrame() { if frameTimes.count < traceLimit { frameTimes.append(CACurrentMediaTime()) } }
   static var afterMoveTrace: [[String: Any]] = []
   static func traceAfterMove(_ window: NSWindow, _ rect: NSRect, _ outcome: String) {
     if afterMoveTrace.count < 4000 {
