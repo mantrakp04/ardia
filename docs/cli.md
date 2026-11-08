@@ -69,7 +69,11 @@ the pins into `pyproject.toml`).
 - `ardia run COMMAND [ARG]` runs one of Ardia's commands over `<data dir>/ArdiaControl.sock` (see
   `docs/automation.md`).
 - `ardia commands` lists the commands `run` takes (see `docs/automation.md`).
-- `ardia windows` lists the windows and their tabs (see `docs/automation.md`).
+- `ardia windows` lists the windows and their tabs (see `docs/automation.md`). With `--json` each tab also has
+  `targetId`, the DevTools page target `ardia browse` attaches to (null when the tab's page isn't loaded), and
+  `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
+  ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
+  out.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
@@ -180,6 +184,17 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   `open --capture-console`, network, HAR, route and credentials, trace, record, stream), dropped if enabling fails,
   and released by the matching stop (`har stop`, `unroute` of the last route, `trace`/`profiler stop`,
   `record stop`, `stream disable`) or when the session ends.
+- **Tab registry.** Sessions share `Browse/tabs-<sha256(instance)>.json` (version 2, under `tabs.lock`; `tabs.py`), so
+  a `tN` id is the same in every session and never moves to another tab. It records which session opened each tab
+  (`opened`), which tab each live session uses (`using`), tabs a reader or script opened only to read
+  (`note_temporary`: hidden from `tab list`, adoptable by no one, kept after the daemon dies so `temptabs.sweep`
+  closes them after the next connect or at `close`; `note_intent` marks a tab about to be created, so a daemon that
+  dies mid-create leaves a marker `claim_orphans` hands to the next one), and close reservations: `reserve_close`
+  refuses a tab another live session uses or is closing, `finish_close` (or `release_close`, which keeps the
+  temporary record) ends it, and adopting a reserved tab fails with `tab_closing`. Ids carry when they were last seen;
+  a target list deletes only ids older than it. Dead sessions' entries are pruned on every write, every write stays
+  under 1 MiB (dead intents, then dead sessions' temporaries oldest first, then unreferenced ids), and a file it
+  can't read (over 8 MiB, or damaged) starts over.
 
 ### Refs
 
@@ -193,7 +208,14 @@ the frame's loader id, the snapshot generation and the backend DOM node id (with
 resolves only within that lifetime: the instance must match, the frame must still have the same loader
 (`Page.getFrameTree`), and `DOM.resolveNode` must find the node, connected, in the isolated world. Anything else is
 `Stale ref @eN: <why>. Run snapshot again` (`code: "stale_ref"`); there's no fallback by role or name. Refs survive
-the idle disconnect (backend node ids outlive CDP sessions). `find` gives its element the next ref.
+the idle disconnect (backend node ids outlive CDP sessions). `find` gives its element the next ref. A stale ref whose
+node the page redrew (same role and name, one match) names the new ref in its error.
+
+Selectors are CSS, `@eN`, `xpath=…` (or `//…`), `text=Save` (substring, case-insensitive; `text="Save"` exact),
+`role=button[name="Save"]`, and `:has-text("…")` anywhere in a CSS selector (`[role=row]:has-text("FAS-1") td`).
+`[role=main]` also matches `<main>`, and so on for the other implicit roles (`nav`, `dialog`, `tr`, `a[href]`, `h1`–`h6`,
+`select`, text inputs, …); a bare role word such as `grid` that matches no element is tried as that role. A selector
+that matches several elements takes the first visible one. `find` waits up to 1.5 s for its element to appear.
 
 ### Input
 
@@ -226,6 +248,18 @@ clears the field. A value in another format fails before anything is touched (`c
 format), and so does one the input refuses (it's put back the way it was). The answer carries what the field holds
 (`data.value`; the text says so when it differs from what was given, such as `#3b82f6` for `#3B82F6` or a range
 snapped to its step). It needs no visible tab and sends no key events. Text fields still type.
+
+`select` on a combobox picks from its suggestions per value: a typeahead or chip input is filled with the value, a
+button that opens a listbox is clicked, an input with a `<datalist>` takes the matching entry. Options come only from
+a popup the field owns (`aria-controls`, `aria-owns`, `aria-activedescendant`) or one inside the field's component
+(the nearest ancestor holding a listbox and no other field); anything else refuses (`no_fresh_suggestions`), names the
+visible lists and points at `find role option click --name …`. A MutationObserver in the isolated world tracks the
+options' own content (ids and text): the list counts once it changed after the last keystroke and stayed put 350 ms,
+or changed during the typing and nothing changed for 1 s after it (a list filtered as you type), with no
+`aria-busy="true"`; changes above the popup don't count, and an unchanged list times out after 4 s instead of being
+picked. The match is the exact text, else an option whose line or email is the value, else the only one containing
+it; two or none fail and list the suggestions. `fill` on a typeahead types only, then says how many suggestions show
+and the `select` command to pick one.
 
 Every input command confirms the page got it. Capture listeners in the isolated world count trusted `mousedown`,
 `mouseup`, `mousemove`, `keydown`, `keyup` and `wheel` events in the target's frame; after the gesture the command
@@ -269,12 +303,12 @@ renderer (a capturer count, as tab capture does) without switching the user's vi
 `hidden` when the session detaches or the connection closes, the idle disconnect included; its timers run unthrottled
 meanwhile. Ardia does this on the token path from engine 27cc5eff (`ac_cli_visible_tabs.cc`), and on a `--port` test
 instance only when it's launched with `--test cdpTabsVisible`. Input commands check visibility first; when the tab
-is hidden they poll it for up to 0.5 s, and the session remembers what it saw: a tab that turned visible on its own
-means background tabs take input (no more waiting), one that stayed hidden means this Ardia doesn't keep them live (no
-more waiting either; the next hidden tab is refused at once). A hidden tab fails with `code: "tab_hidden"` and the exact
+is hidden they poll it for up to 0.5 s, every time (one tab that stayed hidden doesn't make later ones refused
+without waiting). A hidden tab fails with `code: "tab_hidden"` and the exact
 fix, `[t2] is a background tab, … use: ardia browse tab t2 --show (or open <url> --show)` (`data.use` carries the
 command). `open --show`, `tab new --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` show the tab
-(`Target.activateTarget`, retried until the page reports visible). `scroll` on a hidden tab keeps pydoll's
+(`Target.activateTarget`, retried until the page reports visible and the tab target's `embedderData.tabActive` has
+held for 0.3 s, since the app could switch back right after). `scroll` on a hidden tab keeps pydoll's
 humanized timing but applies each step with `scrollBy` in the isolated world; `record` and `stream` refuse a hidden
 tab (it paints no frames). The tab probe that picks the active tab on `--port`/`--ws` reads visibility straight after
 attaching, before an engine that keeps attached tabs live has made them visible.
@@ -320,8 +354,13 @@ the background and never switches the user's view unless `--show`. When it opens
 the tab takes input (`--json`: `tabId`, `background`, `takesInput`) and says so in its own output when the session
 borrowed the user's tab or the tab won't take input, so an agent learns it before its first click fails:
 `→ Opened in its own background tab [t2], since this session uses your tab [t1]; this Ardia doesn't deliver input
-there. use: ardia browse tab t2 --show (or open <url> --show)`, or `…; it takes input without being shown`. `close` and `tab close` close only tabs this session opened; the guard refuses `Browser.close` on every
-socket. `tab list` shows the user's tabs too (minus prewarmed `about:blank` pages). `alert` and `beforeunload`
+there. use: ardia browse tab t2 --show (or open <url> --show)`, or `…; it takes input without being shown`. `close` and `tab close` close only tabs this session opened, and not one another live session
+uses (reserved through the tab registry; the answer says which stayed open); the guard refuses `Browser.close` on every
+socket. `tab list` shows the user's tabs too (minus prewarmed `about:blank` pages, read/script tabs and tabs another
+session is closing), with the `tab-…` id `ardia windows` prints when the app reports the tab's target, and which
+session opened or uses each. `tab <id>` takes `tN`, a label, a target id or that `tab-…` id (an unloaded tab is
+`tab_asleep`). When a tab's page is replaced, the session follows it only where the app's `targetId` says it went,
+keeping whether it borrowed or opened the tab; otherwise it's `tab_gone` and the agent re-picks. `alert` and `beforeunload`
 dialogs are accepted, as in agent-browser, unless `--no-auto-dialog`. `get cdp-url` refuses any URL that carries a
 token or other credentials, however it was chosen (the token path, `--ws`, `$ARDIA_CDP_URL`); it prints only a
 plain `--port`/`--ws` URL. After `frame <iframe>`, if that iframe goes away, commands fail with `frame_gone` until
@@ -371,8 +410,14 @@ POST http://127.0.0.1:8792/api/events → 200
   `snapshot -i`, refs kept) before the action and again after it, and compares them by ref: `+` added (indented as in
   `snapshot -i`; nodes whose line is exactly what the session was last shown fold into one `back as last shown`
   line), `~` changed (role, name, value or state, with what it was), `-` removed (one line each up to five, else one
-  line of refs). After the action the new refs are live, so a dialog's fields can be used straight away. A new
-  document says so and lists what it has.
+  line of refs). After the action the new refs are live, so a dialog's fields can be used straight away. A run of
+  one role at one level (6 or more options, links, menu items, tree items or generic clickables; 12 or more buttons,
+  radios, checkboxes, switches or tabs) is one line with its count, parent, first and last name, ref range and how
+  many are disabled (`+   48 options in combobox "Start time" (12:00 AM … 11:30 PM; e8…e55)`), followed by any
+  selected, pressed, expanded or checked member verbatim; nodes redrawn unchanged under new refs are one line
+  (`+ 13 redrawn as they were, with new refs: …`). A new document (or a changed URL) prints the new page's whole
+  interactive tree that way, up to 150 lines, so no follow-up snapshot is needed; landing on another site prints its
+  notes first, as `snapshot` does. A same-page report stops after 40 lines with a pointer at `snapshot -i -s <css>`.
 - **URL and title** of the session's tab, when they changed. The URLs keep their path and query, but the values of
   keys that look like credentials (`code`, `token`, `pass`, `secret`, `key`, `sig`, `auth`, `session`, `state`,
   `nonce`, …) and a fragment holding `=` become `…`.
@@ -391,16 +436,20 @@ POST http://127.0.0.1:8792/api/events → 200
 - **JSON.** `data.changes`: `document` (`same`, `new`, or `unknown` when the view before couldn't be taken),
   `url`/`title` (`{"from","to"}` or null), `added`, `removed` (each `{ref, role, name, value, attrs}`), `changed`
   (`{ref, from, to}`), `back` (refs), `network` (`{method, url, type, statuses, status}` plus `failed` or
-  `pending`), and `unsettled`/`error` when they apply. Everything is sanitized like any other answer.
+  `pending`), `rerendered` (`{ref, was}`), `notes` (the arrival header) and `unsettled`/`error` when they apply. Every
+  node is listed, folded or not. Names are redacted before the 200-character cut and before folding, and everything
+  is sanitized like any other answer.
 - `--no-changes` skips all of it for one command (no snapshots, no network watch). If the view afterwards can't be
   taken (the tab closed, say), the action's result stands and the report says why.
 
 ### Output cap
 
 Text output of every command stops at 6,000 characters, at a line break when there's one in the last fifth, and
-ends with one line: `[output capped at 5,974 of 15,854 characters; rerun with --max-output 15854 or --full, or
-narrow it (snapshot -s <sel>, -d <n>)]`. `--max-output N` (or `AGENT_BROWSER_MAX_OUTPUT`) sets another limit (`0`
-for none), `--full` turns it off; JSON output is never cut. `--full` after `screenshot` or `diff` is still their
+ends with one line that points at narrowing, tailored to the command, and names `--max-output` last: `[output capped
+at 6,000 of 15,920 characters. Narrow it instead: snapshot -i (interactive only), snapshot -s <css> (one region), find
+role <role> <action> --name <text> (act without a snapshot). Only if you need every line: --max-output 15920]`. It
+used to suggest `--full`, and agents ran `snapshot --full` at up to 35K characters a time. `--max-output N` (or
+`AGENT_BROWSER_MAX_OUTPUT`) sets another limit (`0` for none), `--full` turns it off; JSON output is never cut. `--full` after `screenshot` or `diff` is still their
 full-page flag.
 
 ### Batch
@@ -408,10 +457,13 @@ full-page flag.
 `ardia browse batch [--bail] [--json]` runs commands one after another in one call and one daemon request. With no
 command arguments it reads them from stdin, one per line, so a heredoc works; blank lines and lines starting with `#`
 are skipped. A line is a command as you'd type it after `ardia browse` (shell quoting rules, through `shlex`), or a
-JSON array of strings. The session's flags (`--session`, `--port`, `--json`, `--max-output`) go on the `batch`
-command; inside a line only the command's own flags apply. Each command's answer, changes included, is printed in
-order, separated by a blank line; `--bail` stops at the first failure, and a command whose outcome is unknown stops
-the rest (`not_run`). `batch` and `close` can't run inside a batch. For a loop the page has to run itself, `eval`
+JSON array of strings. The session's flags (`--session`, `--port`, `--data-dir`, …) go on the `batch` command; a line
+takes its command's own flags and the per-command ones (`--full`, `--max-output`, `--no-changes`, `--humanize`,
+`--show`); `--full` or a larger `--max-output` on a line widens the whole batch's cap, never narrows it. Each
+command's answer, changes included, is printed in order, separated by a blank line; `--bail` stops at the first
+failure, and a command whose outcome is unknown stops the rest (`not_run`). `batch` can't run inside a batch. `close`
+can be the last line: it ends the session once every other line ran and succeeded (else it reports `not_run` and the
+session stays); anywhere else the error points at `tab close`. For a loop the page has to run itself, `eval`
 takes JavaScript (`eval --stdin` from a heredoc) and runs it in the page's main world.
 
 Filling a form five times is one call:
@@ -432,8 +484,9 @@ fill #name "Tom Becker"
 EOF
 ```
 
-Refs stay valid across the batch as long as their nodes do (a dialog that's reopened keeps its fields' refs), and CSS
-selectors, `text=`/`xpath=` and `find` lines work as on the command line.
+Refs stay valid across the batch as long as their nodes do (a dialog that's reopened keeps its fields' refs), and
+every selector form (see Refs) and `find` line works as on the command line. `eval` with `fetch(`, `DOMParser` or
+XHR, and open → `get text` on three pages in a row, print a one-time tip on stderr pointing at `read` and `script`.
 
 ### Site notes
 
