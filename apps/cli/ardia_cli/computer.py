@@ -80,6 +80,10 @@ class Refused(Exception):
     pass
 
 
+class Inconclusive(Refused):
+    pass
+
+
 def cua_home(env=None) -> Path:
     from ardia_cli import usage
 
@@ -203,10 +207,13 @@ def app_bundle_id(app: Path) -> str | None:
 
 
 def verify_app(app: Path) -> None:
-    result = subprocess.run(
-        ["/usr/bin/codesign", "--verify", "--deep", "--strict", "-R", f"={REQUIREMENT}", str(app)],
-        stdin=subprocess.DEVNULL, capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["/usr/bin/codesign", "--verify", "--deep", "--strict", "-R", f"={REQUIREMENT}", str(app)],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise Inconclusive(f"couldn't check the signature of {app}: {error}") from error
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
         raise Refused(f"{app} isn't Cua AI's signed {APP_NAME} ({detail[0] if detail else f'codesign exit {result.returncode}'})")
@@ -245,6 +252,8 @@ def ensure_driver(env=None) -> Path:
                 raise Refused(f"{app} is a link")
             check_app(app)
             return app
+        except Inconclusive:
+            raise
         except Refused as error:
             say(f"ardia computer: the cached cua-driver failed verification ({error}); fetching it again")
             remove_path(app)
@@ -330,8 +339,8 @@ def save_record(record: dict, env=None) -> None:
 def code_hash(app: Path) -> str | None:
     try:
         result = subprocess.run(["/usr/bin/codesign", "-dvvv", str(app)], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except (OSError, subprocess.SubprocessError) as error:
+        raise Inconclusive(f"couldn't read the code hash of {app}: {error}") from error
     match = re.search(r"^CDHash=([0-9a-f]+)$", result.stderr, re.MULTILINE)
     return match.group(1) if match else None
 
@@ -345,6 +354,13 @@ def installed_by_ardia(app: Path, env=None) -> bool:
     if not committed(record) or record.get("path") != str(app) or not record.get("cdhash"):
         return False
     return code_hash(app) == record["cdhash"]
+
+
+def quietly_ours(app: Path, env=None) -> bool:
+    try:
+        return installed_by_ardia(app, env)
+    except Inconclusive:
+        return False
 
 
 def forget_record(env=None) -> None:
@@ -395,7 +411,21 @@ def signed_by_cua(app: Path) -> bool:
     return True
 
 
-def recover(env=None) -> None:
+def pending_verdict(dest: Path, pending) -> str:
+    if not dest.is_dir() or not pending:
+        return "mismatch"
+    if code_hash(dest) != pending:
+        return "mismatch"
+    try:
+        verify_app(dest)
+    except Inconclusive:
+        raise
+    except Refused:
+        return "tampered"
+    return "match"
+
+
+def recover(env=None) -> bool:
     dest = installed_app()
     staging = APPLICATIONS / STAGING_NAME
     retired = APPLICATIONS / RETIRED_NAME
@@ -403,11 +433,15 @@ def recover(env=None) -> None:
         os.rename(retired, dest)
     record = read_record(env)
     if not committed(record):
-        pending = record.get("cdhash")
-        if dest.is_dir() and pending and code_hash(dest) == pending and signed_by_cua(dest):
+        try:
+            verdict = pending_verdict(dest, record.get("cdhash"))
+        except Inconclusive as error:
+            say(f"ardia computer: recovery is pending for {dest} ({error}); the next ardia computer run tries again")
+            return False
+        if verdict == "match":
             save_record({key: value for key, value in record.items() if key not in ("previous", "state")} | {"state": "committed"}, env)
         else:
-            if dest.is_dir() and pending and code_hash(dest) == pending and retired.is_dir():
+            if verdict == "tampered" and retired.is_dir():
                 remove_path(dest)
                 os.rename(retired, dest)
             restore_record(record.get("previous"), env)
@@ -415,6 +449,7 @@ def recover(env=None) -> None:
         remove_path(staging)
     if (retired.exists() or retired.is_symlink()) and (dest.exists() or dest.is_symlink()):
         remove_path(retired)
+    return True
 
 
 def copy_app(source: Path, dest: Path) -> None:
@@ -554,16 +589,16 @@ def setup(argv: list[str]) -> int:
         say("ardia computer: computer use through cua-driver needs macOS here")
         return 1
     try:
-        source = ensure_driver()
         with applications_lock():
-            recover()
-            print(place_app(source))
+            if not recover():
+                return 1
+            print(place_app(ensure_driver()))
         print(link_command())
     except (Refused, OSError, subprocess.CalledProcessError) as error:
         say(f"ardia computer: {error}")
         return 1
     dest = installed_app()
-    if installed_by_ardia(dest) and signed_by_cua(dest):
+    if quietly_ours(dest) and signed_by_cua(dest):
         if run_driver_quietly(dest / APP_BINARY, "telemetry", "disable") == 0:
             print("cua-driver telemetry off (cua-driver telemetry enable turns it back on)")
     if args.no_grant or not (sys.stdin.isatty() and sys.stdout.isatty()):
@@ -580,7 +615,8 @@ def refresh() -> int:
     dest = installed_app()
     try:
         with applications_lock():
-            recover()
+            if not recover():
+                return 1
             if not dest.is_dir() or app_version(dest) == VERSION or not installed_by_ardia(dest):
                 return 0
             print(place_app(ensure_driver()))
@@ -647,6 +683,9 @@ def run_driver(argv: list[str]) -> int:
     if app.exists() or app.is_symlink():
         try:
             verify_app(app)
+        except Inconclusive as error:
+            say(f"ardia computer: {error}; try again")
+            return 1
         except Refused as error:
             say(f"ardia computer: {error}. ardia won't run it: move it away and run ardia computer setup")
             return 1

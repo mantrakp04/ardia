@@ -930,8 +930,11 @@ the old app to `.CuaDriver.app.ardia-old`, rename the new one into place, commit
 register the app with LaunchServices. A failure before the swap changes nothing; a failure during it puts the old
 app and record back. After a crash, the next setup, refresh or `ardia computer` run (under the same lock) recovers:
 it puts `.ardia-old` back when `CuaDriver.app` is missing, commits a pending record whose CDHash matches a
-`CuaDriver.app` that verifies, otherwise restores the previous record, and removes leftover `.ardia-new` and
-`.ardia-old` copies. An app counts as ardia's only with a committed record whose path and CDHash match.
+`CuaDriver.app` that verifies, restores the previous record only on a definite mismatch (a different CDHash, or a
+signature codesign rejects), and removes leftover `.ardia-new` and `.ardia-old` copies. When `codesign` can't answer
+(it fails to run or times out), recovery leaves the pending record and `.ardia-old` exactly as they are, says
+recovery is pending, and setup and refresh exit 1; the next run tries again. An app counts as ardia's only with a
+committed record whose path and CDHash match.
 
 The shim runs `$ARDIA_CLI_HOME/current/bin/ardia` when that resolves inside `$ARDIA_CLI_HOME`, else the launcher of
 the installation that is running (`<root>/bin/ardia` next to `<root>/python`). It never takes whatever `ardia` is first
@@ -942,7 +945,9 @@ on PATH: with neither, setup and `mcp-config` refuse and say why.
 `ardia computer <args>` execs the driver with the arguments unchanged: `/Applications/CuaDriver.app`'s binary when
 it's there, otherwise the bundled copy (fetched on demand). Either is verified before every run (`codesign --verify
 --deep --strict` against Cua's designated requirement, about 0.1 s); an app in `/Applications` that fails, ardia's or
-not, is refused with a line saying to move it away and run setup. Any version Cua signed runs. The bundled copy
+not, is refused with a line saying to move it away and run setup. The check runs right before every launch; the
+window that remains between it and the exec needs the user's own write access to the app (macOS has no `fexecve`),
+and that access could replace `ardia` itself. Any version Cua signed runs. The bundled copy
 answers `--version`, `--help`, `list-tools`, `describe` and the like. `mcp`, `call`, `serve` and `permissions` need the installed app, so before setup they print
 one line pointing at `ardia computer setup` and exit 1. `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` and
 `CUA_DRIVER_RS_UPDATE_CHECK=0` are set unless the caller set them. `update`, `channel` and `skills` exit 2 with where

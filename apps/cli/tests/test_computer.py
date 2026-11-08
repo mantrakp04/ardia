@@ -5,6 +5,7 @@ import json
 import os
 import plistlib
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -18,6 +19,8 @@ from ardia_cli import cli, computer, skills
 
 SCRATCH = Path.home() / "ardia-scratch"
 REAL_DOWNLOAD = computer.download
+REAL_CODE_HASH = computer.code_hash
+REAL_VERIFY = computer.verify_app
 
 
 def quiet(function, *args, **kwargs):
@@ -277,6 +280,17 @@ class Passthrough(Sandbox):
         self.assertEqual(computer.app_version(cached), computer.VERSION)
         execve.assert_called_once()
 
+    def test_an_inconclusive_check_keeps_the_cached_bundle(self):
+        self.serve_driver()
+        cached = quiet(computer.ensure_driver)[0]
+        with mock.patch.object(computer, "verify_app", mock.Mock(side_effect=computer.Inconclusive("codesign timed out"))), mock.patch.object(os, "execve") as execve:
+            status, _, err = quiet(computer.main, ["list-tools"])
+        self.assertEqual(status, 1)
+        self.assertIn("codesign timed out", err)
+        self.assertEqual(len(self.downloads), 1)
+        self.assertTrue((cached / computer.APP_BINARY).is_file())
+        execve.assert_not_called()
+
     def test_help_word_maps_to_the_driver_help(self):
         self.install_fake_app()
         with mock.patch.object(os, "execve") as execve:
@@ -444,6 +458,64 @@ class Setup(Sandbox):
         self.assertEqual((record["state"], record["cdhash"]), ("committed", fake_code_hash(new)))
         self.assertNotIn("previous", record)
         self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+
+    def swapped_but_uncommitted(self) -> tuple[Path, dict]:
+        app = self.ours()
+        old = computer.read_record()
+        os.rename(app, self.applications / computer.RETIRED_NAME)
+        new = make_app(app, signature=b"new")
+        pending = {"path": str(app), "version": computer.VERSION, "cdhash": fake_code_hash(new), "state": "pending", "previous": old}
+        computer.save_record(pending)
+        return app, pending
+
+    def codesign_fails(self, flag: str, error: BaseException):
+        real_run = subprocess.run
+
+        def run(args, *rest, **kwargs):
+            if args and args[0] == "/usr/bin/codesign" and flag in args:
+                raise error
+            return real_run(args, *rest, **kwargs)
+
+        return mock.patch.object(computer.subprocess, "run", run)
+
+    def assert_still_pending(self, pending: dict) -> None:
+        self.assertEqual(computer.read_record(), pending)
+        self.assertTrue((self.applications / computer.RETIRED_NAME).is_dir())
+        self.assertTrue(computer.needs_recovery())
+
+    def test_a_transient_hash_failure_keeps_the_pending_record_and_the_backup(self):
+        app, pending = self.swapped_but_uncommitted()
+        with mock.patch.object(computer, "code_hash", REAL_CODE_HASH), self.codesign_fails("-dvvv", subprocess.TimeoutExpired("codesign", 30)):
+            status, _, err = quiet(computer.refresh)
+            self.assertEqual(status, 1)
+            self.assertIn("recovery is pending", err)
+            self.assert_still_pending(pending)
+            with mock.patch.object(os, "execve"):
+                _, _, err = quiet(computer.main, ["list-tools"])
+            self.assertIn("recovery is pending", err)
+            self.assert_still_pending(pending)
+        self.assertEqual(quiet(computer.refresh)[0], 0)
+        record = computer.read_record()
+        self.assertEqual((record["state"], record["cdhash"]), ("committed", pending["cdhash"]))
+        self.assertTrue(computer.installed_by_ardia(app))
+        self.assertFalse(computer.needs_recovery())
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+
+    def test_a_transient_verification_failure_keeps_the_pending_record_and_the_backup(self):
+        _, pending = self.swapped_but_uncommitted()
+        with mock.patch.object(computer, "verify_app", REAL_VERIFY), self.codesign_fails("--verify", OSError("Resource temporarily unavailable")):
+            status, _, err = quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(status, 1)
+        self.assertIn("recovery is pending", err)
+        self.assert_still_pending(pending)
+
+    def test_a_definite_mismatch_still_restores_the_previous_record(self):
+        app, pending = self.swapped_but_uncommitted()
+        (app / SIGNATURE).write_bytes(b"something else")
+        self.assertEqual(quiet(computer.refresh)[0], 0)
+        record = computer.read_record()
+        self.assertEqual((record["state"], record["cdhash"]), ("committed", pending["previous"]["cdhash"]))
+        self.assertFalse(computer.needs_recovery())
 
     def test_setup_waits_for_another_setup_and_gives_up_at_its_deadline(self):
         with mock.patch.object(computer, "LOCK_TIMEOUT_S", 0.2), computer.applications_lock():
