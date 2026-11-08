@@ -55,7 +55,9 @@ function openQuote(text, open = null) {
     }
     const c = text[i];
     const triple = open ? null : TRIPLE_QUOTES.find((q) => text.startsWith(q, i));
+    const apostrophe = c === "'" && /\p{L}/u.test(text[i - 1] ?? "") && /\p{L}/u.test(text[i + 1] ?? "");
     if (c === "\\") i++;
+    else if (apostrophe) continue;
     else if (open) open = c === open ? null : open;
     else if (triple) {
       open = triple;
@@ -77,7 +79,12 @@ function redactCredentialLines(text) {
       continue;
     }
     if (continued) {
+      quote = openQuote(line);
       continued = /\\[ \t]*$/.test(line);
+      continue;
+    }
+    if (folding && listValue && /^[ \t]*(?:#.*)?$/.test(line)) {
+      if (!line.trim()) kept.push(line);
       continue;
     }
     if (folding && (/^[ \t]/.test(line) || (listValue && /^-(?:[ \t]|$)/.test(line)))) continue;
@@ -91,7 +98,7 @@ function redactCredentialLines(text) {
     quote = openQuote(line);
     continued = /\\[ \t]*$/.test(line);
     folding = true;
-    listValue = line.slice(cut).trim() === "";
+    listValue = /^[ \t]*(?:#.*)?$/.test(line.slice(cut));
     kept.push(`${line.slice(0, cut)}[secret]`);
   }
   return kept.join("\n");

@@ -178,6 +178,12 @@ test("scrubText removes emails, secrets, URL queries and home paths", () => {
     ['PASSWORD="""\nfirstSegment91"\nsecondSegment92\n"""\nafter ok', "PASSWORD=[secret]\nafter ok"],
     ["curl -H 'Authorization: Bearer forgedToken91' https://example.com\n1. open a tab\n2. it crashes", "curl -H 'Authorization: [secret]\n1. open a tab\n2. it crashes"],
     ["-update the sidebar", "-update the sidebar"],
+    ["access_tokens: # test API\n- demoSecret91\nnext: ok", "access_tokens: [secret]\nnext: ok"],
+    ["access_tokens:\n\n- demoSecret92\nnext: ok", "access_tokens:[secret]\n\nnext: ok"],
+    ['curl --password \\\n"demoPart91\ndemoPart92"\nafter ok', "curl --password [secret]\nafter ok"],
+    ["Here's my config: PASSWORD='demoPart93\ndemoPart94'\nafter ok", "Here's my config: PASSWORD=[secret]\nafter ok"],
+    ["Here's the request: curl --password demoSecret95 https://example.com\n1. Open a tab\nActual: blank tab", "Here's the request: curl --password [secret]\n1. Open a tab\nActual: blank tab"],
+    ["It doesn't work when I'm signed in", "It doesn't work when I'm signed in"],
   ];
   for (const [input, expected] of cases) assert.equal(scrubText(input), expected, input);
   const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\ndef\n-----END OPENSSH PRIVATE KEY-----";
@@ -212,6 +218,9 @@ test("issueFor puts only public-safe fields in the issue", () => {
   const leaky2 = issueFor({ ...report, title: "t", description: ["private_key: -----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIKEYBODY91\n-----END PRIVATE KEY-----", "curl --password \\\nforgedPass91 https://example.com", "access_tokens:\n- forgedToken93", "curl -udemo:forgedPass94 https://example.com", 'const body = "{\\"password\\":\\"forgedPass95\\"}";', "DATABASE_URL=postgresql://demo:forgedPass96@localhost:5432/app", 'PASSWORD="""\nfirstSegment97"\nsecondSegment98\n"""', "curl -H 'Authorization: Bearer forgedToken99' https://example.com", "1. open a tab"].join("\n") }, "https://d");
   for (const secret of ["KEYBODY91", "forgedPass91", "forgedToken93", "forgedPass94", "forgedPass95", "forgedPass96", "firstSegment97", "secondSegment98", "forgedToken99"]) assert.ok(!leaky2.body.includes(secret), secret);
   assert.ok(leaky2.body.includes("1. open a tab"));
+  const leaky3 = issueFor({ ...report, title: "t", description: "access_tokens: # test API\n- demoSecret81\n\ncurl --password \\\n\"demoPart82\ndemoPart83\"\nHere's my config: PASSWORD='demoPart84\ndemoPart85'\nHere's the request: curl --password demoSecret86 https://example.com\n1. Open a tab" }, "https://d");
+  for (const secret of ["demoSecret81", "demoPart82", "demoPart83", "demoPart84", "demoPart85", "demoSecret86"]) assert.ok(!leaky3.body.includes(secret), secret);
+  assert.ok(leaky3.body.includes("1. Open a tab"));
   for (const secret of ["hunter2", "hunter3", "part1", "part2", "part3", "part4", "part5", "part6", "part7", "part8", "part9", "part10", "secretresponse", "short-secret", "shortsecret", "anothersecret"]) {
     assert.ok(!leaky.title.includes(secret) && !leaky.body.includes(secret), secret);
   }
