@@ -245,6 +245,7 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
   if (ArdiaCoreProfile *profile = _tab.profile) _coreWindow.activeProfile = profile;
   _tab.delegate = self;
   NSView *page = _tab.view, *host = _coreWindow.hostView;
+  ardia_host::StopPageSwapFade(_tab);
   [page removeFromSuperview];
   const NSRect bounds = host.bounds;
   const CGFloat pageHeight = MAX(NSHeight(bounds) - kPopupOriginStripHeight, 0);
