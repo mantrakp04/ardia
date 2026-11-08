@@ -53,7 +53,31 @@ def driver_entries(top=computer.DRIVER_TOP, version=computer.VERSION) -> dict:
         f"{top}/THIRD_PARTY_NOTICES.md": b"notices",
         f"{top}/CuaDriver.app/Contents/Info.plist": info_plist(version),
         f"{top}/CuaDriver.app/Contents/MacOS/cua-driver": b"#!/bin/sh\n",
+        f"{top}/CuaDriver.app/Contents/_CodeSignature/CodeResources": b"signed",
     }
+
+
+SIGNATURE = Path("Contents/_CodeSignature/CodeResources")
+
+
+def fake_verify(app: Path) -> None:
+    if not (Path(app) / SIGNATURE).is_file():
+        raise computer.Refused(f"{app} isn't Cua AI's signed {computer.APP_NAME} (code object is not signed at all)")
+
+
+def fake_code_hash(app: Path) -> str | None:
+    signature = Path(app) / SIGNATURE
+    return hashlib.sha256(signature.read_bytes() + (computer.app_version(Path(app)) or "").encode()).hexdigest() if signature.is_file() else None
+
+
+def make_app(folder: Path, version=computer.VERSION, signed=True, signature=b"signed") -> Path:
+    (folder / "Contents" / "MacOS").mkdir(parents=True)
+    (folder / "Contents" / "Info.plist").write_bytes(info_plist(version))
+    (folder / computer.APP_BINARY).write_text("#!/bin/sh\n")
+    if signed:
+        (folder / SIGNATURE).parent.mkdir(parents=True)
+        (folder / SIGNATURE).write_bytes(signature)
+    return folder
 
 
 def skill_entries(body=b"---\nname: cua-driver\n---\nv1\n") -> dict:
@@ -87,13 +111,26 @@ class Sandbox(unittest.TestCase):
             mock.patch.object(Path, "cwd", classmethod(lambda cls: self.project)),
             mock.patch.object(computer, "APPLICATIONS", self.applications),
             mock.patch.object(computer, "download", self.fake_download),
-            mock.patch.object(computer, "verify_app", lambda app: None),
+            mock.patch.object(computer, "verify_app", fake_verify),
+            mock.patch.object(computer, "code_hash", fake_code_hash),
             mock.patch.object(computer, "register_app", lambda app: None),
-            mock.patch.object(computer, "run_driver_quietly", lambda binary, *args: 0),
+            mock.patch.object(computer, "run_driver_quietly", self.fake_run),
+            mock.patch.object(computer, "copy_app", lambda source, dest: shutil.copytree(source, dest)),
         ]
+        self.ran: list[tuple] = []
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
+
+    def fake_run(self, binary, *args) -> int:
+        self.ran.append((str(binary), *args))
+        return 0
+
+    def install_launcher(self) -> Path:
+        ardia = self.cli_home / "current" / "bin" / "ardia"
+        ardia.parent.mkdir(parents=True, exist_ok=True)
+        ardia.write_text("#!/bin/sh\n")
+        return ardia
 
     def fake_download(self, url: str, dest: Path) -> None:
         self.downloads.append(url)
@@ -186,12 +223,8 @@ class PinnedDownload(Sandbox):
 
 
 class Passthrough(Sandbox):
-    def install_fake_app(self, version=computer.VERSION) -> Path:
-        app = self.applications / computer.APP_NAME
-        (app / "Contents" / "MacOS").mkdir(parents=True)
-        (app / "Contents" / "Info.plist").write_bytes(info_plist(version))
-        (app / computer.APP_BINARY).write_text("#!/bin/sh\n")
-        return app
+    def install_fake_app(self, version=computer.VERSION, signed=True) -> Path:
+        return make_app(self.applications / computer.APP_NAME, version, signed)
 
     def test_execs_the_installed_app_with_argv_unchanged(self):
         app = self.install_fake_app()
@@ -202,6 +235,47 @@ class Passthrough(Sandbox):
         self.assertEqual(argv, [binary, "call", "click", '{"pid": 1, "x": 2}', "--json"])
         self.assertEqual(env["CUA_DRIVER_RS_TELEMETRY_ENABLED"], "0")
         self.assertEqual(env["CUA_DRIVER_RS_UPDATE_CHECK"], "1")
+
+    def test_an_unsigned_installed_app_never_runs(self):
+        self.install_fake_app(signed=False)
+        for command in (["list-tools"], ["mcp"], ["--version"]):
+            with mock.patch.object(os, "execve") as execve:
+                status, _, err = quiet(computer.main, command)
+            self.assertEqual(status, 1)
+            self.assertIn("isn't Cua AI's signed", err)
+            self.assertIn("move it away", err)
+            execve.assert_not_called()
+
+    def test_a_signed_foreign_app_of_another_version_runs_as_is(self):
+        app = self.install_fake_app(version="0.41.3")
+        with mock.patch.object(os, "execve") as execve:
+            quiet(computer.main, ["list-tools"])
+        self.assertEqual(execve.call_args.args[0], str(app / computer.APP_BINARY))
+
+    def test_a_cached_bundle_that_fails_verification_is_fetched_again(self):
+        self.serve_driver()
+        cached = quiet(computer.ensure_driver)[0]
+        (cached / SIGNATURE).unlink()
+        (cached / computer.APP_BINARY).write_text("#!/bin/sh\necho tampered\n")
+        with mock.patch.object(os, "execve") as execve:
+            _, _, err = quiet(computer.main, ["list-tools"])
+        self.assertEqual(len(self.downloads), 2)
+        self.assertIn("fetching it again", err)
+        self.assertEqual((cached / computer.APP_BINARY).read_text(), "#!/bin/sh\n")
+        self.assertTrue((cached / SIGNATURE).is_file())
+        self.assertEqual(execve.call_args.args[0], str(cached / computer.APP_BINARY))
+
+    def test_a_cached_bundle_with_a_broken_info_plist_is_fetched_again(self):
+        self.serve_driver()
+        cached = quiet(computer.ensure_driver)[0]
+        with open(cached / "Contents" / "Info.plist", "ab") as plist:
+            plist.write(b"x")
+        with mock.patch.object(os, "execve") as execve:
+            _, _, err = quiet(computer.main, ["list-tools"])
+        self.assertEqual(len(self.downloads), 2)
+        self.assertIn("fetching it again", err)
+        self.assertEqual(computer.app_version(cached), computer.VERSION)
+        execve.assert_called_once()
 
     def test_help_word_maps_to_the_driver_help(self):
         self.install_fake_app()
@@ -232,7 +306,7 @@ class Passthrough(Sandbox):
 
     def test_an_outdated_app_ardia_installed_says_so(self):
         app = self.install_fake_app(version="0.0.9")
-        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": "abc"})
+        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": fake_code_hash(app)})
         with mock.patch.object(os, "execve"):
             _, _, err = quiet(computer.main, ["list-tools"])
         self.assertIn("ardia computer setup", err)
@@ -255,50 +329,131 @@ class Setup(Sandbox):
     def setUp(self):
         super().setUp()
         self.serve_driver()
-        patches = [
-            mock.patch.object(computer, "copy_app", lambda source, dest: shutil.copytree(source, dest)),
-            mock.patch.object(computer, "code_hash", lambda app: computer.app_version(app)),
-        ]
-        for patch in patches:
-            patch.start()
-            self.addCleanup(patch.stop)
+        self.install_launcher()
+
+    def dest(self) -> Path:
+        return self.applications / computer.APP_NAME
+
+    def ours(self, version="0.0.9", signature=b"old") -> Path:
+        app = make_app(self.dest(), version, signature=signature)
+        computer.save_record({"path": str(app), "version": version, "cdhash": fake_code_hash(app)})
+        return app
 
     def test_installs_into_applications_and_records_it(self):
         status, out, _ = quiet(computer.setup, ["--no-grant"])
         self.assertEqual(status, 0)
-        app = self.applications / computer.APP_NAME
+        app = self.dest()
         self.assertTrue((app / computer.APP_BINARY).is_file())
         self.assertIn(f"installed {app}", out)
-        self.assertEqual(computer.read_record()["path"], str(app))
+        record = computer.read_record()
+        self.assertEqual((record["path"], record["state"], record["cdhash"]), (str(app), "committed", fake_code_hash(app)))
         link = self.home / "bin" / "cua-driver"
         self.assertTrue(link.is_symlink())
         self.assertIn("computer", Path(os.readlink(link)).read_text())
         self.assertEqual([entry.name for entry in self.applications.iterdir()], [computer.APP_NAME])
 
     def test_never_replaces_an_app_ardia_didnt_install(self):
-        app = self.applications / computer.APP_NAME
-        (app / "Contents").mkdir(parents=True)
-        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.41.3"))
+        app = make_app(self.dest(), "0.41.3")
         status, out, _ = quiet(computer.setup, ["--no-grant"])
         self.assertEqual(status, 0)
         self.assertIn("kept", out)
         self.assertEqual(computer.app_version(app), "0.41.3")
 
     def test_updates_an_app_it_installed_and_refresh_is_a_no_op_once_current(self):
-        app = self.applications / computer.APP_NAME
-        (app / "Contents" / "MacOS").mkdir(parents=True)
-        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.0.9"))
-        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": "0.0.9"})
+        app = self.ours()
         status, out, _ = quiet(computer.refresh)
         self.assertEqual(status, 0)
         self.assertIn(f"updated {app}", out)
         self.assertEqual(computer.app_version(app), computer.VERSION)
+        self.assertIn((str(app / computer.APP_BINARY), "stop"), self.ran)
         self.assertEqual(quiet(computer.refresh)[1], "")
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+
+    def test_refresh_never_runs_a_tampered_app_it_installed(self):
+        app = self.ours()
+        (app / SIGNATURE).unlink()
+        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": "recorded-before-tampering"})
+        with mock.patch.object(computer, "code_hash", lambda app: "recorded-before-tampering"):
+            status, _, err = quiet(computer.refresh)
+        self.assertEqual(status, 1)
+        self.assertIn("isn't Cua AI's signed", err)
+        self.assertEqual(self.ran, [])
+        self.assertEqual(computer.app_version(app), "0.0.9")
+
+    def test_setup_never_runs_an_unsigned_app_for_telemetry(self):
+        quiet(computer.setup, ["--no-grant"])
+        (self.dest() / SIGNATURE).unlink()
+        self.ran.clear()
+        with mock.patch.object(computer, "code_hash", lambda app: computer.read_record()["cdhash"]):
+            quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(self.ran, [])
+
+    def test_a_failed_record_commit_is_recovered_on_the_next_run(self):
+        app = self.ours()
+        real_save = computer.save_record
+
+        def failing_commit(record, env=None):
+            if record.get("state") != "pending":
+                raise OSError("disk full")
+            real_save(record, env)
+
+        with mock.patch.object(computer, "save_record", failing_commit):
+            status, _, err = quiet(computer.refresh)
+        self.assertEqual(status, 1)
+        self.assertIn("disk full", err)
+        status, out, _ = quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(status, 0)
+        self.assertNotIn("kept", out)
+        self.assertIn(f"current {app}", out)
+        record = computer.read_record()
+        self.assertEqual((record["state"], record["version"], record["cdhash"]), ("committed", computer.VERSION, fake_code_hash(app)))
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+
+    def test_a_failed_pending_write_changes_nothing(self):
+        app = self.ours()
+        before = computer.read_record()
+        with mock.patch.object(computer, "save_record", mock.Mock(side_effect=OSError("read-only"))):
+            self.assertEqual(quiet(computer.refresh)[0], 1)
+        self.assertEqual(computer.app_version(app), "0.0.9")
+        self.assertEqual(computer.read_record(), before)
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+        self.assertEqual(self.ran, [])
+
+    def test_death_between_the_renames_restores_the_old_app(self):
+        app = self.ours()
+        old = computer.read_record()
+        new = make_app(self.applications / computer.STAGING_NAME, signature=b"new")
+        computer.save_record({"path": str(app), "version": computer.VERSION, "cdhash": fake_code_hash(new), "state": "pending", "previous": old})
+        os.rename(app, self.applications / computer.RETIRED_NAME)
+        with mock.patch.object(os, "execve") as execve:
+            quiet(computer.main, ["list-tools"])
+        self.assertEqual(computer.app_version(app), "0.0.9")
+        self.assertEqual(computer.read_record()["cdhash"], old["cdhash"])
+        self.assertEqual(computer.read_record()["state"], "committed")
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+        self.assertEqual(execve.call_args.args[0], str(app / computer.APP_BINARY))
+
+    def test_death_after_the_swap_commits_the_new_app(self):
+        app = self.ours()
+        old = computer.read_record()
+        os.rename(app, self.applications / computer.RETIRED_NAME)
+        new = make_app(app, signature=b"new")
+        computer.save_record({"path": str(app), "version": computer.VERSION, "cdhash": fake_code_hash(new), "state": "pending", "previous": old})
+        self.assertEqual(quiet(computer.refresh)[0], 0)
+        record = computer.read_record()
+        self.assertEqual((record["state"], record["cdhash"]), ("committed", fake_code_hash(new)))
+        self.assertNotIn("previous", record)
+        self.assertEqual(sorted(entry.name for entry in self.applications.iterdir()), [computer.APP_NAME])
+
+    def test_setup_waits_for_another_setup_and_gives_up_at_its_deadline(self):
+        with mock.patch.object(computer, "LOCK_TIMEOUT_S", 0.2), computer.applications_lock():
+            status, _, err = quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(status, 1)
+        self.assertIn("another ardia computer setup", err)
+        self.assertFalse(self.dest().exists())
 
     def test_refresh_leaves_a_foreign_app_alone(self):
-        app = self.applications / computer.APP_NAME
-        (app / "Contents").mkdir(parents=True)
-        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.0.9"))
+        app = make_app(self.dest(), "0.0.9")
         self.assertEqual(quiet(computer.refresh), (0, "", ""))
         self.assertEqual(computer.app_version(app), "0.0.9")
 
@@ -310,11 +465,46 @@ class Setup(Sandbox):
         self.assertEqual((self.home / "bin" / "cua-driver").read_text(), "theirs\n")
 
 
+class Launcher(Sandbox):
+    def test_the_shim_never_captures_an_ardia_found_on_path(self):
+        impostor = self.root / "evil" / "ardia"
+        impostor.parent.mkdir()
+        impostor.write_text("#!/bin/sh\n")
+        impostor.chmod(0o755)
+        with mock.patch.dict(os.environ, {"PATH": f"{impostor.parent}:/usr/bin:/bin"}), mock.patch.object(sys, "executable", "/usr/bin/python3"):
+            with self.assertRaises(computer.Refused) as caught:
+                computer.link_command()
+        self.assertIn("installed ardia launcher", str(caught.exception))
+        self.assertFalse(computer.shim_path().exists())
+        self.assertFalse((self.home / "bin" / "cua-driver").exists())
+
+    def test_the_shim_runs_the_installed_launcher(self):
+        ardia = self.install_launcher()
+        quiet(computer.link_command)
+        self.assertIn(str(ardia), computer.shim_path().read_text())
+
+    def test_a_current_link_pointing_outside_the_cli_home_isnt_trusted(self):
+        elsewhere = self.root / "elsewhere"
+        (elsewhere / "bin").mkdir(parents=True)
+        (elsewhere / "bin" / "ardia").write_text("#!/bin/sh\n")
+        self.cli_home.mkdir()
+        (self.cli_home / "current").symlink_to(elsewhere)
+        with mock.patch.object(sys, "executable", "/usr/bin/python3"), self.assertRaises(computer.Refused):
+            computer.link_command()
+
+    def test_the_running_installation_is_trusted_when_current_is_missing(self):
+        root = self.root / "ardia-cli-0.0.1"
+        (root / "python" / "bin").mkdir(parents=True)
+        (root / "python" / "bin" / "python3").write_text("")
+        (root / "bin").mkdir()
+        (root / "bin" / "ardia").write_text("#!/bin/sh\n")
+        with mock.patch.object(sys, "executable", str(root / "python" / "bin" / "python3")):
+            self.assertEqual(computer.trusted_launcher(), root / "bin" / "ardia")
+
+
 class McpConfig(Sandbox):
     def test_claude_code_and_codex_point_at_ardia_computer_mcp(self):
-        ardia = self.cli_home / "current" / "bin" / "ardia"
-        ardia.parent.mkdir(parents=True)
-        ardia.write_text("#!/bin/sh\n")
+        ardia = self.install_launcher()
         _, out, _ = quiet(computer.main, ["mcp-config", "--target", "claude-code"])
         prefix = "claude mcp add-json --scope user cua-driver "
         self.assertTrue(out.startswith(prefix))

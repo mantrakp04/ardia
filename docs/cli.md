@@ -903,8 +903,9 @@ app is stored as `CuaDriver` (no `.app`) so LaunchServices never sees a second c
 `com.trycua.driver`, the pinned version, and `codesign --verify --deep --strict` against
 `identifier "com.trycua.driver" and anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"`. The
 bundle is Developer ID signed, hardened and notarized with a stapled ticket; ardia never re-signs or modifies it, so
-our own signing and notarization are untouched. The current and one older version stay; `install.sh` keeps the
-folder across upgrades and `--uninstall` removes it.
+our own signing and notarization are untouched. The cached copy is checked the same way every time it's reused; one
+that fails is deleted and fetched again. The current and one older version stay; `install.sh` keeps the folder
+across upgrades and `--uninstall` removes it.
 
 ### Permissions
 
@@ -912,20 +913,36 @@ macOS ties Accessibility and Screen Recording to the app that asks. cua-driver's
 `/Applications/CuaDriver.app` (hardcoded upstream): `cua-driver mcp` starts it with `open -n -g
 /Applications/CuaDriver.app --args serve`, and `permissions grant` asks for the switches from inside it, so the
 grants land on `com.trycua.driver`, never on the terminal, the agent or ardia. `ardia computer setup` therefore
-copies the verified app there with `ditto`, checks the copy again, registers it with LaunchServices, records its
-path, version and CDHash in `$ARDIA_CLI_HOME/cua-driver/applications.json`, links `$ARDIA_CLI_BIN_DIR/cua-driver`
-(default `~/.local/bin`) to a shim that runs `ardia computer` (cua's skill calls `cua-driver`), turns cua-driver's
-telemetry off (`cua-driver telemetry disable`, saved in `~/.cua-driver/config.json`; the daemon starts through
+copies the verified app there, links `$ARDIA_CLI_BIN_DIR/cua-driver` (default `~/.local/bin`) to a shim that runs
+`ardia computer` (cua's skill calls `cua-driver`), turns cua-driver's telemetry off (`cua-driver telemetry disable`, saved in `~/.cua-driver/config.json`; the daemon starts through
 LaunchServices and never sees our environment), then runs `cua-driver permissions grant` when it has a terminal.
 A `CuaDriver.app` that ardia didn't put there (cua's own installer, another version) is kept and used as it is, and
 a `cua-driver` command that isn't our link is kept too. Replacing ardia's copy with a newer one signed by the same
 team keeps the grants (TCC matches the designated requirement).
 
+Putting the app in place is one recoverable operation. Setup and refresh hold an flock on
+`$ARDIA_CLI_HOME/cua-driver/.applications.lock` (up to 120 s, then they give up with an error). The verified app is
+copied with `ditto` to `/Applications/.CuaDriver.app.ardia-new` and checked again; then the record
+(`$ARDIA_CLI_HOME/cua-driver/applications.json`: path, version, the new copy's CDHash) is written as `pending`,
+keeping the previous record inside it. Only then does ardia stop the old daemon (after verifying the old app), rename
+the old app to `.CuaDriver.app.ardia-old`, rename the new one into place, commit the record, delete the old copy and
+register the app with LaunchServices. A failure before the swap changes nothing; a failure during it puts the old
+app and record back. After a crash, the next setup, refresh or `ardia computer` run (under the same lock) recovers:
+it puts `.ardia-old` back when `CuaDriver.app` is missing, commits a pending record whose CDHash matches a
+`CuaDriver.app` that verifies, otherwise restores the previous record, and removes leftover `.ardia-new` and
+`.ardia-old` copies. An app counts as ardia's only with a committed record whose path and CDHash match.
+
+The shim runs `$ARDIA_CLI_HOME/current/bin/ardia` when that resolves inside `$ARDIA_CLI_HOME`, else the launcher of
+the installation that is running (`<root>/bin/ardia` next to `<root>/python`). It never takes whatever `ardia` is first
+on PATH: with neither, setup and `mcp-config` refuse and say why.
+
 ### Running it
 
 `ardia computer <args>` execs the driver with the arguments unchanged: `/Applications/CuaDriver.app`'s binary when
-it's there, otherwise the bundled copy (fetched on demand), which can answer `--version`, `--help`, `list-tools`,
-`describe` and the like. `mcp`, `call`, `serve` and `permissions` need the installed app, so before setup they print
+it's there, otherwise the bundled copy (fetched on demand). Either is verified before every run (`codesign --verify
+--deep --strict` against Cua's designated requirement, about 0.1 s); an app in `/Applications` that fails, ardia's or
+not, is refused with a line saying to move it away and run setup. Any version Cua signed runs. The bundled copy
+answers `--version`, `--help`, `list-tools`, `describe` and the like. `mcp`, `call`, `serve` and `permissions` need the installed app, so before setup they print
 one line pointing at `ardia computer setup` and exit 1. `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` and
 `CUA_DRIVER_RS_UPDATE_CHECK=0` are set unless the caller set them. `update`, `channel` and `skills` exit 2 with where
 to go instead: the driver moves with ardia, not with cua's curl-to-bash installer. `help` is cua-driver's `--help`.

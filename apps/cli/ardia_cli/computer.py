@@ -1,3 +1,5 @@
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -9,6 +11,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from pathlib import Path
 
 VERSION = "0.38.0"
@@ -25,6 +28,10 @@ TEAM_ID = "YCK386LBJ7"
 REQUIREMENT = f'identifier "{BUNDLE_ID}" and anchor apple generic and certificate leaf[subject.OU] = "{TEAM_ID}"'
 APP_NAME = "CuaDriver.app"
 APP_BINARY = "Contents/MacOS/cua-driver"
+STAGING_NAME = f".{APP_NAME}.ardia-new"
+RETIRED_NAME = f".{APP_NAME}.ardia-old"
+LOCK_NAME = ".applications.lock"
+LOCK_TIMEOUT_S = 120
 APPLICATIONS = Path("/Applications")
 LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 SERVER_NAME = "cua-driver"
@@ -177,24 +184,22 @@ def keeps_skill_file(inner: str) -> bool:
     return "/" not in inner and inner.endswith(".md") and inner not in OTHER_PLATFORM_DOCS
 
 
-def app_version(app: Path) -> str | None:
+def info_value(app: Path, key: str) -> str | None:
     try:
         with open(app / "Contents" / "Info.plist", "rb") as handle:
             info = plistlib.load(handle)
-    except (OSError, ValueError, plistlib.InvalidFileException):
+    except Exception:
         return None
-    version = info.get("CFBundleShortVersionString") if isinstance(info, dict) else None
-    return version if isinstance(version, str) else None
+    value = info.get(key) if isinstance(info, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def app_version(app: Path) -> str | None:
+    return info_value(app, "CFBundleShortVersionString")
 
 
 def app_bundle_id(app: Path) -> str | None:
-    try:
-        with open(app / "Contents" / "Info.plist", "rb") as handle:
-            info = plistlib.load(handle)
-    except (OSError, ValueError, plistlib.InvalidFileException):
-        return None
-    value = info.get("CFBundleIdentifier") if isinstance(info, dict) else None
-    return value if isinstance(value, str) else None
+    return info_value(app, "CFBundleIdentifier")
 
 
 def verify_app(app: Path) -> None:
@@ -225,10 +230,24 @@ def prune_versions(home: Path) -> None:
         shutil.rmtree(entry, ignore_errors=True)
 
 
+def remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
+
+
 def ensure_driver(env=None) -> Path:
     app = bundled_app(env)
-    if (app / APP_BINARY).is_file() and not app.is_symlink():
-        return app
+    if app.exists() or app.is_symlink():
+        try:
+            if app.is_symlink():
+                raise Refused(f"{app} is a link")
+            check_app(app)
+            return app
+        except Refused as error:
+            say(f"ardia computer: the cached cua-driver failed verification ({error}); fetching it again")
+            remove_path(app)
     home = version_home(env)
     home.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix=".driver-", dir=home))
@@ -249,6 +268,7 @@ def ensure_driver(env=None) -> Path:
         except OSError:
             if not (app / APP_BINARY).is_file():
                 raise
+            check_app(app)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     say(f"step installed {app}")
@@ -316,11 +336,85 @@ def code_hash(app: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def committed(record: dict) -> bool:
+    return record.get("state", "committed") == "committed"
+
+
 def installed_by_ardia(app: Path, env=None) -> bool:
     record = read_record(env)
-    if record.get("path") != str(app) or not record.get("cdhash"):
+    if not committed(record) or record.get("path") != str(app) or not record.get("cdhash"):
         return False
     return code_hash(app) == record["cdhash"]
+
+
+def forget_record(env=None) -> None:
+    with contextlib.suppress(FileNotFoundError):
+        record_path(env).unlink()
+
+
+def restore_record(previous, env=None) -> None:
+    if isinstance(previous, dict) and previous.get("path"):
+        save_record({**{key: value for key, value in previous.items() if key != "previous"}, "state": "committed"}, env)
+    else:
+        forget_record(env)
+
+
+@contextlib.contextmanager
+def applications_lock(env=None):
+    home = cua_home(env)
+    home.mkdir(parents=True, exist_ok=True)
+    fd = os.open(home / LOCK_NAME, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        deadline = time.monotonic() + LOCK_TIMEOUT_S
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise Refused(f"another ardia computer setup or refresh is still running (waited {LOCK_TIMEOUT_S} s)") from None
+                time.sleep(0.1)
+        yield
+    finally:
+        os.close(fd)
+
+
+def needs_recovery(env=None) -> bool:
+    return (
+        (APPLICATIONS / RETIRED_NAME).exists() or (APPLICATIONS / RETIRED_NAME).is_symlink()
+        or (APPLICATIONS / STAGING_NAME).exists() or (APPLICATIONS / STAGING_NAME).is_symlink()
+        or not committed(read_record(env))
+    )
+
+
+def signed_by_cua(app: Path) -> bool:
+    try:
+        verify_app(app)
+    except Refused:
+        return False
+    return True
+
+
+def recover(env=None) -> None:
+    dest = installed_app()
+    staging = APPLICATIONS / STAGING_NAME
+    retired = APPLICATIONS / RETIRED_NAME
+    if not (dest.exists() or dest.is_symlink()) and (retired.exists() or retired.is_symlink()):
+        os.rename(retired, dest)
+    record = read_record(env)
+    if not committed(record):
+        pending = record.get("cdhash")
+        if dest.is_dir() and pending and code_hash(dest) == pending and signed_by_cua(dest):
+            save_record({key: value for key, value in record.items() if key not in ("previous", "state")} | {"state": "committed"}, env)
+        else:
+            if dest.is_dir() and pending and code_hash(dest) == pending and retired.is_dir():
+                remove_path(dest)
+                os.rename(retired, dest)
+            restore_record(record.get("previous"), env)
+    if staging.exists() or staging.is_symlink():
+        remove_path(staging)
+    if (retired.exists() or retired.is_symlink()) and (dest.exists() or dest.is_symlink()):
+        remove_path(retired)
 
 
 def copy_app(source: Path, dest: Path) -> None:
@@ -342,33 +436,49 @@ def run_driver_quietly(binary: Path, *args: str) -> int:
 
 def place_app(source: Path, env=None) -> str:
     dest = installed_app()
+    staging = APPLICATIONS / STAGING_NAME
+    retired = APPLICATIONS / RETIRED_NAME
     exists = dest.exists() or dest.is_symlink()
     ours = exists and installed_by_ardia(dest, env)
     if exists and not ours:
         version = app_version(dest) or "of unknown version"
         return f"kept {dest}: CuaDriver.app {version} was put there by something other than ardia (cua's own installer?); ardia computer uses it as is"
-    if ours and app_version(dest) == VERSION:
-        return f"current {dest} ({VERSION})"
+    if ours:
+        verify_app(dest)
+        if app_version(dest) == VERSION:
+            return f"current {dest} ({VERSION})"
     if not os.access(APPLICATIONS, os.W_OK):
         raise Refused(f"can't write to {APPLICATIONS}; run ardia computer setup from an admin account")
-    staging = APPLICATIONS / f".{APP_NAME}.ardia-{os.getpid()}"
-    retired = APPLICATIONS / f".{APP_NAME}.ardia-old-{os.getpid()}"
-    shutil.rmtree(staging, ignore_errors=True)
+    previous = read_record(env) if ours else None
     try:
+        if staging.exists() or staging.is_symlink():
+            remove_path(staging)
         copy_app(source, staging)
         check_app(staging)
+        new_hash = code_hash(staging)
+        if not new_hash:
+            raise Refused(f"couldn't read the code hash of {staging}")
+        save_record({"path": str(dest), "version": VERSION, "cdhash": new_hash, "state": "pending", "previous": previous}, env)
+    except BaseException:
+        if staging.exists() or staging.is_symlink():
+            remove_path(staging)
+        raise
+    try:
         if ours:
             run_driver_quietly(dest / APP_BINARY, "stop")
             os.rename(dest, retired)
         os.rename(staging, dest)
     except BaseException:
-        shutil.rmtree(staging, ignore_errors=True)
-        if retired.exists() and not dest.exists():
+        if (retired.exists() or retired.is_symlink()) and not (dest.exists() or dest.is_symlink()):
             os.rename(retired, dest)
+        if staging.exists() or staging.is_symlink():
+            remove_path(staging)
+        restore_record(previous, env)
         raise
-    shutil.rmtree(retired, ignore_errors=True)
+    save_record({"path": str(dest), "version": VERSION, "cdhash": new_hash, "state": "committed"}, env)
+    if retired.exists() or retired.is_symlink():
+        remove_path(retired)
     register_app(dest)
-    save_record({"path": str(dest), "version": VERSION, "cdhash": code_hash(dest)}, env)
     return f"{'updated' if ours else 'installed'} {dest} ({VERSION})"
 
 
@@ -377,14 +487,31 @@ def bin_dir(env=None) -> Path:
     return Path(env.get("ARDIA_CLI_BIN_DIR") or Path.home() / ".local" / "bin").expanduser()
 
 
-def ardia_command(env=None) -> str:
+def trusted_launcher(env=None) -> Path | None:
     from ardia_cli import usage
 
-    installed = usage.cli_home(env) / "current" / "bin" / "ardia"
-    if installed.is_file():
-        return str(installed)
-    found = shutil.which("ardia")
-    return str(Path(found).absolute()) if found else "ardia"
+    cli_home = usage.cli_home(env)
+    current = cli_home / "current" / "bin" / "ardia"
+    try:
+        if current.is_file() and current.resolve(strict=True).is_relative_to(cli_home.resolve(strict=True)):
+            return current
+    except OSError:
+        pass
+    root = Path(sys.executable).resolve().parents[2]
+    launcher = root / "bin" / "ardia"
+    if Path(sys.executable).resolve().parent.parent == root / "python" and launcher.is_file() and not launcher.is_symlink():
+        return launcher
+    return None
+
+
+def ardia_command(env=None) -> str:
+    launcher = trusted_launcher(env)
+    if launcher is None:
+        raise Refused(
+            "can't find the installed ardia launcher ($ARDIA_CLI_HOME/current/bin/ardia), and won't take whatever "
+            "ardia is first on PATH; install the ardia command from Ardia (Settings › Advanced) and run this again"
+        )
+    return str(launcher)
 
 
 def shim_path(env=None) -> Path:
@@ -392,9 +519,10 @@ def shim_path(env=None) -> Path:
 
 
 def link_command(env=None) -> str:
+    launcher = ardia_command(env)
     shim = shim_path(env)
     shim.parent.mkdir(parents=True, exist_ok=True)
-    body = f'#!/bin/sh\nexec {shlex.quote(ardia_command(env))} computer "$@"\n'
+    body = f'#!/bin/sh\nexec {shlex.quote(launcher)} computer "$@"\n'
     staging = shim.with_name(f".cua-driver.{os.getpid()}")
     staging.write_text(body, encoding="utf-8")
     os.chmod(staging, 0o755)
@@ -427,15 +555,16 @@ def setup(argv: list[str]) -> int:
         return 1
     try:
         source = ensure_driver()
-        print(place_app(source))
+        with applications_lock():
+            recover()
+            print(place_app(source))
         print(link_command())
     except (Refused, OSError, subprocess.CalledProcessError) as error:
         say(f"ardia computer: {error}")
         return 1
     dest = installed_app()
-    binary = dest / APP_BINARY
-    if installed_by_ardia(dest):
-        if run_driver_quietly(binary, "telemetry", "disable") == 0:
+    if installed_by_ardia(dest) and signed_by_cua(dest):
+        if run_driver_quietly(dest / APP_BINARY, "telemetry", "disable") == 0:
             print("cua-driver telemetry off (cua-driver telemetry enable turns it back on)")
     if args.no_grant or not (sys.stdin.isatty() and sys.stdout.isatty()):
         print("next: ardia computer permissions grant")
@@ -446,11 +575,15 @@ def setup(argv: list[str]) -> int:
 
 
 def refresh() -> int:
-    dest = installed_app()
-    if not supported() or not dest.is_dir() or app_version(dest) == VERSION or not installed_by_ardia(dest):
+    if not supported():
         return 0
+    dest = installed_app()
     try:
-        print(place_app(ensure_driver()))
+        with applications_lock():
+            recover()
+            if not dest.is_dir() or app_version(dest) == VERSION or not installed_by_ardia(dest):
+                return 0
+            print(place_app(ensure_driver()))
     except (Refused, OSError, subprocess.CalledProcessError) as error:
         say(f"ardia computer: {error}")
         return 1
@@ -479,7 +612,11 @@ def print_mcp_config(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="ardia computer mcp-config", description="Print the MCP server entry for an agent. It runs ardia computer mcp, so it keeps working across ardia and cua-driver updates.")
     parser.add_argument("--target", choices=TARGETS, default="general", help="claude-code and codex print the command that adds it; the others print the JSON to paste (default: general)")
     args = parser.parse_args(argv)
-    print(mcp_config(args.target))
+    try:
+        print(mcp_config(args.target))
+    except Refused as error:
+        say(f"ardia computer: {error}")
+        return 1
     return 0
 
 
@@ -500,7 +637,19 @@ def run_driver(argv: list[str]) -> int:
         say("ardia computer: computer use through cua-driver needs macOS here")
         return 1
     app = installed_app()
-    if app.is_dir():
+    try:
+        if needs_recovery():
+            with applications_lock():
+                recover()
+    except (Refused, OSError) as error:
+        say(f"ardia computer: {error}")
+        return 1
+    if app.exists() or app.is_symlink():
+        try:
+            verify_app(app)
+        except Refused as error:
+            say(f"ardia computer: {error}. ardia won't run it: move it away and run ardia computer setup")
+            return 1
         binary = app / APP_BINARY
         notice = stale_notice(app)
         if notice:
