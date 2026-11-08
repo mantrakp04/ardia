@@ -26,19 +26,24 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0 };
+let counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0 };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (counts.tabs || counts.windows) {
+  if (counts.tabs || counts.windows || counts.captureIndicatorsCleared) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
+      capture_indicators_cleared: counts.captureIndicatorsCleared,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0 };
+  counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0 };
   countsSince = Date.now();
+}
+
+export function noteCaptureIndicatorCleared() {
+  counts.captureIndicatorsCleared++;
 }
 
 const size = (o: object) => Object.keys(o).length;

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
-import { useTheme } from "../ui/theme";
+import { layout, useTheme } from "../ui/theme";
 import { useIsBookmarked, useSidebarSide, useTab } from "../../state/browser/hooks";
 import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
@@ -28,8 +28,9 @@ import { cardHoverProps } from "./hoverController";
 import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
 import { hoverCardAt } from "./hoverPlacement";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { TabIcon } from "./TabIcon";
-import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
+import { HoverPlayer, useShowsMiniPlayer } from "../media/HoverPlayer";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 
 const WIDTH = 264;
@@ -46,9 +47,9 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
   const side = useSidebarSide(windowId);
-  const frame = useMemo(() => ({ side, windowWidth: width }), [side, width]);
-  const edge = usePlayerEdge(windowId, shown?.anchor, frame);
-  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, side, player ? edge : undefined) : null, { width, height });
+  const sidebarInnerWidth = useSidebarWidth(windowId) - layout.sidebarInset;
+  const frame = useMemo(() => ({ side, windowWidth: width, sidebarInnerWidth }), [side, width, sidebarInnerWidth]);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, frame) : null, { width, height });
   if (!shown) return null;
   return (
     <HoverCardFrameProvider value={frame}>
