@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import { getContentBlocker, setContentBlockerEnabled, setFilterListEnabled, type ContentBlockerState, type FilterListCategory } from "../../platform/contentBlocker";
 import { errorText } from "../../lib/errors";
 
@@ -29,14 +30,27 @@ export async function setBlockingCategory(s: ContentBlockerState, category: Filt
   return setLists(s, changed.map((l) => l.id), on);
 }
 
-export async function changeBlockingCategory(s: ContentBlockerState, category: FilterListCategory, on: boolean): Promise<string | null> {
+export const setFilterList = (s: ContentBlockerState, id: string, on: boolean) => setLists(s, [id], on);
+
+export const useBlockingFailure = create<{ message: string | null }>()(() => ({ message: null }));
+let latestChange = 0;
+
+export function clearBlockingFailure() {
+  latestChange++;
+  useBlockingFailure.setState({ message: null });
+}
+
+async function reportingFailure(change: () => Promise<void>) {
+  const mine = ++latestChange;
+  useBlockingFailure.setState({ message: null });
   try {
-    await setBlockingCategory(s, category, on);
-    return null;
+    await change();
   } catch (error) {
     console.error(error);
-    return `Couldn't change content blocking. ${errorText(error)}`;
+    if (mine === latestChange) useBlockingFailure.setState({ message: `Couldn't change content blocking. ${errorText(error)}` });
   }
 }
 
-export const setFilterList = (s: ContentBlockerState, id: string, on: boolean) => setLists(s, [id], on);
+export const changeBlockingCategory = (s: ContentBlockerState, category: FilterListCategory, on: boolean) => reportingFailure(() => setBlockingCategory(s, category, on));
+
+export const changeFilterList = (s: ContentBlockerState, id: string, on: boolean) => reportingFailure(() => setFilterList(s, id, on));

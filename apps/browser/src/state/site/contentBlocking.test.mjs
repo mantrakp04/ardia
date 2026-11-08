@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { requireNativeModule } from "expo-modules-core";
 
-const { setBlockingCategory, setFilterList, readContentBlocker, changeBlockingCategory } = await import("./contentBlocking.ts");
+const { setBlockingCategory, setFilterList, readContentBlocker, changeBlockingCategory, changeFilterList, clearBlockingFailure, useBlockingFailure } = await import("./contentBlocking.ts");
 
 const native = requireNativeModule("ArdiaContentBlocker");
 const calls = [];
@@ -96,40 +96,97 @@ const rejecting = async (run) => {
   }
 };
 
-test("a change the engine refuses answers with why and is reported as an error, not dropped", async () => {
+const failure = () => useBlockingFailure.getState().message;
+const quietly = async (run) => {
+  const errors = [];
+  const report = console.error;
+  console.error = (...args) => errors.push(args[0]);
+  try {
+    await run();
+  } finally {
+    console.error = report;
+  }
+  return errors;
+};
+
+test("a change the engine refuses shows why and is reported as an error, not dropped", async () => {
   const s = state(false, [list("easylist", "ads", false, true)]);
-  const { result, errors } = await rejecting(() => changeBlockingCategory(s, "ads", true));
-  assert.equal(result, "Couldn't change content blocking. uBlock Origin didn't answer");
+  const { errors } = await rejecting(() => changeBlockingCategory(s, "ads", true));
+  assert.equal(failure(), "Couldn't change content blocking. uBlock Origin didn't answer");
   assert.equal(errors.length, 1);
   assert.ok(errors[0] instanceof Error);
   assert.equal(errors[0].message, "uBlock Origin didn't answer");
 });
 
-test("a category the blocker has no list for answers with why and is reported", async () => {
+test("a list the engine refuses shows why, as a category does", async () => {
+  const s = state(false, [list("easylist", "ads", false, true)]);
+  const { errors } = await rejecting(() => changeFilterList(s, "easylist", true));
+  assert.equal(failure(), "Couldn't change content blocking. uBlock Origin didn't answer");
+  assert.equal(errors.length, 1);
+});
+
+test("a category the blocker has no list for shows why and is reported", async () => {
   calls.length = 0;
-  const errors = [];
-  const report = console.error;
-  console.error = (...args) => errors.push(args[0]);
-  try {
-    assert.match(await changeBlockingCategory(state(false, []), "ads", true), /^Couldn't change content blocking\. .*no ads filter list/i);
-  } finally {
-    console.error = report;
-  }
+  const errors = await quietly(() => changeBlockingCategory(state(false, []), "ads", true));
+  assert.match(failure(), /^Couldn't change content blocking\. .*no ads filter list/i);
   assert.equal(errors.length, 1);
   assert.deepEqual(calls, []);
 });
 
-test("a change that works answers nothing and reports nothing", async () => {
-  const errors = [];
-  const report = console.error;
-  console.error = (...args) => errors.push(args[0]);
-  try {
-    const s = state(true, [list("easylist", "ads", true, true)]);
-    assert.equal(await changeBlockingCategory(s, "ads", false), null);
-  } finally {
-    console.error = report;
-  }
+test("a change that works shows nothing and reports nothing", async () => {
+  const s = state(true, [list("easylist", "ads", true, true)]);
+  const errors = await quietly(() => changeBlockingCategory(s, "ads", false));
+  assert.equal(failure(), null);
   assert.deepEqual(errors, []);
+});
+
+test("the next change clears the failure of the one before it", async () => {
+  await quietly(() => changeBlockingCategory(state(false, []), "ads", true));
+  assert.notEqual(failure(), null);
+  await changeFilterList(state(true, [list("easylist", "ads", true, true), list("easyprivacy", "trackers", true, true)]), "easylist", false);
+  assert.equal(failure(), null);
+});
+
+const hanging = () => {
+  const wrapped = native.call;
+  let first = null;
+  let n = 0;
+  native.call = (verb, profile, json) => (n++ === 0 ? new Promise((_, reject) => (first = reject)) : wrapped(verb, profile, json));
+  return { fail: (error) => first(error), restore: () => (native.call = wrapped) };
+};
+
+test("an older change that fails after a newer one worked does not put its failure on screen", async () => {
+  const s = state(false, [list("easylist", "ads", false, true)]);
+  const gate = hanging();
+  try {
+    let older;
+    const errors = await quietly(async () => {
+      older = changeBlockingCategory(s, "ads", true);
+      await changeBlockingCategory(s, "ads", true);
+      gate.fail(new Error("late failure"));
+      await older;
+    });
+    assert.equal(failure(), null);
+    assert.equal(errors[0].message, "late failure");
+  } finally {
+    gate.restore();
+  }
+});
+
+test("a failure that lands after leaving the pane is not shown on return", async () => {
+  const s = state(false, [list("easylist", "ads", false, true)]);
+  const gate = hanging();
+  try {
+    await quietly(async () => {
+      const pending = changeBlockingCategory(s, "ads", true);
+      clearBlockingFailure();
+      gate.fail(new Error("late failure"));
+      await pending;
+    });
+    assert.equal(failure(), null);
+  } finally {
+    gate.restore();
+  }
 });
 
 test("turning a list on while the blocker is off turns it on", async () => {

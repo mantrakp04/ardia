@@ -27,7 +27,7 @@ import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../stat
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { updateSettings } from "../../../state/settings/actions";
-import { categoryOn, changeBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
+import { categoryOn, changeBlockingCategory, changeFilterList, clearBlockingFailure, useBlockingFailure } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
 
@@ -54,12 +54,13 @@ function useContentBlocker() {
 
 export function PrivacyPane() {
   const [blocker, refresh, problem] = useContentBlocker();
-  const [failure, setFailure] = useState<string | null>(null);
+  const failure = useBlockingFailure((s) => s.message);
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
+
+  useEffect(() => clearBlockingFailure, []);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
     if (!blocker) return;
-    setFailure(null);
     if (!on && c === "ads") {
       const { confirmed } = await confirm({
         title: "Turn Off Ad Blocker?",
@@ -68,7 +69,7 @@ export function PrivacyPane() {
       });
       if (!confirmed) return refresh();
     }
-    setFailure(await changeBlockingCategory(blocker, c, on));
+    await changeBlockingCategory(blocker, c, on);
     refresh();
   };
 
@@ -138,13 +139,11 @@ const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
 
 function FilterListsSheet() {
   const [blocker, refresh] = useContentBlocker();
+  const failure = useBlockingFailure((s) => s.message);
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
-    try {
-      await setFilterList(blocker, l.id, on);
-    } finally {
-      refresh();
-    }
+    await changeFilterList(blocker, l.id, on);
+    refresh();
   };
   return (
     <Sheet size="l" onClose={closeSettingsSheet}>
@@ -169,6 +168,11 @@ function FilterListsSheet() {
           );
         })}
       </ScrollView>
+      {failure && (
+        <Text size="caption" tone="destructive" style={FAILURE}>
+          {failure}
+        </Text>
+      )}
       <DialogActions
         note={
           <Text size="caption" tone="textTertiary">
