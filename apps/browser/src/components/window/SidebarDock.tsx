@@ -199,11 +199,12 @@ function SidebarDock({
   const holdHeight = useRef(Infinity);
   const inHold = (stripX: number, y: number) => inPeekHold(fromSidebarEdgeInStrip(stripX, right), y, holdWidth, holdHeight.current);
   const peeking = state === "peeking";
+  const holding = peeking && peek.holding;
   const shown = shownAs(state);
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
   const watching = watchesEdge(state, moving);
   const draggingTab = useTabDrag((d) => d.phase === "tab" && d.windowId === windowId);
-  const nativeHold = edgeWatchWidth(peeking, draggingTab, holdWidth, frame.inset);
+  const nativeHold = edgeWatchWidth(holding, draggingTab, holdWidth, frame.inset);
   useEffect(() => {
     if (!watching) return;
     const sub = onWindowEvent((e) => {
@@ -212,13 +213,13 @@ function SidebarDock({
       if (e.over) latestPeek.current.show();
       else latestPeek.current.hide();
     });
-    watchSidebarEdge(windowId, true, nativeHold, right, peeking || draggingTab);
+    watchSidebarEdge(windowId, true, nativeHold, right, holding || draggingTab);
     return () => {
       sub.remove();
       watchSidebarEdge(windowId, false);
       edgeOver.current = false;
     };
-  }, [windowId, watching, nativeHold, right, peeking || draggingTab]);
+  }, [windowId, watching, nativeHold, right, holding || draggingTab]);
   useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth, peekAt.left)), [windowId, peek.live, width, right, windowWidth, peekAt.left]);
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
@@ -263,7 +264,7 @@ function SidebarDock({
 
   return (
     <>
-      {peeking && (
+      {holding && (
         <View
           pointerEvents="none"
           onMouseEnter={peek.show}
