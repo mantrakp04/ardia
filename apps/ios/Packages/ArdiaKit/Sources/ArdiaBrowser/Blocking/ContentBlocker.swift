@@ -139,8 +139,8 @@ public final class ContentBlocker {
     apply(to: controller, exempt: false)
   }
 
-  public func prepareNavigation(of controller: WKUserContentController, toHost host: String?) {
-    apply(to: controller, exempt: settings.isExempt(host))
+  public func prepareNavigation(of controller: WKUserContentController, toHost host: String?, isPrivate: Bool = false) {
+    apply(to: controller, exempt: settings.isExempt(host, isPrivate: isPrivate))
   }
 
   public func blocksRequest(toHost host: String) -> Bool {
@@ -155,12 +155,12 @@ public final class ContentBlocker {
     return false
   }
 
-  func shouldRejectConsent(onHost host: String?) -> Bool {
-    settings.hidesCookieBanners && !settings.isExempt(host)
+  func shouldRejectConsent(onHost host: String?, isPrivate: Bool = false) -> Bool {
+    settings.hidesCookieBanners && !settings.isExempt(host, isPrivate: isPrivate)
   }
 
-  func countBlocked(_ hosts: [String], pageHost: String?, into counter: BlockedResourceCounter) {
-    guard !settings.isExempt(pageHost) else { return }
+  func countBlocked(_ hosts: [String], pageHost: String?, isPrivate: Bool = false, into counter: BlockedResourceCounter) {
+    guard !settings.isExempt(pageHost, isPrivate: isPrivate) else { return }
     counter.add(hosts.count { blocksRequest(toHost: $0) })
   }
 
@@ -218,14 +218,21 @@ final class BlockingMessageProxy: NSObject, WKScriptMessageHandlerWithReply {
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) async -> (Any?, String?) {
     guard let blocker, let body = message.body as? [String: Any], let type = body["type"] as? String else { return (nil, nil) }
     let pageHost = message.webView?.url?.host()
+    let isPrivate = message.isFromPrivatePage
     switch type {
     case "consent":
-      return (blocker.shouldRejectConsent(onHost: pageHost), nil)
+      return (blocker.shouldRejectConsent(onHost: pageHost, isPrivate: isPrivate), nil)
     case "blocked":
-      if let counter, let hosts = body["hosts"] as? [String] { blocker.countBlocked(Array(hosts.prefix(500)), pageHost: pageHost, into: counter) }
+      if let counter, let hosts = body["hosts"] as? [String] { blocker.countBlocked(Array(hosts.prefix(500)), pageHost: pageHost, isPrivate: isPrivate, into: counter) }
       return (nil, nil)
     default:
       return (nil, nil)
     }
+  }
+}
+
+extension WKScriptMessage {
+  var isFromPrivatePage: Bool {
+    webView.map { !$0.configuration.websiteDataStore.isPersistent } ?? false
   }
 }

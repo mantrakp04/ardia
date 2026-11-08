@@ -86,15 +86,15 @@ public final class WebTab: DiscardablePage, Identifiable {
   }
 
   public var blockersEnabled: Bool {
-    !(engine?.blocker.settings.isExempt(host) ?? false)
+    !(engine?.blocker.settings.isExempt(host, isPrivate: isPrivate) ?? false)
   }
 
   @discardableResult
   public func setBlockersEnabled(_ enabled: Bool) -> String? {
     guard let engine, let host else { return nil }
-    engine.blocker.settings.setExempt(host, !enabled)
+    engine.blocker.settings.setExempt(host, !enabled, isPrivate: isPrivate)
     if let controller = webView?.configuration.userContentController {
-      engine.blocker.prepareNavigation(of: controller, toHost: host)
+      engine.blocker.prepareNavigation(of: controller, toHost: host, isPrivate: isPrivate)
     }
     reload()
     return enabled ? String(localized: "Blockers enabled for \(host)") : String(localized: "Blockers disabled for \(host)")
@@ -158,7 +158,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     let clamped = min(max(zoom, Self.zoomLevels.first!), Self.zoomLevels.last!)
     pageZoom = clamped
     webView?.pageZoom = clamped
-    if let host { engine?.preferences.update(host) { $0.pageZoom = clamped == 1 ? nil : clamped } }
+    if let host { engine?.preferences.update(host, isPrivate: isPrivate) { $0.pageZoom = clamped == 1 ? nil : clamped } }
   }
 
   public func zoomIn() {
@@ -212,7 +212,7 @@ public final class WebTab: DiscardablePage, Identifiable {
     self.webView = webView
     observe(webView)
     let stored = engine.tabs.tab(id)
-    if let zoom = engine.preferences.settings(for: host).pageZoom {
+    if let zoom = engine.preferences.settings(for: host, isPrivate: isPrivate).pageZoom {
       pageZoom = zoom
       webView.pageZoom = zoom
     }
@@ -363,9 +363,9 @@ public final class WebTab: DiscardablePage, Identifiable {
       if action.navigationType != .reload { rememberSwipeSnapshot() }
       let targetHost = BrowserURL.host(of: target.absoluteString)
       if let controller = webView?.configuration.userContentController {
-        engine?.blocker.prepareNavigation(of: controller, toHost: targetHost)
+        engine?.blocker.prepareNavigation(of: controller, toHost: targetHost, isPrivate: isPrivate)
       }
-      let zoom = engine?.preferences.settings(for: targetHost).pageZoom ?? 1
+      let zoom = engine?.preferences.settings(for: targetHost, isPrivate: isPrivate).pageZoom ?? 1
       if zoom != pageZoom {
         pageZoom = zoom
         webView?.pageZoom = zoom
@@ -536,7 +536,7 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
     guard let tab else { return (.cancel, preferences) }
     if let engine = tab.engine, let target = navigationAction.request.url, navigationAction.navigationType == .linkActivated,
        navigationAction.targetFrame?.isMainFrame ?? true, let targetHost = BrowserURL.host(of: target.absoluteString), targetHost != tab.host,
-       engine.preferences.appLinks(for: targetHost) == .app, let open = engine.openUniversalLink, await open(target) {
+       engine.preferences.appLinks(for: targetHost, isPrivate: tab.isPrivate) == .app, let open = engine.openUniversalLink, await open(target) {
       return (.cancel, preferences)
     }
     return (tab.decidePolicy(for: navigationAction, preferences: preferences), preferences)

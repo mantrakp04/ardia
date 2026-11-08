@@ -52,6 +52,8 @@ let easyListSample = #"""
 ||ads.example.com^$third-party
 ||tracker.example^$script,image,domain=news.example|blog.example
 ||mixed.example^$domain=a.example|~b.example
+||guarded.example^$domain=site.example|other.example|~account.site.example
+||walled.example^$domain=site.example|~account.site.example
 ||popunder.example^$popup
 ||frames.example^$subdocument
 ||notscript.example^$~script
@@ -89,6 +91,11 @@ example.com,shop.example.com##.shop-ad
 example.com,~sub.example.com##.scoped-mixed
 ~excluded.example##.everywhere-but
 example.com#@#.local-ad
+news.example#@#.promo-box
+##.promo-box
+shop.example,blog.example##.promo-box
+~kept.example##.promo-box
+~excluded.example#@#.never-excepted
 #@#.adsbox
 ##.adsbox
 example.com#?#.procedural:has-text(Ad)
@@ -125,6 +132,8 @@ google.*##.tld-entity
     #expect(scoped.trigger.ifDomain == ["*news.example", "*blog.example"])
     #expect(block("mixed")?.trigger.ifDomain == ["*a.example"])
     #expect(block("mixed")?.trigger.unlessDomain == nil)
+    #expect(block("guarded")?.trigger.ifDomain == ["*other.example"])
+    #expect(block("walled") == nil)
     #expect(block("popunder")?.trigger.resourceType == ["popup"])
     #expect(block("frames")?.trigger.resourceType == ["document"])
     #expect(block("frames")?.trigger.loadContext == ["child-frame"])
@@ -167,14 +176,21 @@ google.*##.tld-entity
     let generic = try #require(hides.first { $0.trigger.ifDomain == nil && $0.trigger.unlessDomain == nil })
     #expect(generic.action.selector == #".ad-banner, #sponsored-box, div[id^="google_ads_iframe"], .card:has(> .sponsored)"#)
     let scoped = hides.filter { $0.trigger.ifDomain != nil }
-    #expect(scoped.map(\.action.selector) == [".scoped-mixed", ".shop-ad"])
-    #expect(scoped.first?.trigger.ifDomain == ["*example.com"])
-    #expect(scoped.last?.trigger.ifDomain == ["*example.com", "*shop.example.com"])
-    #expect(hides.first { $0.trigger.unlessDomain != nil }?.action.selector == ".everywhere-but")
+    #expect(scoped.filter { $0.action.selector != ".promo-box" }.map(\.action.selector) == [".shop-ad"])
+    #expect(scoped.first?.trigger.ifDomain == ["*example.com", "*shop.example.com"])
+    #expect(hides.contains { $0.action.selector == ".everywhere-but" && $0.trigger.unlessDomain == ["*excluded.example"] })
+    let promos = hides.filter { $0.action.selector == ".promo-box" }
+    #expect(promos.map(\.trigger.ifDomain) == [nil, ["*blog.example", "*shop.example"], nil])
+    #expect(promos.map(\.trigger.unlessDomain) == [["*news.example"], nil, ["*kept.example", "*news.example"]])
     let all = hides.compactMap(\.action.selector).joined(separator: " ")
     for absent in ["adsbox", "local-ad", "has-text", "selection", "broken", "procedural", "inject", "idn", "tld-entity"] {
       #expect(!all.contains(absent), "\(absent) should not be hidden")
     }
+  }
+
+  @Test func anExceptionWithoutAHostStillLiftsAHostBlock() throws {
+    let rules = try ConvertedRule.decode(FilterListConverter.convert("||cdn.example^\n@@|https://cdn.example/needed.js"))
+    #expect(rules.map(\.action.type) == ["block", "ignore-previous-rules"])
   }
 
   @Test func capsAtTheRuleLimitAndStaysValidJSON() throws {
@@ -196,7 +212,7 @@ google.*##.tld-entity
       #expect(decoded.count <= 300)
       let blocks = decoded.filter { $0.action.type == "block" }.map(\.trigger.urlFilter)
       let allows = decoded.filter { $0.action.type == "ignore-previous-rules" }.map(\.trigger.urlFilter)
-      #expect(!allows.contains { $0.contains("generic-pattern") })
+      #expect(allows.contains { $0.contains("generic-pattern") })
       #expect(allows.contains { $0.contains("cdn\\.host7") } == blocks.contains { $0.contains("?host7\\.example") })
       #expect(allows.contains { $0.contains("host999") } == blocks.contains { $0.contains("?host999\\.example") })
       if let firstAllow = decoded.firstIndex(where: { $0.action.type == "ignore-previous-rules" }) {
@@ -275,6 +291,33 @@ google.*##.tld-entity
     #expect(!reloaded.isEnabled(.trackers))
     reloaded.setExempt("example.com", false)
     #expect(!BlockingSettings(defaults: defaults).isExempt("news.example.com"))
+  }
+
+  @Test func incognitoChangesStayInMemoryAndEndWithPrivateBrowsing() throws {
+    let suite = "ardia.tests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let blocking = BlockingSettings(defaults: defaults)
+    blocking.setExempt("trusted.example", true)
+    blocking.setExempt("secret.example", true, isPrivate: true)
+    blocking.setExempt("trusted.example", false, isPrivate: true)
+    #expect(blocking.isExempt("secret.example", isPrivate: true) && !blocking.isExempt("secret.example"))
+    #expect(!blocking.isExempt("trusted.example", isPrivate: true) && blocking.isExempt("trusted.example"))
+    #expect(BlockingSettings(defaults: defaults).exemptHosts == ["trusted.example"])
+    blocking.endPrivateBrowsing()
+    #expect(!blocking.isExempt("secret.example", isPrivate: true) && blocking.isExempt("trusted.example", isPrivate: true))
+
+    let preferences = BrowsingPreferences(defaults: defaults)
+    preferences.update("zoomed.example") { $0.pageZoom = 1.25 }
+    preferences.update("secret.example", isPrivate: true) { $0.pageZoom = 1.5 }
+    preferences.update("zoomed.example", isPrivate: true) { $0.nightShade = .always }
+    #expect(preferences.settings(for: "secret.example", isPrivate: true).pageZoom == 1.5)
+    #expect(preferences.settings(for: "zoomed.example", isPrivate: true).pageZoom == 1.25)
+    #expect(preferences.nightShade(for: "zoomed.example", isPrivate: true) == .always)
+    #expect(preferences.nightShade(for: "zoomed.example") == .disabled)
+    #expect(Set(BrowsingPreferences(defaults: defaults).sites.keys) == ["zoomed.example"])
+    preferences.endPrivateBrowsing()
+    #expect(preferences.settings(for: "secret.example", isPrivate: true).pageZoom == nil)
   }
 }
 

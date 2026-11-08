@@ -7,6 +7,7 @@ struct TabDeckBar: View {
   let showsSyncedTabs: Bool
   let canReopen: Bool
   let hasTabs: Bool
+  var opensTabs = false
   let newTab: () -> Void
   let newRegularTab: () -> Void
   let newIncognitoTab: () -> Void
@@ -18,8 +19,8 @@ struct TabDeckBar: View {
   var body: some View {
     HStack(spacing: 0) {
       DeckCircleButton(
-        symbol: showsSyncedTabs ? "laptopcomputer" : "archivebox",
-        label: showsSyncedTabs ? "Synced Tabs" : "Archive",
+        symbol: opensTabs ? "square.on.square" : showsSyncedTabs ? "laptopcomputer" : "archivebox",
+        label: opensTabs ? "Tabs" : showsSyncedTabs ? "Synced Tabs" : "Archive",
         action: leading
       )
       Spacer(minLength: 0)

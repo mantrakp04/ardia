@@ -36,7 +36,7 @@ extension AppModel {
 
   func setNightShade(_ on: Bool, for page: WebTab) {
     guard let host = page.host else { return }
-    preferences.update(host) { $0.nightShade = on ? .always : .disabled }
+    preferences.update(host, isPrivate: page.isPrivate) { $0.nightShade = on ? .always : .disabled }
   }
 
   func toggleDesktopSite(for page: WebTab) {

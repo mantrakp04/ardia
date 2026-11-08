@@ -224,7 +224,8 @@ extension AppModel {
     }
   }
 
-  var canSendTabs: Bool {
-    sync.isEnabled && !sync.devicesThatReceiveTabs.isEmpty
+  func sendTargets(for tab: BrowserTab) -> [SyncedDevice] {
+    guard sync.isEnabled, !tab.isPrivate else { return [] }
+    return sync.devicesThatReceiveTabs(in: tab.profileSyncId ?? sync.selectedProfile?.syncId)
   }
 }

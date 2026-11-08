@@ -98,6 +98,7 @@ public final class BrowsingPreferences {
   }
 
   public private(set) var sites: [String: SiteSettings]
+  private var privateSites: [String: SiteSettings] = [:]
 
   public init(defaults: UserDefaults) {
     self.defaults = defaults
@@ -109,22 +110,38 @@ public final class BrowsingPreferences {
     sites = (defaults.data(forKey: Self.keys.sites)).flatMap { try? JSONDecoder().decode([String: SiteSettings].self, from: $0) } ?? [:]
   }
 
-  public func settings(for host: String?) -> SiteSettings {
+  public func settings(for host: String?, isPrivate: Bool = false) -> SiteSettings {
     guard let host else { return SiteSettings() }
-    return sites[BlockingSettings.normalize(host)] ?? SiteSettings()
+    let key = BlockingSettings.normalize(host)
+    return (isPrivate ? privateSites[key] : nil) ?? sites[key] ?? SiteSettings()
   }
 
-  public func nightShade(for host: String?) -> NightShadeMode {
-    settings(for: host).nightShade ?? nightShade
+  public func nightShade(for host: String?, isPrivate: Bool = false) -> NightShadeMode {
+    settings(for: host, isPrivate: isPrivate).nightShade ?? nightShade
   }
 
-  public func appLinks(for host: String?) -> AppLinkPreference {
-    settings(for: host).appLinks ?? appLinks
+  public func appLinks(for host: String?, isPrivate: Bool = false) -> AppLinkPreference {
+    settings(for: host, isPrivate: isPrivate).appLinks ?? appLinks
   }
 
-  public func update(_ host: String, _ change: (inout SiteSettings) -> Void) {
+  public func endPrivateBrowsing() {
+    let hadNightShade = privateSites.values.contains { $0.nightShade != nil }
+    privateSites.removeAll()
+    if hadNightShade { onNightShadeChange?() }
+  }
+
+  public func update(_ host: String, isPrivate: Bool = false, _ change: (inout SiteSettings) -> Void) {
     let key = BlockingSettings.normalize(host)
     guard !key.isEmpty else { return }
+    if isPrivate {
+      let before = settings(for: host, isPrivate: true)
+      var value = before
+      change(&value)
+      guard value != before else { return }
+      privateSites[key] = value
+      if before.nightShade != value.nightShade { onNightShadeChange?() }
+      return
+    }
     var value = sites[key] ?? SiteSettings()
     let before = value
     change(&value)

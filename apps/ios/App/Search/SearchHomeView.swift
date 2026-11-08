@@ -61,18 +61,22 @@ struct SearchHomeView: View {
       safeBottom: proxy.safeAreaInsets.bottom,
       safeSide: max(proxy.safeAreaInsets.leading, proxy.safeAreaInsets.trailing)
     )
+    let opensTabs = !app.deckTabs.isEmpty
     return TabDeckBar(
       geometry: geometry,
       isIncognito: app.isIncognito,
       showsSyncedTabs: app.sync.isEnabled,
       canReopen: app.tabs.canReopenClosed,
       hasTabs: false,
+      opensTabs: opensTabs,
       newTab: { app.newTab() },
       newRegularTab: { app.newRegularTab() },
       newIncognitoTab: { app.newIncognitoTab() },
       reopen: { app.reopenLastClosed() },
       closeAll: {},
-      leading: { app.sync.isEnabled ? app.openSyncedSpaces() : app.openArchive() },
+      leading: {
+        if opensTabs { app.showTabSwitcher() } else if app.sync.isEnabled { app.openSyncedSpaces() } else { app.openArchive() }
+      },
       settings: { app.sheet = .settings }
     )
     .ignoresSafeArea()

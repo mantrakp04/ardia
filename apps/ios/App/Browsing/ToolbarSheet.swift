@@ -281,8 +281,8 @@ struct ToolbarSheet: View {
 
   @ViewBuilder
   private var sendRow: some View {
-    let devices = app.sync.devicesThatReceiveTabs
-    if app.sync.isEnabled, !devices.isEmpty, let tab, isWebPage {
+    let devices = tab.map(app.sendTargets(for:)) ?? []
+    if !devices.isEmpty, let tab, isWebPage {
       if devices.count == 1, let device = devices.first {
         row("paperplane", "Send to \(device.name)") {
           app.send(tab, to: device)
@@ -309,7 +309,7 @@ struct ToolbarSheet: View {
   }
 
   private func nightShadeIsOn(_ page: WebTab) -> Bool {
-    switch app.preferences.nightShade(for: page.host) {
+    switch app.preferences.nightShade(for: page.host, isPrivate: page.isPrivate) {
     case .disabled: false
     case .always: true
     case .automatic: colorScheme == .dark

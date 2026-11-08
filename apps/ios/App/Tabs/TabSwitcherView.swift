@@ -599,8 +599,8 @@ struct CardMenu: View {
       ShareLink(item: url, subject: Text(TabText.title(for: tab))) {
         Label("Share", systemImage: "square.and.arrow.up")
       }
-      if !tab.isPrivate, app.canSendTabs {
-        let devices = app.sync.devicesThatReceiveTabs
+      let devices = app.sendTargets(for: tab)
+      if !devices.isEmpty {
         if devices.count == 1, let device = devices.first {
           Button("Send to \(device.name)", systemImage: DeviceSymbol.name(for: device)) { app.send(tab, to: device) }
         } else {

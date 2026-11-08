@@ -30,6 +30,7 @@ public final class BlockingSettings {
   }
 
   public private(set) var exemptHosts: Set<String>
+  private var privateExemptions: [String: Bool] = [:]
 
   public init(defaults: UserDefaults) {
     self.defaults = defaults
@@ -47,19 +48,33 @@ public final class BlockingSettings {
     }
   }
 
-  public func isExempt(_ host: String?) -> Bool {
-    guard let host = host.map(Self.normalize), !host.isEmpty, !exemptHosts.isEmpty else { return false }
+  public func isExempt(_ host: String?, isPrivate: Bool = false) -> Bool {
+    let overrides = isPrivate ? privateExemptions : [:]
+    guard let host = host.map(Self.normalize), !host.isEmpty, !(exemptHosts.isEmpty && overrides.isEmpty) else { return false }
     var candidate = Substring(host)
     while true {
+      if let exempt = overrides[String(candidate)] { return exempt }
       if exemptHosts.contains(String(candidate)) { return true }
       guard let dot = candidate.firstIndex(of: ".") else { return false }
       candidate = candidate[candidate.index(after: dot)...]
     }
   }
 
-  public func setExempt(_ host: String, _ exempt: Bool) {
+  public func endPrivateBrowsing() {
+    guard !privateExemptions.isEmpty else { return }
+    privateExemptions.removeAll()
+    onChange?()
+  }
+
+  public func setExempt(_ host: String, _ exempt: Bool, isPrivate: Bool = false) {
     let key = Self.normalize(host)
     guard !key.isEmpty else { return }
+    if isPrivate {
+      guard isExempt(host, isPrivate: true) != exempt else { return }
+      privateExemptions[key] = exempt
+      onChange?()
+      return
+    }
     let before = exemptHosts
     if exempt { exemptHosts.insert(key) } else { exemptHosts.remove(key) }
     guard exemptHosts != before else { return }

@@ -20,6 +20,7 @@ public struct ParsedFilterList: Sendable {
   var scopedOrder: [String] = []
   var excludedSelectors: [(selector: String, excluded: [String])] = []
   var selectorExceptions: Set<String> = []
+  var scopedExceptions: [String: [String]] = [:]
   var badfilters: Set<String> = []
   var blockedDomains: [String] = []
 }
@@ -106,7 +107,7 @@ public enum FilterListConverter {
       for suffix in suffixes(of: host) { blockSuffixes.insert(suffix) }
     }
     return allows.compactMap { allow in
-      guard let host = allow.host else { return nil }
+      guard let host = allow.host else { return allow.rule }
       if blockSuffixes.contains(Substring(host)) { return allow.rule }
       return suffixes(of: host).contains(where: blockHosts.contains) ? allow.rule : nil
     }
@@ -142,9 +143,9 @@ public enum FilterListConverter {
         switch cosmetic {
         case .skip:
           list.skippedLines += 1
-        case .exception(let selector):
+        case .exception(let selector, let domains):
           list.convertedLines += 1
-          list.selectorExceptions.insert(selector)
+          if domains.isEmpty { list.selectorExceptions.insert(selector) } else { list.scopedExceptions[selector, default: []].append(contentsOf: domains) }
         case .hide(let selector, let domains, let excluded):
           list.convertedLines += 1
           if domains.isEmpty && excluded.isEmpty {
@@ -186,6 +187,8 @@ public enum FilterListConverter {
     let badfilters = lists.reduce(into: Set<String>()) { $0.formUnion($1.badfilters) }
     let ownerExceptions = lists.first { $0.id == ownerID }?.selectorExceptions ?? []
     let sharedExceptions = lists.filter { $0.id != ownerID }.reduce(into: Set<String>()) { $0.formUnion($1.selectorExceptions) }
+    let ownerScoped = lists.first { $0.id == ownerID }?.scopedExceptions ?? [:]
+    let sharedScoped = lists.filter { $0.id != ownerID }.reduce(into: [String: [String]]()) { $0.merge($1.scopedExceptions, uniquingKeysWith: +) }
     let allows = lists.filter { $0.id != ownerID }.flatMap(\.allows)
     let ownerAllows = lists.first { $0.id == ownerID }?.allows ?? []
     let ownerAllowRules = ownerAllows.map(\.rule)
@@ -200,22 +203,36 @@ public enum FilterListConverter {
       let blocks = keyedBlocks.map(\.rule)
       let important = list.important.filter { !badfilters.contains($0.key) }.map(\.rule)
       let exceptions = isOwner ? ownerExceptions : sharedExceptions.union(ownerExceptions)
+      let scopedExceptions = isOwner ? ownerScoped : sharedScoped.merging(ownerScoped, uniquingKeysWith: +)
       var hides: [Rule] = []
-      let generic = list.genericSelectors.filter { !exceptions.contains($0) }
+      let generic = list.genericSelectors.filter { !exceptions.contains($0) && scopedExceptions[$0] == nil }
       for start in stride(from: 0, to: generic.count, by: selectorsPerRule) {
         let batch = generic[start..<min(start + selectorsPerRule, generic.count)]
         hides.append(Rule(trigger: Trigger(urlFilter: ".*"), action: Action(type: "css-display-none", selector: batch.joined(separator: ", "))))
       }
+      for selector in list.genericSelectors where !exceptions.contains(selector) {
+        guard let excepted = scopedExceptions[selector] else { continue }
+        hides.append(Rule(trigger: Trigger(urlFilter: ".*", unlessDomain: excepted.map { "*" + $0 }), action: Action(type: "css-display-none", selector: selector)))
+      }
       for key in list.scopedOrder {
         let selectors = (list.scopedSelectors[key] ?? []).filter { !exceptions.contains($0) }
-        let domains = key.split(separator: ",").map { "*" + $0 }
-        for start in stride(from: 0, to: selectors.count, by: selectorsPerRule) {
-          let batch = selectors[start..<min(start + selectorsPerRule, selectors.count)]
-          hides.append(Rule(trigger: Trigger(urlFilter: ".*", ifDomain: domains), action: Action(type: "css-display-none", selector: batch.joined(separator: ", "))))
+        let keyDomains = key.split(separator: ",").map(String.init)
+        let ifDomains = keyDomains.map { "*" + $0 }
+        let plain = selectors.filter { scopedExceptions[$0] == nil }
+        for start in stride(from: 0, to: plain.count, by: selectorsPerRule) {
+          let batch = plain[start..<min(start + selectorsPerRule, plain.count)]
+          hides.append(Rule(trigger: Trigger(urlFilter: ".*", ifDomain: ifDomains), action: Action(type: "css-display-none", selector: batch.joined(separator: ", "))))
+        }
+        for selector in selectors {
+          guard let excepted = scopedExceptions[selector] else { continue }
+          let left = domains(keyDomains, clearOf: excepted)
+          guard !left.isEmpty else { continue }
+          hides.append(Rule(trigger: Trigger(urlFilter: ".*", ifDomain: left.map { "*" + $0 }), action: Action(type: "css-display-none", selector: selector)))
         }
       }
       for scoped in list.excludedSelectors where !exceptions.contains(scoped.selector) {
-        hides.append(Rule(trigger: Trigger(urlFilter: ".*", unlessDomain: scoped.excluded.map { "*" + $0 }), action: Action(type: "css-display-none", selector: scoped.selector)))
+        let excluded = scoped.excluded + (scopedExceptions[scoped.selector] ?? [])
+        hides.append(Rule(trigger: Trigger(urlFilter: ".*", unlessDomain: excluded.map { "*" + $0 }), action: Action(type: "css-display-none", selector: scoped.selector)))
       }
 
       let body = blocks + hides
@@ -239,8 +256,16 @@ public enum FilterListConverter {
 
   enum Cosmetic {
     case hide(selector: String, domains: [String], excluded: [String])
-    case exception(String)
+    case exception(String, domains: [String])
     case skip
+  }
+
+  static func overlaps(_ domain: String, _ other: String) -> Bool {
+    domain == other || domain.hasSuffix("." + other) || other.hasSuffix("." + domain)
+  }
+
+  static func domains(_ domains: [String], clearOf excluded: [String]) -> [String] {
+    domains.filter { domain in !excluded.contains { overlaps(domain, $0) } }
   }
 
   enum Network {
@@ -284,8 +309,15 @@ public enum FilterListConverter {
       guard let domain = normalizeDomain(negative ? String(entry.dropFirst()) : entry) else { return .skip }
       if negative { excluded.append(domain) } else { domains.append(domain) }
     }
-    if isException { return .exception(selector) }
-    if !domains.isEmpty { excluded = [] }
+    if isException {
+      if domains.isEmpty && !excluded.isEmpty { return .skip }
+      return .exception(selector, domains: domains)
+    }
+    if !domains.isEmpty {
+      domains = Self.domains(domains, clearOf: excluded)
+      guard !domains.isEmpty else { return .skip }
+      excluded = []
+    }
     return .hide(selector: selector, domains: domains, excluded: excluded)
   }
 
@@ -351,11 +383,15 @@ public enum FilterListConverter {
         for entry in value.split(separator: "|") {
           let off = entry.hasPrefix("~")
           guard let normalized = normalizeDomain(String(off ? entry.dropFirst() : entry)) else { return .skip }
-          if off { unlessDomain.append("*" + normalized) } else { ifDomain.append("*" + normalized) }
+          if off { unlessDomain.append(normalized) } else { ifDomain.append(normalized) }
         }
-        if !ifDomain.isEmpty { unlessDomain = [] }
-        trigger.ifDomain = ifDomain.isEmpty ? nil : ifDomain
-        trigger.unlessDomain = unlessDomain.isEmpty ? nil : unlessDomain
+        if !ifDomain.isEmpty {
+          ifDomain = domains(ifDomain, clearOf: unlessDomain)
+          guard !ifDomain.isEmpty else { return .skip }
+          unlessDomain = []
+        }
+        trigger.ifDomain = ifDomain.isEmpty ? nil : ifDomain.map { "*" + $0 }
+        trigger.unlessDomain = unlessDomain.isEmpty ? nil : unlessDomain.map { "*" + $0 }
       default:
         if skippedOptions.contains(base) { return .skip }
         guard let type = resourceType(base) else { return .skip }

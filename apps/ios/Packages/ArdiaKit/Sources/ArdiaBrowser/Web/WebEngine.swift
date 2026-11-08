@@ -123,6 +123,8 @@ public final class WebEngine {
   private func endPrivateBrowsing() {
     privateGrantedCapture.removeAll()
     privateSession += 1
+    preferences.endPrivateBrowsing()
+    blocker.settings.endPrivateBrowsing()
     guard let store = sharedPrivateDataStore else { return }
     sharedPrivateDataStore = nil
     Task { await store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) }
@@ -138,7 +140,7 @@ public final class WebEngine {
   private func broadcastNightShade() {
     for id in roster.liveIDs {
       guard let page = roster.page(id) else { continue }
-      page.applyNightShade(preferences.nightShade(for: page.host))
+      page.applyNightShade(preferences.nightShade(for: page.host, isPrivate: page.isPrivate))
     }
   }
 
@@ -187,7 +189,7 @@ final class PageMessageProxy: NSObject, WKScriptMessageHandlerWithReply {
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) async -> (Any?, String?) {
     guard let engine, let body = message.body as? [String: Any], body["type"] as? String == "nightShade" else { return (nil, nil) }
-    return (engine.preferences.nightShade(for: message.webView?.url?.host()).rawValue, nil)
+    return (engine.preferences.nightShade(for: message.webView?.url?.host(), isPrivate: message.isFromPrivatePage).rawValue, nil)
   }
 }
 #endif
