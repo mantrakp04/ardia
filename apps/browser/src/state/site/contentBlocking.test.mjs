@@ -109,9 +109,39 @@ const quietly = async (run) => {
   return errors;
 };
 
+const liveBlocker = (lists, { enabled = false, refusing = null } = {}) => {
+  const live = { enabled, lists };
+  const wrapped = native.call;
+  native.call = async (verb, profile, json) => {
+    const args = JSON.parse(json);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    if (verb === "state") return JSON.stringify({ ...live, allowedHosts: [], version: "1", stats: { ready: true } });
+    if (verb === "setListEnabled") {
+      if (args.id === refusing) throw new Error(`${args.id} didn't answer`);
+      live.lists.find((l) => l.id === args.id).enabled = args.enabled;
+      return "null";
+    }
+    if (verb === "setEnabled") {
+      live.enabled = args.enabled;
+      return "null";
+    }
+    return wrapped(verb, profile, json);
+  };
+  return { live, restore: () => (native.call = wrapped) };
+};
+const withBlocker = async (lists, options, run) => {
+  const blocker = liveBlocker(lists, options);
+  try {
+    return await run(blocker.live);
+  } finally {
+    blocker.restore();
+  }
+};
+const cookieLists = () => [list("fanboy-cookiemonster", "cookies", false, true), list("easylist-cookie", "cookies", false, true)];
+const cookiesOn = (live) => live.lists.some((l) => l.category === "cookies" && l.enabled);
+
 test("a change the engine refuses shows why and is reported as an error, not dropped", async () => {
-  const s = state(false, [list("easylist", "ads", false, true)]);
-  const { errors } = await rejecting(() => changeBlockingCategory(s, "ads", true));
+  const { errors } = await rejecting(() => changeBlockingCategory("ads", true));
   assert.equal(failure(), "Couldn't change content blocking. uBlock Origin didn't answer");
   assert.equal(errors.length, 1);
   assert.ok(errors[0] instanceof Error);
@@ -119,32 +149,55 @@ test("a change the engine refuses shows why and is reported as an error, not dro
 });
 
 test("a list the engine refuses shows why, as a category does", async () => {
-  const s = state(false, [list("easylist", "ads", false, true)]);
-  const { errors } = await rejecting(() => changeFilterList(s, "easylist", true));
-  assert.equal(failure(), "Couldn't change content blocking. uBlock Origin didn't answer");
-  assert.equal(errors.length, 1);
+  await withBlocker([list("easylist", "ads", false, true)], { refusing: "easylist" }, async () => {
+    const errors = await quietly(() => changeFilterList("easylist", true));
+    assert.equal(failure(), "Couldn't change content blocking. easylist didn't answer");
+    assert.equal(errors.length, 1);
+  });
 });
 
 test("a category the blocker has no list for shows why and is reported", async () => {
-  calls.length = 0;
-  const errors = await quietly(() => changeBlockingCategory(state(false, []), "ads", true));
-  assert.match(failure(), /^Couldn't change content blocking\. .*no ads filter list/i);
+  await withBlocker([], {}, async () => {
+    calls.length = 0;
+    const errors = await quietly(() => changeBlockingCategory("ads", true));
+    assert.match(failure(), /^Couldn't change content blocking\. .*no ads filter list/i);
+    assert.equal(errors.length, 1);
+    assert.deepEqual(
+      calls.filter(([verb]) => verb !== "state"),
+      [],
+    );
+  });
+});
+
+test("a change made while the blocker can't be read shows its reason and sends nothing", async () => {
+  const { result: errors } = await answering(() => Promise.resolve(JSON.stringify(placeholder("uBlock Origin didn't start"))), async () => {
+    calls.length = 0;
+    return quietly(() => changeBlockingCategory("ads", true));
+  });
+  assert.equal(failure(), "Couldn't change content blocking. uBlock Origin didn't start");
   assert.equal(errors.length, 1);
-  assert.deepEqual(calls, []);
+  assert.deepEqual(
+    calls.filter(([verb]) => verb !== "state"),
+    [],
+  );
 });
 
 test("a change that works shows nothing and reports nothing", async () => {
-  const s = state(true, [list("easylist", "ads", true, true)]);
-  const errors = await quietly(() => changeBlockingCategory(s, "ads", false));
-  assert.equal(failure(), null);
-  assert.deepEqual(errors, []);
+  await withBlocker([list("easylist", "ads", true, true)], { enabled: true }, async (live) => {
+    const errors = await quietly(() => changeBlockingCategory("ads", false));
+    assert.equal(failure(), null);
+    assert.deepEqual(errors, []);
+    assert.equal(live.enabled, false);
+  });
 });
 
 test("the next change clears the failure of the one before it", async () => {
-  await quietly(() => changeBlockingCategory(state(false, []), "ads", true));
-  assert.notEqual(failure(), null);
-  await changeFilterList(state(true, [list("easylist", "ads", true, true), list("easyprivacy", "trackers", true, true)]), "easylist", false);
-  assert.equal(failure(), null);
+  await withBlocker([list("easylist", "ads", true, true), list("easyprivacy", "trackers", true, true)], { enabled: true }, async () => {
+    await quietly(() => changeBlockingCategory("cookies", true));
+    assert.notEqual(failure(), null);
+    await changeFilterList("easylist", false);
+    assert.equal(failure(), null);
+  });
 });
 
 const hanging = () => {
@@ -152,35 +205,20 @@ const hanging = () => {
   let first = null;
   let n = 0;
   native.call = (verb, profile, json) => (n++ === 0 ? new Promise((_, reject) => (first = reject)) : wrapped(verb, profile, json));
-  return { fail: (error) => first(error), restore: () => (native.call = wrapped) };
+  const failed = async (error) => {
+    while (!first) await new Promise((resolve) => setTimeout(resolve, 1));
+    first(error);
+  };
+  return { fail: failed, restore: () => (native.call = wrapped) };
 };
 
-test("an older change that fails after a newer one worked does not put its failure on screen", async () => {
-  const s = state(false, [list("easylist", "ads", false, true)]);
-  const gate = hanging();
-  try {
-    let older;
-    const errors = await quietly(async () => {
-      older = changeBlockingCategory(s, "ads", true);
-      await changeBlockingCategory(s, "ads", true);
-      gate.fail(new Error("late failure"));
-      await older;
-    });
-    assert.equal(failure(), null);
-    assert.equal(errors[0].message, "late failure");
-  } finally {
-    gate.restore();
-  }
-});
-
 test("a failure that lands after leaving the pane is not shown on return", async () => {
-  const s = state(false, [list("easylist", "ads", false, true)]);
   const gate = hanging();
   try {
     await quietly(async () => {
-      const pending = changeBlockingCategory(s, "ads", true);
+      const pending = changeBlockingCategory("ads", true);
       clearBlockingFailure();
-      gate.fail(new Error("late failure"));
+      await gate.fail(new Error("late failure"));
       await pending;
     });
     assert.equal(failure(), null);
@@ -189,8 +227,45 @@ test("a failure that lands after leaving the pane is not shown on return", async
   }
 });
 
+test("an earlier change that fails still shows its failure when a later one works", async () => {
+  await withBlocker([list("easylist", "ads", false, true)], {}, async () => {
+    const gate = hanging();
+    try {
+      const errors = await quietly(async () => {
+        const earlier = changeBlockingCategory("ads", true);
+        const later = changeFilterList("easylist", true);
+        await gate.fail(new Error("early failure"));
+        await Promise.all([earlier, later]);
+      });
+      assert.equal(failure(), "Couldn't change content blocking. early failure");
+      assert.equal(errors.length, 1);
+    } finally {
+      gate.restore();
+    }
+  });
+});
+
 test("turning a list on while the blocker is off turns it on", async () => {
   const s = state(false, [list("easylist", "ads", false, true), list("fanboy-annoyance", "annoyances", false)]);
   assert.deepEqual(await sent(() => setFilterList(s, "fanboy-annoyance", true)), ["setListEnabled fanboy-annoyance true", "setEnabled true"]);
   assert.deepEqual(await sent(() => setBlockingCategory(s, "ads", true)), ["setListEnabled easylist true", "setEnabled true"]);
+});
+
+test("turning cookie banners on and straight off ends off, whatever the page last drew", async () => {
+  await withBlocker(cookieLists(), {}, async (live) => {
+    await Promise.all([changeBlockingCategory("cookies", true), changeBlockingCategory("cookies", false)]);
+    assert.equal(cookiesOn(live), false);
+    assert.equal(live.enabled, false);
+    assert.equal(failure(), null);
+  });
+});
+
+test("turning cookie banners off straight after an on that failed half way leaves them off and says why", async () => {
+  await withBlocker(cookieLists(), { refusing: "easylist-cookie" }, async (live) => {
+    const errors = await quietly(() => Promise.all([changeBlockingCategory("cookies", true), changeBlockingCategory("cookies", false)]));
+    assert.equal(cookiesOn(live), false);
+    assert.equal(live.enabled, false);
+    assert.equal(failure(), "Couldn't change content blocking. easylist-cookie didn't answer");
+    assert.equal(errors.length, 1);
+  });
 });

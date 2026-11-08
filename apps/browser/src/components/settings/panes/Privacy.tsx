@@ -69,7 +69,7 @@ export function PrivacyPane() {
       });
       if (!confirmed) return refresh();
     }
-    await changeBlockingCategory(blocker, c, on);
+    await changeBlockingCategory(c, on);
     refresh();
   };
 
@@ -142,7 +142,7 @@ function FilterListsSheet() {
   const failure = useBlockingFailure((s) => s.message);
   const toggle = async (l: FilterList, on: boolean) => {
     if (!blocker) return;
-    await changeFilterList(blocker, l.id, on);
+    await changeFilterList(l.id, on);
     refresh();
   };
   return (
