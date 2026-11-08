@@ -24,7 +24,9 @@ import { CELL_STEP, dragRange, leaveIndex, type DragGeometry } from "./stripGrou
 import { CHIP_LABEL_GAP, CHIP_PAD, DROP_RING_WIDTH, GAP, ITEM_HEIGHT, ITEM_TOP, PINNED_CELL, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
 import { TabPressArea } from "../sidebar/TabPressArea";
-import { tabTitle, tabTooltip } from "../../state/browser/model";
+import { tabTitle } from "../../state/browser/model";
+import { awayTitle, pinAwareTooltip } from "../../state/pins/organize";
+import { AwayTitleLabel } from "../sidebar/AwayTitle";
 
 export function DraggableChip({
   tabId,
@@ -119,9 +121,11 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const { hovered, hoverProps } = useHover();
   if (!tab) return null;
   const title = tabTitle(tab);
+  const away = awayTitle(tab);
   const onBand = active && !floating && !!palette.background;
+  const ink = onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab;
   return (
-    <View {...hoverProps} tooltip={tabTooltip(tab)} style={{ width, height: TOP_STRIP_HEIGHT }}>
+    <View {...hoverProps} tooltip={pinAwareTooltip(tab)} style={{ width, height: TOP_STRIP_HEIGHT }}>
       {active && <SelectedTab width={width} band={band} opaque={dragged} />}
       {dragged && !active && (
         <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: TAB_RADIUS, backgroundColor: theme.windowTint[0] }} />
@@ -139,12 +143,11 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
                 <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
               </Pressable>
             )}
-            <FadeLabel
-              text={title}
-              fontSize={font.small.fontSize}
-              color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
-              style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
-            />
+            {away ? (
+              <AwayTitleLabel away={away} color={ink} fontSize={font.small.fontSize} height={16} style={{ flex: 1, marginLeft: CHIP_LABEL_GAP }} />
+            ) : (
+              <FadeLabel text={title} fontSize={font.small.fontSize} color={ink} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+            )}
             <HoverSlot
               hovered={hovered}
               width={iconButton.xs.box}

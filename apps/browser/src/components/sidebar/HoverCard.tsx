@@ -9,7 +9,8 @@ import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
 import { useHoverOrphaned, useIsShownTab } from "../../state/sidebar/hooks";
 import { useFolderPanel } from "../../state/sidebar/tileFolderUi";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayTitle } from "../../state/pins/organize";
+import { AwayTitleLabel } from "./AwayTitle";
 import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
@@ -84,12 +85,16 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const [pip, togglePip] = usePictureInPicture(tabId);
   const sleeping = useIsSleeping(tabId);
   if (!tab) return null;
-  const away = awayFromPin(tab);
+  const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        {away ? (
+          <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />
+        ) : (
+          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        )}
       </View>
       {tab.url ? (
         <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
