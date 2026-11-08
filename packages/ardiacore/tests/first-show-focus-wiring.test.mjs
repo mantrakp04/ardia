@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const ios = new URL("../ios/", import.meta.url);
-const native = (file) => readFileSync(new URL(file, ios), "utf8");
+const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'\\])\/\/.*$/gm, "$1");
+const native = (file) => withoutComments(readFileSync(new URL(file, ios), "utf8"));
 
 const bodyOf = (text, signature) => {
   const start = text.indexOf(signature);
@@ -18,6 +19,13 @@ const bodyOf = (text, signature) => {
 };
 
 const marksFirstShow = "_focus.onFirstShow = YES;";
+
+test("a mark that is only commented out does not count", () => {
+  const commented = `// ${marksFirstShow}\n/* ${marksFirstShow}\n */\nreturn @"http://example.test"; // ${marksFirstShow}\n`;
+  const code = withoutComments(commented);
+  assert.ok(!code.includes(marksFirstShow), "no mark survives in the stripped source");
+  assert.ok(code.includes('@"http://example.test"'), "a URL in a string keeps its slashes");
+});
 
 test("the page focus state remembers that its page still needs focus on first show", () => {
   const state = bodyOf(native("ArdiaWebViewInternal.h"), "struct ArdiaPageFocusState");
