@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { shellNativeModules } from "../../test-native/index.ts";
+import { shellNativeModules, windows } from "../../test-native/index.ts";
 
-const { connectCalendar, useCalendar } = await import("./calendar.ts");
+const { connectCalendar, refreshCalendar, startCalendar, useCalendar } = await import("./calendar.ts");
+const { runCalendarMenu } = await import("../sidebar/liveMenus.ts");
+const { slowTimersForTests } = await import("../../platform/slowTimers.ts");
 
 const native = shellNativeModules.ArdiaCalendar;
 const original = { ...native };
@@ -14,6 +16,7 @@ const stage = ({ status, request }) => {
 
 test.afterEach(() => {
   Object.assign(native, original);
+  windows.open.clear();
   useCalendar.setState({ access: "notDetermined", requesting: false, requestError: null, calendars: [], events: [] });
 });
 
@@ -79,4 +82,34 @@ test("a later grant clears the earlier error", async () => {
   assert.equal(await connectCalendar(), true);
   assert.equal(useCalendar.getState().requestError, null);
   assert.equal(useCalendar.getState().access, "fullAccess");
+});
+
+test("choosing Connect Calendar in the menu opens Calendar settings when access isn't granted", async () => {
+  stage({ status: "denied", request: () => Promise.resolve({ status: "denied", error: null }) });
+  runCalendarMenu("cal:connect");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(windows.open.has("settings"), true);
+});
+
+test("choosing Connect Calendar in the menu leaves Settings closed when access is granted", async () => {
+  stage({ status: "fullAccess", request: () => Promise.resolve({ status: "fullAccess", error: null }) });
+  runCalendarMenu("cal:connect");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(windows.open.has("settings"), false);
+  assert.equal(useCalendar.getState().access, "fullAccess");
+});
+
+test("coming back from System Settings picks up the access the person just allowed", async () => {
+  stage({ status: "notDetermined", request: () => Promise.resolve({ status: "notDetermined", error: null }) });
+  startCalendar();
+  await refreshCalendar();
+  await connectCalendar();
+  assert.equal(useCalendar.getState().access, "notDetermined");
+  assert.notEqual(useCalendar.getState().requestError, null);
+  native.authorizationStatus = () => "fullAccess";
+  windows.emit({ type: "focus", id: "main" });
+  for (let turn = 0; turn < 20 && useCalendar.getState().access !== "fullAccess"; turn++) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(useCalendar.getState().access, "fullAccess");
+  assert.equal(useCalendar.getState().requestError, null);
+  slowTimersForTests(Date.now).clear();
 });

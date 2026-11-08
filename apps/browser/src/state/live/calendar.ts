@@ -7,6 +7,7 @@ import {
   type CalendarAuthorization,
   type SystemCalendar,
 } from "../../platform/calendar";
+import { openExternalURL } from "../../platform/app";
 import { readDocument } from "../../platform/documents";
 import { onWindowEvent } from "../../platform/windows";
 import { useEffect, useState } from "react";
@@ -41,6 +42,8 @@ export const useCalendar = create<CalendarData>()(() => ({
 }));
 
 const CALENDARS_PRIVACY = "System Settings › Privacy & Security › Calendars";
+
+export const openCalendarPrivacy = () => void openExternalURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars");
 
 export function calendarRequestFailure(access: CalendarAuthorization, nativeError: string | null): string | null {
   if (access === "fullAccess") return null;

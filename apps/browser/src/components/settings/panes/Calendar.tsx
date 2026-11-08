@@ -1,13 +1,11 @@
-import { type SystemCalendar, connectCalendar, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
-import { Linking, View } from "react-native";
+import { type SystemCalendar, connectCalendar, openCalendarPrivacy, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
+import { View } from "react-native";
 import { ALERT_LEADS, COUNTDOWN_LEADS, countdownLeadTitle } from "../../../state/live/meetings";
 import { updateCalendarSettings, useLive } from "../../../state/live/store";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { Box, Button, Checkbox, EmptyState, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
-
-const openCalendarPrivacy = () => void Linking.openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars");
 
 export function CalendarPane() {
   const settings = useLive((s) => s.calendar);

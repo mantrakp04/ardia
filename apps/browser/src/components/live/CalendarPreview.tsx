@@ -1,7 +1,7 @@
 import { Pressable, Text as Span, View } from "react-native";
 import { FadeLabel } from "../ui/native";
 import { joinEvent } from "../../state/live/alerts";
-import { connectCalendar, refreshCalendar, useCalendar, useNow } from "../../state/live/calendar";
+import { connectCalendar, openCalendarPrivacy, refreshCalendar, useCalendar, useNow } from "../../state/live/calendar";
 import { isCalendarUrl, isMeeting, joinLink, joinTitle, relativeTime, timeRange, type CalendarEvent } from "../../state/live/meetings";
 import { useLive } from "../../state/live/store";
 import { useTab } from "../../state/browser/hooks";
@@ -94,17 +94,29 @@ function Empty({ text }: { text: string }) {
 const EMPTY = { ...liveType.empty, paddingVertical: space.s } as const;
 const NOTE = { ...liveType.detail, paddingVertical: space.xs } as const;
 const NOTE_WRAP = { paddingVertical: space.xs } as const;
+const SETTINGS_LINK = { alignSelf: "flex-start" } as const;
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 const NO_UNDERLINE = { textDecorationLine: "none" } as const;
+
+function OpenSystemSettings() {
+  return (
+    <View style={SETTINGS_LINK}>
+      <Button variant="text" look="link" title="Open System Settings" onPress={openCalendarPrivacy} />
+    </View>
+  );
+}
 
 function SignIn({ denied, requesting, failure }: { denied: boolean; requesting: boolean; failure: string | null }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   if (denied) {
     return (
-      <Text tone="textSecondary" style={NOTE}>
-        {failure ?? "Allow Ardia in System Settings › Privacy & Security › Calendars to see your meetings here."}
-      </Text>
+      <View style={NOTE_WRAP}>
+        <Text tone="textSecondary" style={liveType.detail}>
+          {failure ?? "Allow Ardia in System Settings › Privacy & Security › Calendars to see your meetings here."}
+        </Text>
+        <OpenSystemSettings />
+      </View>
     );
   }
   return (
@@ -116,9 +128,12 @@ function SignIn({ denied, requesting, failure }: { denied: boolean; requesting: 
         to see your meetings here and get alerts before they start.
       </Text>
       {failure ? (
-        <Text tone="textSecondary" style={NOTE}>
-          {failure}
-        </Text>
+        <>
+          <Text tone="textSecondary" style={NOTE}>
+            {failure}
+          </Text>
+          <OpenSystemSettings />
+        </>
       ) : null}
     </View>
   );

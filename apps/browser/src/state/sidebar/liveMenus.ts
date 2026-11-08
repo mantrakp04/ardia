@@ -237,9 +237,7 @@ export function calendarMenuItem(): MenuItem {
 }
 
 async function connectFromMenu() {
-  const before = useCalendar.getState().access;
-  const granted = await connectCalendar();
-  if (!granted && (useCalendar.getState().requestError || before !== "notDetermined")) openSettings("calendar");
+  if (!(await connectCalendar())) openSettings("calendar");
 }
 
 export function runCalendarMenu(choice: string): boolean {
