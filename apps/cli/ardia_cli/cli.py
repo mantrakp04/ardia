@@ -189,6 +189,7 @@ def build_parser():
     install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor or opencode; repeat for several (default: general)")
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
     install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
+    install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")
     skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
@@ -286,7 +287,7 @@ def run(argv: list[str]) -> int:
 
         if args.skills_command == "refresh":
             return skills.refresh()
-        return skills.install(args.target or ["general"], args.project, not args.no_cua)
+        return skills.install(args.target or ["general"], args.project, not args.no_cua, args.replace)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
 

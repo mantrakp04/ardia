@@ -56,11 +56,13 @@ the pins into `pyproject.toml`).
   then rename, so a linked file is replaced, never written through) plus a `.ardia-skill` marker (vendor, version and
   the files it wrote), removes only files an earlier marker listed that it no longer ships, and leaves every other
   file alone. A folder counts as ours only when it isn't a link and its marker is a plain file naming vendor
-  `ardia`, or, for copies from before the marker, when it holds exactly the files of a layout the CLI once shipped,
-  none of them links, under a `SKILL.md` starting `name: ardia`; anything else, a foreign skill named ardia
-  included, is refused. Each folder it wrote goes into `$ARDIA_CLI_HOME/skills.json`. `ardia skills refresh`
-  rewrites every folder in that list and every user-level folder above that is ours, prints `skipped <folder>` for
-  the ones that aren't, refuses a linked subfolder, and keeps only our folders in the list. `install.sh` runs it after
+  `ardia`. `install` also adopts a copy from before the marker, but only when its files, none of them links, have
+  exactly the paths and SHA-256 of a version we shipped (`ardia_cli/skill_hashes.json`, frozen, written from git
+  history by `apps/cli/scripts/skill-hashes.py`, which `--check`s it). Anything else, a foreign skill named ardia
+  included, is refused with the folder's path; `--replace` removes that one folder (a link itself, never its target)
+  and installs fresh. Each folder it wrote goes into `$ARDIA_CLI_HOME/skills.json`. `ardia skills refresh` never
+  adopts: it rewrites every marked folder in that list and every marked user-level folder above, prints
+  `skipped <folder>` for the rest, refuses a linked subfolder, and keeps only our folders in the list. `install.sh` runs it after
   each upgrade, so installed copies follow the CLI. Both also install cua-driver's skill next to ours (see Computer
   use); `--no-cua` skips it.
 - `ardia computer <cua-driver command> [args]`, `ardia computer setup [--no-grant]` and

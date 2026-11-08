@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -135,7 +136,8 @@ class Refresh(unittest.TestCase):
         self.foreign_ardia(folder)
         status, out = quiet(skills.install, ["claude-code"], False)
         self.assertEqual(status, 1)
-        self.assertIn("isn't the ardia skill", out)
+        self.assertIn("isn't a copy ardia installed", out)
+        self.assertIn("--replace", out)
         self.assertTrue((folder / "sentinel.txt").exists())
         self.assertFalse((folder / skills.MARKER).exists())
 
@@ -194,15 +196,66 @@ class Refresh(unittest.TestCase):
         self.assertEqual((outside / "script.md").read_text(encoding="utf-8"), "theirs\n")
         self.assertIn(f"error {folder}", out)
 
-    def test_an_exact_old_layout_is_adopted(self):
+    def shipped_before(self, folder: Path):
+        versions = [{name: hashlib.sha256((folder / name).read_bytes()).hexdigest() for name in OLD_LAYOUT}]
+        return mock.patch.object(skills, "legacy_versions", lambda: versions)
+
+    def test_install_adopts_a_copy_whose_every_file_we_shipped(self):
         folder = self.home / ".claude/skills/ardia"
         self.old_layout(folder)
-        status, out = quiet(skills.refresh)
+        with self.shipped_before(folder):
+            status, out = quiet(skills.install, ["claude-code"], False, False)
         self.assertEqual(status, 0)
         self.assertEqual((folder / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
         self.assertFalse((folder / "references/browse.md").exists())
         self.assertTrue((folder / skills.MARKER).is_file())
-        self.assertIn(f"refreshed {folder}", out)
+
+    def test_refresh_never_adopts_an_unmarked_copy(self):
+        folder = self.home / ".claude/skills/ardia"
+        self.old_layout(folder)
+        with self.shipped_before(folder):
+            status, out = quiet(skills.refresh)
+        self.assertEqual(status, 0)
+        self.assertTrue((folder / "references/browse.md").exists())
+        self.assertFalse((folder / skills.MARKER).exists())
+        self.assertIn(f"skipped {folder}", out)
+
+    def test_a_foreign_skill_in_an_old_layout_is_refused_and_kept(self):
+        folder = self.home / ".claude/skills/ardia"
+        (folder / "references").mkdir(parents=True)
+        (folder / "SKILL.md").write_text("---\nname: ardia\ndescription: theirs\n---\ntheirs\n", encoding="utf-8")
+        (folder / "references/pydoll.md").write_text("their docs\n", encoding="utf-8")
+        self.assertIn(f"skipped {folder}", quiet(skills.refresh)[1])
+        status, out = quiet(skills.install, ["claude-code"], False, False)
+        self.assertEqual(status, 1)
+        self.assertIn(str(folder), out)
+        self.assertIn("--replace", out)
+        self.assertIn("theirs", (folder / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertEqual((folder / "references/pydoll.md").read_text(encoding="utf-8"), "their docs\n")
+
+    def test_replace_swaps_only_that_folder(self):
+        folder = self.home / ".claude/skills/ardia"
+        self.foreign_ardia(folder)
+        sibling = self.home / ".claude/skills/other"
+        sibling.mkdir()
+        (sibling / "SKILL.md").write_text("other\n", encoding="utf-8")
+        status, out = quiet(skills.install, ["claude-code"], False, False, True)
+        self.assertEqual(status, 0)
+        self.assertEqual((folder / "SKILL.md").read_text(encoding="utf-8"), self.current_skill())
+        self.assertFalse((folder / "sentinel.txt").exists())
+        self.assertEqual((sibling / "SKILL.md").read_text(encoding="utf-8"), "other\n")
+
+    def test_replace_removes_a_linked_folder_without_touching_its_target(self):
+        target = self.root / "linked-skill"
+        self.foreign_ardia(target)
+        (self.home / ".claude/skills").mkdir(parents=True)
+        (self.home / ".claude/skills/ardia").symlink_to(target)
+        status, out = quiet(cli.main, ["skills", "install", "--target", "claude-code", "--no-cua", "--replace"])
+        self.assertEqual(status, 0)
+        folder = self.home / ".claude/skills/ardia"
+        self.assertFalse(folder.is_symlink())
+        self.assertTrue((folder / skills.MARKER).is_file())
+        self.assertTrue((target / "sentinel.txt").exists())
 
     def test_an_old_layout_with_extra_files_is_skipped(self):
         folder = self.home / ".claude/skills/ardia"
@@ -249,9 +302,15 @@ class Contents(unittest.TestCase):
         for reference in re.findall(r"`(?:references/)?([a-z-]+\.md)`", text):
             self.assertTrue((source / "references" / reference).is_file(), reference)
 
-    def test_the_shipped_layout_is_known(self):
-        self.assertIn(frozenset(skills.shipped_files()), skills.known_layouts())
-        self.assertIn(frozenset(OLD_LAYOUT), skills.known_layouts())
+    def test_versions_shipped_before_the_marker_are_known(self):
+        versions = skills.legacy_versions()
+        self.assertGreater(len(versions), 5)
+        self.assertTrue(all("SKILL.md" in version for version in versions))
+        self.assertIn({
+            "SKILL.md": "4a8a86544cbe004028cd6d0c1945fe15ebc06978688e316b9e9261b37f8531b5",
+            "references/browse.md": "bcc69d79b8d618e68854e867c06a5ef80ccb96cbf51ab034699b2966f2bb0bcb",
+        }, [{name: version[name] for name in ("SKILL.md", "references/browse.md")} for version in versions
+            if "references/browse.md" in version])
 
 
 if __name__ == "__main__":

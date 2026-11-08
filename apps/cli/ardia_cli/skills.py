@@ -1,6 +1,8 @@
 import contextlib
+import hashlib
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -27,16 +29,6 @@ def destination(target: str, project: bool) -> Path:
     return base / SKILL_NAME
 
 
-LEGACY_LAYOUTS = (
-    ("SKILL.md", "references/pydoll.md"),
-    ("SKILL.md", "references/browse.md", "references/pydoll.md"),
-    ("SKILL.md", "references/automation.md", "references/browse.md", "references/config.md",
-     "references/daily-reports.md", "references/userscripts.md"),
-    ("SKILL.md", "references/automation.md", "references/config.md", "references/daily-reports.md",
-     "references/script.md", "references/troubleshooting.md", "references/userscripts.md"),
-)
-
-
 def shipped_files() -> list[str]:
     source = skill_source()
     files = []
@@ -48,8 +40,12 @@ def shipped_files() -> list[str]:
     return sorted(files)
 
 
-def known_layouts() -> set[frozenset]:
-    return {frozenset(layout) for layout in LEGACY_LAYOUTS} | {frozenset(shipped_files())}
+def legacy_versions() -> list[dict]:
+    try:
+        versions = json.loads((Path(__file__).resolve().parent / "skill_hashes.json").read_text(encoding="utf-8"))["versions"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return [version for version in versions if isinstance(version, dict)]
 
 
 def safe_relative(name) -> bool:
@@ -92,20 +88,20 @@ def plain_files(folder: Path) -> set[str] | None:
     return files
 
 
-def owned_files(folder: Path) -> list[str] | None:
+def owned_files(folder: Path, adopt: bool = False) -> list[str] | None:
     if folder.is_symlink() or not folder.is_dir():
         return None
     marked = marked_files(folder)
-    if marked is not None:
+    if marked is not None or not adopt:
         return marked
     files = plain_files(folder)
-    if files is None or frozenset(files) not in known_layouts():
+    if files is None:
         return None
     try:
-        head = (folder / "SKILL.md").read_text(encoding="utf-8")[:200]
+        hashes = {name: hashlib.sha256((folder / name).read_bytes()).hexdigest() for name in files}
     except OSError:
         return None
-    return sorted(files) if head.startswith("---\nname: ardia\n") else None
+    return sorted(files) if hashes in legacy_versions() else None
 
 
 def real_parent(folder: Path, name: str) -> Path:
@@ -153,15 +149,21 @@ def write_pack(folder: Path, previous: list[str], pack: dict[str, bytes], marker
     write_file(folder, MARKER, (json.dumps({**marker, "files": files}, indent=2) + "\n").encode("utf-8"))
 
 
-def install_into(folder: Path, companions: list[str] | None = None) -> None:
+def install_into(folder: Path, companions: list[str] | None = None, adopt: bool = False, replace: bool = False) -> None:
     previous: list[str] = []
-    if folder.is_symlink() or folder.exists():
-        owned = owned_files(folder)
-        if owned is None:
-            raise FileExistsError(f"{folder} exists and isn't the ardia skill (no {MARKER} marker); move it away first")
+    owned = owned_files(folder, adopt) if folder.is_symlink() or folder.exists() else None
+    if owned is not None:
         previous = owned
         if companions is None:
             companions = (read_marker(folder) or {}).get("companions")
+    elif folder.is_symlink() or folder.exists():
+        if not replace:
+            raise FileExistsError(f"{folder} exists and isn't a copy ardia installed; move it away, or replace that folder with --replace")
+        if folder.is_symlink() or not folder.is_dir():
+            folder.unlink()
+        else:
+            shutil.rmtree(folder)
+        folder.mkdir()
     else:
         folder.mkdir(parents=True)
     source = skill_source()
@@ -236,7 +238,7 @@ def save_record(folders: list[Path]) -> None:
         pass
 
 
-def install(targets: list[str], project: bool, computer_use: bool = True) -> int:
+def install(targets: list[str], project: bool, computer_use: bool = True, replace: bool = False) -> int:
     written: dict[Path, list[str]] = {}
     for target in dict.fromkeys(targets):
         written.setdefault(destination(target, project), []).append(target)
@@ -244,7 +246,7 @@ def install(targets: list[str], project: bool, computer_use: bool = True) -> int
     installed = []
     for folder, names in written.items():
         try:
-            install_into(folder, None if computer_use else [])
+            install_into(folder, None if computer_use else [], adopt=True, replace=replace)
         except OSError as error:
             print(f"{', '.join(names)}: error {error}")
             status = 1
