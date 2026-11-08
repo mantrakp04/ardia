@@ -31,6 +31,9 @@ class FakePage:
     async def call(self, *args, **kwargs):
         return {}
 
+    async def send(self, *args, **kwargs):
+        return {}
+
 
 class BorrowedTab(unittest.TestCase):
     def setUp(self):
@@ -41,6 +44,8 @@ class BorrowedTab(unittest.TestCase):
         self.state.extras["attached"] = "USER"
         self.user = FakePage("USER")
         self.mine = FakePage("MINE")
+        self.mine.frames = {"F": {"origin": ""}}
+        self.mine.url = "about:blank"
         self.navigated = []
 
         async def page(target=None):
@@ -99,6 +104,45 @@ class BorrowedTab(unittest.TestCase):
                 asyncio.run(function(ctx(name), argv))
             self.assertEqual(caught.exception.code, "borrowed_tab", name)
             self.assertIn("ardia browse tab t", caught.exception.message)
+
+    def refused(self, function, argv, name=""):
+        with self.assertRaises(BrowseError) as caught:
+            asyncio.run(function(commands.Ctx(self.state, {}, "/", {}, None, name), argv))
+        self.assertEqual(caught.exception.code, "borrowed_tab", argv)
+        self.assertIn("pick it with `ardia browse tab t", caught.exception.message)
+        return caught.exception.message
+
+    def test_storage_changes_refuse_a_borrowed_tab_and_reads_still_work(self):
+        for kind in ("local", "session"):
+            self.assertIn(f"won't clear the {kind} storage of it", self.refused(commands.cmd_storage, [kind, "clear"]))
+            self.refused(commands.cmd_storage, [kind, "set", "k", "v"])
+            self.refused(commands.cmd_storage, [kind, "remove", "k"])
+        result = asyncio.run(commands.cmd_storage(commands.Ctx(self.state, {}, "/", {}, None, "storage"), ["local"]))
+        self.assertEqual(result.text, "(empty)")
+
+    def test_cookie_changes_refuse_a_borrowed_tab(self):
+        self.refused(commands.cmd_cookies, ["clear"])
+        self.refused(commands.cmd_cookies, ["set", "a", "b"])
+        self.refused(commands.cmd_cookies, ["set", "--curl", "cookies.txt"])
+
+    def test_settings_state_load_init_scripts_and_routes_refuse_a_borrowed_tab(self):
+        from ardia_cli.browse import capture
+
+        for argv in (["credentials", "u", "p"], ["headers", "{}"], ["offline", "on"], ["viewport", "800", "600"], ["geo", "1", "2"]):
+            self.refused(commands.cmd_set, argv)
+        self.refused(commands.cmd_state, ["load", "/tmp/state.json"])
+        self.refused(commands.cmd_addinitscript, ["window.x = 1"])
+        self.refused(capture.network_route, ["*/api/*", "--abort"])
+
+    def test_auth_login_never_types_into_a_borrowed_tab_even_on_its_origin(self):
+        meta = {"url": "https://user.example/login", "origins": ["https://user.example"]}
+        with mock.patch.object(vault, "load_meta", lambda root, name: meta), mock.patch.object(vault, "read_secret", lambda name, utf8: "pw"):
+            self.assertEqual(self.run_command(vault.login, ["work"]), [("MINE", "https://user.example/login")])
+
+    def test_storage_clear_works_once_the_tab_is_picked(self):
+        self.state.extras.pop("attached")
+        result = asyncio.run(commands.cmd_storage(commands.Ctx(self.state, {}, "/", {}, None, "storage"), ["local", "clear"]))
+        self.assertEqual(result.text, "✓ Storage cleared")
 
     def test_a_tab_picked_on_purpose_is_driven(self):
         self.state.extras.pop("attached")

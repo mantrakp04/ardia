@@ -189,10 +189,9 @@ async def login(ctx, argv):
             meta[camel] = options[key]
     humanize = ctx.humanize and not options.get("no_humanize")
     origins = set(meta["origins"])
-    page = await ctx.state.page() if ctx.state.current else await current_or_new(ctx)
+    page = await current_or_new(ctx)
     await page.refresh_frames()
     if (page.frames.get(page.main_frame, {}).get("origin") or "") not in origins:
-        page = await current_or_new(ctx)
         await navigate(ctx, page, meta["url"])
     password_selector = meta.get("passwordSelector") or "input[type=password]"
 

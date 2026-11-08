@@ -256,6 +256,9 @@ async def network_route(ctx, argv):
     options, args = parse(argv, {"--abort": "bool", "--body": "value", "--resource-type": "value", "--status": "value", "--content-type": "value"})
     need(args, 1, "network route <url> [--abort | --body <json>] [--resource-type <csv>]")
     page = await ctx.state.page()
+    from ardia_cli.browse.commands import refuse_on_borrowed
+
+    refuse_on_borrowed(ctx, page, "reroute the requests of")
     routes = ctx.state.extras.setdefault("routes", [])
     route = {"pattern": args[0], "abort": bool(options.get("abort")), "body": options.get("body"),
              "types": {value.strip().lower() for value in options["resource_type"].split(",")} if options.get("resource_type") else None,

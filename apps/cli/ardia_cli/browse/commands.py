@@ -255,8 +255,9 @@ async def add_init_script(ctx: Ctx, page, source: str, tag: str | None) -> str:
 
 
 def borrowed_tab(state) -> str | None:
-    attached = state.extras.get("attached")
-    return attached if state.current and state.current == attached else None
+    attached = (getattr(state, "extras", None) or {}).get("attached")
+    current = getattr(state, "current", None)
+    return attached if current and current == attached else None
 
 
 async def current_or_new(ctx: Ctx):
@@ -1231,6 +1232,8 @@ async def cmd_storage(ctx: Ctx, argv):
     if rest and rest[0] in ("get", "set", "clear", "remove"):
         rest = rest[1:]
     page = await ctx.state.page()
+    if op != "get":
+        refuse_on_borrowed(ctx, page, f"{op} the {kind} storage of")
     frame = ctx.state.frame_for(page) or page.main_frame
     if op == "set":
         need(rest, 2, f"storage {kind} set <key> <value>")
@@ -1250,6 +1253,8 @@ async def cmd_cookies(ctx: Ctx, argv):
                                  "--sameSite": "value", "--expires": "value", "--curl": "value"})
     action = args[0] if args else "get"
     page = await ctx.state.page()
+    if action != "get":
+        refuse_on_borrowed(ctx, page, f"{action} cookies through")
     try:
         if action == "get":
             cookies = (await page.send("Network.getCookies", {"urls": [page.url]} if page.url.startswith("http") else {})).get("cookies") or []
@@ -1322,6 +1327,7 @@ async def cmd_set(ctx: Ctx, argv):
     need(args, 1, "set viewport|device|geo|offline|headers|credentials|media ...")
     setting = ALIASES.get(args[0], args[0])
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, f"change the {setting} of")
     try:
         if setting == "viewport":
             need(args, 3, "set viewport <w> <h> [scale]")
@@ -1386,6 +1392,8 @@ async def cmd_state(ctx: Ctx, argv):
     _, args = parse(argv)
     need(args, 2, "state save|load <path>")
     page = await ctx.state.page()
+    if args[0] != "save":
+        refuse_on_borrowed(ctx, page, "load cookies and storage into")
     path = ctx.path(args[1])
     try:
         if args[0] == "save":
@@ -1510,6 +1518,7 @@ async def cmd_addinitscript(ctx: Ctx, argv):
     if not source:
         raise Usage("Usage: ardia browse addinitscript <js> | --stdin")
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "add a script to")
     identifier = await add_init_script(ctx, page, source, None)
     return Result({"identifier": identifier}, identifier)
 

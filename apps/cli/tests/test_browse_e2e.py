@@ -489,6 +489,15 @@ class BrowseEndToEnd(unittest.TestCase):
         refused = self.browse("reload", session="borrowed-2", check=False)
         self.assertEqual(refused.returncode, 1)
         self.assertIn("won't reload it", refused.stderr)
+        self.browse("storage", "local", "set", "draft", "keep me", session="borrowed-owner")
+        wiped = self.browse("storage", "local", "clear", session="borrowed-2", check=False)
+        self.assertEqual((wiped.returncode, json.loads(self.browse("storage", "local", "clear", "--json", session="borrowed-2", check=False).stdout)["code"]),
+                         (1, "borrowed_tab"))
+        self.assertEqual(self.browse("storage", "local", "get", "draft", session="borrowed-owner").stdout, "draft: keep me\n")
+        tab = json.loads(self.browse("tab", "list", "--json", session="borrowed-2").stdout)["data"]["tabs"]
+        picked = next(item["tabId"] for item in tab if item["active"])
+        self.browse("tab", picked, session="borrowed-2")
+        self.assertEqual(self.browse("storage", "local", "clear", session="borrowed-2").stdout, "✓ Storage cleared\n")
 
     def test_long_runs_in_a_change_report_are_one_line(self):
         session = "runs"
