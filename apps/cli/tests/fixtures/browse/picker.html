@@ -34,6 +34,11 @@
 </div>
 <div class="owner"><label for="owner">Owner</label><input id="owner" type="text" role="combobox" autocomplete="off"></div>
 <ul id="recent" class="options" role="listbox" aria-label="Recent"><li role="option">Alice Recent</li></ul>
+<div class="pair">
+  <button id="size" type="button" aria-haspopup="listbox">Size</button>
+  <button id="shape" type="button" aria-haspopup="listbox" aria-controls="shape-list">Shape</button>
+  <ul id="shape-list" class="options" role="listbox" aria-label="Shapes"><li role="option">Square</li><li role="option">Circle</li></ul>
+</div>
 <label for="assignee">Assignee</label>
 <input id="assignee" type="text" role="combobox" aria-controls="assignee-options" autocomplete="off">
 <ul id="assignee-options" class="options" role="listbox" aria-label="Assignees"><li role="option">Alice Jones</li></ul>

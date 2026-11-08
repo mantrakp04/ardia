@@ -6,6 +6,7 @@ LIBRARY = r"""
     "menuitemcheckbox", "menuitemradio", "slider", "spinbutton", "switch", "tab", "treeitem", "searchbox"]);
   const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   const suggestionWatches = new WeakMap();
+  const CONTROLS = "input:not([type=hidden]), textarea, select, button[aria-haspopup], [aria-haspopup=listbox], [aria-haspopup=true], [role=combobox], [role=searchbox], [role=textbox], [contenteditable=true]";
   const IMPLICIT_ROLES = {
     main: "main", navigation: "nav", banner: "body > header", contentinfo: "body > footer", dialog: "dialog", form: "form",
     table: "table", row: "tr", cell: "td", columnheader: "th", list: "ul, ol", listitem: "li", article: "article", search: "search",
@@ -266,6 +267,19 @@ LIBRARY = r"""
       if (role === "combobox" || (el.getAttribute("aria-haspopup") || "").toLowerCase() === "listbox") return "button";
       return null;
     },
+    isControl(node) {
+      if (!node || node.nodeType !== 1) return false;
+      if (node.matches(CONTROLS)) return true;
+      return api.comboKind(node) !== null;
+    },
+    ownerOf(list, el) {
+      if (!list.id) return null;
+      for (const node of el.ownerDocument.querySelectorAll("[aria-controls], [aria-owns]")) {
+        const ids = ["aria-controls", "aria-owns"].flatMap((key) => (node.getAttribute(key) || "").split(/\s+/));
+        if (ids.includes(list.id)) return node;
+      }
+      return null;
+    },
     popupIds(el) {
       const ids = [];
       for (const node of [el, el.closest("[role=combobox]")]) {
@@ -285,12 +299,13 @@ LIBRARY = r"""
       return component ? Array.from(component.querySelectorAll("[role=listbox]")) : [];
     },
     componentOf(el) {
-      const fields = "input, textarea, select, [role=combobox], [role=searchbox], [role=textbox], [contenteditable=true]";
+      const mine = (owner) => !owner || owner === el || owner.contains(el) || el.contains(owner);
       let node = el.parentElement;
       while (node && node !== el.ownerDocument.body) {
-        const others = Array.from(node.querySelectorAll(fields)).filter((field) => field !== el && !el.contains(field) && !field.contains(el));
+        const others = Array.from(node.querySelectorAll("*")).filter((field) => field !== el && !el.contains(field) && !field.contains(el) && api.isControl(field));
         if (others.length) return null;
-        if (node.querySelector("[role=listbox]")) return node;
+        const lists = Array.from(node.querySelectorAll("[role=listbox]"));
+        if (lists.length) return lists.every((list) => mine(api.ownerOf(list, el))) ? node : null;
         node = node.parentElement;
       }
       return null;
@@ -312,21 +327,27 @@ LIBRARY = r"""
         if (root.getAttribute("role") === "option") add(root);
         for (const node of root.querySelectorAll("[role=option]")) add(node);
       }
-      const texts = out.map((node) => ({
-        text: norm(node.getAttribute("aria-label") || node.innerText || node.textContent),
-        pieces: [node.getAttribute("aria-label"), node.getAttribute("data-value"), node.getAttribute("value"),
-          ...String(node.innerText || node.textContent || "").split(/\n|·|•|\||—| - /)].map(norm).filter(Boolean),
-        selected: node.getAttribute("aria-selected") === "true",
-      }));
+      const texts = out.map((node) => api.optionFacts(node));
       Object.defineProperty(globalThis, "ardiaBrowseSuggestions", { value: texts, configurable: true, enumerable: false });
       return out.slice(0, 200);
+    },
+    optionFacts(node) {
+      const shown = norm(node.innerText || node.textContent);
+      return {
+        text: norm(node.getAttribute("aria-label")) || shown,
+        exact: [node.getAttribute("aria-label"), node.getAttribute("data-value"), node.getAttribute("value"), shown].map(norm).filter(Boolean),
+        pieces: String(node.innerText || node.textContent || "").split(/\n|·|•|\||—| - /).map(norm).filter(Boolean),
+        selected: node.getAttribute("aria-selected") === "true",
+      };
     },
     optionSignature(el) {
       const parts = [];
       for (const root of api.popupsOf(el)) {
         if (!api.visible(root)) continue;
         for (const node of root.matches("[role=option]") ? [root] : root.querySelectorAll("[role=option]")) {
-          if (api.visible(node)) parts.push((node.id || "") + "\u0001" + norm(node.innerText || node.textContent));
+          if (!api.visible(node)) continue;
+          const facts = api.optionFacts(node);
+          parts.push([node.id || "", facts.text, ...facts.exact].join("\u0001"));
         }
       }
       return parts.join("\u0002");

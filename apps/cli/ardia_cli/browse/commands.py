@@ -1664,8 +1664,9 @@ async def cmd_batch(ctx: Ctx, argv):
             current = BATCH_DEFAULT_CAP if current is None else int(current)
             ctx.options["max_output"] = 0 if 0 in (current, wider) else max(current, wider)
         result, error = await run_one(ctx, command, line_options)
-        outcome = {"command": item, "success": error is None, "result": result.data if result else None, "error": error.message if error else None,
-                   "text": result.text if result else None}
+        failed = error is None and bool(getattr(result, "failed", False))
+        outcome = {"command": item, "success": error is None and not failed, "result": result.data if result else None,
+                   "error": error.message if error else ("the command reported a failure" if failed else None), "text": result.text if result else None}
         if error is not None and error.code:
             outcome["code"] = error.code
         outcomes.append(outcome)
@@ -1673,7 +1674,7 @@ async def cmd_batch(ctx: Ctx, argv):
             outcomes.extend({"command": rest, "success": False, "result": None, "error": "not run: an earlier command's outcome is unknown",
                              "code": "not_run", "text": None} for rest in runs[index + 1:])
             break
-        if error is not None and options.get("bail"):
+        if not outcome["success"] and options.get("bail"):
             break
     if closing:
         if len(outcomes) == len(runs) and all(outcome["success"] for outcome in outcomes):
@@ -1681,7 +1682,7 @@ async def cmd_batch(ctx: Ctx, argv):
         else:
             outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
                              "error": "close not run: an earlier line failed or didn't run, so the session stays open"})
-    text = "\n\n".join((outcome["text"] if outcome["success"] else f"✗ {outcome['error']}") or "" for outcome in outcomes)
+    text = "\n\n".join((outcome["text"] if outcome["success"] or outcome.get("text") else f"✗ {outcome['error']}") or "" for outcome in outcomes)
     for outcome in outcomes:
         outcome.pop("text", None)
     result = Result({"results": outcomes}, text)

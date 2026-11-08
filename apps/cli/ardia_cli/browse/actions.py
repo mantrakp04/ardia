@@ -21,7 +21,7 @@ PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrive
 SUGGESTION_TIMEOUT = 4.0
 SUGGESTION_HINT_WAIT = 1.2
 SUGGESTION_SETTLE = 0.35
-SUGGESTION_QUIET_AFTER_TYPING = 1.0
+EXACT = 3
 MAX_SUGGESTIONS = 8
 EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 
@@ -397,12 +397,18 @@ def match_level(value: str, item: dict) -> int:
     wanted = plain(value)
     if not wanted:
         return 0
-    if plain(item["text"]) == wanted:
-        return 3
-    pieces = list(item.get("pieces") or []) + EMAIL.findall(item["text"])
-    if any(plain(piece) == wanted for piece in pieces):
+    exact = [item["text"], *(item.get("exact") or [])]
+    exact += [email for value in exact for email in EMAIL.findall(value)]
+    if any(plain(value) == wanted for value in exact):
+        return EXACT
+    if any(plain(piece) == wanted for piece in item.get("pieces") or []):
         return 2
     return 1 if wanted in plain(item["text"]) else 0
+
+
+def exact_pick(value: str, items: list[dict]) -> int | None:
+    exact = [index for index, item in enumerate(items) if match_level(value, item) == EXACT]
+    return exact[0] if len(exact) == 1 else None
 
 
 def pick_suggestion(value: str, items: list[dict], where: str) -> int:
@@ -463,31 +469,44 @@ async def unwatch_suggestions(page, element):
 
 
 def suggestions_ready(watch: dict) -> bool:
-    if watch["busy"] or watch["changed"] <= 0:
-        return False
-    quiet = (watch["now"] - watch["changed"]) / 1000
-    if watch["changed"] >= watch["since"]:
-        return quiet >= SUGGESTION_SETTLE
-    typed_since = (watch["now"] - watch["since"]) / 1000
-    return watch["changed"] >= watch.get("first", watch["since"]) and typed_since >= SUGGESTION_QUIET_AFTER_TYPING
+    return (not watch["busy"] and watch["changed"] > 0 and watch["changed"] >= watch["since"]
+            and (watch["now"] - watch["changed"]) / 1000 >= SUGGESTION_SETTLE)
 
 
-async def settled_suggestions(page, element, timeout: float, what: str | None = None):
+def quiet(watch: dict) -> bool:
+    return not watch["busy"] and (watch["now"] - max(watch["changed"], watch["since"])) / 1000 >= SUGGESTION_SETTLE
+
+
+async def settled_suggestions(page, element, timeout: float, value: str | None = None):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:
         watch = await page.call("(el) => ardiaBrowse.suggestionState(el)", element, frame=element.frame, read=True)
         if suggestions_ready(watch):
-            return await suggestions_now(page, element)
+            options, items = await suggestions_now(page, element)
+            return options, items, True
+        if value is not None and quiet(watch):
+            options, items = await suggestions_now(page, element)
+            if exact_pick(value, items) is not None:
+                return options, items, False
         if loop.time() >= deadline:
-            if what is None:
-                return [], []
-            busy = " (it still says it's loading)" if watch["busy"] else ""
-            unlinked = await unlinked_note(page, element)
-            raise BrowseError(f"The suggestions in {what} didn't update within {timeout:g} s{busy}, so nothing was picked; " + (unlinked or (
-                "the list showing may be for an earlier query. Snapshot to see it, then click an option or try select again")),
-                code="no_fresh_suggestions")
+            options, items = await suggestions_now(page, element)
+            return options, items, False
         await asyncio.sleep(0.1)
+
+
+async def stale_refusal(page, element, value: str, items: list[dict], where: str, timeout: float) -> BrowseError:
+    unlinked = await unlinked_note(page, element)
+    if unlinked:
+        return BrowseError(f"Nothing was picked in {where}: {unlinked}", code="no_fresh_suggestions")
+    listed = ", ".join(f'"{item["text"]}"' for item in items[:MAX_SUGGESTIONS])
+    showing = f" What's showing: {listed}." if items else ""
+    return BrowseError(
+        f'The suggestions in {where} didn\'t change within {timeout:g} s after typing "{value}", so they may be for an earlier query, and '
+        f"none matches it exactly, so nothing was picked.{showing} Pick with the exact text or email, or click an option yourself "
+        "(find role option click --name <text>)",
+        data={"suggestions": [item["text"] for item in items]}, code="no_fresh_suggestions",
+    )
 
 
 async def choose(page, element, values: list[str], humanize: bool, where: str, timeout: float = SUGGESTION_TIMEOUT) -> list[dict]:
@@ -506,17 +525,20 @@ async def choose(page, element, values: list[str], humanize: bool, where: str, t
         try:
             if kind == "typeahead":
                 await fill(page, element, value, humanize)
-                options, items = await settled_suggestions(page, element, timeout, where)
+                options, items, fresh = await settled_suggestions(page, element, timeout, value)
             else:
                 expanded = await page.call("(el) => el.getAttribute('aria-expanded') === 'true'", element, frame=element.frame, read=True)
                 if not expanded:
                     await click(page, element, humanize)
-                    options, items = await settled_suggestions(page, element, timeout, where)
+                    options, items, fresh = await settled_suggestions(page, element, timeout, value)
                 else:
                     options, items = await suggestions_now(page, element)
+                    fresh = True
+            if not fresh and exact_pick(value, items) is None:
+                raise await stale_refusal(page, element, value, items, where, timeout)
         finally:
             await unwatch_suggestions(page, element)
-        index = pick_suggestion(value, items, where)
+        index = exact_pick(value, items) if not fresh else pick_suggestion(value, items, where)
         option = options[index]
         option.label = f'the suggestion "{items[index]["text"]}"'
         await click(page, option, humanize)

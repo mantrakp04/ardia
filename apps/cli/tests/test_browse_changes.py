@@ -579,6 +579,25 @@ class BatchFromStdin(unittest.TestCase):
         self.assertEqual(refused, [])
         self.assertIn("--session applies to the whole session", result.text)
 
+    def test_a_result_that_reports_failure_fails_its_line_bail_and_the_closing_close(self):
+        seen = []
+
+        async def fake_dispatch(ctx, name, argv):
+            seen.append(name)
+            result = commands.Result({"pages": 1}, "✗ http://x/ failed: 404")
+            if name == "read":
+                result.failed = True
+            return result
+
+        ctx = commands.Ctx(SimpleNamespace(extras={}), {}, "/", {}, "read http://x/\nget text main\nclose\n", "batch")
+        with mock.patch.object(daemon, "dispatch", fake_dispatch):
+            result = run(commands.cmd_batch(ctx, ["--bail"]))
+        self.assertEqual(seen, ["read"])
+        self.assertEqual([outcome["success"] for outcome in result.data["results"]], [False, False])
+        self.assertTrue(result.failed)
+        self.assertNotIn("close_after_batch", ctx.state.extras)
+        self.assertIn("✗ http://x/ failed: 404", result.text)
+
     def test_close_runs_after_the_batch_as_its_last_line_only(self):
         ctx, seen, result = self.run_batch("notes append done\nclose\n")
         self.assertEqual([argv for argv, _ in seen], [["notes", "append", "done"]])
@@ -868,11 +887,14 @@ class Suggestions(unittest.TestCase):
         suggestion("Invite lena.vogt@kontor.io Guest outside Northwind", "Invite lena.vogt@kontor.io", "Guest outside Northwind"),
     ]
 
-    def test_exact_text_then_a_whole_piece_or_email_then_a_unique_substring(self):
+    def test_exact_text_label_value_or_email_is_exact_and_a_line_or_substring_is_not(self):
+        self.assertEqual(actions.exact_pick("PRIYANKA.RAO@northwind.dev", self.PEOPLE), 1)
+        self.assertEqual(actions.exact_pick("lena.vogt@kontor.io", self.PEOPLE), 2)
+        self.assertIsNone(actions.exact_pick("Priya Raman", self.PEOPLE))
+        labelled = {"text": "Blue", "exact": ["Blue", "colour-blue"], "pieces": ["Blue"]}
+        self.assertEqual(actions.exact_pick("colour-blue", [labelled]), 0)
         pick = lambda value: actions.pick_suggestion(value, self.PEOPLE, "Guests")
         self.assertEqual(pick("Priya Raman"), 0)
-        self.assertEqual(pick("PRIYANKA.RAO@northwind.dev"), 1)
-        self.assertEqual(pick("lena.vogt@kontor.io"), 2)
         self.assertEqual(pick("Raman"), 0)
         self.assertEqual(actions.pick_suggestion("Blue", [suggestion("Blue Grey"), suggestion("Blue")], "Colour"), 1)
 
@@ -886,28 +908,52 @@ class Suggestions(unittest.TestCase):
         self.assertEqual(none.exception.code, "no_match")
         self.assertIn("Priyanka Rao", none.exception.message)
 
-    def test_only_a_list_that_changed_after_the_last_keystroke_counts(self):
+    def test_only_a_list_that_changed_after_the_last_keystroke_is_fresh(self):
         ready = lambda **watch: actions.suggestions_ready({"busy": False, "since": 1000, "first": 400, "changed": 0, "now": 3000, **watch})
         self.assertFalse(ready(changed=0))
-        self.assertFalse(ready(changed=300))
+        self.assertFalse(ready(changed=900))
         self.assertTrue(ready(changed=1100))
         self.assertFalse(ready(changed=2900))
         self.assertFalse(ready(changed=1100, busy=True))
-        self.assertTrue(ready(changed=900))
-        self.assertFalse(ready(changed=900, now=1500))
 
-    def test_an_unchanged_list_times_out_instead_of_being_picked(self):
+    def choose(self, value, items, watch):
         class Page:
             async def call(self, function, *args, **kwargs):
-                return {"busy": True, "since": 1000, "changed": 500, "now": 9000}
+                if "suggestionState" in function:
+                    return watch
+                if "popupsOf(el).length" in function:
+                    return 1
+                return None
 
-        element = SimpleNamespace(frame="F", label="@e3")
+        clicked = []
+
+        async def nothing(*args, **kwargs):
+            return None
+
+        async def now(page, element):
+            return [SimpleNamespace(label="", frame="F", text=item["text"]) for item in items], items
+
+        async def kind(page, element):
+            return "typeahead"
+
+        async def click(page, element, humanize, *rest):
+            clicked.append(element.text)
+
+        with mock.patch.multiple(actions, combo_kind=kind, watch_suggestions=nothing, unwatch_suggestions=nothing, fill=nothing,
+                                 suggestions_now=now, click=click):
+            picked = run(actions.choose(Page(), SimpleNamespace(frame="F", label="@e3"), [value], False, '"Assignee"', 0.2))
+        return picked, clicked
+
+    def test_a_list_left_from_an_earlier_query_gives_only_an_exact_match(self):
+        stale = {"busy": False, "since": 1000, "first": 400, "changed": 700, "now": 3000}
+        old = [{"text": "Alice Jones", "exact": ["Alice Jones"], "pieces": ["Alice Jones"]}]
         with self.assertRaises(BrowseError) as caught:
-            run(actions.settled_suggestions(Page(), element, 0.2, '"Guests"'))
+            self.choose("Alice", old, stale)
         self.assertEqual(caught.exception.code, "no_fresh_suggestions")
-        self.assertIn("still says it's loading", caught.exception.message)
-        self.assertEqual(run(actions.settled_suggestions(Page(), element, 0.2)), ([], []))
-
+        self.assertIn('What\'s showing: "Alice Jones"', caught.exception.message)
+        self.assertEqual(self.choose("Alice Jones", old, stale)[1], ["Alice Jones"])
+        fresh = dict(stale, changed=1100)
+        self.assertEqual(self.choose("Alice", old, fresh)[1], ["Alice Jones"])
 
 if __name__ == "__main__":
     unittest.main()
