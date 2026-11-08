@@ -181,6 +181,7 @@
 #include "services/network/public/mojom/content_security_policy.mojom.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "third_party/blink/public/common/frame/user_activation_state.h"
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom.h"
 #include "ui/aura/client/focus_client.h"
@@ -214,6 +215,7 @@
 #include "ui/events/keycodes/keyboard_code_conversion.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/ozone/public/ozone_platform.h"
+#include "ui/views/background.h"
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/controls/native/native_view_host.h"
 #include "ui/views/focus/focus_manager.h"
@@ -2224,6 +2226,7 @@ ShellHostView::ShellHostView(BrowserWindowInterface* browser, BrowserView* paren
       id_(browser->GetSessionID().id()), startup_(startup),
       window_id_(Hosts().empty() ? "main" : "window-" + base::NumberToString(id_)) {
   Hosts()[id_] = this;
+  SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
   glass_ = AddChildView(std::make_unique<ShellGlassView>(
       base::BindRepeating([](base::WeakPtr<ShellHostView> host, std::string_view event, base::Value payload) {
         if (host) host->Event("ArdiaGlass", event, std::move(payload));

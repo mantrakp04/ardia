@@ -130,6 +130,13 @@ int main() {
             self.assertEqual(result.returncode, 0, result.stderr)
             subprocess.run([str(binary)], check=True)
 
+    def test_unpainted_pages_cover_chromes_own_window(self):
+        source = (Path(__file__).resolve().parents[1] / 'src/ardia/linux/ac_linux_host.cc').read_text()
+        start = source.index('ShellHostView::ShellHostView(BrowserWindowInterface* browser')
+        constructor = source[start:source.index('\n}\n', start)]
+        self.assertIn('SetBackground(views::CreateSolidBackground(SK_ColorWHITE));', constructor)
+        self.assertLess(constructor.index('SetBackground('), constructor.index('AddChildView('))
+
 
 if __name__ == '__main__':
     unittest.main()
