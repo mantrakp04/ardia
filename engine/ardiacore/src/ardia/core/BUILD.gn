@@ -163,6 +163,7 @@ source_set("core") {
     "//chrome/browser/profiles:profile",
     "//chrome/browser/printing",
     "//chrome/browser/ui",
+    "//chrome/browser/ui:recently_audible_helper",
     "//chrome/browser/ui/views/exclusive_access",
     "//chrome/browser/ui/views/eye_dropper",
     "//chrome/common",

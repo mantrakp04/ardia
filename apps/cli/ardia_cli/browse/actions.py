@@ -1,8 +1,11 @@
 import asyncio
+import contextlib
 import json
 import random
+import re
 
-from ardia_cli.browse.errors import BrowseError, Gated, OutcomeUnknown
+from ardia_cli.browse import fields
+from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
 DELIVERY_TIMEOUT = 1.5
@@ -10,7 +13,19 @@ NOT_DELIVERED = (
     "{action} was sent, but the page received none of its {missing} events. The tab may not be on screen in Ardia "
     "(just switched, or covered by another tab); check it's shown (`ardia browse tab <id> --show`) before trying again"
 )
+INTERCEPT_TIMEOUT = 1.5
+CLEANUP_TIMEOUT = 2.0
+DRAG_GATED = "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session"
+CLEANUPS: set = set()
 PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrived), so it may have had an effect"
+SUGGESTION_TIMEOUT = 4.0
+LAYOUT_WAIT = 2.0
+SANE_VIEWPORT = {"width": 1280, "height": 800}
+SUGGESTION_HINT_WAIT = 1.2
+SUGGESTION_SETTLE = 0.35
+EXACT = 3
+MAX_SUGGESTIONS = 8
+EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 
 
 async def input_counts(page, frame):
@@ -46,6 +61,8 @@ async def expect_input(page, frame, run, needs: dict, action: str):
         except ConnectionLost:
             raise
         except BrowseError as error:
+            if left_document(error):
+                return result
             raise OutcomeUnknown(action.lower(), f"it was sent, but confirming it reached the page failed ({error.message})") from None
         missing = [name for name, count in needs.items() if delivered(now, before, name) < count]
         if not missing:
@@ -56,6 +73,10 @@ async def expect_input(page, frame, run, needs: dict, action: str):
                 raise BrowseError(NOT_DELIVERED.format(action=action, missing="/".join(needs).replace("|", "/")), data={"missing": missing}, code="input_not_delivered")
             raise OutcomeUnknown(action.lower(), PARTLY_DELIVERED.format(missing=names))
         await asyncio.sleep(0.05)
+
+
+def left_document(error: BrowseError) -> bool:
+    return error.code == "document_changed" or error.code == "outcome_unknown" and "changed document" in error.message
 
 
 def mouse_button(name: str | None):
@@ -158,6 +179,41 @@ def _outside(r, vp, margin=4) -> bool:
     return r["y"] < margin or r["y"] + min(r["height"], vp["height"] * 0.8) > vp["height"] - margin or r["x"] < 0 or r["x"] + min(r["width"], vp["width"]) > vp["width"]
 
 
+async def laid_out(page):
+    vp = await viewport(page)
+    if vp["width"] >= 1 and vp["height"] >= 1:
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + LAYOUT_WAIT
+    while loop.time() < deadline:
+        await asyncio.sleep(0.1)
+        vp = await viewport(page)
+        if vp["width"] >= 1 and vp["height"] >= 1:
+            return
+    if "emulation" not in page.state.leases:
+        try:
+            await page.send("Emulation.setDeviceMetricsOverride", {**SANE_VIEWPORT, "deviceScaleFactor": 0, "mobile": False})
+        except (Gated, CdpError):
+            pass
+        else:
+            page.temporary_metrics = True
+            vp = await viewport(page)
+            if vp["width"] >= 1 and vp["height"] >= 1:
+                return
+    raise BrowseError(
+        f"This tab has no size yet ({vp['width']}×{vp['height']}: Ardia hasn't laid it out), so there's nowhere to click. Show it with "
+        f"`ardia browse tab {page.state.tab_id(page.target_id)} --show`, or wait a moment and retry", code="no_viewport",
+    )
+
+
+async def restore_metrics(page):
+    if not getattr(page, "temporary_metrics", False):
+        return
+    page.temporary_metrics = False
+    with contextlib.suppress(BrowseError):
+        await page.send("Emulation.clearDeviceMetricsOverride", timeout=CLEANUP_TIMEOUT)
+
+
 async def scroll_into_view(page, element, humanize: bool):
     if not humanize or element.frame != page.main_frame:
         await page.send("DOM.scrollIntoViewIfNeeded", {"backendNodeId": element.backend_id})
@@ -192,6 +248,7 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
     if not info.get("connected"):
         raise BrowseError(f"Element {element.label} was removed from the page")
+    await laid_out(page)
     await scroll_into_view(page, element, humanize)
     quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
     best = None
@@ -213,6 +270,13 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
         if cover and humanize:
             cx, cy = (left + right) / 2, (top + bottom) / 2
             cover = await page.call("(el, x, y) => ardiaBrowse.hitTest(el, x, y)", element, cx - ox, cy - oy, frame=element.frame)
+        if cover and cover.startswith("nothing"):
+            vp = await viewport(page)
+            raise BrowseError(
+                f"Element {element.label} is outside the visible page (its middle is at {cx - ox:.0f},{cy - oy:.0f} in a {vp['width']}×{vp['height']} "
+                "viewport), so a click there would land on nothing. Scroll it into view (scrollintoview), or snapshot again if the page moved",
+                data={"point": [cx, cy], "viewport": [vp["width"], vp["height"]]}, code="outside_viewport",
+            )
         if cover:
             raise BrowseError(
                 f"Element {element.label} is covered by {cover}; interact with that element first, snapshot again, then retry",
@@ -226,8 +290,13 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
     x, y, _ = await target_point(page, element, humanize)
     mouse = page.input.mouse
     which = mouse_button(button)
-    await expect_input(page, element.frame, lambda: page.input.gesture("click", lambda: mouse.click(x, y, button=which, click_count=count, humanize=humanize)),
-                       {"mousedown": count, "mouseup": count}, "The click")
+    async def press():
+        if humanize or count == 1:
+            return await mouse.click(x, y, button=which, click_count=count, humanize=humanize)
+        for number in range(1, count + 1):
+            await mouse.click(x, y, button=which, click_count=number, humanize=False)
+
+    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click")
 
 
 async def hover(page, element, humanize: bool):
@@ -304,13 +373,39 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
         raise BrowseError(f"{element.label} is a <select>; use `ardia browse select {element.label} <value>`")
     if not info.get("editable") or info.get("disabled"):
         raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
+    if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
+        return False, await set_value(page, element, info["type"], text)
     loader = page.loader(element.frame)
     await focus_field(page, element, info, humanize, tolerate_detach=True)
     element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
-    if text:
+    if text and inserts_at_once(info, humanize, guard):
+        await insert_text(page, element, text)
+    elif text:
         await type_into(page, element, text, humanize, guard)
-    return retargeted
+    return retargeted, None
+
+
+def inserts_at_once(info: dict, humanize: bool, guard) -> bool:
+    return not humanize and guard is None and (info.get("tag") == "textarea" or info.get("tag") not in ("input",) and bool(info.get("editable")))
+
+
+async def insert_text(page, element, text: str):
+    await expect_input(page, element.frame, lambda: page.input.gesture("fill", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
+                       {"beforeinput|input": 1}, "The text insert")
+
+
+async def set_value(page, element, kind: str, text: str) -> str:
+    wanted = fields.normalize(kind, text)
+    await page.focus_element(element)
+    outcome = await page.call(fields.SET_VALUE, element, wanted, frame=element.frame)
+    stored = outcome.get("stored")
+    if not outcome.get("set"):
+        raise BrowseError(
+            f"The {kind} input {element.label} refused {wanted!r} (it holds {stored!r}); {fields.FORMATS[kind]}",
+            data={"value": stored}, code="bad_value",
+        )
+    return stored
 
 
 async def type_text(page, element, text: str, humanize: bool):
@@ -350,31 +445,327 @@ async def select(page, element, values: list[str]):
     return await page.call("(el, values) => ardiaBrowse.selectOptions(el, values)", element, values, frame=element.frame)
 
 
-async def drag(page, source, target, humanize: bool):
-    info = await page.call(
-        "(el) => { const i = ardiaBrowse.info(el); let n = el; while (n && n.nodeType === 1) { if (n.draggable || n.getAttribute('draggable') === 'true') { i.draggable = true; break; } n = n.parentElement; } return i; }",
-        source, frame=source.frame,
-    )
-    if info.get("draggable"):
-        raise Gated(
-            "Input.setInterceptDrags",
-            "drag",
-            "the source is an HTML5 draggable, and without drag interception a synthetic drag would start a real macOS drag session",
+def plain(text) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def match_level(value: str, item: dict) -> int:
+    wanted = plain(value)
+    if not wanted:
+        return 0
+    exact = [item["text"], *(item.get("exact") or [])]
+    exact += [email for value in exact for email in EMAIL.findall(value)]
+    if any(plain(value) == wanted for value in exact):
+        return EXACT
+    if any(plain(piece) == wanted for piece in item.get("pieces") or []):
+        return 2
+    return 1 if wanted in plain(item["text"]) else 0
+
+
+def exact_pick(value: str, items: list[dict]) -> int | None:
+    exact = [index for index, item in enumerate(items) if match_level(value, item) == EXACT]
+    return exact[0] if len(exact) == 1 else None
+
+
+def pick_suggestion(value: str, items: list[dict], where: str) -> int:
+    levels = [match_level(value, item) for item in items]
+    best = max(levels, default=0)
+    listed = ", ".join(f'"{item["text"]}"' for item in items[:MAX_SUGGESTIONS]) + (f" (and {len(items) - MAX_SUGGESTIONS} more)" if len(items) > MAX_SUGGESTIONS else "")
+    if best == 0:
+        if not items:
+            raise BrowseError(f'No suggestions appeared in {where} for "{value}"', data={"suggestions": []}, code="no_match")
+        raise BrowseError(f'None of the suggestions in {where} match "{value}": {listed}', data={"suggestions": [item["text"] for item in items]}, code="no_match")
+    top = [index for index, level in enumerate(levels) if level == best]
+    if len(top) > 1:
+        names = ", ".join(f'"{items[index]["text"]}"' for index in top[:MAX_SUGGESTIONS])
+        raise BrowseError(
+            f'"{value}" matches {len(top)} suggestions in {where}: {names}. Give the full text or the email to pick one',
+            data={"suggestions": [items[index]["text"] for index in top]}, code="ambiguous",
         )
-    x1, y1, _ = await target_point(page, source, humanize)
-    x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
+    return top[0]
+
+
+def unique_match(value: str, items: list[dict]) -> bool:
+    try:
+        pick_suggestion(value, items, "")
+    except BrowseError:
+        return False
+    return True
+
+
+async def combo_kind(page, element) -> str | None:
+    return await page.call("(el) => ardiaBrowse.comboKind(el)", element, frame=element.frame, read=True)
+
+
+async def suggestions_now(page, element):
+    remote = await page.call("(el) => ardiaBrowse.suggestions(el)", element, frame=element.frame, by_value=False, read=True)
+    items = await page.call("() => globalThis.ardiaBrowseSuggestions || []", frame=element.frame, read=True)
+    options = await page.elements_from(remote, element.frame, "suggestion", 200)
+    return options, items[: len(options)]
+
+
+async def unlinked_note(page, element) -> str:
+    linked = await page.call("(el) => ardiaBrowse.popupsOf(el).length", element, frame=element.frame, read=True)
+    if linked:
+        return ""
+    lists = await page.call("(el) => ardiaBrowse.unlinkedListboxes(el)", element, frame=element.frame, read=True)
+    shown = f" (visible lists: {', '.join(lists)})" if lists else ""
+    return ("no list of suggestions is linked to this field (aria-controls, aria-owns, aria-activedescendant, or one inside the same "
+            f"component){shown}, so picking one automatically could pick another field's option. Click the option yourself: "
+            "find role option click --name <text>")
+
+
+async def watch_suggestions(page, element):
+    await page.call("(el) => ardiaBrowse.watchSuggestions(el)", element, frame=element.frame)
+
+
+async def unwatch_suggestions(page, element):
+    with contextlib.suppress(BrowseError):
+        await page.call("(el) => ardiaBrowse.unwatchSuggestions(el)", element, frame=element.frame)
+
+
+def suggestions_ready(watch: dict) -> bool:
+    return (not watch["busy"] and watch["changed"] > 0 and watch["changed"] >= watch["since"]
+            and (watch["now"] - watch["changed"]) / 1000 >= SUGGESTION_SETTLE)
+
+
+def quiet(watch: dict) -> bool:
+    return not watch["busy"] and (watch["now"] - max(watch["changed"], watch["since"])) / 1000 >= SUGGESTION_SETTLE
+
+
+async def settled_suggestions(page, element, timeout: float, value: str | None = None):
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        watch = await page.call("(el) => ardiaBrowse.suggestionState(el)", element, frame=element.frame, read=True)
+        if suggestions_ready(watch):
+            options, items = await suggestions_now(page, element)
+            return options, items, True
+        if value is not None and quiet(watch):
+            options, items = await suggestions_now(page, element)
+            if exact_pick(value, items) is not None:
+                return options, items, False
+        if loop.time() >= deadline:
+            options, items = await suggestions_now(page, element)
+            return options, items, False
+        await asyncio.sleep(0.1)
+
+
+async def stale_refusal(page, element, value: str, items: list[dict], where: str, timeout: float) -> BrowseError:
+    unlinked = await unlinked_note(page, element)
+    if unlinked:
+        return BrowseError(f"Nothing was picked in {where}: {unlinked}", code="no_fresh_suggestions")
+    listed = ", ".join(f'"{item["text"]}"' for item in items[:MAX_SUGGESTIONS])
+    showing = f" What's showing: {listed}." if items else ""
+    return BrowseError(
+        f'The suggestions in {where} didn\'t change within {timeout:g} s after typing "{value}", so they may be for an earlier query, and '
+        f"none matches it exactly, so nothing was picked.{showing} Pick with the exact text or email, or click an option yourself "
+        "(find role option click --name <text>)",
+        data={"suggestions": [item["text"] for item in items]}, code="no_fresh_suggestions",
+    )
+
+
+async def choose(page, element, values: list[str], humanize: bool, where: str, timeout: float = SUGGESTION_TIMEOUT) -> list[dict]:
+    kind = await combo_kind(page, element)
+    if kind is None:
+        raise BrowseError(f"{element.label} isn't a <select> or a combobox, so there's nothing to pick from; use fill or click", code="not_selectable")
+    picked = []
+    for value in values:
+        if kind == "datalist":
+            known = await page.call("(el) => ardiaBrowse.datalistValues(el)", element, frame=element.frame, read=True)
+            index = pick_suggestion(value, [{"text": item, "pieces": []} for item in known], where)
+            await fill(page, element, known[index], humanize)
+            picked.append({"value": value, "picked": known[index]})
+            continue
+        await watch_suggestions(page, element)
+        try:
+            if kind == "typeahead":
+                await fill(page, element, value, humanize)
+                options, items, fresh = await settled_suggestions(page, element, timeout, value)
+            else:
+                expanded = await page.call("(el) => el.getAttribute('aria-expanded') === 'true'", element, frame=element.frame, read=True)
+                if not expanded:
+                    await click(page, element, humanize)
+                    options, items, fresh = await settled_suggestions(page, element, timeout, value)
+                else:
+                    options, items = await suggestions_now(page, element)
+                    fresh = True
+            if not fresh and exact_pick(value, items) is None:
+                raise await stale_refusal(page, element, value, items, where, timeout)
+        finally:
+            await unwatch_suggestions(page, element)
+        index = exact_pick(value, items) if not fresh else pick_suggestion(value, items, where)
+        option = options[index]
+        option.label = f'the suggestion "{items[index]["text"]}"'
+        await click(page, option, humanize)
+        picked.append({"value": value, "picked": items[index]["text"]})
+    return picked
+
+
+class DragInterception:
+    def __init__(self, page, source_frame: str, target_frame: str):
+        self.page = page
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+        self.intercepted: asyncio.Future | None = None
+        self.data: dict | None = None
+        self.ended = False
+        self.position = (0.0, 0.0)
+        self.before: dict = {}
+        self.before_source: dict = {}
+        self.cleanup: asyncio.Future | None = None
+        self.cleaned = True
+
+    async def start(self):
+        self.before = await input_counts(self.page, self.target_frame)
+        self.before_source = self.before if self.source_frame == self.target_frame else await input_counts(self.page, self.source_frame)
+        self.intercepted = asyncio.get_running_loop().create_future()
+        self.page.drag_intercepted = self.intercepted
+        self.cleaned = False
+        try:
+            await self.page.send("Input.setInterceptDrags", {"enabled": True})
+        except Gated:
+            self.page.drag_intercepted = None
+            self.cleaned = True
+            raise Gated("Input.setInterceptDrags", "drag", DRAG_GATED) from None
+        except BaseException:
+            await self.finish()
+            raise
+        self.page.input.mouse.interception = self
+
+    async def dispatch(self, kind: str, x: float, y: float, timeout: float = 30):
+        await self.page.send("Input.dispatchDragEvent", {"type": kind, "x": int(round(x)), "y": int(round(y)), "data": self.data, "modifiers": 0},
+                             input_event=True, timeout=timeout)
+
+    async def page_started_drag(self) -> bool:
+        try:
+            now = await self.page.call("() => ardiaBrowse.inputWatch()", frame=self.source_frame, timeout=CLEANUP_TIMEOUT)
+        except BrowseError:
+            return False
+        return now.get("dragstart", 0) > self.before_source.get("dragstart", 0)
+
+    async def handed_over(self) -> dict:
+        try:
+            return await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
+        except asyncio.TimeoutError:
+            raise OutcomeUnknown("drag", "the page started an HTML5 drag, but Ardia didn't hand it over in time") from None
+
+    async def moved(self, x: float, y: float):
+        self.position = (x, y)
+        if self.data is None and self.intercepted.done():
+            self.data = self.intercepted.result()
+            await self.dispatch("dragEnter", x, y)
+
+    async def over(self, x: float, y: float):
+        self.position = (x, y)
+        await self.dispatch("dragOver", x, y)
+
+    async def release(self, x: float, y: float):
+        self.position = (x, y)
+        if self.ended:
+            return
+        if self.data is None:
+            if not self.intercepted.done() and not await self.page_started_drag():
+                return
+            self.data = await self.handed_over()
+            await self.dispatch("dragEnter", x, y)
+        await self.dispatch("dragOver", x, y)
+        await self.dispatch("drop", x, y)
+        self.ended = True
+
+    async def _clean(self):
+        page = self.page
+        if page.input.mouse is not None:
+            page.input.mouse.interception = None
+        try:
+            try:
+                if self.data is None and not self.ended:
+                    if self.intercepted.done():
+                        self.data = self.intercepted.result()
+                    elif await self.page_started_drag():
+                        with contextlib.suppress(asyncio.TimeoutError):
+                            self.data = await asyncio.wait_for(asyncio.shield(self.intercepted), INTERCEPT_TIMEOUT)
+                if self.data is not None and not self.ended:
+                    await self.dispatch("dragCancel", *self.position, timeout=CLEANUP_TIMEOUT)
+                    self.ended = True
+            finally:
+                await page.input.release_held()
+        finally:
+            if page.drag_intercepted is self.intercepted:
+                page.drag_intercepted = None
+            await page.send("Input.setInterceptDrags", {"enabled": False}, timeout=CLEANUP_TIMEOUT)
+            self.cleaned = True
+
+    async def finish(self):
+        if self.cleanup is None:
+            self.cleanup = asyncio.ensure_future(self._clean())
+            CLEANUPS.add(self.cleanup)
+            self.cleanup.add_done_callback(CLEANUPS.discard)
+        try:
+            await asyncio.shield(self.cleanup)
+        except asyncio.CancelledError:
+            with contextlib.suppress(BaseException):
+                await asyncio.wait([self.cleanup])
+            raise
+        except Exception:
+            pass
+
+    async def dropped(self) -> bool | None:
+        try:
+            now = await input_counts(self.page, self.target_frame)
+        except BrowseError:
+            return None
+        return now.get("drop", 0) > self.before.get("drop", 0)
+
+
+async def draggable(page, element) -> bool:
+    return bool(await page.call(
+        "(el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) if (n.draggable || n.getAttribute('draggable') === 'true') return true; return false; }",
+        element, frame=element.frame, read=True,
+    ))
+
+
+def interrupted_drag(error: BrowseError) -> BrowseError:
+    if error.code in ("input_not_delivered", "input_unconfirmable", "tab_hidden", "policy_refused"):
+        return error
+    return OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position")
+
+
+async def drag(page, source, target, humanize: bool) -> dict:
+    interception = DragInterception(page, source.frame, target.frame) if await draggable(page, source) else None
+    if interception is not None:
+        await interception.start()
     mouse = page.input.mouse
     try:
-        await expect_input(page, source.frame, lambda: page.input.gesture("drag", lambda: mouse.drag(x1, y1, x2, y2, humanize=humanize)),
-                           {"mousedown": 1, "mouseup": 1}, "The drag")
-    except asyncio.CancelledError:
-        raise
-    except OutcomeUnknown:
-        raise
-    except BrowseError as error:
-        if error.code in ("input_not_delivered", "input_unconfirmable", "tab_hidden"):
+        x1, y1, _ = await target_point(page, source, humanize)
+        x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
+
+        async def run():
+            try:
+                await mouse.drag(x1, y1, x2, y2, humanize=humanize)
+            finally:
+                if interception is not None:
+                    await interception.finish()
+
+        needs = {"mousedown": 1, "mouseup": 1} if interception is None else {"mousedown": 1, "dragend|mouseup": 1}
+        try:
+            await expect_input(page, source.frame, lambda: page.input.gesture("drag", run), needs, "The drag")
+        except asyncio.CancelledError:
             raise
-        raise OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position") from None
+        except OutcomeUnknown:
+            raise
+        except BrowseError as error:
+            raise interrupted_drag(error) from None
+    finally:
+        if interception is not None:
+            await interception.finish()
+    if interception is None:
+        return {"html5": False}
+    started = interception.data is not None
+    outcome = {"html5": True, "started": started, "dropped": await interception.dropped() if started else False}
+    if not interception.cleaned:
+        outcome["interceptionLeftOn"] = True
+    return outcome
 
 
 async def scroll(page, direction: str, amount: float, humanize: bool, selector_element=None):
@@ -390,6 +781,6 @@ async def scroll(page, direction: str, amount: float, humanize: bool, selector_e
         ox, oy = await frame_offset(page, selector_element.frame)
         point = (ox + r["x"] + r["width"] * random.uniform(0.35, 0.65), oy + r["y"] + r["height"] * random.uniform(0.35, 0.65))
         frame = selector_element.frame
-    needs = {} if distance == 0 or await page.hidden() else {"wheel": 1}
+    needs = {} if distance == 0 or not await page.takes_input() else {"wheel": 1}
     await expect_input(page, frame, lambda: page.input.gesture("scroll", lambda: scroll_wheel(page, distance, vertical, humanize, point, frame, selector_element), allow_hidden=True),
                        needs, "The scroll")

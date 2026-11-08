@@ -2,48 +2,25 @@ import sys
 
 from ardia_cli import __version__
 
-DESCRIPTION = "Control a running Ardia from the terminal."
-EXEC_DESCRIPTION = """\
-Run Python against the running Ardia, with top-level await.
-
-In scope:
-  browser        pydoll Chrome attached to Ardia (closing it only drops the connection)
-  tab            the web page the user is looking at; NoPageTab on first use when there is none (New Tab)
-  tabs           every web page tab (http, https, about, data, blob), plus the ones new_tab opens
-  new_tab(url, background=True)   open a tab and return it once the page has loaded
-  js(expression, tab=None)        evaluate JavaScript in tab (else the user's tab, else the last new_tab) and return its value
-  await pinned() the user's favorites and pinned tabs from Ardia's saved session, as dicts
-                 (title, url, pinned_url, kind favorite|pinned, folder, profile, parked); no incognito
-  await history(days=1, limit=200, profile=None, domains=False)
-                 recent history per URL, newest first: url, title, visits (in the window), total_visits,
-                 last_visit (ISO, local time), profile; domains=True rolls it up per domain.
-                 profile is a profile name or its folder under Chromium/ (default: all). Only http(s) pages.
-                 Both read Ardia's data dir (the token path's, or --data-dir/$ARDIA_DATA_DIR) and need control on.
-  await run(command, arg=None, window=None)   run one of Ardia's commands (see ardia commands); CommandError if refused
-  await windows()                             Ardia's windows and their tabs
-  async for e in events(*names)               Ardia's events as they happen (default: all)
-                 These three use <data dir>/ArdiaControl.sock; with --port, --ws or $ARDIA_CDP_URL they need
-                 --data-dir or $ARDIA_DATA_DIR.
-  By, Key, asyncio and pydoll's exports (Tab, WebElement, PageEvent, NetworkEvent, ...)
-
-The value of the last expression is printed (strings as is, other values as repr, or JSON with --json).
-Ardia keeps running after every exec.
-
-Exit status: 0 done, 1 the code raised or timed out, 2 Ardia can't be reached or closed the connection, 130 interrupted.
+DESCRIPTION = (
+    "Control a running Ardia from the terminal. ardia browse drives the browser (ardia browse --help); "
+    "ardia computer operates native Mac apps through the bundled cua-driver (ardia computer --help)."
+)
+EPILOG = """\
+Shared options go before the command or after it, for the commands that take them:
+  --port N        a plain DevTools server on 127.0.0.1:N (testing; $ARDIA_PORT)
+  --ws URL        a browser WebSocket URL ($ARDIA_WS)
+  --data-dir DIR  the Ardia data dir ($ARDIA_DATA_DIR, else the installed app's)
+  --timeout S     and --json
+A flag wins over its environment variable.
 
 Examples:
-  ardia exec 'await tab.title()'
-  ardia exec 't = await new_tab("https://example.com"); await t.title()'
-  ardia exec -f script.py --json
-  echo 'len(tabs)' | ardia exec -
-  ardia exec 'await history(days=1, domains=True)' --json
-"""
-EXEC_EPILOG = """\
-Endpoint: --ws, else --port (plain DevTools servers only), else $ARDIA_CDP_URL, else
-<data dir>/Chromium/ArdiaControl.json with --data-dir or $ARDIA_DATA_DIR, else the installed Ardia's.
+  ardia --port 9222 browse snapshot -i
+  ardia browse --port 9222 snapshot -i
+  ardia windows --json
 """
 SKILLS_DESCRIPTION = """\
-Install the ardia agent skill (SKILL.md and a pydoll reference) so coding agents know how to drive Ardia.
+Install the ardia agent skill (SKILL.md and its references) so coding agents know how to drive Ardia.
 
 Targets and where they install (user level; --project uses the current directory):
   general       ~/.agents/skills            ./.agents/skills
@@ -51,30 +28,153 @@ Targets and where they install (user level; --project uses the current directory
   claude-code   ~/.claude/skills            ./.claude/skills
   cursor        ~/.cursor/skills            ./.cursor/skills
   opencode      ~/.config/opencode/skills   ./.opencode/skills
+
+Next to each one it installs cua-driver's own skill (cua-driver, for computer use in native apps through
+ardia computer), pinned to the bundled driver; --no-cua skips it. A cua-driver skill that ardia didn't install, from
+cua's own installer for one, is left alone.
+
+Ardia remembers where it installed the skill, and each CLI update rewrites those copies (ardia skills refresh).
 """
+SHARED_VALUE_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--timeout"})
+SHARED_BOOL_FLAGS = frozenset({"--json"})
+BROWSE_SHARED_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--json"})
+REMOVED_COMMANDS = {
+    "exec": (
+        "ardia: unknown command 'exec': it was removed. Drive the browser with ardia browse (ardia browse --help); "
+        "ardia pinned and ardia history read favorites and history; ardia run, windows and events reach Ardia's "
+        "commands, windows and events."
+    ),
+}
+
+
+class UsageError(Exception):
+    pass
+
+
+def take_shared(argv: list[str], index: int, into: list[str]) -> int:
+    while index < len(argv):
+        token = argv[index]
+        name = token.split("=", 1)[0]
+        if name in SHARED_VALUE_FLAGS:
+            if "=" in token:
+                into.append(token)
+                index += 1
+                continue
+            if index + 1 >= len(argv):
+                raise UsageError(f"{name} needs a value")
+            into.extend(argv[index:index + 2])
+            index += 2
+            continue
+        if token in SHARED_BOOL_FLAGS:
+            into.append(token)
+            index += 1
+            continue
+        break
+    return index
+
+
+def flag_names(flags: list[str]) -> list[str]:
+    return [token.split("=", 1)[0] for token in flags if token.startswith("--")]
+
+
+def subcommands(parser) -> dict:
+    import argparse
+
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action.choices
+    return {}
+
+
+def arrange(parser, argv: list[str]) -> tuple[list[str], list[str], list[str]]:
+    path: list[str] = []
+    hoisted: list[str] = []
+    index = 0
+    current = parser
+    while choices := subcommands(current):
+        index = take_shared(argv, index, hoisted)
+        if index >= len(argv) or argv[index] not in choices:
+            break
+        path.append(argv[index])
+        current = choices[argv[index]]
+        index += 1
+    return path, hoisted, argv[index:]
+
+
+def check_takes(parser, path: list[str], hoisted: list[str]) -> None:
+    leaf = parser
+    for name in path:
+        leaf = subcommands(leaf)[name]
+    for name in flag_names(hoisted):
+        if name not in leaf._option_string_actions:
+            raise UsageError(f"{' '.join(path)} doesn't take {name}")
+
+
+def browse_argv(hoisted: list[str], rest: list[str], env) -> list[str]:
+    for name in flag_names(hoisted):
+        if name not in BROWSE_SHARED_FLAGS:
+            raise UsageError(f"ardia browse doesn't take {name}")
+    argv = hoisted + rest
+    from ardia_cli.browse.cli import split_globals
+    from ardia_cli.browse.errors import Usage
+
+    try:
+        found, _ = split_globals(argv)
+    except Usage:
+        return argv
+    if found.keys() & {"ws", "port", "cdp"}:
+        return argv
+    if env.get("ARDIA_WS"):
+        return ["--ws", env["ARDIA_WS"], *argv]
+    if env.get("ARDIA_PORT"):
+        return ["--port", env["ARDIA_PORT"], *argv]
+    return argv
+
+
+def run_browse(hoisted: list[str], rest: list[str]) -> int:
+    import os
+
+    try:
+        argv = browse_argv(hoisted, rest, os.environ)
+    except UsageError as error:
+        sys.stderr.write(f"✗ {error}\n")
+        return 1
+    from ardia_cli import telemetry
+    from ardia_cli.browse.cli import main as browse_main
+
+    telemetry.note_browse(argv)
+    return browse_main(argv)
+
+
+def run_notes(hoisted: list[str], rest: list[str]) -> int:
+    import importlib
+
+    try:
+        notes = importlib.import_module("ardia_cli.notes")
+    except ModuleNotFoundError as error:
+        if error.name != "ardia_cli.notes":
+            raise
+        sys.stderr.write("ardia notes isn't in this build of the ardia command\n")
+        return 1
+    from ardia_cli import telemetry
+
+    telemetry.note_browse(hoisted + rest, command="notes")
+    return notes.main(hoisted + rest)
 
 
 def build_parser():
     import argparse
 
-    parser = argparse.ArgumentParser(prog="ardia", description=DESCRIPTION)
+    parser = argparse.ArgumentParser(prog="ardia", description=DESCRIPTION, epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--version", action="version", version=f"ardia {__version__}")
     commands = parser.add_subparsers(dest="command", metavar="<command>")
+    commands.add_parser("browse", help="drive the browser with agent-browser's commands (ardia browse --help)", add_help=False)
+    commands.add_parser("notes", help="read and write notes (ardia notes --help)", add_help=False)
+    commands.add_parser("computer", help="operate native Mac apps through the bundled cua-driver: computer use (ardia computer --help)", add_help=False)
 
-    run = commands.add_parser(
-        "exec",
-        help="run Python against the running Ardia",
-        description=EXEC_DESCRIPTION,
-        epilog=EXEC_EPILOG,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    run.add_argument("code", nargs="?", metavar="CODE", help="Python code, or - to read it from stdin")
-    run.add_argument("-f", "--file", metavar="FILE", help="read the code from FILE")
-    run.add_argument("--data-dir", metavar="DIR", help="the Ardia data dir to find (default: $ARDIA_DATA_DIR, else the installed app's)")
-    run.add_argument("--port", type=int, metavar="N", help="a plain DevTools server on 127.0.0.1:N (testing)")
-    run.add_argument("--ws", metavar="URL", help="a browser WebSocket URL")
-    run.add_argument("--timeout", type=float, default=300, metavar="SECONDS", help="stop the code after this long (default 300, 0 for none)")
-    run.add_argument("--json", action="store_true", help="print the last value as JSON")
+    from ardia_cli import browsing_cli
+
+    browsing_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
 
     skills = commands.add_parser("skills", help="install the ardia agent skill")
     skill_commands = skills.add_subparsers(dest="skills_command", metavar="<command>")
@@ -88,6 +188,9 @@ def build_parser():
 
     install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor or opencode; repeat for several (default: general)")
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
+    install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
+    install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")
+    skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
 
@@ -100,33 +203,91 @@ def build_parser():
     from ardia_cli import automation_cli
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
-    commands.add_parser("browse", help="agent-browser's commands against the running Ardia (ardia browse --help)", add_help=False)
+
+    from ardia_cli import feedback, star
+
+    feedback.add_parser(commands, argparse.RawDescriptionHelpFormatter)
+    star.add_parser(commands, argparse.RawDescriptionHelpFormatter)
     return parser
+
+
+def command_label(path: list[str], rest: list[str]) -> list[str]:
+    if path:
+        return path[:2]
+    if rest and not rest[0].startswith("-"):
+        return [rest[0] if rest[0] in REMOVED_COMMANDS else "unknown"]
+    return ["none"]
+
+
+def option_names(parser, path: list[str]) -> set[str]:
+    names = set(parser._option_string_actions)
+    for name in path:
+        parser = subcommands(parser)[name]
+        names |= set(parser._option_string_actions)
+    return names
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["browse"]:
-        from ardia_cli.browse.cli import main as browse_main
-
-        return browse_main(argv[1:])
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
+    from ardia_cli import telemetry
+
+    return telemetry.track(argv, lambda: run(argv))
+
+
+def run(argv: list[str]) -> int:
+    from ardia_cli import telemetry
+
+    leading: list[str] = []
+    try:
+        index = take_shared(argv, 0, leading)
+    except UsageError as error:
+        sys.stderr.write(f"ardia: {error}\n")
+        return 2
+    command = argv[index] if index < len(argv) else None
+    if command == "browse":
+        return run_browse(leading, argv[index + 1:])
+    if command == "notes":
+        return run_notes(leading, argv[index + 1:])
+    if command == "computer":
+        if leading:
+            sys.stderr.write(f"ardia: computer doesn't take {flag_names(leading)[0]}\n")
+            return 2
+        from ardia_cli import computer
+
+        return computer.main(argv[index + 1:])
+    parser = build_parser()
+    try:
+        path, hoisted, rest = arrange(parser, argv)
+        telemetry.note_command(*command_label(path, rest), allowed_flags=option_names(parser, path))
+        if path:
+            check_takes(parser, path, hoisted)
+    except UsageError as error:
+        sys.stderr.write(f"ardia: {error}\n")
+        return 2
+    if not path and rest and not rest[0].startswith("-"):
+        sys.stderr.write(REMOVED_COMMANDS.get(rest[0], f"ardia: unknown command '{rest[0]}' (see ardia --help)") + "\n")
+        return 2
+    argv = path + hoisted + rest if path else rest
     from ardia_cli.automation_cli import split_program
 
     argv, program = split_program(argv)
-    parser = build_parser()
     args = parser.parse_args(argv)
     args.program = program
-    if args.command == "exec":
-        return run_exec(args, parser)
-    if args.command == "skills":
-        if args.skills_command != "install":
-            parser.parse_args(["skills", "--help"])
-        from ardia_cli.skills import install
+    if args.command in ("pinned", "history"):
+        from ardia_cli import browsing_cli
 
-        return install(args.target or ["general"], args.project)
+        return browsing_cli.run(args)
+    if args.command == "skills":
+        if args.skills_command not in ("install", "refresh"):
+            parser.parse_args(["skills", "--help"])
+        from ardia_cli import skills
+
+        if args.skills_command == "refresh":
+            return skills.refresh()
+        return skills.install(args.target or ["general"], args.project, not args.no_cua, args.replace)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
 
@@ -139,81 +300,13 @@ def main(argv: list[str] | None = None) -> int:
         from ardia_cli import config_cli
 
         return (config_cli.run_config if args.command == "config" else config_cli.run_theme)(args, parser)
+    if args.command == "feedback":
+        from ardia_cli import feedback
+
+        return feedback.run(args)
+    if args.command == "star":
+        from ardia_cli import star
+
+        return star.run(args)
     parser.print_help()
-    return 0
-
-
-def read_source(args) -> tuple[str, str]:
-    if args.file:
-        if args.code not in (None,):
-            raise SystemExit("ardia exec: give CODE or -f FILE, not both")
-        if args.file == "-":
-            return sys.stdin.read(), "<stdin>"
-        with open(args.file, encoding="utf-8") as handle:
-            return handle.read(), args.file
-    if args.code is None or args.code == "-":
-        if args.code is None and sys.stdin.isatty():
-            raise SystemExit("ardia exec: give CODE, - (stdin) or -f FILE")
-        return sys.stdin.read(), "<stdin>"
-    return args.code, "<exec>"
-
-
-def run_exec(args, parser) -> int:
-    from ardia_cli import redact as redaction
-
-    out = sys.stdout = redaction.RedactingStream(sys.stdout)
-    err = sys.stderr = redaction.RedactingStream(sys.stderr)
-    redaction.install_log_redaction()
-    try:
-        return _run_exec(args)
-    finally:
-        out.drain()
-        err.drain()
-
-
-def _run_exec(args) -> int:
-    import asyncio
-
-    from ardia_cli.endpoint import EndpointError, data_root, explicit_data_root, resolve
-
-    try:
-        source, filename = read_source(args)
-    except OSError as error:
-        sys.stderr.write(f"ardia exec: {error}\n")
-        return 1
-
-    from ardia_cli import runner
-
-    try:
-        runner.compile_code(source, filename)
-    except SyntaxError as error:
-        runner.print_err(runner.format_syntax_error(error))
-        return 1
-    try:
-        endpoint = resolve(ws=args.ws, port=args.port, data_dir=args.data_dir)
-        root = explicit_data_root(args.data_dir) if endpoint.explicit else data_root(args.data_dir)
-        value = asyncio.run(runner.run_code(source, filename, endpoint, args.timeout or None, root))
-    except EndpointError as error:
-        runner.print_err(f"ardia: {error}")
-        return 2
-    except runner.UserCodeError as error:
-        runner.print_err(runner.format_user_error(error))
-        return 1
-    except runner.ExecTimeout as error:
-        runner.print_err(f"ardia exec: {error}")
-        return 1
-    except KeyboardInterrupt:
-        runner.print_err("ardia exec: interrupted")
-        return 130
-    except asyncio.CancelledError:
-        runner.print_err("ardia exec: terminated")
-        return 143
-    try:
-        text = runner.format_value(value, args.json)
-    except (TypeError, ValueError) as error:
-        runner.print_err(f"ardia exec: can't print the result as JSON ({error})")
-        return 1
-    if text is not None:
-        sys.stdout.write(text + "\n")
-    sys.stdout.flush()
     return 0

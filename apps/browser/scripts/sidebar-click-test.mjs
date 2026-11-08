@@ -8,7 +8,7 @@ import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab.");
+  console.error("usage: node sidebar-click-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nOne click on a sidebar tab or pinned tile opens it, through AppKit's event path: as its hover card appears, under another tile's appearing card, after a New Tab, after closing a pinned tab, and when the pointer drifts up to 9 pt between press and release.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
@@ -50,6 +50,7 @@ const center = (id) => new Promise((r) => {
 const point = (x, y) => ac.shell.devSetPointer("w1", { x, y });
 const click = (x, y) => act("mouse:down:" + x + "," + y).then(() => settle(70)).then(() => act("mouse:up:" + x + "," + y));
 const clickTab = (id) => center(id).then(([x, y]) => point(x, y).then(() => click(x, y))).then(() => settle(450)).then(() => shown());
+const driftTab = (id, dx, dy) => center(id).then(([x, y]) => act("drag:" + x + "," + y + ";" + (x + dx) + "," + (y + dy))).then(() => settle(1500)).then(() => [shown(), st().windows.w1.tabIds.join()]);
 const clickAsCardMounts = (hoverId, clickId) => Promise.all([center(hoverId), center(clickId), win()]).then(([[hx, hy], [cx, cy], n]) =>
   point(700, 500).then(() => settle(400)).then(() => new Promise((done) => {
     const fadeMs = ac.sidebarHover.HOVER_CARD_FADE_MS;
@@ -95,6 +96,16 @@ try {
   rep.log(`instance: pid ${app.pid}, DevTools port ${app.port}, data ${data}`);
   await sleep(1500);
   await run(`return act("fakeActiveClicks");`);
+
+  await rep.check("a click whose pointer drifts up to 9 pt opens the tab or tile, and a 14 pt press doesn't", async () => {
+    const order = await run("return st().windows.w1.tabIds.join();");
+    for (const [id, dx, dy] of [["b", 6, 0], ["c", -9, 0], ["a", 0, 7], ["p2", 6, 2]]) {
+      await run(`st().activate("pr"); return settle(600);`);
+      assert.deepEqual(await run(`return driftTab(${JSON.stringify(id)}, ${dx}, ${dy});`), [id, order], `${id} drifting ${dx},${dy}`);
+    }
+    await run(`st().activate("pr"); return settle(600);`);
+    assert.deepEqual(await run(`return driftTab("b", 14, 0);`), ["pr", order], "a 14 pt press is a drag");
+  });
 
   for (const id of ["p1", "p2", "pr", "a"])
     await rep.check(`a click on ${id} in the frame its hover card appears opens it`, () => asCardMounts(id, id, 4));

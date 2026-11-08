@@ -11,7 +11,7 @@ from pathlib import Path
 from ardia_cli.cdp import Cdp, CdpError, ConnectionLost
 from ardia_cli.endpoint import NOT_REACHABLE, Endpoint, EndpointError
 from ardia_cli.redact import redact
-from ardia_cli import urlmatch
+from ardia_cli import caller, control, urlmatch
 from ardia_cli.userscript import SOURCE_URL_PREFIX, Build, SourceMap, rules
 
 CONNECT_TIMEOUT = 10
@@ -259,6 +259,11 @@ def clip(text: str) -> str:
     return text if len(text) <= MAX_TEXT else text[:MAX_TEXT] + f"… ({len(text) - MAX_TEXT} more characters)"
 
 
+async def announce_caller(endpoint: Endpoint) -> None:
+    if not endpoint.explicit:
+        await control.announce(control.announce_path(endpoint.source), caller.current())
+
+
 async def run_test(build: Build, url: str, endpoint: Endpoint, expect: str | None, wait: float, screenshot: str | None, keep: bool) -> Report:
     report = Report(script=str(build.path), url=url, run_at=build.meta.run_at)
     report.warnings.extend(build.meta.warnings + build.warnings)
@@ -273,9 +278,12 @@ async def run_test(build: Build, url: str, endpoint: Endpoint, expect: str | Non
         loop.add_signal_handler(signum, main.cancel)
     run = Run(build, url, report)
     cdp = run.cdp = Cdp(endpoint.ws)
+    announcing = asyncio.ensure_future(announce_caller(endpoint))
     try:
         await cdp.open(CONNECT_TIMEOUT)
+        await announcing
     except Exception as error:
+        await asyncio.gather(announcing, return_exceptions=True)
         if endpoint.explicit:
             raise EndpointError(redact(f"can't connect to {endpoint.source} ({error or type(error).__name__})")) from None
         raise EndpointError(NOT_REACHABLE) from None

@@ -123,7 +123,12 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (void)closeWindow:(NSWindow *)window {
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
-  [ArdiaWebView keepTransfersOfWindow:window];
+  if (![ArdiaWebView keepTransfersOfWindow:window]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [ArdiaChromeWindowHost closeWindow:window];
+    });
+    return;
+  }
   if (controller) [controller.coreWindow close];
   else [window close];
 }

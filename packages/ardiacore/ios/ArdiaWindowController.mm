@@ -340,6 +340,11 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
 
 - (void)windowDidCancelClose:(ArdiaCoreWindow *)window {
   NSLog(@"[ardiacore] window close cancelled");
+  [ArdiaWebView retryPagesInWindow:self];
+}
+
+- (void)windowCanTakeTabs:(ArdiaCoreWindow *)window {
+  [ArdiaWebView retryPagesInWindow:self];
 }
 
 - (void)window:(ArdiaCoreWindow *)window confirmCloseWithDownloads:(int)count completion:(void (^)(BOOL))completion {

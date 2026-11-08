@@ -72,8 +72,11 @@ bookmark searches) and their fixed page title.
 
 ### Methods
 
-- `hello` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added `subscribe`'s options,
-  `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working.
+- `hello` `{"caller"?: {"name", "app"?}}` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added
+  `subscribe`'s options, `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working. `caller` names
+  who runs the client for the pill (The pill), display only.
+- `caller` → `{"ok": true}` puts the connection's `hello` caller on the pill now (`ok` is false without one). The
+  `browse` daemon and `scripts test` call it, since their CDP connections carry no name.
 - `commands` → `[{"id", "title", "scope", "variants": [ids] | null}]`: the automatable commands. `title` is the menu
   title (else the command bar's, else the id), `scope` is `"page"`, `"window"` or `null`.
 - `run` `{"command", "arg"?, "window"?, "tab"?}` → `{"ok": true}` once the command was dispatched (not necessarily finished).
@@ -307,7 +310,8 @@ an aborted query is cancelled (the program is killed). The program prints `[{"ti
 ### The pill
 
 `run` shows the "ardia is controlling Ardia" pill like a CDP connection does: it counts as active from the moment
-the request arrives until its reply is written, then the usual 3 s hold. The indicator combines CDP connections and
+the request arrives until its reply is written, then the usual 3 s hold. A `run` or `caller` on a connection whose
+`hello` named a caller puts that name (and app icon) on the pill, the most recent one winning (`docs/cli.md`). The indicator combines CDP connections and
 socket runs; neither overwrites the other. `hello`, `commands`, `windows` and `subscribe` don't show it, so a hooks
 runner connected all day doesn't keep it up. Stop hides it at once.
 
@@ -331,11 +335,10 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json` in the config folder (`docs/config.md`'s
   resolver, so a scratch instance uses its own). `list` shows each hook's kind (`event`, `command`, `decide`,
   `scheduled`, `omnibox`), trigger and action.
-- In `ardia exec`: `await run(command, arg=None, window=None, tab=None)`, `await windows()`, and
-  `async for e in events(*names, full_urls=False)`. With `--port`, `--ws` or `$ARDIA_CDP_URL` they need
-  `--data-dir` or `$ARDIA_DATA_DIR` and raise without one, so a test browser never drives the installed Ardia by
-  accident. Errors are `CommandError` (`.code`, `.message`) and `ControlUnreachable`; each call opens its own
-  connection.
+- From a script or a hook's program, call the commands: `ardia run … --json`, `ardia windows --json` and
+  `ardia events --json` give the same replies and lines as the socket, and `ardia browse` drives the pages. They
+  find the socket the same way (`--data-dir`, `$ARDIA_DATA_DIR`, else the installed app's), and the shared options
+  go before or after the command (`docs/cli.md`, Shared options).
 
 ### Running a hook
 

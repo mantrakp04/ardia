@@ -13,10 +13,12 @@ import {
 import { systemInfo } from "../../platform/app";
 import { useBrowser } from "../browser/store";
 import { NoCommandWindowError, runCommand } from "../commands/commands";
-import { noteSocketRun, noteSocketServing } from "../app/cliControl";
+import { noteCliCaller, noteSocketRun, noteSocketServing } from "../app/cliControl";
+import { parseCliCaller, type CliCaller } from "../app/cliCaller";
 import { errorText } from "../../lib/errors";
 import { minimizedUrl } from "../../lib/urlParts";
-import { automationWindows } from "./automationWindows";
+import { automationWindows, type AutomationWindow } from "./automationWindows";
+import { cliTabTargets } from "../../platform/cli";
 import { TAB_IDLE_EVENTS, USER_IDLE_EVENTS, type AutomationEventName } from "./eventNames";
 import { commands, failure, hello, parseRequest, parseSubscription, planRun, type RequestId, type Subscription } from "./automationMethods";
 import { feedNeeds, stopFeed, updateFeed } from "./automationFeed";
@@ -33,6 +35,7 @@ let listening = false;
 const subscriptions = new Map<number, Subscription>();
 const launchSent = new Set<number>();
 const unwrittenRuns = new Set<number>();
+const callers = new Map<number, CliCaller>();
 let nextTicket = 0;
 
 const controlOn = () => useBrowser.getState().settings.cliControl;
@@ -94,22 +97,38 @@ export function handleControlRequest({ connection, generation: tagged, line }: C
   const { id, method, params } = request;
   if (tagged !== generation || !controlOn()) return send(connection, id, failure("failed", "Control is off."));
   const ticket = method === "run" ? ++nextTicket : 0;
+  const caller = callers.get(connection);
+  if (ticket && caller) noteCliCaller(caller);
   if (ticket) {
     unwrittenRuns.add(ticket);
     noteSocketRun(1);
   }
-  let body: Body;
+  let body: Body | Promise<Body>;
   try {
     body = answer(connection, method, params);
   } catch (error) {
     body = failure("failed", errorText(error));
   }
-  try {
-    send(connection, id, body, ticket);
-  } catch (error) {
-    runWritten([ticket]);
-    throw error;
-  }
+  const reply = (settled: Body) => {
+    try {
+      send(connection, id, settled, ticket);
+    } catch (error) {
+      runWritten([ticket]);
+      throw error;
+    }
+  };
+  if (body instanceof Promise) void body.then(reply, (error) => reply(failure("failed", errorText(error))));
+  else reply(body);
+}
+
+export async function windowsWithTargets(windows: AutomationWindow[]): Promise<AutomationWindow[]> {
+  const ids = windows.flatMap((w) => w.tabs.map((t) => t.id));
+  const targets = ids.length ? await cliTabTargets(ids).catch(() => null) : {};
+  if (!targets) return windows;
+  return windows.map((w) => ({
+    ...w,
+    tabs: w.tabs.map((t) => ({ ...t, targetId: targets[t.id]?.targetId ?? null, pageGeneration: targets[t.id]?.pageGeneration ?? 0 })),
+  }));
 }
 
 function subscribe(connection: number, params: Record<string, unknown>): Body {
@@ -124,14 +143,22 @@ function subscribe(connection: number, params: Record<string, unknown>): Body {
   return { result: { ok: true, served: served.served, ...(sub.hooks === undefined || sub.hooks === null ? {} : { revisions: served.revisions }) } };
 }
 
-function answer(connection: number, method: string, params: Record<string, unknown>): Body {
+function answer(connection: number, method: string, params: Record<string, unknown>): Body | Promise<Body> {
   switch (method) {
-    case "hello":
+    case "hello": {
+      const caller = parseCliCaller(params.caller);
+      if (caller) callers.set(connection, caller);
       return { result: hello(systemInfo().appVersion) };
+    }
+    case "caller": {
+      const caller = callers.get(connection);
+      if (caller) noteCliCaller(caller);
+      return { result: { ok: !!caller } };
+    }
     case "commands":
       return { result: commands() };
     case "windows":
-      return { result: automationWindows(useBrowser.getState()) };
+      return windowsWithTargets(automationWindows(useBrowser.getState())).then((result) => ({ result }));
     case "subscribe":
       return subscribe(connection, params);
     case "answer": {
@@ -155,6 +182,7 @@ function answer(connection: number, method: string, params: Record<string, unkno
 
 function handleClose({ connection }: { connection: number }) {
   launchSent.delete(connection);
+  callers.delete(connection);
   dropResponder(connection);
   if (subscriptions.delete(connection)) refreshFeed();
 }
@@ -187,6 +215,7 @@ async function stop() {
   noteSocketServing(false);
   subscriptions.clear();
   launchSent.clear();
+  callers.clear();
   stopResponders();
   stopFeed();
   await stopControlSocket();

@@ -24,10 +24,11 @@ test("a JS error is on disk the moment it's captured, so a crash right after can
   assert.equal(props.$exception_list[0].value, "Attempting to run JS driven animation on a native node");
 });
 
-test("a native crash names its exception, reason and the app's images at the top level", async () => {
+test("a native crash names its exception and the app's images at the top level, never its reason", async () => {
   stub.shellNativeModules.ArdiaApp.crashReports = async () => [
     {
       time: Date.now(),
+      process: "browser",
       appVersion: "0.3.0",
       exceptionType: "EXC_CRASH",
       signal: "SIGABRT",
@@ -43,7 +44,8 @@ test("a native crash names its exception, reason and the app's images at the top
   assert.equal(props.source, "native_crash");
   assert.equal(props.objc_exception, "RCTFatalException");
   assert.deepEqual(props.$exception_types, ["RCTFatalException", "EXC_CRASH"]);
-  assert.deepEqual(props.$exception_values, ["Unhandled JS Exception: moved to <text>", "EXC_CRASH (SIGABRT)"]);
+  assert.deepEqual(props.$exception_values, ["Uncaught RCTFatalException", "EXC_CRASH (SIGABRT)"]);
+  assert.equal(JSON.stringify(queued().at(-1)).includes("GroupBlock"), false);
   assert.deepEqual(props.crash_images, [{ name: "Ardia", uuid: "1c77ef99-77d4-3de8-9ba2-6929e276bc60" }]);
   assert.equal(props.$exception_list[0].stacktrace.frames[0].function, "Ardia + 0x38eab8");
   assert.equal(props.$exception_list[1].stacktrace.frames[0].function, "Chromium Framework + 0x41a36e8");

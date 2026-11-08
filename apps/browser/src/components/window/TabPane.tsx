@@ -1,6 +1,5 @@
 import { memo, useEffect, useLayoutEffect } from "react";
 import { Animated, View } from "react-native";
-import { layout } from "../ui/theme";
 import { usePrewarm } from "../../state/tabs/prewarm";
 import { activate } from "../../state/tabs/actions";
 import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../../state/tabs/tabWatch";
@@ -14,6 +13,7 @@ import { patchPage, usePages } from "../../state/tabs/pageState";
 import { SplitEmptyState } from "../split/SplitEmptyState";
 import { NewTabPage } from "../ntp/NewTabPage";
 import { EmptyCard } from "./EmptyCard";
+import { NewTabDropArea } from "./NewTabDropArea";
 import { InternalPage, isInternalTab } from "../pages";
 import { NewTabCreatedToasts } from "./NewTabCreatedToasts";
 import { ShareBar } from "../media/ShareBar";
@@ -27,6 +27,7 @@ import { withoutFragment } from "../../lib/url";
 import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
 import { useProfileTheme } from "./ThemeScope";
+import { useCardFrame } from "./cardFrame";
 
 const LINGERING_PANE = "ardia.lingeringPane";
 
@@ -95,6 +96,7 @@ export const TabPane = memo(function TabPane({
   const mode = useToolbarMode(tabId, windowId, hideBar);
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
   const barHeight = useBookmarksBarHeight();
+  const cardRadius = useCardFrame().radius;
   const doc = withoutFragment(own.url);
   const motion = useToolbarMotion({ enabled: autoLayout, mode, height: frame.height, extra: bookmarksBar ? barHeight : 0, doc });
   useEffect(() => {
@@ -114,7 +116,7 @@ export const TabPane = memo(function TabPane({
       style={{
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
-        borderRadius: fullscreen ? 0 : layout.cardRadius,
+        borderRadius: fullscreen ? 0 : cardRadius,
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,
@@ -130,7 +132,11 @@ export const TabPane = memo(function TabPane({
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
-            {visible && isNewTab && !small && (inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />)}
+            {visible && isNewTab && !small && (
+              <NewTabDropArea tabId={tabId} accepting={!covered && !lingering}>
+                {inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />}
+              </NewTabDropArea>
+            )}
             {visible && <InternalPage tabId={tabId} />}
             {visible && focused && !fullscreen && !covered && !small && <NewTabCreatedToasts windowId={windowId} tabId={tabId} nativePage={!isNewTab && !own.internal && !newTabShown} />}
             {visible && (

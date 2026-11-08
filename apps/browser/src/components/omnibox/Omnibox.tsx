@@ -28,11 +28,13 @@ import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
 import { BarField } from "./BarField";
 import { destinationLabel } from "./GoButton";
 import { BottomRow, DropdownFrame, PanelFrame } from "./OmniboxFrame";
+import { ScopePulse } from "./ScopePulse";
 import { barKeyDown, barKeyDownEvents, type BarKeyEvent } from "./omniboxKeys";
 import { ADD_CHIP, BAR } from "./tokens";
 import { useBarItems } from "./useBarItems";
 import { useHeldSelection, useProviderEnter } from "./heldSelection";
 import { useBarText } from "./useBarText";
+import { usePreviewSelection } from "./usePreviewSelection";
 
 export { PANEL_TEXT_LEFT } from "./tokens";
 
@@ -75,7 +77,7 @@ export function Omnibox({
   useEffect(() => bangEnter.cancel(), [bangEnter, typed, selected, scope]);
   const root = useRef<View>(null);
 
-  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope } = useBarItems({
+  const { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope, previewing, unpreviewed } = useBarItems({
     input,
     typed,
     edited,
@@ -126,6 +128,8 @@ export function Omnibox({
     dispatch({ kind: "selectionApplied" });
     if (editing.current) claimFocusTag(windowId, hero ? heroBarFocus(tabId) : commandBarFocus, () => findNodeHandle(input.current));
   }, [pendingSelection]);
+
+  const previewSelection = usePreviewSelection({ previewing, value, typed, shownCompletion, suppressCompletion, selection, dispatch });
 
   const reset = () => {
     bangEnter.cancel();
@@ -191,18 +195,24 @@ export function Omnibox({
   };
 
   const forceSearch = () => {
-    const text = typed.trim();
+    const text = (previewing ? value : typed).trim();
     if (!text) return;
     go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text));
   };
 
-  const onKeyDown = (e: BarKeyEvent) =>
-    barKeyDown(e, { bar, hero, shownCompletion, items, selectedIndex, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
+  const onKeyDown = (e: BarKeyEvent) => {
+    previewSelection.settle();
+    return barKeyDown(e, { bar, hero, shownCompletion, input: previewing ? value : typed, items, selectedIndex, previewing, unpreviewed, current, tabScope, onDone, reset, forceSearch, go, choose, cancelBang: () => bangEnter.cancel(), removeRow: (url) => rowActions.remove(url) });
+  };
 
   const onContextMenu = async () => {
     const pick = await showFieldMenu(value, selection);
     if (pick?.kind === "go") return go(pick.url);
-    if (pick?.kind === "edit") dispatch({ kind: "edited", text: pick.text, caret: pick.caret });
+    if (pick?.kind === "edit") {
+      previewSelection.edited();
+      dispatch({ kind: "edited", text: pick.text, caret: pick.caret });
+      if (opensTab && !pick.text.trim()) dispatch({ kind: "selected", index: -1 });
+    }
     if (pick?.kind === "selectAll") dispatch({ kind: "select", selection: { start: 0, end: value.length } });
     focusField();
   };
@@ -224,16 +234,18 @@ export function Omnibox({
 
   const onChangeText = (next: string) => {
     if (__DEV__) heardAt.current = Date.now();
+    previewSelection.settle();
     const change = inline.read(next, { before: selection.beforeEdit(), after: selection.current });
     if (change.echo) {
-      if (!change.stale) selection.note({ start: change.inline.typed.length, end: next.length });
+      if (!change.stale && !previewing) selection.note({ start: change.inline.typed.length, end: next.length });
       return;
     }
+    previewSelection.edited();
     bangEnter.cancel();
     focusEcho.current = false;
     keyAt.current = Date.now();
     journeyKeystroke(tabId);
-    const bySpace = scope ? null : keywordBySpace(typed, next);
+    const bySpace = scope ? null : keywordBySpace(previewing ? value : typed, next);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
     if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
     dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: opensTab && !change.typed.trim() ? -1 : 0 });
@@ -281,6 +293,7 @@ export function Omnibox({
       value={value}
       focusEcho={focusEcho}
       onSelection={(next) => {
+        if (previewSelection.isRestoreEcho(next)) return;
         selection.note(next);
         if (inline.accepts(next)) dispatch({ kind: "caretAccepted", text: value });
       }}
@@ -330,6 +343,7 @@ export function Omnibox({
   );
 
   const onBarContextMenu = () => void onContextMenu();
+  const pulse = <ScopePulse scope={scope} shape={variant} profileId={profileId} />;
   if (dropdown)
     return (
       <DropdownFrame
@@ -339,6 +353,7 @@ export function Omnibox({
         scope={scope}
         field={field}
         list={suggestionList}
+        pulse={pulse}
         onSiteControls={currentUrl ? barActions.siteControls : null}
       />
     );
@@ -350,6 +365,7 @@ export function Omnibox({
       scope={scope}
       field={field}
       list={listAway ? null : suggestionList}
+      pulse={pulse}
       hero={hero}
       rowHeight={fieldRowHeight}
       bottom={
@@ -358,7 +374,7 @@ export function Omnibox({
           addChip={<AddChip onPress={barActions.openTabOrFile} />}
           onDictate={barActions.dictate}
           label={destinationLabel(current)}
-          enabled={!hero || !!typed.trim()}
+          enabled={!hero || !!typed.trim() || previewing}
           onGo={barActions.choose}
         />
       }

@@ -25,6 +25,8 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame);
 
+bool IsTokenClient(content::DevToolsAgentHostClient* root_client);
+
 }
 
 #endif

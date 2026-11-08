@@ -10,7 +10,6 @@ import {
   newId,
   pinKeyOf,
   resolveWindowId,
-  snapshotTab,
   viewTabIds,
   without,
 } from "../browser/model";
@@ -21,11 +20,10 @@ import { adoptParkedPins, parkWindowPins } from "../pins/parkedPins";
 import { settleMovedPins } from "../pins/pinMirror";
 import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
 import { isTopApp, topAppsShared } from "../pins/topApps";
-import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
-import { pendingRestore } from "../tabs/adoptIds";
+import { MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
-import { sharedElsewhere, sharesTabs } from "../tabs/tabShare";
-import { isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
+import { tabsClosedWithWindow } from "../tabs/tabShare";
+import { isLastRegularWindow, isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import { newTabToasts } from "../tabs/newTabToasts";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
@@ -35,6 +33,7 @@ import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves
 import { commonGroup, orderSections } from "../groups/groups";
 import { groupOf } from "../pins/tabGrouping";
 import { focusedWindowOf } from "./ui";
+import { closedWindowOf, withoutLastWindowMarks } from "./closedWindow";
 
 export type CreateWindowOptions = {
   profileId?: string;
@@ -48,6 +47,8 @@ export type CreateWindowOptions = {
   chromeWindow?: string;
 };
 
+export type CloseWindowOptions = { keepsLastWindow?: boolean };
+
 export type WindowsSlice = {
   windows: Record<string, BrowserWindow>;
   windowOrder: string[];
@@ -55,12 +56,13 @@ export type WindowsSlice = {
   parkedPins: Record<string, ParkedPins>;
 
   createWindow(options?: CreateWindowOptions): string;
-  closeWindow(id: string): void;
+  closeWindow(id: string, options?: CloseWindowOptions): void;
   setWindowFrame(id: string, frame: Frame): void;
   setWindowFullScreen(id: string, on: boolean): void;
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
   moveTabsToWindow(tabIds: string[], windowId: string | null): string | undefined;
+  returnRefusedMove(tabId: string, fromWindowId: string): void;
   moveTabToProfile(tabId: string, profileId: string): void;
   moveGroupToWindow(groupId: string, windowId: string | null): string | undefined;
   moveGroupToProfile(groupId: string, profileId: string): void;
@@ -194,26 +196,17 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     return id;
   },
 
-  closeWindow(id) {
+  closeWindow(id, { keepsLastWindow = false } = {}) {
     const s = returnSharedPages(get(), id);
     const w = s.windows[id];
     if (!w) return;
-    const tabs = w.tabIds.map((t) => s.tabs[t]).filter((t): t is Tab => !!t && !inPinnedContainer(s, t.id) && !sharedElsewhere(s, t));
-    const tabIds = tabs.map((t) => t.id);
+    const tabs = tabsClosedWithWindow(s, id);
     const small = isSmallWindow(w);
-    let closedWindows = s.closedWindows;
-    if (w.kind !== "private" && !small && tabs.some((t) => t.url)) {
-      const active = new Set(Object.values(w.activeTabIds));
-      const entry = closedWindowEntry(
-        w,
-        tabs.map((t) => ({ ...snapshotTab(t), active: active.has(t.id), ...(hasLoadedPage(t) ? { tabId: t.id } : pendingRestore(t) ? { tabId: pendingRestore(t) } : {}) })),
-        Object.values(s.groups)
-          .filter((g) => g.windowId === id && !g.pinned && (!sharesTabs(s) || g.tabIds.some((t) => tabIds.includes(t))))
-          .map(({ tabIds: members, windowId: _, ...g }) => ({ ...g, tabIndexes: members.map((t) => tabIds.indexOf(t)) })),
-        Date.now(),
-      );
-      closedWindows = [...closedWindows, entry].slice(-MAX_CLOSED_WINDOWS);
-    }
+    const last = isLastRegularWindow(s, id);
+    const keeps = last && keepsLastWindow && w.tabIds.some((t) => s.tabs[t]?.url);
+    const entry = w.kind !== "private" && !small && (keeps || tabs.some((t) => t.url)) ? closedWindowOf(s, w, tabs, keeps) : null;
+    const kept = last ? withoutLastWindowMarks(s.closedWindows) : s.closedWindows;
+    const closedWindows = entry ? [...kept, entry].slice(-MAX_CLOSED_WINDOWS) : kept;
     const next = removeTabs(s, w.tabIds, small);
     set({
       ...next,
@@ -287,6 +280,13 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (last) next = apply(next, activated(next, last));
     set(next);
     return windowId;
+  },
+
+  returnRefusedMove(tabId, fromWindowId) {
+    const s = get();
+    const tab = s.tabs[tabId];
+    if (!tab || !s.windows[fromWindowId] || tab.windowId === fromWindowId) return;
+    set(moveTabsInto(s, [tabId], fromWindowId));
   },
 
   moveTabToProfile(tabId, profileId) {

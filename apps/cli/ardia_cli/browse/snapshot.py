@@ -12,6 +12,10 @@ REF_ROLES = INTERACTIVE | {"heading"}
 SKIPPED = {"none", "InlineTextBox", "LineBreak", "ListMarker"}
 LIFTED = {"generic", "GenericContainer", "group", "Section", "div", "presentation", "RootWebArea", "WebArea", "Ignored", "IgnoredRole"}
 MAX_NAME = 200
+VALUE_FIELDS = {"Date": "date", "DateTime": "datetime-local", "InputTime": "time", "ColorWell": "color"}
+ROLE_NAMES = {"DisclosureTriangle": "button"}
+MAX_SCOPES = 20
+FIELD_VALUE = "(el) => ({ type: el.type || null, value: 'value' in el ? String(el.value) : null, required: el.required === true })"
 
 
 @dataclass
@@ -37,6 +41,22 @@ def _value(item) -> str:
     return str(value)
 
 
+def clipped(text: str) -> str:
+    from ardia_cli.redact import redact
+
+    return redact(text)[:MAX_NAME]
+
+
+def node_props(raw) -> dict:
+    return {prop.get("name"): (prop.get("value") or {}).get("value") for prop in raw.get("properties") or []}
+
+
+def value_field(raw, role: str) -> Node:
+    props = node_props(raw)
+    props["inputType"] = VALUE_FIELDS[role]
+    return Node("textbox", clipped(_value(raw.get("name")).strip()), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"))
+
+
 def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[Node]:
     by_id = {node["nodeId"]: node for node in ax_nodes}
     roots = [node for node in ax_nodes if not node.get("parentId") or node.get("parentId") not in by_id]
@@ -48,6 +68,8 @@ def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[N
 
     def convert(raw) -> list[Node]:
         role = _value(raw.get("role"))
+        if role in VALUE_FIELDS and not raw.get("ignored"):
+            return [value_field(raw, role)]
         children = []
         for child_id in raw.get("childIds") or []:
             child = by_id.get(child_id)
@@ -56,10 +78,9 @@ def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[N
         if raw.get("ignored") or role in SKIPPED:
             return children
         name = _value(raw.get("name")).strip() if role != "StaticText" else _value(raw.get("name"))
-        props = {}
-        for prop in raw.get("properties") or []:
-            props[prop.get("name")] = (prop.get("value") or {}).get("value")
-        node = Node(role, name[:MAX_NAME], _value(raw.get("value"))[:MAX_NAME], props, raw.get("backendDOMNodeId"), children)
+        props = node_props(raw)
+        role = ROLE_NAMES.get(role, role)
+        node = Node(role, clipped(name), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"), children)
         if role in LIFTED and not name and scope_backend != raw.get("backendDOMNodeId"):
             node.role = "generic"
         return [node]
@@ -85,6 +106,8 @@ def walk(nodes):
 def _attrs(node: Node, urls: bool) -> list[str]:
     attrs = []
     props = node.props
+    if props.get("inputType"):
+        attrs.append(f"type={props['inputType']}")
     if node.role == "heading" and props.get("level") is not None:
         attrs.append(f"level={props['level']}")
     if "checked" in props and node.role in ("checkbox", "radio", "switch", "menuitemcheckbox", "menuitemradio"):
@@ -125,7 +148,24 @@ def _line(node: Node, depth: int, urls: bool) -> str:
     return "".join(parts)
 
 
+def interactive_rows(nodes: list[Node]) -> list[tuple[int, Node]]:
+    rows = []
+
+    def visit(node: Node, level: int):
+        if node.ref:
+            rows.append((level, node))
+            level += 1
+        for child in node.children:
+            visit(child, level)
+
+    for node in nodes:
+        visit(node, 0)
+    return rows
+
+
 def render(nodes: list[Node], interactive: bool = False, compact: bool = False, depth: int | None = None, urls: bool = False) -> str:
+    if interactive:
+        return "\n".join(_line(node, level, urls) for level, node in interactive_rows(nodes) if depth is None or level <= depth)
     lines = []
 
     def keep_compact(node: Node) -> bool:
@@ -136,16 +176,6 @@ def render(nodes: list[Node], interactive: bool = False, compact: bool = False, 
         return any(keep_compact(child) for child in node.children)
 
     def emit(node: Node, level: int, parent_name: str = ""):
-        if interactive:
-            if node.ref:
-                if depth is None or level <= depth:
-                    lines.append(_line(node, level, urls))
-                for child in node.children:
-                    emit(child, level + 1)
-            else:
-                for child in node.children:
-                    emit(child, level)
-            return
         if node.role == "generic" and not node.name and not node.ref and not node.hints:
             for child in node.children:
                 emit(child, level, parent_name)
@@ -191,26 +221,75 @@ async def link_urls(page, nodes: list[Node], frame: str):
     await asyncio.gather(*(fetch(node) for node in links), return_exceptions=True)
 
 
-async def frame_nodes(page, frame: str, scope_backend: int | None = None) -> list[Node]:
+async def frame_nodes(page, frame: str, scope_backend: int | None = None, scopes: list[int] | None = None) -> list[Node]:
     params = {"frameId": frame}
     result = await page.send("Accessibility.getFullAXTree", params, timeout=60)
-    nodes = build_tree(result.get("nodes") or [], scope_backend)
+    raw = result.get("nodes") or []
+    if scopes is None:
+        nodes = build_tree(raw, scope_backend)
+    else:
+        nodes = []
+        seen: set = set()
+        for backend in scopes:
+            if backend in seen:
+                continue
+            found = build_tree(raw, backend)
+            seen.update(node.backend for node in walk(found))
+            nodes.extend(found)
     for node in walk(nodes):
         node.frame = frame
     return nodes
 
 
-async def take(state, page, interactive=False, compact=False, depth=None, selector=None, urls=False, cursor=True):
+async def scope_elements(state, page, selector: str):
+    from ardia_cli.browse.state import parse_ref
+
+    if parse_ref(selector):
+        _, element = await state.locate(selector, page)
+        return element.frame, [element]
+    frame = state.frame_for(page) or page.main_frame
+    try:
+        remote = await page.call("(s) => ardiaBrowse.queryAll(s)", selector, frame=frame, by_value=False, read=True)
+    except BrowseError as error:
+        raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
+    elements = await page.elements_from(remote, frame, selector, MAX_SCOPES)
+    if not elements:
+        raise BrowseError(
+            f"Element not found: {selector}. Verify the selector, role, or name is correct and the element exists in the DOM.",
+            code="not_found",
+        )
+    return frame, elements
+
+
+async def field_values(page, nodes: list[Node]):
+    fields = [node for node in walk(nodes) if node.props.get("inputType") and node.backend is not None]
+
+    async def fetch(node):
+        element = await page.resolve_backend(node.backend, node.frame, "field")
+        if element is None:
+            return
+        found = await page.call(FIELD_VALUE, element, frame=node.frame, read=True)
+        if found.get("type"):
+            node.props["inputType"] = found["type"]
+        if found.get("value") is not None:
+            node.value = clipped(found["value"])
+        if found.get("required"):
+            node.props["required"] = True
+
+    await asyncio.gather(*(fetch(node) for node in fields), return_exceptions=True)
+
+
+async def collect(state, page, selector=None, cursor=True) -> list[Node]:
     await page.refresh_frames()
     frame = state.frame_for(page) or page.main_frame
-    scope = None
+    scopes = None
     if selector:
-        _, element = await state.locate(selector, page)
-        scope = element.backend_id
-        frame = element.frame
-    nodes = await frame_nodes(page, frame, scope)
-    if scope is not None and not nodes:
-        raise BrowseError(f"Nothing in the accessibility tree under {selector}")
+        frame, elements = await scope_elements(state, page, selector)
+        scopes = [element.backend_id for element in elements]
+    nodes = await frame_nodes(page, frame, scopes=scopes) if scopes else await frame_nodes(page, frame)
+    if scopes and not nodes:
+        many = f"all {len(scopes)} elements matching it are" if len(scopes) > 1 else "the element matching it is"
+        raise BrowseError(f"Nothing in the accessibility tree under {selector}: {many} hidden or empty")
     for node in list(walk(nodes)):
         if node.role in ("Iframe", "iframe") and node.backend is not None:
             try:
@@ -231,25 +310,40 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
             node.hints = hints
             if not node.name:
                 element = await page.resolve_backend(node.backend, node.frame, "clickable")
-                if element is not None and interactive:
+                if element is not None:
                     text = await page.call("(el) => (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim()", element, frame=node.frame)
-                    node.name = (text or "")[:MAX_NAME]
+                    node.name = clipped(text or "")
+    await field_values(page, nodes)
     for node in walk(nodes):
         if node.role in REF_ROLES or node.hints:
             if node.role == "heading" and not node.name or node.backend is None:
                 continue
             node.ref = state.ref_for_node(page, node.frame, node.backend)
-    if urls:
-        for used in frames_used:
-            await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)
-    text = render(nodes, interactive, compact, depth, urls)
-    refs = [
+    return nodes
+
+
+def refs_of(state, page, nodes: list[Node]) -> list[Ref]:
+    return [
         Ref(node.ref, state.instance, page.target_id, node.frame, page.loader(node.frame) or "", 0, node.backend, node.role, node.name)
         for node in walk(nodes)
         if node.ref and node.backend is not None
     ]
-    full_text = text if not (interactive or compact or depth is not None or selector) else None
+
+
+async def take(state, page, interactive=False, compact=False, depth=None, selector=None, urls=False, cursor=True):
+    nodes = await collect(state, page, selector, cursor)
+    if urls:
+        for used in {node.frame for node in walk(nodes)}:
+            await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)
+    text = render(nodes, interactive, compact, depth, urls)
+    refs = refs_of(state, page, nodes)
+    whole = not (depth is not None or selector)
+    full_text = text if whole and not (interactive or compact) else None
     state.set_refs(refs, text, page)
     if full_text is not None:
         state.extras["full_snapshot"] = full_text
+    if whole:
+        from ardia_cli.browse import changes
+
+        changes.note_shown(state, await changes.remember(state, page, nodes))
     return text, refs

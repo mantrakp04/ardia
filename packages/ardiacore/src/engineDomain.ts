@@ -58,6 +58,8 @@ export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSecon
 
 type CliServer = { connections: number; generation: number; file: string; reason?: string };
 
+export type CliTabTarget = { targetId: string | null; pageGeneration: number };
+
 export type CliControlStatus =
   | { state: "external" }
   | ({ state: "off" | "starting" } & CliServer)

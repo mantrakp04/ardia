@@ -8,6 +8,7 @@ export {
   MouseArea,
   OutsidePressArea,
   PopoverBubble,
+  ReportVideo,
   Surface,
   Symbol,
   VisualEffect,

@@ -28,6 +28,26 @@ void AnswerSystemFloatingSubrole(Class windowClass) {
 
 }
 
+namespace ardia_pip {
+
+BOOL JoinsFullScreenSpaces(NSWindow *window) {
+  const NSWindowCollectionBehavior needed =
+      NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorCanJoinAllApplications | NSWindowCollectionBehaviorFullScreenAuxiliary;
+  const BOOL independent = ![window respondsToSelector:@selector(activationIndependence)] || [window activationIndependence];
+  return independent && (window.collectionBehavior & needed) == needed;
+}
+
+void JoinFullScreenSpaces(NSWindow *window) {
+  const NSWindowCollectionBehavior exclusive = NSWindowCollectionBehaviorPrimary | NSWindowCollectionBehaviorAuxiliary |
+                                               NSWindowCollectionBehaviorFullScreenPrimary | NSWindowCollectionBehaviorFullScreenNone;
+  const NSWindowCollectionBehavior joined = (window.collectionBehavior & ~exclusive) | NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                            NSWindowCollectionBehaviorCanJoinAllApplications | NSWindowCollectionBehaviorFullScreenAuxiliary;
+  if (joined != window.collectionBehavior) window.collectionBehavior = joined;
+  if ([window respondsToSelector:@selector(setActivationIndependence:)] && ![window activationIndependence]) [window setActivationIndependence:YES];
+}
+
+}
+
 @implementation ArdiaPiPController (Workspaces)
 
 + (void)load {

@@ -2926,6 +2926,25 @@ try {
     return { updated: revealed.password, unlocked, never: never?.origins?.length ?? never, allowed, exported: exported?.status ?? exported, written };
   });
 
+  await check("passwords-save-again", async () => {
+    const origin = `https://again-${process.pid}-${Date.now().toString(36)}.test`;
+    try {
+      const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (first?.error) throw new Error(`first save: ${first.error}`);
+      const again = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (again?.error) throw new Error(`saving the same login again: ${again.error}`);
+      const other = await secret("ArdiaPasswords", "save", "", origin, "user", "pw2");
+      if (other?.error !== "Could not save the password (invalid, or already saved)") throw new Error(`saving another password for it: ${JSON.stringify(other)}`);
+      const revealed = await until("the first password", async () => {
+        const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "user" });
+        return r?.password === "pw1" ? r : null;
+      });
+      return { again: "saved", other: other.error, password: revealed.password };
+    } finally {
+      await engineOrError("passwords.remove", { profile: "", origin, username: "user" });
+    }
+  });
+
   await check("autofill-cards", async () => {
     const saved = await secret("ArdiaAutofill", "saveCard", "", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111");
     if (saved?.error) throw new Error(`save: ${saved.error}`);
@@ -3344,6 +3363,13 @@ try {
         return e?.payload.playing && e.payload.muted ? e : null;
       }, 8000);
       await until("live.playingAudio", async () => (await live(first.id))?.playingAudio === true, 5000);
+      const blipFrom = (await eventsOf(first.id)).at(-1)?.t ?? 0;
+      const stopsSince = async (t) => (await eventsOf(first.id)).filter((x) => x.t > t && x.name === "media" && !x.payload?.playing).length;
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
+      await new Promise((r) => setTimeout(r, 700));
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').play(); true", userGesture: true });
+      await new Promise((r) => setTimeout(r, 500));
+      if (await stopsSince(blipFrom)) throw new Error("a 0.7 s pause reported the tab as silent");
       const pausedAt = Date.now();
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       const off = await until("onMedia stopped", async () => {
@@ -3351,6 +3377,7 @@ try {
         return e && !e.payload.playing ? e : null;
       }, 8000);
       const stoppedAfterMs = Date.now() - pausedAt;
+      if (stoppedAfterMs < 1500) throw new Error(`the speaker went off ${stoppedAfterMs} ms after the sound stopped, not after Chrome's 2 s hold`);
       await until("live.playingAudio off", async () => (await live(first.id))?.playingAudio === false, 5000);
       await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`);
       const unmuted = await until("onMedia unmuted", async () => {

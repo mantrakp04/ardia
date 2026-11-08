@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
+import { noteSwitcherPress } from "../../state/telemetry/switcherPresses";
 import { layout, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
 import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
@@ -64,6 +65,7 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
           accessibilityLabel={name}
           onPress={() => {
             setPressed(true);
+            noteSwitcherPress(windowId, id, !!icon);
             switchProfile(windowId, id, true);
           }}
         >

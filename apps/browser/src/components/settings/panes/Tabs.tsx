@@ -25,16 +25,26 @@ const SPLIT_WITH: { value: SplitLinkModifier; title: string }[] = [
   { value: "alt", title: "⌥-click" },
 ];
 
+const NEW_TAB_LINKS: { value: Settings["newTabLinksOpenIn"]; title: string }[] = [
+  { value: "tab", title: "A new tab" },
+  { value: "peek", title: "A Peek" },
+  { value: "littleArdia", title: "Little Ardia" },
+];
+
 const withNote = (anchor: SettingId, note: string | null) => (note ? `${setting(anchor).description ?? ""} ${note}`.trim() : undefined);
 
 function LinkKeys() {
   const peekWith = useSettings((s) => s.peekModifier);
   const splitWith = useSettings(splitLinkModifierOf);
+  const newTabLinks = useSettings((s) => s.newTabLinksOpenIn);
   const peekOptions = PEEK_WITH.map((o) => (o.value === "alt" && splitWith === "alt" ? { ...o, title: "⌥-click (split view moves to ⌥⇧-click)" } : o));
   const splitOptions = SPLIT_WITH.map((o) => (o.value === "alt" && peekWith === "alt" ? { ...o, title: "⌥-click (Peek moves to ⇧-click)" } : o));
   return (
     <Group>
       <SettingToggle anchor="tabs.peekLinksToOtherSites" />
+      <Row anchor="tabs.newTabLinksOpenIn">
+        <PopUp value={newTabLinks} options={NEW_TAB_LINKS} onChange={(newTabLinksOpenIn) => updateSettings({ newTabLinksOpenIn })} />
+      </Row>
       <Row anchor="tabs.peekModifier" description={withNote("tabs.peekModifier", splitWith === "alt" ? "⌥-click opens a split now: choosing it here moves split view back to ⌥⇧-click." : null)}>
         <PopUp value={peekWith} options={peekOptions} onChange={(peekModifier) => updateSettings({ peekModifier })} />
       </Row>

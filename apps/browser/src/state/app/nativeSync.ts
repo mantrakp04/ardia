@@ -10,7 +10,6 @@ import { useBrowser } from "../browser/store";
 import { setLastTabKeepsWindow } from "../omnibox/newTabBarPolicy";
 import { isUtilityWindowId } from "../settings/settingsWindows";
 import { openingLightsCenter } from "../windows/layout";
-import { openWindow as createWindow } from "../browser/actions";
 import { createWindowSync, type WindowPort } from "../windows/windowSync";
 import { openExternalUrls } from "../littleArdia/actions";
 import { SMALL_LIGHTS_CENTER } from "../windows/small";
@@ -20,6 +19,7 @@ import { finishAnimatedCloses } from "../windows/closeAnimated";
 import { cancelAbandonedFocusMoves, settlingCommandFocus } from "../focus/focusHandoff";
 import { flushPersistence, resumePersistence } from "../session/persist";
 import { startWindowCloseGuard } from "../windows/windowClose";
+import { openLastWindowOrNew } from "../windows/lastWindow";
 import { startExtensionsBridge } from "../extensions/bridge";
 import { useExtensions } from "../extensions/actions";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
@@ -42,7 +42,7 @@ export const shellWindowPort: WindowPort = {
 
 export function startNativeSync() {
   const store = useBrowser;
-  if (!store.getState().windowOrder.length) store.getState().createWindow();
+  if (!store.getState().windowOrder.length) openLastWindowOrNew("launch");
 
   cancelAbandonedFocusMoves();
   onCommand((e) => settlingCommandFocus(e, runCommand));
@@ -61,7 +61,7 @@ export function startNativeSync() {
   onAppEvent((e) => {
     const s = store.getState();
     if (e.type === "appearance") s.setAppDark(e.dark);
-    if (e.type === "reopen") createWindow();
+    if (e.type === "reopen") openLastWindowOrNew("dock");
     if (e.type === "quitWarningSuppressed") s.updateSettings({ warnBeforeQuitting: false });
     if (e.type === "willQuit") {
       setQuitting(true);

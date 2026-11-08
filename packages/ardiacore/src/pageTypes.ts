@@ -18,6 +18,8 @@ export type NavigationState = {
   httpStatus?: number;
 };
 
+export type AppBadge = { origin: string; count: number | null; flag: boolean };
+
 export type MediaState = { playing: boolean; muted: boolean };
 
 export type PageLayout = { x: number; y: number; width: number; height: number; containerWidth: number; containerHeight: number };
@@ -49,6 +51,8 @@ export type OpenWindowRequest = {
   postBody?: boolean;
   profile?: string;
   point?: { x: number; y: number };
+  site?: boolean;
+  fromClick?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -108,7 +112,7 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean };
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {
@@ -212,6 +216,8 @@ export type WebViewProps = ViewProps & {
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onTransferRefused?: (fromWindowId: string) => void;
+  onAppBadge?: (badge: AppBadge) => void;
 };
 
 export type WebViewHandle = {

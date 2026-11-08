@@ -56,6 +56,7 @@ void WindowHost::OnTabStripModelChanged(
       bridge->EnsureFaviconObserved();
       bridge->EnsurePopupsObserved();
       bridge->EnsureZoomObserved();
+      bridge->EnsureAudibleObserved();
       std::optional<WindowOpenDisposition> disposition =
           bridge->TakeOpenDisposition();
       content::WebContents* source = bridge->open_source();

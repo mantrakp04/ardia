@@ -3,7 +3,7 @@ import type { SavedObject } from "../../lib/savedDocument";
 import { isAdoptKind } from "../tabs/adoptIds";
 import { wakeOf } from "../tabs/pageSession";
 import { isIncognitoProfile } from "../browser/model";
-import type { AdoptId, ParkedPins, SplitSlot, SplitView, Tab, TabPage, TabPin, TileFolder } from "../browser/types";
+import type { AdoptId, SplitSlot, SplitView, Tab, TabPage, TabPin, TileFolder } from "../browser/types";
 
 type SavedPage = Extract<TabPage, { kind: "idle" | "asleep" }>;
 const isRestoreId = (v: unknown): v is AdoptId => isString(v) && isAdoptKind(v, "restore");
@@ -89,14 +89,14 @@ export const pageFromDisk = (v: unknown): SavedPage => {
   return isRestoreId(page.wake) ? { kind, wake: page.wake } : { kind };
 };
 
-export const parkedSplitsChecked = (park: ParkedPins): ParkedPins => {
-  if (!Array.isArray(park.splits)) {
-    const { splits: _, ...rest } = park;
-    return rest;
+export const splitsChecked = <T extends { splits?: Pick<SplitView, "orientation" | "slots">[] }>(saved: T): T => {
+  if (!Array.isArray(saved.splits)) {
+    const { splits: _, ...rest } = saved;
+    return rest as T;
   }
-  const splits = (park.splits as unknown[]).flatMap((v): ParkedPins["splits"] & object => {
+  const splits = (saved.splits as unknown[]).flatMap((v): Pick<SplitView, "orientation" | "slots">[] => {
     const slots = isFields(v) && (v.orientation === "horizontal" || v.orientation === "vertical") ? slotsFromDisk(v.slots) : null;
     return slots && isFields(v) ? [{ orientation: v.orientation as SplitView["orientation"], slots }] : [];
   });
-  return { ...park, splits };
+  return { ...saved, splits };
 };

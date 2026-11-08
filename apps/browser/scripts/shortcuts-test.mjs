@@ -197,7 +197,7 @@ const shortcuts = [
   ["⇧⌘J", cmd("J", 38, "shift"), { command: "downloads" }, "⇧⌘J"],
   ["⌥⌘L", cmd("l", 37, "option"), { command: "downloads" }, "(Chrome's)"],
   ["⇧⌘M", cmd("M", 46, "shift"), { command: "openProfileMenu" }, "(Chrome's)"],
-  ["⌥⇧⌘I", cmd("I", 34, "shift", "option"), { command: "sendFeedback" }, "(Chrome's)"],
+  ["⌥⇧⌘I", cmd("I", 34, "shift", "option"), { command: "reportProblem" }, "(Chrome's)"],
   ["⌃1", K("1", 18, "control"), { command: "switchProfile", arg: "default" }, "⌃1"],
   ["⌃2", K("2", 19, "control"), { command: "switchProfile", arg: "p-work" }, "⌃2"],
 ];
