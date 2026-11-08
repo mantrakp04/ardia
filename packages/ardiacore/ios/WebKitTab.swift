@@ -33,7 +33,10 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     set { webView?.playingFrames = newValue }
   }
   private var muted = false
-  var autoPictureInPictureRule = WebKitAutoPictureInPicture()
+  var autoPictureInPictureRule: WebKitAutoPictureInPicture {
+    get { webView?.autoPictureInPictureRule ?? WebKitAutoPictureInPicture() }
+    set { webView?.autoPictureInPictureRule = newValue }
+  }
   var sightObserver: NSObjectProtocol?
   private var errorURL: URL?
   private var committedAt: Double = 0
@@ -127,6 +130,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     updateHidden()
     observe(view)
     WebKitHub.shared.permissions.reconcileCapture(view, profile: profile)
+    updateSight()
   }
 
   private func observe(_ view: WKWebView) {
