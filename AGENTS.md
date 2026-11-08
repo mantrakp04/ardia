@@ -7,6 +7,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 ## How work gets done
 - **Move fast.** Don't break work into phases or ask about details you can decide; there are no users to
   migrate yet. Ask only when the answer changes what you build.
+- **Be thorough in analysis, bold in suggestions.** Read the real code before you judge it, and propose the
+  better design even when it means rewriting what exists, not the smallest patch on top of it.
 - **Speed is the point.** Do independent work in parallel: agents, builds, test instances, tool calls. Batch what you
   plan to check into one script or one call instead of one step at a time. Only timing measurements run one at a
   time, interleaved with their control, because sharing the CPU skews them.
@@ -92,6 +94,13 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Local crashes still get fixed without asking.** When `crash.log` shows up in the repo root or a crash report
   appears, find the cause and fix it. Check the binary UUID against the current build first (older builds are
   usually known-fixed). App fixes ship in the next release. Delete `crash.log` once handled.
+- **Instrument what you ship.** Every feature and fix ships with the telemetry that shows it working in the field
+  and catches its regression: a use count for a feature, a counter or timing on the path a fix touched, an error
+  event where it used to fail. Add it to an existing event before inventing a new one (`apps/browser/src/state/telemetry`,
+  `apps/cli/ardia_cli/telemetry.py`). It stays inside the consent model: sharing on only, counts, timings, enums and
+  flags, never URLs, page content, titles or free text. List new events and fields in the "What's Sent" copy, and
+  say in the commit and the parity row what to watch on the dashboard. Skip it only when nothing measurable exists,
+  and say so.
 - **Verify before you call it done.** Typecheck, build, and exercise the feature in a hidden instance
   (dev harness, CDP, window snapshots).
   - The screen is often locked, and then WindowServer captures fail. Use the in-process snapshots

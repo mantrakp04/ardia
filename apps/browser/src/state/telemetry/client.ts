@@ -37,7 +37,7 @@ type Session = {
   settingsDay: string | null;
   context: SavedContext | null;
 };
-type Sharing = { sharing: false; installId: null } | { sharing: true; installId: string };
+type Sharing = { sharing: false; installId: string | null } | { sharing: true; installId: string };
 type Saved = Session & Sharing;
 
 const DEFAULT: Saved = {
@@ -57,7 +57,8 @@ const DEFAULT: Saved = {
 
 function readSaved(doc: SavedObject | null): Saved {
   if (!doc) return DEFAULT;
-  const sharing: Sharing = doc.sharing === true && isString(doc.installId) && doc.installId ? { sharing: true, installId: doc.installId } : { sharing: false, installId: null };
+  const installId = isString(doc.installId) && doc.installId ? doc.installId : null;
+  const sharing: Sharing = doc.sharing === true && installId ? { sharing: true, installId } : { sharing: false, installId };
   return {
     ...sharing,
     decidedAt: numberOr(doc.decidedAt, null),
@@ -322,13 +323,13 @@ export function setSharing(on: boolean, source: SharingSource) {
   if (!on) {
     for (const abort of inflight) abort.abort();
     inflight.clear();
-    save({ sharing: false, installId: null, sessionOpen: false, context: null, decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
+    save({ sharing: false, installId: saved.installId, sessionOpen: false, context: null, decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
     clearQueue();
     return;
   }
   save({
     sharing: true,
-    installId: uuidv4(),
+    installId: saved.installId ?? uuidv4(),
     crashCursor: now,
     lastVersion: appInfo().appVersion,
     lastBuild: appInfo().appBuild,
@@ -346,10 +347,22 @@ type PreviousSession = "clean" | "unclean" | "none";
 
 let loaded = false;
 
+function readStateDoc(): SavedObject | null {
+  const json = readDocument(STATE_DOC);
+  const current = parseSaved(json, STATE_VERSION, STATE_MIGRATIONS);
+  if (current || !json) return current;
+  try {
+    const fromOtherVersion: unknown = JSON.parse(json);
+    return isFields(fromOtherVersion) ? fromOtherVersion : null;
+  } catch {
+    return null;
+  }
+}
+
 export function loadChoice() {
   if (loaded) return;
   loaded = true;
-  saved = readSaved(parseSaved(readDocument(STATE_DOC), STATE_VERSION, STATE_MIGRATIONS));
+  saved = readSaved(readStateDoc());
   useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
 }
 

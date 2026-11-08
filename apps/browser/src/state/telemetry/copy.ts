@@ -28,7 +28,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "With everything",
     items: [
-      "A random install ID, made on this Mac (a new one each time sharing is turned back on)",
+      "A random install ID, made on this Mac once and kept through updates. Nothing is sent with it while sharing is off",
       "App version and build, macOS version, chip (arm64 or x86_64), engine version",
       "Whether it's a test build",
     ],
