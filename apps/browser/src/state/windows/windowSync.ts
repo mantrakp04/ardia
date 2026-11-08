@@ -39,7 +39,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       const s = getState();
       if (e.type === "focus") s.setFocusedWindow(e.id);
       if (e.type === "frame") s.setWindowFrame(e.id, e.frame);
-      if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on);
+      if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on, e.display);
       if (e.type === "close") {
         if (isQuitting()) return;
         open.delete(e.id);
@@ -62,7 +62,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       const made = w.kind !== "small" && w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
       port.open(
         id,
-        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), focus, profile, ...(behind ? { behind } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
+        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), focus, profile, ...(w.display ? { display: w.display } : {}), ...(behind ? { behind } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
         lightsCenter(s, id),
       );
     }

@@ -51,6 +51,7 @@ final class FullScreenRestore {
       guard let window = self.windows.window(id), window.isVisible, !window.isMiniaturized else { return self.giveUp(id) }
       if self.windows.isFullScreen(id) { return self.entered(id) }
       self.toggled = true
+      self.windows.moveToSavedDisplay(id)
       window.toggleFullScreen(nil)
       guard self.turn == turn else { return }
       DispatchQueue.main.asyncAfter(deadline: .now() + Self.enterWait) { [weak self] in

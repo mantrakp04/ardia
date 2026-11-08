@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)canShowWindow:(NSString *)windowId session:(ArdiaSavedSession *)session;
 + (BOOL)showWindow:(NSString *)windowId
              frame:(NSArray<NSNumber *> *)frame
+           display:(nullable NSString *)display
                key:(NSString *)key
            profile:(NSString *)profile
           backdrop:(NSDictionary *)backdrop;

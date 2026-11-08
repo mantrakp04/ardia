@@ -10,6 +10,7 @@ final class ManagedWindow {
   let kind: WindowKind
   var window: NSWindow
   var isFullScreen = false
+  var display: String?
   var reveal = Reveal.shown
   var exit: [() -> Void]?
   var contentShown = false
