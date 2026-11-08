@@ -123,6 +123,12 @@ test("the demo shim measures the drawn shape with an opaque probe colour, so the
   assert.doesNotMatch(shim, /measureInkShift\(inkKey, markup/);
 });
 
+test("the probe takes the renderer's own options minus the colour, so a change to them reaches the probe", () => {
+  const ink = read("../../../../../packages/demo/src/shims/web/symbols/ink.ts");
+  assert.match(ink, /options: Omit<Parameters<typeof symbolMarkup>\[1\], "color">\)/);
+  assert.doesNotMatch(ink, /options: \{[^}]*\bpointSize\b/);
+});
+
 test("a failed measurement is not remembered, so the next layout measures again", () => {
   const ink = read("../../../../../packages/demo/src/shims/web/symbols/ink.ts");
   assert.match(ink, /if \(!box\) return null;\n  const shift = inkShift\(box, canvas\);\n  measured\.set\(key, shift\);/);

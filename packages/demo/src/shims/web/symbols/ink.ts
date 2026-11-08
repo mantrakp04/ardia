@@ -1,4 +1,4 @@
-import { symbolMarkup, type SymbolLayer, type SymbolWeight } from "./render";
+import { symbolMarkup, type SymbolLayer } from "./render";
 
 export type InkBox = { x: number; y: number; width: number; height: number };
 export type InkShift = readonly [number, number];
@@ -8,10 +8,7 @@ const PIXELS_PER_POINT = 8;
 const PROBE_COLOR = "#000";
 const measured = new Map<string, InkShift>();
 
-export function inkProbeMarkup(
-  layers: readonly SymbolLayer[],
-  options: { pointSize: number; weight: SymbolWeight; width: number; height: number; id: string; nudge?: readonly [number, number] },
-): string {
+export function inkProbeMarkup(layers: readonly SymbolLayer[], options: Omit<Parameters<typeof symbolMarkup>[1], "color">): string {
   return symbolMarkup(layers, { ...options, color: PROBE_COLOR });
 }
 
