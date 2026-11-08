@@ -58,6 +58,8 @@ const oneOf = <const V extends readonly string[]>(values: V, d: V[number], synce
 });
 const shaped = <T,>(d: T, valid: (v: unknown) => boolean, schema: JsonSchema, synced = false): SettingSpec<T> => ({ default: d, valid, synced, schema });
 
+export const VAULT_LOCK_MINUTES = [5, 15, 30, 60, 0] as const;
+
 export const SETTING_SPECS = {
   warnBeforeQuitting: flag(false, SYNCED),
   warnBeforeClosingWindow: flag(true, SYNCED),
@@ -139,6 +141,11 @@ export const SETTING_SPECS = {
   protectedVideoInWebKit: flag(true),
   launchActions: shaped<string[]>([], (v) => isStringList(v) && v.length <= 20, { type: "array", items: { type: "string" }, maxItems: 20 }),
   omniboxProviders: shaped<ProviderEntry[]>([], isProviderEntryList, PROVIDERS_SCHEMA),
+  vaultSuggestOnFocus: flag(true, SYNCED),
+  vaultSaveOffer: flag(true, SYNCED),
+  vaultSaveTarget: text(""),
+  vaultIdleLockMinutes: shaped<number>(30, (v) => (VAULT_LOCK_MINUTES as readonly unknown[]).includes(v), { type: "number", enum: VAULT_LOCK_MINUTES }),
+  vaultTouchID: flag(true),
 };
 
 type Specs = typeof SETTING_SPECS;

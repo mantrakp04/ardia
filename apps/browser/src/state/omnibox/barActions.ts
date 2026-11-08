@@ -9,6 +9,8 @@ import { menuBarRevision, shortcutHint } from "../commands/commandShortcuts";
 import type { Tab } from "../browser/types";
 import { organizeActions } from "./organizeActions";
 import { muteState, muteTitle, siteMuteTitle } from "../tabs/mute";
+import { vaultBarActions } from "../vaults/barActions";
+import { vaultRevision } from "../vaults/store";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
 
@@ -126,6 +128,7 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
     });
   }
   out.push(...organizeActions(s, windowId));
+  out.push(...vaultBarActions(s, windowId));
   return out;
 }
 
@@ -135,7 +138,7 @@ export function currentBarActions(windowId: string): CommandAction[] {
   const s = useBrowser.getState();
   let byWindow = barActionsOf.get(s);
   if (!byWindow) barActionsOf.set(s, (byWindow = new Map()));
-  const key = `${windowId}|${menuBarRevision()}`;
+  const key = `${windowId}|${menuBarRevision()}|${vaultRevision()}`;
   let actions = byWindow.get(key);
   if (!actions) byWindow.set(key, (actions = barActions(s, windowId)));
   return actions;

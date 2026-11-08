@@ -9,7 +9,7 @@ import {
   type SavedPassword,
 } from "../../../state/site/passwords";
 import { orWarn } from "../../../lib/fallback";
-import { confirm, copyText, systemInfo } from "../../../state/app/system";
+import { confirm, copyText } from "../../../state/app/system";
 import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
@@ -24,13 +24,7 @@ import { settingsLayout } from "../tokens";
 import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
-
-function passwordManagerAppsNote() {
-  const apps = "1Password, Bitwarden, KeePassXC and Proton Pass extensions connect to their Mac apps.";
-  return systemInfo().inApplicationsFolder === false
-    ? `${apps} For 1Password, move Ardia to your Applications folder and reopen it (1Password only connects to browsers there), then in the 1Password app open Settings › Browser › Add Browser and choose it.`
-    : `${apps} For 1Password, add Ardia once: in the 1Password app, open Settings › Browser › Add Browser and choose Ardia.`;
-}
+import { PasswordManagersSection } from "./PasswordManagers";
 
 export function PasswordsPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
@@ -92,8 +86,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         <Row anchor="passwords.exportPasswords" description={exportStatus || undefined}>
           <Button title="Export CSV…" onPress={() => void exportCsv()} />
         </Row>
-        <Row anchor="passwords.managerApps" description={passwordManagerAppsNote()} />
       </Group>
+      <PasswordManagersSection />
 
       {!unlocked ? (
         <Box gap="ml" style={LOCKED}>

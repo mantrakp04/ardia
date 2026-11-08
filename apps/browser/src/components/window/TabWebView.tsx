@@ -41,6 +41,7 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
+import { noteVaultField, noteVaultKey, noteVaultSubmitted } from "../../state/vaults/pageEvents";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -230,6 +231,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         else if (command === "escape" && !closeFolderPanelIn(tab()?.windowId) && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);
       }}
       onSelection={(selection) => setPageSelection(tabId, selection)}
+      onVaultField={(field) => noteVaultField(tabId, field)}
+      onVaultKey={(key) => noteVaultKey(tabId, key)}
+      onVaultSubmitted={(submitted) => void noteVaultSubmitted(tabId, submitted)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
       onNotificationClose={closeWebNotification}

@@ -2,6 +2,7 @@ import type { BlockedPopup } from "../../platform/tabs";
 import { getSiteSettings, resolveExternalApp } from "./siteSettings";
 import { patchPage, pageOf, setPopover, type AutofillPrompt, type PasswordPrompt } from "../tabs/pageState";
 import { currentEngineProfile, currentTab } from "../browser/current";
+import { vaultClaimsPasswordPrompt } from "../vaults/saveOffer";
 
 async function shouldPromptForPopups(profile: string, origin: string): Promise<boolean> {
   try {
@@ -20,7 +21,7 @@ export function popupBlocked(tabId: string, popup: BlockedPopup) {
 }
 
 export function showPasswordPrompt(tabId: string, prompt: PasswordPrompt) {
-  patchPage(tabId, { passwordPrompt: prompt.state === "saved" ? null : prompt });
+  patchPage(tabId, { passwordPrompt: prompt.state === "saved" || vaultClaimsPasswordPrompt(tabId, prompt) ? null : prompt });
 }
 
 export function showAutofillPrompt(tabId: string, prompt: AutofillPrompt | null, id: number) {

@@ -1,6 +1,7 @@
 import { setAppearance, setThinScrollBars } from "../../platform/app";
 import { setAutoPictureInPicture, setVideoUpscaling } from "../../platform/media";
 import { setCommandScrollZoom } from "../../platform/siteSettings";
+import { setVaultOptions } from "../../platform/vaults";
 import { useBrowser } from "../browser/store";
 import type { Settings } from "./settings";
 
@@ -14,6 +15,7 @@ const NATIVE_SETTINGS: Mirror[] = [
   mirror("autoPictureInPicture", setAutoPictureInPicture),
   mirror("videoUpscaling", setVideoUpscaling),
   mirror("commandScrollZoom", setCommandScrollZoom),
+  ...(["vaultIdleLockMinutes", "vaultTouchID"] as const).map((key): Mirror => ({ key, send: (s) => setVaultOptions(s.vaultIdleLockMinutes, s.vaultTouchID) })),
 ];
 
 export function startNativeSettings() {

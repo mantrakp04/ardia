@@ -295,6 +295,29 @@ function withStrips<Fake extends FakeDomain>(fake: Fake): Fake {
   return fake;
 }
 
+type FakeVaultProvider = CallResult<"vaults.refresh">;
+type FakeVaultItem = CallResult<"vaults.items">[number];
+export const vaultFakes = {
+  providers: [] as FakeVaultProvider[],
+  items: [] as FakeVaultItem[],
+  copied: [] as { provider: string; id: string; field: string }[],
+  options: null as { idleLockMinutes: number; touchID: boolean } | null,
+  signIns: [] as { provider: string; fields: Record<string, unknown> }[],
+  unlocks: [] as { provider: string; withPassword: boolean }[],
+  nextSignIn: null as Record<string, unknown> | null,
+};
+const vaultState = (provider: string) => vaultFakes.providers.find((p) => p.id === provider)!;
+function setVaultState(provider: string, state: FakeVaultProvider["state"]) {
+  vaultFakes.providers = vaultFakes.providers.map((p) => (p.id === provider ? { ...p, state } : p));
+  return vaultState(provider);
+}
+const vaultUnlocked = (provider: string) => vaultFakes.providers.some((p) => p.id === provider && p.state === "unlocked");
+function vaultSignInReply(provider: string) {
+  const next = vaultFakes.nextSignIn;
+  vaultFakes.nextSignIn = null;
+  return JSON.stringify(next ?? { ok: true, state: setVaultState(provider, "unlocked") });
+}
+
 const loginKey = (args: { origin: string; username: string }) => `${args.origin}\n${args.username}`;
 
 const fakeModules = {
@@ -502,6 +525,35 @@ const fakeModules = {
     passkeyAccess: () => ({ entitled: false, status: "entitlementRequired" }),
     requestPasskeyAccess: () => ({ entitled: false, status: "entitlementRequired" }),
   }),
+  ArdiaVaults: domain(
+    "vaults",
+    {
+      providers: () => vaultFakes.providers,
+      refresh: ({ provider }) => vaultState(provider),
+      items: ({ provider }) => vaultFakes.items.filter((i) => (!provider || i.provider === provider) && vaultUnlocked(i.provider)),
+      lock: ({ provider }) => setVaultState(provider, "locked"),
+      signOut: ({ provider }) => setVaultState(provider, "signedOut"),
+      configure: ({ provider, server }) => {
+        vaultFakes.providers = vaultFakes.providers.map((p) => (p.id === provider ? { ...p, server: server ?? undefined } : p));
+        return vaultState(provider);
+      },
+      copy: ({ provider, id, field }) => (vaultFakes.copied.push({ provider, id, field }), { copied: true, clearsAfter: 90 }),
+      totp: () => ({ code: "123456", period: 30, expiresAt: Date.now() + 30_000 }),
+      generate: () => ({ length: 20 }),
+      setOptions: ({ idleLockMinutes, touchID }) => ((vaultFakes.options = { idleLockMinutes, touchID }), {}),
+      cancelSignIn: ({ provider }) => vaultState(provider),
+    },
+    {
+      signIn: async (provider: string, fieldsJSON: string) => {
+        vaultFakes.signIns.push({ provider, fields: JSON.parse(fieldsJSON) as Record<string, unknown> });
+        return vaultSignInReply(provider);
+      },
+      unlock: async (provider: string, password: string | null) => {
+        vaultFakes.unlocks.push({ provider, withPassword: password !== null });
+        return vaultSignInReply(provider);
+      },
+    },
+  ),
   ArdiaSwipe: {
     haptic: () => {},
     switchPager: () => Promise.resolve(false),

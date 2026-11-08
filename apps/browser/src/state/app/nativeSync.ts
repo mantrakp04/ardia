@@ -24,6 +24,7 @@ import { startExtensionsBridge } from "../extensions/bridge";
 import { useExtensions } from "../extensions/actions";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
 import { menuState } from "../commands/menuState";
+import { startVaults } from "../vaults/start";
 
 const QUIT_SAVES_WAIT_MS = 3_000;
 
@@ -56,6 +57,7 @@ export function startNativeSync() {
 
   store.getState().setAppDark(Appearance.getColorScheme() === "dark");
   startNativeSettings();
+  startVaults();
   void isDarkAppearance().then((dark) => store.getState().setAppDark(dark));
 
   onAppEvent((e) => {

@@ -18,6 +18,8 @@ import { DEVICE_CHOOSER_WIDTH, DeviceChooser } from "../site/DeviceChooser";
 import { NavigationOverlays } from "./SwipeOverlay";
 import { HISTORY_MENU_WIDTH, HistoryPopover } from "./HistoryPopover";
 import { TabWebView } from "./TabWebView";
+import { VaultMenuHost } from "../vaults/VaultMenu";
+import { VaultSaveOffer } from "../vaults/VaultSaveOffer";
 
 const fitLeft = (urlLeft: number, paneWidth: number, promptWidth: number) => Math.max(POPOVER_MARGIN, Math.min(urlLeft, paneWidth - promptWidth - POPOVER_MARGIN));
 
@@ -57,6 +59,7 @@ export function PageOverlays({
       {cliPill && <CliControlPill style={statusStyle} />}
       {!newTabShown && <PermissionPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, PERMISSION_PROMPT_WIDTH)} top={POPOVER_MARGIN} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
+      <VaultSaveOffer tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       {!newTabShown && <ExternalAppPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, EXTERNAL_APP_WIDTH)} top={POPOVER_MARGIN} />}
       {!newTabShown && <EngineOfferPrompt tabId={tabId} left={fitLeft(geometry.urlLeft, width, ENGINE_OFFER_WIDTH)} top={POPOVER_MARGIN} />}
@@ -68,6 +71,7 @@ export function PageOverlays({
       <CastPicker tabId={tabId} paneWidth={width} />
       <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} historyMenu={popovers} />
       <SelectionPopover tabId={tabId} zoom={zoom} />
+      <VaultMenuHost tabId={tabId} zoom={zoom} />
     </>
   );
 }

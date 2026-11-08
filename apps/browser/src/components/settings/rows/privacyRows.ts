@@ -57,7 +57,19 @@ export const privacyRows = {
         },
         importPasswords: { title: "Import passwords", description: "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…", keywords: ["csv", "logins"] },
         exportPasswords: { advanced: true, title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
-        managerApps: { advanced: true, title: "Password manager apps", keywords: ["1password", "bitwarden", "keepassxc", "proton pass"] },
+      },
+    },
+    {
+      section: "Password Managers",
+      rows: {
+        managers: {
+          title: "Password Managers",
+          keywords: ["1password", "bitwarden", "proton pass", "vaultwarden", "self-hosted", "vault", "connect", "one-time codes", "totp", "2fa"],
+        },
+        vaultSuggestOnFocus: { title: "Suggest on Focus", keywords: ["autofill", "fill menu", "suggestions", "login field"] },
+        vaultSaveOffer: { title: "Offer to Save", keywords: ["save login", "new password", "save prompt"] },
+        vaultSaveTarget: { title: "Save New Logins To", keywords: ["default manager", "save to", "destination"] },
+        vaultIdleLockMinutes: { title: "Lock After", keywords: ["auto lock", "timeout", "idle", "touch id"] },
       },
     },
   ],
