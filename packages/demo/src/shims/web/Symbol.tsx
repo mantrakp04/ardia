@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useReducer } from "react";
 import { View, type ViewProps } from "react-native";
 import { noteMissing } from "../missing";
 import { symbolLayers, symbolNudge } from "./symbols/data";
-import { knownInkShift, measureInkShift } from "./symbols/ink";
+import { inkProbeMarkup, knownInkShift, measureInkShift } from "./symbols/ink";
 import { symbolMarkup, type SymbolWeight } from "./symbols/render";
 
 export type SymbolProps = ViewProps & {
@@ -32,13 +32,14 @@ export function Symbol({ name, size = NATIVE_DEFAULT_POINT_SIZE, weight = "regul
   useEffect(() => {
     if (!centerInk || !layers || knownInkShift(inkKey)) return;
     let current = true;
-    void measureInkShift(inkKey, markup, canvas).then((measured) => {
+    const probe = inkProbeMarkup(layers, { pointSize: size, weight, width: canvas, height: canvas, id, nudge: symbolNudge(name, weight, size) });
+    void measureInkShift(inkKey, probe, canvas).then((measured) => {
       if (measured && current) measuredAgain();
     });
     return () => {
       current = false;
     };
-  }, [centerInk, layers, inkKey, markup, canvas]);
+  }, [centerInk, layers, inkKey, name, size, weight, canvas, id]);
   return (
     <View pointerEvents="none" {...props} style={style}>
       {layers ? (

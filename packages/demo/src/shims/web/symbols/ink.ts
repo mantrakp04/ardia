@@ -1,9 +1,19 @@
+import { symbolMarkup, type SymbolLayer, type SymbolWeight } from "./render";
+
 export type InkBox = { x: number; y: number; width: number; height: number };
 export type InkShift = readonly [number, number];
 
 const INK_ALPHA_THRESHOLD = 16;
 const PIXELS_PER_POINT = 8;
+const PROBE_COLOR = "#000";
 const measured = new Map<string, InkShift>();
+
+export function inkProbeMarkup(
+  layers: readonly SymbolLayer[],
+  options: { pointSize: number; weight: SymbolWeight; width: number; height: number; id: string; nudge?: readonly [number, number] },
+): string {
+  return symbolMarkup(layers, { ...options, color: PROBE_COLOR });
+}
 
 export function inkShift(box: InkBox | null, canvas: number): InkShift {
   if (!box || (box.width <= 0 && box.height <= 0)) return [0, 0];
@@ -34,6 +44,7 @@ export function knownInkShift(key: string): InkShift | undefined {
 }
 
 export async function measureInkShift(key: string, markup: string, canvas: number): Promise<InkShift | null> {
+  if (!Number.isFinite(canvas) || canvas <= 0) return null;
   const known = measured.get(key);
   if (known) return known;
   const pixels = canvas * PIXELS_PER_POINT;

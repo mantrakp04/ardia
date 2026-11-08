@@ -48,7 +48,7 @@ test("the demo shim moves a centerInk glyph by the gap between its drawn shape a
   assert.deepEqual(inkShift({ x: 0, y: 0, width: 0, height: 0 }, 24), [0, 0]);
   const shim = read("../../../../../packages/demo/src/shims/web/Symbol.tsx");
   assert.match(shim, /centerInk && knownInkShift\(inkKey\)/);
-  assert.match(shim, /measureInkShift\(inkKey, markup, canvas\)/);
+  assert.match(shim, /measureInkShift\(inkKey, probe, canvas\)/);
   assert.match(shim, /left: -canvas \/ 2 \+ shift\[0\], top: -canvas \/ 2 \+ shift\[1\]/);
 });
 
@@ -69,6 +69,58 @@ test("the demo shim finds the drawn shape from the rendered pixels, strokes incl
   assert.equal(inkBox(new Uint8Array(8), 16, 16, 8), null);
   assert.equal(inkBox(drawn, 0, 16, 8), null);
   assert.equal(inkBox(drawn, 16, 16, 0), null);
+});
+
+test("a zero-sized or non-finite centerInk symbol is left where it is, like the native no-op, and never reaches the raster surface", async () => {
+  const { measureInkShift } = await import("../../../../../packages/demo/src/shims/web/symbols/ink.ts");
+  const globals = ["Image", "document"];
+  const saved = globals.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]);
+  const touched = [];
+  globalThis.Image = class {
+    set src(_value) {}
+    decode() {
+      touched.push("decode");
+      return Promise.resolve();
+    }
+  };
+  globalThis.document = {
+    createElement: () => ({
+      getContext: () => ({
+        drawImage() {},
+        getImageData(_x, _y, width, height) {
+          if (!(width > 0 && height > 0)) throw new DOMException("The source width is 0.", "IndexSizeError");
+          return { data: new Uint8ClampedArray(width * height * 4) };
+        },
+      }),
+    }),
+  };
+  try {
+    for (const canvas of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.equal(await measureInkShift(`empty-${canvas}`, "<svg/>", canvas), null, `canvas ${canvas}`);
+    }
+    assert.deepEqual(touched, []);
+  } finally {
+    for (const [name, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+  }
+});
+
+test("the demo shim measures the drawn shape with an opaque probe colour, so the glyph's own colour never changes the cached shift", async () => {
+  const { inkProbeMarkup } = await import("../../../../../packages/demo/src/shims/web/symbols/ink.ts");
+  const { symbolLayers } = await import("../../../../../packages/demo/src/shims/web/symbols/data.ts");
+  const { symbolMarkup } = await import("../../../../../packages/demo/src/shims/web/symbols/render.ts");
+  const layers = symbolLayers("pip.fill");
+  assert.ok(layers, "pip.fill artwork");
+  const options = { pointSize: 6.6, weight: "bold", width: 20, height: 20, id: "probe" };
+  const probe = inkProbeMarkup(layers, options);
+  assert.equal(probe, symbolMarkup(layers, { ...options, color: "#000" }));
+  assert.doesNotMatch(probe, /rgba?\(|hsla?\(|transparent/i);
+  const shim = read("../../../../../packages/demo/src/shims/web/Symbol.tsx");
+  assert.match(shim, /const probe = inkProbeMarkup\(layers, \{[^}]*\}\);/);
+  assert.match(shim, /measureInkShift\(inkKey, probe, canvas\)/);
+  assert.doesNotMatch(shim, /measureInkShift\(inkKey, markup/);
 });
 
 test("a failed measurement is not remembered, so the next layout measures again", () => {
