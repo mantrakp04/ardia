@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -485,7 +486,7 @@ class TabIdsTest(unittest.TestCase):
         _, one, two = self.registries()
         self.assertEqual(one.numbers("I", ["A", "B"]), {"A": "t1", "B": "t2"})
         self.assertEqual(two.numbers("I", ["C", "B"]), {"C": "t3", "B": "t2"})
-        self.assertEqual(one.numbers("I", ["C"], present=["A", "C"]), {"C": "t3"})
+        self.assertEqual(one.numbers("I", ["C"], present=["A", "C"], taken_at=time.time() + 1), {"C": "t3"})
         self.assertEqual(two.numbers("I", ["D", "A"]), {"D": "t4", "A": "t1"})
         self.assertEqual(one.target_of("I", "t4"), "D")
         self.assertIsNone(one.target_of("I", "t2"))
