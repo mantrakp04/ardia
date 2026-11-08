@@ -355,6 +355,113 @@ class TempTabRecovery(unittest.TestCase):
         self.assertEqual(state.registry.temporaries("I"), ["GONE"])
 
 
+class FilteredRefresh(unittest.TestCase):
+    def test_a_refresh_filtered_for_display_never_drops_ownership_of_an_unlisted_target(self):
+        from ardia_cli.browse.state import State
+
+        registry = scratch_registry()
+        state = State({"session": "reader", "key": registry.key, "browse_fd": registry.browse_fd}, lambda: None)
+        state.registry = registry
+        state.instance = "I"
+        registry.note_temporary("I", "SETTINGS")
+        registry.note_temporary("I", "WORKER")
+        registry.numbers("I", ["SETTINGS", "WORKER"])
+        time.sleep(0.01)
+        infos = [{"targetId": "SETTINGS", "type": "page", "url": "chrome://settings/"},
+                 {"targetId": "WORKER", "type": "service_worker", "url": "https://s/sw.js"},
+                 {"targetId": "PAGE", "type": "page", "url": "https://s/"}]
+
+        async def send(method, params=None, session=None, timeout=30):
+            return {"targetInfos": infos}
+
+        state.browser = SimpleNamespace(send=send)
+        run(state.refresh_targets())
+        self.assertEqual(sorted(state.target_infos), ["PAGE"])
+        self.assertEqual(sorted(registry.temporaries("I")), ["SETTINGS", "WORKER"])
+        infos[:] = [infos[2]]
+        time.sleep(0.01)
+        run(state.refresh_targets())
+        self.assertEqual(registry.temporaries("I"), [])
+
+
+class CapacityFirst(unittest.TestCase):
+    def full_state(self):
+        from ardia_cli.browse import tabs
+
+        state = reader_state()
+        other = peer(state.registry, "other-session")
+        for index in range(tabs.MAX_TEMPORARIES):
+            other.note_temporary("I", f"HELD{index}")
+        return state
+
+    def test_a_full_registry_refuses_before_any_tab_is_created(self):
+        from ardia_cli.browse import temptabs
+
+        state = self.full_state()
+        owned = []
+        with self.assertRaises(BrowseError) as caught:
+            run(temptabs.create(state, owned))
+        self.assertEqual(caught.exception.code, "temporary_limit")
+        self.assertEqual(state.browser.created, [])
+        self.assertEqual(owned, [])
+
+    def test_a_failed_create_gives_its_reserved_slot_back(self):
+        from ardia_cli.browse import tabs, temptabs
+        from ardia_cli.browse.errors import Gated
+
+        state = reader_state()
+        other = peer(state.registry, "other-session")
+        for index in range(tabs.MAX_TEMPORARIES - 1):
+            other.note_temporary("I", f"HELD{index}")
+
+        async def refuse(method, params=None, session=None, timeout=30):
+            raise Gated("Target.createTarget")
+
+        browser, state.browser = state.browser, SimpleNamespace(send=refuse)
+        with self.assertRaises(BrowseError):
+            run(temptabs.create(state, []))
+        state.browser = browser
+        owned = []
+        target = run(temptabs.create(state, owned))
+        self.assertEqual(owned, [target])
+        self.assertEqual(state.registry.temporaries("I"), [target])
+
+    def test_a_slot_left_by_an_earlier_run_is_freed_by_the_next_sweep(self):
+        from ardia_cli.browse import temptabs
+        from ardia_cli.browse.tabs import Registry
+
+        state = reader_state()
+        earlier = Registry(state.registry.browse_fd, state.registry.key, state.registry.session)
+        slot = earlier.reserve_temporary("I")
+        self.assertEqual(state.registry.temporaries("I"), [slot])
+        run(temptabs.sweep(state))
+        self.assertEqual(state.registry.temporaries("I"), [])
+        self.assertEqual(state.browser.closed, [])
+
+    def test_a_registry_write_failing_after_the_create_keeps_closing_the_tab_until_it_is_gone(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.browser.close_fails = True
+
+        async def go():
+            with mock.patch.object(type(state.registry), "note_temporary", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    await temptabs.create(state, [])
+            self.assertEqual(state.browser.created, ["R1"])
+            self.assertEqual(state.extras["must_close"], {"R1"})
+            await asyncio.sleep(0.05)
+            self.assertEqual(state.extras["must_close"], {"R1"})
+            state.browser.close_fails = False
+            await asyncio.wait_for(state.extras["must_close_task"], 5)
+
+        with mock.patch.object(temptabs, "RETRY_FIRST", 0.02):
+            run(go())
+        self.assertEqual(state.browser.closed, ["R1"])
+        self.assertEqual(state.extras["must_close"], set())
+        self.assertEqual(state.registry.temporaries("I"), [])
+
+
 class RegistryBounds(unittest.TestCase):
     def registry(self, key="mine", session="mine"):
         return scratch_registry(key, session)

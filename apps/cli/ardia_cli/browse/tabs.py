@@ -105,6 +105,13 @@ async def app_tab_target(state, app_tab: str) -> dict:
     return {"target": target, "url": tab.get("url"), "title": tab.get("title"), "generation": tab.get("pageGeneration")}
 
 
+def temporary_limit():
+    from ardia_cli.browse.errors import BrowseError
+
+    return BrowseError(f"Ardia already has {MAX_TEMPORARIES} tabs open for ardia browse reads and scripts; let them finish, or end "
+                       "idle sessions with `ardia browse close --all`", code="temporary_limit")
+
+
 class Registry:
     def __init__(self, browse_fd: int | None, key: str, session: str):
         self.browse_fd = browse_fd
@@ -233,17 +240,29 @@ class Registry:
         with self._open(instance) as data:
             data["opened"][target] = {"key": self.key, "session": self.session, "at": time.time()}
 
-    def note_temporary(self, instance: str | None, target: str):
+    def temporary_record(self) -> dict:
+        return {"key": self.key, "session": self.session, "temporary": True, "run": self.run, "at": time.time()}
+
+    def reserve_temporary(self, instance: str | None) -> str | None:
+        if self.browse_fd is None:
+            return None
+        with self._open(instance) as data:
+            if sum(1 for owner in data["opened"].values() if owner.get("temporary")) >= MAX_TEMPORARIES:
+                raise temporary_limit()
+            slot = "SLOT" + secrets.token_hex(14).upper()
+            data["opened"][slot] = self.temporary_record()
+            return slot
+
+    def note_temporary(self, instance: str | None, target: str, slot: str | None = None):
         if self.browse_fd is None:
             return
-        from ardia_cli.browse.errors import BrowseError
-
         with self._open(instance) as data:
-            held = [other for other, owner in data["opened"].items() if owner.get("temporary") and other != target]
+            held = [other for other, owner in data["opened"].items() if owner.get("temporary") and other not in (target, slot)]
             if len(held) >= MAX_TEMPORARIES:
-                raise BrowseError(f"Ardia already has {MAX_TEMPORARIES} tabs open for ardia browse reads and scripts; let them finish, or end "
-                                  "idle sessions with `ardia browse close --all`", code="temporary_limit")
-            data["opened"][target] = {"key": self.key, "session": self.session, "temporary": True, "run": self.run, "at": time.time()}
+                raise temporary_limit()
+            if slot is not None:
+                data["opened"].pop(slot, None)
+            data["opened"][target] = self.temporary_record()
 
     def temporaries(self, instance: str | None) -> list[str]:
         if self.browse_fd is None:

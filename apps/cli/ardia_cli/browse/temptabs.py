@@ -5,6 +5,8 @@ from ardia_cli.browse.errors import BrowseError
 CLOSE_TIMEOUT = 3.0
 GONE_WAIT = 2.0
 GONE_POLL = 0.05
+RETRY_FIRST = 1.0
+RETRY_MAX = 30.0
 
 
 async def settle_then_cancel(task):
@@ -22,16 +24,67 @@ async def settle_then_cancel(task):
 async def create(state, owned: list[str]) -> str:
     from ardia_cli.browse.errors import Gated
 
+    registry = state.registry
+    slot = registry.reserve_temporary(state.instance)
+
     async def make():
         try:
             result = await state.browser.send("Target.createTarget", {"url": "about:blank", "background": True})
-        except Gated:
-            raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
-        owned.append(result["targetId"])
-        state.registry.note_temporary(state.instance, result["targetId"])
-        return result["targetId"]
+        except BaseException as error:
+            give_back(state, slot)
+            if isinstance(error, Gated):
+                raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
+            raise
+        target_id = result["targetId"]
+        try:
+            registry.note_temporary(state.instance, target_id, slot)
+        except BaseException:
+            must_close(state, target_id)
+            give_back(state, slot)
+            raise
+        owned.append(target_id)
+        return target_id
 
     return await settle_then_cancel(asyncio.ensure_future(make()))
+
+
+def give_back(state, slot: str | None):
+    if slot is None:
+        return
+    try:
+        state.registry.drop_temporary(state.instance, slot)
+    except Exception:
+        pass
+
+
+def must_close(state, target_id: str):
+    state.extras.setdefault("must_close", set()).add(target_id)
+    task = state.extras.get("must_close_task")
+    if task is None or task.done():
+        state.extras["must_close_task"] = asyncio.ensure_future(retry_closes(state))
+
+
+async def close_untracked(state, target_id: str) -> bool:
+    if not state.connected:
+        return False
+    try:
+        await asyncio.wait_for(state.browser.send("Target.closeTarget", {"targetId": target_id}), CLOSE_TIMEOUT)
+    except Exception:
+        return False
+    return await gone(state, target_id)
+
+
+async def retry_closes(state):
+    pending = state.extras["must_close"]
+    delay = RETRY_FIRST
+    while pending:
+        for target_id in list(pending):
+            if await close_untracked(state, target_id):
+                pending.discard(target_id)
+                state.forget_target(target_id)
+        if pending:
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, RETRY_MAX)
 
 
 async def present_targets(state) -> set[str] | None:

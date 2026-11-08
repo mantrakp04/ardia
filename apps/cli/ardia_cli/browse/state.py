@@ -150,7 +150,8 @@ class State:
         for target_id in list(self.pages) + ([self.current] if self.current else []):
             if target_id not in self.target_infos:
                 self.forget_target(target_id)
-        self.tab_ids.update(self.registry.numbers(self.instance, self.target_infos, present=self.target_infos, taken_at=taken_at))
+        every_target = {info["targetId"] for info in infos if info.get("targetId")}
+        self.tab_ids.update(self.registry.numbers(self.instance, self.target_infos, present=every_target, taken_at=taken_at))
         return pages
 
     def forget_target(self, target_id: str):
