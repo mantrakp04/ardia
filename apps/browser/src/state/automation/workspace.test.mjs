@@ -208,3 +208,144 @@ test("tabs and groups move between windows and into other groups without changin
   assert.equal(S().groups[gone.results[0].group].windowId, other);
   assert.equal(activeOf(other), shown);
 });
+
+const { keepGroupsOpen } = await import("../groups/closeGuard.ts");
+const model = await import("../browser/model.ts");
+
+test("R1: a shared folder is never removed or emptied through a child group or its members", async () => {
+  const { windowId, b, c } = await setup();
+  const made = await apply({ op: "group.create", tabs: [b, c], name: "Shared" }, { op: "group.create", parent: "$0", tabs: [b, c], name: "Child" });
+  assert.equal(made.ok, true, JSON.stringify(made.error));
+  const [shared, child] = made.results.map((r) => r.group);
+  keepGroupsOpen((id) => id === shared);
+  try {
+    for (const op of [{ op: "group.delete", group: child }, { op: "group.close", group: child }, { op: "tab.move", tabs: [b, c], group: null }, { op: "group.create", tabs: [b, c], pinned: false }]) {
+      const r = await apply(op);
+      assert.equal(r.ok, false, op.op);
+      assert.equal(r.error.code, "refused", op.op);
+      assert.ok(S().groups[shared] && S().groups[child], op.op);
+      assert.deepEqual([...S().groups[shared].tabIds].sort(), [b, c].sort(), op.op);
+    }
+    assert.equal((await apply({ op: "group.move", group: shared, parent: child })).ok, false);
+  } finally {
+    keepGroupsOpen(() => false);
+  }
+  assert.ok(order(windowId).includes(b));
+});
+
+test("R2: inherited object properties are never ids", async () => {
+  const { windowId, b } = await setup();
+  for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+    for (const op of [
+      { op: "tab.move", tabs: [b], profile: name },
+      { op: "tab.move", tabs: [b], window: name },
+      { op: "tab.move", tabs: [b], group: name },
+      { op: "tab.close", tabs: [name] },
+      { op: "open", urls: ["https://x.example/"], profile: name },
+      { op: "group.update", group: name, name: "x" },
+    ]) {
+      const r = await apply(op);
+      assert.equal(r.ok, false, `${op.op} ${name}`);
+      assert.equal(r.error.code, "no_window", `${op.op} ${name}`);
+    }
+    assert.equal((await call("workspace", { profile: name })).error.code, "no_window");
+    assert.equal((await call("workspace", { window: name })).error.code, "no_window");
+  }
+  assert.equal(S().tabs[b].profileId, S().windows[windowId].profileId);
+  assert.equal(S().tabs[b].windowId, windowId);
+});
+
+test("R3: an operation that can't finish changes nothing", async () => {
+  const { windowId, b, c } = await setup();
+  const q = S().createProfile({ name: "Q" });
+  S().pinTabs([c], true, false);
+  const r = await apply({ op: "tab.move", tabs: [b, c], profile: q });
+  assert.equal(r.ok, false);
+  assert.equal(r.applied, 0);
+  assert.equal(S().tabs[b].profileId, S().windows[windowId].profileId);
+  const made = await apply({ op: "group.create", tabs: [b], pinned: false });
+  const g = made.results[0].group;
+  const priv = S().createWindow({ kind: "private", url: "https://p.example/" });
+  const moved = await apply({ op: "group.move", group: g, profile: q, window: priv });
+  assert.equal(moved.ok, false);
+  assert.equal(moved.applied, 0);
+  assert.equal(S().groups[g]?.profileId, S().windows[windowId].profileId);
+});
+
+test("R4: sleeping a background pin never unloads a page another window shows", async () => {
+  S().hydrate({});
+  await controlOn();
+  const a = S().createWindow({ url: "https://mail.com" });
+  const [mail] = S().windows[a].tabIds;
+  S().newTab(a, { url: "https://a.com" });
+  S().pinTabs([mail], true);
+  S().activate(mail);
+  const b = S().createWindow({ url: "https://b.com" });
+  const other = S().windows[b].tabIds.find((id) => !S().tabs[id].pin);
+  const copy = model.viewTabIds(S(), b).find((id) => S().tabs[id].pin && S().tabs[id].pinnedUrl === "https://mail.com");
+  S().activate(copy);
+  assert.equal(S().tabs[mail].windowId, b);
+  const inA = model.activeTabId(S(), a);
+  assert.equal(S().tabs[inA].page.holderId, mail);
+  S().activate(other);
+  const r = await apply({ op: "tab.sleep", tabs: [mail] });
+  assert.equal(r.ok, true);
+  assert.equal(r.results[0].outcomes[mail], "shown");
+  assert.equal(model.activeTabId(S(), a), inA);
+  assert.ok(S().tabs[mail].page.kind === "loaded" || S().tabs[mail].page.kind === "adopted");
+});
+
+test("R5: group null with an anchor goes to the top level next to the anchor's outermost group", async () => {
+  const { windowId, b, c } = await setup();
+  const g = (await apply({ op: "group.create", tabs: [b, c], pinned: false })).results[0].group;
+  const r = await apply({ op: "tab.move", tabs: [c], group: null, before: b });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(S().groups[g].tabIds.includes(c), false);
+  assert.equal(order(windowId).indexOf(c), order(windowId).indexOf(b) - 1);
+  const after = await apply({ op: "tab.move", tabs: [c], group: null, after: b });
+  assert.equal(after.ok, true);
+  assert.equal(S().groups[g].tabIds.includes(c), false);
+  assert.equal(order(windowId).indexOf(c), order(windowId).indexOf(S().groups[g].tabIds.at(-1)) + 1);
+});
+
+test("R6: a group and an anchor in different places is refused before anything moves", async () => {
+  const { windowId, a, b } = await setup();
+  const q = S().createProfile({ name: "Q" });
+  const qTab = S().newTab(windowId, { url: "https://q.example/", background: true, profileId: q });
+  const g = (await apply({ op: "group.create", tabs: [qTab], pinned: false })).results[0].group;
+  assert.equal(S().groups[g].profileId, q);
+  const before = order(windowId).slice();
+  const r = await apply({ op: "tab.move", tabs: [b], group: g, before: a });
+  assert.equal(r.ok, false);
+  assert.equal(r.error.code, "bad_request");
+  assert.equal(S().tabs[b].profileId, S().windows[windowId].profileId);
+  assert.deepEqual(order(windowId), before);
+  const outside = await apply({ op: "open", urls: ["https://x.example/"], group: g, before: a });
+  assert.equal(outside.ok, false);
+  assert.equal(outside.error.code, "bad_request");
+  assert.deepEqual(order(windowId), before);
+});
+
+test("R6: a store action that quietly does nothing is reported as a failure, never success", async () => {
+  const { b, c } = await setup();
+  const g = (await apply({ op: "group.create", tabs: [c], pinned: false })).results[0].group;
+  const real = S().placeTabs;
+  useBrowser.setState({ placeTabs: () => {} });
+  try {
+    const r = await apply({ op: "tab.move", tabs: [b], group: g });
+    assert.equal(r.ok, false);
+    assert.equal(r.error.code, "failed");
+    assert.equal(r.applied, 0);
+  } finally {
+    useBrowser.setState({ placeTabs: real });
+  }
+  const real2 = S().updateGroup;
+  useBrowser.setState({ updateGroup: () => {} });
+  try {
+    const r = await apply({ op: "group.update", group: g, name: "Nope" });
+    assert.equal(r.ok, false);
+    assert.equal(r.error.code, "failed");
+  } finally {
+    useBrowser.setState({ updateGroup: real2 });
+  }
+});

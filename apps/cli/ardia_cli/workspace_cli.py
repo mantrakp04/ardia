@@ -4,6 +4,7 @@ import sys
 
 from ardia_cli import control
 from ardia_cli.control import MethodError, Unreachable
+from ardia_cli.printable import shown
 
 DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 APPLY_TIMEOUT = 120.0
@@ -346,16 +347,16 @@ GROUP_VERBS = {"group.update": "updated", "group.move": "moved", "group.ungroup"
 
 def describe_result(result: dict) -> str:
     op = str(result.get("op"))
-    tabs = result.get("tabs") or []
-    group = result.get("group")
+    tabs = [shown(tab) for tab in result.get("tabs") or []]
+    group = shown(result.get("group"))
     outcomes = result.get("outcomes")
     if isinstance(outcomes, dict):
-        return "  ".join(f"{tab}: {outcome}" for tab, outcome in outcomes.items())
+        return "  ".join(f"{shown(tab)}: {shown(outcome)}" for tab, outcome in outcomes.items())
     if op == "group.create":
         return f"created group {group} with {len(tabs)} tab{'s' if len(tabs) != 1 else ''}"
     if op.startswith("group."):
-        return f"{GROUP_VERBS.get(op, op)} group {group}"
-    return f"{VERBS.get(op, op)} {', '.join(map(str, tabs))}".rstrip()
+        return f"{GROUP_VERBS.get(op, shown(op))} group {group}"
+    return f"{VERBS.get(op, shown(op))} {', '.join(tabs)}".rstrip()
 
 
 def cmd_tabs(args) -> int:
@@ -373,7 +374,7 @@ def cmd_tabs(args) -> int:
         say(json.dumps(flat_tabs(tree) if args.flat else tree, indent=2, ensure_ascii=False))
     elif args.flat:
         for tab in flat_tabs(tree):
-            say(tab_line(tab, f"{tab['window']}  {tab['profile']}  "))
+            say(tab_line(tab, f"{shown(tab['window'])}  {shown(tab['profile'])}  "))
     else:
         print_tree(tree)
     return 0
@@ -466,21 +467,21 @@ def flat_groups(tree: dict) -> list:
 
 def tab_line(tab: dict, prefix: str = "") -> str:
     marks = [m for m, on in (("muted", tab.get("muted")), ("asleep", tab.get("asleep")), (f"pinned {tab.get('pin')}", tab.get("pin"))) if on]
-    title = tab.get("title") or ""
-    tail = f"  ({', '.join(marks)})" if marks else ""
-    return f"{'*' if tab.get('active') else ' '} {prefix}{tab.get('id')}  {title}  {tab.get('url', '')}{tail}".rstrip()
+    title = shown(tab.get("title"))
+    tail = f"  ({shown(', '.join(marks))})" if marks else ""
+    return f"{'*' if tab.get('active') else ' '} {prefix}{shown(tab.get('id'))}  {title}  {shown(tab.get('url'))}{tail}".rstrip()
 
 
 def group_line(group: dict, indent: str = "") -> str:
-    looks = [str(v) for v in (group.get("icon"), group.get("color")) if v and v != "neutral"]
+    looks = [shown(v) for v in (group.get("icon"), group.get("color")) if v and v != "neutral"]
     marks = [m for m, on in (("collapsed", group.get("collapsed")), ("pinned", group.get("pinned"))) if on]
-    parts = [f"group {group.get('id')}", json.dumps(group.get("label") or "", ensure_ascii=False)]
+    parts = [f"group {shown(group.get('id'))}", shown(json.dumps(group.get("label") or "", ensure_ascii=False))]
     if looks or marks:
         parts.append(" ".join(looks + marks))
     if "window" in group:
-        parts += [f"window {group['window']}", f"profile {group['profile']}"]
+        parts += [f"window {shown(group['window'])}", f"profile {shown(group['profile'])}"]
         if group.get("parent"):
-            parts.append(f"in {group['parent']}")
+            parts.append(f"in {shown(group['parent'])}")
     if "tabs" in group:
         parts.append(f"{len(group['tabs'])} tabs")
     return indent + "  ".join(parts)
@@ -489,9 +490,9 @@ def group_line(group: dict, indent: str = "") -> str:
 def print_tree(tree: dict) -> None:
     for window in tree.get("windows") or []:
         flags = [str(window.get("kind", "normal"))] + (["focused"] if window.get("focused") else [])
-        say(f"window {window.get('id')}  {', '.join(flags)}")
+        say(f"window {shown(window.get('id'))}  {shown(', '.join(flags))}")
         for space in window.get("spaces") or []:
-            say(f"  {space.get('profileName') or space.get('profile')} ({space.get('profile')}){'  shown' if space.get('shown') else ''}")
+            say(f"  {shown(space.get('profileName') or space.get('profile'))} ({shown(space.get('profile'))}){'  shown' if space.get('shown') else ''}")
             for section, items in sections(space):
                 if not items:
                     continue
@@ -502,7 +503,7 @@ def print_tree(tree: dict) -> None:
                     if kind == "tab":
                         say(indent + tab_line(item))
                     elif kind == "folder":
-                        say(f"{indent}  folder {item.get('id')}  {json.dumps(item.get('name') or '', ensure_ascii=False)}")
+                        say(f"{indent}  folder {shown(item.get('id'))}  {shown(json.dumps(item.get('name') or '', ensure_ascii=False))}")
                     else:
                         say(group_line(item, indent + "  "))
 

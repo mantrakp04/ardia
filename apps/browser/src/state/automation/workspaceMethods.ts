@@ -1,9 +1,9 @@
 import { errorText } from "../../lib/errors";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, isIncognitoProfile } from "../browser/model";
 import { noteCliEdits } from "../telemetry/usage";
 import { failure, type ErrorCode, type MethodError } from "./automationMethods";
-import { eligibleKind, isEligibleTab } from "./automationWindows";
+import { eligibleKind, isEligibleTab, ownEntry } from "./automationWindows";
 import { parseOps, type Op } from "./workspaceOps";
 import { runOp } from "./workspaceApply";
 import { OpError, type OpResult } from "./workspaceTargets";
@@ -21,7 +21,7 @@ export function workspaceMethod(params: Record<string, unknown>): Body {
   if (unknown.length) return failure("bad_request", `workspace takes window and profile, not ${unknown.join(", ")}.`);
   const s = useBrowser.getState();
   if (window && !eligibleKind(s, window)) return failure("no_window", `There's no window ${window} the ardia command can use.`);
-  if (profile && !s.profiles[profile]) return failure("no_window", `There's no profile ${profile}.`);
+  if (profile && (!ownEntry(s.profiles, profile) || isIncognitoProfile(profile))) return failure("no_window", `There's no profile ${profile}.`);
   return { result: workspace(s, { window, profile }) };
 }
 

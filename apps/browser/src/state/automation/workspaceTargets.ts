@@ -1,10 +1,11 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { TabGroup } from "../browser/types";
 import { isIncognitoProfile, isPinnedRow } from "../browser/model";
-import { innermostGroupOf, rootOf } from "../groups/groups";
+import { ancestorIds, innermostGroupOf, rootOf } from "../groups/groups";
 import type { TabPlacement } from "../pins/placing";
 import type { ErrorCode } from "./automationMethods";
-import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow } from "./automationWindows";
+import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow, ownEntry } from "./automationWindows";
+import type { Op } from "./workspaceOps";
 import { isEligibleGroup } from "./workspaceTree";
 
 export class OpError extends Error {
@@ -47,21 +48,21 @@ export function groupRef(results: OpResult[], ref: string): TabGroup {
   if (!id) throw new OpError("bad_request", `${ref} made no group.`);
   const s = store();
   if (!isEligibleGroup(s, id)) throw new OpError("no_window", `There's no group ${id} the ardia command can use.`);
-  return s.groups[id]!;
+  return ownEntry(s.groups, id)!;
 }
 
-export type Anchor = { kind: "tab"; id: string; windowId: string; profileId: string } | { kind: "group"; id: string; windowId: string; profileId: string };
+export type Anchor = { kind: "tab" | "group"; id: string; windowId: string; profileId: string };
 
 export function anchorRef(results: OpResult[], ref: string): Anchor {
   const at = refIndex(ref);
   const s = store();
-  const group = at === null ? (s.groups[ref] ? ref : null) : (results[at]?.group ?? null);
+  const group = at === null ? (ownEntry(s.groups, ref) ? ref : null) : (results[at]?.group ?? null);
   if (group) {
     const g = groupRef(results, group);
     return { kind: "group", id: g.id, windowId: g.windowId, profileId: g.profileId };
   }
   const id = tabRef(results, ref);
-  const t = s.tabs[id]!;
+  const t = ownEntry(s.tabs, id)!;
   return { kind: "tab", id, windowId: t.windowId, profileId: t.profileId };
 }
 
@@ -71,8 +72,7 @@ export function normalWindow(id: string): string {
 }
 
 export function profileOf(id: string): string {
-  const s = store();
-  if (!s.profiles[id] || isIncognitoProfile(id)) throw new OpError("no_window", `There's no profile ${id}.`);
+  if (!ownEntry(store().profiles, id) || isIncognitoProfile(id)) throw new OpError("no_window", `There's no profile ${id}.`);
   return id;
 }
 
@@ -86,6 +86,19 @@ export function defaultWindow(profileId?: string): string {
   const found = showing ?? (last && isNormal(s, last) ? last : order[0]);
   if (!found) throw new OpError("no_window", "No browser window the ardia command can use is open.");
   return found;
+}
+
+export type Space = { windowId: string; profileId: string };
+
+export function space(op: Op, fallback?: Space): Space {
+  const profileId = op.profile !== undefined ? profileOf(op.profile as string) : undefined;
+  if (op.window !== undefined) {
+    const windowId = normalWindow(op.window as string);
+    return { windowId, profileId: profileId ?? store().windows[windowId]!.profileId };
+  }
+  if (fallback && (!profileId || profileId === fallback.profileId)) return fallback;
+  const windowId = defaultWindow(profileId);
+  return { windowId, profileId: profileId ?? store().windows[windowId]!.profileId };
 }
 
 export function nextOutside(s: BrowserState, windowId: string, profileId: string, from: number, skip: ReadonlySet<string>): string | null {
@@ -106,10 +119,17 @@ export function blockEnd(s: BrowserState, tabId: string): number {
   return last + 1;
 }
 
-export type Destination = { placement: TabPlacement; windowId: string; profileId: string };
+export type Destination = Space & { placement: TabPlacement; anchor?: Anchor; after?: boolean };
 
-export function besideAnchor(anchor: Anchor, after: boolean, moving: ReadonlySet<string>, group: TabGroup | null | undefined): Destination {
+function outermost(s: BrowserState, anchor: Anchor): Anchor {
+  const inner = anchor.kind === "group" ? s.groups[anchor.id] : innermostGroupOf(s.groups, anchor.id);
+  const root = inner ? rootOf(s.groups, inner.id) : undefined;
+  return root ? { ...anchor, kind: "group", id: root.id } : anchor;
+}
+
+export function besideAnchor(asked: Anchor, after: boolean, moving: ReadonlySet<string>, group: TabGroup | null | undefined): Destination {
   const s = store();
+  const anchor = group === null ? outermost(s, asked) : asked;
   const w = s.windows[anchor.windowId]!;
   let beforeId: string | null;
   let groupId: string | null;
@@ -120,14 +140,39 @@ export function besideAnchor(anchor: Anchor, after: boolean, moving: ReadonlySet
     const end = g.tabIds.reduce((max, id) => Math.max(max, w.tabIds.indexOf(id)), -1) + 1;
     const first = w.tabIds.find((id) => g.tabIds.includes(id) && !moving.has(id)) ?? null;
     beforeId = after ? nextOutside(s, w.id, anchor.profileId, end, skip) : first;
-    groupId = group === undefined ? (g.parentId ?? null) : (group?.id ?? null);
-    if (!g.parentId && g.pinned && group === undefined) pin = { pinned: true, row: true };
+    groupId = group ? group.id : group === null ? null : (g.parentId ?? null);
+    if (!g.parentId && g.pinned && !group) pin = { pinned: true, row: true };
   } else {
     const t = s.tabs[anchor.id]!;
     if (moving.has(anchor.id)) throw new OpError("bad_request", `Tab ${anchor.id} can't go next to itself.`);
     beforeId = after ? nextOutside(s, w.id, anchor.profileId, w.tabIds.indexOf(anchor.id) + 1, moving) : anchor.id;
-    groupId = group === undefined ? (innermostGroupOf(s.groups, anchor.id)?.id ?? null) : (group?.id ?? null);
-    if (t.pin && group === undefined) pin = { pinned: true, row: isPinnedRow(t) };
+    groupId = group ? group.id : group === null ? null : (innermostGroupOf(s.groups, anchor.id)?.id ?? null);
+    if (t.pin && !group) pin = { pinned: true, row: isPinnedRow(t) };
   }
-  return { placement: pin.pinned ? { ...pin, beforeId } : { pinned: false, groupId, beforeId }, windowId: anchor.windowId, profileId: anchor.profileId };
+  const placement: TabPlacement = pin.pinned ? { ...pin, beforeId } : { pinned: false, groupId, beforeId };
+  return { placement, windowId: anchor.windowId, profileId: anchor.profileId, anchor: asked, after };
+}
+
+export function insideGroup(s: BrowserState, anchor: Anchor, group: TabGroup): boolean {
+  if (anchor.kind === "tab") return group.tabIds.includes(anchor.id);
+  return anchor.id !== group.id && ancestorIds(s.groups, anchor.id).includes(group.id);
+}
+
+export function destination(results: OpResult[], op: Op, moving: ReadonlySet<string>, group: TabGroup | null | undefined): Destination | null {
+  const ref = (op.before ?? op.after) as string | undefined;
+  if (ref) {
+    const anchor = anchorRef(results, ref);
+    if (group && (anchor.windowId !== group.windowId || anchor.profileId !== group.profileId)) {
+      throw new OpError("bad_request", `${ref} is in another window or profile than group ${group.id}.`);
+    }
+    if (group && !insideGroup(store(), anchor, group)) throw new OpError("bad_request", `${ref} isn't inside group ${group.id}.`);
+    return besideAnchor(anchor, op.after !== undefined, moving, group);
+  }
+  if (group) return { placement: { pinned: false, groupId: group.id, beforeId: null }, windowId: group.windowId, profileId: group.profileId };
+  return null;
+}
+
+export function checkSame(dest: Space, op: Op) {
+  if (op.window !== undefined && op.window !== dest.windowId) throw new OpError("bad_request", `The destination is in window ${dest.windowId}, not ${String(op.window)}.`);
+  if (op.profile !== undefined && op.profile !== dest.profileId) throw new OpError("bad_request", `The destination is in profile ${dest.profileId}, not ${String(op.profile)}.`);
 }

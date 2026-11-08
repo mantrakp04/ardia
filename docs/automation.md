@@ -132,8 +132,12 @@ redacted). Peek tabs, private windows and incognito profiles never appear. It do
 first runs: an unknown `op` or field (typos included), a wrong type, more than 500 operations or 100 URLs in one
 list is `bad_request`, a URL the socket won't open is `refused`, and nothing runs. Then each one checks its targets
 just before it runs, against the state the earlier ones left: a tab or group that is gone, moved out of reach, private
-or in an incognito profile is `no_window`, never a stand-in. The first failure stops the batch; what ran stays
-(there is no rollback: the operations are the user's own actions, each one complete). Batches never interleave: a
+or in an incognito profile is `no_window`, never a stand-in. Ids are looked up as the store's own entries only, so
+`constructor` or `__proto__` is no id. Each operation checks every target, destination and restriction for all of
+its tabs before its first change, so it applies whole or changes nothing, and afterwards checks that the store did
+what was asked (each tab in the window, profile, group and spot asked; each group with the parent, pin and fields
+asked; a removed group gone): a store that quietly refused is `failed`, never success. The first failure stops the
+batch; the operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
 second `apply` waits for the first. Turning control off stops a running batch before its next operation.
 
 Reply: `{"ok", "applied", "results": [{"op", "tabs"?, "group"?, "outcomes"?}], "error"?: {"index", "code",
@@ -143,8 +147,10 @@ operation is a normal reply with `ok: false`; only a request that fails the up-f
 
 Ids may be `$N` (N less than the operation's own index): what operation N made, its group in a group field, its
 tabs in a tab field (one tab where only one fits). `before`/`after` take a tab or a group id and put the tabs (or
-group) next to it, in that tab's group and section unless `group`/`parent` says otherwise; with neither, a tab moving
-to a window or profile goes where the store puts moved tabs.
+group) next to it, in that tab's group and section. With `group` (or `parent`) too, the anchor must be inside that
+group, in its window and profile, else `bad_request`. With `"group": null` too, the tabs go to the top level next to
+the anchor's outermost group (before its first tab, or after its last). With neither, a tab moving to a window or
+profile goes where the store puts moved tabs.
 
 | `op` | Fields | Does |
 |---|---|---|
@@ -153,7 +159,7 @@ to a window or profile goes where the store puts moved tabs.
 | `tab.pin` / `tab.unpin` | `tabs`, `as`? (`tile`/`row`) | `pinTabs`; unpinning a tab of a pinned group takes it out (`placeTabs`), as Unpin does |
 | `tab.activate` | `tab` | `activate` |
 | `tab.mute` / `tab.unmute` | `tabs` | `setMuted`; unmute also unmutes the site, as the menu does |
-| `tab.sleep` | `tabs` | Pinned tabs unload (`closeTabs`, as their ✕); others are discarded by Chrome. The tab a window shows is left alone. `outcomes`: `asleep`, `already`, `shown`, `refused`, `unsupported` |
+| `tab.sleep` | `tabs` | Pinned tabs unload (`closeTabs`, as their ✕); others are discarded by Chrome. A tab is left alone (`shown`) when it, a pinned copy sharing its page, or a pane of its split is shown in any window. `outcomes`: `asleep`, `already`, `shown`, `refused`, `unsupported` |
 | `tab.wake` | `tabs` | Loads a sleeping tab in the background (`updateTab` with its woken page, or a reload for a discarded one). `outcomes`: `awake`, `already`, `failed` |
 | `tab.close` | `tabs` | `closeTabs`: as ✕, so pinned tabs unload; never closes a window (a window left empty gets a New Tab) |
 | `tab.rename` / `tab.icon` | `tab`, `title` / `icon` (null resets) | `updateTab` `customTitle` / `customIcon`, as Rename… and Change Icon… |
@@ -166,8 +172,10 @@ to a window or profile goes where the store puts moved tabs.
   caller asked for exactly this. Nothing focuses a window, and nothing changes which tab a window shows unless asked
   (`activate`, `tab.activate`) or unavoidable (closing or moving away the tab it shows); the store's own moves take a
   `background` option for this.
-- **Refused.** A shared folder's group (`groupKeptOpen`) is never ungrouped, closed, deleted, unpinned or moved to
-  another profile here (the sidebar asks first); Little Ardia tabs aren't organized (it holds one tab); a Top Apps tile
+- **Refused.** A shared folder's group (`groupKeptOpen`) is never ungrouped, closed, deleted, unpinned, nested or
+  moved to another profile here (the sidebar asks first), and no operation may remove or empty one indirectly: closing
+  or deleting a child that holds all its tabs (the store closes the outermost group with the same tabs), moving,
+  pinning or regrouping all its members, or moving a child group out with them; Little Ardia tabs aren't organized (it holds one tab); a Top Apps tile
   doesn't change profile.
 - **URLs** go through the omnibox's own fix-up (`fixupUrl`, so `example.com` works) and then must be http or https
   with a host and no user info (`lib/urlParts.ts`'s strict reading), `file://`, `about:blank`, or `ardia://history`,

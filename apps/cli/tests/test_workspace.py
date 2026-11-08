@@ -177,3 +177,40 @@ class Workspace(Base):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             status = cli.run(list(argv))
         return status, out.getvalue(), err.getvalue()
+
+
+EVIL = "Pwned\x1b]52;c;ZXZpbA==\x07\x9b2J\x7f\nnext"
+
+
+class TerminalEscapes(Base):
+    def assert_inert(self, text):
+        for char in ("\x1b", "\x07", "\x9b", "\x7f"):
+            self.assertNotIn(char, text)
+        self.assertNotIn("\nnext", text)
+
+    def test_page_text_is_escaped_in_human_output(self):
+        tree = json.loads(json.dumps(TREE))
+        space = tree["windows"][0]["spaces"][0]
+        space["profileName"] = EVIL
+        space["tabs"][1]["title"] = EVIL
+        space["tabs"][1]["url"] = "https://a.example/" + EVIL
+        space["tabs"][0]["label"] = EVIL
+        space["topApps"] = [{"type": "folder", "id": "f-1", "name": EVIL, "items": space["topApps"]}]
+        server = self.serve()
+        server.replies["workspace"] = lambda params: {"result": tree}
+        server.replies["windows"] = lambda params: {"result": [{"id": "w-1", "kind": "normal", "focused": True, "profile": "default", "profileName": EVIL, "tabs": [{"id": "t", "url": EVIL, "title": EVIL, "active": False, "pinned": False, "group": None}]}]}
+        for argv in (["tabs"], ["tabs", "--flat"], ["groups"], ["windows"]):
+            status, out, _ = self.run_cli(*argv)
+            self.assertEqual(status, 0, argv)
+            self.assert_inert(out)
+            self.assertIn("Pwned", out)
+        status, out, _ = self.run_cli("tabs", "--json")
+        self.assertEqual(json.loads(out), tree)
+
+    def test_events_pinned_and_history_rows_are_escaped(self):
+        from ardia_cli import automation_cli, browsing_cli
+
+        self.assert_inert(automation_cli.describe_event({"event": "tab.navigated", "time": 1, "data": {"tabId": "t", "url": EVIL, "title": EVIL}}))
+        self.assert_inert(browsing_cli.describe_pin({"kind": "pinned", "title": EVIL, "url": EVIL, "folder": EVIL, "profile": EVIL}))
+        self.assert_inert(browsing_cli.describe_visit({"last_visit": "2026-11-08", "visits": 1, "title": EVIL, "url": EVIL, "profile": "p"}))
+        self.assert_inert(browsing_cli.describe_domain({"visits": 1, "domain": EVIL, "pages": 1, "top_title": EVIL, "profile": "p"}))

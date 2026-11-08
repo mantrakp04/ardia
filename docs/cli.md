@@ -84,7 +84,10 @@ the pins into `pyproject.toml`).
   close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and
   apply a JSON batch of those in one call (`ardia_cli/workspace_cli.py`; protocol, operations and rules in
   `docs/automation.md` › Tabs and groups). `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
-  or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending.
+  or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending. Human
+  output (here and in `windows`, `events`, `pinned`, `history`, `commands`) shows control characters in page text,
+  titles and names as `\xNN` (`ardia_cli/printable.py`), so a page title can't drive the terminal (an OSC 52
+  clipboard write, say); `--json` prints the JSON as it is.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
