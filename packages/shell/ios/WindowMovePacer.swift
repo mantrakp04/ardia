@@ -20,6 +20,14 @@ final class WindowMovePacer: NSObject {
     if let due = pacing.moved(to: pointer, now: CACurrentMediaTime()) { place(due) }
   }
 
+  var untilStall: TimeInterval? {
+    pacing.untilStall(now: CACurrentMediaTime())
+  }
+
+  func idle() {
+    if let due = pacing.idle(now: CACurrentMediaTime()) { place(due) }
+  }
+
   func finish(at pointer: NSPoint?) {
     link?.invalidate()
     link = nil

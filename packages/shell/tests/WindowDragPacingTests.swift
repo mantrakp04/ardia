@@ -44,6 +44,39 @@ final class WindowDragPacingTests: XCTestCase {
     XCTAssertEqual(pacing.frame(now: 0.2267), CGPoint(x: 6, y: 0))
   }
 
+  func testAnEventAtTheStallBoundaryPlacesAndOneJustBeforeWaits() {
+    var pacing = WindowDragPacing(now: 0)
+    XCTAssertNil(pacing.moved(to: CGPoint(x: 1, y: 0), now: WindowDragPacing.linkStall - 0.0001))
+    XCTAssertEqual(pacing.moved(to: CGPoint(x: 2, y: 0), now: WindowDragPacing.linkStall), CGPoint(x: 2, y: 0))
+  }
+
+  func testAPointerHeldInsideTheStallIsPlacedOnceTheStallPassesWithNoFurtherEvent() {
+    var pacing = WindowDragPacing(now: 0)
+    XCTAssertNil(pacing.moved(to: CGPoint(x: 4, y: 1), now: 0.03))
+    XCTAssertNil(pacing.idle(now: 0.04))
+    XCTAssertEqual(pacing.idle(now: WindowDragPacing.linkStall), CGPoint(x: 4, y: 1))
+    XCTAssertNil(pacing.idle(now: 1))
+  }
+
+  func testTheDeadlineForAHeldPointerIsTheStallAfterTheLastFrame() throws {
+    var pacing = WindowDragPacing(now: 0)
+    XCTAssertNil(pacing.untilStall(now: 0.01))
+    XCTAssertNil(pacing.frame(now: 0.02))
+    XCTAssertNil(pacing.moved(to: CGPoint(x: 4, y: 0), now: 0.03))
+    let wait = try XCTUnwrap(pacing.untilStall(now: 0.03))
+    XCTAssertEqual(wait, 0.02 + WindowDragPacing.linkStall - 0.03, accuracy: 1e-9)
+    XCTAssertEqual(try XCTUnwrap(pacing.untilStall(now: 1)), 0)
+    XCTAssertEqual(pacing.frame(now: 0.035), CGPoint(x: 4, y: 0))
+    XCTAssertNil(pacing.untilStall(now: 0.036))
+  }
+
+  func testAFrameBeforeTheStallLeavesNothingForTheQuietWaitToPlace() {
+    var pacing = WindowDragPacing(now: 0)
+    XCTAssertNil(pacing.moved(to: CGPoint(x: 4, y: 0), now: 0.03))
+    XCTAssertEqual(pacing.frame(now: 0.04), CGPoint(x: 4, y: 0))
+    XCTAssertNil(pacing.idle(now: 0.2))
+  }
+
   func testFinishingPlacesTheReleasePointerAndClearsWhatWasWaiting() {
     var pacing = WindowDragPacing(now: 0)
     XCTAssertNil(pacing.moved(to: CGPoint(x: 7, y: 0), now: 0.004))

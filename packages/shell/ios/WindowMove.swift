@@ -139,7 +139,8 @@ enum WindowMove {
     defer { pacer.finish(at: nil) }
     while window.isVisible {
       if NSApp.isActive { wasActive = true } else if wasActive { return true }
-      guard var next = nextGestureEvent() else {
+      guard var next = nextGestureEvent(waiting: pacer.untilStall) else {
+        pacer.idle()
         if NSEvent.pressedMouseButtons & 1 == 0 { return true }
         continue
       }
@@ -166,9 +167,9 @@ enum WindowMove {
 
   private static let gestureEvents: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
 
-  private static func nextGestureEvent() -> NSEvent? {
+  private static func nextGestureEvent(waiting stall: TimeInterval?) -> NSEvent? {
     let pressed = NSEvent.pressedMouseButtons & 1 != 0
-    return NSApp.nextEvent(matching: gestureEvents, until: pressed ? Date(timeIntervalSinceNow: 0.1) : .distantPast, inMode: .eventTracking, dequeue: true)
+    return NSApp.nextEvent(matching: gestureEvents, until: pressed ? Date(timeIntervalSinceNow: min(0.1, stall ?? 0.1)) : .distantPast, inMode: .eventTracking, dequeue: true)
   }
 
   private static func place(_ window: NSWindow, _ origin: NSPoint, _ start: NSPoint, _ pointer: NSPoint) -> NSPoint {

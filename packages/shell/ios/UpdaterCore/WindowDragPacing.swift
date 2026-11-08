@@ -12,7 +12,7 @@ struct WindowDragPacing {
 
   mutating func moved(to pointer: CGPoint, now: TimeInterval) -> CGPoint? {
     pending = pointer
-    return now - lastFrame > Self.linkStall ? take() : nil
+    return stalled(now) ? take() : nil
   }
 
   mutating func frame(now: TimeInterval) -> CGPoint? {
@@ -20,9 +20,21 @@ struct WindowDragPacing {
     return take()
   }
 
+  mutating func idle(now: TimeInterval) -> CGPoint? {
+    stalled(now) ? take() : nil
+  }
+
+  func untilStall(now: TimeInterval) -> TimeInterval? {
+    pending == nil ? nil : max(0, lastFrame + Self.linkStall - now)
+  }
+
   mutating func finish(at pointer: CGPoint?) -> CGPoint? {
     if let pointer { pending = pointer }
     return take()
+  }
+
+  private func stalled(_ now: TimeInterval) -> Bool {
+    now - lastFrame >= Self.linkStall
   }
 
   private mutating func take() -> CGPoint? {

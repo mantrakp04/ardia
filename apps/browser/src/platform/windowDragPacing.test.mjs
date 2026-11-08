@@ -38,7 +38,18 @@ test("WindowMove.follow flushes the last pointer while the window still holds it
   assert.ok(drain >= 0 && flush > drain, "the pacer's defer comes after the one that clears `moving`, so it runs first");
 });
 
-test("WindowMovePacer places from the window's display link at the display's rate and falls back to the pointer when the link stalls", () => {
+test("WindowMove.follow places a pointer the display link left waiting when no drag event follows it", () => {
+  const source = read("WindowMove.swift");
+  const follow = between(source, "static func follow(", "private static let gestureEvents");
+  const loop = follow.slice(follow.indexOf("while window.isVisible"));
+  assert.match(loop, /nextGestureEvent\(waiting: pacer\.untilStall\)/, "the wait for the next event ends when a held pointer's stall is due");
+  const idle = between(loop, "guard var next", "var latest");
+  assert.match(idle, /pacer\.idle\(\)/, "an event wait that ends with no event places the held pointer once the link has stalled");
+  const wait = between(source, "private static func nextGestureEvent(", "private static func place(");
+  assert.match(wait, /min\(0\.1, stall \?\? 0\.1\)/, "the wait is the stall deadline when one is held, and the usual 0.1 s otherwise");
+});
+
+test("WindowMovePacer source is wired to the window's display link at the display's rate, with the pointer fallback when the link stalls", () => {
   const pacer = read("WindowMovePacer.swift");
   assert.match(pacer, /window\.displayLink\(target: self, selector: #selector\(frame\(_:\)\)\)/, "the link follows the window's own display");
   assert.match(pacer, /link\.add\(to: \.main, forMode: \.common\)/, "the link fires inside the event-tracking loop");
@@ -47,10 +58,12 @@ test("WindowMovePacer places from the window's display link at the display's rat
   assert.match(pacer, /link\?\.invalidate\(\)/, "the link, which retains the pacer, ends with the drag");
   assert.match(pacer, /pacing\.frame\(now: CACurrentMediaTime\(\)\)/, "a frame places the newest pointer");
   assert.match(pacer, /pacing\.moved\(to: pointer, now: CACurrentMediaTime\(\)\)/, "an event places at once only when the link stalled");
+  assert.match(pacer, /pacing\.idle\(now: CACurrentMediaTime\(\)\)/, "a quiet wait places the held pointer once the link has stalled");
+  assert.match(pacer, /pacing\.untilStall\(now: CACurrentMediaTime\(\)\)/, "the loop learns when a held pointer's stall is due");
   assert.ok(!pacer.includes("setFrameOrigin"), "the pacer places through the closure it is given");
 });
 
-test("WindowMoveProbe.drag reports placements per frame and the spread of the gaps between placements", () => {
+test("WindowMoveProbe.drag source reports placements per frame and the spread of the gaps between placements", () => {
   const probe = read("WindowMoveProbe.swift");
   assert.match(probe, /WindowMove\.moveTimes = \[\]/);
   assert.match(probe, /WindowMove\.frameTimes = \[\]/);
