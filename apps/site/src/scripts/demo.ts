@@ -1,7 +1,12 @@
 import { capture } from "./telemetry";
 
 type CustomizeState = { active: boolean; code: string | null };
-type Outbound = { type: "ardia-demo:ready" } | { type: "ardia-demo:engaged" } | ({ type: "ardia-demo:customize-state" } & CustomizeState);
+type Outbound =
+  | { type: "ardia-demo:ready" }
+  | { type: "ardia-demo:engaged" }
+  | { type: "ardia-demo:download" }
+  | ({ type: "ardia-demo:customize-state" } & CustomizeState);
+type CopiedVia = "panel" | "outro";
 
 const DESKTOP_LOGICAL_WIDTH = 1100;
 const PHONE_LOGICAL_WIDTH = 640;
@@ -9,7 +14,6 @@ const PHONE_BOX_WIDTH = 400;
 const DESKTOP_BOX_WIDTH = 860;
 const NUDGE_DELAY_MS = 900;
 const FAR_SCREENS = 1;
-const COPIED_FOR_MS = 1800;
 
 const root = document.querySelector<HTMLElement>("[data-demo]");
 const stage = root?.querySelector<HTMLElement>("[data-demo-stage]");
@@ -38,9 +42,19 @@ function wireCustomize(frame: HTMLIFrameElement, panel: HTMLElement) {
   const label = panel.querySelector<HTMLElement>("[data-demo-customize-label]");
   const box = panel.querySelector<HTMLElement>("[data-demo-code]");
   const value = panel.querySelector<HTMLElement>("[data-demo-code-value]");
-  const copy = panel.querySelector<HTMLButtonElement>("[data-demo-copy]");
+  const get = panel.querySelector<HTMLAnchorElement>("[data-download]");
+  const getLabel = get?.querySelector<HTMLElement>("[data-download-label]");
+  const line = panel.querySelector<HTMLElement>("[data-demo-code-line]");
+  const lineBeforeCopy = line?.textContent ?? "";
   let code: string | null = null;
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  let clickVia: CopiedVia = "panel";
+
+  const markCopied = (via: CopiedVia) => {
+    if (value) value.hidden = true;
+    if (getLabel) getLabel.textContent = "Copied. Downloading…";
+    if (line) line.textContent = "When Ardia opens, paste the code on its first screen. Already past it? Settings › General.";
+    capture("demo_setup_code_copied", { via });
+  };
 
   button?.addEventListener("mousedown", (e) => e.preventDefault());
   button?.addEventListener("click", () => {
@@ -48,28 +62,45 @@ function wireCustomize(frame: HTMLIFrameElement, panel: HTMLElement) {
     frame.focus();
     frame.contentWindow?.postMessage({ type: "ardia-demo:customize" }, location.origin);
   });
-  copy?.addEventListener("click", () => {
+  get?.addEventListener("click", () => {
+    const via = clickVia;
+    clickVia = "panel";
     if (!code) return;
-    const done = () => {
-      copy.textContent = "Copied";
-      clearTimeout(copiedTimer);
-      copiedTimer = setTimeout(() => (copy.textContent = "Copy"), COPIED_FOR_MS);
+    const selectByHand = () => {
+      if (!value) return;
+      value.hidden = false;
+      getSelection()?.selectAllChildren(value);
     };
-    if (navigator.clipboard) void navigator.clipboard.writeText(code).then(done, () => value && getSelection()?.selectAllChildren(value));
-    else if (value) getSelection()?.selectAllChildren(value);
+    if (navigator.clipboard) void navigator.clipboard.writeText(code).then(() => markCopied(via), selectByHand);
+    else selectByHand();
   });
 
-  return (state: CustomizeState) => {
+  const downloadFromDemo = () => {
+    if (!get || !code) return;
+    clickVia = "outro";
+    get.click();
+  };
+
+  const showState = (state: CustomizeState) => {
     if (button) button.disabled = state.active;
     if (label) label.textContent = state.active ? "Customizing…" : state.code ? "Customize again" : "Customize it";
     if (!state.code || state.code === code) return;
     const first = code === null;
     code = state.code;
-    if (value) value.textContent = code;
+    if (value) {
+      value.textContent = code;
+      value.hidden = true;
+    }
     if (box) box.hidden = false;
-    if (copy) copy.textContent = "Copy";
+    if (line) {
+      line.textContent = lineBeforeCopy;
+      line.hidden = false;
+    }
+    if (getLabel) getLabel.textContent = "Download & copy code";
     capture("demo_setup_code_shown", { again: !first });
   };
+
+  return { showState, downloadFromDemo };
 }
 
 function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
@@ -103,7 +134,7 @@ function start(root: HTMLElement, box: HTMLElement, frame: HTMLIFrameElement) {
   new ResizeObserver(() => fit(frame, box)).observe(box);
   restWhileFar(box);
 
-  const showCustomize = bar ? wireCustomize(frame, bar) : null;
+  const customize = bar ? wireCustomize(frame, bar) : null;
   const goLive = () => {
     if (root.dataset.live === "") return;
     root.dataset.live = "";
@@ -116,7 +147,8 @@ function start(root: HTMLElement, box: HTMLElement, frame: HTMLIFrameElement) {
     if (event.source !== frame.contentWindow || event.origin !== location.origin || !event.data || typeof event.data !== "object") return;
     if (event.data.type === "ardia-demo:ready") goLive();
     if (event.data.type === "ardia-demo:engaged") root.setAttribute("data-engaged", "");
-    if (event.data.type === "ardia-demo:customize-state") showCustomize?.(event.data);
+    if (event.data.type === "ardia-demo:customize-state") customize?.showState(event.data);
+    if (event.data.type === "ardia-demo:download") customize?.downloadFromDemo();
   });
   frame.contentWindow?.postMessage({ type: "ardia-demo:hello" }, location.origin);
 }
