@@ -109,7 +109,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       const t = tab();
       const sameEngine = currentTabEngine(tabId) === engine;
       if (wantsPage(t) && sameEngine && currentEngineProfile(t.profileId) === currentEngineProfile(mountedProfile.current) && !isQuitting()) handOff(tabId, currentEngineProfile(t.profileId), engine);
-      else setPageProgress(tabId, 0);
+      else {
+        setPageProgress(tabId, 0);
+        if (!isQuitting()) pageEnded(tabId);
+      }
     },
     [],
   );
