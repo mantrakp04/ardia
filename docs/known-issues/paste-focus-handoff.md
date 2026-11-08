@@ -7,17 +7,18 @@ The fix is `FocusHandoff` in packages/shell/ios/FocusHandoff.swift.
 
 **How a handoff runs**
 - The command resigns the page's RenderWidgetHostViewCocoa synchronously.
-- A gate opens for that window and waits up to 3 s for the JS thread to pick the command up. JS tells native it has (`ackFocusMove`, the first thing `settlingCommandFocus` does, before the command runs), and the deadline then becomes 2 s from that ack, so a JS thread that is busy for a second still gets its claim in. A newer command while the gate is open starts a newer generation without moving the deadline.
+- A gate starts for that window, holds its keys and waits up to 3 s for the JS thread to pick the command up. JS tells native it has (`ackFocusMove`, the first thing `settlingCommandFocus` does, before the command runs), and the deadline then becomes 2 s from that ack, so a JS thread that is busy for a second still gets its claim in. A newer command while the gate is active starts a newer generation without moving the deadline.
 - Edit › Cut, Copy, Paste, Paste and Match Style and Select All wait on the newest generation. So do plain keys typed meanwhile, in the order they were pressed.
 
 **Delivery: one path only.** The field that generation's command focuses (the New Tab box, the command bar, Find, or the page a new tab opens on) claims the generation and is verified as first responder. Only then are the waiting actions performed, and only on it.
 
-**Every other ending drops the waiting keys and actions with a beep and opens the gate:**
+**Every other ending drops the waiting keys and actions with a beep.** Most of them also end the gate, so keys reach the page again:
 - the deadline (3 s without a pickup, 2 s after it);
-- a cancel: the command did nothing, or its destination closed before it mounted;
-- a newer generation;
+- a cancel: the command did nothing, or its destination closed before it mounted (the gate ends unless a newer generation is still waiting);
 - a click;
 - window close or resign-key.
+
+A newer generation drops the waiting keys and actions the same way, but the gate stays active for the new command.
 
 The page that had focus gets it back, but only while its tab is still the one shown. A dropped action never goes anywhere else.
 
