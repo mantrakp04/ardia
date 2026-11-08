@@ -1,6 +1,7 @@
 #import "ArdiaInternal.h"
 #import "ArdiaWebView.h"
 
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
 namespace {
@@ -137,6 +138,13 @@ void ReleaseHeldEvents(ArdiaCoreTab *tab) {
     payload[@"tabId"] = tabId;
     [ArdiaEvents emit:event[0] data:payload];
   }
+}
+
+void StopPageSwapFade(ArdiaCoreTab *tab) {
+  CALayer *layer = tab.view.layer;
+  NSMutableDictionary *actions = [layer.actions mutableCopy] ?: [NSMutableDictionary dictionary];
+  actions[@"sublayers"] = NSNull.null;
+  layer.actions = actions;
 }
 
 }

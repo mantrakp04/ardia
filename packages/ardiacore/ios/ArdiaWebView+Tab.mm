@@ -97,6 +97,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   [self userSightChanged];
   [self adoptIntoWindow];
   NSView *page = tab.view;
+  ardia_host::StopPageSwapFade(tab);
   if (page.superview != self) {
     if (!page.window || page.window != self.window) [page removeFromSuperview];
     [self addSubview:page];
