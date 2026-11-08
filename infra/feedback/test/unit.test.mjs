@@ -171,7 +171,10 @@ test("issueFor puts only public-safe fields in the issue", () => {
     attachments: [{ name: "recording.mp4", bytes: 1, type: "video/mp4" }], install_id: INSTALL,
   };
   const issue = issueFor(report, "https://dash.ardia.dev");
-  assert.deepEqual(issue.labels, ["feedback", "slow"]);
+  assert.deepEqual(issue.labels, ["feedback", "bug"]);
+  assert.deepEqual(issueFor({ ...report, kind: "bug" }, "https://d").labels, ["feedback", "bug"]);
+  assert.deepEqual(issueFor({ ...report, kind: "idea" }, "https://d").labels, ["feedback", "enhancement"]);
+  assert.deepEqual(issueFor({ ...report, kind: "other" }, "https://d").labels, ["feedback"]);
   assert.equal(issue.title, "Slow @\u200bbob");
   assert.match(issue.body, /Typing lags at \/Users\/\[user\]\/x, mail \[email\]/);
   assert.match(issue.body, /\| Version \| Ardia 0\.2\.45 \(45\\\|12\) nightly \|/);

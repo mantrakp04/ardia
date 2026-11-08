@@ -62,6 +62,8 @@ contract the app, the CLI, the feedback service and the dashboard build against.
 - The GitHub issue is public: title, description (scrubbed of emails, keys, URL queries and home paths),
   kind, version, macOS, the reference and a link to the private dashboard page. Attachments, contact,
   page address and diagnostics never go to GitHub. The form says so.
+- Issue labels follow the repo's rule: `feedback` on every report, plus `bug` for bug and slow,
+  `enhancement` for idea, and nothing more for other.
 - Without `GITHUB_ISSUES_TOKEN` it skips the issue and still stores the report.
 - Kept forever for now, like all telemetry.
 - `node infra/feedback/server.mjs --local <dir>` runs it with no ClickHouse, SeaweedFS or GitHub, writing

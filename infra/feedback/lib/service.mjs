@@ -14,6 +14,8 @@ const COMPLETE_ROUTE = /^\/api\/feedback\/([^/]+)\/complete$/;
 const SERVICE_NAME = "ardia-feedback";
 const SERVICE_VERSION = "1.0.0";
 
+export const ISSUE_LABELS = { bug: ["feedback", "bug"], slow: ["feedback", "bug"], idea: ["feedback", "enhancement"], other: ["feedback"] };
+
 const tableCell = (value) => String(value).replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
 
 export function issueFor(report, dashboardUrl) {
@@ -30,7 +32,7 @@ export function issueFor(report, dashboardUrl) {
     "",
     `Sent with Report a Problem. Maintainers: recording, diagnostics and contact are on the [private page](${dashboardUrl}/feedback/${report.id}).`,
   ].join("\n");
-  return { title: scrubForIssue(report.title), body, labels: ["feedback", report.kind] };
+  return { title: scrubForIssue(report.title), body, labels: ISSUE_LABELS[report.kind] };
 }
 
 function otlpValue(value) {
