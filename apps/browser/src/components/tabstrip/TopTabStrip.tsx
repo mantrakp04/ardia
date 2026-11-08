@@ -17,6 +17,7 @@ import { usePeek } from "../window/usePeek";
 import { FloatingStrip } from "./context";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { StripPage } from "./StripPage";
+import { StripHoverCard } from "./StripHoverCard";
 import {
   CONTROLS_GAP,
   DOWNLOADS_BOX,
@@ -72,6 +73,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
         {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
         {!floating && <StripDropHighlight left={left} right={right} />}
       </StripDropArea>
+      {!floating && <StripHoverCard windowId={windowId} stripBottom={TOP_STRIP_HEIGHT} windowWidth={width} />}
     </FloatingStrip.Provider>
   );
 }
@@ -151,6 +153,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
           </View>
         </Panel>
       </Animated.View>
+      {live && <StripHoverCard windowId={windowId} stripBottom={PEEK_TOP + PEEK_HEIGHT} windowWidth={windowWidth} />}
     </>
   );
 }

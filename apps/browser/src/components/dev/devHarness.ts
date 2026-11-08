@@ -88,6 +88,9 @@ export function startDevHarness() {
     get sidebarHover(): typeof import("../../state/sidebar/hover") & typeof import("../sidebar/hoverMotion") {
       return { ...require("../../state/sidebar/hover"), ...require("../sidebar/hoverMotion") };
     },
+    get stripHover(): typeof import("../../state/tabs/stripHover") {
+      return require("../../state/tabs/stripHover");
+    },
     get windowLayout(): typeof import("../../state/windows/layout") {
       return require("../../state/windows/layout");
     },
