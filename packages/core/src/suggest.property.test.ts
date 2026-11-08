@@ -62,7 +62,9 @@ function sequence(r: Rng, p: ReturnType<typeof makeProfile>): string[] {
   const shown = row.url.replace(/^https?:\/\//, "");
   const named = p.tabs.filter((t) => t.customTitle);
   const renamed = named.length ? r.pick(named).customTitle! : r.pick(WORDS);
-  const targets = [shown, shown.replace(/^www\./, ""), row.title, row.title.split(/\s+/).slice(0, 3).join(" "), r.pick(HOSTS), `${r.pick(WORDS)} ${r.pick(WORDS)}`, r.pick(WORDS), `${r.pick(HOSTS)}/${r.pick(WORDS)}`, renamed, renamed];
+  const open = p.tabs.filter((t) => t.url);
+  const tabUrl = open.length ? r.pick(open).url : r.pick(WORDS);
+  const targets = [tabUrl, shown, shown.replace(/^www\./, ""), row.title, row.title.split(/\s+/).slice(0, 3).join(" "), r.pick(HOSTS), `${r.pick(WORDS)} ${r.pick(WORDS)}`, r.pick(WORDS), `${r.pick(HOSTS)}/${r.pick(WORDS)}`, renamed, renamed];
   let target = r.pick(targets);
   if (r.int(5) === 0) target = target.toUpperCase();
   if (r.int(8) === 0) target = ` ${target} `;

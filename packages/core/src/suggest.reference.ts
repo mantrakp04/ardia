@@ -87,6 +87,7 @@ const originOfPage = (t: PageText) => (t.origin === undefined ? (t.origin = /^ht
 type Candidate = {
   url: string;
   title: string;
+  pageTitle?: string;
   favicon: string | null;
   visits: number;
   lastVisit: number;
@@ -218,7 +219,7 @@ function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId
     tabIds.set(key, t.id);
     const listed = pool.byKey.get(key);
     if (!listed) {
-      extra.push({ url: t.url, title: t.customTitle || t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
+      extra.push({ url: t.url, title: t.customTitle || t.title, pageTitle: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
     } else if (t.customTitle) {
       renamed.add(key);
       extra.push({ url: listed.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
@@ -360,10 +361,8 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
-    const listed = pool.byKey.get(key);
-    const tab = extra.find((x) => x.text.key === key);
-    const c = listed && tab ? { ...listed, title: tab.title, favicon: tab.favicon } : (listed ?? tab);
-    return c && pageSuggestion(c, null);
+    const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
+    return c && pageSuggestion({ ...c, title: c.pageTitle ?? c.title }, null);
   };
 
   const websiteFirst = preference === "website";
