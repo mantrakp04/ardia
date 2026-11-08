@@ -282,9 +282,11 @@ test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the 
   reloadSwitches();
 });
 
-test("the dock is fullscreen, docked, peeking, hiding or away, and only a still, undocked sidebar watches the left edge", () => {
+test("the dock is fullscreen, docked, peeking, hiding or away, and only a still, undocked or full-screen sidebar watches the left edge", () => {
   const st = (o) => dm.dockState({ open: false, fullscreen: false, moving: false, peekLive: false, ...o });
-  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "fullscreen");
+  assert.equal(st({ fullscreen: true, open: true }), "fullscreen");
+  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "peeking", "a full-screen page peeks the sidebar from its edge, docked or not");
+  assert.equal(st({ fullscreen: true, peekLive: true }), "peeking");
   assert.equal(st({ open: true, moving: true }), "docked");
   assert.equal(st({ peekLive: true }), "peeking");
   assert.equal(st({ peekLive: true, moving: true }), "peeking");
@@ -296,7 +298,8 @@ test("the dock is fullscreen, docked, peeking, hiding or away, and only a still,
   assert.equal(dm.watchesEdge("peeking", true), false);
   assert.equal(dm.watchesEdge("hiding", true), false);
   assert.equal(dm.watchesEdge("docked", false), false);
-  assert.equal(dm.watchesEdge("fullscreen", false), false);
+  assert.equal(dm.watchesEdge("fullscreen", false), true);
+  assert.equal(dm.watchesEdge("fullscreen", true), false);
 });
 
 test("the peek stays out within 24 pt of its right edge, the window's full height", () => {

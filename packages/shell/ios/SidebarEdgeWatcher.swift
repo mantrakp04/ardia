@@ -97,7 +97,7 @@ final class SidebarEdgeWatcher {
   }
 
   private func isOver(_ point: NSPoint, of window: NSWindow, _ watch: Watch, live: Bool) -> Bool {
-    guard window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), let screen = window.screen else { return false }
+    guard window.isVisible, !window.isMiniaturized, let screen = window.screen else { return false }
     let frame = window.frame
     guard point.y >= frame.minY, point.y < frame.maxY else { return false }
     if Self.inBand(point, frame, watch) {
@@ -105,7 +105,7 @@ final class SidebarEdgeWatcher {
       let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: point))
       return hit === window || hit?.parent === window
     }
-    guard Self.beyondEdge(point, frame, screen.frame, watch.right) else { return false }
+    guard !window.styleMask.contains(.fullScreen), Self.beyondEdge(point, frame, screen.frame, watch.right) else { return false }
     guard live else { return true }
     guard Self.windowNumber(at: Self.insideEdge(frame, watch.right, y: point.y)) == window.windowNumber else { return false }
     let under = Self.windowNumber(at: point)

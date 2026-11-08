@@ -26,18 +26,23 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0 };
+let counts = { tabs: 0, windows: 0, fullscreenSidebarPeeks: 0 };
 let countsSince = Date.now();
 
+export function countFullscreenSidebarPeek() {
+  counts.fullscreenSidebarPeeks += 1;
+}
+
 function emitCounts() {
-  if (counts.tabs || counts.windows) {
+  if (counts.tabs || counts.windows || counts.fullscreenSidebarPeeks) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
+      fullscreen_sidebar_peeks: counts.fullscreenSidebarPeeks,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0 };
+  counts = { tabs: 0, windows: 0, fullscreenSidebarPeeks: 0 };
   countsSince = Date.now();
 }
 
