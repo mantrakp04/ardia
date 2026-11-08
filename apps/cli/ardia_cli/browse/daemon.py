@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal
 import sys
 import time
@@ -17,6 +18,11 @@ DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
 MAX_RESPONSE = 256 * 1024 * 1024
 OUTPUT_CAP = 6000
+QUEUE_WAIT = 30.0
+COMMAND_LIMIT = 120.0
+LIMIT_MARGIN = 30.0
+SCRIPT_DEFAULT = 90.0
+LONG_COMMANDS = {"batch": 600.0, "read": 600.0, "record": 600.0}
 SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
@@ -371,7 +377,11 @@ class Daemon:
             return self.refuse_closing(options, name)
         if name == "close":
             return await self.close(ctx)
-        async with self.lock:
+        try:
+            await asyncio.wait_for(self.lock.acquire(), QUEUE_WAIT)
+        except asyncio.TimeoutError:
+            return render(options, error=self.busy_error(), name=name)
+        try:
             if self.stopping:
                 return self.refuse_closing(options, name)
             if self.state.lost:
@@ -381,14 +391,37 @@ class Daemon:
                 await self.state.announce_caller(self.state.endpoint)
             self.state.extras.pop("close_after_batch", None)
             self.state.extras["top_command"] = name
-            code, out, err = await self.answer(ctx, name, argv, options)
+            self.state.extras["running"] = {"name": name, "since": time.monotonic()}
+            limit = command_limit(name, argv[1:], ctx.timeout)
+            try:
+                code, out, err = await asyncio.wait_for(self.answer(ctx, name, argv, options), limit)
+            except asyncio.TimeoutError:
+                code, out, err = render(options, error=timed_out(name, limit), name=name)
+            await self.restore_metrics()
             notice = self.state.extras.pop("notice", None)
             err = (redact_text(notice) + "\n" if notice else "") + err
             close_after = self.state.extras.pop("close_after_batch", None) and name == "batch" and code == 0
+        finally:
+            self.state.extras.pop("running", None)
+            self.lock.release()
         if close_after:
             closed_code, closed_out, closed_err = await self.close(ctx)
             return max(code, closed_code), joined_batch(out, closed_out, options), err + closed_err
         return code, out, err
+
+    async def restore_metrics(self):
+        from ardia_cli.browse.actions import restore_metrics
+
+        for page in list(self.state.pages.values()):
+            if getattr(page, "temporary_metrics", False) and page.session_id and self.state.connected:
+                await restore_metrics(page)
+
+    def busy_error(self) -> BrowseError:
+        running = self.state.extras.get("running") or {}
+        age = f" for {time.monotonic() - running['since']:.0f} s" if running.get("since") else ""
+        what = f"`{running['name']}`" if running.get("name") else "another command"
+        return BrowseError(f"This session is still running {what}{age}; this command waited {QUEUE_WAIT:g} s for it and gave up without "
+                           "running. Try again shortly, or use another --session", code="session_busy")
 
     async def answer(self, ctx, name, argv, options) -> tuple[int, str, str]:
         try:
@@ -462,6 +495,35 @@ def joined_batch(out: str, closed: str, options: dict) -> str:
         return out + closed
     outcomes.append({"command": ["close"], "success": answer.get("success", False), "result": answer.get("data"), "error": answer.get("error")})
     return json.dumps(outcomes, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
+def seconds_of(text: str | None) -> float | None:
+    if not text:
+        return None
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)(ms|s|m)?", text.strip())
+    if not match:
+        return None
+    number, unit = float(match.group(1)), match.group(2) or "ms"
+    return number * {"ms": 0.001, "s": 1, "m": 60}[unit]
+
+
+def command_limit(name: str, argv: list[str], timeout: float) -> float:
+    given = None
+    if "--timeout" in argv and argv.index("--timeout") + 1 < len(argv):
+        given = seconds_of(argv[argv.index("--timeout") + 1])
+    if name == "wait":
+        plain = next((seconds_of(arg) for arg in argv if re.fullmatch(r"\d+(\.\d+)?", arg)), None)
+        return max(COMMAND_LIMIT, (given or plain or timeout) + LIMIT_MARGIN)
+    if name == "script":
+        return (given or SCRIPT_DEFAULT) + LIMIT_MARGIN
+    return max(LONG_COMMANDS.get(name, COMMAND_LIMIT), (given or 0) + LIMIT_MARGIN)
+
+
+def timed_out(name: str, limit: float) -> BrowseError:
+    from ardia_cli.browse.commands import MUTATING
+
+    unknown = ", so its outcome is unknown and it wasn't retried" if name in MUTATING else ""
+    return BrowseError(f"`{name}` didn't finish within {limit:g} s and was stopped{unknown}. Snapshot to see where the page is", code="command_timeout")
 
 
 def encode_answer(code: int, out: str, err: str, fields: dict | None = None) -> bytes:
