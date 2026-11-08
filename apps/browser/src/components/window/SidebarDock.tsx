@@ -212,13 +212,13 @@ function SidebarDock({
       if (e.over) latestPeek.current.show();
       else latestPeek.current.hide();
     });
-    watchSidebarEdge(windowId, true, nativeHold, right);
+    watchSidebarEdge(windowId, true, nativeHold, right, peeking || draggingTab);
     return () => {
       sub.remove();
       watchSidebarEdge(windowId, false);
       edgeOver.current = false;
     };
-  }, [windowId, watching, nativeHold, right]);
+  }, [windowId, watching, nativeHold, right, peeking || draggingTab]);
   useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth, peekAt.left)), [windowId, peek.live, width, right, windowWidth, peekAt.left]);
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);

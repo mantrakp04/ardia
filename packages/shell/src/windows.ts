@@ -35,7 +35,7 @@ export type WindowsNative = {
   focusWindow(id: string): Promise<void>;
   restoreFullScreen(ids: string[], focus: string | null): Promise<void>;
   setTrafficLightsCenter(id: string, center: [number, number] | null, trailing: boolean): Promise<void>;
-  watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean): Promise<void>;
+  watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean, whilePressed: boolean): Promise<void>;
   dragPreviewBegin(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
   dragPreviewPage(base64: string, frame: Rect4): Promise<void>;
   dragPreviewUpdate(shape: DragPreviewShape, point: [number, number]): Promise<void>;
