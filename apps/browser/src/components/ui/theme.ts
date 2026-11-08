@@ -66,13 +66,11 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
     const spec = color === "incognito" ? null : (PROFILE_COLORS[color] ?? PROFILE_COLORS.plum);
     const powerUpColor = !spec ? null : spec.palette ? (spec.powerUp ?? spec.swatch) : ink.neutralGrey;
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
-    const windowTint = opaqueTint(backdrop, base.dark);
     theme = {
       ...base,
-      ...visibleSelectionRoles(base, windowTint),
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
-      windowTint,
+      windowTint: opaqueTint(backdrop, base.dark),
       powerUpColor,
       powerUpPalette: powerUpColor ? [powerUpColor] : null,
       custom: null,

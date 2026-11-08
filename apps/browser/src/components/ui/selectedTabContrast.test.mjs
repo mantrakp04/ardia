@@ -21,10 +21,9 @@ const customThemes = () =>
     ["dark", "light"].map((mode) => ({ label: `${[r, g, b]} ${mode}`, theme: profileTheme({ color: "neutral", theme: flat(r, g, b, mode) }, mode === "dark") })),
   );
 
-test("Dia's colour presets keep their selected-tab fill", () => {
+test("built-in presets keep Dia's selected-tab fill, neutral included", () => {
   for (const dark of [true, false])
     for (const color of Object.keys(PROFILE_COLORS)) {
-      if (color === "neutral") continue;
       const theme = profileTheme({ color }, dark);
       const base = colorRoles[dark ? "dark" : "light"];
       assert.equal(theme.tabSelected, base.tabSelected, `${color} ${dark ? "dark" : "light"}`);
@@ -32,12 +31,8 @@ test("Dia's colour presets keep their selected-tab fill", () => {
     }
 });
 
-test("every profile colour shows its selected tab against the sidebar", () => {
-  const themes = [
-    ...[true, false].flatMap((dark) => Object.keys(PROFILE_COLORS).map((color) => ({ label: `${color} ${dark}`, theme: profileTheme({ color }, dark) }))),
-    ...customThemes(),
-  ];
-  for (const { label, theme } of themes) {
+test("every custom profile colour shows its selected tab against the sidebar", () => {
+  for (const { label, theme } of customThemes()) {
     assert.ok(selectionLightnessDelta(theme.tabSelected, theme.windowTint) >= MIN_SELECTION_LIGHTNESS - 1e-9, `${label}: ${theme.tabSelected} on ${theme.windowTint}`);
     assert.ok(selectionLightnessDelta(theme.pinnedSelectedFill, theme.windowTint) >= MIN_SELECTION_LIGHTNESS - 1e-9, `${label} pinned`);
   }
