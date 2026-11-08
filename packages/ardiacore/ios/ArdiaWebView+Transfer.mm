@@ -168,7 +168,10 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
       if (!offered.closed) [offered closeNow];
       offered = nil;
     }
-    if (offered && !offered.closed && [self holdTransferOf:offered]) return;
+    if (offered && !offered.closed && [self holdTransferOf:offered]) {
+      if (_transferKey.length) [ArdiaTabParking park:offered forKey:_transferKey];
+      return;
+    }
     if (offered && !offered.closed) return [self attach:offered];
   }
   NSString *kind = nil, *key = nil;
@@ -257,13 +260,13 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
   return YES;
 }
 
-+ (void)keepTransfersOfWindow:(NSWindow *)window {
++ (BOOL)keepTransfersOfWindow:(NSWindow *)window {
   ArdiaWindowController *closing = [ArdiaWindowController forNSWindow:window];
-  if (!closing.coreWindow) return;
+  if (!closing.coreWindow) return YES;
   for (ArdiaWebView *view in LiveViews().allObjects)
     if (view->_life.handingOff && view->_tab && !view->_tab.closed && [ArdiaWindowController holding:view->_tab] == closing)
       [view closeBrowser];
-  [ArdiaTabParking rehomeFromWindow:closing];
+  return [ArdiaTabParking rehomeFromWindow:closing];
 }
 
 - (BOOL)canTake:(ArdiaCoreTab *)tab {

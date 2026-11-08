@@ -151,7 +151,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 };
 
 @interface ArdiaWebView (TransferInternal)
-+ (void)keepTransfersOfWindow:(NSWindow *)window;
++ (BOOL)keepTransfersOfWindow:(NSWindow *)window;
 + (void)retryPagesInWindow:(ArdiaWindowController *)controller;
 - (void)waitForWindow;
 - (BOOL)takeLinkTab:(NSString *)adoptId;
