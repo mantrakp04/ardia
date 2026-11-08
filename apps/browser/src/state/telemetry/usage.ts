@@ -16,7 +16,6 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
-import { commandBarOpenedProperties } from "./commandBarOpened";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -59,13 +58,9 @@ function watchStore() {
       for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: splitTabIds(s.splits[id]!).length });
     }
     if (s.windowUi !== prev.windowUi) {
-      for (const id in s.windowUi) if (s.windowUi[id]?.panel.open && !prev.windowUi[id]?.panel.open) commandBarOpened(id);
+      for (const id in s.windowUi) if (s.windowUi[id]?.panel.open && !prev.windowUi[id]?.panel.open) capture("command_bar_opened");
     }
   });
-}
-
-function commandBarOpened(windowId: string) {
-  requestAnimationFrame(() => requestAnimationFrame(() => capture("command_bar_opened", commandBarOpenedProperties(useBrowser.getState(), windowId))));
 }
 
 function profileSwitched(profiles: number, via: ReturnType<typeof switcherSwitchProperties>) {

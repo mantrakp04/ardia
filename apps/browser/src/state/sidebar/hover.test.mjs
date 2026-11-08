@@ -279,6 +279,20 @@ test("a panel that draws nothing leaves the rows hoverable", () => {
   assert.equal(hover.panelCoversRows({ ...drawn, newTab: true }), false, "the new tab bar sits over the page");
   assert.equal(hover.panelCoversRows({ ...drawn, centred: true }), false, "the centred bar sits over the page");
   assert.equal(hover.panelCoversRows({ ...drawn, sidebarAnchor: false }), false, "the field isn't in the sidebar");
+  const release = hover.holdRowsCovered(W, hover.panelCoversRows({ ...drawn, hasActiveTab: false }));
+  assert.equal(hover.rowsCovered(W), false, "an open flag alone holds no rows");
+  release();
+});
+
+test("a pointed row is told when the panel that covered it unmounts", () => {
+  let refreshed = 0;
+  const refresh = () => refreshed++;
+  hover.watchCovered(W, refresh, true);
+  const release = hover.holdRowsCovered(W, true);
+  assert.equal(refreshed, 1);
+  release();
+  assert.equal(refreshed, 2, "the row takes its hover back at once");
+  hover.watchCovered(W, refresh, false);
 });
 
 test("the covered flag follows a panel that unmounts or moves to another window", () => {
@@ -288,6 +302,7 @@ test("the covered flag follows a panel that unmounts or moves to another window"
   assert.equal(hover.rowsCovered(W), false, "unmounting hands the rows back");
 
   const first = hover.holdRowsCovered("one", true);
+  assert.equal(hover.rowsCovered("one"), true);
   first();
   const second = hover.holdRowsCovered("two", true);
   assert.equal(hover.rowsCovered("one"), false, "the window the panel left is released");
