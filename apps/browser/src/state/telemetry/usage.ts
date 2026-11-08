@@ -26,25 +26,33 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0 };
+let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (counts.tabs || counts.windows || counts.captureIndicatorsCleared || counts.fullScreens) {
+  if (Object.values(counts).some(Boolean)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
       capture_indicators_cleared: counts.captureIndicatorsCleared,
       full_screens_entered: counts.fullScreens,
+      sidebar_peeks: counts.sidebarPeeks,
+      sidebar_peek_bounces: counts.sidebarPeekBounces,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0 };
+  counts = { ...NO_COUNTS };
   countsSince = Date.now();
 }
 
 export function noteCaptureIndicatorCleared() {
   counts.captureIndicatorsCleared++;
+}
+
+export function noteSidebarPeek(bounce: boolean) {
+  counts.sidebarPeeks++;
+  if (bounce) counts.sidebarPeekBounces++;
 }
 
 const size = (o: object) => Object.keys(o).length;

@@ -63,7 +63,7 @@ final class SidebarEdgeWatcher {
         continue
       }
       let inColumn = Self.inColumn(point, window.frame, watch) && window.screen?.frame.contains(point) == true
-      let now = (watch.whilePressed || !pressed) && (isOver(point, of: window, watch, live: live)
+      let now = (watch.whilePressed || !pressed) && (isOver(point, of: window, watch, live: live, holding: over.contains(id))
         || (inColumn && over.contains(id) && onDock)
         || (inColumn && isOver(point, of: window, watch, live: false) && onDock && isTopBeneathDock(point, of: window, right: watch.right)))
       let fresh = unreported.remove(id) != nil
@@ -96,21 +96,28 @@ final class SidebarEdgeWatcher {
     NSPoint(x: right ? frame.maxX - 1 : frame.minX + 1, y: y)
   }
 
-  private func isOver(_ point: NSPoint, of window: NSWindow, _ watch: Watch, live: Bool) -> Bool {
+  private func isOver(_ point: NSPoint, of window: NSWindow, _ watch: Watch, live: Bool, holding: Bool = false) -> Bool {
     guard window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), let screen = window.screen else { return false }
     let frame = window.frame
-    guard point.y >= frame.minY, point.y < frame.maxY else { return false }
+    let slack = holding ? Self.reach : 0
+    guard point.y >= frame.minY - slack, point.y < frame.maxY + slack else { return false }
+    let insideY = min(max(point.y, frame.minY), frame.maxY - 1)
     if Self.inBand(point, frame, watch) {
       guard live else { return true }
-      let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: point))
-      return hit === window || hit?.parent === window
+      let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: NSPoint(x: point.x, y: insideY)))
+      guard hit === window || hit?.parent === window else { return false }
+      return insideY == point.y || !Self.overAnotherOfOurs(point, besides: window)
     }
     guard Self.beyondEdge(point, frame, screen.frame, watch.right) else { return false }
     guard live else { return true }
-    guard Self.windowNumber(at: Self.insideEdge(frame, watch.right, y: point.y)) == window.windowNumber else { return false }
-    let under = Self.windowNumber(at: point)
-    if under != window.windowNumber, NSApp.window(withWindowNumber: under) != nil { return false }
+    guard Self.windowNumber(at: Self.insideEdge(frame, watch.right, y: insideY)) == window.windowNumber else { return false }
+    if Self.overAnotherOfOurs(point, besides: window) { return false }
     return NSApp.isActive || Self.besideScreenEdge(window, screen, right: watch.right)
+  }
+
+  private static func overAnotherOfOurs(_ point: NSPoint, besides window: NSWindow) -> Bool {
+    let under = windowNumber(at: point)
+    return under != window.windowNumber && NSApp.window(withWindowNumber: under) != nil
   }
 
   private static func windowNumber(at point: NSPoint, below start: Int = 0) -> Int {

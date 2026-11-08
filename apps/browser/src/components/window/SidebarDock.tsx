@@ -12,6 +12,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
+import { noteSidebarPeek } from "../../state/telemetry/usage";
 import { ProfileSwipe } from "./ProfileSwipe";
 import { ARC_HIDE_MS, DOCK_SPRING, SHADOWS } from "./tokens";
 import {
@@ -188,7 +189,7 @@ function SidebarDock({
   const windowId = useWindowId();
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const edgeOver = useRef(false);
-  const peek = usePeek(!open && !moving && !fullscreen, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId));
+  const peek = usePeek(!open && !moving && !fullscreen, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId), noteSidebarPeek);
   const latestPeek = useRef(peek);
   latestPeek.current = peek;
   useEffect(() => (peek.live ? watchHolds("peek", () => latestPeek.current.recheck()) : undefined), [peek.live]);
