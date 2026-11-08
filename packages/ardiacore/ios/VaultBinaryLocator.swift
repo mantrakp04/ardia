@@ -3,7 +3,7 @@ import Foundation
 
 enum VaultBinaryLocator {
   static func directories() -> [String] {
-    if let data = LaunchConfig.shared.dataDirectory {
+    if let data = VaultSandbox.directory {
       return [URL(fileURLWithPath: data, isDirectory: true).appendingPathComponent("Password Managers/bin", isDirectory: true).path]
     }
     let home = FileManager.default.homeDirectoryForCurrentUser.path

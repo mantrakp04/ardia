@@ -5,10 +5,10 @@ enum VaultKeychain {
   private static let service = "Ardia Password Managers"
   private static let fileLock = NSLock()
 
-  private static var memoryOnly: Bool { LaunchConfig.shared.background && LaunchConfig.shared.dataDirectory == nil }
+  private static var memoryOnly: Bool { LaunchConfig.shared.background && VaultSandbox.directory == nil }
 
   private static var isolatedFile: URL? {
-    LaunchConfig.shared.dataDirectory.map {
+    VaultSandbox.directory.map {
       URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("Password Managers.json")
     }
   }

@@ -92,7 +92,7 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    user switch also wipe every tab's captured logins (`ArdiaVaultCapture wipeAll`).
 9. **Clipboard.** Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
    pasteboard is cleared after 90 s if nothing else was copied since.
-10. **Test instances.** With `ARDIA_DATA_DIR` set, binaries are looked up only in `<data dir>/Password Managers/bin`,
+10. **Test instances.** In a hidden test instance (`ARDIA_BACKGROUND=1` with `ARDIA_DATA_DIR`, `VaultSandbox`), binaries are looked up only in `<data dir>/Password Managers/bin`,
     each CLI gets its own state folder under `<data dir>/Password Managers/<id>` (`OP_CONFIG_DIR`,
     `BITWARDENCLI_APPDATA_DIR`, `PROTON_PASS_SESSION_DIR` with the file key provider), and the keychain copy goes to
     `<data dir>/Password Managers.json` (0600) instead of the real keychain. In background mode the owner check never

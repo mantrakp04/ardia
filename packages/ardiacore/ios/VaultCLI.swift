@@ -46,7 +46,7 @@ struct VaultCLI: Sendable {
   }
 
   private static func isolatedDirectory(for provider: any VaultProvider) -> String? {
-    guard let data = LaunchConfig.shared.dataDirectory else { return nil }
+    guard let data = VaultSandbox.directory else { return nil }
     let url = URL(fileURLWithPath: data, isDirectory: true)
       .appendingPathComponent("Password Managers", isDirectory: true)
       .appendingPathComponent(provider.id, isDirectory: true)
