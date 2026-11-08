@@ -253,7 +253,7 @@ Browser* WindowHost::BrowserFor(Profile* profile) {
     return nullptr;
   }
   if (Browser* browser = ExistingBrowserFor(profile)) {
-    return browser;
+    return browser->IsDeleteScheduled() ? nullptr : browser;
   }
   if (IsProfileDeleting(profile)) {
     return nullptr;
