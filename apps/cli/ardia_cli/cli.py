@@ -193,6 +193,11 @@ def build_parser():
     from ardia_cli import automation_cli
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
+    from ardia_cli import feedback, star
+
+    feedback.add_parser(commands, argparse.RawDescriptionHelpFormatter)
+    star.add_parser(commands, argparse.RawDescriptionHelpFormatter)
     return parser
 
 
@@ -278,5 +283,13 @@ def run(argv: list[str]) -> int:
         from ardia_cli import config_cli
 
         return (config_cli.run_config if args.command == "config" else config_cli.run_theme)(args, parser)
+    if args.command == "feedback":
+        from ardia_cli import feedback
+
+        return feedback.run(args)
+    if args.command == "star":
+        from ardia_cli import star
+
+        return star.run(args)
     parser.print_help()
     return 0
