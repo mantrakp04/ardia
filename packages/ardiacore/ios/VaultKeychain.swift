@@ -28,6 +28,9 @@ enum VaultKeychain {
     var query = baseQuery(account)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
+    #if DEBUG
+    query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+    #endif
     var item: CFTypeRef?
     guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
     return String(data: data, encoding: .utf8)

@@ -22,19 +22,37 @@ enum VaultBinaryLocator {
   static func isTrusted(_ path: String) -> Bool {
     let manager = FileManager.default
     guard path.hasPrefix("/"), manager.fileExists(atPath: path) else { return false }
-    let resolved = (path as NSString).resolvingSymlinksInPath
-    guard isOwnedSafely(path), isOwnedSafely((path as NSString).deletingLastPathComponent), isOwnedSafely(resolved),
-      isOwnedSafely((resolved as NSString).deletingLastPathComponent), manager.isExecutableFile(atPath: resolved),
+    guard let resolved = realPath(path), let linkDirectory = realPath((path as NSString).deletingLastPathComponent),
+      isOwnedSafely(path), directoriesAreSafe(linkDirectory), isOwnedSafely(resolved),
+      directoriesAreSafe((resolved as NSString).deletingLastPathComponent), manager.isExecutableFile(atPath: resolved),
       let attributes = try? manager.attributesOfItem(atPath: resolved)
     else { return false }
     return (attributes[.type] as? FileAttributeType) == .typeRegular
   }
 
-  private static func isOwnedSafely(_ path: String) -> Bool {
+  private static func realPath(_ path: String) -> String? {
+    guard let pointer = realpath(path, nil) else { return nil }
+    defer { free(pointer) }
+    let resolved = String(cString: pointer)
+    return resolved.hasPrefix("/") ? resolved : nil
+  }
+
+  private static func directoriesAreSafe(_ directory: String) -> Bool {
+    var current = directory
+    while true {
+      guard current.hasPrefix("/"), isOwnedSafely(current, stickyAllowed: true) else { return false }
+      if current == "/" { return true }
+      current = (current as NSString).deletingLastPathComponent
+    }
+  }
+
+  private static func isOwnedSafely(_ path: String, stickyAllowed: Bool = false) -> Bool {
     guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else { return false }
     guard let owner = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value, owner == 0 || owner == getuid() else { return false }
-    if (attributes[.type] as? FileAttributeType) == .typeSymbolicLink { return true }
+    let type = attributes[.type] as? FileAttributeType
+    if type == .typeSymbolicLink { return true }
     guard let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue else { return false }
-    return permissions & 0o002 == 0
+    if permissions & 0o002 == 0 { return true }
+    return stickyAllowed && type == .typeDirectory && permissions & 0o1000 != 0
   }
 }

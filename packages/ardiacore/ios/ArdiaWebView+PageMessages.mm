@@ -138,6 +138,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     if (main && !tab.discarded) [self resetPageMedia];
     if (main && ![(Text(dict, @"url", 8192) ?: @"about:") hasPrefix:@"about:"]) _requests.requestedURL = nil;
     [self noteScriptFrame:frameId main:main];
+    [VaultCaptureOf(tab) forgetFrame:frameId];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
     AnswerHello(tab, _profile, frameId, main, verifiedOrigin);
     if (main && _littlePage.held) [self callFrame:frameId kind:@"firstPaint" json:@"{}"];
@@ -257,13 +258,13 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
           @"sources" : ArdiaHost.displayMediaSources
         }];
   } else if ([kind isEqualToString:@"vaultField"] && dict) {
-    [self noteVaultField:dict tab:tab frame:frameId main:main origin:sender];
+    [self noteVaultField:dict tab:tab frame:frameId main:main origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultKey"] && dict) {
     NSString *key = Text(dict, @"key", 16);
-    if (VaultWebOrigin(sender) && [VaultKeys() containsObject:key ?: @""])
+    if (VaultWebOrigin(VerifiedOrigin(verifiedOrigin)) && [VaultKeys() containsObject:key ?: @""])
       [self emit:@"vaultKey" payload:@{@"frameId" : frameId, @"key" : key}];
   } else if ([kind isEqualToString:@"vaultSubmit"] && dict) {
-    [self captureVaultSubmit:dict tab:tab frame:frameId origin:sender];
+    [self captureVaultSubmit:dict tab:tab frame:frameId origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultFilled"] && dict) {
     NSMutableArray<NSString *> *filled = [NSMutableArray array];
     for (id name in Field<NSArray>(dict, @"filled") ?: @[])
