@@ -236,13 +236,19 @@ export function calendarMenuItem(): MenuItem {
   };
 }
 
+async function connectFromMenu() {
+  const before = useCalendar.getState().access;
+  const granted = await connectCalendar();
+  if (!granted && (useCalendar.getState().requestError || before !== "notDetermined")) openSettings("calendar");
+}
+
 export function runCalendarMenu(choice: string): boolean {
   if (!choice.startsWith("cal:")) return false;
   const settings = live().calendar;
   if (choice.startsWith(DISMISS_NOW)) {
     const event = useCalendar.getState().events.find((e) => e.occurrence === choice.slice(DISMISS_NOW.length));
     if (event) dismissNowBadge(event);
-  } else if (choice === "cal:connect") void connectCalendar();
+  } else if (choice === "cal:connect") void connectFromMenu();
   else if (choice.startsWith("cal:lead:")) updateCalendarSettings({ alertLead: choice.slice(9) });
   else if (choice === "cal:preview") updateCalendarSettings({ showPreview: !settings.showPreview });
   else if (choice === "cal:badge") updateCalendarSettings({ showTimeToNext: !settings.showTimeToNext });

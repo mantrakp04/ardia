@@ -7,12 +7,14 @@ import { updateSettings } from "../../../state/settings/actions";
 import { Box, Button, Checkbox, EmptyState, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
 
+const openCalendarPrivacy = () => void Linking.openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars");
+
 export function CalendarPane() {
   const settings = useLive((s) => s.calendar);
-  const { access, calendars } = useCalendar();
+  const { access, calendars, requesting, requestError } = useCalendar();
   const autoGroup = useSettings((s) => s.autoGroupMeetingTabs);
   const connected = access === "fullAccess" || access === "fixture";
-  const denied = access === "denied" || access === "restricted";
+  const blocked = access === "denied" || access === "restricted" || access === "writeOnly";
   const owned = calendars.filter((c) => c.owned);
   const others = calendars.filter((c) => !c.owned);
 
@@ -30,15 +32,18 @@ export function CalendarPane() {
               ? "Development build: using calendar-fixture.json"
               : connected
                 ? `Connected · ${calendars.length === 1 ? "1 calendar" : `${calendars.length} calendars`}`
-                : denied
-                  ? "Ardia isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars."
-                  : "Not connected"
+                : blocked
+                  ? (requestError ?? "Ardia isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars.")
+                  : (requestError ?? "Not connected")
           }
         >
-          {denied ? (
-            <Button title="Open System Settings" onPress={() => void Linking.openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")} />
+          {blocked ? (
+            <Button title="Open System Settings" onPress={openCalendarPrivacy} />
           ) : !connected ? (
-            <Button title="Connect Calendar…" kind="primary" onPress={() => void connectCalendar()} />
+            <Box row gap="s">
+              {requestError ? <Button title="Open System Settings" onPress={openCalendarPrivacy} /> : null}
+              <Button title={requesting ? "Connecting…" : "Connect Calendar…"} kind="primary" disabled={requesting} onPress={() => void connectCalendar()} />
+            </Box>
           ) : null}
         </Row>
       </Group>

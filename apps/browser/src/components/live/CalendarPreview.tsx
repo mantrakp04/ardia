@@ -24,7 +24,7 @@ const JOINABLE_BEFORE_MS = 10 * 60_000;
 
 export function CalendarPreview({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
   const now = useNow(15_000);
-  const { access, events, loading, error, lastFetch } = useCalendar();
+  const { access, events, loading, error, lastFetch, requesting, requestError } = useCalendar();
   const connected = access === "fullAccess" || access === "fixture";
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
@@ -35,7 +35,7 @@ export function CalendarPreview({ tabId, windowId, anchor }: { tabId: string; wi
   const date = new Date(now).toLocaleDateString(UI_LOCALE, { weekday: "short", month: "short", day: "numeric" });
 
   let body: React.ReactNode;
-  if (!connected) body = <SignIn denied={access === "denied" || access === "restricted"} />;
+  if (!connected) body = <SignIn denied={access === "denied" || access === "restricted" || access === "writeOnly"} requesting={requesting} failure={requestError} />;
   else if (!lastFetch && loading) body = <Empty text="Loading events" />;
   else if (error && !lastFetch) body = <Empty text="Couldn't load events" />;
   else if (!today.length) body = <Empty text="No events today" />;
@@ -97,24 +97,29 @@ const NOTE_WRAP = { paddingVertical: space.xs } as const;
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 const NO_UNDERLINE = { textDecorationLine: "none" } as const;
 
-function SignIn({ denied }: { denied: boolean }) {
+function SignIn({ denied, requesting, failure }: { denied: boolean; requesting: boolean; failure: string | null }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   if (denied) {
     return (
       <Text tone="textSecondary" style={NOTE}>
-        Allow Ardia in System Settings › Privacy & Security › Calendars to see your meetings here.
+        {failure ?? "Allow Ardia in System Settings › Privacy & Security › Calendars to see your meetings here."}
       </Text>
     );
   }
   return (
     <View {...hoverProps} style={NOTE_WRAP}>
       <Text tone="textSecondary" style={liveType.detail}>
-        <Span onPress={() => void connectCalendar()} style={[{ color: theme.accent }, hovered ? UNDERLINE : NO_UNDERLINE]}>
-          Connect your calendar
+        <Span onPress={requesting ? undefined : () => void connectCalendar()} style={[{ color: theme.accent }, hovered && !requesting ? UNDERLINE : NO_UNDERLINE]}>
+          {requesting ? "Connecting…" : "Connect your calendar"}
         </Span>{" "}
         to see your meetings here and get alerts before they start.
       </Text>
+      {failure ? (
+        <Text tone="textSecondary" style={NOTE}>
+          {failure}
+        </Text>
+      ) : null}
     </View>
   );
 }
