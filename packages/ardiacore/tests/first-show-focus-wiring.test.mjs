@@ -24,13 +24,28 @@ test("the page focus state remembers that its page still needs focus on first sh
   assert.match(state, /BOOL onFirstShow\{\};/);
 });
 
-test("a tab taken from an offer marks its view before it is held or attached", () => {
+const offeredBranch = () => {
   const ensure = bodyOf(native("ArdiaWebView+Transfer.mm"), "- (void)ensureTab {");
-  const offered = ensure.slice(ensure.indexOf('hasPrefix:@"ardiacore:"'));
-  const mark = offered.indexOf(marksFirstShow);
-  assert.ok(mark >= 0, "the offered branch marks the view");
-  assert.ok(mark < offered.indexOf("holdTransferOf:offered"), "the mark comes before the hold");
-  assert.ok(mark < offered.indexOf("[self attach:offered]"), "the mark comes before the attach");
+  return ensure.slice(ensure.indexOf('hasPrefix:@"ardiacore:"'));
+};
+
+test("a tab taken from an offer marks its view before it is attached", () => {
+  const offered = offeredBranch();
+  const attach = bodyOf(offered.slice(offered.indexOf("if (offered && !offered.closed) {")), "if (offered && !offered.closed) {");
+  const mark = attach.indexOf(marksFirstShow);
+  assert.ok(mark >= 0, "the branch that attaches the offered tab marks the view");
+  assert.ok(mark < attach.indexOf("[self attach:offered]"), "the mark comes before the attach");
+});
+
+test("an offered tab that is held marks its view only once it is parked for the retry", () => {
+  const offered = offeredBranch();
+  const heldAt = offered.indexOf("[self holdTransferOf:offered]");
+  assert.ok(heldAt >= 0, "the offered branch holds a tab the window cannot take yet");
+  assert.ok(!offered.slice(0, heldAt).includes(marksFirstShow), "nothing is marked before the hold is decided");
+  const held = bodyOf(offered.slice(heldAt), "[self holdTransferOf:offered]");
+  const parked = held.indexOf("[ArdiaTabParking park:offered forKey:_transferKey];");
+  assert.ok(parked >= 0, "the held tab is parked");
+  assert.ok(held.indexOf(marksFirstShow) > parked, "the mark follows the park");
 });
 
 test("a parked link tab marks its view before it is taken, and unmarks it when it is not", () => {

@@ -170,12 +170,17 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
       if (!offered.closed) [offered closeNow];
       offered = nil;
     }
-    if (offered && !offered.closed) _focus.onFirstShow = YES;
     if (offered && !offered.closed && [self holdTransferOf:offered]) {
-      if (_transferKey.length) [ArdiaTabParking park:offered forKey:_transferKey];
+      if (_transferKey.length) {
+        [ArdiaTabParking park:offered forKey:_transferKey];
+        _focus.onFirstShow = YES;
+      }
       return;
     }
-    if (offered && !offered.closed) return [self attach:offered];
+    if (offered && !offered.closed) {
+      _focus.onFirstShow = YES;
+      return [self attach:offered];
+    }
   }
   NSString *kind = nil, *key = nil;
   NSRange colon = _adoptId ? [_adoptId rangeOfString:@":"] : NSMakeRange(NSNotFound, 0);

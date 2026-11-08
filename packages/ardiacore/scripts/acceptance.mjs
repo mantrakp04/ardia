@@ -72,7 +72,7 @@ const usesPageA = [
   "window-close-before-reveal", "window-close-during-exit", "window-close-while-full-screen-restore-waits",
   "webkit-clearing-keeps-zoom", "webkit-private-session-ends-mid-transfer", "webkit-now-playing-frames",
   "page-view-calls", "tab-close-then-load", "tab-close-before-create", "tab-load-before-attach", "tab-create-interrupted-by-move", "tab-close-while-lent",
-  "page-reports-follow-the-tab",
+  "page-reports-follow-the-tab", "link-tab-focus",
 ];
 const needs = {
   ...Object.fromEntries([...usesPageA, "task-manager", "internal-pages-not-history", "second-profile"].map((name) => [name, ["open-url"]])),
@@ -974,12 +974,7 @@ try {
       await until("A shown", async () => (await state()).active === first.id);
     };
     await showFirst();
-    const switchedTo = await until("the switched-to tab's focus", async () => (await hasFocus(first.id, `${base}/a`)) || null, 5000)
-      .catch((e) => {
-        if (!e.message.startsWith("timed out")) throw e;
-        return false;
-      });
-    if (!switchedTo) return { skipped: "a tab switched to doesn't report page focus in this instance, so there is nothing to compare" };
+    const switchedTo = await until("A's page to report focus after switching to it", async () => (await hasFocus(first.id, `${base}/a`)) || null, 5000);
     const opened = {};
     for (const [how, open] of [
       ["target-blank", "document.getElementById('blank').click()"],
