@@ -5,6 +5,7 @@ import { plural } from "../browser/model";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
 import {
+  adoptSpaceIdentity,
   applyResult,
   emptyCounts,
   importArcSpace,
@@ -71,8 +72,19 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(target: string, index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> {
-  if (index === 0) return target;
+async function destination(
+  target: string,
+  index: number,
+  name: string,
+  color?: string,
+  emoji?: string,
+  shareWith?: string | null,
+  fromSpace = false,
+): Promise<string> {
+  if (index === 0) {
+    if (fromSpace) adoptSpaceIdentity(target, { name, color, emoji });
+    return target;
+  }
   const clash = profileNamed(name);
   if (clash) {
     const { confirmed } = await confirm({
@@ -130,8 +142,8 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith);
+  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null, fromSpace = false) =>
+    destination(target, destinationIndex++, name, color, emoji, shareWith, fromSpace);
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
@@ -175,7 +187,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       let first: string | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
-        const dest = await nextDestination(name, space.color, space.emoji, first);
+        const dest = await nextDestination(name, space.color, space.emoji, first, true);
         first ??= dest;
         const r = importArcSpace(dest, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });

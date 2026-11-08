@@ -21,6 +21,7 @@ import { engineProfile, isIncognitoProfile, ROW_PIN } from "../browser/model";
 import { openPages, pageKey, pinnedPages, tilePages } from "../tabs/pageKeys";
 import { withNewTab } from "../tabs/tabs";
 import type { ProfileColor } from "../browser/types";
+import { DEFAULT_PROFILE } from "../profiles/profiles";
 import { setProfileTheme } from "../profiles/themeActions";
 import { parseArcTheme } from "./arcTheme";
 import { newProfileLiveFolder } from "../live/engine";
@@ -274,6 +275,18 @@ export function defaultTarget(): string {
   const s = useBrowser.getState();
   const w = s.windows[focusedWindowOf(s) ?? ""];
   return w && w.kind !== "private" ? w.profileId : s.settings.defaultProfileId;
+}
+
+export function adoptSpaceIdentity(profileId: string, space: { name: string; color?: string; emoji?: string }): void {
+  const s = useBrowser.getState();
+  const profile = s.profiles[profileId];
+  const name = space.name.trim();
+  const untouched =
+    profile?.name === DEFAULT_PROFILE.name && profile.color === DEFAULT_PROFILE.color && profile.icon === DEFAULT_PROFILE.icon && !profile.theme;
+  if (!profile || !untouched || !name || s.profileOrder.length !== 1) return;
+  s.updateProfile(profileId, { name, icon: space.emoji ?? null });
+  const color = profileColorFor(space.color);
+  if (color) s.setProfileLook(profileId, { color });
 }
 
 export function profileNamed(name: string): string | undefined {
