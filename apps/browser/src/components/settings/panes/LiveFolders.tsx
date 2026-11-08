@@ -7,7 +7,7 @@ import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live
 import { connectGoogleDrive } from "../../../state/live/googleAuth";
 import { isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
-import { accountOf, live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
+import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { extensionsProfileId } from "../../../state/extensions/store";
 import { useProfileRecords } from "../../../state/profiles/hooks";
@@ -231,7 +231,7 @@ function GithubConnect({ profileId, busy, run }: ConnectProps) {
 }
 
 function BitbucketConnect({ profileId, busy, run }: ConnectProps) {
-  const [user, setUser] = useState(() => accountOf(profileId, "bitbucket")?.user ?? "");
+  const [user, setUser] = useState("");
   const [token, setToken] = useState("");
   const go = () => void run(() => connectBitbucket(profileId, user, token));
   return (
@@ -269,8 +269,8 @@ function NotionConnect({ profileId, busy, run }: ConnectProps) {
 }
 
 function ConfluenceConnect({ profileId, busy, run }: ConnectProps) {
-  const [site, setSite] = useState(() => accountOf(profileId, "confluence")?.site ?? "");
-  const [email, setEmail] = useState(() => accountOf(profileId, "confluence")?.user ?? "");
+  const [site, setSite] = useState("");
+  const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const go = () => void run(() => connectConfluence(profileId, site, email, token));
   return (

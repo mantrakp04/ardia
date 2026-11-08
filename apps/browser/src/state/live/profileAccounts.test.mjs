@@ -432,15 +432,17 @@ test("the old keychain item stays when a profile deleted mid-copy can't have its
   assert.deepEqual(live().legacyAccounts.notion.owedTo, [profile]);
 });
 
-test("a connection whose save to disk fails still connects, and the account stays for the next save", async () => {
+test("a connection whose save to disk fails still connects, and the account reaches live.json with the next write", async () => {
   const profile = useBrowser.getState().createProfile({ name: "Unsaved" });
   failedSaves.on = true;
 
   await connectGithub(profile, "work-token");
   failedSaves.on = false;
+  await new Promise((resolve) => setTimeout(resolve, 900));
 
   assert.equal(live().accounts[profile].github.login, "luis-urrutia-flute");
   assert.equal(keychainItems.get(`github:${profile}`), "work-token");
+  assert.equal(JSON.parse(docs.get("live.json")).accounts[profile].github.login, "luis-urrutia-flute");
 });
 
 test("a stalled move holds up only the folders still owed one of their accounts", async () => {

@@ -145,16 +145,19 @@ export function flushLive() {
   if (timer !== undefined) save();
 }
 
+function writeSoon() {
+  clearTimeout(timer);
+  timer = setTimeout(save, SAVE_DELAY_MS);
+}
+
 export function saveLiveDurably(): Promise<void> {
   clearTimeout(timer);
   timer = undefined;
-  return saveDocument(DOC, persisted());
+  return saveDocument(DOC, persisted()).catch((error) => (writeSoon(), Promise.reject(error)));
 }
 
 useLive.subscribe((s, prev) => {
-  if (PERSISTED.every((k) => s[k] === prev[k])) return;
-  clearTimeout(timer);
-  timer = setTimeout(save, SAVE_DELAY_MS);
+  if (!PERSISTED.every((k) => s[k] === prev[k])) writeSoon();
 });
 
 let counter = 0;
