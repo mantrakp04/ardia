@@ -49,6 +49,13 @@ export const CLI_PILL_MOTION = {
   hide: { duration: duration.base, easing: curve.exit },
 } as const;
 
+export const NEW_TAB_NOTICE = {
+  height: 28,
+  rise: 6,
+  pressedOpacity: 0.7,
+  motion: { show: { duration: duration.base, easing: curve.enter }, hide: { duration: duration.base, easing: curve.exit } },
+} as const;
+
 export const SWIPE_MOTION = {
   confirm: { duration: duration.base, easing: curve.fade },
   list: { duration: duration.slow, easing: curve.fade },
