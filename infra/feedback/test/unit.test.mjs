@@ -144,25 +144,31 @@ test("scrubText removes emails, secrets, URL queries and home paths", () => {
     ["AKIAABCDEFGHIJKLMNOP", "[secret]"],
     ["xoxb-123456789012-abcdefghij", "[secret]"],
     [`jwt ${jwt}`, "jwt [secret]"],
-    ["Authorization: Bearer abcdefghijklmnop1234", "Authorization: Bearer [secret]"],
+    ["Authorization: Bearer abcdefghijklmnop1234", "Authorization: [secret]"],
     ["see https://example.com/path?token=abc&x=1#frag.", "see https://example.com/path."],
     ["(https://user:pw@host.dev/a?b)", "(https://host.dev/a)"],
     ["crash in /Users/jane/Library/Logs and /home/bob/x", "crash in /Users/[user]/Library/Logs and /home/[user]/x"],
     ["file:///Users/jane/a.html?x=1", "file:///Users/[user]/a.html"],
     ["Bearer short", "Bearer short"],
     ["the password field is broken", "the password field is broken"],
-    ["password=hunter2 then it failed", "password=[secret] then it failed"],
+    ["password=hunter2 then it failed", "password=[secret]"],
     ["X-Api-Key: short-secret", "X-Api-Key: [secret]"],
     ['Cookie: session="shortsecret"; other=anothersecret', "Cookie: [secret]"],
     ["it sent Bearer abc123 and got 401", "it sent Bearer [secret] and got 401"],
-    ["OPENAI_API_KEY=abc123 python x.py", "OPENAI_API_KEY=[secret] python x.py"],
+    ["OPENAI_API_KEY=abc123 python x.py", "OPENAI_API_KEY=[secret]"],
     ["my sid=abc; done", "my sid=[secret]; done"],
-    ["curl -u me:pass https://x.com/a", "curl -u [secret] https://x.com/a"],
+    ["curl -u me:pass https://x.com/a", "curl -u [secret]"],
     ["the session expired after auth, token refresh broke", "the session expired after auth, token refresh broke"],
-    ['password="part1\\"part2" then', "password=[secret] then"],
-    ["curl --password hunter2 https://x.dev", "curl --password [secret] https://x.dev"],
-    ['Authorization: Digest username="bob",\n  response="secretresponse",\n\topaque="tab"\nAccept: text/html', "Authorization: Digest [secret]\nAccept: text/html"],
-    ["curl -H 'Authorization: Bearer abc' --header \"X-Api-Key: k123\" -H 'Cookie: a=b; c=d' -H 'Accept: text/html' https://e.com/api?q=1", "curl -H 'Authorization: Bearer [secret]' --header \"X-Api-Key: [secret]\" -H 'Cookie: [secret]' -H 'Accept: text/html' https://e.com/api"],
+    ['password="part1\\"part2" then', "password=[secret]"],
+    ["curl --password hunter2 https://x.dev", "curl --password [secret]"],
+    ['Authorization: Digest username="bob",\n  response="secretresponse",\n\topaque="tab"\nAccept: text/html', "Authorization: [secret]\nAccept: text/html"],
+    ["curl -H 'Authorization: Bearer abc' --header \"X-Api-Key: k123\" -H 'Cookie: a=b; c=d' -H 'Accept: text/html' https://e.com/api?q=1", "curl -H 'Authorization: [secret]"],
+    [`curl --password "part1"'part2' x`, "curl --password [secret]"],
+    ["curl --password part1\\ part2", "curl --password [secret]"],
+    ['PASSWORD="part1\npart2"\nNEXT=ok', "PASSWORD=[secret]\nNEXT=ok"],
+    ["Authorization: Digest realm=\"api\",\n  username*=UTF-8''bob,\n  response=\"part1\",\n  opaque=\"part2\"\nAccept: text/html", "Authorization: [secret]\nAccept: text/html"],
+    ["Typing lags in the password field on github.com", "Typing lags in the password field on github.com"],
+    ["digest of the week", "digest of the week"],
   ];
   for (const [input, expected] of cases) assert.equal(scrubText(input), expected, input);
   const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\ndef\n-----END OPENSSH PRIVATE KEY-----";
@@ -193,8 +199,8 @@ test("issueFor puts only public-safe fields in the issue", () => {
   assert.match(issue.body, /\| macOS \| 26\.1 \|/);
   assert.match(issue.body, /https:\/\/dash\.ardia\.dev\/feedback\/FB-AB23/);
   for (const secret of ["jane@x.io", "secret.example", "recording.mp4", "400", INSTALL, "arm64"]) assert.ok(!issue.body.includes(secret), secret);
-  const leaky = issueFor({ ...report, title: "password=hunter2", description: 'password="part1\\"part2"\nAuthorization: Digest username="bob",\n  response="secretresponse"\ncurl --password hunter3 -H "X-Api-Key: short-secret"\nCookie: session="shortsecret"; other=anothersecret' }, "https://d");
-  for (const secret of ["hunter2", "hunter3", "part1", "part2", "secretresponse", "short-secret", "shortsecret", "anothersecret"]) {
+  const leaky = issueFor({ ...report, title: "password=hunter2", description: 'password="part1\\"part2"\nAuthorization: Digest username="bob",\n  response="secretresponse"\ncurl --password hunter3 -H "X-Api-Key: short-secret"\nCookie: session="shortsecret"; other=anothersecret\ncurl --password "part3"\'part4\' x\ncurl --password part5\\ part6\nPASSWORD="part7\npart8"\nAuthorization: Digest realm="api",\n  username*=UTF-8\'\'bob,\n  response="part9",\n  opaque="part10"' }, "https://d");
+  for (const secret of ["hunter2", "hunter3", "part1", "part2", "part3", "part4", "part5", "part6", "part7", "part8", "part9", "part10", "secretresponse", "short-secret", "shortsecret", "anothersecret"]) {
     assert.ok(!leaky.title.includes(secret) && !leaky.body.includes(secret), secret);
   }
   const cli = issueFor({ ...report, source: "cli", cli_version: "0.4.0", app_version: null }, "https://d");

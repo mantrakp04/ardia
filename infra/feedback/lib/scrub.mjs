@@ -38,8 +38,47 @@ function trimUrl(url) {
   return bare.replace(/^([a-z]+:\/\/)[^/@\s]*@/i, "$1") + trail;
 }
 
+const CREDENTIAL_START = new RegExp(
+  String.raw`(?:(?<![A-Za-z0-9_.-])(?:${SECRET_KEY}|(?:proxy-)?authorization|(?:set-)?cookie|x-[a-z0-9-]*(?:token|key|secret|auth|session|password)[a-z0-9-]*|api-key|private-token)["'${BT}]?\]?[ \t]*(?:=>|:=|=|:)|(?<!\S)--?${SECRET_KEY}(?:[ \t]+|=)|(?<!\S)(?:-u|--user|--proxy-user)(?:[ \t]+|=))[ \t]*`,
+  "i",
+);
+
+function unclosedQuote(tail) {
+  let open = null;
+  for (let i = 0; i < tail.length; i++) {
+    const c = tail[i];
+    if (c === "\\") i++;
+    else if (open) open = c === open ? null : open;
+    else if (c === '"' || c === "'" || c === BT) open = c;
+  }
+  return open;
+}
+
+function redactCredentialLines(text) {
+  const lines = text.split("\n");
+  let quote = null;
+  let folding = false;
+  return lines
+    .map((line) => {
+      if (quote) {
+        if (unclosedQuote(quote + line) === null) quote = null;
+        return null;
+      }
+      if (folding && /^[ \t]/.test(line)) return null;
+      folding = false;
+      const match = CREDENTIAL_START.exec(line);
+      if (!match) return line;
+      const cut = match.index + match[0].length;
+      quote = unclosedQuote(line.slice(cut));
+      folding = true;
+      return `${line.slice(0, cut)}[secret]`;
+    })
+    .filter((line) => line !== null)
+    .join("\n");
+}
+
 export function scrubText(text) {
-  let out = String(text ?? "");
+  let out = redactCredentialLines(String(text ?? "").replace(URL_PATTERN, trimUrl));
   for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, "[secret]");
   out = out.replace(DIGEST_PATTERN, "Digest$1[secret]");
   out = out.replace(HEADER_PATTERN, (match, name, gap, value) => `${name}${gap}${value.match(/^(?:Bearer|Basic|Token)[ \t]+/i)?.[0] ?? ""}[secret]`);
