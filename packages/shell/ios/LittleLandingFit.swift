@@ -16,7 +16,7 @@ final class LittleLandingFit {
 
   func start() {
     listen(NSWorkspace.shared.notificationCenter, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] _ in self?.fit() }
-    for name in [NSWindow.willMoveNotification, NSWindow.willStartLiveResizeNotification] {
+    for name in [NSWindow.willMoveNotification, NSWindow.willStartLiveResizeNotification, WindowMove.willDrag] {
       listen(NotificationCenter.default, name) { [weak self] note in
         guard let self, let window = note.object as? NSWindow, window === self.currentWindow() else { return }
         self.stop()

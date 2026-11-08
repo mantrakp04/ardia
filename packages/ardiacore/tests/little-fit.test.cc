@@ -69,17 +69,50 @@ static void FlipTests() {
   CHECK(Same(FlipFromTopLeft(flipped, 1415), {-1959, 233, 2406, 1085}));
 }
 
+static const Display kUltrawideDisplay = {{0, 0, 3440, 1440}, {0, 0, 3440, 1415}};
+static const Display kBuiltInDisplay = {{-1512, 0, 1512, 982}, {-1512, 70, 1512, 886}};
+
 static void LandedWindowTests() {
-  const std::vector<Rect> screens = {kUltrawide, kBuiltIn};
+  const std::vector<Display> displays = {kUltrawideDisplay, kBuiltInDisplay};
+  const Rect visible = kBuiltInDisplay.visible;
+  Rect fitted = {};
+
   const Rect reportedByAppKit = {517, 236, 2406, 1085};
+  CHECK(!FitLanding(reportedByAppKit, displays, kMinimum, &fitted));
+
   const Rect landed = {-1959, 100, 2406, 1085};
-  CHECK(ScreenHolding(reportedByAppKit, screens) == 0);
-  CHECK(Contains(kUltrawide, reportedByAppKit));
-  CHECK(ScreenHolding(landed, screens) == 1);
-  CHECK(!Contains(kBuiltIn, landed));
-  const Rect fitted = Fit(screens[ScreenHolding(landed, screens)], {landed.w, landed.h}, kMinimum);
-  CHECK(Contains(kBuiltIn, fitted));
+  CHECK(FitLanding(landed, displays, kMinimum, &fitted));
+  CHECK(Contains(visible, fitted));
   CHECK(fitted.w >= kMinimum.w && fitted.h >= kMinimum.h);
+  CHECK(fitted.y >= visible.y && fitted.maxY() <= visible.maxY());
+  CHECK(!Contains(visible, Fit(kBuiltInDisplay.frame, {landed.w, landed.h}, kMinimum)));
+}
+
+static void LandedBeyondTheVisibleFrameTests() {
+  const std::vector<Display> displays = {kUltrawideDisplay, kBuiltInDisplay};
+  const Rect visible = kBuiltInDisplay.visible;
+  Rect fitted = {};
+
+  const Rect underTheDock = {-1400, 10, 800, 600};
+  CHECK(Contains(kBuiltInDisplay.frame, underTheDock));
+  CHECK(!Contains(visible, underTheDock));
+  CHECK(FitLanding(underTheDock, displays, kMinimum, &fitted));
+  CHECK(Same(fitted, {-1156, 257, 800, 600}));
+  CHECK(Contains(visible, fitted));
+
+  const Rect underTheMenuBar = {-1400, 500, 800, 480};
+  CHECK(Contains(kBuiltInDisplay.frame, underTheMenuBar));
+  CHECK(!Contains(visible, underTheMenuBar));
+  CHECK(FitLanding(underTheMenuBar, displays, kMinimum, &fitted));
+  CHECK(Contains(visible, fitted));
+
+  const Rect inside = {-1400, 100, 800, 600};
+  CHECK(Contains(visible, inside));
+  CHECK(!FitLanding(inside, displays, kMinimum, &fitted));
+
+  const Rect nowhere = {9000, 9000, 800, 600};
+  CHECK(!FitLanding(nowhere, displays, kMinimum, &fitted));
+  CHECK(!FitLanding(inside, {}, kMinimum, &fitted));
 }
 
 int main() {
@@ -89,6 +122,7 @@ int main() {
   ContainsTests();
   FlipTests();
   LandedWindowTests();
+  LandedBeyondTheVisibleFrameTests();
   if (failures) return 1;
   std::printf("little-fit: all passed\n");
   return 0;

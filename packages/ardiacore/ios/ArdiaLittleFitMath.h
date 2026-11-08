@@ -51,4 +51,20 @@ inline int ScreenHolding(Rect bounds, const std::vector<Rect> &frames) {
 
 inline Rect FlipFromTopLeft(Rect r, double primaryHeight) { return {r.x, primaryHeight - r.y - r.h, r.w, r.h}; }
 
+struct Display {
+  Rect frame;
+  Rect visible;
+};
+
+inline bool FitLanding(Rect landed, const std::vector<Display> &displays, Size minimum, Rect *fitted) {
+  std::vector<Rect> frames;
+  for (const Display &display : displays) frames.push_back(display.frame);
+  const int held = ScreenHolding(landed, frames);
+  if (held < 0) return false;
+  const Rect visible = displays[held].visible;
+  if (Contains(visible, landed)) return false;
+  *fitted = Fit(visible, {landed.w, landed.h}, minimum);
+  return true;
+}
+
 }

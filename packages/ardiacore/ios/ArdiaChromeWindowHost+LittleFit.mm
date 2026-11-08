@@ -28,15 +28,11 @@ NSRect ToNSRect(Rect rect) { return NSMakeRect(rect.x, rect.y, rect.w, rect.h); 
   CGRect bounds = CGRectZero;
   if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds)) return nil;
   const Rect landed = ardia_little_fit::FlipFromTopLeft(FromNSRect(bounds), NSHeight(screens.firstObject.frame));
-  std::vector<Rect> frames;
-  for (NSScreen *screen in screens) frames.push_back(FromNSRect(screen.frame));
-  const int held = ardia_little_fit::ScreenHolding(landed, frames);
-  if (held < 0) return nil;
-  const Rect visible = FromNSRect(screens[held].visibleFrame);
-  if (ardia_little_fit::Contains(visible, landed)) return nil;
-  return [NSValue valueWithRect:[self littleFrameFittingVisible:screens[held].visibleFrame
-                                                           size:NSMakeSize(landed.w, landed.h)
-                                                    minimumSize:minimum]];
+  std::vector<ardia_little_fit::Display> displays;
+  for (NSScreen *screen in screens) displays.push_back({FromNSRect(screen.frame), FromNSRect(screen.visibleFrame)});
+  Rect fitted;
+  if (!ardia_little_fit::FitLanding(landed, displays, {minimum.width, minimum.height}, &fitted)) return nil;
+  return [NSValue valueWithRect:ToNSRect(fitted)];
 }
 
 @end
