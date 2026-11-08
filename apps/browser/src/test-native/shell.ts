@@ -372,7 +372,7 @@ export const shellNativeModules: Modules = {
   ArdiaCalendar: calendar,
   ArdiaKeychain: keychain,
   ArdiaGlassEffect: { isLiquidGlass: () => false },
-  ArdiaDockSelection: { iconTheme: () => Promise.resolve(null) },
+  ArdiaDockSelection: { iconTheme: () => Promise.resolve(null), iconAccent: () => Promise.resolve(null) },
   ArdiaInlineCompletion: { complete: () => Promise.resolve(0) },
   ArdiaTranslate: translate,
   ArdiaMagnifyArea: magnifyArea,
