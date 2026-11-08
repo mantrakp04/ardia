@@ -11,7 +11,8 @@ import { useIsBookmarked, useSettings, useSidebarSide, useTab, useTabLive } from
 import type { Tab } from "../../state/browser/types";
 import { Button, ContextMenuArea, Divider, FadeLabel, font, ink, space, Symbol, Text, useHover, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
-import { popoverOf, setPopover, usePage, usePages, type PageState } from "../../state/tabs/pageState";
+import { usePage, usePages, type PageState } from "../../state/tabs/pageState";
+import { togglePopover } from "../../state/tabs/popoverDismiss";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toggleBookmarkOfTab } from "../../state/bookmarks/actions";
 import { useBookmarksShown } from "../../state/bookmarks/hooks";
@@ -157,7 +158,7 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
   };
   const toggleSiteControls = () => {
     onFocus();
-    setPopover(tab.id, currentPopover(tab.id) === "siteControls" ? null : "siteControls");
+    togglePopover(tab.id, "siteControls");
   };
   return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
 }
@@ -316,7 +317,7 @@ function FieldButtons({
           look="field"
           onPress={() => {
             onFocus();
-            setPopover(tab.id, currentPopover(tab.id) === "popups" ? null : "popups");
+            togglePopover(tab.id, "popups");
           }}
           active={popover === "popups"}
           tooltip="Pop-ups blocked on this page"
@@ -334,4 +335,3 @@ function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boo
   return <Button variant="icon" icon={icon} look="field" color={theme.destructive} onPress={onPress} tooltip={`This page is using your ${what}`} />;
 }
 
-const currentPopover = (tabId: string) => popoverOf(tabId) ?? null;
