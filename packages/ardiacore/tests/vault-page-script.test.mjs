@@ -381,7 +381,7 @@ test("a one-time code spreads over a run of single-character inputs", () => {
   assert.deepEqual(page.of("vaultFilled"), [{ id: "o", filled: ["otp"] }]);
 });
 
-test("menu keys are taken only while the menu is open on the focused field, Tab passes, Escape closes", () => {
+test("menu keys are taken only while the menu is open on the focused field, Enter only with a highlight, Tab passes, Escape closes", () => {
   const page = makePage();
   const { user, pass } = loginForm(page);
   page.fire(user, "focusin");
@@ -392,8 +392,15 @@ test("menu keys are taken only while the menu is open on the focused field, Tab 
   assert.equal(elsewhere.defaultPrevented, false);
   const down = page.fire(user, "keydown", { key: "ArrowDown" });
   assert.equal(down.defaultPrevented, true);
+  page.handlers.vaultMenu({ open: true, highlighted: true });
   const enter = page.fire(user, "keydown", { key: "Enter" });
   assert.equal(enter.defaultPrevented, true);
+  page.handlers.vaultMenu({ open: true, highlighted: false });
+  const pageEnter = page.fire(user, "keydown", { key: "Enter" });
+  assert.equal(pageEnter.defaultPrevented, false, "Enter with no highlighted row reaches the page");
+  const closedAfterEnter = page.fire(user, "keydown", { key: "ArrowDown" });
+  assert.equal(closedAfterEnter.defaultPrevented, false, "a passed Enter closes the menu in the page");
+  page.handlers.vaultMenu({ open: true, highlighted: true });
   const untrusted = page.fire(user, "keydown", { key: "ArrowUp", isTrusted: false });
   assert.equal(untrusted.defaultPrevented, false);
   const escape = page.fire(user, "keydown", { key: "Escape" });
@@ -403,7 +410,7 @@ test("menu keys are taken only while the menu is open on the focused field, Tab 
   page.handlers.vaultMenu({ open: true });
   const tab = page.fire(user, "keydown", { key: "Tab" });
   assert.equal(tab.defaultPrevented, false);
-  assert.deepEqual(page.of("vaultKey"), [{ key: "ArrowDown" }, { key: "Enter" }, { key: "Escape" }, { key: "Tab" }]);
+  assert.deepEqual(page.of("vaultKey"), [{ key: "ArrowDown" }, { key: "Enter" }, { key: "Enter" }, { key: "Escape" }, { key: "Tab" }]);
 });
 
 test("a change-password form keeps the current password apart from the new ones", () => {

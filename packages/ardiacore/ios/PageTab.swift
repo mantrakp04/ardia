@@ -66,7 +66,7 @@ protocol PageTab: NSView {
   func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool,
                      _ completion: @escaping ([String: Any]) -> Void)
   func fillGeneratedPassword(frameId: String, origin: String, _ completion: @escaping ([String: Any]) -> Void)
-  func setVaultMenu(frameId: String, open: Bool)
+  func setVaultMenu(frameId: String, open: Bool, highlighted: Bool)
   func saveToVault(provider: String, origin: String, title: String?, _ completion: @escaping ([String: Any]) -> Void)
   func discardVaultCapture(origin: String)
 }

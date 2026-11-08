@@ -33,7 +33,7 @@ type NativeHandle = Omit<
   discard(unload: boolean): Promise<DiscardOutcome>;
   fillFromVault(frameId: string, origin: string, provider: string, id: string, fields: string[], userChose: boolean): Promise<VaultFillResult>;
   fillGeneratedPassword(frameId: string, origin: string): Promise<{ filled: VaultFilledField[] }>;
-  setVaultMenu(frameId: string, open: boolean): Promise<void>;
+  setVaultMenu(frameId: string, open: boolean, highlighted: boolean): Promise<void>;
   saveToVault(provider: string, origin: string, title: string | null): Promise<VaultSaveResult>;
   discardVaultCapture(origin: string): Promise<void>;
 };
@@ -118,7 +118,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
           n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false),
         ),
       fillGeneratedPassword: (r) => call<{ filled: VaultFilledField[] }>({ filled: [] }, (n) => n.fillGeneratedPassword(r.frameId, r.origin)),
-      setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open)),
+      setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open, r.open && r.highlighted)),
       saveToVault: (r) => call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null)),
       discardVaultCapture: (r) => call(undefined, (n) => n.discardVaultCapture(r.origin)),
     };

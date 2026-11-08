@@ -685,6 +685,7 @@
     let vaultFocused = null;
     let vaultFocusedInfo = null;
     let vaultMenuOpen = false;
+    let vaultMenuHighlighted = false;
     let vaultRectQueued = false;
     let vaultStepUser = null;
     let vaultLastSubmit = null;
@@ -704,7 +705,7 @@
       const el = vaultFocused;
       const info = vaultFocusedInfo;
       vaultFocused = vaultFocusedInfo = null;
-      vaultMenuOpen = false;
+      vaultMenuOpen = vaultMenuHighlighted = false;
       if (el && info) vaultReport(el, info, false);
     };
     const vaultFocus = (el) => {
@@ -815,13 +816,14 @@
         const el = vaultTargetOf(e);
         const key = e.key;
         if (vaultMenuOpen && vaultFocused && el === vaultFocused && ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(key)) {
-          if (key !== "Tab") {
+          const passesToPage = key === "Tab" || (key === "Enter" && !vaultMenuHighlighted);
+          if (!passesToPage) {
             apply(vaultPrevent, e, []);
             apply(vaultStopNow, e, []);
           }
-          if (key === "Escape" || key === "Tab") vaultMenuOpen = false;
+          if (passesToPage || key === "Escape") vaultMenuOpen = vaultMenuHighlighted = false;
           send("vaultKey", { key });
-          return;
+          if (key !== "Enter" || !passesToPage) return;
         }
         if (key === "Enter" && vaultIsInput(el)) vaultSubmitFrom(vaultContainerOf(el));
       }),
@@ -898,6 +900,7 @@
     };
     handlers.vaultMenu = (message) => {
       vaultMenuOpen = !!(message && message.open === true) && !!vaultFocused;
+      vaultMenuHighlighted = vaultMenuOpen && message.highlighted === true;
     };
   } catch (e) {}
 

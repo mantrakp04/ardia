@@ -72,6 +72,7 @@ type NativeEvents = {
   onVaultField: VaultField;
   onVaultKey: VaultKeyPress;
   onVaultSubmitted: VaultSubmission;
+  onAutofillSuggestions: { count: number };
 };
 export type Handlers = keyof NativeEvents;
 export type PageEvent = { name: string; data: unknown };
@@ -118,6 +119,7 @@ const PAGE_EVENTS = {
   onVaultField: "vaultField",
   onVaultKey: "vaultKey",
   onVaultSubmitted: "vaultSubmitted",
+  onAutofillSuggestions: "autofillSuggestions",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
 export const pageEventOf = (handler: Handlers): PageEventName => PAGE_EVENTS[handler];
@@ -164,6 +166,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onVaultField: (e) => [e],
   onVaultKey: (e) => [e],
   onVaultSubmitted: (e) => [e],
+  onAutofillSuggestions: (e) => [e.count],
 };
 
 export const isPageEventProp = (key: string): key is Handlers => key in unwrap;

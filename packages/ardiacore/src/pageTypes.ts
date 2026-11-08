@@ -245,6 +245,7 @@ export type WebViewProps = ViewProps & {
   onVaultField?: (field: VaultField) => void;
   onVaultKey?: (press: VaultKeyPress) => void;
   onVaultSubmitted?: (submission: VaultSubmission) => void;
+  onAutofillSuggestions?: (count: number) => void;
 };
 
 export type WebViewHandle = {
@@ -295,7 +296,7 @@ export type WebViewHandle = {
 
   fillFromVault(request: VaultFillRequest): Promise<VaultFillResult>;
   fillGeneratedPassword(request: { frameId: string; origin: string }): Promise<{ filled: VaultFilledField[] }>;
-  setVaultMenu(request: { frameId: string; open: boolean }): Promise<void>;
+  setVaultMenu(request: { frameId: string; open: boolean; highlighted: boolean }): Promise<void>;
   saveToVault(request: VaultSaveRequest): Promise<VaultSaveResult>;
   discardVaultCapture(request: { origin: string }): Promise<void>;
 };

@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)finishFill:(NSString *)fillId frame:(NSString *)frameId filled:(NSArray<NSString *> *)filled;
 
 - (void)wipe;
++ (void)wipeAll;
 
 @end
 

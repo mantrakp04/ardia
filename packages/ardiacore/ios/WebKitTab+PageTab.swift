@@ -67,7 +67,7 @@ extension WebKitTab: PageTab {
     completion(["filled": [String]()])
   }
 
-  func setVaultMenu(frameId: String, open: Bool) {}
+  func setVaultMenu(frameId: String, open: Bool, highlighted: Bool) {}
 
   func saveToVault(provider: String, origin: String, title: String?, _ completion: @escaping ([String: Any]) -> Void) {
     completion(["saved": false, "error": VaultFillError.notFound.rawValue])

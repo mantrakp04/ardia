@@ -1,3 +1,3 @@
 export { noteVaultKey } from "./fill";
-export { forgetVaultPage, noteVaultField } from "./menu";
+export { forgetVaultPage, noteAutofillSuggestions, noteVaultField } from "./menu";
 export { noteVaultSubmitted } from "./saveOffer";

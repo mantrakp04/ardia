@@ -9,6 +9,15 @@ static const NSUInteger kMaxFills = 8;
 
 static NSTimeInterval Now() { return NSProcessInfo.processInfo.systemUptime; }
 
+static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
+  static NSHashTable<ArdiaVaultCapture *> *captures;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    captures = [NSHashTable weakObjectsHashTable];
+  });
+  return captures;
+}
+
 @implementation ArdiaVaultCapture {
   NSMutableDictionary<NSString *, NSString *> *_frameOrigins;
   NSMutableDictionary<NSString *, NSDictionary *> *_logins;
@@ -20,6 +29,7 @@ static NSTimeInterval Now() { return NSProcessInfo.processInfo.systemUptime; }
     _frameOrigins = [NSMutableDictionary dictionary];
     _logins = [NSMutableDictionary dictionary];
     _fills = [NSMutableDictionary dictionary];
+    [LiveCaptures() addObject:self];
   }
   return self;
 }
@@ -103,6 +113,10 @@ static NSTimeInterval Now() { return NSProcessInfo.processInfo.systemUptime; }
   [_logins removeAllObjects];
   [_frameOrigins removeAllObjects];
   for (NSString *fillId in _fills.allKeys) [self finishFill:fillId frame:_fills[fillId][@"frame"] filled:@[]];
+}
+
++ (void)wipeAll {
+  for (ArdiaVaultCapture *capture in LiveCaptures().allObjects) [capture wipe];
 }
 
 @end

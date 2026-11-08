@@ -54,13 +54,16 @@ function setMenu(tabId: string, menu: VaultMenu | null) {
   useVaultMenus.setState((s) => ({ menus: { ...s.menus, [tabId]: menu } }));
 }
 
+const tellPage = (tabId: string, frameId: FrameId, open: boolean, highlighted = false) =>
+  void webviews.get(tabId)?.setVaultMenu({ frameId, open, highlighted })?.catch(() => {});
+
 export function patchVaultMenu(tabId: string, patch: Partial<VaultMenu>, onlySeq?: number) {
   const menu = vaultMenuOf(tabId);
   if (!menu || (onlySeq !== undefined && menu.seq !== onlySeq)) return;
-  setMenu(tabId, { ...menu, ...patch });
+  const next = { ...menu, ...patch };
+  setMenu(tabId, next);
+  if (next.selected !== menu.selected) tellPage(tabId, next.frameId, true, next.selected >= 0);
 }
-
-const tellPage = (tabId: string, frameId: FrameId, open: boolean) => void webviews.get(tabId)?.setVaultMenu({ frameId, open })?.catch(() => {});
 
 export function rowsOfMenu(menu: VaultMenu): VaultRow[] {
   return menuRows({
@@ -152,6 +155,11 @@ export const showAllPasswords = (tabId: string) => patchVaultMenu(tabId, { mode:
 export function showVaultMatches(tabId: string) {
   if (vaultMenuOf(tabId)?.mode === "search") void webviews.get(tabId)?.focus();
   patchVaultMenu(tabId, { mode: "matches", query: "", selected: -1, error: null });
+}
+
+export function noteAutofillSuggestions(tabId: string, count: number) {
+  const menu = vaultMenuOf(tabId);
+  if (count > 0 && menu && !menu.onDemand) closeVaultMenu(tabId);
 }
 
 export function forgetVaultPage(tabId: string) {

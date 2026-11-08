@@ -257,6 +257,7 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
 
 - (void)tab:(ArdiaCoreTab *)tab didShowAutofillSuggestions:(NSArray<NSDictionary<NSString *, NSString *> *> *)items {
   NoteEvent(ardia_host::BrowserId(tab), @"autofillSuggestions", @{@"items" : items ?: @[]});
+  [self emit:@"autofillSuggestions" payload:@{@"count" : @(items.count)}];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didShowContextMenu:(NSArray<NSDictionary *> *)items {

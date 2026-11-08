@@ -325,8 +325,12 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   [self callFrame:frameId kind:@"vaultFill" json:JSONText(message)];
 }
 
-- (void)setVaultMenuInFrame:(NSString *)frameId open:(BOOL)open {
-  if (_tab) [self callFrame:frameId kind:@"vaultMenu" json:open ? @"{\"open\":true}" : @"{\"open\":false}"];
+- (void)setVaultMenuInFrame:(NSString *)frameId open:(BOOL)open highlighted:(BOOL)highlighted {
+  if (!_tab) return;
+  NSString *json = !open ? @"{\"open\":false,\"highlighted\":false}"
+                   : highlighted ? @"{\"open\":true,\"highlighted\":true}"
+                                 : @"{\"open\":true,\"highlighted\":false}";
+  [self callFrame:frameId kind:@"vaultMenu" json:json];
 }
 
 - (void)keepVaultLogin:(NSString *)username password:(NSString *)password origin:(NSString *)origin {
@@ -339,6 +343,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (void)discardVaultLogin:(NSString *)origin {
   [VaultCaptureOf(_tab) discardLogin:origin];
+}
+
++ (void)wipeVaultCaptures {
+  [ArdiaVaultCapture wipeAll];
 }
 
 - (void)noteScriptFrame:(NSString *)frameId main:(BOOL)main {

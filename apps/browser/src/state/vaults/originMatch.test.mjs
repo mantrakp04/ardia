@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bestItem, isSecureOrigin, loginSavedIn, matchTier, rankItems, registrableDomain, sameSite, searchItems, TIER } from "./originMatch.ts";
+import { bestItem, isRegistrySuffix, isSecureOrigin, isSharedHosting, loginSavedIn, matchTier, parseSite, rankItems, registrableDomain, sameSite, searchItems, TIER } from "./originMatch.ts";
 
 const item = (id, urls, extra = {}) => ({ provider: "bitwarden", id, title: id, username: `${id}@example.com`, urls, hasTotp: false, ...extra });
 
@@ -104,4 +104,27 @@ test("same site means the same registrable domain", () => {
   assert.equal(sameSite("https://login.example.com", "https://example.com"), true);
   assert.equal(sameSite("https://a.github.io", "https://b.github.io"), false);
   assert.equal(sameSite("https://example.com", "https://example.org"), false);
+});
+
+test("suffix rules mirror the native VaultOriginMatch", () => {
+  assert.equal(matchTier("https://evil.github.io", "github.io"), TIER.none, "a shared-hosting suffix item matches no tenant");
+  assert.equal(matchTier("https://b.github.io", "https://a.github.io"), TIER.none);
+  assert.equal(matchTier("https://x.a.github.io", "https://a.github.io"), TIER.none, "shared hosting needs the exact host");
+  assert.equal(matchTier("https://a.github.io", "https://a.github.io/login"), TIER.exact);
+  assert.equal(matchTier("https://bucket.s3.amazonaws.com", "https://other.s3.amazonaws.com"), TIER.none);
+  assert.equal(matchTier("https://login.example.co.uk", "example.co.uk"), TIER.subdomain);
+  for (const page of ["https://example.co.uk", "https://login.example.co.uk", "https://shop.co.uk"]) assert.equal(matchTier(page, "co.uk"), TIER.none, `co.uk against ${page}`);
+  assert.equal(matchTier("https://shop.com.co", "com.co"), TIER.none, "two-label registry rule on a two-letter TLD");
+  assert.equal(matchTier("https://a.gob.mx", "https://b.gob.mx"), TIER.none);
+  assert.equal(matchTier("https://login.example.com", "*.example.com"), TIER.none);
+  assert.equal(matchTier("https://example.com", "*.example.com"), TIER.none);
+  assert.equal(parseSite("https://*.example.com"), null);
+  assert.equal(parseSite("https://exa mple.com"), null);
+  assert.equal(isRegistrySuffix("co.uk"), true);
+  assert.equal(isRegistrySuffix("nom.fr"), true);
+  assert.equal(isRegistrySuffix("com.com"), false);
+  assert.equal(isRegistrySuffix("github.io"), true);
+  assert.equal(isSharedHosting("alice.vercel.app"), true);
+  assert.equal(registrableDomain("co.uk"), "");
+  assert.equal(registrableDomain("x.a.github.io"), "x.a.github.io");
 });

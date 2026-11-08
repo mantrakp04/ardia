@@ -59,7 +59,9 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
 2. **Fill checks.** `VaultBroker.fillValues` refuses unless the origin is https (or http on localhost, 127.0.0.1 or
    ::1), the manager is unlocked, the item exists in a fresh list, and one of the item's URLs matches the origin
    (`VaultOriginMatch`: same host, or one host is a dot-suffix subdomain of the other; IP addresses match exactly; a
-   single-label host never matches by suffix; an explicit port in the saved URL must equal the page's port). The
+   single-label host never matches by suffix; a registry suffix such as `co.uk` or a shared-hosting suffix such as
+   `github.io` never matches by suffix, and a host under shared hosting matches only exactly; an explicit port in the
+   saved URL must equal the page's port; the JS ranking in `state/vaults/originMatch.ts` uses the same lists). The
    person choosing an item from search (`userChose`) skips only the URL match, never the https rule. The origin
    comes from the native VerifiedOrigin of the frame, and the page script checks `location.origin` again at fill time.
 3. **Binaries.** Only fixed locations are searched (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`,
@@ -67,8 +69,9 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    directory must be owned by root or the current user and not be world-writable, and the target must be a regular
    executable file. Commands never go through a shell.
 4. **Processes.** Each run gets an explicit environment: `HOME`, `USER`, `LOGNAME`, `TMPDIR`, proxy and CA variables
-   when set, `LANG=en_US.UTF-8` (so error text is parseable), `PATH=/usr/bin:/bin:/usr/sbin:/sbin` plus the binary's
-   own directory, and the provider's variables. Stdin is `/dev/null`, or a pipe that is written and closed (with
+   when set, `LANG=en_US.UTF-8` (so error text is parseable), `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, then `/opt/homebrew/bin` and `/usr/local/bin` when they pass the
+   locator's directory checks (so an npm-installed `bw` finds `node`), then the binary's own directory, and the
+   provider's variables. Stdin is `/dev/null`, or a pipe that is written and closed (with
    `SIGPIPE` off for that descriptor). Stdout and stderr drain concurrently; stdout is capped at 32 MB (the process
    is stopped past it) and stderr at 1 MB. Every call has a timeout: terminate, then `SIGKILL` 2 s later. Flags take
    their values in `--flag=value` form so an id or title can't be read as an option, and ids are validated before
@@ -85,7 +88,8 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    before use. Any keychain failure degrades to memory only. This path needs no entitlement, so it works in ad-hoc
    and development signed builds. Turning the option off deletes every stored copy, and lock then also runs `bw lock`.
 8. **Auto-lock.** After the idle timeout (default 30 minutes without a list, fill, copy, code or save), and on sleep,
-   screen lock or fast user switch, every manager locks and `vaults.changed` is emitted.
+   screen lock or fast user switch, every manager locks and `vaults.changed` is emitted. Sleep, screen lock and fast
+   user switch also wipe every tab's captured logins (`ArdiaVaultCapture wipeAll`).
 9. **Clipboard.** Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
    pasteboard is cleared after 90 s if nothing else was copied since.
 10. **Test instances.** With `ARDIA_DATA_DIR` set, binaries are looked up only in `<data dir>/Password Managers/bin`,
@@ -102,7 +106,8 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
 - A Proton Pass session lock can only be lifted with `pass-cli session unlock` in Terminal.
 - 1Password's list has no one-time code flag, so `hasTotp` is unknown there and `vaults.totp` answers `null` when the
   item has none.
-- Origin matching has no public suffix list: an item saved for `co.uk` would match `example.co.uk`.
+- Origin matching uses a short built-in suffix list, not the full public suffix list: a registry suffix missing from it
+  (and not of the `co.xx` form) could match its subdomains.
 
 ## The JS surface
 

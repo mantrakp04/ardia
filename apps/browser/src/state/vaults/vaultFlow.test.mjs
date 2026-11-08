@@ -18,7 +18,7 @@ const provider = (state) => ({ id: "bitwarden", name: "Bitwarden", state, capabi
 const login = { provider: "bitwarden", id: "gh", title: "GitHub", username: "octo", urls: ["https://github.com"], hasTotp: true };
 const calls = [];
 const handle = {
-  setVaultMenu: async (r) => void calls.push(["menu", r.open]),
+  setVaultMenu: async (r) => void calls.push(["menu", r.open, r.highlighted]),
   fillFromVault: async (r) => (calls.push(["fill", r]), { filled: ["username", "password"] }),
   fillGeneratedPassword: async () => ({ filled: ["newPassword"] }),
   saveToVault: async (r) => (calls.push(["save", r]), { saved: true }),
@@ -60,7 +60,7 @@ test("focusing a login field with a match opens the menu and tells the page", as
   menu.noteVaultField(tabId, field());
   await settle();
   assert.equal(menu.vaultMenuOf(tabId)?.field, "password");
-  assert.deepEqual(calls.at(-1), ["menu", true]);
+  assert.deepEqual(calls.at(-1), ["menu", true, false]);
   menu.noteVaultField(tabId, field({ rect: { x: 10, y: 60, width: 240, height: 28 } }));
   assert.equal(menu.vaultMenuOf(tabId)?.rect.y, 60, "rect updates follow the field");
 });
@@ -72,6 +72,7 @@ test("arrow then enter fills the highlighted login into the reporting frame, and
   noteVaultKey(tabId, { frameId: "other", key: "ArrowDown" });
   assert.equal(menu.vaultMenuOf(tabId)?.selected, -1, "keys from another frame are ignored");
   noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
+  assert.deepEqual(calls.at(-1), ["menu", true, true], "the page takes Enter once a row is highlighted");
   noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
   await settle();
   const fill = calls.find((c) => c[0] === "fill")[1];
@@ -84,9 +85,30 @@ test("enter with nothing highlighted closes the menu so the form can submit", as
   const { tabId } = await setup();
   menu.noteVaultField(tabId, field());
   await settle();
+  noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
+  noteVaultKey(tabId, { frameId: "f1", key: "ArrowUp" });
+  assert.deepEqual(calls.at(-1), ["menu", true, true]);
+  menu.selectVaultRow(tabId, -1);
+  assert.deepEqual(calls.at(-1), ["menu", true, false], "clearing the highlight lets the page keep Enter");
   noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
   assert.equal(menu.vaultMenuOf(tabId), null);
-  assert.deepEqual(calls.at(-1), ["menu", false]);
+  assert.deepEqual(calls.at(-1), ["menu", false, false]);
+  assert.equal(calls.some((c) => c[0] === "fill"), false);
+});
+
+test("Chrome's own dropdown closes a menu opened on focus but not one opened on demand", async () => {
+  const { tabId } = await setup();
+  menu.noteVaultField(tabId, field());
+  await settle();
+  menu.noteAutofillSuggestions(tabId, 0);
+  assert.ok(menu.vaultMenuOf(tabId), "an empty dropdown changes nothing");
+  menu.noteAutofillSuggestions(tabId, 2);
+  assert.equal(menu.vaultMenuOf(tabId), null);
+  assert.deepEqual(calls.at(-1), ["menu", false, false]);
+  assert.equal(menu.openVaultMenuOnDemand(tabId), true);
+  menu.noteAutofillSuggestions(tabId, 2);
+  assert.equal(menu.vaultMenuOf(tabId)?.onDemand, true, "a menu asked for stays");
+  menu.closeVaultMenu(tabId);
 });
 
 test("a blur closes the menu after a short grace unless the pointer is on it", async () => {

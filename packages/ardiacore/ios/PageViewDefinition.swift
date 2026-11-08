@@ -115,8 +115,8 @@ enum PageViewDefinition {
       AsyncFunction("fillGeneratedPassword") { (view: V, frameId: String, origin: String, promise: Promise) in
         view.page.fillGeneratedPassword(frameId: frameId, origin: origin) { promise.resolve($0) }
       }.runOnQueue(.main)
-      AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool) in
-        view.page.setVaultMenu(frameId: frameId, open: open)
+      AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool, highlighted: Bool) in
+        view.page.setVaultMenu(frameId: frameId, open: open, highlighted: highlighted)
       }.runOnQueue(.main)
       AsyncFunction("saveToVault") { (view: V, provider: String, origin: String, title: String?, promise: Promise) in
         view.page.saveToVault(provider: provider, origin: origin, title: title) { promise.resolve($0) }

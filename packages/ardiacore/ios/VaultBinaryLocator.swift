@@ -30,6 +30,13 @@ enum VaultBinaryLocator {
     return (attributes[.type] as? FileAttributeType) == .typeRegular
   }
 
+  static func isTrustedDirectory(_ directory: String) -> Bool {
+    guard directory.hasPrefix("/"), let resolved = realPath(directory) else { return false }
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDirectory), isDirectory.boolValue else { return false }
+    return isOwnedSafely(resolved) && directoriesAreSafe((resolved as NSString).deletingLastPathComponent)
+  }
+
   private static func realPath(_ path: String) -> String? {
     guard let pointer = realpath(path, nil) else { return nil }
     defer { free(pointer) }

@@ -29,6 +29,7 @@ final class VaultAutoLock {
   }
 
   private static func lockEverything() {
+    ArdiaWebView.wipeVaultCaptures()
     Task { await VaultBroker.shared.lockAll() }
   }
 }

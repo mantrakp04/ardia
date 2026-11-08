@@ -3,6 +3,7 @@ import Foundation
 struct VaultCLI: Sendable {
   static let defaultTimeout: TimeInterval = 30
   static let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+  static let toolDirectories = ["/opt/homebrew/bin", "/usr/local/bin"]
 
   private static let passedVariables = [
     "HOME", "USER", "LOGNAME", "TMPDIR", "http_proxy", "https_proxy", "no_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY",
@@ -28,12 +29,20 @@ struct VaultCLI: Sendable {
     if environment["HOME"] == nil { environment["HOME"] = FileManager.default.homeDirectoryForCurrentUser.path }
     if environment["TMPDIR"] == nil { environment["TMPDIR"] = NSTemporaryDirectory() }
     environment["LANG"] = "en_US.UTF-8"
-    environment["PATH"] = "\(systemPath):\((path as NSString).deletingLastPathComponent)"
+    environment["PATH"] = searchPath(binaryDirectory: (path as NSString).deletingLastPathComponent)
     environment.merge(provider.environment) { _, chosen in chosen }
     if let directory = isolatedDirectory(for: provider) {
       environment.merge(provider.isolatedEnvironment(directory)) { _, chosen in chosen }
     }
     return environment
+  }
+
+  private static func searchPath(binaryDirectory: String) -> String {
+    var directories = systemPath.split(separator: ":").map(String.init)
+    for directory in toolDirectories + [binaryDirectory] where !directories.contains(directory) {
+      if directory == binaryDirectory || VaultBinaryLocator.isTrustedDirectory(directory) { directories.append(directory) }
+    }
+    return directories.joined(separator: ":")
   }
 
   private static func isolatedDirectory(for provider: any VaultProvider) -> String? {
