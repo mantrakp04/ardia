@@ -181,7 +181,10 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
       image at 100%). So YouTube gets a red ring, X a black one.
     - < 0.055, one colour → `template`: the tile filled with the mean colour, the icon drawn as a
       white template, the ring white with a soft-light compositing filter. A near-white icon (WCAG
-      relative luminance > 0.88) gets a black fill and an opaque white 30% ring instead.
+      relative luminance > 0.88) gets a black fill and an opaque white 30% ring instead. Ardia also gives
+      that white 30% ring to a near-black fill (luminance < 0.01, ChatGPT's black glyph): soft light can't
+      lighten black, so Dia's ring vanishes along the edges and only the anti-aliased corners show
+      (`DockSelection.ringStroke`, classic style only, drawn at render time so cached themes get it too).
     - No theme (a non-RGB image, no opaque pixels, no favicon): fill `TabBackgroundSelectedPrimary`
       (black / white), ring `TabDockItemDefaultSelectionStroke` (white .45 dark / black .48 light).
       Ardia still draws its older look there (white 25% fill, black rim, `TabOutline` bevel).
