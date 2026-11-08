@@ -180,7 +180,7 @@ test("in window full screen the sidebar's button sits at Arc's 29 pt, with no ro
   }
 });
 
-test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open with it shown", () => {
+test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open as the last choice left them", () => {
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
@@ -209,7 +209,7 @@ test("hidden or shown is each window's own, and survives a quit and relaunch; ne
   assert.ok(reopened, "the closed window came back");
   assert.equal(S().windows[reopened].sidebarOpen, false, "reopened as it was closed");
   const c = S().createWindow({ url: "c.com" });
-  assert.equal(S().windows[c].sidebarOpen, true);
+  assert.equal(S().windows[c].sidebarOpen, false, "the last choice was hidden");
   stop();
 });
 
