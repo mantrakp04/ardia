@@ -1,7 +1,7 @@
 import { visible } from "../scope.ts";
 import type { ScopeState } from "../scopeState.ts";
 import { fromLegacy } from "./legacy.ts";
-import { lastVisitOf, type BookmarkValue, type DeviceTabsValue, type DeviceValue, type HistoryValue } from "./adapters.ts";
+import { lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
 
 export const MAX_HISTORY_ITEMS = 2_000;
 
@@ -96,7 +96,7 @@ function deviceTabs(scope: ScopeState | undefined, me: string, devices: Map<stri
   for (const [k, v] of visible(scope, "tabs:")) {
     const deviceId = k.slice(5);
     const device = devices.get(deviceId);
-    const value = v as DeviceTabsValue;
+    const value = v as DeviceTabs;
     if (deviceId === me || !device || !Array.isArray(value?.tabs)) continue;
     const seen = new Set<string>();
     const tabs: { url: string; title: string }[] = [];

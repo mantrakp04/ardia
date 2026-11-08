@@ -1025,7 +1025,7 @@ async function runCompanionCycle(input            )                       {
       const state = c.scopes[scope];
       if (!state) continue;
       for (const [k, v] of visible(state, "send:")) {
-        const s = v             ;
+        const s = v              ;
         if (!s || s.to !== device || s.from === device || acked.has(`${scope}\n${k}`)) continue;
         if (typeof s.u !== "string" || !isWebUrl(s.u)) {
           c.acks.push({ scope, key: k });
@@ -1132,7 +1132,10 @@ __define("packages/sync/src/companion/adapters.ts", function (exports, __require
 const { assignPositions } = __require("packages/sync/src/order.ts");
 const { hlcWall } = __require("packages/sync/src/hlc.ts");
 const { visible } = __require("packages/sync/src/scope.ts");
+                                                                                         
                                                             
+
+                                                                    
 
 const DAY_MS = 86_400_000;
 const HISTORY_WINDOW_MS = 90 * DAY_MS;
@@ -1142,15 +1145,11 @@ const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
                                                                               
-                                                                                          
-                                                                  
-                                                                                       
-                                                                                                       
 
                                                                                
                                                                                    
 
-                                                                           
+                                                                            
                                                  
                         
                                                                                                    
@@ -1192,7 +1191,7 @@ function deviceTabsAdapter(device        , name        , tabs                   
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent }                          ]]), ignore };
+      return { values: new Map([[key, { n: name, k: "phone", tabs: recent }                     ]]), ignore };
     },
     apply: () => true,
   };
@@ -1510,7 +1509,7 @@ function deviceTabs(scope                        , me        , devices          
   for (const [k, v] of visible(scope, "tabs:")) {
     const deviceId = k.slice(5);
     const device = devices.get(deviceId);
-    const value = v                   ;
+    const value = v              ;
     if (deviceId === me || !device || !Array.isArray(value?.tabs)) continue;
     const seen = new Set        ();
     const tabs                                   = [];

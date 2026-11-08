@@ -1,13 +1,11 @@
+import type { BookmarkValue, DeviceTabs, HistoryValue, SendRecord } from "../../platform/sync";
 import type { ProfileRecord } from "./profileAdapters";
 import { isFields, isNumber, isString, type Fields } from "../../lib/decode";
 
+export type { BookmarkValue, DeviceTabs, HistoryValue, SendRecord };
 export type ShareRecord = { o: string };
 export type DeviceKind = "mac" | "phone";
 export type DeviceRecord = { n: string; k?: string; f?: string[] };
-export type DeviceTabs = { n: string; k?: string; tabs: { u: string; t: string }[] };
-export type SendRecord = { u: string; t: string; to: string; from: string; at: number };
-export type BookmarkValue = { k: "u" | "f"; p: string; t: string; u?: string; a: number; pos: string };
-export type HistoryValue = { t: string; n: number; vt: number[] };
 export type PasswordValue = { o: string; u: string; s: string };
 export type TopAppsRecord = { on: boolean };
 

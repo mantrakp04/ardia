@@ -1,7 +1,10 @@
 import { assignPositions } from "../order.ts";
 import { hlcWall } from "../hlc.ts";
 import { visible } from "../scope.ts";
+import type { BookmarkValue, DeviceTabs, HistoryValue, SendRecord } from "../records.ts";
 import type { Adapter, ScopeState } from "../scopeState.ts";
+
+export type { BookmarkValue, DeviceTabs, HistoryValue, SendRecord };
 
 export const DAY_MS = 86_400_000;
 export const HISTORY_WINDOW_MS = 90 * DAY_MS;
@@ -11,15 +14,11 @@ export const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
 export type DeviceValue = { n: string; k?: string; f?: string[]; s?: string };
-export type DeviceTabsValue = { n: string; k?: string; tabs: { u: string; t: string }[] };
-export type HistoryValue = { t: string; n: number; vt: number[] };
-export type SendValue = { u: string; t: string; to: string; from: string; at: number };
-export type BookmarkValue = { k: "u" | "f"; p: string; t: string; u?: string; a: number; pos: string };
 
 export type LocalTab = { u: string; t: string; at: number; p?: string | null };
 export type LocalVisit = { u: string; t: string; vt: number[]; p?: string | null };
 
-export type PendingSend = { scope: string; key: string; value: SendValue };
+export type PendingSend = { scope: string; key: string; value: SendRecord };
 export type Ack = { scope: string; key: string };
 export type BookmarkOp =
   | { scope: string; op: "add"; key: string; value: Omit<BookmarkValue, "pos"> & { pos?: string } }
@@ -61,7 +60,7 @@ export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[]
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent } satisfies DeviceTabsValue]]), ignore };
+      return { values: new Map([[key, { n: name, k: "phone", tabs: recent } satisfies DeviceTabs]]), ignore };
     },
     apply: () => true,
   };

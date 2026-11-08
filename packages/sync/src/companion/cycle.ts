@@ -12,7 +12,7 @@ import {
   sendsAdapter,
   type LocalTab,
   type LocalVisit,
-  type SendValue,
+  type SendRecord,
 } from "./adapters.ts";
 import { buildView, dataOwner, defaultProfileId, liveProfiles, type View } from "./view.ts";
 import { host, loaded, save, viewIsNew, type CompanionState } from "./state.ts";
@@ -204,7 +204,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
       const state = c.scopes[scope];
       if (!state) continue;
       for (const [k, v] of visible(state, "send:")) {
-        const s = v as SendValue;
+        const s = v as SendRecord;
         if (!s || s.to !== device || s.from === device || acked.has(`${scope}\n${k}`)) continue;
         if (typeof s.u !== "string" || !isWebUrl(s.u)) {
           c.acks.push({ scope, key: k });
