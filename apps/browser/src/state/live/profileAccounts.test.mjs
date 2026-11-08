@@ -438,11 +438,12 @@ test("a connection whose save to disk fails still connects, and the account reac
 
   await connectGithub(profile, "work-token");
   failedSaves.on = false;
-  await new Promise((resolve) => setTimeout(resolve, 900));
+  const savedLogin = () => JSON.parse(docs.get("live.json")).accounts[profile]?.github?.login;
+  for (const deadline = Date.now() + 5000; !savedLogin() && Date.now() < deadline; ) await new Promise((resolve) => setTimeout(resolve, 50));
 
   assert.equal(live().accounts[profile].github.login, "luis-urrutia-flute");
   assert.equal(keychainItems.get(`github:${profile}`), "work-token");
-  assert.equal(JSON.parse(docs.get("live.json")).accounts[profile].github.login, "luis-urrutia-flute");
+  assert.equal(savedLogin(), "luis-urrutia-flute");
 });
 
 test("a stalled move holds up only the folders still owed one of their accounts", async () => {
