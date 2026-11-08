@@ -63,8 +63,8 @@ final class FocusHandoff {
   @discardableResult
   func begin(in window: NSWindow) -> Int? {
     guard window.isKeyWindow, WindowManager.shared.id(of: window) != nil else { return nil }
+    let existing = liveGate(in: window)
     let focused = window.firstResponder
-    let existing = gates[ObjectIdentifier(window)]
     guard existing != nil || Self.isPage(focused) else { return nil }
     if Self.isPage(focused), let input = focused as? NSTextInputClient, input.hasMarkedText() { return nil }
     let gate = existing ?? open(in: window)
@@ -257,6 +257,11 @@ final class FocusHandoff {
   private func extendDeadline(of gate: Gate, after delay: CFTimeInterval) {
     guard CACurrentMediaTime() + delay > gate.deadline else { return }
     setDeadline(of: gate, after: delay)
+  }
+
+  private func liveGate(in window: NSWindow) -> Gate? {
+    guard let gate = gates[ObjectIdentifier(window)], live(gate) else { return nil }
+    return gate
   }
 
   private func live(_ gate: Gate) -> Bool {
