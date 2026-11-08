@@ -10,6 +10,7 @@ import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disc
 import { accountOf, live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { extensionsProfileId } from "../../../state/extensions/store";
+import { useProfileRecords } from "../../../state/profiles/hooks";
 import { openUrlFromSettings, replaceSettingsPlace, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
 import { Box, Button, DialogActions, DialogTitle, Divider, proseLineHeight, Sheet, space, Text, TextField, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
@@ -21,6 +22,10 @@ import { perLook } from "../../ui/tokens";
 
 export function LiveFoldersPane({ profileId: chosen }: { profileId: string | null }) {
   const [profileId] = useState(() => extensionsProfileId(chosen));
+  const profileExists = useProfileRecords((profiles) => !!profiles[profileId]);
+  useEffect(() => {
+    if (!profileExists) replaceSettingsPlace(extensionsProfileId(null));
+  }, [profileExists]);
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter((f) => f?.profileId === profileId)));
   useLive((s) => s.status);
   useLive((s) => s.hidden);

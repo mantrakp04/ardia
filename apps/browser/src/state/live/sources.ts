@@ -361,14 +361,17 @@ async function adopt(profileIds: string[]) {
     const value = source === "gdrive" ? withClientId(saved, legacy.clientId) : saved;
     const stillOwed: string[] = [];
     for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, value, legacy))) stillOwed.push(profileId);
-    setLegacyAccount(source, { ...legacy, owedTo: stillOwed });
+    const current = live().legacyAccounts[source]?.owedTo;
+    const stillListed = (ids: string[]) => (current ? ids.filter((id) => current.includes(id)) : ids);
+    const remaining = stillListed(stillOwed);
+    setLegacyAccount(source, { ...legacy, owedTo: remaining });
     try {
       await saveLiveDurably();
     } catch {
-      setLegacyAccount(source, record);
+      setLegacyAccount(source, { ...legacy, owedTo: stillListed(owedTo) });
       continue;
     }
-    if (!stillOwed.length && (await deleteSecret(source, null))) setLegacyAccount(source, null);
+    if (!remaining.length && (await deleteSecret(source, null))) setLegacyAccount(source, null);
   }
 }
 

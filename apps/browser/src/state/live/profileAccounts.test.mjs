@@ -464,3 +464,26 @@ test("a stalled move holds up only the folders still owed one of their accounts"
   assert.equal(owedReadyWhileStalled, false);
   assert.equal(keychainItems.get(`notion:${owed}`), "legacy-notion-token");
 });
+
+test("a profile that disconnects while the move copies another one stays off the list, even after a refused copy", async () => {
+  const refused = useBrowser.getState().createProfile({ name: "Refused" });
+  const slow = useBrowser.getState().createProfile({ name: "Slow" });
+  pendingNotion([refused, slow]);
+  keychainRefusals.add(`notion:${refused}`);
+  heldKeychainWrites.on = true;
+
+  const adopting = adoptLegacyAccounts([refused, slow]);
+  await until(() => heldKeychainWrites.queue.length > 0);
+  release(heldKeychainWrites);
+  await until(() => heldKeychainWrites.queue.length > 0);
+  keychainRefusals.clear();
+  await disconnect(refused, "notion");
+  heldKeychainWrites.on = false;
+  release(heldKeychainWrites);
+  await adopting;
+  await adoptLegacyAccounts([refused, slow]);
+
+  assert.equal(keychainItems.has(`notion:${refused}`), false);
+  assert.equal(live().accounts[refused]?.notion, undefined);
+  assert.equal(live().accounts[slow].notion.login, "Acme");
+});
