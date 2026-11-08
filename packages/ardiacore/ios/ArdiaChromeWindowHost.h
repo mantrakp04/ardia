@@ -42,6 +42,16 @@ NSView *_Nullable ArdiaWindowRootView(NSWindow *_Nullable window);
 NSValue *_Nullable ArdiaTrafficLightsCenter(NSWindow *_Nullable window);
 BOOL ArdiaTrafficLightsTrailing(NSWindow *_Nullable window);
 
+@interface ArdiaChromeWindowHost (LittleFit)
+
++ (NSRect)littleFrameFittingVisible:(NSRect)visible
+                               size:(NSSize)size
+                        minimumSize:(NSSize)minimum NS_SWIFT_NAME(littleFrame(fittingVisible:size:minimumSize:));
++ (nullable NSValue *)littleFrameFittingLandingOf:(NSWindow *)window
+                                      minimumSize:(NSSize)minimum NS_SWIFT_NAME(littleFrameFittingLanding(of:minimumSize:));
+
+@end
+
 @interface ArdiaChromeWindowHost (Dev)
 
 + (nullable NSString *)devAction:(NSString *)action window:(NSWindow *)window;

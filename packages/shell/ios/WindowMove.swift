@@ -10,7 +10,10 @@ let installWindowMoveFallback: Void = {
   typealias PerformDrag = @convention(c) (NSWindow, Selector, NSEvent) -> Void
   let original = unsafeBitCast(method_getImplementation(method), to: PerformDrag.self)
   let block: @convention(block) (NSWindow, NSEvent) -> Void = { window, event in
-    if WindowMove.windowServerMoves(window, from: event) { return }
+    if WindowMove.windowServerMoves(window, from: event) {
+      WindowMove.announceDrag(of: window)
+      return
+    }
     if !WindowMove.follow(window, from: event) { original(window, selector, event) }
   }
   method_setImplementation(method, imp_implementationWithBlock(block))
@@ -18,6 +21,7 @@ let installWindowMoveFallback: Void = {
 }()
 
 enum WindowMove {
+  static let willDrag = Notification.Name("ArdiaWindowMoveWillDrag")
   static let replacesNativeDrag = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
   private static var following = false
   private static weak var moving: NSWindow?
@@ -108,6 +112,10 @@ enum WindowMove {
       && !window.styleMask.contains(.fullScreen) && ServerWindowDrag.serverOwnsPress(window, at: event.locationInWindow)
   }
 
+  static func announceDrag(of window: NSWindow) {
+    NotificationCenter.default.post(name: willDrag, object: window)
+  }
+
   static func follow(_ window: NSWindow, from event: NSEvent) -> Bool {
     guard !following, event.type == .leftMouseDown, event.clickCount < 2,
           window.isMovable, !window.styleMask.contains(.fullScreen), window.isVisible
@@ -123,9 +131,14 @@ enum WindowMove {
     let start = screenPoint(event)
     let origin = window.frame.origin
     var wasActive = NSApp.isActive
+    var announced = false
     func move(to event: NSEvent) {
       let target = place(window, origin, start, screenPoint(event))
       guard !near(window.frame.origin, target) else { return }
+      if !announced {
+        announced = true
+        announceDrag(of: window)
+      }
       window.setFrameOrigin(target)
       record(window)
     }

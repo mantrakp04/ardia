@@ -123,6 +123,24 @@ test("startup sweep: closes native windows the store doesn't have, keeps utility
   assert.deepEqual(native.of("setTitle"), [["setTitle", a, windowTitle(S(), a)]]);
 });
 
+test("a frame the host fitted to a smaller display keeps the saved Little Ardia size; a user's resize saves", () => {
+  reset();
+  S().updateSettings({ littleArdiaSize: [2406, 1085] });
+  const small = S().createWindow({ kind: "small", url: "https://link.example/" });
+  const native = fakePort();
+  const sync = start(native);
+  sync.sync(S());
+  native.emit({ type: "frame", id: small, frame: [517, 236, 2406, 1085] });
+  assert.deepEqual(S().settings.littleArdiaSize, [2406, 1085]);
+  native.emit({ type: "frame", id: small, frame: [-1512, 0, 1512, 950], fitted: true });
+  assert.deepEqual(S().windows[small].frame, [-1512, 0, 1512, 950]);
+  assert.deepEqual(S().settings.littleArdiaSize, [2406, 1085]);
+  native.emit({ type: "frame", id: small, frame: [-1512, 0, 1512, 950] });
+  assert.deepEqual(S().settings.littleArdiaSize, [2406, 1085]);
+  native.emit({ type: "frame", id: small, frame: [-1400, 20, 1200, 800] });
+  assert.deepEqual(S().settings.littleArdiaSize, [1200, 800]);
+});
+
 test("full screen comes back oldest first", () => {
   reset();
   const a = S().createWindow();
