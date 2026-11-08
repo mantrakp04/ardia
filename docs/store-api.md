@@ -22,7 +22,9 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 - `splits` (state/splits/splits.ts): `{ windowId, tabIds (2–3, pane order), orientation, sizes, stack? }` — `stack` = two panes sharing a slot the other way (Add Bottom Split). Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the profile's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
 - `history[profileId]`: a view of Chrome's history (HistoryService), one entry per URL, not saved; `historyReady[profileId]`
   once it has been read (state/history/engineSync.ts). `bookmarks`: `{ nodes, roots[profileId]: { bar, other } }`.
-- `closedTabs` / `closedWindows` (full state; a closed window's entry leaves out its pinned tabs and pinned groups);
+- `closedTabs` / `closedWindows` (full state; a closed window's entry leaves out its pinned tabs and pinned groups; the last
+  regular window closed with the close button is marked `lastWindow`, with `activePin` when a pinned tab was showing, and
+  `openLastWindowOrNew` (state/windows/lastWindow.ts) brings it back on a Dock click or at launch);
   `downloads`; `settings` (typed, state/settings/settings.ts).
 - `parkedPins[profileId]` (state/pins/parkedPins.ts): pinned tabs belong to the profile's sidebar, as in Dia. Closing a
   window (⌘W on its last tab, the close button, ⇧⌘W, "Start fresh" on launch) parks its pinned tiles (at their pinned

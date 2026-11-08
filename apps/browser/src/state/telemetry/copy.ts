@@ -58,6 +58,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, and how much tint) and which app icon you picked, each with its default. Never addresses, names, search engines or anything you typed",
+      "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",
     ],
   },
   {

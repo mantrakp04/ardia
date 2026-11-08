@@ -11,6 +11,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const share = (on) => S().updateSettings({ shareTabsAcrossWindows: on });
 const listed = (w, profileId = S().windows[w].profileId) => S().windows[w].tabIds.filter((id) => S().tabs[id].profileId === profileId);
 const personal = () => profileFor(S(), "default").name;
+const urlsClosedLast = () => S().closedWindows.at(-1).tabs.map((t) => t.url).sort();
 
 const asked = [];
 let answer = true;
@@ -48,13 +49,14 @@ test("closing a second window whose tabs all stay open in the first asks nothing
   assert.equal(listed(a).length, 3, "A still has all three");
 });
 
-test("closing the last window asks about every tab it loses", async () => {
+test("closing the last window asks nothing: it stays restorable from the Dock", async () => {
   const { a, b } = twoWindows();
   await closeByUser(b);
   const dialogs = await closeByUser(a);
-  assert.deepEqual(dialogs.map((d) => d.title), ["Close 3 tabs?"]);
-  assert.equal(dialogs[0].message, `This window has 3 tabs open in your ${personal()} profile.`);
+  assert.deepEqual(dialogs.map((d) => d.title), []);
   assert.equal(S().windows[a], undefined, "A closed");
+  assert.equal(S().closedWindows.at(-1).lastWindow, true, "kept as the last window");
+  assert.deepEqual(urlsClosedLast(), ["https://a1.com", "https://a2.com", "https://b1.com"]);
 });
 
 test("with sharing off every window still asks about its own tabs", async () => {
@@ -71,8 +73,11 @@ test("with sharing off every window still asks about its own tabs", async () => 
 });
 
 test("cancelling the warning keeps the window and every tab", async () => {
-  const { a, b } = twoWindows();
-  await closeByUser(b);
+  S().hydrate({});
+  const a = S().createWindow({ url: "https://a1.com" });
+  S().newTab(a, { url: "https://a2.com" });
+  S().newTab(a, { url: "https://a3.com" });
+  S().createWindow({ url: "https://b1.com" });
   answer = false;
   try {
     assert.deepEqual((await closeByUser(a)).map((d) => d.title), ["Close 3 tabs?"]);
@@ -96,7 +101,7 @@ test("with sharing on, a window asks only about the tabs that close with it", as
   assert.equal(listed(a).length, 3);
 });
 
-test("a window already closing keeps no copies: the next close asks about the tabs only it still holds", async () => {
+test("a window already closing doesn't count as open: the next close is the last window's and asks nothing", async () => {
   const { a, b } = twoWindows();
   const gates = [];
   const animateWindowClose = shellNativeModules.ArdiaAppWindows.animateWindowClose;
@@ -104,17 +109,19 @@ test("a window already closing keeps no copies: the next close asks about the ta
   try {
     assert.deepEqual((await closeByUser(a)).map((d) => d.title), [], "A's tabs stay open in B");
     assert.ok(S().windows[a], "A is still in the store while it animates");
-    const dialogs = await closeByUser(b);
-    assert.deepEqual(dialogs.map((d) => d.title), ["Close 3 tabs?"]);
-    assert.equal(dialogs[0].message, `This window has 3 tabs open in your ${personal()} profile.`);
+    assert.deepEqual((await closeByUser(b)).map((d) => d.title), [], "B is the last open window");
   } finally {
     gates.splice(0).forEach((resolve) => resolve());
     shellNativeModules.ArdiaAppWindows.animateWindowClose = animateWindowClose;
   }
   await tick();
+  await tick();
+  assert.equal(Object.keys(S().windows).length, 0);
+  assert.equal(S().closedWindows.filter((c) => c.lastWindow).length, 1, "one window to bring back");
+  assert.deepEqual(urlsClosedLast(), ["https://a1.com", "https://a2.com", "https://b1.com"], "with every tab");
 });
 
-test("a window whose shared tabs lose their other window while its warning is up asks again before closing them", async () => {
+test("a window whose other window closes while its warning is up closes as the last window once confirmed", async () => {
   const { a, b } = twoWindows();
   const work = S().createProfile({ name: "Work" });
   S().newTab(a, { url: "https://w1.com", profileId: work, background: true });
@@ -133,12 +140,10 @@ test("a window whose shared tabs lose their other window while its warning is up
     answers.shift()();
     await tick();
     await tick();
-    assert.deepEqual(asked.map((d) => d.title), ["Close 5 tabs?"], "confirming A now loses the shared three too, so it asks again");
-    assert.ok(S().windows[a], "A waits for that answer");
-    answers.shift()();
-    await tick();
-    await tick();
+    assert.deepEqual(asked.map((d) => d.title), [], "A is the last window now, so nothing is lost and it doesn't ask again");
     assert.equal(S().windows[a], undefined, "A closed once confirmed");
+    assert.equal(S().closedWindows.at(-1).lastWindow, true);
+    assert.equal(S().closedWindows.at(-1).tabs.length, 5, "with the shared three and its Work two");
   } finally {
     held = null;
     answers.splice(0).forEach((resolve) => resolve());
@@ -174,8 +179,6 @@ async function withHeldAnimations(run) {
     await tick();
   }
 }
-
-const urlsClosedLast = () => S().closedWindows.at(-1).tabs.map((t) => t.url).sort();
 
 for (const order of ["first", "second"]) {
   test(`closing two windows that share tabs closes both when the ${order} one's animation ends first`, async () => {
