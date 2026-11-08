@@ -10,6 +10,8 @@ import {
   HISTORY_WINDOW_MS,
   isWebUrl,
   sendsAdapter,
+  SEND_LIFETIME_MS,
+  DAY_MS,
   type LocalTab,
   type LocalVisit,
   type SendRecord,
@@ -194,6 +196,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
     }
   }
   c.clock = clock.last;
+  forgetOldSends(c, now());
 
   const received: Received[] = [];
   if (!retiring) {
@@ -243,12 +246,22 @@ export function companionView(): View {
 const scopeFor = (profile: string) => profileScope(dataOwner(loaded().scopes[APP], profile));
 const isLive = (profile: string) => liveProfiles(loaded().scopes[APP]).has(profile);
 const refused = { saved: false, refused: true } as const;
+const SEND_KEY_KEPT_MS = SEND_LIFETIME_MS + DAY_MS;
+
+function forgetOldSends(c: CompanionState, now: number) {
+  const sent = (c.sent ??= {});
+  for (const [key, at] of Object.entries(sent)) if (now - at > SEND_KEY_KEPT_MS) delete sent[key];
+  return sent;
+}
 
 export function companionSend(input: { profile: string; key: string; u: string; t: string; to: string; at: number }) {
   const c = loaded();
   if (!isLive(input.profile)) return refused;
   const key = `send:${input.key}`;
-  if (!c.sends.some((s) => s.key === key)) {
+  const sent = forgetOldSends(c, input.at);
+  const known = key in sent || c.sends.some((s) => s.key === key);
+  sent[key] ??= input.at;
+  if (!known) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
   }
   return { saved: save(true) };

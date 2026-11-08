@@ -26,6 +26,7 @@ export type CompanionState = {
   due?: Record<string, Record<string, true>>;
   removals?: Record<string, string[]>;
   ghosts?: { id: string; since: number }[];
+  sent?: Record<string, number>;
 };
 
 let companion: CompanionState | null = null;
@@ -62,6 +63,7 @@ export function companionLoad(input: { device: string; state?: CompanionState | 
   state.due ??= {};
   state.removals ??= {};
   state.ghosts ??= [];
+  state.sent ??= {};
   for (const id of input.ghosts ?? []) if (id !== input.device && !state.ghosts.some((g) => g.id === id)) state.ghosts.push({ id, since: Date.now() });
   const clock = new Clock(input.device, state.clock);
   let restored = false;
@@ -100,7 +102,7 @@ function fingerprint(c: CompanionState): string {
       const s = c.scopes[name]!;
       return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
     });
-  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts]);
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts, c.sent]);
 }
 
 export function save(force = false): boolean {

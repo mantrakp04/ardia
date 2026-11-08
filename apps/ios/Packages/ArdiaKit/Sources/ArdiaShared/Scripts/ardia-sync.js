@@ -723,6 +723,7 @@ const { emptyScope } = __require("packages/sync/src/scopeState.ts");
                                              
                                       
                                            
+                                
   
 
 let companion                        = null;
@@ -759,6 +760,7 @@ function companionLoad(input                                                    
   state.due ??= {};
   state.removals ??= {};
   state.ghosts ??= [];
+  state.sent ??= {};
   for (const id of input.ghosts ?? []) if (id !== input.device && !state.ghosts.some((g) => g.id === id)) state.ghosts.push({ id, since: Date.now() });
   const clock = new Clock(input.device, state.clock);
   let restored = false;
@@ -797,7 +799,7 @@ function fingerprint(c                )         {
       const s = c.scopes[name] ;
       return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
     });
-  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts]);
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts, c.sent]);
 }
 
 function save(force = false)          {
@@ -834,7 +836,7 @@ __define("packages/sync/src/companion/cycle.ts", function (exports, __require) {
 const { Clock } = __require("packages/sync/src/hlc.ts");
 const { syncScope, visible } = __require("packages/sync/src/scope.ts");
 const { emptyScope } = __require("packages/sync/src/scopeState.ts");
-const { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, historyExpired, HISTORY_WINDOW_MS, isWebUrl, sendsAdapter } = __require("packages/sync/src/companion/adapters.ts");
+const { bookmarksAdapter, deviceAdapter, deviceTabsAdapter, historyAdapter, historyExpired, HISTORY_WINDOW_MS, isWebUrl, sendsAdapter, SEND_LIFETIME_MS, DAY_MS } = __require("packages/sync/src/companion/adapters.ts");
 const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("packages/sync/src/companion/view.ts");
 const { host, loaded, save, viewIsNew } = __require("packages/sync/src/companion/state.ts");
 
@@ -1015,6 +1017,7 @@ async function runCompanionCycle(input            )                       {
     }
   }
   c.clock = clock.last;
+  forgetOldSends(c, now());
 
   const received             = [];
   if (!retiring) {
@@ -1064,12 +1067,22 @@ function companionView()       {
 const scopeFor = (profile        ) => profileScope(dataOwner(loaded().scopes[APP], profile));
 const isLive = (profile        ) => liveProfiles(loaded().scopes[APP]).has(profile);
 const refused = { saved: false, refused: true }         ;
+const SEND_KEY_KEPT_MS = SEND_LIFETIME_MS + DAY_MS;
+
+function forgetOldSends(c                , now        ) {
+  const sent = (c.sent ??= {});
+  for (const [key, at] of Object.entries(sent)) if (now - at > SEND_KEY_KEPT_MS) delete sent[key];
+  return sent;
+}
 
 function companionSend(input                                                                                ) {
   const c = loaded();
   if (!isLive(input.profile)) return refused;
   const key = `send:${input.key}`;
-  if (!c.sends.some((s) => s.key === key)) {
+  const sent = forgetOldSends(c, input.at);
+  const known = key in sent || c.sends.some((s) => s.key === key);
+  sent[key] ??= input.at;
+  if (!known) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
   }
   return { saved: save(true) };

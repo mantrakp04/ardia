@@ -541,6 +541,40 @@ test("a send goes round trip both ways and is applied once", async () => {
   assert.equal(phone.state().acks.length, 0);
 });
 
+test("a send retried with the same key after a relaunch is never published again, even once its tombstone is gone", async () => {
+  const { folder, mac, phone } = await joined();
+  await phone.cycle();
+  const id = "55555555-5555-4555-8555-555555555555";
+  const key = `send:${id}`;
+  const send = () => companionSend({ profile: P1, key: id, u: "https://once.example/", t: "Once", to: MAC, at: folder.now });
+  send();
+  folder.now += 1000;
+  await phone.cycle();
+  await mac.sync();
+  assert.ok(mac.store[s1]!.has(key));
+  phone.launch();
+  send();
+  folder.now += 1000;
+  await phone.cycle();
+  mac.remove(s1, key);
+  await mac.sync();
+  folder.now += 1000;
+  await phone.cycle();
+  assert.equal(phone.state().sends.length, 0);
+  const forgotten = phone.state();
+  delete forgotten.scopes[s1]!.records[key];
+  phone.stateJSON = JSON.stringify(forgotten);
+  phone.launch();
+  send();
+  folder.now += 1000;
+  await phone.cycle();
+  const writes = folder.logs(PHONE).flatMap((f) => f.ops).filter((op) => op.k === key && op.v !== null);
+  assert.equal(writes.length, 1);
+  folder.now += 8 * DAY;
+  await phone.cycle();
+  assert.deepEqual(phone.state().sent, {});
+});
+
 test("a send to a device that stays offline is dropped after 7 days", async () => {
   const { folder, mac, phone } = await joined();
   await phone.cycle();
