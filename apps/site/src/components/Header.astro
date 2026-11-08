@@ -21,7 +21,7 @@ const pages: { page?: Page; href: string; section?: string; label: string; menuL
   { page: "home", href: pagePath("home"), section: "top", label: "Home", menuLabel: "Home" },
   { page: "try", href: pagePath("try"), section: "demo", label: "Demo", menuLabel: "Demo" },
   ...(showComputerUse
-    ? [{ href: `${pagePath("home")}#computer-use`, section: "computer-use", label: "Computer use", menuLabel: "Computer use" }]
+    ? [{ href: `${pagePath("home")}#cli`, section: "cli", label: "CLI", menuLabel: "CLI" }]
     : []),
   { page: "benchmarks", href: pagePath("benchmarks"), section: "speed", label: "Benchmarks", menuLabel: "Benchmarks" },
   { page: "notes", href: pagePath("notes"), label: "Notes", menuLabel: "Release notes" },
