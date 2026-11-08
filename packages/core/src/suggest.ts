@@ -46,7 +46,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
-    const c = extra.find((x) => x.text.key === key) ?? pool.byKey.get(key);
+    const listed = pool.byKey.get(key);
+    const tab = extra.find((x) => x.text.key === key);
+    const c = listed && tab ? { ...listed, title: tab.title, favicon: tab.favicon } : (listed ?? tab);
     return c && pageSuggestion(c, null);
   };
 

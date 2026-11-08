@@ -42,17 +42,18 @@ export function pageText(row: { url: string; title: string }): PageText {
   return text;
 }
 
-const renamedTexts = new WeakMap<object, PageText>();
+const renamedTexts = new WeakMap<object, { listed: PageText | undefined; text: PageText }>();
 
-export function tabPageText(row: { url: string; title: string; customTitle?: string | null }): PageText {
+export function tabPageText(row: { url: string; title: string; customTitle?: string | null }, listed?: PageText): PageText {
   const text = pageText(row);
   if (!row.customTitle) return text;
-  let renamed = renamedTexts.get(row);
-  if (!renamed) {
-    const titleLower = `${row.customTitle.toLowerCase()}\n${text.titleLower}`;
-    renamed = { ...text, titleLower, titleWords: wordsOf(titleLower) };
-    renamedTexts.set(row, renamed);
-  }
+  const kept = renamedTexts.get(row);
+  if (kept && kept.listed === listed) return kept.text;
+  const titles = [row.customTitle.toLowerCase(), text.titleLower];
+  if (listed && listed.titleLower !== text.titleLower) titles.push(listed.titleLower);
+  const titleLower = titles.join("\n");
+  const renamed = { ...text, titleLower, titleWords: wordsOf(titleLower) };
+  renamedTexts.set(row, { listed, text: renamed });
   return renamed;
 }
 

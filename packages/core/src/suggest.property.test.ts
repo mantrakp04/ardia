@@ -45,7 +45,7 @@ function makeProfile(r: Rng, size: number) {
   });
   const tabs = Array.from({ length: Math.floor(size / 6) }, (_, i) => {
     const h = r.int(2) && history.length ? r.pick(history) : null;
-    return { id: `t${i}`, url: r.int(15) ? (h ? h.url : url()) : "", title: h ? h.title : title(), customTitle: r.int(3) === 0 ? title() : null, favicon: null };
+    return { id: `t${i}`, url: r.int(15) ? (h ? h.url : url()) : "", title: h && r.int(3) ? h.title : title(), customTitle: r.int(3) === 0 ? title() : null, favicon: null };
   });
   return { history, bookmarks, tabs };
 }

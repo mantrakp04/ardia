@@ -164,6 +164,34 @@ test("a renamed tab is found by its custom title, with or without a history or b
   assert.equal(marked?.kind === "page" && marked.bookmarked, true);
 });
 
+test("a renamed tab still matches the title its history or bookmark row was saved under", () => {
+  const url = "https://example.com/dashboard";
+  const tab = { id: "t7", url, title: "Example Dashboard", customTitle: "Work board", favicon: null };
+  const sources = {
+    bookmark: { tabs: [tab], history, bookmarks: [{ url, title: "Quarterly Budget", favicon: null }] },
+    history: { tabs: [tab], history: [...history, { url, title: "Quarterly Budget", favicon: null, visits: 4, lastVisit: now - 3000 }] },
+  };
+  for (const [label, source] of Object.entries(sources)) {
+    for (const typed of ["quarterly", "budget", "quarterly budget", "work board", "example dashboard"]) {
+      assert.deepEqual(pageRows(buildSuggestions(typed, source, { now }).items), [{ url, title: "Work board", tabId: "t7" }], `${label}: ${typed}`);
+    }
+  }
+});
+
+test("a typed address keeps opening the saved page, even when a renamed tab is on another fragment of it", () => {
+  const saved = "https://example.com/docs";
+  const open = `${saved}#intro`;
+  const tabs = [{ id: "t7", url: open, title: "Docs", customTitle: "Work board", favicon: null }];
+  const hist = [...history, { url: saved, title: "Docs", favicon: null, visits: 4, lastVisit: now - 3000 }];
+  for (const typed of [saved, "example.com/docs"]) {
+    const items = buildSuggestions(typed, { tabs, history: hist }, { now }).items;
+    const first = items[0];
+    assert.equal(first?.kind === "page" && first.url, saved, `${typed}: opens the saved page first`);
+    assert.equal(first?.kind === "page" && first.tabId, undefined, `${typed}: first row opens, it does not switch`);
+    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === open && i.title === "Work board"), `${typed}: the tab keeps its Switch to Tab row`);
+  }
+});
+
 test("a tab without a custom title keeps showing its page title", () => {
   const url = "https://linear.app/team/board";
   const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];

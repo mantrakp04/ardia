@@ -195,10 +195,12 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   return advance(b, bookmarks, deadline);
 }
 
-function tabPageText(t: TabRow): PageText {
+function tabPageText(t: TabRow, listed?: PageText): PageText {
   const text = pageText(t);
   if (!t.customTitle) return text;
-  return { ...text, titleLower: `${t.customTitle.toLowerCase()}\n${text.titleLower}` };
+  const titles = [t.customTitle.toLowerCase(), text.titleLower];
+  if (listed && listed.titleLower !== text.titleLower) titles.push(listed.titleLower);
+  return { ...text, titleLower: titles.join("\n") };
 }
 
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
@@ -219,7 +221,7 @@ function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId
       extra.push({ url: t.url, title: t.customTitle || t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
     } else if (t.customTitle) {
       renamed.add(key);
-      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t) });
+      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t, listed.text) });
     }
   }
   return { tabIds, extra, renamed };
@@ -358,7 +360,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
-    const c = extra.find((x) => x.text.key === key) ?? pool.byKey.get(key);
+    const listed = pool.byKey.get(key);
+    const tab = extra.find((x) => x.text.key === key);
+    const c = listed && tab ? { ...listed, title: tab.title, favicon: tab.favicon } : (listed ?? tab);
     return c && pageSuggestion(c, null);
   };
 
