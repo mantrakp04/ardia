@@ -6,6 +6,7 @@ import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from
 import { returnToPinnedUrl } from "../../state/pins/actions";
 import { useSplitRowPanes } from "../../state/sidebar/hooks";
 import { muteTitle } from "../../state/tabs/mute";
+import { usePictureInPicture } from "../../state/media/media";
 import { HoverSlot } from "../ui/HoverSlot";
 import { ActivitySpinner, Button, Divider, FadeLabel, font, ink, OutsidePressArea, radius, space, Symbol, useHover } from "../ui";
 import { isPinnedRow, tabTitle } from "../../state/browser/model";
@@ -67,6 +68,7 @@ export const TabRow = memo(function TabRow({
   const playingAudio = !!(flags & PLAYING);
   const mute = mutedBy(flags);
   const loading = !!(flags & LOADING);
+  const [pip, togglePip] = usePictureInPicture(tabId);
   const renaming = useSidebarUi((u) => u.renaming?.kind === "tab" && u.renaming.id === tabId);
   const { hovered, hoverProps } = useRowHover(windowId, renaming ? null : { kind: "tab", id: tabId });
   const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
@@ -109,17 +111,22 @@ export const TabRow = memo(function TabRow({
                   ) : (
                     <View>
                       <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                      <TabBadges tabId={tab.id} />
+                      <TabBadges tabId={tab.id} pip={false} />
                     </View>
                   )}
                 </Pressable>
               ) : (
                 <>
                   <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                  <TabBadges tabId={tab.id} />
+                  <TabBadges tabId={tab.id} pip={false} />
                 </>
               )}
             </View>
+            {pip && (
+              <Pressable onPress={togglePip} style={{ marginLeft: space.s }} tooltip="Exit Picture in Picture">
+                <Symbol name="pip" size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
+              </Pressable>
+            )}
             {(playingAudio || mute) && (
               <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: space.s }} tooltip={muteTitle(mute)}>
                 <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
