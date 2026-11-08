@@ -68,6 +68,7 @@ final class FocusHandoff {
     guard existing != nil || Self.isPage(focused) else { return nil }
     if Self.isPage(focused), let input = focused as? NSTextInputClient, input.hasMarkedText() { return nil }
     let gate = existing ?? open(in: window)
+    if existing != nil { extendDeadline(of: gate, after: Self.pickupLimit) }
     if let page = focused as? NSView, Self.isPage(page) {
       ArdiaWebView.keepOutgoingFocus(from: page)
       gate.resigned = page
@@ -251,6 +252,11 @@ final class FocusHandoff {
     }
     gate.timer = timer
     DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: timer)
+  }
+
+  private func extendDeadline(of gate: Gate, after delay: CFTimeInterval) {
+    guard CACurrentMediaTime() + delay > gate.deadline else { return }
+    setDeadline(of: gate, after: delay)
   }
 
   private func live(_ gate: Gate) -> Bool {
