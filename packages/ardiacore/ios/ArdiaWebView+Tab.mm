@@ -11,6 +11,8 @@ const char kPageReportsKey = 0;
 BOOL gLittleArdiaOpensNewTabLinks = NO;
 const CFTimeInterval kNewTabLinkSeconds = 2;
 const NSUInteger kNewTabLinksKept = 4;
+const int kNewTabLinkTries = 8;
+const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
 }
 
 @interface ArdiaStashedPageReports : NSObject {
@@ -185,53 +187,60 @@ const NSUInteger kNewTabLinksKept = 4;
 }
 
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition {
-  [self announceOpenedTab:tab adoptId:adoptId disposition:disposition inPlace:NO tries:0];
+  [self announceOpenedTab:tab adoptId:adoptId disposition:disposition link:NO tries:0];
 }
 
 - (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition {
-  const BOOL inPlace = gLittleArdiaOpensNewTabLinks && [disposition isEqualToString:@"foreground"] &&
-                       [self.window.identifier isEqualToString:@"ardia.window.small"];
-  [self announceOpenedTab:tab adoptId:adoptId disposition:disposition inPlace:inPlace tries:0];
+  [self announceOpenedTab:tab adoptId:adoptId disposition:disposition link:[disposition isEqualToString:@"foreground"] tries:0];
+}
+
+- (BOOL)opensNewTabLinksInPlace {
+  return gLittleArdiaOpensNewTabLinks && [self.window.identifier isEqualToString:@"ardia.window.small"];
 }
 
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab
                   adoptId:(NSString *)adoptId
               disposition:(NSString *)disposition
-                  inPlace:(BOOL)inPlace
+                     link:(BOOL)link
                     tries:(int)tries {
   if (tab.closed) return;
   NSString *url = tab.url;
   if ((!url.length || [url isEqualToString:@"about:blank"]) && tries < 20) {
     __weak ArdiaWebView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-      [weakSelf announceOpenedTab:tab adoptId:adoptId disposition:disposition inPlace:inPlace tries:tries + 1];
+      [weakSelf announceOpenedTab:tab adoptId:adoptId disposition:disposition link:link tries:tries + 1];
     });
     return;
   }
-  if (inPlace && _tab) return [self openLinkTabInPlace:tab adoptId:adoptId disposition:disposition firstURL:url ?: @"" tries:0];
-  [self emitOpenedTab:tab adoptId:adoptId disposition:disposition];
+  if (link && _tab) return [self matchLinkTab:tab adoptId:adoptId disposition:disposition firstURL:url ?: @"" hidden:tries > 0 tries:0];
+  [self emitOpenedTab:tab adoptId:adoptId disposition:disposition clicked:NO];
 }
 
-- (void)openLinkTabInPlace:(ArdiaCoreTab *)tab
-                   adoptId:(NSString *)adoptId
-               disposition:(NSString *)disposition
-                  firstURL:(NSString *)firstURL
-                     tries:(int)tries {
+- (void)matchLinkTab:(ArdiaCoreTab *)tab
+             adoptId:(NSString *)adoptId
+         disposition:(NSString *)disposition
+            firstURL:(NSString *)firstURL
+              hidden:(BOOL)hidden
+               tries:(int)tries {
   if (tab.closed) return;
   NSString *clicked = _tab ? [self takeNewTabLinkFor:@[ firstURL, tab.url ?: @"" ]] : nil;
-  if (clicked) {
+  if (!clicked && hidden && _tab) clicked = [self takeNewTabLinkNoted:kHiddenNewTabLinkSeconds];
+  if (clicked && self.opensNewTabLinksInPlace) {
     if ([ArdiaTabRegistry takeOffered:adoptId] == tab) [tab close];
     [self emit:@"openWindow" payload:@{@"url" : clicked, @"disposition" : @"current", @"userGesture" : @YES}];
     return;
   }
-  if (_tab && tries < 8) {
+  if (clicked || !_tab || tries >= kNewTabLinkTries)
+    PeekTrace(@{@"event" : @"linkTab", @"url" : tab.url ?: @"", @"first" : firstURL, @"hidden" : @(hidden), @"clicked" : @(clicked != nil), @"tries" : @(tries)});
+  if (clicked) return [self emitOpenedTab:tab adoptId:adoptId disposition:disposition clicked:YES];
+  if (_tab && tries < kNewTabLinkTries) {
     __weak ArdiaWebView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-      [weakSelf openLinkTabInPlace:tab adoptId:adoptId disposition:disposition firstURL:firstURL tries:tries + 1];
+      [weakSelf matchLinkTab:tab adoptId:adoptId disposition:disposition firstURL:firstURL hidden:hidden tries:tries + 1];
     });
     return;
   }
-  [self emitOpenedTab:tab adoptId:adoptId disposition:disposition];
+  [self emitOpenedTab:tab adoptId:adoptId disposition:disposition clicked:NO];
 }
 
 - (void)dropStaleNewTabLinks {
@@ -260,7 +269,15 @@ const NSUInteger kNewTabLinksKept = 4;
   return nil;
 }
 
-- (void)emitOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition {
+- (nullable NSString *)takeNewTabLinkNoted:(CFTimeInterval)within {
+  [self dropStaleNewTabLinks];
+  NSDictionary *newest = _newTabLinks.lastObject;
+  if (!newest || CACurrentMediaTime() - [newest[@"at"] doubleValue] > within) return nil;
+  [_newTabLinks removeLastObject];
+  return newest[@"url"];
+}
+
+- (void)emitOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition clicked:(BOOL)clicked {
   NSString *url = tab.url;
   NSMutableDictionary *payload = [@{
     @"url" : url ?: @"",
@@ -268,9 +285,10 @@ const NSUInteger kNewTabLinksKept = 4;
     @"adoptId" : adoptId,
     @"userGesture" : @YES,
     @"postBody" : @NO,
+    @"fromClick" : @(clicked),
   } mutableCopy];
   if (tab.profile.offTheRecord) payload[@"profile"] = ardia_host::OriginalProfileNameOf(tab.profile);
-  if ([disposition isEqualToString:@"foreground"]) payload[@"point"] = RecentClickPoint(self);
+  if (clicked) payload[@"point"] = RecentClickPoint(self);
   [self emit:@"openWindow" payload:payload];
 }
 

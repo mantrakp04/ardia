@@ -50,6 +50,7 @@ export type OpenWindowRequest = {
   profile?: string;
   point?: { x: number; y: number };
   site?: boolean;
+  fromClick?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };

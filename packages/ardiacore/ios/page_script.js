@@ -895,45 +895,76 @@
     );
     const defaultPrevented = getter(Event.prototype, "defaultPrevented");
     const scheduleTimeout = window.setTimeout;
-    const peekUnhandledSiteClick = (click, link) =>
-      guard((e) => {
-        if (e !== click) return;
-        if (defaultPrevented(e)) return trace("the page handled the click", {});
-        const url = linkUrl(link);
-        if (!peekable({ link, url, path: [] })) return trace("the link changed during the click", { url });
-        if (url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: url.length });
-        if (!replacesPage(link)) return trace("the link opens elsewhere", { url });
-        if (!otherSite(url)) return trace("the link stays on this site", { url });
-        apply(preventDefault, e, []);
-        sent = { url, at: now(), link };
-        const scale = ratio(window);
-        send("peek", { url, key: "site", origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved: 0 });
-      });
+    const carriesUrl = (url) => apply(test, /[?&][^=&#]*=(https?(:|%3A)(\/\/|%2F%2F))/i, [url]);
+    const peekSiteLink = (e, link) => {
+      if (defaultPrevented(e)) return trace("the page handled the click", {});
+      const url = linkUrl(link);
+      if (!peekable({ link, url, path: [] })) return trace("the link changed during the click", { url });
+      if (url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: url.length });
+      if (!otherSite(url) && !carriesUrl(url)) return trace("the link stays on this site", { url });
+      apply(preventDefault, e, []);
+      sent = { url, at: now(), link };
+      const scale = ratio(window);
+      send("peek", { url, key: "site", origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved: 0 });
+    };
+    const noteNewTabLink = (e, link) => {
+      if (defaultPrevented(e) || replacesPage(link)) return;
+      const url = linkUrl(link);
+      if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+    };
     addEventListener(
       "click",
       guard((e) => {
         const site = siteClick;
-        if (!site || !e.isTrusted || timeStamp(e) !== site.stamp || !apply(includes, apply(composedPath, e, []), [site.link])) return;
         siteClick = null;
-        apply(listen, window, ["click", peekUnhandledSiteClick(e, site.link), { once: true }]);
-      }),
-      true,
-    );
-    addEventListener(
-      "click",
-      guard((e) => {
         if (!e.isTrusted || button(e) !== 0 || altKey(e) || shiftKey(e) || metaKey(e) || ctrlKey(e)) return;
         const hit = linkAt(e);
         if (!peekable(hit)) return;
-        const reported = () => {
-          if (defaultPrevented(e) || replacesPage(hit.link)) return;
-          const url = linkUrl(hit.link);
-          if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
-        };
-        apply(scheduleTimeout, window, [guard(reported), 0]);
+        const path = apply(composedPath, e, []);
+        const forSite = !!site && timeStamp(e) === site.stamp && apply(includes, path, [site.link]);
+        const link = forSite ? site.link : hit.link;
+        let decided = false;
+        const decide = guard((ev) => {
+          if (ev !== e || decided) return;
+          decided = true;
+          if (forSite && replacesPage(link)) return peekSiteLink(e, link);
+          noteNewTabLink(e, link);
+        });
+        apply(listen, window, ["click", decide]);
+        apply(scheduleTimeout, window, [
+          guard(() => {
+            apply(unlisten, window, ["click", decide]);
+            if (decided) return;
+            decided = true;
+            if (forSite && replacesPage(link)) return trace("the click never reached the window", {});
+            noteNewTabLink(e, link);
+          }),
+          0,
+        ]);
       }),
       true,
     );
+    const userActivationOf = window.Navigator && Object.getOwnPropertyDescriptor(Navigator.prototype, "userActivation");
+    const activeOf = window.UserActivation && Object.getOwnPropertyDescriptor(UserActivation.prototype, "isActive");
+    const openDescriptor = Object.getOwnPropertyDescriptor(window, "open");
+    if (userActivationOf && activeOf && openDescriptor && typeof openDescriptor.value === "function") {
+      const activated = () => {
+        const activation = apply(userActivationOf.get, navigator, []);
+        return !!activation && !!apply(activeOf.get, activation, []);
+      };
+      const openedByUser = (args) => {
+        if (!args.length || args[0] === undefined || args[0] === null || !activated()) return;
+        const raw = `${args[0]}`;
+        if (!raw) return;
+        const url = new URLCtor(raw, baseURI(document)).href;
+        if (apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+      };
+      const open = asNative(openDescriptor.value, (target, self, args) => {
+        guard(openedByUser)(args);
+        return apply(target, self, args);
+      });
+      Object.defineProperty(window, "open", { ...openDescriptor, value: open });
+    }
     addEventListener("pageshow", guard((e) => e.isTrusted && persisted(e) && send("peekHello", {})));
     addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
   } catch (e) {}

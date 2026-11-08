@@ -2,7 +2,6 @@ import { hostOf } from "@ardia/core";
 import type { BrowserState } from "../browser/store";
 import type { Settings } from "../settings/settings";
 import { linkDestination } from "../../lib/linkWrappers";
-import { isSmall } from "../windows/small";
 import { peekSourceOf, peeksLinksToOtherSites, type SiteLanding } from "./peek";
 
 export type NewTabLinkRoute = Settings["newTabLinksOpenIn"] | "otherSite";
@@ -21,8 +20,7 @@ export function leavesSite(url: string, pageUrl: string): boolean {
 export function newTabLinkRoute(s: RouteState, sourceTabId: string | undefined, url: string): NewTabLinkRoute {
   const source = sourceTabId ? s.tabs[sourceTabId] : undefined;
   const w = source ? s.windows[source.windowId] : undefined;
-  if (!source || !w || !sourceTabId || isSmall(s, w.id) || peekSourceOf(s, sourceTabId) || !/^https?:\/\//i.test(url)) return "tab";
+  if (!source || !w || !sourceTabId || w.kind !== "main" || peekSourceOf(s, sourceTabId) || !/^https?:\/\//i.test(url)) return "tab";
   if (peeksLinksToOtherSites(s, sourceTabId) && leavesSite(url, source.url)) return "otherSite";
-  const chosen = s.settings.newTabLinksOpenIn;
-  return chosen === "littleArdia" && w.kind === "private" ? "tab" : chosen;
+  return s.settings.newTabLinksOpenIn;
 }
