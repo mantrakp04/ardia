@@ -172,6 +172,7 @@ function CleanUpRow({ minutes }: { minutes: number | null }) {
           onChange={(v) => (v === CUSTOM_CLEAN_UP ? showSettingsSheet(<CustomCleanUpSheet minutes={shown} />) : updateSettings({ cleanUpInactiveTabsAfterMinutes: Number(v) }))}
         />
       </Row>
+      <SettingToggle anchor="tabs.suggestCleanUp" />
     </Group>
   );
 }

@@ -264,6 +264,11 @@ export const generalRows = {
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
           keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
         },
+        suggestCleanUp: {
+          title: "Suggest cleaning up when tabs go untouched",
+          description: "Shows a card in the sidebar once ten or more tabs haven't been used in a while. Not Now on the card turns this off.",
+          keywords: ["upsell", "hint", "card", "not now", "tidy", "nag", "suggestion"],
+        },
       },
     },
   ],

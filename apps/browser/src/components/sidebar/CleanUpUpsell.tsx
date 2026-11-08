@@ -14,18 +14,17 @@ import { useSidebarTokens } from "./tokens";
 
 const UPSELL_MIN = 10;
 const FILL = { flex: 1 } as const;
-let upsellDeclined = false;
 
 export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { windowId: string; shift: Animated.Value | null }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const [count, setCount] = useState(0);
-  const [hidden, setHidden] = useState(upsellDeclined);
+  const suggested = useSettings((st) => st.suggestCleanUp);
   const daily = useSettings((st) => st.cleanUpInactiveTabsAfterMinutes !== null);
   const tabIds = useWindow(windowId, (w) => w?.tabIds);
   const profileId = useWindow(windowId, (w) => w?.profileId);
   const activeId = useShownTabId(windowId);
-  const off = hidden || daily;
+  const off = !suggested || daily;
   useEffect(() => {
     if (off) return;
     const check = () => setCount(cleanUpCandidateCount(windowId));
@@ -35,10 +34,7 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
   const [moved, movedRef] = useShift(shift);
   if (off || count < UPSELL_MIN) return null;
   const button = (title: string, onPress: () => void, primary = false) => <Button variant="pill" tone="chip" size="m" primary={primary} title={title} onPress={onPress} />;
-  const dismiss = () => {
-    upsellDeclined = true;
-    setHidden(true);
-  };
+  const dismiss = () => updateSettings({ suggestCleanUp: false });
   return (
     <View {...moved} ref={movedRef} style={[{ marginTop: space.ml, borderRadius: radius.panel, padding: space.ml, backgroundColor: tokens.groupFill, borderWidth: hairline.panel, borderColor: tokens.groupStroke, gap: space.m }, moved.style as object]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
