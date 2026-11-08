@@ -198,7 +198,7 @@ def item_runs(rows: list[dict], parents: dict[str, dict] | None = None) -> list:
 
 
 def run_label(text: str) -> str:
-    text = " ".join(str(text or "").split())
+    text = " ".join(redact(str(text or "")).split())
     return text if len(text) <= RUN_LABEL else text[: RUN_LABEL - 1] + "…"
 
 

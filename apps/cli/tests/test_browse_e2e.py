@@ -489,7 +489,7 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertRegex(linked, r"\+ 30 links \(Result 1 … Result 30; e\d+…e\d+\)")
         data = json.loads(self.browse("click", "#edit", "--json", session=session).stdout)["data"]["changes"]
         self.assertGreaterEqual(len(data["rerendered"]), 48)
-        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout.count('option "'), 48)
+        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout.count('option "'), 50)
 
     def test_select_picks_from_a_typeahead_and_a_popup_combobox(self):
         session = "typeahead"
@@ -509,6 +509,15 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(state, {"guests": ["priya.raman@northwind.dev", "alex.morgan@northwind.dev", "lena.vogt@kontor.io"], "color": "Blue", "city": "Lisbon"})
         refused = self.browse("select", "#edit", "x", session=session, check=False)
         self.assertIn("isn't a <select> or a combobox", refused.stderr)
+        self.assertIn('✓ Picked "urgent"', self.browse("select", "#tags", "urg", session=session).stdout)
+        unlinked = self.browse("select", "#owner", "Alice", session=session, check=False)
+        self.assertEqual(unlinked.returncode, 1)
+        self.assertIn("no list of suggestions is linked to this field", unlinked.stderr)
+        self.assertIn("Recent", unlinked.stderr)
+        stale = self.browse("select", "#assignee", "Alice", "--json", session=session, check=False)
+        self.assertEqual(json.loads(stale.stdout)["code"], "no_fresh_suggestions")
+        state = self.report(session)
+        self.assertEqual((state.get("tag"), state.get("assignee")), ("urgent", None))
 
     def test_find_role_takes_the_name_the_snapshot_shows(self):
         session = "find-role"

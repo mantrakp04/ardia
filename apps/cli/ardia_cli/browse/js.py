@@ -281,15 +281,23 @@ LIBRARY = r"""
       const activeNode = active && doc.getElementById(active);
       if (activeNode) roots.push(activeNode.closest("[role=listbox]") || activeNode.parentElement);
       if (roots.length || api.popupIds(el).length || active) return roots;
-      const lists = deep(doc).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node));
-      const near = lists.filter((list) => {
-        let node = el;
-        for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) if (node.contains(list)) return true;
-        return false;
-      });
-      if (near.length === 1) return near;
-      if (!near.length && lists.length === 1 && doc.activeElement === el) return lists;
-      return [];
+      const component = api.componentOf(el);
+      return component ? Array.from(component.querySelectorAll("[role=listbox]")) : [];
+    },
+    componentOf(el) {
+      const fields = "input, textarea, select, [role=combobox], [role=searchbox], [role=textbox], [contenteditable=true]";
+      let node = el.parentElement;
+      while (node && node !== el.ownerDocument.body) {
+        const others = Array.from(node.querySelectorAll(fields)).filter((field) => field !== el && !el.contains(field) && !field.contains(el));
+        if (others.length) return null;
+        if (node.querySelector("[role=listbox]")) return node;
+        node = node.parentElement;
+      }
+      return null;
+    },
+    unlinkedListboxes(el) {
+      return deep(el.ownerDocument).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node))
+        .map((node) => norm(node.getAttribute("aria-label") || node.id || api.describe(node))).slice(0, 8);
     },
     suggestions(el) {
       const seen = new Set();
@@ -313,23 +321,29 @@ LIBRARY = r"""
       Object.defineProperty(globalThis, "ardiaBrowseSuggestions", { value: texts, configurable: true, enumerable: false });
       return out.slice(0, 200);
     },
+    optionSignature(el) {
+      const parts = [];
+      for (const root of api.popupsOf(el)) {
+        if (!api.visible(root)) continue;
+        for (const node of root.matches("[role=option]") ? [root] : root.querySelectorAll("[role=option]")) {
+          if (api.visible(node)) parts.push((node.id || "") + "\u0001" + norm(node.innerText || node.textContent));
+        }
+      }
+      return parts.join("\u0002");
+    },
     watchSuggestions(el) {
       api.unwatchSuggestions(el);
-      const watch = { lastInput: 0, lastChange: 0, observer: null };
-      const inPopup = (node) => {
-        const roots = api.popupsOf(el);
-        if (roots.some((root) => root.contains(node) || node.contains(root))) return true;
-        return !roots.length && !!node.closest && !!node.closest("[role=listbox], [role=option]");
-      };
-      watch.observer = new MutationObserver((records) => {
-        for (const record of records) {
-          const node = record.target.nodeType === 1 ? record.target : record.target.parentElement;
-          if (node && inPopup(node)) { watch.lastChange = performance.now(); return; }
+      const watch = { lastInput: 0, lastChange: 0, observer: null, signature: api.optionSignature(el) };
+      watch.observer = new MutationObserver(() => {
+        const signature = api.optionSignature(el);
+        if (signature !== watch.signature) {
+          watch.signature = signature;
+          watch.lastChange = performance.now();
         }
       });
       watch.observer.observe(el.ownerDocument.documentElement, { subtree: true, childList: true, characterData: true, attributes: true,
-        attributeFilter: ["hidden", "style", "class", "aria-busy", "aria-selected", "aria-expanded"] });
-      watch.onInput = () => { watch.lastInput = performance.now(); };
+        attributeFilter: ["hidden", "style", "class", "aria-busy", "aria-selected", "aria-expanded", "id"] });
+      watch.onInput = () => { watch.lastInput = performance.now(); watch.firstInput = watch.firstInput || watch.lastInput; };
       el.addEventListener("input", watch.onInput, true);
       watch.started = performance.now();
       suggestionWatches.set(el, watch);
@@ -338,7 +352,8 @@ LIBRARY = r"""
     suggestionState(el) {
       const watch = suggestionWatches.get(el);
       const busy = [el, ...api.popupsOf(el)].some((node) => node.getAttribute("aria-busy") === "true");
-      return watch ? { busy, since: Math.max(watch.lastInput, watch.started), changed: watch.lastChange, now: performance.now() } : { busy, since: 0, changed: 0, now: performance.now() };
+      return watch ? { busy, since: Math.max(watch.lastInput, watch.started), first: watch.firstInput || watch.started, changed: watch.lastChange, now: performance.now() }
+        : { busy, since: 0, first: 0, changed: 0, now: performance.now() };
     },
     unwatchSuggestions(el) {
       const watch = suggestionWatches.get(el);

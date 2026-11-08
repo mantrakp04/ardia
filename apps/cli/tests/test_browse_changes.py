@@ -585,10 +585,32 @@ class BatchFromStdin(unittest.TestCase):
         self.assertTrue(ctx.state.extras["close_after_batch"])
         ctx, seen, result = self.run_batch("click @e1\nclose\n", fail=("click",))
         self.assertNotIn("close_after_batch", ctx.state.extras)
-        self.assertIn("close not run: an earlier line failed", result.text)
+        self.assertIn("close not run: an earlier line failed or didn't run", result.text)
         ctx, seen, result = self.run_batch("close\ntab t1\n")
         self.assertIn("to close this session's tab and go on, use `tab close`", result.text)
         self.assertNotIn("close_after_batch", ctx.state.extras)
+
+    def test_an_unknown_outcome_with_line_flags_stops_the_rest_and_never_closes(self):
+        seen = []
+
+        async def fake_dispatch(ctx, name, argv):
+            seen.append([name, *argv])
+            if name == "click":
+                raise commands.OutcomeUnknown("click", "it was sent")
+            return commands.Result({"ok": True})
+
+        ctx = commands.Ctx(SimpleNamespace(extras={}), {}, "/", {}, "click #pay --no-changes\nclick #pay --no-changes\nget text main\nclose\n", "batch")
+        with mock.patch.object(daemon, "dispatch", fake_dispatch):
+            result = run(commands.cmd_batch(ctx, []))
+        self.assertEqual(seen, [["click", "#pay"]])
+        self.assertEqual([outcome.get("code") for outcome in result.data["results"]], ["outcome_unknown", "not_run", "not_run", "not_run"])
+        self.assertNotIn("close_after_batch", ctx.state.extras)
+
+    def test_a_line_max_output_only_widens_the_cap(self):
+        ctx, _, _ = self.run_batch("get text main --max-output 100\n")
+        self.assertEqual(ctx.options["max_output"], commands.BATCH_DEFAULT_CAP)
+        ctx, _, _ = self.run_batch("get text main --max-output 9000\n")
+        self.assertEqual(ctx.options["max_output"], 9000)
 
     def test_a_closing_batch_answer_includes_the_close(self):
         self.assertEqual(daemon.joined_batch("✓ Done\n", "✓ Session s closed (1 tab it opened)\n", {}), "✓ Done\n\n✓ Session s closed (1 tab it opened)\n")
@@ -742,6 +764,20 @@ class SiteNotes(unittest.TestCase):
         self.assertEqual(caught.exception.code, "bad_site")
 
 
+class SecretsBeforeCuts(unittest.TestCase):
+    def test_a_secret_is_masked_before_a_label_is_folded_or_a_name_is_cut(self):
+        from ardia_cli import redact
+
+        secret = "Sk3cretTokenValue1234567890abcdef"
+        redact.add_secret(secret)
+        label = changes.run_label("Account " + "x" * 25 + secret)
+        self.assertNotIn(secret[:6], label)
+        name = "y" * 190 + secret
+        node = snapshot.build_tree([ax("1", "RootWebArea", "", children=["2"]), ax("2", "button", name, parent="1", backend=2)])[0]
+        self.assertNotIn(secret[:6], node.name)
+        self.assertLessEqual(len(node.name), snapshot.MAX_NAME)
+
+
 class SummaryAndScopes(unittest.TestCase):
     def test_a_summary_toggle_is_a_button_with_a_ref(self):
         tree = [ax("1", "RootWebArea", "D", children=["2"]), ax("2", "DisclosureTriangle", "Main fare rules", parent="1", backend=2, props={"expanded": False})]
@@ -851,12 +887,14 @@ class Suggestions(unittest.TestCase):
         self.assertIn("Priyanka Rao", none.exception.message)
 
     def test_only_a_list_that_changed_after_the_last_keystroke_counts(self):
-        ready = lambda **watch: actions.suggestions_ready({"busy": False, "since": 1000, "changed": 0, "now": 3000, **watch})
+        ready = lambda **watch: actions.suggestions_ready({"busy": False, "since": 1000, "first": 400, "changed": 0, "now": 3000, **watch})
         self.assertFalse(ready(changed=0))
-        self.assertFalse(ready(changed=900))
+        self.assertFalse(ready(changed=300))
         self.assertTrue(ready(changed=1100))
         self.assertFalse(ready(changed=2900))
         self.assertFalse(ready(changed=1100, busy=True))
+        self.assertTrue(ready(changed=900))
+        self.assertFalse(ready(changed=900, now=1500))
 
     def test_an_unchanged_list_times_out_instead_of_being_picked(self):
         class Page:

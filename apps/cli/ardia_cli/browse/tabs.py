@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import fcntl
 import hashlib
+import json
 import os
 import re
 import time
@@ -13,7 +14,8 @@ LOCK = "tabs.lock"
 STALE_FILE_SECONDS = 3 * 24 * 3600
 VERSION = 2
 MAX_IDS = 1500
-MAX_FILE = 1024 * 1024
+MAX_FILE = 8 * 1024 * 1024
+FILE_BUDGET = 1024 * 1024
 CLOSE_HOLD = 30.0
 APP_TAB = re.compile(r"tab-[A-Za-z0-9_-]{1,80}")
 WINDOWS_TIMEOUT = 3.0
@@ -127,7 +129,10 @@ class Registry:
         lock = paths.open_private_file(LOCK, self.browse_fd)
         try:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            data = paths.read_private_json(name, self.browse_fd, None, MAX_FILE)
+            try:
+                data = paths.read_private_json(name, self.browse_fd, None, MAX_FILE)
+            except paths.PathError:
+                data = None
             if not isinstance(data, dict) or data.get("instance") != instance or data.get("version") != VERSION:
                 self.prune_files(name)
                 data = {"version": VERSION, "instance": instance, "next": 1, "ids": {}, "opened": {}, "using": {}, "closing": {}}
@@ -158,6 +163,33 @@ class Registry:
                     break
                 if target not in keep:
                     del ids[target]
+        self.fit(data)
+
+    def fit(self, data: dict):
+        size = len(json.dumps(data, ensure_ascii=False))
+        if size <= FILE_BUDGET:
+            return
+
+        def drop(table: dict, key: str):
+            nonlocal size
+            size -= len(json.dumps({key: table[key]}, ensure_ascii=False))
+            del table[key]
+
+        intents = data.get("intents", {})
+        for marker in [marker for marker, entry in intents.items() if not self.live(entry.get("key", ""))]:
+            drop(intents, marker)
+        dead = sorted((owner.get("at", 0), target) for target, owner in data["opened"].items() if not self.live(owner.get("key", "")))
+        for _, target in dead:
+            if size <= FILE_BUDGET:
+                return
+            drop(data["opened"], target)
+        keep = set(data["opened"]) | {entry["target"] for entry in data["using"].values()} | set(data["closing"])
+        ids = data["ids"]
+        for target in sorted(ids, key=lambda target: ids[target][1]):
+            if size <= FILE_BUDGET:
+                return
+            if target not in keep:
+                drop(ids, target)
 
     def numbers(self, instance: str | None, targets, present=None, taken_at: float | None = None) -> dict[str, str]:
         targets = list(targets)

@@ -27,6 +27,16 @@
 <label for="city">City</label>
 <input id="city" list="cities" autocomplete="off">
 <datalist id="cities"><option value="Berlin"><option value="Boston"><option value="Lisbon"></datalist>
+<div class="tags">
+  <label for="tags">Tags</label>
+  <input id="tags" type="text" role="combobox" autocomplete="off">
+  <ul id="tag-list" class="options" role="listbox" aria-label="Tag suggestions" hidden></ul>
+</div>
+<div class="owner"><label for="owner">Owner</label><input id="owner" type="text" role="combobox" autocomplete="off"></div>
+<ul id="recent" class="options" role="listbox" aria-label="Recent"><li role="option">Alice Recent</li></ul>
+<label for="assignee">Assignee</label>
+<input id="assignee" type="text" role="combobox" aria-controls="assignee-options" autocomplete="off">
+<ul id="assignee-options" class="options" role="listbox" aria-label="Assignees"><li role="option">Alice Jones</li></ul>
 <button id="results" type="button">Show results</button>
 <nav id="links" aria-label="Results"></nav>
 <pre id="report"></pre>
@@ -41,7 +51,8 @@
   ];
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const state = { guests: [], suggestions: [], active: -1, seq: 0 };
-  const report = () => { $("report").textContent = JSON.stringify({ guests: state.guests.map((g) => g.email), color: $("color").dataset.value || null, city: $("city").value }); };
+  const report = () => { $("report").textContent = JSON.stringify({ guests: state.guests.map((g) => g.email), color: $("color").dataset.value || null, city: $("city").value,
+    ...(state.tag ? { tag: state.tag } : {}), ...(state.assignee ? { assignee: state.assignee } : {}) }); };
   const input = $("guest-input");
   const options = $("guest-options");
   function el(tag, attrs, ...children) {
@@ -114,6 +125,22 @@
     setTimeout(() => { document.body.append(list); $("color").setAttribute("aria-expanded", "true"); }, 120);
   };
   $("city").addEventListener("input", report);
+  const tags = $("tags");
+  tags.addEventListener("input", () => {
+    const q = tags.value.trim().toLowerCase();
+    const list = $("tag-list");
+    list.replaceChildren(...["urgent", "ux", "backend"].filter((t) => q && t.startsWith(q)).map((t) => el("li", { role: "option", text: t,
+      onmousedown: (event) => { event.preventDefault(); state.tag = t; tags.value = t; list.hidden = true; report(); } })));
+    list.hidden = !list.children.length;
+  });
+  $("assignee").addEventListener("input", () => {
+    document.body.classList.toggle("typing");
+    clearTimeout(state.assigneeTimer);
+    state.assigneeTimer = setTimeout(() => {
+      $("assignee-options").replaceChildren(...["Alice Smith", "Alice Jones"].map((name) => el("li", { role: "option", text: name,
+        onmousedown: (event) => { event.preventDefault(); state.assignee = name; report(); } })));
+    }, 6000);
+  });
   $("results").onclick = () => {
     $("links").replaceChildren(...Array.from({ length: 30 }, (_, i) => el("a", { href: `#item-${i + 1}`, text: `Result ${i + 1}` })));
   };

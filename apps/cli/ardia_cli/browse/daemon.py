@@ -383,7 +383,7 @@ class Daemon:
             code, out, err = await self.answer(ctx, name, argv, options)
             notice = self.state.extras.pop("notice", None)
             err = (redact_text(notice) + "\n" if notice else "") + err
-            close_after = self.state.extras.pop("close_after_batch", None) and name == "batch"
+            close_after = self.state.extras.pop("close_after_batch", None) and name == "batch" and code == 0
         if close_after:
             closed_code, closed_out, closed_err = await self.close(ctx)
             return max(code, closed_code), joined_batch(out, closed_out, options), err + closed_err

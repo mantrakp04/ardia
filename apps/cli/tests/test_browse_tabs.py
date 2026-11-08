@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -92,6 +93,21 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(list(raw["using"]), [])
         self.assertEqual(list(raw["opened"]), ["X"])
         self.assertEqual(self.one.numbers("I", [targets[-1]]), {targets[-1]: f"t{len(targets)}"})
+
+    def test_thousands_of_dead_temporaries_never_make_the_registry_unreadable(self):
+        name = Registry.file_for("I")
+        self.one.numbers("I", ["SEED"])
+        raw = paths.read_private_json(name, self.fd, None, tabs.MAX_FILE)
+        raw["opened"] = {f"{index:032X}": {"key": f"{index % 14:064x}", "session": "reader-session", "temporary": True, "at": index} for index in range(8000)}
+        raw["ids"] = {f"{index:032X}": [index + 1, index + 0.5] for index in range(8000)}
+        paths.write_private_json(name, self.fd, raw)
+        self.assertGreater(os.stat(name, dir_fd=self.fd).st_size, tabs.FILE_BUDGET)
+        self.one.note_temporary("I", "MINE")
+        self.two.note_opened("I", "THEIRS")
+        raw = paths.read_private_json(Registry.file_for("I"), self.fd, None, tabs.MAX_FILE)
+        self.assertLessEqual(len(json.dumps(raw)), tabs.FILE_BUDGET)
+        self.assertEqual(self.one.temporaries("I"), ["MINE"])
+        self.assertEqual(self.one.others("I")[0], {"THEIRS": "two"})
 
 
 if __name__ == "__main__":

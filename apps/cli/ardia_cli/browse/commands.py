@@ -901,6 +901,7 @@ async def cmd_is(ctx: Ctx, argv):
 FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
 FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
 MAX_CANDIDATES = 8
+BATCH_DEFAULT_CAP = 6000
 SHOWN_HOLD = 0.3
 FIND_WAIT = 1.5
 
@@ -1634,19 +1635,22 @@ async def cmd_batch(ctx: Ctx, argv):
     from ardia_cli.browse.daemon import run_one
 
     names = [ALIASES.get(item[0], item[0]) if item else "" for item in runs]
-    if names and names[-1] == "close" and not runs[-1][1:] and "close" not in names[:-1]:
+    closing = bool(names) and names[-1] == "close" and not runs[-1][1:] and "close" not in names[:-1]
+    if closing:
         runs.pop()
-        batch_extras(ctx)["close_after_batch"] = True
+    batch_extras(ctx).pop("close_after_batch", None)
     outcomes = []
-    for item in runs:
+    for index, item in enumerate(runs):
         name = ALIASES.get(item[0], item[0]) if item else ""
         if name in ("batch", "close"):
             why = "batch can't run inside batch" if name == "batch" else (
                 "close ends this session, so in a batch it only runs as the last line; to close this session's tab and go on, use `tab close`")
             outcomes.append({"command": item, "success": False, "result": None, "error": why})
+            if options.get("bail"):
+                break
             continue
         try:
-            item, line_options = batch_line_options(item)
+            command, line_options = batch_line_options(item)
         except Usage as error:
             outcomes.append({"command": item, "success": False, "result": None, "error": error.message, "code": error.code})
             if options.get("bail"):
@@ -1654,10 +1658,12 @@ async def cmd_batch(ctx: Ctx, argv):
             continue
         if line_options.pop("full", False):
             ctx.options["full"] = True
-        if line_options.get("max_output") is not None:
-            ctx.options["max_output"] = max(int(ctx.options.get("max_output") or 0), line_options.pop("max_output"))
-        line_options.pop("max_output", None)
-        result, error = await run_one(ctx, item, line_options)
+        wider = line_options.pop("max_output", None)
+        if wider is not None:
+            current = ctx.options.get("max_output")
+            current = BATCH_DEFAULT_CAP if current is None else int(current)
+            ctx.options["max_output"] = 0 if 0 in (current, wider) else max(current, wider)
+        result, error = await run_one(ctx, command, line_options)
         outcome = {"command": item, "success": error is None, "result": result.data if result else None, "error": error.message if error else None,
                    "text": result.text if result else None}
         if error is not None and error.code:
@@ -1665,14 +1671,16 @@ async def cmd_batch(ctx: Ctx, argv):
         outcomes.append(outcome)
         if isinstance(error, (OutcomeUnknown, ConnectionLost)):
             outcomes.extend({"command": rest, "success": False, "result": None, "error": "not run: an earlier command's outcome is unknown",
-                             "code": "not_run", "text": None} for rest in runs[runs.index(item) + 1:])
+                             "code": "not_run", "text": None} for rest in runs[index + 1:])
             break
         if error is not None and options.get("bail"):
             break
-    if batch_extras(ctx).get("close_after_batch") and any(not outcome["success"] for outcome in outcomes):
-        batch_extras(ctx).pop("close_after_batch")
-        outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
-                         "error": "close not run: an earlier line failed, so the session stays open"})
+    if closing:
+        if len(outcomes) == len(runs) and all(outcome["success"] for outcome in outcomes):
+            batch_extras(ctx)["close_after_batch"] = True
+        else:
+            outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
+                             "error": "close not run: an earlier line failed or didn't run, so the session stays open"})
     text = "\n\n".join((outcome["text"] if outcome["success"] else f"✗ {outcome['error']}") or "" for outcome in outcomes)
     for outcome in outcomes:
         outcome.pop("text", None)

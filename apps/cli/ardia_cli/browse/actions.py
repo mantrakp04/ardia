@@ -21,6 +21,7 @@ PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrive
 SUGGESTION_TIMEOUT = 4.0
 SUGGESTION_HINT_WAIT = 1.2
 SUGGESTION_SETTLE = 0.35
+SUGGESTION_QUIET_AFTER_TYPING = 1.0
 MAX_SUGGESTIONS = 8
 EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 
@@ -441,6 +442,17 @@ async def suggestions_now(page, element):
     return options, items[: len(options)]
 
 
+async def unlinked_note(page, element) -> str:
+    linked = await page.call("(el) => ardiaBrowse.popupsOf(el).length", element, frame=element.frame, read=True)
+    if linked:
+        return ""
+    lists = await page.call("(el) => ardiaBrowse.unlinkedListboxes(el)", element, frame=element.frame, read=True)
+    shown = f" (visible lists: {', '.join(lists)})" if lists else ""
+    return ("no list of suggestions is linked to this field (aria-controls, aria-owns, aria-activedescendant, or one inside the same "
+            f"component){shown}, so picking one automatically could pick another field's option. Click the option yourself: "
+            "find role option click --name <text>")
+
+
 async def watch_suggestions(page, element):
     await page.call("(el) => ardiaBrowse.watchSuggestions(el)", element, frame=element.frame)
 
@@ -451,8 +463,13 @@ async def unwatch_suggestions(page, element):
 
 
 def suggestions_ready(watch: dict) -> bool:
-    fresh = watch["changed"] > 0 and watch["changed"] >= watch["since"]
-    return fresh and not watch["busy"] and (watch["now"] - watch["changed"]) / 1000 >= SUGGESTION_SETTLE
+    if watch["busy"] or watch["changed"] <= 0:
+        return False
+    quiet = (watch["now"] - watch["changed"]) / 1000
+    if watch["changed"] >= watch["since"]:
+        return quiet >= SUGGESTION_SETTLE
+    typed_since = (watch["now"] - watch["since"]) / 1000
+    return watch["changed"] >= watch.get("first", watch["since"]) and typed_since >= SUGGESTION_QUIET_AFTER_TYPING
 
 
 async def settled_suggestions(page, element, timeout: float, what: str | None = None):
@@ -466,8 +483,10 @@ async def settled_suggestions(page, element, timeout: float, what: str | None = 
             if what is None:
                 return [], []
             busy = " (it still says it's loading)" if watch["busy"] else ""
-            raise BrowseError(f"The suggestions in {what} didn't update within {timeout:g} s{busy}, so nothing was picked; the list showing may be "
-                              "for an earlier query. Snapshot to see it, then click an option or try select again", code="no_fresh_suggestions")
+            unlinked = await unlinked_note(page, element)
+            raise BrowseError(f"The suggestions in {what} didn't update within {timeout:g} s{busy}, so nothing was picked; " + (unlinked or (
+                "the list showing may be for an earlier query. Snapshot to see it, then click an option or try select again")),
+                code="no_fresh_suggestions")
         await asyncio.sleep(0.1)
 
 

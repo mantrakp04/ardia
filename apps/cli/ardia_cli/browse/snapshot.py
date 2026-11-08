@@ -41,6 +41,12 @@ def _value(item) -> str:
     return str(value)
 
 
+def clipped(text: str) -> str:
+    from ardia_cli.redact import redact
+
+    return redact(text)[:MAX_NAME]
+
+
 def node_props(raw) -> dict:
     return {prop.get("name"): (prop.get("value") or {}).get("value") for prop in raw.get("properties") or []}
 
@@ -48,7 +54,7 @@ def node_props(raw) -> dict:
 def value_field(raw, role: str) -> Node:
     props = node_props(raw)
     props["inputType"] = VALUE_FIELDS[role]
-    return Node("textbox", _value(raw.get("name")).strip()[:MAX_NAME], _value(raw.get("value"))[:MAX_NAME], props, raw.get("backendDOMNodeId"))
+    return Node("textbox", clipped(_value(raw.get("name")).strip()), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"))
 
 
 def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[Node]:
@@ -74,7 +80,7 @@ def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[N
         name = _value(raw.get("name")).strip() if role != "StaticText" else _value(raw.get("name"))
         props = node_props(raw)
         role = ROLE_NAMES.get(role, role)
-        node = Node(role, name[:MAX_NAME], _value(raw.get("value"))[:MAX_NAME], props, raw.get("backendDOMNodeId"), children)
+        node = Node(role, clipped(name), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"), children)
         if role in LIFTED and not name and scope_backend != raw.get("backendDOMNodeId"):
             node.role = "generic"
         return [node]
@@ -266,7 +272,7 @@ async def field_values(page, nodes: list[Node]):
         if found.get("type"):
             node.props["inputType"] = found["type"]
         if found.get("value") is not None:
-            node.value = found["value"][:MAX_NAME]
+            node.value = clipped(found["value"])
         if found.get("required"):
             node.props["required"] = True
 
@@ -306,7 +312,7 @@ async def collect(state, page, selector=None, cursor=True) -> list[Node]:
                 element = await page.resolve_backend(node.backend, node.frame, "clickable")
                 if element is not None:
                     text = await page.call("(el) => (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim()", element, frame=node.frame)
-                    node.name = (text or "")[:MAX_NAME]
+                    node.name = clipped(text or "")
     await field_values(page, nodes)
     for node in walk(nodes):
         if node.role in REF_ROLES or node.hints:
