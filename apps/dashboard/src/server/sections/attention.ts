@@ -279,7 +279,7 @@ export async function attention(range: RangeKey, signal?: AbortSignal) {
         comparison: `${whole(g.count)}× by ${whole(g.people)} ${g.people === 1 ? "person" : "people"}, first seen in this range${g.versions[0] ? `, most on ${g.versions[0].version}` : ""}`,
         to: "/errors",
         score: g.count,
-        origin: g.where,
+        origin: g.where === "site" ? "site" : "app",
       });
     }
     if (fresh.length > 3) {

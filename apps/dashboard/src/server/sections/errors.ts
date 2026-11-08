@@ -4,10 +4,12 @@ import { classifyNoise } from "../noise";
 import { APP_SOURCE, SITE, prop, since } from "../sql";
 import { windowInfo } from "../series";
 
-const WHERE = `if(${SITE}, 'site', 'app')`;
-const TYPE = `coalesce(nullIf(JSONExtractString(properties['$exception_types'], 1), ''), nullIf(JSONExtractString(properties['$exception_list'], 1, 'type'), ''), 'Error')`;
-const MESSAGE = `substring(coalesce(nullIf(JSONExtractString(properties['$exception_values'], 1), ''), JSONExtractString(properties['$exception_list'], 1, 'value')), 1, 300)`;
-const FILTER = `event = '$exception' AND (${SITE} OR ${APP_SOURCE})`;
+const CLI = `source = 'ardia-cli'`;
+const CLI_FAILED = `(event = 'cli_command' AND ${CLI} AND properties['exit_code'] NOT IN ('', '0'))`;
+const WHERE = `multiIf(${SITE}, 'site', ${CLI}, 'cli', 'app')`;
+const TYPE = `if(event = 'cli_command', concat('exit ', properties['exit_code']), coalesce(nullIf(JSONExtractString(properties['$exception_types'], 1), ''), nullIf(JSONExtractString(properties['$exception_list'], 1, 'type'), ''), 'Error'))`;
+const MESSAGE = `if(event = 'cli_command', trimRight(concat('ardia ', properties['command'], ' ', properties['subcommand'])), substring(coalesce(nullIf(JSONExtractString(properties['$exception_values'], 1), ''), JSONExtractString(properties['$exception_list'], 1, 'value')), 1, 300))`;
+const FILTER = `((event = '$exception' AND (${SITE} OR ${APP_SOURCE} OR ${CLI})) OR ${CLI_FAILED})`;
 
 type Frame = { function?: string; filename?: string; module?: string; lineno?: number | null; colno?: number | null };
 
@@ -29,6 +31,8 @@ function framesOf(list: string): string[] {
   }
 }
 
+type Where = "site" | "app" | "cli";
+
 function hashId(text: string) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
@@ -40,7 +44,7 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
   const [recent, history] = await Promise.all([
     query(
       `SELECT uuid, toUnixTimestamp64Milli(timestamp), ${WHERE}, distinct_id, ${TYPE}, ${MESSAGE},
-         if(${SITE}, properties['release_version'], if(properties['crashed_version'] != '', properties['crashed_version'], ${prop("$app_version")})),
+         multiIf(${SITE}, properties['release_version'], ${CLI}, properties['cli_version'], properties['crashed_version'] != '', properties['crashed_version'], ${prop("$app_version")}),
          substring(properties['$exception_list'], 1, 12000), properties['$raw_user_agent'], properties['$current_url'],
          if(${SITE}, concat(${prop("$browser")}, ' ', properties['$browser_version'], ' · ', ${prop("$os")}), concat('macOS ', properties['$os_version'], ' · ', properties['arch'])),
          properties['$exception_level'], properties['crash_signal']
@@ -60,11 +64,11 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
   ]);
 
   const historyByKey = new Map(history.map((r) => [`${str(r[0])}|${str(r[1])}|${str(r[2])}`, { total: num(r[3]), firstSeen: num(r[4]), lastSeen: num(r[5]) }]));
-  type Row = { id: string; at: number; where: "site" | "app"; person: string; type: string; message: string; version: string; list: string; ua: string; url: string; platform: string; level: string; crashSignal: string };
+  type Row = { id: string; at: number; where: Where; person: string; type: string; message: string; version: string; list: string; ua: string; url: string; platform: string; level: string; crashSignal: string };
   const rows: Row[] = recent.map((r) => ({
     id: str(r[0]),
     at: num(r[1]),
-    where: str(r[2]) === "site" ? "site" : "app",
+    where: str(r[2]) === "site" ? "site" : str(r[2]) === "cli" ? "cli" : "app",
     person: str(r[3]),
     type: str(r[4]),
     message: str(r[5]),
@@ -84,10 +88,10 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
   }
 
   const size = stepMs(w.step);
-  const series = { app: w.buckets.map(() => 0), site: w.buckets.map(() => 0), noise: w.buckets.map(() => 0) };
+  const series = { app: w.buckets.map(() => 0), cli: w.buckets.map(() => 0), site: w.buckets.map(() => 0), noise: w.buckets.map(() => 0) };
   const out = [...groups].map(([key, list]) => {
     const head = list[0]!;
-    const noise = classifyNoise(head.where, head.message, head.list, head.ua);
+    const noise = head.where === "cli" ? null : classifyNoise(head.where, head.message, head.list, head.ua);
     for (const r of list) {
       const i = Math.min(series.app.length - 1, Math.floor((r.at - w.start) / size));
       if (i >= 0) (noise ? series.noise : series[r.where])[i]!++;
@@ -107,7 +111,7 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
       firstSeen: past?.firstSeen ?? Math.min(...list.map((r) => r.at)),
       lastSeen: past?.lastSeen ?? head.at,
       versions: [...versions].map(([version, count]) => ({ version, count })).sort((a, b) => b.count - a.count),
-      recent: list.slice(0, 8).map((r) => ({ id: r.id, at: r.at, version: r.version, url: r.url, platform: r.platform, level: r.level, crashSignal: r.crashSignal, frames: framesOf(r.list) })),
+      recent: list.slice(0, 8).map((r) => ({ id: r.id, at: r.at, person: r.person, version: r.version, url: r.url, platform: r.platform, level: r.level, crashSignal: r.crashSignal, frames: framesOf(r.list) })),
     };
   });
 
@@ -116,6 +120,7 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
     groups: out.sort((a, b) => b.count - a.count || b.lastSeen - a.lastSeen),
     series: [
       { key: "app", label: "App", values: series.app },
+      { key: "cli", label: "CLI", values: series.cli },
       { key: "site", label: "Site", values: series.site },
       { key: "noise", label: "Noise", values: series.noise },
     ],
