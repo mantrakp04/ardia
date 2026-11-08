@@ -198,60 +198,60 @@
   _host->set_acted_fullscreen(acted);
 }
 
-- (BOOL)canAdoptTab:(ArdiaCoreTab*)tab {
+- (ArdiaCoreAdoption)canAdoptTab:(ArdiaCoreTab*)tab {
   content::WebContents* contents = tab.contents;
   if (!contents) {
-    return NO;
+    return ArdiaCoreAdoptionRefused;
   }
   BrowserWindowInterface* from =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
   if (!from) {
-    return YES;
+    return ArdiaCoreAdoptionAdopted;
   }
   Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
   if (_host->ExistingBrowserFor(profile) == from) {
-    return YES;
+    return ArdiaCoreAdoptionAdopted;
   }
-  return _host->AdmitsTabsFor(profile) &&
-         ardiacore::WindowHost::LetsTabsGo(from, contents);
+  if (!_host->AdmitsTabsFor(profile) ||
+      !ardiacore::WindowHost::LetsTabsGo(from, contents)) {
+    return ArdiaCoreAdoptionRefused;
+  }
+  return ardiacore::IsNotifyingTabStrip() ? ArdiaCoreAdoptionBusy
+                                          : ArdiaCoreAdoptionAdopted;
 }
 
-- (BOOL)adoptTab:(ArdiaCoreTab*)tab {
-  if (ardiacore::DeferWhileTabStripNotifies(^{
-        [self adoptTab:tab];
-      })) {
-    return [self canAdoptTab:tab];
-  }
-  if (![self canAdoptTab:tab]) {
-    return NO;
+- (ArdiaCoreAdoption)adoptTab:(ArdiaCoreTab*)tab {
+  const ArdiaCoreAdoption adoption = [self canAdoptTab:tab];
+  if (adoption != ArdiaCoreAdoptionAdopted) {
+    return adoption;
   }
   content::WebContents* contents = tab.contents;
   BrowserWindowInterface* from =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
   if (!from) {
-    return YES;
+    return ArdiaCoreAdoptionAdopted;
   }
   Browser* to = _host->BrowserFor(
       Profile::FromBrowserContext(contents->GetBrowserContext()));
   if (from == to) {
-    return YES;
+    return ArdiaCoreAdoptionAdopted;
   }
   if (!to) {
-    return NO;
+    return ArdiaCoreAdoptionRefused;
   }
   TabStripModel* source = from->GetTabStripModel();
   const int index = source->GetIndexOfWebContents(contents);
   if (index == TabStripModel::kNoTab) {
-    return NO;
+    return ArdiaCoreAdoptionRefused;
   }
   std::unique_ptr<tabs::TabModel> moved = source->DetachTabAtForInsertion(index);
   if (!moved) {
-    return NO;
+    return ArdiaCoreAdoptionRefused;
   }
   TabStripModel* target = to->GetTabStripModel();
   target->InsertDetachedTabAt(target->count(), std::move(moved),
                               AddTabTypes::ADD_NONE);
-  return YES;
+  return ArdiaCoreAdoptionAdopted;
 }
 
 - (void)placeTab:(ArdiaCoreTab*)tab index:(int)index pinned:(BOOL)pinned {

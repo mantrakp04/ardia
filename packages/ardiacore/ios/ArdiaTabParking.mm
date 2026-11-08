@@ -131,10 +131,10 @@ void CloseLinkTabs() {
     ArdiaWindowController *keeper = [ArdiaWindowController strayWindowForProfile:tab.profile];
     keeper.hostChanges++;
     closing.hostChanges++;
-    const BOOL adopted = [keeper.coreWindow adoptTab:tab];
+    const ArdiaCoreAdoption adoption = [keeper.coreWindow adoptTab:tab];
     closing.hostChanges--;
     keeper.hostChanges--;
-    if (!adopted) [keeper.coreWindow close];
+    if (adoption != ArdiaCoreAdoptionAdopted) [keeper.coreWindow close];
   }
 }
 

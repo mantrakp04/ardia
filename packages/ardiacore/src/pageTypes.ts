@@ -49,6 +49,7 @@ export type OpenWindowRequest = {
   postBody?: boolean;
   profile?: string;
   point?: { x: number; y: number };
+  site?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -211,6 +212,7 @@ export type WebViewProps = ViewProps & {
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onTransferRefused?: (fromWindowId: string) => void;
   onAppBadge?: (badge: AppBadge) => void;
 };
 

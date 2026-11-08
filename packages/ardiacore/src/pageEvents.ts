@@ -67,6 +67,7 @@ type NativeEvents = {
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
+  onTransferRefused: { from: string };
   onAppBadge: AppBadge;
 };
 export type Handlers = keyof NativeEvents;
@@ -111,6 +112,7 @@ const PAGE_EVENTS = {
   onAutofillPrompt: "autofillPrompt",
   onExternalApp: "externalApp",
   onPreferredSize: "preferredSize",
+  onTransferRefused: "transferRefused",
   onAppBadge: "appBadge",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
@@ -155,6 +157,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
+  onTransferRefused: (e) => [e.from],
   onAppBadge: (e) => [e],
 };
 

@@ -227,9 +227,16 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
 - (void)takeTab {
   if (_tab.closed) return [_coreWindow close];
   _adopting = YES;
-  const BOOL adopted = [_coreWindow adoptTab:_tab];
+  const ArdiaCoreAdoption adoption = [_coreWindow adoptTab:_tab];
   _adopting = NO;
-  if (!adopted) return [_coreWindow close];
+  if (adoption == ArdiaCoreAdoptionBusy) {
+    __weak ArdiaPopupWindow *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf takeTab];
+    });
+    return;
+  }
+  if (adoption == ArdiaCoreAdoptionRefused) return [_coreWindow close];
   [self showTab];
 }
 

@@ -320,6 +320,15 @@ void WindowHost::AddBrowser(Browser* browser) {
     }
   }
   browser->GetTabStripModel()->AddObserver(this);
+  close_cancelled_[browser] = browser->RegisterBrowserCloseCancelled(
+      base::BindRepeating(
+          [](base::WeakPtr<WindowHost> host, BrowserWindowInterface*,
+             BrowserWindowInterface::ClosingStatus) {
+            if (host) {
+              host->NotifyCanTakeTabs();
+            }
+          },
+          GetWeakPtr()));
   if (!active_profile_) {
     SetActiveProfile(profile);
   }

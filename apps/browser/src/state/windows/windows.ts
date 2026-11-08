@@ -60,6 +60,7 @@ export type WindowsSlice = {
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
   moveTabsToWindow(tabIds: string[], windowId: string | null): string | undefined;
+  returnRefusedMove(tabId: string, fromWindowId: string): void;
   moveTabToProfile(tabId: string, profileId: string): void;
   moveGroupToWindow(groupId: string, windowId: string | null): string | undefined;
   moveGroupToProfile(groupId: string, profileId: string): void;
@@ -286,6 +287,13 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (last) next = apply(next, activated(next, last));
     set(next);
     return windowId;
+  },
+
+  returnRefusedMove(tabId, fromWindowId) {
+    const s = get();
+    const tab = s.tabs[tabId];
+    if (!tab || !s.windows[fromWindowId] || tab.windowId === fromWindowId) return;
+    set(moveTabsInto(s, [tabId], fromWindowId));
   },
 
   moveTabToProfile(tabId, profileId) {

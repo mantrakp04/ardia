@@ -144,19 +144,29 @@ struct ArdiaPageFocusState {
 - (void)emit:(NSString *)name payload:(NSDictionary *)payload;
 @end
 
+typedef NS_ENUM(NSInteger, ArdiaTransfer) {
+  ArdiaTransferNone,
+  ArdiaTransferTaken,
+  ArdiaTransferHeld,
+};
+
 @interface ArdiaWebView (TransferInternal)
 + (void)keepTransfersOfWindow:(NSWindow *)window;
++ (void)retryPagesInWindow:(ArdiaWindowController *)controller;
+- (void)waitForWindow;
 - (BOOL)takeLinkTab:(NSString *)adoptId;
 - (void)ensureTab;
 - (BOOL)cloneTab:(NSString *)sourceKey profile:(ArdiaCoreProfile *)profile;
 - (BOOL)canTake:(ArdiaCoreTab *)tab;
-- (BOOL)takeTransferredTab;
+- (ArdiaTransfer)takeTransferredTab;
 - (void)bindRestoreKey;
 @end
 
 @interface ArdiaWebView (TabInternal)
-- (BOOL)adoptIntoWindow;
-- (BOOL)windowTakes:(ArdiaCoreTab *)tab;
+- (ArdiaCoreAdoption)adoptIntoWindow;
+- (ArdiaCoreAdoption)windowTakes:(ArdiaCoreTab *)tab;
+- (void)adoptMovedPage;
+- (BOOL)holdTransferOf:(ArdiaCoreTab *)tab;
 - (void)attach:(ArdiaCoreTab *)tab;
 - (void)detach;
 - (void)stashPageReports;
@@ -306,6 +316,7 @@ BOOL PeekTracing();
 void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
+NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();
