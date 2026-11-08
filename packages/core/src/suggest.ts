@@ -49,9 +49,10 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
     const opened = withRootSlash(url);
-    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
-    const visit = source.history.find((h) => h.url === opened);
-    const marked = source.bookmarks?.some((b) => b.url === opened);
+    const isOpened = (saved: { url: string }) => withRootSlash(saved.url) === opened;
+    if (isOpened(c)) return pageSuggestion(c, null);
+    const visit = source.history.find(isOpened);
+    const marked = source.bookmarks?.some(isOpened);
     const saved = visit ?? c;
     return {
       kind: "page",

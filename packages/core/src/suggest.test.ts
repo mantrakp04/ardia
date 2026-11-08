@@ -190,12 +190,33 @@ test("a typed address saved under a fragment that is not its page's top row keep
     { url: "https://a.com/#/a", title: "Route A", favicon: "a.ico", visits: 5, lastVisit: now - 100 },
     { url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visits: 1, lastVisit: now - 200 },
   ];
-  const first = (typed: string, bookmarks?: { url: string; title: string; favicon: string | null }[]) => buildSuggestions(typed, { tabs: [], history, bookmarks }, { now }).items[0];
+  const first = (typed: string, bookmarks?: Parameters<typeof buildSuggestions>[1]["bookmarks"]) => buildSuggestions(typed, { tabs: [], history, bookmarks }, { now }).items[0];
   assert.deepEqual(first("https://a.com/#/b"), { kind: "page", url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visited: true });
   assert.deepEqual(first("https://a.com/#/b", [{ url: "https://a.com/#/b", title: "B", favicon: null }]), { kind: "page", url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visited: true, bookmarked: true });
   assert.deepEqual(first("https://a.com/#/c", [{ url: "https://a.com/#/b", title: "B", favicon: null }]), { kind: "page", url: "https://a.com/#/c", title: "Route A", favicon: "a.ico" });
   const withHome = [...history, { url: "https://a.com/", title: "Home", favicon: "home.ico", visits: 1, lastVisit: now - 300 }];
   assert.deepEqual(buildSuggestions("https://a.com/", { tabs: [], history: withHome }, { now }).items[0], { kind: "page", url: "https://a.com/", title: "Home", favicon: "home.ico", visited: true });
+});
+
+test("a bare host typed with or without its slash finds the saved row either way", () => {
+  const history = [
+    { url: "https://a.com/#/a", title: "Route A", favicon: "a.ico", visits: 5, lastVisit: now - 100 },
+    { url: "https://a.com", title: "Home", favicon: "home.ico", visits: 1, lastVisit: now - 300 },
+  ];
+  const bookmarks = [{ url: "https://a.com", title: "Home", favicon: "home.ico" }];
+  for (const typed of ["https://a.com", "https://a.com/", "a.com"]) {
+    const first = buildSuggestions(typed, { tabs: [], history, bookmarks }, { now }).items[0];
+    assert.deepEqual(first, { kind: "page", url: "https://a.com/", title: "Home", favicon: "home.ico", visited: true, bookmarked: true }, typed);
+  }
+});
+
+test("a typed address and the same page saved under a trailing slash are two choices", () => {
+  const saved = [{ url: "https://a.com/page/", title: "Page", favicon: null, visits: 2, lastVisit: now - 1000 }];
+  const { items } = buildSuggestions("https://a.com/page", { tabs: [], history: saved }, { now });
+  assert.deepEqual(rows(items), ["https://a.com/page", "search:https://a.com/page", "https://a.com/page/"]);
+  const [typedRow, , savedRow] = items;
+  assert.equal(typedRow?.kind === "page" && typedRow.visited, undefined, "the typed row was never visited");
+  assert.equal(savedRow?.kind === "page" && savedRow.visited, true, "the saved row keeps its history flag");
 });
 
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {

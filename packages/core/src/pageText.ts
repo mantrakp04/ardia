@@ -6,8 +6,6 @@ export function displayUrl(url: string): string {
 
 export const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
 
-export const fragmentOf = (url: string) => /#.*$/.exec(url)?.[0] ?? "";
-
 export const withRootSlash = (url: string) => url.replace(/^(https?:\/\/[^/?#]*)(?=[?#]|$)/i, "$1/");
 
 export type PageText = {

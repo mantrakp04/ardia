@@ -54,7 +54,6 @@ export function displayUrl(url: string): string {
 
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
-const fragmentOf = (url: string) => /#.*$/.exec(url)?.[0] ?? "";
 const withRootSlash = (url: string) => url.replace(/^(https?:\/\/[^/?#]*)(?=[?#]|$)/i, "$1/");
 
 type HistoryRow = SuggestionSource["history"][number];
@@ -306,7 +305,7 @@ const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return s.tabId ? `tab:${pageKey(s.url)}` : `page:${pageKey(s.url)}${fragmentOf(s.url)}`;
+      return s.tabId ? `tab:${pageKey(s.url)}` : `page:${withRootSlash(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":
@@ -346,9 +345,10 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
     const opened = withRootSlash(url);
-    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
-    const visit = source.history.find((h) => h.url === opened);
-    const marked = source.bookmarks?.some((b) => b.url === opened);
+    const isOpened = (saved: { url: string }) => withRootSlash(saved.url) === opened;
+    if (isOpened(c)) return pageSuggestion(c, null);
+    const visit = source.history.find(isOpened);
+    const marked = source.bookmarks?.some(isOpened);
     const saved = visit ?? c;
     return {
       kind: "page",
