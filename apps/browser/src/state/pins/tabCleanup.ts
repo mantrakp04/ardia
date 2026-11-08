@@ -2,7 +2,7 @@ import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage } from "../tabs/pageSession";
-import { holderOf } from "./pinShare";
+import { holderOf, isPageUnloaded } from "./pinShare";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import { lastUsedOf, sharedLastUsed } from "../tabs/tabShare";
 import type { ClosedTab, Tab, TabGroup } from "../browser/types";
@@ -164,8 +164,11 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
 }
 
 export function recentTabIds(s: BrowserState, windowId: string, now = Date.now(), staleAfterMs = CLEAN_UP_AFTER_MS): string[] {
-  const view = viewTabIds(s, windowId).map((id) => s.tabs[id]!);
-  const sorted = view.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const current = activeTabId(s, windowId);
+  const view = viewTabIds(s, windowId)
+    .filter((id) => id === current || !isPageUnloaded(s, id))
+    .map((id) => s.tabs[id]!);
+  const sorted = view.sort((a, b) => (a.id === current ? -1 : b.id === current ? 1 : b.lastActiveAt - a.lastActiveAt));
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 
