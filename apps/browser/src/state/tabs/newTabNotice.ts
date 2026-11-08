@@ -14,7 +14,20 @@ export function noteBackgroundTab(windowId: string, tabId: string, sourceId: str
   if (!tabId || !sourceId || useBrowser.getState().tabs[tabId]?.windowId !== windowId) return;
   const notice = { id: ++noticeSeq, tabId, sourceId };
   useNewTabNotices.setState((s) => ({ notices: { ...s.notices, [windowId]: notice } }));
-  setTimeout(() => clearNewTabNotice(windowId, notice.id), NEW_TAB_NOTICE_MS);
+  scheduleHide(windowId, notice.id);
+}
+
+const hideTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleHide(windowId: string, id: number) {
+  clearTimeout(hideTimers.get(windowId));
+  hideTimers.set(windowId, setTimeout(() => clearNewTabNotice(windowId, id), NEW_TAB_NOTICE_MS));
+}
+
+export function holdNewTabNotice(windowId: string, notice: NewTabNotice, held: boolean) {
+  if (useNewTabNotices.getState().notices[windowId]?.id !== notice.id) return;
+  if (held) clearTimeout(hideTimers.get(windowId));
+  else scheduleHide(windowId, notice.id);
 }
 
 export function clearNewTabNotice(windowId: string, id: number) {
