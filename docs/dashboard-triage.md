@@ -46,3 +46,19 @@ Each waiting draft has **Snooze 1 day** next to Mark sent and Skip. Snooze never
 1. The button inserts a row in `sandbox.ardia_reply_actions` with `status = 'snooze'` (or `'unsnooze'`). The status overlay ignores these rows; the newest snooze/unsnooze press decides `snoozed_until` (press time + 24h, or none). Because `ardia_reply_actions` is append-only and never truncated, a sync can't undo a snooze.
 2. `ch_sync.py` folds each press into SQLite as `replies.snoozed_until` / `replies.snooze_changed_at` (status untouched; an older press than the recorded one is skipped) and mirrors `snoozed_until` to `sandbox.ardia_replies.snoozed_until` and `ardia_v_reply_queue`. With no press on record, the dashboard falls back to that mirrored column.
 3. Scripts that want "waiting and not snoozed" can use `db.WAITING_SQL`.
+
+## Leads
+
+**Triage › Leads** lists posts from the browser crowd on X (people leaving Arc, comparing Dia, Zen, Comet or Atlas, asking what to switch to) that the triage routine sourced, each with a drafted reply. Every lead's draft is also a normal row in the reply queue (`ardia_replies`, `source = 'lead'`, `ext_id = 'L<post id>'`), so it shows up in **Reply queue** under **Leads on X** with a `lead` pill, and Mark sent, Skip, Snooze and Recheck work on it the same way. Nothing is ever posted for you: **Reply on X** opens X's composer as a reply to the post with the draft filled in, and **Copy reply** copies it.
+
+Each post renders with the dashboard's own post card (`components/triage/tweet-card.tsx`), not X's embed script or iframe: avatar, name, verified badge, handle, time, text with links, mentions and hashtags (`lib/tweet-text.ts`), photos and video previews, and the reply, repost, like, view and bookmark counts at sourcing time. Avatars and media load straight from X's image CDN with no referrer.
+
+Under the card is the release video for the feature the post is about, when one exists, linked at its timestamp (`https://ardia.dev/release-videos/<id>.mp4#t=<seconds>`, a media fragment browsers seek to), with the chapter title, the release it shipped in and a note on how the timestamp was found.
+
+The data is `sandbox.ardia_leads`, mirrored by `ch_sync.py` from the `leads` table of the ardia-db SQLite database (one row per post: author, followers and avatar, text, entities and media as JSON, metrics, the matched feature, `reply_id`, and `video_url`, `video_t`, `video_chapter`, `video_release`, `video_note`). The dashboard reads it with the reply queue; before the first sync creates the table, Leads is empty and the queue works as before.
+
+The routine's side lives in ardia-db's `leads.py`:
+
+1. `leads.py videos --verify` indexes the release videos linked from GitHub release notes and computes each chapter's start from its Remotion composition (`apps/videos/src/videos/<id>/index.tsx` timing constants and `segments.json`), checking the total against the mp4's real duration. A video without a composition, or whose length doesn't match, is linked without a timestamp and the lead says so.
+2. The routine searches X with its own X tools, saves each raw search response under `leads-raw/`, and runs `leads.py candidates`, which drops posts already in triage, Ardia mentions, the owner's own posts, other browser makers promoting theirs, and spam, and suggests a feature and video for the rest.
+3. It writes a short draft for each post worth answering and stores them with `leads.py add picks.json`, then runs `ch_sync.py`.
