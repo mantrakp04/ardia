@@ -435,3 +435,22 @@ The JS reports stamp `probeRevision` (from `PERF_PROBE_REVISION` in `perfProbe.t
 and `benchRevision` (the seed and scenarios). `js-bench.mjs compare` prints a warning line when either differs
 between the two reports. The native bench bundles also differ across a native API bump, so on those rows some of
 the difference is the JS.
+
+## Clean profile startup memory
+
+The optional `profiles` phase measures profile startup with the existing native benchmark's app preparation, hidden-instance lifecycle, process-tree `phys_footprint`, and alternating control/candidate order. It seeds one window before launch with one local, lazily restored tab per profile. It installs no extensions and uses no personal browser data. The default fixture has eight profiles; use `--profile-count 16` for a second matched run.
+
+```sh
+node apps/browser/scripts/perf/native-bench.mjs \
+  --app /absolute/path/Ardia.app --control /absolute/path/Ardia.app \
+  --label selected-profiles --control-label preloaded-profiles \
+  --only profiles --profile-count 8 --runs 3 \
+  --preload-profiles false --control-preload-profiles true \
+  --out /tmp/ardia-profile-native-bench
+```
+
+Use a Release app and benchmark bundle built from the same `main` revision, with matching native API versions. Both arms may use the same app and bundle: the fixture's `loadProfilesWhenOpened` setting is the intended difference. The CLI preloading options map inversely to this setting: candidate `--preload-profiles false` enables loading when opened, while control `--control-preload-profiles true` preloads every profile. Loading when opened is enabled by default in the product. `bench-entry.js` imports the normal app entry point, so startup applies the setting before history, bookmarks, favicon lookups, and neighbour-profile preparation.
+
+The phase runs alone, waits for the selected local page's first contentful paint, settles for `--idle` seconds (default 60), and reports physical footprint for the whole descendant process tree and browser process. Each raw result records the hydrated setting, logical profile/tab/window counts, and settling duration. Logical profile count is fixture metadata, **not** proof of how many Chromium BrowserContexts loaded. These results measure deferred startup, not releasing already visited profiles, extension-worker memory, or timeout-based inactivity unloading. Keep measurement runs serial and compare equal profile counts and builds; the local fixture contains no third-party extension workload.
+
+With **Load profiles when opened** enabled, native bookmark/history reads and their sync adapters also wait until a profile opens. Cached bookmarks remain available before then. Turning the setting off restores startup reads and sync readiness for every profile after restart
