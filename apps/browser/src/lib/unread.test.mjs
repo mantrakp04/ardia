@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { unreadInTitle, unreadCount, faviconLooksBadged, originOf } = await import("./unread.ts");
+const { unreadInTitle, unreadCount, faviconLooksBadged, faviconIsOrdinary, originOf, hostOfOrigin } = await import("./unread.ts");
 
-const label = (title) => {
-  const u = unreadInTitle(title);
+const label = (title, host = "") => {
+  const u = unreadInTitle(title, host);
   return u === null ? null : u.kind === "dot" ? "dot" : u.label;
 };
 
@@ -21,13 +21,13 @@ test("a parenthesised count at the start of the title is a count", () => {
   assert.equal(label("(250) YouTube"), "99+");
 });
 
-test("a short label with a count before the site name is a count", () => {
-  assert.equal(label("Inbox (3) - someone@gmail.com - Gmail"), "3");
-  assert.equal(label("Inbox (1,234) - someone@gmail.com - Gmail"), "99+");
-  assert.equal(label("Chat (2) - Google Chat"), "2");
-  assert.equal(label("Messenger (2)"), "2");
-  assert.equal(label("Telegram (14)"), "14");
-  assert.equal(label("Notifications (6) | GitHub"), "6");
+test("a mailbox-like label or the site's own name with a count is a count", () => {
+  assert.equal(label("Inbox (3) - someone@gmail.com - Gmail", "mail.google.com"), "3");
+  assert.equal(label("Inbox (1,234) - someone@gmail.com - Gmail", "mail.google.com"), "99+");
+  assert.equal(label("Chat (2) - Google Chat", "chat.google.com"), "2");
+  assert.equal(label("Messenger (2)", "www.messenger.com"), "2");
+  assert.equal(label("Telegram (14)", "web.telegram.org"), "14");
+  assert.equal(label("Notifications (6) | GitHub", "github.com"), "6");
 });
 
 test("count phrases read anywhere in the title", () => {
@@ -36,28 +36,33 @@ test("count phrases read anywhere in the title", () => {
   assert.equal(label("Team Chat · 3 new messages"), "3");
 });
 
-test("unread markers without a number are a dot", () => {
-  assert.equal(label("• Discord | #general | Friends"), "dot");
-  assert.equal(label("* general - Acme - Slack"), "dot");
-  assert.equal(label("! general - Acme - Slack"), "dot");
+test("Discord's bullet is a dot anywhere, Slack's asterisk only on Slack", () => {
+  assert.equal(label("• Discord | #general | Friends", "discord.com"), "dot");
+  assert.equal(label("* general (Channel) - Acme - Slack", "app.slack.com"), "dot");
+  assert.equal(label("* Untitled - Figma", "www.figma.com"), null);
+  assert.equal(label("* notes.txt - Editor"), null);
+  assert.equal(label("! general - Acme - Slack", "app.slack.com"), null);
+  assert.equal(label("● main.ts - Visual Studio Code", "vscode.dev"), null);
 });
 
 test("zero clears the badge", () => {
   assert.equal(label("(0) Home / X"), null);
-  assert.equal(label("Inbox (0) - someone@gmail.com - Gmail"), null);
+  assert.equal(label("Inbox (0) - someone@gmail.com - Gmail", "mail.google.com"), null);
 });
 
 test("ordinary numbers in titles are not counts", () => {
   for (const title of [
     "Inbox - someone@gmail.com - Gmail",
     "Dune (2021) - IMDb",
+    "Apollo (13) - News",
+    "Rocky (2) - Movies",
     "(2024) Year in review",
+    "2024 unread messages from the archive",
     "Top 10 Movies of 2024 (Ranked) - Site",
     "The Best Laptops of 2024 (Tested) | Example",
     "iPhone 15 Pro (128GB) - Apple",
     "Python (programming language) - Wikipedia",
     "Episode 3: The Return (Part 2) - Show",
-    "What happened in the 2016 US election (2016) and why it matters - Long Read",
     "Chapter 12 - The Book",
     "100 days of code",
     "React 19 is out",
@@ -66,7 +71,7 @@ test("ordinary numbers in titles are not counts", () => {
     "• 3 things to know",
     "",
   ])
-    assert.equal(label(title), null, title);
+    assert.equal(label(title, "news.example.com"), null, title);
 });
 
 test("API counts cap at 99+ and zero clears", () => {
@@ -76,18 +81,28 @@ test("API counts cap at 99+ and zero clears", () => {
   assert.equal(unreadCount(Number.NaN), null);
 });
 
-test("a favicon swapped for a drawn or badge-named icon counts as a badge", () => {
-  assert.equal(faviconLooksBadged("https://a.example/favicon.ico", "data:image/png;base64,AAAA"), true);
-  assert.equal(faviconLooksBadged("https://a.example/favicon.ico", "https://a.example/favicon-unread.ico"), true);
-  assert.equal(faviconLooksBadged("https://ssl.gstatic.com/mail/favicon.ico", "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/unreadcountfavicon/3/5_2x.png"), true);
-  assert.equal(faviconLooksBadged("https://a.example/favicon.ico", "https://a.example/favicon.ico"), false);
-  assert.equal(faviconLooksBadged("https://github.com/favicon.ico", "https://github.githubassets.com/favicons/favicon-success.svg"), false);
-  assert.equal(faviconLooksBadged("data:image/png;base64,AAAA", "data:image/png;base64,BBBB"), false);
-  assert.equal(faviconLooksBadged("", "data:image/png;base64,AAAA"), false);
+test("only a badge-named icon file counts, never a drawn or animated data: icon or a host or folder name", () => {
+  const home = "https://a.example/favicon.ico";
+  assert.equal(faviconLooksBadged(home, "https://a.example/favicon-unread.ico"), true);
+  assert.equal(faviconLooksBadged(home, "https://a.example/img/favicon_notification.png?v=2"), true);
+  assert.equal(faviconLooksBadged(home, "https://a.example/icons/dot-32.png"), true);
+  assert.equal(faviconLooksBadged(home, "data:image/png;base64,AAAA"), false);
+  assert.equal(faviconLooksBadged(home, "data:image/gif;base64,R0lGOD"), false);
+  assert.equal(faviconLooksBadged(home, "https://account.example/favicon.ico"), false);
+  assert.equal(faviconLooksBadged(home, "https://a.example/unread/favicon.ico"), false);
+  assert.equal(faviconLooksBadged(home, "https://a.example/discount.png"), false);
+  assert.equal(faviconLooksBadged(home, home), false);
+  assert.equal(faviconLooksBadged(home, "https://github.githubassets.com/favicons/favicon-success.svg"), false);
+  assert.equal(faviconLooksBadged("", "https://a.example/favicon-unread.ico"), false);
+  assert.equal(faviconIsOrdinary("https://a.example/favicon.ico"), true);
+  assert.equal(faviconIsOrdinary("https://a.example/favicon-unread.ico"), false);
+  assert.equal(faviconIsOrdinary("data:image/png;base64,AAAA"), false);
 });
 
 test("origins compare scheme, host and port", () => {
   assert.equal(originOf("https://Mail.Google.com/mail/u/0/#inbox"), "https://mail.google.com");
   assert.equal(originOf("http://localhost:8080/x?y"), "http://localhost:8080");
   assert.equal(originOf("about:blank"), "");
+  assert.equal(hostOfOrigin("https://app.slack.com"), "app.slack.com");
+  assert.equal(hostOfOrigin("http://127.0.0.1:8080"), "127.0.0.1");
 });

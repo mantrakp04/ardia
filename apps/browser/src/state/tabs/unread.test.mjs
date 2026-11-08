@@ -4,7 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
 const { startPinHandoff } = await import("../pins/pinHandoff.ts");
 const { webviews, webviewRef } = await import("../../platform/webviews.ts");
-const { noteAppBadge, noteUnreadFavicon, tabUnread, useUnread } = await import("./unread.ts");
+const { noteAppBadge, noteUnreadFavicon, noteUnreadPageEnded, noteUnreadPageLive, tabUnread } = await import("./unread.ts");
 
 const S = () => useBrowser.getState();
 mock.timers.enable({ apis: ["setTimeout"] });
@@ -16,7 +16,6 @@ const shown = (id) => {
 
 const setup = (url = "https://mail.example/inbox") => {
   S().hydrate({});
-  useUnread.setState({ app: {}, favicon: {} });
   const w = S().createWindow({ url });
   const a = S().windows[w].tabIds[0];
   S().updateTab(a, { url, title: "Inbox - Mail" });
@@ -52,11 +51,11 @@ test("the Badging API wins over the title, for the origin that set it, until cle
   assert.equal(shown(a), null);
 });
 
-test("a favicon swapped for a badged one shows a dot until the site's own icon comes back", () => {
+test("a favicon swapped for a badge-named one shows a dot until the site's own icon comes back", () => {
   const { a } = setup();
   noteUnreadFavicon(a, "https://mail.example/inbox", "https://mail.example/favicon.ico");
   assert.equal(shown(a), null);
-  noteUnreadFavicon(a, "https://mail.example/inbox", "data:image/png;base64,AAAA");
+  noteUnreadFavicon(a, "https://mail.example/inbox", "https://mail.example/favicon-unread.ico");
   assert.equal(shown(a), "dot");
   S().updateTab(a, { title: "Inbox (6) - Mail" });
   assert.equal(shown(a), "6");
@@ -65,9 +64,43 @@ test("a favicon swapped for a badged one shows a dot until the site's own icon c
   assert.equal(shown(a), null);
 });
 
+test("an icon that was already badged or drawn at load never becomes the baseline", () => {
+  const { a } = setup();
+  noteUnreadFavicon(a, "https://mail.example/inbox", "data:image/png;base64,AAAA");
+  noteUnreadFavicon(a, "https://mail.example/inbox", "https://mail.example/favicon-unread.ico");
+  assert.equal(shown(a), null);
+  noteUnreadFavicon(a, "https://mail.example/inbox", "https://mail.example/favicon.ico");
+  noteUnreadFavicon(a, "https://mail.example/inbox", "data:image/png;base64,BBBB");
+  assert.equal(shown(a), null);
+  noteUnreadFavicon(a, "https://mail.example/inbox", "https://mail.example/favicon-unread.ico");
+  assert.equal(shown(a), "dot");
+});
+
+test("a discarded or crashed page shows nothing until it runs again", () => {
+  const { a } = setup();
+  S().updateTab(a, { title: "Inbox (3) - Mail" });
+  noteAppBadge(a, { origin: "https://mail.example", count: 9, flag: false });
+  assert.equal(shown(a), "9");
+  noteUnreadPageEnded(a);
+  assert.equal(shown(a), null);
+  noteUnreadPageLive(a);
+  assert.equal(shown(a), "3");
+  noteUnreadPageEnded(a);
+  assert.equal(shown(a), null);
+});
+
+test("each site in a tab keeps its own Badging API badge, so Back to an earlier one shows it again", () => {
+  const { a } = setup();
+  noteAppBadge(a, { origin: "https://mail.example", count: 8, flag: false });
+  S().updateTab(a, { url: "https://chat.example/", title: "Chat" });
+  noteAppBadge(a, { origin: "https://chat.example", count: 2, flag: false });
+  assert.equal(shown(a), "2");
+  S().updateTab(a, { url: "https://mail.example/inbox", title: "Inbox - Mail" });
+  assert.equal(shown(a), "8");
+});
+
 test("a pinned copy whose page moved to another window shows that page's badge", async () => {
   S().hydrate({});
-  useUnread.setState({ app: {}, favicon: {} });
   const a = S().createWindow({ url: "https://mail.example/" });
   const [mail] = S().windows[a].tabIds;
   S().newTab(a, { url: "https://a.example/" });
@@ -92,11 +125,3 @@ test("a pinned copy whose page moved to another window shows that page's badge",
   webviews.delete(mail);
 });
 
-test("closed tabs drop out of the badge store", () => {
-  const { w, a } = setup();
-  const b = S().newTab(w, { url: "https://chat.example/", background: true });
-  noteAppBadge(b, { origin: "https://chat.example", count: 1, flag: false });
-  S().closeTab(b);
-  noteAppBadge(a, { origin: "https://mail.example", count: 1, flag: false });
-  assert.deepEqual(Object.keys(useUnread.getState().app), [a]);
-});

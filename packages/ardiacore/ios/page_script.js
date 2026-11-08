@@ -575,40 +575,72 @@
 
   if (isTop && window.isSecureContext && window.Navigator) {
     const navigatorProto = window.Navigator.prototype;
+    const PromiseType = Promise;
+    const { reject: promiseReject, resolve: promiseResolve } = Promise;
+    const promiseThen = Promise.prototype.then;
+    const { trunc } = Math;
+    const MAX_BADGE = 9007199254740991;
     const badgeCount = (contents) => {
       if (contents === undefined) return null;
-      const n = Number(contents);
-      if (!isFinite(n) || n < 0 || n > Number.MAX_SAFE_INTEGER) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is outside the 'unsigned long long' value range.");
-      return Math.trunc(n);
+      const n = trunc(+contents);
+      if (!isFinite(n)) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is not of type 'unsigned long long'.");
+      if (n < 0 || n > MAX_BADGE) throw new TypeError("Failed to execute 'setAppBadge' on 'Navigator': Value is outside the 'unsigned long long' value range.");
+      return n === 0 ? 0 : n;
     };
-    const reportBadge = (count) => send("appBadge", count === null ? { flag: true } : { count });
-    const badgeMethod = (name, decide) => {
-      const native = navigatorProto[name];
-      if (typeof native === "function") {
-        navigatorProto[name] = asNative(native, (target, self, args) => {
-          const result = apply(target, self, args);
-          if (self === navigator) guard(() => reportBadge(decide(args)))();
-          return result;
-        });
-        return;
+    const ignore = () => {};
+    const BADGE_GAP_MS = 250;
+    const clock = Date.now;
+    let shownBadge;
+    let nextBadge;
+    let sentAt = -Infinity;
+    let queued = false;
+    const sendBadge = () => {
+      queued = false;
+      if (nextBadge === shownBadge) return;
+      shownBadge = nextBadge;
+      sentAt = clock();
+      send("appBadge", nextBadge === null ? { flag: true } : { count: nextBadge });
+    };
+    const noteBadge = (count) => {
+      nextBadge = count;
+      if (queued) return;
+      const wait = sentAt + BADGE_GAP_MS - clock();
+      if (wait <= 0) return sendBadge();
+      queued = true;
+      setTimeout(guard(sendBadge), wait);
+    };
+    const afterChrome = (result, count) => {
+      if (result && typeof result === "object") apply(promiseThen, result, [() => noteBadge(count), ignore]);
+      return result;
+    };
+    const install = (name, native, run) =>
+      typeof native === "function"
+        ? (navigatorProto[name] = asNative(native, (target, self, args) => (self === navigator ? run(target, self, args) : apply(target, self, args))))
+        : Object.defineProperty(navigatorProto, name, {
+            value: {
+              [name]() {
+                if (this !== navigator) return apply(promiseReject, PromiseType, [new TypeError("Illegal invocation")]);
+                return run(null, this, arguments);
+              },
+            }[name],
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+    install("setAppBadge", navigatorProto.setAppBadge, (target, self, args) => {
+      let count;
+      try {
+        count = badgeCount(args[0]);
+      } catch (e) {
+        return apply(promiseReject, PromiseType, [e]);
       }
-      const shim = {
-        [name]() {
-          try {
-            const count = decide([arguments[0]]);
-            if (this === navigator) reportBadge(count);
-          } catch (e) {
-            return Promise.reject(e);
-          }
-          return Promise.resolve();
-        },
-      }[name];
-      Object.defineProperty(navigatorProto, name, { value: shim, writable: true, enumerable: true, configurable: true });
-    };
-    badgeMethod("setAppBadge", (args) => badgeCount(args[0]));
-    badgeMethod("clearAppBadge", () => 0);
+      if (!target) return afterChrome(apply(promiseResolve, PromiseType, []), count);
+      return afterChrome(apply(target, self, count === null ? [] : [count]), count);
+    });
+    install("clearAppBadge", navigatorProto.clearAppBadge, (target, self) =>
+      afterChrome(target ? apply(target, self, []) : apply(promiseResolve, PromiseType, []), 0),
+    );
   }
-
   const PO = window.PerformanceObserver;
   const disconnect = PO && PO.prototype.disconnect;
   const { addEventListener: listen, removeEventListener: unlisten } = EventTarget.prototype;

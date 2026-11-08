@@ -12,16 +12,24 @@ const slice = (from, to) => {
 const helper = slice("  const asNative = ", "  const { keys, setPrototypeOf } = Object;\n");
 const badging = slice("  if (isTop && window.isSecureContext && window.Navigator) {\n", "\n  const PO = window.PerformanceObserver;");
 
-function badgePage({ native = true, top = true, secure = true } = {}) {
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+function badgePage({ native = true, top = true, secure = true, chromeRefuses = false } = {}) {
   const sent = [];
   const nativeCalls = [];
+  const timers = [];
   class Navigator {}
+  const navigator = new Navigator();
+  const receiverCheck = (self) => (self === navigator ? null : Promise.reject(new TypeError("Illegal invocation")));
   if (native) {
     Object.defineProperty(Navigator.prototype, "setAppBadge", {
       value: {
         setAppBadge(contents) {
-          nativeCalls.push(["set", contents]);
-          if (contents !== undefined && !(Number(contents) >= 0)) throw new TypeError("Value is outside the 'unsigned long long' value range.");
+          nativeCalls.push(["set", ...arguments]);
+          const refused = receiverCheck(this);
+          if (refused) return refused;
+          if (chromeRefuses) return Promise.reject(new DOMException("Not allowed", "NotAllowedError"));
+          if (contents !== undefined && typeof contents !== "number") return Promise.reject(new TypeError("Chrome got an unconverted value"));
           return Promise.resolve();
         },
       }.setAppBadge,
@@ -33,7 +41,7 @@ function badgePage({ native = true, top = true, secure = true } = {}) {
       value: {
         clearAppBadge() {
           nativeCalls.push(["clear"]);
-          return Promise.resolve();
+          return receiverCheck(this) ?? (chromeRefuses ? Promise.reject(new DOMException("Not allowed", "NotAllowedError")) : Promise.resolve());
         },
       }.clearAppBadge,
       writable: true,
@@ -41,7 +49,6 @@ function badgePage({ native = true, top = true, secure = true } = {}) {
       configurable: true,
     });
   }
-  const navigator = new Navigator();
   const window = { Navigator, isSecureContext: secure };
   const guard = (fn) =>
     function () {
@@ -49,7 +56,7 @@ function badgePage({ native = true, top = true, secure = true } = {}) {
         return Reflect.apply(fn, this, arguments);
       } catch (e) {}
     };
-  new Function("window", "navigator", "isTop", "send", "guard", "apply", "isFinite", `${helper}${badging}`)(
+  new Function("window", "navigator", "isTop", "send", "guard", "apply", "isFinite", "setTimeout", `${helper}${badging}`)(
     window,
     navigator,
     top,
@@ -57,56 +64,99 @@ function badgePage({ native = true, top = true, secure = true } = {}) {
     guard,
     Reflect.apply,
     Number.isFinite,
+    (fn, ms) => timers.push({ fn, ms }),
   );
-  return { navigator, Navigator, sent, nativeCalls };
+  const flush = async () => {
+    await settle();
+    while (timers.length) timers.shift().fn();
+  };
+  return { navigator, sent, nativeCalls, timers, flush };
 }
 
-test("setAppBadge and clearAppBadge still reach Chrome and report the badge", async () => {
+const reported = (p) => p.sent.map((m) => m.data);
+
+test("Chrome gets each call with the value converted once, and the badge Chrome accepted is reported", async () => {
   const p = badgePage();
-  await p.navigator.setAppBadge(3);
+  let reads = 0;
+  await p.navigator.setAppBadge({ valueOf: () => ++reads * 3 });
+  assert.equal(reads, 1);
+  assert.deepEqual(p.nativeCalls, [["set", 3]]);
+  await p.flush();
+  assert.deepEqual(reported(p), [{ count: 3 }]);
   await p.navigator.setAppBadge();
-  await p.navigator.setAppBadge(0);
+  await p.flush();
+  await p.navigator.setAppBadge(-0.5);
+  await p.flush();
+  await p.navigator.setAppBadge(2.9);
+  await p.flush();
   await p.navigator.clearAppBadge();
-  assert.deepEqual(p.nativeCalls, [["set", 3], ["set", undefined], ["set", 0], ["clear"]]);
-  assert.deepEqual(
-    p.sent.map((m) => [m.kind, m.data]),
-    [
-      ["appBadge", { count: 3 }],
-      ["appBadge", { flag: true }],
-      ["appBadge", { count: 0 }],
-      ["appBadge", { count: 0 }],
-    ],
-  );
+  await p.flush();
+  assert.deepEqual(reported(p), [{ count: 3 }, { flag: true }, { count: 0 }, { count: 2 }, { count: 0 }]);
   assert.equal(Function.prototype.toString.call(p.navigator.setAppBadge), "function () { [native code] }");
   assert.equal(p.navigator.setAppBadge.name, "setAppBadge");
 });
 
-test("what Chrome refuses throws and reports nothing", () => {
+test("values WebIDL refuses reject without reaching Chrome or the app", async () => {
   const p = badgePage();
-  assert.throws(() => p.navigator.setAppBadge(-1), TypeError);
-  assert.deepEqual(p.sent, []);
-  p.navigator.setAppBadge.call({}, 2);
+  for (const bad of [-1, 2 ** 53, Number.NaN, Infinity, 1n, Symbol("x")]) await assert.rejects(p.navigator.setAppBadge(bad), TypeError, String(bad));
+  await p.flush();
+  assert.deepEqual(p.nativeCalls, []);
   assert.deepEqual(p.sent, []);
 });
 
-test("without Chrome's methods the page still gets a working Badging API", async () => {
+test("a call Chrome rejects reports nothing", async () => {
+  const p = badgePage({ chromeRefuses: true });
+  await assert.rejects(p.navigator.setAppBadge(4), { name: "NotAllowedError" });
+  await assert.rejects(p.navigator.clearAppBadge(), { name: "NotAllowedError" });
+  await p.flush();
+  assert.deepEqual(p.sent, []);
+});
+
+test("another receiver goes to Chrome untouched and reports nothing", async () => {
+  const p = badgePage();
+  const stranger = {};
+  await assert.rejects(p.navigator.setAppBadge.call(stranger, 2), TypeError);
+  await p.flush();
+  assert.deepEqual(p.nativeCalls, [["set", 2]]);
+  assert.deepEqual(p.sent, []);
+});
+
+test("a burst of calls sends the first at once and then one message with the last value, and nothing when it ends where it began", async () => {
+  const p = badgePage();
+  const calls = [];
+  for (let i = 1; i <= 1000; i++) calls.push(p.navigator.setAppBadge(i));
+  await Promise.all(calls);
+  assert.deepEqual(reported(p), [{ count: 1 }]);
+  assert.equal(p.timers.length, 1);
+  assert.ok(p.timers[0].ms > 0 && p.timers[0].ms <= 250);
+  await p.flush();
+  assert.deepEqual(reported(p), [{ count: 1 }, { count: 1000 }]);
+  await p.navigator.setAppBadge(5);
+  await p.navigator.setAppBadge(1000);
+  await p.flush();
+  assert.deepEqual(reported(p), [{ count: 1 }, { count: 1000 }]);
+});
+
+test("without Chrome's methods the page still gets a working Badging API that refuses a wrong receiver", async () => {
   const p = badgePage({ native: false });
   assert.equal(typeof p.navigator.setAppBadge, "function");
   assert.equal(p.navigator.setAppBadge.length, 0);
-  assert.equal("setAppBadge" in p.navigator, true);
   await p.navigator.setAppBadge(7);
+  await p.flush();
   await p.navigator.clearAppBadge();
+  await p.flush();
   await assert.rejects(p.navigator.setAppBadge(Number.NaN), TypeError);
-  assert.deepEqual(
-    p.sent.map((m) => m.data),
-    [{ count: 7 }, { count: 0 }],
-  );
+  await assert.rejects(p.navigator.setAppBadge.call({}, 1), { name: "TypeError", message: "Illegal invocation" });
+  await assert.rejects(p.navigator.clearAppBadge.call({}), { name: "TypeError", message: "Illegal invocation" });
+  await p.flush();
+  assert.deepEqual(reported(p), [{ count: 7 }, { count: 0 }]);
 });
 
-test("frames and insecure pages are left alone", () => {
+test("frames and insecure pages are left alone", async () => {
   for (const options of [{ top: false }, { secure: false }]) {
     const p = badgePage(options);
-    p.navigator.setAppBadge(1);
+    await p.navigator.setAppBadge(1);
+    await p.flush();
     assert.deepEqual(p.sent, []);
   }
 });

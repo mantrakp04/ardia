@@ -181,11 +181,15 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     _reports.theme = color;
     _reports.themeSource = source;
     [self queueNavigation];
-  } else if ([kind isEqualToString:@"appBadge"] && main && dict && sender) {
+  } else if ([kind isEqualToString:@"appBadge"] && main && dict && VerifiedOrigin(verifiedOrigin)) {
     double count;
     const BOOL counted = Finite(dict, @"count", &count) && count >= 1;
     [self emit:@"appBadge"
-        payload:@{@"origin" : sender, @"count" : counted ? @(floor(MIN(count, 1e9))) : NSNull.null, @"flag" : @(!counted && Flag(dict, @"flag"))}];
+        payload:@{
+          @"origin" : VerifiedOrigin(verifiedOrigin),
+          @"count" : counted ? @(floor(MIN(count, 1e9))) : NSNull.null,
+          @"flag" : @(!counted && Flag(dict, @"flag"))
+        }];
   } else if ([kind isEqualToString:@"pinch"] && main && dict) {
     double scale;
     if (!Finite(dict, @"scale", &scale) || scale <= 0) return;

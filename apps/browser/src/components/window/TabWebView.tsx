@@ -41,7 +41,7 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
-import { noteAppBadge, noteUnreadFavicon } from "../../state/tabs/unread";
+import { noteAppBadge, noteUnreadFavicon, noteUnreadPageEnded, noteUnreadPageLive } from "../../state/tabs/unread";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -142,6 +142,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
+        if (isLoading) noteUnreadPageLive(tabId);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
         const untouched = committedInitial === undefined ? reported === "" && !(tab()?.openerId && adoptId) : committedInitial && !initialDocumentAccessed;
@@ -210,6 +211,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onStatus={(status) => patchPage(tabId, { status })}
       onCrashed={(crashed) => {
         if (!isQuitting()) patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
+        noteUnreadPageEnded(tabId);
       }}
       onUnresponsive={() => patchPage(tabId, { unresponsive: true })}
       onResponsive={() => patchPage(tabId, { unresponsive: false })}
@@ -244,6 +246,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         updateLive(tabId, { isLoading: false, canGoBack: false, canGoForward: false, playingAudio: false });
         setPageProgress(tabId, 0);
         noteDiscarded(tabId);
+        noteUnreadPageEnded(tabId);
       }}
       onActivateRequest={() => {
         const t = tab();
