@@ -152,22 +152,50 @@ test("a typed or completed address opens, even when a tab has it open: the tab k
 
 test("a typed address opens as typed: a saved #fragment of the same page never replaces it", () => {
   const portal = "https://example.awsapps.com/start/";
+  const bare = "https://example.awsapps.com/start";
   const saved = `${portal}#/console?account_id=1&role_name=admin`;
   const hist = [{ url: saved, title: "AWS access portal", favicon: "aws.ico", visits: 4, lastVisit: now - 1000 }];
   const tabs = [{ id: "t1", url: saved, title: "AWS access portal", favicon: "aws.ico" }];
   const firstRow = (typed: string, source: Parameters<typeof buildSuggestions>[1]) => buildSuggestions(typed, source, { now }).items[0];
-  for (const typed of [portal, "example.awsapps.com/start/", "example.awsapps.com/start"]) {
-    assert.deepEqual(firstRow(typed, { tabs: [], history: hist }), { kind: "page", url: portal, title: "AWS access portal", favicon: "aws.ico" }, `${typed}: history`);
-    assert.deepEqual(firstRow(typed, { tabs, history: [] }), { kind: "page", url: portal, title: "AWS access portal", favicon: "aws.ico" }, `${typed}: tab`);
+  const opens = (url: string) => ({ kind: "page", url, title: "AWS access portal", favicon: "aws.ico" });
+  for (const [typed, url] of [[portal, portal], ["example.awsapps.com/start/", portal], [bare, bare], ["example.awsapps.com/start", bare]] as const) {
+    assert.deepEqual(firstRow(typed, { tabs: [], history: hist }), opens(url), `${typed}: history`);
+    assert.deepEqual(firstRow(typed, { tabs, history: [] }), opens(url), `${typed}: tab`);
     assert.ok(rows(buildSuggestions(typed, { tabs, history: hist }, { now }).items).includes(`tab:${saved}`), `${typed}: the tab keeps its Switch to Tab row`);
   }
-  for (const typed of [portal, "example.awsapps.com/start"]) assert.deepEqual(rows(buildSuggestions(typed, { tabs: [], history: hist }, { now }).items).slice(0, 3), [portal, `search:${typed}`, saved], `${typed}: the saved page stays a separate choice`);
+  for (const [typed, url] of [[portal, portal], ["example.awsapps.com/start", bare]] as const) assert.deepEqual(rows(buildSuggestions(typed, { tabs: [], history: hist }, { now }).items).slice(0, 3), [url, `search:${typed}`, saved], `${typed}: the saved page stays a separate choice`);
   assert.equal(rows(buildSuggestions(saved, { tabs: [], history: hist }, { now }).items).filter((r) => r === saved).length, 1, "the saved address as typed is not listed twice");
   const other = `${portal}#/other`;
-  assert.deepEqual(firstRow(other, { tabs: [], history: hist }), { kind: "page", url: other, title: "AWS access portal", favicon: "aws.ico" }, "another typed fragment");
-  assert.deepEqual(firstRow(saved, { tabs: [], history: hist }), { kind: "page", url: saved, title: "AWS access portal", favicon: "aws.ico", visited: true }, "the saved address as typed stays a history row");
+  assert.deepEqual(firstRow(other, { tabs: [], history: hist }), opens(other), "another typed fragment");
+  assert.deepEqual(firstRow(saved, { tabs: [], history: hist }), { ...opens(saved), visited: true }, "the saved address as typed stays a history row");
+  const bookmarks = [{ url: saved, title: "AWS access portal", favicon: "aws.ico" }];
+  assert.deepEqual(firstRow(portal, { tabs: [], history: hist, bookmarks }), opens(portal), "a changed address is not the bookmark");
+  assert.deepEqual(firstRow(saved, { tabs: [], history: hist, bookmarks }), { ...opens(saved), visited: true, bookmarked: true }, "the saved address keeps its bookmark");
   const grid = [{ url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null, visits: 3, lastVisit: now - 1000 }];
   for (const typed of ["ugc.hek", "ugc.hekuto.dev"]) assert.equal(rows(buildSuggestions(typed, { tabs: [], history: grid }, { now }).items)[0], "https://ugc.hekuto.dev/", `${typed}: the host, not the saved #grid`);
+});
+
+test("a typed address keeps its trailing slash, except a bare host's, which is the same address", () => {
+  const entry = (url: string) => [{ url, title: "Page", favicon: null, visits: 2, lastVisit: now - 1000 }];
+  const first = (typed: string, url: string) => buildSuggestions(typed, { tabs: [], history: entry(url) }, { now }).items[0];
+  assert.deepEqual(first("https://a.com/page/", "https://a.com/page"), { kind: "page", url: "https://a.com/page/", title: "Page", favicon: null });
+  assert.deepEqual(first("https://a.com/page", "https://a.com/page/"), { kind: "page", url: "https://a.com/page", title: "Page", favicon: null });
+  assert.deepEqual(first("a.com/page", "https://a.com/page/#x"), { kind: "page", url: "https://a.com/page", title: "Page", favicon: null });
+  assert.deepEqual(first("https://a.com", "https://a.com/"), { kind: "page", url: "https://a.com/", title: "Page", favicon: null, visited: true });
+  assert.deepEqual(first("a.com/", "https://a.com/"), { kind: "page", url: "https://a.com/", title: "Page", favicon: null, visited: true });
+});
+
+test("a typed address saved under a fragment that is not its page's top row keeps that row's own title and flags", () => {
+  const history = [
+    { url: "https://a.com/#/a", title: "Route A", favicon: "a.ico", visits: 5, lastVisit: now - 100 },
+    { url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visits: 1, lastVisit: now - 200 },
+  ];
+  const first = (typed: string, bookmarks?: { url: string; title: string; favicon: string | null }[]) => buildSuggestions(typed, { tabs: [], history, bookmarks }, { now }).items[0];
+  assert.deepEqual(first("https://a.com/#/b"), { kind: "page", url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visited: true });
+  assert.deepEqual(first("https://a.com/#/b", [{ url: "https://a.com/#/b", title: "B", favicon: null }]), { kind: "page", url: "https://a.com/#/b", title: "Route B", favicon: "b.ico", visited: true, bookmarked: true });
+  assert.deepEqual(first("https://a.com/#/c", [{ url: "https://a.com/#/b", title: "B", favicon: null }]), { kind: "page", url: "https://a.com/#/c", title: "Route A", favicon: "a.ico" });
+  const withHome = [...history, { url: "https://a.com/", title: "Home", favicon: "home.ico", visits: 1, lastVisit: now - 300 }];
+  assert.deepEqual(buildSuggestions("https://a.com/", { tabs: [], history: withHome }, { now }).items[0], { kind: "page", url: "https://a.com/", title: "Home", favicon: "home.ico", visited: true });
 });
 
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {

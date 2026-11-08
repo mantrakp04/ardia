@@ -6,7 +6,7 @@ import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
-import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, withFragmentOf, type PageText } from "./pageText.ts";
+import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText, withRootSlash } from "./pageText.ts";
 import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
@@ -48,8 +48,19 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
-    const opened = withFragmentOf(c.url, url);
-    return opened === c.url ? pageSuggestion(c, null) : ({ kind: "page", url: opened, title: c.title, favicon: c.favicon } satisfies Suggestion);
+    const opened = withRootSlash(url);
+    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
+    const visit = source.history.find((h) => h.url === opened);
+    const marked = source.bookmarks?.some((b) => b.url === opened);
+    const saved = visit ?? c;
+    return {
+      kind: "page",
+      url: opened,
+      title: saved.title,
+      favicon: saved.favicon,
+      ...(marked ? { bookmarked: true } : {}),
+      ...(visit && visit.visits > 0 ? { visited: true } : {}),
+    } satisfies Suggestion;
   };
 
   const websiteFirst = preference === "website";

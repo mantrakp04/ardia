@@ -55,7 +55,7 @@ export function displayUrl(url: string): string {
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
 const fragmentOf = (url: string) => /#.*$/.exec(url)?.[0] ?? "";
-const withFragmentOf = (url: string, source: string) => url.replace(/#.*$/, "") + fragmentOf(source);
+const withRootSlash = (url: string) => url.replace(/^(https?:\/\/[^/?#]*)(?=[?#]|$)/i, "$1/");
 
 type HistoryRow = SuggestionSource["history"][number];
 type BookmarkRow = NonNullable<SuggestionSource["bookmarks"]>[number];
@@ -345,8 +345,19 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
-    const opened = withFragmentOf(c.url, url);
-    return opened === c.url ? pageSuggestion(c, null) : ({ kind: "page", url: opened, title: c.title, favicon: c.favicon } satisfies Suggestion);
+    const opened = withRootSlash(url);
+    if (withRootSlash(c.url) === opened) return pageSuggestion(c, null);
+    const visit = source.history.find((h) => h.url === opened);
+    const marked = source.bookmarks?.some((b) => b.url === opened);
+    const saved = visit ?? c;
+    return {
+      kind: "page",
+      url: opened,
+      title: saved.title,
+      favicon: saved.favicon,
+      ...(marked ? { bookmarked: true } : {}),
+      ...(visit && visit.visits > 0 ? { visited: true } : {}),
+    } satisfies Suggestion;
   };
 
   const websiteFirst = preference === "website";
