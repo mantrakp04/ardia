@@ -6,6 +6,8 @@ LIBRARY = r"""
     "menuitemcheckbox", "menuitemradio", "slider", "spinbutton", "switch", "tab", "treeitem", "searchbox"]);
   const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   const suggestionWatches = new WeakMap();
+  const SUGGESTION_ATTRIBUTES = ["hidden", "style", "class", "id", "role", "aria-busy", "aria-selected", "aria-disabled", "aria-label", "data-value",
+    "value", "aria-controls", "aria-owns", "aria-expanded", "aria-activedescendant"];
   const CONTROLS = "input:not([type=hidden]), textarea, select, button[aria-haspopup], [aria-haspopup=listbox], [aria-haspopup=true], [role=combobox], [role=searchbox], [role=textbox], [contenteditable=true]";
   const IMPLICIT_ROLES = {
     main: "main", navigation: "nav", banner: "body > header", contentinfo: "body > footer", dialog: "dialog", form: "form",
@@ -363,7 +365,7 @@ LIBRARY = r"""
         }
       });
       watch.observer.observe(el.ownerDocument.documentElement, { subtree: true, childList: true, characterData: true, attributes: true,
-        attributeFilter: ["hidden", "style", "class", "aria-busy", "aria-selected", "aria-expanded", "id"] });
+        attributeFilter: SUGGESTION_ATTRIBUTES });
       watch.onInput = () => { watch.lastInput = performance.now(); watch.firstInput = watch.firstInput || watch.lastInput; };
       el.addEventListener("input", watch.onInput, true);
       watch.started = performance.now();

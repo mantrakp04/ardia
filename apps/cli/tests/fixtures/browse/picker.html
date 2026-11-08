@@ -39,6 +39,9 @@
   <button id="shape" type="button" aria-haspopup="listbox" aria-controls="shape-list">Shape</button>
   <ul id="shape-list" class="options" role="listbox" aria-label="Shapes"><li role="option">Square</li><li role="option">Circle</li></ul>
 </div>
+<label for="region">Region</label>
+<input id="region" type="text" role="combobox" aria-controls="region-list" autocomplete="off">
+<ul id="region-list" class="options" role="listbox" aria-label="Regions"><li role="option" aria-label="Region East"></li><li role="option" aria-label="Region North"></li></ul>
 <label for="assignee">Assignee</label>
 <input id="assignee" type="text" role="combobox" aria-controls="assignee-options" autocomplete="off">
 <ul id="assignee-options" class="options" role="listbox" aria-label="Assignees"><li role="option">Alice Jones</li></ul>
@@ -57,7 +60,7 @@
   const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const state = { guests: [], suggestions: [], active: -1, seq: 0 };
   const report = () => { $("report").textContent = JSON.stringify({ guests: state.guests.map((g) => g.email), color: $("color").dataset.value || null, city: $("city").value,
-    ...(state.tag ? { tag: state.tag } : {}), ...(state.assignee ? { assignee: state.assignee } : {}) }); };
+    ...(state.tag ? { tag: state.tag } : {}), ...(state.region ? { region: state.region } : {}), ...(state.assignee ? { assignee: state.assignee } : {}) }); };
   const input = $("guest-input");
   const options = $("guest-options");
   function el(tag, attrs, ...children) {
@@ -137,6 +140,15 @@
     list.replaceChildren(...["urgent", "ux", "backend"].filter((t) => q && t.startsWith(q)).map((t) => el("li", { role: "option", text: t,
       onmousedown: (event) => { event.preventDefault(); state.tag = t; tags.value = t; list.hidden = true; report(); } })));
     list.hidden = !list.children.length;
+  });
+  $("region").addEventListener("input", () => {
+    clearTimeout(state.regionTimer);
+    state.regionTimer = setTimeout(() => {
+      const [first, second] = $("region-list").children;
+      first.setAttribute("aria-label", "Region West");
+      second.setAttribute("aria-label", "Region South");
+      first.onmousedown = (event) => { event.preventDefault(); state.region = first.getAttribute("aria-label"); report(); };
+    }, 300);
   });
   $("assignee").addEventListener("input", () => {
     document.body.classList.toggle("typing");
