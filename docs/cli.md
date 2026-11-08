@@ -262,7 +262,7 @@ focus, scrolling, and the DOM changes those lead to (`select` and `pushstate` di
 `popstate` events from the isolated world, and `fill` on a date, time or other typed input its `input`/`change`). An
 action's network watch uses the Network domain of the command's own CDP session, which the page can't observe. Only `eval`, `wait --fn`, init scripts and the React hook run in the
 main world. `wait --fn` is the caller's JavaScript like `eval`, so it runs where the page's own globals are; it's
-evaluated every 100 ms until it's truthy. There's no `--enable-automation` and no fingerprint spoofing.
+evaluated every 100 ms until it's truthy. There's no `--enable-automation`.
 
 The one deviation from agent-browser: the Runtime domain stays off until console or error capture starts (the first
 `console` or `errors`, or `open --capture-console`); from then on it's on for that tab for the rest of the session.
