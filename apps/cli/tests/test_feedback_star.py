@@ -64,15 +64,15 @@ class ScrubTest(unittest.TestCase):
     def test_free_text_drops_secrets_emails_url_queries_and_home_names(self):
         text, truncated = telemetry_scrub.free_text(
             "open https://bob:pw@example.com/reset?code=abc#x failed\nfor jane.doe@example.org with ghp_abcdefghijklmnopqrstuvwx12\n"
-            "Authorization: Bearer abcdefghijk123\npassword=hunter2 api_key: 'zz'\nin /Users/jane/site card 4111 1111 1111 1111 "
-            "id 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+            "in /Users/jane/site card 4111 1111 1111 1111 id 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n"
+            "Authorization: Bearer abcdefghijk123\npassword=hunter2 api_key: 'zz'",
             1000,
         )
         for leaked in ("bob", "pw@", "code=abc", "jane.doe", "ghp_", "abcdefghijk123", "hunter2", "'zz'", "/Users/jane", "4111", "9f86d08"):
             self.assertNotIn(leaked, text)
         self.assertIn("https://example.com/reset?<redacted> failed", text)
         self.assertIn("for <email> with <secret>", text)
-        self.assertIn("<redacted>\n<redacted>", text)
+        self.assertTrue(text.endswith("\n<redacted>"), text)
         self.assertIn("/Users/<user>/site", text)
         self.assertFalse(truncated)
 
@@ -175,36 +175,44 @@ class ScrubTest(unittest.TestCase):
             "\r\n"
             '{"username":"bob","password":"hunter2","remember":true}'
         )
-        self.assert_scrubbed(dump, "s3ss", "c5rf", "t0ken", "k3y", "hunter2", keep=("Host: example.com", "Content-Type: application/json", "POST /api/login"))
+        self.assert_scrubbed(dump, "s3ss", "c5rf", "t0ken", "k3y", "hunter2", keep=("Host: example.com", "POST /api/login"))
 
     def test_codex_round_four(self):
         self.assert_scrubbed(
             'curl -H "Authorization: Digest username=\\"bob-secret\\", realm=\\"r\\", nonce=\\"n0nce\\", response=\\"r3sp\\"" https://example.com/x\nthen click failed',
-            "bob-secret", "n0nce", "r3sp", keep=("curl -H", "then click failed"),
+            "bob-secret", "n0nce", "r3sp", "then click failed", keep=("curl -H",),
         )
         self.assert_scrubbed('session="first-secret"; other=second-secret', "first-secret", "second-secret")
         self.assert_scrubbed('it sent Bearer "quoted-secret" and got 401', "quoted-secret", keep=("it sent",))
         self.assert_scrubbed(
             "GET / HTTP/1.1\nAuthorization: Digest username=\"bob\",\n  response=\"f0lded-secret\",\n\topaque=\"tab-secret\"\nAccept: text/html",
-            "f0lded-secret", "tab-secret", keep=("GET / HTTP/1.1", "Accept: text/html"),
+            "f0lded-secret", "tab-secret", "Accept", keep=("GET / HTTP/1.1",),
         )
 
-    def test_keyword_lines_redact_to_the_end_of_the_line(self):
-        clean = self.assert_scrubbed("the token expired: abc123 again\nsnapshot -i was fine", "abc123", "again", keep=("the ", "snapshot -i was fine"))
+    def test_text_after_a_keyword_goes_to_the_end(self):
+        clean = self.assert_scrubbed("the token expired: abc123 again\nsnapshot -i was fine", "abc123", "again", "snapshot", keep=("the ",))
         self.assertIn("<redacted>", clean)
-        self.assert_scrubbed("X-Goog-Api-Key: k1\nnext", "k1", keep=("next",))
+        self.assert_scrubbed("X-Goog-Api-Key: k1\nnext", "k1", "next")
         self.assert_scrubbed("my Private Key was pasted: MIIEv", "MIIEv")
         self.assert_scrubbed("auth header was abc", "abc")
 
-    def test_backslash_continues_a_keyword_line(self):
-        self.assert_scrubbed("curl -H 'Authorization: Basic x' \\\n  -d 'k=s3cret' https://a.test\nok then", "s3cret", keep=("ok then",))
+    def test_backslash_continuations_go_too(self):
+        self.assert_scrubbed("curl -H 'Authorization: Basic x' \\\n  -d 'k=s3cret' https://a.test\nok then", "s3cret", "ok then")
 
-    def test_an_unclosed_quote_keeps_redacting_until_it_closes(self):
-        self.assert_scrubbed('password="line one\nline-two-secret" tail\nafter', "line one", "line-two-secret", "tail", keep=("after",))
+    def test_an_unclosed_quote_goes_with_the_rest(self):
+        self.assert_scrubbed('password="line one\nline-two-secret" tail\nafter', "line one", "line-two-secret", "tail", "after")
         self.assert_scrubbed("token='a\nb-secret\nc-secret", "b-secret", "c-secret")
 
-    def test_apostrophes_are_not_quotes(self):
-        self.assert_scrubbed("the token didn't refresh\nsnapshot was fine", "refresh", keep=("snapshot was fine",))
+    def test_apostrophes_change_nothing(self):
+        self.assert_scrubbed("the token didn't refresh\nsnapshot was fine", "refresh", "snapshot", keep=("the ",))
+
+    def test_codex_round_five(self):
+        self.assertEqual(telemetry_scrub.free_text('password = r"""first\nhunter2"""', 1000)[0], "<redacted>")
+        self.assertEqual(telemetry_scrub.free_text('session=a"first\nhunter2"', 1000)[0], "<redacted>")
+
+    def test_everything_after_the_first_keyword_goes(self):
+        clean = self.assert_scrubbed("snapshot -i hid a button\nthen the token broke\nand later snapshot", "broke", "later", keep=("snapshot -i hid a button\nthen the ",))
+        self.assertTrue(clean.endswith("<redacted>"))
 
     def test_feedback_and_command_both_go_through_the_scrubber(self):
         props = feedback.properties('{"password":"hunter2"}', 'ardia browse fill @e2 "x" --headers {"api_key":"short-key"}', Path("/nonexistent"), {})

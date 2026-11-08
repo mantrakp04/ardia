@@ -114,7 +114,6 @@ SENSITIVE_KEYWORD = re.compile(
     r"(?i)password|passwd|pwd|secret|token|api[ _-]?key|apikey|authorization|bearer|basic|digest|cookie|session|credential"
     r"|private[ _-]?key|auth"
 )
-QUOTES = "\"'`"
 REDACTED = "<redacted>"
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
 CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
@@ -136,52 +135,15 @@ def whole_words(text: str, limit: int) -> str:
     return cut[:space] if space > 0 else ""
 
 
-def logical_lines(text: str) -> list[str]:
-    lines: list[str] = []
-    for line in text.split("\n"):
-        if lines and (line[:1] in (" ", "\t") or lines[-1].endswith("\\")):
-            lines[-1] += "\n" + line
-        else:
-            lines.append(line)
-    return lines
-
-
-def open_quote(line: str, quote: str | None = None) -> str | None:
-    index = 0
-    while index < len(line):
-        char = line[index]
-        if char == "\\":
-            index += 2
-            continue
-        if quote is None:
-            if char in QUOTES and (index == 0 or not line[index - 1].isalnum()):
-                quote = char
-        elif char == quote:
-            quote = None
-        index += 1
-    return quote
-
-
-def redact_keyword_lines(text: str) -> str:
-    out: list[str] = []
-    pending: str | None = None
-    for line in logical_lines(text):
-        if pending is not None:
-            pending = open_quote(line, pending)
-            continue
-        found = SENSITIVE_KEYWORD.search(line)
-        if found is None:
-            out.append(line)
-            continue
-        out.append(line[:found.start()] + REDACTED)
-        pending = open_quote(line)
-    return "\n".join(out)
+def redact_from_keyword(text: str) -> str:
+    found = SENSITIVE_KEYWORD.search(text)
+    return text if found is None else text[:found.start()] + REDACTED
 
 
 def free_text(text: str, limit: int) -> tuple[str, bool]:
     clipped = len(text) > limit * SCRUB_WINDOW
     text = whole_words(CONTROL.sub(" ", text), limit * SCRUB_WINDOW)
-    text = redact_keyword_lines(text)
+    text = redact_from_keyword(text)
     text = URL.sub(scrub_url, text)
     text = KNOWN_SECRET.sub("<secret>", text)
     text = EMAIL.sub("<email>", text)

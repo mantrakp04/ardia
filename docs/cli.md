@@ -844,14 +844,12 @@ runs against a local stub with fixture data dirs.
 
 `ardia feedback "<what annoyed you, what you expected>"` (or the text on stdin, or `-`) is for agents to tell the
 developer about friction: a confusing error, a missing command, output that cost turns. `telemetry_scrub.free_text`
-first replaces control characters. Then any line that mentions a sensitive word (password, passwd, pwd, secret,
-token, api key/api_key/apikey, authorization, bearer, basic, digest, cookie, session, credential, private key, auth;
-any case, inside other words too) keeps only what comes before that word, followed by `<redacted>`. A line that ends in
-a backslash or is followed by one starting with a space or tab (a folded header) counts as one line, and when a quote
-is still open at the end of a redacted line, the following lines go too until it closes or the scan ends. This
-over-redacts on purpose: the note is about the CLI, and the rest of a line that mentions a token is never what
-matters. After that it drops a URL's login and query (`https://host/path?<redacted>`), known token shapes (`ghp_…`,
-`github_pat_…`, `sk-…`, `xox?-…`, `AKIA…`, `AIza…`, JWTs), emails, mixed letter-and-digit runs of 32 or more,
+first replaces control characters. Then, from the first sensitive word (password, passwd, pwd, secret, token, api
+key/api_key/apikey, authorization, bearer, basic, digest, cookie, session, credential, private key, auth; any case,
+inside other words too), everything to the end of the note becomes `<redacted>`, whatever quoting, line breaks or
+continuations follow. This over-redacts on purpose: the note is about the CLI, and nothing after someone writes
+"token" is worth the risk. On what's left it drops a URL's login and query (`https://host/path?<redacted>`), known
+token shapes (`ghp_…`, `github_pat_…`, `sk-…`, `xox?-…`, `AKIA…`, `AIza…`, JWTs), emails, mixed letter-and-digit runs of 32 or more,
 card-like numbers and the user name in `/Users/<name>`, then caps it at 1,000 characters. It goes out under exactly the
 consent and opt-outs above, as a `cli_feedback` event; the flush starts at once instead of waiting out the 60 s
 interval, unless the flusher is backing off after a failure. At most 20 notes a rolling day go out per CLI home, and
