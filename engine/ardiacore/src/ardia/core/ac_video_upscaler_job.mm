@@ -44,6 +44,16 @@ id<MTLTexture> PlaneTexture(id<MTLDevice> device,
   return [device newTextureWithDescriptor:descriptor iosurface:surface plane:plane];
 }
 
+bool SameRowStrides(IOSurfaceRef surface, IOSurfaceRef reference) {
+  for (size_t plane = 0; plane < 2; ++plane) {
+    if (IOSurfaceGetBytesPerRowOfPlane(surface, plane) !=
+        IOSurfaceGetBytesPerRowOfPlane(reference, plane)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 base::apple::ScopedCFTypeRef<IOSurfaceRef> CreateOutputSurface(const gfx::Size& size) {
   const size_t bytes_per_row =
       IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, size.width() * 4);
@@ -102,9 +112,9 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
 
   IOSurfaceRef detail_source = nullptr;
   if (plan.vt_factor > 0) {
+    IOSurfaceRef padded = CVPixelBufferGetIOSurface(kit.paddedInput);
     CVPixelBufferRef vt_input = nullptr;
-    if (plan.vt_needs_pad) {
-      IOSurfaceRef padded = CVPixelBufferGetIOSurface(kit.paddedInput);
+    if (plan.vt_needs_pad || !SameRowStrides(source, padded)) {
       id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
       [encoder setComputePipelineState:kit.pad];
       for (size_t plane = 0; plane < 2; ++plane) {

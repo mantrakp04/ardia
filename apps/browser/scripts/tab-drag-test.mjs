@@ -117,6 +117,16 @@ try {
     const iv = setInterval(() => preview().then((p) => seen.push(p)), 30);
     return act("${w}", "drag:${path}").then(() => settle(${ms})).then(() => { clearInterval(iv); return seen; });`);
 
+  await check("a click whose pointer drifts up to 9 pt opens the tab, and a 14 pt press doesn't", async () => {
+    const before = await order("w1");
+    const shownAfter = (path) => run(`return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(1500)).then(() => st().windows.w1.activeTabIds.default);`);
+    assert.equal(await shownAfter([[mid(4), 21], [mid(4) + 6, 23]]), "t3");
+    assert.equal(await shownAfter([[mid(3), 21], [mid(3) - 9, 21]]), "t2");
+    assert.equal(await shownAfter([[mid(5), 21], [mid(5) + 14, 21]]), "t2", "a 14 pt press is a drag");
+    assert.deepEqual(await order("w1"), before);
+    await run(`st().activate("t1"); return settle(600);`);
+  });
+
   await check("a tab dragged along the strip reorders and doesn't move the window", async () => {
     const frame = await run(`return st().windows.w1.frame;`);
     const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 75, 21]]);

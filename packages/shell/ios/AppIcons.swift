@@ -28,21 +28,27 @@ enum AppIcons {
     return variants.contains { $0.id == id } ? id : "default"
   }
 
+  private static var styleWatcher: IconStyleWatcher?
+
   static func restore() {
-    if current != "default" { apply(current) }
+    if styleWatcher == nil { styleWatcher = IconStyleWatcher { apply() } }
+    if shown != "default" { apply() }
   }
 
   static func set(_ id: String, announce: Bool) {
     guard variants.contains(where: { $0.id == id }) else { return }
     UserDefaults.standard.set(id, forKey: defaultsKey)
-    apply(id)
+    apply()
     if announce, let bundleId = Bundle.main.bundleIdentifier {
       DistributedNotificationCenter.default().postNotificationName(
         changedNotification(bundleId: bundleId), object: nil, userInfo: ["icon": id], deliverImmediately: true)
     }
   }
 
-  private static func apply(_ id: String) {
+  static var shown: String { IconStyle.shown(saved: current, theme: IconStyle.systemTheme) }
+
+  private static func apply() {
+    let id = shown
     NSApp.applicationIconImage = id == "default" ? nil : image(id, size: 512)
   }
 

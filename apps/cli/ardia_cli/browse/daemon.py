@@ -7,13 +7,16 @@ import sys
 import time
 from pathlib import Path
 
+from ardia_cli import command_metrics
 from ardia_cli.browse import paths
+from ardia_cli.caller import parse as parse_caller
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Unreachable, Usage
 
 CONNECTED_IDLE = 30.0
 DEFAULT_DAEMON_IDLE = 3600.0
 MAX_REQUEST = 16 * 1024 * 1024
 MAX_RESPONSE = 256 * 1024 * 1024
+OUTPUT_CAP = 6000
 SETTLE_TIMEOUT = 5.0
 WATCH_INTERVAL = 2.0
 EXIT_GRACE = 3.0
@@ -78,10 +81,17 @@ def sanitize(value):
     return value
 
 
+def redact_text(text: str) -> str:
+    from ardia_cli.redact import redact
+
+    return redact(text)
+
+
 def render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
     from ardia_cli.redact import redact
 
     code, out, err = _render(options, result, error, name)
+    command_metrics.rendered(name, result, error, out)
     return code, redact(out), redact(err)
 
 
@@ -108,13 +118,23 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
     text = result.text
     if text is None:
         return code, "", ""
-    if result.page_content:
-        limit = options.get("max_output")
-        if limit and len(text) > int(limit):
-            text = text[: int(limit)] + f"\n[truncated {len(text) - int(limit)} characters]"
-        if options.get("content_boundaries"):
-            text = boundary(text)
+    text = cap(redact_text(text), options)
+    if result.page_content and options.get("content_boundaries"):
+        text = boundary(text)
     return code, text + "\n", ""
+
+
+def cap(text: str, options: dict) -> str:
+    if options.get("full"):
+        return text
+    limit = options.get("max_output")
+    limit = OUTPUT_CAP if limit is None else int(limit)
+    if limit <= 0 or len(text) <= limit:
+        return text
+    cut = text.rfind("\n", 0, limit + 1)
+    cut = cut if cut >= limit * 0.8 else limit
+    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters; rerun with --max-output {len(text)} or --full, "
+                         "or narrow it (snapshot -s <sel>, -d <n>)]")
 
 
 class Daemon:
@@ -302,7 +322,7 @@ class Daemon:
                 return
             gone.cancel()
             code, out, err = execute.result()
-            writer.write(encode_answer(code, out, err))
+            writer.write(encode_answer(code, out, err, command_metrics.answer_fields(request)))
             await writer.drain()
         except Exception:
             log.exception("request failed")
@@ -317,10 +337,12 @@ class Daemon:
     async def execute(self, request: dict) -> tuple[int, str, str]:
         from ardia_cli.browse.commands import ALIASES, Ctx
 
+        command_metrics.begin(request)
         argv = request.get("argv") or []
         options = request.get("options") or {}
         name = ALIASES.get(argv[0], argv[0]) if argv else ""
         ctx = Ctx(self.state, options, request.get("cwd") or str(Path.home()), request.get("env") or {}, request.get("stdin"), name)
+        self.state.caller = parse_caller(request.get("caller")) or self.state.caller
         if options.get("no_auto_dialog"):
             self.state.auto_dialog = False
         if options.get("pin_tab") is not None:
@@ -334,21 +356,32 @@ class Daemon:
                 return self.refuse_closing(options, name)
             if self.state.lost:
                 return render(options, error=ConnectionLost(), name=name)
-            try:
-                result = await dispatch(ctx, name, argv[1:])
-            except BrowseError as error:
-                if isinstance(error, ConnectionLost) or (self.state.browser is not None and not self.state.browser.alive and not self.state.browser.closed_by_us):
-                    self.state.lost = True
-                    error = error if isinstance(error, ConnectionLost) else ConnectionLost()
-                if isinstance(error, Unreachable) and self.state.instance is None:
-                    self.state.restarted = True
-                return render(options, error=error, name=name)
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:
-                log.exception("command %s crashed", name)
-                return render(options, error=BrowseError(f"{name} failed: {type(error).__name__}: {error}"), name=name)
-            return render(options, result=result, name=name)
+            self.state.extras.pop("notice", None)
+            if self.state.connected:
+                await self.state.announce_caller(self.state.endpoint)
+            code, out, err = await self.answer(ctx, name, argv, options)
+            notice = self.state.extras.pop("notice", None)
+            return code, out, (redact_text(notice) + "\n" if notice else "") + err
+
+    async def answer(self, ctx, name, argv, options) -> tuple[int, str, str]:
+        try:
+            result = await dispatch(ctx, name, argv[1:])
+        except BrowseError as error:
+            if isinstance(error, ConnectionLost) or (self.state.browser is not None and not self.state.browser.alive and not self.state.browser.closed_by_us):
+                self.state.lost = True
+                error = error if isinstance(error, ConnectionLost) else ConnectionLost()
+            if isinstance(error, Unreachable) and self.state.instance is None:
+                self.state.restarted = True
+            return render(options, error=error, name=name)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            log.exception("command %s crashed", name)
+            from ardia_cli import telemetry
+
+            telemetry.report_exception(error, "browse_daemon", self.config)
+            return render(options, error=BrowseError(f"{name} failed: {type(error).__name__}: {error}"), name=name)
+        return render(options, result=result, name=name)
 
     async def close(self, ctx):
         from ardia_cli.browse.commands import Result
@@ -374,8 +407,8 @@ class Daemon:
         return render(ctx.options, result=Result({"closed": True, "tabs": closed}, text), name="close")
 
 
-def encode_answer(code: int, out: str, err: str) -> bytes:
-    data = (json.dumps({"exit": code, "out": out, "err": err}, ensure_ascii=False) + "\n").encode()
+def encode_answer(code: int, out: str, err: str, fields: dict | None = None) -> bytes:
+    data = (json.dumps({"exit": code, "out": out, "err": err, **(fields or {})}, ensure_ascii=False) + "\n").encode()
     if len(data) <= MAX_RESPONSE:
         return data
     message = f"✗ The answer was too large ({len(data)} bytes, the limit is {MAX_RESPONSE}); narrow it (snapshot -s, -d, --max-output)\n"
@@ -414,6 +447,11 @@ def main():
     except paths.PathError as error:
         sys.stderr.write(f"ardia browse daemon: {error}\n")
         status = 2
+    except Exception as error:
+        from ardia_cli import telemetry
+
+        telemetry.report_exception(error, "browse_daemon", config, fatal=True)
+        raise
     finally:
         if lease:
             try:

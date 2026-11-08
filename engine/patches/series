@@ -18,11 +18,16 @@ chromium chromium-cast-dialog-hook.patch
 chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
 chromium chromium-storage-pressure-bubble-without-browser-view.patch
+chromium chromium-remoting-dialog-without-browser-view.patch
+chromium chromium-action-open-popup-without-active-tab.patch
 chromium chromium-initial-document-access.patch
 chromium chromium-hidden-window-current-window.patch
 chromium chromium-devtools-redock-display.patch
 chromium chromium-devtools-window-title.patch
+chromium chromium-global-trace-id-64bit.patch
+chromium chromium-drag-start-event-id.patch
 chromium chromium-devtools-control-token.patch
+chromium chromium-capture-wake-lock-awake-only.patch
 chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
 chromium chromium-webstore-direct.patch
@@ -61,6 +66,7 @@ chromium chromium-pip-overlay-window.patch
 chromium chromium-tab-sharing-capturer.patch
 chromium chromium-desktop-capture-window-audio.patch
 chromium chromium-video-super-resolution.patch
+chromium chromium-keep-old-frame-on-swap.patch
 chromium chromium-begin-frame-warm-up.patch
 chromium chromium-main-frame-throttle-after-show.patch
 chromium chromium-main-frame-full-rate-on-input.patch
@@ -70,6 +76,7 @@ chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch
 chromium chromium-media-session-main-frame-handler.patch
 chromium chromium-pip-user-agent-ignores-page-opt-out.patch
+chromium chromium-widevine-without-cdm.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch

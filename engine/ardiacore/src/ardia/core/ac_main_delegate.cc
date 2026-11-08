@@ -291,6 +291,7 @@ ACMainDelegate::ACMainDelegate(const StartupTimestamps& timestamps)
     : ChromeMainDelegate(timestamps) {
   g_ardia_embedder = true;
   g_ardia_restricted_component_extension = &IsBundledComponentExtension;
+  g_ardia_widevine_without_cdm = true;
   g_ardia_resource_bundle_delegate = ProductStrings();
 }
 

@@ -109,6 +109,17 @@ the same with it off). A wake right before the switch (the keyboard case: ⌘1�
 so keys don't wake. xbench's CDP-driven switch doesn't click, so its row doesn't show this.
 (Its switch, `ARDIA_SWITCH_PREWARM`, went on 2026-10-26, after it shipped in 0.2.40.)
 
+**Same-site link click (GitHub issue #795, measured 2026-11-07).** A same-site click swaps the page's view, and the hide
+of the old one dropped its own compositor (ArdiaCore hosts each page's NSView, so each has one) and its frame with it, so
+the new view showed the page's root background until its first frame. Measured on a dev build in a hidden instance, the
+window recorded with ScreenCaptureKit at up to 120 fps, two same-site fixture pages with a white root and a full-page dark
+body, 10 link clicks a run: before `chromium-keep-old-frame-on-swap.patch`, 10 of 30 clicks showed the white root for
+8–58 ms, and 27 of 30 for 140–335 ms (most 275–335) when the new page has a 300 ms render-blocking stylesheet, i.e. until
+it arrives. With it, 0 of 20 in each case; 2 of 40 clicks showed one lighter frame of a fade from the root colour, never
+full white. A second navigation within 100 ms of the first, while the first new page is still blocked, can still show
+the root colour (5 of 8 rounds, mostly one or two frames): that page never drew, and Chrome's fallback hand-off then
+points at its empty surface.
+
 **New tab (+26 ms).** In Chrome, `Target.createTarget` adds a tab that is already in its window. In Ardia the
 WebContents is made and starts loading in Chrome's strip, but it is only shown once the JS adopts it and React mounts
 its view. Until then it is hidden, so its first paint waits for the mount. Same cause as the switch: the page isn't

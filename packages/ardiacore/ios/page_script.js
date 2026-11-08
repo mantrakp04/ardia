@@ -856,6 +856,7 @@
       let drmSent = false;
       let refused = "";
       const attempted = new Set();
+      const grantedOnActivation = new WeakSet();
       const needsProtectedPlayback = (keySystem) => {
         if (drmSent) return;
         drmSent = true;
@@ -904,7 +905,8 @@
         const keySystem = args[0];
         if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
           const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
-          apply(then, result, [null, () => onRefused(keySystem, activated)]);
+          const remember = guard((access) => activated && access && typeof access === "object" && grantedOnActivation.add(access));
+          apply(then, result, [remember, () => onRefused(keySystem, activated)]);
         }
         return result;
       });
@@ -912,6 +914,27 @@
         ...Object.getOwnPropertyDescriptor(NavigatorType.prototype, "requestMediaKeySystemAccess"),
         value: wrapped,
       });
+      const AccessType = window.MediaKeySystemAccess;
+      const createKeys = AccessType && AccessType.prototype.createMediaKeys;
+      const keySystemOf = AccessType && Object.getOwnPropertyDescriptor(AccessType.prototype, "keySystem");
+      if (typeof createKeys === "function" && keySystemOf && typeof keySystemOf.get === "function") {
+        const keySystemFrom = guard((access) => apply(keySystemOf.get, access, []));
+        const wrappedCreate = asNative(createKeys, (target, self, args) => {
+          const result = apply(target, self, args);
+          if (!drmSent) {
+            const keySystem = keySystemFrom(self);
+            if (typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+              const activated = !!(navigator.userActivation && navigator.userActivation.isActive) || grantedOnActivation.has(self);
+              apply(then, result, [null, () => onRefused(keySystem, activated)]);
+            }
+          }
+          return result;
+        });
+        Object.defineProperty(AccessType.prototype, "createMediaKeys", {
+          ...Object.getOwnPropertyDescriptor(AccessType.prototype, "createMediaKeys"),
+          value: wrappedCreate,
+        });
+      }
     }
   } catch (e) {}
 

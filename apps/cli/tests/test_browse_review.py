@@ -77,6 +77,7 @@ def ax_tree(names, base=100):
 class SnapshotPage:
     target_id = "T"
     main_frame = "F"
+    url = "http://x/"
 
     def __init__(self, names, base=100):
         self.names = names
@@ -555,11 +556,18 @@ class BoundedBuffersAndAnswers(unittest.TestCase):
 
     def test_request_records_are_bounded(self):
         page = Page(SimpleNamespace(sessions={}, on_page_event=lambda *a: None, auto_dialog=True), "T")
+        page.network_on = True
         header = "h" * (512 * 1024)
         for index in range(200):
             page.on_event("Network.requestWillBeSent", {"requestId": str(index), "request": {"url": "http://x/", "method": "GET", "headers": {"X": header}}})
         size = sum(len(json.dumps(record)) for record in page.requests.values())
+        self.assertTrue(page.requests)
         self.assertLessEqual(size, 32 * 1024 * 1024)
+
+    def test_requests_are_only_logged_while_network_capture_is_on(self):
+        page = Page(SimpleNamespace(sessions={}, on_page_event=lambda *a: None, auto_dialog=True), "T")
+        page.on_event("Network.requestWillBeSent", {"requestId": "1", "request": {"url": "http://x/", "method": "POST"}})
+        self.assertEqual(len(page.requests), 0)
 
     def test_daemon_refuses_an_oversized_answer(self):
         instance = make_daemon(self)

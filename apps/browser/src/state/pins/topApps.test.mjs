@@ -8,8 +8,10 @@ const stub = await import("../../test-native/index.ts");
 const folders = await import("./tileFolders.ts");
 const writes = await import("./syncWrites.ts");
 const topAppsMod = await import("./topApps.ts");
+const { newShownMemo, shownPaneKeys } = await import("../windows/card.ts");
 
 const S = () => useBrowser.getState();
+const paneKeyOf = (id) => shownPaneKeys({ current: newShownMemo() }, S(), [id], {}).find((key) => key.startsWith(`${id}|`));
 let optedOut = false;
 const reset = (shared = true) => {
   S().hydrate({});
@@ -73,6 +75,50 @@ test("one live page per Top App: opening it in the other profile takes the same 
   assert.equal(S().tabs[copy].page.holderId, mail);
   assert.equal(pages("https://mail.com").length, 1);
   assert.equal(loaded(mail), true);
+});
+
+test("switching spaces keeps a shared Top App's pane mounted, so its one page is never detached and re-attached", () => {
+  reset();
+  const { w, mail, work } = spaces();
+  S().activate(tileOf(w, work, "https://mail.com"));
+  assert.equal(S().tabs[mail].profileId, work);
+  const pane = paneKeyOf(mail);
+  S().switchProfile(w, "default");
+  assert.equal(S().tabs[mail].profileId, "default", "the page came along to Personal");
+  assert.equal(paneKeyOf(mail), pane, "same pane, same web view");
+  S().switchProfile(w, work);
+  assert.equal(S().tabs[mail].profileId, work, "and back to Work");
+  assert.equal(paneKeyOf(mail), pane, "same pane, same web view");
+  assert.equal(pages("https://mail.com").length, 1);
+});
+
+test("a tab moved to a profile with its own data gets a new pane in the new profile", () => {
+  reset();
+  const { w, mail, work } = spaces({ shareWith: false });
+  const pane = paneKeyOf(mail);
+  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [mail]: { ...s.tabs[mail], profileId: work } } }));
+  assert.notEqual(paneKeyOf(mail), pane);
+  assert.equal(S().windows[w].profileId, work);
+});
+
+test("the shown panes are remembered across a same-data profile swap, and rebuilt when the tab's data or the profiles' sharing changes", () => {
+  reset();
+  const { w, mail, work } = spaces();
+  S().activate(tileOf(w, work, "https://mail.com"));
+  const memo = { current: newShownMemo() };
+  const mounted = [mail];
+  const panes = {};
+  const keys = shownPaneKeys(memo, S(), mounted, panes);
+  S().switchProfile(w, "default");
+  assert.equal(S().tabs[mail].profileId, "default");
+  assert.equal(shownPaneKeys(memo, S(), mounted, panes), keys, "the swap keeps the remembered keys");
+  S().switchProfile(w, work);
+  assert.equal(shownPaneKeys(memo, S(), mounted, panes), keys, "and back");
+  useBrowser.setState((s) => ({ profiles: { ...s.profiles, [work]: { ...s.profiles[work], dataId: work } } }));
+  const split = shownPaneKeys(memo, S(), mounted, panes);
+  assert.notDeepEqual(split, keys, "a profile that stopped sharing data makes a new pane");
+  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [mail]: { ...s.tabs[mail], profileId: "default" } } }));
+  assert.notDeepEqual(shownPaneKeys(memo, S(), mounted, panes), split, "a tab moved to the other data makes a new pane");
 });
 
 test("Top Apps that both profiles already had become one; pinned rows stay each profile's own", () => {

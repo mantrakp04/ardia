@@ -221,6 +221,33 @@ test("run shows the pill and the other methods don't", async () => {
   assert.equal(useCliIndicator.getState().shown, false);
 });
 
+test("the pill names the app that runs the command, the most recent one, and forgets it once it hides", async (t) => {
+  fresh();
+  await controlOn();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  S().createWindow({ url: "https://a.example/" });
+  useCli.setState({ server: { state: "on", connections: 0, generation: 5, file: "" } });
+  useCliIndicator.setState({ shown: false, caller: null });
+  const agent = ++nextConnection;
+  const terminal = ++nextConnection;
+  const old = ++nextConnection;
+  call("hello", { caller: { name: " Claude\u202e Code\n", app: "/Applications/T3 Code.app" } }, { connection: agent });
+  assert.equal(useCliIndicator.getState().caller, null);
+  call("run", { command: "setAppearance", arg: "light" }, { connection: agent });
+  assert.deepEqual(useCliIndicator.getState(), { shown: true, caller: { name: "Claude Code", app: "/Applications/T3 Code.app" } });
+  call("hello", { caller: { name: "Terminal", app: "/System/Applications/Utilities/Terminal.app" } }, { connection: terminal });
+  assert.deepEqual(call("caller", undefined, { connection: terminal }).result, { ok: true });
+  assert.deepEqual(useCliIndicator.getState().caller, { name: "Terminal", app: "/System/Applications/Utilities/Terminal.app" });
+  t.mock.timers.tick(3000);
+  assert.equal(useCliIndicator.getState().shown, false);
+  assert.equal(useCliIndicator.getState().caller?.name, "Terminal");
+  useCli.setState({ server: { state: "on", connections: 1, generation: 7, file: "" } });
+  call("hello", undefined, { connection: old });
+  assert.deepEqual(call("caller", undefined, { connection: old }).result, { ok: false });
+  assert.deepEqual(useCliIndicator.getState(), { shown: true, caller: null });
+  useCli.setState({ server: { state: "on", connections: 0, generation: 8, file: "" } });
+});
+
 test("the pill shows for a socket run while CDP is external, and Stop hides it at once", async () => {
   fresh();
   await controlOn();
