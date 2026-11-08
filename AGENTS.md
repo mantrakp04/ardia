@@ -147,6 +147,11 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   patterns. It has to look great on phones.
 - **Videos** (`apps/videos`): Remotion videos (Remocn Studio project); each folder in `src/videos` is a
   composition; render with `pnpm -C apps/videos render <id>`.
+- **Demo videos are also UX reviews.** An agent making a demo, mockup or before/after film watches its own frames
+  for UI and UX problems in the "after": clipped or overlapping elements, unclear copy, extra steps, missing
+  feedback, states that contradict a decision. It reports each one to the main agent (SendMessage) with the
+  frame time and a still, keeps going without waiting, and re-renders the affected scenes when a fix lands.
+  Problems in the film's own staging (a cursor covering text, a caption that wraps) it just fixes.
 
 ## Repo map
 `apps/browser` is the React Native macOS app. The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer,
