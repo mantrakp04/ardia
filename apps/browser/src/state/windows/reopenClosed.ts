@@ -9,7 +9,7 @@ import { isOpenRegularWindow, lastActiveProfile } from "./small";
 import { activated, apply, withNewTab } from "../tabs/tabs";
 import type { ClosedTab, ClosedWindow, SplitView, TabGroup } from "../browser/types";
 import { mapSlotIds, slotTabIds } from "../splits/splits";
-import { emptyWindow, smallWindow, withWindow } from "./newWindow";
+import { emptyWindow, smallWindow, tabsShownInNewWindows, withWindow } from "./newWindow";
 import { orderSections } from "../groups/groups";
 
 function restoreGroup(groups: Record<string, TabGroup>, g: Omit<TabGroup, "tabIds">, tabIds: string[]): [Record<string, TabGroup>, string] {
@@ -53,7 +53,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
     let next = s;
     if (!windowId) {
       windowId = newId("w");
-      next = withWindow(next, emptyWindow(windowId, owner, "main"));
+      next = withWindow(next, emptyWindow(windowId, owner, "main", null, tabsShownInNewWindows(next)));
     }
     next = adoptParkedPins(next, windowId, owner);
     if (next.tabs[entry.tabId]) return restoreTab(next, entry, windowId);
@@ -87,7 +87,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
   if (!windowId || !canRestoreTabInto(s, entry, windowId)) {
     if (isIncognitoProfile(entry.tab.profileId)) return next;
     windowId = newId("w");
-    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, "main"));
+    next = withWindow(next, emptyWindow(windowId, s.profiles[entry.tab.profileId] ? entry.tab.profileId : s.settings.defaultProfileId, "main", null, tabsShownInNewWindows(next)));
   }
   const w = next.windows[windowId]!;
   const profileId = isIncognitoProfile(entry.tab.profileId) || s.profiles[entry.tab.profileId] ? entry.tab.profileId : w.profileId;

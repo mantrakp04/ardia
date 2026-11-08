@@ -54,7 +54,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
           icon={right ? "sidebar.right" : "sidebar.left"}
           glyph={GLYPH}
           onPress={() => toggleSidebar(windowId)}
-          tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
+          tooltip={withShortcut("Hide Tabs", sidebarHint)}
         />
       )}
       {tab ? <NavigationButtons tab={tab} palette={palette} buttons={shown} slots={at.slice(toggle ? 1 : 0).map(place)} /> : null}
