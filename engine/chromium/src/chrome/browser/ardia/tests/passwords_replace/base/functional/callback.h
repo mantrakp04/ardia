@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -16,6 +18,10 @@ class OnceCallback<R(Args...)> {
   OnceCallback& operator=(OnceCallback&&) = default;
   explicit operator bool() const { return !!call_; }
   R Run(Args... args) && {
+    if (!call_) {
+      std::fputs("OnceCallback::Run on an empty or already run callback\n", stderr);
+      std::abort();
+    }
     auto call = std::move(call_);
     return call->Call(std::forward<Args>(args)...);
   }

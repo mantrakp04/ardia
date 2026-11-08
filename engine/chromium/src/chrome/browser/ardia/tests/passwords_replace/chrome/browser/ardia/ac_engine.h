@@ -51,6 +51,9 @@ class Reply {
     outcome_ = std::exchange(other.outcome_, nullptr);
     return *this;
   }
+  ~Reply() {
+    if (outcome_) Error("no reply");
+  }
   void Ok() { Answer(true, {}); }
   void Error(std::string_view message) { Answer(false, message); }
 
@@ -74,8 +77,8 @@ class Call {
     auto found = strings_.find(std::string(key));
     return found == strings_.end() ? std::string() : found->second;
   }
-  std::optional<Secret> SecretAt(std::string_view) const {
-    return password_ ? std::optional<Secret>(Secret(*password_)) : std::nullopt;
+  std::optional<Secret> SecretAt(std::string_view key) const {
+    return key == "password" && password_ ? std::optional<Secret>(Secret(*password_)) : std::nullopt;
   }
   Reply TakeReply() { return std::move(reply_); }
 

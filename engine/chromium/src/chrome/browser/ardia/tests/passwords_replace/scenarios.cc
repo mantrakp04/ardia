@@ -243,6 +243,22 @@ void MissingLoginIsAddedToTheProfileStore() {
   assert(PasswordOf(*world.profile_store, "https://b.test/", u"me") == u"kept");
 }
 
+void NonAsciiLoginsKeepTheirText() {
+  World world;
+  world.profile_store->Seed({{"https://a.test/", u"jöse", u"old"}});
+  Ok(Replace(world, "https://a.test", "jöse", "pässwörd 日本 🔑"));
+  assert(world.profile_store->rows.size() == 1);
+  assert(PasswordOf(*world.profile_store, "https://a.test/", u"jöse") == u"pässwörd 日本 🔑");
+}
+
+void NonCanonicalOriginsAreRefused() {
+  World world;
+  for (const char* origin : {"https://A.test", "https://a.test?x=1", "https://a.test/"}) {
+    Failed(Replace(world, origin, "me", "new"), "origin and password required");
+  }
+  assert(world.profile_store->reads == 0);
+}
+
 void SamePasswordWritesNothing() {
   World world;
   world.profile_store->Seed({{"https://a.test/", u"me", u"same"}});
@@ -374,6 +390,8 @@ int main() {
   GroupedRealmsKeepTheirOwnPasswords();
   EveryFormOfTheLoginChanges();
   MissingLoginIsAddedToTheProfileStore();
+  NonAsciiLoginsKeepTheirText();
+  NonCanonicalOriginsAreRefused();
   SamePasswordWritesNothing();
   BlockedAndFederatedEntriesAreLeftAlone();
   BlockedEntryWithAnotherKeyDoesNotStopTheAdd();

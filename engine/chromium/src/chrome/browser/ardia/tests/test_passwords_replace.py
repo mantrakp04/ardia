@@ -12,8 +12,8 @@ STUBS = TESTS / "passwords_replace"
 SOURCE = ROOT / "ac_passwords_replace.cc"
 
 
-@unittest.skipUnless(shutil.which("clang++"), "clang++ is required")
 class PasswordsReplaceTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("clang++"), "clang++ is required")
     def test_replace_changes_only_the_exact_profile_login(self):
         with tempfile.TemporaryDirectory(prefix="ardia-passwords-replace-") as directory:
             executable = pathlib.Path(directory) / "replace"

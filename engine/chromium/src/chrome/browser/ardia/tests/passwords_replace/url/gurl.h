@@ -12,13 +12,20 @@ class GURL {
   explicit GURL(const std::string& spec) {
     const size_t scheme = spec.find("://");
     if (scheme == std::string::npos || scheme == 0) return;
-    const size_t path = spec.find('/', scheme + 3);
-    if (path == scheme + 3) return;
-    for (char c : spec.substr(0, path)) {
-      if (c >= 'A' && c <= 'Z') return;
+    const size_t rest = spec.find_first_of("/?#", scheme + 3);
+    if (rest == scheme + 3) return;
+    std::string origin = spec.substr(0, rest);
+    for (char& c : origin) {
+      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
     }
-    origin_ = spec.substr(0, path) + "/";
-    spec_ = path == std::string::npos ? origin_ : spec;
+    origin_ = origin + "/";
+    if (rest == std::string::npos) {
+      spec_ = origin_;
+    } else if (spec[rest] == '/') {
+      spec_ = origin + spec.substr(rest);
+    } else {
+      spec_ = origin_ + spec.substr(rest);
+    }
   }
   bool is_valid() const { return !spec_.empty(); }
   const std::string& spec() const { return spec_; }
