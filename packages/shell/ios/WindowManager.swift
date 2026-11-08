@@ -70,6 +70,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func open(id: String, _ options: OpenWindowOptions, focus: Bool) {
     if let existing = window(id) {
+      managed[id]?.display = options.display
       if focus { existing.makeKeyAndOrderFront(nil) }
       return
     }

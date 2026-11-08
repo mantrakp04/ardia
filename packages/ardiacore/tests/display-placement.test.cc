@@ -50,9 +50,23 @@ static int WindowStraddlingGoesToTheDisplayHoldingMost() {
   const Rect mostlyRight{1312, 100, 1000, 700};
   CHECK(HoldsMost(mostlyRight, screens, 2, 1));
   CHECK(!HoldsMost(mostlyRight, screens, 2, 0));
-  CHECK(Same(OnScreen(mostlyRight, screens, 2, 1, kRightVisible), mostlyRight));
+  CHECK(Same(OnScreen(mostlyRight, screens, 2, 1, kRightVisible), Rect{1512, 100, 1000, 700}));
   const Rect placed = OnScreen(mostlyRight, screens, 2, 0, kMainVisible);
   CHECK(Inside(placed, kMainVisible));
+  return 0;
+}
+
+static int FrameHoldingMostButPastTheVisibleAreaIsPulledInNotCentred() {
+  const Rect screens[] = {kMain, kRight};
+  const Rect underMenuBar{600, 700, 800, 600};
+  CHECK(HoldsMost(underMenuBar, screens, 2, 0));
+  const Rect pulledIn = OnScreen(underMenuBar, screens, 2, 0, kMainVisible);
+  CHECK(Inside(pulledIn, kMainVisible));
+  CHECK(Same(pulledIn, Rect{600, 344, 800, 600}));
+  const Rect pastTheRightEdge{1000, 100, 900, 600};
+  CHECK(Same(OnScreen(pastTheRightEdge, screens, 2, 0, kMainVisible), Rect{612, 100, 900, 600}));
+  const Rect tallerThanVisible{100, 0, 700, 960};
+  CHECK(Same(OnScreen(tallerThanVisible, screens, 2, 0, kMainVisible), Rect{100, 0, 700, 944}));
   return 0;
 }
 
@@ -104,6 +118,7 @@ int main() {
   WindowSavedOnMainMovesToExternal();
   WindowAlreadyOnTargetIsUntouched();
   WindowStraddlingGoesToTheDisplayHoldingMost();
+  FrameHoldingMostButPastTheVisibleAreaIsPulledInNotCentred();
   OversizedWindowIsClampedAndCentred();
   ZeroOverlapIsCentredOnTarget();
   NegativeCoordinateLayouts();

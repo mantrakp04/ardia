@@ -31,8 +31,13 @@ inline Rect Centered(Rect frame, Rect visible) {
   return {std::round(visible.x + (visible.w - w) / 2), std::round(visible.y + (visible.h - h) / 2), w, h};
 }
 
+inline Rect Contained(Rect frame, Rect visible) {
+  const double w = std::min(frame.w, visible.w), h = std::min(frame.h, visible.h);
+  return {std::clamp(frame.x, visible.x, visible.maxX() - w), std::clamp(frame.y, visible.y, visible.maxY() - h), w, h};
+}
+
 inline Rect OnScreen(Rect frame, const Rect *screens, size_t count, size_t target, Rect visible) {
-  return HoldsMost(frame, screens, count, target) ? frame : Centered(frame, visible);
+  return HoldsMost(frame, screens, count, target) ? Contained(frame, visible) : Centered(frame, visible);
 }
 
 }

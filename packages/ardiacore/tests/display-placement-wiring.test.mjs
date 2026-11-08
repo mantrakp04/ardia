@@ -34,3 +34,10 @@ test("full screen is toggled only after the window is moved to its saved display
   const toggle = fullScreenRestore.indexOf("window.toggleFullScreen(nil)");
   assert.ok(move > 0 && toggle > move);
 });
+
+test("a window the runtime already has takes the saved display from the new open call", () => {
+  const existing = windowManager.indexOf("if let existing = window(id) {");
+  const refresh = windowManager.indexOf("managed[id]?.display = options.display", existing);
+  const early = windowManager.indexOf("return\n", existing);
+  assert.ok(existing > 0 && refresh > existing && refresh < early);
+});
