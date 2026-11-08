@@ -61,9 +61,19 @@ export function setNowPlaying(tabId: string, state: NowPlaying | null) {
     const before = sessions[tabId];
     const started = isControllablyPlaying(state) && !(before && isControllablyPlaying(before));
     sessions[tabId] = { ...state, playedAt: started ? Date.now() : (before?.playedAt ?? 0) };
-    if (started) delete dismissed[tabId];
-    return { sessions, dismissed };
+    if (!started) return { sessions, dismissed };
+    delete dismissed[tabId];
+    const leftPaused = { ...s.leftPaused };
+    for (const id of pausedPeers(sessions, tabId)) leftPaused[id] = true;
+    return { sessions, dismissed, leftPaused };
   });
+}
+
+function pausedPeers(sessions: Store["sessions"], tabId: string): string[] {
+  const tabs = useBrowser.getState().tabs;
+  const tab = tabs[tabId];
+  if (!tab) return [];
+  return Object.keys(sessions).filter((id) => id !== tabId && !isPlaying(sessions[id]) && tabs[id]?.windowId === tab.windowId && tabs[id]?.profileId === tab.profileId);
 }
 
 const isControllablyPlaying = (state: NowPlaying) => state.controllable && state.playbackState === "playing";
