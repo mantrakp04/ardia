@@ -245,17 +245,27 @@ Browser* WindowHost::ExistingBrowserFor(Profile* profile) const {
 }
 
 void WindowHost::UpdateTitle() {
-  std::u16string title;
-  if (Browser* browser = ExistingBrowserFor(active_profile_)) {
-    if (content::WebContents* contents =
-            browser->GetTabStripModel()->GetActiveWebContents()) {
-      title = contents->GetTitle();
+  std::u16string title = title_override_;
+  if (title.empty()) {
+    if (Browser* browser = ExistingBrowserFor(active_profile_)) {
+      if (content::WebContents* contents =
+              browser->GetTabStripModel()->GetActiveWebContents()) {
+        title = contents->GetTitle();
+      }
     }
   }
   std::u16string trimmed;
   base::TrimWhitespace(title, base::TRIM_ALL, &trimmed);
   widget_delegate_->SetTitle(trimmed.empty() ? std::u16string(kBrandTitle)
-                                             : std::move(title));
+                                             : std::move(trimmed));
+}
+
+void WindowHost::SetTitleOverride(const std::u16string& title) {
+  if (title_override_ == title) {
+    return;
+  }
+  title_override_ = title;
+  UpdateTitle();
 }
 
 std::vector<Browser*> WindowHost::browsers() const {

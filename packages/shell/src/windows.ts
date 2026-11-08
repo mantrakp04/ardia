@@ -45,6 +45,7 @@ export type WindowsNative = {
   raiseView(tag: number, levels: number, raised: boolean): Promise<void>;
   windowFrame(id: string): Promise<Rect4 | null>;
   setWindowTitle(id: string, title: string): Promise<void>;
+  setWindowTitleOverride(id: string, title: string | null): Promise<void>;
   windowIds(): Promise<string[]>;
   replyToTerminate(ok: boolean): Promise<void>;
 };

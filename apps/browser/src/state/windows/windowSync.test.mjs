@@ -17,6 +17,7 @@ function fakePort(nativeIds = []) {
     open: (id, options, lightsCenter) => calls.push(["open", id, options, lightsCenter]),
     close: (id) => calls.push(["close", id]),
     setTitle: (id, title) => calls.push(["setTitle", id, title]),
+    setTitleOverride: (id, title) => calls.push(["setTitleOverride", id, title]),
     windowIds: async () => nativeIds,
     restoreFullScreen: (ids, focus) => calls.push(["restoreFullScreen", ids, focus]),
     onEvent: (l) => void (listener = l),
@@ -112,6 +113,51 @@ test("titles: only a changed title is sent", () => {
   assert.deepEqual(native.of("setTitle"), [["setTitle", a, windowTitle(S(), a)]]);
 });
 
+const loaded = (url) => ({ kind: "loaded", nav: { url, seq: 1 } });
+
+test("title override: a chromium page owns its window title, any other active tab names it", () => {
+  reset();
+  const w = S().createWindow();
+  const native = fakePort();
+  const sync = start(native);
+  sync.sync(S());
+  const overrides = () => native.of("setTitleOverride").map((c) => c.slice(1));
+  assert.deepEqual(overrides(), [[w, "New Tab"]]);
+
+  let prev = S();
+  const page = S().newTab(w, { url: "https://a.example/" });
+  S().updateTab(page, { title: "Alpha", page: loaded("https://a.example/") });
+  sync.sync(S(), prev);
+  assert.deepEqual(overrides().at(-1), [w, null]);
+
+  prev = S();
+  const webkit = S().newTab(w, { url: "https://b.example/" });
+  S().updateTab(webkit, { title: "Beta", engine: "webkit", page: loaded("https://b.example/") });
+  sync.sync(S(), prev);
+  assert.deepEqual(overrides().at(-1), [w, "Beta"]);
+
+  prev = S();
+  S().updateTab(webkit, { title: "Beta 2" });
+  sync.sync(S(), prev);
+  assert.deepEqual(overrides().at(-1), [w, "Beta 2"]);
+
+  const count = overrides().length;
+  prev = S();
+  S().setWindowFrame(w, [0, 0, 800, 600]);
+  sync.sync(S(), prev);
+  assert.equal(overrides().length, count);
+
+  prev = S();
+  S().activate(page);
+  sync.sync(S(), prev);
+  assert.deepEqual(overrides().at(-1), [w, null]);
+
+  prev = S();
+  S().newTab(w);
+  sync.sync(S(), prev);
+  assert.deepEqual(overrides().at(-1), [w, "New Tab"]);
+});
+
 test("startup sweep: closes native windows the store doesn't have, keeps utility windows, titles the rest", async () => {
   reset();
   const a = S().createWindow();
@@ -121,6 +167,8 @@ test("startup sweep: closes native windows the store doesn't have, keeps utility
   await sync.sweep();
   assert.deepEqual(native.of("close"), [["close", "orphan"]]);
   assert.deepEqual(native.of("setTitle"), [["setTitle", a, windowTitle(S(), a)]]);
+  assert.deepEqual(native.of("setTitleOverride").at(-1), ["setTitleOverride", a, "New Tab"]);
+  assert.deepEqual(native.of("setTitleOverride").map((c) => c[1]), [a, a]);
 });
 
 test("full screen comes back oldest first", () => {

@@ -12,6 +12,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
+  private var titleOverrides: [String: String] = [:]
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
@@ -128,7 +129,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
   ) {
     let window = entry.window, id = entry.id
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
-    if !entry.hostsChrome { window.title = title }
+    if entry.hostsChrome {
+      if let pinned = titleOverrides[id] { ChromeWindows.setTitleOverride(pinned, in: window) }
+    } else {
+      window.title = title
+    }
     if small, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
     managed[id] = entry
@@ -223,10 +228,17 @@ final class WindowManager: NSObject, NSWindowDelegate {
     ChromeWindows.setTrafficLightsCenter(center, trailing: trailing, in: window)
   }
 
+  func setTitleOverride(id: String, title: String?) {
+    titleOverrides[id] = title
+    guard let entry = managed[id], entry.hostsChrome else { return }
+    ChromeWindows.setTitleOverride(title, in: entry.window)
+  }
+
   private func adopt(from: NSWindow, to: NSWindow) {
     guard let id = id(of: from), let entry = managed[id] else { return }
     NotificationCenter.default.removeObserver(self, name: nil, object: from)
     entry.window = to
+    if entry.hostsChrome, let pinned = titleOverrides[id] { ChromeWindows.setTitleOverride(pinned, in: to) }
     if lastPlaced === from { lastPlaced = to }
     observeDelegateNotifications(to)
     observeFrame(to)
@@ -348,6 +360,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func close(id: String) {
+    titleOverrides[id] = nil
     if let index = pending.firstIndex(where: { $0.id == id }) {
       pending.remove(at: index)
       return
@@ -371,6 +384,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private func forget(_ entry: ManagedWindow) {
     entry.stopWatchingContent()
     lightsCenters[entry.id] = nil
+    titleOverrides[entry.id] = nil
     entry.takeReveal()?.then.forEach { $0() }
     entry.takeExit()?.forEach { $0() }
   }
