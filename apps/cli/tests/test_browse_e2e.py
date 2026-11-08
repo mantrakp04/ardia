@@ -476,6 +476,20 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(done.stdout.count("Button number"), 400)
         self.assertTrue(done.stdout.endswith("Many buttons\n\n✓ Session batch-flags closed (1 tab it opened)\n"), done.stdout[-200:])
 
+    def test_inspecting_a_url_never_navigates_a_borrowed_tab(self):
+        self.browse("open", self.url("login.html#mine"), "--show", session="borrowed-owner")
+        self.browse("snapshot", "-i", session="borrowed")
+        checked = self.browse("vitals", self.url("form.html"), session="borrowed")
+        self.assertIn("since this session uses your tab", checked.stderr)
+        owner = json.loads(self.browse("tab", "list", "--json", session="borrowed-owner").stdout)["data"]["tabs"]
+        self.assertTrue(any(tab["url"] == self.url("login.html#mine") for tab in owner))
+        self.assertEqual(self.browse("get", "url", session="borrowed-owner").stdout, self.url("login.html#mine") + "\n")
+        self.browse("tab", "active", session="borrowed-2", check=False)
+        self.browse("snapshot", "-i", session="borrowed-2")
+        refused = self.browse("reload", session="borrowed-2", check=False)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("won't reload it", refused.stderr)
+
     def test_long_runs_in_a_change_report_are_one_line(self):
         session = "runs"
         self.browse("open", self.url("picker.html"), "--show", session=session)
@@ -489,7 +503,7 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertRegex(linked, r"\+ 30 links \(Result 1 … Result 30; e\d+…e\d+\)")
         data = json.loads(self.browse("click", "#edit", "--json", session=session).stdout)["data"]["changes"]
         self.assertGreaterEqual(len(data["rerendered"]), 48)
-        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout.count('option "'), 52)
+        self.assertEqual(self.browse("snapshot", "-i", session=session).stdout.count('option "'), 54)
 
     def test_select_picks_from_a_typeahead_and_a_popup_combobox(self):
         session = "typeahead"
@@ -512,6 +526,7 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn('✓ Picked "urgent"', self.browse("select", "#tags", "urgent", session=session).stdout)
         partial = self.browse("select", "#tags", "urg", "--json", session=session, check=False)
         self.assertEqual(json.loads(partial.stdout)["code"], "no_fresh_suggestions")
+        self.assertIn('✓ Picked "Region West" for "West"', self.browse("select", "#region", "West", session=session).stdout)
         borrowed = self.browse("select", "#size", "Square", session=session, check=False)
         self.assertIn("no list of suggestions is linked to this field", borrowed.stderr)
         unlinked = self.browse("select", "#owner", "Alice", session=session, check=False)
@@ -521,7 +536,7 @@ class BrowseEndToEnd(unittest.TestCase):
         stale = self.browse("select", "#assignee", "Alice", "--json", session=session, check=False)
         self.assertEqual(json.loads(stale.stdout)["code"], "no_fresh_suggestions")
         state = self.report(session)
-        self.assertEqual((state.get("tag"), state.get("assignee")), ("urgent", None))
+        self.assertEqual((state.get("tag"), state.get("assignee"), state.get("region")), ("urgent", None, "Region West"))
 
     def test_find_role_takes_the_name_the_snapshot_shows(self):
         session = "find-role"

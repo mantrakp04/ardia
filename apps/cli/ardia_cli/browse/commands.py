@@ -254,12 +254,38 @@ async def add_init_script(ctx: Ctx, page, source: str, tag: str | None) -> str:
     return identifier
 
 
+def borrowed_tab(state) -> str | None:
+    attached = state.extras.get("attached")
+    return attached if state.current and state.current == attached else None
+
+
 async def current_or_new(ctx: Ctx):
     state = ctx.state
     await state.connect()
-    if state.current and state.current in state.target_infos:
+    borrowed = borrowed_tab(state)
+    if state.current and state.current in state.target_infos and not borrowed:
         return await state.page()
-    return await new_tab(ctx, None)
+    page = await new_tab(ctx, None)
+    if borrowed:
+        note_own_tab(state, page, borrowed)
+    return page
+
+
+def note_own_tab(state, page, borrowed: str):
+    notice = (f"→ Opened in its own background tab [{state.tab_id(page.target_id)}], since this session uses your tab "
+              f"[{state.tab_id(borrowed)}] and won't navigate it")
+    state.extras["notice"] = "\n".join(part for part in (state.extras.get("notice"), notice) if part)
+
+
+def refuse_on_borrowed(ctx: Ctx, page, what: str):
+    borrowed = borrowed_tab(ctx.state)
+    if borrowed and borrowed == page.target_id:
+        tab = ctx.state.tab_id(borrowed)
+        raise BrowseError(
+            f"This session is using your tab [{tab}] (it had no tab of its own), so it won't {what} it. To drive that tab anyway, "
+            f"pick it with `ardia browse tab {tab}`; to browse on your own, use `ardia browse open <url>`",
+            data={"tabId": tab}, code="borrowed_tab",
+        )
 
 
 @command("open")
@@ -304,6 +330,7 @@ async def cmd_open(ctx: Ctx, argv):
 @command("back", "forward")
 async def cmd_history(ctx: Ctx, argv):
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, f"go {ctx.command} in")
     history = await page.send("Page.getNavigationHistory")
     index = history.get("currentIndex", 0)
     entries = history.get("entries") or []
@@ -330,6 +357,7 @@ async def cmd_history(ctx: Ctx, argv):
 @command("reload")
 async def cmd_reload(ctx: Ctx, argv):
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "reload")
     before = page.navigations
     await page.send("Page.reload", {})
     await wait_until(lambda: _settled(page, before), ctx.timeout, 0.05, "the reload")
@@ -349,6 +377,7 @@ async def cmd_pushstate(ctx: Ctx, argv):
     _, args = parse(argv)
     need(args, 1, "pushstate <url>")
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "change the address of")
     url = await page.call("(u) => ardiaBrowse.pushState(u)", args[0], frame=page.main_frame)
     page.url = url
     return Result({"url": url}, url)
