@@ -294,4 +294,16 @@ google.*##.tld-entity
       #expect(list != nil)
     }
   }
+
+  @Test func myFiltersExceptionsAlsoLiftTheBuiltInHides() throws {
+    let exceptions = ContentBlocker.selectorExceptions(in: "! note\n#@##didomi-host\nexample.com##.ad\n  #@#.qc-cmp2-container  ")
+    #expect(exceptions == "#@##didomi-host\n#@#.qc-cmp2-container")
+    let lifted = FilterListConverter.convert(ContentBlocker.seedSource(for: .cookieBanners, exceptions: exceptions)).json
+    #expect(!lifted.contains("#didomi-host"))
+    #expect(!lifted.contains(".qc-cmp2-container"))
+    #expect(lifted.contains("#onetrust-banner-sdk"))
+    #expect(FilterListConverter.convert(ContentBlocker.seedSource(for: .cookieBanners, exceptions: "")).json.contains("#didomi-host"))
+    #expect(ContentBlocker.seedSource(for: .ads, exceptions: exceptions) == SeedRules.list(for: .ads))
+  }
+
 }

@@ -71,33 +71,53 @@ extension AppModel {
 
   func drainSystemInbox() {
     guard !isDemo, let store = systemStore else { return }
-    for item in store.drainInbox() {
-      receive(item)
+    for item in store.pendingInbox() where !inboxInFlight.contains(item.id) {
+      if inboxSent.contains(item.id) {
+        store.removeFromInbox(item.id)
+        continue
+      }
+      let url = item.url.flatMap(URL.init(string:))
+      switch item.action {
+      case .open:
+        store.removeFromInbox(item.id)
+        if let url { openWebLink(url, origin: .share) }
+      case .send(let target):
+        guard let url else {
+          store.removeFromInbox(item.id)
+          continue
+        }
+        inboxInFlight.insert(item.id)
+        Task {
+          await sendFromShareSheet(item.id, url: url, title: item.title, to: target, store: store)
+          inboxInFlight.remove(item.id)
+        }
+      }
     }
   }
 
-  private func receive(_ item: SystemInboxItem) {
-    let url = item.url.flatMap(URL.init(string:))
-    switch item.action {
-    case .open:
-      if let url { openWebLink(url, origin: .share) }
-    case .send(let target):
-      guard let url else { return }
-      sendFromShareSheet(url: url, title: item.title, to: target)
+  private func sendFromShareSheet(_ id: UUID, url: URL, title: String, to target: SystemDevice, store: SystemStore) async {
+    let deadline = ContinuousClock.now + Self.inboxSyncWait
+    while !syncCanAnswer(for: target), ContinuousClock.now < deadline {
+      try? await Task.sleep(for: .milliseconds(250))
     }
-  }
-
-  private func sendFromShareSheet(url: URL, title: String, to target: SystemDevice) {
+    guard syncCanAnswer(for: target) else { return }
     guard sync.isEnabled, let device = sync.snapshot.devices.first(where: { $0.id == target.id }) else {
+      store.removeFromInbox(id)
       toasts.show(Toast(String(localized: "Couldn’t Send to \(target.name)"), symbol: "exclamationmark.triangle.fill"))
       return
     }
-    Task {
-      if await sync.send(url: url, title: title, to: device) {
-        toasts.show(.sentTab(to: device.name))
-      } else {
-        toasts.show(Toast(String(localized: "Couldn’t Send to \(device.name)"), symbol: "exclamationmark.triangle.fill"))
-      }
+    if await sync.send(url: url, title: title, to: device, key: id) {
+      inboxSent.insert(id)
+      store.removeFromInbox(id)
+      toasts.show(.sentTab(to: device.name))
+    } else {
+      toasts.show(Toast(String(localized: "Couldn’t Send to \(device.name)"), symbol: "exclamationmark.triangle.fill"))
     }
+  }
+
+  static let inboxSyncWait: Duration = .seconds(20)
+
+  private func syncCanAnswer(for target: SystemDevice) -> Bool {
+    !sync.isEnabled || sync.phase == .updated || sync.snapshot.devices.contains { $0.id == target.id }
   }
 }

@@ -40,6 +40,8 @@ final class AppModel {
   var surface: Surface = .search
   var sheet: Sheet?
   var isIncognito = false
+  @ObservationIgnored var inboxInFlight: Set<UUID> = []
+  @ObservationIgnored var inboxSent: Set<UUID> = []
 
   init(isDemo: Bool) {
     self.isDemo = isDemo

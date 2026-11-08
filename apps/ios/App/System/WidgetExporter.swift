@@ -53,7 +53,7 @@ final class WidgetExporter {
         )
       }
     let targets = sync.devicesThatReceiveTabs(in: profile.syncId).map {
-      SystemDevice(id: $0.id, name: $0.name, kind: $0.kind == .mac ? .mac : .phone)
+      SystemDevice(id: $0.id, name: $0.name, kind: $0.kind)
     }
     return SystemSnapshot(
       isSyncEnabled: true,

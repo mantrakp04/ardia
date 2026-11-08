@@ -451,13 +451,13 @@ public final class SyncService {
   }
 
   @discardableResult
-  public func send(url: URL, title: String, to device: SyncedDevice, profileSyncId: String? = nil) async -> Bool {
+  public func send(url: URL, title: String, to device: SyncedDevice, profileSyncId: String? = nil, key: UUID = UUID()) async -> Bool {
     guard !isDemo else { return true }
     guard let engine, let profile = profileSyncId ?? selectedProfile?.syncId,
           devicesThatReceiveTabs(in: profile).contains(where: { $0.id == device.id })
     else { return false }
     do {
-      try await engine.send(url: url.absoluteString, title: title, to: device.id, profileSyncId: profile)
+      try await engine.send(url: url.absoluteString, title: title, to: device.id, profileSyncId: profile, key: key)
     } catch {
       return false
     }

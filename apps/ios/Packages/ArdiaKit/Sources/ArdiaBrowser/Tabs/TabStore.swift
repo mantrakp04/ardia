@@ -294,7 +294,8 @@ public final class TabStore: LocalBrowsingSource {
   @discardableResult
   public func recordVisit(url: String, title: String, transition: VisitTransition, fromTab tabID: UUID? = nil) -> Visit? {
     guard BrowserURL.isSyncable(url), !(tabID.map(isPrivate) ?? false) else { return nil }
-    let visit = Visit(url: url, title: title, visitedAt: now(), profileSyncId: profileSyncId, transition: transition)
+    let profile = tabID.flatMap { tab($0) }.map(\.profileSyncId) ?? profileSyncId
+    let visit = Visit(url: url, title: title, visitedAt: now(), profileSyncId: profile, transition: transition)
     context.insert(visit)
     historyRevision &+= 1
     persist(changedTabs: true)

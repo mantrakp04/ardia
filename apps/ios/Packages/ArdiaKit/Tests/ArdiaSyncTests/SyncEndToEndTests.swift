@@ -115,10 +115,13 @@ import Testing
     try mac.sync(["app"])
     await service.syncNow()
     let target = try #require(service.devicesThatReceiveTabs.first)
-    #expect(await service.send(url: URL(string: "https://to-mac.example/")!, title: "To Mac", to: target))
+    let shareKey = UUID()
+    #expect(await service.send(url: URL(string: "https://to-mac.example/")!, title: "To Mac", to: target, key: shareKey))
     await service.syncNow()
     try mac.sync([Self.scope])
-    let sent = try mac.store(Self.scope).filter { $0.key.hasPrefix("send:") }.compactMap { $0.value as? [String: Any] }
+    let sendRecords = try mac.store(Self.scope).filter { $0.key.hasPrefix("send:") }
+    #expect(sendRecords.map(\.key) == ["send:\(shareKey.uuidString.lowercased())"])
+    let sent = sendRecords.compactMap { $0.value as? [String: Any] }
     #expect(sent.map { $0["u"] as? String } == ["https://to-mac.example/"])
     #expect(sent.first?["to"] as? String == mac.device)
 

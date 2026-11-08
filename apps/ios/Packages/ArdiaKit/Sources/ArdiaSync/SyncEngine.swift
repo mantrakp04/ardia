@@ -178,10 +178,10 @@ public actor SyncEngine {
     )
   }
 
-  public func send(url: String, title: String, to device: String, profileSyncId: String) throws {
+  public func send(url: String, title: String, to device: String, profileSyncId: String, key: UUID = UUID()) throws {
     try checkLive()
     try load()
-    try mutate("companionSend", SendInput(profile: profileSyncId, key: UUID().uuidString.lowercased(), u: url, t: title, to: device, at: now().millisecondsSince1970))
+    try mutate("companionSend", SendInput(profile: profileSyncId, key: key.uuidString.lowercased(), u: url, t: title, to: device, at: now().millisecondsSince1970))
   }
 
   public func acknowledge(_ tabs: [ReceivedTab]) throws {

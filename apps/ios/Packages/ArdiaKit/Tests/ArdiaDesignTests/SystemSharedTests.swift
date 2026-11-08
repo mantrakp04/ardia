@@ -53,6 +53,20 @@ struct SystemStoreTests {
     #expect(store.drainInbox(now: now).isEmpty)
   }
 
+  @Test func `a pending item stays in the inbox until it is removed`() throws {
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemStore(directory: directory)
+    let now = Date.now
+    let mac = SystemDevice(id: "mac", name: "MacBook Pro", kind: .mac)
+    let send = SystemInboxItem(action: .send(to: mac), url: "https://b.example", title: "B", created: now)
+    #expect(store.enqueue(send))
+    #expect(store.enqueue(SystemInboxItem(action: .open, url: "https://old.example", title: "Old", created: now.addingTimeInterval(-SystemStore.inboxLifetime - 1))))
+    #expect(store.pendingInbox(now: now) == [send])
+    #expect(store.pendingInbox(now: now) == [send])
+    store.removeFromInbox(send.id)
+    #expect(store.pendingInbox(now: now).isEmpty)
+  }
+
   @Test func `saving a snapshot keeps only the favicons it still uses`() throws {
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = SystemStore(directory: directory)

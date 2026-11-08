@@ -1,3 +1,4 @@
+import ArdiaSync
 import Foundation
 
 public enum SystemLink: Equatable, Sendable {
@@ -91,10 +92,7 @@ public struct SystemTab: Codable, Equatable, Hashable, Identifiable, Sendable {
 }
 
 public struct SystemDevice: Codable, Equatable, Hashable, Identifiable, Sendable {
-  public enum Kind: String, Codable, Sendable {
-    case mac
-    case phone
-  }
+  public typealias Kind = SyncedDevice.Kind
 
   public var id: String
   public var name: String
@@ -260,17 +258,29 @@ public struct SystemStore: Sendable {
   }
 
   public func drainInbox(now: Date = .now) -> [SystemInboxItem] {
+    let items = pendingInbox(now: now)
+    for item in items { removeFromInbox(item.id) }
+    return items
+  }
+
+  public func pendingInbox(now: Date = .now) -> [SystemInboxItem] {
     let manager = FileManager.default
     guard let files = try? manager.contentsOfDirectory(at: inboxDirectory, includingPropertiesForKeys: nil) else { return [] }
     var items: [SystemInboxItem] = []
     for file in files where file.pathExtension == "json" {
-      defer { try? manager.removeItem(at: file) }
       guard let data = try? Data(contentsOf: file),
         let item = try? JSONDecoder().decode(SystemInboxItem.self, from: data),
         now.timeIntervalSince(item.created) < Self.inboxLifetime
-      else { continue }
+      else {
+        try? manager.removeItem(at: file)
+        continue
+      }
       items.append(item)
     }
     return items.sorted { $0.created < $1.created }
+  }
+
+  public func removeFromInbox(_ id: UUID) {
+    try? FileManager.default.removeItem(at: inboxDirectory.appending(path: id.uuidString + ".json"))
   }
 }

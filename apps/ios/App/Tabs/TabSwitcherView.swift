@@ -378,6 +378,11 @@ struct TabDeck: View {
     guard let index = order.firstIndex(of: id) else { return }
     hideArchiveCard()
     let remove = {
+      guard let index = order.firstIndex(of: id) else {
+        lifts[id] = nil
+        vanishing.remove(id)
+        return
+      }
       let remaining = order.count - 1
       let focus = TabsDeckGeometry.scrollAfterRemoving(index: index, scroll: Int(scroll.rounded()), remaining: remaining)
       let update = {

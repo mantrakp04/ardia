@@ -20,6 +20,8 @@ public final class ContentBlocker {
   @ObservationIgnored private var store: WKContentRuleListStore?
   @ObservationIgnored private var seeds: [BlockingCategory: WKContentRuleList] = [:]
   @ObservationIgnored private var seedDomains: Set<String> = []
+  @ObservationIgnored private var seedExceptions: String?
+  @ObservationIgnored private var seedGeneration = 0
   @ObservationIgnored private var revision = 0
   @ObservationIgnored private let controllers = NSHashTable<WKUserContentController>.weakObjects()
   @ObservationIgnored private var applied: [ObjectIdentifier: AppliedLists] = [:]
@@ -35,7 +37,7 @@ public final class ContentBlocker {
     self.directory = directory
     self.filterLists = filterLists ?? FilterLists(directory: directory.appending(path: "Filters", directoryHint: .isDirectory), defaults: defaults ?? settings.defaults, session: session)
     settings.onChange = { [weak self] in self?.listsChanged() }
-    self.filterLists.onCompiledChange = { [weak self] in self?.listsChanged() }
+    self.filterLists.onCompiledChange = { [weak self] in self?.filtersChanged() }
   }
 
   func domainsURL(_ category: BlockingCategory) -> URL { directory.appending(path: "seed-\(category.rawValue)-domains.txt") }
@@ -59,22 +61,7 @@ public final class ContentBlocker {
       return
     }
     self.store = store
-    var failures = 0
-    for category in BlockingCategory.allCases {
-      let source = SeedRules.list(for: category)
-      let identifier = "\(category.identifier).\(FilterLists.hash(source).prefix(12))"
-      if let existing = try? await store.contentRuleList(forIdentifier: identifier) {
-        seeds[category] = existing
-        continue
-      }
-      let conversion = await Self.convert(source)
-      if let list = try? await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: conversion.json) {
-        seeds[category] = list
-        try? await FilterLists.write(conversion.blockedDomains.joined(separator: "\n"), to: domainsURL(category))
-      } else {
-        failures += 1
-      }
-    }
+    let failures = await compileSeeds(in: store)
     var domains: Set<String> = []
     for category in BlockingCategory.allCases { domains.formUnion(await FilterLists.readDomains(domainsURL(category))) }
     seedDomains = domains
@@ -83,6 +70,55 @@ public final class ContentBlocker {
     state = failures == BlockingCategory.allCases.count && filterLists.lastUpdated == nil
       ? .failed(String(localized: "Content blocking isn’t available right now."))
       : .ready(updated: filterLists.lastUpdated)
+  }
+
+  private func compileSeeds(in store: WKContentRuleListStore) async -> Int {
+    let exceptions = Self.selectorExceptions(in: filterLists.myFilters)
+    seedExceptions = exceptions
+    seedGeneration += 1
+    let generation = seedGeneration
+    var compiled: [BlockingCategory: WKContentRuleList] = [:]
+    var failures = 0
+    for category in BlockingCategory.allCases {
+      let source = Self.seedSource(for: category, exceptions: exceptions)
+      let identifier = "\(category.identifier).\(FilterLists.hash(source).prefix(12))"
+      if let existing = try? await store.contentRuleList(forIdentifier: identifier) {
+        compiled[category] = existing
+        continue
+      }
+      let conversion = await Self.convert(source)
+      if let list = try? await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: conversion.json) {
+        compiled[category] = list
+        try? await FilterLists.write(conversion.blockedDomains.joined(separator: "\n"), to: domainsURL(category))
+      } else {
+        failures += 1
+      }
+    }
+    guard generation == seedGeneration else { return failures }
+    seeds.merge(compiled) { _, new in new }
+    return failures
+  }
+
+  private func filtersChanged() {
+    listsChanged()
+    guard let store, let compiled = seedExceptions, compiled != Self.selectorExceptions(in: filterLists.myFilters) else { return }
+    Task {
+      _ = await compileSeeds(in: store)
+      listsChanged()
+    }
+  }
+
+  static func selectorExceptions(in filters: String) -> String {
+    filters.split(whereSeparator: \.isNewline)
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.hasPrefix("!") && $0.contains("#@#") }
+      .joined(separator: "\n")
+  }
+
+  static func seedSource(for category: BlockingCategory, exceptions: String) -> String {
+    let source = SeedRules.list(for: category)
+    guard category == .cookieBanners, !exceptions.isEmpty else { return source }
+    return source + "\n" + exceptions
   }
 
   public func refreshIfDue(now: Date = .now, force: Bool = false) async {

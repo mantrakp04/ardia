@@ -243,6 +243,20 @@ struct StoreFixture {
     #expect(profiles() == ["home"])
   }
 
+  @Test func aVisitGoesToTheSpaceOfTheTabThatMadeIt() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    let start = fixture.clock.now
+    fixture.store.profileSyncId = "personal"
+    let personal = fixture.open("https://personal.example/")
+    fixture.store.profileSyncId = "work"
+    fixture.store.recordVisit(url: "https://personal.example/next", title: "", transition: .link, fromTab: personal.id)
+    fixture.store.recordVisit(url: "https://typed.example/", title: "", transition: .typed)
+    let byURL = Dictionary(uniqueKeysWithValues: fixture.store.syncedVisits(since: start).map { ($0.url, $0.profileSyncId) })
+    #expect(byURL["https://personal.example/next"] == "personal")
+    #expect(byURL["https://typed.example/"] == "work")
+  }
+
   @Test func visitsForChosenURLsMatchTheFullScanAndSkipPrivateTabs() throws {
     let fixture = try StoreFixture()
     defer { fixture.cleanUp() }
