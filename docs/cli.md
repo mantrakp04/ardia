@@ -355,7 +355,10 @@ probed through a flat session and an isolated world, then detached). It errors (
 page, as on New Tab. Once a session's tab closes it doesn't move on to whatever the user is looking at: commands
 fail with `tab_gone` until `tab active`, `tab <id>` or `open`. The session keeps the tab it took, and the command's stderr says so once (`→ This session had no
 tab, so it uses the active one: [t1] Title - URL`). `open` never navigates a tab taken this way: it opens its own
-background tab, as with no tab; to navigate the user's tab, pick it with `tab <id>` or `tab active`. `open` stays in
+background tab, as with no tab; to navigate the user's tab, pick it with `tab <id>` or `tab active`. The same goes
+for every command that loads a URL (`vitals <url>`, `diff url`, `a11y <url>`, `record start <path> <url>`, and `auth
+login` when the tab isn't on the credential's origin; script's `page.goto` is `open`), while `back`, `forward`,
+`reload` and `pushstate` refuse a borrowed tab (`borrowed_tab`). `open` stays in
 the background and never switches the user's view unless `--show`. When it opens a background tab it checks whether
 the tab takes input (`--json`: `tabId`, `background`, `takesInput`) and says so in its own output when the session
 borrowed the user's tab or the tab won't take input, so an agent learns it before its first click fails:
