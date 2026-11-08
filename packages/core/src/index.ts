@@ -1,3 +1,4 @@
+export * from "./anonymousIdentity.ts";
 export * from "./appUrls.ts";
 export * from "./bangs.ts";
 export * from "./calculator.ts";
