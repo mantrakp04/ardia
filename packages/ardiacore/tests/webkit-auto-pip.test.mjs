@@ -49,7 +49,7 @@ test("the rule travels with the page view, so a tab that takes the view over sti
   assert.match(webView, /^ {2}var autoPictureInPictureRule = WebKitAutoPictureInPicture\(\)$/m);
   assert.doesNotMatch(tab, /var autoPictureInPictureRule = WebKitAutoPictureInPicture\(\)/);
   assert.match(
-    tab,
+    sight,
     /var autoPictureInPictureRule: WebKitAutoPictureInPicture \{\n\s+get \{ webView\?\.autoPictureInPictureRule \?\? WebKitAutoPictureInPicture\(\) \}\n\s+set \{ webView\?\.autoPictureInPictureRule = newValue \}\n\s+\}/,
   );
   const attach = tab.slice(tab.indexOf("private func attach(_ view: WebKitWebView) {"), tab.indexOf("private func observe("));

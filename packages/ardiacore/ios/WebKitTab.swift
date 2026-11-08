@@ -33,10 +33,6 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     set { webView?.playingFrames = newValue }
   }
   private var muted = false
-  var autoPictureInPictureRule: WebKitAutoPictureInPicture {
-    get { webView?.autoPictureInPictureRule ?? WebKitAutoPictureInPicture() }
-    set { webView?.autoPictureInPictureRule = newValue }
-  }
   var sightObserver: NSObjectProtocol?
   private var errorURL: URL?
   private var committedAt: Double = 0
