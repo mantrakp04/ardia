@@ -5,7 +5,7 @@ export type Rect4 = [number, number, number, number];
 export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
-  | { type: "frame"; id: string; frame: [number, number, number, number] }
+  | { type: "frame"; id: string; frame: [number, number, number, number]; fitted?: boolean }
   | { type: "fullScreen"; id: string; on: boolean }
   | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };

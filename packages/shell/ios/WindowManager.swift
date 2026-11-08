@@ -12,6 +12,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
+  private var hostFitSizes: [String: CGSize] = [:]
+  private var landingFits: [String: LittleLandingFit] = [:]
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
@@ -128,7 +130,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     let window = entry.window, id = entry.id
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
     window.title = title
-    if small, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
+    if small, frame == nil { placeSmall(window, id: id, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
     managed[id] = entry
     if !small { lastPlaced = window }
@@ -157,7 +159,22 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
     observeFrame(window)
     reportFrame(window)
+    if small { fitToLanding(entry) }
     fullScreen.windowShown(id)
+  }
+
+  private func fitToLanding(_ entry: ManagedWindow) {
+    let id = entry.id
+    landingFits[id]?.stop()
+    let landing = LittleLandingFit(window: { [weak self] in self?.window(id) }) { [weak self] window, frame in
+      guard let self else { return }
+      self.hostFitSizes[id] = frame.size
+      window.setFrame(frame, display: true)
+      self.reportFrame(window)
+    }
+    landingFits[id] = landing
+    landing.start()
+    if entry.isWaitingToReveal { entry.whenRevealed { [weak landing] in landing?.fit() } }
   }
 
   private func reveal(_ entry: ManagedWindow) {
@@ -286,16 +303,14 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.collectionBehavior.insert(.moveToActiveSpace)
   }
 
-  private func placeSmall(_ window: NSWindow, size: CGSize?, pointer: NSPoint?) {
+  private func placeSmall(_ window: NSWindow, id: String, size: CGSize?, pointer: NSPoint?) {
     let mouse = pointer ?? NSEvent.mouseLocation
     let screen = (pointer == nil && NSApp.isActive ? NSApp.keyWindow?.screen : nil)
       ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
     guard let visible = screen?.visibleFrame else { return window.center() }
-    let width = min(max(size?.width ?? 900, window.minSize.width), visible.width)
-    let height = min(max(size?.height ?? 640, window.minSize.height), visible.height)
-    let lift = min(visible.height * 0.05, (visible.height - height) / 2)
-    let origin = NSPoint(x: (visible.midX - width / 2).rounded(), y: (visible.midY - height / 2 + lift).rounded())
-    window.setFrame(NSRect(origin: origin, size: NSSize(width: width.rounded(), height: height.rounded())), display: false)
+    let frame = ArdiaChromeWindowHost.littleFrame(fittingVisible: visible, size: size ?? CGSize(width: 900, height: 640), minimumSize: window.minSize)
+    hostFitSizes[id] = frame.size
+    window.setFrame(frame, display: false)
   }
 
   private func place(_ window: NSWindow, frame: CGRect?) {
@@ -370,6 +385,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private func forget(_ entry: ManagedWindow) {
     entry.stopWatchingContent()
     lightsCenters[entry.id] = nil
+    hostFitSizes[entry.id] = nil
+    landingFits.removeValue(forKey: entry.id)?.stop()
     entry.takeReveal()?.then.forEach { $0() }
     entry.takeExit()?.forEach { $0() }
   }
@@ -464,6 +481,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
       UserDefaults.standard.set(lastFrame, forKey: Self.lastFrameKey)
     }
     let f = window.frame
-    ShellEvents.send(.window, ["type": "frame", "id": id, "frame": [f.minX, f.minY, f.width, f.height]])
+    var event: [String: Any] = ["type": "frame", "id": id, "frame": [f.minX, f.minY, f.width, f.height]]
+    if hostFitSizes[id] == f.size {
+      event["fitted"] = true
+    } else {
+      hostFitSizes[id] = nil
+    }
+    ShellEvents.send(.window, event)
   }
 }

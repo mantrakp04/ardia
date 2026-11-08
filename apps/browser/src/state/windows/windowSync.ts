@@ -38,7 +38,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
     port.onEvent((e) => {
       const s = getState();
       if (e.type === "focus") s.setFocusedWindow(e.id);
-      if (e.type === "frame") s.setWindowFrame(e.id, e.frame);
+      if (e.type === "frame") s.setWindowFrame(e.id, e.frame, e.fitted);
       if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on);
       if (e.type === "close") {
         if (isQuitting()) return;
