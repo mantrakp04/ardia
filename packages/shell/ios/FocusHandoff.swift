@@ -48,7 +48,7 @@ final class FocusHandoff {
   private var begun: Int?
   private var monitor: Any?
   private let editKeys = NSMapTable<NSEvent, NSArray>(keyOptions: .weakMemory, valueOptions: .strongMemory)
-  private var epochs: [Int: Int] = [:]
+  private var keyEpochs = KeyEpochs()
   private var releases: [UInt16: Release] = [:]
   private var closedAt: [Int: TimeInterval] = [:]
   private var typedAfterGate: [Int: TimeInterval] = [:]
@@ -145,7 +145,7 @@ final class FocusHandoff {
 
   func refusesUnhandledKey(_ event: NSEvent, in window: NSWindow) -> Bool {
     guard let tag = editKeys.object(forKey: event) as? [Int], tag.count == 2 else { return false }
-    let current = [window.windowNumber, epochs[window.windowNumber] ?? 0]
+    let current = [window.windowNumber, keyEpochs.epoch(of: window.windowNumber)]
     guard tag != current || NSApp.keyWindow !== window else {
       acknowledged = event
       DispatchQueue.main.async { [weak self] in if self?.acknowledged === event { self?.acknowledged = nil } }
@@ -165,7 +165,7 @@ final class FocusHandoff {
         return event
       }
       if event.type == .keyDown, Self.isEditKey(event) {
-        self.editKeys.setObject([window.windowNumber, self.epochs[window.windowNumber] ?? 0] as NSArray, forKey: event)
+        self.editKeys.setObject([window.windowNumber, self.keyEpochs.epoch(of: window.windowNumber)] as NSArray, forKey: event)
       }
       if event.type == .keyUp { return self.releases(event, in: gate) ? nil : event }
       if gate == nil, !event.modifierFlags.contains(.command) { self.noteTyped(event, in: window) }
@@ -178,9 +178,9 @@ final class FocusHandoff {
       return nil
     }
     let center = NotificationCenter.default
-    center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] note in
+    center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: nil) { [weak self] note in
       guard let self, let window = note.object as? NSWindow else { return }
-      self.epochs[window.windowNumber, default: 0] += 1
+      self.keyEpochs.becameKey(window.windowNumber)
     }
     for name in [NSApplication.didResignActiveNotification, NSWindow.didResignKeyNotification] {
       center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.releases.removeAll() }

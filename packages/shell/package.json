@@ -7,7 +7,7 @@
   "types": "src/index.tsx",
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "swift test --scratch-path \"${TMPDIR:-/tmp}/ardia-shell-swiftpm\""
+    "test": "node --test scripts/focusHandoff.test.mjs && swift test --scratch-path \"${TMPDIR:-/tmp}/ardia-shell-swiftpm\""
   },
   "peerDependencies": {
     "expo": "*",
