@@ -63,11 +63,11 @@ SHORTCUT_HELP = (
     " then a character, f1-f20, space, tab, return, escape, delete, up, down, left, right, home, end, pageup or"
     " pagedown; or glyphs like ⌘⇧T; '' unbinds."
 )
-FOLDER_SHOWN = "${XDG_CONFIG_HOME:-~/.config}/ardia" if endpoint.LINUX else "~/.config/ardia"
-EDITOR_FALLBACK = "xdg-open" if endpoint.LINUX else "vi"
+FOLDER_SHOWN = f"{endpoint.LINUX_DATA_DIR_SHOWN}/config" if endpoint.LINUX else "~/.config/ardia"
+EDITOR_FALLBACK = "xdg-open (vi with no display)" if endpoint.LINUX else "vi"
 CONFIG_DESCRIPTION = CONFIG_DESCRIPTION.replace("{folder}", FOLDER_SHOWN).replace("{fallback}", EDITOR_FALLBACK)
 EDIT_HELP = (
-    ("open config.json in $VISUAL or $EDITOR and check it, else with xdg-open", "Open config.json (created first if needed) in $VISUAL or $EDITOR, wait for the editor to exit, then\ncheck it like ardia config check. With neither set it opens the file with xdg-open, which returns at once, so\nrun ardia config check once you've saved it (vi when xdg-open isn't installed).")
+    ("open config.json in $VISUAL or $EDITOR and check it, else with xdg-open", "Open config.json (created first if needed) in $VISUAL or $EDITOR, wait for the editor to exit, then\ncheck it like ardia config check. With neither set, in a desktop session it opens the file with xdg-open, which\nreturns at once, so run ardia config check once you've saved it; with no display or no xdg-open it uses vi.")
     if endpoint.LINUX
     else ("open config.json in $VISUAL, $EDITOR, else vi, then check it", "Open config.json (created first if needed) in $VISUAL, $EDITOR, else vi, wait for the editor to exit, then\ncheck it like ardia config check.")
 )
@@ -401,6 +401,10 @@ def config_list(args, where: Places) -> int:
     return 0
 
 
+def has_display() -> bool:
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 def editor_command(linux: bool | None = None) -> tuple[list[str], bool]:
     import shlex
     import shutil
@@ -409,7 +413,7 @@ def editor_command(linux: bool | None = None) -> tuple[list[str], bool]:
         value = os.environ.get(variable, "").strip()
         if value:
             return shlex.split(value), True
-    if endpoint.LINUX if linux is None else linux:
+    if (endpoint.LINUX if linux is None else linux) and has_display():
         opener = shutil.which("xdg-open")
         if opener:
             return [opener], False

@@ -31,6 +31,8 @@ EXPECTED = [
     row("A paper", "https://arxiv.example/abs/1", "https://arxiv.example/abs/1", "pinned", "Papers", "Personal"),
     row("Maps", "https://maps.example/", "https://maps.example/", "favorite", None, "Travel", True),
     row("Flights", "https://air.example/booking", "https://air.example/", "pinned", "Trip", "Travel", True),
+    row("Rail", "https://rail.example/", "https://rail.example/", "pinned", None, "Travel", True),
+    row("Hotel", "https://hotel.example/", "https://hotel.example/", "favorite", "Stays", "Travel", True),
 ]
 
 
@@ -38,21 +40,21 @@ def linux_session() -> dict:
     return json.loads(FIXTURE.read_text())
 
 
+def to_legacy_pin(tab: dict) -> None:
+    pin = tab.pop("pin")
+    tab["pinned"] = pin is not None
+    if pin and pin["as"] == "row":
+        tab["pinnedAsRow"] = True
+    if pin and pin.get("folder"):
+        tab["tileFolder"] = pin["folder"]
+
+
 def macos_session(legacy: bool = False) -> dict:
     session = linux_session()
     tabs = list(session["tabs"].values())
     if legacy:
-        for tab in tabs:
-            pin = tab.pop("pin")
-            tab["pinned"] = pin is not None
-            if pin and pin["as"] == "row":
-                tab["pinnedAsRow"] = True
-            if pin and pin.get("folder"):
-                tab["tileFolder"] = pin["folder"]
-        for parked in session["parkedPins"].values():
-            for tab in parked["tabs"]:
-                pin = tab.pop("pin")
-                tab["pinned"] = pin is not None
+        for tab in tabs + [tab for parked in session["parkedPins"].values() for tab in parked["tabs"]]:
+            to_legacy_pin(tab)
     windows = []
     for window in session["windows"].values():
         window = dict(window)
@@ -88,16 +90,6 @@ class LinuxPinned(unittest.TestCase):
     def test_reads_the_linux_session(self):
         self.place(linux_session())
         self.assertEqual(browsing.pinned(self.root), EXPECTED)
-
-    def test_runs_bounded_like_the_exec_helper(self):
-        import asyncio
-
-        self.place(linux_session())
-
-        async def call():
-            return await browsing.run_bounded(browsing.pinned, self.root)
-
-        self.assertEqual(asyncio.run(call()), EXPECTED)
 
     def test_follows_the_app_profile_in_local_state(self):
         self.place(linux_session(), "Profile 3")
@@ -154,10 +146,8 @@ class LinuxPinned(unittest.TestCase):
     def test_needs_control_on(self):
         self.place(linux_session())
         (self.root / endpoint.CONTROL_FILE).unlink()
-        with self.assertRaisesRegex(browsing.BrowsingDataError, "isn't running"):
+        with self.assertRaisesRegex(browsing.NotRunning, "isn't running"):
             browsing.pinned(self.root)
-        with self.assertRaisesRegex(browsing.BrowsingDataError, "--data-dir"):
-            browsing.pinned(None)
 
     def test_skips_private_profiles_and_windows(self):
         session = linux_session()
@@ -175,15 +165,19 @@ class LinuxPinned(unittest.TestCase):
         small = json.dumps(linux_session())
         big = json.dumps({**linux_session(), "closedTabs": [{"id": f"c{i}", "tab": {"url": "https://x.example/" * 40, "profileId": "default"}} for i in range(3000)]})
         stop = threading.Event()
+        failures: list[BaseException] = []
+        turns = [0]
 
         def writer():
-            turn = 0
-            while not stop.is_set():
-                fd, temp = tempfile.mkstemp(dir=path.parent, prefix=".org.chromium.Chromium.")
-                with os.fdopen(fd, "w") as handle:
-                    handle.write(big if turn % 2 else small)
-                os.replace(temp, path)
-                turn += 1
+            try:
+                while not stop.is_set():
+                    fd, temp = tempfile.mkstemp(dir=path.parent, prefix=".org.chromium.Chromium.")
+                    with os.fdopen(fd, "w") as handle:
+                        handle.write(big if turns[0] % 2 else small)
+                    os.replace(temp, path)
+                    turns[0] += 1
+            except BaseException as error:
+                failures.append(error)
 
         thread = threading.Thread(target=writer)
         thread.start()
@@ -196,7 +190,9 @@ class LinuxPinned(unittest.TestCase):
         finally:
             stop.set()
             thread.join()
+        self.assertEqual(failures, [])
         self.assertGreater(reads, 10)
+        self.assertGreater(turns[0], 10)
 
     def test_history_labels_come_from_the_linux_session(self):
         self.place(linux_session())

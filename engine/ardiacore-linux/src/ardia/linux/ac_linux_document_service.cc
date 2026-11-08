@@ -94,7 +94,7 @@ LinuxDocumentResult LinuxDocumentService::CancelSeal(
 
 void LinuxDocumentService::Retire(LinuxDocumentClient client) {
   if (!client.privileged || !client.regular || client.scope != scope_) return;
-  documents_.Unwatch(client);
+  documents_.Retire(client);
 }
 
 }

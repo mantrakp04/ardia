@@ -332,8 +332,9 @@ class CliService {
   }
 
   void Finished(base::DictValue result) {
-    const base::Value* installed = result.Find("installedVersion");
-    Remember(installed && installed->is_string() ? std::optional<std::string>(installed->GetString()) : std::nullopt);
+    if (const base::Value* installed = result.Find("installedVersion")) {
+      Remember(installed->is_string() ? std::optional<std::string>(installed->GetString()) : std::nullopt);
+    }
     auto waiting = std::move(waiting_);
     waiting_.clear();
     listeners_.clear();

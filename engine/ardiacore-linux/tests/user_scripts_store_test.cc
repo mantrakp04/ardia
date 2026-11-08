@@ -230,6 +230,23 @@ void Status(const std::string& root) {
   assert(!scripts::ReadStatus(root));
 }
 
+void Uncreatable(const std::string& root) {
+  const std::string locked = root + "/locked";
+  assert(mkdir(locked.c_str(), 0555) == 0);
+  const std::string denied = std::string("Couldn't create Scripts: ") + strerror(EACCES);
+  scripts::Folder folder = ReadWith(locked, std::nullopt);
+  Expect(folder, "invalid", 0, denied);
+  assert(folder.path == Real(locked) + "/Scripts/extension");
+  assert(scripts::WriteStatus(locked, "{}") == denied);
+  const std::string missing = std::string("Couldn't create Scripts: ") + strerror(ENOENT);
+  Expect(ReadWith(root + "/gone", std::nullopt), "invalid", 0, missing);
+  assert(scripts::WriteStatus(root + "/gone", "{}") == missing);
+  assert(chmod(locked.c_str(), 0755) == 0);
+  Expect(ReadWith(locked, std::nullopt), "empty", std::nullopt);
+  assert(!scripts::WriteStatus(locked, "{}"));
+  assert(scripts::ReadStatus(locked) == "{}");
+}
+
 void Signature(const std::string& root) {
   const std::string folder = root + "/Scripts";
   assert(mkdir(folder.c_str(), 0755) == 0);
@@ -264,6 +281,7 @@ int main(int argc, char** argv) {
   else if (name == "fifo") Fifo(argv[2]);
   else if (name == "ascii-token") AsciiToken(argv[2]);
   else if (name == "signature") Signature(argv[2]);
+  else if (name == "uncreatable") Uncreatable(argv[2]);
   else return 2;
   return 0;
 }

@@ -64,7 +64,7 @@ export function linuxBindings(overrides: ShortcutOverrides = {}, profiles: reado
   }));
 }
 
-export const UTILITY_SHORTCUT_COMMANDS: ReadonlySet<string> = new Set(["closeTab", "openSettings", "findInPage", "quit", "copyDiagnostics", "recordPerformanceIssue", "taskManager", ...BROWSER_WINDOW_COMMANDS]);
+export const UTILITY_SHORTCUT_COMMANDS: ReadonlySet<string> = new Set(["closeTab", "openSettings", "findInPage", "quit", "copyDiagnostics", "taskManager", ...BROWSER_WINDOW_COMMANDS]);
 
 export const utilityBindings = (bindings: Binding[]) => bindings.filter((binding) => UTILITY_SHORTCUT_COMMANDS.has(binding.command));
 

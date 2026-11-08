@@ -2,12 +2,12 @@ import type { CommandEvent } from "../../browser/src/platform/commands";
 import { onLinuxCommand } from "./shims/expo-modules-core";
 import { copyText } from "../../browser/src/platform/clipboard";
 import { isDefaultBrowser, setAsDefaultBrowser, systemInfo } from "../../browser/src/platform/app";
-import { beginTracing, endTracing, isTracing, openTaskManager } from "../../browser/src/platform/performance";
+import { openTaskManager } from "../../browser/src/platform/performance";
 import { confirm } from "../../browser/src/platform/dialogs";
-import { revealFile } from "../../browser/src/platform/files";
 import { readDocument, removeDocument, saveDocument } from "../../browser/src/platform/documents";
 import { afterFirstWindow } from "../../browser/src/lib/afterFirstWindow";
-import { diagnostics, sendFeedback } from "../../browser/src/state/commands/appCommands";
+import { diagnostics } from "../../browser/src/state/commands/appCommands";
+import { openReport } from "./reportProblem.ts";
 import { finishOnboarding, maybeStartOnboarding, onboardingCompletedAt, startOnboarding, useOnboarding } from "../../browser/src/state/onboarding/onboarding";
 import { offerDefaultBrowserAgain } from "../../browser/src/state/onboarding/defaultBrowserOffer";
 import { openVideoTour, startToolTour, videoTourUrl } from "../../browser/src/state/onboarding/tour";
@@ -157,19 +157,6 @@ export async function runLaunchServices(options: {
 
 const unavailable = (windowId: string, feature: string) => showToast(windowId, "Not available on Linux yet", `${feature} isn't available in this Linux build.`);
 
-async function recordPerformanceIssue() {
-  if (await isTracing()) return;
-  const start = await confirm({
-    title: "Record a performance issue?",
-    message: "Ardia records what the engine does while you reproduce the problem. The recording is saved to your Downloads folder.",
-    confirmTitle: "Start Recording",
-  });
-  if (!start.confirmed || !(await beginTracing())) return;
-  const stop = await confirm({ title: "Recording…", message: "Reproduce the problem now, then click Stop.", confirmTitle: "Stop", cancelTitle: "Discard" });
-  const path = await endTracing(stop.confirmed);
-  if (path) void revealFile(path);
-}
-
 let quitLinux: (() => Promise<QuitOutcome>) | undefined;
 const linuxQuit = () => quitLinux ??= ardiaHost
   ? createHostQuit(ardiaHost, confirm)
@@ -189,18 +176,11 @@ export function runAppCommand(windowId: string, command: CommandEvent["command"]
     return true;
   }
   switch (command) {
-    case "sendFeedback":
-      void sendFeedback(windowId).then(
-        () => !capabilities.externalLinks && !systemInfo().feedbackURL && showToast(windowId, "Feedback report copied", "Paste it into an email to the Ardia team."),
-        () => unavailable(windowId, "Send Feedback"),
-      );
+    case "reportProblem":
+      void openReport(windowId).catch(() => unavailable(windowId, "Report a Problem"));
       return true;
     case "copyDiagnostics":
       void diagnostics().then(copyText, report);
-      return true;
-    case "recordPerformanceIssue":
-      if (capabilities.performanceRecording) void recordPerformanceIssue().catch(() => unavailable(windowId, "Performance recording"));
-      else unavailable(windowId, "Performance recording");
       return true;
     case "showOnboarding":
       startOnboarding(windowId);
@@ -224,7 +204,9 @@ export function runAppCommand(windowId: string, command: CommandEvent["command"]
   return false;
 }
 
-export const UTILITY_APP_COMMANDS: ReadonlySet<string> = new Set(["copyDiagnostics", "recordPerformanceIssue", "taskManager", QUIT_COMMAND]);
+export const UTILITY_APP_COMMANDS: ReadonlySet<string> = new Set(["copyDiagnostics", "taskManager", QUIT_COMMAND]);
+
+export const LINUX_APP_COMMANDS: ReadonlySet<string> = new Set(["reportProblem", "copyDiagnostics", "showOnboarding", "toolTour", "videoTour", "releaseNotes", "taskManager"]);
 
 const routeChannel = () => typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(BROWSER_COMMAND_CHANNEL) as unknown as RouteChannel;
 

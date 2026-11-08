@@ -1,5 +1,6 @@
 import type { BrowserState, HydrateData } from "../../browser/src/state/browser/store";
 import { cloneSessionValue, sessionItemIdentity, shareSessionValue } from "./hostSessionMerge.ts";
+import { parseSettingsMeta } from "../../browser/src/state/settings/settings";
 
 const tables = ["profiles", "windows", "tabs", "groups", "splits", "parkedPins", "pinChoices", "pinSync"] as const;
 const lists = ["profileOrder", "windowOrder", "orphanedProfileData", "closedTabs", "closedWindows", "closedGroups", "deletedGroups", "cleanedTabs"] as const;
@@ -46,6 +47,8 @@ export function sessionStatePatch(state: BrowserState, local: HydrateData, merge
   }
   const settings = shareSessionValue(state.settings, merged.settings ?? state.settings);
   if (settings !== state.settings) patch.settings = settings;
+  const settingsMeta = merged.settingsMeta ? shareSessionValue(state.settingsMeta, parseSettingsMeta(merged.settingsMeta)) : state.settingsMeta;
+  if (settingsMeta !== state.settingsMeta) patch.settingsMeta = settingsMeta;
   if (merged.topAppsMerged !== undefined && merged.topAppsMerged !== state.topAppsMerged) patch.topAppsMerged = merged.topAppsMerged;
   return patch as Partial<BrowserState>;
 }

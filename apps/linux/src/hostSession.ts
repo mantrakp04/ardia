@@ -7,7 +7,8 @@ import { canonicalSessionValue, cloneSessionValue, equalSessionValue, mergeSessi
 import { sessionStatePatch } from "./hostSessionState.ts";
 import { windowDeparture } from "./windowDeparture.ts";
 import { parkWindowPins } from "../../browser/src/state/pins/parkedPins";
-import { inPinnedContainer, isIncognitoProfile, newId, snapshotTab } from "../../browser/src/state/browser/model";
+import { inPinnedContainer, isIncognitoProfile, snapshotTab } from "../../browser/src/state/browser/model";
+import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../../browser/src/state/pins/closedTabs";
 import { withPrivateWindow } from "./hostWindowProfiles.ts";
 import { sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins } from "../../browser/src/state/session/savedShapes";
 import { splitTabIds } from "../../browser/src/state/splits/splits";
@@ -93,25 +94,23 @@ export const linuxSessionShape = (saved: HydrateData): HydrateData => {
   return withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled);
 };
 
-const CLOSED_WINDOW_LIMIT = 10;
-const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-CLOSED_WINDOW_LIMIT);
+const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-MAX_CLOSED_WINDOWS);
 
 function withoutRestoredWindows(saved: HydrateData, now: number): HydrateData {
   const source = { tabs: saved.tabs ?? {}, groups: saved.groups ?? {}, splits: saved.splits ?? {}, history: {}, profiles: saved.profiles ?? {} };
   const windows = Object.values(saved.windows ?? {}).filter((w) => w.kind === "main");
   let parkedPins = saved.parkedPins ?? {};
   for (const w of windows) parkedPins = parkWindowPins(parkedPins, w, source);
-  const closed = windows.map((w) => ({
-    kind: "window" as const,
-    id: newId("cw"),
-    window: { profileId: w.profileId, sidebarOpen: w.sidebarOpen, frame: w.frame },
-    tabs: w.tabIds.map((id) => source.tabs[id]).filter((t): t is Tab => !!t && !inPinnedContainer(source, t.id))
+  const earlier = (saved.closedWindows ?? []).filter((c) => c.tabs.length).map(({ lastWindow: _, activePin: __, ...c }) => c);
+  const closed = windows.map((w) => closedWindowEntry(
+    w,
+    w.tabIds.map((id) => source.tabs[id]).filter((t): t is Tab => !!t && !inPinnedContainer(source, t.id))
       .map((t) => ({ ...snapshotTab(t), active: Object.values(w.activeTabIds).includes(t.id) })),
-    groups: [],
-    closedAt: now,
-  })).filter((c) => c.tabs.some((t) => t.url));
+    [],
+    now,
+  )).filter((c) => c.tabs.some((t) => t.url));
   return {
-    ...saved, parkedPins, closedWindows: inClosingOrder([...(saved.closedWindows ?? []), ...closed]),
+    ...saved, parkedPins, closedWindows: inClosingOrder([...earlier, ...closed]),
     windows: {}, windowOrder: [], tabs: {}, groups: {}, splits: {}, focusedWindowId: null,
   };
 }
@@ -215,7 +214,7 @@ export function snapshotHostSession(s: BrowserState): HydrateData {
     closedGroups: s.closedGroups.filter(publicTabs), deletedGroups: s.deletedGroups.filter(publicTabs), cleanedTabs: s.cleanedTabs.filter((c) => publicProfile(c.tab.profileId)),
     parkedPins: publicTable(s.parkedPins), pinChoices: publicTable(s.pinChoices), pinSync: publicTable(s.pinSync),
     topAppsMerged: s.topAppsMerged,
-    settings: s.settings,
+    settings: s.settings, settingsMeta: s.settingsMeta,
   };
 }
 
@@ -318,7 +317,7 @@ type SessionStore = {
 };
 
 const withoutFocus = ({ focusedWindowId: _, lastProfileId: _last, ...session }: HydrateData) => session;
-const sessionSources = (s: BrowserState) => [s.profiles, s.profileOrder, s.orphanedProfileData, s.windows, s.windowOrder, s.tabs, s.groups, s.splits, s.peeks, s.closedTabs, s.closedWindows, s.closedGroups, s.deletedGroups, s.cleanedTabs, s.parkedPins, s.pinChoices, s.pinSync, s.settings, s.ui.focusOrder, s.ui.lastProfileId];
+const sessionSources = (s: BrowserState) => [s.profiles, s.profileOrder, s.orphanedProfileData, s.windows, s.windowOrder, s.tabs, s.groups, s.splits, s.peeks, s.closedTabs, s.closedWindows, s.closedGroups, s.deletedGroups, s.cleanedTabs, s.parkedPins, s.pinChoices, s.pinSync, s.topAppsMerged, s.settings, s.settingsMeta, s.ui.focusOrder, s.ui.lastProfileId];
 
 type StandIn = { windowId: string; profileId?: string };
 

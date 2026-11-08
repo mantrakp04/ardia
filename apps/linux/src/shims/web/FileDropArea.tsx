@@ -14,16 +14,18 @@ function assign<T>(ref: Ref<T> | undefined, value: T | null) {
   else if (ref) (ref as { current: T | null }).current = value;
 }
 
-export const FileDropArea = forwardRef<View, FileDropAreaProps>(function FileDropArea({ onDropUpdate, ...props }, ref) {
+export const FileDropArea = forwardRef<View, FileDropAreaProps>(function FileDropArea({ onDropUpdate, enabled = true, accepts: _accepts, ...props }, ref) {
   const node = useRef<HTMLElement | null>(null);
   const latest = useRef(onDropUpdate);
   latest.current = onDropUpdate;
+  const accepting = useRef(enabled);
+  accepting.current = enabled;
 
   useEffect(() => {
     guardDocumentDrops();
     const element = node.current;
     if (!element) return;
-    return watchDropArea(element, createDropController((update) => latest.current?.(update), claimFiles), () => !!latest.current);
+    return watchDropArea(element, createDropController((update) => latest.current?.(update), claimFiles), () => accepting.current && !!latest.current);
   }, []);
 
   return (

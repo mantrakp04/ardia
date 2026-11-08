@@ -36,6 +36,9 @@ def installed_data_dir(linux: bool | None = None) -> Path:
     return (Path(override) if override else config_home()) / "ardia"
 
 
+LINUX_DATA_DIR_SHOWN = "${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia"
+
+
 def chromium_dir(root: Path, linux: bool | None = None) -> Path:
     return Path(root) if (LINUX if linux is None else linux) else Path(root) / "Chromium"
 

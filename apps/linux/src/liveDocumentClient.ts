@@ -87,20 +87,40 @@ export function createLiveDocumentClient(host: ArdiaHost) {
   };
   const recondition = (operations: DocumentOperation[], snapshot: DocumentSnapshot): DocumentOperation[] => {
     const payload = snapshot.payload as Record<string, any>;
-    return operations.map((op) => {
-      if ("incarnation" in op && op.type !== "create" && snapshot.incarnations[op.id!] !== op.incarnation) throw documentError("ERR_DOCUMENT_DELETED", "The edited folder no longer exists");
-      if (op.type === "refresh" || op.type === "place") throw documentError("ERR_DOCUMENT_CONFLICT", "The producer must retry from current state");
+    let order: string[] = Array.isArray(payload.folderOrder) ? [...payload.folderOrder] : [];
+    const incarnations: Record<string, string | undefined> = { ...snapshot.incarnations };
+    return operations.flatMap((op): DocumentOperation[] => {
+      if ("incarnation" in op && op.type !== "create" && incarnations[op.id!] !== op.incarnation) return [];
+      if (op.type === "refresh") throw documentError("ERR_DOCUMENT_CONFLICT", "The producer must retry from current state");
+      if (op.type === "create") { incarnations[op.id] = op.incarnation; if (!order.includes(op.id)) order.push(op.id); return [op]; }
+      if (op.type === "delete") { delete incarnations[op.id]; order = order.filter((id) => id !== op.id); return [op]; }
+      if (op.type === "place") {
+        if (op.after !== null && (op.after === op.id || !incarnations[op.after] || !order.includes(op.after))) return [];
+        const at = order.indexOf(op.id);
+        const expected = at > 0 ? order[at - 1]! : null;
+        order = order.filter((id) => id !== op.id);
+        order.splice(op.after === null ? 0 : order.indexOf(op.after) + 1, 0, op.id);
+        return [{ ...op, expected }];
+      }
       if (op.type === "field") {
         const target = op.target === "folder" ? payload.folders?.[op.id!] : op.target === "account" ? payload.accounts : op.target === "meetingGroup" ? payload.meetingGroups : op.target === "expandedStack" ? payload.expandedStacks : payload[op.target];
         const expected = op.field.startsWith("filters.") ? target?.filters?.[op.field.slice(8)] : target?.[op.field === "value" ? op.id! : op.field];
-        return { ...op, expected: expected ?? null };
+        return [{ ...op, expected: expected ?? null }];
       }
       if (op.type === "entry") {
         const entry = payload[op.target]?.[op.id]?.find((entry: any) => (op.target === "completed" ? entry.item.id : entry.id) === op.key);
-        return { ...op, expected: entry ?? null };
+        return [{ ...op, expected: entry ?? null }];
       }
-      return op;
+      return [op];
     });
+  };
+  const retire = (batch: Pending) => {
+    if (pending[0] !== batch || pending.slice(1).some((next) => next.requestId)) throw documentError("ERR_BAD_REPLY", "Producer refusal cannot retire outstanding work");
+    pending.shift();
+    batch.skipped = true;
+    completions.invalidate(batch.completion);
+    sequence = watermark;
+    publish();
   };
   const drain = () => {
     if (active) return active;
@@ -139,16 +159,14 @@ export function createLiveDocumentClient(host: ArdiaHost) {
         if (reply.status === "conflict" && (reply.snapshot.watermark < watermark || reply.snapshot.revision < batch.observedRevision)) throw documentError("ERR_BAD_REPLY", "Document refusal is older than its operation base");
         accept(reply.snapshot);
         if (reply.status === "conflict" && reply.reason === "notOwner" && batch.operations.length === 1 && batch.operations[0]?.type === "claim") {
-          if (pending[0] !== batch || pending.slice(1).some((next) => next.requestId)) throw documentError("ERR_BAD_REPLY", "Producer refusal cannot retire outstanding work");
-          pending.shift();
-          batch.skipped = true;
-          sequence = watermark;
-          publish();
+          retire(batch);
           continue;
         }
         if (reply.status === "conflict") {
           if (++conflicts > 8) throw documentError("ERR_DOCUMENT_CONFLICT", "Document kept changing during reconciliation");
-          batch.operations = recondition(batch.operations, canonical);
+          const operations = recondition(batch.operations, canonical);
+          if (!operations.length) { retire(batch); continue; }
+          batch.operations = operations;
           batch.observedRevision = canonical.revision;
           publish();
           continue;

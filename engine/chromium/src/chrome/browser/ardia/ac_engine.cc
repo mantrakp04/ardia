@@ -91,18 +91,9 @@ void Reply::SendSecret(base::DictValue result) {
   void* context = std::exchange(context_, nullptr);
   SendSecretJson(std::move(result), reply, context);
 }
-
-void Reply::SendSecret(std::string_view key, std::u16string* secret) {
-  base::DictValue result;
-  if (secret) {
-    std::string utf8 = SecretUTF8(*secret);
-    result.Set(key, utf8);
-    Cleanse(utf8);
-    Cleanse(*secret);
-  } else {
-    result.Set(key, base::Value());
-  }
-  SendSecret(std::move(result));
+#else
+void Reply::SendSecret(base::DictValue result) {
+  Send(std::move(result));
 }
 #endif
 

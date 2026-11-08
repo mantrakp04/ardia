@@ -168,25 +168,35 @@ test("the userscripts folder's methods reach the host, and watch stays fire and 
   ]);
 });
 
-test("one window at a time applies userscripts: the next one takes over when the holder's lock goes", async () => {
-  const queue = [];
+test("one window at a time applies userscripts: the holder keeps the lock, and the next window takes over when the holder's window closes", async () => {
+  const waiting = [];
+  let holder = null;
+  const grant = () => {
+    if (holder || !waiting.length) return;
+    holder = waiting.shift();
+    let released = false;
+    holder.callback().then(() => { released = true; holder.resolve(); });
+    holder.released = () => released;
+  };
   const locks = {
     request(name, callback) {
       assert.equal(name, USER_SCRIPTS_LOCK);
-      return new Promise((resolve) => {
-        queue.push(() => callback().then(resolve));
-        if (queue.length === 1) queue[0]();
-      });
+      return new Promise((resolve) => { waiting.push({ callback, resolve }); grant(); });
     },
   };
+  const closeHoldingWindow = () => { holder = null; grant(); };
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   const started = [];
   leadUserScripts({ locks, start: () => started.push("w1") });
   leadUserScripts({ locks, start: () => started.push("w2") });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
   assert.deepEqual(started, ["w1"]);
-  queue[1]();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(holder.released(), false, "the applying window never gives the lock back on its own");
+  assert.equal(waiting.length, 1);
+  closeHoldingWindow();
+  await tick();
   assert.deepEqual(started, ["w1", "w2"]);
+  assert.equal(waiting.length, 0);
 });
 
 test("without web locks, or when the lock fails, the window applies userscripts itself", async () => {

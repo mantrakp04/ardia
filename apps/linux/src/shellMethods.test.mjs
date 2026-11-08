@@ -3,14 +3,21 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { reachesNativeHostUnchecked, resolveHostModule } from "./hostModules.ts";
 import { linuxShellMethod, sidebarEdgeEvent } from "./shellMethods.ts";
+import { dominantAccent } from "./iconAccent.ts";
 import { hostModuleName, requireNativeModule } from "./shims/expo-modules-core.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const nativeHost = read("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc");
 const bootstrap = nativeHost.slice(nativeHost.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), nativeHost.indexOf("void ShellHostView::LayoutOverlay()"));
-const advertised = [...bootstrap.matchAll(/\.Append\("([A-Za-z]+\.[A-Za-z]+)"\)/g)].map((match) => match[1]);
 const engineDir = new URL("../../../engine/ardiacore-linux/src/ardia/linux/", import.meta.url);
-const routedNatively = new Set(readdirSync(engineDir).filter((file) => /\.(cc|h)$/.test(file)).flatMap((file) => [...readFileSync(new URL(file, engineDir), "utf8").matchAll(/"(Ardia[A-Za-z]+\.[A-Za-z]+)"/g)].map((match) => match[1])));
+const engineSources = readdirSync(engineDir).filter((file) => /\.(cc|h)$/.test(file)).map((file) => readFileSync(new URL(file, engineDir), "utf8"));
+const capabilityArrays = new Map(engineSources.flatMap((source) => [...source.matchAll(/const char\* (k[A-Za-z]+)\[\] = \{([^}]*)\}/g)].map(([, name, body]) => [name, [...body.matchAll(/"([^"]+)"/g)].map((match) => match[1])])));
+const advertisedLoops = [...bootstrap.matchAll(/for \(const char\* \w+ : (?:\w+::)*(k[A-Za-z]+)\)/g)].map((match) => match[1]);
+const advertised = [
+  ...[...bootstrap.matchAll(/\.Append\("([A-Za-z]+\.[A-Za-z]+)"\)/g)].map((match) => match[1]),
+  ...advertisedLoops.flatMap((name) => capabilityArrays.get(name) ?? []),
+];
+const routedNatively = new Set(engineSources.flatMap((source) => [...source.matchAll(/"(Ardia[A-Za-z]+\.[A-Za-z]+)"/g)].map((match) => match[1])));
 
 const SHELL_SOURCES = new URL("../../../packages/shell/src/", import.meta.url);
 const shellSources = readdirSync(SHELL_SOURCES).filter((file) => /\.tsx?$/.test(file)).map((file) => readFileSync(new URL(file, SHELL_SOURCES), "utf8"));
@@ -172,17 +179,47 @@ test("translation's synchronous methods answer synchronously on Linux, as the sh
   assert.equal(resolveHostModule(host, "ArdiaTranslate", "languageName")("fr"), "fr");
 });
 
+test("the bootstrap parser sees capabilities the host appends from its capability arrays", () => {
+  assert.ok(advertisedLoops.length >= 10, advertisedLoops.join(", "));
+  for (const name of advertisedLoops) assert.ok(capabilityArrays.get(name)?.length, `${name} isn't a string array the parser can read`);
+});
+
 test("the ardia command and the user-scripts folder route to the engine that advertises them", async () => {
   for (const name of ["ArdiaCli.installedVersion", "ArdiaCli.install", "ArdiaAutomation.start", "ArdiaAutomation.stop", "ArdiaAutomation.reply", "ArdiaAutomation.broadcast", "ArdiaUserScripts.watch", "ArdiaUserScripts.read", "ArdiaUserScripts.readStatus", "ArdiaUserScripts.writeStatus"]) {
-    assert.ok(routedNatively.has(name), name);
+    assert.ok(advertised.includes(name), name);
   }
   const cli = ["ArdiaCli.installedVersion", "ArdiaCli.install"];
   const host = olderEngine(...cli);
+  assert.equal(host.bootstrap.capabilities.some((capability) => cli.includes(capability)), false);
   assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
   assert.equal((await resolveHostModule(host, "ArdiaCli", "install")().catch((error) => error)).code, "ERR_UNAVAILABLE");
-  const current = linuxHost();
-  current.bootstrap.capabilities.push(...cli);
-  await assert.rejects(resolveHostModule(current, "ArdiaCli", "install")(), /Unsupported Linux host method: ArdiaCli.install/);
+  await assert.rejects(resolveHostModule(linuxHost(), "ArdiaCli", "install")(), /Unsupported Linux host method: ArdiaCli.install/);
+});
+
+test("problem reports, the local telemetry copy and hardware details answer on Linux without reaching the host, and nothing throws where the shared code doesn't catch", async () => {
+  const host = linuxHost();
+  host.invoke = async (method) => assert.fail(`${method} reached the host`);
+  const resolve = (module, method) => {
+    const resolved = resolveHostModule(host, module, method);
+    assert.equal(reachesNativeHostUnchecked(resolved), false, `${module}.${method}`);
+    return resolved;
+  };
+  const settle = (value) => Promise.resolve(value).then((answer) => ({ answer }), (error) => ({ code: error.code }));
+  for (const method of ["append", "appendNow", "configure"]) assert.equal(resolve("ArdiaTelemetryLocal", method)("2026-11-08", "{}\n"), undefined, method);
+  assert.deepEqual(await settle(resolve("ArdiaTelemetryLocal", "exportForReport")(0)), { answer: null });
+  assert.deepEqual(await settle(resolve("ArdiaTelemetryLocal", "clear")()), { answer: undefined });
+  for (const method of ["prune", "exportToDownloads"]) assert.deepEqual(await settle(resolve("ArdiaTelemetryLocal", method)(0)), { code: "ERR_UNAVAILABLE" }, method);
+  assert.equal(resolve("ArdiaReport", "isRecording")(), false);
+  assert.equal(resolve("ArdiaReport", "fileSize")("/tmp/x"), 0);
+  assert.equal(resolve("ArdiaReport", "removeFile")("/tmp/x"), undefined);
+  assert.equal(resolve("ArdiaReport", "cancelUploads")(), undefined);
+  assert.throws(() => resolve("ArdiaReport", "draftDirectory")(), { code: "ERR_UNAVAILABLE" });
+  assert.deepEqual(await settle(resolve("ArdiaReport", "startRecording")("main", false, "/tmp/r.mp4", 60)), { code: "ERR_UNAVAILABLE" });
+  assert.deepEqual(await settle(resolve("ArdiaReport", "stopRecording")()), { answer: false });
+  assert.equal((await resolve("ArdiaReport", "upload")("f", "https://ardia.dev", "PUT", {}, "/tmp/f")).status, 0);
+  assert.deepEqual(await settle(resolve("ArdiaApp", "hardwareInfo")()), { code: "ERR_UNAVAILABLE" });
+  assert.deepEqual(await settle(resolve("ArdiaApp", "diagnosticsSample")()), { answer: {} });
+  assert.deepEqual(await settle(resolve("ArdiaDockSelection", "iconAccent")("https://example.com/favicon.ico")), { answer: null });
 });
 
 test("every ArdiaShell method resolves to its Linux fallback while the native host doesn't advertise it", () => {
@@ -403,4 +440,13 @@ test("window close animations, the drag preview, focus cancellation and haptics 
   }
   host.invoke = async () => assert.fail("haptics never reach the host");
   assert.equal(await resolveHostModule(host, "ArdiaSystem", "hapticTick")(), undefined);
+});
+
+test("a favicon's accent is its dominant saturated hue, as the Mac's iconAccent picks it, and greys or transparency have none", () => {
+  const pixels = (...colors) => Uint8ClampedArray.from(colors.flatMap(([r, g, b, a = 255, n = 1]) => Array.from({ length: n }, () => [r, g, b, a]).flat()));
+  assert.equal(dominantAccent(pixels([220, 20, 60, 255, 6], [30, 144, 255, 255, 2], [255, 255, 255, 255, 8])), "#DC143C");
+  assert.equal(dominantAccent(pixels([200, 0, 0, 255, 1], [240, 0, 0, 255, 1])), "#DC0000");
+  assert.equal(dominantAccent(pixels([128, 128, 128, 255, 10], [0, 0, 0, 255, 10])), null);
+  assert.equal(dominantAccent(pixels([255, 0, 0, 0, 10])), null);
+  assert.equal(dominantAccent(pixels([255, 0, 0, 255, 1], [128, 128, 128, 255, 20])), null);
 });

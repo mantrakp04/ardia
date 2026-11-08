@@ -83,7 +83,7 @@ Commands:
 
 def agent_words(linux: bool | None = None) -> dict:
     if endpoint.LINUX if linux is None else linux:
-        return {"agent": "systemd user service", "agent_a": "a systemd user service", "agent_name": hooks.SERVICE, "log": "${XDG_STATE_HOME:-~/.local/state}/ardia/hooks.log", "config_folder": "${XDG_CONFIG_HOME:-~/.config}/ardia"}
+        return {"agent": "systemd user service", "agent_a": "a systemd user service", "agent_name": hooks.SERVICE, "log": "${XDG_STATE_HOME:-~/.local/state}/ardia/hooks.log", "config_folder": f"{endpoint.LINUX_DATA_DIR_SHOWN}/config"}
     return {"agent": "LaunchAgent", "agent_a": "a LaunchAgent", "agent_name": hooks.LABEL, "log": "~/Library/Logs/Ardia/hooks.log", "config_folder": "~/.config/ardia"}
 
 

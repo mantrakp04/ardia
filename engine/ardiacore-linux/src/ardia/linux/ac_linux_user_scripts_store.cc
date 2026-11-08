@@ -112,8 +112,17 @@ Folder Invalid(std::optional<int64_t> generation, const std::string& path, std::
   return Folder{"invalid", generation.value_or(0), path, std::move(error), {}};
 }
 
+std::string ExtensionPath(const std::string& data_directory) {
+  return RealPath(data_directory) + "/" + kScriptsName + "/extension";
+}
+
+std::optional<std::string> MakeScriptsFolder(const std::string& scripts) {
+  if (mkdir(scripts.c_str(), 0755) == 0 || errno == EEXIST) return std::nullopt;
+  return std::string("Couldn't create Scripts: ") + strerror(errno);
+}
+
 Folder Snapshot(const std::string& data_directory, const std::string& scripts, const ManifestCheck& check) {
-  const std::string path = RealPath(data_directory) + "/" + kScriptsName + "/extension";
+  const std::string path = ExtensionPath(data_directory);
   Fd folder = OpenFolder(scripts);
   const std::optional<int64_t> written = ReadGeneration(folder.get(), "generation");
   struct stat info;
@@ -245,7 +254,9 @@ std::optional<std::string> CheckFile(int extension_fd, std::string_view relative
 
 Folder Read(const std::string& data_directory, const ManifestCheck& check) {
   const std::string scripts = ScriptsPath(data_directory);
-  mkdir(scripts.c_str(), 0755);
+  if (std::optional<std::string> failed = MakeScriptsFolder(scripts)) {
+    return Invalid(std::nullopt, ExtensionPath(data_directory), std::move(*failed));
+  }
   Fd lock(open((scripts + "/.lock").c_str(), O_RDONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | O_NOCTTY, 0644));
   struct stat lock_info;
   if (!lock.valid() || fstat(lock.get(), &lock_info) != 0 || !S_ISREG(lock_info.st_mode)) {
@@ -292,13 +303,13 @@ std::optional<std::string> ReadStatus(const std::string& data_directory) {
 std::optional<std::string> WriteStatus(const std::string& data_directory, std::string_view json) {
   if (json.size() > kStatusLimit) return "status.json is too large";
   const std::string scripts = ScriptsPath(data_directory);
-  mkdir(scripts.c_str(), 0755);
+  if (std::optional<std::string> failed = MakeScriptsFolder(scripts)) return failed;
   Fd folder = OpenFolder(scripts);
   if (!folder.valid()) return "Scripts isn't a plain folder";
   const std::string temporary = TemporaryName();
   Fd file(openat(folder.get(), temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0644));
   if (!file.valid()) return std::string("Couldn't write status.json: ") + strerror(errno);
-  const bool wrote = WriteAll(file.get(), json);
+  const bool wrote = WriteAll(file.get(), json) && fsync(file.get()) == 0;
   const int saved = errno;
   file.Reset();
   if (!wrote) {

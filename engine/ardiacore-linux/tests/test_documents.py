@@ -246,6 +246,135 @@ int main() {
 '''
         self.run_main(compiler, main)
 
+    def test_a_failed_retirement_frees_its_receipt_on_the_next_write(self):
+        compiler = shutil.which('clang++') or shutil.which('c++')
+        self.assertIsNotNone(compiler)
+        main = r'''
+#include <cassert>
+#include <optional>
+#include <string>
+#include "ardia/linux/ac_linux_documents.h"
+#include "ardia/linux/ac_linux_document_reducer.h"
+using namespace ardia;
+int main() {
+  std::optional<base::DictValue> disk;
+  bool failing = false;
+  auto read = [&](std::string_view name) {
+    LinuxDocumentRead result;
+    if (name == kLinuxLiveEnvelope && disk) {
+      result.state = LinuxDocumentRead::State::kFound;
+      result.value = disk->Clone();
+    }
+    return result;
+  };
+  auto write = [&](const base::DictValue& value) {
+    if (failing) return false;
+    disk = value.Clone();
+    return true;
+  };
+  auto request = [](const LinuxDocumentClient& client, int sequence, bool present) {
+    base::DictValue operation;
+    operation.Set("type", "member"); operation.Set("target", "hiddenCalendarIds");
+    operation.Set("member", "shared"); operation.Set("present", base::Value(present));
+    base::ListValue operations; operations.Append(base::Value(std::move(operation)));
+    base::DictValue value;
+    value.Set("document", "live.json"); value.Set("epoch", "epoch");
+    value.Set("requestId", client.id + ":" + std::to_string(sequence));
+    value.Set("observedRevision", base::Value(0));
+    value.Set("operations", base::Value(std::move(operations)));
+    return value;
+  };
+  LinuxDocuments service("scope", "epoch", read, write);
+  LinuxDocumentClient gone{"window:gone", "scope", true, true};
+  LinuxDocumentClient other{"window:other", "scope", true, true};
+  LinuxDocumentClient third{"window:third", "scope", true, true};
+  assert(service.Watch(gone, [](auto) {}).ok());
+  assert(service.Watch(other, [](auto) {}).ok());
+  assert(service.Watch(third, [](auto) {}).ok());
+  assert(service.Commit(gone, request(gone, 1, true)).ok());
+  failing = true;
+  service.Retire(gone);
+  failing = false;
+  assert(disk->FindDict("clients")->contains(gone.id));
+  assert(service.Commit(other, request(other, 1, false)).ok());
+  assert(!disk->FindDict("clients")->contains(gone.id));
+  assert(disk->FindDict("clients")->contains(other.id));
+  assert(service.Commit(third, request(third, 1, true)).ok());
+  failing = true;
+  service.Retire(third);
+  failing = false;
+  service.Unwatch(other);
+  assert(!disk->FindDict("clients")->contains(third.id));
+  assert(disk->FindDict("clients")->contains(other.id));
+}
+'''
+        self.run_main(compiler, main)
+
+    def test_retired_clients_free_their_receipts(self):
+        compiler = shutil.which('clang++') or shutil.which('c++')
+        self.assertIsNotNone(compiler)
+        main = r'''
+#include <cassert>
+#include <optional>
+#include <string>
+#include "ardia/linux/ac_linux_documents.h"
+#include "ardia/linux/ac_linux_document_reducer.h"
+using namespace ardia;
+int main() {
+  std::optional<base::DictValue> disk;
+  auto read = [&](std::string_view name) {
+    LinuxDocumentRead result;
+    if (name == kLinuxLiveEnvelope && disk) {
+      result.state = LinuxDocumentRead::State::kFound;
+      result.value = disk->Clone();
+    }
+    return result;
+  };
+  auto write = [&](const base::DictValue& value) { disk = value.Clone(); return true; };
+  auto request = [](const std::string& epoch, const LinuxDocumentClient& client, int sequence, bool present) {
+    base::DictValue operation;
+    operation.Set("type", "member"); operation.Set("target", "hiddenCalendarIds");
+    operation.Set("member", "shared"); operation.Set("present", base::Value(present));
+    base::ListValue operations; operations.Append(base::Value(std::move(operation)));
+    base::DictValue value;
+    value.Set("document", "live.json"); value.Set("epoch", epoch);
+    value.Set("requestId", client.id + ":" + std::to_string(sequence));
+    value.Set("observedRevision", base::Value(0));
+    value.Set("operations", base::Value(std::move(operations)));
+    return value;
+  };
+  LinuxDocuments service("scope", "epoch", read, write);
+  LinuxDocumentClient kept{"kept", "scope", true, true};
+  assert(service.Watch(kept, [](auto) {}).ok());
+  assert(service.Commit(kept, request("epoch", kept, 1, true)).ok());
+  service.Unwatch(kept);
+  assert(service.Watch(kept, [](auto) {}).ok());
+  assert(LinuxDocumentInteger(service.Watch(kept, [](auto) {}).value, "watermark") == 1);
+  assert(service.Commit(kept, request("epoch", kept, 2, false)).ok());
+  for (int index = 0; index < 300; ++index) {
+    LinuxDocumentClient renderer{"window:" + std::to_string(index), "scope", true, true};
+    assert(service.Watch(renderer, [](auto) {}).ok());
+    auto committed = service.Commit(renderer, request("epoch", renderer, 1, index % 2 == 0));
+    assert(committed.ok() && *committed.value.FindString("status") == "committed");
+    assert(service.Seal(renderer, "close", 1).ok());
+    service.Retire(renderer);
+    assert(!disk->FindDict("clients")->contains(renderer.id));
+  }
+  assert(disk->FindDict("clients")->size() == 1 && disk->FindDict("clients")->contains("kept"));
+  LinuxDocumentClient again{"window:0", "scope", true, true};
+  assert(service.Watch(again, [](auto) {}).ok());
+  assert(service.Commit(again, request("epoch", again, 1, true)).ok());
+  LinuxDocuments restarted("scope", "next", read, write);
+  LinuxDocumentClient fresh{"fresh", "scope", true, true};
+  auto snapshot = restarted.Watch(fresh, [](auto) {});
+  assert(snapshot.ok() && LinuxDocumentInteger(snapshot.value, "watermark") == 0);
+  assert(disk->FindDict("clients")->size() == 0);
+  assert(restarted.Commit(fresh, request("next", fresh, 1, false)).ok());
+  assert(disk->FindDict("clients")->size() == 1);
+}
+'''
+        self.run_main(compiler, main)
+
     def run_main(self, compiler, main):
         with tempfile.TemporaryDirectory(prefix='ardia-documents-') as scratch:
             root = pathlib.Path(scratch)

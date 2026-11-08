@@ -51,8 +51,9 @@ function harness(options = {}) {
     reject: async (value) => { log.push(["barrier-reject", value.closeGeneration]); },
     resume: (value) => { log.push(["resume", value.closeGeneration]); coordinator.producersResumed(value); },
   });
+  const own = options.windowId ? { ...main, windowId: options.windowId } : main;
   const coordinator = createWindowCloseCoordinator({
-    windowId: "main",
+    windowId: own.windowId,
     utility: !!options.utility,
     decide: options.decide ?? ((windowId, reason, ask) => {
       log.push(["decide", windowId, reason]);
@@ -66,7 +67,7 @@ function harness(options = {}) {
     },
     suppress: (reason) => log.push(["suppress", reason]),
     flush: async () => { log.push(["flush"]); },
-    request: async () => main,
+    request: async () => own,
     beginDrain: async (value) => { log.push(["begin", value.closeGeneration]); return { accepted: true, endsSession: options.endsSession ?? true }; },
     reject: async (value) => { log.push(["reject", value.closeGeneration]); },
     barrier,
@@ -224,4 +225,32 @@ test("a window's departure snapshot is the state the store's own closeWindow set
   assert.deepEqual(departed.windowOrder, closed.windowOrder);
   assert.deepEqual(Object.keys(departed.tabs).sort(), Object.keys(closed.tabs).sort());
   assert.deepEqual(departed.closedWindows.map((entry) => entry.tabs.map((tab) => tab.url)), closed.closedWindows.map((entry) => entry.tabs.map((tab) => tab.url)));
+});
+
+test("a window the store already closed, like the last private window, closes natively without a warning", async () => {
+  const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
+  const { decideLinuxWindowClose } = await import("./windowCloseDecider.ts");
+  useBrowser.getState().hydrate({});
+  useBrowser.getState().createWindow({ url: "https://staying.ardia.test/" });
+  const privateWindow = useBrowser.getState().createWindow({ kind: "private", url: "https://one.ardia.test/" });
+  useBrowser.getState().newTab(privateWindow, { url: "https://two.ardia.test/" });
+  useBrowser.getState().closeWindow(privateWindow);
+  const { log, coordinator } = harness({ windowId: privateWindow, endsSession: false, decide: decideLinuxWindowClose });
+  await coordinator.closeWindow(privateWindow);
+  assert.deepEqual(steps(log), ["begin", "quiesce", "drain", "acknowledge"]);
+  assert.deepEqual(await decideLinuxWindowClose(privateWindow, "lastTab"), { decision: "allow", suppressWarning: false });
+});
+
+test("a window still in the store keeps its close warning", async () => {
+  const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
+  const { decideLinuxWindowClose } = await import("./windowCloseDecider.ts");
+  useBrowser.getState().hydrate({});
+  useBrowser.getState().createWindow({ url: "https://staying.ardia.test/" });
+  const leaving = useBrowser.getState().createWindow({ url: "https://one.ardia.test/" });
+  useBrowser.getState().newTab(leaving, { url: "https://two.ardia.test/" });
+  useBrowser.getState().updateSettings({ warnBeforeClosingWindow: true });
+  const asked = [];
+  const decided = await decideLinuxWindowClose(leaving, "window", async (options) => { asked.push(options.title); return { confirmed: false, suppressed: false }; });
+  assert.deepEqual(decided, { decision: "cancel", suppressWarning: false });
+  assert.deepEqual(asked, ["Close 2 tabs?"]);
 });

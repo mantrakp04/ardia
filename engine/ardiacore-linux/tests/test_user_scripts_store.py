@@ -51,6 +51,9 @@ class UserScriptsStoreTests(unittest.TestCase):
     def test_the_watch_signature_follows_the_generation_and_the_extension_folder_only(self):
         self.run_case('signature')
 
+    def test_a_scripts_folder_that_cant_be_created_reports_the_real_error(self):
+        self.run_case('uncreatable')
+
 
 if __name__ == '__main__':
     unittest.main()

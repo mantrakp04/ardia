@@ -72,12 +72,26 @@ fi
 for tool in node python3 sha256sum tar xz git; do
   command -v "$tool" >/dev/null || die "$tool is required"
 done
+node scripts/lib/release-note.mjs "docs/release-notes/$version.md" headline >/dev/null \
+  || die "docs/release-notes/$version.md: its frontmatter doesn't read (above)"
+
+release_output_entry() {
+  case $1 in
+    provenance.txt|ui-build.log|cli-build.log|ubo.log|smoke) return 0 ;;
+    Ardia-*-linux-x64.tar.xz|Ardia-*-linux-x64.tar.xz.sha256) return 0 ;;
+    ardia-cli-*-linux-x64.tar.gz|ardia-cli-*-linux-x64.tar.gz.sha256|ardia-cli-*-linux-x64.tar.gz.part) return 0 ;;
+  esac
+  return 1
+}
 
 out=${out:-$root/dist/$version/linux}
 if [ -e "$out" ]; then
   [ -d "$out" ] || die "$out is not a directory"
-  if [ -n "$(ls -A "$out")" ] && [ ! -f "$out/provenance.txt" ]; then
-    die "$out is neither empty nor an earlier Linux release output (no provenance.txt): choose another --out"
+  if [ -n "$(ls -A "$out")" ]; then
+    [ -f "$out/provenance.txt" ] || die "$out is neither empty nor an earlier Linux release output (no provenance.txt): choose another --out"
+    while IFS= read -r -d '' entry; do
+      release_output_entry "${entry##*/}" || die "$out holds ${entry##*/}, which a Linux release build never writes: move it away or choose another --out"
+    done < <(find "$out" -mindepth 1 -maxdepth 1 -print0)
   fi
   rm -rf "$out"
 fi

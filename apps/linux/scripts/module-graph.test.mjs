@@ -161,6 +161,10 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(tabDrag.importedIds.includes(`${linux}dragWebviews.ts`), "a tab drag reaches page pictures through the Linux drag preview gate");
   assert.ok(!tabDrag.importedIds.includes(`${browser}platform/webviews.ts`));
 
+  const appCommands = graph.get(`${browser}state/commands/appCommands.ts`);
+  assert.ok(appCommands.importedIds.includes(`${linux}reportProblem.ts`), "Report a Problem from any shared path reaches the Linux issue page, not the sheet that can't send");
+  assert.ok(!appCommands.importedIds.includes(`${browser}state/report/actions.ts`));
+
   const passwordsPane = graph.get(`${browser}components/settings/panes/Passwords.tsx`);
   assert.ok(passwordsPane.importedIds.includes(`${linux}importedPasswordSave.ts`), "the Passwords pane saves imported handles through the Linux adapter");
   assert.ok(!passwordsPane.importedIds.includes(`${browser}state/site/passwords.ts`));

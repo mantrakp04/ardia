@@ -5,12 +5,15 @@ Ardia can be set up from plain files, dotfiles style, and from the `ardia` comma
 ## Where
 
 The config folder is `~/.config/ardia/`. An instance started with `ARDIA_DATA_DIR` uses `<data dir>/config` instead,
-so test instances never read the owner's files. No other environment variable picks it (a Finder-launched app never
-sees the shell's `XDG_CONFIG_HOME`, so honouring it would make the app and the CLI disagree). The app resolves it in
-`ArdiaLaunchConfig`; the CLI resolves it the same way from `--data-dir` / `$ARDIA_DATA_DIR`.
+so test instances never read the owner's files. On macOS no other environment variable picks it (a Finder-launched app
+never sees the shell's `XDG_CONFIG_HOME`, so honouring it would make the app and the CLI disagree). The app resolves it
+in `ArdiaLaunchConfig`; the CLI resolves it the same way from `--data-dir` / `$ARDIA_DATA_DIR`.
 
-On Linux, `~/.config/ardia` is Chromium's own user data dir (`Local State`, `Default/`, `ArdiaControl.json`…), so the
-config folder is always `<data dir>/config`: `${XDG_CONFIG_HOME:-~/.config}/ardia/config` by default
+Linux is the exception, because there the folder hangs off Chromium's own user data dir, and Chromium already picks
+that from `XDG_CONFIG_HOME` (and the engine from `ARDIA_CONFIG_HOME`). The CLI has to follow the same variables just to
+find `ArdiaControl.json`, so honouring them for the config folder adds no new way for the two to disagree.
+`~/.config/ardia` is that data dir (`Local State`, `Default/`, `ArdiaControl.json`…), so the config folder is always
+`<data dir>/config`: `${XDG_CONFIG_HOME:-~/.config}/ardia/config` by default
 (`$ARDIA_CONFIG_HOME/ardia/config` when that's set, as the engine does), `<user data dir>/config` for an instance
 started with `--user-data-dir`, and `<data dir>/config` for the CLI's `--data-dir` / `$ARDIA_DATA_DIR`. Keeping it a
 folder of its own lets a dotfiles repo own it (one symlink) without Chromium's files landing in the repo, and it is

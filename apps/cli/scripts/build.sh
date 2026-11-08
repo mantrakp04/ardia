@@ -73,7 +73,10 @@ esbuild_asset=esbuild-$esbuild_platform-$esbuild_version.tgz
 esbuild_url=https://registry.npmjs.org/@esbuild/$esbuild_platform/-/$esbuild_platform-$esbuild_version.tgz
 
 if [ "$platform" = linux-x64 ]; then
-  cache=${XDG_CACHE_HOME:-$HOME/.cache}/ardia-cli-build
+  case ${XDG_CACHE_HOME:-} in
+    /*) cache=$XDG_CACHE_HOME/ardia-cli-build ;;
+    *) cache=$HOME/.cache/ardia-cli-build ;;
+  esac
   sha256() { sha256sum "$@"; }
   sha512_base64() { openssl dgst -sha512 -binary "$1" | base64 -w 0; }
 else

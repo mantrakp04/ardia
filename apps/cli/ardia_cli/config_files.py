@@ -66,9 +66,8 @@ def places(data_dir: str | None = None) -> Places:
     return Places(default_folder(), endpoint.INSTALLED_DATA_DIR)
 
 
-def default_folder(linux: bool | None = None) -> Path:
-    linux = endpoint.LINUX if linux is None else linux
-    return endpoint.INSTALLED_DATA_DIR / "config" if linux else Path.home() / ".config" / "ardia"
+def default_folder() -> Path:
+    return endpoint.INSTALLED_DATA_DIR / "config" if endpoint.LINUX else Path.home() / ".config" / "ardia"
 
 
 def is_theme_name(name) -> bool:

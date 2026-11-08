@@ -382,11 +382,6 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       if (authenticated) {
                         credential = session.delegate->GetCredentialFromId(id);
                       }
-#if BUILDFLAG(IS_LINUX)
-                      reply.SendSecret(
-                          "password",
-                          credential ? &credential->password : nullptr);
-#else
                       base::DictValue result;
                       if (credential) {
                         std::u16string plain = credential->password.value();
@@ -396,8 +391,7 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       } else {
                         result.Set("password", base::Value());
                       }
-                      reply.Send(std::move(result));
-#endif
+                      reply.SendSecret(std::move(result));
                     },
                     entry->id));
           },

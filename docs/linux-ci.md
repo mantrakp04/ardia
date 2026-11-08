@@ -120,14 +120,17 @@ It refuses any sandbox-disabling switch. Every check must run and pass:
     (`--version <VERSION> --sha256 <digest>`, `ARDIA_CLI_URL=file://…`). `HOME`, `XDG_DATA_HOME`, `ARDIA_CLI_HOME` and
     `ARDIA_CLI_BIN_DIR` all point into the scratch folder. `ardia --version` must print the package version, and a
     second install must be a no-op.
-11. `cli-control`: a third instance turns `cliControl` on. Then `ardia windows` and `ardia exec` (a new tab's title,
-    then `tab.title()`) must succeed with `--data-dir <profile>`. Turning it off must make `ardia windows` exit 2.
+11. `cli-control`: a third instance turns `cliControl` on. Then, with `--data-dir <profile>`, `ardia windows` must
+    succeed, `ardia browse open <fixture>` (a background tab) then `get title` must read the fixture's title, and
+    `ardia windows` must list that tab. Turning control off must make `ardia windows` exit 2. It doesn't use
+    `open --show`: that switches Ardia to the tab, but on Linux the page can stay hidden, so the command fails (see
+    [cli.md](cli.md) › Linux).
     The app doesn't start its token server when `--remote-debugging-port` is set, so this instance is driven over
     `--remote-debugging-pipe` instead.
 12. `cli-scripts`: a fourth pipe-driven instance, with extensions on, turns `cliControl` on. `ardia scripts install`
     of a userscript that prefixes the fixture's title must report the profile `loaded`, `ardia scripts list` must show
-    it as reported by Ardia, and a new tab on the fixture must open retitled. After `ardia scripts uninstall` it must
-    report `removed`, and the fixture must open with its own title.
+    it as reported by Ardia, and the fixture opened with `ardia browse` must read retitled. After
+    `ardia scripts uninstall` it must report `removed`, and the fixture must open with its own title.
 
 Checks 9 to 12 report `skip` and pass for a dev package without `VERSION` or `cli/`. Each can also report `old` when
 the engine's host predates the feature: `appVersion` is Chromium's own version, the bootstrap advertises none of

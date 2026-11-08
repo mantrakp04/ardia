@@ -163,7 +163,7 @@ bool Replace(int directory, const std::string& folder, const std::string& name, 
     *error = Failure("Couldn't create a temporary file in", folder, errno);
     return false;
   }
-  const bool wrote = WriteAll(fd, contents);
+  const bool wrote = WriteAll(fd, contents) && fsync(fd) == 0;
   const int write_error = errno;
   const bool closed = close(fd) == 0;
   const int close_error = errno;

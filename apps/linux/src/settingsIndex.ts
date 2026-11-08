@@ -1,11 +1,13 @@
 import * as shared from "../../browser/src/components/settings/settingsIndex.ts";
 import { linuxCapabilities, unavailablePanes, unavailableSettingIds } from "./hostCapabilities.ts";
+import { hostSupports } from "./host.ts";
 
 export * from "../../browser/src/components/settings/settingsIndex.ts";
 
 const capabilities = linuxCapabilities();
 const hiddenPanes = unavailablePanes(capabilities);
 const hiddenSettings = unavailableSettingIds(capabilities, shared.SETTINGS.map((entry) => entry.id));
+if (!hostSupports("ArdiaTelemetryLocal.exportToDownloads")) hiddenSettings.add("privacy.viewData");
 
 export const settingUnavailable = (id: string | undefined) => !!id && hiddenSettings.has(id);
 export const sectionUnavailable = (pane: string | null | undefined, section: string | undefined) => {

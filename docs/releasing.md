@@ -226,9 +226,10 @@ release commit, run `scripts/linux/release.sh <version>`, then the `gh release u
 - `Ardia-<version>-linux-x64.tar.xz` and its `.sha256`: the browser, with `lib/ardia/VERSION` and the bundled CLI.
 - `ardia-cli-<version>-linux-x64.tar.gz` and its `.sha256`: the `ardia` command for Linux.
 
-The script refuses what `release.sh` refuses: a missing notes file, a `MARKETING_VERSION` other than `<version>`, and
-uncommitted changes (here under `apps/browser`, `apps/linux`, `apps/cli`, `packages`, `engine` or `scripts/linux`). It
-uses the exact Linux engine for HEAD's `engine/` tree, so publish that first. A nightly and a stable go the same way.
+The script refuses what `release.sh` refuses: a missing notes file or one whose frontmatter doesn't read, a
+`MARKETING_VERSION` other than `<version>`, and uncommitted changes (here under `apps/browser`, `apps/linux`,
+`apps/cli`, `packages`, `engine` or `scripts/linux`). It uses the exact Linux engine for HEAD's `engine/` tree, so
+publish that first. A nightly and a stable go the same way.
 See [linux-ci.md](linux-ci.md) › Linux releases.
 
 ## CI releases

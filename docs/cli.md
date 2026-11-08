@@ -968,7 +968,8 @@ looks in the cwd.
 ### Install contract with the app
 
 The data dir is `--data-dir`, else `$ARDIA_DATA_DIR`, else the installed app's (`~/Library/Application
-Support/com.ardia.browser`; on Linux `${XDG_CONFIG_HOME:-~/.config}/ardia`, see How it finds Ardia).
+Support/com.ardia.browser`; on Linux `${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia`, see How it finds
+Ardia).
 
 1. The CLI takes an exclusive `flock` on `<data dir>/Scripts/.lock` (polled, 30 s deadline). The app takes a shared
    one while it reads and validates. `Scripts/`, `Scripts/scripts/`, record folders and `extension/` must be real
@@ -1321,8 +1322,10 @@ The app runs `install.sh` with its own environment minus every `ARDIA_*` variabl
   already points into `$ARDIA_CLI_HOME` and refuses anything else. With the default bin dir off the login shell's
   PATH, it adds `export PATH="$HOME/.local/bin:$PATH"` to the shell's login file once: on macOS `~/.zprofile`
   (`~/.bash_profile` for bash); on Linux `~/.zprofile` for zsh, `~/.bash_profile` for bash when it exists, else
-  `~/.profile`, and `~/.profile` for any other shell. The login shell comes from `dscl` on macOS and `getent passwd`
-  on Linux, else `$SHELL`.
+  `~/.profile`, and `~/.profile` for any other shell. Fish reads none of those, so for fish (on both) it writes
+  `contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH` to
+  `${XDG_CONFIG_HOME:-~/.config}/fish/conf.d/ardia.fish` instead. The login shell comes from `dscl` on macOS and
+  `getent passwd` on Linux, else `$SHELL`.
 - A version that is already current is a no-op. Two runs never overlap: each takes a flock on
   `$ARDIA_CLI_HOME/.lock` through fd 9 (`/usr/bin/lockf -s -t 120 9`; `flock -w 120 9` on Linux). The kernel drops it
   when the run exits, even on
@@ -1393,7 +1396,8 @@ installed. On Linux, the installer:
 apps/cli/scripts/build.sh 0.0.1 /tmp/ardia-cli-out --platform linux-x64
 HOME=/tmp/ardia-cli-home ARDIA_CLI_URL=file:///tmp/ardia-cli-out/ardia-cli-0.0.1-linux-x64.tar.gz \
   /bin/sh apps/cli/install.sh
-/tmp/ardia-cli-home/.local/bin/ardia exec --port <port> 'await tab.title()'
+/tmp/ardia-cli-home/.local/bin/ardia browse --port <port> open https://example.com
+/tmp/ardia-cli-home/.local/bin/ardia browse --port <port> get title
 ```
 
 Any Chromium works for `--port`: `chromium --headless=new --remote-debugging-port=<port> --user-data-dir=<scratch>`.
@@ -1402,24 +1406,28 @@ Any Chromium works for `--port`: `chromium --headless=new --remote-debugging-por
 
 The same CLI, with these differences:
 
-- Paths: data dir `${XDG_CONFIG_HOME:-~/.config}/ardia` (the engine's Chromium user data dir, holding
-  `ArdiaControl.json`, `ArdiaControl.sock` and the `Default`/`Profile N` folders), config folder
-  `${XDG_CONFIG_HOME:-~/.config}/ardia/config` (`<data dir>/config`, which the app reads too; on macOS it's always
-  `~/.config/ardia`), so `hooks.json` lives there as well, CLI home
+- Paths: data dir `${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia` (the engine's Chromium user data dir,
+  holding `ArdiaControl.json`, `ArdiaControl.sock` and the `Default`/`Profile N` folders), config folder
+  `<data dir>/config` (`${ARDIA_CONFIG_HOME:-${XDG_CONFIG_HOME:-~/.config}}/ardia/config` by default, which the app
+  reads too; on macOS the default is `~/.config/ardia`), so `hooks.json` lives there as well, CLI home
   `${XDG_DATA_HOME:-~/.local/share}/ardia/cli`, bin dir `~/.local/bin`, hooks log
   `${XDG_STATE_HOME:-~/.local/state}/ardia/hooks.log` (rotated at 5 MB as on macOS). An `XDG_*_HOME` that isn't an
-  absolute path is ignored, as the XDG spec, systemd and the engine's CLI installer do, except `XDG_CONFIG_HOME` for
-  the data dir and config folder, where Chromium takes any non-empty value.
+  absolute path is ignored, as the XDG spec, systemd and the engine's CLI installer do, except `XDG_CONFIG_HOME` (and
+  `ARDIA_CONFIG_HOME`) for the data dir and config folder, where Chromium takes any non-empty value.
 - `ardia hooks install` writes `${XDG_CONFIG_HOME:-~/.config}/systemd/user/dev.ardia.hooks.service` (`Type=exec`,
   `ExecStart` the installed `current/bin/ardia hooks run --log <log>`, `WorkingDirectory` the home folder, `PATH`
-  from the installing shell and an empty `ARDIA_DATA_DIR`, `Restart=on-failure` with `RestartSec=10` and
+  from the installing shell, an empty `ARDIA_DATA_DIR` and `ARDIA_CONFIG_HOME` set to the folder the installing
+  shell resolved (`$ARDIA_CONFIG_HOME`, else `${XDG_CONFIG_HOME:-~/.config}`), so the service reads the same
+  `hooks.json` and reaches the same Ardia as `ardia hooks list` even when the systemd user manager's environment
+  differs, `Restart=on-failure` with `RestartSec=10` and
   `StartLimitIntervalSec=0` so it never gives up, output to null, `WantedBy=default.target`), then runs `systemctl
   --user daemon-reload`, `enable` and `restart` (so a reinstall picks up a new unit). `hooks run` exits 0 only on
   SIGTERM or SIGHUP, so `systemctl --user stop` sticks and every crash restarts it. `uninstall` runs `disable --now`,
   removes the unit and reloads; `list` reads `systemctl --user show` and prints whether it's active. Paths in the unit
   escape `%`, `$`, `"` and `\`; control characters are refused.
-- `ardia config edit` uses `$VISUAL`, then `$EDITOR`; with neither it opens the file with `xdg-open`, which returns
-  at once, so it prints a reminder to run `ardia config check` instead of checking (`vi` when there's no `xdg-open`).
+- `ardia config edit` uses `$VISUAL`, then `$EDITOR`; with neither, in a desktop session (`$DISPLAY` or
+  `$WAYLAND_DISPLAY` set) it opens the file with `xdg-open`, which returns at once, so it prints a reminder to run
+  `ardia config check` instead of checking. Without a display (an SSH session) or without `xdg-open` it uses `vi`.
 - `ardia scripts install|uninstall|list` use `<data dir>/Scripts`, which is where the engine's scripts policy looks on
   Linux (the Mac's `Chromium/..` parent would be `~/.config` here). The Linux host reads, watches and reports the
   folder with the same contract as the Mac (`ac_linux_user_scripts*.cc`, see [linux-port.md](linux-port.md) › "The
@@ -1428,7 +1436,13 @@ The same CLI, with these differences:
   `tab <id> --show` switch Ardia to the tab, but a tab it opened in the background stays hidden to the page, so `click`
   and typing refuse it with the hidden-tab error. `auth` stores passwords through `/usr/bin/security`, the macOS
   Keychain tool, which Linux doesn't have.
-- `await pinned()` reads the host's session, `<data dir>/<app profile>/Ardia/linux-session.json`
+- `ardia computer` is macOS only (cua-driver drives macOS apps): `setup` and every passthrough print `ardia computer:
+  computer use through cua-driver needs macOS here` and exit 1, and `computer refresh`, which `install.sh` starts after
+  an upgrade, does nothing. `skills refresh` works as on macOS.
+- The caller name (`ardia_cli/caller.py`) walks the parent processes through `/proc/<pid>/stat`, `exe` and `cmdline`
+  instead of libproc and `sysctl`; app bundles don't exist here, so a process with no known agent above it is
+  `ardia`. Telemetry's `startup_ms` reads the process start from `/proc/self/stat` against `CLOCK_BOOTTIME`.
+- `ardia pinned` reads the host's session, `<data dir>/<app profile>/Ardia/linux-session.json`
   (`engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc`, `MergeAndWriteSession`; the shape is
   `snapshotHostSession` in `apps/linux/src/hostSession.ts`), never `session.json`. The app profile is the folder
   `profile.last_used` names in `<data dir>/Local State`, which the host pins to its app profile, when it's `Default`
@@ -1438,5 +1452,5 @@ The same CLI, with these differences:
   `windowOrder`, tab order, pin keys, folders and `parkedPins` are all there, so the rows match macOS's. The host
   writes it with `ImportantFileWriter::WriteFileAtomically` (a temp file in `Ardia/`, then a rename), so the CLI
   opens the profile folder, `Ardia` and the file each with `O_NOFOLLOW` (relative to the folder above) and reads
-  the one file it opened, which is always a whole version; it never writes there. `history()` takes its profile
+  the one file it opened, which is always a whole version; it never writes there. `ardia history` takes its profile
   labels from the same file (`Profile <dataId>` is that profile's folder).

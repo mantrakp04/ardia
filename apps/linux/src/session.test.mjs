@@ -646,3 +646,41 @@ test("the merged Top Apps circles survive a save and a canonical update from ano
   assert.equal(sessionStatePatch(state, local, { ...local, topAppsMerged: "default,home" }).topAppsMerged, "default,home");
   assert.equal("topAppsMerged" in sessionStatePatch(state, local, local), false);
 });
+
+test("which settings the user chose survives a save and a canonical update from another window", () => {
+  const state = { ...useBrowser.getState(), settingsMeta: { chosen: ["theme"], inferred: [] } };
+  const local = snapshotHostSession(state);
+  assert.deepEqual(local.settingsMeta, { chosen: ["theme"], inferred: [] });
+  assert.deepEqual(sessionStatePatch(state, local, { ...local, settingsMeta: { chosen: ["theme", "tabLayout"], inferred: [] } }).settingsMeta, { chosen: ["theme", "tabLayout"], inferred: [] });
+  assert.equal("settingsMeta" in sessionStatePatch(state, local, local), false);
+});
+
+test("the Linux session snapshot saves every field the shared session saves, except the Mac's early launch tab", async () => {
+  const { readFileSync } = await import("node:fs");
+  const persist = readFileSync(new URL("../../browser/src/state/session/persist.ts", import.meta.url), "utf8");
+  const body = persist.slice(persist.indexOf("const SESSION_FIELDS = {"), persist.indexOf("\n};", persist.indexOf("const SESSION_FIELDS = {")));
+  const shared = [...body.matchAll(/^  (\w+): field\(/gm)].map((match) => match[1]);
+  assert.ok(shared.length > 20, shared.join(", "));
+  const linux = new Set([...Object.keys(snapshotHostSession(useBrowser.getState())), "focusedWindowId", "lastProfileId"]);
+  assert.deepEqual(shared.filter((key) => !linux.has(key)), ["launchTab", "launchBackdrop", "linkProfile"]);
+});
+
+test("a launch that doesn't restore windows keeps each one as a closed window with its tab layout, and drops the Mac's last-window marks and empty entries", () => {
+  const saved = browserSession();
+  const windowId = Object.keys(saved.windows)[0];
+  saved.windows[windowId] = { ...saved.windows[windowId], tabLayout: "top" };
+  const tab = { url: "https://kept.example/", title: "Kept", profileId: "default", active: true };
+  saved.closedWindows = [
+    { kind: "window", id: "cw-last", window: { profileId: "default", sidebarOpen: true, frame: null }, tabs: [tab], groups: [], closedAt: 1, lastWindow: true, activePin: "pin:x" },
+    { kind: "window", id: "cw-pins", window: { profileId: "default", sidebarOpen: true, frame: null }, tabs: [], groups: [], closedAt: 2, lastWindow: true },
+  ];
+  const launched = initialLinuxSession({ bootstrap: { windowId: "fresh", profileId: "default", startup: true } }, saved);
+  const closed = launched.closedWindows;
+  assert.deepEqual(closed.map((c) => c.id).slice(0, 1), ["cw-last"]);
+  assert.equal(closed.some((c) => c.id === "cw-pins"), false);
+  assert.ok(closed.every((c) => !("lastWindow" in c) && !("activePin" in c)));
+  const fromLaunch = closed.at(-1);
+  assert.equal(fromLaunch.window.tabLayout, "top");
+  assert.equal(fromLaunch.tabs[0].url, "https://example.test/playing");
+  assert.equal(launched.windows[windowId], undefined);
+});

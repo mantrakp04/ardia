@@ -54,6 +54,7 @@ export const LINUX_WORDING: readonly Wording[] = [
     file: "components/settings/rows/privacyRows.ts",
     replacements: [
       [`description: "Every field, and what never leaves this Mac."`, `description: "Every field, and what never leaves this computer."`],
+      [`section: "Kept on this Mac"`, `section: "Kept on this computer"`],
       [`title: "Zoom with ⌘ and the mouse wheel"`, `title: "Zoom with Ctrl and the mouse wheel"`],
     ],
   },
@@ -61,6 +62,7 @@ export const LINUX_WORDING: readonly Wording[] = [
     file: "state/telemetry/copy.ts",
     replacements: [
       ["Sent to ardia.dev with a random ID made on this Mac, and kept", "Sent to ardia.dev with a random ID made on this computer, and kept"],
+      [`keptOnThisMac: "Kept on this Mac"`, `keptOnThisMac: "Kept on this computer"`],
       ["app version, update channel, macOS version, chip,", "app version, update channel, operating system version, chip,"],
       [
         `dailyCountShort: "Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID."`,
@@ -70,10 +72,32 @@ export const LINUX_WORDING: readonly Wording[] = [
         "change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
         "change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and operating system version and no persistent ID.",
       ],
-      ["A random install ID, made on this Mac (", "A random install ID, made on this computer ("],
+      ["A random install ID, made on this Mac once", "A random install ID, made on this computer once"],
       ["App version and build, macOS version, chip", "App version and build, operating system version, chip"],
+      [
+        "Every 10 minutes Ardia notes on this Mac its tab, window and profile counts, its memory use, rough free disk space, the Mac's memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the Mac restarted since.",
+        "Every 10 minutes Ardia notes on this computer its tab, window and profile counts, its memory use, rough free disk space, the system's memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the computer restarted since.",
+      ],
+      [
+        "how much memory the Mac has, how many displays and their scale, and whether the Mac decodes",
+        "how much memory the computer has, how many displays and their scale, and whether the computer decodes",
+      ],
       ["whether it's the first launch since the Mac started", "whether it's the first launch since the computer started"],
+      ["Its version, macOS version, chip and Python version, with this Mac's install ID", "Its version, operating system version, chip and Python version, with this computer's install ID"],
+      ["Leaves this Mac only as the events above", "Leaves this computer only as the events above"],
+      ["and the copy kept on this Mac is deleted.", "and the copy kept on this computer is deleted."],
+      [`title: "Kept on this Mac"`, `title: "Kept on this computer"`],
+      ["Saves the local copy to your Downloads folder and shows it in Finder.", "Saves the local copy to your Downloads folder and shows it in your file manager."],
+      ["Never leaves this Mac unless sharing is on", "Never leaves this computer unless sharing is on"],
     ],
+  },
+  {
+    file: "components/settings/panes/ShareDiagnostics.tsx",
+    replacements: [["and “Kept on this Mac”.`}", "and “Kept on this computer”.`}"]],
+  },
+  {
+    file: "state/commands/appCommands.ts",
+    replacements: [["`macOS ${app.osVersion} (${app.osBuild}), ${app.arch}", "`${app.osVersion} (${app.osBuild}), ${app.arch}"]],
   },
   {
     file: "components/import/steps/ChooseStep.tsx",

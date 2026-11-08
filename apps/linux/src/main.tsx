@@ -19,13 +19,13 @@ import { setStoreBatching, useBrowser, type HydrateData } from "../../browser/sr
 import { usePages } from "../../browser/src/state/tabs/pageState";
 import { useOnboarding } from "../../browser/src/state/onboarding/onboarding";
 import { adoptParkedPins } from "../../browser/src/state/pins/parkedPins";
-import { decideLastTabClose, decideWindowClose } from "../../browser/src/state/windows/windowClose";
+import { decideLinuxWindowClose } from "./windowCloseDecider";
 import { afterFirstWindow, firstWindowCommitted } from "../../browser/src/lib/afterFirstWindow";
 import { startCliControl } from "../../browser/src/state/app/cliControl";
 import { startAutomation } from "../../browser/src/state/automation/controlSocket";
 import { startUserScripts } from "../../browser/src/state/extensions/userScripts";
 import { leadUserScripts } from "./hostUserScripts";
-import { recordFreshProfile, startAppCommands, startLinuxAppServices, UTILITY_APP_COMMANDS } from "./appServices";
+import { LINUX_APP_COMMANDS, recordFreshProfile, startAppCommands, startLinuxAppServices, UTILITY_APP_COMMANDS } from "./appServices";
 import { linuxCapabilities } from "./hostCapabilities";
 import { useExtensions } from "../../browser/src/state/extensions/store";
 import { openExtensionFromMenu } from "../../browser/src/state/extensions/bridge";
@@ -66,7 +66,7 @@ import { useMeetingAlert } from "../../browser/src/state/live/alerts";
 
 Object.assign(globalThis, { ardiaLinux: { store: useBrowser, pages: usePages, emitCommand, extensions: useExtensions, openExtension: openExtensionFromMenu, webviews, media: useMedia, lifecycle: { state: useLifecycle }, sync: linuxSyncHooks, live: linuxLiveHooks, toolbar: useToolbarAutoHide, windowMenu: linuxWindowMenu, selection: { state: usePageSelection, jump: jumpToSelection, copyQuoteLink: copyLinkToSelection, replaceInField }, calendar: { state: useCalendar, connect: connectCalendar, refresh: refreshCalendar, hide: setCalendarHidden, alert: useMeetingAlert }, inputRegions } });
 setHostPageHooks({ reset: resetHostPage, applyTheme: applyHostPageTheme, depart: (tabId) => ardiaHost && forgetDepartedPage(tabId, ardiaHost.bootstrap.windowId) });
-setWindowCloseDecider((windowId, reason, ask) => reason === "lastTab" ? decideLastTabClose(windowId, ask) : decideWindowClose(windowId, ask));
+setWindowCloseDecider(decideLinuxWindowClose);
 
 function FirstWindowCommitted({ typeahead }: { typeahead: boolean }) {
   useEffect(() => {
@@ -80,7 +80,7 @@ function FirstWindowCommitted({ typeahead }: { typeahead: boolean }) {
 }
 
 async function start() {
-  setSharedCommands((command) => Object.hasOwn(COMMANDS, command));
+  setSharedCommands((command) => Object.hasOwn(COMMANDS, command) && !LINUX_APP_COMMANDS.has(command));
   if (!ardiaHost) throw new Error("The Linux desktop UI requires an Ardia native host");
   setNewTabPrewarm(false);
   const { windowId, profileId } = ardiaHost.bootstrap;

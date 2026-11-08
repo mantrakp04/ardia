@@ -224,7 +224,11 @@ bool BindPrivately(int fd, const std::string& directory, const std::string& path
     ok = false;
     *error = strerror(errno);
   }
-  if (ok && (lstat(path.c_str(), made) != 0 || made->st_dev != bound.st_dev || made->st_ino != bound.st_ino)) {
+  if (ok && lstat(path.c_str(), made) != 0) {
+    ok = false;
+    *error = strerror(errno);
+  }
+  if (ok && (made->st_dev != bound.st_dev || made->st_ino != bound.st_ino)) {
     ok = false;
     *error = "the socket moved while it was put in place";
   }

@@ -109,6 +109,7 @@
 #include "base/uuid.h"
 #include "base/unguessable_token.h"
 #include "base/values.h"
+#include "chrome/browser/ardia/ac_cli_visible_tabs.h"
 #include "chrome/browser/ardia/public/ac_engine.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
@@ -516,14 +517,20 @@ void TagTabForRestore(content::WebContents* contents, const std::string& key) {
 }
 
 struct RestoreTake {
-  base::OnceCallback<void(std::string)> done;
+  base::OnceCallback<void(std::string, std::optional<int>)> done;
 };
 
 void TookRestoredTab(void* context, const char* json) {
   std::unique_ptr<RestoreTake> take(static_cast<RestoreTake*>(context));
   const auto value = json ? base::JSONReader::Read(json, base::JSON_PARSE_RFC) : std::nullopt;
-  const std::string* state = value && value->is_dict() ? value->GetDict().FindString("state") : nullptr;
-  std::move(take->done).Run(state ? *state : std::string());
+  const base::DictValue* taken = value && value->is_dict() ? &value->GetDict() : nullptr;
+  const std::string* state = taken ? taken->FindString("state") : nullptr;
+  std::move(take->done).Run(state ? *state : std::string(), taken ? taken->FindInt("entry") : std::nullopt);
+}
+
+void ForgetRestoredTab(Profile* profile, int entry) {
+  const auto json = base::WriteJson(base::DictValue().Set("entry", entry));
+  if (json) ac_engine_call("ac_tab_restore_forget", profile->GetPath().value().c_str(), json->c_str(), &IgnoreEngineReply, nullptr);
 }
 
 bool RestoredTab(content::WebContents* contents) {
@@ -4650,14 +4657,15 @@ void ShellHostView::CreateTabFromCopy(Profile* profile, const base::DictValue& a
   plain.Remove("adoptId");
   if (kind == "clone") return CreateTabAdopting(profile, std::move(plain), InsertClone(profile, source), std::move(done));
   if (profile->IsOffTheRecord() || source.empty()) return CreateTabIn(profile, plain, std::move(done));
-  const auto json = base::WriteJson(base::DictValue().Set("key", source));
+  const auto json = base::WriteJson(base::DictValue().Set("key", source).Set("keep", true));
   if (!json) return CreateTabIn(profile, plain, std::move(done));
   const std::string key = String(args, "key");
   const uint64_t ticket = ++restore_tickets_;
   pending_restores_[key] = ticket;
   auto* take = new RestoreTake{base::BindOnce(
       [](base::WeakPtr<ShellHostView> host, uint64_t generation, base::WeakPtr<Profile> profile, std::string key,
-         uint64_t ticket, base::DictValue args, base::OnceCallback<void(bool, base::Value)> done, std::string state) {
+         uint64_t ticket, base::DictValue args, base::OnceCallback<void(bool, base::Value)> done, std::string state,
+         std::optional<int> entry) {
         if (!host) return std::move(done).Run(false, base::Value("The window closed while the closed tab was restored"));
         const auto pending = host->pending_restores_.find(key);
         if (pending == host->pending_restores_.end() || pending->second != ticket) {
@@ -4668,7 +4676,9 @@ void ShellHostView::CreateTabFromCopy(Profile* profile, const base::DictValue& a
             profile->ShutdownStarted()) {
           return std::move(done).Run(false, base::Value("The window changed while the closed tab was restored"));
         }
-        host->CreateTabAdopting(profile.get(), std::move(args), host->InsertRestored(profile.get(), state), std::move(done));
+        content::WebContents* restored = host->InsertRestored(profile.get(), state);
+        if (restored && entry) ForgetRestoredTab(profile.get(), *entry);
+        host->CreateTabAdopting(profile.get(), std::move(args), restored, std::move(done));
       },
       GetWeakPtr(), renderer_generation_, profile->GetWeakPtr(), key, ticket, std::move(plain), std::move(done))};
   ac_engine_call("ac_tab_restore_take", profile->GetPath().value().c_str(), json->c_str(), &TookRestoredTab, take);
@@ -7000,6 +7010,7 @@ void StartLinuxHost() {
   ardiacore::DecideTestGateAtStartup();
   ardiacore::InstallLinuxBackgroundFileDialogs();
   g_ardia_auto_picture_in_picture_off = true;
+  ardia::InstallCliVisibleTabs();
   g_ardia_linux_tab_shown = [](content::WebContents* contents) {
     for (const auto& [id, host] : Hosts()) {
       const int shown = host->TabShown(contents);

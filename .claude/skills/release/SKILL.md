@@ -393,8 +393,15 @@ writes `/Applications/Ardia.app`): `brew audit --cask --online ardia-browser/tap
 
 After the macOS release is published, on a Linux machine with the same commit checked out:
 `scripts/linux/release.sh <version>`. It needs the notes file and `MARKETING_VERSION` as `release.sh` does, a clean
-tree, and the exact Linux engine for HEAD's `engine/` (publish it first with `scripts/linux/publish-engine.sh
---upload`). It builds `Ardia-<version>-linux-x64.tar.xz` with `lib/ardia/VERSION` and the bundled CLI, the
+tree, and the exact Linux engine for HEAD's `engine/`. When `engine/` changed, publish that engine first and commit
+its table row, since `--upload` writes the row without committing it and the clean-tree check refuses it:
+
+```bash
+scripts/linux/publish-engine.sh --out <chromium out dir> --source <ardia checkout> --upload
+git add packages/ardiacore/prebuilt-engines-linux.tsv && git commit -m "Linux prebuilt engine: <tree>" -- packages/ardiacore/prebuilt-engines-linux.tsv
+```
+
+It builds `Ardia-<version>-linux-x64.tar.xz` with `lib/ardia/VERSION` and the bundled CLI, the
 `ardia-cli-<version>-linux-x64.tar.gz` tarball, their `.sha256` files and `provenance.txt` into `dist/<version>/linux/`,
 then runs the smoke gate. It never uploads: run the `gh release upload v<version> …` line it prints. Nightly and
 stable go the same way; the assets join the release the macOS flow made (a prerelease for a nightly).

@@ -24,9 +24,10 @@ stub.shellNativeModules.ArdiaDialogs.confirm = (options) => { asks.push(options)
 startWindowCloseGuard();
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function windowWith(urls) {
+function windowWith(urls, { last = false } = {}) {
   S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
   S().updateSettings({ warnBeforeClosingWindow: true, warnBeforeClosingLastTab: true });
+  if (!last) S().createWindow({ url: "https://another-window.example/" });
   const id = S().createWindow({ url: urls[0] });
   for (const url of urls.slice(1)) S().newTab(id, { url });
   asks.length = 0;
@@ -50,6 +51,20 @@ test("decideWindowClose returns the decision and checkbox without touching windo
   assert.equal(shape(), before);
   assert.equal(isWindowClosing(id), false);
   assert.equal(asks.length, 0);
+});
+
+test("decideWindowClose keeps the last regular window without asking, since its tabs come back, and asks again once another window opens", async () => {
+  const id = windowWith(["https://a.example/", "https://b.example/"], { last: true });
+  const before = shape();
+  const never = async () => assert.fail("closing the last window loses nothing");
+  assert.deepEqual(await decideWindowClose(id, never), { decision: "allow", suppressWarning: false, keepsLastWindow: true });
+  assert.equal(shape(), before);
+  S().createWindow({ kind: "private", url: "https://private.example/" });
+  assert.deepEqual(await decideWindowClose(id, never), { decision: "allow", suppressWarning: false, keepsLastWindow: true });
+  S().createWindow({ url: "https://c.example/" });
+  const asked = [];
+  assert.deepEqual(await decideWindowClose(id, async (options) => (asked.push(options), { confirmed: false, suppressed: false })), { decision: "cancel", suppressWarning: false });
+  assert.equal(asked.length, 1);
 });
 
 test("decideWindowClose allows small and unwarned windows without asking", async () => {
@@ -104,7 +119,7 @@ test("the managed close seam defaults to today's behaviour and, once registered,
     assert.equal(S().windows[other], undefined);
     const small = S().createWindow({ kind: "small", url: "https://link.example/" });
     routed.length = 0;
-    closeWindowAnimated(small, id, () => {});
+    closeWindowAnimated(small, { replacedBy: id, then: () => {} });
     await settle();
     assert.deepEqual(routed, []);
     assert.equal(S().windows[small], undefined);

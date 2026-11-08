@@ -209,12 +209,11 @@ export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new
       ])] : []),
     ]),
     sub("Help", [
-      cmd("sendFeedback"),
+      cmd("reportProblem"),
       cmd("keyboardShortcuts"),
       cmd("toolTour"),
       separator,
       cmd("copyDiagnostics"),
-      cmd("recordPerformanceIssue"),
     ]),
   ];
 }

@@ -1,13 +1,13 @@
-import type { ConfirmOptions } from "@ardia-real/shell";
+import type { ConfirmOptions, DialogsNative } from "@ardia-real/shell";
+import type { WindowCloseDecision } from "../../browser/src/state/windows/windowClose";
 import { validCloseRequest, closeIdentity, type WindowCloseRequest } from "./utilityClose";
 
 export type CloseReason = "window" | "lastTab";
-export type CloseAnswer = { confirmed: boolean; suppressed: boolean };
-export type CloseDecision = { decision: "allow" | "cancel"; suppressWarning: boolean };
+type CloseAnswer = Awaited<ReturnType<DialogsNative["confirm"]>>;
 export type AbortableAsk = (options: ConfirmOptions, signal: AbortSignal) => Promise<CloseAnswer>;
 export type DialogSuspension = { readonly settled: Promise<void> };
 export type DrainReply = { accepted?: boolean; endsSession?: boolean } | null | undefined;
-export type DecideClose = (windowId: string, reason: CloseReason, ask?: (options: ConfirmOptions) => Promise<CloseAnswer>) => Promise<CloseDecision>;
+export type DecideClose = (windowId: string, reason: CloseReason, ask?: DialogsNative["confirm"]) => Promise<WindowCloseDecision>;
 
 export type WindowCloseCoordinatorHooks = {
   windowId: string;
@@ -81,7 +81,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
     work.then(resolve, reject);
   });
 
-  const decision = (attempt: Attempt): Promise<CloseDecision> => {
+  const decision = (attempt: Attempt): Promise<WindowCloseDecision> => {
     if (hooks.utility || attempt.quitting) return Promise.resolve({ decision: "allow", suppressWarning: false });
     const ask = hooks.ask;
     const signal = attempt.controller.signal;
@@ -89,7 +89,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
   };
 
   const run = async (attempt: Attempt, key: string) => {
-    let decided: CloseDecision;
+    let decided: WindowCloseDecision;
     try {
       decided = await settleOnAbort(attempt, decision(attempt));
     } catch (error) {

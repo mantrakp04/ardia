@@ -54,6 +54,7 @@ LinuxDocumentResult LinuxDocuments::Load() {
         return Error("ERR_DOCUMENT_LIMIT", "Document generation exhausted");
     next.Set("generations", std::move(generations));
     next.Set("owners", base::DictValue());
+    next.Set("clients", base::DictValue());
     if (!ValidLinuxLiveEnvelope(next)) return Error("ERR_DOCUMENT_DATA", "Invalid document recovery");
     if (!write_(next)) return Error("ERR_DOCUMENT_STORAGE", "Cannot recover document authority");
     envelope_ = std::move(next);
@@ -195,6 +196,9 @@ LinuxDocuments::CommitPreparation LinuxDocuments::PrepareCommit(
     receipt_value.Set("requestId", *request_id);
     receipt_value.Set("operations", operations->Clone());
     auto next_clients = clients->Clone();
+    for (const auto& id : forgotten_receipts_) {
+      if (id != client.id && !watchers_.contains(id)) next_clients.Remove(id);
+    }
     if (!receipt && next_clients.size() >= 256)
       return {Error("ERR_DOCUMENT_LIMIT", "Document client history is full")};
     next_clients.Set(client.id, std::move(receipt_value));
@@ -218,6 +222,7 @@ LinuxDocumentResult LinuxDocuments::Commit(const LinuxDocumentClient& client,
     if (!write_(prepared.next)) return Error("ERR_DOCUMENT_STORAGE", "Cannot persist document commit");
     envelope_ = std::move(prepared.next);
     retired_clients_.clear();
+    forgotten_receipts_.clear();
   }
   const auto* request_id = request.FindString("requestId");
   base::DictValue value;
@@ -257,10 +262,21 @@ LinuxDocumentResult LinuxDocuments::Flush(const LinuxDocumentClient& client,
 }
 
 void LinuxDocuments::Unwatch(const LinuxDocumentClient& client) {
+  Release(client, false);
+}
+
+void LinuxDocuments::Retire(const LinuxDocumentClient& client) {
+  if (!Authorized(client)) return;
+  seals_.erase(client.id);
+  Release(client, true);
+}
+
+void LinuxDocuments::Release(const LinuxDocumentClient& client, bool forget_receipt) {
   if (!Authorized(client)) return;
   watchers_.erase(client.id);
   if (!loaded_) return;
   retired_clients_.insert(client.id);
+  if (forget_receipt) forgotten_receipts_.insert(client.id);
   if (!ReadCurrent().ok()) return;
   auto next = envelope_.Clone();
   auto owners = next.FindDict("owners")->Clone();
@@ -276,7 +292,16 @@ void LinuxDocuments::Unwatch(const LinuxDocumentClient& client) {
   }
   next.Set("owners", std::move(owners));
   next.Set("generations", std::move(generations));
-  if (ValidLinuxLiveEnvelope(next) && Fits(next) && write_(next)) { envelope_ = std::move(next); retired_clients_.erase(client.id); }
+  auto clients = next.FindDict("clients")->Clone();
+  for (const auto& id : forgotten_receipts_) {
+    if (!watchers_.contains(id)) clients.Remove(id);
+  }
+  next.Set("clients", std::move(clients));
+  if (ValidLinuxLiveEnvelope(next) && Fits(next) && write_(next)) {
+    envelope_ = std::move(next);
+    retired_clients_.erase(client.id);
+    forgotten_receipts_.clear();
+  }
 }
 
 LinuxDocumentResult LinuxDocuments::Seal(const LinuxDocumentClient& client,

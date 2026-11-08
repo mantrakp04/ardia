@@ -77,15 +77,18 @@ export default {
       await navigateTab(state.shell, id, pages[1], { committed: true });
       return id;
     };
-    const otherTabOn = (page, except) => until(() => state.shell.state(`return Object.values(s.tabs).find((t) => t.windowId === windowId && t.url === ${js(page)} && t.id !== ${js(except)})?.id ?? false;`), { timeout: 8000, label: `a new tab on ${page}` });
+    const reopenClosedTabOn = async (page) => {
+      const before = await state.shell.state(`return Object.keys(s.tabs);`);
+      await state.shell.command("reopenClosedTab");
+      return until(() => state.shell.state(`const before = new Set(${js(before)}); return Object.values(s.tabs).find((t) => t.windowId === windowId && t.url === ${js(page)} && !before.has(t.id))?.id ?? false;`), { timeout: 8000, label: `a newly reopened tab on ${page}` });
+    };
     const hasBackHistory = (id) => until(() => state.shell.state(`const l = s.live[${js(id)}]; return l?.canGoBack ? l : false;`), { timeout: 8000, label: `back history in ${id}` });
     let reopened;
     await t.check("a closed tab reopens on its page", async () => {
       const closing = await twoPageTab();
       await state.shell.state(`s.closeTab(${js(closing)}); return true;`);
       await until(() => state.shell.state(`return !s.tabs[${js(closing)}];`), { timeout: 8000, label: "the tab to close" });
-      await state.shell.command("reopenClosedTab");
-      reopened = await otherTabOn(pages[1], closing);
+      reopened = await reopenClosedTabOn(pages[1]);
       return waitCommitted(state.shell, reopened, (u) => u === pages[1], { label: `${pages[1]} in the reopened tab` });
     });
     await t.check("a reopened tab keeps its back history", async () => {
@@ -105,12 +108,12 @@ export default {
       const id = await twoPageTab();
       const other = await state.shell.newTab(pages[3]);
       await state.shell.waitTabUrl(other, (u) => u === pages[3]);
-      const discarded = await state.shell.eval(`(async () => { try { return await ardiaLinux.webviews.get(${js(id)})?.discard(); } catch (e) { return "error " + e.message; } })()`);
+      const discarded = await state.shell.eval(`(async () => { const view = ardiaLinux.webviews.get(${js(id)}); return view ? await view.discard() : "no web view"; })()`);
+      if (discarded !== "discarded") throw new Error(`the background tab wasn't discarded: ${discarded}`);
       await new Promise((resolve) => setTimeout(resolve, 1500));
       await state.shell.state(`s.closeTab(${js(id)}); return true;`);
       await until(() => state.shell.state(`return !s.tabs[${js(id)}];`), { timeout: 8000, label: "the discarded tab to close" });
-      await state.shell.command("reopenClosedTab");
-      const back = await otherTabOn(pages[1], id);
+      const back = await reopenClosedTabOn(pages[1]);
       await waitCommitted(state.shell, back, (u) => u === pages[1], { label: `${pages[1]} in the reopened discarded tab` });
       const live = await hasBackHistory(back);
       await state.shell.state(`s.activate(${js(tabId)}); return true;`);

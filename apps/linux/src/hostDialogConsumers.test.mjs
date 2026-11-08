@@ -98,6 +98,7 @@ test("real profile delete preserves destructive label and honors Cancel then Con
 
 test("real window warning deduplicates and persists checkbox on Cancel without removing tabs", async () => {
   const f = fixture();
+  state().createWindow({ url: "https://other.test" });
   state().newTab(f.windowId, { url: "https://two.test" });
   state().updateSettings({ warnBeforeClosingWindow: true });
   const before = [...state().windows[f.windowId].tabIds];
@@ -111,6 +112,18 @@ test("real window warning deduplicates and persists checkbox on Cancel without r
   await turn();
   assert.equal(state().settings.warnBeforeClosingWindow, false);
   assert.deepEqual(state().windows[f.windowId].tabIds, before);
+  f.adapter.retire();
+});
+
+test("closing the last regular window asks nothing, since its tabs come back with the session", async () => {
+  const f = fixture();
+  state().newTab(f.windowId, { url: "https://two.test" });
+  state().updateSettings({ warnBeforeClosingWindow: true });
+  startWindowCloseGuard();
+  windows.emit({ type: "closeRequest", id: f.windowId });
+  await turn();
+  assert.deepEqual(f.requests.filter((request) => request.method.endsWith("beginDialog")), []);
+  assert.equal(state().settings.warnBeforeClosingWindow, true);
   f.adapter.retire();
 });
 

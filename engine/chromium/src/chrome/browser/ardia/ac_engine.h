@@ -64,10 +64,7 @@ class Reply {
 
   void Send(base::DictValue result);
   void SendSecretJSON(std::string& json);
-#if BUILDFLAG(IS_LINUX)
   void SendSecret(base::DictValue result);
-  void SendSecret(std::string_view key, std::u16string* secret);
-#endif
   void Ok();
   void Error(std::string_view message);
 

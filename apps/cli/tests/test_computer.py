@@ -186,6 +186,7 @@ class PinnedDownload(Sandbox):
         version_home = self.cli_home / "cua-driver" / computer.VERSION
         self.assertEqual(list(version_home.iterdir()), [])
 
+    @unittest.skipUnless(sys.platform == "darwin", "runs cua-driver, which is macOS only")
     def test_passthrough_reports_a_mismatch_and_never_execs(self):
         self.serve(computer.DRIVER_ASSET, driver_entries())
         with mock.patch.object(computer, "DRIVER_SHA256", "0" * 64), mock.patch.object(os, "execve") as execve:
@@ -225,6 +226,7 @@ class PinnedDownload(Sandbox):
         self.assertEqual(sorted(entry.name for entry in home.iterdir()), sorted([computer.VERSION, "0.3.0", "keep-me"]))
 
 
+@unittest.skipUnless(sys.platform == "darwin", "runs cua-driver, which is macOS only")
 class Passthrough(Sandbox):
     def install_fake_app(self, version=computer.VERSION, signed=True) -> Path:
         return make_app(self.applications / computer.APP_NAME, version, signed)
@@ -339,6 +341,7 @@ class Passthrough(Sandbox):
         self.assertIn("computer", cli.build_parser().format_help())
 
 
+@unittest.skipUnless(sys.platform == "darwin", "installs CuaDriver.app, which is macOS only")
 class Setup(Sandbox):
     def setUp(self):
         super().setUp()
@@ -555,6 +558,20 @@ class StuckTools(unittest.TestCase):
         with mock.patch.object(computer.subprocess, "run", self.stuck):
             computer.register_app(Path("/tmp/a"))
         self.assertEqual(self.timeouts, [computer.REGISTER_TIMEOUT])
+
+
+@unittest.skipIf(sys.platform == "darwin", "the refusal is for other systems")
+class Unsupported(Sandbox):
+    def test_setup_and_passthrough_say_macos_only_and_never_exec(self):
+        self.serve_driver()
+        with mock.patch.object(os, "execve") as execve:
+            for argv in (["computer", "setup", "--no-grant"], ["computer", "list-tools"]):
+                status, _, err = quiet(cli.main, argv)
+                self.assertEqual(status, 1, argv)
+                self.assertIn("needs macOS", err)
+        execve.assert_not_called()
+        self.assertEqual(self.downloads, [])
+        self.assertEqual(list(self.applications.iterdir()), [])
 
 
 class Launcher(Sandbox):

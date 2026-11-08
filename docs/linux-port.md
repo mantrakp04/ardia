@@ -65,12 +65,14 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 
 - **Ownership.** Each real tab stays in Chromium's `TabStripModel`. Releasing a native tab detaches its viewport;
   only an explicit close ends the tab. Moving or remounting a UI view never closes its tab.
-- **Reopened and duplicated tabs.** As on macOS, every live tab is tagged with its key (`ac_tab_restore_tag`), so
-  Chromium's `TabRestoreService` keeps the key with a closed tab's navigations. Reopening a closed tab or window
-  (`restore:<key>`) takes them back (`ac_tab_restore_take`) and recreates the tab with `chrome::AddRestoredTab`, with
-  its back and forward history. Duplicating a tab (`clone:<key>`) clones its contents. Either falls back to loading
-  the URL when nothing was saved. The host advertises this as `tab.adoptCopies`; without it the shell sends neither
-  id, and the tab loads its URL instead of failing.
+- **Reopened and duplicated tabs.** As on macOS, every tab of a regular profile is tagged with its key
+  (`ac_tab_restore_tag`), so Chromium's `TabRestoreService` keeps the key with a closed tab's navigations. Tabs in
+  private windows and temporary web views (a `WebView` with no tab id) aren't tagged. Reopening a closed tab or window
+  (`restore:<key>`) reads them (`ac_tab_restore_take` with `keep`) and recreates the tab with `chrome::AddRestoredTab`,
+  with its back and forward history. Only then does it drop the entry (`ac_tab_restore_forget`), so a restore that fails
+  because its window or profile went away leaves the closed tab reopenable. Duplicating a tab (`clone:<key>`) clones
+  its contents. Either falls back to loading the URL when nothing was saved. The host advertises this as
+  `tab.adoptCopies`; without it the shell sends neither id, and the tab loads its URL instead of failing.
 - **Placement.** Rectangles arrive in CSS viewport coordinates and the host converts them. Native pages hide beneath
   browser overlays and clip themselves.
 - **Tracking.** `watchTabViewport` measures a page's rectangle, overlays and coverage only when something changes: a
@@ -155,6 +157,12 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   bypasses all of this.
 - **Private data.** Private and transient state never reaches a persisted snapshot. `ValidLinuxSession` rejects a
   session that carries private data.
+- **Closing the last window.** When the native close ends the session, the window stays in the saved session and comes
+  back at the next launch; otherwise it moves to closed windows. Either way its tabs aren't lost, so closing the last
+  regular window never shows the close-tabs warning, as on macOS. A launch that doesn't restore windows turns each
+  saved window into a closed window the way `closedForLaunch` does (tab layout kept, macOS's last-window marks and
+  empty entries dropped). The snapshot saves every field the shared session saves except the Mac's early launch tab,
+  including which settings were chosen (`settingsMeta`); `session.test.mjs` fails when the shared session adds one.
 
 ### Pages
 
@@ -387,17 +395,14 @@ command ([linux-ci.md](linux-ci.md) › Linux releases).
   - `lib/ardia/chrome` and the Chromium runtime files from the allowlist in `scripts/linux/runtime_files.py`;
   - `lib/ardia/ardia-ui`;
   - `lib/ardia/extensions/ublock`;
-  - `lib/ardia/VERSION` (with `--version`): the version on one line;
-  - `lib/ardia/cli/` (with `--cli`): `ardia-cli-install.sh` (a copy of `apps/cli/install.sh`, mode 0755), the CLI tarball,
-    and `ardia-cli.sha256` with its digest. When the CLI is turned on, the browser installs from these files with
-    `ardia-cli-install.sh --version <VERSION> --sha256 <digest>` and `ARDIA_CLI_URL=file://…`;
+  - `lib/ardia/VERSION` (with `--version`), one line with the Ardia version (`0.2.44`, `0.2.44-nightly.3`);
+  - `lib/ardia/cli/` (with `--cli`): `ardia-cli-install.sh` (a copy of `apps/cli/install.sh`, mode 0755),
+    `ardia-cli-<version>-linux-x64.tar.gz` and `ardia-cli.sha256` (the digest is its first token), the `ardia`
+    command's installer, tarball and pinned digest. When the CLI is turned on, the browser installs from these files
+    with `ardia-cli-install.sh --version <VERSION> --sha256 <digest>` and `ARDIA_CLI_URL=file://…`;
   - the desktop entry and icon;
   - `share/polkit-1/actions/dev.ardia.linux.policy`;
-  - `install.sh`;
-  - `lib/ardia/VERSION`, one line with the Ardia version (`0.2.44`, `0.2.44-nightly.3`);
-  - `lib/ardia/cli/ardia-cli-install.sh`, `lib/ardia/cli/ardia-cli-<version>-linux-x64.tar.gz` and
-    `lib/ardia/cli/ardia-cli.sha256` (the digest is its first token), the `ardia` command's installer, tarball and pinned
-    digest.
+  - `install.sh`.
 - **Running it.** Run the extracted `bin/ardia`. A raw build-tree `chrome` needs `--ardia-ui-dir apps/linux/dist`.
   Test with a throwaway `--user-data-dir` and keep the sandbox on.
 - **Installing.** `sudo ./ardia/install.sh` installs under `/usr`. It also accepts `--prefix /opt/ardia` and
@@ -476,9 +481,19 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   Ardia, File, Edit, View, Tabs, Bookmarks, History, Extensions, Window and Help as submenus built from the same menu
   state the Mac menu bar uses (checks, disabled commands, dynamic titles, bookmarks, recently closed entries, profiles
   and extensions), labelled with the effective Linux shortcuts (`apps/linux/src/appMenu.ts`). Items run through the
-  shared command path; Close Window, Minimize and Maximize call the native window operations. Mac-only entries
+  shared command path; Close Window, Minimize and Maximize call the native window operations. App commands Linux runs
+  itself (`LINUX_APP_COMMANDS` in `appServices.ts`) are kept from the shared handler so they run once. Mac-only entries
   (Services, Hide, Spelling, Substitutions, Speech, Transformations, the WebKit page engine, JavaScript from Apple
   Events, Keep on Top, Full Screen and the native text-editing selectors) are left out.
+- **Report a Problem.** Help › Report a Problem… (and the New Tab check-in, the command bar and automation) opens a
+  new GitHub issue in a tab, its body a short template and Copy Diagnostics' report (`reportProblem.ts`, swapped in
+  for the shared report actions under `appCommands.ts`). The shared report sheet posts to ardia.dev and uploads files
+  through the native `ArdiaReport` module; the shell's `connect-src 'none'` stops the post, and recording, gzip and
+  upload need native code, so Linux never opens the sheet. `ArdiaReport` answers unavailable or empty values
+  (`appModuleFallbacks.ts`). A host `feedbackURL` with `%s` replaces the GitHub page.
+- **Favicon accents.** `ArdiaDockSelection.iconAccent` (the command bar's scope pulse) runs in the shell: a port of
+  the Mac's dominant-hue pick over a 32 px canvas copy of a `data:` or `blob:` favicon (`iconAccent.ts`). Other URLs
+  answer no accent.
 - **Settings and Import.** Each opens in its own utility window and reuses an open one. Settings
   opens from Ardia › Settings… in the menu or Ctrl+comma.
   - Settings starts at 820×640 with a 720×480 minimum.
@@ -555,9 +570,11 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     background of an element that does hold overlays is holed by `pageHoles` (`setFloating`, a floating hole merged
     with the page holes so overlapping holes don't cancel). Menus, the command panel, hover cards, popovers,
     prompts, the downloads bubble and the peek are never clipped and draw above the player.
-  - The holes go in the same React commit as the player and its input region, and a queued update is cancelled with
-    them. A clip left behind also blocks hit testing, and `plainViewport` hit-tests the page's corners, so a leftover
-    hole under a sampled point hides the page in every tab.
+  - The holes follow the player's acknowledged viewport, not its mount: a layout effect applies them once the native
+    layer has taken the player's rect (only the overlap of the old and new rects while a move is in flight), and a
+    re-apply queued for the next animation frame is cancelled with them. A clip left behind also blocks hit testing,
+    and `plainViewport` hit-tests the page's corners, so a leftover hole under a sampled point hides the page in every
+    tab.
 - **Pop-out.** The pop-out button, or dragging the player past the window's edge, turns it into Chromium's real PiP
   window on the same surface, so playback continues without a reload, a pause or leaving picture in picture. The
   in-window player stays until the real window has presented a frame. On X11 the window opens at the pointer (a
@@ -992,6 +1009,10 @@ These were open at the time of the PR.
   - video upscaling;
   - the updater;
   - crash reports;
+  - sending telemetry and problem reports (the shell CSP blocks both); the 7-day local copy (`ArdiaTelemetryLocal`
+    keeps nothing, so Settings › Privacy hides View My Data) and hardware details (`ArdiaApp.hardwareInfo`);
+  - the sidebar edge's `whilePressed`: the native left-edge watcher still peeks during any pressed drag;
+  - `engine.cliTabTargets`, so `windows` from the control socket has no DevTools target ids;
   - Ardia's own desktop notifications (sites' web notifications use Chromium's Linux notifications);
   - the share sheet;
   - Handoff;

@@ -12,7 +12,8 @@
 # ~/Library/Application Support/Ardia/CLI on macOS, ${XDG_DATA_HOME:-~/.local/share}/ardia/cli on Linux), points its
 # `current` link there and links ${ARDIA_CLI_BIN_DIR:-~/.local/bin}/ardia to current/bin/ardia. When the default bin
 # dir isn't on the login shell's PATH, it adds one PATH line to its login file, once: on macOS ~/.zprofile
-# (~/.bash_profile for bash); on Linux ~/.zprofile for zsh, ~/.bash_profile for bash when it exists, else ~/.profile.
+# (~/.bash_profile for bash); on Linux ~/.zprofile for zsh, ~/.bash_profile for bash when it exists, else ~/.profile;
+# for fish, on both, ${XDG_CONFIG_HOME:-~/.config}/fish/conf.d/ardia.fish.
 # Re-running it upgrades: a version that is already current is left alone; a new one is verified, staged in
 # <version>.partial, renamed, and `current` is swapped atomically (a running ardia keeps its old dir). It keeps the
 # current and the previous version and prunes the rest, except versions a running ardia uses (it leaves a lease in
@@ -358,14 +359,22 @@ if [ "$bin_dir" = "$default_bin_dir" ]; then
   case :$login_path: in
     *:"$bin_dir":*|*:"$bin_dir/":*) ;;
     *)
+      line='export PATH="$HOME/.local/bin:$PATH"'
       case $os-${login_shell##*/} in
+        *-fish)
+          case ${XDG_CONFIG_HOME:-} in
+            /*) rc=$XDG_CONFIG_HOME/fish/conf.d/ardia.fish ;;
+            *) rc=$HOME/.config/fish/conf.d/ardia.fish ;;
+          esac
+          line='contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH'
+          mkdir -p "${rc%/*}" || fail "couldn't create ${rc%/*}"
+          ;;
         macos-bash) rc=$HOME/.bash_profile ;;
         macos-*) rc=$HOME/.zprofile ;;
         linux-zsh) rc=$HOME/.zprofile ;;
         linux-bash) if [ -f "$HOME/.bash_profile" ]; then rc=$HOME/.bash_profile; else rc=$HOME/.profile; fi ;;
         *) rc=$HOME/.profile ;;
       esac
-      line='export PATH="$HOME/.local/bin:$PATH"'
       if ! [ -f "$rc" ] || ! grep -qxF "$line" "$rc"; then
         if [ -s "$rc" ] && [ -n "$(tail -c 1 "$rc")" ]; then
           printf '\n' >>"$rc" || fail "couldn't write $rc"

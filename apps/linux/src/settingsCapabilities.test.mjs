@@ -9,7 +9,7 @@ import * as index from "./settingsIndex.ts";
 import * as form from "./settingsForm.tsx";
 import * as engines from "./hostEngines.ts";
 
-const hidden = ["general.defaultBrowser", "general.openAtLogin", "appearance.pageScrollBars", "advanced.cliControl", "advanced.cliInstall", "tabs.videoUpscaling"];
+const hidden = ["general.defaultBrowser", "general.openAtLogin", "appearance.pageScrollBars", "advanced.cliControl", "advanced.cliInstall", "tabs.videoUpscaling", "privacy.viewData"];
 
 test("Settings navigation and search leave out the unavailable Engines pane and platform rows", () => {
   assert.ok(sharedIndex.PANES.some((pane) => pane.id === "engines"));
@@ -36,6 +36,8 @@ test("Settings form primitives drop unavailable rows and keep available ones unc
   assert.equal(header({ title: "Default engine" }, "engines"), "");
   assert.equal(index.sectionUnavailable("advanced", "Command line"), true);
   assert.equal(index.sectionUnavailable("advanced", "Browsing"), false);
+  assert.equal(header({ title: "Kept on this Mac" }, "privacy"), "");
+  assert.equal(index.sectionUnavailable("privacy", "Crash reports and usage"), false);
   assert.equal(index.sectionUnavailable("general", "No such section"), false);
   assert.equal(form.Group({ of: "engines.websiteRules", children: null }), null);
   const kept = form.Row({ anchor: "general.warnBeforeQuitting" });

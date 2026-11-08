@@ -305,7 +305,19 @@ def browse_command(argv: list) -> tuple[str, frozenset]:
     return name, browse_flags_allowed(name)
 
 
+def linux_process_started_at(proc: str = "/proc") -> float | None:
+    try:
+        with open(f"{proc}/self/stat", "rb") as handle:
+            ticks = int(handle.read(4096).rsplit(b")", 1)[1].split()[19])
+        age = time.clock_gettime(time.CLOCK_BOOTTIME) - ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, IndexError, ValueError, AttributeError):
+        return None
+    return time.time() - age if age >= 0 else None
+
+
 def process_started_at() -> float | None:
+    if sys.platform.startswith("linux"):
+        return linux_process_started_at()
     import ctypes
     import struct
 

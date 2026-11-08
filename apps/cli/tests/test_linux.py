@@ -51,6 +51,21 @@ class DataDir(unittest.TestCase):
             with mock.patch.dict(os.environ, {"ARDIA_CONFIG_HOME": str(self.temp / "override")}):
                 self.assertEqual(endpoint.installed_data_dir(linux=True), self.temp / "override" / "ardia")
 
+    def test_the_path_help_shows_is_the_path_the_cli_reads(self):
+        from ardia_cli import automation_cli, config_cli, scripts_cli
+
+        for env in ({}, {"XDG_CONFIG_HOME": str(self.temp / "xdg")}, {"XDG_CONFIG_HOME": str(self.temp / "xdg"), "ARDIA_CONFIG_HOME": str(self.temp / "override")}):
+            with mock.patch.dict(os.environ, env):
+                shown = subprocess.run(["/bin/sh", "-c", f"printf %s {endpoint.LINUX_DATA_DIR_SHOWN}"], capture_output=True, text=True, check=True).stdout
+                self.assertEqual(Path(shown), endpoint.installed_data_dir(linux=True), env)
+                with mock.patch.object(endpoint, "LINUX", True), mock.patch.object(endpoint, "INSTALLED_DATA_DIR", endpoint.installed_data_dir(linux=True)):
+                    self.assertEqual(Path(shown) / "config", config_files.default_folder())
+        if ON_LINUX:
+            self.assertIn(f"else {endpoint.LINUX_DATA_DIR_SHOWN}/config)", config_cli.DATA_DIR_HELP)
+            self.assertIn(f"{endpoint.LINUX_DATA_DIR_SHOWN}/config", config_cli.CONFIG_DESCRIPTION)
+            self.assertIn(f"({endpoint.LINUX_DATA_DIR_SHOWN}).", scripts_cli.ENDPOINT_EPILOG)
+        self.assertEqual(automation_cli.agent_words(linux=True)["config_folder"], f"{endpoint.LINUX_DATA_DIR_SHOWN}/config")
+
     def test_macos_data_dir_is_unchanged(self):
         with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.temp / "xdg")}):
             self.assertEqual(endpoint.installed_data_dir(linux=False), self.home / "Library" / "Application Support" / "com.ardia.browser")
@@ -106,16 +121,22 @@ class LinuxConfig(Sandbox):
             self.assertEqual(out.strip(), str(self.temp / "xdg" / "ardia" / "config"))
 
     def test_edit_falls_back_to_xdg_open_without_waiting(self):
-        with mock.patch("shutil.which", return_value="/usr/bin/xdg-open"), mock.patch("subprocess.call", return_value=0) as call:
+        with mock.patch.dict(os.environ, {"DISPLAY": "", "WAYLAND_DISPLAY": "wayland-1"}), mock.patch("shutil.which", return_value="/usr/bin/xdg-open"), mock.patch("subprocess.call", return_value=0) as call:
             out, _ = self.ok("config", "edit")
         call.assert_called_once_with(["/usr/bin/xdg-open", str(self.folder / "config.json")])
         self.assertIn("run ardia config check once you've saved it", out)
         self.assertNotIn("config.json: ok", out)
 
     def test_edit_without_xdg_open_uses_vi(self):
-        with mock.patch("shutil.which", return_value=None), mock.patch("subprocess.call", return_value=0) as call:
+        with mock.patch.dict(os.environ, {"DISPLAY": ":0"}), mock.patch("shutil.which", return_value=None), mock.patch("subprocess.call", return_value=0) as call:
             self.ok("config", "edit")
         call.assert_called_once_with(["vi", str(self.folder / "config.json")])
+
+    def test_edit_without_a_display_uses_vi_even_with_xdg_open(self):
+        with mock.patch.dict(os.environ, {"DISPLAY": "", "WAYLAND_DISPLAY": ""}), mock.patch("shutil.which", return_value="/usr/bin/xdg-open"), mock.patch("subprocess.call", return_value=0) as call:
+            out, _ = self.ok("config", "edit")
+        call.assert_called_once_with(["vi", str(self.folder / "config.json")])
+        self.assertIn("config.json: ok", out)
 
     def test_editor_variables_still_win(self):
         with mock.patch.dict(os.environ, {"EDITOR": "nano"}), mock.patch("shutil.which", return_value="/usr/bin/xdg-open"), mock.patch("subprocess.call", return_value=0) as call:
@@ -157,7 +178,7 @@ class SystemdService(Base):
         self.assertIn("RestartSec=10\n", text)
         self.assertIn("StartLimitIntervalSec=0\n", text)
         self.assertIn(f"WorkingDirectory={self.home}\n", text)
-        self.assertIn('Environment="PATH=/usr/local/bin:/usr/bin:/bin" "ARDIA_DATA_DIR="\n', text)
+        self.assertIn(f'Environment="PATH=/usr/local/bin:/usr/bin:/bin" "ARDIA_DATA_DIR=" "ARDIA_CONFIG_HOME={endpoint.installed_data_dir(True).parent}"\n', text)
         self.assertIn("WantedBy=default.target\n", text)
         self.assertTrue(log.parent.is_dir())
         self.assertEqual(self.calls, [["daemon-reload"], ["enable", hooks.SERVICE], ["restart", hooks.SERVICE]])
@@ -232,6 +253,25 @@ class SystemdService(Base):
         self.assertIn("WorkingDirectory=/home/a b\n", text)
         with self.assertRaises(hooks.HooksError):
             hooks.service_unit(hooks.AgentPaths(Path("/home/a\nb"), Path("/cli"), True, Path("/c"), Path("/s")), None)
+
+    def test_unit_pins_the_config_folder_the_cli_saw(self):
+        for env, expected in (
+            ({"XDG_CONFIG_HOME": str(self.temp / "xdg")}, self.temp / "xdg"),
+            ({"XDG_CONFIG_HOME": str(self.temp / "xdg"), "ARDIA_CONFIG_HOME": str(self.temp / "ardia-home")}, self.temp / "ardia-home"),
+        ):
+            with mock.patch.dict(os.environ, env):
+                if "ARDIA_CONFIG_HOME" not in env:
+                    os.environ.pop("ARDIA_CONFIG_HOME", None)
+                paths = hooks.agent_paths(linux=True)
+                self.assertEqual(paths.ardia_config_home, expected)
+                self.assertEqual(endpoint.installed_data_dir(True), expected / "ardia")
+                text = hooks.service_unit(paths, "/bin")
+            self.assertIn(f'"ARDIA_CONFIG_HOME={expected}"', text)
+            with mock.patch.dict(os.environ, {"ARDIA_CONFIG_HOME": str(expected)}):
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                self.assertEqual(endpoint.installed_data_dir(True), expected / "ardia")
+        with mock.patch.dict(os.environ, {"ARDIA_CONFIG_HOME": "relative-config"}):
+            self.assertEqual(hooks.agent_paths(linux=True).ardia_config_home, Path.cwd() / "relative-config")
 
     def test_unit_passes_systemd_analyze(self):
         analyze = shutil.which("systemd-analyze")
@@ -430,17 +470,35 @@ class InstallScript(unittest.TestCase):
         self.assertEqual(os.readlink(self.cli_home / "current"), "0.0.7")
 
     def test_login_file_per_shell(self):
-        cases = [("zsh", None, ".zprofile"), ("bash", None, ".profile"), ("bash", ".bash_profile", ".bash_profile"), ("fish", None, ".profile"), ("sh", None, ".profile")]
-        for index, (shell, existing, expected) in enumerate(cases):
+        posix = 'export PATH="$HOME/.local/bin:$PATH"'
+        fish = "contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH"
+        fish_file = ".config/fish/conf.d/ardia.fish"
+        cases = [("zsh", None, ".zprofile", posix), ("bash", None, ".profile", posix), ("bash", ".bash_profile", ".bash_profile", posix), ("fish", None, fish_file, fish), ("fish", fish_file, fish_file, fish), ("sh", None, ".profile", posix)]
+        for index, (shell, existing, expected, line) in enumerate(cases):
             with self.subTest(shell=shell, existing=existing):
                 self.use_home(f"home-{index}")
                 self.login_shell(shell)
                 if existing:
+                    (self.home / existing).parent.mkdir(parents=True, exist_ok=True)
                     (self.home / existing).write_text("# mine")
                 status, lines, err = self.install("0.0.1")
                 self.assertEqual(status, 0, err)
                 self.assertIn(f"path {self.home / expected}", lines)
-                self.assertTrue((self.home / expected).read_text().endswith('\nexport PATH="$HOME/.local/bin:$PATH"\n' if existing else 'export PATH="$HOME/.local/bin:$PATH"\n'))
+                self.assertTrue((self.home / expected).read_text().endswith(f"\n{line}\n" if existing else f"{line}\n"))
+                if shell == "fish":
+                    self.assertFalse((self.home / ".profile").exists())
+                    status, lines, err = self.install("0.0.2")
+                    self.assertEqual(status, 0, err)
+                    self.assertEqual((self.home / expected).read_text().count(line), 1)
+
+    def test_fish_follows_an_absolute_xdg_config_home(self):
+        self.login_shell("fish")
+        status, lines, err = self.install("0.0.1", env={"XDG_CONFIG_HOME": str(self.temp / "xdg")})
+        self.assertEqual(status, 0, err)
+        self.assertIn(f"path {self.temp / 'xdg' / 'fish' / 'conf.d' / 'ardia.fish'}", lines)
+        status, lines, err = self.install("0.0.2", env={"XDG_CONFIG_HOME": "relative"})
+        self.assertEqual(status, 0, err)
+        self.assertTrue((self.home / ".config" / "fish" / "conf.d" / "ardia.fish").is_file())
 
     def test_no_path_line_when_login_path_has_the_bin_dir(self):
         shell = self.login_shell("bash")

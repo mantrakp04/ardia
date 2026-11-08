@@ -1,12 +1,15 @@
 import json
 
-from ardia_cli import browsing
+from ardia_cli import browsing, endpoint
 from ardia_cli.endpoint import DATA_DIR_HELP, data_root
 from ardia_cli.printable import complain, say, shown
 
-READS = """\
-Reads <data dir>/session.json and Chromium's History files, never cookies, passwords, Login Data or Web Data.
-Needs Ardia running with "Let the ardia command control Ardia" on. Incognito, guest and system profiles are skipped.
+SESSION_SHOWN = "<data dir>/<app profile>/Ardia/linux-session.json" if endpoint.LINUX else "<data dir>/session.json"
+PROFILE_FOLDERS_SHOWN = "<data dir>/" if endpoint.LINUX else "Chromium/"
+READS = f"""\
+Reads {SESSION_SHOWN} and Chromium's History files, never cookies, passwords,
+Login Data or Web Data. Needs Ardia running with "Let the ardia command control Ardia" on. Incognito, guest and
+system profiles are skipped.
 
 Exit status: 0 done, 1 the data couldn't be read or ran out of time (20 s), 2 Ardia can't be reached.
 """
@@ -36,7 +39,7 @@ def add_parsers(commands, formatter):
     history = commands.add_parser("history", help="list recent history", description=HISTORY_DESCRIPTION, formatter_class=formatter)
     history.add_argument("--days", type=float, default=1, metavar="N", help="how far back to look (default 1)")
     history.add_argument("--limit", type=int, default=200, metavar="N", help="at most this many rows (default 200, 0 for all)")
-    history.add_argument("--profile", metavar="P", help="a profile name or its folder under Chromium/ (default: all)")
+    history.add_argument("--profile", metavar="P", help=f"a profile name or its folder under {PROFILE_FOLDERS_SHOWN} (default: all)")
     history.add_argument("--domains", action="store_true", help="one row per domain instead of per URL")
     history.add_argument("--json", action="store_true", help="print JSON")
     history.add_argument("--data-dir", metavar="DIR", help=DATA_DIR_HELP)

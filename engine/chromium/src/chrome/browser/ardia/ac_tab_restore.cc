@@ -2,6 +2,7 @@
 
 #include "chrome/browser/ardia/ac_tab_restore.h"
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -16,6 +17,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
+#include "components/sessions/core/session_id.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "components/sessions/core/tab_restore_service_observer.h"
 #include "components/sessions/core/tab_restore_types.h"
@@ -74,6 +76,7 @@ std::string NavigationState(const Tab& tab) {
 
 void Take(sessions::TabRestoreService* service,
           const std::string& key,
+          bool keep,
           Reply reply) {
   std::vector<Candidate> candidates;
   for (const auto& entry : service->entries()) {
@@ -91,10 +94,25 @@ void Take(sessions::TabRestoreService* service,
     return reply.Send(base::DictValue().Set("state", base::Value()));
   }
   std::string state = NavigationState(*best->tab);
-  if (best->top_level) {
+  base::DictValue taken;
+  if (keep) {
+    taken.Set("entry", best->top_level
+                           ? base::Value(best->tab->id.id())
+                           : base::Value());
+  } else if (best->top_level) {
     service->RemoveEntryById(best->tab->id);
   }
-  reply.Send(base::DictValue().Set("state", std::move(state)));
+  taken.Set("state", std::move(state));
+  reply.Send(std::move(taken));
+}
+
+void Forget(sessions::TabRestoreService* service, SessionID entry) {
+  for (const auto& candidate : service->entries()) {
+    if (candidate->type == Type::TAB && candidate->id == entry) {
+      service->RemoveEntryById(entry);
+      return;
+    }
+  }
 }
 
 class WhenLoaded : public sessions::TabRestoreServiceObserver {
@@ -161,13 +179,29 @@ AC_PROFILE_CALL(ac_tab_restore_take) {
   ardia::WhenLoaded::Run(
       service,
       base::BindOnce(
-          [](base::WeakPtr<Profile> profile, std::string key, Reply reply) {
+          [](base::WeakPtr<Profile> profile, std::string key, bool keep,
+             Reply reply) {
             auto* service =
                 profile ? ardia::ServiceFor(profile.get()) : nullptr;
             if (!service) {
               return reply.Error("profile went away");
             }
-            ardia::Take(service, key, std::move(reply));
+            ardia::Take(service, key, keep, std::move(reply));
           },
-          profile, key, call.TakeReply()));
+          profile, key, call.Bool("keep"), call.TakeReply()));
+}
+
+AC_PROFILE_CALL(ac_tab_restore_forget) {
+  sessions::TabRestoreService* service = ardia::ServiceFor(call.profile());
+  const double entry = call.Double("entry", -1);
+  if (!service || !service->IsLoaded()) {
+    return call.TakeReply().Error("no loaded tab restore service");
+  }
+  if (entry <= 0 || entry > std::numeric_limits<SessionID::id_type>::max() ||
+      entry != static_cast<SessionID::id_type>(entry)) {
+    return call.TakeReply().Error("no entry");
+  }
+  ardia::Forget(service, SessionID::FromSerializedValue(
+                             static_cast<SessionID::id_type>(entry)));
+  call.TakeReply().Send(base::DictValue());
 }

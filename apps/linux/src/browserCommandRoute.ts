@@ -1,7 +1,7 @@
 import type { CommandEvent } from "@ardia/shell";
 
 export const BROWSER_COMMAND_CHANNEL = "ardia-browser-commands";
-export const BROWSER_WINDOW_COMMANDS: ReadonlySet<string> = new Set(["showOnboarding", "toolTour", "videoTour", "releaseNotes", "sendFeedback"]);
+export const BROWSER_WINDOW_COMMANDS: ReadonlySet<string> = new Set(["showOnboarding", "toolTour", "videoTour", "releaseNotes", "reportProblem"]);
 
 type Command = CommandEvent["command"];
 type RouteMessage =

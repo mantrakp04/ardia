@@ -32,8 +32,9 @@ ARDIA_BACKGROUND=1, a throwaway profile and HOME, the sandbox on) without
   cli-install       the bundled installer installs the bundled CLI into a scratch home, ardia --version
                     prints the package version, and a second install is a no-op (skip: no lib/ardia/cli)
   cli-control       in an instance driven over --remote-debugging-pipe (the token server never starts
-                    with --remote-debugging-port), ardia windows and ardia exec work once
-                    settings.cliControl is on, and ardia windows exits 2 once it is off again
+                    with --remote-debugging-port), once settings.cliControl is on ardia windows works,
+                    ardia browse opens the fixture in a background tab and reads its title, and
+                    ardia windows lists that tab; ardia windows exits 2 once control is off again
                     (skip: no lib/ardia/cli)
   cli-scripts       in a pipe-driven instance with extensions on and control on, ardia scripts install
                     loads a userscript that retitles the fixture page, ardia scripts list shows it as
@@ -777,12 +778,20 @@ class Smoke {
 
   async stopPipeInstance(instance) {
     if (instance.shell && instance.exited === null) await instance.cdp.evaluate(instance.shell.sessionId, `ardiaLinux.emitCommand(${js({ command: "quit", windowId: instance.shell.windowId })}), true`).catch(() => {});
-    await until(() => instance.exited !== null, { timeout: 20000, label: "the pipe instance to quit" }).catch(() => {});
+    if (instance.shell) await until(() => instance.exited !== null, { timeout: 20000, label: "the pipe instance to quit" }).catch(() => {});
     if (instance.exited === null) {
       try { process.kill(-instance.child.pid, "SIGKILL"); } catch {}
     }
     await copyFile(instance.logPath, join(this.results, basename(instance.logPath))).catch(() => {});
     await writeFile(join(this.results, "cli.log"), `${this.cliLog.join("\n")}\n`).catch(() => {});
+  }
+
+  async browse(profile, session, args, { timeout = 60000 } = {}) {
+    return this.ardia(["browse", "--data-dir", profile, "--session", session, ...args], { timeout });
+  }
+
+  async closeBrowseSessions(profile, sessions) {
+    for (const session of sessions) await this.browse(profile, session, ["close"], { timeout: 30000 }).catch(() => {});
   }
 
   async cliControl() {
@@ -804,12 +813,16 @@ class Smoke {
       let last = null;
       await until(async () => (last = await windows()).code === 0, { timeout: 30000, interval: 500, label: "ardia windows to succeed once control is on", abort }).catch((error) => { throw new Error(`${error.message}; last ${JSON.stringify(last && brief(last))}`); });
       steps.push({ step: "windows once control is on", ...brief(last) });
-      const exec = await this.ardia(["exec", "--data-dir", profile, `t = await new_tab(${JSON.stringify(this.fixture.url)}, background=False); await t.title()`], { timeout: 60000 });
-      steps.push({ step: "exec new_tab and title", ...brief(exec) });
-      if (exec.code !== 0 || !exec.stdout.includes(`Ardia smoke ${this.fixture.token}`)) throw new Error(`ardia exec exited ${exec.code} and printed ${JSON.stringify((exec.stdout + exec.stderr).trim().slice(-300))}, not the fixture's title`);
-      const active = await this.ardia(["exec", "--data-dir", profile, "await tab.title()"], { timeout: 60000 });
-      steps.push({ step: "exec tab.title", ...brief(active) });
-      if (active.code !== 0 || !active.stdout.includes(`Ardia smoke ${this.fixture.token}`)) throw new Error(`ardia exec 'await tab.title()' exited ${active.code} and printed ${JSON.stringify((active.stdout + active.stderr).trim().slice(-300))}, not the fixture's title from the active tab`);
+      const fixtureTitle = `Ardia smoke ${this.fixture.token}`;
+      const opened = await this.browse(profile, "smoke", ["open", this.fixture.url]);
+      steps.push({ step: "browse open", ...brief(opened) });
+      if (opened.code !== 0) throw new Error(`ardia browse open exited ${opened.code} and printed ${JSON.stringify(brief(opened).out)}`);
+      const title = await this.browse(profile, "smoke", ["get", "title"]);
+      steps.push({ step: "browse get title", ...brief(title) });
+      if (title.code !== 0 || !title.stdout.includes(fixtureTitle)) throw new Error(`ardia browse get title exited ${title.code} and printed ${JSON.stringify(brief(title).out)}, not the fixture's title`);
+      const listed = await windows();
+      steps.push({ step: "windows lists the browse tab", ...brief(listed) });
+      if (listed.code !== 0 || !listed.stdout.includes(fixtureTitle)) throw new Error(`ardia windows exited ${listed.code} and printed ${JSON.stringify(brief(listed).out)}, without the tab ardia browse opened`);
       if ((await setControl(false)) !== false) throw new Error("settings.cliControl didn't turn off");
       await until(async () => (last = await windows()).code === 2, { timeout: 20000, interval: 500, label: "ardia windows to exit 2 once control is off", abort }).catch((error) => { throw new Error(`${error.message}; last ${JSON.stringify(last && brief(last))}`); });
       steps.push({ step: "windows once control is off again", ...brief(last) });
@@ -817,6 +830,7 @@ class Smoke {
     } catch (error) {
       throw Object.assign(error, { detail: { signals, steps, controlFiles: await controlFiles(), log: instance?.logPath ?? null } });
     } finally {
+      if (instance) await this.closeBrowseSessions(instance.profile, ["smoke"]);
       if (instance) await this.stopPipeInstance(instance);
     }
   }
@@ -840,9 +854,12 @@ class Smoke {
       let last = null;
       await until(async () => (last = await windows()).code === 0, { timeout: 30000, interval: 500, label: "ardia windows to succeed once control is on", abort }).catch((error) => { throw new Error(`${error.message}; last ${JSON.stringify(last && brief(last))}`); });
       const title = async (step) => {
-        const result = await this.ardia(["exec", "--data-dir", profile, `t = await new_tab(${JSON.stringify(this.fixture.url)}, background=False); await t.title()`], { timeout: 60000 });
+        const opened = await this.browse(profile, "scripts", ["open", this.fixture.url]);
+        steps.push({ step: `${step}: open`, ...brief(opened) });
+        if (opened.code !== 0) throw new Error(`ardia browse open exited ${opened.code}: ${brief(opened).out}`);
+        const result = await this.browse(profile, "scripts", ["get", "title"]);
         steps.push({ step, ...brief(result) });
-        if (result.code !== 0) throw new Error(`ardia exec exited ${result.code}: ${brief(result).out}`);
+        if (result.code !== 0) throw new Error(`ardia browse get title exited ${result.code}: ${brief(result).out}`);
         return result.stdout.trim().split("\n").at(-1) ?? "";
       };
       const install = await this.ardia(["scripts", "install", script, "--data-dir", profile], { timeout: 90000 });
@@ -863,6 +880,7 @@ class Smoke {
     } catch (error) {
       throw Object.assign(error, { detail: { steps, log: instance?.logPath ?? null } });
     } finally {
+      if (instance) await this.closeBrowseSessions(instance.profile, ["scripts"]);
       if (instance) await this.stopPipeInstance(instance);
     }
   }

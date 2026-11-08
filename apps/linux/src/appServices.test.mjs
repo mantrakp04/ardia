@@ -4,7 +4,10 @@ import { appInfo, docs } from "../../browser/src/test-native/index.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { useOnboarding, onboardingCompletedAt } from "../../browser/src/state/onboarding/onboarding.ts";
 import { useToasts } from "../../browser/src/state/app/toasts.ts";
-import { APP_LAUNCH_LOCK, APP_LAUNCH_MARK, FRESH_PROFILE_DOCUMENT, LAUNCH_STEPS, UTILITY_APP_COMMANDS, claimAppLaunch, hostLaunchRecord, onboardingAction, recordFreshProfile, runAppCommand, runLaunchServices, serveUtilityCommands, startAppCommands } from "./appServices.ts";
+import { useReportSheet } from "../../browser/src/state/report/store.ts";
+import { APP_COMMAND_HANDLERS } from "../../browser/src/state/commands/appCommands.ts";
+import { LINUX_REPORT_TEMPLATE, openReport } from "./reportProblem.ts";
+import { APP_LAUNCH_LOCK, APP_LAUNCH_MARK, FRESH_PROFILE_DOCUMENT, LAUNCH_STEPS, LINUX_APP_COMMANDS, UTILITY_APP_COMMANDS, claimAppLaunch, hostLaunchRecord, onboardingAction, recordFreshProfile, runAppCommand, runLaunchServices, serveUtilityCommands, startAppCommands } from "./appServices.ts";
 
 const capabilities = { defaultBrowser: false, launchAtLogin: false, thinScrollBars: false, webkit: false, cliControl: false, cliInstall: false, externalLinks: false, performanceRecording: false, taskManager: false };
 
@@ -237,7 +240,7 @@ test("app commands run only in the window that issued them", () => {
 
 test("unavailable help and developer commands say so instead of failing silently", () => {
   const { first } = twoWindows();
-  for (const command of ["taskManager", "recordPerformanceIssue", "releaseNotes", "videoTour"]) {
+  for (const command of ["taskManager", "releaseNotes", "videoTour"]) {
     useToasts.setState({ toasts: {} });
     assert.equal(runAppCommand(first, command, capabilities), true, command);
     assert.equal(toast(first)?.title, "Not available on Linux yet", command);
@@ -245,19 +248,54 @@ test("unavailable help and developer commands say so instead of failing silently
   assert.equal(runAppCommand(first, "newTab", capabilities), false);
 });
 
-test("Send Feedback copies the report and says where it went when no mail app can open", async () => {
+const tabsIn = (windowId) => Object.values(useBrowser.getState().tabs).filter((tab) => tab.windowId === windowId);
+const tabURL = (tab) => tab.url ?? tab.navigation?.url ?? "";
+const waitFor = async (check) => { for (let i = 0; i < 100 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 5)); };
+
+test("Report a Problem opens one prefilled GitHub issue in the window that asked, since the sheet can't send from Linux", async () => {
+  const { first, second } = twoWindows();
+  useReportSheet.setState(useReportSheet.getInitialState(), true);
+  const before = tabsIn(first).length;
+  assert.equal(runAppCommand(first, "reportProblem", capabilities), true);
+  await waitFor(() => tabsIn(first).length > before);
+  const opened = tabsIn(first).filter((tab) => tabURL(tab).startsWith("https://github.com/mantrakp04/ardia/issues/new?body="));
+  assert.equal(opened.length, 1);
+  const body = decodeURIComponent(tabURL(opened[0]).split("?body=")[1]);
+  assert.ok(body.startsWith(LINUX_REPORT_TEMPLATE), body);
+  assert.match(body, /Windows: 2 \(\+0 incognito\)/);
+  assert.equal(tabsIn(second).length, 1);
+  assert.equal(useReportSheet.getState().windowId, null);
+});
+
+test("Report a Problem from the check-in or the command bar reaches the same issue page, and a build's own https feedback page wins", async () => {
   const { first } = twoWindows();
-  useToasts.setState({ toasts: {} });
-  runAppCommand(first, "sendFeedback", capabilities);
-  for (let i = 0; i < 20 && !toast(first); i++) await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(toast(first)?.title, "Feedback report copied");
+  appInfo.feedbackURL = "https://feedback.example/new?text=%s";
+  try {
+    await openReport(first, "check_in");
+    assert.ok(tabsIn(first).some((tab) => tabURL(tab).startsWith("https://feedback.example/new?text=What%20happened%3F")));
+    appInfo.feedbackURL = "http://insecure.example/?q=%s";
+    await openReport(first);
+    assert.ok(tabsIn(first).some((tab) => tabURL(tab).startsWith("https://github.com/mantrakp04/ardia/issues/new?body=")));
+    const count = tabsIn(first).length;
+    await openReport("settings");
+    await openReport(null);
+    assert.equal(tabsIn(first).length, count);
+  } finally {
+    delete appInfo.feedbackURL;
+  }
+});
+
+test("the shared command handler never also runs an app command Linux runs itself, so nothing opens twice", () => {
+  const { first } = twoWindows();
+  const ownedByLinux = Object.keys(APP_COMMAND_HANDLERS).filter((command) => (useToasts.setState({ toasts: {} }), runAppCommand(first, command, capabilities)));
+  assert.deepEqual([...LINUX_APP_COMMANDS].sort(), ownedByLinux.sort());
 });
 
 test("utility windows run only the app commands that need no browser window", () => {
   const { first } = twoWindows();
   const listeners = [];
   startAppCommands("settings", capabilities, (listener) => (listeners.push(listener), { remove() {} }), UTILITY_APP_COMMANDS);
-  assert.deepEqual([...UTILITY_APP_COMMANDS].sort(), ["copyDiagnostics", "quit", "recordPerformanceIssue", "taskManager"]);
+  assert.deepEqual([...UTILITY_APP_COMMANDS].sort(), ["copyDiagnostics", "quit", "taskManager"]);
   useToasts.setState({ toasts: {} });
   listeners[0]({ command: "taskManager", windowId: "settings" });
   assert.equal(toast("settings")?.title, "Not available on Linux yet");
@@ -337,21 +375,31 @@ test("release notes still open when the holder died between recording versionUpd
   }
 });
 
-test("the first launch with a VERSION file counts as an update but opens no release-notes tab, and neither does a dev build without one", async () => {
-  const releaseNoteTabs = () => Object.values(useBrowser.getState().tabs).filter((tab) => (tab.url ?? tab.navigation?.url ?? "").includes("release-notes"));
-  for (const [before, after] of [["156.0.8078.79", "0.2.44-nightly.3"], ["0.2.44-nightly.3", "156.0.8078.79"]]) {
-    const { first } = twoWindows();
-    appInfo.appVersion = after;
-    docs.set("release-notes.json", JSON.stringify({ lastVersion: before, pending: null, version: 1 }));
-    docs.set("onboarding.json", JSON.stringify({ completedAt: 1, version: 1 }));
-    try {
+test("a changed app version counts as an update but opens no release-notes tab on an isolated or unreleased build, even with a release-notes page set", async () => {
+  const releaseNoteTabs = () => Object.values(useBrowser.getState().tabs).filter((tab) => tabURL(tab).includes("release-notes"));
+  appInfo.releaseNotesURL = "https://ardia.dev/release-notes";
+  try {
+    for (const [before, after] of [["156.0.8078.79", "0.2.44-nightly.3"], ["0.2.44-nightly.3", "156.0.8078.79"]]) {
+      const { first } = twoWindows();
+      appInfo.appVersion = after;
+      docs.set("release-notes.json", JSON.stringify({ lastVersion: before, pending: null, version: 1 }));
+      docs.set("onboarding.json", JSON.stringify({ completedAt: 1, version: 1 }));
       const record = await launch(first, { savedSession: true });
       assert.deepEqual(record.completions, ["versionUpdated", "version", "onboarding", "releaseNotes", "defaultBrowserOffer"]);
       assert.deepEqual(releaseNoteTabs(), []);
       assert.equal(JSON.parse(docs.get("release-notes.json")).lastVersion, after);
-    } finally {
-      appInfo.appVersion = "1.0";
     }
+    const { first } = twoWindows();
+    appInfo.appVersion = "0.2.45";
+    appInfo.forceReleaseNotes = true;
+    docs.set("release-notes.json", JSON.stringify({ lastVersion: "0.2.44", pending: null, version: 1 }));
+    docs.set("onboarding.json", JSON.stringify({ completedAt: 1, version: 1 }));
+    await launch(first, { savedSession: true });
+    assert.equal(releaseNoteTabs().length, 1);
+  } finally {
+    appInfo.appVersion = "1.0";
+    delete appInfo.releaseNotesURL;
+    delete appInfo.forceReleaseNotes;
   }
 });
 

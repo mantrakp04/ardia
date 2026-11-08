@@ -2,6 +2,7 @@ import ctypes
 import os
 import plistlib
 import struct
+import sys
 import unicodedata
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -173,8 +174,45 @@ class LibProc:
         return Process(pid, ppid, self.path(pid), self.argv(pid))
 
 
+class ProcFs:
+    def __init__(self, root: str = "/proc"):
+        self.root = root
+
+    def parent(self, pid: int) -> int | None:
+        try:
+            with open(f"{self.root}/{pid}/stat", "rb") as handle:
+                fields = handle.read(4096).rsplit(b")", 1)[1].split()
+            return int(fields[1])
+        except (OSError, IndexError, ValueError):
+            return None
+
+    def path(self, pid: int) -> str:
+        try:
+            return os.readlink(f"{self.root}/{pid}/exe").removesuffix(" (deleted)")
+        except OSError:
+            return ""
+
+    def argv(self, pid: int) -> tuple[str, ...]:
+        try:
+            with open(f"{self.root}/{pid}/cmdline", "rb") as handle:
+                raw = handle.read(MAX_ARGS_READ)
+        except OSError:
+            return ()
+        return tuple(os.fsdecode(word) for word in raw.split(b"\0")[:2] if word)
+
+    def process(self, pid: int) -> Process | None:
+        ppid = self.parent(pid)
+        if ppid is None:
+            return None
+        return Process(pid, ppid, self.path(pid), self.argv(pid))
+
+
+def default_reader():
+    return ProcFs() if sys.platform.startswith("linux") else LibProc()
+
+
 def ancestry(start: int, reader=None) -> list[Process]:
-    reader = reader or LibProc()
+    reader = reader or default_reader()
     chain = []
     seen = set()
     pid = start

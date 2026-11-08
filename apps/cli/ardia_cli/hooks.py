@@ -1018,6 +1018,7 @@ class AgentPaths:
     linux: bool = False
     config_home: Path | None = None
     state_home: Path | None = None
+    ardia_config_home: Path | None = None
 
     @property
     def agents(self) -> Path:
@@ -1056,7 +1057,14 @@ def agent_paths(linux: bool | None = None) -> AgentPaths:
     home = Path.home()
     if endpoint.LINUX if linux is None else linux:
         cli_home = os.environ.get("ARDIA_CLI_HOME") or str(endpoint.xdg_dir("XDG_DATA_HOME", ".local", "share", absolute=True) / "ardia" / "cli")
-        return AgentPaths(home, Path(cli_home).expanduser(), True, endpoint.config_home(absolute=True), endpoint.xdg_dir("XDG_STATE_HOME", ".local", "state", absolute=True))
+        return AgentPaths(
+            home,
+            Path(cli_home).expanduser(),
+            True,
+            endpoint.config_home(absolute=True),
+            endpoint.xdg_dir("XDG_STATE_HOME", ".local", "state", absolute=True),
+            Path(os.path.abspath(endpoint.installed_data_dir(True).parent)),
+        )
     from ardia_cli import usage
 
     return AgentPaths(home, usage.cli_home())
@@ -1116,7 +1124,10 @@ def systemd_quote(value: str, expands_variables: bool = True) -> str:
 
 def service_unit(paths: AgentPaths, path_env: str | None) -> str:
     command = " ".join(systemd_quote(part) for part in (str(paths.launcher), "hooks", "run", "--log", str(paths.log)))
-    environment = " ".join(systemd_quote(item, expands_variables=False) for item in (f"PATH={path_env or DEFAULT_PATH}", "ARDIA_DATA_DIR="))
+    pinned = [f"PATH={path_env or DEFAULT_PATH}", "ARDIA_DATA_DIR="]
+    if paths.ardia_config_home is not None:
+        pinned.append(f"ARDIA_CONFIG_HOME={paths.ardia_config_home}")
+    environment = " ".join(systemd_quote(item, expands_variables=False) for item in pinned)
     return f"""[Unit]
 Description=Ardia hooks (ardia hooks run)
 StartLimitIntervalSec=0

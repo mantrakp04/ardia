@@ -48,6 +48,7 @@ class LinuxDocuments {
   LinuxDocumentResult Flush(const LinuxDocumentClient& client,
                             const base::DictValue& request);
   void Unwatch(const LinuxDocumentClient& client);
+  void Retire(const LinuxDocumentClient& client);
   LinuxDocumentResult Seal(const LinuxDocumentClient& client,
                            const std::string& close_generation, int watermark);
   LinuxDocumentResult CancelSeal(const LinuxDocumentClient& client,
@@ -63,6 +64,7 @@ class LinuxDocuments {
     bool duplicate = false;
     bool superseded = false;
   };
+  void Release(const LinuxDocumentClient& client, bool forget_receipt);
   LinuxDocumentResult CommitAccess(const LinuxDocumentClient& client) const;
   CommitPreparation PrepareCommit(const LinuxDocumentClient& client,
                                    const base::DictValue& request) const;
@@ -80,6 +82,7 @@ class LinuxDocuments {
   std::map<std::string, Changed> watchers_;
   std::map<std::string, int> retired_generations_;
   std::set<std::string> retired_clients_;
+  std::set<std::string> forgotten_receipts_;
   std::map<std::string, std::pair<std::string, int>> seals_;
 };
 
