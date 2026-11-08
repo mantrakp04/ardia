@@ -72,3 +72,12 @@ test("a near-white profile gets a darker selected tab", () => {
 test("a fill that already shows is returned as is", () => {
   assert.equal(visibleSelection(arcSelectedFill.dark, "#000000", ["#342123"]), arcSelectedFill.dark);
 });
+
+test("a selected row's title takes the ink that reads best on that row, as Arc darkens it on a light row", () => {
+  const vivid = (v) => ({ stops: [{ x: 0.2, y: 0.2, color: { r: v, g: v, b: v, a: 1 } }, { x: 0.8, y: 0.8, color: { r: v, g: v, b: v, a: 1 } }], intensity: 1, mode: "dark", grain: 0, texture: "grain", translucency: 1 });
+  assert.equal(profileTheme({ color: "neutral", theme: vivid(0) }, true).rowSelectedText, "#FFFFFF");
+  assert.equal(profileTheme({ color: "neutral", theme: vivid(0.88) }, true).rowSelectedText, "#000000");
+  assert.equal(profileTheme({ color: "neutral", theme: flat(0.95, 0.62, 0.78, "light") }, false).rowSelectedText, "#000000");
+  for (const dark of [true, false])
+    for (const color of Object.keys(PROFILE_COLORS)) assert.equal(profileTheme({ color }, dark).rowSelectedText, colorRoles[dark ? "dark" : "light"].tabSelectedText);
+});

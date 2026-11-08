@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
 import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
-import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
+import { isRgbFunction, luminance, mix, over, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { arcSelectedFill, colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
@@ -12,6 +12,7 @@ import { visibleSelection } from "../../lib/selectionContrast";
 export { PROFILE_COLORS } from "./tokens";
 
 export type Theme = ColorRoles & {
+  rowSelectedText: string;
   profileColor: ProfileColor | "incognito";
   backdrop: BackdropTint & ThemeBackdropProps;
   windowTint: [string, string];
@@ -49,11 +50,21 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
-function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<ColorRoles, "tabSelected" | "pinnedSelectedFill"> {
-  if (base.dark) return { tabSelected: arcSelectedFill.dark, pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, ink.white, windowTint) };
+function readableOn(rows: readonly string[]): string {
+  const contrast = (text: string, row: string) => {
+    const [a, b] = [luminance(text), luminance(row)];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  const worst = (text: string) => Math.min(...rows.map((row) => contrast(text, row)));
+  return worst(ink.white) >= worst(ink.black) ? ink.white : ink.black;
+}
+
+function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<Theme, "tabSelected" | "pinnedSelectedFill" | "rowSelectedText"> {
+  const tabSelected = base.dark ? arcSelectedFill.dark : visibleSelection(arcSelectedFill.light, ink.black, windowTint);
   return {
-    tabSelected: visibleSelection(arcSelectedFill.light, ink.black, windowTint),
-    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, ink.black, windowTint),
+    tabSelected,
+    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, base.dark ? ink.white : ink.black, windowTint),
+    rowSelectedText: readableOn(windowTint.map((tint) => over(tabSelected, tint))),
   };
 }
 
@@ -68,6 +79,7 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
     theme = {
       ...base,
+      rowSelectedText: base.tabSelectedText,
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
       windowTint: opaqueTint(backdrop, base.dark),
