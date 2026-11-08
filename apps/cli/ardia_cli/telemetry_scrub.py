@@ -110,23 +110,12 @@ KNOWN_SECRET = re.compile(
     r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|xox[abposr]-[A-Za-z0-9-]{10,}"
     r"|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
 )
-AUTH_HEADER = re.compile(r"(?i)\b(bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{8,}")
-SECRET_WORDS = r"(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|private[_-]?key|access[_-]?key|authorization|cookie|credential|session|csrf|xsrf|jwt)"
-SENSITIVE_HEADERS = r"(?:proxy-authorization|authorization|set-cookie|cookie|x-api-key|x-auth-token)"
-HEADER_LINE = re.compile(
-    r"(?im)(?P<lead>^[ \t]*|(?<![A-Za-z0-9_-])(?:-H|--header)(?:[ \t]+|=)?(?P<quote>[\"'])?)"
-    r"(?P<name>" + SENSITIVE_HEADERS + r"|[A-Za-z0-9_-]*(?:token|secret|key)[A-Za-z0-9_-]*)(?P<sep>[ \t]*:)"
-    r"(?P<value>(?(quote)(?:(?!(?P=quote))[^\n])*|[^\n]*))"
+SENSITIVE_KEYWORD = re.compile(
+    r"(?i)password|passwd|pwd|secret|token|api[ _-]?key|apikey|authorization|bearer|basic|digest|cookie|session|credential"
+    r"|private[ _-]?key|auth"
 )
-INLINE_HEADER = re.compile(r"(?i)(?<![A-Za-z0-9_-])(?P<name>" + SENSITIVE_HEADERS + r")(?P<sep>[ \t]*:)(?![ \t]*<secret>)(?P<value>[^\n]*)")
-QUOTED_VALUE = r"\"(?:[^\"\\]|\\[\s\S])*(?:\"|\\?\Z)|'(?:[^'\\]|\\[\s\S])*(?:'|\\?\Z)|`[^`]*(?:`|\Z)"
-AUTH_SCHEME_VALUE = r"(?:bearer|basic|digest|token|negotiate|ntlm|hoba|mutual|aws4-hmac-sha256)[ \t]+[^\n]*"
-BARE_VALUE = r"[^\s,;&\"'`}\]]+(?:[ \t]*;[ \t]*[^\s;=,&]+=[^\s;,&]*)*"
-ASSIGNED_SECRET = re.compile(
-    r"(?i)(?<![A-Za-z0-9_-])([\"'`]?)([A-Za-z0-9_-]*" + SECRET_WORDS + r"[A-Za-z0-9_-]*)\1"
-    r"(\s*(?:=>|:=|[:=])\s*)"
-    r"(" + QUOTED_VALUE + r"|" + AUTH_SCHEME_VALUE + r"|" + BARE_VALUE + r")"
-)
+QUOTES = "\"'`"
+REDACTED = "<redacted>"
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
 CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
 HOME_PATH = re.compile(r"(/Users/|/home/)[^/\s]+")
@@ -147,15 +136,54 @@ def whole_words(text: str, limit: int) -> str:
     return cut[:space] if space > 0 else ""
 
 
+def logical_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    for line in text.split("\n"):
+        if lines and (line[:1] in (" ", "\t") or lines[-1].endswith("\\")):
+            lines[-1] += "\n" + line
+        else:
+            lines.append(line)
+    return lines
+
+
+def open_quote(line: str, quote: str | None = None) -> str | None:
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if char == "\\":
+            index += 2
+            continue
+        if quote is None:
+            if char in QUOTES and (index == 0 or not line[index - 1].isalnum()):
+                quote = char
+        elif char == quote:
+            quote = None
+        index += 1
+    return quote
+
+
+def redact_keyword_lines(text: str) -> str:
+    out: list[str] = []
+    pending: str | None = None
+    for line in logical_lines(text):
+        if pending is not None:
+            pending = open_quote(line, pending)
+            continue
+        found = SENSITIVE_KEYWORD.search(line)
+        if found is None:
+            out.append(line)
+            continue
+        out.append(line[:found.start()] + REDACTED)
+        pending = open_quote(line)
+    return "\n".join(out)
+
+
 def free_text(text: str, limit: int) -> tuple[str, bool]:
     clipped = len(text) > limit * SCRUB_WINDOW
     text = whole_words(CONTROL.sub(" ", text), limit * SCRUB_WINDOW)
-    text = HEADER_LINE.sub(lambda match: f"{match.group('lead')}{match.group('name')}{match.group('sep')} <secret>", text)
-    text = INLINE_HEADER.sub(lambda match: f"{match.group('name')}{match.group('sep')} <secret>", text)
+    text = redact_keyword_lines(text)
     text = URL.sub(scrub_url, text)
     text = KNOWN_SECRET.sub("<secret>", text)
-    text = AUTH_HEADER.sub(lambda match: f"{match.group(1)} <secret>", text)
-    text = ASSIGNED_SECRET.sub(lambda match: f"{match.group(1)}{match.group(2)}{match.group(1)}{match.group(3)}<secret>", text)
     text = EMAIL.sub("<email>", text)
     text = LONG_TOKEN.sub("<secret>", text)
     text = CARD_NUMBER.sub("<number>", text)
