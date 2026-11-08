@@ -35,6 +35,9 @@ public class FocusModule: Module {
 
     OnDestroy { self.lifetime.end() }
 
+    AsyncFunction("ackFocusMove") { (generation: Int) in
+      FocusHandoff.shared.ack(generation)
+    }.runOnQueue(.main)
     AsyncFunction("cancelFocusMove") { (generation: Int, restoringSource: Bool) in
       FocusHandoff.shared.cancel(generation, restoringSource: restoringSource)
     }.runOnQueue(.main)

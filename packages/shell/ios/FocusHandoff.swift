@@ -35,13 +35,15 @@ final class FocusHandoff {
     weak var resigned: NSView?
     var restoresSource = true
     var deadline: CFTimeInterval = 0
+    var timer: DispatchWorkItem?
     var generations: [Generation] = []
     var held: [Held] = []
     var watches: [NSObjectProtocol] = []
     init(_ window: NSWindow) { self.window = window }
   }
 
-  private static let lifetime: CFTimeInterval = 0.4
+  private static let pickupLimit: CFTimeInterval = 3
+  private static let settleLimit: CFTimeInterval = 2
   private static let capacity = 64
   private var gates: [ObjectIdentifier: Gate] = [:]
   private var generations = 0
@@ -134,6 +136,12 @@ final class FocusHandoff {
     deliverIfReady(gate)
   }
 
+  func ack(_ id: Int) {
+    note("ack \(id)")
+    guard let gate = gate(of: id), live(gate), let newest = gate.generations.last, newest.id == id else { return }
+    setDeadline(of: gate, after: Self.settleLimit)
+  }
+
   func cancel(_ id: Int, restoringSource: Bool) {
     note("cancel \(id) restoring=\(restoringSource)")
     guard let gate = gate(of: id), let index = gate.generations.firstIndex(where: { $0.id == id }) else { return }
@@ -217,12 +225,7 @@ final class FocusHandoff {
     let gate = Gate(window)
     let key = ObjectIdentifier(window)
     gates[key] = gate
-    gate.deadline = CACurrentMediaTime() + Self.lifetime
-    DispatchQueue.main.asyncAfter(deadline: .now() + Self.lifetime) { [weak self, weak gate] in
-      guard let self, let gate, self.gates[key] === gate else { return }
-      self.note("deadline")
-      self.end(gate, restoring: true)
-    }
+    setDeadline(of: gate, after: Self.pickupLimit)
     gate.watches.append(window.observe(\.firstResponder) { [weak self, weak gate] _, _ in
       DispatchQueue.main.async {
         guard let self, let gate, self.gates[key] === gate else { return }
@@ -236,6 +239,18 @@ final class FocusHandoff {
       })
     }
     return gate
+  }
+
+  private func setDeadline(of gate: Gate, after delay: CFTimeInterval) {
+    gate.deadline = CACurrentMediaTime() + delay
+    gate.timer?.cancel()
+    let timer = DispatchWorkItem { [weak self, weak gate] in
+      guard let self, let gate, let window = gate.window, self.gates[ObjectIdentifier(window)] === gate else { return }
+      self.note("deadline")
+      self.end(gate, restoring: true)
+    }
+    gate.timer = timer
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: timer)
   }
 
   private func live(_ gate: Gate) -> Bool {
@@ -284,6 +299,7 @@ final class FocusHandoff {
     typedAfterGate[window.windowNumber] = nil
     let key = ObjectIdentifier(window)
     if gates[key] === gate { gates[key] = nil }
+    gate.timer?.cancel()
     gate.watches.forEach { ($0 as? NSKeyValueObservation)?.invalidate() ?? NotificationCenter.default.removeObserver($0) }
     gate.watches = []
     if let resigned = gate.resigned { ArdiaWebView.endOutgoingFocus(from: resigned) }

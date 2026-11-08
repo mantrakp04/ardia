@@ -120,6 +120,7 @@ const focus: Modules["ArdiaFocus"] = {
   restoreKeyResponder: () => Promise.resolve(false),
   discardKeyResponder: () => Promise.resolve(),
   switcherPointerMoved: () => true,
+  ackFocusMove: () => Promise.resolve(),
   cancelFocusMove: () => Promise.resolve(),
   claimFocus: () => Promise.resolve(),
 };
