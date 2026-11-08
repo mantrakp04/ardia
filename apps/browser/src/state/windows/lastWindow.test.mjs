@@ -281,3 +281,20 @@ test("a second Dock click while the restored window appears focuses it instead o
   await tick();
   assert.equal(windows.focused, first);
 });
+
+test("a new window that takes the pins of a pins-only closed window drops that entry, and keeps entries with tabs", async () => {
+  S().hydrate({});
+  const other = S().createWindow({ url: "https://kept.com" });
+  S().newTab(other, { url: "https://kept2.com" });
+  const w = S().createWindow({ url: "https://mail.com" });
+  const cal = S().newTab(w, { url: "https://cal.com" });
+  S().pinTabs(S().windows[w].tabIds, true);
+  S().activate(cal);
+  for (const id of S().windows[w].tabIds.filter((id) => !S().tabs[id].pin)) S().closeTab(id);
+  await closeByUser(other);
+  await closeByUser(w);
+  assert.deepEqual(S().closedWindows.map((c) => c.tabs.length), [2, 0]);
+  const fresh = S().createWindow();
+  assert.deepEqual(pinnedUrls(fresh), ["https://mail.com", "https://cal.com"]);
+  assert.deepEqual(S().closedWindows.map((c) => c.tabs.length), [2], "the pins-only entry is used up; the one with tabs stays");
+});
