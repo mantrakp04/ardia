@@ -21,7 +21,7 @@ index a413a2888789daa1a4230e301ec21af5ec203488..857bd369ad19670a96f80aa08423c3b4
  @property (atomic, readonly) RCTNetworkTaskStatus status;
  
 diff --git a/Libraries/Network/RCTNetworkTask.mm b/Libraries/Network/RCTNetworkTask.mm
-index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54326edf0a 100644
+index a82671b7c87fae1e390cc6a292bd91611ca40584..13effa264ea260263dcf9ae7cd5e80bc99e821ae 100644
 --- a/Libraries/Network/RCTNetworkTask.mm
 +++ b/Libraries/Network/RCTNetworkTask.mm
 @@ -19,6 +19,8 @@ @implementation RCTNetworkTask {
@@ -69,24 +69,26 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
  
  - (void)dispatchCallback:(dispatch_block_t)callback
  {
-@@ -72,25 +89,32 @@ - (void)dispatchCallback:(dispatch_block_t)callback
+@@ -72,25 +89,36 @@ - (void)dispatchCallback:(dispatch_block_t)callback
  
  - (void)start
  {
 -  if (_atomicStatus != RCTNetworkTaskPending) {
--    RCTLogError(@"RCTNetworkTask was already started or completed");
--    return;
 +  // [Ardia: running and retained before the handler can call back, as a fast one (data: URIs) finishes the task
 +  // before sendRequest: returns, and only from pending, so a finished task never runs again; a cancel that came
 +  // before the token was published couldn't cancel the request, so start does
++  BOOL started;
 +  {
 +    std::lock_guard<std::mutex> lock(_selfReferenceMutex);
 +    RCTNetworkTaskStatus pending = RCTNetworkTaskPending;
-+    if (!_atomicStatus.compare_exchange_strong(pending, RCTNetworkTaskInProgress)) {
-+      RCTLogError(@"RCTNetworkTask was already started or completed");
-+      return;
++    started = _atomicStatus.compare_exchange_strong(pending, RCTNetworkTaskInProgress);
++    if (started) {
++      _selfReference = self;
 +    }
-+    _selfReference = self;
++  }
++  if (!started) {
+     RCTLogError(@"RCTNetworkTask was already started or completed");
+     return;
    }
  
 -  if (_requestToken == nil) {
@@ -112,7 +114,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
  
    id token = _requestToken;
    if (token && [_handler respondsToSelector:@selector(cancelRequest:)]) {
-@@ -111,10 +135,9 @@ - (BOOL)validateRequestToken:(id)requestToken
+@@ -111,10 +139,9 @@ - (BOOL)validateRequestToken:(id)requestToken
      valid = NO;
    }
  
@@ -126,7 +128,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
        [self dispatchCallback:^{
          completionBlock(self->_response, nil, RCTErrorWithMessage(@"Invalid request token."));
        }];
-@@ -130,8 +153,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
+@@ -130,8 +157,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
      return;
    }
  
@@ -137,7 +139,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
      int64_t length = _request.HTTPBody.length;
      [self dispatchCallback:^{
        uploadProgressBlock(bytesSent, length);
-@@ -146,8 +169,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
+@@ -146,8 +173,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
    }
  
    _response = response;
@@ -148,7 +150,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
      [self dispatchCallback:^{
        responseBlock(response);
      }];
-@@ -172,9 +195,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+@@ -172,9 +199,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
      @try {
        [_data appendData:data];
      } @catch (NSException *exception) {
@@ -163,7 +165,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
          [self dispatchCallback:^{
            completionBlock(
                self->_response, nil, RCTErrorWithMessage(exception.reason ?: @"Request's received data too long."));
-@@ -189,14 +214,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+@@ -189,14 +218,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
  
    int64_t total = _response.expectedContentLength;
  
@@ -182,7 +184,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54
      [self dispatchCallback:^{
        downloadProgressBlock(length, total);
      }];
-@@ -209,9 +234,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
+@@ -209,9 +238,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
      return;
    }
  
