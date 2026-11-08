@@ -1495,7 +1495,7 @@
 
   const scrollDirection = () => {
     const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
-    let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false;
+    let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false, heading = 0;
     const resized = (viewport, now) => {
       if (now >= settleUntil) budget = 0;
       if (height && viewport !== height) {
@@ -1509,7 +1509,13 @@
       rebase(y) {
         anchor = last = y;
       },
-      scrolled(y, range, viewport, now, user, heading = 0) {
+      wheeled(deltaY, pinch) {
+        heading = pinch || !deltaY ? 0 : deltaY > 0 ? 1 : -1;
+      },
+      undirected() {
+        heading = 0;
+      },
+      scrolled(y, range, viewport, now, user) {
         resized(viewport, now);
         if (now - lastAt > GESTURE) {
           gestureSent = false;
@@ -1543,15 +1549,24 @@
   let scroller = null;
   let scrollTarget = null;
   let inputAt = -1e9;
-  let heading = 0;
-  const noteInput = (sign = 0) => {
+  const noteInput = () => {
     inputAt = performance.now();
-    heading = sign;
     if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
   };
-  for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, () => noteInput(), { passive: true, capture: true });
-  addEventListener("wheel", (e) => noteInput(e.ctrlKey ? 0 : e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : heading), { passive: true, capture: true });
-  addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+  const noteUndirectedInput = () => {
+    direction.undirected();
+    noteInput();
+  };
+  addEventListener(
+    "wheel",
+    (e) => {
+      direction.wheeled(e.deltaY, e.ctrlKey);
+      noteInput();
+    },
+    { passive: true, capture: true },
+  );
+  for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, noteUndirectedInput, { passive: true, capture: true });
+  addEventListener("mousemove", (e) => e.buttons && noteUndirectedInput(), { passive: true, capture: true });
   const measureScroll = guard(() => {
     const target = scrollTarget;
     scrollTarget = null;
@@ -1560,7 +1575,7 @@
     if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
     if (el !== scroller) direction.rebase((scroller = el).scrollTop);
     const now = performance.now();
-    const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000, heading);
+    const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
     if (state) send("scroll", { state });
   });
   addEventListener(

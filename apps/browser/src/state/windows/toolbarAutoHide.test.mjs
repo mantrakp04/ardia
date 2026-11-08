@@ -17,11 +17,17 @@ function page({ range = 2000, height = 800 } = {}) {
   return {
     sent,
     d,
-    to(y, { dt = 16, viewport = height, max = range, user = true, heading = 0 } = {}) {
+    to(y, { dt = 16, viewport = height, max = range, user = true } = {}) {
       now += dt;
-      const state = d.scrolled(y, max, viewport, now, user, heading);
+      const state = d.scrolled(y, max, viewport, now, user);
       if (state) sent.push(state);
       return state;
+    },
+    wheel(deltaY, { pinch = false } = {}) {
+      d.wheeled(deltaY, pinch);
+    },
+    key() {
+      d.undirected();
     },
     pause(ms = 500) {
       now += ms;
@@ -95,17 +101,19 @@ test("a quick reversal right after the bar hides still shows it", () => {
 
 test("a bottom-pinned chat re-pinning after the show resize doesn't hide the bar again", () => {
   const p = page({ range: 1000 });
-  for (let y = 10; y <= 1000; y += 10) p.to(y, { heading: 1 });
+  p.wheel(100);
+  for (let y = 10; y <= 1000; y += 10) p.to(y);
   p.resize(821);
-  p.to(979, { viewport: 821, max: 979, heading: 1 });
+  p.to(979, { viewport: 821, max: 979 });
   assert.deepEqual(p.sent, ["down"]);
   p.pause();
-  for (const y of [974, 968, 962, 956, 950, 944]) p.to(y, { viewport: 821, max: 979, heading: -1 });
+  p.wheel(-100);
+  for (const y of [974, 968, 962, 956, 950, 944]) p.to(y, { viewport: 821, max: 979 });
   assert.deepEqual(p.sent, ["down", "up"]);
   p.resize(800);
-  p.to(1000, { viewport: 800, max: 1000, heading: -1 });
+  p.to(1000, { viewport: 800, max: 1000 });
   assert.deepEqual(p.sent, ["down", "up"]);
-  for (const y of [995, 990, 985, 980]) p.to(y, { viewport: 800, max: 1000, heading: -1 });
+  for (const y of [995, 990, 985, 980]) p.to(y, { viewport: 800, max: 1000 });
   assert.deepEqual(p.sent, ["down", "up"]);
 });
 
@@ -113,25 +121,30 @@ test("a bottom-pinned chat re-pinning after the hide resize doesn't show the bar
   const p = page({ range: 1000 });
   p.to(900, { user: false });
   p.pause();
-  for (const y of [910, 920, 930, 940]) p.to(y, { heading: 1 });
+  p.wheel(100);
+  for (const y of [910, 920, 930, 940]) p.to(y);
   assert.deepEqual(p.sent, ["down"]);
   p.resize(821);
-  for (const y of [950, 960, 970, 979]) p.to(y, { viewport: 821, max: 979, heading: 1 });
-  for (const y of [955, 935]) p.to(y, { viewport: 821, max: 979, heading: 1 });
+  for (const y of [950, 960, 970, 979]) p.to(y, { viewport: 821, max: 979 });
+  for (const y of [955, 935]) p.to(y, { viewport: 821, max: 979 });
   assert.deepEqual(p.sent, ["down"]);
-  for (const y of [930, 925, 920, 915]) p.to(y, { viewport: 821, max: 979, heading: -1 });
+  p.wheel(-100);
+  for (const y of [930, 925, 920, 915]) p.to(y, { viewport: 821, max: 979 });
   assert.deepEqual(p.sent, ["down", "up"]);
 });
 
 test("wheeling the other way right after the bar hides or shows still flips it", () => {
   const p = page({ range: 3000 });
-  for (let y = 10; y <= 300; y += 10) p.to(y, { heading: 1 });
+  p.wheel(100);
+  for (let y = 10; y <= 300; y += 10) p.to(y);
   p.resize(821);
-  for (let y = 290; y >= 250; y -= 10) p.to(y, { viewport: 821, heading: -1 });
+  p.wheel(-100);
+  for (let y = 290; y >= 250; y -= 10) p.to(y, { viewport: 821 });
   assert.deepEqual(p.sent, ["down", "up"]);
   p.resize(800);
   p.pause(400);
-  for (let y = 260; y <= 300; y += 10) p.to(y, { heading: 1 });
+  p.wheel(100);
+  for (let y = 260; y <= 300; y += 10) p.to(y);
   assert.deepEqual(p.sent, ["down", "up", "down"]);
 });
 
@@ -145,6 +158,77 @@ test("a key or a scrollbar drag has no wheel direction, so a jump against the la
   p.resize(800);
   p.to(500, { viewport: 800 });
   assert.deepEqual(p.sent, ["down", "up", "down"]);
+});
+
+test("input without a vertical wheel direction clears the last wheel's, so the next move against it counts", () => {
+  const inputs = {
+    "a key or a click": (p) => p.key(),
+    "a pinch": (p) => p.wheel(-100, { pinch: true }),
+    "a sideways wheel": (p) => p.wheel(0),
+  };
+  for (const [name, input] of Object.entries(inputs)) {
+    const p = page({ range: 3000 });
+    p.wheel(100);
+    p.to(600);
+    assert.deepEqual(p.sent, ["down"]);
+    p.to(560);
+    assert.deepEqual(p.sent, ["down"], name);
+    input(p);
+    p.to(520);
+    assert.deepEqual(p.sent, ["down", "up"], name);
+  }
+});
+
+const wiring = script.match(/const direction = scrollDirection\(\);[\s\S]*?(?=\n {2}const measureScroll)/)?.[0];
+assert.ok(wiring, "page_script.js wires scrollDirection to the page's input events");
+
+function wired() {
+  const listeners = {};
+  const clock = { now: 1000 };
+  const build = new Function("scrollDirection", "addEventListener", "performance", "document", `${wiring}\nreturn direction;`);
+  const direction = build(
+    scrollDirection,
+    (type, listener) => {
+      listeners[type] = listener;
+    },
+    { now: () => clock.now },
+    { scrollingElement: { scrollTop: 0 } },
+  );
+  return {
+    listeners,
+    scroll(y) {
+      clock.now += 16;
+      return direction.scrolled(y, 3000, 800, clock.now, true);
+    },
+  };
+}
+
+test("the page's wheel listener reports the wheel's direction, and every other input clears it", () => {
+  const wheel = (deltaY, ctrlKey = false) => ({ deltaY, ctrlKey });
+  const clears = {
+    "a key": (l) => l.keydown({}),
+    "a click": (l) => l.mousedown({}),
+    "a touch": (l) => l.touchstart({}),
+    "a drag with a button down": (l) => l.mousemove({ buttons: 1 }),
+    "a pinch": (l) => l.wheel(wheel(-100, true)),
+    "a sideways wheel": (l) => l.wheel(wheel(0)),
+  };
+  for (const [name, input] of Object.entries(clears)) {
+    const w = wired();
+    w.listeners.wheel(wheel(100));
+    assert.equal(w.scroll(600), "down");
+    assert.equal(w.scroll(560), null, name);
+    input(w.listeners);
+    assert.equal(w.scroll(520), "up", name);
+  }
+  const hover = wired();
+  hover.listeners.wheel(wheel(100));
+  assert.equal(hover.scroll(600), "down");
+  hover.listeners.mousemove({ buttons: 0 });
+  assert.equal(hover.scroll(560), null);
+  assert.equal(hover.scroll(520), null);
+  hover.listeners.wheel(wheel(-100));
+  assert.equal(hover.scroll(500), "up");
 });
 
 test("a page that only scrolls a little once hidden still shows it going up", () => {
