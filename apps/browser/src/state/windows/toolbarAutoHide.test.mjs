@@ -17,9 +17,9 @@ function page({ range = 2000, height = 800 } = {}) {
   return {
     sent,
     d,
-    to(y, { dt = 16, viewport = height, max = range, user = true } = {}) {
+    to(y, { dt = 16, viewport = height, max = range, user = true, heading = 0 } = {}) {
       now += dt;
-      const state = d.scrolled(y, max, viewport, now, user);
+      const state = d.scrolled(y, max, viewport, now, user, heading);
       if (state) sent.push(state);
       return state;
     },
@@ -91,6 +91,60 @@ test("a quick reversal right after the bar hides still shows it", () => {
   p.resize(821);
   for (let y = 290; y >= 250; y -= 10) p.to(y, { viewport: 821 });
   assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+test("a bottom-pinned chat re-pinning after the show resize doesn't hide the bar again", () => {
+  const p = page({ range: 1000 });
+  for (let y = 10; y <= 1000; y += 10) p.to(y, { heading: 1 });
+  p.resize(821);
+  p.to(979, { viewport: 821, max: 979, heading: 1 });
+  assert.deepEqual(p.sent, ["down"]);
+  p.pause();
+  for (const y of [974, 968, 962, 956, 950, 944]) p.to(y, { viewport: 821, max: 979, heading: -1 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+  p.resize(800);
+  p.to(1000, { viewport: 800, max: 1000, heading: -1 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+  for (const y of [995, 990, 985, 980]) p.to(y, { viewport: 800, max: 1000, heading: -1 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+test("a bottom-pinned chat re-pinning after the hide resize doesn't show the bar again", () => {
+  const p = page({ range: 1000 });
+  p.to(900, { user: false });
+  p.pause();
+  for (const y of [910, 920, 930, 940]) p.to(y, { heading: 1 });
+  assert.deepEqual(p.sent, ["down"]);
+  p.resize(821);
+  for (const y of [950, 960, 970, 979]) p.to(y, { viewport: 821, max: 979, heading: 1 });
+  for (const y of [955, 935]) p.to(y, { viewport: 821, max: 979, heading: 1 });
+  assert.deepEqual(p.sent, ["down"]);
+  for (const y of [930, 925, 920, 915]) p.to(y, { viewport: 821, max: 979, heading: -1 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+test("wheeling the other way right after the bar hides or shows still flips it", () => {
+  const p = page({ range: 3000 });
+  for (let y = 10; y <= 300; y += 10) p.to(y, { heading: 1 });
+  p.resize(821);
+  for (let y = 290; y >= 250; y -= 10) p.to(y, { viewport: 821, heading: -1 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+  p.resize(800);
+  p.pause(400);
+  for (let y = 260; y <= 300; y += 10) p.to(y, { heading: 1 });
+  assert.deepEqual(p.sent, ["down", "up", "down"]);
+});
+
+test("a key or a scrollbar drag has no wheel direction, so a jump against the last move still counts", () => {
+  const p = page({ range: 3000 });
+  p.to(600);
+  assert.deepEqual(p.sent, ["down"]);
+  p.resize(821);
+  p.to(100, { viewport: 821 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+  p.resize(800);
+  p.to(500, { viewport: 800 });
+  assert.deepEqual(p.sent, ["down", "up", "down"]);
 });
 
 test("a page that only scrolls a little once hidden still shows it going up", () => {

@@ -212,7 +212,7 @@ enum WebKitPageScript {
         rebase(y) {
           anchor = last = y;
         },
-        scrolled(y, range, viewport, now, user) {
+        scrolled(y, range, viewport, now, user, heading = 0) {
           resized(viewport, now);
           if (now - lastAt > GESTURE) {
             gestureSent = false;
@@ -228,7 +228,7 @@ enum WebKitPageScript {
           }
           let state = null;
           if (y <= 2) state = "top";
-          else if (!user) anchor = y;
+          else if (!user || moved * heading < 0) anchor = y;
           else if (y - anchor >= DOWN) {
             if (range >= MIN_RANGE) state = "down";
             else anchor = y;
@@ -246,11 +246,14 @@ enum WebKitPageScript {
     let scroller = null;
     let scrollTarget = null;
     let inputAt = -1e9;
-    const noteInput = () => {
+    let heading = 0;
+    const noteInput = (sign = 0) => {
       inputAt = performance.now();
+      heading = sign;
       if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
     };
-    for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
+    for (const type of ["keydown", "mousedown", "touchstart"]) addEventListener(type, () => noteInput(), { passive: true, capture: true });
+    addEventListener("wheel", (e) => noteInput(e.ctrlKey ? 0 : e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : heading), { passive: true, capture: true });
     addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
     const measureScroll = () => {
       try {
@@ -261,7 +264,7 @@ enum WebKitPageScript {
         if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
         if (el !== scroller) direction.rebase((scroller = el).scrollTop);
         const now = performance.now();
-        const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
+        const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000, heading);
         if (state) post("scroll", { state });
       } catch (e) {}
     };
