@@ -113,6 +113,7 @@ void WindowHost::OnTabStripModelChanged(
         [delegate window:owner didRemoveTab:bridge->tab()];
       }
     }
+    UpdateTitle();
   }
 }
 

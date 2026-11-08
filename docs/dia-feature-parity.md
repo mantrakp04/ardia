@@ -23,9 +23,9 @@ Legend: **✅** done · **🧪** built, but the deciding test needs the user pre
 
 | ✅ done | 🧪 needs the user | 🟡 partial | ❌ missing | ⛔ blocked | ⏸ deferred (AI) | — n/a |
 |---|---|---|---|---|---|---|
-| 230 | 1 | 2 | 0 | 1 | 59 | 14 |
+| 229 | 2 | 2 | 0 | 1 | 59 | 14 |
 
-Of the 234 rows that count (not ⏸ or —), 230 are done (98 %), 231 with the one 🧪 row (Cast). The two 🟡 rows are
+Of the 234 rows that count (not ⏸ or —), 229 are done (98 %), 231 with the two 🧪 rows (Cast and the window title). The two 🟡 rows are
 passkeys (iCloud Keychain waits on Apple) and the Dia sidebar import (profiles, open and pinned tabs come through
 Dia's AppleScript; custom names, colours, spaces and folders don't). Keyboard shortcuts: every Dia and Chrome
 shortcut is bound (Dia's where they clash) except Chat (⏸) and a few for Chrome's own hidden UI. Menus: all ten exist and match.
@@ -84,7 +84,7 @@ R1–R3, the three packages that followed the Chrome migration (tab state on Chr
 loose ends), are done; "(R1)" and the like below say which one did a row. Their plans, with the CEF-era files each
 owned, are in git history (`git show 2713787d:docs/dia-feature-parity.md`).
 
-The 🧪 row (Cast) needs no code until the user checklist below finds a problem. The checklist also keeps the hand and eye checks left in rows that are ✅.
+The two 🧪 rows (Cast and the window title, §1) need no code until the user checklist below finds a problem. The checklist also keeps the hand and eye checks left in rows that are ✅.
 
 ### ⛔ Blocked, and what would unblock it
 | Item | Blocked by | Unblocks when |

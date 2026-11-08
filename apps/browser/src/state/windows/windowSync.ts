@@ -37,6 +37,12 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
     if (w?.kind === "private") port.releaseProfile(engineProfile(useBrowser.getState(), w.profileId));
   };
 
+  const forget = (id: string) => {
+    open.delete(id);
+    titles.delete(id);
+    overrides.delete(id);
+  };
+
   const listen = () =>
     port.onEvent((e) => {
       const s = getState();
@@ -45,7 +51,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on);
       if (e.type === "close") {
         if (isQuitting()) return;
-        open.delete(e.id);
+        forget(e.id);
         s.closeWindow(e.id);
         releaseIfIncognito(s.windows[e.id]);
       }
@@ -71,9 +77,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
     }
     for (const id of [...open]) {
       if (s.windows[id]) continue;
-      open.delete(id);
-      titles.delete(id);
-      overrides.delete(id);
+      forget(id);
       port.close(id);
       releaseIfIncognito(prev?.windows[id]);
     }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -20,6 +20,10 @@ const windowManager = read("../../shell/ios/WindowManager.swift");
 const chromeWindows = read("../../shell/ios/ChromeWindows.swift");
 const windowsModule = read("../../shell/ios/AppWindowsModule.swift");
 const shellWindows = read("../../shell/src/windows.ts");
+const popupWindow = read("../ios/ArdiaPopupWindow.mm");
+const iosSources = readdirSync(new URL("../ios/", import.meta.url))
+  .filter((name) => /\.(mm|m|swift)$/.test(name))
+  .map((name) => [name, read(`../ios/${name}`)]);
 
 const bodyOf = (text, signature, close = "\n}\n") => {
   const start = text.indexOf(signature);
@@ -60,6 +64,14 @@ test("the title follows the active tab, the shown profile and the page's own tit
   assert.match(titleWasSet, /->UpdateTitle\(\);/);
 });
 
+test("removing a tab from the strip re-reads the title once the whole removal is done", () => {
+  const changed = bodyOf(windowHostTabs, "void WindowHost::OnTabStripModelChanged(");
+  const removal = changed.slice(changed.indexOf("TabStripModelChange::kRemoved"));
+  assert.ok(removal.includes("didRemoveTab:bridge->tab()"), "the removal branch is found");
+  assert.match(removal, /\n    UpdateTitle\(\);\n  \}$/);
+  assert.ok(removal.lastIndexOf("UpdateTitle();") > removal.lastIndexOf("didRemoveTab:"));
+});
+
 test("closing the shown profile's browser re-reads the title once it is no longer the active one", () => {
   const destroyed = bodyOf(windowHostClose, "void WindowHost::BrowserWindowDestroyed(");
   const cleared = destroyed.indexOf("active_profile_ = nullptr;");
@@ -96,17 +108,32 @@ test("a tab the engine does not show names the window through an override the ap
 test("the shell keeps each window's override, applies it when the window is shown or swapped and drops it on close", () => {
   assert.match(windowManager, /private var titleOverrides: \[String: String\] = \[:\]/);
   assert.match(bodyOf(windowManager, "func setTitleOverride(id: String, title: String?)", "\n  }\n"), /titleOverrides\[id\] = title/);
-  assert.match(bodyOf(windowManager, "private func show(", "\n  }\n"), /titleOverrides\[id\]/);
-  assert.match(bodyOf(windowManager, "private func adopt(", "\n  }\n"), /titleOverrides\[id\]/);
+  const show = bodyOf(windowManager, "private func show(", "\n  }\n");
+  assert.match(show, /if entry\.hostsChrome \{\n\s+if let pinned = titleOverrides\[id\] \{ ChromeWindows\.setTitleOverride\(pinned, in: window\) \}\n/);
+  const adopt = bodyOf(windowManager, "private func adopt(", "\n  }\n");
+  assert.match(adopt, /if entry\.hostsChrome, let pinned = titleOverrides\[id\] \{ ChromeWindows\.setTitleOverride\(pinned, in: to\) \}/);
+  assert.doesNotMatch(adopt, /\.title\s*=/);
   assert.match(bodyOf(windowManager, "private func forget(", "\n  }\n"), /titleOverrides\[entry\.id\] = nil/);
   assert.match(bodyOf(windowManager, "func close(id: String", "\n  }\n"), /titleOverrides\[id\] = nil/);
+});
+
+test("a popup window names itself through the engine's title override, not by writing the window title", () => {
+  const update = bodyOf(popupWindow, "- (void)updateTitle {");
+  assert.match(update, /\[_coreWindow setTitleOverride:/);
+  assert.match(update, /PopupOriginText\(url\)/);
+  assert.doesNotMatch(update, /\.title\s*=/);
 });
 
 test("nothing else in the app writes the title of a window the engine hosts", () => {
   const configure = bodyOf(trafficLights, "void ConfigureWindow(NSWindow *window)");
   assert.doesNotMatch(configure, /window\.title\s*=/);
-  assert.match(bodyOf(windowManager, "func setTitle(id: String, title: String)", "\n  }\n"), /hostsChrome/);
+  for (const [name, text] of iosSources) {
+    assert.doesNotMatch(text, /[wW]indow\.title\s*=/, `${name} does not assign a window title`);
+  }
+  assert.match(bodyOf(windowManager, "func setTitle(id: String, title: String)", "\n  }\n"), /guard let entry = managed\[id\], !entry\.hostsChrome, /);
   const show = bodyOf(windowManager, "private func show(", "\n  }\n");
-  assert.match(show, /if entry\.hostsChrome \{/);
+  const chromeBranch = show.slice(show.indexOf("if entry.hostsChrome {"), show.indexOf("} else {\n      window.title = title\n"));
+  assert.ok(chromeBranch.startsWith("if entry.hostsChrome {"), "the hostsChrome branch is found");
+  assert.doesNotMatch(chromeBranch, /\.title\s*=/);
   assert.match(show, /\} else \{\n\s+window\.title = title\n/);
 });

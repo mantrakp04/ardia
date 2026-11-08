@@ -171,6 +171,24 @@ test("startup sweep: closes native windows the store doesn't have, keeps utility
   assert.deepEqual(native.of("setTitleOverride").map((c) => c[1]), [a, a]);
 });
 
+test("a window the user closed is forgotten: the same id opening again gets its title and override sent again", () => {
+  reset();
+  const a = S().createWindow();
+  const native = fakePort();
+  const sync = start(native);
+  sync.sync(S());
+  const before = S();
+  assert.deepEqual(native.of("setTitleOverride"), [["setTitleOverride", a, "New Tab"]]);
+  native.emit({ type: "close", id: a });
+  const after = S();
+  assert.equal(after.windows[a], undefined);
+  sync.sync(after, before);
+  useBrowser.setState(before, true);
+  sync.sync(before, after);
+  assert.equal(native.of("open").filter((c) => c[1] === a).length, 2);
+  assert.deepEqual(native.of("setTitleOverride"), [["setTitleOverride", a, "New Tab"], ["setTitleOverride", a, "New Tab"]]);
+});
+
 test("full screen comes back oldest first", () => {
   reset();
   const a = S().createWindow();
