@@ -8,50 +8,49 @@ final class GlyphInkTests: XCTestCase {
     return pixels
   }
 
-  func testAGlyphAlreadyOnTheCentreNeedsNoShift() {
+  func testAGlyphAlreadyOnTheCentreNeedsNoShift() throws {
     let pixels = alpha(width: 16, height: 16, ink: 4...11, rows: 4...11)
-    let shift = GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8)
+    let shift = try XCTUnwrap(GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8))
     XCTAssertEqual(shift.dx, 0, accuracy: 1e-9)
     XCTAssertEqual(shift.dy, 0, accuracy: 1e-9)
   }
 
-  func testAGlyphLeftAndAboveTheCentreIsPushedRightAndDownInPoints() {
+  func testAGlyphLeftAndAboveTheCentreIsPushedRightAndDownInPoints() throws {
     let pixels = alpha(width: 16, height: 16, ink: 2...9, rows: 3...10)
-    let shift = GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8)
+    let shift = try XCTUnwrap(GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8))
     XCTAssertEqual(shift.dx, 2.0 / 8, accuracy: 1e-9)
     XCTAssertEqual(shift.dy, 1.0 / 8, accuracy: 1e-9)
   }
 
-  func testAGlyphRightAndBelowTheCentreIsPushedLeftAndUp() {
+  func testAGlyphRightAndBelowTheCentreIsPushedLeftAndUp() throws {
     let pixels = alpha(width: 16, height: 16, ink: 7...14, rows: 9...14)
-    let shift = GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 4)
+    let shift = try XCTUnwrap(GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 4))
     XCTAssertEqual(shift.dx, -3.0 / 4, accuracy: 1e-9)
     XCTAssertEqual(shift.dy, -1, accuracy: 1e-9)
   }
 
-  func testFaintFringePixelsDoNotCountAsInk() {
+  func testFaintFringePixelsDoNotCountAsInk() throws {
     var pixels = alpha(width: 16, height: 16, ink: 4...11, rows: 4...11)
     pixels[0] = GlyphInk.inkThreshold - 1
     pixels[15 * 16 + 15] = 1
-    let shift = GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8)
+    let shift = try XCTUnwrap(GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 8))
     XCTAssertEqual(shift.dx, 0, accuracy: 1e-9)
     XCTAssertEqual(shift.dy, 0, accuracy: 1e-9)
   }
 
-  func testPixelsAtTheThresholdCountAsInk() {
+  func testPixelsAtTheThresholdCountAsInk() throws {
     let pixels = alpha(width: 16, height: 16, ink: 0...7, rows: 0...7, level: GlyphInk.inkThreshold)
-    let shift = GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 1)
+    let shift = try XCTUnwrap(GlyphInk.offset(alpha: pixels, width: 16, height: 16, scale: 1))
     XCTAssertEqual(shift.dx, 4, accuracy: 1e-9)
     XCTAssertEqual(shift.dy, 4, accuracy: 1e-9)
   }
 
-  func testNothingDrawnOrBadInputNeedsNoShift() {
+  func testNothingDrawnOrBadInputIsNotAMeasurement() {
     let blank = [UInt8](repeating: 0, count: 64)
-    XCTAssertEqual(GlyphInk.offset(alpha: blank, width: 8, height: 8, scale: 8).dx, 0)
-    XCTAssertEqual(GlyphInk.offset(alpha: blank, width: 8, height: 8, scale: 8).dy, 0)
+    XCTAssertNil(GlyphInk.offset(alpha: blank, width: 8, height: 8, scale: 8))
     let full = [UInt8](repeating: 255, count: 10)
-    XCTAssertEqual(GlyphInk.offset(alpha: full, width: 8, height: 8, scale: 8).dx, 0)
-    XCTAssertEqual(GlyphInk.offset(alpha: full, width: 0, height: 0, scale: 8).dy, 0)
-    XCTAssertEqual(GlyphInk.offset(alpha: blank, width: 8, height: 8, scale: 0).dx, 0)
+    XCTAssertNil(GlyphInk.offset(alpha: full, width: 8, height: 8, scale: 8))
+    XCTAssertNil(GlyphInk.offset(alpha: full, width: 0, height: 0, scale: 8))
+    XCTAssertNil(GlyphInk.offset(alpha: blank, width: 8, height: 8, scale: 0))
   }
 }

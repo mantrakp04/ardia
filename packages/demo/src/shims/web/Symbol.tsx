@@ -1,8 +1,8 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useReducer } from "react";
 import { View, type ViewProps } from "react-native";
 import { noteMissing } from "../missing";
 import { symbolLayers, symbolNudge } from "./symbols/data";
-import { inkShift, measureInk } from "./symbols/ink";
+import { knownInkShift, measureInkShift } from "./symbols/ink";
 import { symbolMarkup, type SymbolWeight } from "./symbols/render";
 
 export type SymbolProps = ViewProps & {
@@ -26,18 +26,24 @@ export function Symbol({ name, size = NATIVE_DEFAULT_POINT_SIZE, weight = "regul
     () => (layers ? symbolMarkup(layers, { pointSize: size, weight, width: canvas, height: canvas, color: color ?? "currentColor", id, nudge: symbolNudge(name, weight, size) }) : ""),
     [layers, name, size, weight, canvas, color, id],
   );
-  const canvasRef = useRef<HTMLSpanElement>(null);
-  const [shift, setShift] = useState<readonly [number, number]>(NO_SHIFT);
-  useLayoutEffect(() => {
-    const next = centerInk ? inkShift(measureInk(canvasRef.current), canvas) : NO_SHIFT;
-    setShift((previous) => (previous[0] === next[0] && previous[1] === next[1] ? previous : next));
-  }, [centerInk, markup, canvas]);
+  const inkKey = `${name}|${weight}|${size}`;
+  const [, measuredAgain] = useReducer((count: number) => count + 1, 0);
+  const shift = (centerInk && knownInkShift(inkKey)) || NO_SHIFT;
+  useEffect(() => {
+    if (!centerInk || !layers || knownInkShift(inkKey)) return;
+    let current = true;
+    void measureInkShift(inkKey, markup, canvas).then((measured) => {
+      if (measured && current) measuredAgain();
+    });
+    return () => {
+      current = false;
+    };
+  }, [centerInk, layers, inkKey, markup, canvas]);
   return (
     <View pointerEvents="none" {...props} style={style}>
       {layers ? (
         <span aria-hidden data-symbol={name} style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, pointerEvents: "none" }}>
           <span
-            ref={canvasRef}
             style={{ position: "absolute", left: -canvas / 2 + shift[0], top: -canvas / 2 + shift[1], width: canvas, height: canvas, display: "block" }}
             dangerouslySetInnerHTML={{ __html: markup }}
           />
