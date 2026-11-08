@@ -122,6 +122,45 @@ python3 -I harness/bench.py stop
   - `parallel` has the peak and median memory %, the average and maximum number of lanes, and the total wall time
     (from `memory.jsonl`, summed over sessions).
 
+## OpenCode Browse side
+
+Contenders with `"kind": "opencode"` (`plans/opencode.json`) run the same agents, models, effort, prompt, deadline,
+checks and token accounting as the Ardia side. Only the browser and its tooling differ: [OpenCode
+Browse](https://github.com/anomalyco/browse), an MCP server and a Chromium extension. The extension drives tabs with
+`chrome.debugger`, and the relay runs the agent's Playwright code over that CDP link.
+
+Everything lives in `BENCH_OPENCODE_HOME` (default `~/ardia-scratch/opencode-browse`). Nothing goes into a real
+browser profile or an agent's global config:
+
+- `npm/`: `npm install --prefix … @opencode/browse`. `browse install` is never run, since it edits agent configs
+  and looks for the extension in real browser profiles.
+- `browsers/`: Chrome for Testing (`npx @puppeteer/browsers install chrome@stable --path …`).
+- `ext/store-0.0.10/`: the Chrome Web Store build of the extension (`mfnicocicmmlkpjnaffgihfjhdgjkdjg`), unpacked
+  with the store's public key so it keeps the store ID, which the relay trusts.
+- `lanes/lane<k>/`: wiped before every run. It holds the Chrome profile, the relay's data root (`browse/`), its XDG
+  folders, the Claude MCP config and the Codex `HOME`.
+
+Each run does the following, in order:
+
+1. Starts the task server and resets the task.
+2. Launches a fresh headless Chrome for Testing with the extension loaded. Headless never takes focus;
+   `frontmost_during_run` samples the front app every second to prove it.
+3. Starts the relay with `browse serve`. Port 19990 + k, auto-update off, autostart off.
+4. Pairs the extension without UI. `browse pair` mints a one-time code, and `harness/opencode_cdp.mjs` writes it with
+   the relay port into the extension's storage through its service worker.
+5. Opens `start_url` as the only tab and lends it to the agent with `Extensions.triggerAction`, the toolbar click a
+   user makes.
+6. Gives Claude `--mcp-config <lane>/mcp.json --strict-mcp-config`, and Codex `-c mcp_servers.browse.*`. That is the
+   same `node cli.mjs mcp` entry `browse install` writes, plus the isolation variables. The agent sees browse's 29
+   MCP tools and no skill file; browse's skill text comes only from its `skill` tool. The prompt's last line is ``Use
+   the `browse` MCP tools to reach this browser.``
+7. Records the same fields as an Ardia run. `commands` counts browse MCP calls plus shell commands
+   (`mcp_calls`, `shell_commands`, `browse_calls_by_tool` and `browse_calls` give the split). For Claude,
+   `agent_saw` holds the tool list from its init event.
+8. Quits Chrome and the relay.
+
+One run: `python3 -I harness/bench.py run calendar claude try-1 --side opencode --results …`.
+
 Scratch lives in `BENCH_HOME` (default `~/ardia-scratch/bench-proper`): `app/`, `cli/`, `devbin/`, `data-ardia/`,
 `work/`, `state/`, `logs/` and `results/`, plus `app-lane<k>/`, `data-ardia-lane<k>/` and `codex-home-lane<k>/`
 for extra lanes.

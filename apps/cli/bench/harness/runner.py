@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import ardia_side
+import opencode_side
 import registry
 import servers
 import summary
@@ -144,7 +145,7 @@ def rate_limit_reason(rec):
     if rec.get("pass"):
         return None
     texts = [str(rec.get("harness_error") or ""), str(rec.get("error") or ""), str(rec.get("status") or "")]
-    if rec.get("side") == "ardia":
+    if rec.get("side") in ("ardia", "opencode"):
         failed_cli = rec.get("cli_is_error") or rec.get("errors") or rec.get("exit_code") not in (0, None) or not rec.get("tokens")
         if not failed_cli:
             return None
@@ -157,10 +158,18 @@ def rate_limit_reason(rec):
     return m.group(0) if m else None
 
 
+def opencode_overrides(plan, contender, lane):
+    keys = ("model", "effort", "browse_entry", "extension", "chrome", "cdp_port", "relay_port", "reach_line")
+    return dict({k: contender.get(k) for k in keys}, lane=f"lane{lane.index}", lane_index=lane.index)
+
+
 def run_item(item, lane, results_dir, plan, on_start):
     c = item["contender"]
     if c["kind"] == "aside":
         return run_aside(item, results_dir, on_start)
+    if c["kind"] == "opencode":
+        return opencode_side.run(item["task"], c["agent"], item["run_id"], results_dir,
+                                 opencode_overrides(plan, c, lane), contender=c["id"], on_agent_start=on_start)
     return ardia_side.run(item["task"], c["agent"], item["run_id"], results_dir, lane_overrides(plan, c, lane),
                           contender=c["id"], on_agent_start=on_start)
 
@@ -262,7 +271,7 @@ class Executor:
                 with self.lock:
                     starts = self.sched.decide(time.time(), used)
                     for item, lane, mode in starts:
-                        if lane.kind == "ardia":
+                        if lane.kind == "ardia" and item["contender"]["kind"] == "ardia":
                             self.lanes_used[lane.id] = lane_overrides(self.plan, item["contender"], lane)
                         active = len(self.sched.running)
                         ardia_side.log(f"start {item['run_id']} on {lane.id} ({mode}, {active} active, {used}% used)")
@@ -281,6 +290,8 @@ class Executor:
             self.stop_sampling.set()
             if any(c["kind"] == "aside" for c in self.plan["contenders"]):
                 restore_aside_memory()
+            if any(c["kind"] == "opencode" for c in self.plan["contenders"]):
+                opencode_side.stop_all()
             if self.plan.get("stop_after", True):
                 for lane_id in list(self.lanes_used):
                     ardia_side.quit_instance(self.lanes_used.pop(lane_id))
@@ -346,7 +357,7 @@ def fmt(seconds):
 def execute(plan_path, results_dir=None, dry_run=False, max_lanes=6):
     plan = json.loads(Path(plan_path).read_text())
     results_dir = Path(results_dir or plan.get("results") or
-                       registry.HOME / "results" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+                       registry.HOME / "results" / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")).expanduser()
     if dry_run:
         for line in simulate(plan, results_dir, max_lanes):
             print(line)

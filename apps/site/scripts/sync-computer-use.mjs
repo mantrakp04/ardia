@@ -29,8 +29,12 @@ const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const summary = readJson(join(resultsDir, "summary.json"));
 if (summary.schema !== 1) throw new Error(`unknown summary schema ${summary.schema}`);
 
+const shownSides = new Set(["ardia", "aside"]);
+const shown = summary.contenders.filter((c) => shownSides.has(c.side));
+const shownIds = new Set(shown.map((c) => c.id));
+
 const runFiles = readdirSync(join(resultsDir, "runs")).filter((f) => /--r\d+\.json$/.test(f));
-const runs = runFiles.map((f) => readJson(join(resultsDir, "runs", f))).filter((r) => r && !r.harness_error);
+const runs = runFiles.map((f) => readJson(join(resultsDir, "runs", f))).filter((r) => r && !r.harness_error && shownIds.has(r.contender));
 const localDay = (iso) => new Date(iso).toLocaleDateString("en-CA");
 const days = runs.map((r) => r.started_at).filter(Boolean).map(localDay).sort();
 
@@ -38,7 +42,7 @@ const agentName = (c) => (c.side === "aside" ? "Aside" : c.agent === "claude" ? 
 const modelName = (c) => c.label?.match(/\(([^)]+)\)\s*$/)?.[1] ?? c.model;
 const round = (v, places) => (typeof v === "number" ? Number(v.toFixed(places)) : null);
 
-const cells = summary.cells.map((c) => ({
+const cells = summary.cells.filter((c) => shownIds.has(c.contender)).map((c) => ({
   task: c.task,
   contender: c.contender,
   runs: c.runs,
@@ -55,10 +59,10 @@ const data = {
   to: days.at(-1) ?? null,
   asideVersion,
   repeats: summary.repeats,
-  planned: summary.tasks.length * summary.contenders.length * (summary.repeats ?? 1),
+  planned: summary.tasks.length * shown.length * (summary.repeats ?? 1),
   runs: cells.reduce((n, c) => n + c.runs, 0),
   tasks: summary.tasks.map((t) => ({ id: t.id, title: t.title })),
-  contenders: summary.contenders.map((c) => ({ id: c.id, side: c.side, agent: agentName(c), model: modelName(c) })),
+  contenders: shown.map((c) => ({ id: c.id, side: c.side, agent: agentName(c), model: modelName(c) })),
   cells,
 };
 

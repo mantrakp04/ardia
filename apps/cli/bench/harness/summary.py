@@ -111,6 +111,6 @@ def build(results_dir):
             "median_time_s": "median wall time of the agent, all runs",
             "median_time_to_correct_s": "median seconds from agent start to the checker's completed_at_ms, passing runs",
             "median_tokens": "median total tokens (input incl. cached + output)",
-            "median_commands": "median shell commands (Ardia side) or agent steps (Aside)",
+            "median_commands": "median shell commands (Ardia side), browse MCP calls plus shell commands (OpenCode side), or agent steps (Aside)",
         },
     }
