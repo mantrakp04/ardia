@@ -20,6 +20,7 @@ import {
   mediaCommand,
   playerTabFor,
   positionOf,
+  sidebarPlayerCandidates,
   skipOrTrack,
   transportIcons,
   useHiddenPlayerTabs,
@@ -56,7 +57,7 @@ export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
 export function useSidebarPlayerTab(windowId: string, profileId: string): string | undefined {
   const sessions = useMedia(useShallow((m) => Object.keys(m.sessions)));
   const hidden = useHiddenPlayerTabs(windowId, profileId, sessions);
-  const candidates = useMedia(useShallow((m) => hidden.filter((id) => !m.leftPaused[id])));
+  const candidates = useMedia(useShallow((m) => sidebarPlayerCandidates(m, hidden)));
   const shown = useRef<string | undefined>(undefined);
   shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current));
   return shown.current;

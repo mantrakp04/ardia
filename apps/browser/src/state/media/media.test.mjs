@@ -192,11 +192,11 @@ test("with sidebar media controls off nothing is left paused, and turning them o
   assert.equal(M().leftPaused[b], true);
 });
 
-function sidebarPlayer(ids) {
+function sidebarPlayer(windowId) {
   let shown;
   return () => {
-    const candidates = ids.filter((id) => !media.isTabShown(S(), id, S().tabs[id].profileId) && !M().leftPaused[id]);
-    return (shown = media.playerTabFor(M(), candidates, shown));
+    const hidden = media.hiddenPlayerTabs(S(), windowId, S().windows[windowId].profileId, Object.keys(M().sessions));
+    return (shown = media.playerTabFor(M(), media.sidebarPlayerCandidates(M(), hidden), shown));
   };
 }
 
@@ -204,7 +204,7 @@ async function pausedInTheBackground() {
   const { w, a, b } = await playingIn("b.com");
   S().activate(a);
   const c = S().newTab(w, { url: "c.com", background: true });
-  const player = sidebarPlayer([a, b, c]);
+  const player = sidebarPlayer(w);
   assert.equal(player(), b, "left playing");
   media.setNowPlaying(b, report({ playbackState: "paused" }));
   assert.equal(player(), b, "paused after it was left: its player stays so it can be resumed");

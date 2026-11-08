@@ -302,14 +302,16 @@ export const dismissPlayer = (tabId: string) => useMedia.setState((m) => ({ dism
 
 const NO_HIDDEN: string[] = [];
 
+export function hiddenPlayerTabs(s: BrowserState, windowId: string, profileId: string, sessions: string[]): string[] {
+  const w = s.windows[windowId];
+  if (!sessions.length || !w) return NO_HIDDEN;
+  const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.profileId === profileId && isHiddenPlayerTab(s, id));
+  return ids.length > 1 ? ids.sort((a, b) => w.tabIds.indexOf(a) - w.tabIds.indexOf(b)) : ids;
+}
+
 export const useHiddenPlayerTabs = (windowId: string, profileId: string, sessions: string[]) =>
-  useBrowser(
-    useShallow((s) => {
-      const w = s.windows[windowId];
-      if (!sessions.length || !w) return NO_HIDDEN;
-      const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.profileId === profileId && isHiddenPlayerTab(s, id));
-      return ids.length > 1 ? ids.sort((a, b) => w.tabIds.indexOf(a) - w.tabIds.indexOf(b)) : ids;
-    }),
-  );
+  useBrowser(useShallow((s) => hiddenPlayerTabs(s, windowId, profileId, sessions)));
+
+export const sidebarPlayerCandidates = (m: Pick<Store, "leftPaused">, hidden: string[]) => hidden.filter((id) => !m.leftPaused[id]);
 
 export const usePinnedWithMediaControls = (tabId: string | undefined) => useBrowser((s) => !!tabId && !!s.tabs[tabId]?.pin && s.settings.sidebarMediaControls);
