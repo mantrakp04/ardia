@@ -1,6 +1,7 @@
 #import "ArdiaChromeWindowInternal.h"
 #import "ArdiaLaunchConfig.h"
 #import "ArdiaWebView.h"
+#import "ArdiaWindowSight.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
@@ -166,13 +167,14 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 - (instancetype)initWithCoreWindow:(ArdiaCoreWindow *)coreWindow {
   if ((self = [super init])) {
     _coreWindow = coreWindow;
-    _seen = YES;
+    _seen = [self currentlySeen];
     __weak ArdiaWindowFullScreen *weakSelf = self;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     NSMutableArray *observers = [NSMutableArray array];
     for (NSNotificationName name in @[
            NSWindowWillEnterFullScreenNotification, NSWindowWillExitFullScreenNotification, NSWindowDidEnterFullScreenNotification,
-           NSWindowDidExitFullScreenNotification, NSWindowDidChangeOcclusionStateNotification, NSWindowWillCloseNotification
+           NSWindowDidExitFullScreenNotification, NSWindowDidChangeOcclusionStateNotification, NSWindowWillCloseNotification,
+           NSWindowDidMiniaturizeNotification, NSWindowDidDeminiaturizeNotification
          ]) {
       [observers addObject:[center addObserverForName:name
                                                object:coreWindow.window
@@ -181,6 +183,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
                                              [weakSelf windowDid:note.name];
                                            }]];
     }
+    [observers addObjectsFromArray:ObserveWindowAttention(coreWindow.window, ^{ [weakSelf updateSeen]; })];
     _observers = observers;
   }
   return self;
@@ -228,9 +231,24 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
   dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf settled:entering ours:ours]; });
 }
 
+- (BOOL)currentlySeen {
+  NSWindow *window = _coreWindow.window;
+  return window && WindowSeen({
+    .pageFullScreen = _tab != nil || _entered,
+    .transitioning = (bool)_transitioning,
+    .settling = (bool)_settling,
+    .visible = (bool)[self windowVisible],
+    .applicationActive = (bool)NSApp.active,
+    .mainWindow = (bool)window.mainWindow,
+    .keyWindow = (bool)window.keyWindow,
+    .ignoresFocus = ardia_host::Background() && ![ArdiaLaunchConfig.shared testFlag:@"pipWindowFocus"],
+  });
+}
+
 - (void)updateSeen {
+  if (_closed) return;
   if (![self occlusionActed] && [CFBridgingRelease(CGSessionCopyCurrentDictionary())[@"CGSSessionScreenIsLocked"] boolValue]) return;
-  const BOOL seen = _settling || [self windowVisible] || IsWindowFullScreen(_coreWindow.window);
+  const BOOL seen = [self currentlySeen];
   if ([ArdiaLaunchConfig.shared traced:@"visibility"])
     NSLog(@"[ardiacore-vis] window %ld seen=%d (transitioning=%d settling=%d)", (long)_coreWindow.window.windowNumber, seen, _transitioning, _settling);
   if (seen == _seen) return;
@@ -262,6 +280,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     if (_tab) _leftTab = _tab;
     _tab = nil;
   }
+  [self updateSeen];
   ApplyFullScreenReveal(_coreWindow.window);
   _telling++;
   __weak ArdiaWindowFullScreen *weakSelf = self;
@@ -299,6 +318,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     [self coverThenToggle:_leftTab entering:NO];
   } else if (!page) {
     _entered = NO;
+    [self updateSeen];
   }
 }
 
@@ -350,6 +370,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
   if (!entering) _leftTab = nil;
   [CATransaction flush];
   ToggleWindowFullScreen(coreWindow);
+  [self updateSeen];
   NSArray *covers = _covers;
   if (!covers.count) return;
   __weak ArdiaWindowFullScreen *weakSelf = self;

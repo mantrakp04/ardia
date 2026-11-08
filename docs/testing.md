@@ -95,6 +95,17 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   `tabs.devPictureInPictureAction` also takes `alpha:<0–1>` (WindowServer alpha, so a hidden run's PiP window can be
   captured with `screencapture -l`), `mouse:<moved|down|up>:<x>,<y>` (top-left points), `stash` and `handle` (toggles
   the stash handle's hover).
+- **`pipWindowFocus`**: opt a hidden instance into the production auto-PiP focus rule. Without it, hidden instances
+  retain their acted visibility even when another test window becomes key. Launch with `ARDIA_TEST=pipWindowFocus`
+  (alongside `ARDIA_BACKGROUND=1`, a throwaway `ARDIA_DATA_DIR` and a remote debugging port), play an audible video
+  that already passes the `auto-picture-in-picture` tab-switch check, and keep its tab selected and window acted
+  visible. In the dev harness, get its window with `ac.engine.call("tabs.devWindowNumber", {tabId})`, then call
+  `ac.engine.call("windows.dev", {window, action: "fakeAppActive:0"})`. After the existing 300 ms visibility delay,
+  `ac.engine.call("tabs.devPictureInPicture", {})` must show its video PiP window; `fakeAppActive:1` must close it
+  when the source is key again. Repeat with a second browser window made key, then return to the source. Also check
+  a transient key panel whose source remains main, a green-button fullscreen window with inline video, and page
+  fullscreen (which must remain fullscreen without opening PiP). `tests/window-sight.test.mm` covers the production
+  predicate and attention observers without launching windows; it does not replace this built-app playback check.
 - **`allowOcclusion`**: macOS posts no occlusion change for a window a band below normal, so minimizing and
   deminiaturizing post one for it (the page goes hidden as in a user's minimized window).
 - **The `ardia` command** (`cliHome`, `cliBinDir`, `cliUrl` (`file://` works), test `cliInstallScript`): a test
