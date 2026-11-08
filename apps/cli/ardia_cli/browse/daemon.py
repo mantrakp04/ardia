@@ -418,10 +418,14 @@ class Daemon:
             if self.stopping:
                 return self.refuse_closing(ctx.options, "close")
             self.stopping = True
-            if self.state.opened and not self.state.lost:
+            leftovers = self.state.instance is not None and self.state.registry.temporaries(self.state.instance)
+            if (self.state.opened or leftovers) and not self.state.lost:
                 try:
+                    from ardia_cli.browse import temptabs
+
                     await self.state.connect()
                     await self.state.refresh_targets()
+                    await temptabs.sweep(self.state)
                     registry, instance = self.state.registry, self.state.instance
                     for target_id in list(self.state.opened):
                         if target_id not in self.state.target_infos:

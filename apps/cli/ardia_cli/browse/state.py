@@ -122,6 +122,9 @@ class State:
         except BrowseError:
             pass
         await self.refresh_targets()
+        from ardia_cli.browse import temptabs
+
+        await temptabs.sweep(self)
         command_metrics.spent("connect_ms", started)
 
     async def announce_caller(self, endpoint):
