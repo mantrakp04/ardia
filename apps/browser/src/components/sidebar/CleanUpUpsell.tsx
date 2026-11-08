@@ -14,18 +14,19 @@ import { useSidebarTokens } from "./tokens";
 
 const UPSELL_MIN = 10;
 const FILL = { flex: 1 } as const;
-let upsellDeclined = false;
+let closedThisLaunch = false;
 
 export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { windowId: string; shift: Animated.Value | null }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const [count, setCount] = useState(0);
-  const [hidden, setHidden] = useState(upsellDeclined);
+  const [closed, setClosed] = useState(closedThisLaunch);
+  const suggested = useSettings((st) => st.suggestCleanUp);
   const daily = useSettings((st) => st.cleanUpInactiveTabsAfterMinutes !== null);
   const tabIds = useWindow(windowId, (w) => w?.tabIds);
   const profileId = useWindow(windowId, (w) => w?.profileId);
   const activeId = useShownTabId(windowId);
-  const off = hidden || daily;
+  const off = closed || !suggested || daily;
   useEffect(() => {
     if (off) return;
     const check = () => setCount(cleanUpCandidateCount(windowId));
@@ -35,9 +36,9 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
   const [moved, movedRef] = useShift(shift);
   if (off || count < UPSELL_MIN) return null;
   const button = (title: string, onPress: () => void, primary = false) => <Button variant="pill" tone="chip" size="m" primary={primary} title={title} onPress={onPress} />;
-  const dismiss = () => {
-    upsellDeclined = true;
-    setHidden(true);
+  const close = () => {
+    closedThisLaunch = true;
+    setClosed(true);
   };
   return (
     <View {...moved} ref={movedRef} style={[{ marginTop: space.ml, borderRadius: radius.panel, padding: space.ml, backgroundColor: tokens.groupFill, borderWidth: hairline.panel, borderColor: tokens.groupStroke, gap: space.m }, moved.style as object]}>
@@ -46,20 +47,18 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
         <Text size="small" weight="semibold" style={FILL}>
           {count} tabs haven’t been touched in a while
         </Text>
+        <Button variant="close" look="panel" tooltip="Not now" label="Not now" onPress={close} />
       </View>
       <Text size="small" tone="textSecondary">
         Ardia can tidy up for you. You can always reopen closed tabs from the ⌄ menu.
       </Text>
       <View style={{ gap: space.s }}>
-        {button("Clean Up Once", () => {
-          cleanUpTabs(windowId);
-          dismiss();
-        }, true)}
+        {button("Clean Up Once", () => cleanUpTabs(windowId), true)}
         {button("Clean Up Daily", () => {
           updateSettings({ cleanUpInactiveTabsAfterMinutes: DAILY_CLEAN_UP_MINUTES });
           cleanUpTabs(windowId);
         })}
-        {button("Not Now", dismiss)}
+        {button("Never Remind Again", () => updateSettings({ suggestCleanUp: false }))}
       </View>
     </View>
   );
