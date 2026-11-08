@@ -115,11 +115,15 @@ uses exact secret patterns, never a cut at a keyword.
 
 ## Dashboard
 
-- `/users`: every install with name, avatar, last seen, version, channel, crashes, reports.
-- `/users/<install id>`: header (current version, Mac, channel, sharing), reports, and a timeline grouped
-  by session. Everything else links here.
+- `/people` (People; `/users` stays the aggregate Users page): every install with name, avatar, last seen,
+  version, channel, crashes, reports.
+- `/people/<install id>` (`/users/<install id>` redirects there): header (current version, Mac, channel,
+  sharing), reports, and a timeline grouped by session. Everything else links here.
 - `/feedback`: the inbox with kind, person, signals (recording, trace, watching) and fix status (issue open /
   fixed in <version> / not seen since <version> / came back), and `/feedback/<id>` with the recording.
 - `/regressions`: each tracked number, this version against the last on the same channel, worse ones flagged
   and linked to the people affected.
 - CLI exceptions show on Errors and Health with the app's.
+- Attachments are read through the dashboard at `/files/feedback/<id>/<name>` (admin only), from SeaweedFS
+  `buckets/feedback/` on `REPLAYS_HOST`, or `FEEDBACK_FILES_URL` (+ `FEEDBACK_FILES_TOKEN`) when set.
+  `DASHBOARD_FEEDBACK_FIXTURE=<json>` adds local synthetic reports in dev only.
