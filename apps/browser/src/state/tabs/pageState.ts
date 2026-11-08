@@ -20,6 +20,7 @@ export type { AutofillPrompt, AutofillPromptAnswer, PasswordPrompt, PasswordProm
 
 export type PageState = {
   status: string;
+  statusAtTop: boolean;
   crashed: CrashInfo | null;
   unresponsive: boolean;
   fullscreen: boolean;
@@ -40,6 +41,7 @@ export type PageState = {
 
 const IDLE_PAGE: PageState = {
   status: "",
+  statusAtTop: false,
   crashed: null,
   unresponsive: false,
   fullscreen: false,

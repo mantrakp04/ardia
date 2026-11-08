@@ -46,6 +46,8 @@ export const STATUS_MOTION = {
   hide: { duration: duration.slow, easing: curve.exit, delay: 180 },
 } as const;
 
+export const STATUS_FLIP_BAND = 48;
+
 export const CLI_PILL_MOTION = {
   show: { duration: duration.base, easing: curve.enter },
   hide: { duration: duration.base, easing: curve.exit },
