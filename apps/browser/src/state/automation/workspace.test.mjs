@@ -438,3 +438,67 @@ test("R3b: a move the store didn't finish names what it touched", async () => {
     useBrowser.setState({ placeTabs: real });
   }
 });
+
+const { setOpeningGate } = await import("../tabs/openingGate.ts");
+
+test("R3a: group.create takes its parent and section from the anchor, and refuses contradictions before opening anything", async () => {
+  const { windowId, a, b, c } = await setup();
+  S().pinTabs([a], true, false);
+  S().pinTabs([b], true, true);
+  const count = () => Object.keys(S().tabs).length;
+  const groups = () => Object.keys(S().groups).length;
+  const [tabs, made] = [count(), groups()];
+  for (const op of [
+    { op: "group.create", urls: ["https://new.example/"], before: a },
+    { op: "group.create", urls: ["https://new.example/"], after: a },
+    { op: "group.create", urls: ["https://new.example/"], before: b, pinned: false },
+  ]) {
+    const r = await apply(op);
+    assert.equal(r.ok, false, JSON.stringify(op));
+    assert.equal(r.error.code, "bad_request", JSON.stringify(op));
+    assert.deepEqual([count(), groups()], [tabs, made], JSON.stringify(op));
+  }
+  const pinnedThere = await apply({ op: "group.create", urls: ["https://p.example/"], before: b });
+  assert.equal(pinnedThere.ok, true, JSON.stringify(pinnedThere.error));
+  const pg = S().groups[pinnedThere.results[0].group];
+  assert.equal(pg.pinned, true);
+  assert.ok(Math.max(...pg.tabIds.map((id) => order(windowId).indexOf(id))) < order(windowId).indexOf(b));
+  const outer = (await apply({ op: "group.create", tabs: [c], pinned: false, name: "P" })).results[0].group;
+  const nested = await apply({ op: "group.create", urls: ["https://n.example/"], before: c });
+  assert.equal(nested.ok, true, JSON.stringify(nested.error));
+  assert.equal(S().groups[nested.results[0].group].parentId, outer);
+  const wrong = await apply({ op: "group.create", urls: ["https://n.example/"], before: c, pinned: true });
+  assert.equal(wrong.error.code, "bad_request");
+});
+
+test("R3b: a split moved next to a tile is refused, since its panes can only pin as rows", async () => {
+  const { a, b, c } = await setup();
+  S().createSplit([b, c]);
+  S().pinTabs([a], true, false);
+  const r = await apply({ op: "tab.move", tabs: [b], before: a });
+  assert.equal(r.ok, false);
+  assert.equal(r.error.code, "bad_request");
+  assert.deepEqual([S().tabs[b].pin, S().tabs[c].pin], [null, null]);
+});
+
+test("R3c: a URL an opening rule cancels rolls back the tabs opened before it", async () => {
+  const { windowId } = await setup();
+  setOpeningGate((url) => (url.startsWith("https://blocked.example/") ? { cancel: true } : null));
+  try {
+    const count = Object.keys(S().tabs).length;
+    const groups = Object.keys(S().groups).length;
+    for (const op of [
+      { op: "open", urls: ["https://good.example/", "https://blocked.example/x"], window: windowId },
+      { op: "group.create", urls: ["https://good.example/", "https://blocked.example/x"], pinned: false },
+    ]) {
+      const r = await apply(op);
+      assert.equal(r.ok, false, op.op);
+      assert.equal(r.error.code, "refused", op.op);
+      assert.match(r.error.message, /blocked\.example/);
+      assert.equal(Object.keys(S().tabs).length, count, op.op);
+      assert.equal(Object.keys(S().groups).length, groups, op.op);
+    }
+  } finally {
+    setOpeningGate(null);
+  }
+});

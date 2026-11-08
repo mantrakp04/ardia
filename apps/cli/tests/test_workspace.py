@@ -231,7 +231,7 @@ class EveryOutputIsInert(Base):
         self.assertIn("Héllo 世界 مرحبا 👋🏽\tcol\nline2 ", out)
         _, raw, _ = render({"json": True}, result=result, name="get")
         self.assertEqual(json.loads(raw)["data"]["title"], PAGE)
-        self.assertIn("\x9b", raw)
+        self.assertNotIn("\x9b", raw)
         from ardia_cli.browse.errors import BrowseError
 
         _, _, err = render({"json": False}, error=BrowseError(f"bad {PAGE}"))
@@ -254,3 +254,34 @@ class EveryOutputIsInert(Base):
             status, out, err = self.run_cli("commands", "--json")
             self.assertIn("\x1b", out)
             self.assertNotIn("\x1b", err)
+
+
+C1_TITLE = "Clear \x9b2J then \x9d0;spoof\x9c and \x7f, café 世界 👋"
+
+
+class JsonStaysInert(Base):
+    def assert_no_c1(self, text):
+        for char in ("\x9b", "\x9d", "\x9c", "\x7f"):
+            self.assertNotIn(char, text)
+
+    def test_browse_json_escapes_c1_and_decodes_to_the_same_value(self):
+        from ardia_cli.browse.commands import Result
+        from ardia_cli.browse.daemon import render
+
+        _, out, _ = render({"json": True}, result=Result(data={"title": C1_TITLE}, text=C1_TITLE))
+        self.assert_no_c1(out)
+        self.assertIn("café 世界 👋", out)
+        self.assertEqual(json.loads(out)["data"]["title"], C1_TITLE)
+
+    def test_every_cli_json_output_escapes_c1(self):
+        server = self.serve()
+        windows = [{"id": "w-1", "kind": "normal", "focused": True, "profile": "default", "profileName": "P", "tabs": [{"id": "t", "url": "https://a.example/", "title": C1_TITLE, "active": True, "pinned": False, "group": None}]}]
+        server.replies["windows"] = lambda params: {"result": windows}
+        status, out, _ = self.run_cli("windows", "--json")
+        self.assertEqual(status, 0)
+        self.assert_no_c1(out)
+        self.assertEqual(json.loads(out), windows)
+        from ardia_cli import printable
+
+        text = json.dumps({"t": C1_TITLE}, ensure_ascii=False)
+        self.assertEqual(json.loads(printable.json_safe(text)), {"t": C1_TITLE})

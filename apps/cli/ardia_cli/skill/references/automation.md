@@ -58,7 +58,8 @@ ardia events tab.navigated
 
 To react to the browser (a tab opening, a page loading, media starting, a tab going idle, the Mac waking), write a
 hook: a program that gets the event's JSON on stdin and `ARDIA_EVENT`, `ARDIA_URL`, `ARDIA_TITLE`, `ARDIA_TAB_ID`,
-`ARDIA_WINDOW_ID` and `ARDIA_PROFILE` in its environment. `ardia events --help` lists every event. URLs arrive
+`ARDIA_WINDOW_ID` and `ARDIA_PROFILE` in its environment. Those values come from pages: a hook that prints them to a
+terminal should escape control characters. `ardia events --help` lists every event. URLs arrive
 without their query and fragment unless the hook says `"fullUrls": true` (`--full-urls`); notifications, presence
 (`user.idle`, `app.activated`, `system.sleep`…) come only when named, never through `"*"`. Try a hook with
 `ardia on tab.navigated --match 'https://*.youtube.com/*' -- ~/bin/yt-hook`, then put it in

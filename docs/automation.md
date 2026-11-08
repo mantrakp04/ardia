@@ -138,9 +138,12 @@ plus the other panes of their split rows (`withSplitRows`, as `placeTabs`, `pinT
 Before its first change it checks every target, destination, section and restriction on that set; what fails there
 changes nothing. After its changes it checks that the store did what was asked (each tab in the window, profile,
 group and spot asked, on the right side of its anchor; each group with the parent, pin, position and fields asked; a
-removed group gone). If that check fails the reply is `failed`, never success, and says what happened: an `open`
-closes the tabs it made (the message says so, and `error.changed.tabs` lists any it couldn't close); any other
-operation lists the tabs and groups it may have changed in `error.changed`. The first failure stops the batch; the
+removed group gone). If that check fails the reply is `failed`, never success, and says what happened: an `open` or
+`group.create` closes the tabs it made (the message says so, and `error.changed` lists any it couldn't close, and the
+tabs and group a `group.create` was given or made that are still there); any other operation lists the tabs and
+groups it may have changed in `error.changed`. Tabs open one by one, and a URL a declarative `tab.opening` rule
+cancels stops the operation as `refused` and closes the tabs it had opened before it. A program hook decides after
+the reply, so it can still cancel (close) a tab the reply listed. The first failure stops the batch; the
 operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
 second `apply` waits for the first. Turning control off stops a running batch before its next operation.
 
@@ -171,7 +174,7 @@ profile goes where the store puts moved tabs.
 | `tab.wake` | `tabs` | Loads a sleeping tab in the background (`updateTab` with its woken page, or a reload for a discarded one). `outcomes`: `awake`, `already`, `failed` |
 | `tab.close` | `tabs` | `closeTabs`: as ✕, so pinned tabs unload; never closes a window (a window left empty gets a New Tab) |
 | `tab.rename` / `tab.icon` | `tab`, `title` / `icon` (null resets) | `updateTab` `customTitle` / `customIcon`, as Rename… and Change Icon… |
-| `group.create` | `tabs`?, `urls`?, `window`?, `profile`?, `parent`?, `pinned`? (default true, like New Group with Tab), `name`?, `icon`?, `color`?, `collapsed`?, `before`?/`after`? | Opens `urls`, else one New Tab when no `tabs`; places them (out of their old groups, into `parent`), `groupTabs`, then `updateGroup`. Top Apps tiles are refused |
+| `group.create` | `tabs`?, `urls`?, `window`?, `profile`?, `parent`?, `pinned`? (default true, like New Group with Tab), `name`?, `icon`?, `color`?, `collapsed`?, `before`?/`after`? | Opens `urls`, else one New Tab when no `tabs`; places them (out of their old groups, into the parent), `groupTabs`, then `updateGroup`. An anchor decides where the group goes, by the rule above: next to a pinned row or a top-level pinned group it is a pinned group there; next to a tab or group inside group P it is nested in P; next to a Top Apps tile it is refused; a `pinned` or `parent` that contradicts that is `bad_request`, before anything opens. Top Apps tiles in `tabs` are refused. The post-check covers its parent, pinned state and side of the anchor; if it fails, or a URL doesn't open (a `tab.opening` rule cancelled it: `refused`), the tabs it opened are closed again and the tabs it was given stay where they were moved (`error.changed`) |
 | `group.update` | `group`, `name`?, `icon`?, `color`?, `collapsed`? (at least one) | `updateGroup` |
 | `group.move` | `group`, `parent`? (id or null), `pinned`?, `before`?/`after`?, `window`?, `profile`? | `moveGroupToProfile`, `moveGroupToWindow` (not a pinned group: it is in every window of its profile), then `moveGroup`. A move to another profile gives the group a new id; the result has it |
 | `group.ungroup` / `group.close` / `group.delete` | `group` | `ungroup` (tabs stay), `closeGroup` (to Recently Closed Groups), `deleteGroup` |
@@ -443,6 +446,8 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
   `ARDIA_TAB_ID`, `ARDIA_PROFILE`, `ARDIA_URL`, `ARDIA_TITLE`, all set or removed for every run (never inherited from
   the runner), NULs stripped and each cut to 4 KB. `notification.shown` sets neither `ARDIA_TITLE` nor `ARDIA_URL`.
   A hook without `fullUrls` gets URLs without their query and fragment even when another hook asked for full ones.
+  Event data (`ARDIA_TITLE`, `ARDIA_URL`, the JSON line) comes from pages, so a program that prints it to a terminal
+  should escape control characters first, as the CLI's own output does; the runner leaves PROGRAM's output alone.
 - PROGRAM runs from argv, never through a shell unless PROGRAM is one; event values are never put into the command
   line. A leading `~` in PROGRAM is expanded, nothing else is.
 - `--match`/`match` take userscript match patterns (`urlmatch.py`); several match if any does; an event without a URL

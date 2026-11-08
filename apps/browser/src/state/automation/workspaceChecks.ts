@@ -4,9 +4,9 @@ import { inPinnedContainer, isPinnedRow, pinSection } from "../browser/model";
 import { ancestorIds, descendantIds, innermostGroupOf } from "../groups/groups";
 import { groupKeptOpen } from "../groups/closeGuard";
 import type { TabPlacement } from "../pins/placing";
-import { withSplitRows } from "../splits/splits";
+import { splitOf, splitRowPanes, withSplitRows } from "../splits/splits";
 import { eligibleKind, isEligibleTab, ownEntry } from "./automationWindows";
-import { OpError, store, type Anchor, type Changed, type Space } from "./workspaceTargets";
+import { OpError, store, type Anchor, type Changed, type Destination, type Space } from "./workspaceTargets";
 
 export function keptOpen(g: TabGroup, what: string) {
   if (groupKeptOpen(g.id)) throw new OpError("refused", `Group ${g.id} is a shared folder; ${what} it in the sidebar.`);
@@ -56,6 +56,26 @@ export function expectBeside(ids: string[], anchor: Anchor | undefined, after: b
   const edge = after ? Math.max(...marks) : Math.min(...marks);
   const off = ids.find((id) => (after ? order.indexOf(id) <= edge : order.indexOf(id) >= edge));
   if (off) fail(`tab ${off} isn't ${after ? "after" : "before"} ${anchor.id}.`);
+}
+
+export function noSplitTiles(s: BrowserState, panes: string[], placement: TabPlacement | undefined, where: string) {
+  if (!placement?.pinned || placement.row !== false) return;
+  const paired = panes.find((id) => splitRowPanes(s, splitOf(s, id)).includes(id));
+  if (paired) throw new OpError("bad_request", `Tab ${paired} is in a split, whose panes pin together as rows, so it can't go ${where}.`);
+}
+
+export type GroupSection = { parentId: string | null; pinned: boolean };
+
+export function groupSection(s: BrowserState, dest: Destination | undefined, fallback: GroupSection, askedPinned: unknown, own: ReadonlySet<string> = new Set()): GroupSection {
+  const ref = dest?.anchor?.id;
+  if (dest?.placement.pinned && !dest.placement.row) throw new OpError("bad_request", `${ref} is a Top Apps tile; groups don't go among tiles.`);
+  const parentId = dest ? (dest.placement.pinned ? null : (dest.placement.groupId ?? null)) : fallback.parentId;
+  if (parentId && own.has(parentId)) throw new OpError("bad_request", `A group can't go inside itself (${parentId}).`);
+  const sectionPinned = parentId ? s.groups[parentId]!.pinned : dest ? dest.placement.pinned : undefined;
+  if (sectionPinned !== undefined && askedPinned !== undefined && askedPinned !== sectionPinned) {
+    throw new OpError("bad_request", `${ref ?? parentId} is ${sectionPinned ? "in" : "outside"} the pinned section, so the group can't be ${askedPinned ? "pinned" : "unpinned"} there.`);
+  }
+  return { parentId, pinned: sectionPinned ?? (askedPinned !== undefined ? (askedPinned as boolean) : fallback.pinned) };
 }
 
 export function organizable(s: BrowserState, ids: string[]) {

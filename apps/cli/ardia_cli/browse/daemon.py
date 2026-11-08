@@ -109,7 +109,7 @@ def render(options: dict, result=None, error: BrowseError | None = None, name: s
 
 def _render(options: dict, result=None, error: BrowseError | None = None, name: str = "") -> tuple[int, str, str]:
     from ardia_cli.browse.commands import MUTATING, boundary
-    from ardia_cli.printable import inert
+    from ardia_cli.printable import inert, json_safe
 
     as_json = options.get("json")
     if error is not None:
@@ -120,14 +120,14 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
             payload = {"success": False, "data": error.data, "error": message}
             if error.code:
                 payload["code"] = error.code
-            return error.exit_code, json.dumps(sanitize(payload), ensure_ascii=False, separators=(",", ":")) + "\n", ""
+            return error.exit_code, json_safe(json.dumps(sanitize(payload), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
         return error.exit_code, "", f"✗ {inert(message)}\n"
     batch = getattr(result, "batch", None)
     code = 1 if getattr(result, "failed", False) else 0
     if as_json:
         if batch is not None:
-            return code, json.dumps(sanitize(batch), ensure_ascii=False, separators=(",", ":")) + "\n", ""
-        return code, json.dumps(sanitize({"success": True, "data": result.data, "error": None}), ensure_ascii=False, separators=(",", ":")) + "\n", ""
+            return code, json_safe(json.dumps(sanitize(batch), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
+        return code, json_safe(json.dumps(sanitize({"success": True, "data": result.data, "error": None}), ensure_ascii=False, separators=(",", ":"))) + "\n", ""
     text = result.text
     if text is None:
         return code, "", ""

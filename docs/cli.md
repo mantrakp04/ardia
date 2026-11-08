@@ -88,7 +88,9 @@ the pins into `pyproject.toml`).
   output shows control characters in page text, titles and names as `\u00NN` (`ardia_cli/printable.py`), so a page
   title can't drive the terminal (an OSC 52 clipboard write, say): see Terminal output.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
-- `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
+- `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`). PROGRAM's output goes
+  to the terminal untouched; event data such as `ARDIA_TITLE` and `ARDIA_URL` comes from pages, so a program that
+  prints it should escape control characters, as the CLI's own output does.
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
   `docs/automation.md`).
 - `ardia feedback --title TITLE [--kind bug|slow|idea|other] [--attach FILE]… [--command CMD] [--data-dir DIR] TEXT|-`
@@ -115,9 +117,11 @@ screen clear) through the CLI. Two places do it, so new commands get it without 
 `ardia notes` text output in `render` (`browse/daemon.py`), keeping line breaks and tabs, so snapshots, page text and
 notes read as before; and `cli.main` wraps stdout and stderr for every other command (`printable.inert_output`), with
 single-line fields (titles in `tabs`, `windows`, `events`, `pinned`, `history`) escaping line breaks too. Other text
-(accents, CJK, Arabic, emoji) is untouched. JSON output is left byte for byte as it was: `--json` (and
-`AGENT_BROWSER_JSON` for browse) turns the stdout wrapper off; stderr is always guarded. The `\u00NN` form keeps text
-that is itself JSON (a script's result) valid JSON.
+(accents, CJK, Arabic, emoji) is untouched. JSON output (`--json`, and `AGENT_BROWSER_JSON` for browse) keeps
+C0 controls as `json.dumps` writes them and escapes only U+007F–U+009F (raw there because of `ensure_ascii=False`) as
+`\u00NN` (`printable.json_safe`, in browse's JSON render and in the JSON-mode stdout writer), so it decodes to the
+same values and non-ASCII text stays readable; stderr is always guarded. The `\u00NN` form keeps text that is itself
+JSON (a script's result) valid JSON.
 
 ### Shared options
 
