@@ -111,10 +111,21 @@ KNOWN_SECRET = re.compile(
     r"|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
 )
 AUTH_HEADER = re.compile(r"(?i)\b(bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{8,}")
+SECRET_WORDS = r"(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|private[_-]?key|access[_-]?key|authorization|cookie|credential|session|csrf|xsrf|jwt)"
+SENSITIVE_HEADERS = r"(?:proxy-authorization|authorization|set-cookie|cookie|x-api-key|x-auth-token)"
+HEADER_LINE = re.compile(
+    r"(?im)(?P<lead>^[ \t]*|(?<![A-Za-z0-9_-])(?:-H|--header)(?:[ \t]+|=)?(?P<quote>[\"'])?)"
+    r"(?P<name>" + SENSITIVE_HEADERS + r"|[A-Za-z0-9_-]*(?:token|secret|key)[A-Za-z0-9_-]*)(?P<sep>[ \t]*:)"
+    r"(?P<value>(?(quote)(?:(?!(?P=quote))[^\n])*|[^\n]*))"
+)
+INLINE_HEADER = re.compile(r"(?i)(?<![A-Za-z0-9_-])(?P<name>" + SENSITIVE_HEADERS + r")(?P<sep>[ \t]*:)(?![ \t]*<secret>)(?P<value>[^\n]*)")
+QUOTED_VALUE = r"\"(?:[^\"\\]|\\[\s\S])*(?:\"|\\?\Z)|'(?:[^'\\]|\\[\s\S])*(?:'|\\?\Z)|`[^`]*(?:`|\Z)"
+AUTH_SCHEME_VALUE = r"(?:bearer|basic|digest|token|negotiate|ntlm|hoba|mutual|aws4-hmac-sha256)[ \t]+[^\n]*"
+BARE_VALUE = r"[^\s,;&\"'`}\]]+(?:[ \t]*;[ \t]*[^\s;=,&]+=[^\s;,&]*)*"
 ASSIGNED_SECRET = re.compile(
-    r"(?i)(?<![A-Za-z0-9_-])([\"'`]?)([A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|credential)[A-Za-z0-9_-]*)\1"
+    r"(?i)(?<![A-Za-z0-9_-])([\"'`]?)([A-Za-z0-9_-]*" + SECRET_WORDS + r"[A-Za-z0-9_-]*)\1"
     r"(\s*(?:=>|:=|[:=])\s*)"
-    r"(\"(?:[^\"\\]|\\.)*(?:\"|\Z)|'(?:[^'\\]|\\.)*(?:'|\Z)|`[^`]*(?:`|\Z)|(?:(?:bearer|basic|digest|token)\s+)?[^\s,;&\"'`}\]]+)"
+    r"(" + QUOTED_VALUE + r"|" + AUTH_SCHEME_VALUE + r"|" + BARE_VALUE + r")"
 )
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
 CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
@@ -139,6 +150,8 @@ def whole_words(text: str, limit: int) -> str:
 def free_text(text: str, limit: int) -> tuple[str, bool]:
     clipped = len(text) > limit * SCRUB_WINDOW
     text = whole_words(CONTROL.sub(" ", text), limit * SCRUB_WINDOW)
+    text = HEADER_LINE.sub(lambda match: f"{match.group('lead')}{match.group('name')}{match.group('sep')} <secret>", text)
+    text = INLINE_HEADER.sub(lambda match: f"{match.group('name')}{match.group('sep')} <secret>", text)
     text = URL.sub(scrub_url, text)
     text = KNOWN_SECRET.sub("<secret>", text)
     text = AUTH_HEADER.sub(lambda match: f"{match.group(1)} <secret>", text)

@@ -838,10 +838,14 @@ runs against a local stub with fixture data dirs.
 
 `ardia feedback "<what annoyed you, what you expected>"` (or the text on stdin, or `-`) is for agents to tell the
 developer about friction: a confusing error, a missing command, output that cost turns. `telemetry_scrub.free_text`
-first replaces control characters, drops a URL's login and query (`https://host/path?<redacted>`), known token shapes
+first replaces control characters and blanks sensitive headers from the colon to the end of the line (or the
+closing quote after curl's `-H '`/`--header`): `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`,
+`X-Api-Key`, `X-Auth-Token` anywhere, and any line-leading header whose name holds `token`, `secret` or `key`. Then it
+drops a URL's login and query (`https://host/path?<redacted>`), known token shapes
 (`ghp_…`, `github_pat_…`, `sk-…`, `xox?-…`, `AKIA…`, `AIza…`, JWTs), `Bearer`/`Basic`/`token` values, the values of
-`password=`/`token:`/`api_key=`-style assignments (keys bare or quoted, JSON and YAML style, a quoted value
-that never closes dropped to the end), emails, mixed letter-and-digit runs of 32 or more, card-like
+`password=`/`token:`/`session=`/`api_key=`-style assignments (keys bare or quoted, JSON and YAML style; a quoted
+value that never closes, dangling backslash included, goes to the end of the scan; an auth scheme value like
+`Digest …` to the end of the line; the rest of a `k=v; k2=v2` list after the key), emails, mixed letter-and-digit runs of 32 or more, card-like
 numbers and the user name in `/Users/<name>`, then caps it at 1,000 characters. It goes out under exactly the
 consent and opt-outs above, as a `cli_feedback` event; the flush starts at once instead of waiting out the 60 s
 interval, unless the flusher is backing off after a failure. At most 20 notes a rolling day go out per CLI home, and

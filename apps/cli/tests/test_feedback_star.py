@@ -63,8 +63,8 @@ class Case(unittest.TestCase):
 class ScrubTest(unittest.TestCase):
     def test_free_text_drops_secrets_emails_url_queries_and_home_names(self):
         text, truncated = telemetry_scrub.free_text(
-            "open https://bob:pw@example.com/reset?token=abc#x failed for jane.doe@example.org with ghp_abcdefghijklmnopqrstuvwx12 "
-            "Authorization: Bearer abcdefghijk123 password=hunter2 api_key: 'zz' in /Users/jane/site card 4111 1111 1111 1111 "
+            "open https://bob:pw@example.com/reset?token=abc#x failed for jane.doe@example.org with ghp_abcdefghijklmnopqrstuvwx12\n"
+            "Authorization: Bearer abcdefghijk123\npassword=hunter2 api_key: 'zz' in /Users/jane/site card 4111 1111 1111 1111 "
             "id 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
             1000,
         )
@@ -120,6 +120,61 @@ class ScrubTest(unittest.TestCase):
         for text, secret in cases.items():
             with self.subTest(text=text):
                 self.assertNotIn(secret, telemetry_scrub.free_text(text, 1000)[0])
+
+    def assert_scrubbed(self, text, *secrets, keep=()):
+        clean, _ = telemetry_scrub.free_text(text, 1000)
+        for secret in secrets:
+            self.assertNotIn(secret, clean, clean)
+        for kept in keep:
+            self.assertIn(kept, clean, clean)
+        return clean
+
+    def test_unterminated_value_with_a_dangling_escape(self):
+        self.assert_scrubbed('{"password":"hunter2\\', "hunter2")
+        self.assert_scrubbed("{'token': 'hunter2\\", "hunter2")
+        self.assert_scrubbed('{"api_key": "abc\\"hunter2\\', "hunter2", "abc")
+
+    def test_sensitive_headers_lose_everything_after_the_colon(self):
+        self.assert_scrubbed('Authorization: Bearer "shortsecret"', "shortsecret")
+        self.assert_scrubbed("Cookie: session=shortsecret; other=anothersecret", "shortsecret", "anothersecret")
+        self.assert_scrubbed("Set-Cookie: sid=shortsecret; Path=/; HttpOnly", "shortsecret")
+        self.assert_scrubbed("Proxy-Authorization: Basic zz", "zz")
+        self.assert_scrubbed("X-Auth-Token: t1", "t1")
+        self.assert_scrubbed("X-Client-Secret: s1\nX-Goog-Api-Key: k1", "s1", "k1")
+        self.assert_scrubbed("the request sent Authorization: Bearer abc and failed", "abc")
+
+    def test_every_digest_parameter_goes(self):
+        self.assert_scrubbed(
+            'Authorization: Digest username="bob", realm="r", nonce="n0nce", uri="/x", response="r3sp0nse", opaque="0paque"',
+            "bob", "n0nce", "r3sp0nse", "0paque",
+        )
+        self.assert_scrubbed('authorization=Digest username="bob", response="r3sp0nse"', "bob", "r3sp0nse")
+
+    def test_pairs_after_a_sensitive_key_go_in_cookie_lists(self):
+        self.assert_scrubbed("session=shortsecret; other=anothersecret", "shortsecret", "anothersecret")
+        self.assert_scrubbed("it set token=t0k; refresh=r3fresh; theme=dark", "t0k", "r3fresh", "dark", keep=("it set",))
+
+    def test_curl_headers(self):
+        clean = self.assert_scrubbed(
+            "curl -H 'Authorization: Bearer abc' --header \"X-Api-Key: k123\" -H 'Cookie: a=b; c=d' -H 'Accept: text/html' https://example.com/api",
+            "abc", "k123", "a=b", "c=d",
+            keep=("Accept: text/html", "https://example.com/api"),
+        )
+        self.assertEqual(clean.count("<secret>"), 3)
+        self.assert_scrubbed("curl -H'authorization: token zz9' -H \"cookie: x=1", "zz9", "x=1")
+
+    def test_http_request_dump(self):
+        dump = (
+            "POST /api/login HTTP/1.1\r\n"
+            "Host: example.com\r\n"
+            "Cookie: session=s3ss; csrf=c5rf\r\n"
+            "Authorization: Bearer t0ken\r\n"
+            "X-Api-Key: k3y\r\n"
+            "Content-Type: application/json\r\n"
+            "\r\n"
+            '{"username":"bob","password":"hunter2","remember":true}'
+        )
+        self.assert_scrubbed(dump, "s3ss", "c5rf", "t0ken", "k3y", "hunter2", keep=("Host: example.com", "Content-Type: application/json", "POST /api/login"))
 
     def test_feedback_and_command_both_go_through_the_scrubber(self):
         props = feedback.properties('{"password":"hunter2"}', 'ardia browse fill @e2 "x" --headers {"api_key":"short-key"}', Path("/nonexistent"), {})
