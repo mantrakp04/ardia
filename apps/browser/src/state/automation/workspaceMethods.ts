@@ -6,7 +6,7 @@ import { failure, type ErrorCode, type MethodError } from "./automationMethods";
 import { eligibleKind, isEligibleTab, ownEntry } from "./automationWindows";
 import { parseOps, type Op } from "./workspaceOps";
 import { runOp } from "./workspaceApply";
-import { OpError, type OpResult } from "./workspaceTargets";
+import { OpError, type Changed, type OpResult } from "./workspaceTargets";
 import { groupFields, isEligibleGroup, tabNode, workspace, type GroupNode, type TabNode } from "./workspaceTree";
 
 type Body = { result: unknown } | { error: MethodError };
@@ -29,7 +29,7 @@ export type ApplyResult = {
   ok: boolean;
   applied: number;
   results: (OpResult & { op: string })[];
-  error?: { index: number; code: ErrorCode; message: string };
+  error?: { index: number; code: ErrorCode; message: string; changed?: Changed };
   tabs: TabNode[];
   groups: (Omit<GroupNode, "items"> & { tabs: string[] })[];
   windows: { id: string; activeTab: string | null }[];
@@ -62,7 +62,8 @@ async function runAll(ops: Op[], stillOn: () => boolean): Promise<ApplyResult> {
       results.push(await runOp(results, op));
     } catch (thrown) {
       const code = thrown instanceof OpError ? thrown.code : "failed";
-      error = { index, code, message: `Operation ${index} (${op.op}): ${errorText(thrown)}` };
+      const changed = thrown instanceof OpError ? thrown.changed : undefined;
+      error = { index, code, message: `Operation ${index} (${op.op}): ${errorText(thrown)}`, ...(changed ? { changed } : {}) };
       break;
     }
   }

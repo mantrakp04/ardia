@@ -8,8 +8,11 @@ import { eligibleKind, isEligibleTab, lastFocusedEligibleWindow, ownEntry } from
 import type { Op } from "./workspaceOps";
 import { isEligibleGroup } from "./workspaceTree";
 
+export type Changed = { tabs?: string[]; groups?: string[] };
+
 export class OpError extends Error {
   readonly code: ErrorCode;
+  changed?: Changed;
 
   constructor(code: ErrorCode, message: string) {
     super(message);
@@ -150,7 +153,7 @@ export function besideAnchor(asked: Anchor, after: boolean, moving: ReadonlySet<
     if (t.pin && !group) pin = { pinned: true, row: isPinnedRow(t) };
   }
   const placement: TabPlacement = pin.pinned ? { ...pin, beforeId } : { pinned: false, groupId, beforeId };
-  return { placement, windowId: anchor.windowId, profileId: anchor.profileId, anchor: asked, after };
+  return { placement, windowId: anchor.windowId, profileId: anchor.profileId, anchor, after };
 }
 
 export function insideGroup(s: BrowserState, anchor: Anchor, group: TabGroup): boolean {

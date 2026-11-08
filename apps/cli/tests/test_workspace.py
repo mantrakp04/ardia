@@ -214,3 +214,43 @@ class TerminalEscapes(Base):
         self.assert_inert(browsing_cli.describe_pin({"kind": "pinned", "title": EVIL, "url": EVIL, "folder": EVIL, "profile": EVIL}))
         self.assert_inert(browsing_cli.describe_visit({"last_visit": "2026-11-08", "visits": 1, "title": EVIL, "url": EVIL, "profile": "p"}))
         self.assert_inert(browsing_cli.describe_domain({"visits": 1, "domain": EVIL, "pages": 1, "top_title": EVIL, "profile": "p"}))
+
+
+PAGE = "Héllo 世界 مرحبا 👋🏽\tcol\nline2 \x1b]52;c;ZXZpbA==\x07 \x9b2J \x7f \r end"
+
+
+class EveryOutputIsInert(Base):
+    def test_browse_text_escapes_controls_but_keeps_lines_tabs_and_unicode(self):
+        from ardia_cli.browse.commands import Result
+        from ardia_cli.browse.daemon import render
+
+        result = Result(data={"title": PAGE}, text=PAGE, page_content=True)
+        _, out, _ = render({"json": False}, result=result, name="get")
+        for char in ("\x1b", "\x07", "\x9b", "\x7f", "\r"):
+            self.assertNotIn(char, out)
+        self.assertIn("Héllo 世界 مرحبا 👋🏽\tcol\nline2 ", out)
+        _, raw, _ = render({"json": True}, result=result, name="get")
+        self.assertEqual(json.loads(raw)["data"]["title"], PAGE)
+        self.assertIn("\x9b", raw)
+        from ardia_cli.browse.errors import BrowseError
+
+        _, _, err = render({"json": False}, error=BrowseError(f"bad {PAGE}"))
+        self.assertNotIn("\x1b", err)
+
+    def test_one_writer_guards_every_command_but_json_mode(self):
+        from ardia_cli import automation_cli
+
+        def noisy(args):
+            sys.stdout.write("hook \x1b]52;c;ZXZpbA==\x07 name\tok\n")
+            sys.stderr.write("warn \x1b[2J\n")
+            return 0
+
+        with mock.patch.object(automation_cli, "cmd_commands", noisy):
+            status, out, err = self.run_cli("commands")
+            self.assertEqual(status, 0)
+            self.assertNotIn("\x1b", out + err)
+            self.assertNotIn("\x07", out)
+            self.assertIn("name\tok\n", out)
+            status, out, err = self.run_cli("commands", "--json")
+            self.assertIn("\x1b", out)
+            self.assertNotIn("\x1b", err)

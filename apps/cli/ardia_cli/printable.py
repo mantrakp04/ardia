@@ -1,8 +1,52 @@
 import re
+import sys
+from contextlib import contextmanager
 
-CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+FIELD_CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+TEXT_CONTROLS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def _escaped(found) -> str:
+    return f"\\u{ord(found.group()):04x}"
 
 
 def shown(value) -> str:
     text = "" if value is None else str(value)
-    return CONTROL.sub(lambda found: f"\\x{ord(found.group()):02x}", text)
+    return FIELD_CONTROLS.sub(_escaped, text)
+
+
+def inert(text: str) -> str:
+    return TEXT_CONTROLS.sub(_escaped, text)
+
+
+class InertStream:
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        return self._stream.write(inert(text) if isinstance(text, str) else text)
+
+    def writelines(self, lines):
+        for line in lines:
+            self.write(line)
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def json_requested(argv: list[str]) -> bool:
+    head = argv[:argv.index("--")] if "--" in argv else argv
+    return "--json" in head
+
+
+@contextmanager
+def inert_output(stdout: bool):
+    saved = sys.stdout, sys.stderr
+    if stdout and not isinstance(sys.stdout, InertStream):
+        sys.stdout = InertStream(sys.stdout)
+    if not isinstance(sys.stderr, InertStream):
+        sys.stderr = InertStream(sys.stderr)
+    try:
+        yield
+    finally:
+        sys.stdout, sys.stderr = saved

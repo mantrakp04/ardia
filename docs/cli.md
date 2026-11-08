@@ -85,9 +85,8 @@ the pins into `pyproject.toml`).
   apply a JSON batch of those in one call (`ardia_cli/workspace_cli.py`; protocol, operations and rules in
   `docs/automation.md` › Tabs and groups). `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
   or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending. Human
-  output (here and in `windows`, `events`, `pinned`, `history`, `commands`) shows control characters in page text,
-  titles and names as `\xNN` (`ardia_cli/printable.py`), so a page title can't drive the terminal (an OSC 52
-  clipboard write, say); `--json` prints the JSON as it is.
+  output shows control characters in page text, titles and names as `\u00NN` (`ardia_cli/printable.py`), so a page
+  title can't drive the terminal (an OSC 52 clipboard write, say): see Terminal output.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
@@ -107,6 +106,18 @@ the pins into `pyproject.toml`).
 command) prints `ardia: unknown command '…'` with where to go instead, and exits 2. What `exec` offered maps to
 `ardia browse` for pages, `ardia pinned` and `ardia history` for `pinned()` and `history()`, and `ardia run`,
 `ardia windows` and `ardia events` for `run()`, `windows()` and `events()`.
+
+### Terminal output
+
+Page text, titles, notes, names and other text from pages or files reach the terminal only with their control
+characters (C0, C1 and DEL) shown as `\u00NN`, so a page can't write escape sequences (an OSC 52 clipboard write, a
+screen clear) through the CLI. Two places do it, so new commands get it without asking: `ardia browse` and
+`ardia notes` text output in `render` (`browse/daemon.py`), keeping line breaks and tabs, so snapshots, page text and
+notes read as before; and `cli.main` wraps stdout and stderr for every other command (`printable.inert_output`), with
+single-line fields (titles in `tabs`, `windows`, `events`, `pinned`, `history`) escaping line breaks too. Other text
+(accents, CJK, Arabic, emoji) is untouched. JSON output is left byte for byte as it was: `--json` (and
+`AGENT_BROWSER_JSON` for browse) turns the stdout wrapper off; stderr is always guarded. The `\u00NN` form keeps text
+that is itself JSON (a script's result) valid JSON.
 
 ### Shared options
 

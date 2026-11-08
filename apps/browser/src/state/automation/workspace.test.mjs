@@ -349,3 +349,92 @@ test("R6: a store action that quietly does nothing is reported as a failure, nev
     useBrowser.setState({ updateGroup: real2 });
   }
 });
+
+test("R1b: split panes count as members, so one pane can't empty a shared folder", async () => {
+  const { windowId, b, c } = await setup();
+  S().createSplit([b, c]);
+  const shared = (await apply({ op: "group.create", tabs: [b], name: "Shared" })).results[0].group;
+  assert.deepEqual([...S().groups[shared].tabIds].sort(), [b, c].sort());
+  keepGroupsOpen((id) => id === shared);
+  try {
+    for (const op of [{ op: "tab.pin", tabs: [b], as: "row" }, { op: "tab.pin", tabs: [b] }, { op: "tab.move", tabs: [b], group: null }, { op: "group.create", tabs: [b], pinned: false }]) {
+      const r = await apply(op);
+      assert.equal(r.ok, false, JSON.stringify(op));
+      assert.equal(r.error.code, "refused", JSON.stringify(op));
+      assert.deepEqual([...(S().groups[shared]?.tabIds ?? [])].sort(), [b, c].sort(), JSON.stringify(op));
+      assert.equal(S().tabs[b].windowId, windowId);
+    }
+    const tile = await apply({ op: "tab.pin", tabs: [c], as: "tile" });
+    assert.equal(tile.error.code, "bad_request");
+  } finally {
+    keepGroupsOpen(() => false);
+  }
+});
+
+test("R3b: an anchor in a section the tabs can't join is refused before anything opens or moves", async () => {
+  const { windowId, a, b, c } = await setup();
+  S().pinTabs([a], true, false);
+  S().pinTabs([b], true, true);
+  const g = (await apply({ op: "group.create", tabs: [c], pinned: false })).results[0].group;
+  const count = () => Object.keys(S().tabs).length;
+  const tabs = count();
+  for (const op of [
+    { op: "open", urls: ["https://new.example/"], pin: "row", before: a },
+    { op: "open", urls: ["https://new.example/"], pin: "tile", before: b },
+    { op: "open", urls: ["https://new.example/"], pin: "tile", after: c },
+    { op: "group.move", group: g, before: a },
+    { op: "group.move", group: g, before: b, pinned: false },
+  ]) {
+    const r = await apply(op);
+    assert.equal(r.ok, false, JSON.stringify(op));
+    assert.equal(r.error.code, "bad_request", JSON.stringify(op));
+    assert.equal(count(), tabs, JSON.stringify(op));
+  }
+  assert.equal(S().groups[g].pinned, false);
+  assert.ok(order(windowId).includes(a));
+});
+
+test("R3b: tabs an open made are closed again when the store doesn't put them where asked", async () => {
+  const { c } = await setup();
+  const g = (await apply({ op: "group.create", tabs: [c], pinned: false })).results[0].group;
+  const tabs = Object.keys(S().tabs).length;
+  const real = S().placeTabs;
+  useBrowser.setState({ placeTabs: () => {} });
+  try {
+    const r = await apply({ op: "open", urls: ["https://x.example/", "https://y.example/"], group: g });
+    assert.equal(r.ok, false);
+    assert.equal(r.error.code, "failed");
+    assert.match(r.error.message, /closed the 2 tabs it opened/);
+  } finally {
+    useBrowser.setState({ placeTabs: real });
+  }
+  assert.equal(Object.keys(S().tabs).length, tabs);
+});
+
+test("R6b: group.move next to a pinned row joins the pinned section there, as tab.move does", async () => {
+  const { windowId, a, b, c } = await setup();
+  S().pinTabs([a], true, true);
+  const g = (await apply({ op: "group.create", tabs: [b, c], pinned: false })).results[0].group;
+  const r = await apply({ op: "group.move", group: g, before: a });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(S().groups[g].pinned, true);
+  const at = (id) => order(windowId).indexOf(id);
+  assert.ok(Math.max(...S().groups[g].tabIds.map(at)) < at(a));
+  const back = await apply({ op: "group.move", group: g, after: a });
+  assert.equal(back.ok, true, JSON.stringify(back.error));
+  assert.ok(Math.min(...S().groups[g].tabIds.map(at)) > at(a));
+});
+
+test("R3b: a move the store didn't finish names what it touched", async () => {
+  const { b, c } = await setup();
+  const g = (await apply({ op: "group.create", tabs: [c], pinned: false })).results[0].group;
+  const real = S().placeTabs;
+  useBrowser.setState({ placeTabs: () => {} });
+  try {
+    const r = await apply({ op: "tab.move", tabs: [b], group: g });
+    assert.equal(r.error.code, "failed");
+    assert.deepEqual(r.error.changed, { tabs: [b] });
+  } finally {
+    useBrowser.setState({ placeTabs: real });
+  }
+});

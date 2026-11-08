@@ -4,8 +4,9 @@ import { inPinnedContainer, isPinnedRow, pinSection } from "../browser/model";
 import { ancestorIds, descendantIds, innermostGroupOf } from "../groups/groups";
 import { groupKeptOpen } from "../groups/closeGuard";
 import type { TabPlacement } from "../pins/placing";
-import { eligibleKind, ownEntry } from "./automationWindows";
-import { OpError, store, type Space } from "./workspaceTargets";
+import { withSplitRows } from "../splits/splits";
+import { eligibleKind, isEligibleTab, ownEntry } from "./automationWindows";
+import { OpError, store, type Anchor, type Changed, type Space } from "./workspaceTargets";
 
 export function keptOpen(g: TabGroup, what: string) {
   if (groupKeptOpen(g.id)) throw new OpError("refused", `Group ${g.id} is a shared folder; ${what} it in the sidebar.`);
@@ -28,6 +29,33 @@ export function closedGroupFor(s: BrowserState, g: TabGroup): TabGroup {
   let target = g;
   for (let p = target.parentId ? s.groups[target.parentId] : undefined; p?.tabIds.length === target.tabIds.length; p = p.parentId ? s.groups[p.parentId] : undefined) target = p;
   return target;
+}
+
+export function withPanes(s: BrowserState, ids: string[]): string[] {
+  const all = withSplitRows(s, ids);
+  for (const id of all) if (!isEligibleTab(s, id)) throw new OpError("no_window", `Tab ${id}, in a split with the tabs named, isn't one the ardia command can use.`);
+  return all;
+}
+
+export function afterChange<T>(changed: Changed, check: () => T): T {
+  try {
+    return check();
+  } catch (error) {
+    if (error instanceof OpError) error.changed = changed;
+    throw error;
+  }
+}
+
+export function expectBeside(ids: string[], anchor: Anchor | undefined, after: boolean | undefined) {
+  if (!anchor) return;
+  const s = store();
+  const order = s.windows[anchor.windowId]?.tabIds ?? [];
+  const moving = new Set(ids);
+  const marks = (anchor.kind === "tab" ? [anchor.id] : (s.groups[anchor.id]?.tabIds ?? [])).filter((id) => !moving.has(id)).map((id) => order.indexOf(id));
+  if (!marks.length) return;
+  const edge = after ? Math.max(...marks) : Math.min(...marks);
+  const off = ids.find((id) => (after ? order.indexOf(id) <= edge : order.indexOf(id) >= edge));
+  if (off) fail(`tab ${off} isn't ${after ? "after" : "before"} ${anchor.id}.`);
 }
 
 export function organizable(s: BrowserState, ids: string[]) {

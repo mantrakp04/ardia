@@ -238,9 +238,15 @@ def main(argv: list[str] | None = None) -> int:
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
-    from ardia_cli import telemetry
+    from ardia_cli import printable, telemetry
 
-    return telemetry.track(argv, lambda: run(argv))
+    try:
+        index = take_shared(argv, 0, [])
+    except UsageError:
+        index = len(argv)
+    browse_writes_its_own = index < len(argv) and argv[index] in ("browse", "notes")
+    with printable.inert_output(stdout=not browse_writes_its_own and not printable.json_requested(argv)):
+        return telemetry.track(argv, lambda: run(argv))
 
 
 def run(argv: list[str]) -> int:

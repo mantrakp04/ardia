@@ -133,11 +133,15 @@ first runs: an unknown `op` or field (typos included), a wrong type, more than 5
 list is `bad_request`, a URL the socket won't open is `refused`, and nothing runs. Then each one checks its targets
 just before it runs, against the state the earlier ones left: a tab or group that is gone, moved out of reach, private
 or in an incognito profile is `no_window`, never a stand-in. Ids are looked up as the store's own entries only, so
-`constructor` or `__proto__` is no id. Each operation checks every target, destination and restriction for all of
-its tabs before its first change, so it applies whole or changes nothing, and afterwards checks that the store did
-what was asked (each tab in the window, profile, group and spot asked; each group with the parent, pin and fields
-asked; a removed group gone): a store that quietly refused is `failed`, never success. The first failure stops the
-batch; the operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
+`constructor` or `__proto__` is no id. Each operation works on the tabs the store will really move: the ones named
+plus the other panes of their split rows (`withSplitRows`, as `placeTabs`, `pinTabs` and `groupTabs` expand them).
+Before its first change it checks every target, destination, section and restriction on that set; what fails there
+changes nothing. After its changes it checks that the store did what was asked (each tab in the window, profile,
+group and spot asked, on the right side of its anchor; each group with the parent, pin, position and fields asked; a
+removed group gone). If that check fails the reply is `failed`, never success, and says what happened: an `open`
+closes the tabs it made (the message says so, and `error.changed.tabs` lists any it couldn't close); any other
+operation lists the tabs and groups it may have changed in `error.changed`. The first failure stops the batch; the
+operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
 second `apply` waits for the first. Turning control off stops a running batch before its next operation.
 
 Reply: `{"ok", "applied", "results": [{"op", "tabs"?, "group"?, "outcomes"?}], "error"?: {"index", "code",
@@ -148,7 +152,11 @@ operation is a normal reply with `ok: false`; only a request that fails the up-f
 Ids may be `$N` (N less than the operation's own index): what operation N made, its group in a group field, its
 tabs in a tab field (one tab where only one fits). `before`/`after` take a tab or a group id and put the tabs (or
 group) next to it, in that tab's group and section. With `group` (or `parent`) too, the anchor must be inside that
-group, in its window and profile, else `bad_request`. With `"group": null` too, the tabs go to the top level next to
+group, in its window and profile, else `bad_request`. The anchor's section decides the section: next to a Top Apps
+tile the tabs become tiles, next to a pinned row or a top-level pinned group they become pinned rows (a moved group
+becomes pinned), next to a tab in a group they join that group. `open` with `pin` must name an anchor of that kind
+(`tile` next to a tile, `row` next to a pinned row or pinned group), a group can't go next to a tile, and a
+`pinned` that contradicts the anchor's section is `bad_request`; all of it before anything opens or moves. With `"group": null` too, the tabs go to the top level next to
 the anchor's outermost group (before its first tab, or after its last). With neither, a tab moving to a window or
 profile goes where the store puts moved tabs.
 
@@ -156,7 +164,7 @@ profile goes where the store puts moved tabs.
 |---|---|---|
 | `open` | `urls` (one or a list), `window`?, `profile`?, `group`?, `before`?/`after`?, `pin`? (`tile`/`row`), `activate`? | `newTab` in the background for each, in order, where new tabs go (or as placed); `window` defaults to the last focused one, or one showing `profile`. `activate` shows the first (never focuses the window) |
 | `tab.move` | `tabs`, `group`? (id, or null for the top level), `before`?/`after`?, `window`?, `profile`? | Moves without reloading: into another profile (`moveTabToProfile`), window (`moveTabsToWindow`), then placed (`placeTabs`), keeping the order given. A group or anchor in another window or profile takes the tabs there. `null` with no anchor puts them just below their old top group |
-| `tab.pin` / `tab.unpin` | `tabs`, `as`? (`tile`/`row`) | `pinTabs`; unpinning a tab of a pinned group takes it out (`placeTabs`), as Unpin does |
+| `tab.pin` / `tab.unpin` | `tabs`, `as`? (`tile`/`row`) | `pinTabs`; unpinning a tab of a pinned group takes it out (`placeTabs`), as Unpin does. A split's panes pin together, as rows: `as: "tile"` on one is `bad_request` |
 | `tab.activate` | `tab` | `activate` |
 | `tab.mute` / `tab.unmute` | `tabs` | `setMuted`; unmute also unmutes the site, as the menu does |
 | `tab.sleep` | `tabs` | Pinned tabs unload (`closeTabs`, as their ✕); others are discarded by Chrome. A tab is left alone (`shown`) when it, a pinned copy sharing its page, or a pane of its split is shown in any window. `outcomes`: `asleep`, `already`, `shown`, `refused`, `unsupported` |
