@@ -29,6 +29,16 @@ function call(method, params, { connection = 1, generation = stub.controlSocket.
   return JSON.parse(replies[0].line);
 }
 
+async function callAsync(method, params, { connection = 1 } = {}) {
+  const id = ++nextId;
+  const before = stub.controlSocket.replies.length;
+  stub.emitControlRequest({ connection, generation: stub.controlSocket.generation, line: JSON.stringify({ id, method, params }) });
+  for (let i = 0; i < 10 && !stub.controlSocket.replies.slice(before).some((r) => r.connection === connection); i++) await tick();
+  const replies = stub.controlSocket.replies.slice(before).filter((r) => r.connection === connection);
+  assert.equal(replies.length, 1, `one reply to ${method}`);
+  return JSON.parse(replies[0].line);
+}
+
 function eventsFor(connection, from) {
   return stub.controlSocket.broadcasts.slice(from).filter((b) => b.connections.includes(connection)).map((b) => JSON.parse(b.line));
 }
@@ -115,7 +125,7 @@ test("windows lists normal and Little Ardia windows, never private ones, and red
   S().newTab(w, { url: "ardia://history?q=secret#frag" });
   S().createWindow({ kind: "private", url: "https://secret.example/" });
   const little = S().createWindow({ kind: "small", url: "https://c.example/" });
-  const listed = call("windows").result;
+  const listed = (await callAsync("windows")).result;
   assert.deepEqual(listed.map((x) => [x.id, x.kind]).sort(), [[w, "normal"], [little, "little"]].sort());
   const main = listed.find((x) => x.id === w);
   assert.equal(main.profile, S().windows[w].profileId);
@@ -123,8 +133,29 @@ test("windows lists normal and Little Ardia windows, never private ones, and red
   const history = main.tabs.find((t) => t.url.startsWith("ardia://history"));
   assert.deepEqual([history.url, history.title], ["ardia://history", "History"]);
   assert.equal(main.tabs.filter((t) => t.active).length, 1);
-  for (const t of main.tabs) assert.deepEqual(Object.keys(t).sort(), ["active", "group", "id", "pinned", "profile", "title", "url"]);
+  for (const t of main.tabs) assert.deepEqual(Object.keys(t).sort(), ["active", "group", "id", "pageGeneration", "pinned", "profile", "targetId", "title", "url"]);
   assert.ok(!JSON.stringify(listed).includes("secret"));
+});
+
+test("windows names each tab's DevTools target so the ardia command never pairs tabs by address", async () => {
+  fresh();
+  await controlOn();
+  const w = S().createWindow({ url: "https://same.example/" });
+  const twin = S().newTab(w, { url: "https://same.example/" });
+  const first = model.viewTabIds(S(), w).find((id) => id !== twin);
+  const seen = [];
+  globalThis.acTestCliTargets = (id) => {
+    seen.push(id);
+    return id === twin ? { targetId: "TWIN", pageGeneration: 2 } : { targetId: null, pageGeneration: 0 };
+  };
+  try {
+    const tabs = (await callAsync("windows")).result.find((x) => x.id === w).tabs;
+    assert.deepEqual(tabs.find((t) => t.id === twin), { ...tabs.find((t) => t.id === twin), targetId: "TWIN", pageGeneration: 2 });
+    assert.equal(tabs.find((t) => t.id === first).targetId, null);
+    assert.ok(seen.includes(twin) && seen.includes(first));
+  } finally {
+    delete globalThis.acTestCliTargets;
+  }
 });
 
 test("a Peek tab isn't part of its window's tabs", () => {
@@ -210,7 +241,7 @@ test("run shows the pill and the other methods don't", async () => {
   S().createWindow({ url: "https://a.example/" });
   useCli.setState({ server: { state: "on", connections: 0, generation: 1, file: "" } });
   useCliIndicator.setState({ shown: false });
-  call("windows");
+  await callAsync("windows");
   call("hello");
   assert.equal(useCliIndicator.getState().shown, false);
   call("run", { command: "setAppearance", arg: "light" });
