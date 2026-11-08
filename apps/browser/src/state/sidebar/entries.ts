@@ -100,6 +100,13 @@ export function keptEntry(s: BrowserState, windowId: string, profileId: string, 
   return entries.find((e) => holdsTab(s, e, active)) ?? null;
 }
 
+export function keptEntries(s: BrowserState, windowId: string, profileId: string, groupId: string): string[] {
+  const shown = s.groups[groupId]?.shownTabIds ?? [];
+  const active = activeTabId(s, windowId, profileId);
+  const held = active ? [active, ...shown] : shown;
+  return groupEntries(s, groupId).filter((e) => held.some((id) => holdsTab(s, e, id)));
+}
+
 export function holdsTab(s: BrowserState, entry: string, tabId: string): boolean {
   const { kind, id } = parseEntry(entry);
   if (kind === "group") return !!s.groups[id]?.tabIds.includes(tabId);

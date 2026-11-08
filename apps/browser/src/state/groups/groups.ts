@@ -7,7 +7,8 @@ import { groupLabel, movingGroup, withGroup, withRowsGrouped } from "../pins/tab
 import { withSplitRows } from "../splits/splits";
 import { withNewTab } from "../tabs/tabs";
 import type { BrowserWindow, ClosedGroup, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
-import { depthOf, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
+import { depthOf, descendantIds, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
+import { withoutShownTabs } from "./shownTabs";
 import { pinnedGroupMembers } from "../browser/structure";
 import { groupingOnto } from "../pins/placing";
 
@@ -17,7 +18,7 @@ export type GroupsSlice = {
   groups: Record<string, TabGroup>;
 
   createGroup(tabIds: string[], options?: { name?: string; icon?: string | null; color?: GroupColor | null }): string;
-  updateGroup(id: string, patch: Partial<Pick<TabGroup, "name" | "icon" | "color" | "collapsed" | "pinned">>): void;
+  updateGroup(id: string, patch: Partial<Pick<TabGroup, "name" | "icon" | "color" | "collapsed" | "pinned" | "shownTabIds">>): void;
   addTabsToGroup(groupId: string, tabIds: string[]): void;
   removeTabsFromGroup(tabIds: string[]): void;
   ungroup(groupId: string): void;
@@ -163,7 +164,10 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     set((s) => {
       const g = s.groups[id];
       if (!g) return {};
-      const groups = { ...s.groups, [id]: { ...g, ...patch } };
+      const hides = patch.shownTabIds?.length === 0;
+      const startsOver = patch.collapsed !== undefined && patch.collapsed !== g.collapsed;
+      const reset = hides ? [id, ...descendantIds(s.groups, id)] : startsOver ? [id] : [];
+      const groups = withoutShownTabs({ ...s.groups, [id]: { ...g, ...patch } }, reset);
       const w = s.windows[g.windowId];
       if (patch.pinned === undefined || patch.pinned === g.pinned || !w) return { groups };
       const window = { ...w, tabIds: orderSections(w.tabIds, s.tabs, groups) };

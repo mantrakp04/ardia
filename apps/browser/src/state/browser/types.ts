@@ -104,6 +104,7 @@ export type TabGroup = {
   pinnedOpenerId?: string;
   pinKey?: string;
   parentId?: string;
+  shownTabIds?: string[];
 };
 
 export type SplitSlot = { size: number; tabId: string } | { size: number; stack: [string, string]; stackSizes: [number, number] };
