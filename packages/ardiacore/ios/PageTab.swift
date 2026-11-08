@@ -62,4 +62,11 @@ protocol PageTab: NSView {
   func notificationAction(_ notificationId: String, action: String)
   func resolveUnresponsive(terminate: Bool)
   func discard(unload: Bool) -> String
+
+  func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool,
+                     _ completion: @escaping ([String: Any]) -> Void)
+  func fillGeneratedPassword(frameId: String, origin: String, _ completion: @escaping ([String: Any]) -> Void)
+  func setVaultMenu(frameId: String, open: Bool)
+  func saveToVault(provider: String, origin: String, title: String?, _ completion: @escaping ([String: Any]) -> Void)
+  func discardVaultCapture(origin: String)
 }

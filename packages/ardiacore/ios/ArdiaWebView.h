@@ -92,6 +92,16 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setSelectionPopoverEnabled:(BOOL)enabled NS_SWIFT_NAME(setSelectionPopoverEnabled(_:));
 - (void)resolveDisplayMedia:(NSString *)requestId sourceId:(nullable NSString *)sourceId audio:(BOOL)audio
     NS_SWIFT_NAME(resolveDisplayMedia(_:sourceId:audio:));
+- (nullable NSString *)vaultOriginOfFrame:(NSString *)frameId NS_SWIFT_NAME(vaultOrigin(ofFrame:));
+- (void)fillVaultFrame:(NSString *)frameId
+                origin:(NSString *)origin
+                values:(NSDictionary<NSString *, NSString *> *)values
+            completion:(void (^)(NSArray<NSString *> *filled))completion NS_SWIFT_NAME(fillVault(frame:origin:values:completion:));
+- (void)setVaultMenuInFrame:(NSString *)frameId open:(BOOL)open NS_SWIFT_NAME(setVaultMenu(frameId:open:));
+- (void)keepVaultLogin:(NSString *)username password:(NSString *)password origin:(NSString *)origin
+    NS_SWIFT_NAME(keepVaultLogin(username:password:origin:));
+- (nullable NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin NS_SWIFT_NAME(takeVaultLogin(origin:));
+- (void)discardVaultLogin:(NSString *)origin NS_SWIFT_NAME(discardVaultCapture(origin:));
 @end
 
 @interface ArdiaWebView (Peek)

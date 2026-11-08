@@ -154,6 +154,39 @@ export type PageSelection = { text: string; rect: { x: number; y: number; width:
 export type ScrollState = "down" | "up" | "top";
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
 
+export type VaultFieldKind = "username" | "password" | "newPassword" | "otp";
+export type VaultFieldRect = { x: number; y: number; width: number; height: number };
+export type VaultField = {
+  frameId: string;
+  origin: string;
+  main: boolean;
+  kind: VaultFieldKind;
+  focused: boolean;
+  rect: VaultFieldRect | null;
+  formHasPassword: boolean;
+};
+export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab";
+export type VaultKeyPress = { frameId: string; key: VaultKey };
+export type VaultSubmission = { frameId: string; origin: string; username: string };
+export type VaultFillField = "username" | "password" | "totp";
+export type VaultFilledField = "username" | "password" | "newPassword" | "otp";
+export type VaultFillError = "locked" | "originMismatch" | "insecure" | "notFound" | "failed";
+export type VaultFillRequest = { frameId: string; origin: string; provider: string; id: string; fields: VaultFillField[]; userChose?: boolean };
+export type VaultFillResult = { filled: VaultFilledField[]; error?: VaultFillError };
+export type VaultSavedItem = {
+  provider: string;
+  id: string;
+  title: string;
+  username: string;
+  urls: string[];
+  hasTotp?: boolean;
+  vault?: string;
+  favorite?: boolean;
+  updatedAt?: number;
+};
+export type VaultSaveRequest = { provider: string; origin: string; title?: string };
+export type VaultSaveResult = { saved: boolean; item?: VaultSavedItem; error?: string };
+
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;
   url?: string;
@@ -209,6 +242,9 @@ export type WebViewProps = ViewProps & {
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onVaultField?: (field: VaultField) => void;
+  onVaultKey?: (press: VaultKeyPress) => void;
+  onVaultSubmitted?: (submission: VaultSubmission) => void;
 };
 
 export type WebViewHandle = {
@@ -256,6 +292,12 @@ export type WebViewHandle = {
   resolveUnresponsive(terminate: boolean): Promise<void>;
   discard(options?: { unload?: boolean }): Promise<DiscardOutcome>;
   setFrozen(frozen: boolean): Promise<void>;
+
+  fillFromVault(request: VaultFillRequest): Promise<VaultFillResult>;
+  fillGeneratedPassword(request: { frameId: string; origin: string }): Promise<{ filled: VaultFilledField[] }>;
+  setVaultMenu(request: { frameId: string; open: boolean }): Promise<void>;
+  saveToVault(request: VaultSaveRequest): Promise<VaultSaveResult>;
+  discardVaultCapture(request: { origin: string }): Promise<void>;
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";

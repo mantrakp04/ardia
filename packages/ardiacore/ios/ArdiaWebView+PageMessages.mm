@@ -5,6 +5,7 @@
 #import "ArdiaHost.h"
 #import "ArdiaPictureInPicture.h"
 #import "ArdiaServices.h"
+#import "ArdiaVaultCapture.h"
 
 #import <objc/runtime.h>
 
@@ -31,6 +32,23 @@ BOOL gDisplayMediaPicker = YES;
 
 static BOOL gSelectionPopover = YES;
 static char kScriptFramesKey;
+static char kVaultCaptureKey;
+
+static ArdiaVaultCapture *VaultCaptureOf(ArdiaCoreTab *tab) {
+  if (!tab) return nil;
+  ArdiaVaultCapture *capture = objc_getAssociatedObject(tab, &kVaultCaptureKey);
+  if (!capture) {
+    capture = [ArdiaVaultCapture new];
+    objc_setAssociatedObject(tab, &kVaultCaptureKey, capture, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+  return capture;
+}
+
+static NSArray<NSString *> *VaultFieldKinds() { return @[ @"username", @"password", @"newPassword", @"otp" ]; }
+
+static NSArray<NSString *> *VaultKeys() { return @[ @"ArrowDown", @"ArrowUp", @"Enter", @"Escape", @"Tab" ]; }
+
+static BOOL VaultWebOrigin(NSString *origin) { return [origin hasPrefix:@"https://"] || [origin hasPrefix:@"http://"]; }
 
 static NSDictionary *DisplayMediaAudioOffer(NSDictionary *message) {
   if (!Flag(message, @"audio")) return nil;
@@ -238,7 +256,88 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
           @"audio" : audio ?: NSNull.null,
           @"sources" : ArdiaHost.displayMediaSources
         }];
+  } else if ([kind isEqualToString:@"vaultField"] && dict) {
+    [self noteVaultField:dict tab:tab frame:frameId main:main origin:sender];
+  } else if ([kind isEqualToString:@"vaultKey"] && dict) {
+    NSString *key = Text(dict, @"key", 16);
+    if (VaultWebOrigin(sender) && [VaultKeys() containsObject:key ?: @""])
+      [self emit:@"vaultKey" payload:@{@"frameId" : frameId, @"key" : key}];
+  } else if ([kind isEqualToString:@"vaultSubmit"] && dict) {
+    [self captureVaultSubmit:dict tab:tab frame:frameId origin:sender];
+  } else if ([kind isEqualToString:@"vaultFilled"] && dict) {
+    NSMutableArray<NSString *> *filled = [NSMutableArray array];
+    for (id name in Field<NSArray>(dict, @"filled") ?: @[])
+      if ([name isKindOfClass:NSString.class] && [VaultFieldKinds() containsObject:name] && ![filled containsObject:name])
+        [filled addObject:name];
+    [VaultCaptureOf(tab) finishFill:Text(dict, @"id", 64) ?: @"" frame:frameId filled:filled];
   }
+}
+
+- (void)noteVaultField:(NSDictionary *)dict tab:(ArdiaCoreTab *)tab frame:(NSString *)frameId main:(BOOL)main origin:(NSString *)origin {
+  NSString *kind = Text(dict, @"kind", 16);
+  if (!VaultWebOrigin(origin) || ![VaultFieldKinds() containsObject:kind ?: @""]) return;
+  const BOOL focused = Flag(dict, @"focused");
+  if (focused) [VaultCaptureOf(tab) noteFieldInFrame:frameId origin:origin];
+  NSDictionary *rect = Field<NSDictionary>(dict, @"rect");
+  double x, y, width, height;
+  id box = NSNull.null;
+  if (main && Finite(rect, @"x", &x) && Finite(rect, @"y", &y) && Finite(rect, @"width", &width) && Finite(rect, @"height", &height))
+    box = @{@"x" : @(x), @"y" : @(y), @"width" : @(width), @"height" : @(height)};
+  [self emit:@"vaultField"
+      payload:@{
+        @"frameId" : frameId,
+        @"origin" : origin,
+        @"main" : @(main),
+        @"kind" : kind,
+        @"focused" : @(focused),
+        @"rect" : box,
+        @"formHasPassword" : @(Flag(dict, @"formHasPassword"))
+      }];
+}
+
+- (void)captureVaultSubmit:(NSDictionary *)dict tab:(ArdiaCoreTab *)tab frame:(NSString *)frameId origin:(NSString *)origin {
+  NSString *password = Field<NSString>(dict, @"password");
+  NSString *username = Text(dict, @"username", 1024) ?: @"";
+  if (!VaultWebOrigin(origin) || !password.length || password.length > 4096) return;
+  if (![VaultCaptureOf(tab) keepLogin:username password:password origin:origin]) return;
+  [self emit:@"vaultSubmitted" payload:@{@"frameId" : frameId, @"origin" : origin, @"username" : username}];
+}
+
+- (NSString *)vaultOriginOfFrame:(NSString *)frameId {
+  return [VaultCaptureOf(_tab) originOfFrame:frameId];
+}
+
+- (void)fillVaultFrame:(NSString *)frameId
+                origin:(NSString *)origin
+                values:(NSDictionary<NSString *, NSString *> *)values
+            completion:(void (^)(NSArray<NSString *> *filled))completion {
+  ArdiaVaultCapture *capture = VaultCaptureOf(_tab);
+  if (!capture || !VaultWebOrigin(origin) || ![[capture originOfFrame:frameId] isEqualToString:origin]) return completion(@[]);
+  NSMutableDictionary *message = [NSMutableDictionary dictionary];
+  for (NSString *name in @[ @"username", @"password", @"newPassword", @"otp" ]) {
+    NSString *value = Field<NSString>(values, name);
+    if (value.length) message[name] = value;
+  }
+  if (!message.count) return completion(@[]);
+  message[@"origin"] = origin;
+  message[@"id"] = [capture awaitFillInFrame:frameId reply:completion];
+  [self callFrame:frameId kind:@"vaultFill" json:JSONText(message)];
+}
+
+- (void)setVaultMenuInFrame:(NSString *)frameId open:(BOOL)open {
+  if (_tab) [self callFrame:frameId kind:@"vaultMenu" json:open ? @"{\"open\":true}" : @"{\"open\":false}"];
+}
+
+- (void)keepVaultLogin:(NSString *)username password:(NSString *)password origin:(NSString *)origin {
+  [VaultCaptureOf(_tab) keepLogin:username password:password origin:origin];
+}
+
+- (NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin {
+  return [VaultCaptureOf(_tab) takeLogin:origin];
+}
+
+- (void)discardVaultLogin:(NSString *)origin {
+  [VaultCaptureOf(_tab) discardLogin:origin];
 }
 
 - (void)noteScriptFrame:(NSString *)frameId main:(BOOL)main {
@@ -251,7 +350,9 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 }
 
 - (void)forgetScriptFrame:(NSString *)frameId {
-  if (frameId.length) [ScriptFramesOf(_tab) removeObject:frameId];
+  if (!frameId.length) return;
+  [ScriptFramesOf(_tab) removeObject:frameId];
+  [VaultCaptureOf(_tab) forgetFrame:frameId];
 }
 
 - (void)pushSelectionPopover {

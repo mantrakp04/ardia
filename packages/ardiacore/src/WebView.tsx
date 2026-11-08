@@ -5,12 +5,24 @@ import { findNodeHandle, type NativeSyntheticEvent } from "react-native";
 import type { FaviconImage } from "./favicons";
 import { ArdiaError, ardiaError } from "@ardia/core";
 import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
-import type { DiscardOutcome, WebViewHandle, WebViewProps } from "./pageTypes";
+import type { DiscardOutcome, VaultFilledField, VaultFillResult, VaultSaveResult, WebViewHandle, WebViewProps } from "./pageTypes";
 import type { PageCookie } from "./webkit";
 
 type NativeHandle = Omit<
   WebViewHandle,
-  "evaluate" | "loadUrl" | "downloadFavicon" | "resolvePasswordPrompt" | "discard" | "nativeTag" | "requestPictureInPicture" | "takeControlPress"
+  | "evaluate"
+  | "loadUrl"
+  | "downloadFavicon"
+  | "resolvePasswordPrompt"
+  | "discard"
+  | "nativeTag"
+  | "requestPictureInPicture"
+  | "takeControlPress"
+  | "fillFromVault"
+  | "fillGeneratedPassword"
+  | "setVaultMenu"
+  | "saveToVault"
+  | "discardVaultCapture"
 > & {
   requestPictureInPicture(clickAt: number, control: number): Promise<boolean>;
   takeControlPress(clickAt: number, control: number): Promise<boolean>;
@@ -19,6 +31,11 @@ type NativeHandle = Omit<
   loadUrl(url: string, userInitiated?: boolean): Promise<void>;
   resolvePasswordPrompt(answer: string, username: string | null, password: string | null): Promise<void>;
   discard(unload: boolean): Promise<DiscardOutcome>;
+  fillFromVault(frameId: string, origin: string, provider: string, id: string, fields: string[], userChose: boolean): Promise<VaultFillResult>;
+  fillGeneratedPassword(frameId: string, origin: string): Promise<{ filled: VaultFilledField[] }>;
+  setVaultMenu(frameId: string, open: boolean): Promise<void>;
+  saveToVault(provider: string, origin: string, title: string | null): Promise<VaultSaveResult>;
+  discardVaultCapture(origin: string): Promise<void>;
 };
 
 const NativeWebView = requireNativeViewManager<NativeProps>("ArdiaWebView");
@@ -96,6 +113,14 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       resolveUnresponsive: (terminate) => call(undefined, (n) => n.resolveUnresponsive(terminate)),
       discard: (options) => call<DiscardOutcome>("refused", (n) => n.discard(options?.unload ?? false)),
       setFrozen: (frozen) => call(undefined, (n) => n.setFrozen(frozen)),
+      fillFromVault: (r) =>
+        call<VaultFillResult>({ filled: [], error: "failed" }, (n) =>
+          n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false),
+        ),
+      fillGeneratedPassword: (r) => call<{ filled: VaultFilledField[] }>({ filled: [] }, (n) => n.fillGeneratedPassword(r.frameId, r.origin)),
+      setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open)),
+      saveToVault: (r) => call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null)),
+      discardVaultCapture: (r) => call(undefined, (n) => n.discardVaultCapture(r.origin)),
     };
   });
 

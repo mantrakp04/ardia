@@ -106,6 +106,25 @@ enum PageViewDefinition {
         view.page.notificationAction(id, action: action)
       }.runOnQueue(.main)
 
+      AsyncFunction("fillFromVault") {
+        (view: V, frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool?, promise: Promise) in
+        view.page.fillFromVault(frameId: frameId, origin: origin, provider: provider, id: id, fields: fields, userChose: userChose ?? false) {
+          promise.resolve($0)
+        }
+      }.runOnQueue(.main)
+      AsyncFunction("fillGeneratedPassword") { (view: V, frameId: String, origin: String, promise: Promise) in
+        view.page.fillGeneratedPassword(frameId: frameId, origin: origin) { promise.resolve($0) }
+      }.runOnQueue(.main)
+      AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool) in
+        view.page.setVaultMenu(frameId: frameId, open: open)
+      }.runOnQueue(.main)
+      AsyncFunction("saveToVault") { (view: V, provider: String, origin: String, title: String?, promise: Promise) in
+        view.page.saveToVault(provider: provider, origin: origin, title: title) { promise.resolve($0) }
+      }.runOnQueue(.main)
+      AsyncFunction("discardVaultCapture") { (view: V, origin: String) in
+        view.page.discardVaultCapture(origin: origin)
+      }.runOnQueue(.main)
+
       AsyncFunction("resolveUnresponsive") { (view: V, terminate: Bool) in view.page.resolveUnresponsive(terminate: terminate) }
         .runOnQueue(.main)
       AsyncFunction("discard") { (view: V, unload: Bool?) -> String in view.page.discard(unload: unload ?? false) }.runOnQueue(.main)

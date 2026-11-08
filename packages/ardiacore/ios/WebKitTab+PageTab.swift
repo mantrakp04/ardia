@@ -57,4 +57,21 @@ extension WebKitTab: PageTab {
   func resolveUnresponsive(terminate: Bool) {}
 
   func discard(unload: Bool) -> String { Self.unsupported }
+
+  func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool,
+                     _ completion: @escaping ([String: Any]) -> Void) {
+    completion(["filled": [String](), "error": VaultFillError.failed.rawValue])
+  }
+
+  func fillGeneratedPassword(frameId: String, origin: String, _ completion: @escaping ([String: Any]) -> Void) {
+    completion(["filled": [String]()])
+  }
+
+  func setVaultMenu(frameId: String, open: Bool) {}
+
+  func saveToVault(provider: String, origin: String, title: String?, _ completion: @escaping ([String: Any]) -> Void) {
+    completion(["saved": false, "error": VaultFillError.notFound.rawValue])
+  }
+
+  func discardVaultCapture(origin: String) {}
 }
