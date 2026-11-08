@@ -10,7 +10,7 @@ export const CONFIG_SETTING_KEYS: readonly SettingKey[] = [
   "showClearButton", "balancedTopApps", "showAdvancedSettings", "selectedTabGlow", "interfaceStyle", "glassTintWithTheme",
   "glassTintAmount", "pageScrollBars", "fadeUnloadedTabs", "warnBeforeClosingTabGroup", "batterySaverWhen", "memorySaver",
   "memorySaverMode", "loadProfilesWhenOpened", "keepActiveSites", "extensionSidePanelWidth", "showFullUrl", "bookmarksBar", "bookmarksBarSize",
-  "hideBookmarksBarImport", "appearance", "addressBar", "compactToolbar", "commandBarPlacement", "spacesFollowAppearance",
+  "hideBookmarksBarImport", "appearance", "showPageFrame", "addressBar", "compactToolbar", "commandBarPlacement", "spacesFollowAppearance",
   "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaOpensNewTabLinks", "littleArdiaSize",
   "omniboxProviders", "launchActions",
 ];

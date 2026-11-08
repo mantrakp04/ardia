@@ -337,7 +337,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   NSMutableDictionary *layout = [@{
     @"page" : @[ @9, @38, @9, @9 ],
     @"card" : @[ @9, @38, @9, @9 ],
-    @"radius" : [main[@"radius"] isKindOfClass:NSNumber.class] ? main[@"radius"] : @10,
+    @"radius" : @10,
     @"curve" : [main[@"curve"] isKindOfClass:NSString.class] ? main[@"curve"] : kCACornerCurveCircular,
     @"lights" : @[ @20, @19 ],
   } mutableCopy];

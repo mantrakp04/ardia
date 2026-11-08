@@ -20,12 +20,13 @@ import { TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstr
 import { useTabLayout } from "./state/windows/layout";
 import { WindowProfile } from "./components/window/WindowProfile";
 import { DockedLayout } from "./components/window/SidebarDock";
+import { pageFrameInsets } from "./components/window/pageFrame";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
-import { layout, profileAccent, profileTheme, useTheme } from "./components/ui/theme";
+import { profileAccent, profileTheme, useTheme } from "./components/ui/theme";
 import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
-import { useWindowId, WindowContext } from "./state/browser/hooks";
+import { useShowPageFrame, useWindowId, WindowContext } from "./state/browser/hooks";
 import { provideProfileLooks } from "./state/profiles/looks";
 import { currentBasePalette } from "./state/config/basePalette";
 import { focusedWindowOf } from "./state/windows/ui";
@@ -58,6 +59,7 @@ function BrowserWindow() {
   const theme = useTheme();
   const windowId = useWindowId();
   const topTabs = useTabLayout() === "top";
+  const showPageFrame = useShowPageFrame();
   const fullscreen = !!useFullscreenTab(windowId);
   const [width, setWidth] = useState(0);
   const card = (
@@ -75,7 +77,7 @@ function BrowserWindow() {
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
-        inset={{ top: topTabs ? TOP_STRIP_HEIGHT : layout.cardInset, right: layout.cardInset, bottom: layout.cardInset, left: layout.cardInset }}
+        inset={pageFrameInsets(showPageFrame, topTabs ? TOP_STRIP_HEIGHT : 0)}
         windowWidth={width}
         topStrip={
           topTabs

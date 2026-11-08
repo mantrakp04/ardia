@@ -5,7 +5,7 @@ import { switchOn } from "../../state/app/switches";
 import { layout, useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowDragRegion } from "../ui";
-import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
+import { useShowPageFrame, useSidebarSide, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
@@ -39,6 +39,7 @@ import {
 } from "../../state/windows/dockMotion";
 import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
+import { pageFrameDockedInset, pageFrameInsets } from "./pageFrame";
 import { useSidebarLights, useTopStripLights } from "./useDockLights";
 
 const SPRING = spring(DOCK_SPRING);
@@ -99,6 +100,8 @@ export function DockedLayout({
 }) {
   const windowId = useWindowId();
   const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
+  const showPageFrame = useShowPageFrame();
+  const awayTop = pageFrameInsets(showPageFrame).top;
   const right = useSidebarSide(windowId) === "right";
   const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? sidebarWidth;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
@@ -110,11 +113,11 @@ export function DockedLayout({
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [sideInset, dockedCardInset(width)],
+        outputRange: [sideInset, pageFrameDockedInset(showPageFrame, width)],
       }),
-    [dock, width, sideInset],
+    [dock, width, sideInset, showPageFrame],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [layout.cardInset, inset.top] }), [dock, inset.top]);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [awayTop, inset.top] }), [dock, awayTop, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
@@ -158,6 +161,7 @@ export function DockedLayout({
           lights={lights}
           right={right}
           windowWidth={windowWidth}
+          showPageFrame={showPageFrame}
         />
       )}
     </>
@@ -173,6 +177,7 @@ function SidebarDock({
   lights,
   right,
   windowWidth,
+  showPageFrame,
 }: {
   dock: Animated.Value;
   open: boolean;
@@ -182,6 +187,7 @@ function SidebarDock({
   lights: readonly [number, number];
   right: boolean;
   windowWidth: number;
+  showPageFrame: boolean;
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
@@ -271,14 +277,14 @@ function SidebarDock({
       )}
       {strip.current && (
         <View
-          pointerEvents={!open && !fullscreen ? "auto" : "none"}
+          pointerEvents={showPageFrame && !open && !fullscreen ? "auto" : "none"}
           onMouseEnter={peek.show}
           onMouseLeave={leaveStrip}
           style={{
             position: "absolute",
             [edgeSide]: 0,
             top: 0,
-            bottom: layout.cardInset,
+            bottom: showPageFrame ? layout.cardInset : 0,
             width: !open && !fullscreen ? PEEK_EDGE_STRIP : 0,
           }}
         />
