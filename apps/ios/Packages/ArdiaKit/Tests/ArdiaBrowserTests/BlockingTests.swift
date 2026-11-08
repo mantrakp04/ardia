@@ -193,6 +193,13 @@ google.*##.tld-entity
     #expect(rules.map(\.action.type) == ["block", "ignore-previous-rules"])
   }
 
+  @Test func anExceptionKeepsTheSitesItsExclusionsSitUnder() throws {
+    let rules = try ConvertedRule.decode(FilterListConverter.convert("||cdn.example^\n@@||cdn.example/needed.js$domain=site.example|~account.site.example"))
+    let allow = try #require(rules.first { $0.action.type == "ignore-previous-rules" })
+    #expect(allow.trigger.ifDomain == ["*site.example"])
+    #expect(allow.trigger.unlessDomain == nil)
+  }
+
   @Test func capsAtTheRuleLimitAndStaysValidJSON() throws {
     let lines = (0..<500).map { "||host\($0).example^" } + (0..<10).map { "##.hide-\($0)" }
     let capped = FilterListConverter.convert(lines.joined(separator: "\n"), limit: 300)

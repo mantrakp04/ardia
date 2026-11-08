@@ -386,8 +386,10 @@ public enum FilterListConverter {
           if off { unlessDomain.append(normalized) } else { ifDomain.append(normalized) }
         }
         if !ifDomain.isEmpty {
-          ifDomain = domains(ifDomain, clearOf: unlessDomain)
-          guard !ifDomain.isEmpty else { return .skip }
+          if !isException {
+            ifDomain = domains(ifDomain, clearOf: unlessDomain)
+            guard !ifDomain.isEmpty else { return .skip }
+          }
           unlessDomain = []
         }
         trigger.ifDomain = ifDomain.isEmpty ? nil : ifDomain.map { "*" + $0 }
