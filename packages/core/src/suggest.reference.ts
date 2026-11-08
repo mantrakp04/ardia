@@ -292,7 +292,7 @@ class TopList {
   }
 }
 
-const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId): Suggestion => ({
+const pageSuggestion = (c: Pick<Candidate, "url" | "title" | "favicon" | "visits" | "bookmarked" | "tabId">, tabId: string | null | undefined = c.tabId): Suggestion => ({
   kind: "page",
   url: c.url,
   title: c.title,
@@ -345,19 +345,12 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
     const opened = withRootSlash(url);
-    const isOpened = (saved: { url: string }) => withRootSlash(saved.url) === opened;
+    const isOpened = (saved: Pick<Candidate, "url">) => withRootSlash(saved.url) === opened;
     if (isOpened(c)) return pageSuggestion(c, null);
     const visit = source.history.find(isOpened);
-    const marked = source.bookmarks?.some(isOpened);
-    const saved = visit ?? c;
-    return {
-      kind: "page",
-      url: opened,
-      title: saved.title,
-      favicon: saved.favicon,
-      ...(marked ? { bookmarked: true } : {}),
-      ...(visit && visit.visits > 0 ? { visited: true } : {}),
-    } satisfies Suggestion;
+    const bookmark = source.bookmarks?.find(isOpened);
+    const lent = visit ?? bookmark ?? c;
+    return pageSuggestion({ url: visit?.url ?? opened, title: lent.title, favicon: lent.favicon, visits: visit?.visits ?? 0, bookmarked: bookmark !== undefined }, null);
   };
 
   const websiteFirst = preference === "website";

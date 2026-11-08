@@ -1,4 +1,4 @@
-import { logVisits, pageText, pageTexts, type PageText } from "./pageText.ts";
+import { logVisits, pageText, pageTexts, type PageText, withRootSlash } from "./pageText.ts";
 import type { SuggestionSource } from "./suggestion.ts";
 
 type HistoryRow = SuggestionSource["history"][number];
@@ -117,6 +117,24 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   }
   return advance(b, bookmarks, deadline);
 }
+
+const exactIndexes = new WeakMap<readonly { url: string }[], Map<string, { url: string }>>();
+
+function exactRows<Row extends { url: string }>(rows: readonly Row[]): Map<string, Row> {
+  let index = exactIndexes.get(rows) as Map<string, Row> | undefined;
+  if (!index) {
+    index = new Map();
+    for (const row of rows) {
+      const key = withRootSlash(row.url);
+      if (!index.has(key)) index.set(key, row);
+    }
+    exactIndexes.set(rows, index);
+  }
+  return index;
+}
+
+export const savedVisit = (history: readonly HistoryRow[], url: string): HistoryRow | undefined => exactRows(history).get(withRootSlash(url));
+export const savedBookmark = (bookmarks: readonly BookmarkRow[], url: string): BookmarkRow | undefined => exactRows(bookmarks).get(withRootSlash(url));
 
 type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };
 const tabsOverCache = new WeakMap<readonly TabRow[], TabsOver>();

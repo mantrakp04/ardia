@@ -2,7 +2,9 @@ import type { Candidate } from "./candidatePool.ts";
 import { pageKey, withRootSlash } from "./pageText.ts";
 import type { CommandAction, Suggestion } from "./suggestion.ts";
 
-export const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId): Suggestion => ({
+export type PageRow = Pick<Candidate, "url" | "title" | "favicon" | "visits" | "bookmarked" | "tabId">;
+
+export const pageSuggestion = (c: PageRow, tabId: string | null | undefined = c.tabId): Suggestion => ({
   kind: "page",
   url: c.url,
   title: c.title,

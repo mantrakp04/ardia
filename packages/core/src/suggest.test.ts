@@ -198,7 +198,7 @@ test("a typed address saved under a fragment that is not its page's top row keep
   assert.deepEqual(buildSuggestions("https://a.com/", { tabs: [], history: withHome }, { now }).items[0], { kind: "page", url: "https://a.com/", title: "Home", favicon: "home.ico", visited: true });
 });
 
-test("a bare host typed with or without its slash finds the saved row either way", () => {
+test("a bare host typed with or without its slash finds the saved row either way, and removing it removes that entry", () => {
   const history = [
     { url: "https://a.com/#/a", title: "Route A", favicon: "a.ico", visits: 5, lastVisit: now - 100 },
     { url: "https://a.com", title: "Home", favicon: "home.ico", visits: 1, lastVisit: now - 300 },
@@ -206,8 +206,29 @@ test("a bare host typed with or without its slash finds the saved row either way
   const bookmarks = [{ url: "https://a.com", title: "Home", favicon: "home.ico" }];
   for (const typed of ["https://a.com", "https://a.com/", "a.com"]) {
     const first = buildSuggestions(typed, { tabs: [], history, bookmarks }, { now }).items[0];
-    assert.deepEqual(first, { kind: "page", url: "https://a.com/", title: "Home", favicon: "home.ico", visited: true, bookmarked: true }, typed);
+    assert.deepEqual(first, { kind: "page", url: "https://a.com", title: "Home", favicon: "home.ico", visited: true, bookmarked: true }, typed);
+    assert.ok(history.some((h) => h.url === (first?.kind === "page" ? first.url : "")), `${typed}: a visited row's URL is the exact URL of its history entry`);
   }
+});
+
+test("typing a complete address does not read the whole history again once it has been indexed", () => {
+  const rowsOf = Array.from({ length: 400 }, (_, i) => ({ url: `https://site${i}.example/page`, title: `Site ${i}`, favicon: null, visits: 1, lastVisit: now - i * 1000 }));
+  const saved = [{ url: "https://example.awsapps.com/start/#/console?a=1", title: "AWS access portal", favicon: null, visits: 4, lastVisit: now - 500 }, ...rowsOf];
+  let reads = 0;
+  const watched = new Proxy(saved, {
+    get(target, key, receiver) {
+      if (typeof key === "string" && /^\d+$/.test(key)) reads++;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const source = { tabs: [], history: watched, bookmarks: [] };
+  const typed = (text: string) => buildSuggestions(text, source, { now }).items[0];
+  const expected = { kind: "page", url: "https://example.awsapps.com/start/", title: "AWS access portal", favicon: null };
+  assert.deepEqual(typed("https://example.awsapps.com/start/"), expected);
+  reads = 0;
+  assert.deepEqual(typed("https://example.awsapps.com/start/"), expected);
+  assert.deepEqual(typed("example.awsapps.com/start/"), expected);
+  assert.equal(reads, 0, "the second and third lookups read no history rows");
 });
 
 test("a typed address and the same page saved under a trailing slash are two choices", () => {
