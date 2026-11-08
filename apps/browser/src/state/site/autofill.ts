@@ -3,6 +3,8 @@ import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { isTabReady } from "../tabs/pageState";
 import { openSettings } from "../settings/settingsWindows";
+import { runVaultAction } from "../vaults/barActions";
+import { anyVaultConnected } from "../vaults/store";
 
 export { deleteAddress, deleteCard, revealCardNumber, saveAddress, saveCard, setAutofillSettings, type SavedAddress, type SavedCard } from "../../platform/autofill";
 
@@ -22,6 +24,12 @@ const NETWORK_NAMES: Record<CardNetwork, string> = {
 export const cardNetworkName = (network: CardNetwork) => NETWORK_NAMES[network];
 
 export async function requestAutofill(windowId: string, arg: string | null, tabId = activeTabId(useBrowser.getState(), windowId)) {
+  if (arg === "passwordManager") {
+    if (anyVaultConnected()) return runVaultAction("vault:fill", useBrowser.getState(), windowId);
+    const s = useBrowser.getState();
+    const w = s.windows[windowId];
+    return openSettings("passwords", w && w.kind !== "private" && s.profiles[w.profileId] ? w.profileId : null);
+  }
   const passwords = arg === "passwords";
   if (isTabReady(tabId) && (await showAutofillSuggestions(tabId, passwords ? "passwords" : "field"))) return;
   const s = useBrowser.getState();

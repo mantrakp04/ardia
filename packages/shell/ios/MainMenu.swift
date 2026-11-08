@@ -159,6 +159,7 @@ enum MainMenu {
         cmd(.autofill, arg: "contact"),
         cmd(.autofill, arg: "passwords"),
         cmd(.autofill, arg: "creditCard"),
+        cmd(.autofill, arg: "passwordManager"),
       ]),
     ])
 
