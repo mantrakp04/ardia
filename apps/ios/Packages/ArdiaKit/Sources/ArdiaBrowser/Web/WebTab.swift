@@ -637,7 +637,8 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
   func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo, type: WKMediaCaptureType) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
     let key = "\(origin.protocol)://\(origin.host):\(origin.port)#\(type.rawValue)"
-    if engine.grantedCapture.contains(key) { return .grant }
+    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
+    let session = engine.privateSession
     let kind: MediaCaptureKind = switch type {
     case .camera: .camera
     case .microphone: .microphone
@@ -647,19 +648,22 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
       tab.handle(PageRequest(kind: .mediaCapture(kind), host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
-    engine.grantedCapture.insert(key)
+    guard tab.webView === webView else { return .deny }
+    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
     return .grant
   }
 
   func webView(_ webView: WKWebView, requestGeolocationPermissionFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo) async -> WKPermissionDecision {
     guard let tab, let engine = tab.engine else { return .deny }
     let key = "\(origin.protocol)://\(origin.host):\(origin.port)#location"
-    if engine.grantedCapture.contains(key) { return .grant }
+    if engine.isCaptureGranted(key, isPrivate: tab.isPrivate) { return .grant }
+    let session = engine.privateSession
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
       tab.handle(PageRequest(kind: .location, host: origin.host) { continuation.resume(returning: $0) })
     }
     guard case .accepted = answer else { return .deny }
-    engine.grantedCapture.insert(key)
+    guard tab.webView === webView else { return .deny }
+    engine.grantCapture(key, isPrivate: tab.isPrivate, session: session)
     return .grant
   }
 

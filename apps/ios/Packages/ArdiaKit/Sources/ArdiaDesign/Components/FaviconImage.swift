@@ -177,7 +177,9 @@ import SwiftUI
     private var failures: Set<URL> = []
     private var inFlight: [URL: Task<Entry?, Never>] = [:]
     private let session: URLSession = {
-      let configuration = URLSessionConfiguration.default
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.httpCookieAcceptPolicy = .never
+      configuration.httpShouldSetCookies = false
       configuration.timeoutIntervalForRequest = 8
       configuration.requestCachePolicy = .returnCacheDataElseLoad
       configuration.httpAdditionalHeaders = ["User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) \(BrowserUserAgent.applicationName)"]

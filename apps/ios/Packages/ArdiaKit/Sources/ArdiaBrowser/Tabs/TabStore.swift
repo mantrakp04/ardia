@@ -267,6 +267,7 @@ public final class TabStore: LocalBrowsingSource {
       if let title { tab.title = title }
       if let faviconURL { tab.faviconURL = faviconURL }
       if let themeColorHex { tab.themeColorHex = themeColorHex }
+      if let snapshotFileName { tab.snapshotFileName = snapshotFileName }
       return
     }
     var syncVisible = false

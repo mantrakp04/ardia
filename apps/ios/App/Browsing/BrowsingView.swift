@@ -181,6 +181,10 @@ struct BrowsingView: View {
     guard let id = app.tabs.selectedTabID, let image = app.browse.covers.image(for: id), let cgImage = image.cgImage else { return }
     let snapshots = app.web.snapshots
     let tabs = app.tabs
+    if tabs.isPrivate(id) {
+      tabs.update(id, snapshotFileName: snapshots.keepInMemory(cgImage, for: id))
+      return
+    }
     let scale = image.scale
     Task {
       if let name = await snapshots.save(cgImage, scale: scale, for: id) {

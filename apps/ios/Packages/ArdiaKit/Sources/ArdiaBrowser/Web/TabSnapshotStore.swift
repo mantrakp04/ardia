@@ -60,7 +60,11 @@ public final class TabSnapshotStore {
       return nil
     }
     do {
-      _ = try FileManager.default.replaceItemAt(url, withItemAt: temporary)
+      if FileManager.default.fileExists(atPath: url.path) {
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: temporary)
+      } else {
+        try FileManager.default.moveItem(at: temporary, to: url)
+      }
     } catch {
       try? FileManager.default.removeItem(at: temporary)
       return nil

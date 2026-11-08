@@ -17,7 +17,9 @@ public final class WebEngine {
   public var isInspectable = false
   @ObservationIgnored public var openExternalURL: (@MainActor (URL) -> Void)?
 
-  @ObservationIgnored var grantedCapture: Set<String> = []
+  @ObservationIgnored private var grantedCapture: Set<String> = []
+  @ObservationIgnored private var privateGrantedCapture: Set<String> = []
+  @ObservationIgnored private(set) var privateSession = 0
   @ObservationIgnored private let roster = LivePageRoster<WebTab>(limit: WebEngine.liveLimit)
   @ObservationIgnored private var notificationTasks: [Task<Void, Never>] = []
 
@@ -105,7 +107,22 @@ public final class WebEngine {
     return store
   }
 
+  func isCaptureGranted(_ key: String, isPrivate: Bool) -> Bool {
+    isPrivate ? privateGrantedCapture.contains(key) : grantedCapture.contains(key)
+  }
+
+  func grantCapture(_ key: String, isPrivate: Bool, session: Int) {
+    if isPrivate {
+      guard session == privateSession else { return }
+      privateGrantedCapture.insert(key)
+    } else {
+      grantedCapture.insert(key)
+    }
+  }
+
   private func endPrivateBrowsing() {
+    privateGrantedCapture.removeAll()
+    privateSession += 1
     guard let store = sharedPrivateDataStore else { return }
     sharedPrivateDataStore = nil
     Task { await store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) }

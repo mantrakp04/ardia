@@ -9,12 +9,16 @@ final class PageLoader: NSObject, WKNavigationDelegate {
 
   func load(_ html: String, base: String) async throws -> WKWebView {
     let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 800))
+    try await load(into: webView, html, base: base)
+    return webView
+  }
+
+  func load(into webView: WKWebView, _ html: String, base: String) async throws {
     webView.navigationDelegate = self
     try await withCheckedThrowingContinuation { continuation in
       self.continuation = continuation
       webView.loadHTMLString(html, baseURL: URL(string: base))
     }
-    return webView
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

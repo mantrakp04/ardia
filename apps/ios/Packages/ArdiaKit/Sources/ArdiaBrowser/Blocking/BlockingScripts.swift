@@ -12,10 +12,23 @@ enum BlockingScripts {
     if (!allowed) return;
 
     const visible = (el) => !!el && el.isConnected && (el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0);
-    const click = (el) => { if (!visible(el)) return false; el.click(); return true; };
-    const first = (root, selectors) => { for (const s of selectors) { const el = root.querySelector(s); if (visible(el)) return el; } return null; };
+    const usable = (el) => !!el && el.isConnected && !el.disabled;
+    const click = (el) => { if (!usable(el)) return false; el.click(); return true; };
+    const first = (root, selectors) => {
+      for (const s of selectors) for (const el of root.querySelectorAll(s)) if (usable(el) && visible(el)) return el;
+      for (const s of selectors) for (const el of root.querySelectorAll(s)) if (usable(el)) return el;
+      return null;
+    };
     const hide = (selectors) => {
       for (const s of selectors) for (const el of document.querySelectorAll(s)) el.style.setProperty("display", "none", "important");
+    };
+    const lockedBy = (classes) => classes.length > 0 && [document.documentElement, document.body].some((el) => el && classes.some((c) => el.classList.contains(c)));
+    const releaseLock = (classes) => {
+      for (const el of [document.documentElement, document.body]) {
+        if (!el) continue;
+        el.classList.remove(...classes);
+        if (getComputedStyle(el).overflow === "hidden") el.style.setProperty("overflow", "auto", "important");
+      }
     };
     const unlockScroll = () => {
       for (const el of [document.documentElement, document.body]) {
@@ -31,6 +44,7 @@ enum BlockingScripts {
         detect: () => document.getElementById("onetrust-banner-sdk") || document.getElementById("onetrust-consent-sdk"),
         reject: () => click(first(document, ["#onetrust-reject-all-handler", ".ot-pc-refuse-all-handler", "#onetrust-pc-sdk .ot-pc-refuse-all-handler"])),
         leftovers: ["#onetrust-banner-sdk", "#onetrust-consent-sdk .onetrust-pc-dark-filter"],
+        locks: ["ot-overflow-hidden"],
       },
       {
         detect: () => document.getElementById("CybotCookiebotDialog"),
@@ -41,11 +55,13 @@ enum BlockingScripts {
         detect: () => document.getElementById("didomi-host") || document.querySelector(".didomi-popup-container"),
         reject: () => click(first(document, ["#didomi-notice-disagree-button", ".didomi-continue-without-agreeing", "#didomi-popup button.didomi-components-button--secondary[aria-label*=\"isagree\"]"])),
         leftovers: ["#didomi-host", ".didomi-popup-backdrop"],
+        locks: ["didomi-popup-open"],
       },
       {
         detect: () => document.querySelector(".qc-cmp2-container, #qc-cmp2-container"),
         reject: () => click(first(document, [".qc-cmp2-summary-buttons button[mode=\"secondary\"]", ".qc-cmp2-footer button[mode=\"secondary\"]"])),
         leftovers: [".qc-cmp2-container", "#qc-cmp2-container"],
+        locks: ["qc-cmp-ui-showing"],
       },
       {
         detect: () => document.getElementById("truste-consent-track") || document.querySelector(".truste_box_overlay, #truste-consent-buttons") || /trustarc|truste/i.test(location.hostname) ? document.body : null,
@@ -135,6 +151,8 @@ enum BlockingScripts {
         if (rejected) {
           done.add(index);
           setTimeout(() => { hide(platform.leftovers); unlockScroll(); }, 400);
+        } else if (!visible(found) && lockedBy(platform.locks || [])) {
+          releaseLock(platform.locks);
         }
       }
     };
