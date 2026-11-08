@@ -315,17 +315,24 @@ export const generalRows = {
       },
     },
     {
-      section: "Bookmarks Bar",
+      section: "Bookmarks",
       rows: {
+        showBookmarks: {
+          title: "Show bookmarks",
+          description: "Off hides the bookmark button, the bookmarks bar, the Bookmarks menu and every Bookmark command, and the address bar shows Copy URL instead. Your bookmarks stay, and importing still brings them in.",
+          keywords: ["hide bookmarks", "show bookmarks", "bookmark button", "star", "bookmarks menu", "copy url", "arc", "no bookmarks"],
+        },
         bookmarksBar: {
           title: "Show bookmarks bar",
           description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
+          shown: (s) => s.showBookmarks,
         },
         bookmarksBarSize: {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
           keywords: ["bookmarks bar", "bigger", "larger", "large", "small", "text size", "icon size", "readability", "favorites bar"],
+          shown: (s) => s.showBookmarks,
         },
       },
     },
