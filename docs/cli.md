@@ -154,7 +154,10 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   `tests/test_browse.py` races eight processes for one new lock and expects exactly one holder.
 - The client starts the daemon (`python -I -c`, its config on stdin, never argv or env) when the socket doesn't
   answer, and waits up to 15 s. A request is one JSON line; the daemon serializes commands, so one gesture never
-  interleaves with another, and cancels a command whose client went away (Ctrl-C).
+  interleaves with another, and cancels a command whose client went away (Ctrl-C). Every command has a limit (120 s;
+  `batch`, `read` and `record` 600 s; `script` its `--timeout` plus 30 s; `wait` its own timeout plus 30 s), after which
+  it's stopped with `command_timeout` (outcome unknown for one that changes something) and the session is free again;
+  a command queued behind another gives up after 30 s with `session_busy`, naming what's running.
 - **Idle disconnect.** After 30 s with no admitted or queued command, no held key or button and no capture lease
   (console or errors, network log, HAR, route, trace, record, stream, init scripts, emulation; an action's own network
   watch, see Changes after actions, ends with the action and never counts), the daemon drops the
@@ -241,7 +244,10 @@ editable field in the same frame and document that matches it (same tag and type
 aria-label or title), they type there and report `retargeted: true` (the text output says so too). Anything else
 fails with `element_replaced` and types nothing. `auth login` never follows a replacement. Click points get a small
 random offset inside the box; a click whose point is covered fails with
-`covered by <tag#id.class>`.
+`covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
+size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a
+1280×800 device metrics override for that command, cleared afterwards and never over the session's own `set viewport`;
+where Emulation is gated (the token path) it fails with `no_viewport`.
 
 `fill` on a `date`, `time`, `datetime-local`, `month`, `week`, `color` or `range` input doesn't type (typing
 `2026-11-09` into the segmented date field stored `0009-02-06`, and a time field stayed empty). As Playwright's
@@ -252,7 +258,9 @@ or a space for `datetime-local`, `YYYY-MM`, `YYYY-Www`, `#rrggbb` or `#rgb`, and
 clears the field. A value in another format fails before anything is touched (`code: "bad_value"`, naming the
 format), and so does one the input refuses (it's put back the way it was). The answer carries what the field holds
 (`data.value`; the text says so when it differs from what was given, such as `#3b82f6` for `#3B82F6` or a range
-snapped to its step). It needs no visible tab and sends no key events. Text fields still type.
+snapped to its step). It needs no visible tab and sends no key events. Text inputs still type; a textarea or
+contenteditable field gets the whole text in one `Input.insertText` (per-key typing took 1.8 s for 400 characters and
+dropped newlines), unless `--humanize`.
 
 `select` on a combobox picks from its suggestions per value: a typeahead or chip input is filled with the value, a
 button that opens a listbox is clicked, an input with a `<datalist>` takes the matching entry. Options come only from
