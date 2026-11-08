@@ -169,6 +169,15 @@ test("scrubText removes emails, secrets, URL queries and home paths", () => {
     ["Authorization: Digest realm=\"api\",\n  username*=UTF-8''bob,\n  response=\"part1\",\n  opaque=\"part2\"\nAccept: text/html", "Authorization: [secret]\nAccept: text/html"],
     ["Typing lags in the password field on github.com", "Typing lags in the password field on github.com"],
     ["digest of the week", "digest of the week"],
+    ["private_key: -----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIKEYBODY91\n-----END PRIVATE KEY-----\nnext ok", "private_key: [secret]\nnext ok"],
+    ["curl --password \\\nforgedPass91 https://example.com\nthen it crashed", "curl --password [secret]\nthen it crashed"],
+    ["access_tokens:\n- forgedToken91\n- forgedToken92\nother: fine", "access_tokens:[secret]\nother: fine"],
+    ["curl -udemo:forgedPass91 https://example.com", "curl -u[secret]"],
+    ['const body = "{\\"password\\":\\"forgedPass91\\"}";', 'const body = "{\\"password\\":[secret]'],
+    ["DATABASE_URL=postgresql://demo:forgedPass91@localhost:5432/app", "DATABASE_URL=postgresql://localhost:5432/app"],
+    ['PASSWORD="""\nfirstSegment91"\nsecondSegment92\n"""\nafter ok', "PASSWORD=[secret]\nafter ok"],
+    ["curl -H 'Authorization: Bearer forgedToken91' https://example.com\n1. open a tab\n2. it crashes", "curl -H 'Authorization: [secret]\n1. open a tab\n2. it crashes"],
+    ["-update the sidebar", "-update the sidebar"],
   ];
   for (const [input, expected] of cases) assert.equal(scrubText(input), expected, input);
   const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\ndef\n-----END OPENSSH PRIVATE KEY-----";
@@ -200,6 +209,9 @@ test("issueFor puts only public-safe fields in the issue", () => {
   assert.match(issue.body, /https:\/\/dash\.ardia\.dev\/feedback\/FB-AB23/);
   for (const secret of ["jane@x.io", "secret.example", "recording.mp4", "400", INSTALL, "arm64"]) assert.ok(!issue.body.includes(secret), secret);
   const leaky = issueFor({ ...report, title: "password=hunter2", description: 'password="part1\\"part2"\nAuthorization: Digest username="bob",\n  response="secretresponse"\ncurl --password hunter3 -H "X-Api-Key: short-secret"\nCookie: session="shortsecret"; other=anothersecret\ncurl --password "part3"\'part4\' x\ncurl --password part5\\ part6\nPASSWORD="part7\npart8"\nAuthorization: Digest realm="api",\n  username*=UTF-8\'\'bob,\n  response="part9",\n  opaque="part10"' }, "https://d");
+  const leaky2 = issueFor({ ...report, title: "t", description: ["private_key: -----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIKEYBODY91\n-----END PRIVATE KEY-----", "curl --password \\\nforgedPass91 https://example.com", "access_tokens:\n- forgedToken93", "curl -udemo:forgedPass94 https://example.com", 'const body = "{\\"password\\":\\"forgedPass95\\"}";', "DATABASE_URL=postgresql://demo:forgedPass96@localhost:5432/app", 'PASSWORD="""\nfirstSegment97"\nsecondSegment98\n"""', "curl -H 'Authorization: Bearer forgedToken99' https://example.com", "1. open a tab"].join("\n") }, "https://d");
+  for (const secret of ["KEYBODY91", "forgedPass91", "forgedToken93", "forgedPass94", "forgedPass95", "forgedPass96", "firstSegment97", "secondSegment98", "forgedToken99"]) assert.ok(!leaky2.body.includes(secret), secret);
+  assert.ok(leaky2.body.includes("1. open a tab"));
   for (const secret of ["hunter2", "hunter3", "part1", "part2", "part3", "part4", "part5", "part6", "part7", "part8", "part9", "part10", "secretresponse", "short-secret", "shortsecret", "anothersecret"]) {
     assert.ok(!leaky.title.includes(secret) && !leaky.body.includes(secret), secret);
   }
