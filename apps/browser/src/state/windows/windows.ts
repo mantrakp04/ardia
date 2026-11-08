@@ -32,7 +32,7 @@ import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves
 import { commonGroup, orderSections } from "../groups/groups";
 import { groupOf } from "../pins/tabGrouping";
 import { focusedWindowOf } from "./ui";
-import { closedWindowOf, withoutLastWindowMark } from "./closedWindow";
+import { closedWindowOf, withoutLastWindowMarks } from "./closedWindow";
 
 export type CreateWindowOptions = {
   profileId?: string;
@@ -202,8 +202,9 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const tabs = tabsClosedWithWindow(s, id);
     const small = isSmallWindow(w);
     const last = isLastRegularWindow(s, id);
-    const entry = w.kind !== "private" && !small && tabs.some((t) => t.url) ? closedWindowOf(s, w, tabs, last && keepsLastWindow) : null;
-    const kept = last ? s.closedWindows.map(withoutLastWindowMark) : s.closedWindows;
+    const keeps = last && keepsLastWindow && w.tabIds.some((t) => s.tabs[t]?.url);
+    const entry = w.kind !== "private" && !small && (keeps || tabs.some((t) => t.url)) ? closedWindowOf(s, w, tabs, keeps) : null;
+    const kept = last ? withoutLastWindowMarks(s.closedWindows) : s.closedWindows;
     const closedWindows = entry ? [...kept, entry].slice(-MAX_CLOSED_WINDOWS) : kept;
     const next = removeTabs(s, w.tabIds, small);
     set({

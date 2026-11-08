@@ -31,8 +31,7 @@ export function closedWindowOf(s: BrowserState, w: BrowserWindow, tabs: Tab[], k
   };
 }
 
-export function withoutLastWindowMark(c: ClosedWindow): ClosedWindow {
-  if (!c.lastWindow) return c;
-  const { lastWindow: _, activePin: __, ...rest } = c;
-  return rest;
+export function withoutLastWindowMarks(list: ClosedWindow[]): ClosedWindow[] {
+  if (!list.some((c) => c.lastWindow)) return list;
+  return list.flatMap(({ lastWindow, activePin: _, ...rest }) => (!lastWindow ? [rest] : rest.tabs.length ? [rest] : []));
 }

@@ -202,7 +202,7 @@ function closedForLaunch(session: SavedSession): HydrateData {
   let parkedPins = session.parkedPins ?? {};
   for (const w of Object.values(session.windows)) parkedPins = parkWindowPins(parkedPins, w, pinSource);
   const closedWindows = [
-    ...(session.closedWindows ?? []).map(({ lastWindow: _, activePin: __, ...c }) => c),
+    ...(session.closedWindows ?? []).filter((c) => c.tabs.length).map(({ lastWindow: _, activePin: __, ...c }) => c),
     ...Object.values(session.windows)
       .map((w) =>
         closedWindowEntry(

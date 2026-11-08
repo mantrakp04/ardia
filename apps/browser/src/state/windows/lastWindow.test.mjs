@@ -152,9 +152,12 @@ test("a newer window closed empty wins over the older kept one", async () => {
   await closeByUser(w);
   const fresh = S().createWindow();
   assert.deepEqual(await closeByUser(fresh), []);
-  assert.equal(S().closedWindows.filter((c) => c.lastWindow).length, 0, "the older one is only in Recently Closed now");
+  const marked = S().closedWindows.filter((c) => c.lastWindow);
+  assert.equal(marked.length, 1);
+  assert.deepEqual(marked[0].tabs.map((t) => t.url), [""], "the newer one, its New Tab and its pins, is the one kept; the older one is only in Recently Closed");
   const id = openLastWindowOrNew("dock");
   assert.deepEqual(listUrls(id), [""]);
+  assert.deepEqual(pinnedUrls(id), ["https://mail.com", "https://cal.com"]);
 });
 
 test("a window opened while the last one animates out keeps it from being the last", async () => {
@@ -210,4 +213,71 @@ test("the restored window is the one Reopen Closed Window would have brought bac
   const entry = S().closedWindows.at(-1).id;
   openLastWindowOrNew("dock");
   assert.equal(S().closedWindows.some((c) => c.id === entry), false);
+});
+
+test("a window with only pinned tabs in another profile comes back in that profile, frame, sidebar and shown pin", async () => {
+  S().hydrate({});
+  const work = S().createProfile({ name: "Work" });
+  const w = S().createWindow({ url: "https://w-mail.com", profileId: work });
+  const [mail] = S().windows[w].tabIds;
+  const cal = S().newTab(w, { url: "https://w-cal.com" });
+  S().pinTabs([mail, cal], true);
+  S().activate(cal);
+  S().setWindowFrame(w, FRAME);
+  S().toggleSidebar(w);
+  for (const id of S().windows[w].tabIds.filter((id) => !S().tabs[id].pin)) S().closeTab(id);
+  assert.deepEqual(listUrls(w), [], "only pins left");
+  assert.deepEqual(await closeByUser(w), []);
+  const id = openLastWindowOrNew("dock");
+  assert.equal(onlyWindow(), id);
+  assert.equal(S().windows[id].profileId, work);
+  assert.deepEqual(S().windows[id].frame, FRAME);
+  assert.equal(S().windows[id].sidebarOpen, false);
+  assert.deepEqual(pinnedUrls(id), ["https://w-mail.com", "https://w-cal.com"]);
+  assert.equal(shownUrl(id), "https://w-cal.com");
+  assert.equal(S().closedWindows.some((c) => c.tabs.length === 0), false, "the pins-only entry is used up");
+});
+
+test("a pins-only entry that's no longer the last window leaves Recently Closed", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://mail.com" });
+  S().pinTabs(S().windows[w].tabIds, true);
+  for (const id of S().windows[w].tabIds.filter((id) => !S().tabs[id].pin)) S().closeTab(id);
+  await closeByUser(w);
+  assert.equal(S().closedWindows.at(-1).tabs.length, 0);
+  const fresh = S().createWindow({ url: "https://new.com" });
+  await closeByUser(fresh);
+  assert.equal(S().closedWindows.some((c) => c.tabs.length === 0), false);
+});
+
+test("a Dock click while the last window is still animating out brings that window back", async () => {
+  const { w } = arcWindow();
+  const gates = [];
+  const animate = shellNativeModules.ArdiaAppWindows.animateWindowClose;
+  shellNativeModules.ArdiaAppWindows.animateWindowClose = () => new Promise((resolve) => gates.push(resolve));
+  try {
+    await closeByUser(w);
+    assert.ok(S().windows[w], "still animating");
+    const id = openLastWindowOrNew("dock");
+    assert.equal(onlyWindow(), id);
+    assert.deepEqual(listUrls(id), ["https://a.com", "https://b.com", "https://c.com"]);
+  } finally {
+    gates.splice(0).forEach((resolve) => resolve());
+    shellNativeModules.ArdiaAppWindows.animateWindowClose = animate;
+  }
+  await tick();
+  await tick();
+  assert.equal(S().windowOrder.length, 1, "the late animation end closes nothing more");
+});
+
+test("a second Dock click while the restored window appears focuses it instead of opening another", async () => {
+  const { w } = arcWindow();
+  await closeByUser(w);
+  const first = openLastWindowOrNew("dock");
+  windows.focused = null;
+  const second = openLastWindowOrNew("dock");
+  assert.equal(second, first);
+  assert.equal(onlyWindow(), first);
+  await tick();
+  assert.equal(windows.focused, first);
 });

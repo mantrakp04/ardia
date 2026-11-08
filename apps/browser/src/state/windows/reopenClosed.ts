@@ -137,11 +137,11 @@ export function restoreWindow(s: BrowserState, entry: ClosedWindow): BrowserStat
   }
   const splits = restoredSplits(s.splits, entry, ids, id);
   let next = withWindow({ ...s, tabs, live, groups, splits, closedWindows: s.closedWindows.filter((c) => c.id !== entry.id) }, w);
-  const shown = w.activeTabIds[w.profileId] ?? w.tabIds[0]!;
   next = adoptParkedPins(next, id, w.profileId);
   const pin = entry.activePin ? next.windows[id]!.tabIds.find((t) => inPinnedContainer(next, t) && pinKeyOf(next.tabs[t]!) === entry.activePin) : undefined;
-  next = apply(next, activated(next, pin ?? shown));
-  return next;
+  let shown = pin ?? w.activeTabIds[w.profileId] ?? next.windows[id]!.tabIds[0];
+  if (!shown) [next, shown] = withNewTab(next, id);
+  return apply(next, activated(next, shown));
 }
 
 function restoredSplits(splits: Record<string, SplitView>, entry: ClosedWindow, ids: string[], windowId: string): Record<string, SplitView> {
