@@ -96,7 +96,6 @@ struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
   BOOL onActivate{};
-  BOOL onFirstShow{};
   BOOL keepsOutgoing{};
   CFTimeInterval activatedAt{};
   __weak NSWindow *activatedIn;

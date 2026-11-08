@@ -11,6 +11,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)offerTab:(ArdiaCoreTab *)tab prefix:(NSString *)prefix;
 + (nullable ArdiaCoreTab *)takeOffered:(NSString *)adoptId;
 + (nullable ArdiaCoreTab *)offeredTab:(NSString *)adoptId;
++ (void)expectFirstShowFocus:(BOOL)expects forTab:(ArdiaCoreTab *)tab;
++ (BOOL)takeFirstShowFocusOfTab:(ArdiaCoreTab *)tab;
 + (void)forget:(ArdiaCoreTab *)tab;
 @end
 

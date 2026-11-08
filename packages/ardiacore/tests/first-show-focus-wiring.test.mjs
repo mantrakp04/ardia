@@ -18,18 +18,32 @@ const bodyOf = (text, signature) => {
   assert.fail(`${signature} has no closing brace`);
 };
 
-const marksFirstShow = "_focus.onFirstShow = YES;";
+const marks = (tab) => `[ArdiaTabRegistry expectFirstShowFocus:YES forTab:${tab}];`;
+const unmarks = (tab) => `[ArdiaTabRegistry expectFirstShowFocus:NO forTab:${tab}];`;
 
 test("a mark that is only commented out does not count", () => {
-  const commented = `// ${marksFirstShow}\n/* ${marksFirstShow}\n */\nreturn @"http://example.test"; // ${marksFirstShow}\n`;
+  const commented = `// ${marks("tab")}\n/* ${marks("tab")}\n */\nreturn @"http://example.test"; // ${marks("tab")}\n`;
   const code = withoutComments(commented);
-  assert.ok(!code.includes(marksFirstShow), "no mark survives in the stripped source");
+  assert.ok(!code.includes(marks("tab")), "no mark survives in the stripped source");
   assert.ok(code.includes('@"http://example.test"'), "a URL in a string keeps its slashes");
 });
 
-test("the page focus state remembers that its page still needs focus on first show", () => {
+test("the request belongs to the tab, not to a view or its focus state", () => {
   const state = bodyOf(native("ArdiaWebViewInternal.h"), "struct ArdiaPageFocusState");
-  assert.match(state, /BOOL onFirstShow\{\};/);
+  assert.ok(!state.includes("onFirstShow"), "the focus state of a view does not hold the request");
+  const header = native("ArdiaTabRegistry.h");
+  assert.match(header, /\+ \(void\)expectFirstShowFocus:\(BOOL\)expects forTab:\(ArdiaCoreTab \*\)tab;/);
+  assert.match(header, /\+ \(BOOL\)takeFirstShowFocusOfTab:\(ArdiaCoreTab \*\)tab;/);
+});
+
+test("the registry keeps the requests in a weak table and forgets a tab's request with the tab", () => {
+  const registry = native("ArdiaTabRegistry.mm");
+  assert.match(registry, /NSHashTable<ArdiaCoreTab \*> \*AwaitingFirstShowFocus\(\) \{\s*static NSHashTable \*tabs = \[NSHashTable weakObjectsHashTable\];/);
+  const take = bodyOf(registry, "+ (BOOL)takeFirstShowFocusOfTab:");
+  assert.match(take, /if \(!\[AwaitingFirstShowFocus\(\) containsObject:tab\]\) return NO;/);
+  assert.match(take, /\[AwaitingFirstShowFocus\(\) removeObject:tab\];\s*return YES;/);
+  const forget = bodyOf(registry, "+ (void)forget:");
+  assert.match(forget, /\[AwaitingFirstShowFocus\(\) removeObject:tab\];/);
 });
 
 const offeredBranch = () => {
@@ -37,50 +51,71 @@ const offeredBranch = () => {
   return ensure.slice(ensure.indexOf('hasPrefix:@"ardiacore:"'));
 };
 
-test("a tab taken from an offer marks its view before it is attached", () => {
+test("a tab taken from an offer is marked before it is attached", () => {
   const offered = offeredBranch();
   const attach = bodyOf(offered.slice(offered.indexOf("if (offered && !offered.closed) {")), "if (offered && !offered.closed) {");
-  const mark = attach.indexOf(marksFirstShow);
-  assert.ok(mark >= 0, "the branch that attaches the offered tab marks the view");
+  const mark = attach.indexOf(marks("offered"));
+  assert.ok(mark >= 0, "the branch that attaches the offered tab marks the tab");
   assert.ok(mark < attach.indexOf("[self attach:offered]"), "the mark comes before the attach");
 });
 
-test("an offered tab that is held marks its view only once it is parked for the retry", () => {
+test("an offered tab that is held is marked only once it is parked for the retry", () => {
   const offered = offeredBranch();
   const heldAt = offered.indexOf("[self holdTransferOf:offered]");
   assert.ok(heldAt >= 0, "the offered branch holds a tab the window cannot take yet");
-  assert.ok(!offered.slice(0, heldAt).includes(marksFirstShow), "nothing is marked before the hold is decided");
+  assert.ok(!offered.slice(0, heldAt).includes(marks("offered")), "nothing is marked before the hold is decided");
   const held = bodyOf(offered.slice(heldAt), "[self holdTransferOf:offered]");
   const parked = held.indexOf("[ArdiaTabParking park:offered forKey:_transferKey];");
   assert.ok(parked >= 0, "the held tab is parked");
-  assert.ok(held.indexOf(marksFirstShow) > parked, "the mark follows the park");
+  assert.ok(held.indexOf(marks("offered")) > parked, "the mark follows the park");
 });
 
-test("a parked link tab marks its view before it is taken, and unmarks it when it is not", () => {
+test("a parked link tab is marked before it is taken, and unmarked when it is not", () => {
   const take = bodyOf(native("ArdiaWebView+Transfer.mm"), "- (BOOL)takeLinkTab:");
-  const mark = take.indexOf(marksFirstShow);
+  const mark = take.indexOf(marks("tab"));
   const taken = take.indexOf("[self takeTransferredTab] != ArdiaTransferNone");
-  assert.ok(mark >= 0 && taken > mark, "the link tab marks the view before takeTransferredTab");
-  const unmark = take.indexOf("_focus.onFirstShow = NO;", taken);
+  assert.ok(mark >= 0 && taken > mark, "the link tab is marked before takeTransferredTab");
+  const unmark = take.indexOf(unmarks("tab"), taken);
   assert.ok(unmark > taken && unmark < take.indexOf("discardTab:tab"), "a discarded link tab leaves no mark");
 });
 
-test("settling a first-show request starts the focus window only once the view shows its page", () => {
-  const settle = bodyOf(native("ArdiaWebView+Focus.mm"), "- (void)settleFirstShowFocus {");
-  assert.match(settle, /if \(!_focus\.onFirstShow \|\| !_tab \|\| !_visible \|\| !self\.window\) return;/);
-  const cleared = settle.indexOf("_focus.onFirstShow = NO;");
-  const requested = settle.indexOf("[self requestFocusRestore];");
-  assert.ok(cleared >= 0 && requested > cleared, "the mark is cleared, then focus is requested");
+const settle = () => bodyOf(native("ArdiaWebView+Focus.mm"), "- (void)settleFirstShowFocus {");
+
+test("a request is consumed only once the page is attached, shown and not hidden", () => {
+  const body = settle();
+  const consumed = body.indexOf("[ArdiaTabRegistry takeFirstShowFocusOfTab:_tab]");
+  assert.ok(consumed >= 0, "settling consumes the tab's request");
+  const gate = body.slice(0, consumed);
+  for (const check of ["!_tab", "!_visible", "!window", "_standalone", "page.superview != self", "page.isHiddenOrHasHiddenAncestor"])
+    assert.ok(gate.includes(check), `${check} keeps the request waiting`);
+  assert.match(gate, /\) return;/);
 });
 
-test("a request is settled when the view becomes visible and when the page is attached", () => {
-  const visible = bodyOf(native("ArdiaWebView.mm"), "- (void)setVisible:(BOOL)visible {");
-  assert.match(visible, /if \(visible\) \[self settleFirstShowFocus\];/);
+test("only the tab the strip shows as active takes focus, so a background split pane keeps the source pane's focus", () => {
+  const body = settle();
+  const consumed = body.indexOf("[ArdiaTabRegistry takeFirstShowFocusOfTab:_tab]");
+  const check = "if (!controller || [ArdiaTabStrip activeTabInWindow:controller profile:_tab.profile] != _tab) return;";
+  const active = body.indexOf(check);
+  const requested = body.indexOf("[self requestFocusRestoreIn:window];");
+  assert.ok(active > consumed, "the active tab is checked once the request is taken");
+  assert.ok(requested > active, "focus is requested after the active-tab check");
+});
+
+test("a request is settled when the page is attached, when the view becomes visible, when painting is applied and when it is unhidden", () => {
   const attach = bodyOf(native("ArdiaWebView+Tab.mm"), "- (void)attach:(ArdiaCoreTab *)tab {");
   assert.ok(attach.trimEnd().endsWith("[self settleFirstShowFocus];\n}"), "attach ends by settling the request");
+  const visible = bodyOf(native("ArdiaWebView.mm"), "- (void)setVisible:(BOOL)visible {");
+  assert.match(visible, /if \(visible\) \[self settleFirstShowFocus\];/);
+  const unhide = bodyOf(native("ArdiaWebView.mm"), "- (void)viewDidUnhide {");
+  assert.match(unhide, /\[super viewDidUnhide\];\s*\[self settleFirstShowFocus\];/);
+  const drain = bodyOf(native("ArdiaWebView+Painting.mm"), "+ (void)drainPainting {");
+  const applied = drain.lastIndexOf("[view applyPainting]");
+  const settled = drain.indexOf("[view settleFirstShowFocus];");
+  assert.ok(settled > applied, "a drain settles after it applied painting, which is what unhides the page");
+  assert.ok(drain.indexOf("[view restoreFocusIfDue];") > settled, "the focus window is checked after the request is made");
 });
 
-test("a view that lets go of its tab forgets the request", () => {
+test("a view that lets go of its tab does not drop the tab's request", () => {
   const detach = bodyOf(native("ArdiaWebView+Tab.mm"), "- (void)detach {");
-  assert.match(detach, /_focus\.onFirstShow = NO;/);
+  assert.ok(!detach.includes("FirstShow"), "detach leaves the request with the tab");
 });

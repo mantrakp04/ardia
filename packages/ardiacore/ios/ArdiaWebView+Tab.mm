@@ -148,7 +148,6 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   _tab = nil;
   _life.detached();
   _focus.onActivate = NO;
-  _focus.onFirstShow = NO;
   _focus.page = ArdiaPageFocus::Unknown;
   _focus.devTools = nil;
   _life.handingOff = NO;

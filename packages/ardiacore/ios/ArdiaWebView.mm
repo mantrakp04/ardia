@@ -171,6 +171,11 @@ void AcceptDrops(NSView *root, BOOL accept) {
   else [self ensureTab];
 }
 
+- (void)viewDidUnhide {
+  [super viewDidUnhide];
+  [self settleFirstShowFocus];
+}
+
 - (void)setExtensionHost:(NSString *)extensionHost {
   _extensionHost = [extensionHost copy];
   if (_extensionHost.length) _standalone = YES;
