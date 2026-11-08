@@ -56,7 +56,7 @@ enum WindowMoveProbe {
       "placements": placements.count, "frames": frames.count,
       "placementsPerFrame": frames.isEmpty ? 0 : Double(placements.count) / Double(frames.count),
       "placementGapMs": ["min": gaps.min() ?? 0, "max": gaps.max() ?? 0, "mean": mean, "variance": variance],
-      "truncated": WindowMove.moveTimes.count >= WindowMove.traceLimit || WindowMove.frameTimes.count >= WindowMove.traceLimit,
+      "truncated": WindowMove.traceOverflowed,
     ]
   }
 
@@ -104,6 +104,7 @@ enum WindowMoveProbe {
     WindowMove.afterMoveTrace = []
     WindowMove.moveTimes = []
     WindowMove.frameTimes = []
+    WindowMove.traceOverflowed = false
     let began = CACurrentMediaTime()
     var releasedAt = 0.0
     var ended = began

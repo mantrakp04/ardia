@@ -72,10 +72,12 @@ test("WindowMoveProbe.drag source reports placements per frame and the spread of
   assert.match(probe, /WindowMove\.moveTimes = \[\]/);
   assert.match(probe, /WindowMove\.frameTimes = \[\]/);
   assert.match(probe, /"pacing": pacing/);
-  assert.match(probe, /"truncated": WindowMove\.moveTimes\.count >= WindowMove\.traceLimit \|\| WindowMove\.frameTimes\.count >= WindowMove\.traceLimit/, "a report built from a capped timestamp list says so");
+  assert.match(probe, /"truncated": WindowMove\.traceOverflowed/, "a report says it was truncated only when a timestamp was rejected");
+  assert.match(probe, /WindowMove\.traceOverflowed = false/, "each drag starts with no overflow");
+  assert.ok(!probe.includes("count >= WindowMove.traceLimit"), "a list that only reached its cap kept every timestamp");
   const move = read("WindowMove.swift");
-  assert.match(move, /static func traceMove\(\) \{ if moveTimes\.count < traceLimit /);
-  assert.match(move, /static func traceFrame\(\) \{ if frameTimes\.count < traceLimit /);
+  assert.match(move, /static func traceMove\(\) \{ if moveTimes\.count < traceLimit \{ moveTimes\.append\(CACurrentMediaTime\(\)\) \} else \{ traceOverflowed = true \} \}/);
+  assert.match(move, /static func traceFrame\(\) \{ if frameTimes\.count < traceLimit \{ frameTimes\.append\(CACurrentMediaTime\(\)\) \} else \{ traceOverflowed = true \} \}/);
   assert.ok(!probe.includes("pacingReport(from: began, to: ended)"), "ended is taken before the queued mouse-up is handled, so the report would leave out the placement that mouse-up makes");
   const afterSettle = probe.slice(probe.indexOf("DispatchQueue.main.asyncAfter"));
   assert.match(afterSettle, /let pacing = pacingReport\(from: began, to: CACurrentMediaTime\(\)\)/, "the report is built once the drag has ended and settled, so the mouse-up placement is in it");
