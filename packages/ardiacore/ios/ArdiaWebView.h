@@ -87,6 +87,10 @@ NS_ASSUME_NONNULL_BEGIN
                                browser:(int)browserId NS_SWIFT_NAME(devScrollZoom(_:browserId:));
 @end
 
+@interface ArdiaWebView (Recording)
+- (void)copyRecordingPicture:(void (^)(CGImageRef _Nullable picture))completion NS_SWIFT_NAME(copyRecordingPicture(_:));
+@end
+
 @interface ArdiaWebView (PageMessages)
 + (void)setDisplayMediaPicker:(BOOL)enabled;
 + (void)setSelectionPopoverEnabled:(BOOL)enabled NS_SWIFT_NAME(setSelectionPopoverEnabled(_:));

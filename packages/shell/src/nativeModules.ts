@@ -12,6 +12,7 @@ import type { ShellNative } from "./lifecycle";
 import type { CalendarNative, KeychainNative } from "./live";
 import type { MenusNative } from "./menus";
 import type { NotificationsNative } from "./notifications";
+import type { ReportNative } from "./report";
 import type { ScriptingNative } from "./scripting";
 import type { SystemSignalsNative } from "./systemSignals";
 import type { TelemetryLocalNative } from "./telemetryLocal";
@@ -48,6 +49,7 @@ export type ShellNativeModules = {
   ArdiaConfig: ConfigNative;
   ArdiaAutomation: AutomationNative;
   ArdiaSystemSignals: SystemSignalsNative;
+  ArdiaReport: ReportNative;
   ArdiaTelemetryLocal: TelemetryLocalNative;
 };
 

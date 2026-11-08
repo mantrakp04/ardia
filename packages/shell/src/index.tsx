@@ -5,6 +5,7 @@ export * from "./config";
 export * from "./browserCommand";
 export * from "./commands";
 export * from "./dev";
+export * from "./report";
 export * from "./dialogs";
 export * from "./documents";
 export * from "./telemetryLocal";

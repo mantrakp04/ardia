@@ -5,7 +5,7 @@ import {
   recordDefaultBrowserCheckInDone,
 } from "./onboarding";
 import { useBrowser } from "../browser/store";
-import { sendFeedback } from "../commands/appCommands";
+import { reportProblem } from "../commands/appCommands";
 
 export const CHECK_IN_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -31,7 +31,7 @@ export function useDefaultBrowserCheckIn(windowId: string) {
     visible: due && !incognito,
     leaveFeedback() {
       dismissDefaultBrowserCheckIn();
-      void sendFeedback(windowId);
+      reportProblem(windowId, "check_in");
     },
     dismiss: dismissDefaultBrowserCheckIn,
   };

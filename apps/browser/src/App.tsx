@@ -22,6 +22,7 @@ import { WindowProfile } from "./components/window/WindowProfile";
 import { DockedLayout } from "./components/window/SidebarDock";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
+import { ReportSheetHost } from "./components/report/ReportSheet";
 import { profileAccent, profileTheme, useTheme } from "./components/ui/theme";
 import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
@@ -96,6 +97,7 @@ function BrowserWindow() {
       <CreateProfileHost />
       <SidebarOverlays windowWidth={width} />
       <OnboardingOverlay />
+      <ReportSheetHost />
     </CrxDropArea>
   );
 }
