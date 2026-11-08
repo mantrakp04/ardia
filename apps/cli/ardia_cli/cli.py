@@ -18,6 +18,8 @@ Examples:
   ardia --port 9222 browse snapshot -i
   ardia browse --port 9222 snapshot -i
   ardia windows --json
+  ardia tabs --json
+  ardia groups create tab-1 tab-2 --name Work --icon 🚀
 """
 SKILLS_DESCRIPTION = """\
 Install the ardia agent skill (SKILL.md and its references) so coding agents know how to drive Ardia.
@@ -204,6 +206,10 @@ def build_parser():
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
 
+    from ardia_cli import workspace_cli
+
+    workspace_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
     from ardia_cli import feedback, star
 
     feedback.add_parser(commands, argparse.RawDescriptionHelpFormatter)
@@ -296,6 +302,10 @@ def run(argv: list[str]) -> int:
         from ardia_cli import automation_cli
 
         return automation_cli.dispatch(args, parser)
+    if args.command in ("tabs", "groups", "apply"):
+        from ardia_cli import workspace_cli
+
+        return workspace_cli.run(args, parser)
     if args.command in ("config", "theme"):
         from ardia_cli import config_cli
 

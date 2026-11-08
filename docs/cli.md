@@ -79,6 +79,12 @@ the pins into `pyproject.toml`).
   `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
   ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
   out.
+- `ardia tabs`, `ardia groups` and `ardia apply` list and organize tabs and groups by id: open URLs into a window,
+  profile, group or spot, move tabs between groups, windows and profiles without reloading, pin, mute, sleep, wake,
+  close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and
+  apply a JSON batch of those in one call (`ardia_cli/workspace_cli.py`; protocol, operations and rules in
+  `docs/automation.md` › Tabs and groups). `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
+  or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
 - `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
@@ -91,7 +97,8 @@ the pins into `pyproject.toml`).
   Feedback and the star nudge). Exit 0 starred or the page opened, 1 neither worked.
 - `ardia --version`, `ardia --help`, `ardia browse --help`, `ardia scripts <command> --help`,
   `ardia config <command> --help`, `ardia theme <command> --help`, `ardia hooks <command> --help` and `--help` on
-  each of `pinned`, `history`, `run`, `commands`, `windows`, `events` and `on`.
+  each of `pinned`, `history`, `run`, `commands`, `windows`, `events`, `on`, `apply`, and `tabs` and `groups` and
+  their commands.
 
 `ardia exec` is gone: `ardia browse` is the one way to drive the browser. `ardia exec …` (and any other unknown
 command) prints `ardia: unknown command '…'` with where to go instead, and exits 2. What `exec` offered maps to
@@ -818,7 +825,8 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `batch_steps`, and `cdp_calls` with `cdp_ms_total` (the
+  `output_chars` and `output_truncated`, `humanize`, `batch_steps` (also the operations an `ardia apply`, `tabs …`
+  or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
   (`command_metrics.py`).
 - `$exception` for a crash the CLI didn't handle (`source` and mechanism `cli_unhandled`, level `fatal`) or one inside

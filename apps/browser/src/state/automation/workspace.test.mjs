@@ -1,0 +1,210 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+const { useBrowser } = await import("../browser/store.ts");
+const { startAutomation } = await import("./controlSocket.ts");
+const { parseOps, openableUrl } = await import("./workspaceOps.ts");
+const stub = await import("../../test-native/index.ts");
+
+const S = () => useBrowser.getState();
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+let nextId = 0;
+
+async function controlOn() {
+  S().updateSettings({ cliControl: true });
+  startAutomation();
+  for (let i = 0; i < 5 && !stub.controlSocket.running; i++) await tick();
+  await tick();
+}
+
+async function call(method, params) {
+  const id = ++nextId;
+  const before = stub.controlSocket.replies.length;
+  stub.emitControlRequest({ connection: 7, generation: stub.controlSocket.generation, line: JSON.stringify({ id, method, params }) });
+  for (let i = 0; i < 50 && !stub.controlSocket.replies.slice(before).some((r) => r.connection === 7); i++) await tick();
+  const replies = stub.controlSocket.replies.slice(before).filter((r) => r.connection === 7);
+  assert.equal(replies.length, 1, `one reply to ${method}`);
+  return JSON.parse(replies[0].line);
+}
+
+const apply = async (...ops) => (await call("apply", { ops })).result;
+
+async function setup() {
+  S().hydrate({});
+  await controlOn();
+  const windowId = S().createWindow({ url: "https://a.example/" });
+  const a = S().windows[windowId].activeTabIds[S().windows[windowId].profileId];
+  const b = S().newTab(windowId, { url: "https://b.example/", background: true });
+  const c = S().newTab(windowId, { url: "https://c.example/", background: true });
+  return { windowId, a, b, c };
+}
+
+const order = (windowId) => S().windows[windowId].tabIds;
+const activeOf = (windowId) => S().windows[windowId].activeTabIds[S().windows[windowId].profileId];
+
+test("URLs: only what the omnibox opens, never script or app schemes", () => {
+  assert.equal(openableUrl("example.com"), "https://example.com");
+  assert.equal(openableUrl("https://a.example/x?y#z"), "https://a.example/x?y#z");
+  assert.equal(openableUrl("about:blank"), "about:blank");
+  assert.equal(openableUrl("ardia://history"), "ardia://history");
+  assert.equal(openableUrl("ardia://newtab"), "");
+  for (const bad of ["javascript:alert(1)", " javascript:alert(1)", "data:text/html,hi", "ardia://settings", "chrome://flags", "ardia://extensions", "mailto:a@b.c", "slack://open", "https://user:pw@a.example/", "hello world", "view-source:https://a.example/"]) {
+    assert.equal(typeof openableUrl(bad), "object", bad);
+  }
+});
+
+test("ops are checked before anything runs", async () => {
+  const { windowId } = await setup();
+  const tabs = order(windowId).length;
+  const bad = await call("apply", { ops: [{ op: "open", urls: ["https://x.example/"] }, { op: "tab.move", tabs: ["t"], grop: "g" }] });
+  assert.equal(bad.error.code, "bad_request");
+  assert.match(bad.error.message, /Operation 1: tab\.move takes no grop/);
+  assert.equal(order(windowId).length, tabs);
+  const refused = await call("apply", { ops: [{ op: "open", urls: ["https://x.example/", "javascript:alert(1)"] }] });
+  assert.equal(refused.error.code, "refused");
+  assert.equal(order(windowId).length, tabs);
+  assert.equal(parseOps([{ op: "tab.close", tabs: ["$0"] }]).code, "bad_request");
+  assert.equal(parseOps([{ op: "group.update", group: "g" }]).code, "bad_request");
+  assert.equal(parseOps([{ op: "group.update", group: "g", color: "mauve" }]).code, "bad_request");
+  assert.equal(parseOps([{ op: "group.update", group: "g", icon: "<b>" }]).code, "bad_request");
+  assert.ok(Array.isArray(parseOps([{ op: "group.update", group: "g", icon: "🚀", color: "neutral" }])));
+});
+
+test("open keeps the order given, where new tabs go, in the background", async () => {
+  const { windowId, a } = await setup();
+  const r = await apply({ op: "open", urls: ["https://x.example/", "https://y.example/"], window: windowId });
+  assert.equal(r.ok, true);
+  const [x, y] = r.results[0].tabs;
+  const at = order(windowId).indexOf(x);
+  assert.deepEqual(order(windowId).slice(at, at + 2), [x, y]);
+  const z = (await apply({ op: "open", urls: ["https://z.example/"], before: x })).results[0].tabs[0];
+  assert.equal(order(windowId).indexOf(z), order(windowId).indexOf(x) - 1);
+  assert.equal(activeOf(windowId), a);
+  assert.equal(S().tabs[x].url, "https://x.example/");
+});
+
+test("a nested group: create, name, icon, colour, collapse, open into it, move tabs in and out", async () => {
+  const { windowId, a, b, c } = await setup();
+  const r = await apply(
+    { op: "group.create", tabs: [b], name: "Work", icon: "🚀", color: "blue", pinned: false },
+    { op: "group.create", parent: "$0", urls: ["https://n.example/"], name: "Inner", icon: "symbol:star", collapsed: true },
+    { op: "open", urls: ["https://o.example/"], group: "$1" },
+    { op: "tab.move", tabs: [c], group: "$0" },
+  );
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const outer = r.results[0].group;
+  const inner = r.results[1].group;
+  const g = S().groups[outer];
+  assert.deepEqual([g.name, g.icon, g.color, g.pinned], ["Work", "🚀", "blue", false]);
+  const n = S().groups[inner];
+  assert.deepEqual([n.name, n.icon, n.parentId, n.collapsed], ["Inner", "symbol:star", outer, true]);
+  const opened = r.results[2].tabs[0];
+  assert.ok(n.tabIds.includes(opened));
+  assert.ok(g.tabIds.includes(c) && g.tabIds.includes(opened) && g.tabIds.includes(b));
+  assert.equal(activeOf(windowId), a);
+  const tree = (await call("workspace", { window: windowId })).result;
+  const space = tree.windows[0].spaces[0];
+  const work = space.tabs.find((n) => n.type === "group");
+  assert.equal(work.id, outer);
+  assert.equal(work.icon, "🚀");
+  const nested = work.items.find((n) => n.type === "group");
+  assert.deepEqual([nested.id, nested.parent, nested.collapsed, nested.items.length], [inner, outer, true, 2]);
+
+  const out = await apply({ op: "tab.move", tabs: [c], group: null });
+  assert.equal(out.ok, true);
+  assert.equal(S().groups[outer].tabIds.includes(c), false);
+  assert.equal(S().tabs[c].windowId, windowId);
+  const update = await apply({ op: "group.update", group: outer, name: "Play", color: "neutral", icon: "none" });
+  assert.equal(update.ok, true);
+  assert.deepEqual([S().groups[outer].name, S().groups[outer].color, update.groups[0].icon], ["Play", null, "none"]);
+  assert.equal(activeOf(windowId), a);
+});
+
+test("reorder, pin, unpin, mute, rename keep the active tab", async () => {
+  const { windowId, a, b, c } = await setup();
+  const r = await apply(
+    { op: "tab.move", tabs: [c], before: b },
+    { op: "tab.pin", tabs: [b], as: "row" },
+    { op: "tab.mute", tabs: [c] },
+    { op: "tab.rename", tab: c, title: "Cee" },
+  );
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(S().tabs[b].pin?.as, "row");
+  assert.equal(S().tabs[c].muted, true);
+  assert.equal(S().tabs[c].customTitle, "Cee");
+  assert.equal(activeOf(windowId), a);
+  const back = await apply({ op: "tab.unpin", tabs: [b] }, { op: "tab.unmute", tabs: [c] }, { op: "tab.rename", tab: c, title: null });
+  assert.equal(back.ok, true);
+  assert.deepEqual([S().tabs[b].pin, S().tabs[c].muted, S().tabs[c].customTitle], [null, false, null]);
+  assert.equal(activeOf(windowId), a);
+  const act = await apply({ op: "tab.activate", tab: c });
+  assert.equal(act.ok && activeOf(windowId), c);
+});
+
+test("a failed operation stops the batch and says what ran", async () => {
+  const { windowId, b } = await setup();
+  const r = await apply({ op: "tab.mute", tabs: [b] }, { op: "tab.move", tabs: ["nope"], before: b }, { op: "tab.close", tabs: [b] });
+  assert.equal(r.ok, false);
+  assert.equal(r.applied, 1);
+  assert.equal(r.error.index, 1);
+  assert.equal(r.error.code, "no_window");
+  assert.ok(S().tabs[b]);
+  assert.equal(S().tabs[b].muted, true);
+  assert.deepEqual(r.windows.map((w) => w.id), [windowId]);
+});
+
+test("private windows are never reachable", async () => {
+  await setup();
+  const priv = S().createWindow({ kind: "private", url: "https://p.example/" });
+  const tab = S().windows[priv].tabIds[0];
+  const r = await apply({ op: "tab.close", tabs: [tab] });
+  assert.equal(r.error.code, "no_window");
+  assert.ok(S().tabs[tab]);
+  const open = await apply({ op: "open", urls: ["https://x.example/"], window: priv });
+  assert.equal(open.error.code, "no_window");
+  const tree = (await call("workspace", {})).result;
+  assert.equal(tree.windows.some((w) => w.id === priv), false);
+  assert.equal((await call("workspace", { window: priv })).error.code, "no_window");
+});
+
+test("ungroup and close a group", async () => {
+  const { windowId, b, c } = await setup();
+  const made = await apply({ op: "group.create", tabs: [b, c], pinned: false });
+  const id = made.results[0].group;
+  assert.equal((await apply({ op: "group.ungroup", group: id })).ok, true);
+  assert.equal(S().groups[id], undefined);
+  assert.ok(S().tabs[b] && S().tabs[c]);
+  const again = await apply({ op: "group.create", tabs: [b, c], pinned: false });
+  const gid = again.results[0].group;
+  assert.equal((await apply({ op: "group.close", group: gid })).ok, true);
+  assert.equal(S().tabs[b], undefined);
+  assert.equal(S().closedGroups.at(-1).group?.id ?? S().closedGroups.at(-1).id, gid);
+  assert.ok(order(windowId).length >= 1);
+});
+
+test("tabs and groups move between windows and into other groups without changing what either window shows", async () => {
+  const { windowId, a, b, c } = await setup();
+  const other = S().createWindow({ url: "https://other.example/" });
+  const shown = activeOf(other);
+  const made = await apply({ op: "group.create", tabs: [c], pinned: false, name: "Outer" }, { op: "group.create", tabs: [b], pinned: false, name: "Loose" });
+  const [outer, loose] = made.results.map((r) => r.group);
+  const nest = await apply({ op: "group.move", group: loose, parent: outer });
+  assert.equal(nest.ok, true, JSON.stringify(nest.error));
+  assert.equal(S().groups[loose].parentId, outer);
+  const top = await apply({ op: "group.move", group: loose, parent: null });
+  assert.equal(top.ok, true);
+  assert.equal(S().groups[loose].parentId, undefined);
+  assert.equal((await apply({ op: "group.move", group: outer, parent: outer })).error.code, "bad_request");
+  const moved = await apply({ op: "tab.move", tabs: [a], window: other });
+  assert.equal(moved.ok, true, JSON.stringify(moved.error));
+  assert.equal(S().tabs[a].windowId, other);
+  assert.equal(activeOf(other), shown);
+  const into = await apply({ op: "tab.move", tabs: [a], group: outer });
+  assert.equal(into.ok, true, JSON.stringify(into.error));
+  assert.equal(S().tabs[a].windowId, windowId);
+  assert.ok(S().groups[outer].tabIds.includes(a));
+  assert.equal(activeOf(other), shown);
+  const gone = await apply({ op: "group.move", group: loose, window: other });
+  assert.equal(gone.ok, true, JSON.stringify(gone.error));
+  assert.equal(S().groups[gone.results[0].group].windowId, other);
+  assert.equal(activeOf(other), shown);
+});

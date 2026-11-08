@@ -26,7 +26,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -39,6 +39,9 @@ function emitCounts() {
       full_screens_entered: counts.fullScreens,
       sidebar_peeks: counts.sidebarPeeks,
       sidebar_peek_bounces: counts.sidebarPeekBounces,
+      cli_tab_edits: counts.cliTabEdits,
+      cli_group_edits: counts.cliGroupEdits,
+      cli_edit_failures: counts.cliEditFailures,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -48,6 +51,12 @@ function emitCounts() {
 
 export function noteCaptureIndicatorCleared() {
   counts.captureIndicatorsCleared++;
+}
+
+export function noteCliEdits(tabEdits: number, groupEdits: number, failures: number) {
+  counts.cliTabEdits += tabEdits;
+  counts.cliGroupEdits += groupEdits;
+  counts.cliEditFailures += failures;
 }
 
 export function noteSidebarPeek(bounce: boolean) {
