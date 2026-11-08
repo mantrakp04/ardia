@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { useIsBookmarked, useSidebarSide, useTab } from "../../state/browser/hooks";
 import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
@@ -26,7 +26,9 @@ import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
 import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
-import { hoverCardAt } from "./hoverPlacement";
+import { HOVER_CARD_HEADER, hoverCardAt, sidebarEdgeOf } from "./hoverPlacement";
+import { usePeekSpan } from "../../state/windows/dockMotion";
+import { TAB_ROW } from "./tokens";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { TabIcon } from "./TabIcon";
@@ -47,8 +49,8 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
   const side = useSidebarSide(windowId);
-  const sidebarInnerWidth = useSidebarWidth(windowId) - layout.sidebarInset;
-  const frame = useMemo(() => ({ side, windowWidth: width, sidebarInnerWidth }), [side, width, sidebarInnerWidth]);
+  const sidebarEdge = sidebarEdgeOf(side, width, useSidebarWidth(windowId), usePeekSpan(windowId));
+  const frame = useMemo(() => ({ side, windowWidth: width, sidebarEdge }), [side, width, sidebarEdge]);
   useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, frame) : null, { width, height });
   if (!shown) return null;
   return (
@@ -91,7 +93,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: TAB_ROW.titleGap, height: HOVER_CARD_HEADER }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
         {away ? (
           <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />

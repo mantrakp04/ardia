@@ -10,7 +10,7 @@ export const HOVER_CARD_FADE_MS = SIDEBAR_MOTION.hoverCardFade;
 
 const fade = curve.fade;
 
-const HoverCardFrameContext = createContext<HoverCardFrame>({ side: "left", windowWidth: 0, sidebarInnerWidth: 0 });
+const HoverCardFrameContext = createContext<HoverCardFrame>({ side: "left", windowWidth: 0, sidebarEdge: 0 });
 export const HoverCardFrameProvider = HoverCardFrameContext.Provider;
 export const useHoverCardFrame = () => useContext(HoverCardFrameContext);
 
