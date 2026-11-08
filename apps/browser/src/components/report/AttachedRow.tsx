@@ -11,7 +11,7 @@ export function useAttachedRows() {
   const events = local?.lines ?? 0;
   const rows: { key: AttachmentKey; title: string; detail: string; on: boolean; disabled?: boolean }[] = [
     { key: "system", title: "System info", detail: systemLine, on: attach.system },
-    { key: "errors", title: "Errors and crashes, last 7 days", detail: local ? `${events} ${events === 1 ? "event" : "events"}` : "Reading…", on: attach.errors && events > 0, disabled: !events },
+    { key: "errors", title: "Usage, errors and crashes, last 7 days", detail: local ? `${events} ${events === 1 ? "event" : "events"}` : "Reading…", on: attach.errors && events > 0, disabled: !events },
     { key: "settings", title: "Settings", detail: "No passwords or history", on: attach.settings },
     { key: "page", title: "Page address", detail: pageAddress ? shortAddress(pageAddress) : "No page open", on: attach.page && !!pageAddress, disabled: !pageAddress },
   ];

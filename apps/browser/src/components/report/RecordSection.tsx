@@ -8,7 +8,7 @@ import { ActivitySpinner, Box, Button, Checkbox, Dot, ink, radius, ReportVideo, 
 import { REPORT } from "./tokens";
 
 const PAGES_WARNING =
-  "Pages can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. You'll watch the recording before it's sent.";
+  "Pages can show private things like email, messages or bank details. Only include them if nothing sensitive is on screen. Tab names always show. You'll watch it before it's sent.";
 
 export function RecordSection() {
   const recording = useReport((s) => s.recording);
