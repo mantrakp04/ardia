@@ -132,7 +132,9 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
 - (BOOL)takeLinkTab:(NSString *)adoptId {
   ArdiaCoreTab *tab = [ArdiaTabParking parkLinkTab:adoptId forKey:_transferKey];
   if (!tab) return NO;
+  _focus.onFirstShow = YES;
   if ([self takeTransferredTab] != ArdiaTransferNone) return YES;
+  _focus.onFirstShow = NO;
   [ArdiaTabParking discardTab:tab forKey:_transferKey];
   return NO;
 }
@@ -168,6 +170,7 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
       if (!offered.closed) [offered closeNow];
       offered = nil;
     }
+    if (offered && !offered.closed) _focus.onFirstShow = YES;
     if (offered && !offered.closed && [self holdTransferOf:offered]) {
       if (_transferKey.length) [ArdiaTabParking park:offered forKey:_transferKey];
       return;

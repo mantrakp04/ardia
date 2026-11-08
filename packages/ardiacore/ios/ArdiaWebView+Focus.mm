@@ -77,6 +77,12 @@ static BOOL InTabPage(NSView *view) {
   if (_focus.onActivate) [self schedulePainting];
 }
 
+- (void)settleFirstShowFocus {
+  if (!_focus.onFirstShow || !_tab || !_visible || !self.window) return;
+  _focus.onFirstShow = NO;
+  [self requestFocusRestore];
+}
+
 - (void)restoreFocusIfDue {
   if (!_focus.onActivate) return;
   NSWindow *window = self.window;

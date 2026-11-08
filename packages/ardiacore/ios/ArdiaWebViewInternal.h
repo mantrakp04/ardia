@@ -96,6 +96,7 @@ struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
   BOOL onActivate{};
+  BOOL onFirstShow{};
   BOOL keepsOutgoing{};
   CFTimeInterval activatedAt{};
   __weak NSWindow *activatedIn;
@@ -223,6 +224,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)requestFocusRestore;
 - (void)requestFocusRestoreIn:(NSWindow *)window;
 - (void)restoreFocusIfDue;
+- (void)settleFirstShowFocus;
 - (void)focusAfterLoad;
 @end
 

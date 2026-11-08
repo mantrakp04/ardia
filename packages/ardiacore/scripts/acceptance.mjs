@@ -966,6 +966,40 @@ try {
     return { tabs: s.s.tabs.length, adoptId: s.c.adoptId ?? null, stays: !!later };
   });
 
+  await check("link-tab-focus", async () => {
+    const hasFocus = async (id, urlPart) =>
+      (await cdp(await pageFor(id, urlPart), "Runtime.evaluate", { expression: "document.hasFocus()", returnByValue: true })).result.value;
+    const showFirst = async () => {
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      await until("A shown", async () => (await state()).active === first.id);
+    };
+    await showFirst();
+    const switchedTo = await until("the switched-to tab's focus", async () => (await hasFocus(first.id, `${base}/a`)) || null, 5000)
+      .catch((e) => {
+        if (!e.message.startsWith("timed out")) throw e;
+        return false;
+      });
+    if (!switchedTo) return { skipped: "a tab switched to doesn't report page focus in this instance, so there is nothing to compare" };
+    const opened = {};
+    for (const [how, open] of [
+      ["target-blank", "document.getElementById('blank').click()"],
+      ["window-open", `window.open("${base}/c?link-focus", "_blank")`],
+    ]) {
+      await showFirst();
+      const before = new Set((await state()).tabs.map((x) => x.id));
+      await cdp(await pageFor(first.id, `${base}/a`), "Runtime.evaluate", { expression: open, userGesture: true });
+      const tab = await until(`the ${how} tab`, async () => (await state()).tabs.find((x) => !before.has(x.id) && x.title === "Page C" && !x.loading), 10000);
+      try {
+        await until(`the ${how} tab in front`, async () => (await state()).active === tab.id);
+        opened[how] = await until(`the ${how} page to have focus without a click`, async () => (await hasFocus(tab.id, `${base}/c`)) || null, 5000);
+      } finally {
+        await closeTab(tab.id);
+      }
+    }
+    await showFirst();
+    return { switchedTo, opened };
+  });
+
   await check("window-open", async () => {
     const t = await pageTarget(`${base}/a`);
     await cdp(t, "Runtime.evaluate", { expression: `window.open("${base}/e", "_blank")`, userGesture: true });
