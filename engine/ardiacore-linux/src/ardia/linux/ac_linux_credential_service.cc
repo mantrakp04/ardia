@@ -685,27 +685,19 @@ void LinuxCredentialsReadLogins(const std::string& engine_profile,
   ResolveCredentialProfile(engine_profile, false, base::BindOnce(&ReadLoginsFor, std::move(done)));
 }
 
-void LinuxCredentialsSaveLogin(const std::string& engine_profile, linux_sync::StoredLogin login,
+void LinuxCredentialsSaveLogin(const std::string& engine_profile, linux_sync::StoredLogin login, bool replacing,
                                base::OnceCallback<void(LinuxSyncedSave)> done) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  credentials::SyncedLoginPlans plans =
-      credentials::PlanSyncedLogin(engine_profile, login.realm, login.username, login.password);
-  if (!plans.storable) {
+  credentials::Plan save =
+      credentials::PlanSyncedLogin(engine_profile, login.realm, login.username, login.password, replacing);
+  if (!save.ok()) {
     return std::move(done).Run(LinuxSyncedSave::kSkipped);
   }
-  Done saved = base::BindOnce(
+  Run(engine_profile, false, nullptr, std::move(save), false, base::BindOnce(
       [](base::OnceCallback<void(LinuxSyncedSave)> done, bool ok, base::Value) {
         std::move(done).Run(ok ? LinuxSyncedSave::kSaved : LinuxSyncedSave::kFailed);
       },
-      std::move(done));
-  Run(engine_profile, false, nullptr, std::move(plans.remove), false, base::BindOnce(
-      [](std::string engine_profile, credentials::Plan save, Done saved, bool removed, base::Value) {
-        if (!removed) {
-          return std::move(saved).Run(false, base::Value());
-        }
-        Run(engine_profile, false, nullptr, std::move(save), false, std::move(saved));
-      },
-      engine_profile, std::move(plans.save), std::move(saved)));
+      std::move(done)));
 }
 
 bool LinuxCredentialsPasswordsUsable(Profile* profile) {

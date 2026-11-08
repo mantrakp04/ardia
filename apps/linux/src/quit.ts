@@ -1,4 +1,4 @@
-import type { ConfirmOptions } from "@ardia-real/shell";
+import type { ConfirmOptions, DialogsNative } from "@ardia-real/shell";
 import { useBrowser } from "../../browser/src/state/browser/store";
 import { hostSupports, invokeHost, type ArdiaHost } from "./host.ts";
 
@@ -6,8 +6,7 @@ export const QUIT_COMMAND = "quit";
 export const QUIT_LOCK = "ardia.linux.quit";
 
 export type QuitOutcome = "quitting" | "cancelled" | "busy";
-export type QuitAnswer = { confirmed: boolean; suppressed: boolean };
-export type QuitAsk = (options: ConfirmOptions) => Promise<QuitAnswer>;
+export type QuitAsk = DialogsNative["confirm"];
 export type QuitLocks = {
   request(name: string, options: { ifAvailable: true }, callback: (lock: unknown) => Promise<QuitOutcome>): Promise<QuitOutcome>;
 };

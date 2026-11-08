@@ -1,20 +1,20 @@
 import type { ConfirmOptions, DialogsNative } from "@ardia-real/shell";
+import type { ManagedCloseReason } from "../../browser/src/platform/windowClose";
 import type { WindowCloseDecision } from "../../browser/src/state/windows/windowClose";
 import { validCloseRequest, closeIdentity, type WindowCloseRequest } from "./utilityClose";
 
-export type CloseReason = "window" | "lastTab";
 type CloseAnswer = Awaited<ReturnType<DialogsNative["confirm"]>>;
 export type AbortableAsk = (options: ConfirmOptions, signal: AbortSignal) => Promise<CloseAnswer>;
 export type DialogSuspension = { readonly settled: Promise<void> };
 export type DrainReply = { accepted?: boolean; endsSession?: boolean } | null | undefined;
-export type DecideClose = (windowId: string, reason: CloseReason, ask?: DialogsNative["confirm"]) => Promise<WindowCloseDecision>;
+export type DecideClose = (windowId: string, reason: ManagedCloseReason, ask?: DialogsNative["confirm"]) => Promise<WindowCloseDecision>;
 
 export type WindowCloseCoordinatorHooks = {
   windowId: string;
   utility: boolean;
   decide: DecideClose;
   ask?: AbortableAsk;
-  suppress(reason: CloseReason): void;
+  suppress(reason: ManagedCloseReason): void;
   flush(): Promise<void>;
   request(windowId: string): Promise<WindowCloseRequest>;
   beginDrain(request: WindowCloseRequest): Promise<DrainReply>;
@@ -34,7 +34,7 @@ const staleClose = () => Object.assign(new Error("Window close is no longer curr
 export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks) {
   type Attempt = {
     request: WindowCloseRequest;
-    reason: CloseReason;
+    reason: ManagedCloseReason;
     quitting: boolean;
     controller: AbortController;
     cancelled: boolean;
@@ -47,7 +47,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
   };
   const attempts = new Map<string, Attempt>();
   let latest: string | undefined;
-  let nextReason: CloseReason | undefined;
+  let nextReason: ManagedCloseReason | undefined;
 
   const resumeDialogs = (attempt: Attempt) => {
     if (!attempt.suspension || attempt.dialogsResumed) return;
@@ -190,7 +190,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
     if (attempt) confirmCancelled(attempt);
   };
 
-  const close = async (reason: CloseReason) => {
+  const close = async (reason: ManagedCloseReason) => {
     nextReason = reason;
     try {
       return await accept(await hooks.request(hooks.windowId));

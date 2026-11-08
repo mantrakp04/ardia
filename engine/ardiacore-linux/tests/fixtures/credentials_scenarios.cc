@@ -212,6 +212,18 @@ void Origins() {
   assert(!NormalizeOrigin(std::string(kMaxOriginBytes + 1, 'a')));
 }
 
+void SyncedLogins() {
+  const std::string hex = std::string(R"({"origin":"https://example.com","username":"me","passwordHex":")") + Hex(kPassword) + "\"}";
+  ExpectEngine(PlanSyncedLogin("", "https://example.com", "me", kPassword, true), "ac_passwords_replace", hex, Reply::kOk,
+               {Store::kPasswords});
+  ExpectEngine(PlanSyncedLogin("", "https://example.com", "me", kPassword, false), "ac_passwords_add", hex, Reply::kOk,
+               {Store::kPasswords});
+  ExpectInvalid(PlanSyncedLogin("", "HTTPS://Example.com", "me", kPassword, true), "ERR_CREDENTIAL_REQUEST");
+  ExpectInvalid(PlanSyncedLogin("", "https://example.com", "me", "", true), "ERR_CREDENTIAL_REQUEST");
+  ExpectInvalid(PlanSyncedLogin("", "https://example.com", "me", std::string(kMaxSecretBytes + 1, 'p'), true),
+                "ERR_CREDENTIAL_REQUEST");
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -219,5 +231,6 @@ int main(int argc, char** argv) {
   TypedMethods();
   ExportCleanup(argv[1]);
   Origins();
+  SyncedLogins();
   std::puts("credentials scenarios passed");
 }

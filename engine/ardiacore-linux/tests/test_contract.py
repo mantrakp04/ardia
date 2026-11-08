@@ -16,7 +16,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(len(routes), len({name for name, _, _ in routes}))
         for name, service, _ in routes:
             self.assertIn(service, services, name)
-            self.assertNotIn(service, {'ac_passwords_add', 'ac_passwords_update', 'ac_autofill_save_card', 'ac_autofill_import'})
+            self.assertNotIn(service, {'ac_passwords_add', 'ac_passwords_replace', 'ac_passwords_update', 'ac_autofill_save_card', 'ac_autofill_import'})
         self.assertIn(('downloads.pause', 'ac_downloads_command', 'null'), routes)
         self.assertIn(('engine.tasks', 'ac_tasks_list', 'tasks'), routes)
         self.assertIn(('history.query', 'ac_history_query', ''), routes)

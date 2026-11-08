@@ -387,19 +387,20 @@ void SavePassword(const std::vector<sync::JsonValue>& args, Done done) {
   if (!parsed) return Fail(std::move(done), "ERR_SYNC_ARGUMENT", "A profile, login, sealed password and flag are required");
   if (!parsed->holdable) return std::move(done).Run(true, base::Value(kSkippedLogin));
   const std::string profile = parsed->profile;
+  const bool replacing = parsed->replacing;
   Runner()->PostTaskAndReplyWithResult(
       FROM_HERE, base::BindOnce([](sync::PasswordSave save) { return Core().OpenLogin(save); }, std::move(*parsed)),
       base::BindOnce(
-          [](std::string profile, Done done, std::optional<sync::StoredLogin> login) {
+          [](std::string profile, bool replacing, Done done, std::optional<sync::StoredLogin> login) {
             if (!login) return std::move(done).Run(true, base::Value(false));
-            LinuxCredentialsSaveLogin(profile, std::move(*login), base::BindOnce(
+            LinuxCredentialsSaveLogin(profile, std::move(*login), replacing, base::BindOnce(
                 [](Done done, LinuxSyncedSave saved) {
                   if (saved == LinuxSyncedSave::kSkipped) return std::move(done).Run(true, base::Value(kSkippedLogin));
                   std::move(done).Run(true, base::Value(saved == LinuxSyncedSave::kSaved));
                 },
                 std::move(done)));
           },
-          profile, std::move(done)));
+          profile, replacing, std::move(done)));
 }
 
 void SyncStatus(base::WeakPtr<Profile> profile, Done done) {

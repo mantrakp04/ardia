@@ -125,6 +125,44 @@ test("a held login is sealed at rest and hides the local value it replaced acros
   assert.equal(await locked.merge("", [v1]), null);
 });
 
+test("holding a login and dropping a deleted profile at the same time keep both changes, in either order", async () => {
+  const kept = { origin: "https://kept.example", username: "kim", sealed: "KEPT", replaced: null };
+  const gone = { origin: "https://gone.example", username: "gil", sealed: "GONE", replaced: null };
+  const decode = (io) => JSON.parse(Buffer.from(io.docs.get(HELD_LOGINS_DOCUMENT).slice(7), "base64").toString());
+  for (const [holdDelay, dropDelay] of [[20, 0], [0, 20]]) {
+    const io = heldIo();
+    const held = createHeldLogins(io);
+    assert.equal(await held.hold("old", gone), true);
+    assert.equal(await held.hold("other", { ...gone, username: "ola" }), true);
+    const delays = [holdDelay, dropDelay];
+    const seal = io.seal;
+    io.seal = async (text) => {
+      await new Promise((resolve) => setTimeout(resolve, delays.shift() ?? 0));
+      return seal(text);
+    };
+    const [holding] = await Promise.all([held.hold("new", kept), held.dropProfiles(["old"])]);
+    assert.equal(holding, true);
+    const expected = { other: { [`${gone.origin}\n${"ola"}`]: { ...gone, username: "ola" } }, new: { [`${kept.origin}\n${kept.username}`]: kept } };
+    assert.deepEqual(decode(io), expected);
+    assert.deepEqual(await createHeldLogins(io).merge("old", []), []);
+    assert.equal(await held.holds("new", kept.origin, kept.username), true);
+    assert.equal(await held.holds("old", gone.origin, gone.username), false);
+  }
+});
+
+test("clearing the held store waits for a hold already saving, so nothing it cleared comes back", async () => {
+  const io = heldIo();
+  const held = createHeldLogins(io);
+  const seal = io.seal;
+  io.seal = async (text) => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return seal(text);
+  };
+  await Promise.all([held.hold("", { origin: "https://a.example", username: "ann", sealed: "A", replaced: null }), held.clear()]);
+  assert.equal(io.docs.has(HELD_LOGINS_DOCUMENT), false);
+  assert.equal(held.status().held, 0);
+});
+
 test("a key reset suspends the held store while it runs and clears it only when the engine began a new document", async () => {
   const io = heldIo();
   const read = syncModuleMethod(fakeHost((method) => (method === "ArdiaSync.readPasswords" ? [] : null)), "ArdiaSync", "readPasswords");

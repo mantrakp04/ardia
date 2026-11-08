@@ -30,7 +30,7 @@ void LinuxCredentialsReadLogins(const std::string& engine_profile,
                                 base::OnceCallback<void(linux_sync::LoginRead)> done);
 enum class LinuxSyncedSave { kSaved, kSkipped, kFailed };
 
-void LinuxCredentialsSaveLogin(const std::string& engine_profile, linux_sync::StoredLogin login,
+void LinuxCredentialsSaveLogin(const std::string& engine_profile, linux_sync::StoredLogin login, bool replacing,
                                base::OnceCallback<void(LinuxSyncedSave)> done);
 bool LinuxCredentialsPasswordsUsable(Profile* profile);
 
