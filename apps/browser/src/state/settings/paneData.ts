@@ -17,7 +17,6 @@ import {
   type UpdaterState,
 } from "../../platform/app";
 import { getAutofillSettings, listAddresses, listCards, setAutofillSettings, type SavedAddress, type SavedCard } from "../../platform/autofill";
-import { getContentBlocker } from "../../platform/contentBlocker";
 import { getDownloadSettings, setDownloadSettings, type DownloadSettings } from "../../platform/downloads";
 import { getExternalAppAllowances, getSiteSettingsOrigins, getZoomLevels } from "../../platform/siteSettings";
 import { getPasswordAutofill, setPasswordAutofill } from "../../platform/passwords";
@@ -26,6 +25,7 @@ import { menuShortcuts } from "../../platform/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
 import { currentSettings } from "../browser/current";
 import { engineProfile } from "../browser/model";
+import { readContentBlocker } from "../site/contentBlocking";
 import { currentSyncFolder, folderInfo } from "../sync/engine";
 import { extensionsProfileId, refreshExtensions } from "../extensions/actions";
 import { cached, load, loadAll, need, resource, store, useAllLoaded, type Needed } from "./resources";
@@ -40,7 +40,7 @@ export const syncFolder = resource("syncFolder", (folder: string | null) => fold
 export const appIconChoices = resource("appIcons", () =>
   Promise.all([appIcons(APP_ICON_SIZE), currentAppIcon()]).then(([icons, current]) => ({ icons, current }), () => ({ icons: [], current: null })),
 );
-export const contentBlocker = resource("contentBlocker", () => getContentBlocker().catch(() => null));
+export const contentBlocker = resource("contentBlocker", readContentBlocker);
 export const siteOrigins = resource("siteOrigins", (profile: string) => getSiteSettingsOrigins(profile).catch((): string[] => []));
 export const appLinks = resource("appLinks", (profile: string) => getExternalAppAllowances(profile).catch(() => []));
 export const zoomLevels = resource("zoomLevels", (profile: string) => getZoomLevels(profile).catch((): Record<string, number> => ({})));

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { requireNativeModule } from "expo-modules-core";
 
-const { setBlockingCategory, setFilterList } = await import("./contentBlocking.ts");
+const { setBlockingCategory, setFilterList, readContentBlocker } = await import("./contentBlocking.ts");
 
 const native = requireNativeModule("ArdiaContentBlocker");
 const calls = [];
@@ -29,6 +29,57 @@ test("turning off the last list in the sheet turns the blocker off, as the categ
 test("a list left on keeps the blocker on", async () => {
   const s = state(true, [list("easylist", "ads", true, true), list("easyprivacy", "trackers", true, true)]);
   assert.deepEqual(await sent(() => setFilterList(s, "easylist", false)), ["setListEnabled easylist false"]);
+});
+
+test("turning a category on when the blocker has no list for it fails and sends nothing", async () => {
+  calls.length = 0;
+  await assert.rejects(() => setBlockingCategory(state(false, []), "ads", true), /no ads filter list/i);
+  await assert.rejects(() => setBlockingCategory(state(true, [list("easyprivacy", "trackers", true, true)]), "ads", true), /no ads filter list/i);
+  assert.deepEqual(calls, []);
+});
+
+test("turning a category off when nothing in it is on changes nothing and is not an error", async () => {
+  assert.deepEqual(await sent(() => setBlockingCategory(state(false, []), "ads", false)), []);
+});
+
+const answering = async (reply, run) => {
+  const wrapped = native.call;
+  native.call = (verb, profile, json) => (verb === "state" ? reply() : wrapped(verb, profile, json));
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try {
+    return { result: await run(), warnings };
+  } finally {
+    native.call = wrapped;
+    console.warn = warn;
+  }
+};
+const readyState = { ...state(true, [list("easylist", "ads", true, true)]), stats: { ready: true, enabled: true, networkFilters: 5, cosmeticFilters: 2 } };
+const placeholder = (error) => ({ enabled: false, version: "1", lists: [], allowedHosts: [], stats: { ready: false, enabled: false, ...(error ? { error } : {}) } });
+
+test("a blocker that answers is read as it is", async () => {
+  const { result, warnings } = await answering(() => Promise.resolve(JSON.stringify(readyState)), readContentBlocker);
+  assert.deepEqual(result, { state: readyState, problem: null });
+  assert.deepEqual(warnings, []);
+});
+
+test("the placeholder the engine sends when the blocker can't be read is a problem with its reason, not a state", async () => {
+  const { result, warnings } = await answering(() => Promise.resolve(JSON.stringify(placeholder("uBlock Origin didn't start"))), readContentBlocker);
+  assert.deepEqual(result, { state: null, problem: "uBlock Origin didn't start" });
+  assert.deepEqual(warnings, ["[engine] ad blocker unavailable: uBlock Origin didn't start"]);
+});
+
+test("a placeholder without a reason still says the blocker is unavailable", async () => {
+  const { result } = await answering(() => Promise.resolve(JSON.stringify(placeholder())), readContentBlocker);
+  assert.equal(result.state, null);
+  assert.match(result.problem, /isn't available/);
+});
+
+test("a read that fails is a problem with the failure's text, and is logged", async () => {
+  const { result, warnings } = await answering(() => Promise.reject(new Error("the engine isn't running")), readContentBlocker);
+  assert.deepEqual(result, { state: null, problem: "the engine isn't running" });
+  assert.deepEqual(warnings, ["[engine] ad blocker unavailable: the engine isn't running"]);
 });
 
 test("turning a list on while the blocker is off turns it on", async () => {

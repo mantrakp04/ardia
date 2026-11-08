@@ -2,7 +2,8 @@ import { confirm } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import { webviews } from "../../platform/webviews";
 import { clearSiteData } from "../../platform/siteSettings";
-import { getContentBlocker, isContentBlockerAllowed, setContentBlockerAllowed } from "../../platform/contentBlocker";
+import { isContentBlockerAllowed, setContentBlockerAllowed } from "../../platform/contentBlocker";
+import { readContentBlocker } from "./contentBlocking";
 import { menuSections } from "../app/menuSections";
 import { currentTab } from "../browser/current";
 import { engineProfile } from "../browser/model";
@@ -72,7 +73,7 @@ export async function showReloadMenu(tabId: string) {
   const origin = tab ? siteOrigin(tab.url) : null;
   if (!tab || !origin) return;
   const host = new URL(origin).hostname;
-  const [state, allowed] = await Promise.all([getContentBlocker().catch(() => null), isContentBlockerAllowed(host).catch(() => false)]);
+  const [{ state }, allowed] = await Promise.all([readContentBlocker(), isContentBlockerAllowed(host).catch(() => false)]);
   const blocker: ReloadMenuState["blocker"] = !state ? "unavailable" : !state.enabled ? "offInSettings" : allowed ? "off" : "on";
   const choice = await showMenu(reloadMenuItems({ blocker }));
   if (choice === "blocking") {

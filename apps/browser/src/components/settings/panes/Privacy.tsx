@@ -30,6 +30,7 @@ import { updateSettings } from "../../../state/settings/actions";
 import { categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { errorText } from "../../../lib/errors";
 
 const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
   { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -43,21 +44,23 @@ const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId 
 const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
 
 function useContentBlocker() {
-  const [state, reload] = useResource(contentBlocker);
+  const [read, reload] = useResource(contentBlocker);
   const refresh = () => void reload();
   useEffect(() => {
     const sub = onContentBlockerChange(refresh);
     return () => sub.remove();
   }, []);
-  return [state ?? null, refresh] as const;
+  return [read?.state ?? null, refresh, read?.problem ?? null] as const;
 }
 
 export function PrivacyPane() {
-  const [blocker, refresh] = useContentBlocker();
+  const [blocker, refresh, problem] = useContentBlocker();
+  const [failure, setFailure] = useState<string | null>(null);
   const commandScrollZoom = useSettings((s) => s.commandScrollZoom);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
     if (!blocker) return;
+    setFailure(null);
     if (!on && c === "ads") {
       const { confirmed } = await confirm({
         title: "Turn Off Ad Blocker?",
@@ -68,6 +71,8 @@ export function PrivacyPane() {
     }
     try {
       await setBlockingCategory(blocker, c, on);
+    } catch (error) {
+      setFailure(`Couldn't change content blocking. ${errorText(error)}`);
     } finally {
       refresh();
     }
@@ -77,6 +82,11 @@ export function PrivacyPane() {
     <View>
       <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
       <Group>
+        {problem !== null && (
+          <Row title="Ad blocking isn't available" description={problem}>
+            <Button title="Retry" onPress={refresh} />
+          </Row>
+        )}
         {CATEGORIES.filter((c) => c.anchor).map((c) => (
           <Row key={c.id} anchor={c.anchor}>
             <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
@@ -86,6 +96,11 @@ export function PrivacyPane() {
           <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
         </Row>
       </Group>
+      {failure && (
+        <Text size="caption" tone="destructive" style={FAILURE}>
+          {failure}
+        </Text>
+      )}
 
       {!!blocker?.allowedHosts.length && (
         <>
@@ -123,6 +138,7 @@ export function PrivacyPane() {
 }
 
 const RULES_LOADED = { marginTop: space.xl } as const;
+const FAILURE = { marginTop: space.ml } as const;
 const LISTS = { maxHeight: 420, marginTop: space.m } as const;
 const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
 
