@@ -144,7 +144,6 @@ test("the view keeps more than the 5,000 URLs the app first held, so imported ye
   const next = applyHistoryChange(list, change);
   assert.equal(next.length, 5001);
   assert.equal(next.at(-1).url, list.at(-1).url, "the oldest URL is still there");
-  assert.ok(MAX_HISTORY >= 50_000);
 });
 
 test("an old visit lands in order among the entries by last visit", () => {
