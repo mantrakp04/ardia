@@ -239,7 +239,7 @@ const calendarEvents = nativeEvents();
 const calendar: Modules["ArdiaCalendar"] = {
   addListener: calendarEvents.addListener,
   authorizationStatus: () => "notDetermined",
-  requestAccess: () => Promise.resolve(false),
+  requestAccess: () => Promise.resolve({ status: "notDetermined", error: null }),
   calendars: () => Promise.resolve([]),
   events: () => Promise.resolve([]),
 };

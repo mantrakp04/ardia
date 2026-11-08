@@ -477,7 +477,7 @@ own sign-ins instead.
 | Outlook, Teams, SharePoint | ✓ | ⏸ | |
 | Zoom, Loom, Granola, Amplitude, Salesforce, LinkedIn | ✓ | ⏸ | |
 | Write actions with approval ("Always allow for this chat") | ✓ | ⏸ | |
-| Live Calendar pinned‑tab hover, next‑meeting alerts, one‑click join | ✓ | ✅ | from macOS Calendar (EventKit), not a Google connection; alerts as notifications and in-window; beyond Dia: the pinned tile's countdown starts 5, 10, 15, 30 or 60 minutes before a meeting (Settings › Calendar, 60 by default), and its context menu hides "Now" for the current meeting until it ends (#546) |
+| Live Calendar pinned‑tab hover, next‑meeting alerts, one‑click join | ✓ | ✅ | from macOS Calendar (EventKit), not a Google connection; alerts as notifications and in-window; beyond Dia: the pinned tile's countdown starts 5, 10, 15, 30 or 60 minutes before a meeting (Settings › Calendar, 60 by default), and its context menu hides "Now" for the current meeting until it ends (#546); Connect Calendar shows "Connecting…" while macOS decides, says why when macOS doesn't grant full access (its own error, or write-only), offers Open System Settings, and flips to Connected on the next window focus once access is allowed there (#731) |
 
 ## 12. Bookmarks
 | Feature | Dia | Ardia | Gap |

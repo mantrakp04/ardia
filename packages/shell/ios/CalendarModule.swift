@@ -24,10 +24,13 @@ public class CalendarModule: Module {
     }
 
     AsyncFunction("requestAccess") { (promise: Promise) in
-      self.store.requestFullAccessToEvents { granted, _ in
+      self.store.requestFullAccessToEvents { granted, error in
         DispatchQueue.main.async {
           if granted { self.store = EKEventStore(); self.observe() }
-          promise.resolve(granted)
+          let status = Self.status()
+          let reason = error?.localizedDescription
+          if !granted { NSLog("Ardia: calendar access wasn't granted (status \(status)): \(reason ?? "no error from macOS")") }
+          promise.resolve(["status": status, "error": reason.map { $0 as Any } ?? NSNull()] as [String: Any])
         }
       }
     }.runOnQueue(.main)

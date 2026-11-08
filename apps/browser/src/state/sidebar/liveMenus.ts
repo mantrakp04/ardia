@@ -203,7 +203,7 @@ export function dismissNowMenuItems(now = Date.now()): MenuItem[] {
 
 export function calendarMenuItem(): MenuItem {
   const settings = live().calendar;
-  const { calendars } = useCalendar.getState();
+  const { calendars, requesting } = useCalendar.getState();
   const owned = calendars.filter((c) => c.owned);
   const others = calendars.filter((c) => !c.owned);
   const hidden = new Set(settings.hiddenCalendarIds);
@@ -213,7 +213,7 @@ export function calendarMenuItem(): MenuItem {
     title: "Calendar",
     symbol: "calendar",
     children: [
-      ...(calendarConnected() ? [] : [{ id: "cal:connect", title: "Connect Calendar…", symbol: "calendar.badge.plus" }, sep]),
+      ...(calendarConnected() ? [] : [{ id: "cal:connect", title: requesting ? "Connecting…" : "Connect Calendar…", symbol: "calendar.badge.plus", enabled: !requesting }, sep]),
       {
         id: "cal:alerts",
         title: "Show Next Meeting Alert",
@@ -236,13 +236,17 @@ export function calendarMenuItem(): MenuItem {
   };
 }
 
+async function connectFromMenu() {
+  if (!(await connectCalendar())) openSettings("calendar");
+}
+
 export function runCalendarMenu(choice: string): boolean {
   if (!choice.startsWith("cal:")) return false;
   const settings = live().calendar;
   if (choice.startsWith(DISMISS_NOW)) {
     const event = useCalendar.getState().events.find((e) => e.occurrence === choice.slice(DISMISS_NOW.length));
     if (event) dismissNowBadge(event);
-  } else if (choice === "cal:connect") void connectCalendar();
+  } else if (choice === "cal:connect") void connectFromMenu();
   else if (choice.startsWith("cal:lead:")) updateCalendarSettings({ alertLead: choice.slice(9) });
   else if (choice === "cal:preview") updateCalendarSettings({ showPreview: !settings.showPreview });
   else if (choice === "cal:badge") updateCalendarSettings({ showTimeToNext: !settings.showTimeToNext });

@@ -7,7 +7,9 @@ import {
   type CalendarAuthorization,
   type SystemCalendar,
 } from "../../platform/calendar";
+import { openExternalURL } from "../../platform/app";
 import { readDocument } from "../../platform/documents";
+import { onWindowEvent } from "../../platform/windows";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { devTestValue } from "../../platform/launchConfig";
@@ -24,6 +26,8 @@ type CalendarData = {
   loading: boolean;
   error: string | null;
   lastFetch: number | null;
+  requesting: boolean;
+  requestError: string | null;
 };
 
 export const useCalendar = create<CalendarData>()(() => ({
@@ -33,7 +37,21 @@ export const useCalendar = create<CalendarData>()(() => ({
   loading: false,
   error: null,
   lastFetch: null,
+  requesting: false,
+  requestError: null,
 }));
+
+const CALENDARS_PRIVACY = "System Settings › Privacy & Security › Calendars";
+
+export const openCalendarPrivacy = () => void openExternalURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars");
+
+export function calendarRequestFailure(access: CalendarAuthorization, nativeError: string | null): string | null {
+  if (access === "fullAccess") return null;
+  if (nativeError) return `macOS couldn't give Ardia calendar access (${nativeError}). Check ${CALENDARS_PRIVACY}.`;
+  if (access === "writeOnly") return `Ardia can only add events to your calendars. Allow full access in ${CALENDARS_PRIVACY}.`;
+  if (access === "notDetermined") return `macOS didn't give Ardia calendar access. Allow it in ${CALENDARS_PRIVACY}.`;
+  return null;
+}
 
 const HORIZON_MS = 36 * 3_600_000;
 
@@ -81,7 +99,8 @@ export function refreshCalendar(): Promise<void> {
       }
       const access = calendarAuthorization();
       if (access !== "fullAccess") {
-        useCalendar.setState({ access, calendars: [], events: [], error: null });
+        const changed = access !== useCalendar.getState().access;
+        useCalendar.setState({ access, calendars: [], events: [], error: null, ...(changed ? { requestError: null } : {}) });
         return;
       }
       const calendars = await systemCalendars();
@@ -89,7 +108,7 @@ export function refreshCalendar(): Promise<void> {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const events = ids.length ? await systemCalendarEvents(start.getTime(), Date.now() + HORIZON_MS, ids) : [];
-      useCalendar.setState({ access, calendars, events: events.sort((a, b) => a.start - b.start), error: null, lastFetch: Date.now() });
+      useCalendar.setState({ access, calendars, events: events.sort((a, b) => a.start - b.start), error: null, requestError: null, lastFetch: Date.now() });
     } catch (error) {
       useCalendar.setState({ error: String((error as Error)?.message ?? error) });
     } finally {
@@ -100,14 +119,26 @@ export function refreshCalendar(): Promise<void> {
   return inflight;
 }
 
-export async function connectCalendar(): Promise<boolean> {
-  if (fixtureMode) {
-    await refreshCalendar();
-    return true;
+let connecting: Promise<boolean> | null = null;
+
+async function requestAccess(): Promise<boolean> {
+  useCalendar.setState({ requesting: true, requestError: null });
+  let nativeError: string | null = null;
+  try {
+    nativeError = (await requestCalendarAccess()).error;
+  } catch (error) {
+    nativeError = String((error as Error)?.message ?? error);
   }
-  const granted = await requestCalendarAccess();
   await refreshCalendar();
-  return granted;
+  const access = calendarAuthorization();
+  useCalendar.setState({ requesting: false, requestError: calendarRequestFailure(access, nativeError) });
+  return access === "fullAccess";
+}
+
+export function connectCalendar(): Promise<boolean> {
+  if (fixtureMode) return refreshCalendar().then(() => true);
+  connecting ??= requestAccess().finally(() => (connecting = null));
+  return connecting;
 }
 
 export const calendarConnected = () => {
@@ -122,6 +153,9 @@ export function startCalendar() {
   started = true;
   void refreshCalendar();
   onCalendarChanged(() => void refreshCalendar());
+  onWindowEvent((e) => {
+    if (e.type === "focus" && !calendarConnected()) void refreshCalendar();
+  });
   everySlowly({
     every: 5 * 60_000,
     run: () => void refreshCalendar(),
