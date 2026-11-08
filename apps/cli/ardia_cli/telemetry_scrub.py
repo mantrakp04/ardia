@@ -112,8 +112,9 @@ KNOWN_SECRET = re.compile(
 )
 AUTH_HEADER = re.compile(r"(?i)\b(bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{8,}")
 ASSIGNED_SECRET = re.compile(
-    r"(?i)\b([A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|credential)[A-Za-z0-9_-]*)"
-    r"(\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,;&]+)"
+    r"(?i)(?<![A-Za-z0-9_-])([\"'`]?)([A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|credential)[A-Za-z0-9_-]*)\1"
+    r"(\s*(?:=>|:=|[:=])\s*)"
+    r"(\"(?:[^\"\\]|\\.)*(?:\"|\Z)|'(?:[^'\\]|\\.)*(?:'|\Z)|`[^`]*(?:`|\Z)|(?:(?:bearer|basic|digest|token)\s+)?[^\s,;&\"'`}\]]+)"
 )
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
 CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
@@ -141,7 +142,7 @@ def free_text(text: str, limit: int) -> tuple[str, bool]:
     text = URL.sub(scrub_url, text)
     text = KNOWN_SECRET.sub("<secret>", text)
     text = AUTH_HEADER.sub(lambda match: f"{match.group(1)} <secret>", text)
-    text = ASSIGNED_SECRET.sub(lambda match: f"{match.group(1)}{match.group(2)}<secret>", text)
+    text = ASSIGNED_SECRET.sub(lambda match: f"{match.group(1)}{match.group(2)}{match.group(1)}{match.group(3)}<secret>", text)
     text = EMAIL.sub("<email>", text)
     text = LONG_TOKEN.sub("<secret>", text)
     text = CARD_NUMBER.sub("<number>", text)

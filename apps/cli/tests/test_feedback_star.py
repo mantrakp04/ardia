@@ -87,6 +87,45 @@ class ScrubTest(unittest.TestCase):
             self.assertNotIn("Z9Z9", clean)
         self.assertLess(telemetry.time.monotonic() - started, 1)
 
+    def test_free_text_drops_secret_values_under_quoted_keys(self):
+        for text in (
+            '{"password":"hunter2","api_key":"short-key"}',
+            "{'password': 'hunter2', 'api_key': 'short-key'}",
+            'password = "hunter2" api_key = "short-key"',
+            '`password`: `hunter2` and api_key => "short-key"',
+            '{"password": "hun\\"ter2", "api_key": "short-key"}',
+        ):
+            with self.subTest(text=text):
+                clean, _ = telemetry_scrub.free_text(text, 1000)
+                self.assertNotIn("hunter2", clean.replace("\\", ""))
+                self.assertNotIn("ter2", clean)
+                self.assertNotIn("short-key", clean)
+                self.assertIn("<secret>", clean)
+
+    def test_free_text_drops_an_unterminated_quoted_value_to_the_end(self):
+        for text in ('password="' + "hunter2 " * 400, "token: '" + "hunter2 " * 40, '{"api_key": "hunter2 hunter2'):
+            with self.subTest(text=text[:20]):
+                clean, _ = telemetry_scrub.free_text(text, 1000)
+                self.assertNotIn("hunter2", clean)
+
+    def test_free_text_close_variants(self):
+        cases = {
+            "password: hunter2\nuser: bob": "hunter2",
+            "Authorization: Basic dXNlcjpodW50ZXIy then it failed": "dXNlcjpodW50ZXIy",
+            "Authorization: Basic abc123": "abc123",
+            "the page went to /reset?token=hunter2&next=home": "hunter2",
+            "it asked for ?api_key=short-key on reload": "short-key",
+            "cookie=sid=hunter2; path=/": "hunter2",
+        }
+        for text, secret in cases.items():
+            with self.subTest(text=text):
+                self.assertNotIn(secret, telemetry_scrub.free_text(text, 1000)[0])
+
+    def test_feedback_and_command_both_go_through_the_scrubber(self):
+        props = feedback.properties('{"password":"hunter2"}', 'ardia browse fill @e2 "x" --headers {"api_key":"short-key"}', Path("/nonexistent"), {})
+        self.assertNotIn("hunter2", props["text"])
+        self.assertNotIn("short-key", props["about_command"])
+
     def test_free_text_caps_length(self):
         text, truncated = telemetry_scrub.free_text("word " * 400, 1000)
         self.assertLessEqual(len(text), 1000)

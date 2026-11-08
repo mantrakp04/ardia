@@ -779,7 +779,8 @@ runs against a local stub with fixture data dirs.
 developer about friction: a confusing error, a missing command, output that cost turns. `telemetry_scrub.free_text`
 first replaces control characters, drops a URL's login and query (`https://host/path?<redacted>`), known token shapes
 (`ghp_…`, `github_pat_…`, `sk-…`, `xox?-…`, `AKIA…`, `AIza…`, JWTs), `Bearer`/`Basic`/`token` values, the values of
-`password=`/`token:`/`api_key=`-style assignments, emails, mixed letter-and-digit runs of 32 or more, card-like
+`password=`/`token:`/`api_key=`-style assignments (keys bare or quoted, JSON and YAML style, a quoted value
+that never closes dropped to the end), emails, mixed letter-and-digit runs of 32 or more, card-like
 numbers and the user name in `/Users/<name>`, then caps it at 1,000 characters. It goes out under exactly the
 consent and opt-outs above, as a `cli_feedback` event; the flush starts at once instead of waiting out the 60 s
 interval, unless the flusher is backing off after a failure. At most 20 notes a rolling day go out per CLI home, and
