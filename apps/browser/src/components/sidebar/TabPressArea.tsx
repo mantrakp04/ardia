@@ -6,7 +6,7 @@ import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { dismissHover } from "../../state/sidebar/hover";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { modifiersOf } from "../../lib/keys";
-import { endHeldTabPress, holdTabPress } from "../../state/sidebar/heldTabPress";
+import { clickHeldTabPress, holdTabPress } from "../../state/sidebar/heldTabPress";
 import { ContextMenuArea, MouseArea } from "../ui";
 
 export function TabPressArea({
@@ -36,7 +36,7 @@ export function TabPressArea({
         <Pressable
           onPressIn={(e) => holdTabPress(windowId, tab.id, e)}
           onPress={(e) => {
-            endHeldTabPress([], null);
+            clickHeldTabPress(tab.id);
             dismissHover();
             clickTab(windowId, tab.id, modifiersOf(e));
           }}

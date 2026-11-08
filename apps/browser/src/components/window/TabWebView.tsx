@@ -42,6 +42,8 @@ import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
+import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
+import { notePagePress } from "../../state/telemetry/tabPresses";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -213,7 +215,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onOpenWindow={onOpenWindow}
       onStatus={(status) => patchPage(tabId, { status })}
       onCrashed={(crashed) => {
-        if (!isQuitting()) patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
+        if (!isQuitting()) {
+          patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
+          trackPageProcessGone(crashed, visible);
+        }
         noteUnreadPageEnded(tabId);
       }}
       onUnresponsive={() => patchPage(tabId, { unresponsive: true })}
@@ -227,7 +232,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onAutofillPrompt={(prompt, id) => showAutofillPrompt(tabId, prompt, id)}
       onExternalApp={(externalApp) => patchPage(tabId, { externalApp })}
       onPageFocus={() => activateFocusedPane(tabId)}
-      onPagePress={() => activateFocusedPane(tabId)}
+      onPagePress={() => {
+        notePagePress(tabId);
+        activateFocusedPane(tabId);
+      }}
       onWindowClose={() => !isQuitting() && closeTabNow(tabId)}
       onTransferRefused={(from) => returnRefusedMove(tabId, from)}
       onNotification={(notification) => showWebNotification(tabId, notification)}

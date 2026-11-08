@@ -28,6 +28,7 @@ test("a native crash names its exception, reason and the app's images at the top
   stub.shellNativeModules.ArdiaApp.crashReports = async () => [
     {
       time: Date.now(),
+      process: "browser",
       appVersion: "0.3.0",
       exceptionType: "EXC_CRASH",
       signal: "SIGABRT",
