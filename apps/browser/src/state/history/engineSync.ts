@@ -44,6 +44,7 @@ function reportGaps() {
   gapTimer = null;
   for (const [engine, counts] of gaps) {
     if ([...counts.keys()].every((gap) => gap === "visit-untitled")) continue;
+    if (gapReports >= MAX_GAP_REPORTS) break;
     gapReports++;
     const summary = [...counts].map(([gap, count]) => `${gap}=${count}`).join(" ");
     console.warn(`[history] changes the list missed for ${engine || "the default profile"}: ${summary}`);

@@ -330,6 +330,37 @@ test("a history read that fails says why: the error's code and message", async (
   }
 });
 
+test("two profiles reporting in the same window can't take a session past ten", async () => {
+  S().hydrate({});
+  stub.docs.clear();
+  stub.historyDbs.clear();
+  const warned = captureWarnings();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const visit = (profile) => stub.chromeHistoryEvent({ kind: "visit", url: "https://secret.example/private", title: "Private title", ...away, profile });
+  const stop = startHistory();
+  try {
+    for (let i = 0; i < 9; i++) {
+      visit("elsewhere");
+      await settle();
+      mock.timers.tick(GAP_REPORT_MS);
+    }
+    assert.equal(warned.calls.length, 9);
+    visit("elsewhere");
+    visit("somewhere");
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS);
+    assert.equal(warned.calls.length, 10, "the tenth report is the last, whichever profile it names");
+    visit("elsewhere");
+    await settle();
+    mock.timers.tick(GAP_REPORT_MS * 3);
+    assert.equal(warned.calls.length, 10);
+  } finally {
+    mock.timers.reset();
+    warned.restore();
+    stop();
+  }
+});
+
 test("reports stop after ten in a session and start over with the next one", async () => {
   S().hydrate({});
   stub.docs.clear();
