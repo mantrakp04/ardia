@@ -328,6 +328,28 @@ class Methods(Base):
         self.assertEqual(runs, [{"command": "newTab"}, {"command": "selectTab", "arg": "2", "window": 1}, {"command": "selectTab", "arg": "3"}])
         self.assertEqual(server.requests[0][0], "hello")
 
+    def test_hello_names_the_caller_and_announce_tells_ardia(self):
+        from ardia_cli import caller
+
+        server = self.serve()
+        claude = caller.Caller("Claude Code")
+        terminal = caller.Caller("Terminal", "/System/Applications/Utilities/Terminal.app")
+        with mock.patch.object(caller, "_current", claude):
+            self.run_cli("run", "newTab")
+        asyncio.run(control.announce(control.socket_path(), terminal))
+        server.replies["caller"] = lambda params: {"error": {"code": "unknown_method", "message": "no"}}
+        asyncio.run(control.announce(control.socket_path(), terminal))
+        hellos = [p for m, p in server.requests if m == "hello"]
+        self.assertEqual(hellos, [{"caller": {"name": "Claude Code"}}, {"caller": terminal.wire()}, {"caller": terminal.wire()}])
+        self.assertEqual([m for m, _ in server.requests if m == "caller"], ["caller", "caller"])
+
+    def test_announce_never_fails_the_command(self):
+        from ardia_cli import caller
+
+        started = time.monotonic()
+        asyncio.run(control.announce(self.temp / "missing.sock", caller.Caller("Codex")))
+        self.assertLess(time.monotonic() - started, control.ANNOUNCE_TIMEOUT + 0.5)
+
     def test_run_unknown_suggests(self):
         self.serve()
         status, _, err = self.run_cli("run", "newTabb")

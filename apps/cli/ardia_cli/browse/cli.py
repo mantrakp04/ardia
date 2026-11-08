@@ -400,9 +400,12 @@ def run(argv: list[str]) -> int:
         finally:
             os.close(dir_fd)
         env_subset = {name: value for name, value in env.items() if name.startswith("AGENT_BROWSER_")}
-        from ardia_cli import telemetry
+        from ardia_cli import caller, telemetry
 
-        request = {"argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env)}
+        request = {
+            "argv": rest, "options": options, "cwd": os.getcwd(), "env": env_subset, "stdin": stdin, "telemetry": telemetry.shareable(env),
+            "caller": caller.current().wire(),
+        }
         answer = client.request(sock, request)
     except BrowseError as error:
         return print_error(error, as_json)

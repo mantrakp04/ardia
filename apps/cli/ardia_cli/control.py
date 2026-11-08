@@ -7,6 +7,8 @@ import struct
 from pathlib import Path
 
 from ardia_cli import endpoint
+from ardia_cli.caller import Caller
+from ardia_cli.caller import current as current_caller
 
 SOCKET_FILE = "ArdiaControl.sock"
 SUN_PATH_MAX = 103
@@ -14,6 +16,7 @@ MAX_LINE = 1024 * 1024
 PROTOCOL = 2
 CONNECT_TIMEOUT = 5.0
 CALL_TIMEOUT = 30.0
+ANNOUNCE_TIMEOUT = 1.0
 EVENT_QUEUE_CAP = 1000
 EVENTS = (
     "window.opened",
@@ -275,7 +278,7 @@ class Connection:
         await self.close()
 
 
-async def connect(path: Path, timeout: float = CONNECT_TIMEOUT) -> Connection:
+async def connect(path: Path, timeout: float = CONNECT_TIMEOUT, caller: Caller | None = None) -> Connection:
     check_socket(path)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
@@ -291,7 +294,7 @@ async def connect(path: Path, timeout: float = CONNECT_TIMEOUT) -> Connection:
         raise
     connection = Connection(reader, writer)
     try:
-        info = await connection.call("hello", timeout=timeout)
+        info = await connection.call("hello", {"caller": (caller or current_caller()).wire()}, timeout=timeout)
         if not isinstance(info, dict) or info.get("app") != "Ardia":
             raise unreachable(f"something other than Ardia answers on {path.name}")
     except MethodError as error:
@@ -304,6 +307,24 @@ async def connect(path: Path, timeout: float = CONNECT_TIMEOUT) -> Connection:
         raise
     connection.info = info
     return connection
+
+
+async def announce(path: Path, caller: Caller) -> None:
+    async def tell():
+        connection = await connect(path, ANNOUNCE_TIMEOUT, caller)
+        try:
+            await connection.call("caller", timeout=ANNOUNCE_TIMEOUT)
+        finally:
+            await connection.close()
+
+    try:
+        await asyncio.wait_for(tell(), ANNOUNCE_TIMEOUT)
+    except Exception:
+        pass
+
+
+def announce_path(control_file: str) -> Path:
+    return Path(control_file).parent.parent / SOCKET_FILE
 
 
 async def _connect_socket(sock: socket.socket, path: Path, timeout: float) -> None:

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ardia_cli import command_metrics
 from ardia_cli.browse import paths
+from ardia_cli.caller import parse as parse_caller
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Unreachable, Usage
 
 CONNECTED_IDLE = 30.0
@@ -341,6 +342,7 @@ class Daemon:
         options = request.get("options") or {}
         name = ALIASES.get(argv[0], argv[0]) if argv else ""
         ctx = Ctx(self.state, options, request.get("cwd") or str(Path.home()), request.get("env") or {}, request.get("stdin"), name)
+        self.state.caller = parse_caller(request.get("caller")) or self.state.caller
         if options.get("no_auto_dialog"):
             self.state.auto_dialog = False
         if options.get("pin_tab") is not None:
@@ -355,6 +357,8 @@ class Daemon:
             if self.state.lost:
                 return render(options, error=ConnectionLost(), name=name)
             self.state.extras.pop("notice", None)
+            if self.state.connected:
+                await self.state.announce_caller(self.state.endpoint)
             code, out, err = await self.answer(ctx, name, argv, options)
             notice = self.state.extras.pop("notice", None)
             return code, out, (redact_text(notice) + "\n" if notice else "") + err

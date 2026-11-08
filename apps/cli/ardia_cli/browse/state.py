@@ -1,7 +1,8 @@
 import asyncio
 from dataclasses import asdict, dataclass
 
-from ardia_cli import command_metrics
+from ardia_cli import command_metrics, control
+from ardia_cli.caller import Caller
 from ardia_cli.browse.connection import Browser
 from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, StaleRef, Unreachable
 from ardia_cli.browse.page import Page
@@ -64,6 +65,8 @@ class State:
         self.target_infos: dict[str, dict] = {}
         self.listeners: list = []
         self.background_live: bool | None = None
+        self.caller: Caller | None = None
+        self.announced: Caller | None = None
 
     @property
     def connected(self) -> bool:
@@ -87,7 +90,12 @@ class State:
                 code="browser_restarted",
             )
         browser = Browser(endpoint, self.on_event)
-        await browser.open()
+        self.announced = None
+        announcing = asyncio.ensure_future(self.announce_caller(endpoint))
+        try:
+            await browser.open()
+        finally:
+            await announcing
         self.browser = browser
         self.endpoint = endpoint
         self.instance = endpoint.instance
@@ -100,6 +108,13 @@ class State:
             pass
         await self.refresh_targets()
         command_metrics.spent("connect_ms", started)
+
+    async def announce_caller(self, endpoint):
+        caller = self.caller
+        if caller is None or caller == self.announced or endpoint is None or endpoint.explicit:
+            return
+        self.announced = caller
+        await control.announce(control.announce_path(endpoint.source), caller)
 
     async def disconnect(self):
         browser, self.browser = self.browser, None

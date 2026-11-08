@@ -72,8 +72,11 @@ bookmark searches) and their fixed page title.
 
 ### Methods
 
-- `hello` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added `subscribe`'s options,
-  `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working.
+- `hello` `{"caller"?: {"name", "app"?}}` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added
+  `subscribe`'s options, `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working. `caller` names
+  who runs the client for the pill (The pill), display only.
+- `caller` → `{"ok": true}` puts the connection's `hello` caller on the pill now (`ok` is false without one). The
+  `browse` daemon and `scripts test` call it, since their CDP connections carry no name.
 - `commands` → `[{"id", "title", "scope", "variants": [ids] | null}]`: the automatable commands. `title` is the menu
   title (else the command bar's, else the id), `scope` is `"page"`, `"window"` or `null`.
 - `run` `{"command", "arg"?, "window"?, "tab"?}` → `{"ok": true}` once the command was dispatched (not necessarily finished).
@@ -307,7 +310,8 @@ an aborted query is cancelled (the program is killed). The program prints `[{"ti
 ### The pill
 
 `run` shows the "ardia is controlling Ardia" pill like a CDP connection does: it counts as active from the moment
-the request arrives until its reply is written, then the usual 3 s hold. The indicator combines CDP connections and
+the request arrives until its reply is written, then the usual 3 s hold. A `run` or `caller` on a connection whose
+`hello` named a caller puts that name (and app icon) on the pill, the most recent one winning (`docs/cli.md`). The indicator combines CDP connections and
 socket runs; neither overwrites the other. `hello`, `commands`, `windows` and `subscribe` don't show it, so a hooks
 runner connected all day doesn't keep it up. Stop hides it at once.
 
