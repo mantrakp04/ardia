@@ -89,6 +89,24 @@ test("a crash of the previous version arrives on the next one, tagged with the v
   assert.equal(client.crashCursor(), previousStart + 101 * 60_000);
 });
 
+test("a crash gets the latest context sampled at or before it in its own session, else none", async () => {
+  const start = stub.appInfo.processStart;
+  const sample = (at) => ({ ...previousContext, at, session_start: start, tabs: at - start });
+  stub.diagnostics.crashReports = [
+    { time: start + 1000, fileTime: start + 1900, process: "renderer", frames: [] },
+    { time: start + 1200, fileTime: start + 1950, process: "renderer", frames: [] },
+  ];
+  await reportNativeCrashes([session.context, sample(start + 500), sample(start + 1100)]);
+  const [first, second] = events("$exception").slice(-2).map((e) => e.properties);
+  assert.equal(first.ctx_tabs, 500);
+  assert.equal(second.ctx_tabs, 1100);
+  assert.equal(client.crashCursor(), start + 1950);
+  stub.diagnostics.crashReports = [{ time: start + 2500, fileTime: start + 2600, process: "renderer", frames: [] }];
+  await reportNativeCrashes([session.context, sample(start + 3000)]);
+  const late = events("$exception").at(-1).properties;
+  assert.equal("ctx_tabs" in late, false, "a sample taken after the crash, or one from an older session, is not its context");
+});
+
 test("a crash from before the saved context's session gets no context", async () => {
   stub.diagnostics.crashReports = [{ time: previousStart - 1000 + 200 * 60_000, process: "gpu", frames: [] }];
   await reportNativeCrashes([{ ...previousContext, session_start: previousStart + 300 * 60_000 }]);
@@ -162,6 +180,23 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   presses.emitTabPresses();
   await client.saveQueueNow();
   assert.equal(events("tab_presses").length, 1);
+});
+
+test("turning sharing off forgets pending presses and samples, so they never go out under the next install id", async () => {
+  await diagnostics.recordContext();
+  assert.ok(diagnostics.contextSamples().length > 0);
+  presses.notePressStarted();
+  presses.notePressEnded("click", "t9");
+  presses.notePressStarted();
+  client.setSharing(false, "settings");
+  client.setSharing(true, "settings");
+  assert.equal(diagnostics.contextSamples().length, 0);
+  presses.notePagePress("t9");
+  presses.notePressEnded("click", "t9");
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  assert.equal(events("tab_presses").length, 0);
+  assert.deepEqual(presses.devTabPresses(), { presses: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, pending: false, toPageClick: 0 });
 });
 
 test("with sharing off nothing is counted or saved", async () => {

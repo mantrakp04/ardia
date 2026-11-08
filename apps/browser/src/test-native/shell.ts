@@ -170,7 +170,7 @@ const app: Modules["ArdiaApp"] = {
   playIntroMusic: () => Promise.resolve(),
   setIntroMusicMuted: () => Promise.resolve(),
   stopIntroMusic: () => Promise.resolve(),
-  crashReports: (since) => Promise.resolve(diagnostics.crashReports.filter((r) => r.time > since)),
+  crashReports: (since) => Promise.resolve(diagnostics.crashReports.filter((r) => (r.fileTime ?? r.time) > since)),
   hardwareInfo: () => Promise.resolve(structuredClone(diagnostics.hardware)),
   diagnosticsSample: () => Promise.resolve({ ...diagnostics.sample }),
 };

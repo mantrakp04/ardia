@@ -72,8 +72,8 @@ test("event properties are flat, plain and scrubbed", () => {
   assert.deepEqual(out, { kind: "history", count: 3, ok: true, none: null, url: "<url>" });
 });
 
-test("an uncaught NSException sends its name, a scrubbed reason and its throw site first", () => {
-  const { name, signal, reason, exceptions } = nativeCrashExceptions({
+test("an uncaught NSException sends its name and its throw site first, never its reason", () => {
+  const { name, signal, exceptions } = nativeCrashExceptions({
     exceptionType: "EXC_BREAKPOINT",
     signal: "SIGTRAP",
     exceptionName: "NSRangeException",
@@ -88,9 +88,8 @@ test("an uncaught NSException sends its name, a scrubbed reason and its throw si
   });
   assert.equal(name, "NSRangeException");
   assert.equal(signal, "SIGTRAP");
-  assert.equal(reason, "*** -[TabStrip select:]: index 3 beyond bounds for <url> in <path> by <email>, id <hex>");
   assert.deepEqual(exceptions.map((e) => [e.type, e.value]), [
-    ["NSRangeException", reason],
+    ["NSRangeException", "Uncaught NSRangeException"],
     ["EXC_BREAKPOINT", "EXC_BREAKPOINT (SIGTRAP)"],
   ]);
   assert.equal(exceptions[0].frames.at(-1).function, "__exceptionPreprocess");
@@ -102,7 +101,7 @@ test("an uncaught NSException sends its name, a scrubbed reason and its throw si
 });
 
 test("an exception without a name or reason still says what it was", () => {
-  const { name, reason, subtype, exceptions } = nativeCrashExceptions({
+  const { name, subtype, exceptions } = nativeCrashExceptions({
     exceptionType: "EXC_BAD_ACCESS",
     signal: "SIGBUS",
     exceptionSubtype: "EXC_ARM_DA_ALIGN",
@@ -110,7 +109,6 @@ test("an exception without a name or reason still says what it was", () => {
     exceptionFrames: [{ image: "libobjc.A.dylib", symbol: "objc_exception_throw", offset: 0x165c }],
   });
   assert.equal(name, null);
-  assert.equal(reason, null);
   assert.equal(subtype, "EXC_ARM_DA_ALIGN");
   assert.equal(nativeCrashExceptions({ frames: [], exceptionSubtype: "at 0x4f776f646168732f" }).subtype, null);
   assert.deepEqual(exceptions.map((e) => [e.type, e.value]), [
@@ -167,11 +165,9 @@ test("a quoted span cut off by a length limit is still redacted, through the end
   assert.equal(scrubText(cut, 300), "Unhandled JS Exception: <text>");
   assert.equal(scrubText("refused 'secret project plans"), "refused <text>");
   assert.equal(scrubText("it's the user's tab"), "it's the user's tab");
-  const { reason } = nativeCrashExceptions({ frames: [], exceptionFrames: [{ image: "Ardia", offset: 1 }], exceptionReason: cut });
-  assert.equal(reason, "Unhandled JS Exception: <text>");
 });
 
-test("a named exception without a thrown backtrace still sends its name and reason", () => {
+test("a named exception without a thrown backtrace still sends its name, not its reason", () => {
   const { exceptions } = nativeCrashExceptions({
     exceptionType: "EXC_CRASH",
     signal: "SIGABRT",
@@ -181,7 +177,7 @@ test("a named exception without a thrown backtrace still sends its name and reas
     exceptionFrames: [],
   });
   assert.deepEqual(exceptions.map((e) => [e.type, e.value, e.frames.length]), [
-    ["NSInternalInconsistencyException", "window not ready", 0],
+    ["NSInternalInconsistencyException", "Uncaught NSInternalInconsistencyException", 0],
     ["EXC_CRASH", "EXC_CRASH (SIGABRT)", 1],
   ]);
 });
@@ -250,4 +246,17 @@ test("every measured key survives the telemetry property cleaner unchanged", () 
 test("a value the spec doesn't allow is left out rather than sent", () => {
   const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, interfaceStyle: "https://not-an-option.example" });
   assert.equal(snap.setting_interfaceStyle, undefined);
+});
+
+test("a native exception's free-text reason never leaves, whatever it holds", () => {
+  const secret = "Customer Alice private quarterly forecast";
+  for (const report of [
+    { frames: [], exceptionName: "NSInvalidArgumentException", exceptionReason: secret },
+    { frames: [], exceptionReason: secret },
+    { frames: [], exceptionFrames: [{ image: "Ardia", offset: 1 }], exceptionReason: secret },
+  ]) {
+    const out = nativeCrashExceptions(report);
+    assert.equal(JSON.stringify(out).includes("Alice"), false, JSON.stringify(out));
+    assert.equal("reason" in out, false);
+  }
 });

@@ -164,11 +164,15 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     (`browser`, `renderer`, `gpu`, `utility`, `alerts`, `plugin`), `crashed_version` and `crashed_build` (the app version
     that crashed, which is the previous one when the report is found after an update; empty for helpers),
     `crashed_engine_version` (helpers), `crash_termination` (`SIGNAL`, `CODESIGNING`…), `crash_uptime_s` (how
-    long the process ran), `crash_vm_writable_mb` (its writable memory), and the context saved before the crash:
+    long the process ran), `crash_vm_writable_mb` (the report's `Writable regions: Total=`, the virtual size of its
+    writable regions, not what it wrote), and the context saved before the crash:
     `ctx_tabs`, `ctx_windows`, `ctx_profiles`, `ctx_footprint_mb` (the app process's physical footprint),
     `ctx_app_memory_mb` (every Ardia process, from the last hourly memory sample), `ctx_free_disk_gb` (0.1 GB under
     10 GB, whole GB above), `ctx_memory_pressure` (`normal`, `warning`, `critical`), `ctx_page_processes_gone`,
-    `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). Before 0.2.45-nightly.3 a report from an
+    `ctx_session_min` and `ctx_age_min` (how old the context was at the crash). The context is the latest one
+    sampled at or before the crash (the report's `captureTime`; the file's date only decides which reports are new)
+    in the session that crashed, else none. Native exception reasons are never sent, only the exception's type, name
+    and stack (older builds sent a scrubbed reason in `$exception_values`). Before 0.2.45-nightly.3 a report from an
     older version was dropped (the native reader required the running binary's UUID, JS the running version), so a
     crash found at the first launch after an update never arrived. Crash reports are now read 1 s after an unclean
     launch (5 s otherwise) and again every hour, and the queue goes out 2 s after an unclean launch.
@@ -185,8 +189,11 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     `drags`, `unanswered` (a press that got neither before the next one), `page_click_ms_p50`/`_p75`/`page_click_n`
     (from opening a tab with a press to the first press in its page, within 60 s).
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
-  - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on,
-    and cleared when sharing is turned off. It's sent only with a crash report or an unclean launch.
+  - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
+    (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
+    sent only with a crash report or an unclean launch. Turning sharing off also drops uncounted tab presses.
+  - The dashboard's health table credits app crashes to `crashed_version` and lists a version that has crashes but no
+    usage in the window, with no rate.
 - **Checks of the pipeline:** send with service `ardia-selftest` (or version `0.0.0-selftest`); the views
   leave those out.
 - **History and old versions:** `posthog_events` (`source = 'posthog-cloud'` in the view) is the history from

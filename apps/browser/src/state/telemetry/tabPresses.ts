@@ -1,4 +1,4 @@
-import { capture, isSharing } from "./client";
+import { capture, isSharing, useTelemetry } from "./client";
 import { percentile } from "./transport";
 
 export type TabPressEnd = "click" | "dragClick" | "drag";
@@ -11,6 +11,15 @@ let tally = empty();
 let pending = false;
 let shown: { tabId: string; at: number } | null = null;
 let toPageClick: number[] = [];
+
+function forgetPresses() {
+  tally = empty();
+  pending = false;
+  shown = null;
+  toPageClick = [];
+}
+
+useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
 
 export function notePressStarted() {
   if (!isSharing()) return;

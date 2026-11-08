@@ -392,7 +392,7 @@ export function endSession() {
 
 export const settingsSnapshotDay = () => saved.settingsDay;
 export const markSettingsSnapshot = (day: string) => save({ settingsDay: day });
-export const saveContext = (context: SavedContext) => saved.sharing && save({ context });
+export const saveContext = (context: SavedContext | null) => saved.sharing && save({ context });
 
 export const crashCursor = () => saved.crashCursor;
 export const advanceCrashCursor = (to: number) => to > saved.crashCursor && save({ crashCursor: to });

@@ -11,7 +11,7 @@ import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
-import { contextProperties, hardwareProperties, noteAppMemory, recordContext, startContextSamples } from "./diagnostics";
+import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
@@ -139,6 +139,7 @@ function snapshotSettings() {
 }
 
 let previousContext: SavedContext | null = null;
+let launchCrashRead: ReturnType<typeof setTimeout> | undefined;
 
 function hourly() {
   snapshotSettings();
@@ -147,7 +148,7 @@ function hourly() {
   emitJourneys();
   emitTabPresses();
   void sampleMemory();
-  void recordContext().then((context) => reportNativeCrashes([previousContext, context]));
+  void reportNativeCrashes([previousContext, ...contextSamples()]).then(() => recordContext());
 }
 
 const rebootedSince = (lastLaunchAt: number | null) => {
@@ -167,7 +168,7 @@ export function startUsage() {
   if (session) {
     previousContext = session.context;
     void launchEvents(session);
-    setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
+    launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
   }
   startContextSamples();
   startJourneys(session);
@@ -178,7 +179,13 @@ export function startUsage() {
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
-  onAppEvent((e) => e.type === "willQuit" && sessionEnding());
+  onAppEvent((e) => {
+    if (e.type === "willQuit") {
+      clearTimeout(launchCrashRead);
+      stopContextSamples();
+      sessionEnding();
+    } else if (e.type === "quitCancelled") startContextSamples();
+  });
 }
 
 export function sessionEnding() {

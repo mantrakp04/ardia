@@ -41,6 +41,7 @@ export type CrashProcess = "browser" | "renderer" | "gpu" | "utility" | "alerts"
 export type CrashReport = {
   incidentId?: string;
   time: number;
+  fileTime: number;
   process: CrashProcess;
   appVersion?: string;
   build?: string;
@@ -52,7 +53,6 @@ export type CrashReport = {
   signal?: string;
   frames: NativeFrame[];
   exceptionName?: string;
-  exceptionReason?: string;
   exceptionSubtype?: string;
   exceptionFrames?: NativeFrame[];
   images?: { name: string; uuid: string }[];

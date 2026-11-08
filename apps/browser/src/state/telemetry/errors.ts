@@ -1,6 +1,6 @@
 import { crashReports } from "../../platform/app";
 import { advanceCrashCursor, capture, crashCursor, isSharing, loadChoice, saveQueueNow } from "./client";
-import { contextCovers, contextProperties } from "./diagnostics";
+import { contextAt, contextProperties, sessionStart } from "./diagnostics";
 import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
 import { errorCode, errorMessage, errorType, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
@@ -138,11 +138,11 @@ export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []
   const reports = await crashReports(since).catch(() => []);
   let latest = since;
   for (const report of reports) {
-    latest = Math.max(latest, report.time);
+    latest = Math.max(latest, report.fileTime ?? report.time);
     const browser = report.process === "browser";
     const mechanism: Mechanism = browser ? "native_crash" : "helper_crash";
     const { name, signal, subtype, images, exceptions } = nativeCrashExceptions(report);
-    const context = contexts.filter((c) => contextCovers(c, report.time)).at(-1) ?? null;
+    const context = contextAt(contexts, report.time, [sessionStart()]);
     capture(
       "$exception",
       {

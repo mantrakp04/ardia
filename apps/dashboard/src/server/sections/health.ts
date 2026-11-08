@@ -1,7 +1,8 @@
 import { DATA_START_MS, windowFor, type RangeKey } from "../../lib/range";
-import { compareVersions, isNightly } from "../../lib/versions";
+import { compareVersions } from "../../lib/versions";
 import { num, query, str } from "../clickhouse";
 import { APP, APP_SOURCE, prop, since } from "../sql";
+import { healthVersionRows } from "./health-rows";
 
 const FRAMES = `arrayReverse(JSONExtractArrayRaw(properties['$exception_list'], 1, 'stacktrace', 'frames'))`;
 const OWN_FRAMES = `arrayFilter(f -> JSONExtractBool(f, 'in_app'), ${FRAMES})`;
@@ -108,26 +109,11 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
   const jsByVersion = new Map<string, number>();
   for (const g of groups) if (!g.native) jsByVersion.set(g.version, (jsByVersion.get(g.version) ?? 0) + g.count);
 
-  const versions = usage
-    .filter((r) => str(r[0]) !== "")
-    .map((r) => {
-      const version = str(r[0]);
-      const users = num(r[1]);
-      const crashes = crashesByVersion.get(version) ?? 0;
-      return {
-        version,
-        nightly: isNightly(version),
-        users,
-        launches: num(r[2]),
-        unclean: num(r[3]),
-        uncleanPeople: num(r[4]),
-        uncleanRate: num(r[2]) ? num(r[3]) / num(r[2]) : null,
-        crashes,
-        jsErrors: jsByVersion.get(version) ?? 0,
-        crashesPer100: users ? (100 * crashes) / users : null,
-      };
-    })
-    .sort((a, b) => compareVersions(b.version, a.version));
+  const versions = healthVersionRows(
+    usage.map((r) => ({ version: str(r[0]), users: num(r[1]), launches: num(r[2]), unclean: num(r[3]), uncleanPeople: num(r[4]) })),
+    crashesByVersion,
+    jsByVersion,
+  );
 
   return {
     start: w.start,
