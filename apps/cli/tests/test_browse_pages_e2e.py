@@ -164,6 +164,31 @@ return rows.filter((row) => row.price < "$140");
         self.assertEqual(self.targets(), before)
         self.assertEqual(self.browse("get", "title", session=session).stdout, "Dock 1 | Fixture Shop\n")
 
+    def test_hash_route_links_are_read_and_listed(self):
+        session = "hash-routes"
+        self.browse("open", self.url("hashapp.html#/"), session=session)
+        self.browse("wait", "--text", "Person 6", session=session)
+        people = [self.url(f"hashapp.html#/people/{n}") for n in range(1, 7)]
+        listed = self.browse("read", "--links", "/people/", "--list", session=session).stdout.splitlines()
+        self.assertEqual(listed, people)
+        out = self.browse("read", "--links", "/people/", "-s", "main", session=session).stdout
+        for n in range(1, 7):
+            self.assertIn(f"=== [{n}/6] Person {n} | Hash App\n{people[n - 1]}\n# Person {n}\n", out)
+            self.assertIn(f"Role | Engineer {n * 11}", out)
+        self.assertNotIn("Loading", out)
+        legacy = self.browse("read", "--links", "#!/", "--list", session=session).stdout
+        self.assertEqual(legacy, self.url("hashapp.html#!/legacy/7") + "\n")
+        found = json.loads(self.browse("script", stdin="return await page.links('/people/');", session=session).stdout)
+        self.assertEqual(found, people)
+        opened = self.browse("open", people[3], session=session).stdout
+        self.assertTrue(opened.startswith("✓ Person 4 | Hash App\n"), opened)
+        walked = json.loads(self.browse("script", stdin="""
+const names = [await page.goto('/hashapp.html#/').then(() => page.text('h1'))];
+for (const url of (await page.links('/people/')).slice(0, 3)) { await page.goto(url); names.push(await page.text('h1')); }
+return names;
+""", session=session).stdout)
+        self.assertEqual(walked, ["Directory", "Person 1", "Person 2", "Person 3"])
+
     def test_another_session_cannot_adopt_a_reader_tab(self):
         session = "reader-owner"
         self.browse("open", self.url("listing.html"), session=session)

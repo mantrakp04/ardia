@@ -149,6 +149,9 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
 
 
 async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
+    from ardia_cli.browse import readpages
+
+    before = await readpages.before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
     except Gated:
@@ -158,6 +161,8 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     loader = result.get("loaderId")
     if loader:
         await wait_for_load(page, loader, ctx.timeout, until)
+    else:
+        await readpages.after_same_document(page, before, asyncio.get_running_loop().time() + ctx.timeout)
     await page.refresh_frames()
 
 
