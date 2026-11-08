@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -47,11 +48,36 @@ def install_into(folder: Path) -> None:
         shutil.rmtree(staging, ignore_errors=True)
 
 
+def record_path() -> Path:
+    cli_home = os.environ.get("ARDIA_CLI_HOME") or str(Path.home() / "Library" / "Application Support" / "Ardia" / "CLI")
+    return Path(cli_home).expanduser() / "skills.json"
+
+
+def recorded_folders() -> list[Path]:
+    try:
+        folders = json.loads(record_path().read_text(encoding="utf-8")).get("folders", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [Path(folder) for folder in folders if isinstance(folder, str) and os.path.isabs(folder)]
+
+
+def save_record(folders: list[Path]) -> None:
+    path = record_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        staging = path.with_name(f".skills.{os.getpid()}.json")
+        staging.write_text(json.dumps({"folders": [str(folder) for folder in dict.fromkeys(folders)]}, indent=2) + "\n", encoding="utf-8")
+        os.replace(staging, path)
+    except OSError:
+        pass
+
+
 def install(targets: list[str], project: bool) -> int:
     written: dict[Path, list[str]] = {}
     for target in dict.fromkeys(targets):
         written.setdefault(destination(target, project), []).append(target)
     status = 0
+    installed = []
     for folder, names in written.items():
         try:
             install_into(folder)
@@ -59,5 +85,27 @@ def install(targets: list[str], project: bool) -> int:
             print(f"{', '.join(names)}: error {error}")
             status = 1
             continue
+        installed.append(folder.absolute())
         print(f"{', '.join(names)}: {folder}")
+    if installed:
+        save_record(recorded_folders() + installed)
+    return status
+
+
+def refresh() -> int:
+    user_folders = [destination(target, False) for target in TARGETS]
+    status = 0
+    kept = []
+    for folder in dict.fromkeys(recorded_folders() + user_folders):
+        if folder.is_symlink() or not is_ours(folder):
+            continue
+        kept.append(folder)
+        try:
+            install_into(folder)
+        except OSError as error:
+            print(f"error {folder}: {error}")
+            status = 1
+            continue
+        print(f"refreshed {folder}")
+    save_record(kept)
     return status

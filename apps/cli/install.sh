@@ -16,7 +16,8 @@
 # current and the previous version and prunes the rest, except versions a running ardia uses (it leaves a lease in
 # <version>/.leases/<pid>, live while that pid runs and started before the lease was written). Two runs never overlap:
 # each holds a flock on $ARDIA_CLI_HOME/.lock (lockf), which the kernel drops when the run exits.
-# The installed version is `basename "$(readlink "$ARDIA_CLI_HOME/current")"`.
+# The installed version is `basename "$(readlink "$ARDIA_CLI_HOME/current")"`. After switching to a new version it runs
+# `ardia skills refresh`, which rewrites the agent skill copies `ardia skills install` wrote, and ignores its result.
 # Downloads are https only, and never trust a checksum from the same place as the tarball: without --sha256 it refuses
 # to download. ARDIA_CLI_URL overrides the tarball URL; a file:// one may go without --sha256, and its checksum is read
 # from $ARDIA_CLI_URL.sha256.
@@ -304,6 +305,7 @@ for entry in "$cli_home"/*; do
 done
 
 link_bin
+ARDIA_CLI_HOME=$cli_home "$cli_home/current/bin/ardia" skills refresh </dev/null >/dev/null 2>&1 9>&- || true
 
 if [ "$bin_dir" = "$default_bin_dir" ]; then
   login_shell=$(dscl . -read "/Users/$(id -un)" UserShell 2>/dev/null | awk '{ print $2 }')

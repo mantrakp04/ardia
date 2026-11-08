@@ -48,10 +48,15 @@ the pins into `pyproject.toml`).
   `ardia browse notes …`, with the shared options given before `notes` put first. When the module isn't there it
   prints one line and exits 1; nothing else depends on it.
 - `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
-  agent skill (`ardia_cli/skill`: a short `SKILL.md` on the fast path, with `references/browse.md`, `userscripts.md`,
-  `config.md`, `automation.md` and `daily-reports.md` read only when a task needs them) into `~/.agents/skills` (general, codex),
+  agent skill (`ardia_cli/skill`: a `SKILL.md` of about 5K characters with the fast paths (read, batch, select,
+  script, notes), plus `references/troubleshooting.md`, `script.md`, `userscripts.md`, `config.md`, `automation.md`
+  and `daily-reports.md` read only when a task needs them) into `~/.agents/skills` (general, codex),
   `~/.claude/skills`, `~/.cursor/skills` or `~/.config/opencode/skills`; with `--project`, into `./.agents/skills`,
-  `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It replaces only its own `ardia` folder.
+  `./.claude/skills`, `./.cursor/skills` or `./.opencode/skills`. It replaces only its own `ardia` folder (a
+  `SKILL.md` starting `name: ardia`, never a link) and adds each folder it wrote to `$ARDIA_CLI_HOME/skills.json`.
+  `ardia skills refresh` rewrites, with the running CLI's skill, every folder in that list and every user-level
+  folder above that already holds the ardia skill, skips links and anyone else's folder, and drops from the list the
+  folders that no longer hold it. `install.sh` runs it after each upgrade, so installed copies follow the CLI.
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
 - `ardia config path|init|get|set|unset|list|edit|check` reads, writes and checks `config.json` (see
   `docs/config.md`, The ardia command). Never needs Ardia running.
@@ -794,7 +799,8 @@ The app runs `install.sh` with its own environment minus every `ARDIA_*` variabl
 `$ARDIA_CLI_HOME` defaults to `~/Library/Application Support/Ardia/CLI`. The installed version is
 `basename "$(readlink "$ARDIA_CLI_HOME/current")"`; the app reads that link to decide whether to upgrade, and after an
 app update it runs `install.sh --version <app version> --sha256 <pinned digest>` in the background. The CLI never
-updates itself.
+updates itself. After switching `current` to a new version, `install.sh` runs `current/bin/ardia skills refresh`
+(stdin, output and the lock's fd closed; its result ignored), which brings the agent skill copies up to date.
 
 ## Build and release
 

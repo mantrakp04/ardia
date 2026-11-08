@@ -25,6 +25,8 @@ Targets and where they install (user level; --project uses the current directory
   claude-code   ~/.claude/skills            ./.claude/skills
   cursor        ~/.cursor/skills            ./.cursor/skills
   opencode      ~/.config/opencode/skills   ./.opencode/skills
+
+Ardia remembers where it installed the skill, and each CLI update rewrites those copies (ardia skills refresh).
 """
 SHARED_VALUE_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--timeout"})
 SHARED_BOOL_FLAGS = frozenset({"--json"})
@@ -178,6 +180,7 @@ def build_parser():
 
     install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor or opencode; repeat for several (default: general)")
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
+    skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
 
@@ -256,11 +259,13 @@ def run(argv: list[str]) -> int:
 
         return browsing_cli.run(args)
     if args.command == "skills":
-        if args.skills_command != "install":
+        if args.skills_command not in ("install", "refresh"):
             parser.parse_args(["skills", "--help"])
-        from ardia_cli.skills import install
+        from ardia_cli import skills
 
-        return install(args.target or ["general"], args.project)
+        if args.skills_command == "refresh":
+            return skills.refresh()
+        return skills.install(args.target or ["general"], args.project)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
 
