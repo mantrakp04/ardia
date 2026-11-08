@@ -54,6 +54,8 @@ export function displayUrl(url: string): string {
 
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
+const fragmentOf = (url: string) => /#.*$/.exec(url)?.[0] ?? "";
+const withFragmentOf = (url: string, source: string) => url.replace(/#.*$/, "") + fragmentOf(source);
 
 type HistoryRow = SuggestionSource["history"][number];
 type BookmarkRow = NonNullable<SuggestionSource["bookmarks"]>[number];
@@ -304,7 +306,7 @@ const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId
 export function suggestionKey(s: Suggestion): string {
   switch (s.kind) {
     case "page":
-      return `${s.tabId ? "tab" : "page"}:${pageKey(s.url)}`;
+      return s.tabId ? `tab:${pageKey(s.url)}` : `page:${pageKey(s.url)}${fragmentOf(s.url)}`;
     case "search":
       return `search:${s.url}`;
     case "calc":
@@ -342,7 +344,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const known = (url: string) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const opened = withFragmentOf(c.url, url);
+    return opened === c.url ? pageSuggestion(c, null) : ({ kind: "page", url: opened, title: c.title, favicon: c.favicon } satisfies Suggestion);
   };
 
   const websiteFirst = preference === "website";

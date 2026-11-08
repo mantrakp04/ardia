@@ -150,6 +150,26 @@ test("a typed or completed address opens, even when a tab has it open: the tab k
   }
 });
 
+test("a typed address opens as typed: a saved #fragment of the same page never replaces it", () => {
+  const portal = "https://example.awsapps.com/start/";
+  const saved = `${portal}#/console?account_id=1&role_name=admin`;
+  const hist = [{ url: saved, title: "AWS access portal", favicon: "aws.ico", visits: 4, lastVisit: now - 1000 }];
+  const tabs = [{ id: "t1", url: saved, title: "AWS access portal", favicon: "aws.ico" }];
+  const firstRow = (typed: string, source: Parameters<typeof buildSuggestions>[1]) => buildSuggestions(typed, source, { now }).items[0];
+  for (const typed of [portal, "example.awsapps.com/start/", "example.awsapps.com/start"]) {
+    assert.deepEqual(firstRow(typed, { tabs: [], history: hist }), { kind: "page", url: portal, title: "AWS access portal", favicon: "aws.ico" }, `${typed}: history`);
+    assert.deepEqual(firstRow(typed, { tabs, history: [] }), { kind: "page", url: portal, title: "AWS access portal", favicon: "aws.ico" }, `${typed}: tab`);
+    assert.ok(rows(buildSuggestions(typed, { tabs, history: hist }, { now }).items).includes(`tab:${saved}`), `${typed}: the tab keeps its Switch to Tab row`);
+  }
+  for (const typed of [portal, "example.awsapps.com/start"]) assert.deepEqual(rows(buildSuggestions(typed, { tabs: [], history: hist }, { now }).items).slice(0, 3), [portal, `search:${typed}`, saved], `${typed}: the saved page stays a separate choice`);
+  assert.equal(rows(buildSuggestions(saved, { tabs: [], history: hist }, { now }).items).filter((r) => r === saved).length, 1, "the saved address as typed is not listed twice");
+  const other = `${portal}#/other`;
+  assert.deepEqual(firstRow(other, { tabs: [], history: hist }), { kind: "page", url: other, title: "AWS access portal", favicon: "aws.ico" }, "another typed fragment");
+  assert.deepEqual(firstRow(saved, { tabs: [], history: hist }), { kind: "page", url: saved, title: "AWS access portal", favicon: "aws.ico", visited: true }, "the saved address as typed stays a history row");
+  const grid = [{ url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null, visits: 3, lastVisit: now - 1000 }];
+  for (const typed of ["ugc.hek", "ugc.hekuto.dev"]) assert.equal(rows(buildSuggestions(typed, { tabs: [], history: grid }, { now }).items)[0], "https://ugc.hekuto.dev/", `${typed}: the host, not the saved #grid`);
+});
+
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {
   const hist = [
     { url: "https://a.com/docs", title: "Rust docs", favicon: null, visits: 2, lastVisit: now - DAY * 60 },

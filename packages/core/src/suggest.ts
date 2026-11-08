@@ -6,7 +6,7 @@ import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
-import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
+import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, withFragmentOf, type PageText } from "./pageText.ts";
 import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
@@ -47,7 +47,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const known = (url: string) => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const opened = withFragmentOf(c.url, url);
+    return opened === c.url ? pageSuggestion(c, null) : ({ kind: "page", url: opened, title: c.title, favicon: c.favicon } satisfies Suggestion);
   };
 
   const websiteFirst = preference === "website";
