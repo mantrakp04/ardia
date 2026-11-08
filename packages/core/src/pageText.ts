@@ -42,6 +42,20 @@ export function pageText(row: { url: string; title: string }): PageText {
   return text;
 }
 
+const renamedTexts = new WeakMap<object, PageText>();
+
+export function tabPageText(row: { url: string; title: string; customTitle?: string | null }): PageText {
+  const text = pageText(row);
+  if (!row.customTitle) return text;
+  let renamed = renamedTexts.get(row);
+  if (!renamed) {
+    const titleLower = `${row.customTitle.toLowerCase()}\n${text.titleLower}`;
+    renamed = { ...text, titleLower, titleWords: wordsOf(titleLower) };
+    renamedTexts.set(row, renamed);
+  }
+  return renamed;
+}
+
 export const hostOfPage = (t: PageText) => (t.host ??= hostOf(t.url));
 export const hostPart = (shown: string) => /^[^/?#]*/.exec(shown)![0];
 export const hostLowerOfPage = (t: PageText) => (t.hostLower ??= hostPart(t.shownLower));

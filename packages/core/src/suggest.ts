@@ -42,11 +42,11 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   }
 
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
-  const { tabIds, extra } = tabsOver(pool, source.tabs, options.currentTabId);
+  const { tabIds, extra, renamed } = tabsOver(pool, source.tabs, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
-    const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
+    const c = extra.find((x) => x.text.key === key) ?? pool.byKey.get(key);
     return c && pageSuggestion(c, null);
   };
 
@@ -77,6 +77,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
         scores[found++] = m;
       }
       const key = c.text.key;
+      if (inPages && renamed.has(key)) continue;
       const derank = currentKey !== null && key === currentKey ? 80 : 0;
       const lastVisit = c.fresh ? now : c.lastVisit;
       let age = 10;

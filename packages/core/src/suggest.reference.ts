@@ -7,7 +7,7 @@ import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 
 export type SuggestionSource = {
-  tabs: readonly { id: string; url: string; title: string; favicon: string | null }[];
+  tabs: readonly { id: string; url: string; title: string; customTitle?: string | null; favicon: string | null }[];
   history: readonly { url: string; title: string; favicon: string | null; visits: number; lastVisit: number }[];
   bookmarks?: readonly { url: string; title: string; favicon: string | null }[];
 };
@@ -195,17 +195,34 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   return advance(b, bookmarks, deadline);
 }
 
+function tabPageText(t: TabRow): PageText {
+  const text = pageText(t);
+  if (!t.customTitle) return text;
+  return { ...text, titleLower: `${t.customTitle.toLowerCase()}\n${text.titleLower}` };
+}
+
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
-  const tabIds = new Map<string, string>();
-  const extra: Candidate[] = [];
+  const chosen = new Map<string, TabRow>();
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
-    const text = pageText(t);
-    if (tabIds.has(text.key)) continue;
-    tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
+    const key = pageText(t).key;
+    const kept = chosen.get(key);
+    if (!kept || (t.customTitle && !kept.customTitle)) chosen.set(key, t);
   }
-  return { tabIds, extra };
+  const tabIds = new Map<string, string>();
+  const extra: Candidate[] = [];
+  const renamed = new Set<string>();
+  for (const [key, t] of chosen) {
+    tabIds.set(key, t.id);
+    const listed = pool.byKey.get(key);
+    if (!listed) {
+      extra.push({ url: t.url, title: t.customTitle || t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
+    } else if (t.customTitle) {
+      renamed.add(key);
+      extra.push({ url: t.url, title: t.customTitle, favicon: t.favicon ?? listed.favicon, visits: listed.visits, lastVisit: listed.lastVisit, bookmarked: listed.bookmarked, tabId: t.id, text: tabPageText(t) });
+    }
+  }
+  return { tabIds, extra, renamed };
 }
 
 const isWordChar = (code: number) => (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
@@ -337,11 +354,11 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   }
 
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
-  const { tabIds, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
+  const { tabIds, extra, renamed } = tabsOver(pool, source.tabs, now, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
-    const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
+    const c = extra.find((x) => x.text.key === key) ?? pool.byKey.get(key);
     return c && pageSuggestion(c, null);
   };
 
@@ -359,7 +376,10 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     for (const c of list) {
       const m = matchScore(c.text, parsed);
       if (m <= 0) continue;
-      if (list === pages) matched.push(c);
+      if (list === pages) {
+        matched.push(c);
+        if (renamed.has(c.text.key)) continue;
+      }
       const tabId = c.tabId ?? tabIds.get(c.text.key);
       const derank = currentKey !== null && c.text.key === currentKey ? 80 : 0;
       const r: Ranked = { c, tabId, m, s: m + frecency(c, tabId, now) - derank };
