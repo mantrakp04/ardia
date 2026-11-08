@@ -13,7 +13,11 @@ const between = (text, from, to) => {
 };
 
 test("the landing fit stops when the window move replacement starts a drag", () => {
-  assert.match(landingFit, /for name in \[[^\]]*WindowMove\.willDrag[^\]]*\]/);
+  const dragObservers = between(landingFit, "for name in [", "DispatchQueue.main.async");
+  assert.match(dragObservers, /^for name in \[[^\]]*WindowMove\.willDrag[^\]]*\] \{/);
+  assert.match(dragObservers, /listen\(NotificationCenter\.default, name\) \{ \[weak self\] note in\s*guard let self, let window = note\.object as\? NSWindow, window === self\.currentWindow\(\) else \{ return \}\s*self\.stop\(\)\s*\}/);
+  assert.match(between(landingFit, "func stop()", "private func listen"), /stopped = true[\s\S]*removeObserver\(observer\.token\)/);
+  assert.match(between(landingFit, "func fit()", "func stop()"), /guard !stopped,/);
   assert.match(windowMove, /static let willDrag = Notification\.Name\(/);
   assert.match(between(windowMove, "static func announceDrag", "static func follow"), /post\(name: willDrag, object: window\)/);
 });
