@@ -7,6 +7,7 @@ final class WebKitWebView: WKWebView {
   var playingFrames = Set<String>()
   let nowPlaying = ArdiaNowPlaying()
   var captureOrigins: [String: Set<String>] = [:]
+  var autoPictureInPictureRule = WebKitAutoPictureInPicture()
 
   override init(frame: CGRect, configuration: WKWebViewConfiguration) {
     super.init(frame: frame, configuration: configuration)

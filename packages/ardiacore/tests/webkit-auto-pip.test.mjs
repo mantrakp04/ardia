@@ -11,6 +11,7 @@ const read = (name) => readFileSync(path(name), "utf8");
 const tab = read("../ios/WebKitTab.swift");
 const sight = read("../ios/WebKitTab+AutoPictureInPicture.swift");
 const pageTab = read("../ios/WebKitTab+PageTab.swift");
+const webView = read("../ios/WebKitWebView.swift");
 const windowHostHeader = read("../ios/ArdiaChromeWindowHost.h");
 const windowHost = read("../ios/ArdiaChromeWindowHost.mm");
 const swiftc = process.env.SWIFTC || "swiftc";
@@ -42,6 +43,17 @@ test("the sight observer is dropped when the window changes or the tab closes or
   assert.match(sight, /func watchSight\(\) \{\n\s+stopWatchingSight\(\)/);
   const relinquish = tab.slice(tab.indexOf("func relinquish() -> WebKitWebView? {"), tab.indexOf("\n  }\n", tab.indexOf("func relinquish() -> WebKitWebView? {")));
   assert.match(relinquish, /closed = true/);
+});
+
+test("the rule travels with the page view, so a tab that takes the view over still closes the picture in picture its predecessor opened", () => {
+  assert.match(webView, /^ {2}var autoPictureInPictureRule = WebKitAutoPictureInPicture\(\)$/m);
+  assert.doesNotMatch(tab, /var autoPictureInPictureRule = WebKitAutoPictureInPicture\(\)/);
+  assert.match(
+    tab,
+    /var autoPictureInPictureRule: WebKitAutoPictureInPicture \{\n\s+get \{ webView\?\.autoPictureInPictureRule \?\? WebKitAutoPictureInPicture\(\) \}\n\s+set \{ webView\?\.autoPictureInPictureRule = newValue \}\n\s+\}/,
+  );
+  const attach = tab.slice(tab.indexOf("private func attach(_ view: WebKitWebView) {"), tab.indexOf("private func observe("));
+  assert.match(attach, /webView = view\n[\s\S]*\n {4}updateSight\(\)\n {2}\}/);
 });
 
 test("ArdiaCore's public window host gives Swift the same sight rule as Chromium views", () => {
