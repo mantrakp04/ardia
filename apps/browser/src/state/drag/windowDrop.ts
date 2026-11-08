@@ -3,7 +3,7 @@ import { isWindowClosing } from "../windows/closingWindows";
 import type { Frame } from "../browser/types";
 import type { TabPlacement } from "../pins/placing";
 import { isRegularWindow } from "../windows/small";
-
+import { installDroppedCrx } from "../extensions/crxDrop";
 
 export function screenPoint(s: BrowserState, windowId: string, x: number, y: number, live?: Frame | null): [number, number] | null {
   const frame = live ?? s.windows[windowId]?.frame;
@@ -58,4 +58,23 @@ export function openDroppedUrls(windowId: string, profileId: string, placement: 
   const ids = urls.map((url, i) => s.newTab(windowId, { url, background: paged || i > 0, profileId })).filter(Boolean);
   if (ids.length && placement && !paged) useBrowser.getState().placeTabs(ids, placement);
   return ids;
+}
+
+export type DroppedEntry = { kind: "file"; url: string } | { kind: "url"; url: string } | { kind: "text"; text: string };
+
+export function droppedInputs(items: DroppedEntry[]): string[] {
+  return items.flatMap((item) => {
+    if (item.kind === "file") return /^file:\/\/\/[^/]/i.test(item.url) ? [item.url] : [];
+    const input = item.kind === "url" ? item.url.trim() : item.text.trim();
+    return input ? [input] : [];
+  });
+}
+
+export function openDroppedInTab(tabId: string, items: DroppedEntry[]): void {
+  const s = useBrowser.getState();
+  const tab = s.tabs[tabId];
+  const [first, ...rest] = installDroppedCrx(tab?.windowId ?? "", droppedInputs(items));
+  if (!tab || !first) return;
+  s.navigate(tabId, first);
+  for (const input of rest) useBrowser.getState().newTab(tab.windowId, { url: input, background: true, profileId: tab.profileId });
 }
