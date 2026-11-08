@@ -21,13 +21,23 @@ index a413a2888789daa1a4230e301ec21af5ec203488..857bd369ad19670a96f80aa08423c3b4
  @property (atomic, readonly) RCTNetworkTaskStatus status;
  
 diff --git a/Libraries/Network/RCTNetworkTask.mm b/Libraries/Network/RCTNetworkTask.mm
-index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae7022ef20fe4 100644
+index a82671b7c87fae1e390cc6a292bd91611ca40584..0fed88d48ce8409028cb0271b79b7d54326edf0a 100644
 --- a/Libraries/Network/RCTNetworkTask.mm
 +++ b/Libraries/Network/RCTNetworkTask.mm
-@@ -53,14 +53,22 @@ - (RCTNetworkTaskStatus)status
+@@ -19,6 +19,8 @@ @implementation RCTNetworkTask {
+   std::mutex _mutex;
+   std::atomic<RCTNetworkTaskStatus> _atomicStatus;
+   RCTNetworkTask *_selfReference;
++  std::mutex _selfReferenceMutex; // [Ardia]
++  std::atomic<bool> _cancelled; // [Ardia]
+ }
+ 
+ static auto currentRequestId = std::atomic<NSUInteger>(0);
+@@ -52,14 +54,29 @@ - (RCTNetworkTaskStatus)status
+ 
  - (void)invalidate
  {
-   _selfReference = nil;
+-  _selfReference = nil;
 -  _completionBlock = nil;
 -  _downloadProgressBlock = nil;
 -  _incrementalDataBlock = nil;
@@ -39,20 +49,58 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
 +  self.responseBlock = nil;
 +  self.uploadProgressBlock = nil;
    _requestToken = nil;
- }
- 
++  // [Ardia: last, as it can be the task's last reference, and under the lock start takes it with
++  NS_VALID_UNTIL_END_OF_SCOPE RCTNetworkTask *selfReference;
++  {
++    std::lock_guard<std::mutex> lock(_selfReferenceMutex);
++    selfReference = _selfReference;
++    _selfReference = nil;
++  }
++  // Ardia]
++}
++
 +// [Ardia: only the first of cancel, an error and completion finishes the task, so a cancel racing a completion never
-+// invalidates it twice (releasing _selfReference twice) and a cancelled task never calls back
++// invalidates it twice (releasing _selfReference twice) and a cancelled task never calls its completion block
 +- (BOOL)finishOnce
 +{
 +  return _atomicStatus.exchange(RCTNetworkTaskFinished) != RCTNetworkTaskFinished;
-+}
+ }
 +// Ardia]
-+
+ 
  - (void)dispatchCallback:(dispatch_block_t)callback
  {
-   if (dispatch_get_specific((__bridge void *)self) == (__bridge void *)self) {
-@@ -88,7 +96,7 @@ - (void)start
+@@ -72,25 +89,32 @@ - (void)dispatchCallback:(dispatch_block_t)callback
+ 
+ - (void)start
+ {
+-  if (_atomicStatus != RCTNetworkTaskPending) {
+-    RCTLogError(@"RCTNetworkTask was already started or completed");
+-    return;
++  // [Ardia: running and retained before the handler can call back, as a fast one (data: URIs) finishes the task
++  // before sendRequest: returns, and only from pending, so a finished task never runs again; a cancel that came
++  // before the token was published couldn't cancel the request, so start does
++  {
++    std::lock_guard<std::mutex> lock(_selfReferenceMutex);
++    RCTNetworkTaskStatus pending = RCTNetworkTaskPending;
++    if (!_atomicStatus.compare_exchange_strong(pending, RCTNetworkTaskInProgress)) {
++      RCTLogError(@"RCTNetworkTask was already started or completed");
++      return;
++    }
++    _selfReference = self;
+   }
+ 
+-  if (_requestToken == nil) {
+-    id token = [_handler sendRequest:_request withDelegate:self];
+-    if ([self validateRequestToken:token]) {
+-      _selfReference = self;
+-      _atomicStatus = RCTNetworkTaskInProgress;
+-    }
++  id token = [_handler sendRequest:_request withDelegate:self];
++  if ([self validateRequestToken:token] && _cancelled && [_handler respondsToSelector:@selector(cancelRequest:)]) {
++    [_handler cancelRequest:token];
+   }
++  // Ardia]
+ }
  
  - (void)cancel
  {
@@ -60,8 +108,11 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
 +  if (![self finishOnce]) { // [Ardia]
      return;
    }
++  _cancelled = true; // [Ardia]
  
-@@ -111,10 +119,9 @@ - (BOOL)validateRequestToken:(id)requestToken
+   id token = _requestToken;
+   if (token && [_handler respondsToSelector:@selector(cancelRequest:)]) {
+@@ -111,10 +135,9 @@ - (BOOL)validateRequestToken:(id)requestToken
      valid = NO;
    }
  
@@ -75,7 +126,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
        [self dispatchCallback:^{
          completionBlock(self->_response, nil, RCTErrorWithMessage(@"Invalid request token."));
        }];
-@@ -130,8 +137,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
+@@ -130,8 +153,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
      return;
    }
  
@@ -86,7 +137,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
      int64_t length = _request.HTTPBody.length;
      [self dispatchCallback:^{
        uploadProgressBlock(bytesSent, length);
-@@ -146,8 +153,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
+@@ -146,8 +169,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
    }
  
    _response = response;
@@ -97,7 +148,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
      [self dispatchCallback:^{
        responseBlock(response);
      }];
-@@ -172,9 +179,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+@@ -172,9 +195,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
      @try {
        [_data appendData:data];
      } @catch (NSException *exception) {
@@ -112,7 +163,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
          [self dispatchCallback:^{
            completionBlock(
                self->_response, nil, RCTErrorWithMessage(exception.reason ?: @"Request's received data too long."));
-@@ -189,14 +198,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+@@ -189,14 +214,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
  
    int64_t total = _response.expectedContentLength;
  
@@ -131,7 +182,7 @@ index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae702
      [self dispatchCallback:^{
        downloadProgressBlock(length, total);
      }];
-@@ -209,9 +218,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
+@@ -209,9 +234,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
      return;
    }
  
