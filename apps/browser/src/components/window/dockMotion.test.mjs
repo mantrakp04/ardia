@@ -167,6 +167,19 @@ test("the sidebar's own button (address bar in the sidebar) always fits; back, f
   }
 });
 
+test("in window full screen the sidebar's button sits at Arc's 29 pt, with no room left for traffic lights (macOS shows them in its own title bar)", () => {
+  assert.equal(dm.headerToggleX(true), 29);
+  assert.equal(dm.headerToggleX(false), dm.HEADER_TOOLS.toggleX);
+  for (let w = 150; w <= 400; w += 0.5) {
+    const { buttons, step } = dm.navButtonsFitting(w, 30, true, dm.headerToggleX(true));
+    const windowed = dm.navButtonsFitting(w).buttons.length;
+    assert.ok(buttons.length >= windowed, `${w}: full screen never fits fewer buttons`);
+    const last = w - dm.HEADER_TOOLS.edge - 15;
+    const centres = [29, ...buttons.map((_, i) => last - (buttons.length - 1 - i) * step)];
+    for (let i = 1; i < centres.length; i++) assert.ok(centres[i] - centres[i - 1] >= 30 - 1e-9, `${w}: ${centres}`);
+  }
+});
+
 test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open with it shown", () => {
   stub.docs.clear();
   S().hydrate({});

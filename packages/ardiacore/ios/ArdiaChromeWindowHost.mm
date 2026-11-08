@@ -102,7 +102,6 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   objc_setAssociatedObject(window, kLightsTrailingKey, trailing ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   objc_setAssociatedObject(window, kLightsCenterKey, center, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   RetileTrafficLights(window);
-  PlaceFullScreenLights(window);
 }
 
 + (void)moveTrafficLightsCenter:(NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window {

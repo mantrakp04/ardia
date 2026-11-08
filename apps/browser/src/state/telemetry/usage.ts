@@ -26,19 +26,20 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0 };
+let counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0 };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (counts.tabs || counts.windows || counts.captureIndicatorsCleared) {
+  if (counts.tabs || counts.windows || counts.captureIndicatorsCleared || counts.fullScreens) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
       capture_indicators_cleared: counts.captureIndicatorsCleared,
+      full_screens_entered: counts.fullScreens,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0 };
+  counts = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0 };
   countsSince = Date.now();
 }
 
@@ -56,6 +57,7 @@ function watchStore() {
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
+        if (before && !before.fullScreen && w.fullScreen) counts.fullScreens++;
         if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
