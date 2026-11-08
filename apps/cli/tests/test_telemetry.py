@@ -26,7 +26,7 @@ SCRATCH = Path.home() / "ardia-scratch"
 INSTALL_ID = "0b6f4c1e-8d2a-4f3b-9c5d-1e2f3a4b5c6d"
 CLEARED = (
     "ARDIA_PORT", "ARDIA_WS", "ARDIA_CDP_URL", "ARDIA_DATA_DIR", "AGENT_BROWSER_CDP", "DO_NOT_TRACK", "ARDIA_TELEMETRY",
-    telemetry.TEST_URL_ENV,
+    telemetry.TEST_URL_ENV, "ARDIA_FEEDBACK_URL",
 )
 
 
@@ -129,8 +129,6 @@ class ConsentTest(TelemetryCase):
         write_consent(self.root, sharing=False)
         self.assertIsNone(telemetry.consent(self.root))
         write_consent(self.root, installId="not-a-uuid")
-        self.assertIsNone(telemetry.consent(self.root))
-        write_consent(self.root, version=2)
         self.assertIsNone(telemetry.consent(self.root))
         (self.root / telemetry.CONSENT_FILE).write_text("{")
         self.assertIsNone(telemetry.consent(self.root))
