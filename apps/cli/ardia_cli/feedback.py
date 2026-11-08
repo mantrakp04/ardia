@@ -18,8 +18,9 @@ DESCRIPTION = """\
 Tell Ardia's developer what got in your way: a confusing error, a missing command, output that cost you extra turns.
 Say what you ran, what happened and what you expected. The text goes through the CLI's crash-and-usage pipeline,
 so it's sent only while "Share anonymous crash reports and usage stats" is on; otherwise it's saved on this Mac.
-Before it leaves, it's capped at 1,000 characters and stripped of URLs' queries and logins, emails, tokens and
-keys, card-like numbers and home folder names. At most 20 a day are sent.
+Before it leaves, everything from the first word like password, token, cookie, authorization or session to the end
+is dropped; URLs' queries and logins, emails, token-like strings, card-like numbers and home folder names are
+removed; and it's capped at 1,000 characters. At most 20 a day are sent. Leave out page content and personal data.
 """
 EPILOG = """\
 Examples:
