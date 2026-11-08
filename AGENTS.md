@@ -29,6 +29,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Commit straight to `main`.** Stage only your own hunks (`git add -p` or explicit paths), never
   someone else's work in progress. Never stage with `git apply --unidiff-zero`: it drops hunks into the wrong
   place (it once committed an `ACClient.mm` that didn't compile). Check `git diff --cached` reads as you meant.
+  The index is shared with every other session, so commit with your paths named (`git commit -m … -- <paths>`):
+  a bare `git commit` takes whatever another agent staged.
 - **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
   fails without one. A PR that arrives without an issue gets one opened for it, then linked.
 - **Vouch gates outside PRs.** A PR from someone who isn't a collaborator, a bot or in `.github/VOUCHED.td` is
