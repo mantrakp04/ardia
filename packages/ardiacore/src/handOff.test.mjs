@@ -11,8 +11,19 @@ function functionBody(name) {
   return source.slice(start, end);
 }
 
-test("a tab nobody opened is hosted only by a view the user can see, otherwise it is announced as a stray tab", () => {
+function hostCondition() {
   const handOff = functionBody("HandOffTab");
-  const hosted = handOff.slice(handOff.indexOf("hostingViewForProfile:profile"), handOff.indexOf("AnnounceStrayTab"));
-  assert.match(hosted, /view && view\.visible && \(/, "HandOffTab re-homes a script-created tab onto a hidden pre-loaded New Tab view");
+  const from = handOff.indexOf("hostingViewForProfile:profile");
+  const to = handOff.indexOf("AnnounceStrayTab");
+  assert.ok(from !== -1 && to > from, "HandOffTab picks a host view, then falls through to AnnounceStrayTab");
+  return handOff.slice(from, to);
+}
+
+test("a tab nobody opened is not re-homed onto a hidden pre-loaded view while a stray-tab listener can adopt it", () => {
+  assert.match(hostCondition(), /view && \(view\.visible \|\| /, "HandOffTab re-homes a script-created tab onto a hidden pre-loaded New Tab view");
+});
+
+test("a tab nobody opened still goes to a hidden view when no stray-tab listener exists to adopt it", () => {
+  assert.match(hostCondition(), /view && \(view\.visible \|\| !\[ArdiaEvents listens:@"extensions"\]\) &&/, "the tab would be dropped without a host");
+  assert.match(functionBody("AnnounceStrayTab"), /if \(!\[ArdiaEvents listens:@"extensions"\]\) return;/);
 });
