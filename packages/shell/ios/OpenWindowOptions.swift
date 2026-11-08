@@ -2,6 +2,7 @@ import ExpoModulesCore
 
 struct OpenWindowOptions: Record {
   @Field var frame: CGRect?
+  @Field var display: String?
   @Field var incognito: Bool = false
   @Field var title: String = ""
   @Field var focus: Bool = true

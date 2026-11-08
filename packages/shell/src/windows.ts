@@ -6,12 +6,13 @@ export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
-  | { type: "fullScreen"; id: string; on: boolean }
+  | { type: "fullScreen"; id: string; on: boolean; display?: string }
   | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
 export type OpenWindowOptions = {
   frame?: [number, number, number, number] | null;
+  display?: string;
   incognito?: boolean;
   title?: string;
   focus?: boolean;

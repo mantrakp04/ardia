@@ -249,7 +249,12 @@ static void TryEarlyWindow() {
   ArdiaCoreProfile *loaded = ardia_host::LoadedProfile(profile);
   if (!loaded) return;
   [loaded warmSpareRenderer];
-  const BOOL shown = [ArdiaEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop];
+  const BOOL shown = [ArdiaEarlyWindow showWindow:focused
+                                        frame:window[@"frame"]
+                                      display:[window[@"display"] isKindOfClass:NSString.class] ? window[@"display"] : nil
+                                          key:key
+                                      profile:profile
+                                     backdrop:backdrop];
   [ArdiaWebView startLaunchTab:key url:url profile:profile];
   if (!shown) return;
   if (ArdiaCoreTab *tab = ArdiaTabParking.launchTab) [ArdiaEarlyWindow attachPage:tab key:key];

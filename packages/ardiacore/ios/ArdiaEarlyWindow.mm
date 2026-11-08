@@ -1,5 +1,6 @@
 #import "ArdiaEarlyWindowInternal.h"
 #import "ArdiaChromeWindowHost.h"
+#import "ArdiaDisplayIdentity.h"
 #import "ArdiaEngineBridge.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
@@ -209,17 +210,19 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
 
 + (BOOL)showWindow:(NSString *)windowId
              frame:(NSArray<NSNumber *> *)frame
+           display:(NSString *)display
                key:(NSString *)key
            profile:(NSString *)profile
           backdrop:(NSDictionary *)backdrop {
   CGImageRef picture = TakePrefetched(windowId);
-  BOOL shown = [self showWindow:windowId frame:frame key:key profile:profile backdrop:backdrop picture:picture];
+  BOOL shown = [self showWindow:windowId frame:frame display:display key:key profile:profile backdrop:backdrop picture:picture];
   if (picture) CGImageRelease(picture);
   return shown;
 }
 
 + (BOOL)showWindow:(NSString *)windowId
              frame:(NSArray<NSNumber *> *)frame
+           display:(NSString *)display
                key:(NSString *)key
            profile:(NSString *)profile
           backdrop:(NSDictionary *)backdrop
@@ -242,8 +245,9 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     return NO;
   }
   controller.appWindowId = windowId;
-  [window setFrame:rect display:NO];
-  if (NSScreen *screen = window.screen ?: NSScreen.mainScreen) [window setFrame:[window constrainFrameRect:window.frame toScreen:screen] display:NO];
+  NSScreen *savedDisplay = [ArdiaDisplayIdentity screenWithIdentifier:display];
+  [window setFrame:(savedDisplay ? [ArdiaDisplayIdentity frame:rect onScreen:savedDisplay] : rect) display:NO];
+  if (NSScreen *screen = savedDisplay ?: window.screen ?: NSScreen.mainScreen) [window setFrame:[window constrainFrameRect:window.frame toScreen:screen] display:NO];
   if ([layout[@"appearance"] isKindOfClass:NSString.class]) window.appearance = [NSAppearance appearanceNamed:layout[@"appearance"]];
   [host layoutSubtreeIfNeeded];
   NSView *backdropView = ((NSView * (*)(id, SEL, NSDictionary *)) objc_msgSend)(backdropClass, make, backdrop);
@@ -356,7 +360,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   } mutableCopy];
   if ([main[@"appearance"] isKindOfClass:NSString.class]) layout[@"appearance"] = main[@"appearance"];
   gLittleLayout = layout;
-  const BOOL shown = [self showWindow:kLittleWindow frame:frame key:mark profile:profile backdrop:backdrop picture:nullptr];
+  const BOOL shown = [self showWindow:kLittleWindow frame:frame display:nil key:mark profile:profile backdrop:backdrop picture:nullptr];
   gLittleLayout = nil;
   if (!shown) return NO;
   ArdiaEarlyShown *little = Shown().lastObject;

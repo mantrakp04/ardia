@@ -28,6 +28,7 @@ type WindowBase = {
   tabLayout?: "sidebar" | "top";
   frame: Frame | null;
   fullScreen?: number;
+  display?: string;
   createdAt: number;
 };
 
