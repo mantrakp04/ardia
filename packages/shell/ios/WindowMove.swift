@@ -86,6 +86,10 @@ enum WindowMove {
   }
 
   #if DEBUG
+  static var moveTimes: [CFTimeInterval] = []
+  static var frameTimes: [CFTimeInterval] = []
+  static func traceMove() { if moveTimes.count < 20000 { moveTimes.append(CACurrentMediaTime()) } }
+  static func traceFrame() { if frameTimes.count < 20000 { frameTimes.append(CACurrentMediaTime()) } }
   static var afterMoveTrace: [[String: Any]] = []
   static func traceAfterMove(_ window: NSWindow, _ rect: NSRect, _ outcome: String) {
     if afterMoveTrace.count < 4000 {
@@ -96,6 +100,8 @@ enum WindowMove {
     }
   }
   #else
+  @inline(__always) static func traceMove() {}
+  @inline(__always) static func traceFrame() {}
   @inline(__always) static func traceAfterMove(_ window: NSWindow, _ rect: NSRect, _ outcome: String) {}
   #endif
 
@@ -123,12 +129,14 @@ enum WindowMove {
     let start = screenPoint(event)
     let origin = window.frame.origin
     var wasActive = NSApp.isActive
-    func move(to event: NSEvent) {
-      let target = place(window, origin, start, screenPoint(event))
+    let pacer = WindowMovePacer(window: window) { pointer in
+      let target = place(window, origin, start, pointer)
       guard !near(window.frame.origin, target) else { return }
       window.setFrameOrigin(target)
+      traceMove()
       record(window)
     }
+    defer { pacer.finish(at: nil) }
     while window.isVisible {
       if NSApp.isActive { wasActive = true } else if wasActive { return true }
       guard var next = nextGestureEvent() else {
@@ -143,8 +151,11 @@ enum WindowMove {
         else { break }
         next = queued
       }
-      if next.type == .leftMouseUp, next.windowNumber == window.windowNumber { latest = next }
-      if let latest { move(to: latest) }
+      if next.type == .leftMouseUp, next.windowNumber == window.windowNumber {
+        pacer.finish(at: screenPoint(next))
+      } else if let latest {
+        pacer.moved(to: screenPoint(latest))
+      }
       if next.type != .leftMouseDragged || next.windowNumber != window.windowNumber {
         NSApp.postEvent(next, atStart: true)
         return true

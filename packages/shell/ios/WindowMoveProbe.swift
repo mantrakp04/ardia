@@ -46,6 +46,19 @@ enum WindowMoveProbe {
     RunLoop.main.add(timer, forMode: .common)
   }
 
+  private static func pacingReport(from began: CFTimeInterval, to ended: CFTimeInterval) -> [String: Any] {
+    let placements = WindowMove.moveTimes.filter { $0 >= began && $0 <= ended }
+    let frames = WindowMove.frameTimes.filter { $0 >= began && $0 <= ended }
+    let gaps = zip(placements.dropFirst(), placements).map { ($0 - $1) * 1000 }
+    let mean = gaps.isEmpty ? 0 : gaps.reduce(0, +) / Double(gaps.count)
+    let variance = gaps.isEmpty ? 0 : gaps.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(gaps.count)
+    return [
+      "placements": placements.count, "frames": frames.count,
+      "placementsPerFrame": frames.isEmpty ? 0 : Double(placements.count) / Double(frames.count),
+      "placementGapMs": ["min": gaps.min() ?? 0, "max": gaps.max() ?? 0, "mean": mean, "variance": variance],
+    ]
+  }
+
   static func replayAfterMove(_ window: NSWindow, _ rect: NSRect, keepTrace: Bool = false) -> [String: Any] {
     typealias AfterMove = @convention(c) (NSWindow, Selector, NSRect) -> Void
     let selector = NSSelectorFromString("_setFrameAfterMove:")
@@ -88,8 +101,11 @@ enum WindowMoveProbe {
     let serverOwns = ServerWindowDrag.serverOwnsPress(window, at: local)
     var origins: [[Double]] = []
     WindowMove.afterMoveTrace = []
+    WindowMove.moveTimes = []
+    WindowMove.frameTimes = []
     let began = CACurrentMediaTime()
     var releasedAt = 0.0
+    var ended = began
     var backSteps = 0
     var step = 0
     buttonsDown = true
@@ -113,7 +129,8 @@ enum WindowMoveProbe {
         }
       }
       let released = window.frame.origin
-      releasedAt = CACurrentMediaTime() - began
+      ended = CACurrentMediaTime()
+      releasedAt = ended - began
       var after: [[Double]] = []
       let sampler = Timer(timeInterval: 1.0 / 60, repeats: true) { _ in after.append([window.frame.minX, window.frame.minY]) }
       RunLoop.main.add(sampler, forMode: .common)
@@ -127,7 +144,7 @@ enum WindowMoveProbe {
           "hit": hit, "serverOwnsPress": serverOwns, "moved": [end.x - origin.x, end.y - origin.y],
           "pointerTravel": [dx * CGFloat(count), dy * CGFloat(count)], "backSteps": backSteps, "samples": origins.count,
           "start": [origin.x, origin.y], "released": [released.x, released.y], "end": [end.x, end.y], "screen": screen,
-          "afterRelease": after, "path": origins, "releasedAt": releasedAt,
+          "afterRelease": after, "path": origins, "releasedAt": releasedAt, "pacing": pacingReport(from: began, to: ended),
           "afterMoves": WindowMove.afterMoveTrace.map { entry in entry.merging(["t": ((entry["t"] as? Double) ?? 0) - began]) { $1 } },
         ])
       }
