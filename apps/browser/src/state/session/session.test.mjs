@@ -130,20 +130,20 @@ test("history.json moves into Chrome once: Chrome's own visits aren't doubled, a
   const workList = [entry("https://c.com/", [now - DAY])];
   stub.docs.set("history.json", JSON.stringify({ version: 2, history: { default: list, [work]: workList, [shared]: workList, gone: [entry("https://x.com/", [now])] } }));
 
-  assert.equal(await migrateHistoryFile(now, { keepMs: 0 }), "moved");
+  assert.equal(await migrateHistoryFile({ keepMs: 0 }), "moved");
   const visits = (profile, url) => stub.chromeHistory(profile).get(url)?.visits.length ?? 0;
   assert.equal(visits("", "https://a.com/"), 1, "a visit Chrome has isn't added again");
   assert.equal(visits("", "https://b.com/"), 2);
   assert.equal(visits("", "https://d.com/"), 2, "one visit Chrome has accounts for one saved visit");
-  assert.equal(visits("", "https://old.com/"), 0, "Chrome has expired what's older than 90 days");
+  assert.equal(visits("", "https://old.com/"), 1, "the engine keeps what's older than 90 days");
   assert.equal(visits(work, "https://c.com/"), 1, "profiles sharing data add their list once");
   assert.equal(stub.historyDbs.get(null).has("gone"), false, "a deleted profile's list goes");
   assert.equal(stub.docs.has("history.json"), false, "the file is deleted");
 
   stub.docs.set("history.json", JSON.stringify({ version: 2, history: { default: list, [work]: workList } }));
-  assert.equal(await migrateHistoryFile(now, { keepMs: 0 }), "moved");
+  assert.equal(await migrateHistoryFile({ keepMs: 0 }), "moved");
   assert.deepEqual([visits("", "https://a.com/"), visits("", "https://b.com/"), visits("", "https://d.com/"), visits(work, "https://c.com/")], [1, 2, 2, 1]);
-  assert.equal(await migrateHistoryFile(now, { keepMs: 0 }), "none");
+  assert.equal(await migrateHistoryFile({ keepMs: 0 }), "none");
 });
 
 test("history.json's move goes before watching Chrome's history; the view then has the moved visits", async () => {

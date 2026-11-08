@@ -12,7 +12,6 @@ import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
 const LEGACY_TOLERANCE_MS = 60_000;
-const CHROME_KEEPS_MS = 90 * 86_400_000;
 const CHUNK = 500;
 const LEGACY_KEPT_MS = 15_000;
 
@@ -108,7 +107,7 @@ function load(engine: string): Promise<void> {
         state.queued = [];
         await watchHistory(engine);
         const read = await queryHistory(engine, MAX_HISTORY, MAX_VISIT_TIMES);
-        const floor = read.length >= MAX_HISTORY ? Math.min(...read.map((e) => e.visitTimes.at(-1) ?? 0)) : -Infinity;
+        const floor = read.length >= MAX_HISTORY ? read.reduce((oldest, e) => Math.min(oldest, e.visitTimes.at(-1) ?? 0), Infinity) : -Infinity;
         let list = read.filter((e) => isWebPageUrl(e.url)).map(toEntry).sort(byLastVisit);
         for (const change of state.queued) if (!(change.kind === "deleted" && change.all)) list = applyHistoryChange(list, change);
         if (state.queued.some((c) => c.kind === "deleted" && c.all)) state.again = true;
@@ -160,10 +159,9 @@ function applyPending() {
 
 type LegacyFile = { history?: Record<string, HistoryEntry[]> };
 
-export const migrateHistoryFile = (now = Date.now(), { keepMs = LEGACY_KEPT_MS } = {}) =>
-  migrateLegacyFile<LegacyFile>(LEGACY_FILE, "history", (file) => moveHistory(file, now), keepMs);
+export const migrateHistoryFile = ({ keepMs = LEGACY_KEPT_MS } = {}) => migrateLegacyFile<LegacyFile>(LEGACY_FILE, "history", moveHistory, keepMs);
 
-async function moveHistory(file: LegacyFile, now: number) {
+async function moveHistory(file: LegacyFile) {
   const s = store();
   const perEngine = new Map<string, HistoryEntry[]>();
   for (const [profileId, list] of Object.entries(file.history ?? {})) {
@@ -179,7 +177,7 @@ async function moveHistory(file: LegacyFile, now: number) {
         .map((e) => ({
           url: e.url,
           title: e.title ?? "",
-          visitTimes: (e.visitTimes?.length ? e.visitTimes : [e.lastVisit]).filter((t) => typeof t === "number" && t > now - CHROME_KEEPS_MS),
+          visitTimes: (e.visitTimes?.length ? e.visitTimes : [e.lastVisit]).filter((t) => typeof t === "number"),
         }))
         .filter((p) => p.visitTimes.length);
       for (let i = 0; i < pages.length; i += CHUNK) await addHistoryVisits(engine, pages.slice(i, i + CHUNK), LEGACY_TOLERANCE_MS);

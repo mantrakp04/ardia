@@ -138,6 +138,15 @@ test("the view holds at most MAX_HISTORY URLs, dropping the oldest", () => {
   assert.deepEqual(next, reference(list, { kind: "visit", profile: "", url: "https://new.test/", title: "New", visits: 1, at: 9_000_000 }));
 });
 
+test("the view keeps more than the 5,000 URLs the app first held, so imported years of history stay reachable", () => {
+  const list = view(5000);
+  const change = { kind: "visit", profile: "", url: "https://new.test/", title: "New", visits: 1, at: 9_000_000 };
+  const next = applyHistoryChange(list, change);
+  assert.equal(next.length, 5001);
+  assert.equal(next.at(-1).url, list.at(-1).url, "the oldest URL is still there");
+  assert.ok(MAX_HISTORY >= 50_000);
+});
+
 test("an old visit lands in order among the entries by last visit", () => {
   const list = view(20);
   const change = { kind: "visit", profile: "", url: "https://old.test/", title: "Old", visits: 1, at: list[9].lastVisit - 500 };

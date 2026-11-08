@@ -16,7 +16,7 @@ export type HistorySlice = {
   importHistory(profileId: string, entries: Omit<HistoryEntry, "favicon">[]): number;
 };
 
-export const MAX_HISTORY = 5000;
+export const MAX_HISTORY = 100_000;
 export const MAX_VISIT_TIMES = 50;
 
 export const NO_HISTORY: HistoryEntry[] = [];
