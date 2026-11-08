@@ -203,7 +203,7 @@ export function dismissNowMenuItems(now = Date.now()): MenuItem[] {
 
 export function calendarMenuItem(): MenuItem {
   const settings = live().calendar;
-  const { calendars } = useCalendar.getState();
+  const { calendars, requesting } = useCalendar.getState();
   const owned = calendars.filter((c) => c.owned);
   const others = calendars.filter((c) => !c.owned);
   const hidden = new Set(settings.hiddenCalendarIds);
@@ -213,7 +213,7 @@ export function calendarMenuItem(): MenuItem {
     title: "Calendar",
     symbol: "calendar",
     children: [
-      ...(calendarConnected() ? [] : [{ id: "cal:connect", title: "Connect Calendar…", symbol: "calendar.badge.plus" }, sep]),
+      ...(calendarConnected() ? [] : [{ id: "cal:connect", title: requesting ? "Connecting…" : "Connect Calendar…", symbol: "calendar.badge.plus", enabled: !requesting }, sep]),
       {
         id: "cal:alerts",
         title: "Show Next Meeting Alert",

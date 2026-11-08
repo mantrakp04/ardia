@@ -99,7 +99,8 @@ export function refreshCalendar(): Promise<void> {
       }
       const access = calendarAuthorization();
       if (access !== "fullAccess") {
-        useCalendar.setState({ access, calendars: [], events: [], error: null });
+        const changed = access !== useCalendar.getState().access;
+        useCalendar.setState({ access, calendars: [], events: [], error: null, ...(changed ? { requestError: null } : {}) });
         return;
       }
       const calendars = await systemCalendars();

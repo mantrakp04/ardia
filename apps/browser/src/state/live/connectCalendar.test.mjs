@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { shellNativeModules, windows } from "../../test-native/index.ts";
 
 const { connectCalendar, refreshCalendar, startCalendar, useCalendar } = await import("./calendar.ts");
-const { runCalendarMenu } = await import("../sidebar/liveMenus.ts");
+const { calendarMenuItem, runCalendarMenu } = await import("../sidebar/liveMenus.ts");
 const { slowTimersForTests } = await import("../../platform/slowTimers.ts");
 
 const native = shellNativeModules.ArdiaCalendar;
@@ -112,4 +112,39 @@ test("coming back from System Settings picks up the access the person just allow
   assert.equal(useCalendar.getState().access, "fullAccess");
   assert.equal(useCalendar.getState().requestError, null);
   slowTimersForTests(Date.now).clear();
+});
+
+test("a message about the old access goes away when access changes to another blocked state", async () => {
+  stage({ status: "writeOnly", request: () => Promise.resolve({ status: "writeOnly", error: null }) });
+  startCalendar();
+  await connectCalendar();
+  assert.match(useCalendar.getState().requestError ?? "", /add events/);
+  native.authorizationStatus = () => "denied";
+  windows.emit({ type: "focus", id: "main" });
+  for (let turn = 0; turn < 20 && useCalendar.getState().access !== "denied"; turn++) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(useCalendar.getState().access, "denied");
+  assert.equal(useCalendar.getState().requestError, null);
+  slowTimersForTests(Date.now).clear();
+});
+
+test("a message about the same access stays through a focus that finds nothing new", async () => {
+  stage({ status: "notDetermined", request: () => Promise.resolve({ status: "notDetermined", error: "boom" }) });
+  startCalendar();
+  await connectCalendar();
+  const message = useCalendar.getState().requestError;
+  assert.notEqual(message, null);
+  windows.emit({ type: "focus", id: "main" });
+  await new Promise((resolve) => setImmediate(resolve));
+  await refreshCalendar();
+  assert.equal(useCalendar.getState().requestError, message);
+  slowTimersForTests(Date.now).clear();
+});
+
+test("the pin menu shows Connecting… and disables the item while macOS decides", () => {
+  const connectItem = () => calendarMenuItem().children.find((item) => item.id === "cal:connect");
+  assert.equal(connectItem().title, "Connect Calendar…");
+  assert.notEqual(connectItem().enabled, false);
+  useCalendar.setState({ requesting: true });
+  assert.equal(connectItem().title, "Connecting…");
+  assert.equal(connectItem().enabled, false);
 });
