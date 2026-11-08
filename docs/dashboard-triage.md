@@ -11,7 +11,7 @@ The dashboard's `reader` user only sees `telemetry.*`, so triage uses its own co
 | `TRIAGE_CLICKHOUSE_PASSWORD` | none | Password of the `sandbox` ClickHouse user. Without it the triage pages show "not configured" and nothing else breaks. |
 | `TRIAGE_CLICKHOUSE_USER` | `sandbox` | |
 | `TRIAGE_CLICKHOUSE_DATABASE` | `sandbox` | |
-| `TRIAGE_CLICKHOUSE_URL` | `CLICKHOUSE_URL`, else `http://$CLICKHOUSE_HOST:8123/` | Point at `https://netnyahoo.com/_ch/` for local dev. |
+| `TRIAGE_CLICKHOUSE_URL` | `CLICKHOUSE_URL`, else `http://$CLICKHOUSE_HOST:8123/` | The public `https://ardia.dev/_ch/` route takes only `reader`, so local dev needs a local ClickHouse with the `sandbox` tables. |
 
 In production `infra/dashboard/hexclave.deploy.ts` maps `TRIAGE_CLICKHOUSE_PASSWORD` to the Hexclave secret `DASHBOARD_TRIAGE_CLICKHOUSE_PASSWORD` (empty by default, so deploys never block on it). Set it once in the Hexclave dashboard under Project Settings > Secrets, then redeploy the dashboard (`Deploy` workflow, `service: dashboard`).
 
