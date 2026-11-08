@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -12,8 +13,9 @@ from ardia_cli.browse import paths
 
 LOCK = "tabs.lock"
 STALE_FILE_SECONDS = 3 * 24 * 3600
-VERSION = 2
+VERSION = 3
 MAX_IDS = 1500
+MAX_TEMPORARIES = 32
 MAX_FILE = 8 * 1024 * 1024
 FILE_BUDGET = 1024 * 1024
 CLOSE_HOLD = 30.0
@@ -108,6 +110,7 @@ class Registry:
         self.browse_fd = browse_fd
         self.key = key
         self.session = session
+        self.run = secrets.token_hex(8)
         self.instances: set = set()
 
     @staticmethod
@@ -133,7 +136,7 @@ class Registry:
                 data = paths.read_private_json(name, self.browse_fd, None, MAX_FILE)
             except paths.PathError:
                 data = None
-            if not isinstance(data, dict) or data.get("instance") != instance or data.get("version") != VERSION:
+            if not isinstance(data, dict) or data.get("instance") != instance or data.get("version") != VERSION or not self.within_caps(data):
                 self.prune_files(name)
                 data = {"version": VERSION, "instance": instance, "next": 1, "ids": {}, "opened": {}, "using": {}, "closing": {}}
             before = repr(data)
@@ -144,6 +147,11 @@ class Registry:
         finally:
             os.close(lock)
 
+    @staticmethod
+    def within_caps(data: dict) -> bool:
+        opened = data.get("opened")
+        return isinstance(opened, dict) and sum(1 for owner in opened.values() if owner.get("temporary")) <= MAX_TEMPORARIES
+
     def live(self, key: str) -> bool:
         return key == self.key or paths.lock_held(f"{key}.lock", self.browse_fd)
 
@@ -153,7 +161,8 @@ class Registry:
         for target in [target for target, owner in data["opened"].items() if not owner.get("temporary") and not self.live(owner.get("key", ""))]:
             del data["opened"][target]
         now = time.time()
-        for target in [target for target, entry in data["closing"].items() if not self.live(entry.get("key", "")) or now - entry.get("at", 0) > CLOSE_HOLD]:
+        for target in [target for target, entry in data["closing"].items() if not self.live(entry.get("key", "")) or now - entry.get("at", 0) > CLOSE_HOLD
+                       or (entry.get("key") == self.key and entry.get("run") != self.run)]:
             del data["closing"][target]
         ids = data["ids"]
         if len(ids) > MAX_IDS:
@@ -165,31 +174,31 @@ class Registry:
                     del ids[target]
         self.fit(data)
 
+    @staticmethod
+    def encoded_size(data: dict) -> int:
+        return len(json.dumps(data, ensure_ascii=False).encode())
+
     def fit(self, data: dict):
-        size = len(json.dumps(data, ensure_ascii=False))
-        if size <= FILE_BUDGET:
-            return
-
-        def drop(table: dict, key: str):
-            nonlocal size
-            size -= len(json.dumps({key: table[key]}, ensure_ascii=False))
-            del table[key]
-
-        intents = data.get("intents", {})
-        for marker in [marker for marker, entry in intents.items() if not self.live(entry.get("key", ""))]:
-            drop(intents, marker)
-        dead = sorted((owner.get("at", 0), target) for target, owner in data["opened"].items() if not self.live(owner.get("key", "")))
-        for _, target in dead:
-            if size <= FILE_BUDGET:
-                return
-            drop(data["opened"], target)
-        keep = set(data["opened"]) | {entry["target"] for entry in data["using"].values()} | set(data["closing"])
+        size = self.encoded_size(data)
+        protected = {target for target, owner in data["opened"].items() if owner.get("temporary")} | set(data["closing"])
+        protected |= {entry["target"] for entry in data["using"].values()}
         ids = data["ids"]
-        for target in sorted(ids, key=lambda target: ids[target][1]):
-            if size <= FILE_BUDGET:
-                return
-            if target not in keep:
-                drop(ids, target)
+        labels = data["opened"]
+        unused = sorted((seen, target) for target, (_, seen) in ids.items() if target not in protected and target not in labels)
+        attributed = sorted((owner.get("at", 0), target) for target, owner in labels.items() if target not in protected)
+        for table, order in ((ids, unused), (labels, attributed)):
+            for _, target in order:
+                if size <= FILE_BUDGET:
+                    break
+                size -= len(json.dumps({target: table[target]}, ensure_ascii=False).encode())
+                del table[target]
+                if table is labels:
+                    ids.pop(target, None)
+            size = self.encoded_size(data)
+        if size > FILE_BUDGET:
+            from ardia_cli.browse.errors import BrowseError
+
+            raise BrowseError(f"The tab registry would be {size:,} bytes with only owned tabs left (the limit is {FILE_BUDGET:,})", code="registry_full")
 
     def numbers(self, instance: str | None, targets, present=None, taken_at: float | None = None) -> dict[str, str]:
         targets = list(targets)
@@ -227,14 +236,34 @@ class Registry:
     def note_temporary(self, instance: str | None, target: str):
         if self.browse_fd is None:
             return
+        from ardia_cli.browse.errors import BrowseError
+
         with self._open(instance) as data:
-            data["opened"][target] = {"key": self.key, "session": self.session, "temporary": True, "at": time.time()}
+            held = [other for other, owner in data["opened"].items() if owner.get("temporary") and other != target]
+            if len(held) >= MAX_TEMPORARIES:
+                raise BrowseError(f"Ardia already has {MAX_TEMPORARIES} tabs open for ardia browse reads and scripts; let them finish, or end "
+                                  "idle sessions with `ardia browse close --all`", code="temporary_limit")
+            data["opened"][target] = {"key": self.key, "session": self.session, "temporary": True, "run": self.run, "at": time.time()}
 
     def temporaries(self, instance: str | None) -> list[str]:
         if self.browse_fd is None:
             return []
         with self._open(instance) as data:
             return [target for target, owner in data["opened"].items() if owner.get("temporary") and owner.get("key") == self.key]
+
+    def claim_orphans(self, instance: str | None) -> list[str]:
+        if self.browse_fd is None:
+            return []
+        with self._open(instance) as data:
+            claimed = []
+            for target, owner in data["opened"].items():
+                if not owner.get("temporary"):
+                    continue
+                if owner.get("key") != self.key and not self.live(owner.get("key", "")):
+                    owner.update(key=self.key, session=self.session, run=None)
+                if owner.get("key") == self.key and owner.get("run") != self.run:
+                    claimed.append(target)
+            return claimed
 
     def drop_temporary(self, instance: str | None, target: str):
         if self.browse_fd is None:
@@ -272,11 +301,11 @@ class Registry:
             return True
         with self._open(instance) as data:
             held = data["closing"].get(target, {})
-            if self.refusal(data, target) or (held.get("key") == self.key and held.get("pid") in (None, os.getpid())):
+            if self.refusal(data, target) or (held.get("key") == self.key and held.get("run") == self.run):
                 return False
             if any(key != self.key and entry.get("target") == target and self.live(key) for key, entry in data["using"].items()):
                 return False
-            data["closing"][target] = {"key": self.key, "session": self.session, "at": time.time(), "pid": os.getpid()}
+            data["closing"][target] = {"key": self.key, "session": self.session, "run": self.run, "at": time.time()}
             return True
 
     def release_close(self, instance: str | None, target: str):
@@ -285,35 +314,9 @@ class Registry:
         with self._open(instance) as data:
             if data["closing"].get(target, {}).get("key") == self.key:
                 del data["closing"][target]
-
-    def note_intent(self, instance: str | None, marker: str):
-        if self.browse_fd is None:
-            return
-        with self._open(instance) as data:
-            data.setdefault("intents", {})[marker] = {"key": self.key, "session": self.session, "pid": os.getpid(), "at": time.time()}
-
-    def drop_intent(self, instance: str | None, marker: str):
-        if self.browse_fd is None:
-            return
-        with self._open(instance) as data:
-            if data.get("intents", {}).get(marker, {}).get("key") == self.key:
-                del data["intents"][marker]
-
-    def claim_orphans(self, instance: str | None) -> list[str]:
-        if self.browse_fd is None:
-            return []
-        pid = os.getpid()
-        with self._open(instance) as data:
-            markers = []
-            for marker, entry in data.get("intents", {}).items():
-                mine = entry.get("key") == self.key
-                if (mine and entry.get("pid") != pid) or (not mine and not self.live(entry.get("key", ""))):
-                    entry.update(key=self.key, session=self.session, pid=pid)
-                    markers.append(marker)
-            for owner in data["opened"].values():
-                if owner.get("temporary") and owner.get("key") != self.key and not self.live(owner.get("key", "")):
-                    owner.update(key=self.key, session=self.session)
-            return markers
+            owner = data["opened"].get(target)
+            if owner and owner.get("temporary") and owner.get("key") == self.key:
+                owner["run"] = None
 
     def finish_close(self, instance: str | None, target: str):
         if self.browse_fd is None:

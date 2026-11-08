@@ -203,27 +203,27 @@ return rows.filter((row) => row.price < "$140");
         self.assertNotIn(orphan, self.targets())
         self.assertLessEqual(len(set(self.targets()) - before), 1)
 
-    def test_a_tab_whose_creator_died_before_the_reply_is_swept_by_its_marker(self):
-        import secrets
-
+    def test_a_dead_sessions_tab_is_closed_by_its_id_and_a_lookalike_user_tab_is_not(self):
         from ardia_cli.browse import paths
         from ardia_cli.browse.tabs import Registry
 
-        session = "marker-sweeper"
+        session = "orphan-sweeper"
         self.browse("read", self.url("item.html?n=1"), session=session)
-        browse_dir = self.data / "Browse"
-        files = [json.loads(path.read_text()) for path in browse_dir.glob("tabs-*.json")]
-        instance = next(data["instance"] for data in files if data.get("intents") is not None or data.get("opened") is not None)
-        marker = "ardia-temp-" + secrets.token_hex(8)
+        files = [json.loads(path.read_text()) for path in (self.data / "Browse").glob("tabs-*.json")]
+        instance = next(data["instance"] for data in files if data.get("version") == 3)
+        user = cdp(self.browser_ws(), "Target.createTarget", {"url": self.url("item.html?n=3#ardia-temp-0123456789abcdef"), "background": True})["targetId"]
+        orphan = cdp(self.browser_ws(), "Target.createTarget", {"url": "about:blank", "background": True})["targetId"]
         fd = paths.browse_dir(self.data)
         try:
-            Registry(fd, "a-daemon-that-died", "dead").note_intent(instance, marker)
+            Registry(fd, "a-daemon-that-died", "dead").note_temporary(instance, orphan)
         finally:
             os.close(fd)
-        orphan = cdp(self.browser_ws(), "Target.createTarget", {"url": f"about:blank#{marker}", "background": True})["targetId"]
-        self.assertIn(orphan, self.targets())
-        self.browse("read", self.url("item.html?n=2"), session=session)
-        self.assertNotIn(orphan, self.targets())
+        try:
+            self.browse("read", self.url("item.html?n=2"), session=session)
+            self.assertNotIn(orphan, self.targets())
+            self.assertIn(user, self.targets())
+        finally:
+            cdp(self.browser_ws(), "Target.closeTarget", {"targetId": user})
 
     def test_a_busy_script_times_out_and_its_page_goes(self):
         session = "script-busy"

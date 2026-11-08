@@ -134,50 +134,35 @@ class FakeReader:
             raise BrowseError("Target.attachToTarget: No target with given id found")
 
 
-class FakeRegistry:
-    def __init__(self):
-        self.calls = []
-        self.temporary = set()
-        self.refuse = set()
-        self.intents = set()
-        self.orphans = []
-
-    def note_intent(self, instance, marker):
-        self.calls.append(("note_intent", marker))
-        self.intents.add(marker)
-
-    def drop_intent(self, instance, marker):
-        self.calls.append(("drop_intent", marker))
-        self.intents.discard(marker)
-
-    def claim_orphans(self, instance):
-        return list(self.orphans)
-
-    def release_close(self, instance, target):
-        self.calls.append(("release_close", target))
-
-    def note_temporary(self, instance, target):
-        self.calls.append(("note_temporary", target))
-        self.temporary.add(target)
-
-    def temporaries(self, instance):
-        return sorted(self.temporary)
-
-    def drop_temporary(self, instance, target):
-        self.calls.append(("drop_temporary", target))
-        self.temporary.discard(target)
-
-    def reserve_close(self, instance, target):
-        self.calls.append(("reserve_close", target))
-        return target not in self.refuse
-
-    def finish_close(self, instance, target):
-        self.calls.append(("finish_close", target))
-        self.temporary.discard(target)
+SCRATCH_DIRS = []
 
 
-def reader_state():
-    state = SimpleNamespace(opened=set(), target_infos={}, pages={}, connected=True, refuse_attach=set(), instance="I", registry=FakeRegistry(), extras={})
+def scratch_registry(key="reader", session="reader"):
+    from ardia_cli.browse import paths
+    from ardia_cli.browse.tabs import Registry
+
+    SCRATCH.mkdir(exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix="browse-registry-", dir=SCRATCH))
+    fd = paths.browse_dir(root)
+    SCRATCH_DIRS.append((root, fd))
+    return Registry(fd, key, session)
+
+
+def peer(registry, key):
+    from ardia_cli.browse.tabs import Registry
+
+    return Registry(registry.browse_fd, key, key)
+
+
+def tearDownModule():
+    for root, fd in SCRATCH_DIRS:
+        os.close(fd)
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def reader_state(registry=None):
+    state = SimpleNamespace(opened=set(), target_infos={}, pages={}, connected=True, refuse_attach=set(), instance="I",
+                            registry=registry or scratch_registry(), extras={})
     state.browser = FakeBrowser(state)
 
     async def connect():
@@ -262,147 +247,166 @@ class ReadingTabs(unittest.TestCase):
         self.assertEqual(code, 1)
 
 
-class TemporaryOwnership(unittest.TestCase):
-    def test_reader_tabs_are_registered_and_closed_through_a_reservation(self):
+class TempTabRecovery(unittest.TestCase):
+    def test_a_reader_tab_is_owned_by_its_exact_id_and_closed_through_a_reservation(self):
         from ardia_cli.browse import temptabs
 
         state = reader_state()
         owned = []
         target = run(temptabs.create(state, owned))
-        marker = state.registry.calls[0][1]
-        self.assertEqual(state.registry.calls, [("note_intent", marker), ("note_temporary", "R1"), ("drop_intent", marker)])
-        self.assertEqual(state.browser.urls["R1"], f"about:blank#{marker}")
-        self.assertTrue(marker.startswith("ardia-temp-"))
+        self.assertEqual(state.browser.urls[target], "about:blank")
+        self.assertEqual(state.registry.temporaries("I"), [target])
+        self.assertFalse(hasattr(state.registry, "note_intent"))
         run(temptabs.release(state, owned))
-        self.assertEqual(state.registry.calls[3:], [("reserve_close", "R1"), ("finish_close", "R1")])
         self.assertEqual(state.browser.closed, [target])
+        self.assertEqual(state.registry.temporaries("I"), [])
         self.assertEqual(owned, [])
 
-    def test_a_tab_another_session_holds_is_left_open_and_no_longer_hidden(self):
+    def test_a_user_tab_whose_url_looks_like_a_marker_is_never_closed(self):
         from ardia_cli.browse import temptabs
 
         state = reader_state()
-        state.registry.refuse.add("R1")
-        owned = []
-        run(temptabs.create(state, owned))
-        run(temptabs.release(state, owned))
+        state.browser.urls = {"USER": "https://example.test/doc#ardia-temp-0123456789abcdef", "BLANK": "about:blank#ardia-temp-feedface"}
+        state.target_infos = {target: {"targetId": target, "url": url} for target, url in state.browser.urls.items()}
+        dead = peer(state.registry, "dead-daemon")
+        dead.note_temporary("I", "GONE")
+        with dead._open("I") as data:
+            data["intents"] = {marker: {"key": "dead-daemon", "session": "dead", "pid": 1, "at": 0}
+                               for marker in ("ardia-temp-0123456789abcdef", "ardia-temp-feedface")}
+        run(temptabs.sweep(state))
         self.assertEqual(state.browser.closed, [])
-        self.assertNotIn(("drop_temporary", "R1"), state.registry.calls)
-        self.assertEqual(state.registry.temporary, {"R1"})
+        self.assertEqual(state.registry.temporaries("I"), [])
 
-    def test_a_close_that_fails_keeps_the_record_and_frees_only_the_reservation(self):
+    def test_a_failed_close_keeps_ownership_and_a_later_sweep_retries_it(self):
         from ardia_cli.browse import temptabs
 
         for how in ("stuck", "fails", "disconnected"):
             state = reader_state()
             owned = []
-            run(temptabs.create(state, owned))
+            target = run(temptabs.create(state, owned))
             if how == "stuck":
-                state.browser.stuck.add("R1")
+                state.browser.stuck.add(target)
             elif how == "fails":
                 state.browser.close_fails = True
             else:
                 state.connected = False
             run(temptabs.release(state, owned))
-            self.assertEqual(state.registry.temporary, {"R1"}, how)
-            self.assertEqual(state.registry.calls[-2:], [("reserve_close", "R1"), ("release_close", "R1")], how)
-            self.assertEqual(owned, [], how)
+            self.assertEqual(state.registry.temporaries("I"), [target], how)
+            self.assertNotIn(target, state.target_infos, how)
+            run(temptabs.sweep(state))
+            self.assertEqual(state.registry.temporaries("I"), [target], f"{how}: a cache miss isn't proof the tab is gone")
+            state.browser.stuck.clear()
+            state.browser.close_fails = False
+            state.connected = True
+            run(temptabs.sweep(state))
+            self.assertIn(target, state.browser.closed, how)
+            self.assertEqual(state.registry.temporaries("I"), [], how)
 
-    def test_a_tab_created_by_a_daemon_that_died_before_the_reply_is_found_by_its_marker(self):
+    def test_a_sweep_spares_the_tabs_this_daemon_is_using(self):
         from ardia_cli.browse import temptabs
 
         state = reader_state()
-        state.registry.orphans = ["ardia-temp-dead1", "ardia-temp-never"]
-        state.registry.intents = set(state.registry.orphans)
-        state.browser.urls = {"X1": "about:blank#ardia-temp-dead1", "U1": "about:blank#ardia-temp-dead1x"}
-        state.target_infos = {target: {"targetId": target, "url": url} for target, url in state.browser.urls.items()}
-        run(temptabs.sweep(state))
-        self.assertEqual(state.browser.closed, ["X1"])
-        self.assertEqual(state.registry.intents, set())
-        self.assertEqual(state.registry.temporary, set())
-
-    def test_leftovers_of_a_dead_daemon_are_closed_on_the_next_run(self):
-        from ardia_cli.browse import temptabs
-
-        state = reader_state()
-        state.registry.temporary = {"OLD1", "GONE"}
-        state.browser.urls = {"OLD1": "http://s/"}
-        state.target_infos = {"OLD1": {"targetId": "OLD1", "url": "http://s/"}}
-        run(temptabs.sweep(state))
-        self.assertEqual(state.browser.closed, ["OLD1"])
-        self.assertEqual(state.registry.temporary, set())
-
-
-class RegistryRecovery(unittest.TestCase):
-    def setUp(self):
-        from ardia_cli.browse import paths
-
-        SCRATCH.mkdir(exist_ok=True)
-        root = Path(tempfile.mkdtemp(prefix="browse-registry-", dir=SCRATCH))
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        self.fd = paths.browse_dir(root)
-        self.addCleanup(os.close, self.fd)
-
-    def registry(self, key="mine"):
-        from ardia_cli.browse.tabs import Registry
-
-        return Registry(self.fd, key, key)
-
-    def edit(self, change):
-        with self.registry()._open("I") as data:
-            change(data)
-
-    def test_release_close_frees_the_reservation_and_keeps_the_temporary(self):
-        mine = self.registry()
-        mine.note_temporary("I", "T1")
-        self.assertTrue(mine.reserve_close("I", "T1"))
-        mine.release_close("I", "T1")
-        self.assertEqual(mine.temporaries("I"), ["T1"])
-        with mine._open("I") as data:
-            self.assertNotIn("T1", data["closing"])
-        self.assertTrue(mine.reserve_close("I", "T1"))
-
-    def test_a_reservation_left_by_an_earlier_process_of_this_session_is_reclaimed(self):
-        mine = self.registry()
-        mine.note_temporary("I", "T1")
-        self.edit(lambda data: data["closing"].__setitem__("T1", {"key": "mine", "session": "mine", "at": time.time(), "pid": 1}))
-        self.assertTrue(mine.reserve_close("I", "T1"))
-        self.assertFalse(mine.reserve_close("I", "T1"))
-
-    def test_orphans_of_dead_daemons_are_claimed_and_live_ones_left(self):
-        mine = self.registry()
-        mine.note_intent("I", "ardia-temp-live")
-
-        def plant(data):
-            data.setdefault("intents", {}).update({
-                "ardia-temp-old": {"key": "mine", "session": "mine", "pid": 1, "at": 0},
-                "ardia-temp-dead": {"key": "gone", "session": "gone", "pid": 2, "at": 0},
-            })
-            data["opened"]["T9"] = {"key": "gone", "session": "gone", "temporary": True, "at": 0}
-
-        self.edit(plant)
-        self.assertEqual(sorted(mine.claim_orphans("I")), ["ardia-temp-dead", "ardia-temp-old"])
-        self.assertEqual(mine.temporaries("I"), ["T9"])
-        self.assertEqual(mine.claim_orphans("I"), [])
-        mine.drop_intent("I", "ardia-temp-dead")
-        with mine._open("I") as data:
-            self.assertEqual(sorted(data["intents"]), ["ardia-temp-live", "ardia-temp-old"])
-
-
-class SweepSparesLiveTabs(unittest.TestCase):
-    def test_a_nested_read_does_not_close_the_running_scripts_page(self):
-        from ardia_cli.browse import temptabs
-
-        state = reader_state()
-        state.extras = {}
         controller = []
-        run(temptabs.create(state, controller))
-        state.target_infos[controller[0]] = {"targetId": controller[0], "url": "about:blank"}
+        target = run(temptabs.create(state, controller))
+        state.target_infos[target] = {"targetId": target, "url": "about:blank"}
         run(temptabs.sweep(state))
         self.assertEqual(state.browser.closed, [])
         run(temptabs.release(state, controller))
-        self.assertEqual(state.browser.closed, ["R1"])
-        self.assertEqual(state.extras["temporaries"], set())
+        self.assertEqual(state.browser.closed, [target])
+
+    def test_a_new_incarnation_reclaims_its_predecessors_tabs_even_with_the_same_pid(self):
+        from ardia_cli.browse import temptabs
+        from ardia_cli.browse.tabs import Registry
+
+        before = reader_state()
+        owned = []
+        target = run(temptabs.create(before, owned))
+        self.assertTrue(before.registry.reserve_close("I", target))
+        after = reader_state(Registry(before.registry.browse_fd, before.registry.key, before.registry.session))
+        after.browser.urls = dict(before.browser.urls)
+        self.assertTrue(after.registry.reserve_close("I", target))
+        after.registry.release_close("I", target)
+        run(temptabs.sweep(after))
+        self.assertEqual(after.browser.closed, [target])
+        self.assertEqual(after.registry.temporaries("I"), [])
+
+    def test_a_dead_sessions_tab_is_closed_only_once_it_is_confirmed_gone(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        dead = peer(state.registry, "dead-daemon")
+        dead.note_temporary("I", "OLD")
+        state.browser.urls = {"OLD": "http://s/"}
+        state.browser.stuck.add("OLD")
+        run(temptabs.sweep(state))
+        self.assertEqual(state.registry.temporaries("I"), ["OLD"])
+        state.browser.stuck.clear()
+        run(temptabs.sweep(state))
+        self.assertEqual(state.registry.temporaries("I"), [])
+
+    def test_a_sweep_that_cannot_list_targets_deletes_nothing(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        dead = peer(state.registry, "dead-daemon")
+        dead.note_temporary("I", "GONE")
+        state.connected = False
+        run(temptabs.sweep(state))
+        self.assertEqual(state.registry.temporaries("I"), ["GONE"])
+
+
+class RegistryBounds(unittest.TestCase):
+    def registry(self, key="mine", session="mine"):
+        return scratch_registry(key, session)
+
+    def test_temporaries_are_capped_per_instance(self):
+        from ardia_cli.browse import tabs
+
+        one = self.registry("one", "one")
+        two = peer(one, "two")
+        for index in range(tabs.MAX_TEMPORARIES):
+            (one if index % 2 else two).note_temporary("I", f"T{index}")
+        with self.assertRaises(BrowseError) as caught:
+            one.note_temporary("I", "ONE_TOO_MANY")
+        self.assertEqual(caught.exception.code, "temporary_limit")
+        self.assertIn(str(tabs.MAX_TEMPORARIES), caught.exception.message)
+
+    def test_a_full_registry_fits_its_byte_budget_and_keeps_every_owner(self):
+        from ardia_cli.browse import paths, tabs
+
+        mine = self.registry("mine", "séssion-ünïcode-🙂" * 2)
+        long = lambda index: f"{index:064X}"
+        for index in range(tabs.MAX_TEMPORARIES):
+            mine.note_temporary("I", long(index))
+        for index in range(tabs.MAX_TEMPORARIES):
+            mine.reserve_close("I", long(index))
+        for start in range(0, tabs.MAX_IDS * 3, 500):
+            mine.numbers("I", [long(10_000 + index) for index in range(start, start + 500)])
+        raw = (paths.read_private_json(tabs.Registry.file_for("I"), mine.browse_fd, None, tabs.MAX_FILE))
+        size = len(json.dumps(raw, ensure_ascii=False).encode())
+        self.assertLessEqual(size, tabs.FILE_BUDGET)
+        self.assertEqual(sorted(mine.temporaries("I")), sorted(long(index) for index in range(tabs.MAX_TEMPORARIES)))
+        protected = tabs.MAX_TEMPORARIES * 2 * 400 + 64 * 1024
+        self.assertLess(protected, tabs.FILE_BUDGET)
+
+    def test_unused_ids_go_before_any_ownership(self):
+        from ardia_cli.browse import paths, tabs
+
+        mine = self.registry()
+        dead = peer(mine, "dead")
+        dead.note_temporary("I", "DEAD_OWNED")
+        name = tabs.Registry.file_for("I")
+        raw = paths.read_private_json(name, mine.browse_fd, None, tabs.MAX_FILE)
+        raw["ids"] = {f"{index:064X}": [index + 1, index] for index in range(tabs.MAX_IDS)}
+        raw["ids"]["DEAD_OWNED"] = [999999, 0]
+        paths.write_private_json(name, mine.browse_fd, raw)
+        with mock.patch.object(tabs, "FILE_BUDGET", 40_000):
+            mine.note_opened("I", "X")
+            raw = paths.read_private_json(name, mine.browse_fd, None, tabs.MAX_FILE)
+            self.assertLessEqual(len(json.dumps(raw, ensure_ascii=False).encode()), 40_000)
+        self.assertIn("DEAD_OWNED", raw["opened"])
+        self.assertIn("DEAD_OWNED", raw["ids"])
+        self.assertIn("X", raw["opened"])
 
 
 class ReadRouting(unittest.TestCase):
@@ -523,7 +527,7 @@ class FakeController:
 
 class ScriptRuns(unittest.TestCase):
     def run_script(self, controller, source="page.goto('x')", seconds=5, dispatch=None):
-        state = SimpleNamespace(connected=True, pages={}, instance="I", registry=FakeRegistry(), target_infos={}, extras={})
+        state = SimpleNamespace(connected=True, pages={}, instance="I", registry=scratch_registry(), target_infos={}, extras={})
         closed = []
 
         async def connect():

@@ -94,7 +94,7 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(list(raw["opened"]), ["X"])
         self.assertEqual(self.one.numbers("I", [targets[-1]]), {targets[-1]: f"t{len(targets)}"})
 
-    def test_thousands_of_dead_temporaries_never_make_the_registry_unreadable(self):
+    def test_a_file_beyond_the_temporary_cap_starts_over_instead_of_growing(self):
         name = Registry.file_for("I")
         self.one.numbers("I", ["SEED"])
         raw = paths.read_private_json(name, self.fd, None, tabs.MAX_FILE)
@@ -108,6 +108,7 @@ class RegistryTest(unittest.TestCase):
         self.assertLessEqual(len(json.dumps(raw)), tabs.FILE_BUDGET)
         self.assertEqual(self.one.temporaries("I"), ["MINE"])
         self.assertEqual(self.one.others("I")[0], {"THEIRS": "two"})
+        self.assertEqual(sorted(raw["opened"]), ["MINE", "THEIRS"])
 
 
 if __name__ == "__main__":
