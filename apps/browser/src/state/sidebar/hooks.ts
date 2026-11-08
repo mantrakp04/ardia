@@ -3,6 +3,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, tabTitle, viewTabIds } from "../browser/model";
 import { liveTabPlace } from "../live/rows";
 import type { Tab } from "../browser/types";
+import { awayFromPin } from "../pins/organize";
 import { cleanedTabsFor } from "../pins/closedTabs";
 import { groupLabel } from "../pins/tabGrouping";
 import { canTidyPins } from "../pins/tidyPins";
@@ -114,4 +115,6 @@ export const useLiveItemTab = (windowId: string, profileId: string, folderId: st
   useBrowser((s) => viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
 
 export const useIsActiveIn = (windowId: string, profileId: string, tabId: string | null) => useBrowser((s) => !!tabId && activeTabId(s, windowId, profileId) === tabId);
+
+export const useTabAwayFromPin = (tabId: string | null) => useBrowser((s) => { const tab = tabId ? s.tabs[tabId] : undefined; return !!tab && awayFromPin(tab); });
 

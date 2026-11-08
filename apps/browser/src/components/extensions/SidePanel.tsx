@@ -1,7 +1,8 @@
 import { Box, Button, Divider, springs, Text, WebView, type WebViewHandle } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
+import { useCardFrame } from "../window/cardFrame";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { currentSettings } from "../../state/browser/current";
 import { updateSettings } from "../../state/settings/actions";
@@ -31,6 +32,7 @@ export function ExtensionSidePanel() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
+  const gap = useCardFrame().splitGap;
 
   useEffect(() => {
     if (panel) setShown(panel);
@@ -75,7 +77,7 @@ export function ExtensionSidePanel() {
   );
 
   if (!shown) return null;
-  const room = width + layout.cardInset;
+  const room = width + gap;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
@@ -93,6 +95,7 @@ export function ExtensionSidePanel() {
 function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) {
   const { extensionId, profile, pageProfile, url, opened } = panel;
   const theme = useTheme();
+  const cardRadius = useCardFrame().radius;
   const web = useRef<WebViewHandle>(null);
   const [loaded, setLoaded] = useState(false);
   const lookingUp = useExtensions((e) => !!e.sidePanelLookups[windowId]);
@@ -103,7 +106,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;
   return (
-    <View style={{ flex: 1, borderRadius: layout.cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
+    <View style={{ flex: 1, borderRadius: cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
       <Box row gap="m" style={HEADER_ROW}>
         {icon ? <Image source={{ uri: icon }} style={{ width: 16, height: 16 }} /> : null}
         <Text numberOfLines={1} weight="medium" style={FLEX}>

@@ -155,3 +155,81 @@ test("closing a window's last tab still asks about the tabs of its window", asyn
   assert.deepEqual(asked.map((d) => d.title), ["Close 1 tab?"]);
   assert.equal(asked[0].message, `This window has 1 tab open in your ${personal()} profile.`);
 });
+
+async function withHeldAnimations(run) {
+  const gates = new Map();
+  const animateWindowClose = shellNativeModules.ArdiaAppWindows.animateWindowClose;
+  shellNativeModules.ArdiaAppWindows.animateWindowClose = (id) => new Promise((resolve) => gates.set(id, resolve));
+  const finish = async (id) => {
+    gates.get(id)();
+    gates.delete(id);
+    await tick();
+    await tick();
+  };
+  try {
+    await run(finish);
+  } finally {
+    [...gates.values()].forEach((resolve) => resolve());
+    shellNativeModules.ArdiaAppWindows.animateWindowClose = animateWindowClose;
+    await tick();
+  }
+}
+
+const urlsClosedLast = () => S().closedWindows.at(-1).tabs.map((t) => t.url).sort();
+
+for (const order of ["first", "second"]) {
+  test(`closing two windows that share tabs closes both when the ${order} one's animation ends first`, async () => {
+    const { a, b } = twoWindows();
+    const closedBefore = S().closedWindows.length;
+    await withHeldAnimations(async (finish) => {
+      await closeByUser(a);
+      await closeByUser(b);
+      assert.ok(S().windows[a] && S().windows[b], "both still animate");
+      const [x, y] = order === "first" ? [a, b] : [b, a];
+      await finish(x);
+      assert.equal(S().windows[x], undefined, `${x} closed`);
+      await finish(y);
+      assert.equal(S().windows[y], undefined, `${y} closed too`);
+    });
+    assert.equal(Object.keys(S().windows).length, 0);
+    assert.equal(S().closedWindows.length, closedBefore + 1, "one closed window to reopen");
+    assert.deepEqual(urlsClosedLast(), ["https://a1.com", "https://a2.com", "https://b1.com"], "it holds every tab");
+  });
+}
+
+test("a closing window that gains a new tab before its animation ends stays open and is focused", async () => {
+  const { a, b } = twoWindows();
+  await withHeldAnimations(async (finish) => {
+    await closeByUser(a);
+    windows.focused = b;
+    S().newTab(a, { url: "https://late.com" });
+    await finish(a);
+    assert.ok(S().windows[a], "A stays open");
+    assert.equal(windows.focused, a, "and comes forward");
+    assert.ok(listed(a).some((id) => S().tabs[id].url === "https://late.com"));
+  });
+});
+
+test("a closing window that gains a second row of a tab it already shows stays open", async () => {
+  S().hydrate({});
+  const a = S().createWindow({ url: "https://mail.com" });
+  const [mail] = S().windows[a].tabIds;
+  S().newTab(a, { url: "https://a.com" });
+  S().pinTabs([mail], true);
+  S().activate(mail);
+  const regular = S().windows[a].tabIds.find((id) => !S().tabs[id].pin);
+  S().createSplit([mail, regular]);
+  const b = S().createWindow({ url: "https://b.com" });
+  const copy = S().windows[b].tabIds.find((id) => S().tabs[id].pin);
+  S().activate(copy);
+  await withHeldAnimations(async (finish) => {
+    await closeByUser(b);
+    windows.focused = a;
+    S().moveTabsToWindow([mail], b);
+    assert.equal(S().tabs[mail].windowId, b, "the moved page is a row of its own in B");
+    await finish(b);
+    assert.ok(S().windows[b], "B stays open");
+    assert.equal(windows.focused, b, "and comes forward");
+    assert.ok(S().tabs[mail] && S().tabs[copy], "with both of its pages");
+  });
+});

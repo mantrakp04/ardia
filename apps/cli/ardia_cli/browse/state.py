@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import asdict, dataclass
 
 from ardia_cli import command_metrics, control
@@ -6,6 +7,7 @@ from ardia_cli.caller import Caller
 from ardia_cli.browse.connection import Browser
 from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, StaleRef, Unreachable
 from ardia_cli.browse.page import Page
+from ardia_cli.browse.tabs import Registry
 
 PAGE_SCHEMES = ("http:", "https:", "about:", "data:", "blob:", "file:")
 ACTIVE_TIMEOUT = 3.0
@@ -47,7 +49,10 @@ class State:
         self.tab_ids: dict[str, str] = {}
         self.next_tab = 1
         self.labels: dict[str, str] = {}
-        self.current: str | None = None
+        self.registry = Registry(config.get("browse_fd"), config.get("key") or "", self.session)
+        self.app_tabs: dict[str, str] = {}
+        self.app_generations: dict[str, int | None] = {}
+        self._current: str | None = None
         self.opened: set[str] = set()
         self.frames: dict[str, str] = {}
         self.refs: dict[str, Ref] = {}
@@ -67,6 +72,16 @@ class State:
         self.background_live: bool | None = None
         self.caller: Caller | None = None
         self.announced: Caller | None = None
+
+    @property
+    def current(self) -> str | None:
+        return self._current
+
+    @current.setter
+    def current(self, target_id: str | None):
+        if target_id != self._current:
+            self.registry.note_using(self.instance, target_id)
+        self._current = target_id
 
     @property
     def connected(self) -> bool:
@@ -107,6 +122,9 @@ class State:
         except BrowseError:
             pass
         await self.refresh_targets()
+        from ardia_cli.browse import temptabs
+
+        await temptabs.sweep(self)
         command_metrics.spent("connect_ms", started)
 
     async def announce_caller(self, endpoint):
@@ -125,18 +143,22 @@ class State:
             await browser.close()
 
     async def refresh_targets(self) -> list[dict]:
+        taken_at = time.time()
         infos = (await self.browser.send("Target.getTargets")).get("targetInfos") or []
         pages = [info for info in infos if info.get("type") == "page" and str(info.get("url", "")).startswith(PAGE_SCHEMES)]
         self.target_infos = {info["targetId"]: info for info in pages}
-        for target_id in list(self.pages):
+        for target_id in list(self.pages) + ([self.current] if self.current else []):
             if target_id not in self.target_infos:
                 self.forget_target(target_id)
+        every_target = {info["targetId"] for info in infos if info.get("targetId")}
+        self.tab_ids.update(self.registry.numbers(self.instance, self.target_infos, present=every_target, taken_at=taken_at))
         return pages
 
     def forget_target(self, target_id: str):
         page = self.pages.pop(target_id, None)
         if page:
             page.detach()
+        was_opened = target_id in self.opened
         self.opened.discard(target_id)
         self.frames.pop(target_id, None)
         self.target_infos.pop(target_id, None)
@@ -145,12 +167,20 @@ class State:
             if owner == target_id:
                 del self.labels[label]
         if self.current == target_id and not self.pin_tab:
+            self.extras["lost_tab"] = {"target": target_id, "app": self.app_tabs.get(target_id), "tab": self.tab_ids.get(target_id),
+                                       "generation": self.app_generations.get(target_id), "opened": was_opened,
+                                       "borrowed": self.extras.get("attached") == target_id}
             self.current = None
+        self.app_tabs.pop(target_id, None)
+        self.app_generations.pop(target_id, None)
 
     def tab_id(self, target_id: str) -> str:
         if target_id not in self.tab_ids:
-            self.tab_ids[target_id] = f"t{self.next_tab}"
-            self.next_tab += 1
+            shared = self.registry.numbers(self.instance, [target_id]).get(target_id)
+            if shared is None:
+                shared = f"t{self.next_tab}"
+                self.next_tab += 1
+            self.tab_ids[target_id] = shared
         return self.tab_ids[target_id]
 
     def on_event(self, method: str, params: dict, session_id: str | None):
@@ -182,6 +212,7 @@ class State:
     async def page(self, target_id: str | None = None) -> Page:
         await self.connect()
         started = command_metrics.clock()
+        explicit = target_id is not None
         target_id = target_id or self.current
         if target_id is None:
             if self.pin_tab and self.extras.get("pinned_target"):
@@ -191,16 +222,15 @@ class State:
                     code="tab_gone",
                 )
             if self.extras.get("had_tab"):
-                raise BrowseError(
-                    "This session's tab was closed. Pick one with `ardia browse tab active` or `ardia browse tab <id>`, or open one with "
-                    "`ardia browse open <url>`",
-                    code="tab_gone",
-                )
-            target_id = await self.attach_active()
+                target_id = await self.follow_lost_tab()
+            else:
+                target_id = await self.attach_active()
         if target_id not in self.target_infos:
             await self.refresh_targets()
             if target_id not in self.target_infos:
                 self.forget_target(target_id)
+                if not explicit and target_id == self.extras.get("lost_tab", {}).get("target"):
+                    return await self.page()
                 raise BrowseError("That tab was closed", data={"targetId": target_id}, code="tab_gone")
         page = self.pages.get(target_id)
         if page is None:
@@ -210,6 +240,38 @@ class State:
         self.extras["had_tab"] = True
         command_metrics.spent("attach_ms", started)
         return page
+
+    async def follow_lost_tab(self) -> str:
+        lost = self.extras.get("lost_tab") or {}
+        gone = f" [{lost['tab']}]" if lost.get("tab") else ""
+        fix = "Pick one with `ardia browse tab active` or `ardia browse tab <id>`, or open one with `ardia browse open <url>`"
+        app_tab = lost.get("app")
+        if app_tab:
+            from ardia_cli.browse import tabs
+
+            await self.refresh_targets()
+            found = await tabs.app_tab_target(self, app_tab)
+            if found.get("target"):
+                target_id = found["target"]
+                self.current = target_id
+                self.app_tabs[target_id] = app_tab
+                self.extras.pop("lost_tab", None)
+                if lost.get("borrowed"):
+                    self.extras["attached"] = target_id
+                if lost.get("opened"):
+                    self.opened.add(target_id)
+                    self.registry.note_opened(self.instance, target_id)
+                if self.pin_tab and self.extras.get("pinned_target") == lost.get("target"):
+                    self.extras["pinned_target"] = target_id
+                self.extras["notice"] = (f"→ Ardia replaced the page of this session's tab{gone} ({app_tab}), so the session follows it: "
+                                         f"[{self.tab_id(target_id)}] {found.get('title') or found.get('url') or ''}")
+                return target_id
+            if found.get("asleep"):
+                raise BrowseError(f"This session's tab{gone} ({app_tab}) is still open in Ardia, but Ardia unloaded its page, so there is "
+                                  f"nothing to drive until it loads again (click it in Ardia, or `ardia browse open <url>` for a copy). {fix}",
+                                  data={"appTabId": app_tab}, code="tab_asleep")
+        raise BrowseError(f"This session's tab{gone} is gone (closed, or Ardia replaced its page and didn't say which page took over). {fix}",
+                          code="tab_gone")
 
     async def attach_active(self) -> str:
         target_id = await self.active_target()
@@ -224,6 +286,9 @@ class State:
         self.extras["attached"] = target_id
         if self.pin_tab:
             self.extras["pinned_target"] = target_id
+        from ardia_cli.browse import tabs
+
+        await tabs.app_tab_map(self)
         info = self.target_infos[target_id]
         label = " - ".join(part for part in (info.get("title"), info.get("url")) if part)
         self.extras["notice"] = f"→ This session had no tab, so it uses the active one: [{self.tab_id(target_id)}] {label}"
@@ -360,11 +425,28 @@ class State:
             raise StaleRef(ref_id, "the page navigated since that snapshot")
         element = await page.resolve_backend(ref.backend, ref.frame, f"@{ref_id}")
         if element is None:
-            raise StaleRef(ref_id, "the element is no longer in the page")
+            raise StaleRef(ref_id, "the element is no longer in the page" + await self.redrawn_as(page, ref))
         connected = await page.call("(el) => el.isConnected", element, frame=ref.frame)
         if not connected:
-            raise StaleRef(ref_id, "the element was removed from the page")
+            raise StaleRef(ref_id, "the element was removed from the page" + await self.redrawn_as(page, ref))
         return page, element
+
+    async def redrawn_as(self, page: Page, ref: Ref) -> str:
+        from ardia_cli.browse import snapshot
+
+        if not ref.role or not ref.name:
+            return ""
+        try:
+            nodes = await snapshot.collect(self, page)
+            self.set_refs(snapshot.refs_of(self, page, nodes), None, page)
+        except ConnectionLost:
+            raise
+        except Exception:
+            return ""
+        same = [node.ref for node in snapshot.walk(nodes) if node.ref and node.role == ref.role and node.name == ref.name]
+        if len(same) != 1:
+            return ""
+        return f'; the page redrew it, and the same {ref.role} "{ref.name}" is now @{same[0]}'
 
     async def locate(self, selector: str, page: Page | None = None):
         ref = parse_ref(selector)
@@ -384,13 +466,16 @@ class State:
             )
         return page, element
 
-    def describe_tabs(self) -> list[dict]:
+    def describe_tabs(self, app_tabs: dict[str, str] | None = None) -> list[dict]:
+        opened_elsewhere, used_elsewhere = self.registry.others(self.instance)
+        hidden = self.registry.hidden(self.instance) - {self.current}
         rows = []
         for target_id, info in self.target_infos.items():
-            if info.get("url") == "about:blank" and target_id not in self.opened and target_id != self.current:
+            if info.get("url") == "about:blank" and target_id not in self.opened and target_id != self.current or target_id in hidden:
                 continue
             rows.append({
                 "tabId": self.tab_id(target_id),
+                "appTabId": (app_tabs or {}).get(target_id) or self.app_tabs.get(target_id),
                 "label": next((label for label, owner in self.labels.items() if owner == target_id), None),
                 "targetId": target_id,
                 "title": info.get("title") or "",
@@ -398,16 +483,23 @@ class State:
                 "type": "page",
                 "active": target_id == self.current,
                 "openedBySession": target_id in self.opened,
+                "openedBy": self.session if target_id in self.opened else opened_elsewhere.get(target_id),
+                "usedBy": used_elsewhere.get(target_id, []),
             })
-        rows.sort(key=lambda row: int(row["tabId"][1:]))
+        rows.sort(key=lambda row: int(row["tabId"][1:]) if row["tabId"][1:].isdigit() else 0)
         return rows
 
-    def find_tab(self, ref: str) -> str:
+    async def find_tab(self, ref: str) -> str:
+        from ardia_cli.browse import tabs
+
         if ref in self.labels:
             return self.labels[ref]
         for target_id, tab in self.tab_ids.items():
             if tab == ref and target_id in self.target_infos:
                 return target_id
+        shared = self.registry.target_of(self.instance, ref)
+        if shared in self.target_infos:
+            return shared
         if ref in self.target_infos:
             return ref
         upper = ref.upper()
@@ -416,6 +508,12 @@ class State:
             return matches[0]
         if ref.isdigit():
             raise BrowseError(f"Tab ids look like t{ref}, not {ref}; run `ardia browse tab` to list open tabs")
+        if tabs.APP_TAB.fullmatch(ref):
+            found = await tabs.app_tab_target(self, ref)
+            if found.get("target"):
+                self.app_tabs[found["target"]] = ref
+                return found["target"]
+            raise BrowseError(found["error"], data={"appTabId": ref, "candidates": found.get("candidates", [])}, code=found["code"])
         raise BrowseError(f"Tab {ref} not found; run `ardia browse tab` to list open tabs", code="tab_not_found")
 
     def refs_json(self) -> dict:

@@ -86,8 +86,29 @@ python3 -I harness/bench.py stop
   6. Starts `claude -p` (stream-json) or `codex exec --json`, with the agent's own variables stripped from its
      environment.
   7. Records the check, `notes_after`, tokens, turns, commands, focus and timing in `runs/<run_id>.json`.
-- **A plan** runs `tasks x contenders x repeats` one run at a time. Each round rotates the task order and the
-  contender order.
+- **A plan** runs `tasks x contenders x repeats`, with each round rotating the task order and the contender order.
+  Runs go out in parallel lanes (`--max-lanes N`, default 6; 1 runs them one at a time). A central scheduler hands
+  out runs and decides when to add a lane:
+  - Two runs never use the same task at once, since they'd share its server and resets, so 8 is the hard ceiling.
+    Each task server is started once and shared.
+  - Aside has one lane, which its contenders take in turn. Each Ardia contender can have several lanes; lane `k`
+    gets its own copied app (`app-lane<k>/`), port (`port + k`), data dir and Codex home.
+  - Lanes are gated on memory. Used memory is (active + wired + compressed pages) / `hw.memsize`, from `vm_stat`:
+    - A new lane opens only under 70%, at least 20 s after the last one started its agent.
+    - At 75% nothing new opens until memory is back under 70%.
+    - Above 80%, a lane that finishes doesn't start its next run until memory is back under 75%.
+    - A running run is never killed.
+    - Extra lanes that sit idle for 2 minutes are quit.
+  - Contenders progress together: a contender may be at most 15% of its runs ahead of the slowest one, and at most
+    one round ahead (`pace_slack`, `max_round_lead` in the plan). That way no contender gets all its runs at quiet
+    moments.
+  - A rate limit or overloaded error counts as a harness error, is retried after 2 minutes, and drops that
+    contender to one lane. Other harness errors are retried too, at most 3 times per session.
+  - Every run records `lane`, `lanes_active`, `memory_used_pct_at_start` and `concurrent_runs`.
+    `<results>/memory.jsonl` samples memory and the active runs every 3 s.
+  - `--dry-run` prints the simulated timeline. It uses durations from the results dir if there are any, and a
+    modeled memory curve.
+  - `python3 -I harness/test_scheduler.py` tests the scheduler.
   - Aside contenders shell out to `node ~/ardia-scratch/aside-bench/bin/aside_run.mjs <run_id> --task <id>
     --registry tasks.json --out <results>/aside-raw --model <name> --visibility covered` (`BENCH_ASIDE_DRIVER`
     overrides the path). Their record is normalized into `runs/<run_id>.json`.
@@ -97,6 +118,49 @@ python3 -I harness/bench.py stop
   - `cells[]` has one entry per task and contender: `pass_rate`, `median_time_s`, `median_time_to_correct_s`,
     `median_tokens` and `median_commands`.
   - `overall[]` gives the same figures per contender.
+  - A cell has `serial_vs_parallel` when it has both runs that ran alone and runs that ran alongside others.
+  - `parallel` has the peak and median memory %, the average and maximum number of lanes, and the total wall time
+    (from `memory.jsonl`, summed over sessions).
+
+## OpenCode Browse side
+
+Contenders with `"kind": "opencode"` (`plans/opencode.json`) run the same agents, models, effort, prompt, deadline,
+checks and token accounting as the Ardia side. Only the browser and its tooling differ: [OpenCode
+Browse](https://github.com/anomalyco/browse), an MCP server and a Chromium extension. The extension drives tabs with
+`chrome.debugger`, and the relay runs the agent's Playwright code over that CDP link.
+
+Everything lives in `BENCH_OPENCODE_HOME` (default `~/ardia-scratch/opencode-browse`). Nothing goes into a real
+browser profile or an agent's global config:
+
+- `npm/`: `npm install --prefix … @opencode/browse`. `browse install` is never run, since it edits agent configs
+  and looks for the extension in real browser profiles.
+- `browsers/`: Chrome for Testing (`npx @puppeteer/browsers install chrome@stable --path …`).
+- `ext/store-0.0.10/`: the Chrome Web Store build of the extension (`mfnicocicmmlkpjnaffgihfjhdgjkdjg`), unpacked
+  with the store's public key so it keeps the store ID, which the relay trusts.
+- `lanes/lane<k>/`: wiped before every run. It holds the Chrome profile, the relay's data root (`browse/`), its XDG
+  folders, the Claude MCP config and the Codex `HOME`.
+
+Each run does the following, in order:
+
+1. Starts the task server and resets the task.
+2. Launches a fresh headless Chrome for Testing with the extension loaded. Headless never takes focus;
+   `frontmost_during_run` samples the front app every second to prove it.
+3. Starts the relay with `browse serve`. Port 19990 + k, auto-update off, autostart off.
+4. Pairs the extension without UI. `browse pair` mints a one-time code, and `harness/opencode_cdp.mjs` writes it with
+   the relay port into the extension's storage through its service worker.
+5. Opens `start_url` as the only tab and lends it to the agent with `Extensions.triggerAction`, the toolbar click a
+   user makes.
+6. Gives Claude `--mcp-config <lane>/mcp.json --strict-mcp-config`, and Codex `-c mcp_servers.browse.*`. That is the
+   same `node cli.mjs mcp` entry `browse install` writes, plus the isolation variables. The agent sees browse's 29
+   MCP tools and no skill file; browse's skill text comes only from its `skill` tool. The prompt's last line is ``Use
+   the `browse` MCP tools to reach this browser.``
+7. Records the same fields as an Ardia run. `commands` counts browse MCP calls plus shell commands
+   (`mcp_calls`, `shell_commands`, `browse_calls_by_tool` and `browse_calls` give the split). For Claude,
+   `agent_saw` holds the tool list from its init event.
+8. Quits Chrome and the relay.
+
+One run: `python3 -I harness/bench.py run calendar claude try-1 --side opencode --results …`.
 
 Scratch lives in `BENCH_HOME` (default `~/ardia-scratch/bench-proper`): `app/`, `cli/`, `devbin/`, `data-ardia/`,
-`work/`, `state/`, `logs/` and `results/`.
+`work/`, `state/`, `logs/` and `results/`, plus `app-lane<k>/`, `data-ardia-lane<k>/` and `codex-home-lane<k>/`
+for extra lanes.

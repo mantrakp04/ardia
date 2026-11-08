@@ -13,6 +13,8 @@ SKIPPED = {"none", "InlineTextBox", "LineBreak", "ListMarker"}
 LIFTED = {"generic", "GenericContainer", "group", "Section", "div", "presentation", "RootWebArea", "WebArea", "Ignored", "IgnoredRole"}
 MAX_NAME = 200
 VALUE_FIELDS = {"Date": "date", "DateTime": "datetime-local", "InputTime": "time", "ColorWell": "color"}
+ROLE_NAMES = {"DisclosureTriangle": "button"}
+MAX_SCOPES = 20
 FIELD_VALUE = "(el) => ({ type: el.type || null, value: 'value' in el ? String(el.value) : null, required: el.required === true })"
 
 
@@ -39,6 +41,12 @@ def _value(item) -> str:
     return str(value)
 
 
+def clipped(text: str) -> str:
+    from ardia_cli.redact import redact
+
+    return redact(text)[:MAX_NAME]
+
+
 def node_props(raw) -> dict:
     return {prop.get("name"): (prop.get("value") or {}).get("value") for prop in raw.get("properties") or []}
 
@@ -46,7 +54,7 @@ def node_props(raw) -> dict:
 def value_field(raw, role: str) -> Node:
     props = node_props(raw)
     props["inputType"] = VALUE_FIELDS[role]
-    return Node("textbox", _value(raw.get("name")).strip()[:MAX_NAME], _value(raw.get("value"))[:MAX_NAME], props, raw.get("backendDOMNodeId"))
+    return Node("textbox", clipped(_value(raw.get("name")).strip()), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"))
 
 
 def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[Node]:
@@ -71,7 +79,8 @@ def build_tree(ax_nodes: list[dict], scope_backend: int | None = None) -> list[N
             return children
         name = _value(raw.get("name")).strip() if role != "StaticText" else _value(raw.get("name"))
         props = node_props(raw)
-        node = Node(role, name[:MAX_NAME], _value(raw.get("value"))[:MAX_NAME], props, raw.get("backendDOMNodeId"), children)
+        role = ROLE_NAMES.get(role, role)
+        node = Node(role, clipped(name), clipped(_value(raw.get("value"))), props, raw.get("backendDOMNodeId"), children)
         if role in LIFTED and not name and scope_backend != raw.get("backendDOMNodeId"):
             node.role = "generic"
         return [node]
@@ -212,13 +221,44 @@ async def link_urls(page, nodes: list[Node], frame: str):
     await asyncio.gather(*(fetch(node) for node in links), return_exceptions=True)
 
 
-async def frame_nodes(page, frame: str, scope_backend: int | None = None) -> list[Node]:
+async def frame_nodes(page, frame: str, scope_backend: int | None = None, scopes: list[int] | None = None) -> list[Node]:
     params = {"frameId": frame}
     result = await page.send("Accessibility.getFullAXTree", params, timeout=60)
-    nodes = build_tree(result.get("nodes") or [], scope_backend)
+    raw = result.get("nodes") or []
+    if scopes is None:
+        nodes = build_tree(raw, scope_backend)
+    else:
+        nodes = []
+        seen: set = set()
+        for backend in scopes:
+            if backend in seen:
+                continue
+            found = build_tree(raw, backend)
+            seen.update(node.backend for node in walk(found))
+            nodes.extend(found)
     for node in walk(nodes):
         node.frame = frame
     return nodes
+
+
+async def scope_elements(state, page, selector: str):
+    from ardia_cli.browse.state import parse_ref
+
+    if parse_ref(selector):
+        _, element = await state.locate(selector, page)
+        return element.frame, [element]
+    frame = state.frame_for(page) or page.main_frame
+    try:
+        remote = await page.call("(s) => ardiaBrowse.queryAll(s)", selector, frame=frame, by_value=False, read=True)
+    except BrowseError as error:
+        raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
+    elements = await page.elements_from(remote, frame, selector, MAX_SCOPES)
+    if not elements:
+        raise BrowseError(
+            f"Element not found: {selector}. Verify the selector, role, or name is correct and the element exists in the DOM.",
+            code="not_found",
+        )
+    return frame, elements
 
 
 async def field_values(page, nodes: list[Node]):
@@ -232,7 +272,7 @@ async def field_values(page, nodes: list[Node]):
         if found.get("type"):
             node.props["inputType"] = found["type"]
         if found.get("value") is not None:
-            node.value = found["value"][:MAX_NAME]
+            node.value = clipped(found["value"])
         if found.get("required"):
             node.props["required"] = True
 
@@ -242,14 +282,14 @@ async def field_values(page, nodes: list[Node]):
 async def collect(state, page, selector=None, cursor=True) -> list[Node]:
     await page.refresh_frames()
     frame = state.frame_for(page) or page.main_frame
-    scope = None
+    scopes = None
     if selector:
-        _, element = await state.locate(selector, page)
-        scope = element.backend_id
-        frame = element.frame
-    nodes = await frame_nodes(page, frame, scope)
-    if scope is not None and not nodes:
-        raise BrowseError(f"Nothing in the accessibility tree under {selector}")
+        frame, elements = await scope_elements(state, page, selector)
+        scopes = [element.backend_id for element in elements]
+    nodes = await frame_nodes(page, frame, scopes=scopes) if scopes else await frame_nodes(page, frame)
+    if scopes and not nodes:
+        many = f"all {len(scopes)} elements matching it are" if len(scopes) > 1 else "the element matching it is"
+        raise BrowseError(f"Nothing in the accessibility tree under {selector}: {many} hidden or empty")
     for node in list(walk(nodes)):
         if node.role in ("Iframe", "iframe") and node.backend is not None:
             try:
@@ -272,7 +312,7 @@ async def collect(state, page, selector=None, cursor=True) -> list[Node]:
                 element = await page.resolve_backend(node.backend, node.frame, "clickable")
                 if element is not None:
                     text = await page.call("(el) => (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim()", element, frame=node.frame)
-                    node.name = (text or "")[:MAX_NAME]
+                    node.name = clipped(text or "")
     await field_values(page, nodes)
     for node in walk(nodes):
         if node.role in REF_ROLES or node.hints:

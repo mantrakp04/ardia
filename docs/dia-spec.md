@@ -91,6 +91,19 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
   9 pt from the card. Dia's own inset is 6 with the card at the sidebar's width. The traffic lights
   and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
+- The frame is a setting (issue #66, 2026-11-07): `pageFrame`, 0–12 pt, default `CARD_INSET` (9), so the default look
+  is the one above. Settings › Appearance › Page Frame and onboarding's "How much frame?" (`pageFrameOf` in
+  `windowLayout.ts`, `components/window/cardFrame.ts`). The inset applies at the window's edges, below the top strip's
+  sides, in Little Ardia below its bar, and to the peek panel's top, bottom and side (its side is `min(5, frame)`);
+  split panes and the extension side panel sit `max(frame, 2)` apart, so two panes still read as two edge to edge.
+  Docked beside the sidebar the card starts at the sidebar's edge for any frame up to 9 (the sidebar's rows keep their
+  9 pt), and `frame - 9` past it above that. The corner radius scales with the frame, `10 × min(1, frame / 9)` rounded
+  to half points (0 edge to edge, where the window's own corner rounds the page), and the peek's is
+  `min(12, radius + frame - its side)`, so its corners still cover the card's. The traffic lights stay 21 pt below the
+  card's top (y = frame + 21; the compact toolbar lifts them as before). Below an 8 pt frame the sidebar's peek strip
+  would lie over the page, so the native edge watch takes the 8 pt band instead and clicks there reach the page.
+  Measured in a hidden instance (2x snapshots): card at 0/5/9/12 is 0/5/9/12 pt from the window's edges (docked: x 190,
+  190, 190, 193), corner radius 0 / 5.5 / 10 / 10 pt.
 - Fill: `WindowContent/BaseTint`, #121212 at 60% (dark) or white at 80% (light), over the window
   tint. Samples: `#1B1416` at the top, `#1F1C1D` at the bottom. Web content is opaque and sits
   below the toolbar; the toolbar itself is translucent card.

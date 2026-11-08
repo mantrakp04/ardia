@@ -250,3 +250,49 @@ test("another window taking a shared pin's page closes the peek opened from it",
   assert.equal(S().peeks[b], undefined);
   assert.equal(S().tabs[id], undefined);
 });
+
+test("a clicked new-tab link peeks from a pinned tab when its destination, unwrapped, leaves the site", async () => {
+  const { newTabLinkRoute, leavesSite } = await import("./newTabLinkRoute.ts");
+  const { linkDestination } = await import("../../lib/linkWrappers.ts");
+  assert.equal(linkDestination("https://www.google.com/url?q=https%3A%2F%2Fdocs.example%2Fa%3Fb%3D1&sa=D"), "https://docs.example/a?b=1");
+  assert.equal(linkDestination("https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fx.example%2F&data=1"), "https://x.example/");
+  assert.equal(linkDestination("https://l.facebook.com/l.php?u=https%3A%2F%2Fy.example%2F&h=AT0"), "https://y.example/");
+  assert.equal(linkDestination("https://slack-redir.net/link?url=https%3A%2F%2Fz.example"), "https://z.example");
+  assert.equal(linkDestination("https://www.google.com/url?q=javascript:alert(1)"), "https://www.google.com/url?q=javascript:alert(1)");
+  assert.equal(linkDestination("https://www.google.com/search?q=https%3A%2F%2Fa.example"), "https://www.google.com/search?q=https%3A%2F%2Fa.example");
+  assert.ok(leavesSite("https://www.google.com/url?q=https://dest.example/", "https://mail.google.com/mail/u/0/"));
+  assert.ok(!leavesSite("https://www.google.com/url?q=https://mail.google.com/x", "https://mail.google.com/mail/u/0/"));
+  assert.ok(!leavesSite("https://example.com/a", "https://www.example.com/b"));
+
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  const w = S().createWindow({ url: "https://mail.example/" });
+  const [pinned] = S().windows[w].tabIds;
+  S().pinTabs([pinned], true);
+  const regular = S().newTab(w, { url: "https://mail.example/" });
+  const away = "https://www.google.com/url?q=https%3A%2F%2Fother.example%2F";
+  assert.equal(newTabLinkRoute(S(), pinned, away), "tab");
+  S().updateSettings({ peekLinksToOtherSites: true });
+  assert.equal(newTabLinkRoute(S(), pinned, away), "otherSite");
+  assert.equal(newTabLinkRoute(S(), pinned, "https://mail.example/inbox"), "tab");
+  assert.equal(newTabLinkRoute(S(), regular, away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "peek" });
+  assert.equal(newTabLinkRoute(S(), regular, "https://mail.example/inbox"), "peek");
+  assert.equal(newTabLinkRoute(S(), regular, "about:blank"), "tab");
+  S().activate(pinned);
+  const peek = S().openPeek(pinned, "https://peek.example/");
+  assert.equal(newTabLinkRoute(S(), peek, away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "littleArdia" });
+  assert.equal(newTabLinkRoute(S(), regular, away), "littleArdia");
+  assert.equal(newTabLinkRoute(S(), pinned, away), "otherSite");
+  const small = S().createWindow({ kind: "small", url: "https://little.example/" });
+  assert.equal(newTabLinkRoute(S(), S().windows[small].tabIds[0], away), "tab");
+  S().updateSettings({ newTabLinksOpenIn: "tab", peekLinksToOtherSites: false });
+});
+
+test("a peek can adopt the page Chrome already opened for the link", () => {
+  const { w, a } = windowWithTabs();
+  const id = S().openPeek(a, "https://peek.example/", { x: 1, y: 2 }, { adoptId: "ardiacore:7" });
+  assert.equal(S().tabs[id].page.kind, "adopted");
+  assert.equal(S().tabs[id].page.adopt, "ardiacore:7");
+  assert.equal(peekTabId(S(), w), id);
+});

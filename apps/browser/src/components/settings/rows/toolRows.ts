@@ -146,7 +146,7 @@ export const toolRows = {
       rows: {
         showFullUrl: { advanced: true, title: "Show full URL in the address bar", description: "Instead of the site alone.", keywords: ["address", "url", "https"] },
         warnMovingTabs: { advanced: true, title: "Warn before moving tabs between profiles", description: "Some site data doesn't come along.", keywords: ["confirm"] },
-        bookmarksImport: { advanced: true, title: "Show the Import bookmarks button", description: "On an empty bookmarks bar.", keywords: ["bookmarks bar"] },
+        bookmarksImport: { advanced: true, title: "Show the Import bookmarks button", description: "On an empty bookmarks bar.", keywords: ["bookmarks bar"], shown: (s) => s.showBookmarks },
       },
     },
     {

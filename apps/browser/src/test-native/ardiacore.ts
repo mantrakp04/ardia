@@ -5,6 +5,7 @@ import type {
   CallName,
   CallResult,
   CliControlStatus,
+  CliTabTarget,
   EngineBookmark,
   EngineEvents,
   EventName,
@@ -34,6 +35,7 @@ const testGlobals = globalThis as {
   acTestTabStrip?: TabStripHost;
   acTestCliControl?: (on: boolean | null) => Promise<CliControlStatus> | undefined;
   acTestCliActive?: (tabId: string | null) => Promise<CliControlStatus> | undefined;
+  acTestCliTargets?: (tabId: string) => CliTabTarget | undefined;
   acTestUserScripts?: { engine: ExtensionEngine };
 };
 
@@ -313,6 +315,7 @@ const fakeModules = {
       cliControlStatus: () => cliControl(null),
       setCliControl: ({ on }) => cliControl(on),
       setCliActiveTab: ({ tabId }) => testGlobals.acTestCliActive?.(tabId) ?? cliStatus(null),
+      cliTabTargets: ({ tabIds }) => Object.fromEntries(tabIds.map((id) => [id, testGlobals.acTestCliTargets?.(id) ?? { targetId: null, pageGeneration: 0 }])),
     },
     { inputIdleSeconds: () => 3600 },
   ),

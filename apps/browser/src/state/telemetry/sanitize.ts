@@ -223,6 +223,8 @@ export function nativeCrashExceptions(report: NativeCrash) {
   return { name, signal, reason, subtype, images, exceptions: [thrown, crash] };
 }
 
+export const nativeCrashTermination = (namespace: string | undefined) => (namespace && SUBTYPE.test(namespace) ? namespace : null);
+
 type PropertyValue = string | number | boolean | null;
 
 export function cleanProperties(props: Record<string, unknown>): Record<string, PropertyValue> {

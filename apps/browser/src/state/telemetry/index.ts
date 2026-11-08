@@ -6,6 +6,8 @@ import { devDaily, sendDailyPing, startDaily } from "./daily";
 import { captureException, installErrorReporting, reportNativeCrashes } from "./errors";
 import { devJourneys, emitJourneys } from "./journeys";
 import { devOmniboxSampler } from "./track";
+import { hardwareProperties, recordContext } from "./diagnostics";
+import { devTabPresses } from "./tabPresses";
 import { devHourly, sessionEnding, startUsage } from "./usage";
 
 export { installErrorReporting };
@@ -28,6 +30,9 @@ export function startTelemetry() {
       emitJourneys,
       quit: sessionEnding,
       reportNativeCrashes,
+      recordContext,
+      hardwareProperties,
+      tabPresses: devTabPresses,
       captureException,
       reportTestError: () =>
         captureException(

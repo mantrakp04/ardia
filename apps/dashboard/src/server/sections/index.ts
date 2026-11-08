@@ -2,6 +2,7 @@ import type { RangeKey } from "../../lib/range";
 import { githubPage } from "../github";
 import { attention } from "./attention";
 import { errorsExceptions, errorsLogs } from "./errors";
+import { feedbackCli } from "./feedback";
 import { funnelsInstalls, funnelsRetention, funnelsSite } from "./funnels";
 import { healthVersions } from "./health";
 import { performanceAll } from "./performance";
@@ -30,6 +31,7 @@ export const sections = {
   "site.vitals": siteVitals,
   "errors.exceptions": errorsExceptions,
   "errors.logs": errorsLogs,
+  "feedback.cli": feedbackCli,
   github: (_range: RangeKey) => githubPage(),
 } satisfies Record<string, (range: RangeKey, signal?: AbortSignal) => Promise<unknown>>;
 

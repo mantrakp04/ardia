@@ -1,3 +1,4 @@
+import { measuredLine, olderThanHeadline, type DatedBrowser } from "./benchDates";
 import { REPO } from "./release";
 type RawBrowser = {
   name: string;
@@ -7,6 +8,7 @@ type RawBrowser = {
   min?: number | null;
   max?: number | null;
   n?: number | null;
+  measured?: string | null;
 };
 type RawRow = {
   id: string;
@@ -17,9 +19,16 @@ type RawRow = {
   browsers: RawBrowser[] | Record<string, RawBrowser>;
 };
 type MeasuredBrowser = Omit<RawBrowser, "median"> & { median: number };
-type Measured = Omit<RawRow, "browsers"> & { browsers: RawBrowser[]; measured: MeasuredBrowser[] };
+type Measured = Omit<RawRow, "browsers"> & { browsers: RawBrowser[]; measured: MeasuredBrowser[]; older: string | null };
 type RawMachine = { model?: string; chip?: string; cores?: number | string; ram?: string | number; macOS?: string };
-type RawBench = { date: string; machine: string | RawMachine; method?: string; rows: RawRow[] };
+type RawHeadline = { name: string; version?: string | null; measured?: string | null };
+type RawBench = {
+  date: string;
+  machine: string | RawMachine;
+  browsers?: Record<string, RawHeadline>;
+  method?: string;
+  rows: RawRow[];
+};
 
 const SHOWN = /^(ardia|dia|helium)\b/i;
 
@@ -58,6 +67,8 @@ export type Bench = {
   groups: Group[];
   date: string;
   measured: string;
+  dated: string | null;
+  span: string;
   machine: string;
   versions: string;
   rivals: string[];
@@ -182,7 +193,7 @@ function shapeRow(row: Measured): Omit<Row, "sub"> | null {
     id: slug(row.id),
     label: row.label,
     caption: [row.label, `in ${row.unit}`, runs?.toLowerCase(), direction.toLowerCase()].filter(Boolean).join(", "),
-    meta: [runs, direction].filter(Boolean).join(" · "),
+    meta: [runs, direction, row.older].filter(Boolean).join(" · "),
     call: callFor(row, entries, kind),
     bars,
     lead: leadOverDia(row, entries),
@@ -248,16 +259,33 @@ function machineOf(machine: string | RawMachine): string {
   return [machine.model, machine.chip, ram, machine.macOS && `macOS ${machine.macOS}`].filter(Boolean).join(", ");
 }
 
-const hasMedian = (b: RawBrowser): b is MeasuredBrowser => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0;
+const hasMedian = <B extends RawBrowser>(b: B): b is B & { median: number } => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0;
 
-function measure(row: RawRow): Measured {
-  const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers)).filter((b) => SHOWN.test(b.name.trim()));
-  return { ...row, browsers, measured: browsers.filter(hasMedian) };
+function headlinesOf(source: RawBench): DatedBrowser[] {
+  const listed = source.browsers ? Object.values(source.browsers) : [];
+  const fromRows = source.rows.flatMap((r) => (Array.isArray(r.browsers) ? r.browsers : Object.values(r.browsers)));
+  const seen = new Map<string, DatedBrowser>();
+  for (const b of [...listed, ...fromRows])
+    if (SHOWN.test(b.name.trim()) && !seen.has(b.name))
+      seen.set(b.name, { name: b.name, version: b.version, measured: b.measured ?? source.date });
+  return [...seen.values()];
+}
+
+function measure(row: RawRow, headline: Map<string, string>, date: string): Measured {
+  const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers))
+    .filter((b) => SHOWN.test(b.name.trim()))
+    .map((b) => ({ ...b, measured: b.measured ?? headline.get(b.name) ?? date }));
+  const measured = browsers.filter(hasMedian);
+  const older = olderThanHeadline(measured, headline);
+  return { ...row, browsers, measured, older };
 }
 
 function build(source: RawBench | undefined, isSample: boolean): Bench | null {
   if (!source?.rows?.length) return null;
-  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map(measure) };
+  const headlines = headlinesOf(source);
+  const headline = new Map(headlines.map((b) => [b.name, b.measured]));
+  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map((r) => measure(r, headline, source.date)) };
+  const days = headlines.map((b) => b.measured).sort();
   const groups = groupRows(raw.rows);
   if (!groups.length) return null;
   return {
@@ -265,6 +293,8 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
     groups,
     date: formatDate(raw.date),
     measured: raw.date,
+    dated: measuredLine(headlines),
+    span: days.length && days[0] !== days[days.length - 1] ? `${days[0]}/${days[days.length - 1]}` : raw.date,
     machine: raw.machine,
     versions: versionsOf(raw.rows),
     rivals: [...new Set(raw.rows.flatMap((r) => r.browsers.map((b) => b.name)))].filter((n) => !isArdia(n)),

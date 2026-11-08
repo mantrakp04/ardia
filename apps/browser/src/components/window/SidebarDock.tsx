@@ -2,7 +2,7 @@ import { onWindowEvent, watchSidebarEdge } from "../../state/windows/nativeWindo
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { switchOn } from "../../state/app/switches";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowDragRegion } from "../ui";
 import { useSidebarSide, useWindowId } from "../../state/browser/hooks";
@@ -13,14 +13,13 @@ import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
 import { ProfileSwipe } from "./ProfileSwipe";
-import { ARC_HIDE_MS, DOCK_SPRING, PEEK_RADIUS, SHADOWS } from "./tokens";
+import { ARC_HIDE_MS, DOCK_SPRING, SHADOWS } from "./tokens";
 import {
-  PEEK_BOTTOM,
-  PEEK_ORIGIN,
   PEEK_EDGE_STRIP,
   dockMove,
   dockState,
   dockedCardInset,
+  edgeStripOverPage,
   edgeWatchWidth,
   fromSidebarEdgeInStrip,
   inPeekHold,
@@ -40,6 +39,7 @@ import {
 import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
 import { useSidebarLights, useTopStripLights } from "./useDockLights";
+import { useCardFrame } from "./cardFrame";
 
 const SPRING = spring(DOCK_SPRING);
 
@@ -105,16 +105,17 @@ export function DockedLayout({
   const toolbarLights = useToolbarLightsCenter();
   const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
   const { dock, away } = useSidebarDock(open, !fullscreen, arc);
+  const frame = useCardFrame();
   const sideInset = right ? inset.right : inset.left;
   const edge = useMemo(
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [sideInset, dockedCardInset(width)],
+        outputRange: [sideInset, dockedCardInset(width, frame.inset)],
       }),
-    [dock, width, sideInset],
+    [dock, width, sideInset, frame.inset],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [layout.cardInset, inset.top] }), [dock, inset.top]);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [frame.inset, inset.top] }), [dock, frame.inset, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
@@ -192,7 +193,9 @@ function SidebarDock({
   latestPeek.current = peek;
   useEffect(() => (peek.live ? watchHolds("peek", () => latestPeek.current.recheck()) : undefined), [peek.live]);
   const state = dockState({ open, fullscreen, moving, peekLive: peek.live });
-  const holdWidth = peekHoldWidth(width);
+  const frame = useCardFrame();
+  const peekAt = frame.peek;
+  const holdWidth = peekHoldWidth(width, peekAt.left);
   const holdHeight = useRef(Infinity);
   const inHold = (stripX: number, y: number) => inPeekHold(fromSidebarEdgeInStrip(stripX, right), y, holdWidth, holdHeight.current);
   const peeking = state === "peeking";
@@ -200,7 +203,7 @@ function SidebarDock({
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
   const watching = watchesEdge(state, moving);
   const draggingTab = useTabDrag((d) => d.phase === "tab" && d.windowId === windowId);
-  const nativeHold = edgeWatchWidth(peeking, draggingTab, holdWidth);
+  const nativeHold = edgeWatchWidth(peeking, draggingTab, holdWidth, frame.inset);
   useEffect(() => {
     if (!watching) return;
     const sub = onWindowEvent((e) => {
@@ -209,14 +212,14 @@ function SidebarDock({
       if (e.over) latestPeek.current.show();
       else latestPeek.current.hide();
     });
-    watchSidebarEdge(windowId, true, nativeHold, right);
+    watchSidebarEdge(windowId, true, nativeHold, right, peeking || draggingTab);
     return () => {
       sub.remove();
       watchSidebarEdge(windowId, false);
       edgeOver.current = false;
     };
-  }, [windowId, watching, nativeHold, right]);
-  useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth)), [windowId, peek.live, width, right, windowWidth]);
+  }, [windowId, watching, nativeHold, right, peeking || draggingTab]);
+  useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth, peekAt.left)), [windowId, peek.live, width, right, windowWidth, peekAt.left]);
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
   const panel = useRef(false);
@@ -228,7 +231,7 @@ function SidebarDock({
     () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12 * outward, width * outward] }),
     [peek.slide, width, outward],
   );
-  useSidebarLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights, right });
+  useSidebarLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights, right, peekAt });
   const edgeSide = right ? "right" : "left";
   const sidebar = useMemo(
     () => (
@@ -271,14 +274,14 @@ function SidebarDock({
       )}
       {strip.current && (
         <View
-          pointerEvents={!open && !fullscreen ? "auto" : "none"}
+          pointerEvents={!open && !fullscreen && !edgeStripOverPage(frame.inset) ? "auto" : "none"}
           onMouseEnter={peek.show}
           onMouseLeave={leaveStrip}
           style={{
             position: "absolute",
             [edgeSide]: 0,
             top: 0,
-            bottom: layout.cardInset,
+            bottom: frame.inset,
             width: !open && !fullscreen ? PEEK_EDGE_STRIP : 0,
           }}
         />
@@ -287,9 +290,9 @@ function SidebarDock({
         pointerEvents={fullscreen || moving || (!open && !peeking) ? "none" : "auto"}
         style={{
           position: "absolute",
-          ...(away ? { left: -10_000 } : { [edgeSide]: peeking ? PEEK_ORIGIN[0] : 0 }),
-          top: peeking ? PEEK_ORIGIN[1] : 0,
-          bottom: peeking ? PEEK_BOTTOM : 0,
+          ...(away ? { left: -10_000 } : { [edgeSide]: peeking ? peekAt.left : 0 }),
+          top: peeking ? peekAt.top : 0,
+          bottom: peeking ? peekAt.bottom : 0,
           width,
           transform: [{ translateX: slideOut }],
         }}
@@ -299,10 +302,10 @@ function SidebarDock({
             pointerEvents="none"
             style={[StyleSheet.absoluteFill, peekStyle, { opacity: panelOpacity }]}
           >
-            <Panel fill={theme.windowTint[0]} radius={PEEK_RADIUS} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
+            <Panel fill={theme.windowTint[0]} radius={peekAt.radius} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
           </Animated.View>
         )}
-        <Animated.View style={[{ flex: 1 }, peekStyle, peeking ? { borderRadius: PEEK_RADIUS, overflow: "hidden" } : null]}>
+        <Animated.View style={[{ flex: 1 }, peekStyle, peeking ? { borderRadius: peekAt.radius, overflow: "hidden" } : null]}>
           {sidebar}
         </Animated.View>
       </Animated.View>

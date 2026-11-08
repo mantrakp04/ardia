@@ -40,7 +40,7 @@ export async function errorsExceptions(range: RangeKey, signal?: AbortSignal) {
   const [recent, history] = await Promise.all([
     query(
       `SELECT uuid, toUnixTimestamp64Milli(timestamp), ${WHERE}, distinct_id, ${TYPE}, ${MESSAGE},
-         if(${SITE}, properties['release_version'], ${prop("$app_version")}),
+         if(${SITE}, properties['release_version'], if(properties['crashed_version'] != '', properties['crashed_version'], ${prop("$app_version")})),
          substring(properties['$exception_list'], 1, 12000), properties['$raw_user_agent'], properties['$current_url'],
          if(${SITE}, concat(${prop("$browser")}, ' ', properties['$browser_version'], ' · ', ${prop("$os")}), concat('macOS ', properties['$os_version'], ' · ', properties['arch'])),
          properties['$exception_level'], properties['crash_signal']

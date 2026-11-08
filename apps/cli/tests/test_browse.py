@@ -9,6 +9,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -470,6 +471,135 @@ class ClaimsTest(unittest.TestCase):
         self.assertEqual([n for n in os.listdir(root / "Browse" / "claims") if n.endswith(".json") and not n.startswith(".")], [])
 
 
+class TabIdsTest(unittest.TestCase):
+    def registries(self):
+        from ardia_cli.browse.tabs import Registry
+
+        fd = paths.browse_dir(scratch_dir(self))
+        self.addCleanup(os.close, fd)
+        locks = [paths.take_lock(f"{key}.lock", fd) for key in ("ka", "kb")]
+        for lock in locks:
+            self.addCleanup(os.close, lock)
+        return fd, Registry(fd, "ka", "one"), Registry(fd, "kb", "two")
+
+    def test_every_session_numbers_a_tab_the_same_and_ids_never_shift(self):
+        _, one, two = self.registries()
+        self.assertEqual(one.numbers("I", ["A", "B"]), {"A": "t1", "B": "t2"})
+        self.assertEqual(two.numbers("I", ["C", "B"]), {"C": "t3", "B": "t2"})
+        self.assertEqual(one.numbers("I", ["C"], present=["A", "C"], taken_at=time.time() + 1), {"C": "t3"})
+        self.assertEqual(two.numbers("I", ["D", "A"]), {"D": "t4", "A": "t1"})
+        self.assertEqual(one.target_of("I", "t4"), "D")
+        self.assertIsNone(one.target_of("I", "t2"))
+        self.assertEqual(one.numbers("J", ["A"]), {"A": "t1"})
+        self.assertIsNone(one.target_of("J", "t4"))
+
+    def test_sessions_see_what_others_opened_and_use_until_they_end(self):
+        fd, one, two = self.registries()
+        one.note_opened("I", "A")
+        one.note_using("I", "A")
+        two.note_using("I", "A")
+        self.assertEqual(two.others("I"), ({"A": "one"}, {"A": ["one"]}))
+        self.assertEqual(one.others("I"), ({}, {"A": ["two"]}))
+        one.forget()
+        self.assertEqual(two.others("I"), ({}, {}))
+
+    def test_a_session_that_died_without_cleaning_up_is_ignored(self):
+        from ardia_cli.browse.tabs import Registry
+
+        fd, one, _ = self.registries()
+        ghost = Registry(fd, "gone", "ghost")
+        ghost.note_opened("I", "A")
+        ghost.note_using("I", "A")
+        self.assertEqual(one.others("I"), ({}, {}))
+
+    def state_with(self, registry, targets):
+        state = State({"session": registry.session}, lambda: None)
+        state.registry = registry
+        state.instance = "I"
+        state.target_infos = {target: {"targetId": target, "url": url, "title": target} for target, url in targets.items()}
+        return state
+
+    def test_app_tab_ids_pair_only_by_the_target_ardia_reports(self):
+        from ardia_cli.browse import tabs
+
+        rows = [{"id": "tab-a", "url": "http://b/", "targetId": "A", "pageGeneration": 2}, {"id": "tab-b", "url": "http://a/", "targetId": "B"},
+                {"id": "tab-s", "url": "http://s/", "targetId": None}, {"id": "tab-x", "url": "http://x/", "targetId": "GONE"}]
+        infos = {"A": {"url": "http://a/"}, "B": {"url": "http://b/"}}
+        self.assertEqual(tabs.pair_by_target(rows, infos), {"A": {"app": "tab-a", "generation": 2}, "B": {"app": "tab-b", "generation": None}})
+        self.assertEqual(tabs.pair_by_target([{"id": "tab-a", "url": "http://a/"}], infos), {})
+
+    def test_tab_accepts_the_app_tab_id_and_explains_asleep_and_old_ardias(self):
+        from ardia_cli.browse import tabs
+
+        _, one, _ = self.registries()
+        state = self.state_with(one, {"A": "http://a/", "B1": "http://b/", "B2": "http://b/"})
+        windows = [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/", "targetId": "A"}, {"id": "tab-b", "url": "http://b/", "targetId": "B2"},
+                                         {"id": "tab-s", "url": "http://s/", "targetId": None}]}]
+
+        async def fake_windows(state):
+            return windows
+
+        with mock.patch.object(tabs, "app_windows", fake_windows):
+            self.assertEqual(asyncio.run(state.find_tab("tab-a")), "A")
+            self.assertEqual(asyncio.run(state.find_tab("tab-b")), "B2")
+            for ref, code in (("tab-s", "tab_asleep"), ("tab-zz", "tab_not_found")):
+                with self.assertRaises(BrowseError) as caught:
+                    asyncio.run(state.find_tab(ref))
+                self.assertEqual(caught.exception.code, code, ref)
+        windows[0]["tabs"] = [{"id": "tab-a", "url": "http://a/"}]
+        with mock.patch.object(tabs, "app_windows", fake_windows), self.assertRaises(BrowseError) as old:
+            asyncio.run(state.find_tab("tab-a"))
+        self.assertIn("doesn't say which page belongs to tab-a", old.exception.message)
+        self.assertEqual(asyncio.run(state.find_tab(state.tab_id("B2"))), "B2")
+
+    def replaced(self, rows, borrowed=False, opened=False):
+        from ardia_cli.browse import tabs
+
+        _, one, _ = self.registries()
+        state = self.state_with(one, {"OLD": "http://a/"})
+        state.current = "OLD"
+        if borrowed:
+            state.extras["attached"] = "OLD"
+        if opened:
+            state.opened.add("OLD")
+        state.app_tabs["OLD"] = "tab-a"
+        state.extras["had_tab"] = True
+        state.forget_target("OLD")
+        state.target_infos = {"NEW": {"targetId": "NEW", "url": "http://a/", "title": "A"}, "OTHER": {"targetId": "OTHER", "url": "http://a/", "title": "A"}}
+
+        async def refresh():
+            return list(state.target_infos.values())
+
+        async def fake_windows(state):
+            return [{"id": "w1", "tabs": rows}]
+
+        state.refresh_targets = refresh
+        with mock.patch.object(tabs, "app_windows", fake_windows):
+            try:
+                return state, asyncio.run(state.follow_lost_tab()), None
+            except BrowseError as error:
+                return state, None, error
+
+    def test_a_session_follows_its_tab_only_where_ardia_says_the_page_went(self):
+        state, target, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW", "pageGeneration": 3}], borrowed=True)
+        self.assertEqual((target, state.current), ("NEW", "NEW"))
+        self.assertIn("follows it", state.extras["notice"])
+        self.assertEqual(state.extras["attached"], "NEW")
+        self.assertNotIn("NEW", state.opened)
+        state, target, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW"}], opened=True)
+        self.assertIn("NEW", state.opened)
+        _, _, error = self.replaced([{"id": "tab-a", "url": "http://a/"}])
+        self.assertEqual(error.code, "tab_gone")
+        self.assertIn("didn't say which page took over", error.message)
+        _, _, asleep = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": None}])
+        self.assertEqual(asleep.code, "tab_asleep")
+
+    def test_open_after_following_a_borrowed_tab_still_opens_its_own_tab(self):
+        state, _, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW"}], borrowed=True)
+        borrowed = state.extras.get("attached") if state.current and state.current == state.extras.get("attached") else None
+        self.assertEqual(borrowed, "NEW")
+
+
 def ax(node_id, role, name="", parent=None, children=(), backend=None, value=None, props=None, ignored=False):
     node = {"nodeId": node_id, "role": {"value": role}, "name": {"value": name}, "childIds": list(children), "ignored": ignored}
     if parent:
@@ -616,7 +746,8 @@ class RenderTest(unittest.TestCase):
     def test_page_output_limits(self):
         result = commands.Result({}, "x" * 50, page_content=True)
         _, out, _ = daemon.render({"max_output": "10"}, result=result)
-        self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters; rerun with --max-output 50 or --full"))
+        self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters. Narrow it instead:"))
+        self.assertIn("Only if you need every line: --max-output 50]", out)
         _, out, _ = daemon.render({"content_boundaries": True}, result=commands.Result({}, "hi", page_content=True))
         self.assertRegex(out, r"^<<<PAGE_CONTENT [0-9a-f]{8}>>>\nhi\n<<<END_PAGE_CONTENT [0-9a-f]{8}>>>\n$")
 

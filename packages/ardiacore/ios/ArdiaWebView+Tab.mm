@@ -25,25 +25,59 @@ const NSUInteger kNewTabLinksKept = 4;
 
 @implementation ArdiaWebView (Tab)
 
-- (void)adoptIntoWindow {
-  if (_standalone) return;
+- (ArdiaCoreAdoption)windowTakes:(ArdiaCoreTab *)tab {
+  ArdiaCoreWindow *coreWindow = _standalone ? nil : self.controller.coreWindow;
+  return coreWindow ? [coreWindow canAdoptTab:tab] : ArdiaCoreAdoptionAdopted;
+}
+
+- (BOOL)holdTransferOf:(ArdiaCoreTab *)tab {
+  const ArdiaCoreAdoption adoption = [self windowTakes:tab];
+  if (adoption == ArdiaCoreAdoptionBusy) {
+    __weak ArdiaWebView *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf ensureTab];
+    });
+  } else if (adoption == ArdiaCoreAdoptionRefused) {
+    [self waitForWindow];
+    [self emit:@"transferRefused" payload:@{@"from" : [ArdiaWindowController holding:tab].appWindowId ?: @""}];
+  }
+  return adoption != ArdiaCoreAdoptionAdopted;
+}
+
+- (ArdiaCoreAdoption)adoptIntoWindow {
+  if (_standalone) return ArdiaCoreAdoptionAdopted;
   ArdiaWindowController *controller = self.controller;
-  if (!controller.coreWindow) return;
-  if ([[controller.coreWindow tabsForProfile:_tab.profile] containsObject:_tab]) return;
+  if (!controller.coreWindow) return ArdiaCoreAdoptionAdopted;
+  if ([[controller.coreWindow tabsForProfile:_tab.profile] containsObject:_tab]) return ArdiaCoreAdoptionAdopted;
   ArdiaWindowController *source = [ArdiaWindowController holding:_tab];
   _life.moving = YES;
   controller.hostChanges++;
   source.hostChanges++;
-  [controller.coreWindow adoptTab:_tab];
+  const ArdiaCoreAdoption adoption = [controller.coreWindow adoptTab:_tab];
   source.hostChanges--;
   controller.hostChanges--;
   _life.moving = NO;
-  if (_tabIndex >= 0) [self placeTab];
+  if (adoption == ArdiaCoreAdoptionAdopted && _tabIndex >= 0) [self placeTab];
+  return adoption;
+}
+
+- (void)adoptMovedPage {
+  ArdiaCoreTab *tab = _tab;
+  const ArdiaCoreAdoption adoption = [self adoptIntoWindow];
+  if (adoption == ArdiaCoreAdoptionBusy) {
+    __weak ArdiaWebView *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      ArdiaWebView *view = weakSelf;
+      if (view && view->_tab == tab && view.window) [view adoptMovedPage];
+    });
+  } else if (adoption == ArdiaCoreAdoptionRefused) {
+    [self emit:@"transferRefused" payload:@{@"from" : [ArdiaWindowController holding:tab].appWindowId ?: @""}];
+  }
 }
 
 - (void)attach:(ArdiaCoreTab *)tab {
   NSAssert(_life.canAttach(_tab != nil), @"a closed view, or one that has a tab, was given another tab");
-  if (!_life.canAttach(_tab != nil)) return;
+  if (!_life.canAttach(_tab != nil) || [self windowTakes:tab] != ArdiaCoreAdoptionAdopted) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ attach tab=%d visible=%d", _transferKey, (int)tab.tabId, _visible);
   const BOOL shownEarly = [ArdiaEarlyWindow holdsPage:tab];
   [LiveViews() addObject:self];
@@ -236,6 +270,7 @@ const NSUInteger kNewTabLinksKept = 4;
     @"postBody" : @NO,
   } mutableCopy];
   if (tab.profile.offTheRecord) payload[@"profile"] = ardia_host::OriginalProfileNameOf(tab.profile);
+  if ([disposition isEqualToString:@"foreground"]) payload[@"point"] = RecentClickPoint(self);
   [self emit:@"openWindow" payload:payload];
 }
 

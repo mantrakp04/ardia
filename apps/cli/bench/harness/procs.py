@@ -3,6 +3,7 @@ import os
 import re
 import signal
 import subprocess
+import threading
 import time
 import urllib.request
 
@@ -97,7 +98,7 @@ def read_json(path, default=None):
 
 def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
     tmp.replace(path)
 

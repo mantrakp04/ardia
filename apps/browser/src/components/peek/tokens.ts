@@ -8,3 +8,5 @@ export const PEEK_MOTION = {
   close: { duration: duration.base, easing: curve.exit },
   expand: { duration: duration.base, easing: curve.enter },
 } as const;
+
+export const PEEK_MARK = { scale: 0.625, plate: 1.5, radius: 3.5 } as const;

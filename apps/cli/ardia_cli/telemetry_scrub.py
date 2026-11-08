@@ -102,3 +102,52 @@ def exception_key(properties: dict) -> str:
     entry = properties["$exception_list"][0]
     last = entry["stacktrace"]["frames"][-1:] or [{}]
     return f"{entry['type']}|{entry['value']}|{last[0].get('module', '')}|{last[0].get('function', '')}"
+
+
+URL = re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.-]{1,15}://)([^\s/?#<>\"'`]*@)?([^\s/?#<>\"'`]*)([^\s?#<>\"'`]*)([?#][^\s<>\"'`]*)?")
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+KNOWN_SECRET = re.compile(
+    r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|xox[abposr]-[A-Za-z0-9-]{10,}"
+    r"|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
+)
+SENSITIVE_KEYWORD = re.compile(
+    r"(?i)password|passwd|pwd|secret|token|api[ _-]?key|apikey|authorization|bearer|basic|digest|cookie|session|credential"
+    r"|private[ _-]?key|auth"
+)
+REDACTED = "<redacted>"
+LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
+CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
+HOME_PATH = re.compile(r"(/Users/|/home/)[^/\s]+")
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+SCRUB_WINDOW = 2
+
+
+def scrub_url(match: re.Match) -> str:
+    scheme, _, host, path, rest = match.groups()
+    return f"{scheme}{host}{path}{'?<redacted>' if rest else ''}"
+
+
+def whole_words(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    space = max(cut.rfind(" "), cut.rfind("\n"), cut.rfind("\t"))
+    return cut[:space] if space > 0 else ""
+
+
+def redact_from_keyword(text: str) -> str:
+    found = SENSITIVE_KEYWORD.search(text)
+    return text if found is None else text[:found.start()] + REDACTED
+
+
+def free_text(text: str, limit: int) -> tuple[str, bool]:
+    clipped = len(text) > limit * SCRUB_WINDOW
+    text = whole_words(CONTROL.sub(" ", text), limit * SCRUB_WINDOW)
+    text = redact_from_keyword(text)
+    text = URL.sub(scrub_url, text)
+    text = KNOWN_SECRET.sub("<secret>", text)
+    text = EMAIL.sub("<email>", text)
+    text = LONG_TOKEN.sub("<secret>", text)
+    text = CARD_NUMBER.sub("<number>", text)
+    text = HOME_PATH.sub(lambda match: f"{match.group(1)}<user>", text).strip()
+    return (whole_words(text, limit).rstrip() or text[:limit], True) if len(text) > limit else (text, clipped)

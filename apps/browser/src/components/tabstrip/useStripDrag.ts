@@ -176,13 +176,14 @@ export function useStripDrag(item: StripDrag) {
           const bounds = typeof range === "function" ? range(grab) : range;
           const travelled = bounds ? Math.max(bounds[0], Math.min(bounds[1], g.dx)) : g.dx;
           let onto: DropTarget | null = null;
+          let carried = false;
           const outcome = releaseDrop({
             local: !!local,
             lifted,
             from,
             drops: !!drop,
             crossed,
-            endWindowDrag: endTabDrag,
+            endWindowDrag: () => (carried = endTabDrag()),
             landAcross: () => latest.current.cross?.land(drag.current.dx, grab, ids),
             clearAim: () => {
               setCross(false);
@@ -202,7 +203,8 @@ export function useStripDrag(item: StripDrag) {
             },
           });
           const to = outcome.kind === "settle" ? indexAt(g.dx) : NaN;
-          const click = to === from && Math.max(far, travel(g.moveX, g.moveY), travel(e.nativeEvent.pageX, e.nativeEvent.pageY)) <= TAB_CLICK_SLOP;
+          const stayed = to === from || (from < 0 && outcome.kind === "handedOff" && !lifted && !carried);
+          const click = stayed && Math.max(far, travel(g.moveX, g.moveY), travel(e.nativeEvent.pageX, e.nativeEvent.pageY)) <= TAB_CLICK_SLOP;
           endHeldTabPress(ids, click ? e : null);
           if (outcome.kind === "across") return settleAcross(outcome.landing);
           if (outcome.kind !== "settle") return reset();

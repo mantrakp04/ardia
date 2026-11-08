@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 48 }
+    Constant("apiVersion") { () -> Int in 52 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }
@@ -75,6 +75,8 @@ public class AppModule: Module {
     }
 
     AsyncFunction("crashReports") { (since: Double) -> [[String: Any]] in CrashReports.since(since) }
+    AsyncFunction("hardwareInfo") { () -> [String: Any] in DiagnosticsInfo.hardware() }
+    AsyncFunction("diagnosticsSample") { () -> [String: Any] in DiagnosticsInfo.sample() }
 
     AsyncFunction("openExternalURL") { (url: String) -> Bool in
       guard let target = URL(string: url), target.scheme != nil else { return false }

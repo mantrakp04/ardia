@@ -190,16 +190,21 @@ def write_private_json(name: str, dir_fd: int, value) -> None:
     os.rename(temp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
 
 
-def read_private_json(name: str, dir_fd: int, default=None):
+def read_private_json(name: str, dir_fd: int, default=None, limit: int = MAX_META):
     try:
         fd = open_private_file(name, dir_fd, os.O_RDONLY)
     except FileNotFoundError:
         return default
     try:
-        raw = os.read(fd, MAX_META + 1)
+        raw = b""
+        while len(raw) <= limit:
+            chunk = os.read(fd, limit + 1 - len(raw))
+            if not chunk:
+                break
+            raw += chunk
     finally:
         os.close(fd)
-    if len(raw) > MAX_META:
+    if len(raw) > limit:
         raise PathError(f"{name} is too large")
     try:
         return json.loads(raw)

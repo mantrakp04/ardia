@@ -1,7 +1,8 @@
 import { Button, FadeLabel, Symbol, Text, ToolbarRowContext } from "../ui";
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
+import { CARD_INSET } from "../../lib/windowLayout";
 import { pageHostLabel } from "../../lib/url";
 import { useTabLive } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
@@ -13,7 +14,7 @@ import { TabProgressBar } from "../toolbar/ProgressBar";
 import { insecureLevel } from "../toolbar/Toolbar";
 import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 
-export const SMALL_INSET = layout.cardInset;
+export const SMALL_INSET = CARD_INSET;
 export { SMALL_BAR_BUTTON, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS } from "./tokens";
 const MID = SMALL_BAR_HEIGHT / 2;
 const FIELD_HEIGHT = 28;

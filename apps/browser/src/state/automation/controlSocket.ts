@@ -17,7 +17,8 @@ import { noteCliCaller, noteSocketRun, noteSocketServing } from "../app/cliContr
 import { parseCliCaller, type CliCaller } from "../app/cliCaller";
 import { errorText } from "../../lib/errors";
 import { minimizedUrl } from "../../lib/urlParts";
-import { automationWindows } from "./automationWindows";
+import { automationWindows, type AutomationWindow } from "./automationWindows";
+import { cliTabTargets } from "../../platform/cli";
 import { TAB_IDLE_EVENTS, USER_IDLE_EVENTS, type AutomationEventName } from "./eventNames";
 import { commands, failure, hello, parseRequest, parseSubscription, planRun, type RequestId, type Subscription } from "./automationMethods";
 import { feedNeeds, stopFeed, updateFeed } from "./automationFeed";
@@ -102,18 +103,32 @@ export function handleControlRequest({ connection, generation: tagged, line }: C
     unwrittenRuns.add(ticket);
     noteSocketRun(1);
   }
-  let body: Body;
+  let body: Body | Promise<Body>;
   try {
     body = answer(connection, method, params);
   } catch (error) {
     body = failure("failed", errorText(error));
   }
-  try {
-    send(connection, id, body, ticket);
-  } catch (error) {
-    runWritten([ticket]);
-    throw error;
-  }
+  const reply = (settled: Body) => {
+    try {
+      send(connection, id, settled, ticket);
+    } catch (error) {
+      runWritten([ticket]);
+      throw error;
+    }
+  };
+  if (body instanceof Promise) void body.then(reply, (error) => reply(failure("failed", errorText(error))));
+  else reply(body);
+}
+
+export async function windowsWithTargets(windows: AutomationWindow[]): Promise<AutomationWindow[]> {
+  const ids = windows.flatMap((w) => w.tabs.map((t) => t.id));
+  const targets = ids.length ? await cliTabTargets(ids).catch(() => null) : {};
+  if (!targets) return windows;
+  return windows.map((w) => ({
+    ...w,
+    tabs: w.tabs.map((t) => ({ ...t, targetId: targets[t.id]?.targetId ?? null, pageGeneration: targets[t.id]?.pageGeneration ?? 0 })),
+  }));
 }
 
 function subscribe(connection: number, params: Record<string, unknown>): Body {
@@ -128,7 +143,7 @@ function subscribe(connection: number, params: Record<string, unknown>): Body {
   return { result: { ok: true, served: served.served, ...(sub.hooks === undefined || sub.hooks === null ? {} : { revisions: served.revisions }) } };
 }
 
-function answer(connection: number, method: string, params: Record<string, unknown>): Body {
+function answer(connection: number, method: string, params: Record<string, unknown>): Body | Promise<Body> {
   switch (method) {
     case "hello": {
       const caller = parseCliCaller(params.caller);
@@ -143,7 +158,7 @@ function answer(connection: number, method: string, params: Record<string, unkno
     case "commands":
       return { result: commands() };
     case "windows":
-      return { result: automationWindows(useBrowser.getState()) };
+      return windowsWithTargets(automationWindows(useBrowser.getState())).then((result) => ({ result }));
     case "subscribe":
       return subscribe(connection, params);
     case "answer": {

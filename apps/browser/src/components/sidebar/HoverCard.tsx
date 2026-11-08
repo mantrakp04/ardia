@@ -9,7 +9,8 @@ import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
 import { useHoverOrphaned, useIsShownTab } from "../../state/sidebar/hooks";
 import { useFolderPanel } from "../../state/sidebar/tileFolderUi";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayTitle } from "../../state/pins/organize";
+import { AwayTitleLabel } from "./AwayTitle";
 import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
@@ -20,6 +21,7 @@ import { ActionTile } from "../site/SiteControlsParts";
 import { SectionLabel } from "./SectionLabel";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
 import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
+import { useBookmarksShown } from "../../state/bookmarks/hooks";
 import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
@@ -80,16 +82,21 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const tab = useTab(tabId);
   const isActive = useIsShownTab(windowId, tabId);
   const bookmarked = useIsBookmarked(tab?.url ?? "");
+  const showBookmarks = useBookmarksShown();
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
   const sleeping = useIsSleeping(tabId);
   if (!tab) return null;
-  const away = awayFromPin(tab);
+  const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        {away ? (
+          <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />
+        ) : (
+          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        )}
       </View>
       {tab.url ? (
         <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
@@ -111,7 +118,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
       ) : null}
       <View style={{ flexDirection: "row", gap: space.xs, marginTop: space.m }}>
         <ActionTile caption icon={tab.pin ? "pin.slash" : "pin"} label={tab.pin ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
-        {tab.url ? (
+        {tab.url && showBookmarks ? (
           <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
             active={bookmarked}

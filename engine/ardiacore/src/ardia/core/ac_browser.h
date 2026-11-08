@@ -85,6 +85,9 @@ class WindowHost : public TabStripModelObserver,
   static WindowHost* ForContents(content::WebContents* contents);
 
   Browser* BrowserFor(Profile* profile);
+  bool AdmitsTabsFor(Profile* profile) const;
+  static bool LetsTabsGo(BrowserWindowInterface* browser,
+                         content::WebContents* contents);
   Browser* ExistingBrowserFor(Profile* profile) const;
   std::vector<Browser*> browsers() const;
   void SetActiveProfile(Profile* profile);
@@ -104,6 +107,7 @@ class WindowHost : public TabStripModelObserver,
 
   void ConfirmCloseWithDownloads(int count, base::OnceCallback<void(bool)> callback);
   void NotifyCloseCancelled();
+  void NotifyCanTakeTabs();
   void QuitCancelled();
 
   [[nodiscard]] base::AutoReset<OpenOrigin> ScopedPendingOpen(OpenOrigin origin) {
@@ -155,6 +159,7 @@ class WindowHost : public TabStripModelObserver,
   std::unique_ptr<views::Widget> widget_;
   NSView* __strong host_view_;
   std::map<Profile*, raw_ptr<Browser>> browsers_;
+  std::map<const Browser*, base::CallbackListSubscription> close_cancelled_;
   raw_ptr<Profile> active_profile_ = nullptr;
   CloseState close_state_ = CloseState::kOpen;
   raw_ptr<Browser> asking_ = nullptr;

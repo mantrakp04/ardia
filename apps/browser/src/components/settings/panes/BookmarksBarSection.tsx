@@ -1,15 +1,16 @@
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { PopUp } from "../../ui";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 
 export function BookmarksBarSection() {
   const mode = useSettings((s) => s.bookmarksBar);
   const size = useSettings((s) => s.bookmarksBarSize);
   return (
     <>
-      <SectionHeader title="Bookmarks Bar" />
+      <SectionHeader title="Bookmarks" />
       <Group>
+        <SettingToggle anchor="appearance.showBookmarks" />
         <Row anchor="appearance.bookmarksBar">
           <PopUp
             value={mode}

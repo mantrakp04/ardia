@@ -345,6 +345,9 @@ void QuietIdleTimers(base::CommandLine* command_line) {
 std::optional<int> ACMainDelegate::BasicStartupComplete() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   g_ardia_begin_frame_bridge = ExperimentOn("beginFrameBridge");
+  MergeFeatures(command_line, switches::kDisableFeatures,
+                "Glic,GlicActor,GlicActorUi,ApiGlicPrivate,ContextualCueing,"
+                "GlicZeroStateSuggestions");
   if (!command_line->HasSwitch(switches::kProcessType)) {
     g_ardia_background_instance = BackgroundInstance();
     DecideTestGateAtStartup();

@@ -8,7 +8,7 @@ final class FileDropView: ExpoView {
   static var lastFileDrag: [URL] = []
 
   let onDropUpdate = EventDispatcher()
-  var extensionPackagesOnly = false
+  var accepts = "links"
   private var count = 0
 
   required init(appContext: AppContext? = nil) {
@@ -17,7 +17,11 @@ final class FileDropView: ExpoView {
   }
 
   private func dropped(_ pasteboard: NSPasteboard) -> [[String: String]] {
-    extensionPackagesOnly ? DroppedLinks.extensionPackages(pasteboard) : DroppedLinks.items(pasteboard)
+    switch accepts {
+    case "extensionPackages": DroppedLinks.extensionPackages(pasteboard)
+    case "linksAndText": DroppedLinks.items(pasteboard, anyText: true)
+    default: DroppedLinks.items(pasteboard)
+    }
   }
 
   private func emit(_ phase: String, _ info: NSDraggingInfo, items: [[String: String]] = []) {

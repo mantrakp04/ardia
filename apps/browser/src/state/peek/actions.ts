@@ -9,6 +9,7 @@ import { openSplitPane } from "../splits/actions";
 import { showToast } from "../app/toasts";
 import { isPeekTab, otherSitePeekTabIds, shownPageId } from "./peek";
 import { closeFind } from "../find/actions";
+import { hostOf } from "@ardia/core";
 
 const store = () => useBrowser.getState();
 const closers = new Map<string, () => void>();
@@ -117,6 +118,27 @@ export function startPeeks() {
   useBrowser.subscribe(sync);
   useBrowser.subscribe(bumpOnFirstLoad);
   useBrowser.subscribe(refocusAfterClose);
+  useBrowser.subscribe(landBackOnSite);
+}
+
+const landed = new Set<string>();
+
+function landBackOnSite(s: BrowserState, prev: BrowserState) {
+  if (s.tabs === prev.tabs && s.peeks === prev.peeks) return;
+  const shown = new Set(Object.values(s.peeks).map((p) => p.tabId));
+  for (const id of landed) if (!shown.has(id)) landed.delete(id);
+  for (const [windowId, peek] of Object.entries(s.peeks)) {
+    const landing = peek.landing;
+    const url = s.tabs[peek.tabId]?.url ?? "";
+    if (!landing || landed.has(peek.tabId) || Date.now() > landing.until || hostOf(url) !== landing.host) continue;
+    landed.add(peek.tabId);
+    queueMicrotask(() => {
+      if (store().peeks[windowId]?.tabId !== peek.tabId) return;
+      if (landing.then === "tab") return openPeekAsTab(windowId);
+      store().closePeek(windowId);
+      store().navigate(peek.sourceId, url, { userInitiated: false });
+    });
+  }
 }
 
 function refocusAfterClose(s: BrowserState, prev: BrowserState) {

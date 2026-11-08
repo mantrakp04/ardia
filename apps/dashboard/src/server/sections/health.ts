@@ -30,14 +30,14 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
       signal,
     ),
     query(
-      `SELECT ${prop("$app_version")} AS v, ${MECHANISM} = 'native_crash' AS native, ${TYPE} AS type,
+      `SELECT if(properties['crashed_version'] != '', properties['crashed_version'], ${prop("$app_version")}) AS v, ${MECHANISM} = 'native_crash' AS native, ${TYPE} AS type,
          if(native, arrayStringConcat(arraySlice(arrayCompact(arrayMap(${FRAME_NAME}, ${OWN_FRAMES})), 1, 3), ' ← '), ${VALUE}) AS signature,
          count(), countIf(${since(w.start)}), uniq(distinct_id), uniqIf(distinct_id, ${since(w.start)}),
          min(toUnixTimestamp64Milli(timestamp)), max(toUnixTimestamp64Milli(timestamp)),
          any(properties['crash_signal']), any(${VALUE}),
          any(arraySlice(arrayMap(${FRAME_FULL}, ${FRAMES}), 1, 6)), any(arraySlice(arrayMap(${FRAME_FULL}, ${OWN_FRAMES}), 1, 6))
        FROM telemetry.events
-       WHERE event = '$exception' AND ${APP_SOURCE} AND ${since(DATA_START_MS)}
+       WHERE event = '$exception' AND ${APP_SOURCE} AND ${since(DATA_START_MS)} AND ${MECHANISM} != 'helper_crash'
        GROUP BY v, native, type, signature`,
       signal,
     ),

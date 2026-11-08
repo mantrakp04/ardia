@@ -130,16 +130,23 @@ def leading_tokens(argv: list) -> list:
     return tokens
 
 
-def cli_target(argv: list, env) -> Target | None:
-    tokens = leading_tokens(argv)
-    names = {token.split("=", 1)[0] for token in tokens if token.startswith("--")}
+def data_dir_arg(tokens: list) -> str | None:
     data_dir = None
     for index, token in enumerate(tokens):
         if token == "--data-dir" and index + 1 < len(tokens):
             data_dir = tokens[index + 1]
         elif token.startswith("--data-dir="):
             data_dir = token.split("=", 1)[1]
-    return target(data_dir or None, bool(names & TEST_ENDPOINT_FLAGS), env)
+    return data_dir or None
+
+
+def names_test_endpoint(tokens: list) -> bool:
+    return bool({token.split("=", 1)[0] for token in tokens if token.startswith("--")} & TEST_ENDPOINT_FLAGS)
+
+
+def cli_target(argv: list, env) -> Target | None:
+    tokens = leading_tokens(argv)
+    return target(data_dir_arg(tokens), names_test_endpoint(tokens), env)
 
 
 def consent(root: Path) -> str | None:
@@ -353,6 +360,12 @@ def finish(status: int, error: BaseException | None = None) -> None:
     if call is None:
         return
     try:
+        from ardia_cli import usage
+
+        usage.record(call, status, os.environ)
+    except Exception:
+        pass
+    try:
         where = cli_target(call.argv, os.environ)
         if where is None:
             return
@@ -374,6 +387,12 @@ def finish(status: int, error: BaseException | None = None) -> None:
                 os.close(dir_fd)
     except Exception:
         pass
+
+
+def finish_before_exec() -> None:
+    global _call
+    finish(0)
+    _call = None
 
 
 def report_exception(error: BaseException, mechanism: str, config: dict, fatal: bool = False) -> None:
@@ -531,14 +550,15 @@ def number(value, default: float = 0) -> float:
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) else default
 
 
-def start_flush(dir_fd: int, where: Target) -> None:
+def start_flush(dir_fd: int, where: Target, urgent: bool = False) -> None:
     claim = take_lock(FLUSH_CLAIM_LOCK, dir_fd)
     if claim is None:
         return
     try:
         state = read_state(dir_fd)
         now = time.time()
-        if number(state.get("next_at")) > now:
+        backing_off = number(state.get("failures")) > 0
+        if number(state.get("next_at")) > now and (backing_off or not urgent):
             return
         write_state(dir_fd, int(number(state.get("failures"))), now + FLUSH_INTERVAL_S)
     finally:

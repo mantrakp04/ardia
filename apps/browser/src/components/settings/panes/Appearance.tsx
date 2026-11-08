@@ -1,5 +1,5 @@
 import type { AppIcon } from "../../../state/app/appSettings";
-import { Box, GlassFill, liquidGlass, PopUp, radius, space, Toggle } from "../../ui";
+import { Box, GlassFill, liquidGlass, PopUp, radius, space, Text, Toggle } from "../../ui";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
@@ -9,6 +9,7 @@ import { Group, Row, SectionHeader } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
+import { PAGE_FRAME } from "../../../lib/windowLayout";
 import { BookmarksBarSection } from "./BookmarksBarSection";
 import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
@@ -42,6 +43,7 @@ export function AppearancePane() {
       </Box>
       <InterfaceStylePicker />
       <AddressBarPicker />
+      <PageFramePicker />
       <BookmarksBarSection />
       <SelectedTabGlowPicker />
       <ScrollBarsPicker />
@@ -148,6 +150,31 @@ function AddressBarPicker() {
         </Row>
         </Group>
       </Box>
+    </>
+  );
+}
+
+const FRAME_SLIDER_WIDTH = 160;
+const FRAME_VALUE_WIDTH = 36;
+const FRAME_CONTROL = { alignItems: "center" } as const;
+
+function PageFramePicker() {
+  const frame = useSettings((s) => s.pageFrame);
+  return (
+    <>
+      <SectionHeader title="Page Frame" />
+      <Group>
+        <Row anchor="appearance.pageFrame">
+          <Box row gap="m" style={FRAME_CONTROL}>
+            <View style={{ width: FRAME_SLIDER_WIDTH }}>
+              <AmountSlider value={frame / PAGE_FRAME.max} tooltip={`${frame} pt`} onChange={(v) => updateSettings({ pageFrame: Math.round(v * PAGE_FRAME.max) })} />
+            </View>
+            <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
+              {frame === 0 ? "None" : `${frame} pt`}
+            </Text>
+          </Box>
+        </Row>
+      </Group>
     </>
   );
 }

@@ -1,5 +1,5 @@
 ---
-import { computerUse as cu } from "../data/computerUse";
+import { computerUse as cu, type Pairing } from "../data/computerUse";
 
 interface Props {
   page?: boolean;
@@ -7,18 +7,17 @@ interface Props {
 const { page = false } = Astro.props;
 
 const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
-const charts = [
-  { key: "time", title: "Time", unit: "seconds" },
-  { key: "tokens", title: "Tokens", unit: "tokens" },
-] as const;
-const quips: Record<string, string> = {
-  sol: "Not close.",
-  opus: "Closer race. Still a W.",
-};
-const rivalCopy: Record<string, string> = {
-  sol: "faster than Aside at its best, window in front",
-  opus: "faster than Aside with its memory of the app",
-};
+const markGlyph = { pass: "✓", fail: "✗", mixed: "◐" } as const;
+const markWord = { pass: "all passed", fail: "failed", mixed: "some passed" } as const;
+
+const speedLine = (p: Pairing) =>
+  !p.speed ? "No timed tasks yet" : p.speed.even ? "Dead even with Aside on time" : p.speed.ardiaWins ? "faster than Aside, typical task" : "faster for Aside, typical task";
+const tokenLine = (p: Pairing) =>
+  !p.tokens ? "–" : p.tokens.even ? "Even" : `${p.tokens.figure} fewer for ${p.tokens.ardiaWins ? "Ardia" : "Aside"}`;
+const toggleCss = `@media (max-width: 700px) {${cu.pairings
+  .map((p) => `#computer-use .tasks:has(#cu-pair-${p.id}:checked) [data-pair="${p.id}"] { display: table-cell; }`)
+  .join(" ")}}`;
+const stampOf = (p: Pairing) => (!p.speed || p.speed.even ? "Dead heat" : p.speed.ardiaWins ? null : "Aside’s round");
 ---
 
 <section
@@ -32,125 +31,127 @@ const rivalCopy: Record<string, string> = {
       <div class="cu-title">
         <p class="label kicker">Bring your own agent</p>
         <h2 class="poster cu-heading" id="cu-title" data-reveal>Computer use.</h2>
-      </div>
-      <div class="cu-cmd" data-reveal style="--i: 1">
-        <p class="label cmd-label">Your agent’s first move</p>
-        <pre class="cmd"><code><span class="prompt" aria-hidden="true">$ </span>ardia browse snapshot -i</code></pre>
-        <p class="cmd-note">How Claude Code or Codex starts driving a hidden, logged-in Ardia. Nothing in Ardia calls a model.</p>
+        {!cu.complete && <p class="label status">Bench in progress · {cu.runs} of {cu.planned} runs so far</p>}
       </div>
     </header>
 
     <ul class="cards" role="list">
       {
-        cu.matchups.map((m) => (
-          <li class="card" data-reveal>
-            <div class="card-top">
-              <h3 class="card-title">{m.model}</h3>
-              <svg class="tick" viewBox="0 0 28 24" width="24" height="21" role="img" aria-label="Ardia wins">
-                <path d={tick} />
-              </svg>
-            </div>
-            <div class="call">
-              <p class="verdict poster">{m.faster}</p>
-              <div class="call-words">
-                <p class="line">{rivalCopy[m.id]}</p>
-                <p class="note">
-                  {m.fewer} fewer tokens. {quips[m.id]}
-                </p>
-              </div>
-            </div>
-            <p class="label cold">
-              Cold, no site notes: {m.cold.faster} faster, {m.cold.fewer} fewer tokens
-            </p>
-            <div class="charts">
-              {charts.map((c) => (
-                <div class="chart">
-                  <p class="label chart-title">
-                    {c.title}
-                    <span class="chart-dir">lower is better</span>
-                  </p>
-                  <div class="lanes" aria-hidden="true">
-                    {m.lanes.map((l) => (
-                      <div class:list={["lane", { us: l.isArdia, pick: l.isPick }]} style={`--w: ${l[c.key].share.toFixed(4)}`}>
-                        <span class="lane-name">
-                          {l.agent}
-                          <span class="lane-mode">{l.mode}</span>
-                        </span>
-                        <span class="lane-val label">{l[c.key].text}</span>
-                        <span class="lane-track">
-                          <span class="lane-bar" />
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+        cu.pairings.map((p) => {
+          const stamp = stampOf(p);
+          return (
+            <li class:list={["card", "pair", { lost: !!stamp }]} data-reveal>
+              <div class="card-top">
+                <div>
+                  <h3 class="card-title">{p.model}</h3>
+                  <p class="label vs">{p.ardia.name} vs Aside, same model</p>
                 </div>
-              ))}
-            </div>
-            <div class="visually-hidden">
-              <table>
-                <caption>
-                  {m.model}: median time and tokens to finish the calendar task, lower is better
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Agent</th>
-                    <th scope="col">Mode</th>
-                    <th scope="col">Runs</th>
-                    <th scope="col">Time</th>
-                    <th scope="col">Tokens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {m.lanes.map((l) => (
-                    <tr>
-                      <th scope="row">{l.agent}</th>
-                      <td>{l.mode}</td>
-                      <td>{l.runs}</td>
-                      <td>{l.time.text}</td>
-                      <td>{l.tokens.text}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p class="label meta">Medians · runs per row, top down: {m.lanes.map((l) => l.runs).join(", ")}</p>
-          </li>
-        ))
+                {stamp ? (
+                  <p class="label stamp">{stamp}</p>
+                ) : (
+                  <svg class="tick" viewBox="0 0 28 24" width="24" height="21" role="img" aria-label="Ardia wins on time">
+                    <path d={tick} />
+                  </svg>
+                )}
+              </div>
+              <div class="call">
+                {p.speed && !p.speed.even && <p class="verdict poster">{p.speed.figure}</p>}
+                <p class="line">{speedLine(p)}</p>
+              </div>
+              <dl class="facts">
+                <div class="fact">
+                  <dt class="label">Checks passed</dt>
+                  <dd>
+                    <span class="us">Ardia {p.ardia.passes}/{p.ardia.runs}</span> · Aside {p.aside.passes}/{p.aside.runs}
+                  </dd>
+                </div>
+                <div class="fact">
+                  <dt class="label">Ardia faster on</dt>
+                  <dd>
+                    {p.faster} of {p.compared} tasks
+                  </dd>
+                </div>
+                <div class="fact">
+                  <dt class="label">Tokens, typical task</dt>
+                  <dd>{tokenLine(p)}</dd>
+                </div>
+              </dl>
+            </li>
+          );
+        })
       }
 
-      <li class="card fresh" data-reveal>
-        <div class="card-top">
-          <h3 class="card-title">Also handles: a task it never saw</h3>
-          <p class="label stamp">No Aside run</p>
+      <li class="card tasks" data-reveal>
+        <div class="tasks-top">
+          <h3 class="card-title">Task by task</h3>
+          <p class="label legend">Median time · tokens · checks passed of runs. ● wins its pair: more passes, then faster.</p>
         </div>
-        <div class="fresh-body">
-          <div class="fresh-copy">
-            <p class="line">{cu.fresh.title}. One cold run per agent.</p>
-            <ul class="traps" role="list" aria-label="What’s in the way">
-              {cu.fresh.traps.map((t) => <li class="label trap">{t}</li>)}
-            </ul>
-          </div>
+        <div class="toggle" role="radiogroup" aria-label="Model">
+          {
+            cu.pairings.map((p, i) => (
+              <label class="toggle-opt">
+                <input type="radio" name="cu-pair" value={p.id} id={`cu-pair-${p.id}`} checked={i === 0} />
+                <span>{p.model}</span>
+              </label>
+            ))
+          }
+        </div>
+        <div class="scroll">
           <table class="sheet">
-            <caption class="visually-hidden">The expense report task, one cold run per agent</caption>
+            <caption class="visually-hidden">
+              Each task’s median time, median tokens and checks passed, per agent. The winner of each same-model pair is marked.
+            </caption>
             <thead>
+              <tr class="pair-row">
+                <td />
+                {
+                  cu.pairings.map((p) => (
+                    <th scope="colgroup" colspan="2" class="label pair-head" data-pair={p.id}>
+                      {p.model}
+                    </th>
+                  ))
+                }
+              </tr>
               <tr>
-                <th scope="col" class="label">Agent</th>
-                <th scope="col" class="label">Checks</th>
-                <th scope="col" class="label">Time</th>
-                <th scope="col" class="label">Tokens</th>
+                <th scope="col" class="label">Task</th>
+                {
+                  cu.columns.map((c) => (
+                    <th scope="col" class:list={["label", { us: c.isArdia }]} data-pair={c.pair}>
+                      {c.name}
+                    </th>
+                  ))
+                }
               </tr>
             </thead>
             <tbody>
               {
-                cu.fresh.runs.map((r) => (
+                cu.rows.map((r) => (
                   <tr>
                     <th scope="row">
-                      {r.agent}
-                      <span class="sheet-model">{r.model}</span>
+                      <span class="task-name">{r.name}</span>
+                      {r.sub && <span class="task-sub">{r.sub}</span>}
+                      {r.note && <span class="task-note">{r.note}</span>}
                     </th>
-                    <td class="pass">{r.result}</td>
-                    <td>{r.time}</td>
-                    <td>{r.tokens}</td>
+                    {r.entries.map((e) => (
+                      <td class:list={{ us: e.isArdia, won: e.won, empty: !e.mark }} data-pair={e.pair}>
+                        {e.mark ? (
+                          <>
+                            <span class="cell-time">
+                              {e.won && <span class="dot" aria-hidden="true">●</span>}
+                              {e.time ?? "–"}
+                              {e.won && <span class="visually-hidden"> (wins its pair)</span>}
+                            </span>
+                            <span class="cell-meta">
+                              {e.tokens ?? "–"} · <span class:list={["mark", e.mark]} aria-hidden="true">{markGlyph[e.mark]}</span>
+                              <span class="visually-hidden">{markWord[e.mark]}, </span>
+                              {e.result}
+                            </span>
+                          </>
+                        ) : (
+                          <span class="cell-meta">not run yet</span>
+                        )}
+                      </td>
+                    ))}
                   </tr>
                 ))
               }
@@ -163,28 +164,37 @@ const rivalCopy: Record<string, string> = {
         <p class="label colophon-title">The small print</p>
         <ul class="fine" role="list">
           <li>
-            Medians from {cu.dates}, high effort throughout, every run 5/5. The task is {cu.task.source}.
+            {cu.taskCount} local web apps, {cu.contenderCount} agents, the same prompt for all, graded by a checker on each app’s own
+            server. Medians of up to {cu.repeats} runs{!cu.complete && ` (${cu.runs} of ${cu.planned} done)`}, {cu.dates}. Time is
+            the median of every run, pass or fail. “Typical task” is the geometric mean of the per-task ratios.
           </li>
-          <li>Ardia ran hidden every time. Aside’s best numbers needed its window in front; hidden, its screenshots stall.</li>
-          <li>Aside’s Opus runs had its memory of the app. Ardia’s cold runs started from nothing.</li>
-          <li>Aside’s clock starts when the prompt is sent. Ardia’s includes booting the agent’s CLI.</li>
           <li>
-            We tuned the <code>ardia</code> command on this calendar, so it’s home turf. The fairer test is a fresh task, and the
-            expense report is that.
+            Your own Claude Code or Codex drives Ardia through the <code>ardia</code> command. Nothing in Ardia calls a model.
           </li>
-          {
-            cu.extras.map((x) => (
-              <li>
-                {x.agent} on {x.model}, {x.mode}: {x.time}, {x.tokens} tokens ({x.runs} runs). No Ardia run to set it against.
-              </li>
-            ))
-          }
-          <li>Only Aside’s in-browser agent was tested, not its separate desktop Computer Use.</li>
+          <li>
+            Cold every run: Ardia’s site notes wiped, Aside’s memory off, its bench chats deleted before memory came back on. High effort on both sides.
+          </li>
+          <li>
+            Ardia ran hidden. Aside’s window sat on screen behind other windows, and was frontmost at some point in {cu.asideFront} of
+            its {cu.asideRuns} runs, mostly while the harness cleaned up the run before.
+          </li>
+          <li>On docs research the shell agents can read pages with curl; Aside’s agent can’t.</li>
+          <li>Aside’s clock starts when the prompt is sent. Ardia’s includes starting the agent’s CLI.</li>
+          <li>Claude Code reached the model through a local proxy. Aside used its own subscription providers.</li>
+          <li>
+            Aside {cu.asideVersion}, its in-browser agent only, not its desktop Computer Use. Ardia nightly: the <code>ardia</code> command
+            features shipped in 0.2.45-nightly.2.
+          </li>
         </ul>
+        <a class="link label" href={cu.source} rel="noopener" data-track="github_clicked" data-track-link="agent_bench" data-track-location="computer_use"
+          >Rerun the bench</a
+        >
       </li>
     </ul>
   </div>
 </section>
+
+<style is:inline set:html={toggleCss}></style>
 
 <style>
   :global(#demo) + .cu {
@@ -196,7 +206,7 @@ const rivalCopy: Record<string, string> = {
     --wash: linear-gradient(180deg, #f3e9d6 0%, var(--noon) 45%, #f0c983 100%);
     --dab: var(--forest);
     --ink-2: #3a372f;
-    --muted: #a88a68;
+    --muted: #8c6a4c;
     --card: #fbf5e8;
     --card-edge: rgb(22 19 15 / 0.82);
     --radius: 7px 12px 8px 14px / 11px 7px 13px 8px;
@@ -212,9 +222,8 @@ const rivalCopy: Record<string, string> = {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     column-gap: var(--gutter);
-    row-gap: 28px;
     align-items: end;
-    margin-bottom: clamp(28px, 3.6vw, 52px);
+    margin-bottom: clamp(24px, 3vw, 44px);
   }
   .cu-title {
     grid-column: 1 / span 7;
@@ -222,42 +231,19 @@ const rivalCopy: Record<string, string> = {
   .cu-heading {
     font-size: var(--t-h2);
   }
+  .status {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 4px 10px;
+    color: var(--stamp);
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    transform: rotate(-1.5deg);
+  }
   code {
     font-family: var(--mono);
     font-size: 0.86em;
     font-stretch: 87.5%;
-  }
-  .cu-cmd {
-    grid-column: 9 / -1;
-    min-width: 0;
-  }
-  .cmd-label {
-    color: var(--ink-2);
-    margin-bottom: 8px;
-  }
-  .cmd {
-    margin: 0;
-    padding: 14px 16px;
-    border-radius: 4px;
-    background: var(--ink);
-    color: var(--paper);
-    overflow-x: auto;
-    box-shadow:
-      0 1px 2px rgb(22 19 15 / 0.2),
-      0 10px 22px -10px rgb(22 19 15 / 0.45);
-  }
-  .cmd code {
-    font-size: clamp(0.78rem, 0.74rem + 0.2vw, 0.9rem);
-    white-space: pre;
-  }
-  .prompt {
-    color: var(--sun-pale);
-  }
-  .cmd-note {
-    margin-top: 10px;
-    font-size: var(--t-small);
-    line-height: 1.4;
-    color: var(--ink-2);
   }
 
   .cards {
@@ -297,6 +283,12 @@ const rivalCopy: Record<string, string> = {
     line-height: 1.15;
     text-wrap: balance;
   }
+  .vs {
+    margin-top: 2px;
+    color: var(--ink-2);
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
   .tick {
     flex: none;
     overflow: visible;
@@ -311,7 +303,7 @@ const rivalCopy: Record<string, string> = {
   }
   .stamp {
     flex: none;
-    max-width: 11em;
+    max-width: 10em;
     padding: 3px 7px;
     border: 1.5px solid currentColor;
     border-radius: 3px;
@@ -323,11 +315,12 @@ const rivalCopy: Record<string, string> = {
   }
 
   .call {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
     column-gap: clamp(14px, 1.6vw, 22px);
-    align-items: end;
-    margin-top: clamp(12px, 1.4vw, 20px);
+    row-gap: 8px;
+    margin-top: clamp(14px, 1.6vw, 22px);
   }
   .verdict {
     font-size: clamp(3.8rem, 1.4rem + 5vw, 7.4rem);
@@ -336,160 +329,58 @@ const rivalCopy: Record<string, string> = {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .call-words {
-    padding-bottom: 2px;
+  .pair.lost .verdict {
+    color: var(--ink);
   }
   .line {
+    flex: 1 1 10em;
+    padding-bottom: 2px;
     font-size: 1.04rem;
     font-weight: 560;
     line-height: 1.2;
   }
-  .note {
-    margin-top: 4px;
-    font-size: 0.9rem;
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: clamp(16px, 1.8vw, 24px) 0 0;
+    padding-top: 12px;
+    border-top: 1.5px solid var(--ink);
+  }
+  .fact dt {
+    color: var(--ink-2);
+  }
+  .fact dd {
+    margin: 4px 0 0;
+    font-size: 0.94rem;
+    font-weight: 560;
     line-height: 1.3;
-    color: var(--ink-2);
   }
-  .cold {
-    margin-top: 14px;
-    padding-left: 10px;
-    border-left: 2px solid var(--forest);
-    color: var(--ink-2);
-    text-transform: none;
-    letter-spacing: 0.02em;
-  }
-
-  .charts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: clamp(16px, 2vw, 28px);
-    row-gap: 20px;
-    margin-top: clamp(18px, 2vw, 26px);
-  }
-  .chart-title {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 6px;
-    margin-bottom: 10px;
-    border-bottom: 1.5px solid var(--ink);
-    color: var(--ink);
-    font-weight: 600;
-  }
-  .chart-dir {
-    color: var(--ink-2);
-    font-weight: 460;
-    text-transform: none;
-    letter-spacing: 0.02em;
-  }
-  .lanes {
-    display: grid;
-    row-gap: 9px;
-  }
-  .lane {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    column-gap: 8px;
-    row-gap: 3px;
-  }
-  .lane-name {
-    font-family: var(--poster);
-    font-weight: 700;
-    font-stretch: 85%;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    font-size: 0.76rem;
-    line-height: 1.15;
-    color: var(--ink-2);
-  }
-  .lane.us .lane-name {
-    color: var(--forest-deep);
-    font-weight: 900;
-  }
-  .lane-mode {
-    margin-left: 0.5em;
-    font-family: var(--sans);
-    font-weight: 460;
-    font-stretch: 100%;
-    text-transform: none;
-    letter-spacing: 0;
-    color: var(--ink-2);
-  }
-  .lane-val {
-    text-transform: none;
-    letter-spacing: 0.02em;
-    color: var(--ink-2);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .lane.pick .lane-val {
-    color: var(--ink);
-    font-weight: 700;
-  }
-  .lane.pick.us .lane-val {
+  .fact .us {
     color: var(--forest-deep);
   }
-  .lane-track {
-    grid-column: 1 / -1;
-    display: block;
-    height: 9px;
-  }
-  .lane-bar {
-    display: block;
-    width: max(4px, calc(100% * var(--w)));
-    height: 100%;
-    border-radius: 3px 6px 4px 7px / 5px 3px 6px 4px;
-    background-color: var(--muted);
-    background-image: var(--impasto);
-    background-size: 200px;
-    background-blend-mode: soft-light;
-    transform-origin: left center;
-  }
-  .lane.pick .lane-bar {
-    background-color: var(--ink-2);
-  }
-  .lane.us .lane-bar {
-    background-color: var(--sage-deep);
-  }
-  .lane.us.pick .lane-bar {
-    background-color: var(--forest);
-  }
-  .meta {
-    margin-top: auto;
-    padding-top: 16px;
-    color: var(--ink-2);
-  }
 
-  .fresh {
+  .tasks {
     grid-column: 1 / -1;
   }
-  .fresh-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: clamp(20px, 3vw, 44px);
-    row-gap: 18px;
-    align-items: start;
-    margin-top: clamp(12px, 1.4vw, 18px);
-  }
-  .fresh .line {
-    max-width: 28em;
-  }
-  .traps {
-    list-style: none;
-    margin: 14px 0 0;
-    padding: 0;
+  .tasks-top {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 20px;
   }
-  .trap {
-    padding: 3px 8px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 3px;
+  .legend {
+    color: var(--ink-2);
     text-transform: none;
     letter-spacing: 0.02em;
-    color: var(--ink-2);
+  }
+  .toggle {
+    display: none;
+  }
+  .scroll {
+    margin-top: 14px;
+    overflow-x: auto;
   }
   .sheet {
     width: 100%;
@@ -498,51 +389,107 @@ const rivalCopy: Record<string, string> = {
   }
   .sheet th,
   .sheet td {
-    padding: 8px 0 8px 10px;
+    padding: 9px 0 9px 12px;
     text-align: right;
-    vertical-align: baseline;
+    vertical-align: top;
   }
-  .sheet th:first-child {
+  .sheet tr > :first-child {
     padding-left: 0;
     text-align: left;
   }
-  .sheet thead th {
+  .pair-row th {
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink);
+    font-weight: 600;
+    text-align: center;
+  }
+  .sheet thead tr:last-child th {
+    padding-top: 6px;
     padding-bottom: 6px;
     border-bottom: 1.5px solid var(--ink);
     color: var(--ink-2);
     font-weight: 560;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    vertical-align: bottom;
+  }
+  .sheet thead th.us {
+    color: var(--forest-deep);
+    font-weight: 700;
   }
   .sheet tbody tr + tr {
     border-top: 1px solid var(--rule);
   }
   .sheet tbody th {
+    max-width: 18em;
+  }
+  .task-name {
+    display: block;
     font-family: var(--poster);
-    font-weight: 900;
+    font-weight: 740;
     font-stretch: 85%;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     line-height: 1.2;
-    color: var(--forest-deep);
   }
-  .sheet-model {
+  .task-sub {
     display: block;
-    font-family: var(--sans);
-    font-weight: 460;
-    font-stretch: 100%;
-    text-transform: none;
-    letter-spacing: 0;
+    margin-top: 2px;
+    font-size: 0.82rem;
+    font-weight: 440;
+    line-height: 1.3;
+    color: var(--ink-2);
+  }
+  .task-note {
+    display: block;
+    margin-top: 4px;
+    padding-left: 8px;
+    border-left: 2px solid var(--stamp);
+    font-size: 0.76rem;
+    font-weight: 440;
+    line-height: 1.3;
     color: var(--ink-2);
   }
   .sheet td {
     font-family: var(--mono);
     font-stretch: 87.5%;
-    font-size: 0.82rem;
-    color: var(--ink);
     white-space: nowrap;
   }
-  .sheet td.pass {
+  .cell-time {
+    display: block;
+    font-size: 0.86rem;
+    color: var(--ink-2);
+  }
+  .won .cell-time {
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .won.us .cell-time {
     color: var(--forest-deep);
+  }
+  .dot {
+    margin-right: 0.35em;
+    font-size: 0.7em;
+    vertical-align: 0.12em;
+  }
+  .cell-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--ink-2);
+  }
+  .empty .cell-meta {
+    color: var(--muted);
+  }
+  .mark.pass {
+    color: var(--forest);
+    font-weight: 700;
+  }
+  .mark.fail,
+  .mark.mixed {
+    color: var(--stamp);
     font-weight: 700;
   }
 
@@ -571,28 +518,94 @@ const rivalCopy: Record<string, string> = {
     margin-bottom: 8px;
     border-left: 2px solid var(--stamp);
   }
+  .colophon .link {
+    display: inline-block;
+    margin-top: 6px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .colophon .link::after {
+    content: " →";
+  }
 
   @media (max-width: 1100px) {
-    .charts {
+    .facts {
       grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+    .fact {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .fact dd {
+      margin: 0;
+      text-align: right;
     }
   }
   @media (max-width: 860px) {
-    .cu-title,
-    .cu-cmd {
+    .cu-title {
       grid-column: 1 / -1;
-    }
-    .cu-cmd {
-      max-width: 30em;
     }
     .cards {
       grid-template-columns: minmax(0, 1fr);
     }
-    .charts {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (max-width: 700px) {
+    .toggle {
+      display: inline-flex;
+      margin-top: 14px;
+      padding: 3px;
+      border: 1.5px solid var(--ink);
+      border-radius: 6px;
     }
-    .fresh-body {
-      grid-template-columns: minmax(0, 1fr);
+    .toggle-opt {
+      position: relative;
+      cursor: pointer;
+    }
+    .toggle-opt input {
+      position: absolute;
+      opacity: 0;
+      inset: 0;
+      margin: 0;
+      cursor: pointer;
+    }
+    .toggle-opt span {
+      display: block;
+      padding: 7px 14px;
+      border-radius: 4px;
+      font-family: var(--poster);
+      font-weight: 740;
+      font-stretch: 85%;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-size: 0.82rem;
+      color: var(--ink-2);
+    }
+    .toggle-opt input:checked + span {
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .toggle-opt input:focus-visible + span {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .pair-row {
+      display: none;
+    }
+    .tasks:has(input[value]:checked) [data-pair] {
+      display: none;
+    }
+    .sheet th,
+    .sheet td {
+      padding-left: 16px;
+    }
+    .sheet tbody th {
+      max-width: none;
+    }
+    .task-sub {
+      font-size: 0.76rem;
     }
   }
   @media (max-width: 600px) {
@@ -608,7 +621,6 @@ const rivalCopy: Record<string, string> = {
     .stamp {
       font-size: 0.56rem;
       padding: 2px 5px;
-      max-width: 9em;
     }
     .verdict {
       font-size: clamp(3.4rem, 2rem + 8vw, 4.6rem);
@@ -616,30 +628,8 @@ const rivalCopy: Record<string, string> = {
     .line {
       font-size: 0.94rem;
     }
-    .note {
-      font-size: 0.84rem;
-    }
-    .charts {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .lane-name {
-      font-size: 0.72rem;
-    }
-    .lane-val {
-      font-size: 0.66rem;
-    }
-    .lane-track {
-      height: 7px;
-    }
-    .sheet th,
-    .sheet td {
-      padding-left: 8px;
-    }
-    .sheet td {
-      font-size: 0.76rem;
-    }
-    .sheet tbody th {
-      font-size: 0.76rem;
+    .fact dd {
+      font-size: 0.86rem;
     }
     .colophon {
       font-size: 0.8rem;

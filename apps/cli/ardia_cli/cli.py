@@ -2,7 +2,10 @@ import sys
 
 from ardia_cli import __version__
 
-DESCRIPTION = "Control a running Ardia from the terminal. ardia browse drives the browser (ardia browse --help)."
+DESCRIPTION = (
+    "Control a running Ardia from the terminal. ardia browse drives the browser (ardia browse --help); "
+    "ardia computer operates native Mac apps through the bundled cua-driver (ardia computer --help)."
+)
 EPILOG = """\
 Shared options go before the command or after it, for the commands that take them:
   --port N        a plain DevTools server on 127.0.0.1:N (testing; $ARDIA_PORT)
@@ -25,6 +28,12 @@ Targets and where they install (user level; --project uses the current directory
   claude-code   ~/.claude/skills            ./.claude/skills
   cursor        ~/.cursor/skills            ./.cursor/skills
   opencode      ~/.config/opencode/skills   ./.opencode/skills
+
+Next to each one it installs cua-driver's own skill (cua-driver, for computer use in native apps through
+ardia computer), pinned to the bundled driver; --no-cua skips it. A cua-driver skill that ardia didn't install, from
+cua's own installer for one, is left alone.
+
+Ardia remembers where it installed the skill, and each CLI update rewrites those copies (ardia skills refresh).
 """
 SHARED_VALUE_FLAGS = frozenset({"--port", "--ws", "--data-dir", "--timeout"})
 SHARED_BOOL_FLAGS = frozenset({"--json"})
@@ -161,6 +170,7 @@ def build_parser():
     commands = parser.add_subparsers(dest="command", metavar="<command>")
     commands.add_parser("browse", help="drive the browser with agent-browser's commands (ardia browse --help)", add_help=False)
     commands.add_parser("notes", help="read and write notes (ardia notes --help)", add_help=False)
+    commands.add_parser("computer", help="operate native Mac apps through the bundled cua-driver: computer use (ardia computer --help)", add_help=False)
 
     from ardia_cli import browsing_cli
 
@@ -178,6 +188,9 @@ def build_parser():
 
     install.add_argument("--target", action="append", choices=sorted(TARGETS), metavar="TARGET", help="general, codex, claude-code, cursor or opencode; repeat for several (default: general)")
     install.add_argument("--project", action="store_true", help="install into the current directory's project folders")
+    install.add_argument("--no-cua", action="store_true", help="don't install cua-driver's computer-use skill next to it")
+    install.add_argument("--replace", action="store_true", help="replace an ardia folder that ardia didn't install (only that folder)")
+    skill_commands.add_parser("refresh", help="rewrite every copy of the skill installed before with this CLI's version")
 
     from ardia_cli import scripts_cli
 
@@ -190,6 +203,11 @@ def build_parser():
     from ardia_cli import automation_cli
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
+    from ardia_cli import feedback, star
+
+    feedback.add_parser(commands, argparse.RawDescriptionHelpFormatter)
+    star.add_parser(commands, argparse.RawDescriptionHelpFormatter)
     return parser
 
 
@@ -233,6 +251,13 @@ def run(argv: list[str]) -> int:
         return run_browse(leading, argv[index + 1:])
     if command == "notes":
         return run_notes(leading, argv[index + 1:])
+    if command == "computer":
+        if leading:
+            sys.stderr.write(f"ardia: computer doesn't take {flag_names(leading)[0]}\n")
+            return 2
+        from ardia_cli import computer
+
+        return computer.main(argv[index + 1:])
     parser = build_parser()
     try:
         path, hoisted, rest = arrange(parser, argv)
@@ -256,11 +281,13 @@ def run(argv: list[str]) -> int:
 
         return browsing_cli.run(args)
     if args.command == "skills":
-        if args.skills_command != "install":
+        if args.skills_command not in ("install", "refresh"):
             parser.parse_args(["skills", "--help"])
-        from ardia_cli.skills import install
+        from ardia_cli import skills
 
-        return install(args.target or ["general"], args.project)
+        if args.skills_command == "refresh":
+            return skills.refresh()
+        return skills.install(args.target or ["general"], args.project, not args.no_cua, args.replace)
     if args.command == "scripts":
         from ardia_cli import scripts_cli
 
@@ -273,5 +300,13 @@ def run(argv: list[str]) -> int:
         from ardia_cli import config_cli
 
         return (config_cli.run_config if args.command == "config" else config_cli.run_theme)(args, parser)
+    if args.command == "feedback":
+        from ardia_cli import feedback
+
+        return feedback.run(args)
+    if args.command == "star":
+        from ardia_cli import star
+
+        return star.run(args)
     parser.print_help()
     return 0

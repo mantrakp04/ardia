@@ -168,7 +168,7 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
           <li class="colophon" data-bench-land>
             <p class="label colophon-title">The small print</p>
             <p>
-              {bench.machine}, {bench.date}. {bench.versions}.
+              {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, ${bench.date}. ${bench.versions}.`}
             </p>
             <p>Every figure is a median, so one lucky run doesn’t count.</p>
             <a
