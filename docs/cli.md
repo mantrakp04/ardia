@@ -83,7 +83,9 @@ the pins into `pyproject.toml`).
   profile, group or spot, move tabs between groups, windows and profiles without reloading, pin, mute, sleep, wake,
   close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and
   apply a JSON batch of those in one call (`ardia_cli/workspace_cli.py`; protocol, operations and rules in
-  `docs/automation.md` › Tabs and groups). `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
+  `docs/automation.md` › Tabs and groups). Groups can be named by id or by name (`--group Work`, `ardia groups update
+  Work …`); output names them next to their ids (`created group 💼 Work (g-…) with 4 tabs`, `moved Inbox (tab-…)`).
+  `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
   or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending. Human
   output shows control characters in page text, titles and names as `\u00NN` (`ardia_cli/printable.py`), so a page
   title can't drive the terminal (an OSC 52 clipboard write, say): see Terminal output.

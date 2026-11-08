@@ -285,3 +285,35 @@ class JsonStaysInert(Base):
 
         text = json.dumps({"t": C1_TITLE}, ensure_ascii=False)
         self.assertEqual(json.loads(printable.json_safe(text)), {"t": C1_TITLE})
+
+
+class NamedOutput(Base):
+    def test_groups_and_tabs_are_named_next_to_their_ids(self):
+        server = self.serve()
+        replies = {
+            "group.create": {"op": "group.create", "group": "g-1", "label": "Work", "icon": "💼", "tabs": ["tab-1", "tab-2", "tab-3", "tab-4"]},
+            "group.update": {"op": "group.update", "group": "g-1", "label": "Work", "icon": "symbol:briefcase"},
+            "group.move": {"op": "group.move", "group": "g-1", "label": "Work", "icon": None},
+            "group.ungroup": {"op": "group.ungroup", "group": "g-1", "label": "Old\x1b[2J", "icon": "💼", "tabs": ["tab-1"]},
+            "tab.move": {"op": "tab.move", "tabs": ["tab-1", "tab-9"]},
+        }
+        tabs = [{"type": "tab", "id": "tab-1", "title": "Inbox \x1b]52;c;x\x07", "url": "https://mail.example/"}]
+
+        def apply(params):
+            op = params["ops"][0]["op"]
+            return {"result": {"ok": True, "applied": 1, "results": [replies[op]], "tabs": tabs, "groups": [], "windows": []}}
+
+        server.replies["apply"] = apply
+        cases = [
+            (["groups", "create", "--name", "Work", "--icon", "💼"], "created group 💼 Work (g-1) with 4 tabs"),
+            (["groups", "update", "Work", "--collapse"], "updated group Work (g-1)"),
+            (["groups", "move", "Work", "--parent", "Projects"], "moved group Work (g-1)"),
+            (["groups", "ungroup", "Old"], "ungrouped 💼 Old\\u001b[2J (g-1)"),
+            (["tabs", "move", "tab-1", "tab-9", "--group", "Work"], "moved Inbox \\u001b]52;c;x\\u0007 (tab-1), tab-9"),
+        ]
+        for argv, line in cases:
+            status, out, err = self.run_cli(*argv)
+            self.assertEqual((status, out.strip()), (0, line), (argv, err))
+        sent = [p["ops"][0] for m, p in server.requests if m == "apply"]
+        self.assertEqual(sent[1]["group"], "Work")
+        self.assertEqual(sent[2]["parent"], "Projects")

@@ -12,13 +12,13 @@ ardia groups --json      # every group: id, name, icon, color, collapsed, pinned
 ```
 
 ```sh
-ardia tabs open https://a.example https://b.example --group g-1   # background tabs, in that group
-ardia tabs move tab-1 tab-2 --group g-1                            # into a group (its window and profile)
+ardia tabs open https://a.example https://b.example --group Work  # background tabs, in that group
+ardia tabs move tab-1 tab-2 --group Work                           # into a group, by name or id
 ardia tabs move tab-3 --top                                        # out of every group
 ardia tabs move tab-4 --after tab-9                                # next to a tab, in its group
 ardia tabs pin tab-5 --row ; ardia tabs sleep tab-6 ; ardia tabs rename tab-7 "Inbox"
 ardia groups create tab-1 tab-2 --name Work --icon 🚀 --color blue --unpinned
-ardia groups update g-1 --collapse ; ardia groups move g-2 --parent g-1 ; ardia groups ungroup g-3
+ardia groups update Work --collapse ; ardia groups move Reading --parent Work ; ardia groups ungroup Imported
 ```
 
 For a whole layout, send one `ardia apply` (a JSON list on stdin; `$N` is what operation N made: its group, else
@@ -34,6 +34,8 @@ ardia apply --json <<'EOF'
 EOF
 ```
 
+- Group arguments take a name (case-insensitive, in that window) or an id; a name two groups share fails with both
+  ids. Groups made one after another from one group's tabs keep their order above it.
 - New groups are pinned (as in the sidebar) unless `"pinned": false` or a `parent`. Icons: an emoji from Ardia's
   picker or `symbol:<SF Symbol>`; colours: neutral, none, grey, blue, red, yellow, green, pink, purple, cyan, orange.
 - URLs: http, https, file, about:blank and ardia://history, bookmarks, downloads, newtab only.

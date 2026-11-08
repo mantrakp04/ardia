@@ -32,6 +32,7 @@ import {
   checkSame,
   destination,
   groupRef,
+  labelled,
   nextOutside,
   normalWindow,
   OpError,
@@ -55,6 +56,15 @@ function intoSpace(ids: string[], where: Space) {
 
 function placeEach(ids: string[], placement: TabPlacement) {
   for (const id of ids) store().placeTabs([id], placement);
+}
+
+function aboveSource(s: BrowserState, ids: string[], where: Space): string | null {
+  const first = s.tabs[ids[0]!]!;
+  const inner = first.windowId === where.windowId && first.profileId === where.profileId ? innermostGroupOf(s.groups, first.id) : undefined;
+  const source = inner ? rootOf(s.groups, inner.id) : undefined;
+  const moving = new Set(ids);
+  const top = source ? s.windows[where.windowId]!.tabIds.find((id) => source.tabIds.includes(id) && !moving.has(id)) : undefined;
+  return top ?? besideOwnGroup(s, ids, where);
 }
 
 function besideOwnGroup(s: BrowserState, ids: string[], where: Space): string | null {
@@ -101,7 +111,7 @@ function undoOpen(ids: string[], error: unknown, touched: Changed = {}): never {
 }
 
 function open(results: OpResult[], op: Op): OpResult {
-  const group = op.group !== undefined ? groupRef(results, str(op.group)) : undefined;
+  const group = op.group !== undefined ? groupRef(results, op.group, () => ({ windowId: space(op).windowId, profileId: op.profile as string | undefined })) : undefined;
   if (group && op.pin) throw new OpError("bad_request", "A pinned tile or row can't go into a group; pin the group instead.");
   const dest = destination(results, op, new Set(), group);
   if (dest) checkSame(dest, op);
@@ -129,7 +139,8 @@ function moveTabs(results: OpResult[], op: Op): OpResult {
   const ids = tabRefs(results, op.tabs as string[]);
   const panes = withPanes(s, ids);
   organizable(s, panes);
-  const group = op.group === undefined ? undefined : op.group === null ? null : groupRef(results, str(op.group));
+  const scope = () => ({ windowId: op.window !== undefined ? normalWindow(str(op.window)) : s.tabs[ids[0]!]!.windowId, profileId: op.profile as string | undefined });
+  const group = op.group === undefined ? undefined : op.group === null ? null : groupRef(results, op.group, scope);
   const dest = destination(results, op, new Set(panes), group);
   if (dest) checkSame(dest, op);
   const first = s.tabs[ids[0]!]!;
@@ -204,7 +215,8 @@ function createGroup(results: OpResult[], op: Op): OpResult {
   organizable(s, given);
   const tile = given.find((id) => pinSection(s.tabs[id]) === "tile");
   if (tile) throw new OpError("bad_request", `Tab ${tile} is a Top Apps tile; unpin it before grouping it.`);
-  const parent = op.parent !== undefined ? groupRef(results, str(op.parent)) : undefined;
+  const scope = () => ({ windowId: op.window !== undefined || !given.length ? space(op).windowId : s.tabs[given[0]!]!.windowId, profileId: op.profile as string | undefined });
+  const parent = op.parent !== undefined ? groupRef(results, op.parent, scope) : undefined;
   const dest = destination(results, op, new Set(given), parent) ?? undefined;
   if (dest) checkSame(dest, op);
   const { parentId, pinned } = groupSection(s, dest, { parentId: parent?.id ?? null, pinned: parent ? parent.pinned : true }, op.pinned);
@@ -212,7 +224,7 @@ function createGroup(results: OpResult[], op: Op): OpResult {
   const where = dest ?? space(op, first && { windowId: first.windowId, profileId: first.profileId });
   profileMovable(s, given, where.profileId);
   guardEmptied(s, new Set(given), withAncestors(s, parentId));
-  const before = dest ? dest.placement.beforeId : parentId || !given.length ? null : besideOwnGroup(s, given, where);
+  const before = dest ? dest.placement.beforeId : parentId || !given.length ? null : aboveSource(s, given, where);
   const created: string[] = [];
   let id = "";
   try {
@@ -228,7 +240,7 @@ function createGroup(results: OpResult[], op: Op): OpResult {
     if (Object.keys(patch).length) store().updateGroup(id, patch);
     expectGroup(id, { ...patch, windowId: where.windowId, profileId: where.profileId, pinned, parentId, tabs: ids });
     expectBeside(ids, dest?.anchor, dest?.after);
-    return { group: id, tabs: ids };
+    return { ...labelled(id), tabs: ids };
   } catch (error) {
     undoOpen(created, error, { tabs: given, groups: id ? [id] : [] });
   }
@@ -245,14 +257,15 @@ function regroupedId(g: TabGroup): string {
 
 function moveGroup(results: OpResult[], op: Op): OpResult {
   const s = store();
-  const asked = groupRef(results, str(op.group));
+  const asked = groupRef(results, op.group);
   const profileId = op.profile !== undefined ? profileOf(str(op.profile)) : asked.profileId;
   const windowId = op.window !== undefined ? normalWindow(str(op.window)) : asked.windowId;
   const changesProfile = profileId !== asked.profileId;
   const changesWindow = windowId !== asked.windowId;
   if (changesProfile) keptOpen(asked, "move");
   if (changesWindow && asked.pinned) throw new OpError("refused", `Group ${asked.id} is pinned, so it's in every window of its profile.`);
-  const parent = op.parent === undefined ? undefined : op.parent === null ? null : groupRef(results, str(op.parent));
+  const parentScope = () => ({ windowId: op.window !== undefined ? normalWindow(str(op.window)) : asked.windowId, profileId: (op.profile as string | undefined) ?? asked.profileId });
+  const parent = op.parent === undefined ? undefined : op.parent === null ? null : groupRef(results, op.parent, parentScope);
   const ref = (op.before ?? op.after) as string | undefined;
   const anchor = ref !== undefined ? anchorRef(results, ref) : undefined;
   for (const [what, place] of [["parent", parent], ["anchor", anchor]] as const) {
@@ -284,21 +297,22 @@ function moveGroup(results: OpResult[], op: Op): OpResult {
   const moved = g.id;
   if (anchor === undefined && parent === undefined && op.pinned === undefined) {
     afterChange({ groups: [moved] }, () => expectGroup(moved, { windowId, profileId }));
-    return { group: moved };
+    return labelled(moved);
   }
   store().moveGroup(g.id, { pinned, parentId, beforeId: dest?.placement.beforeId });
   afterChange({ groups: [moved] }, () => {
     expectGroup(moved, { windowId, profileId, parentId, pinned });
     expectBeside(store().groups[moved]!.tabIds, dest?.anchor, dest?.after);
   });
-  return { group: moved };
+  return labelled(moved);
 }
 
 function removeGroup(results: OpResult[], op: Op): OpResult {
   const s = store();
-  const g = groupRef(results, str(op.group));
+  const g = groupRef(results, op.group);
   keptOpen(g, "remove");
   const target = op.op === "group.ungroup" ? g : closedGroupFor(s, g);
+  const named = labelled(target.id);
   keptOpen(target, "remove");
   if (op.op !== "group.ungroup") guardEmptied(s, new Set(target.tabIds));
   const tabs = [...target.tabIds];
@@ -306,7 +320,7 @@ function removeGroup(results: OpResult[], op: Op): OpResult {
   else if (op.op === "group.close") store().closeGroup(g.id);
   else store().deleteGroup(g.id);
   expectGone(target.id);
-  return { group: target.id, tabs };
+  return { ...named, tabs };
 }
 
 export function runOp(results: OpResult[], op: Op): OpResult | Promise<OpResult> {
@@ -341,11 +355,11 @@ export function runOp(results: OpResult[], op: Op): OpResult | Promise<OpResult>
     case "group.create":
       return createGroup(results, op);
     case "group.update": {
-      const g = groupRef(results, str(op.group));
+      const g = groupRef(results, op.group);
       const patch = groupPatch(op);
       store().updateGroup(g.id, patch);
       expectGroup(g.id, patch);
-      return { group: g.id };
+      return labelled(g.id);
     }
     case "group.move":
       return moveGroup(results, op);

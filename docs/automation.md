@@ -147,13 +147,21 @@ the reply, so it can still cancel (close) a tab the reply listed. The first fail
 operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
 second `apply` waits for the first. Turning control off stops a running batch before its next operation.
 
-Reply: `{"ok", "applied", "results": [{"op", "tabs"?, "group"?, "outcomes"?}], "error"?: {"index", "code",
+Reply: `{"ok", "applied", "results": [{"op", "tabs"?, "group"?, "label"?, "icon"?, "outcomes"?}], "error"?: {"index", "code",
 "message"}, "tabs": [tab], "groups": [group without items, with "tabs"], "windows": [{"id", "activeTab"}]}`: every tab
-and group an operation named or made, as they ended up, and the shown tab of every window touched. A failed
-operation is a normal reply with `ok: false`; only a request that fails the up-front check is an `error` reply.
+and group an operation named or made, as they ended up, and the shown tab of every window touched. A group
+operation's result also has the group's `label` and `icon` (for `group.ungroup`, `close` and `delete`, as they were
+before it went), so the CLI prints `created group 💼 Work (g-…) with 4 tabs`. A failed operation is a normal reply
+with `ok: false`; only a request that fails the up-front check is an `error` reply.
 
 Ids may be `$N` (N less than the operation's own index): what operation N made, its group in a group field, its
-tabs in a tab field (one tab where only one fits). `before`/`after` take a tab or a group id and put the tabs (or
+tabs in a tab field (one tab where only one fits). A group field (`group`, `parent`) also takes a group's name, as a
+string or `{"name": "Work"}`: `$N` first, then an exact group id (ids win, even over a group named like one), then
+the name, matched case-insensitively and ignoring surrounding spaces against the groups' names (and their shown
+labels, for groups without a name). Names are looked up in one window: the operation's `window` and `profile` when
+it has them (for `group.move`'s `parent`, the window the group goes to), else the window of the tabs it names, else
+the last focused window. A name no group there has is `no_window`; a name several share is `bad_request` with each
+one's id. A string that is exactly `$` and digits is always a reference, never a name. `before`/`after` take a tab or a group id and put the tabs (or
 group) next to it, in that tab's group and section. With `group` (or `parent`) too, the anchor must be inside that
 group, in its window and profile, else `bad_request`. The anchor's section decides the section: next to a Top Apps
 tile the tabs become tiles, next to a pinned row or a top-level pinned group they become pinned rows (a moved group
@@ -174,7 +182,7 @@ profile goes where the store puts moved tabs.
 | `tab.wake` | `tabs` | Loads a sleeping tab in the background (`updateTab` with its woken page, or a reload for a discarded one). `outcomes`: `awake`, `already`, `failed` |
 | `tab.close` | `tabs` | `closeTabs`: as ✕, so pinned tabs unload; never closes a window (a window left empty gets a New Tab) |
 | `tab.rename` / `tab.icon` | `tab`, `title` / `icon` (null resets) | `updateTab` `customTitle` / `customIcon`, as Rename… and Change Icon… |
-| `group.create` | `tabs`?, `urls`?, `window`?, `profile`?, `parent`?, `pinned`? (default true, like New Group with Tab), `name`?, `icon`?, `color`?, `collapsed`?, `before`?/`after`? | Opens `urls`, else one New Tab when no `tabs`; places them (out of their old groups, into the parent), `groupTabs`, then `updateGroup`. An anchor decides where the group goes, by the rule above: next to a pinned row or a top-level pinned group it is a pinned group there; next to a tab or group inside group P it is nested in P; next to a Top Apps tile it is refused; a `pinned` or `parent` that contradicts that is `bad_request`, before anything opens. Top Apps tiles in `tabs` are refused. The post-check covers its parent, pinned state and side of the anchor; if it fails, or a URL doesn't open (a `tab.opening` rule cancelled it: `refused`), the tabs it opened are closed again and the tabs it was given stay where they were moved (`error.changed`) |
+| `group.create` | `tabs`?, `urls`?, `window`?, `profile`?, `parent`?, `pinned`? (default true, like New Group with Tab), `name`?, `icon`?, `color`?, `collapsed`?, `before`?/`after`? | Opens `urls`, else one New Tab when no `tabs`; places them (out of their old groups, into the parent), `groupTabs`, then `updateGroup`. With no anchor and no parent, a group made from tabs of another group goes just above that group's outermost group (its first tab left), so groups made one after another from one group keep their creation order and the group, with the tabs left in it, stays below them; `group.ungroup` of it then leaves those tabs where they are, as the sidebar's Ungroup does. A group made from loose tabs goes where its first tab was. An anchor decides where the group goes, by the rule above: next to a pinned row or a top-level pinned group it is a pinned group there; next to a tab or group inside group P it is nested in P; next to a Top Apps tile it is refused; a `pinned` or `parent` that contradicts that is `bad_request`, before anything opens. Top Apps tiles in `tabs` are refused. The post-check covers its parent, pinned state and side of the anchor; if it fails, or a URL doesn't open (a `tab.opening` rule cancelled it: `refused`), the tabs it opened are closed again and the tabs it was given stay where they were moved (`error.changed`) |
 | `group.update` | `group`, `name`?, `icon`?, `color`?, `collapsed`? (at least one) | `updateGroup` |
 | `group.move` | `group`, `parent`? (id or null), `pinned`?, `before`?/`after`?, `window`?, `profile`? | `moveGroupToProfile`, `moveGroupToWindow` (not a pinned group: it is in every window of its profile), then `moveGroup`. A move to another profile gives the group a new id; the result has it |
 | `group.ungroup` / `group.close` / `group.delete` | `group` | `ungroup` (tabs stay), `closeGroup` (to Recently Closed Groups), `deleteGroup` |
