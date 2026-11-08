@@ -61,6 +61,36 @@ test("the current tab stays in the list even when it has no page, so the first r
   assert.deepEqual(recentTabIds(S(), w), [a, b]);
 });
 
+test("closing the current tab promotes an older tab, which still leads the list so ⌃Tab's first step leaves it", () => {
+  const [w, a, b, c] = windowWith("a", "b", "c");
+  open(c);
+  open(a);
+  open(b);
+  S().closeTab(b);
+  assert.equal(model.activeTabId(S(), w), c);
+  assert.deepEqual(recentTabIds(S(), w), [c, a]);
+});
+
+test("the current tab leads and is never dropped as stale, loaded or not, even when it was last used longest ago", () => {
+  const [w, a, b, c] = windowWith("a", "b", "c");
+  const now = Date.now();
+  S().updateTab(a, { lastActiveAt: now - 20 * HOUR });
+  S().updateTab(b, { lastActiveAt: now - 1000 });
+  S().updateTab(c, { lastActiveAt: now - 2000 });
+  assert.deepEqual(recentTabIds(S(), w, now, 10 * HOUR), [a, b, c]);
+  S().updateTab(a, { page: IDLE });
+  assert.deepEqual(recentTabIds(S(), w, now, 10 * HOUR), [a, b, c]);
+});
+
+test("a current tab with no page is the first row, then the latest other tab always stays and older ones still drop out", () => {
+  const [w, a, b, c] = windowWith("a", "b", "c");
+  const now = Date.now();
+  S().updateTab(a, { page: IDLE, lastActiveAt: now - 40 * HOUR });
+  S().updateTab(b, { lastActiveAt: now - 20 * HOUR });
+  S().updateTab(c, { lastActiveAt: now - 30 * HOUR });
+  assert.deepEqual(recentTabIds(S(), w, now, 10 * HOUR), [a, b]);
+});
+
 test("a blank new tab is listed: it is open on the new-tab page", () => {
   const [w, a, b] = windowWith("a", "b");
   const blank = S().newTab(w, { background: true });

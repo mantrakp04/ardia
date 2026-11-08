@@ -168,7 +168,7 @@ export function recentTabIds(s: BrowserState, windowId: string, now = Date.now()
   const view = viewTabIds(s, windowId)
     .filter((id) => id === current || !isPageUnloaded(s, id))
     .map((id) => s.tabs[id]!);
-  const sorted = view.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  const sorted = view.sort((a, b) => (a.id === current ? -1 : b.id === current ? 1 : b.lastActiveAt - a.lastActiveAt));
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 
