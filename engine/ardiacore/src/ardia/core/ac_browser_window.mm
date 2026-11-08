@@ -269,6 +269,12 @@ std::vector<StatusBubble*> ACBrowserWindow::GetStatusBubbles() {
   return {};
 }
 
+void ACBrowserWindow::UpdateTitleBar() {
+  if (host_) {
+    host_->UpdateTitle();
+  }
+}
+
 void ACBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
                                          content::WebContents* new_contents,
                                          int index,

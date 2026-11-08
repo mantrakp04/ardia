@@ -94,6 +94,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     if let chromeWindow = ChromeWindows.makeWindow(profile: options.profile, chromeWindow: small ? nil : options.chromeWindow, appWindow: small ? claim : id) {
       if options.incognito { chromeWindow.appearance = NSAppearance(named: .darkAqua) }
       let entry = ManagedWindow(id: id, kind: kind, window: chromeWindow)
+      entry.hostsChrome = true
       let root = makeContentView(id)
       ArdiaChromeWindowHost.embedRootView(root, in: chromeWindow)
       if !chromeWindow.isVisible {
@@ -127,7 +128,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   ) {
     let window = entry.window, id = entry.id
     if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
-    window.title = title
+    if !entry.hostsChrome { window.title = title }
     if small, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
     managed[id] = entry
@@ -383,8 +384,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func setTitle(id: String, title: String) {
     if let index = pending.firstIndex(where: { $0.id == id }) { pending[index].options.title = title }
-    guard let window = window(id), window.title != title else { return }
-    window.title = title
+    guard let entry = managed[id], !entry.hostsChrome, entry.window.title != title else { return }
+    entry.window.title = title
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {

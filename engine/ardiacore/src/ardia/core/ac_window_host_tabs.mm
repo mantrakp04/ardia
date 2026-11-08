@@ -28,6 +28,7 @@ namespace ardiacore {
 
 void WindowHost::ActiveTabChanged(Browser* browser,
                                   content::WebContents* contents) {
+  UpdateTitle();
   if (!contents) {
     return;
   }

@@ -246,7 +246,7 @@ class ACBrowserWindow : public BrowserWindow,
   int GetTopControlsHeight() const override;
   void SetTopControlsGestureScrollInProgress(bool in_progress) override {}
   std::vector<StatusBubble*> GetStatusBubbles() override;
-  void UpdateTitleBar() override {}
+  void UpdateTitleBar() override;
   void UpdateLoadingAnimations(bool is_visible) override {}
   void OnActiveTabChanged(content::WebContents* old_contents,
                           content::WebContents* new_contents,

@@ -119,6 +119,7 @@ class WindowHost : public TabStripModelObserver,
   void AddBrowser(Browser* browser);
   void BrowserWindowDestroyed(ACBrowserWindow* window);
   void ActiveTabChanged(Browser* browser, content::WebContents* contents);
+  void UpdateTitle();
   void DevToolsDockChanged(content::WebContents* inspected,
                            content::WebContents* devtools);
   bool OfferPasswordSave(content::WebContents* contents);

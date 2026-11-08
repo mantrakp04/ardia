@@ -14,6 +14,7 @@ final class ManagedWindow {
   var exit: [() -> Void]?
   var contentShown = false
   var closingFromJS = false
+  var hostsChrome = false
   private var contentObserver: NSObjectProtocol?
   private var contentSizer: NSObjectProtocol?
 

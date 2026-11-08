@@ -38,6 +38,9 @@ void TabBridge::DidStartNavigation(content::NavigationHandle* handle) {
 }
 
 void TabBridge::TitleWasSet(content::NavigationEntry* entry) {
+  if (WindowHost* host = WindowHost::ForContents(web_contents())) {
+    host->UpdateTitle();
+  }
   ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   [tab_ notify:@selector(tabDidChangeTitle:)];
 }
