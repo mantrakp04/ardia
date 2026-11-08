@@ -1,9 +1,9 @@
-const URL_PATTERN = /\b(?:https?|wss?|ftp|file):\/\/[^\s<>"'`]+/gi;
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s<>"'`]+/gi;
 const EMAIL_PATTERN = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}\b/g;
 const HOME_PATTERN = /(\/(?:Users|home)\/)(?!\[user\])[^/\s"'`<>]+/g;
 
 const SECRET_PATTERNS = [
-  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g,
   /\bgh[pousr]_[A-Za-z0-9]{36,255}\b/g,
   /\bgithub_pat_[A-Za-z0-9_]{22,255}\b/g,
   /\bsk-(?:ant-|proj-|svcacct-)?[A-Za-z0-9_-]{20,}/g,
@@ -35,51 +35,72 @@ function trimUrl(url) {
   }
   const cut = url.search(/[?#]/);
   const bare = cut === -1 ? url : url.slice(0, cut);
-  return bare.replace(/^([a-z]+:\/\/)[^/@\s]*@/i, "$1") + trail;
+  return bare.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@\s]*@/i, "$1") + trail;
 }
 
 const CREDENTIAL_START = new RegExp(
-  String.raw`(?:(?<![A-Za-z0-9_.-])(?:${SECRET_KEY}|(?:proxy-)?authorization|(?:set-)?cookie|x-[a-z0-9-]*(?:token|key|secret|auth|session|password)[a-z0-9-]*|api-key|private-token)["'${BT}]?\]?[ \t]*(?:=>|:=|=|:)|(?<!\S)--?${SECRET_KEY}(?:[ \t]+|=)|(?<!\S)(?:-u|--user|--proxy-user)(?:[ \t]+|=))[ \t]*`,
+  String.raw`(?:(?<![A-Za-z0-9_.-])(?:${SECRET_KEY}|(?:proxy-)?authorization|(?:set-)?cookie|x-[a-z0-9-]*(?:token|key|secret|auth|session|password)[a-z0-9-]*|api-key|private-token)(?:\\?["'${BT}])?\]?[ \t]*(?:=>|:=|=|:)|(?<!\S)--?${SECRET_KEY}(?:[ \t]+|=)|(?<!\S)(?:-u|--user|--proxy-user)(?:[ \t]+|=)|(?<!\S)-u(?=[^\s:]*:))[ \t]*`,
   "i",
 );
+const TRIPLE_QUOTES = ['"""', "'''"];
 
-function unclosedQuote(tail) {
-  let open = null;
-  for (let i = 0; i < tail.length; i++) {
-    const c = tail[i];
+function openQuote(text, open = null) {
+  for (let i = 0; i < text.length; i++) {
+    if (open && open.length === 3) {
+      if (text.startsWith(open, i)) {
+        open = null;
+        i += 2;
+      }
+      continue;
+    }
+    const c = text[i];
+    const triple = open ? null : TRIPLE_QUOTES.find((q) => text.startsWith(q, i));
     if (c === "\\") i++;
     else if (open) open = c === open ? null : open;
-    else if (c === '"' || c === "'" || c === BT) open = c;
+    else if (triple) {
+      open = triple;
+      i += 2;
+    } else if (c === '"' || c === "'" || c === BT) open = c;
   }
   return open;
 }
 
 function redactCredentialLines(text) {
-  const lines = text.split("\n");
   let quote = null;
+  let continued = false;
   let folding = false;
-  return lines
-    .map((line) => {
-      if (quote) {
-        if (unclosedQuote(quote + line) === null) quote = null;
-        return null;
-      }
-      if (folding && /^[ \t]/.test(line)) return null;
-      folding = false;
-      const match = CREDENTIAL_START.exec(line);
-      if (!match) return line;
-      const cut = match.index + match[0].length;
-      quote = unclosedQuote(line.slice(cut));
-      folding = true;
-      return `${line.slice(0, cut)}[secret]`;
-    })
-    .filter((line) => line !== null)
-    .join("\n");
+  let listValue = false;
+  const kept = [];
+  for (const line of text.split("\n")) {
+    if (quote) {
+      quote = openQuote(line, quote);
+      continue;
+    }
+    if (continued) {
+      continued = /\\[ \t]*$/.test(line);
+      continue;
+    }
+    if (folding && (/^[ \t]/.test(line) || (listValue && /^-(?:[ \t]|$)/.test(line)))) continue;
+    folding = false;
+    const match = CREDENTIAL_START.exec(line);
+    if (!match) {
+      kept.push(line);
+      continue;
+    }
+    const cut = match.index + match[0].length;
+    quote = openQuote(line);
+    continued = /\\[ \t]*$/.test(line);
+    folding = true;
+    listValue = line.slice(cut).trim() === "";
+    kept.push(`${line.slice(0, cut)}[secret]`);
+  }
+  return kept.join("\n");
 }
 
 export function scrubText(text) {
-  let out = redactCredentialLines(String(text ?? "").replace(URL_PATTERN, trimUrl));
+  let out = String(text ?? "");
   for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, "[secret]");
+  out = redactCredentialLines(out.replace(URL_PATTERN, trimUrl));
   out = out.replace(DIGEST_PATTERN, "Digest$1[secret]");
   out = out.replace(HEADER_PATTERN, (match, name, gap, value) => `${name}${gap}${value.match(/^(?:Bearer|Basic|Token)[ \t]+/i)?.[0] ?? ""}[secret]`);
   out = out.replace(URL_PATTERN, trimUrl);
