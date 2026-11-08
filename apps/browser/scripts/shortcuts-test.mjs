@@ -496,9 +496,10 @@ for (const mode of ["page", "commandBar"]) {
       const bar = (await devWindow("ax")).split("\n").find((l) => /AXTextField/.test(l))?.trim().replace(/^AXTextField:? ?/, "") ?? "";
       const inPage = await pageField("f.value");
       const trace = await ac(`return globalThis.expo.modules.ArdiaDev.devFocusHandoffTrace();`);
-      const dropped = trace.slice(trace.findLastIndex((l) => / begin /.test(l))).some((l) => / drop /.test(l));
+      const began = trace.findLastIndex((l) => / begin /.test(l));
+      const dropped = began < 0 || trace.slice(began).some((l) => / drop /.test(l));
       check(`⌘T then typing at +${gap} ms, JS busy ${busy} ms, New tab opens ${mode}: the letters land in the box, in order, with no beep`,
-        bar === "qwe" && inPage === "" && !dropped, `box "${bar}", page "${inPage}", dropped ${dropped}`);
+        bar === "qwe" && inPage === "" && !dropped, `box "${bar}", page "${inPage}", dropped or no gate ${dropped}`);
     }
   }
 }
