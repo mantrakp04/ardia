@@ -107,3 +107,74 @@ test("a collapsed group inside a collapsed group keeps its own opened tabs, and 
   assert.deepEqual(kept("n"), []);
   assert.deepEqual(kept("g"), ["t:t3", "g:n"]);
 });
+
+const shows = (groupId = "g") => entries.showsExtraTabs(S(), "w", "default", groupId);
+
+test("an outer header sees the extra tabs a collapsed group inside it reveals, and one click hides them", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  S().activate("t4");
+  S().activate("t5");
+  assert.deepEqual(kept("g"), ["g:n"]);
+  assert.deepEqual(kept("n"), ["t:t4", "t:t5"]);
+  assert.equal(shows("g"), true);
+  S().updateGroup("g", { shownTabIds: [] });
+  assert.deepEqual(kept("n"), ["t:t5"]);
+  assert.equal(shows("g"), false);
+  assert.equal(S().groups.g.collapsed, true);
+});
+
+test("a header with only the focused tab under it has no extra tabs to hide", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  assert.equal(shows("g"), false);
+  S().activate("t5");
+  assert.equal(shows("g"), false);
+  assert.equal(shows("n"), false);
+  S().activate("t0");
+  assert.equal(shows("g"), true);
+});
+
+test("a group expanded and collapsed again by the Chrome-side sync starts over with only the focused tab", () => {
+  hydrate();
+  S().activate("t3");
+  S().activate("t5");
+  const set = (collapsed) => useBrowser.setState((s) => ({ groups: { ...s.groups, g: { ...s.groups.g, collapsed } } }));
+  set(false);
+  assert.equal(S().groups.g.shownTabIds, undefined);
+  set(true);
+  assert.deepEqual(kept(), ["t:t5"]);
+});
+
+test("a tab opened with the New Tab command beside a tab of a collapsed group stays under its header", () => {
+  hydrate();
+  useBrowser.setState((s) => ({ settings: { ...s.settings, newTabPosition: "nextToCurrent" } }));
+  S().activate("t3");
+  const id = S().newTab("w", { newTabCommand: true });
+  assert.ok(S().groups.g.tabIds.includes(id));
+  S().activate("t0");
+  assert.deepEqual(kept(), ["t:t3", `t:${id}`]);
+});
+
+test("an Opt+Shift-click that opens a tab in the focused collapsed group keeps it under the header", () => {
+  hydrate();
+  useBrowser.setState((s) => ({ settings: { ...s.settings, optShiftClickOpensInGroup: true } }));
+  S().activate("t3");
+  S().clickTab("w", "t1", { altKey: true, shiftKey: true });
+  assert.ok(S().groups.g.tabIds.includes("t1"));
+  S().activate("t0");
+  assert.deepEqual(kept(), ["t:t3", "t:t1"]);
+});
+
+test("a tab added to a collapsed group by addTabsToGroup stays under its header", () => {
+  hydrate();
+  S().addTabsToGroup("g", ["t1"]);
+  assert.ok(S().groups.g.tabIds.includes("t1"));
+  assert.equal(S().windows.w.activeTabIds.default, "t0");
+  assert.deepEqual(kept(), ["t:t1"]);
+});
+
+test("a tab dragged into a collapsed group is placed there hidden, like Arc's", () => {
+  hydrate();
+  S().placeTabs(["t1"], { pinned: false, groupId: "g" });
+  assert.ok(S().groups.g.tabIds.includes("t1"));
+  assert.deepEqual(kept(), []);
+});

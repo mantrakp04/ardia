@@ -11,7 +11,7 @@ import { folderIn } from "../pins/tileFolders";
 import { useStoreWhile } from "../tabs/tabWatch";
 import { splitOf, splitRowPanes } from "../splits/splits";
 import { downloadsIn } from "../downloads/downloadsSlice";
-import { groupEntries, holdsTab, keptEntries, sidebarEntries } from "./entries";
+import { groupEntries, keptEntries, showsExtraTabs, sidebarEntries } from "./entries";
 import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
@@ -53,11 +53,7 @@ export const useCapturedSidebarEntries = (windowId: string, profileId: string, c
 
 export const useKeptEntries = (windowId: string, profileId: string, groupId: string) => useBrowser(useShallow((s) => keptEntries(s, windowId, profileId, groupId)));
 
-export const useShowsExtraTabs = (windowId: string, profileId: string, groupId: string) =>
-  useBrowser((s) => {
-    const active = activeTabId(s, windowId, profileId);
-    return keptEntries(s, windowId, profileId, groupId).some((entry) => !active || !holdsTab(s, entry, active));
-  });
+export const useShowsExtraTabs = (windowId: string, profileId: string, groupId: string) => useBrowser((s) => showsExtraTabs(s, windowId, profileId, groupId));
 
 export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
 

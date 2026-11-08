@@ -30,6 +30,10 @@ export function settleShownTabs(s: BrowserState): Pick<BrowserState, "groups"> |
   let groups = s.groups;
   for (const g of Object.values(s.groups)) {
     if (!g.shownTabIds) continue;
+    if (!g.collapsed) {
+      groups = withoutShownTabs(groups, [g.id]);
+      continue;
+    }
     const active = activeTabId(s, g.windowId, g.profileId);
     const live = g.shownTabIds.filter((id) => g.tabIds.includes(id) && !(id !== active && inPinnedContainer(s, id) && isAsleep(s.tabs[id])));
     if (live.length !== g.shownTabIds.length) groups = { ...groups, [g.id]: withShown(g, live) };

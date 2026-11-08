@@ -107,6 +107,15 @@ export function keptEntries(s: BrowserState, windowId: string, profileId: string
   return groupEntries(s, groupId).filter((e) => held.some((id) => holdsTab(s, e, id)));
 }
 
+export function showsExtraTabs(s: BrowserState, windowId: string, profileId: string, groupId: string): boolean {
+  const active = activeTabId(s, windowId, profileId);
+  return keptEntries(s, windowId, profileId, groupId).some((entry) => {
+    if (!active || !holdsTab(s, entry, active)) return true;
+    const { kind, id } = parseEntry(entry);
+    return kind === "group" && !!s.groups[id]?.collapsed && showsExtraTabs(s, windowId, profileId, id);
+  });
+}
+
 export function holdsTab(s: BrowserState, entry: string, tabId: string): boolean {
   const { kind, id } = parseEntry(entry);
   if (kind === "group") return !!s.groups[id]?.tabIds.includes(tabId);

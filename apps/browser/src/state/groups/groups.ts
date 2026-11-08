@@ -8,7 +8,7 @@ import { withSplitRows } from "../splits/splits";
 import { withNewTab } from "../tabs/tabs";
 import type { BrowserWindow, ClosedGroup, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
 import { depthOf, descendantIds, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
-import { withoutShownTabs } from "./shownTabs";
+import { withShownTab, withoutShownTabs } from "./shownTabs";
 import { pinnedGroupMembers } from "../browser/structure";
 import { groupingOnto } from "../pins/placing";
 
@@ -186,7 +186,8 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!adding.length) return {};
       const w = s.windows[group.windowId]!;
       const block = placeBlock(w.tabIds, [...group.tabIds, ...adding]);
-      const groups = nestGroups({ ...leaveGroups(s.groups, new Set(adding)), [groupId]: { ...group, tabIds: [...group.tabIds, ...adding] } });
+      const nested = nestGroups({ ...leaveGroups(s.groups, new Set(adding)), [groupId]: { ...group, tabIds: [...group.tabIds, ...adding] } });
+      const groups = adding.reduce(withShownTab, nested);
       const window = { ...w, tabIds: placeGroups(block, groups, w.id) };
       return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
     });
