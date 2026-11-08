@@ -67,6 +67,31 @@ contract the app, the CLI, the feedback service and the dashboard build against.
 - `node infra/feedback/server.mjs --local <dir>` runs it with no ClickHouse, SeaweedFS or GitHub, writing
   to `<dir>`, for tests. The app reads `ARDIA_FEEDBACK_URL`, the CLI `ARDIA_FEEDBACK_URL` too.
 
+### Local mode
+
+```
+node infra/feedback/server.mjs --local ~/ardia-scratch/feedback   # http://127.0.0.1:4319
+ARDIA_FEEDBACK_URL=http://127.0.0.1:4319                          # in the app's or the CLI's env
+```
+
+- `ARDIA_FEEDBACK_URL` is an origin, without a path: clients POST to `$ARDIA_FEEDBACK_URL/api/feedback`.
+  Unset, it is `https://ardia.dev`. Local mode serves the same paths as production.
+- Options: `--port <n>` (default `$PORT`, else 4319), `--host <addr>` (default 127.0.0.1), `--rate-limits` (off
+  in local mode). `FEEDBACK_UPLOAD_SECRET` is optional there; without it a secret is made once and kept in
+  `<dir>/.upload-secret`, so tokens survive a restart. `--help` lists the production env.
+- It checks everything production checks, `X-Ardia-Key` included (the app key with `source: app`, the CLI key
+  with `source: cli`; keys in `packages/core/src/ingestKeys.ts`).
+- `upload_urls` is an object, attachment name → absolute URL to PUT. Every PUT must send exactly the declared
+  `bytes` (else 400 or 413). The token lasts 24 hours and only works for its own report.
+- Errors are `{ error, message }`: 400 `invalid` (the message names the field), 401 `token_*`, 403 `bad_key`,
+  404, 409 `completed` (a PUT after complete), 413, 415 (not JSON), 429 `rate_limited`, 502 `upstream`
+  (storage or collector down; retry). Complete is idempotent: repeat it after a failure and it answers the same.
+- What lands in `<dir>`: `feedback/<id>/report.json` (the report as stored), the uploaded files,
+  `issue.md` (the would-be public issue, already scrubbed), `event.json` (the exact OTLP request the
+  collector would get) and `complete.json`, plus every event appended to `events.jsonl`. `issue_url` is a
+  `file://` link to `issue.md`.
+- Tests: `node --test` in `infra/feedback`.
+
 ## Report a Problem (app)
 
 Help › Report a Problem… (⌥⇧⌘I) and the New Tab check-in banner open it. It replaces Send Feedback and

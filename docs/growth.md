@@ -154,7 +154,13 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   `.claude/skills/stats/queries.md`. Secrets are Hexclave project secrets (`TELEMETRY_*`); a backup is in
   `~/.config/ardia/telemetry-secrets.env`.
   hekuto reads the same tables as `reader` through a Composio ClickHouse connection (Basic auth, base URL
-  `https://ardia.dev/_ch`); `/_ch/` takes Basic auth for `reader` only.
+  `https://ardia.dev/_ch`); `/_ch/` takes `reader` only, as Basic auth or `X-ClickHouse-User`.
+- **Ingest keys (since 2026-11):** senders put a public key per surface in `X-Ardia-Key` (site beacons, which
+  can't set headers, use `?ardia_key=`); keys live in `packages/core/src/ingestKeys.ts` and the map in
+  `infra/site/nginx.conf`. nginx refuses an unknown key with 403 and passes the surface to the collector, which
+  stores it as `ingest_key` (`app`, `cli`, `site` or `missing`). Reports from Report a Problem go through
+  `/api/feedback` to `infra/feedback` (see `docs/feedback.md`), land in `telemetry.feedback`, and keep their
+  files in SeaweedFS under `feedback/<id>/` with no expiry.
 - **Crash and diagnostics fields (opt-in, since 0.2.45-nightly.3):** every field is a count, a size, a
   duration, a fixed name or yes/no, in `properties` like everything else, so no schema change. Code:
   `apps/browser/src/state/telemetry/diagnostics.ts`, `errors.ts`, `tabPresses.ts`, `packages/shell/ios/CrashReports.swift`.
