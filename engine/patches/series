@@ -76,6 +76,7 @@ chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch
 chromium chromium-media-session-main-frame-handler.patch
 chromium chromium-pip-user-agent-ignores-page-opt-out.patch
+chromium chromium-widevine-without-cdm.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch
