@@ -266,3 +266,32 @@ test("the command panel over the rows takes their highlight", () => {
   hover.setRowsCovered(W, false);
   assert.equal(refreshed, 1, "a row that's no longer pointed isn't told");
 });
+
+const drawn = { open: true, newTab: false, centred: false, hasActiveTab: true, sidebarAnchor: true };
+
+test("an open command panel over the sidebar rows takes their highlight", () => {
+  assert.equal(hover.panelCoversRows(drawn), true);
+});
+
+test("a panel that draws nothing leaves the rows hoverable", () => {
+  assert.equal(hover.panelCoversRows({ ...drawn, hasActiveTab: false }), false, "no active tab in this profile: the panel renders nothing");
+  assert.equal(hover.panelCoversRows({ ...drawn, open: false }), false, "closed");
+  assert.equal(hover.panelCoversRows({ ...drawn, newTab: true }), false, "the new tab bar sits over the page");
+  assert.equal(hover.panelCoversRows({ ...drawn, centred: true }), false, "the centred bar sits over the page");
+  assert.equal(hover.panelCoversRows({ ...drawn, sidebarAnchor: false }), false, "the field isn't in the sidebar");
+});
+
+test("the covered flag follows a panel that unmounts or moves to another window", () => {
+  const release = hover.holdRowsCovered(W, true);
+  assert.equal(hover.rowsCovered(W), true);
+  release();
+  assert.equal(hover.rowsCovered(W), false, "unmounting hands the rows back");
+
+  const first = hover.holdRowsCovered("one", true);
+  first();
+  const second = hover.holdRowsCovered("two", true);
+  assert.equal(hover.rowsCovered("one"), false, "the window the panel left is released");
+  assert.equal(hover.rowsCovered("two"), true);
+  second();
+  assert.equal(hover.rowsCovered("two"), false);
+});

@@ -100,6 +100,15 @@ export function setRowsCovered(windowId: string, on: boolean) {
 
 export const rowsCovered = (windowId: string) => covered.has(windowId);
 
+export type PanelDraw = { open: boolean; newTab: boolean; centred: boolean; hasActiveTab: boolean; sidebarAnchor: boolean };
+
+export const panelCoversRows = (p: PanelDraw) => p.open && p.hasActiveTab && !p.newTab && !p.centred && p.sidebarAnchor;
+
+export function holdRowsCovered(windowId: string, on: boolean) {
+  setRowsCovered(windowId, on);
+  return () => setRowsCovered(windowId, false);
+}
+
 export function watchCovered(windowId: string, refresh: () => void, on: boolean) {
   let rows = pointedRows.get(windowId);
   if (on) {
