@@ -1,6 +1,8 @@
 import asyncio
 import io
 import json
+import os
+import time
 import shutil
 import sys
 import tempfile
@@ -95,6 +97,9 @@ class FakeBrowser:
         self.delay = delay
         self.created = []
         self.closed = []
+        self.urls = {}
+        self.stuck = set()
+        self.close_fails = False
         self.live = 0
         self.peak = 0
 
@@ -102,10 +107,16 @@ class FakeBrowser:
         if method == "Target.createTarget":
             target = f"R{len(self.created) + 1}"
             self.created.append(target)
+            self.urls[target] = params["url"]
             return {"targetId": target}
         if method == "Target.closeTarget":
+            if self.close_fails:
+                raise BrowseError("Target.closeTarget got no answer in 3s")
             self.closed.append(params["targetId"])
-            return {}
+            return {"success": True}
+        if method == "Target.getTargets":
+            present = [target for target in self.urls if target not in self.closed or target in self.stuck]
+            return {"targetInfos": [{"targetId": target, "type": "page", "url": self.urls[target]} for target in present]}
         raise AssertionError(method)
 
 
@@ -128,6 +139,22 @@ class FakeRegistry:
         self.calls = []
         self.temporary = set()
         self.refuse = set()
+        self.intents = set()
+        self.orphans = []
+
+    def note_intent(self, instance, marker):
+        self.calls.append(("note_intent", marker))
+        self.intents.add(marker)
+
+    def drop_intent(self, instance, marker):
+        self.calls.append(("drop_intent", marker))
+        self.intents.discard(marker)
+
+    def claim_orphans(self, instance):
+        return list(self.orphans)
+
+    def release_close(self, instance, target):
+        self.calls.append(("release_close", target))
 
     def note_temporary(self, instance, target):
         self.calls.append(("note_temporary", target))
@@ -242,9 +269,12 @@ class TemporaryOwnership(unittest.TestCase):
         state = reader_state()
         owned = []
         target = run(temptabs.create(state, owned))
-        self.assertEqual(state.registry.calls, [("note_temporary", "R1")])
+        marker = state.registry.calls[0][1]
+        self.assertEqual(state.registry.calls, [("note_intent", marker), ("note_temporary", "R1"), ("drop_intent", marker)])
+        self.assertEqual(state.browser.urls["R1"], f"about:blank#{marker}")
+        self.assertTrue(marker.startswith("ardia-temp-"))
         run(temptabs.release(state, owned))
-        self.assertEqual(state.registry.calls[1:], [("reserve_close", "R1"), ("finish_close", "R1")])
+        self.assertEqual(state.registry.calls[3:], [("reserve_close", "R1"), ("finish_close", "R1")])
         self.assertEqual(state.browser.closed, [target])
         self.assertEqual(owned, [])
 
@@ -257,17 +287,106 @@ class TemporaryOwnership(unittest.TestCase):
         run(temptabs.create(state, owned))
         run(temptabs.release(state, owned))
         self.assertEqual(state.browser.closed, [])
-        self.assertEqual(state.registry.calls[-1], ("drop_temporary", "R1"))
+        self.assertNotIn(("drop_temporary", "R1"), state.registry.calls)
+        self.assertEqual(state.registry.temporary, {"R1"})
+
+    def test_a_close_that_fails_keeps_the_record_and_frees_only_the_reservation(self):
+        from ardia_cli.browse import temptabs
+
+        for how in ("stuck", "fails", "disconnected"):
+            state = reader_state()
+            owned = []
+            run(temptabs.create(state, owned))
+            if how == "stuck":
+                state.browser.stuck.add("R1")
+            elif how == "fails":
+                state.browser.close_fails = True
+            else:
+                state.connected = False
+            run(temptabs.release(state, owned))
+            self.assertEqual(state.registry.temporary, {"R1"}, how)
+            self.assertEqual(state.registry.calls[-2:], [("reserve_close", "R1"), ("release_close", "R1")], how)
+            self.assertEqual(owned, [], how)
+
+    def test_a_tab_created_by_a_daemon_that_died_before_the_reply_is_found_by_its_marker(self):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.registry.orphans = ["ardia-temp-dead1", "ardia-temp-never"]
+        state.registry.intents = set(state.registry.orphans)
+        state.browser.urls = {"X1": "about:blank#ardia-temp-dead1", "U1": "about:blank#ardia-temp-dead1x"}
+        state.target_infos = {target: {"targetId": target, "url": url} for target, url in state.browser.urls.items()}
+        run(temptabs.sweep(state))
+        self.assertEqual(state.browser.closed, ["X1"])
+        self.assertEqual(state.registry.intents, set())
+        self.assertEqual(state.registry.temporary, set())
 
     def test_leftovers_of_a_dead_daemon_are_closed_on_the_next_run(self):
         from ardia_cli.browse import temptabs
 
         state = reader_state()
         state.registry.temporary = {"OLD1", "GONE"}
+        state.browser.urls = {"OLD1": "http://s/"}
         state.target_infos = {"OLD1": {"targetId": "OLD1", "url": "http://s/"}}
         run(temptabs.sweep(state))
         self.assertEqual(state.browser.closed, ["OLD1"])
         self.assertEqual(state.registry.temporary, set())
+
+
+class RegistryRecovery(unittest.TestCase):
+    def setUp(self):
+        from ardia_cli.browse import paths
+
+        SCRATCH.mkdir(exist_ok=True)
+        root = Path(tempfile.mkdtemp(prefix="browse-registry-", dir=SCRATCH))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        self.fd = paths.browse_dir(root)
+        self.addCleanup(os.close, self.fd)
+
+    def registry(self, key="mine"):
+        from ardia_cli.browse.tabs import Registry
+
+        return Registry(self.fd, key, key)
+
+    def edit(self, change):
+        with self.registry()._open("I") as data:
+            change(data)
+
+    def test_release_close_frees_the_reservation_and_keeps_the_temporary(self):
+        mine = self.registry()
+        mine.note_temporary("I", "T1")
+        self.assertTrue(mine.reserve_close("I", "T1"))
+        mine.release_close("I", "T1")
+        self.assertEqual(mine.temporaries("I"), ["T1"])
+        with mine._open("I") as data:
+            self.assertNotIn("T1", data["closing"])
+        self.assertTrue(mine.reserve_close("I", "T1"))
+
+    def test_a_reservation_left_by_an_earlier_process_of_this_session_is_reclaimed(self):
+        mine = self.registry()
+        mine.note_temporary("I", "T1")
+        self.edit(lambda data: data["closing"].__setitem__("T1", {"key": "mine", "session": "mine", "at": time.time(), "pid": 1}))
+        self.assertTrue(mine.reserve_close("I", "T1"))
+        self.assertFalse(mine.reserve_close("I", "T1"))
+
+    def test_orphans_of_dead_daemons_are_claimed_and_live_ones_left(self):
+        mine = self.registry()
+        mine.note_intent("I", "ardia-temp-live")
+
+        def plant(data):
+            data.setdefault("intents", {}).update({
+                "ardia-temp-old": {"key": "mine", "session": "mine", "pid": 1, "at": 0},
+                "ardia-temp-dead": {"key": "gone", "session": "gone", "pid": 2, "at": 0},
+            })
+            data["opened"]["T9"] = {"key": "gone", "session": "gone", "temporary": True, "at": 0}
+
+        self.edit(plant)
+        self.assertEqual(sorted(mine.claim_orphans("I")), ["ardia-temp-dead", "ardia-temp-old"])
+        self.assertEqual(mine.temporaries("I"), ["T9"])
+        self.assertEqual(mine.claim_orphans("I"), [])
+        mine.drop_intent("I", "ardia-temp-dead")
+        with mine._open("I") as data:
+            self.assertEqual(sorted(data["intents"]), ["ardia-temp-live", "ardia-temp-old"])
 
 
 class SweepSparesLiveTabs(unittest.TestCase):

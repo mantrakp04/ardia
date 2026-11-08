@@ -376,15 +376,13 @@ async def run(ctx, source: str, seconds: float):
     state = ctx.state
     await state.connect()
     await temptabs.sweep(state)
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + seconds
     current: dict = {}
     owned: list[str] = []
     try:
         page = await open_controller(state, owned)
         handle = await install(page)
         try:
-            message = await asyncio.wait_for(drive(ctx, page, handle, source, current), max(deadline - loop.time(), 0.01))
+            message = await asyncio.wait_for(drive(ctx, page, handle, source, current), seconds)
         except asyncio.TimeoutError:
             logs = await stopped_logs(page, handle)
             raise timed_out(seconds, current, source, logs) from None

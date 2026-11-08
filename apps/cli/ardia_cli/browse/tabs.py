@@ -239,12 +239,49 @@ class Registry:
         if self.browse_fd is None:
             return True
         with self._open(instance) as data:
-            if self.refusal(data, target) or data["closing"].get(target, {}).get("key") == self.key:
+            held = data["closing"].get(target, {})
+            if self.refusal(data, target) or (held.get("key") == self.key and held.get("pid") in (None, os.getpid())):
                 return False
             if any(key != self.key and entry.get("target") == target and self.live(key) for key, entry in data["using"].items()):
                 return False
-            data["closing"][target] = {"key": self.key, "session": self.session, "at": time.time()}
+            data["closing"][target] = {"key": self.key, "session": self.session, "at": time.time(), "pid": os.getpid()}
             return True
+
+    def release_close(self, instance: str | None, target: str):
+        if self.browse_fd is None:
+            return
+        with self._open(instance) as data:
+            if data["closing"].get(target, {}).get("key") == self.key:
+                del data["closing"][target]
+
+    def note_intent(self, instance: str | None, marker: str):
+        if self.browse_fd is None:
+            return
+        with self._open(instance) as data:
+            data.setdefault("intents", {})[marker] = {"key": self.key, "session": self.session, "pid": os.getpid(), "at": time.time()}
+
+    def drop_intent(self, instance: str | None, marker: str):
+        if self.browse_fd is None:
+            return
+        with self._open(instance) as data:
+            if data.get("intents", {}).get(marker, {}).get("key") == self.key:
+                del data["intents"][marker]
+
+    def claim_orphans(self, instance: str | None) -> list[str]:
+        if self.browse_fd is None:
+            return []
+        pid = os.getpid()
+        with self._open(instance) as data:
+            markers = []
+            for marker, entry in data.get("intents", {}).items():
+                mine = entry.get("key") == self.key
+                if (mine and entry.get("pid") != pid) or (not mine and not self.live(entry.get("key", ""))):
+                    entry.update(key=self.key, session=self.session, pid=pid)
+                    markers.append(marker)
+            for owner in data["opened"].values():
+                if owner.get("temporary") and owner.get("key") != self.key and not self.live(owner.get("key", "")):
+                    owner.update(key=self.key, session=self.session)
+            return markers
 
     def finish_close(self, instance: str | None, target: str):
         if self.browse_fd is None:

@@ -27,21 +27,25 @@ def fetch_ok(url):
         return False
 
 
-def page_targets(ws: str) -> dict[str, str]:
+def cdp(ws: str, method: str, params: dict | None = None) -> dict:
     from ardia_cli import guard
 
     async def ask():
         connection = await guard.direct_connect(ws, max_size=1 << 24)
         try:
-            await connection.send(json.dumps({"id": 1, "method": "Target.getTargets"}))
+            await connection.send(json.dumps({"id": 1, "method": method, "params": params or {}}))
             while True:
                 message = json.loads(await asyncio.wait_for(connection.recv(), 10))
                 if message.get("id") == 1:
-                    return {info["targetId"]: info.get("url", "") for info in message["result"]["targetInfos"] if info.get("type") == "page"}
+                    return message.get("result") or {}
         finally:
             await connection.close()
 
     return asyncio.run(ask())
+
+
+def page_targets(ws: str) -> dict[str, str]:
+    return {info["targetId"]: info.get("url", "") for info in cdp(ws, "Target.getTargets")["targetInfos"] if info.get("type") == "page"}
 
 
 class PagesChecks:
@@ -198,6 +202,28 @@ return rows.filter((row) => row.price < "$140");
         self.browse("read", self.url("item.html?n=1"), session=session)
         self.assertNotIn(orphan, self.targets())
         self.assertLessEqual(len(set(self.targets()) - before), 1)
+
+    def test_a_tab_whose_creator_died_before_the_reply_is_swept_by_its_marker(self):
+        import secrets
+
+        from ardia_cli.browse import paths
+        from ardia_cli.browse.tabs import Registry
+
+        session = "marker-sweeper"
+        self.browse("read", self.url("item.html?n=1"), session=session)
+        browse_dir = self.data / "Browse"
+        files = [json.loads(path.read_text()) for path in browse_dir.glob("tabs-*.json")]
+        instance = next(data["instance"] for data in files if data.get("intents") is not None or data.get("opened") is not None)
+        marker = "ardia-temp-" + secrets.token_hex(8)
+        fd = paths.browse_dir(self.data)
+        try:
+            Registry(fd, "a-daemon-that-died", "dead").note_intent(instance, marker)
+        finally:
+            os.close(fd)
+        orphan = cdp(self.browser_ws(), "Target.createTarget", {"url": f"about:blank#{marker}", "background": True})["targetId"]
+        self.assertIn(orphan, self.targets())
+        self.browse("read", self.url("item.html?n=2"), session=session)
+        self.assertNotIn(orphan, self.targets())
 
     def test_a_busy_script_times_out_and_its_page_goes(self):
         session = "script-busy"
