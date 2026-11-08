@@ -62,3 +62,44 @@ The routine's side lives in ardia-db's `leads.py`:
 1. `leads.py videos --verify` indexes the release videos linked from GitHub release notes and computes each chapter's start from its Remotion composition (`apps/videos/src/videos/<id>/index.tsx` timing constants and `segments.json`), checking the total against the mp4's real duration. A video without a composition, or whose length doesn't match, is linked without a timestamp and the lead says so.
 2. The routine searches X with its own X tools, saves each raw search response under `leads-raw/`, and runs `leads.py candidates`, which drops posts already in triage, Ardia mentions, the owner's own posts, other browser makers promoting theirs, and spam, and suggests a feature and video for the rest.
 3. It writes a short draft for each post worth answering and stores them with `leads.py add picks.json`, then runs `ch_sync.py`.
+
+## Needs attention: tasks and goals
+
+The home page uses progressive disclosure ([NN/g](https://www.nngroup.com/articles/progressive-disclosure/)): square summary cards first, full reports on click, rare controls and settled work collapsed. Labels are at most 50 characters. Keep the English short and simple.
+
+- **Tasks** combines live health/site signals with the routine's decisions, held replies and review backlog. Existing analytics rules are unchanged in `server/sections/attention-signals.ts`; pinning a signal saves its report so it cannot vanish when the metric changes.
+- **Pinned** is for goals, not copies of issues. Pin moves a task there immediately. The next routine run writes a new outcome label, visual progress/checklist and a report saying what changed, what blocks it and what comes next. Until then the card says tracking starts next run. `last_tracked_at` tells you when it was checked. Leave unknown progress null, rather than making up a percentage.
+- **Done** and **Dismiss** move work into the collapsed **Settled** list, with different indicators. Reopen brings it back. Content refreshes never undo these choices.
+- **Snooze** offers 1 day, 3 days, 1 week or a custom future time. Its options open in a popover, not inside the square. Snoozed work is collapsed below Tasks. It wakes automatically on the page and in the next routine run, returning to its previous Tasks/Pinned placement. Goal tracking survives the snooze. Displayed timestamps use Pacific time; custom input uses the viewer's local time.
+
+### Data and safe previews
+
+SQLite `attention` mirrors to `sandbox.ardia_attention`: stable string `id`, `kind`, `status` (`open|pinned|done|dismissed|snoozed`), `resume_status`, `snooze_until`, `label`, `preview_html`, `report`, `goal_label`, `goal_preview_html`, `goal_report`, `last_tracked_at`, optional `progress` (0–100), `source_links` (JSON), `created_at`, `updated_at`, `status_at` and `pinned_at`. Reports are plain text/Markdown, shown as text, never injected into the parent page.
+
+Previews allow only headings, paragraphs, lists, chips, simple width bars and progress elements. All other tags/attributes are removed. They render in opaque-origin `iframe srcDoc` sandboxes without scripts, same-origin, forms or navigation privileges; CSP blocks remote resources. Source links accept only HTTPS or local dashboard paths. Do not put secrets or personal data into previews.
+
+Dashboard lifecycle changes append to `ardia_attention_actions` (`id`, `status`, `at`, `actor`, `snooze_until`, `snapshot`). This action journal also records feature use. The page overlays the latest action immediately; `ch_sync.py` replays actions into SQLite before mirroring. Replays are idempotent, and newer local decisions win. This journal is never truncated. A snapshot carries a newly pinned live signal into the routine's store.
+
+### Routine commands
+
+The maintained sources are `apps/dashboard/pipeline/attention.py` and `ch_sync.py`. The existing bot runtime installs copies in `/workspace/ardia-db/` beside its `db.py` and `leads.py`. `ARDIA_DB_PATH` or `--db` overrides the SQLite path. No command sends messages.
+
+```sh
+cd /workspace/ardia-db
+python3 attention.py pull-actions
+python3 attention.py wake
+python3 attention.py refresh --github
+python3 attention.py needs-write
+python3 attention.py newly-pinned
+python3 attention.py list --status pinned
+python3 attention.py upsert tasks.json
+python3 attention.py goal ITEM_ID goal.json
+python3 attention.py done ITEM_ID --evidence 'Verified outcome and source URL'
+python3 ch_sync.py attention
+```
+
+`upsert` takes one JSON task or a list (`id`, `kind`, `label`, `preview_html`, `report`, `source_links: [{label,url}]`); `-` reads stdin. It updates content, never lifecycle. `goal` requires JSON with `goal_label`, `goal_preview_html`, `goal_report` and optional `progress`; it rejects an unchanged issue label/report. It stamps `last_tracked_at`. Both new and existing goals need fresh source checks each run.
+
+`refresh --github` refreshes explicit current reply holds and a single contributor/bot review-backlog card from live GitHub data. A historical “hold” does not count when the latest check says UNHOLD. This is a starting summary, not proof a fix is still missing or a PR is ready: the routine must verify sources and rewrite the report. It must add other real pending decisions/asks with `upsert`, and mark verified completed outcomes with `done --evidence`. Never infer completion just because a source vanished or a telemetry query failed. Do not add unrelated personal work. Do not reopen dismissed work on refresh.
+
+Tests: `pnpm -C apps/dashboard test` and `python3 -m unittest discover -s apps/dashboard/pipeline -p 'test_*.py'`.

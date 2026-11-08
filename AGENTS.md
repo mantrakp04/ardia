@@ -155,6 +155,11 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   frame time and a still, keeps going without waiting, and re-renders the affected scenes when a fix lands.
   Problems in the film's own staging (a cursor covering text, a caption that wraps) it just fixes.
 
+## Dashboard
+- Keep `apps/dashboard` and `docs/dashboard-triage.md` up to date when changing pipeline data, triage tables, or features the dashboard shows.
+- Use progressive disclosure ([NN/g](https://www.nngroup.com/articles/progressive-disclosure/)): overview first with summary cards, counts and short labels; open details on click; collapse advanced or rare controls.
+- Write simple, concise English. Pinned attention items are goals: show progress and the next step, not the original issue again.
+
 ## Repo map
 `apps/browser` is the React Native macOS app. The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer,
 and `packages/core` holds the omnibox logic and its tests. `apps/site` is ardia.dev and
