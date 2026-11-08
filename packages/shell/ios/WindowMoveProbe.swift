@@ -137,6 +137,7 @@ enum WindowMoveProbe {
       DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
         sampler.invalidate()
         restoreButtons()
+        let pacing = pacingReport(from: began, to: CACurrentMediaTime())
         let end = window.frame.origin
         let screen = window.screen.map { NSStringFromRect($0.frame) } ?? "nil"
         if !keep { window.setFrameOrigin(origin) }
@@ -144,7 +145,7 @@ enum WindowMoveProbe {
           "hit": hit, "serverOwnsPress": serverOwns, "moved": [end.x - origin.x, end.y - origin.y],
           "pointerTravel": [dx * CGFloat(count), dy * CGFloat(count)], "backSteps": backSteps, "samples": origins.count,
           "start": [origin.x, origin.y], "released": [released.x, released.y], "end": [end.x, end.y], "screen": screen,
-          "afterRelease": after, "path": origins, "releasedAt": releasedAt, "pacing": pacingReport(from: began, to: ended),
+          "afterRelease": after, "path": origins, "releasedAt": releasedAt, "pacing": pacing,
           "afterMoves": WindowMove.afterMoveTrace.map { entry in entry.merging(["t": ((entry["t"] as? Double) ?? 0) - began]) { $1 } },
         ])
       }

@@ -43,8 +43,13 @@ test("WindowMove.follow places a pointer the display link left waiting when no d
   const follow = between(source, "static func follow(", "private static let gestureEvents");
   const loop = follow.slice(follow.indexOf("while window.isVisible"));
   assert.match(loop, /nextGestureEvent\(waiting: pacer\.untilStall\)/, "the wait for the next event ends when a held pointer's stall is due");
-  const idle = between(loop, "guard var next", "var latest");
-  assert.match(idle, /pacer\.idle\(\)/, "an event wait that ends with no event places the held pointer once the link has stalled");
+  assert.match(
+    loop,
+    /guard var next = nextGestureEvent\(waiting: pacer\.untilStall\) else \{\s*pacer\.idle\(\)/,
+    "pacer.idle() is the first thing the else branch of the guard does, so it runs only when the wait ended with no event",
+  );
+  const received = loop.slice(loop.indexOf("var latest"));
+  assert.ok(!received.includes("pacer.idle()"), "a received event never takes the idle placement");
   const wait = between(source, "private static func nextGestureEvent(", "private static func place(");
   assert.match(wait, /min\(0\.1, stall \?\? 0\.1\)/, "the wait is the stall deadline when one is held, and the usual 0.1 s otherwise");
 });
@@ -67,7 +72,10 @@ test("WindowMoveProbe.drag source reports placements per frame and the spread of
   const probe = read("WindowMoveProbe.swift");
   assert.match(probe, /WindowMove\.moveTimes = \[\]/);
   assert.match(probe, /WindowMove\.frameTimes = \[\]/);
-  assert.match(probe, /"pacing": pacingReport\(from: began, to: ended\)/);
+  assert.match(probe, /"pacing": pacing/);
+  assert.ok(!probe.includes("pacingReport(from: began, to: ended)"), "ended is taken before the queued mouse-up is handled, so the report would leave out the placement that mouse-up makes");
+  const afterSettle = probe.slice(probe.indexOf("DispatchQueue.main.asyncAfter"));
+  assert.match(afterSettle, /let pacing = pacingReport\(from: began, to: CACurrentMediaTime\(\)\)/, "the report is built once the drag has ended and settled, so the mouse-up placement is in it");
   for (const key of ["placements", "frames", "placementsPerFrame", "placementGapMs", "variance"]) {
     assert.ok(probe.includes(`"${key}"`), `the probe reports ${key}`);
   }
