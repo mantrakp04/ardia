@@ -822,20 +822,28 @@
       return "";
     };
     const vaultUsernameFor = (scope, inputs, fields) => {
+      const found = (el, from) => ({ username: vaultFilledValueOf(el), from });
       const inScope = fields.find((f) => f.kind === "username" && vaultFilledValueOf(f.el));
-      if (inScope) return vaultFilledValueOf(inScope.el);
+      if (inScope) return found(inScope.el, "form");
       const scopeEmail = inputs.find((el) => vaultTypeOf(el) === "email" && vaultFilledValueOf(el));
-      if (scopeEmail) return vaultFilledValueOf(scopeEmail);
+      if (scopeEmail) return found(scopeEmail, "form");
       const everywhere = vaultDocumentInputs().filter((el) => !vaultIsPassword(el));
       const tokened = everywhere.find((el) => ["username", "email"].includes(vaultTokens(vaultAttr(el, "autocomplete"))) && vaultFilledValueOf(el));
-      if (tokened) return vaultFilledValueOf(tokened);
+      if (tokened) return found(tokened, "page");
       const shownEmail = everywhere.find((el) => vaultTypeOf(el) === "email" && vaultUsable(el) && vaultFilledValueOf(el));
-      if (shownEmail) return vaultFilledValueOf(shownEmail);
-      if (vaultStepUser && vaultNow() - vaultStepUser.at < 600000) return vaultStepUser.username;
-      return vaultEmailNear(scope);
+      if (shownEmail) return found(shownEmail, "page");
+      if (vaultStepUser && vaultNow() - vaultStepUser.at < 600000) return { username: vaultStepUser.username, from: "step" };
+      const near = vaultEmailNear(scope);
+      return { username: near, from: near ? "nearby" : "" };
     };
 
-    const vaultSubmitFrom = (scope) => {
+    const VAULT_GESTURE_WINDOW = 1000;
+    let vaultGestureAt = -Infinity;
+    const vaultNoteGesture = () => {
+      vaultGestureAt = vaultNow();
+    };
+    const vaultRecentGesture = () => vaultNow() - vaultGestureAt <= VAULT_GESTURE_WINDOW;
+    const vaultSubmitFrom = (scope, trusted) => {
       if (!scope) return;
       const { inputs, fields } = vaultFieldsIn(scope);
       const secrets = fields.filter((f) => (f.kind === "password" || f.kind === "newPassword") && vaultValueOf(f.el) && (vaultTyped.has(f.el) || vaultFilledByUs.has(f.el)));
@@ -848,30 +856,43 @@
       if (fresh.length >= 2 && vaultValueOf(fresh[0].el) !== vaultValueOf(fresh[1].el)) return;
       const chosen = fresh.length ? fresh[0] : secrets[0];
       const password = vaultValueOf(chosen.el);
-      const username = vaultUsernameFor(scope, inputs, fields).slice(0, 1024);
+      const who = vaultUsernameFor(scope, inputs, fields);
+      const username = who.username.slice(0, 1024);
+      const usernameFrom = username ? who.from : "";
+      const isTrusted = trusted === true;
       const now = vaultNow();
-      if (vaultLastSubmit && vaultLastSubmit.username === username && vaultLastSubmit.length === password.length && now - vaultLastSubmit.at < 1000) return;
-      vaultLastSubmit = { username, length: password.length, at: now };
-      send("vaultSubmit", { username, password, newPassword: chosen.kind === "newPassword" });
+      const last = vaultLastSubmit;
+      if (last && last.username === username && last.length === password.length && now - last.at < 1000 && (last.trusted || !isTrusted)) return;
+      vaultLastSubmit = { username, length: password.length, at: now, trusted: isTrusted };
+      send("vaultSubmit", { username, password, newPassword: chosen.kind === "newPassword", usernameFrom, trusted: isTrusted });
     };
     const VAULT_SUBMIT_TEXT = /log.?in|sign.?in|sign.?up|continue|next|submit|register|create|save|enter|\bgo\b|\bok\b|weiter|anmelden|connexion|iniciar|entrar|accedi/;
     const VAULT_NOT_SUBMIT = /forgot|reset|google|apple|facebook|microsoft|github|twitter|passkey|\bsso\b|cancel|\bback\b|show|hide|reveal|another|different|help/;
+    const VAULT_SIGNUP_TEXT = /sign.?up|regist|create|join/;
+    const VAULT_CONTROLS = 'button, input[type="submit"], input[type="image"], [role="button"]';
     const vaultButtonTextOf = (button) => vaultLowered(vaultTextOf(button, 60) + " " + vaultAttr(button, "value") + " " + vaultAttr(button, "aria-label"));
     const vaultButtonTypeOf = (button) => vaultLowered(button.type || vaultAttr(button, "type"));
     const vaultSubmitButtonOf = (el) => {
-      const button = el && el.nodeType === 1 ? apply(vaultClosest, el, ['button, input[type="submit"], input[type="image"], [role="button"]']) : null;
+      const button = el && el.nodeType === 1 ? apply(vaultClosest, el, [VAULT_CONTROLS]) : null;
       if (!button) return null;
       const type = vaultButtonTypeOf(button);
       if ((type === "submit" || type === "image") && apply(vaultClosest, button, ["form"])) return button;
       return vaultHas(VAULT_SUBMIT_TEXT, vaultButtonTextOf(button)) ? button : null;
     };
-    const vaultSubmitControlIn = (scope) => {
-      const buttons = Array.from(apply(vaultQuery, scope, ['button, input[type="submit"], input[type="image"], [role="button"]'])).filter(
-        (b) => !b.disabled && vaultAttr(b, "aria-disabled") !== "true" && !vaultHidden(b) && !vaultHas(VAULT_NOT_SUBMIT, vaultButtonTextOf(b)),
-      );
-      const worded = (b) => vaultHas(VAULT_SUBMIT_TEXT, vaultButtonTextOf(b));
-      const typed = buttons.filter((b) => ["submit", "image"].includes(vaultButtonTypeOf(b)) && apply(vaultClosest, b, ["form"]));
-      return typed.find(worded) || typed[0] || buttons.find(worded) || null;
+    const vaultSubmitControlIn = (scope, lastFilled, login) => {
+      const ordered = Array.from(apply(vaultQuery, scope, ["input, button, [role=\"button\"]"]));
+      const lastAt = ordered.indexOf(lastFilled);
+      const controls = Array.from(apply(vaultQuery, scope, [VAULT_CONTROLS])).filter((b) => {
+        if (b.disabled || vaultAttr(b, "aria-disabled") === "true" || vaultHidden(b)) return false;
+        const text = vaultButtonTextOf(b);
+        return !vaultHas(VAULT_NOT_SUBMIT, text) && !(login && vaultHas(VAULT_SIGNUP_TEXT, text));
+      });
+      const typed = (b) => ["submit", "image"].includes(vaultButtonTypeOf(b)) && !!apply(vaultClosest, b, ["form"]);
+      const fits = (b) => typed(b) || vaultHas(VAULT_SUBMIT_TEXT, vaultButtonTextOf(b));
+      const positionOf = (b) => ordered.indexOf(b);
+      const after = controls.filter((b) => positionOf(b) > lastAt).sort((a, b) => positionOf(a) - positionOf(b));
+      const before = controls.filter((b) => positionOf(b) < lastAt && typed(b)).sort((a, b) => positionOf(b) - positionOf(a));
+      return after.find(typed) || after.find(fits) || before[0] || null;
     };
 
     const VAULT_TINT_LIGHT = "rgba(250, 220, 90, 0.35)";
@@ -1005,7 +1026,7 @@
       "submit",
       guard((e) => {
         const form = vaultTargetOf(e);
-        if (form && form.nodeType === 1) vaultSubmitFrom(form);
+        if (form && form.nodeType === 1) vaultSubmitFrom(form, vaultRecentGesture());
       }),
       vaultOptions,
     ]);
@@ -1013,8 +1034,9 @@
       "click",
       guard((e) => {
         if (!e.isTrusted) return;
+        vaultNoteGesture();
         const button = vaultSubmitButtonOf(vaultTargetOf(e));
-        if (button) vaultSubmitFrom(vaultContainerOf(button));
+        if (button) vaultSubmitFrom(vaultContainerOf(button), true);
       }),
       vaultOptions,
     ]);
@@ -1024,6 +1046,7 @@
         if (!e.isTrusted) return;
         const el = vaultTargetOf(e);
         const key = e.key;
+        if (key === "Enter") vaultNoteGesture();
         if (vaultMenuOpen && vaultFocused && el === vaultFocused && ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(key)) {
           const passesToPage = key === "Tab" || (key === "Enter" && !vaultMenuHighlighted);
           if (!passesToPage) {
@@ -1038,7 +1061,7 @@
           send("vaultKey", { key: "ArrowDown" });
           return;
         }
-        if (key === "Enter" && vaultIsInput(el)) vaultSubmitFrom(vaultContainerOf(el));
+        if (key === "Enter" && vaultIsInput(el)) vaultSubmitFrom(vaultContainerOf(el), true);
       }),
       vaultOptions,
     ]);
@@ -1113,10 +1136,10 @@
         const focusTarget = next || submit;
         if (focusTarget) apply(vaultFocusOn, focusTarget, []);
       }
-      return { filled, touched, scope, anchor, origin: message.origin, at: vaultNow() };
+      return { filled, touched, scope, anchor, origin: message.origin };
     };
 
-    const VAULT_SUBMIT_WINDOW = 1000;
+    const VAULT_SUBMIT_DELAY = 60;
     const vaultSubmittedFills = new Set();
     const vaultTextTypes = ["text", "email", "tel", "url", "number", "password", "search", ""];
     const vaultBlocksSubmit = (el, inputs) => {
@@ -1149,7 +1172,6 @@
     };
     const vaultAutoSubmit = (fill) => {
       const { scope, origin, touched } = fill;
-      if (vaultNow() - fill.at > VAULT_SUBMIT_WINDOW) return;
       if (vaultOrigin() !== origin || !scope.isConnected) return;
       const inputs = vaultInputsIn(scope);
       const shown = inputs.filter(vaultUsable);
@@ -1158,21 +1180,23 @@
       if (shown.some((el) => vaultIsPassword(el) && !vaultValueOf(el))) return;
       if (inputs.some((el) => vaultBlocksSubmit(el, inputs))) return;
       const anchor = fill.anchor.isConnected ? fill.anchor : kept[kept.length - 1];
-      const button = vaultSubmitControlIn(scope);
+      const lastFilled = kept[kept.length - 1];
+      const login = !fill.filled.includes("newPassword") && (fill.filled.includes("password") || fill.filled.includes("username"));
+      const button = vaultSubmitControlIn(scope, lastFilled, login);
       const form = apply(vaultFormOf, anchor, []);
-      vaultSubmitFrom(scope);
+      vaultSubmitFrom(scope, true);
       if (button) return apply(vaultClick, button, []);
       if (form) {
         if (typeof vaultRequestSubmit === "function") return apply(vaultRequestSubmit, form, []);
         return apply(vaultDispatch, form, [new VaultEvent("submit", { bubbles: true, cancelable: true })]);
       }
-      vaultPressEnter(kept[kept.length - 1]);
+      vaultPressEnter(lastFilled);
     };
     const vaultQueueSubmit = (id, fill) => {
       if (vaultSubmittedFills.has(id)) return;
       vaultSubmittedFills.add(id);
       if (vaultSubmittedFills.size > 32) vaultSubmittedFills.delete(vaultSubmittedFills.values().next().value);
-      apply(vaultNextFrame, window, [guard(() => apply(vaultNextFrame, window, [guard(() => vaultAutoSubmit(fill))]))]);
+      vaultLater(() => vaultAutoSubmit(fill), VAULT_SUBMIT_DELAY);
     };
     handlers.vaultFill = (message) => {
       let fill = null;

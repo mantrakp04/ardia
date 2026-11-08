@@ -628,7 +628,7 @@ test("a submitted login with a typed password is sent once, and an untyped one i
   page.type(pass, "hunter22");
   page.fire(button, "click");
   page.fire(form, "submit");
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "hunter22", newPassword: false }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "hunter22", newPassword: false, usernameFrom: "form", trusted: true }]);
 });
 
 test("a two-step login remembers the first step's username for the password step", () => {
@@ -638,12 +638,13 @@ test("a two-step login remembers the first step's username for the password step
   page.body.append(step);
   page.type(user, "me@example.com");
   page.fire(user, "keydown", { key: "Enter" });
+  step.remove();
   const pass = page.input({ type: "password", name: "password" });
   const second = page.el("form", { id: "step2" }, pass);
   page.body.append(second);
   page.type(pass, "s3cret!");
-  page.fire(second, "submit");
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "s3cret!", newPassword: false }]);
+  page.fire(pass, "keydown", { key: "Enter" });
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "s3cret!", newPassword: false, usernameFrom: "step", trusted: true }]);
 });
 
 test("a sign-up submit reports newPassword and skips a mismatched confirmation", () => {
@@ -660,7 +661,7 @@ test("a sign-up submit reports newPassword and skips a mismatched confirmation",
   assert.deepEqual(page.of("vaultSubmit"), []);
   page.type(confirm, "abc12345");
   page.fire(form, "submit");
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "new@example.com", password: "abc12345", newPassword: true }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "new@example.com", password: "abc12345", newPassword: true, usernameFrom: "form", trusted: false }]);
 });
 
 test("fields inside an open shadow root are classified through the composed path and filled", () => {
@@ -689,7 +690,7 @@ test("a fill without submit: true never submits, even once the frames have run",
   page.fire(user, "focusin");
   page.handlers.vaultFill({ id: "row", origin: ORIGIN, username: "me@example.com", password: "pw-1" });
   page.handlers.vaultFill({ id: "row2", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: "true" });
-  page.runFrames(4);
+  page.advance(1000);
   assert.equal(button.clicks ?? 0, 0);
   assert.equal(form.requested, 0);
   assert.deepEqual([...keyEvents(user), ...keyEvents(pass)], []);
@@ -703,7 +704,7 @@ test("a required empty field or an unchecked required checkbox stops the submit"
     form.append(extra(page));
     page.fire(user, "focusin");
     page.handlers.vaultFill({ id: "t", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
-    page.runFrames(2);
+    page.advance(60);
     return button.clicks ?? 0;
   };
   assert.equal(blocked((p) => p.input({ type: "text", name: "captcha", required: "" })), 0);
@@ -725,7 +726,7 @@ test("a fill that leaves a visible password empty does not submit, but a usernam
   const { user, button } = loginForm(page);
   page.fire(user, "focusin");
   page.handlers.vaultFill({ id: "u", origin: ORIGIN, username: "me@example.com", submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.equal(button.clicks ?? 0, 0);
 
   const google = makePage({ origin: "https://accounts.google.com", path: "/v3/signin/identifier" });
@@ -736,7 +737,7 @@ test("a fill that leaves a visible password empty does not submit, but a usernam
   google.body.append(step);
   google.fire(email, "focusin");
   google.handlers.vaultFill({ id: "g1", origin: "https://accounts.google.com", username: "me@gmail.com", submit: true });
-  google.runFrames(2);
+  google.advance(60);
   assert.equal(next.clicks, 1);
   step.remove();
   const pass = google.input({ type: "password", name: "Passwd" });
@@ -744,20 +745,20 @@ test("a fill that leaves a visible password empty does not submit, but a usernam
   google.body.append(second);
   google.type(pass, "s3cret-pass");
   google.fire(second, "submit");
-  assert.deepEqual(google.of("vaultSubmit"), [{ username: "me@gmail.com", password: "s3cret-pass", newPassword: false }]);
+  assert.deepEqual(google.of("vaultSubmit"), [{ username: "me@gmail.com", password: "s3cret-pass", newPassword: false, usernameFrom: "step", trusted: false }]);
 });
 
-test("the submit waits two frames and gives up if the origin changed, the form left the page, or a second went by", () => {
+test("the submit fires 60 ms after the fill with no animation frame needed, and gives up if the origin changed or the form left the page", () => {
   const attempt = (spoil) => {
     const page = makePage();
     const { user, button, form } = loginForm(page);
     page.fire(user, "focusin");
     page.handlers.vaultFill({ id: "w", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
     spoil(page, form);
-    page.runFrames(1);
-    const afterOne = button.clicks ?? 0;
-    page.runFrames(1);
-    return [afterOne, button.clicks ?? 0];
+    page.advance(59);
+    const early = button.clicks ?? 0;
+    page.advance(1);
+    return [early, button.clicks ?? 0];
   };
   assert.deepEqual(
     attempt((page) => {
@@ -767,10 +768,6 @@ test("the submit waits two frames and gives up if the origin changed, the form l
   );
   assert.deepEqual(
     attempt((page, form) => form.remove()),
-    [0, 0],
-  );
-  assert.deepEqual(
-    attempt((page) => page.advance(1500)),
     [0, 0],
   );
   assert.deepEqual(
@@ -793,15 +790,15 @@ test("a Touch ID fill clicks the visible sign-in button, skipping social and hid
   const secret = "correct-horse-9";
   page.fire(user, "focusin");
   page.handlers.vaultFill({ id: "f1", origin: ORIGIN, username: "me@example.com", password: secret, submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.deepEqual([social.clicks ?? 0, hidden.clicks ?? 0, disabled.clicks ?? 0, signIn.clicks ?? 0], [0, 0, 0, 1]);
   assert.equal(form.requested, 0);
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: secret, newPassword: false }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: secret, newPassword: false, usernameFrom: "form", trusted: true }]);
   page.handlers.vaultFill({ id: "f1", origin: ORIGIN, username: "me@example.com", password: secret, submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.equal(signIn.clicks, 1, "the same fill id never submits twice");
   page.handlers.vaultFill({ id: "f2", origin: ORIGIN, username: "me@example.com", password: secret, submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.equal(signIn.clicks, 2);
   assert.deepEqual(
     page.sent.filter((m) => m.kind !== "vaultSubmit" && JSON.stringify(m.data).includes(secret)),
@@ -818,9 +815,9 @@ test("with no usable button the form is sent with requestSubmit, or a submit eve
   page.body.append(form);
   page.fire(pass, "focusin");
   page.handlers.vaultFill({ id: "r", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.equal(form.requested, 1);
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "pw-1", newPassword: false }], "our submit and the page's submit event save once");
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "pw-1", newPassword: false, usernameFrom: "form", trusted: true }], "our submit and the page's submit event save once");
 
   const old = makePage({ requestSubmit: false });
   const u = old.input({ type: "email", name: "email", autocomplete: "username" });
@@ -829,7 +826,7 @@ test("with no usable button the form is sent with requestSubmit, or a submit eve
   old.body.append(f);
   old.fire(p, "focusin");
   old.handlers.vaultFill({ id: "r", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
-  old.runFrames(2);
+  old.advance(60);
   const submits = f.events.filter((e) => e.type === "submit");
   assert.equal(submits.length, 1);
   assert.equal(submits[0].bubbles && submits[0].cancelable, true);
@@ -843,7 +840,7 @@ test("with no form and no button the last filled field gets a full Enter key seq
   page.body.append(page.el("div", { class: "login" }, user, pass));
   page.fire(user, "focusin");
   page.handlers.vaultFill({ id: "e", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
-  page.runFrames(2);
+  page.advance(60);
   assert.deepEqual(keyEvents(user), []);
   assert.deepEqual(
     keyEvents(pass).map((e) => [e.type, e.key, e.code, e.keyCode, e.which, e.charCode, e.bubbles]),
@@ -853,7 +850,7 @@ test("with no form and no button the last filled field gets a full Enter key seq
       ["keyup", "Enter", "Enter", 13, 13, 0, true],
     ],
   );
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "pw-1", newPassword: false }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@example.com", password: "pw-1", newPassword: false, usernameFrom: "form", trusted: true }]);
 
   const roles = makePage();
   const name = roles.input({ type: "text", name: "username" });
@@ -863,7 +860,7 @@ test("with no form and no button the last filled field gets a full Enter key seq
   roles.body.append(roles.el("div", {}, name, word, apple, next));
   roles.fire(name, "focusin");
   roles.handlers.vaultFill({ id: "e", origin: ORIGIN, username: "me", password: "pw-1", submit: true });
-  roles.runFrames(2);
+  roles.advance(60);
   assert.deepEqual([apple.clicks ?? 0, next.clicks ?? 0], [0, 1]);
   assert.deepEqual(keyEvents(word), []);
 });
@@ -1051,7 +1048,7 @@ test("a password field, a mailto link, a placeholder address, a sentence and tex
   page.body.append(level4);
   page.type(pass, "s3cret-pass");
   page.fire(form, "submit");
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "", password: "s3cret-pass", newPassword: false }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "", password: "s3cret-pass", newPassword: false, usernameFrom: "", trusted: false }]);
 });
 
 test("a hidden autocomplete=username input names the account on a change-password page, and the new password is saved", () => {
@@ -1071,7 +1068,7 @@ test("a hidden autocomplete=username input names the account on a change-passwor
     page.type(fresh, "new-pass-2");
     page.type(confirm, "new-pass-2");
     page.fire(form, "submit");
-    assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@site.org", password: "new-pass-2", newPassword: true }], variant);
+    assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@site.org", password: "new-pass-2", newPassword: true, usernameFrom: "page", trusted: false }], variant);
   }
 });
 
@@ -1085,10 +1082,11 @@ test("a visible email field elsewhere names the account, but a hidden one withou
     page.body.append(page.el("header", {}, header), page.el("main", {}, page.el("section", {}, page.el("div", {}, page.el("div", {}, form)))));
     page.type(pass, "s3cret-pass");
     page.fire(form, "submit");
-    return page.of("vaultSubmit")[0].username;
+    const [sent] = page.of("vaultSubmit");
+    return [sent.username, sent.usernameFrom];
   };
-  assert.equal(submitWith(true), "");
-  assert.equal(submitWith(false), "me@site.org");
+  assert.deepEqual(submitWith(true), ["", ""]);
+  assert.deepEqual(submitWith(false), ["me@site.org", "page"]);
 });
 
 test("the earlier step's username beats page text, but only for ten minutes", () => {
@@ -1107,7 +1105,7 @@ test("the earlier step's username beats page text, but only for ten minutes", ()
   page.advance(600001);
   page.type(pass, "other-pass-1");
   page.fire(second, "submit");
-  assert.deepEqual(page.of("vaultSubmit").map((s) => s.username), ["me@site.org", "shown@site.org"]);
+  assert.deepEqual(page.of("vaultSubmit").map((s) => [s.username, s.usernameFrom]), [["me@site.org", "step"], ["shown@site.org", "nearby"]]);
 });
 
 test("an email address shown near the password step names the account, the closest one first", () => {
@@ -1118,7 +1116,78 @@ test("an email address shown near the password step names the account, the close
   page.body.append(page.el("div", {}, page.el("div", { text: "far@gmail.com" }), inner));
   page.type(pass, "s3cret-pass");
   page.fire(form, "submit");
-  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@gmail.com", password: "s3cret-pass", newPassword: false }]);
+  assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@gmail.com", password: "s3cret-pass", newPassword: false, usernameFrom: "nearby", trusted: false }]);
+});
+
+test("a submit is trusted only after a real click or Enter within a second, never when the page submits on its own", () => {
+  const page = makePage();
+  const { user, pass, button, form } = loginForm(page);
+  page.type(user, "me@example.com");
+  page.type(pass, "hunter-22");
+  page.fire(form, "submit");
+  page.advance(2000);
+  page.fire(form, "submit", { isTrusted: false });
+  page.fire(page.body, "click");
+  page.advance(1001);
+  page.fire(form, "submit");
+  page.advance(2000);
+  page.fire(page.body, "click");
+  page.advance(500);
+  page.fire(form, "submit");
+  page.advance(2000);
+  page.fire(user, "keydown", { key: "Enter" });
+  page.advance(2000);
+  page.fire(form, "submit");
+  page.fire(button, "click", { isTrusted: false });
+  page.fire(button, "click");
+  assert.deepEqual(page.of("vaultSubmit").map((s) => s.trusted), [false, false, false, true, true, false, true]);
+});
+
+test("the picker skips a header search button before a formless login and takes the nearest control after it", () => {
+  const build = (withSignIn) => {
+    const page = makePage();
+    const search = page.input({ type: "search", name: "q" });
+    const go = new page.FakeButton({ type: "button", text: "Go" });
+    const user = page.input({ type: "email", name: "email", autocomplete: "username" });
+    const pass = page.input({ type: "password", name: "password", autocomplete: "current-password" });
+    const create = new page.FakeButton({ type: "button", text: "Create account" });
+    const signIn = new page.FakeButton({ type: "button", text: "Sign in" });
+    const later = new page.FakeButton({ type: "button", text: "Continue" });
+    const tail = withSignIn ? [create, signIn, later] : [create];
+    page.body.append(page.el("div", { id: "app" }, page.el("header", {}, search, go), page.el("section", {}, user), page.el("section", {}, pass, ...tail)));
+    page.fire(user, "focusin");
+    page.handlers.vaultFill({ id: "p", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
+    page.advance(60);
+    return { go, create, signIn, later, pass };
+  };
+  const bare = build(false);
+  assert.deepEqual([bare.go.clicks ?? 0, bare.create.clicks ?? 0], [0, 0]);
+  assert.deepEqual(keyEvents(bare.pass).map((e) => e.type), ["keydown", "keypress", "keyup"]);
+  const full = build(true);
+  assert.deepEqual([full.go.clicks ?? 0, full.create.clicks ?? 0, full.signIn.clicks ?? 0, full.later.clicks ?? 0], [0, 0, 1, 0]);
+});
+
+test("a login fill clicks Sign in over a Create account submit next to it, and a new-password fill may click Create account", () => {
+  const page = makePage();
+  const user = page.input({ type: "email", name: "email", autocomplete: "username" });
+  const pass = page.input({ type: "password", name: "password", autocomplete: "current-password" });
+  const create = new page.FakeButton({ text: "Create account" });
+  const signIn = new page.FakeButton({ text: "Sign in" });
+  page.body.append(page.el("form", {}, user, pass, create, signIn));
+  page.fire(user, "focusin");
+  page.handlers.vaultFill({ id: "l", origin: ORIGIN, username: "me@example.com", password: "pw-1", submit: true });
+  page.advance(60);
+  assert.deepEqual([create.clicks ?? 0, signIn.clicks ?? 0], [0, 1]);
+
+  const signup = makePage({ path: "/join" });
+  const email = signup.input({ type: "email", name: "email", value: "new@site.org" });
+  const fresh = signup.input({ type: "password", name: "password", autocomplete: "new-password" });
+  const make = new signup.FakeButton({ text: "Create account" });
+  signup.body.append(signup.el("form", {}, email, fresh, make));
+  signup.fire(fresh, "focusin");
+  signup.handlers.vaultFill({ id: "n", origin: ORIGIN, newPassword: "abcde-fghij-klmno-pqrs1", submit: true });
+  signup.advance(60);
+  assert.equal(make.clicks, 1);
 });
 
 test("the vault block never writes into the DOM or logs", () => {
