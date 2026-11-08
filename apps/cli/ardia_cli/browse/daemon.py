@@ -266,8 +266,9 @@ class Daemon:
         os.close(self.lock_fd)
 
     async def _cleanup(self):
-        from ardia_cli.browse import capture
+        from ardia_cli.browse import capture, temptabs
 
+        await temptabs.drain(self.state)
         if self.state.connected:
             for page in list(self.state.pages.values()):
                 if page.session_id:

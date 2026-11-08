@@ -7,6 +7,7 @@ GONE_WAIT = 2.0
 GONE_POLL = 0.05
 RETRY_FIRST = 1.0
 RETRY_MAX = 30.0
+DRAIN_BUDGET = 3.0
 
 
 async def settle_then_cancel(task):
@@ -85,6 +86,32 @@ async def retry_closes(state):
         if pending:
             await asyncio.sleep(delay)
             delay = min(delay * 2, RETRY_MAX)
+
+
+async def drain(state):
+    pending = state.extras.get("must_close")
+    if not pending:
+        return
+    task = state.extras.pop("must_close_task", None)
+    if task is not None and not task.done():
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def close_each():
+        for target_id in list(pending):
+            if await close_untracked(state, target_id):
+                pending.discard(target_id)
+
+    try:
+        await asyncio.wait_for(close_each(), DRAIN_BUDGET)
+    except asyncio.TimeoutError:
+        pass
+    for target_id in list(pending):
+        try:
+            state.registry.note_temporary(state.instance, target_id)
+        except Exception:
+            continue
+        pending.discard(target_id)
 
 
 async def present_targets(state) -> set[str] | None:

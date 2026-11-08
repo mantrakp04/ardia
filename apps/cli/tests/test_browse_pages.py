@@ -462,6 +462,73 @@ class CapacityFirst(unittest.TestCase):
         self.assertEqual(state.registry.temporaries("I"), [])
 
 
+class ShutdownDrain(unittest.TestCase):
+    def queued_state(self, close_fails):
+        from ardia_cli.browse import temptabs
+
+        state = reader_state()
+        state.browser.close_fails = close_fails
+
+        async def queue():
+            with mock.patch.object(type(state.registry), "note_temporary", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    await temptabs.create(state, [])
+
+        return state, queue
+
+    def shut_down(self, state):
+        from ardia_cli.browse import daemon as daemon_module
+
+        disconnected = []
+
+        async def disconnect():
+            disconnected.append(True)
+
+        state.disconnect = disconnect
+        state.pages = {}
+        holder = SimpleNamespace(state=state, bare_ctx=lambda: None)
+        return daemon_module.Daemon._cleanup(holder), disconnected
+
+    def test_shutdown_closes_what_the_queue_still_holds(self):
+        state, queue = self.queued_state(close_fails=True)
+
+        async def go():
+            await queue()
+            state.browser.close_fails = False
+            cleanup, disconnected = self.shut_down(state)
+            await cleanup
+            return disconnected
+
+        self.assertEqual(run(go()), [True])
+        self.assertEqual(state.browser.closed, ["R1"])
+        self.assertEqual(state.extras["must_close"], set())
+        self.assertEqual(state.registry.temporaries("I"), [])
+
+    def test_shutdown_records_a_tab_it_could_not_close_so_the_next_run_recovers_it(self):
+        from ardia_cli.browse import temptabs
+        from ardia_cli.browse.tabs import Registry
+
+        state, queue = self.queued_state(close_fails=True)
+
+        async def go():
+            await queue()
+            started = asyncio.get_running_loop().time()
+            cleanup, disconnected = self.shut_down(state)
+            await cleanup
+            return asyncio.get_running_loop().time() - started, disconnected
+
+        with mock.patch.object(temptabs, "DRAIN_BUDGET", 0.3):
+            took, disconnected = run(go())
+        self.assertLess(took, 2)
+        self.assertEqual(disconnected, [True])
+        self.assertEqual(state.registry.temporaries("I"), ["R1"])
+        after = reader_state(Registry(state.registry.browse_fd, state.registry.key, state.registry.session))
+        after.browser.urls = dict(state.browser.urls)
+        run(temptabs.sweep(after))
+        self.assertEqual(after.browser.closed, ["R1"])
+        self.assertEqual(after.registry.temporaries("I"), [])
+
+
 class RegistryBounds(unittest.TestCase):
     def registry(self, key="mine", session="mine"):
         return scratch_registry(key, session)
