@@ -16,6 +16,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const opened = [];
   const clicked = [];
   const listeners = {};
+  const bubbling = {};
   const timers = [];
   let clock = 1000;
   class Node {
@@ -168,6 +169,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     window,
     document,
     addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
+    listen: (type, fn, options) => (bubbling[type] ??= []).push({ fn, once: !!options?.once }),
     MouseEvent,
     Node,
     Element,
@@ -183,16 +185,20 @@ function environment({ top = true, page = "https://page.example", selection = nu
     location: { origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
   };
   new Function(...Object.keys(env), source)(...Object.values(env));
-  const fire = (type, path, init = {}) => {
+  const fire = (type, path, init = {}, page) => {
     const e = new MouseEvent(type, { path: [...path, document, window], ...init });
     for (const fn of listeners[type] ?? []) fn(e);
+    page?.(e);
+    const after = bubbling[type] ?? [];
+    bubbling[type] = after.filter((l) => !l.once);
+    for (const l of after) l.fn(e);
     return e;
   };
-  const gesture = (path, keys, { move = 0, release = path, between } = {}) => {
+  const gesture = (path, keys, { move = 0, release = path, between, page } = {}) => {
     fire("mousedown", path, keys);
     between?.();
     fire("mouseup", release, { ...keys, x: 10 + move });
-    return fire("click", release, { ...keys, x: 10 + move });
+    return fire("click", release, { ...keys, x: 10 + move }, page);
   };
   const transition = (type, init) => {
     for (const fn of listeners[type] ?? []) fn(new PageTransitionEvent(type, init));
@@ -417,9 +423,27 @@ test("with links to other sites on, a plain click on another site's link peeks a
   env.handlers.peekConfig(siteConfig());
   const click = env.gesture([env.link("https://other.example/story")], {});
   assert.deepEqual(peeks(env).map((p) => [p.url, p.key]), [["https://other.example/story", "site"]]);
-  assert.ok(click.defaultPrevented && click.stopped);
+  assert.ok(click.defaultPrevented);
   env.gesture([env.link("https://sub.page.example/x")], {});
   assert.deepEqual(peeks(env).map((p) => p.url).at(-1), "https://sub.page.example/x");
+});
+
+test("an other-site link the page's own click handler takes (a menu button, #867) never peeks", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const a = env.link("https://other.example/products", { role: "button" });
+  const handled = env.gesture([a], {}, { page: (e) => e.preventDefault() });
+  assert.equal(peeks(env).length, 0);
+  assert.ok(handled.defaultPrevented);
+  const opened = env.gesture([a], {}, { page: () => a.setAttribute("target", "_blank") });
+  assert.equal(peeks(env).length, 0);
+  assert.equal(opened.defaultPrevented, false);
+  a.setAttribute("target", "_self");
+  env.gesture([a], {}, { page: () => a.setAttribute("href", "https://elsewhere.example/") });
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
+  env.fire("mousedown", [a], {});
+  env.fire("mouseup", [a], {});
+  assert.equal(peeks(env).length, 1, "nothing is decided before the click");
 });
 
 test("links on the same host navigate: relative links, the www. twin, another port", () => {

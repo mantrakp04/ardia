@@ -20,7 +20,7 @@ export const generalRows = {
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
         littleArdiaOpensNewTabLinks: {
           title: "Open new-tab links inside Little Ardia",
-          description: "A link that would open a new tab loads in Little Ardia instead of behind it, in the main window. ⌘-click still opens it behind.",
+          description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
           keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
         },
       },
@@ -209,8 +209,13 @@ export const generalRows = {
       rows: {
         peekLinksToOtherSites: {
           title: "Open a Peek window when clicking on links to other sites",
-          description: "This only affects Top Apps and pinned tabs. Links on the same site, ⌘-clicks and links that open a new tab or download work as before.",
-          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen"],
+          description: "Only from Top Apps and pinned tabs, however the page opens the link, through a redirect such as Gmail's included. Links on the same site, ⌘-clicks, downloads and sign-in pop-ups work as before.",
+          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen", "gmail", "target blank"],
+        },
+        newTabLinksOpenIn: {
+          title: "Open new-tab links in",
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows.",
+          keywords: ["peek", "little ardia", "new tab", "target blank", "links", "preview", "arc", "mini window", "open links"],
         },
         peekModifier: {
           advanced: true,

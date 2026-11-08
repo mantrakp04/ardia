@@ -791,6 +791,7 @@
     };
     let press = null;
     let peeked = null;
+    let siteClick = null;
     let sent = null;
     handlers.peekRefused = (refusal) => {
       const gesture = sent;
@@ -815,6 +816,7 @@
       guard((e) => {
         press = null;
         peeked = null;
+        siteClick = null;
         if (!e.isTrusted || button(e) !== 0) return;
         const hit = linkAt(e);
         if (!peekable(hit)) return;
@@ -836,10 +838,11 @@
         if (!hit || hit.link !== pressed.link) return trace("released off the link", { url: pressed.url, moved });
         if (!peekable(hit)) return trace("the link changed during the press", { url: hit.url, moved });
         if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
-        if (key === "site" && hit.url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: hit.url.length });
-        if (key === "site" && !replacesPage(hit.link)) return trace("the link opens elsewhere", { url: hit.url });
-        if (key === "site" && !otherSite(hit.url)) return trace("the link stays on this site", { url: hit.url });
-        if (key === "site" && selecting()) return trace("the click belongs to a selection", { url: hit.url });
+        if (key === "site") {
+          if (selecting()) return trace("the click belongs to a selection", { url: hit.url });
+          siteClick = { link: hit.link, stamp: timeStamp(e) };
+          return;
+        }
         peeked = { link: hit.link, stamp: timeStamp(e) };
         sent = { url: hit.url, at: now(), link: hit.link };
         const scale = ratio(window);
@@ -860,6 +863,30 @@
     );
     const defaultPrevented = getter(Event.prototype, "defaultPrevented");
     const scheduleTimeout = window.setTimeout;
+    const peekUnhandledSiteClick = (click, link) =>
+      guard((e) => {
+        if (e !== click) return;
+        if (defaultPrevented(e)) return trace("the page handled the click", {});
+        const url = linkUrl(link);
+        if (!peekable({ link, url, path: [] })) return trace("the link changed during the click", { url });
+        if (url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: url.length });
+        if (!replacesPage(link)) return trace("the link opens elsewhere", { url });
+        if (!otherSite(url)) return trace("the link stays on this site", { url });
+        apply(preventDefault, e, []);
+        sent = { url, at: now(), link };
+        const scale = ratio(window);
+        send("peek", { url, key: "site", origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved: 0 });
+      });
+    addEventListener(
+      "click",
+      guard((e) => {
+        const site = siteClick;
+        if (!site || !e.isTrusted || timeStamp(e) !== site.stamp || !apply(includes, apply(composedPath, e, []), [site.link])) return;
+        siteClick = null;
+        apply(listen, window, ["click", peekUnhandledSiteClick(e, site.link), { once: true }]);
+      }),
+      true,
+    );
     addEventListener(
       "click",
       guard((e) => {
