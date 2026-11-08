@@ -5,6 +5,8 @@ import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
+import { reportLocalStore, startLocalStore } from "./localStoreReport";
+import { startWatchChecks } from "./watch";
 import { appIconSetting, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
 import { utcDay } from "./daily";
 import { appInfo, percentile } from "./transport";
@@ -21,13 +23,14 @@ const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
 const FIRST_SETTINGS_SNAPSHOT_MS = 2 * 60_000;
 const EXTENSION_SETTLE_MS = 20_000;
+const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
 let counts = { tabs: 0, windows: 0 };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (isSharing() && (counts.tabs || counts.windows)) {
+  if (counts.tabs || counts.windows) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -42,7 +45,6 @@ const size = (o: object) => Object.keys(o).length;
 
 function watchStore() {
   useBrowser.subscribe((s, prev) => {
-    if (!isSharing()) return;
     if (s.tabs !== prev.tabs) counts.tabs += Math.max(0, size(s.tabs) - size(prev.tabs));
     if (s.windows !== prev.windows) {
       counts.windows += Math.max(0, size(s.windows) - size(prev.windows));
@@ -71,7 +73,7 @@ function watchSync() {
   useSync.subscribe(({ status }) => {
     const was = last;
     last = status;
-    if (was === status || !isSharing()) return;
+    if (was === status) return;
     if (was === "off" && status !== "unavailable") capture("sync_toggled", { on: true });
     else if (status === "off" && was !== "unavailable") capture("sync_toggled", { on: false });
   });
@@ -79,7 +81,6 @@ function watchSync() {
 
 function watchTranslate() {
   useTranslate.subscribe((s, prev) => {
-    if (!isSharing()) return;
     for (const tabId in s) if (s[tabId]?.status === "translating" && prev[tabId]?.status !== "translating") capture("translate_used");
   });
 }
@@ -93,7 +94,6 @@ function watchExtensions() {
 const mb = (bytes: number) => Math.round(bytes / 1_048_576);
 
 async function sampleMemory() {
-  if (!isSharing()) return;
   try {
     await listTasks().catch((): EngineTask[] => []);
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -124,14 +124,14 @@ async function sampleMemory() {
 
 function emitOmniboxLatency() {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
-  if (!samples.length || !isSharing()) return;
+  if (!samples.length) return;
   const at = (p: number) => percentile(samples, p);
   capture("perf_omnibox", { samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! });
 }
 
 function snapshotSettings() {
   const today = utcDay(Date.now());
-  if (!isSharing() || settingsSnapshotDay() === today) return;
+  if (settingsSnapshotDay() === today) return;
   markSettingsSnapshot(today);
   const settings = settingsSnapshot(useBrowser.getState().settings);
   void currentAppIcon()
@@ -150,6 +150,7 @@ function hourly() {
   emitTabPresses();
   void sampleMemory();
   void reportNativeCrashes([previousContext, ...contextSamples()]).then(() => recordContext());
+  void reportLocalStore();
 }
 
 const rebootedSince = (lastLaunchAt: number | null) => {
@@ -157,7 +158,7 @@ const rebootedSince = (lastLaunchAt: number | null) => {
   return lastLaunchAt != null && boot != null ? boot > lastLaunchAt : null;
 };
 
-async function launchEvents(session: NonNullable<ReturnType<typeof startClient>>) {
+async function launchEvents(session: ReturnType<typeof startClient>) {
   const hardware = await hardwareProperties();
   const previous = session.previous === "unclean" ? { ...contextProperties(session.context, "prev_", Date.now()), rebooted_since: rebootedSince(session.lastLaunchAt) } : {};
   capture("app_launched", { previous_session: session.previous, ...hardware, ...previous });
@@ -166,13 +167,13 @@ async function launchEvents(session: NonNullable<ReturnType<typeof startClient>>
 
 export function startUsage() {
   const session = startClient();
-  if (session) {
-    previousContext = session.context;
-    void launchEvents(session);
-    launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
-  }
+  previousContext = session.context;
+  void launchEvents(session);
+  launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
+  startWatchChecks();
+  startLocalStore(LOCAL_STORE_LAUNCH_DELAY_MS);
   startContextSamples();
-  startJourneys(session);
+  startJourneys(isSharing() ? session : null);
   watchStore();
   watchSync();
   watchTranslate();
@@ -190,7 +191,6 @@ export function startUsage() {
 }
 
 export function sessionEnding() {
-  if (!isSharing()) return;
   emitCounts();
   emitOmniboxLatency();
   emitTabPresses();

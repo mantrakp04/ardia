@@ -7,6 +7,7 @@ export * from "./commands";
 export * from "./dev";
 export * from "./dialogs";
 export * from "./documents";
+export * from "./telemetryLocal";
 export * from "./focus";
 export * from "./inlineCompletion";
 export * from "./lifecycle";

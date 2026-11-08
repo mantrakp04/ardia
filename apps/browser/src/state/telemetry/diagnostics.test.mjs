@@ -199,11 +199,17 @@ test("turning sharing off forgets pending presses and samples, so they never go 
   assert.deepEqual(presses.devTabPresses(), { presses: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, pending: false, toPageClick: 0 });
 });
 
-test("with sharing off nothing is counted or saved", async () => {
+test("with sharing off no context is saved, and tab presses stay in the local copy, never queued", async () => {
   client.setSharing(false, "settings");
   assert.equal(await diagnostics.recordContext(), null);
   assert.equal(JSON.parse(stub.docs.get("telemetry.json")).context, null);
   presses.notePressStarted();
   presses.notePressEnded("click", "t1");
-  assert.equal(presses.devTabPresses().presses, 0);
+  presses.emitTabPresses();
+  const { flushLocal } = await import("./localStore.ts");
+  flushLocal();
+  const local = stub.telemetryLocal.records().filter((r) => r.event === "tab_presses");
+  assert.equal(local.at(-1).sent, false);
+  assert.equal(local.at(-1).distinct_id, null);
+  assert.equal(client.devState().queued.events, 0);
 });

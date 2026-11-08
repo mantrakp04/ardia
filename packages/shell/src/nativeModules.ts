@@ -14,6 +14,7 @@ import type { MenusNative } from "./menus";
 import type { NotificationsNative } from "./notifications";
 import type { ScriptingNative } from "./scripting";
 import type { SystemSignalsNative } from "./systemSignals";
+import type { TelemetryLocalNative } from "./telemetryLocal";
 import type { FileDropNative, MagnifyAreaNative, SystemNative } from "./system";
 import type { TranslationModule } from "./translation";
 import type { UpdaterNative } from "./updater";
@@ -47,6 +48,7 @@ export type ShellNativeModules = {
   ArdiaConfig: ConfigNative;
   ArdiaAutomation: AutomationNative;
   ArdiaSystemSignals: SystemSignalsNative;
+  ArdiaTelemetryLocal: TelemetryLocalNative;
 };
 
 export const nativeModule = <Name extends keyof ShellNativeModules>(name: Name) => requireNativeModule<ShellNativeModules[Name]>(name);

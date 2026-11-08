@@ -4,6 +4,7 @@ export const SHARING_COPY = {
   whatsSent: "What's Sent",
   footnote:
     "Sent to ardia.dev with a random ID made on this Mac, and kept on our own servers. No third parties. Turning this off stops it at once and deletes anything waiting to be sent. This setting doesn't sync.",
+  keptOnThisMac: "Kept on this Mac",
   ask: {
     title: "Help fix Ardia?",
     body: "Share anonymous crash reports and usage stats. No sites, searches or typing. Ever.",
@@ -28,9 +29,11 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "With everything",
     items: [
-      "A random install ID, made on this Mac once and kept through updates. Nothing is sent with it while sharing is off",
+      "A random install ID, made on this Mac once and kept through updates. Nothing is sent with it while sharing is off, except a problem report you send and the 14 days of sharing you can agree to with it",
+      "A random ID for each time Ardia opens, so one session's events can be read together",
       "App version and build, macOS version, chip (arm64 or x86_64), engine version",
       "Whether it's a test build",
+      "During the 14 days you agreed to after a problem report: that report's reference (like FB-1234)",
     ],
   },
   {
@@ -85,6 +88,13 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [SHARING_COPY.dailyCount, SHARING_COPY.updateChecks, SHARING_COPY.switchFile],
   },
   {
+    title: "The local copy",
+    items: [
+      "Leaves this Mac only as the events above while sharing is on, or when you attach it to a problem report. Settings › Privacy › View My Data saves it to your Downloads folder",
+      "Every hour, how big the local copy is and how long writing it took, so we notice if it ever slows Ardia down",
+    ],
+  },
+  {
     title: "Never",
     items: [
       "Web addresses, site names or page titles",
@@ -96,3 +106,42 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     ],
   },
 ];
+
+export const IDENTITY_COPY = {
+  appearAs: (name: string) => `You appear to us as ${name}`,
+  noId: "No anonymous ID yet",
+  noIdDetail: "One is made the first time you share or send a problem report.",
+  idDetail: (shortId: string) => `ID ${shortId}…, shown as a name and colours made from it. Never stored or sent.`,
+  reset: "Reset My Anonymous ID",
+  resetTitle: "Reset your anonymous ID?",
+  resetBody: "Ardia makes a new random ID. Anything sent from now on can't be tied to what was sent before, and the copy kept on this Mac is deleted.",
+  resetConfirm: "Reset",
+  resetDone: (name: string) => `You now appear to us as ${name}.`,
+} as const;
+
+export const LOCAL_COPY = {
+  title: "Kept on this Mac",
+  summary:
+    "Ardia keeps the last 7 days of what it records here (at most 8 MB), whether sharing is on or off, so a problem report can include what led up to it.",
+  viewData: "View My Data",
+  viewDataDetail: "Saves the local copy to your Downloads folder and shows it in Finder.",
+  exported: (lines: number) => `Saved ${lines.toLocaleString()} ${lines === 1 ? "line" : "lines"} to Downloads`,
+  exportFailed: "Couldn't save your data",
+  items: [
+    "Each event and warning or error line listed in What's Sent, with whether it was sent",
+    "With sharing off, they carry no install ID and stay here",
+    "Kept 7 days and 8 MB at most, oldest first out; checked when Ardia opens and every hour",
+    "Never leaves this Mac unless sharing is on or you attach it to a problem report",
+    "Resetting your anonymous ID deletes it",
+  ],
+} as const;
+
+export const WATCH_COPY = {
+  rowTitle: "Sharing to confirm a fix",
+  rowDetail: (report: string, until: string) => `Sharing crash reports and usage for ${report} until ${until}, then it turns off by itself.`,
+  rowDetailAlreadySharing: (report: string, until: string) => `Following ${report} until ${until}.`,
+  stop: "Stop Now",
+  endedTitle: "Sharing is off again",
+  endedMessage: (report: string) => `The 14 days you shared for ${report} are over. Thanks for helping fix it.`,
+  endedAction: "Settings",
+} as const;

@@ -43,6 +43,21 @@ export const privacyRows = {
       rows: {
         shareDiagnostics: { title: "Share anonymous crash reports and usage stats", keywords: ["telemetry", "analytics", "diagnostics", "crash"] },
         whatsSent: { title: "What's Sent", description: "Every field, and what never leaves this Mac.", keywords: ["telemetry", "data collection", "ardia command", "cli"] },
+        anonymousId: {
+          title: "Your anonymous ID",
+          description: "The name and colours you appear to us as, and resetting the ID.",
+          keywords: ["install id", "identity", "reset id", "avatar", "anonymous name", "privacy"],
+        },
+      },
+    },
+    {
+      section: "Kept on this Mac",
+      rows: {
+        viewData: {
+          title: "The last 7 days",
+          description: "Saves the last 7 days Ardia recorded to your Downloads folder.",
+          keywords: ["view my data", "local copy", "export", "download my data", "telemetry log", "diagnostics", "events"],
+        },
       },
     },
   ],
