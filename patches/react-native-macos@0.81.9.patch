@@ -1,3 +1,151 @@
+diff --git a/Libraries/Network/RCTNetworkTask.h b/Libraries/Network/RCTNetworkTask.h
+index a413a2888789daa1a4230e301ec21af5ec203488..857bd369ad19670a96f80aa08423c3b46936061e 100644
+--- a/Libraries/Network/RCTNetworkTask.h
++++ b/Libraries/Network/RCTNetworkTask.h
+@@ -29,11 +29,12 @@ typedef NS_ENUM(NSInteger, RCTNetworkTaskStatus) {
+ @property (nonatomic, readonly, weak) id requestToken;
+ @property (nonatomic, readonly) NSURLResponse *response;
+ 
+-@property (nonatomic, copy) RCTURLRequestCompletionBlock completionBlock;
+-@property (nonatomic, copy) RCTURLRequestProgressBlock downloadProgressBlock;
+-@property (nonatomic, copy) RCTURLRequestIncrementalDataBlock incrementalDataBlock;
+-@property (nonatomic, copy) RCTURLRequestResponseBlock responseBlock;
+-@property (nonatomic, copy) RCTURLRequestProgressBlock uploadProgressBlock;
++// [Ardia: atomic, as a cancel on the caller's queue clears them while the handler's queue reads them Ardia]
++@property (atomic, copy) RCTURLRequestCompletionBlock completionBlock;
++@property (atomic, copy) RCTURLRequestProgressBlock downloadProgressBlock;
++@property (atomic, copy) RCTURLRequestIncrementalDataBlock incrementalDataBlock;
++@property (atomic, copy) RCTURLRequestResponseBlock responseBlock;
++@property (atomic, copy) RCTURLRequestProgressBlock uploadProgressBlock;
+ 
+ @property (atomic, readonly) RCTNetworkTaskStatus status;
+ 
+diff --git a/Libraries/Network/RCTNetworkTask.mm b/Libraries/Network/RCTNetworkTask.mm
+index a82671b7c87fae1e390cc6a292bd91611ca40584..d3b4b86e59a8ef5ebf700151d20ae7022ef20fe4 100644
+--- a/Libraries/Network/RCTNetworkTask.mm
++++ b/Libraries/Network/RCTNetworkTask.mm
+@@ -53,14 +53,22 @@ - (RCTNetworkTaskStatus)status
+ - (void)invalidate
+ {
+   _selfReference = nil;
+-  _completionBlock = nil;
+-  _downloadProgressBlock = nil;
+-  _incrementalDataBlock = nil;
+-  _responseBlock = nil;
+-  _uploadProgressBlock = nil;
++  self.completionBlock = nil; // [Ardia: through the atomic setters, see the header Ardia]
++  self.downloadProgressBlock = nil;
++  self.incrementalDataBlock = nil;
++  self.responseBlock = nil;
++  self.uploadProgressBlock = nil;
+   _requestToken = nil;
+ }
+ 
++// [Ardia: only the first of cancel, an error and completion finishes the task, so a cancel racing a completion never
++// invalidates it twice (releasing _selfReference twice) and a cancelled task never calls back
++- (BOOL)finishOnce
++{
++  return _atomicStatus.exchange(RCTNetworkTaskFinished) != RCTNetworkTaskFinished;
++}
++// Ardia]
++
+ - (void)dispatchCallback:(dispatch_block_t)callback
+ {
+   if (dispatch_get_specific((__bridge void *)self) == (__bridge void *)self) {
+@@ -88,7 +96,7 @@ - (void)start
+ 
+ - (void)cancel
+ {
+-  if (_atomicStatus.exchange(RCTNetworkTaskFinished) == RCTNetworkTaskFinished) {
++  if (![self finishOnce]) { // [Ardia]
+     return;
+   }
+ 
+@@ -111,10 +119,9 @@ - (BOOL)validateRequestToken:(id)requestToken
+     valid = NO;
+   }
+ 
+-  if (!valid) {
+-    _atomicStatus = RCTNetworkTaskFinished;
+-    if (_completionBlock) {
+-      RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++  if (!valid && [self finishOnce]) { // [Ardia]
++    RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++    if (completionBlock) {
+       [self dispatchCallback:^{
+         completionBlock(self->_response, nil, RCTErrorWithMessage(@"Invalid request token."));
+       }];
+@@ -130,8 +137,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
+     return;
+   }
+ 
+-  if (_uploadProgressBlock) {
+-    RCTURLRequestProgressBlock uploadProgressBlock = _uploadProgressBlock;
++  RCTURLRequestProgressBlock uploadProgressBlock = self.uploadProgressBlock; // [Ardia]
++  if (uploadProgressBlock) {
+     int64_t length = _request.HTTPBody.length;
+     [self dispatchCallback:^{
+       uploadProgressBlock(bytesSent, length);
+@@ -146,8 +153,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
+   }
+ 
+   _response = response;
+-  if (_responseBlock) {
+-    RCTURLRequestResponseBlock responseBlock = _responseBlock;
++  RCTURLRequestResponseBlock responseBlock = self.responseBlock; // [Ardia]
++  if (responseBlock) {
+     [self dispatchCallback:^{
+       responseBlock(response);
+     }];
+@@ -172,9 +179,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+     @try {
+       [_data appendData:data];
+     } @catch (NSException *exception) {
+-      _atomicStatus = RCTNetworkTaskFinished;
+-      if (_completionBlock) {
+-        RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++      if (![self finishOnce]) { // [Ardia]
++        return;
++      }
++      RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++      if (completionBlock) {
+         [self dispatchCallback:^{
+           completionBlock(
+               self->_response, nil, RCTErrorWithMessage(exception.reason ?: @"Request's received data too long."));
+@@ -189,14 +198,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+ 
+   int64_t total = _response.expectedContentLength;
+ 
+-  if (_incrementalDataBlock) {
+-    RCTURLRequestIncrementalDataBlock incrementalDataBlock = _incrementalDataBlock;
++  RCTURLRequestIncrementalDataBlock incrementalDataBlock = self.incrementalDataBlock; // [Ardia]
++  if (incrementalDataBlock) {
+     [self dispatchCallback:^{
+       incrementalDataBlock(data, length, total);
+     }];
+   }
+-  if (_downloadProgressBlock) {
+-    RCTURLRequestProgressBlock downloadProgressBlock = _downloadProgressBlock;
++  RCTURLRequestProgressBlock downloadProgressBlock = self.downloadProgressBlock; // [Ardia]
++  if (downloadProgressBlock) {
+     [self dispatchCallback:^{
+       downloadProgressBlock(length, total);
+     }];
+@@ -209,9 +218,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
+     return;
+   }
+ 
+-  _atomicStatus = RCTNetworkTaskFinished;
+-  if (_completionBlock) {
+-    RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++  if (![self finishOnce]) { // [Ardia]
++    return;
++  }
++  RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++  if (completionBlock) {
+     NSData *dataCopy = nil;
+     {
+       std::lock_guard<std::mutex> lock(self->_mutex);
 diff --git a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm b/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
 index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04ef8d1f51e 100644
 --- a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
