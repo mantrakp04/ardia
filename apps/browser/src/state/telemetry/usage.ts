@@ -13,6 +13,7 @@ import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
+import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -48,7 +49,7 @@ function watchStore() {
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
-        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles));
+        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
     if (s.splits !== prev.splits) {
@@ -60,9 +61,9 @@ function watchStore() {
   });
 }
 
-function profileSwitched(profiles: number) {
+function profileSwitched(profiles: number, via: ReturnType<typeof switcherSwitchProperties>) {
   const start = Date.now();
-  requestAnimationFrame(() => requestAnimationFrame(() => capture("profile_switched", { switch_ms: Date.now() - start, profiles })));
+  requestAnimationFrame(() => requestAnimationFrame(() => capture("profile_switched", { switch_ms: Date.now() - start, profiles, ...via })));
 }
 
 function watchSync() {
