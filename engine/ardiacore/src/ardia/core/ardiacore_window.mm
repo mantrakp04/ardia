@@ -198,35 +198,60 @@
   _host->set_acted_fullscreen(acted);
 }
 
-- (void)adoptTab:(ArdiaCoreTab*)tab {
-  if (ardiacore::DeferWhileTabStripNotifies(^{
-        [self adoptTab:tab];
-      })) {
-    return;
-  }
+- (BOOL)canAdoptTab:(ArdiaCoreTab*)tab {
   content::WebContents* contents = tab.contents;
   if (!contents) {
-    return;
+    return NO;
   }
   BrowserWindowInterface* from =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
+  if (!from) {
+    return YES;
+  }
+  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  if (_host->ExistingBrowserFor(profile) == from) {
+    return YES;
+  }
+  return _host->AdmitsTabsFor(profile) &&
+         ardiacore::WindowHost::LetsTabsGo(from, contents);
+}
+
+- (BOOL)adoptTab:(ArdiaCoreTab*)tab {
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self adoptTab:tab];
+      })) {
+    return [self canAdoptTab:tab];
+  }
+  if (![self canAdoptTab:tab]) {
+    return NO;
+  }
+  content::WebContents* contents = tab.contents;
+  BrowserWindowInterface* from =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
+  if (!from) {
+    return YES;
+  }
   Browser* to = _host->BrowserFor(
       Profile::FromBrowserContext(contents->GetBrowserContext()));
-  if (!from || !to || from == to) {
-    return;
+  if (from == to) {
+    return YES;
+  }
+  if (!to) {
+    return NO;
   }
   TabStripModel* source = from->GetTabStripModel();
   const int index = source->GetIndexOfWebContents(contents);
   if (index == TabStripModel::kNoTab) {
-    return;
+    return NO;
   }
   std::unique_ptr<tabs::TabModel> moved = source->DetachTabAtForInsertion(index);
   if (!moved) {
-    return;
+    return NO;
   }
   TabStripModel* target = to->GetTabStripModel();
   target->InsertDetachedTabAt(target->count(), std::move(moved),
                               AddTabTypes::ADD_NONE);
+  return YES;
 }
 
 - (void)placeTab:(ArdiaCoreTab*)tab index:(int)index pinned:(BOOL)pinned {

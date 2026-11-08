@@ -192,7 +192,8 @@ ARDIACORE_EXPORT
 - (void)close;
 
 - (void)prepareProfile:(ArdiaCoreProfile*)profile;
-- (void)adoptTab:(ArdiaCoreTab*)tab;
+- (BOOL)adoptTab:(ArdiaCoreTab*)tab;
+- (BOOL)canAdoptTab:(ArdiaCoreTab*)tab;
 - (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
                           profile:(ArdiaCoreProfile*)profile
                        foreground:(BOOL)foreground;

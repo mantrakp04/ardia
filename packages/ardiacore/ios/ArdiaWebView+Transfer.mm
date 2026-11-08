@@ -159,6 +159,7 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
       });
       return;
     }
+    if (offered && ![self windowTakes:offered]) offered = nil;
     if (offered && ![self canTake:offered]) {
       if (!offered.closed) [offered closeNow];
       offered = nil;
@@ -279,12 +280,12 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
     return YES;
   }
   ArdiaCoreTab *tab = [ArdiaTabParking parkedTabForKey:_transferKey];
-  if (tab && ![self canTake:tab]) return NO;
+  if (tab && (![self canTake:tab] || ![self windowTakes:tab])) return NO;
   if (tab) [ArdiaTabParking unpark:_transferKey];
   if (!tab) {
     for (ArdiaWebView *other in LiveViews().allObjects) {
       if (other == self || ![other.transferKey isEqualToString:_transferKey] || !other->_tab) continue;
-      if (![self canTake:other->_tab]) return NO;
+      if (![self canTake:other->_tab] || ![self windowTakes:other->_tab]) return NO;
       tab = other->_tab;
       [other detach];
       break;

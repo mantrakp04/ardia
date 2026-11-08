@@ -227,8 +227,9 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
 - (void)takeTab {
   if (_tab.closed) return [_coreWindow close];
   _adopting = YES;
-  [_coreWindow adoptTab:_tab];
+  const BOOL adopted = [_coreWindow adoptTab:_tab];
   _adopting = NO;
+  if (!adopted) return [_coreWindow close];
   [self showTab];
 }
 

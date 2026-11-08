@@ -1,0 +1,50 @@
+An extension's tab move (chrome.tabs.move with a windowId, chrome.windows.create with a tabId) into a window
+that is closing answers "No window with id" before anything detaches. A window running its unload handlers kept
+the moved tab only until its CloseAllTabs closed it too, and one whose delete is scheduled is still in
+WindowControllerList but gone from GlobalBrowserCollection, so TabListBridge::MoveTabToWindow hit
+CHECK(target_window).
+
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -37,6 +37,9 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
++#if !BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
++#endif
+ #include "chrome/browser/ui/incognito_allowed_url.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+@@ -437,6 +440,17 @@
+   return set_window_bounds;
+ }
+ 
++bool IsClosingWindow(BrowserWindowInterface* browser) {
++  if (browser->IsDeleteScheduled()) {
++    return true;
++  }
++#if !BUILDFLAG(IS_ANDROID)
++  return browser->capabilities()->IsAttemptingToCloseBrowser();
++#else
++  return false;
++#endif
++}
++
+ // Moves the given tab to the `target_browser`. On success, returns the new
+ // index of the tab in the target tabstrip. On failure, returns -1. Assumes that
+ // the caller has already checked whether the target window is different from
+@@ -472,6 +486,13 @@
+   if (!allow_other_window_types &&
+       target_browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
+     *error = ExtensionTabUtil::kCanOnlyMoveTabsWithinNormalWindowsError;
++    return -1;
++  }
++
++  if (IsClosingWindow(target_browser)) {
++    *error = ErrorUtils::FormatErrorMessage(
++        ExtensionTabUtil::kWindowNotFoundError,
++        base::NumberToString(target_browser->GetSessionID().id()));
+     return -1;
+   }
+ 

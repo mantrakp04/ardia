@@ -85,6 +85,9 @@ class WindowHost : public TabStripModelObserver,
   static WindowHost* ForContents(content::WebContents* contents);
 
   Browser* BrowserFor(Profile* profile);
+  bool AdmitsTabsFor(Profile* profile) const;
+  static bool LetsTabsGo(BrowserWindowInterface* browser,
+                         content::WebContents* contents);
   Browser* ExistingBrowserFor(Profile* profile) const;
   std::vector<Browser*> browsers() const;
   void SetActiveProfile(Profile* profile);

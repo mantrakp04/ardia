@@ -25,25 +25,32 @@ const NSUInteger kNewTabLinksKept = 4;
 
 @implementation ArdiaWebView (Tab)
 
-- (void)adoptIntoWindow {
-  if (_standalone) return;
+- (BOOL)windowTakes:(ArdiaCoreTab *)tab {
+  if (_standalone) return YES;
+  ArdiaCoreWindow *coreWindow = self.controller.coreWindow;
+  return !coreWindow || [coreWindow canAdoptTab:tab];
+}
+
+- (BOOL)adoptIntoWindow {
+  if (_standalone) return YES;
   ArdiaWindowController *controller = self.controller;
-  if (!controller.coreWindow) return;
-  if ([[controller.coreWindow tabsForProfile:_tab.profile] containsObject:_tab]) return;
+  if (!controller.coreWindow) return YES;
+  if ([[controller.coreWindow tabsForProfile:_tab.profile] containsObject:_tab]) return YES;
   ArdiaWindowController *source = [ArdiaWindowController holding:_tab];
   _life.moving = YES;
   controller.hostChanges++;
   source.hostChanges++;
-  [controller.coreWindow adoptTab:_tab];
+  const BOOL adopted = [controller.coreWindow adoptTab:_tab];
   source.hostChanges--;
   controller.hostChanges--;
   _life.moving = NO;
-  if (_tabIndex >= 0) [self placeTab];
+  if (adopted && _tabIndex >= 0) [self placeTab];
+  return adopted;
 }
 
 - (void)attach:(ArdiaCoreTab *)tab {
   NSAssert(_life.canAttach(_tab != nil), @"a closed view, or one that has a tab, was given another tab");
-  if (!_life.canAttach(_tab != nil)) return;
+  if (!_life.canAttach(_tab != nil) || ![self windowTakes:tab]) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ attach tab=%d visible=%d", _transferKey, (int)tab.tabId, _visible);
   const BOOL shownEarly = [ArdiaEarlyWindow holdsPage:tab];
   [LiveViews() addObject:self];
