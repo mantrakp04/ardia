@@ -4,6 +4,8 @@ import type { Frame } from "../browser/types";
 import type { TabPlacement } from "../pins/placing";
 import { isRegularWindow } from "../windows/small";
 import { installDroppedCrx } from "../extensions/crxDrop";
+import { activeTabId } from "../browser/model";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
 
 export function screenPoint(s: BrowserState, windowId: string, x: number, y: number, live?: Frame | null): [number, number] | null {
   const frame = live ?? s.windows[windowId]?.frame;
@@ -70,11 +72,25 @@ export function droppedInputs(items: DroppedEntry[]): string[] {
   });
 }
 
+export function showsNewTab(s: BrowserState, tabId: string): boolean {
+  const tab = s.tabs[tabId];
+  if (!tab || tab.url) return false;
+  const shown = activeTabId(s, tab.windowId);
+  return shown === tabId || !!splitTabIdsOf(splitOf(s, shown))?.includes(tabId);
+}
+
 export function openDroppedInTab(tabId: string, items: DroppedEntry[]): void {
   const s = useBrowser.getState();
   const tab = s.tabs[tabId];
-  const [first, ...rest] = installDroppedCrx(tab?.windowId ?? "", droppedInputs(items));
-  if (!tab || !first) return;
+  if (!tab || !showsNewTab(s, tabId)) return;
+  const [first, ...rest] = installDroppedCrx(tab.windowId, droppedInputs(items));
+  if (!first) return;
   s.navigate(tabId, first);
-  for (const input of rest) useBrowser.getState().newTab(tab.windowId, { url: input, background: true, profileId: tab.profileId });
+  let previous: string | undefined;
+  for (const input of rest) {
+    const now = useBrowser.getState();
+    const at = previous ? (now.windows[tab.windowId]?.tabIds.indexOf(previous) ?? -1) + 1 : 0;
+    const id = now.newTab(tab.windowId, { url: input, background: true, profileId: tab.profileId, ...(at > 0 ? { index: at } : {}) });
+    if (id) previous = id;
+  }
 }

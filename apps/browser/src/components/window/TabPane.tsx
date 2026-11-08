@@ -132,7 +132,7 @@ export const TabPane = memo(function TabPane({
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
             {visible && isNewTab && !small && (
-              <NewTabDropArea tabId={tabId}>
+              <NewTabDropArea tabId={tabId} accepting={!covered && !lingering}>
                 {inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />}
               </NewTabDropArea>
             )}

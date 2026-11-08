@@ -29,7 +29,36 @@ test("files dropped on a New Tab page: the first opens in that tab, the rest in 
   assert.equal(win.activeTabIds[win.profileId], tab);
   assert.equal(navigated(tab), "file:///Users/me/drop%20doc.pdf");
   const others = win.tabIds.filter((id) => id !== tab).map((id) => S().tabs[id].url);
-  assert.deepEqual(others.sort(), ["file:///Users/me/image.png", "file:///Users/me/note.txt"]);
+  assert.deepEqual(others, ["file:///Users/me/image.png", "file:///Users/me/note.txt"]);
+});
+
+test("with new tabs at the top, the dropped files after the first keep their order", () => {
+  const { w, tab } = newTabWindow();
+  S().updateSettings({ newTabPosition: "top" });
+  const before = S().newTab(w, { url: "https://example.com/old", background: true });
+  openDroppedInTab(tab, ["a", "b", "c", "d"].map((n) => ({ kind: "file", url: `file:///Users/me/${n}.txt` })));
+  const urls = S().windows[w].tabIds.filter((id) => id !== tab && id !== before).map((id) => S().tabs[id].url);
+  assert.deepEqual(urls, ["file:///Users/me/b.txt", "file:///Users/me/c.txt", "file:///Users/me/d.txt"]);
+  const order = S().windows[w].tabIds;
+  assert.ok(order.indexOf(before) > order.indexOf(S().windows[w].tabIds.find((id) => S().tabs[id].url === "file:///Users/me/d.txt")));
+  S().updateSettings({ newTabPosition: "bottom" });
+});
+
+test("a drop on a New Tab page that is no longer shown opens nothing", () => {
+  const { w, tab } = newTabWindow();
+  const other = S().newTab(w, { url: "https://example.com/shown" });
+  assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], other);
+  openDroppedInTab(tab, [{ kind: "file", url: "file:///Users/me/late.pdf" }]);
+  assert.equal(S().tabs[tab].url, "");
+  assert.equal(S().windows[w].tabIds.length, 2);
+});
+
+test("a drop on a New Tab page that has started loading opens nothing more", () => {
+  const { w, tab } = newTabWindow();
+  openDroppedInTab(tab, [{ kind: "url", url: "https://example.com/first" }]);
+  openDroppedInTab(tab, [{ kind: "url", url: "https://example.com/second" }]);
+  assert.equal(navigated(tab), "https://example.com/first");
+  assert.equal(S().windows[w].tabIds.length, 1);
 });
 
 test("a link dropped on a New Tab page navigates it, and text searches", () => {
