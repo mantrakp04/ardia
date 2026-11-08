@@ -200,12 +200,18 @@ async def show_tab(ctx: Ctx, page):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 5
     nudge = 0.0
+    shown_since = None
     while True:
         if loop.time() >= nudge:
             await ctx.state.browser.send("Target.activateTarget", {"targetId": page.target_id})
             nudge = loop.time() + 1
         if not await page.hidden() and await tab_shown(ctx.state, page) is not False:
-            return
+            shown_since = shown_since or loop.time()
+            if loop.time() - shown_since >= SHOWN_HOLD:
+                return
+        else:
+            shown_since = None
+            nudge = min(nudge, loop.time() + 0.2)
         if loop.time() >= deadline:
             raise BrowseError("Ardia didn't show the tab; switch to it in Ardia, or try `ardia browse tab <id> --show` again")
         await asyncio.sleep(0.1)
@@ -388,12 +394,23 @@ async def cmd_snapshot(ctx: Ctx, argv):
 async def cmd_notes(ctx: Ctx, argv):
     from ardia_cli import notes
 
+    tab = None
+    if "--tab" in argv:
+        at = argv.index("--tab")
+        if at + 1 >= len(argv):
+            raise Usage("--tab needs a tab id (t1, or the tab-… id `ardia windows` prints)")
+        tab, argv = argv[at + 1], argv[:at] + argv[at + 2:]
     request = notes.parse_args(argv)
     if request.text == "-":
         request.text = ctx.stdin or ""
     url = None
     if request.site is None and request.action != "list":
-        page = await ctx.state.page()
+        if tab is not None:
+            await ctx.state.connect()
+            await ctx.state.refresh_targets()
+            page = await ctx.state.page(await ctx.state.find_tab(tab))
+        else:
+            page = await ctx.state.page()
         await page.refresh_frames()
         url = page.url
     return notes.run_request(Path(ctx.state.config["data_root"]), request, url)
@@ -458,10 +475,14 @@ async def cmd_fill(ctx: Ctx, argv):
     typeahead = await actions.combo_kind(page, element) == "typeahead"
 
     async def run():
-        stale = await actions.suggestion_signature(page, element) if typeahead and text else ()
-        filled = await actions.fill(page, element, text, humanize)
-        found = (await actions.settled_suggestions(page, element, None, actions.SUGGESTION_HINT_WAIT, stale))[1] if typeahead and text else []
-        return filled, found
+        if not (typeahead and text):
+            return await actions.fill(page, element, text, humanize), []
+        await actions.watch_suggestions(page, element)
+        try:
+            filled = await actions.fill(page, element, text, humanize)
+            return filled, (await actions.settled_suggestions(page, element, actions.SUGGESTION_HINT_WAIT))[1]
+        finally:
+            await actions.unwatch_suggestions(page, element)
 
     ((retargeted, stored), found), report = await changes.observe(ctx, page, run)
     result = filled_result("filled", args[0], retargeted, text, stored)
@@ -795,6 +816,8 @@ async def cmd_eval(ctx: Ctx, argv):
         if options.get("base64"):
             script = base64.b64decode(script).decode("utf-8")
     page = await ctx.state.page()
+    if FETCHING.search(script):
+        hint_once(ctx.state, "fetch", FETCH_HINT)
     value = await evaluate_main(page, script)
     origin = page.frames.get(page.main_frame, {}).get("origin") or ""
     return Result({"origin": origin + "/" if origin and not origin.endswith("/") else origin, "result": value}, json.dumps(value, ensure_ascii=False, indent=2), page_content=True)
@@ -878,6 +901,8 @@ async def cmd_is(ctx: Ctx, argv):
 FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
 FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
 MAX_CANDIDATES = 8
+SHOWN_HOLD = 0.3
+FIND_WAIT = 1.5
 
 
 def find_arguments(args: list[str], name: str | None) -> tuple[str, list[str], str | None]:
@@ -906,27 +931,39 @@ async def cmd_find(ctx: Ctx, argv):
         index, value, rest = int(args[0]), args[1], args[2:]
     else:
         value, rest = args[0], args[1:]
-    element = None
-    role = ""
-    name = ""
-    if locator == "role":
-        element, role, name = await find_role(ctx, page, frame, value, wanted_name, exact)
-    elif locator == "text":
-        element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findText(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"text={value}")
-    elif locator == "label":
-        element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findLabel(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"label={value}")
-    elif locator in ("placeholder", "alt", "title"):
-        element = await page.element_from(await page.call("(a, t, e) => ardiaBrowse.findAttr(a, t, e)", locator, value, exact, frame=frame, by_value=False, read=True), frame, f"{locator}={value}")
-    elif locator == "testid":
-        element = await page.element_from(await page.call("(t) => ardiaBrowse.findAttr('data-testid', t, true)", value, frame=frame, by_value=False, read=True), frame, f"testid={value}")
-    elif locator in ("first", "last", "nth"):
-        position = {"first": 0, "last": -1}.get(locator, index if locator == "nth" else 0)
-        remote = await page.call("(s, i) => { const all = ardiaBrowse.queryAll(s); return all.at(i) || null; }", value, position, frame=frame, by_value=False, read=True)
-        element = await page.element_from(remote, frame, f"{locator} {value}")
-    else:
-        raise Usage(f"Unknown locator: {locator} (role, text, label, placeholder, alt, title, testid, first, last, nth)")
-    if element is None:
-        raise BrowseError(f"Element not found: {locator} {value}", code="not_found")
+
+    async def locate():
+        element, role, name = None, "", ""
+        if locator == "role":
+            element, role, name = await find_role(ctx, page, frame, value, wanted_name, exact)
+        elif locator == "text":
+            element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findText(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"text={value}")
+        elif locator == "label":
+            element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findLabel(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"label={value}")
+        elif locator in ("placeholder", "alt", "title"):
+            element = await page.element_from(await page.call("(a, t, e) => ardiaBrowse.findAttr(a, t, e)", locator, value, exact, frame=frame, by_value=False, read=True), frame, f"{locator}={value}")
+        elif locator == "testid":
+            element = await page.element_from(await page.call("(t) => ardiaBrowse.findAttr('data-testid', t, true)", value, frame=frame, by_value=False, read=True), frame, f"testid={value}")
+        elif locator in ("first", "last", "nth"):
+            position = {"first": 0, "last": -1}.get(locator, index if locator == "nth" else 0)
+            remote = await page.call("(s, i) => { const all = ardiaBrowse.queryAll(s); return all.at(i) || null; }", value, position, frame=frame, by_value=False, read=True)
+            element = await page.element_from(remote, frame, f"{locator} {value}")
+        else:
+            raise Usage(f"Unknown locator: {locator} (role, text, label, placeholder, alt, title, testid, first, last, nth)")
+        if element is None:
+            raise BrowseError(f"Element not found: {locator} {value}", code="not_found")
+        return element, role, name
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + FIND_WAIT
+    while True:
+        try:
+            element, role, name = await locate()
+            break
+        except BrowseError as error:
+            if error.code != "not_found" or loop.time() >= deadline:
+                raise
+        await asyncio.sleep(0.15)
     action = rest[0] if rest else "click"
     if action not in FIND_ACTIONS:
         raise Usage(f"Unknown action '{action}' for find. Valid actions: {', '.join(FIND_ACTIONS)}.")
@@ -1036,11 +1073,14 @@ async def cmd_tab(ctx: Ctx, argv):
             raise BrowseError("This session has no current tab to close")
         if target_id not in state.opened:
             raise BrowseError(f"Tab [{state.tab_id(target_id)}] is one of the user's tabs; ardia browse only closes tabs this session opened")
-        users = state.registry.others(state.instance)[1].get(target_id)
-        if users:
+        if not state.registry.reserve_close(state.instance, target_id):
+            users = state.registry.others(state.instance)[1].get(target_id) or ["another session"]
             raise BrowseError(f"Tab [{state.tab_id(target_id)}] is in use by session {', '.join(users)}, so it stays open", code="tab_in_use")
         tab = state.tab_id(target_id)
-        await state.browser.send("Target.closeTarget", {"targetId": target_id})
+        try:
+            await state.browser.send("Target.closeTarget", {"targetId": target_id})
+        finally:
+            state.registry.finish_close(state.instance, target_id)
         state.forget_target(target_id)
         return Result({"closed": tab, "targetId": target_id}, f"✓ Tab [{tab}] closed")
     if action == "active":
@@ -1593,13 +1633,31 @@ async def cmd_batch(ctx: Ctx, argv):
         runs.append(argv_item)
     from ardia_cli.browse.daemon import run_one
 
+    names = [ALIASES.get(item[0], item[0]) if item else "" for item in runs]
+    if names and names[-1] == "close" and not runs[-1][1:] and "close" not in names[:-1]:
+        runs.pop()
+        batch_extras(ctx)["close_after_batch"] = True
     outcomes = []
     for item in runs:
         name = ALIASES.get(item[0], item[0]) if item else ""
         if name in ("batch", "close"):
-            outcomes.append({"command": item, "success": False, "result": None, "error": f"{name} can't run inside batch"})
+            why = "batch can't run inside batch" if name == "batch" else (
+                "close ends this session, so in a batch it only runs as the last line; to close this session's tab and go on, use `tab close`")
+            outcomes.append({"command": item, "success": False, "result": None, "error": why})
             continue
-        result, error = await run_one(ctx, item)
+        try:
+            item, line_options = batch_line_options(item)
+        except Usage as error:
+            outcomes.append({"command": item, "success": False, "result": None, "error": error.message, "code": error.code})
+            if options.get("bail"):
+                break
+            continue
+        if line_options.pop("full", False):
+            ctx.options["full"] = True
+        if line_options.get("max_output") is not None:
+            ctx.options["max_output"] = max(int(ctx.options.get("max_output") or 0), line_options.pop("max_output"))
+        line_options.pop("max_output", None)
+        result, error = await run_one(ctx, item, line_options)
         outcome = {"command": item, "success": error is None, "result": result.data if result else None, "error": error.message if error else None,
                    "text": result.text if result else None}
         if error is not None and error.code:
@@ -1611,6 +1669,10 @@ async def cmd_batch(ctx: Ctx, argv):
             break
         if error is not None and options.get("bail"):
             break
+    if batch_extras(ctx).get("close_after_batch") and any(not outcome["success"] for outcome in outcomes):
+        batch_extras(ctx).pop("close_after_batch")
+        outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
+                         "error": "close not run: an earlier line failed, so the session stays open"})
     text = "\n\n".join((outcome["text"] if outcome["success"] else f"✗ {outcome['error']}") or "" for outcome in outcomes)
     for outcome in outcomes:
         outcome.pop("text", None)
@@ -1619,6 +1681,72 @@ async def cmd_batch(ctx: Ctx, argv):
     if any(not outcome["success"] for outcome in outcomes):
         result.failed = True
     return result
+
+
+FETCHING = re.compile(r"\bfetch\s*\(|\bXMLHttpRequest\b|\bnew\s+DOMParser\b|\bwindow\.open\s*\(")
+FETCH_HINT = ("→ tip: to read other pages, `ardia browse read <url> <url>…` (or `read --links <pattern>` for this page's links) reads "
+              "them in one call, through your logins and after their scripts run; `ardia browse script` loops over pages with clicks and fills")
+PAGE_BY_PAGE_HINT = ("→ tip: reading page after page? `ardia browse read <url> <url>…` reads many in one call (`read --links <pattern>` "
+                     "takes every matching link on this page), and `ardia browse script` loops over pages that need clicks")
+PAGE_BY_PAGE = 3
+
+
+def hint_once(state, key: str, text: str):
+    hinted = state.extras.setdefault("hinted", set())
+    if key in hinted:
+        return
+    hinted.add(key)
+    state.extras["notice"] = "\n".join(part for part in (state.extras.get("notice"), text) if part)
+
+
+def reads_page(name: str, argv: list[str]) -> bool:
+    if name == "get":
+        return bool(argv) and argv[0] in ("text", "html")
+    return name == "read" and not [arg for arg in argv if not arg.startswith("-")]
+
+
+def note_reading(state, name: str, argv: list[str], result) -> None:
+    streak = state.extras.setdefault("page_reads", {"pages": 0, "arrived": False})
+    navigated = ((getattr(result, "data", None) or {}).get("changes") or {}).get("document") == "new"
+    if name in ("open", "back", "forward") and (name != "open" or [arg for arg in argv if not arg.startswith("-")]) or navigated:
+        streak["arrived"] = True
+        return
+    if reads_page(name, argv):
+        if streak["arrived"]:
+            streak["pages"] += 1
+            streak["arrived"] = False
+            if streak["pages"] >= PAGE_BY_PAGE:
+                hint_once(state, "page_by_page", PAGE_BY_PAGE_HINT)
+        return
+    if name not in ("wait", "notes", "tab", "get", "is", "screenshot", "snapshot", "eval"):
+        streak.update(pages=0, arrived=False)
+
+
+LINE_OPTIONS = {"full": "full", "max_output": "max_output", "no_changes": "no_changes", "humanize": "humanize", "show": "show",
+                "annotate": "annotate", "capture_console": "capture_console"}
+
+
+def batch_extras(ctx) -> dict:
+    extras = getattr(ctx.state, "extras", None)
+    return extras if isinstance(extras, dict) else {}
+
+
+def batch_line_options(item: list[str]) -> tuple[list[str], dict]:
+    from ardia_cli.browse import cli as browse_cli
+
+    found, rest = browse_cli.split_globals(item)
+    unusable = sorted(f"--{key.replace('_', '-')}" for key in found if key not in LINE_OPTIONS and key not in ("no_humanize", "json"))
+    if unusable:
+        raise Usage(f"{', '.join(unusable)} applies to the whole session, so it goes on the `batch` command, not a line inside it")
+    line = {LINE_OPTIONS[key]: value for key, value in found.items() if key in LINE_OPTIONS}
+    if found.get("no_humanize"):
+        line["humanize"] = False
+    if line.get("max_output") is not None:
+        try:
+            line["max_output"] = int(line["max_output"])
+        except ValueError:
+            raise Usage(f"--max-output takes a number of characters, not {line['max_output']}") from None
+    return rest, line
 
 
 def boundary(text: str) -> str:

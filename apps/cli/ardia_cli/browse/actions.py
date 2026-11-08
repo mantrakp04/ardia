@@ -21,7 +21,6 @@ PARTLY_DELIVERED = "the page received only part of it (no {missing} event arrive
 SUGGESTION_TIMEOUT = 4.0
 SUGGESTION_HINT_WAIT = 1.2
 SUGGESTION_SETTLE = 0.35
-SUGGESTION_STALE = 1.0
 MAX_SUGGESTIONS = 8
 EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
 
@@ -59,6 +58,8 @@ async def expect_input(page, frame, run, needs: dict, action: str):
         except ConnectionLost:
             raise
         except BrowseError as error:
+            if left_document(error):
+                return result
             raise OutcomeUnknown(action.lower(), f"it was sent, but confirming it reached the page failed ({error.message})") from None
         missing = [name for name, count in needs.items() if delivered(now, before, name) < count]
         if not missing:
@@ -69,6 +70,10 @@ async def expect_input(page, frame, run, needs: dict, action: str):
                 raise BrowseError(NOT_DELIVERED.format(action=action, missing="/".join(needs).replace("|", "/")), data={"missing": missing}, code="input_not_delivered")
             raise OutcomeUnknown(action.lower(), PARTLY_DELIVERED.format(missing=names))
         await asyncio.sleep(0.05)
+
+
+def left_document(error: BrowseError) -> bool:
+    return error.code == "document_changed" or error.code == "outcome_unknown" and "changed document" in error.message
 
 
 def mouse_button(name: str | None):
@@ -239,8 +244,13 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
     x, y, _ = await target_point(page, element, humanize)
     mouse = page.input.mouse
     which = mouse_button(button)
-    await expect_input(page, element.frame, lambda: page.input.gesture("click", lambda: mouse.click(x, y, button=which, click_count=count, humanize=humanize)),
-                       {"mousedown": count, "mouseup": count}, "The click")
+    async def press():
+        if humanize or count == 1:
+            return await mouse.click(x, y, button=which, click_count=count, humanize=humanize)
+        for number in range(1, count + 1):
+            await mouse.click(x, y, button=which, click_count=number, humanize=False)
+
+    await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click")
 
 
 async def hover(page, element, humanize: bool):
@@ -431,32 +441,33 @@ async def suggestions_now(page, element):
     return options, items[: len(options)]
 
 
-async def suggestion_signature(page, element) -> tuple:
-    return tuple(item["text"] for item in (await suggestions_now(page, element))[1])
+async def watch_suggestions(page, element):
+    await page.call("(el) => ardiaBrowse.watchSuggestions(el)", element, frame=element.frame)
 
 
-def suggestions_ready(items: list[dict], value: str | None, steady: float, fresh: bool) -> bool:
-    if not items or steady < SUGGESTION_SETTLE:
-        return False
-    if not fresh:
-        return steady >= SUGGESTION_STALE
-    return value is None or any(match_level(value, item) for item in items) or steady >= SUGGESTION_SETTLE * 3
+async def unwatch_suggestions(page, element):
+    with contextlib.suppress(BrowseError):
+        await page.call("(el) => ardiaBrowse.unwatchSuggestions(el)", element, frame=element.frame)
 
 
-async def settled_suggestions(page, element, value: str | None, timeout: float, stale: tuple = ()):
+def suggestions_ready(watch: dict) -> bool:
+    fresh = watch["changed"] > 0 and watch["changed"] >= watch["since"]
+    return fresh and not watch["busy"] and (watch["now"] - watch["changed"]) / 1000 >= SUGGESTION_SETTLE
+
+
+async def settled_suggestions(page, element, timeout: float, what: str | None = None):
     loop = asyncio.get_running_loop()
-    started = loop.time()
-    deadline = started + timeout
-    last = None
-    since = started
+    deadline = loop.time() + timeout
     while True:
-        options, items = await suggestions_now(page, element)
-        now = loop.time()
-        signature = tuple(item["text"] for item in items)
-        if signature != last:
-            last, since = signature, now
-        if suggestions_ready(items, value, now - since, not stale or signature != stale) or now >= deadline:
-            return options, items
+        watch = await page.call("(el) => ardiaBrowse.suggestionState(el)", element, frame=element.frame, read=True)
+        if suggestions_ready(watch):
+            return await suggestions_now(page, element)
+        if loop.time() >= deadline:
+            if what is None:
+                return [], []
+            busy = " (it still says it's loading)" if watch["busy"] else ""
+            raise BrowseError(f"The suggestions in {what} didn't update within {timeout:g} s{busy}, so nothing was picked; the list showing may be "
+                              "for an earlier query. Snapshot to see it, then click an option or try select again", code="no_fresh_suggestions")
         await asyncio.sleep(0.1)
 
 
@@ -472,15 +483,20 @@ async def choose(page, element, values: list[str], humanize: bool, where: str, t
             await fill(page, element, known[index], humanize)
             picked.append({"value": value, "picked": known[index]})
             continue
-        stale = await suggestion_signature(page, element)
-        if kind == "typeahead":
-            await fill(page, element, value, humanize)
-        else:
-            expanded = await page.call("(el) => el.getAttribute('aria-expanded') === 'true'", element, frame=element.frame, read=True)
-            stale = () if not expanded else stale
-            if not expanded:
-                await click(page, element, humanize)
-        options, items = await settled_suggestions(page, element, value, timeout, stale)
+        await watch_suggestions(page, element)
+        try:
+            if kind == "typeahead":
+                await fill(page, element, value, humanize)
+                options, items = await settled_suggestions(page, element, timeout, where)
+            else:
+                expanded = await page.call("(el) => el.getAttribute('aria-expanded') === 'true'", element, frame=element.frame, read=True)
+                if not expanded:
+                    await click(page, element, humanize)
+                    options, items = await settled_suggestions(page, element, timeout, where)
+                else:
+                    options, items = await suggestions_now(page, element)
+        finally:
+            await unwatch_suggestions(page, element)
         index = pick_suggestion(value, items, where)
         option = options[index]
         option.label = f'the suggestion "{items[index]["text"]}"'

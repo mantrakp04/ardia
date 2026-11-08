@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import shutil
 import sys
@@ -258,7 +259,32 @@ class ChangesReport(unittest.TestCase):
         report = changes.diff(view([row("e1", "a")]), view([row("e5", "b")], loader="L2", url="http://y/"))
         self.assertEqual(report["document"], "new")
         self.assertEqual(report["removed"], [])
-        self.assertIn("new document, 1 interactive nodes:\n+ b", changes.render(report))
+        self.assertIn("new document, 1 interactive nodes (its snapshot -i, so no need to take one):\n+ b", changes.render(report))
+
+    def test_a_navigation_prints_the_whole_new_page_and_a_same_page_change_stays_short(self):
+        rows = [row(f"e{index}", f'textbox "Field {index}"', role="textbox", name=f"Field {index}") for index in range(1, 81)]
+        navigated = changes.render(changes.diff(view([row("e900", "a")]), view(rows, loader="L2", url="http://y/")))
+        self.assertIn('+ textbox "Field 80"', navigated)
+        self.assertNotIn("more lines", navigated)
+        same = changes.render(changes.diff(view([]), view(rows)))
+        self.assertIn('+ textbox "Field 40"', same)
+        self.assertIn("+ … 40 more lines (`snapshot -i -s <css>` shows one region)", same)
+        self.assertNotIn("run `snapshot -i`", same)
+
+    def test_arriving_on_another_site_shows_its_notes_like_snapshot(self):
+        root = scratch(self)
+        folder = root / "Notes"
+        folder.mkdir(mode=0o700)
+        (folder / "y.test.md").write_text("Use the blue button\n")
+        os.chmod(folder / "y.test.md", 0o600)
+        state = SimpleNamespace(config={"data_root": str(root)})
+        here = changes.arrival_notes(state, view([], url="http://x.test/"), view([], url="http://y.test/a"))
+        self.assertEqual(here, "# notes for y.test (ardia notes): Use the blue button")
+        self.assertIsNone(changes.arrival_notes(state, view([], url="http://y.test/b"), view([], url="http://y.test/a")))
+        report = changes.diff(view([row("e1", "a")], url="http://x.test/"), view([row("e2", "b")], loader="L2", url="http://y.test/a"))
+        report["notes"] = here
+        self.assertTrue(changes.render(report).startswith("changes:\nurl: http://x.test/ → http://y.test/a\n# notes for y.test"))
+        self.assertEqual(changes.as_data(report)["notes"], here)
 
     def test_urls_lose_secrets(self):
         self.assertEqual(changes.clean_url("https://user:pw@api.example.com:8443/v1/items?key=abc&flag&id=7#frag"),
@@ -485,14 +511,18 @@ class NetworkWatchTest(unittest.TestCase):
 
 
 class OutputCap(unittest.TestCase):
-    def test_text_is_capped_at_a_line_with_a_way_to_get_more(self):
+    def test_text_is_capped_at_a_line_with_ways_to_narrow_it(self):
         text = "\n".join(f"- button \"Button {index}\" [ref=e{index}]" for index in range(400))
-        _, out, _ = daemon.render({}, result=commands.Result({}, text))
+        _, out, _ = daemon.render({}, result=commands.Result({}, text), name="snapshot")
         body, note = out.rstrip("\n").rsplit("\n", 1)
         self.assertLessEqual(len(body), daemon.OUTPUT_CAP)
         self.assertTrue(body.endswith("]"))
-        self.assertEqual(note, f"[output capped at {len(body):,} of {len(text):,} characters; rerun with --max-output {len(text)} or --full, "
-                               "or narrow it (snapshot -s <sel>, -d <n>)]")
+        self.assertEqual(note, f"[output capped at {len(body):,} of {len(text):,} characters. Narrow it instead: snapshot -i (interactive only), "
+                               "snapshot -s <css> (one region), find role <role> <action> --name <text> (act without a snapshot). "
+                               f"Only if you need every line: --max-output {len(text)}]")
+        self.assertNotIn("--full", note)
+        _, read, _ = daemon.render({}, result=commands.Result({}, text), name="get")
+        self.assertIn("Narrow it instead: get text <css> or read -s <css> (one region)", read)
         self.assertEqual(daemon.render({"full": True}, result=commands.Result({}, text))[1], text + "\n")
         self.assertEqual(daemon.render({"max_output": 0}, result=commands.Result({}, text))[1], text + "\n")
         self.assertNotIn("capped", daemon.render({"json": True}, result=commands.Result({"t": text}, text))[1])
@@ -519,11 +549,82 @@ class BatchFromStdin(unittest.TestCase):
             seen.append([name, *argv])
             return commands.Result({"ok": True})
 
-        ctx = commands.Ctx(SimpleNamespace(), {}, "/", {}, "# set up\nclick @e1\n\n  # fill\nfill '#a b' \"x y\"\n[\"press\", \"Enter\"]\n", "batch")
+        ctx = commands.Ctx(SimpleNamespace(extras={}), {}, "/", {}, "# set up\nclick @e1\n\n  # fill\nfill '#a b' \"x y\"\n[\"press\", \"Enter\"]\n", "batch")
         with mock.patch.object(daemon, "dispatch", fake_dispatch):
             result = run(commands.cmd_batch(ctx, []))
         self.assertEqual(seen, [["click", "@e1"], ["fill", "#a b", "x y"], ["press", "Enter"]])
         self.assertFalse(getattr(result, "failed", False))
+
+    def run_batch(self, text, fail=()):
+        seen = []
+
+        async def fake_dispatch(ctx, name, argv):
+            seen.append(([name, *argv], {key: ctx.options.get(key) for key in ("no_changes", "humanize")}))
+            if name in fail:
+                raise BrowseError(f"{name} failed")
+            return commands.Result({"ok": True})
+
+        ctx = commands.Ctx(SimpleNamespace(extras={}), {"humanize": False}, "/", {}, text, "batch")
+        with mock.patch.object(daemon, "dispatch", fake_dispatch):
+            result = run(commands.cmd_batch(ctx, ["--bail"]))
+        return ctx, seen, result
+
+    def test_lines_take_the_flags_agents_put_on_them(self):
+        ctx, seen, result = self.run_batch("snapshot -s main --full\nget text main --max-output 9000\nclick @e1 --no-changes --humanize\n")
+        self.assertEqual([argv for argv, _ in seen], [["snapshot", "-s", "main"], ["get", "text", "main"], ["click", "@e1"]])
+        self.assertEqual(seen[2][1], {"no_changes": True, "humanize": True})
+        self.assertTrue(ctx.options["full"])
+        self.assertFalse(getattr(result, "failed", False))
+        _, refused, result = self.run_batch("click @e1 --session other\n")
+        self.assertEqual(refused, [])
+        self.assertIn("--session applies to the whole session", result.text)
+
+    def test_close_runs_after_the_batch_as_its_last_line_only(self):
+        ctx, seen, result = self.run_batch("notes append done\nclose\n")
+        self.assertEqual([argv for argv, _ in seen], [["notes", "append", "done"]])
+        self.assertTrue(ctx.state.extras["close_after_batch"])
+        ctx, seen, result = self.run_batch("click @e1\nclose\n", fail=("click",))
+        self.assertNotIn("close_after_batch", ctx.state.extras)
+        self.assertIn("close not run: an earlier line failed", result.text)
+        ctx, seen, result = self.run_batch("close\ntab t1\n")
+        self.assertIn("to close this session's tab and go on, use `tab close`", result.text)
+        self.assertNotIn("close_after_batch", ctx.state.extras)
+
+    def test_a_closing_batch_answer_includes_the_close(self):
+        self.assertEqual(daemon.joined_batch("✓ Done\n", "✓ Session s closed (1 tab it opened)\n", {}), "✓ Done\n\n✓ Session s closed (1 tab it opened)\n")
+        joined = json.loads(daemon.joined_batch('[{"command":["click"],"success":true}]\n', '{"success":true,"data":{"closed":true},"error":null}\n', {"json": True}))
+        self.assertEqual(joined[-1], {"command": ["close"], "success": True, "result": {"closed": True}, "error": None})
+
+
+class ReadingHints(unittest.TestCase):
+    def test_fetch_in_eval_points_at_read_and_script_once(self):
+        self.assertTrue(commands.FETCHING.search("Promise.all(urls.map(u => fetch(u).then(r => r.text())))"))
+        self.assertTrue(commands.FETCHING.search("new DOMParser().parseFromString(t, 'text/html')"))
+        self.assertFalse(commands.FETCHING.search("document.title"))
+        state = SimpleNamespace(extras={})
+        commands.hint_once(state, "fetch", commands.FETCH_HINT)
+        commands.hint_once(state, "fetch", commands.FETCH_HINT)
+        self.assertEqual(state.extras["notice"], commands.FETCH_HINT)
+
+    def test_open_then_get_text_on_three_pages_suggests_read(self):
+        state = SimpleNamespace(extras={})
+        steps = [("open", ["http://a/1"]), ("get", ["text", "main"]), ("open", ["http://a/2"]), ("get", ["text", "main"]), ("open", ["http://a/3"])]
+        for name, argv in steps:
+            commands.note_reading(state, name, argv, None)
+        self.assertNotIn("notice", state.extras)
+        commands.note_reading(state, "get", ["text", "main"], None)
+        self.assertEqual(state.extras["notice"], commands.PAGE_BY_PAGE_HINT)
+
+    def test_link_clicks_count_as_arriving_and_form_work_resets_the_streak(self):
+        state = SimpleNamespace(extras={})
+        clicked = commands.Result({"changes": {"document": "new"}})
+        for _ in range(2):
+            commands.note_reading(state, "click", ["@e1"], clicked)
+            commands.note_reading(state, "get", ["text", "main"], None)
+        commands.note_reading(state, "fill", ["@e2", "x"], commands.Result({"changes": {"document": "same"}}))
+        commands.note_reading(state, "click", ["@e1"], clicked)
+        commands.note_reading(state, "get", ["text", "main"], None)
+        self.assertNotIn("notice", state.extras)
 
 
 class AutoAttach(unittest.TestCase):
@@ -749,11 +850,25 @@ class Suggestions(unittest.TestCase):
         self.assertEqual(none.exception.code, "no_match")
         self.assertIn("Priyanka Rao", none.exception.message)
 
-    def test_a_list_left_over_from_before_typing_is_not_trusted_early(self):
-        self.assertFalse(actions.suggestions_ready(self.PEOPLE, "Priya Raman", 0.5, fresh=False))
-        self.assertTrue(actions.suggestions_ready(self.PEOPLE, "Priya Raman", actions.SUGGESTION_STALE, fresh=False))
-        self.assertTrue(actions.suggestions_ready(self.PEOPLE, "Priya Raman", actions.SUGGESTION_SETTLE, fresh=True))
-        self.assertFalse(actions.suggestions_ready([], None, 5, fresh=True))
+    def test_only_a_list_that_changed_after_the_last_keystroke_counts(self):
+        ready = lambda **watch: actions.suggestions_ready({"busy": False, "since": 1000, "changed": 0, "now": 3000, **watch})
+        self.assertFalse(ready(changed=0))
+        self.assertFalse(ready(changed=900))
+        self.assertTrue(ready(changed=1100))
+        self.assertFalse(ready(changed=2900))
+        self.assertFalse(ready(changed=1100, busy=True))
+
+    def test_an_unchanged_list_times_out_instead_of_being_picked(self):
+        class Page:
+            async def call(self, function, *args, **kwargs):
+                return {"busy": True, "since": 1000, "changed": 500, "now": 9000}
+
+        element = SimpleNamespace(frame="F", label="@e3")
+        with self.assertRaises(BrowseError) as caught:
+            run(actions.settled_suggestions(Page(), element, 0.2, '"Guests"'))
+        self.assertEqual(caught.exception.code, "no_fresh_suggestions")
+        self.assertIn("still says it's loading", caught.exception.message)
+        self.assertEqual(run(actions.settled_suggestions(Page(), element, 0.2)), ([], []))
 
 
 if __name__ == "__main__":

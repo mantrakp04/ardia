@@ -39,13 +39,13 @@ def load_commands():
     return commands, (audit, capture, media, react)
 
 
-async def run_one(ctx, argv):
+async def run_one(ctx, argv, options: dict | None = None):
     from ardia_cli.browse.commands import ALIASES, Ctx
 
     if not argv:
         return None, BrowseError("No command given")
     name = ALIASES.get(argv[0], argv[0])
-    sub = Ctx(ctx.state, dict(ctx.options), ctx.cwd, ctx.env, ctx.stdin, name)
+    sub = Ctx(ctx.state, {**ctx.options, **(options or {})}, ctx.cwd, ctx.env, ctx.stdin, name)
     try:
         result = await dispatch(sub, name, argv[1:])
     except BrowseError as error:
@@ -66,7 +66,13 @@ async def dispatch(ctx, name, argv):
     handler = COMMANDS.get(name)
     if handler is None:
         raise Usage(f"Unknown command: {name}. Run `ardia browse --help`")
-    return await handler(ctx, argv)
+    result = await handler(ctx, argv)
+    extras = getattr(ctx.state, "extras", None)
+    if name != "batch" and isinstance(extras, dict) and extras.get("top_command") != "script":
+        from ardia_cli.browse.commands import note_reading
+
+        note_reading(ctx.state, name, argv, result)
+    return result
 
 
 def sanitize(value):
@@ -118,13 +124,22 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
     text = result.text
     if text is None:
         return code, "", ""
-    text = cap(redact_text(text), options)
+    text = cap(redact_text(text), options, name)
     if result.page_content and options.get("content_boundaries"):
         text = boundary(text)
     return code, text + "\n", ""
 
 
-def cap(text: str, options: dict) -> str:
+NARROWER = {
+    "snapshot": "snapshot -i (interactive only), snapshot -s <css> (one region), find role <role> <action> --name <text> (act without a snapshot)",
+    "get": "get text <css> or read -s <css> (one region)",
+    "read": "read -s <css> (one region per page), or fewer pages",
+    "eval": "return less from the script, or get text <css> / read -s <css> for one region",
+}
+NARROW_ANY = "snapshot -i, snapshot -s <css>, get text <css>, read -s <css>, find role <role> <action> --name <text>"
+
+
+def cap(text: str, options: dict, name: str = "") -> str:
     if options.get("full"):
         return text
     limit = options.get("max_output")
@@ -133,8 +148,8 @@ def cap(text: str, options: dict) -> str:
         return text
     cut = text.rfind("\n", 0, limit + 1)
     cut = cut if cut >= limit * 0.8 else limit
-    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters; rerun with --max-output {len(text)} or --full, "
-                         "or narrow it (snapshot -s <sel>, -d <n>)]")
+    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
+                         f"Only if you need every line: --max-output {len(text)}]")
 
 
 class Daemon:
@@ -363,9 +378,16 @@ class Daemon:
             self.state.extras.pop("notice", None)
             if self.state.connected:
                 await self.state.announce_caller(self.state.endpoint)
+            self.state.extras.pop("close_after_batch", None)
+            self.state.extras["top_command"] = name
             code, out, err = await self.answer(ctx, name, argv, options)
             notice = self.state.extras.pop("notice", None)
-            return code, out, (redact_text(notice) + "\n" if notice else "") + err
+            err = (redact_text(notice) + "\n" if notice else "") + err
+            close_after = self.state.extras.pop("close_after_batch", None) and name == "batch"
+        if close_after:
+            closed_code, closed_out, closed_err = await self.close(ctx)
+            return max(code, closed_code), joined_batch(out, closed_out, options), err + closed_err
+        return code, out, err
 
     async def answer(self, ctx, name, argv, options) -> tuple[int, str, str]:
         try:
@@ -400,13 +422,21 @@ class Daemon:
                 try:
                     await self.state.connect()
                     await self.state.refresh_targets()
-                    used = self.state.registry.others(self.state.instance)[1]
+                    registry, instance = self.state.registry, self.state.instance
                     for target_id in list(self.state.opened):
-                        if target_id in self.state.target_infos and used.get(target_id):
-                            kept.append(f"[{self.state.tab_id(target_id)}], which session {', '.join(used[target_id])} uses")
-                        elif target_id in self.state.target_infos:
+                        if target_id not in self.state.target_infos:
+                            self.state.forget_target(target_id)
+                            continue
+                        if not registry.reserve_close(instance, target_id):
+                            users = registry.others(instance)[1].get(target_id) or ["another session"]
+                            kept.append(f"[{self.state.tab_id(target_id)}], which session {', '.join(users)} uses")
+                            self.state.forget_target(target_id)
+                            continue
+                        try:
                             await self.state.browser.send("Target.closeTarget", {"targetId": target_id})
                             closed += 1
+                        finally:
+                            registry.finish_close(instance, target_id)
                         self.state.forget_target(target_id)
                 except BrowseError:
                     pass
@@ -415,6 +445,18 @@ class Daemon:
         if kept:
             text += f"; left open: {'; '.join(kept)}"
         return render(ctx.options, result=Result({"closed": True, "tabs": closed, "keptOpen": kept}, text), name="close")
+
+
+def joined_batch(out: str, closed: str, options: dict) -> str:
+    if not options.get("json"):
+        return (out.rstrip("\n") + "\n\n" if out.strip() else "") + closed
+    try:
+        outcomes = json.loads(out)
+        answer = json.loads(closed)
+    except ValueError:
+        return out + closed
+    outcomes.append({"command": ["close"], "success": answer.get("success", False), "result": answer.get("data"), "error": answer.get("error")})
+    return json.dumps(outcomes, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
 def encode_answer(code: int, out: str, err: str, fields: dict | None = None) -> bytes:

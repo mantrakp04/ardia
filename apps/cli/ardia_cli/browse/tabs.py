@@ -59,28 +59,23 @@ def app_tab_rows(windows) -> list[dict]:
     return [tab for window in windows or [] if isinstance(window, dict) for tab in window.get("tabs") or [] if isinstance(tab, dict) and tab.get("id")]
 
 
-def pair_by_url(app_rows: list[dict], target_infos: dict) -> dict[str, str]:
-    app_by_url: dict[str, list[str]] = {}
-    for tab in app_rows:
-        app_by_url.setdefault(str(tab.get("url") or ""), []).append(tab["id"])
-    targets_by_url: dict[str, list[str]] = {}
-    for target_id, info in target_infos.items():
-        targets_by_url.setdefault(str(info.get("url") or ""), []).append(target_id)
-    paired = {}
-    for url, ids in app_by_url.items():
-        targets = targets_by_url.get(url, [])
-        if url and len(ids) == 1 and len(targets) == 1:
-            paired[targets[0]] = ids[0]
-    return paired
+def reports_targets(rows: list[dict]) -> bool:
+    return any("targetId" in row for row in rows)
+
+
+def pair_by_target(app_rows: list[dict], target_infos: dict) -> dict[str, dict]:
+    return {row["targetId"]: {"app": row["id"], "generation": row.get("pageGeneration")} for row in app_rows
+            if isinstance(row.get("targetId"), str) and row["targetId"] in target_infos}
 
 
 async def app_tab_map(state) -> dict[str, str]:
     windows = await app_windows(state)
     if windows is None:
         return {}
-    paired = pair_by_url(app_tab_rows(windows), state.target_infos)
-    state.app_tabs.update(paired)
-    return paired
+    paired = pair_by_target(app_tab_rows(windows), state.target_infos)
+    state.app_tabs.update({target: entry["app"] for target, entry in paired.items()})
+    state.app_generations.update({target: entry["generation"] for target, entry in paired.items()})
+    return {target: entry["app"] for target, entry in paired.items()}
 
 
 async def app_tab_target(state, app_tab: str) -> dict:
@@ -91,22 +86,19 @@ async def app_tab_target(state, app_tab: str) -> dict:
     tab = next((row for row in rows if row["id"] == app_tab), None)
     if tab is None:
         return {"error": f"Ardia has no tab {app_tab} (`ardia windows` lists them; private windows are left out)", "code": "tab_not_found"}
-    url = str(tab.get("url") or "")
-    known = state.app_tabs
-    remembered = [target for target, owner in known.items() if owner == app_tab and target in state.target_infos and state.target_infos[target].get("url") == url]
-    if len(remembered) == 1:
-        return {"target": remembered[0], "url": url, "title": tab.get("title")}
-    targets = [target for target, info in state.target_infos.items() if info.get("url") == url]
-    same_url = [row["id"] for row in rows if str(row.get("url") or "") == url]
-    if len(targets) == 1 and len(same_url) == 1:
-        return {"target": targets[0], "url": url, "title": tab.get("title")}
-    if not targets:
+    if not reports_targets(rows):
+        return {"error": f"This Ardia doesn't say which page belongs to {app_tab} (an update adds it); use the [tN] ids `ardia browse tab list` prints",
+                "code": "tab_not_found"}
+    target = tab.get("targetId")
+    if not isinstance(target, str):
         return {"error": f"{app_tab} is open in Ardia but its page isn't loaded (Ardia keeps background tabs asleep until they're shown), "
                          "so there's nothing to drive yet; click it in Ardia, or `ardia browse open <url>` for a copy",
                 "code": "tab_asleep", "asleep": True}
-    listed = ", ".join(f"[{state.tab_id(target)}]" for target in targets)
-    return {"error": f"{app_tab} has the same address as other tabs ({listed}), so it can't be told apart from them; pick it by its [tN] id",
-            "code": "ambiguous_tab", "candidates": [state.tab_id(target) for target in targets]}
+    if target not in state.target_infos:
+        return {"error": f"{app_tab}'s page isn't one the ardia command can drive (an Ardia page, or not a web page)", "code": "tab_not_found"}
+    state.app_tabs[target] = app_tab
+    state.app_generations[target] = tab.get("pageGeneration")
+    return {"target": target, "url": tab.get("url"), "title": tab.get("title"), "generation": tab.get("pageGeneration")}
 
 
 class Registry:

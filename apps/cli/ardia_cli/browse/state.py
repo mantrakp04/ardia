@@ -1,4 +1,5 @@
 import asyncio
+import time
 from dataclasses import asdict, dataclass
 
 from ardia_cli import command_metrics, control
@@ -50,6 +51,7 @@ class State:
         self.labels: dict[str, str] = {}
         self.registry = Registry(config.get("browse_fd"), config.get("key") or "", self.session)
         self.app_tabs: dict[str, str] = {}
+        self.app_generations: dict[str, int | None] = {}
         self._current: str | None = None
         self.opened: set[str] = set()
         self.frames: dict[str, str] = {}
@@ -138,19 +140,21 @@ class State:
             await browser.close()
 
     async def refresh_targets(self) -> list[dict]:
+        taken_at = time.time()
         infos = (await self.browser.send("Target.getTargets")).get("targetInfos") or []
         pages = [info for info in infos if info.get("type") == "page" and str(info.get("url", "")).startswith(PAGE_SCHEMES)]
         self.target_infos = {info["targetId"]: info for info in pages}
         for target_id in list(self.pages) + ([self.current] if self.current else []):
             if target_id not in self.target_infos:
                 self.forget_target(target_id)
-        self.tab_ids.update(self.registry.numbers(self.instance, self.target_infos, present=self.target_infos))
+        self.tab_ids.update(self.registry.numbers(self.instance, self.target_infos, present=self.target_infos, taken_at=taken_at))
         return pages
 
     def forget_target(self, target_id: str):
         page = self.pages.pop(target_id, None)
         if page:
             page.detach()
+        was_opened = target_id in self.opened
         self.opened.discard(target_id)
         self.frames.pop(target_id, None)
         self.target_infos.pop(target_id, None)
@@ -159,9 +163,12 @@ class State:
             if owner == target_id:
                 del self.labels[label]
         if self.current == target_id and not self.pin_tab:
-            self.extras["lost_tab"] = {"target": target_id, "app": self.app_tabs.get(target_id), "tab": self.tab_ids.get(target_id)}
+            self.extras["lost_tab"] = {"target": target_id, "app": self.app_tabs.get(target_id), "tab": self.tab_ids.get(target_id),
+                                       "generation": self.app_generations.get(target_id), "opened": was_opened,
+                                       "borrowed": self.extras.get("attached") == target_id}
             self.current = None
         self.app_tabs.pop(target_id, None)
+        self.app_generations.pop(target_id, None)
 
     def tab_id(self, target_id: str) -> str:
         if target_id not in self.tab_ids:
@@ -245,6 +252,13 @@ class State:
                 self.current = target_id
                 self.app_tabs[target_id] = app_tab
                 self.extras.pop("lost_tab", None)
+                if lost.get("borrowed"):
+                    self.extras["attached"] = target_id
+                if lost.get("opened"):
+                    self.opened.add(target_id)
+                    self.registry.note_opened(self.instance, target_id)
+                if self.pin_tab and self.extras.get("pinned_target") == lost.get("target"):
+                    self.extras["pinned_target"] = target_id
                 self.extras["notice"] = (f"→ Ardia replaced the page of this session's tab{gone} ({app_tab}), so the session follows it: "
                                          f"[{self.tab_id(target_id)}] {found.get('title') or found.get('url') or ''}")
                 return target_id
@@ -252,7 +266,8 @@ class State:
                 raise BrowseError(f"This session's tab{gone} ({app_tab}) is still open in Ardia, but Ardia unloaded its page, so there is "
                                   f"nothing to drive until it loads again (click it in Ardia, or `ardia browse open <url>` for a copy). {fix}",
                                   data={"appTabId": app_tab}, code="tab_asleep")
-        raise BrowseError(f"This session's tab{gone} was closed. {fix}", code="tab_gone")
+        raise BrowseError(f"This session's tab{gone} is gone (closed, or Ardia replaced its page and didn't say which page took over). {fix}",
+                          code="tab_gone")
 
     async def attach_active(self) -> str:
         target_id = await self.active_target()
@@ -406,11 +421,28 @@ class State:
             raise StaleRef(ref_id, "the page navigated since that snapshot")
         element = await page.resolve_backend(ref.backend, ref.frame, f"@{ref_id}")
         if element is None:
-            raise StaleRef(ref_id, "the element is no longer in the page")
+            raise StaleRef(ref_id, "the element is no longer in the page" + await self.redrawn_as(page, ref))
         connected = await page.call("(el) => el.isConnected", element, frame=ref.frame)
         if not connected:
-            raise StaleRef(ref_id, "the element was removed from the page")
+            raise StaleRef(ref_id, "the element was removed from the page" + await self.redrawn_as(page, ref))
         return page, element
+
+    async def redrawn_as(self, page: Page, ref: Ref) -> str:
+        from ardia_cli.browse import snapshot
+
+        if not ref.role or not ref.name:
+            return ""
+        try:
+            nodes = await snapshot.collect(self, page)
+            self.set_refs(snapshot.refs_of(self, page, nodes), None, page)
+        except ConnectionLost:
+            raise
+        except Exception:
+            return ""
+        same = [node.ref for node in snapshot.walk(nodes) if node.ref and node.role == ref.role and node.name == ref.name]
+        if len(same) != 1:
+            return ""
+        return f'; the page redrew it, and the same {ref.role} "{ref.name}" is now @{same[0]}'
 
     async def locate(self, selector: str, page: Page | None = None):
         ref = parse_ref(selector)
@@ -432,9 +464,10 @@ class State:
 
     def describe_tabs(self, app_tabs: dict[str, str] | None = None) -> list[dict]:
         opened_elsewhere, used_elsewhere = self.registry.others(self.instance)
+        hidden = self.registry.hidden(self.instance) - {self.current}
         rows = []
         for target_id, info in self.target_infos.items():
-            if info.get("url") == "about:blank" and target_id not in self.opened and target_id != self.current:
+            if info.get("url") == "about:blank" and target_id not in self.opened and target_id != self.current or target_id in hidden:
                 continue
             rows.append({
                 "tabId": self.tab_id(target_id),

@@ -16,6 +16,7 @@ STOP_TIMEOUT = 2.0
 READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 LONG_LIVED = {"EventSource", "WebSocket"}
 MAX_ADDED = 40
+MAX_NAVIGATED = 150
 COLLAPSE_RUN = 6
 COLLAPSE_LONG_RUN = 12
 MIN_RERENDERED = 2
@@ -267,17 +268,21 @@ def render(report: dict, before_known: bool = True) -> str:
     fresh = {new["ref"] for _, new in again}
     added = [row for row in report["added"] if row["ref"] not in back and row["ref"] not in fresh]
     parents = parents_of(report.get("context") or report["added"] + [new for _, new in report["changed"]])
+    navigated = report["document"] == "new" or bool(report["url"])
+    if report.get("notes"):
+        lines.append(report["notes"])
     if report["document"] == "new" and before_known:
-        lines.append(f"new document, {len(report['added'])} interactive nodes:")
+        lines.append(f"new document, {len(report['added'])} interactive nodes (its snapshot -i, so no need to take one):")
     if back:
         refs = [row["ref"] for row in report["added"] if row["ref"] in back]
         more = f" … {len(refs) - MAX_REMOVED_REFS} more" if len(refs) > MAX_REMOVED_REFS else ""
         lines.append(f"+ {len(refs)} back as last shown: {' '.join(refs[:MAX_REMOVED_REFS])}{more}")
     if added:
         shown = added_lines(added, parents)
-        lines.extend(shown[:MAX_ADDED])
-        if len(shown) > MAX_ADDED:
-            lines.append(f"+ … {len(shown) - MAX_ADDED} more (run `snapshot -i`)")
+        limit = MAX_NAVIGATED if navigated else MAX_ADDED
+        lines.extend(shown[:limit])
+        if len(shown) > limit:
+            lines.append(f"+ … {len(shown) - limit} more lines (`snapshot -i -s <css>` shows one region)")
     if again:
         lines.append(f"+ {len(again)} redrawn as they were, with new refs: {refs_text([new['ref'] for _, new in again])}")
     lines.extend(changed_lines(report["changed"], parents))
@@ -314,6 +319,8 @@ def as_data(report: dict) -> dict:
         "back": list(report.get("back") or []),
         "rerendered": [{"ref": new["ref"], "was": old["ref"]} for old, new in report.get("rerendered") or []],
     }
+    if report.get("notes"):
+        data["notes"] = report["notes"]
     if report.get("unsettled"):
         data["unsettled"] = True
     if report.get("error"):
@@ -545,12 +552,24 @@ async def observe(ctx, page, run):
         report["error"] = error.message
         return value, report
     report = diff(before, after, watch.writes())
+    report["notes"] = arrival_notes(state, before, after) if report["document"] == "new" else None
     mark_shown(state, report, after)
     if not settled:
         report["unsettled"] = True
     if before is None:
         report["document"] = "unknown"
     return value, report
+
+
+def arrival_notes(state, before: View | None, after: View) -> str | None:
+    from pathlib import Path
+
+    from ardia_cli import notes
+
+    root = state.config.get("data_root") if isinstance(getattr(state, "config", None), dict) else None
+    if not root or (before is not None and notes.page_site(before.url) == notes.page_site(after.url)):
+        return None
+    return notes.header(Path(root), after.url)[1]
 
 
 def attach(result, report):

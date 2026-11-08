@@ -8,7 +8,7 @@ knows `agent-browser <args>` can type `ardia browse <args>`. It drives the runni
 over the ardia command's control connection (Settings > "Let the ardia command control
 Ardia"), through pydoll. Input is instant unless --humanize. Actions print what they changed
 (nodes with refs, URL, title, the POSTs they caused), a session with no tab uses the user's
-active tab, and text output stops at about 6,000 characters (--full for all of it).
+active tab, and text output stops at about 6,000 characters (narrow it with snapshot -i or -s <css>).
 
 Core Commands:
   open [url]                 Open url in a new background tab of this session (later opens reuse it)
@@ -37,6 +37,8 @@ Core Commands:
   eval <js>                  Run JavaScript in the page [-b base64] [--stdin]
   close [--all]              Close the tabs this session opened and end the session
 
+Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), xpath=//a;
+             [role=main] also matches <main> and the other implicit roles
 Navigation:  back, forward, reload, pushstate <url>
 Get Info:    get text|html|value|attr <name>|title|url|count|box|styles <sel>
 Check State: is visible|enabled|checked <sel>
@@ -181,7 +183,8 @@ COMMANDS = {
             "find role takes the role and accessible name the snapshot shows, in any order: `find role button\n"
             "click --name Save`, `find role button --name Save click` or `find role button Save click`. A name\n"
             "matches exactly first (case and spacing aside; --exact makes it case-sensitive), else as part of a\n"
-            "longer name. When several elements match, nothing is clicked and the error lists them with refs.",
+            "longer name. When several elements match, nothing is clicked and the error lists them with refs.\n"
+            "An element that isn't there yet is waited for up to 1.5 s.",
     "tab": "ardia browse tab [list] | new [--label name] [url] | <t1|tab-…|label|targetId> | active | close [tab] [--show]\n\n"
            "list shows the user's tabs too, with the tab-… id `ardia windows` prints when the address pairs them\n"
            "up, and which session opened or uses each. A t1 id is the same in every session and never moves to\n"
@@ -204,17 +207,20 @@ COMMANDS = {
             "origins before typing and stops if the page navigates, the frame changes or focus leaves the field.",
     "batch": "ardia browse batch [--bail] [\"cmd args\" | '[\"cmd\",\"arg\"]' ...]\n\nRuns commands in order in one call; without arguments, one command per stdin line (a heredoc\n"
              "works; blank lines and # lines are skipped). Lines use shell quoting or a JSON array. Each answer,\n"
-             "with its changes, is printed in order. --bail stops at the first failure. eval --stdin runs JS loops.",
+             "with its changes, is printed in order. --bail stops at the first failure. A line takes its command's\n"
+             "own flags and per-command ones like --full, --no-changes or --humanize. `close` as the last line ends the\n"
+             "session after the rest ran (not after a failure). To loop over pages, use read or script instead.",
     "notes": "ardia browse notes [get|set|append|list|rm] [site] [text|-]  (also `ardia notes`)\n\n"
              "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
-             "Without a site it's the session tab's. - reads stdin. snapshot prints a site's notes first.",
+             "Without a site it's the session tab's (--tab <id> for another tab's). - reads stdin. snapshot prints a\n"
+             "site's notes first, and so does an action that lands on another site.",
     "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list]\n\n"
             "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"
             "scripts ran) and prints its title, URL and text: the page's <main>, else its body, or what -s matches.\n"
             "Tabs close when it's done. With no URL it reads the session's tab. --links <pattern> reads every link on the session's tab whose URL contains the\n"
             "pattern (* matches anything), in page order; --list only prints those links. URLs can also come one per line\n"
             "on stdin (--stdin or -), and /paths resolve against the session's tab. At most 20 pages unless --limit (100).\n"
-            "The text output shares the output cap between pages (--full or --max-output for more; --json has all of it).\n"
+            "The text output shares the output cap between pages; narrow it with -s or a tighter --links (--json has all).\n"
             "--http fetches outside the browser instead (no logins, no page scripts; faster on public docs), and so do\n"
             "--llms index|full, --require-md, --raw, --outline and --filter, which also work on the session's tab's URL.\n"
             "Exit 1 when any page failed (its block says why).",

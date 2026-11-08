@@ -5,6 +5,16 @@ LIBRARY = r"""
   const ROLES = new Set(["button", "link", "checkbox", "radio", "textbox", "combobox", "listbox", "option", "menuitem",
     "menuitemcheckbox", "menuitemradio", "slider", "spinbutton", "switch", "tab", "treeitem", "searchbox"]);
   const norm = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+  const suggestionWatches = new WeakMap();
+  const IMPLICIT_ROLES = {
+    main: "main", navigation: "nav", banner: "body > header", contentinfo: "body > footer", dialog: "dialog", form: "form",
+    table: "table", row: "tr", cell: "td", columnheader: "th", list: "ul, ol", listitem: "li", article: "article", search: "search",
+    button: "button, input[type=button], input[type=submit], input[type=reset], summary", link: "a[href], area[href]",
+    heading: "h1, h2, h3, h4, h5, h6", checkbox: "input[type=checkbox]", radio: "input[type=radio]", combobox: "select",
+    textbox: "input:not([type]), input[type=text], input[type=email], input[type=tel], input[type=url], textarea", img: "img[alt]",
+  };
+  const ROLE_WORDS = new Set([...Object.keys(IMPLICIT_ROLES), "grid", "gridcell", "rowgroup", "tab", "tablist", "tabpanel", "menu", "menubar",
+    "menuitem", "option", "listbox", "tree", "treeitem", "toolbar", "tooltip", "alert", "alertdialog", "status", "switch", "slider", "region"]);
   const matches = (value, wanted, exact) => {
     const v = norm(value);
     if (!v) return false;
@@ -44,7 +54,8 @@ LIBRARY = r"""
         const r = document.evaluate(expr, root, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         return r.singleNodeValue;
       }
-      return root.querySelector(selector.replace(/^css=/, ""));
+      const found = api.queryAll(selector, root);
+      return found.find((el) => api.visible(el)) || found[0] || null;
     },
     queryAll(selector, root) {
       root = root || document;
@@ -55,7 +66,41 @@ LIBRARY = r"""
         for (let i = 0; i < r.snapshotLength; i++) out.push(r.snapshotItem(i));
         return out;
       }
-      return Array.from(root.querySelectorAll(selector.replace(/^css=/, "")));
+      const text = /^text=(.*)$/s.exec(selector);
+      if (text) {
+        const quoted = /^(["'])(.*)\1$/s.exec(text[1].trim());
+        const wanted = quoted ? quoted[2] : text[1].trim();
+        const hits = deep(root).filter((el) => !["SCRIPT", "STYLE", "HEAD", "TITLE", "NOSCRIPT"].includes(el.tagName)
+          && matches(el.innerText != null ? el.innerText : el.textContent, wanted, !!quoted));
+        return api.innermost(hits);
+      }
+      const role = /^role=([A-Za-z]+)(?:\[name=(["'])(.*)\2\])?$/s.exec(selector.trim());
+      if (role) {
+        const all = Array.from(root.querySelectorAll(api.roleCss(role[1])));
+        return role[3] == null ? all : all.filter((el) => matches(api.accessibleText(el), role[3], false));
+      }
+      let css = selector.replace(/^css=/, "").replace(/\[role=(["']?)([A-Za-z]+)\1\]/g, (whole, q, name) => api.roleCss(name.toLowerCase()) === `[role="${name.toLowerCase()}"]` ? whole : `:is(${api.roleCss(name.toLowerCase())})`);
+      if (/^[a-z]+$/.test(css) && ROLE_WORDS.has(css) && !root.querySelector(css)) css = api.roleCss(css);
+      const parts = css.split(/:has-text\(\s*(["'])(.*?)\1\s*\)/);
+      if (parts.length === 1) return Array.from(root.querySelectorAll(css));
+      let found = null;
+      for (let i = 0; i < parts.length; i += 3) {
+        const piece = parts[i];
+        if (piece.trim() || found === null) {
+          const scoped = found === null ? Array.from(root.querySelectorAll(piece.trim() ? piece : "*"))
+            : found.flatMap((el) => Array.from(el.querySelectorAll(":scope " + piece)));
+          found = [...new Set(scoped)];
+        }
+        if (i + 2 < parts.length) found = found.filter((el) => matches(el.innerText != null ? el.innerText : el.textContent, parts[i + 2], false));
+      }
+      return found;
+    },
+    roleCss(name) {
+      const implicit = IMPLICIT_ROLES[name];
+      return implicit ? `[role="${name}"], ${implicit}` : `[role="${name}"]`;
+    },
+    accessibleText(el) {
+      return el.getAttribute("aria-label") || api.labelText(el).join(" ") || el.getAttribute("title") || el.innerText || el.textContent || el.value || "";
     },
     rect(el) {
       const r = el.getBoundingClientRect();
@@ -221,17 +266,30 @@ LIBRARY = r"""
       if (role === "combobox" || (el.getAttribute("aria-haspopup") || "").toLowerCase() === "listbox") return "button";
       return null;
     },
-    popupsOf(el) {
+    popupIds(el) {
       const ids = [];
       for (const node of [el, el.closest("[role=combobox]")]) {
         if (!node) continue;
         for (const key of ["aria-controls", "aria-owns"]) ids.push(...(node.getAttribute(key) || "").split(/\s+/).filter(Boolean));
       }
+      return ids;
+    },
+    popupsOf(el) {
+      const doc = el.ownerDocument;
+      const roots = api.popupIds(el).map((id) => doc.getElementById(id)).filter(Boolean);
       const active = el.getAttribute("aria-activedescendant");
-      const roots = ids.map((id) => el.ownerDocument.getElementById(id)).filter(Boolean);
-      const activeNode = active && el.ownerDocument.getElementById(active);
+      const activeNode = active && doc.getElementById(active);
       if (activeNode) roots.push(activeNode.closest("[role=listbox]") || activeNode.parentElement);
-      return roots;
+      if (roots.length || api.popupIds(el).length || active) return roots;
+      const lists = deep(doc).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node));
+      const near = lists.filter((list) => {
+        let node = el;
+        for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) if (node.contains(list)) return true;
+        return false;
+      });
+      if (near.length === 1) return near;
+      if (!near.length && lists.length === 1 && doc.activeElement === el) return lists;
+      return [];
     },
     suggestions(el) {
       const seen = new Set();
@@ -242,15 +300,9 @@ LIBRARY = r"""
         seen.add(node);
         out.push(node);
       };
-      const roots = api.popupsOf(el);
-      for (const root of roots) {
+      for (const root of api.popupsOf(el)) {
         if (root.getAttribute("role") === "option") add(root);
         for (const node of root.querySelectorAll("[role=option]")) add(node);
-      }
-      if (!out.length && !roots.some((root) => api.visible(root))) {
-        for (const list of deep(document).filter((node) => node.getAttribute && node.getAttribute("role") === "listbox" && api.visible(node))) {
-          for (const node of list.querySelectorAll("[role=option]")) add(node);
-        }
       }
       const texts = out.map((node) => ({
         text: norm(node.getAttribute("aria-label") || node.innerText || node.textContent),
@@ -260,6 +312,42 @@ LIBRARY = r"""
       }));
       Object.defineProperty(globalThis, "ardiaBrowseSuggestions", { value: texts, configurable: true, enumerable: false });
       return out.slice(0, 200);
+    },
+    watchSuggestions(el) {
+      api.unwatchSuggestions(el);
+      const watch = { lastInput: 0, lastChange: 0, observer: null };
+      const inPopup = (node) => {
+        const roots = api.popupsOf(el);
+        if (roots.some((root) => root.contains(node) || node.contains(root))) return true;
+        return !roots.length && !!node.closest && !!node.closest("[role=listbox], [role=option]");
+      };
+      watch.observer = new MutationObserver((records) => {
+        for (const record of records) {
+          const node = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+          if (node && inPopup(node)) { watch.lastChange = performance.now(); return; }
+        }
+      });
+      watch.observer.observe(el.ownerDocument.documentElement, { subtree: true, childList: true, characterData: true, attributes: true,
+        attributeFilter: ["hidden", "style", "class", "aria-busy", "aria-selected", "aria-expanded"] });
+      watch.onInput = () => { watch.lastInput = performance.now(); };
+      el.addEventListener("input", watch.onInput, true);
+      watch.started = performance.now();
+      suggestionWatches.set(el, watch);
+      return true;
+    },
+    suggestionState(el) {
+      const watch = suggestionWatches.get(el);
+      const busy = [el, ...api.popupsOf(el)].some((node) => node.getAttribute("aria-busy") === "true");
+      return watch ? { busy, since: Math.max(watch.lastInput, watch.started), changed: watch.lastChange, now: performance.now() } : { busy, since: 0, changed: 0, now: performance.now() };
+    },
+    unwatchSuggestions(el) {
+      const watch = suggestionWatches.get(el);
+      if (watch) {
+        watch.observer.disconnect();
+        el.removeEventListener("input", watch.onInput, true);
+      }
+      suggestionWatches.delete(el);
+      return true;
     },
     datalistValues(el) {
       return el.list ? Array.from(el.list.options).map((o) => o.value) : [];

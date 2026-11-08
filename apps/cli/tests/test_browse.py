@@ -519,64 +519,85 @@ class TabIdsTest(unittest.TestCase):
         state.target_infos = {target: {"targetId": target, "url": url, "title": target} for target, url in targets.items()}
         return state
 
-    def test_app_tab_ids_pair_only_unique_addresses(self):
+    def test_app_tab_ids_pair_only_by_the_target_ardia_reports(self):
         from ardia_cli.browse import tabs
 
-        rows = [{"id": "tab-a", "url": "http://a/"}, {"id": "tab-b", "url": "http://b/"}, {"id": "tab-b2", "url": "http://b/"}, {"id": "tab-c", "url": "http://c/"}]
-        infos = {"A": {"url": "http://a/"}, "B": {"url": "http://b/"}, "C1": {"url": "http://c/"}, "C2": {"url": "http://c/"}}
-        self.assertEqual(tabs.pair_by_url(rows, infos), {"A": "tab-a"})
+        rows = [{"id": "tab-a", "url": "http://b/", "targetId": "A", "pageGeneration": 2}, {"id": "tab-b", "url": "http://a/", "targetId": "B"},
+                {"id": "tab-s", "url": "http://s/", "targetId": None}, {"id": "tab-x", "url": "http://x/", "targetId": "GONE"}]
+        infos = {"A": {"url": "http://a/"}, "B": {"url": "http://b/"}}
+        self.assertEqual(tabs.pair_by_target(rows, infos), {"A": {"app": "tab-a", "generation": 2}, "B": {"app": "tab-b", "generation": None}})
+        self.assertEqual(tabs.pair_by_target([{"id": "tab-a", "url": "http://a/"}], infos), {})
 
-    def test_tab_accepts_the_app_tab_id_and_explains_asleep_and_duplicate_tabs(self):
+    def test_tab_accepts_the_app_tab_id_and_explains_asleep_and_old_ardias(self):
         from ardia_cli.browse import tabs
 
         _, one, _ = self.registries()
         state = self.state_with(one, {"A": "http://a/", "B1": "http://b/", "B2": "http://b/"})
-        windows = [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/"}, {"id": "tab-b", "url": "http://b/"}, {"id": "tab-s", "url": "http://s/"}]}]
+        windows = [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/", "targetId": "A"}, {"id": "tab-b", "url": "http://b/", "targetId": "B2"},
+                                         {"id": "tab-s", "url": "http://s/", "targetId": None}]}]
 
         async def fake_windows(state):
             return windows
 
         with mock.patch.object(tabs, "app_windows", fake_windows):
             self.assertEqual(asyncio.run(state.find_tab("tab-a")), "A")
-            for ref, code in (("tab-s", "tab_asleep"), ("tab-b", "ambiguous_tab"), ("tab-zz", "tab_not_found")):
+            self.assertEqual(asyncio.run(state.find_tab("tab-b")), "B2")
+            for ref, code in (("tab-s", "tab_asleep"), ("tab-zz", "tab_not_found")):
                 with self.assertRaises(BrowseError) as caught:
                     asyncio.run(state.find_tab(ref))
                 self.assertEqual(caught.exception.code, code, ref)
+        windows[0]["tabs"] = [{"id": "tab-a", "url": "http://a/"}]
+        with mock.patch.object(tabs, "app_windows", fake_windows), self.assertRaises(BrowseError) as old:
+            asyncio.run(state.find_tab("tab-a"))
+        self.assertIn("doesn't say which page belongs to tab-a", old.exception.message)
         self.assertEqual(asyncio.run(state.find_tab(state.tab_id("B2"))), "B2")
 
-    def test_a_session_follows_its_tab_when_ardia_replaces_the_page(self):
+    def replaced(self, rows, borrowed=False, opened=False):
         from ardia_cli.browse import tabs
 
         _, one, _ = self.registries()
         state = self.state_with(one, {"OLD": "http://a/"})
         state.current = "OLD"
+        if borrowed:
+            state.extras["attached"] = "OLD"
+        if opened:
+            state.opened.add("OLD")
         state.app_tabs["OLD"] = "tab-a"
         state.extras["had_tab"] = True
         state.forget_target("OLD")
-        state.target_infos = {"NEW": {"targetId": "NEW", "url": "http://a/", "title": "A"}}
+        state.target_infos = {"NEW": {"targetId": "NEW", "url": "http://a/", "title": "A"}, "OTHER": {"targetId": "OTHER", "url": "http://a/", "title": "A"}}
 
         async def refresh():
             return list(state.target_infos.values())
 
         async def fake_windows(state):
-            return [{"id": "w1", "tabs": [{"id": "tab-a", "url": "http://a/", "title": "A"}]}]
+            return [{"id": "w1", "tabs": rows}]
 
         state.refresh_targets = refresh
         with mock.patch.object(tabs, "app_windows", fake_windows):
-            self.assertEqual(asyncio.run(state.follow_lost_tab()), "NEW")
-        self.assertEqual(state.current, "NEW")
+            try:
+                return state, asyncio.run(state.follow_lost_tab()), None
+            except BrowseError as error:
+                return state, None, error
+
+    def test_a_session_follows_its_tab_only_where_ardia_says_the_page_went(self):
+        state, target, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW", "pageGeneration": 3}], borrowed=True)
+        self.assertEqual((target, state.current), ("NEW", "NEW"))
         self.assertIn("follows it", state.extras["notice"])
-        state.forget_target("NEW")
-        state.target_infos = {}
-        with mock.patch.object(tabs, "app_windows", fake_windows), self.assertRaises(BrowseError) as caught:
-            asyncio.run(state.follow_lost_tab())
-        self.assertEqual(caught.exception.code, "tab_asleep")
-        state.app_tabs.clear()
-        state.extras["lost_tab"] = {"target": "X", "app": None, "tab": "t9"}
-        with self.assertRaises(BrowseError) as closed:
-            asyncio.run(state.follow_lost_tab())
-        self.assertEqual(closed.exception.code, "tab_gone")
-        self.assertIn("[t9] was closed", closed.exception.message)
+        self.assertEqual(state.extras["attached"], "NEW")
+        self.assertNotIn("NEW", state.opened)
+        state, target, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW"}], opened=True)
+        self.assertIn("NEW", state.opened)
+        _, _, error = self.replaced([{"id": "tab-a", "url": "http://a/"}])
+        self.assertEqual(error.code, "tab_gone")
+        self.assertIn("didn't say which page took over", error.message)
+        _, _, asleep = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": None}])
+        self.assertEqual(asleep.code, "tab_asleep")
+
+    def test_open_after_following_a_borrowed_tab_still_opens_its_own_tab(self):
+        state, _, _ = self.replaced([{"id": "tab-a", "url": "http://a/", "targetId": "NEW"}], borrowed=True)
+        borrowed = state.extras.get("attached") if state.current and state.current == state.extras.get("attached") else None
+        self.assertEqual(borrowed, "NEW")
 
 
 def ax(node_id, role, name="", parent=None, children=(), backend=None, value=None, props=None, ignored=False):
@@ -725,7 +746,8 @@ class RenderTest(unittest.TestCase):
     def test_page_output_limits(self):
         result = commands.Result({}, "x" * 50, page_content=True)
         _, out, _ = daemon.render({"max_output": "10"}, result=result)
-        self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters; rerun with --max-output 50 or --full"))
+        self.assertTrue(out.startswith("x" * 10 + "\n[output capped at 10 of 50 characters. Narrow it instead:"))
+        self.assertIn("Only if you need every line: --max-output 50]", out)
         _, out, _ = daemon.render({"content_boundaries": True}, result=commands.Result({}, "hi", page_content=True))
         self.assertRegex(out, r"^<<<PAGE_CONTENT [0-9a-f]{8}>>>\nhi\n<<<END_PAGE_CONTENT [0-9a-f]{8}>>>\n$")
 

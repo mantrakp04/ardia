@@ -423,10 +423,10 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("open", self.url("many.html"), "--show", session=session)
         capped = self.browse("snapshot", "-i", session=session).stdout
         self.assertLessEqual(len(capped), 6300)
-        self.assertIn("rerun with --max-output", capped.splitlines()[-1])
-        self.assertIn("--full", capped.splitlines()[-1])
+        self.assertIn("Narrow it instead: snapshot -i", capped.splitlines()[-1])
+        self.assertIn("--max-output", capped.splitlines()[-1])
         self.assertEqual(self.browse("snapshot", "-i", "--full", session=session).stdout.count("Button number"), 400)
-        self.assertLessEqual(len(self.browse("snapshot", "-i", "--max-output", "500", session=session).stdout), 700)
+        self.assertLessEqual(len(self.browse("snapshot", "-i", "--max-output", "500", session=session).stdout), 800)
         self.assertEqual(json.loads(self.browse("snapshot", "-i", "--json", session=session).stdout)["data"]["snapshot"].count("Button number"), 400)
 
     def test_batch_fills_a_form_five_times_from_stdin(self):
@@ -454,6 +454,27 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertFalse(json.loads(self.browse("session", "info", "--json", session=session).stdout)["data"]["connected"])
         self.browse("click", agree, session=session)
         self.assertEqual(self.browse("is", "checked", agree, session=session).stdout, "true\n")
+
+    def test_a_navigation_answers_with_the_new_page_so_no_snapshot_is_needed(self):
+        session = "arrive"
+        self.browse("open", self.url("login.html"), "--show", session=session)
+        self.browse("eval", 'const a = document.createElement("a"); a.id = "go"; a.href = "many.html"; a.textContent = "Many"; document.body.prepend(a); 1',
+                    session=session)
+        arrived = self.browse("click", "#go", session=session).stdout
+        self.assertIn("new document, 401 interactive nodes (its snapshot -i, so no need to take one):", arrived)
+        self.assertRegex(arrived, r"\+ 400 buttons \(Button number 1 … Button number 400; e\d+…e\d+\)")
+        self.assertNotIn("run `snapshot -i`", arrived)
+        capped = self.browse("snapshot", session=session).stdout.splitlines()[-1]
+        self.assertTrue(capped.startswith("[output capped at "), capped)
+        self.assertIn("Narrow it instead: snapshot -i", capped)
+        self.assertNotIn("--full", capped)
+
+    def test_batch_lines_take_their_flags_and_a_last_close(self):
+        session = "batch-flags"
+        self.browse("open", self.url("many.html"), "--show", session=session)
+        done = self.browse("batch", session=session, stdin="snapshot -i --full\nget text h1 --no-changes\nclose\n")
+        self.assertEqual(done.stdout.count("Button number"), 400)
+        self.assertTrue(done.stdout.endswith("Many buttons\n\n✓ Session batch-flags closed (1 tab it opened)\n"), done.stdout[-200:])
 
     def test_long_runs_in_a_change_report_are_one_line(self):
         session = "runs"
@@ -686,7 +707,12 @@ class BrowseTokenPath(unittest.TestCase):
         self.browse("open", self.url("login.html#app-id"), session="token-app-opener")
         windows = subprocess.run([sys.executable, "-m", "ardia_cli", "windows", "--json", "--data-dir", str(self.data)], capture_output=True, text=True,
                                  timeout=60, env=dict(os.environ, PYTHONPATH=str(CLI)))
-        app_id = next(tab["id"] for window in json.loads(windows.stdout) for tab in window["tabs"] if tab["url"] == self.url("login.html#app-id"))
+        row = next(tab for window in json.loads(windows.stdout) for tab in window["tabs"] if tab["url"] == self.url("login.html#app-id"))
+        app_id = row["id"]
+        if "targetId" not in row:
+            refused = self.browse("tab", app_id, session="token-app", check=False)
+            self.assertIn("doesn't say which page belongs to", refused.stderr)
+            self.skipTest("this Ardia's `windows` doesn't report tab targets yet")
         picked = self.browse("tab", app_id, "--json", session="token-app")
         self.assertEqual(json.loads(picked.stdout)["data"]["appTabId"], app_id)
         listed = self.browse("tab", "list", session="token-app").stdout
