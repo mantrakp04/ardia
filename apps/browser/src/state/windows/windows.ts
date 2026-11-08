@@ -209,7 +209,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
         tabs.map((t) => ({ ...snapshotTab(t), active: active.has(t.id), ...(hasLoadedPage(t) ? { tabId: t.id } : pendingRestore(t) ? { tabId: pendingRestore(t) } : {}) })),
         Object.values(s.groups)
           .filter((g) => g.windowId === id && !g.pinned && (!sharesTabs(s) || g.tabIds.some((t) => tabIds.includes(t))))
-          .map(({ tabIds: members, windowId: _, ...g }) => ({ ...g, tabIndexes: members.map((t) => tabIds.indexOf(t)) })),
+          .map(({ tabIds: members, windowId: _, shownTabIds: __, ...g }) => ({ ...g, tabIndexes: members.map((t) => tabIds.indexOf(t)) })),
         Date.now(),
       );
       closedWindows = [...closedWindows, entry].slice(-MAX_CLOSED_WINDOWS);

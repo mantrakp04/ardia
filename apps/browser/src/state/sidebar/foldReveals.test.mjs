@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const entries = await import("./entries.ts");
-const { entriesHeight, entryHeight } = await import("./geometry.ts");
+const { entriesHeight, entryHeight, rowSpan } = await import("./geometry.ts");
 await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -177,4 +177,50 @@ test("a tab dragged into a collapsed group is placed there hidden, like Arc's", 
   S().placeTabs(["t1"], { pinned: false, groupId: "g" });
   assert.ok(S().groups.g.tabIds.includes("t1"));
   assert.deepEqual(kept(), []);
+});
+
+test("each tab kept under a collapsed header has its own row position, one row gap apart", () => {
+  hydrate();
+  S().activate("t3");
+  S().activate("t5");
+  S().activate("t0");
+  const row = height("t:t0");
+  const first = rowSpan(S(), "w", "default", "t3", false);
+  const second = rowSpan(S(), "w", "default", "t5", false);
+  assert.equal(first.top, 2 * (row + rowGap()) + 0.5 + row);
+  assert.equal(second.top, first.top + row + rowGap());
+  assert.equal(rowSpan(S(), "w", "default", "t4", false).top, 2 * (row + rowGap()) + 0.5);
+});
+
+test("a tab dragged from the parent's reveals into a collapsed group inside it is not kept under the parent", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  S().activate("t3");
+  S().activate("t0");
+  assert.deepEqual(kept("g"), ["t:t3"]);
+  S().placeTabs(["t3"], { pinned: false, groupId: "n" });
+  assert.ok(S().groups.n.tabIds.includes("t3"));
+  assert.equal(S().groups.g.shownTabIds, undefined);
+  assert.deepEqual(kept("g"), []);
+  assert.equal(shows("g"), false);
+});
+
+test("a tab moved into a collapsed group inside it stays under the parent while it is focused", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  S().activate("t3");
+  S().placeTabs(["t3"], { pinned: false, groupId: "n" });
+  assert.deepEqual(kept("g"), ["g:n"]);
+  assert.deepEqual(kept("n"), ["t:t3"]);
+  S().activate("t0");
+  assert.deepEqual(kept("g"), []);
+});
+
+test("a closed window's snapshot of a collapsed group carries no reveal state", () => {
+  hydrate();
+  S().activate("t3");
+  S().activate("t5");
+  assert.deepEqual(S().groups.g.shownTabIds, ["t3", "t5"]);
+  S().closeWindow("w");
+  const closed = S().closedWindows.at(-1);
+  assert.equal(closed.groups.length, 1);
+  assert.equal("shownTabIds" in closed.groups[0], false);
 });

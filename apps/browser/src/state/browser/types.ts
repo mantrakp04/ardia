@@ -161,7 +161,7 @@ export type ClosedWindow = {
   id: string;
   window: Pick<BrowserWindow, "profileId" | "sidebarOpen" | "frame">;
   tabs: (TabSnapshot & { active: boolean; tabId?: string })[];
-  groups: (Omit<TabGroup, "tabIds" | "windowId"> & { tabIndexes: number[] })[];
+  groups: (Omit<TabGroup, "tabIds" | "windowId" | "shownTabIds"> & { tabIndexes: number[] })[];
   closedAt: number;
 };
 
