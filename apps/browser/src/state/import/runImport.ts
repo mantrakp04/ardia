@@ -175,6 +175,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       }
       continue;
     }
+    if (signal.aborted) return;
     for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
     for (const w of result.warnings) {
       if ((w.code === "undecryptable" || w.code === "skipped" || w.code === "locked") && !result.failed.includes(w.kind)) left.push(`${w.message}.`);

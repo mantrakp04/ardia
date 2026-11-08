@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 globalThis.require = createRequire(import.meta.url);
 
 let spaces = [];
+let whenNativeDone = () => {};
 globalThis.acTestNativeModules = {
   ArdiaImport: {
     addListener: () => ({ remove() {} }),
@@ -11,8 +12,9 @@ globalThis.acTestNativeModules = {
     forgetUnlockedKeys() {},
     isBrowserUnlocked: () => true,
     listExtensions: async () => "[]",
-    importData: async () =>
-      JSON.stringify({
+    importData: async () => {
+      whenNativeDone();
+      return JSON.stringify({
         browserId: "arc",
         profileId: "Default",
         history: [],
@@ -28,12 +30,13 @@ globalThis.acTestNativeModules = {
         favicons: [],
         failed: [],
         warnings: [],
-      }),
+      });
+    },
   },
 };
 
 const { useBrowser } = await import("../browser/store.ts");
-const { patchImport } = await import("./flow.ts");
+const { cancelImport, patchImport } = await import("./flow.ts");
 const { runImport } = await import("./runImport.ts");
 
 const S = () => useBrowser.getState();
@@ -59,6 +62,7 @@ function begin(imported, target = "default") {
 
 beforeEach(() => {
   spaces = [];
+  whenNativeDone = () => {};
 });
 
 test("Arc's first space names the untouched starter profile instead of leaving it Personal", async () => {
@@ -125,4 +129,13 @@ test("a profile picked out of several is not renamed", async () => {
   S().createProfile({ name: "Other" });
   await runImport(new Set(["spaces"]));
   assert.deepEqual(named(), ["Personal", "Other", "Home"]);
+});
+
+test("a run cancelled while its result is on the way leaves the starter profile alone", async () => {
+  begin([space("a", "Work", { emoji: "💼", color: "#2a6ef5" })]);
+  whenNativeDone = cancelImport;
+  await runImport(new Set(["spaces"]));
+  assert.deepEqual(named(), ["Personal"]);
+  assert.equal(S().profiles.default.icon, null);
+  assert.equal(S().profiles.default.color, "plum");
 });
