@@ -856,6 +856,7 @@
       let drmSent = false;
       let refused = "";
       const attempted = new Set();
+      const grantedOnActivation = new WeakSet();
       const needsProtectedPlayback = (keySystem) => {
         if (drmSent) return;
         drmSent = true;
@@ -904,7 +905,8 @@
         const keySystem = args[0];
         if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
           const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
-          apply(then, result, [null, () => onRefused(keySystem, activated)]);
+          const remember = guard((access) => activated && access && typeof access === "object" && grantedOnActivation.add(access));
+          apply(then, result, [remember, () => onRefused(keySystem, activated)]);
         }
         return result;
       });
@@ -922,7 +924,7 @@
           if (!drmSent) {
             const keySystem = keySystemFrom(self);
             if (typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
-              const activated = !!(navigator.userActivation && navigator.userActivation.isActive);
+              const activated = !!(navigator.userActivation && navigator.userActivation.isActive) || grantedOnActivation.has(self);
               apply(then, result, [null, () => onRefused(keySystem, activated)]);
             }
           }

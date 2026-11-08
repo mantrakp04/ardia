@@ -278,6 +278,28 @@ test("an access whose keys can't be created counts as a refusal, so stalled play
   assert.deepEqual(p.sent, drm());
 });
 
+test("keys refused after the click's activation expired still prompt when the access was requested during that click", async () => {
+  const p = page(["com.widevine.alpha"], { keyless: ["com.widevine.alpha"] });
+  p.navigator.userActivation.isActive = true;
+  const access = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  p.navigator.userActivation.isActive = false;
+  await assert.rejects(access.createMediaKeys());
+  await settle();
+  p.advance(4999);
+  assert.deepEqual(p.sent, []);
+  p.advance(1);
+  assert.deepEqual(p.sent, drm());
+});
+
+test("keys refused for an access requested without activation stay quiet without a stalled play", async () => {
+  const p = page(["com.widevine.alpha"], { keyless: ["com.widevine.alpha"] });
+  const access = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  await assert.rejects(access.createMediaKeys());
+  await settle();
+  p.advance(10000);
+  assert.deepEqual(p.sent, []);
+});
+
 test("keys that are created, Clear Key's refused keys and a wrong receiver keep the page quiet", async () => {
   const p = page(["com.widevine.alpha", "org.w3.clearkey"], { keyless: ["org.w3.clearkey"] });
   const widevine = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
