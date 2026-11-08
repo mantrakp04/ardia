@@ -23,10 +23,10 @@ final class KeyEpochsTests: XCTestCase {
   func testEachWindowKeepsItsOwnEpoch() {
     var epochs = KeyEpochs()
     epochs.becameKey(7)
-    epochs.becameKey(9)
     let seven = epochs.epoch(of: 7)
     epochs.becameKey(9)
     XCTAssertEqual(epochs.epoch(of: 7), seven)
+    XCTAssertEqual(epochs.epoch(of: 9), 1)
     XCTAssertEqual(epochs.epoch(of: 4), 0)
   }
 
