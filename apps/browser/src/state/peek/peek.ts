@@ -48,6 +48,11 @@ export function peekSourceOf(s: PeekState, id: string | undefined): string | und
   return peek && peek.tabId === id ? peek.sourceId : undefined;
 }
 
+export function peekOpenedFrom(s: PeekState, sourceTabId: string): string | undefined {
+  for (const peek of Object.values(s.peeks)) if (peek.sourceId === sourceTabId && s.tabs[peek.tabId]) return peek.tabId;
+  return undefined;
+}
+
 export function withoutPeek(s: BrowserState, windowId: string): BrowserState {
   const peek = s.peeks[windowId];
   if (!peek) return s;
