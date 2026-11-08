@@ -7,6 +7,7 @@ import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, radius, type ColorRoles, type ProfileColorSpec, type ShadowLevel } from "./tokens";
 import type { BasePalette } from "../../lib/themeFile";
+import { visibleSelection } from "../../lib/selectionContrast";
 
 export { PROFILE_COLORS } from "./tokens";
 
@@ -48,6 +49,14 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
+function visibleSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<ColorRoles, "tabSelected" | "pinnedSelectedFill"> {
+  const flipped = base.dark ? ink.white : ink.black;
+  return {
+    tabSelected: visibleSelection(base.tabSelected, flipped, windowTint),
+    pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, flipped, windowTint),
+  };
+}
+
 export function themeFor(key: string, palette?: BasePalette | null): Theme {
   const layer = layerOf(palette);
   let theme = layer.themes.get(key);
@@ -57,11 +66,13 @@ export function themeFor(key: string, palette?: BasePalette | null): Theme {
     const spec = color === "incognito" ? null : (PROFILE_COLORS[color] ?? PROFILE_COLORS.plum);
     const powerUpColor = !spec ? null : spec.palette ? (spec.powerUp ?? spec.swatch) : ink.neutralGrey;
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
+    const windowTint = opaqueTint(backdrop, base.dark);
     theme = {
       ...base,
+      ...visibleSelectionRoles(base, windowTint),
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
-      windowTint: opaqueTint(backdrop, base.dark),
+      windowTint,
       powerUpColor,
       powerUpPalette: powerUpColor ? [powerUpColor] : null,
       custom: null,
@@ -101,15 +112,17 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
     const preset = themeFor(`${color}:${dark ? "dark" : "light"}`, base);
     const accent = themeAccent(look);
     const palette = themePalette(look);
+    const windowTint = opaqueThemeTint(look, dark);
     theme = {
       ...preset,
+      ...visibleSelectionRoles(dark ? preset.palettes.dark : preset.palettes.light, windowTint),
       profileColor: nearestPreset(accent),
       backdrop: {
         ...backdropTint(accent, false),
         ...themeBackdrop(look, dark),
         ...(dark !== requestedDark ? { themeAppearance: dark ? ("dark" as const) : ("light" as const) } : source === "own" ? {} : { themeAppearance: "auto" as const }),
       },
-      windowTint: opaqueThemeTint(look, dark),
+      windowTint,
       powerUpColor: accent,
       powerUpPalette: palette.length > 1 ? palette : [palette[0] ?? accent],
       custom,
