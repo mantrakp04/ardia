@@ -3,6 +3,7 @@ import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnow
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
+import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
@@ -61,6 +62,7 @@ function PeekCard({
   page: (tabId: string, sourceId: string, width: number) => ReactNode;
 }) {
   const theme = useTheme();
+  const cardRadius = useCardFrame().radius;
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const frame = peekFrame(width, height);
   const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
@@ -153,7 +155,7 @@ function PeekCard({
         <Pressable
           accessibilityLabel="Close Peek"
           onPress={() => dismissPeek(windowId)}
-          style={{ flex: 1, borderRadius: layout.cardRadius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
+          style={{ flex: 1, borderRadius: cardRadius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
         />
       </Animated.View>
       <Animated.View

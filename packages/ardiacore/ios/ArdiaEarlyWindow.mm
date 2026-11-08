@@ -334,9 +334,11 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     if ([s.appWindow isEqualToString:kLittleWindow]) return NO;
   LoadLayouts();
   NSDictionary *main = windowId.length && [gLayouts[windowId] isKindOfClass:NSDictionary.class] ? gLayouts[windowId] : @{};
+  CGFloat mainCard[4];
+  NSNumber *cardInset = ReadInsets(main[@"card"], mainCard) ? @(mainCard[3]) : @9;
   NSMutableDictionary *layout = [@{
-    @"page" : @[ @9, @38, @9, @9 ],
-    @"card" : @[ @9, @38, @9, @9 ],
+    @"page" : @[ cardInset, @38, cardInset, cardInset ],
+    @"card" : @[ cardInset, @38, cardInset, cardInset ],
     @"radius" : [main[@"radius"] isKindOfClass:NSNumber.class] ? main[@"radius"] : @10,
     @"curve" : [main[@"curve"] isKindOfClass:NSString.class] ? main[@"curve"] : kCACornerCurveCircular,
     @"lights" : @[ @20, @19 ],

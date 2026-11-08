@@ -183,8 +183,6 @@ export const layout = {
   pinnedHeight: 41,
   rowHeight: SIDEBAR_ROW.height,
   rowGap: SIDEBAR_ROW.gap,
-  cardInset: CARD_INSET,
-  sidebarCardGap: CARD_INSET - SIDEBAR_INSET,
   cardRadius: radius.chrome,
   toolbarButton: 30,
   toolbarIconCenters: [21, 56, 92, 127],
