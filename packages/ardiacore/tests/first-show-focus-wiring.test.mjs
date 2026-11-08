@@ -3,7 +3,30 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const ios = new URL("../ios/", import.meta.url);
-const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'\\])\/\/.*$/gm, "$1");
+
+const withoutComments = (text) => {
+  let code = "";
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    const next = text[i + 1];
+    if (char === '"' || char === "'") {
+      let end = i + 1;
+      while (end < text.length && text[end] !== char && text[end] !== "\n") end += text[end] === "\\" ? 2 : 1;
+      code += text.slice(i, end + 1);
+      i = end + 1;
+    } else if (char === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+    } else if (char === "/" && next === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+    } else {
+      code += char;
+      i++;
+    }
+  }
+  return code;
+};
 const native = (file) => withoutComments(readFileSync(new URL(file, ios), "utf8"));
 
 const bodyOf = (text, signature) => {
@@ -26,6 +49,18 @@ test("a mark that is only commented out does not count", () => {
   const code = withoutComments(commented);
   assert.ok(!code.includes(marks("tab")), "no mark survives in the stripped source");
   assert.ok(code.includes('@"http://example.test"'), "a URL in a string keeps its slashes");
+});
+
+test("slashes inside a string do not hide a mark that follows on the same line", () => {
+  for (const literal of ['@"a//b"', '@"a/*b"', '@"say \\"//\\" now"', "'/'"]) {
+    const line = `[log ${literal}]; ${marks("tab")}\n`;
+    const code = withoutComments(line);
+    assert.ok(code.includes(literal), `${literal} is kept whole`);
+    assert.ok(code.includes(marks("tab")), `the mark after ${literal} survives`);
+  }
+  const trailing = withoutComments(`[log @"a//b"]; // ${marks("tab")}\nnext;\n`);
+  assert.ok(!trailing.includes(marks("tab")), "a comment after a string still hides the mark");
+  assert.ok(trailing.includes("next;"), "the next line is kept");
 });
 
 test("the request belongs to the tab, not to a view or its focus state", () => {

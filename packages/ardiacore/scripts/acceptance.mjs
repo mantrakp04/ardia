@@ -982,13 +982,14 @@ try {
     ]) {
       await showFirst();
       const before = new Set((await state()).tabs.map((x) => x.id));
+      const openedByCheck = (x) => !before.has(x.id) && x.url?.startsWith(`${base}/c`);
       try {
         await cdp(await pageFor(first.id, `${base}/a`), "Runtime.evaluate", { expression: open, userGesture: true });
-        const tab = await until(`the ${how} tab`, async () => (await state()).tabs.find((x) => !before.has(x.id) && x.title === "Page C" && !x.loading), 10000);
+        const tab = await until(`the ${how} tab`, async () => (await state()).tabs.find((x) => openedByCheck(x) && x.title === "Page C" && !x.loading), 10000);
         await until(`the ${how} tab in front`, async () => (await state()).active === tab.id);
         opened[how] = await until(`the ${how} page to have focus without a click`, async () => (await hasFocus(tab.id, `${base}/c`)) || null, 5000);
       } finally {
-        for (const left of (await state()).tabs.filter((x) => !before.has(x.id))) await closeTab(left.id);
+        for (const left of (await state()).tabs.filter(openedByCheck)) await closeTab(left.id);
       }
     }
     await showFirst();
