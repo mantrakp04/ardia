@@ -18,7 +18,7 @@ export function SentView({ sent }: { sent: SentReport }) {
           {`Sent · ${sent.id}`}
         </Text>
         <Text tone="textSecondary" style={{ marginTop: space.xs }}>
-          Thanks. A person reads every report.
+          Thanks. Every report gets read and tracked.
         </Text>
         {sent.issueUrl ? (
           <View style={{ marginTop: space.xs }}>
