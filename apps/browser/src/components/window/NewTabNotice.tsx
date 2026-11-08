@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { goToNoticedTab, holdNewTabNotice, usePaneNewTabNotice } from "../../state/tabs/newTabNotice";
-import { capsule, space, Symbol, Text, useHover, usePresence } from "../ui";
+import { capsule, duration, space, Symbol, Text, useHover, usePresence } from "../ui";
 import { useTheme } from "../ui/theme";
 import { Hud } from "./Hud";
 import { NEW_TAB_NOTICE, windowColors } from "./tokens";
@@ -12,8 +12,12 @@ export function NewTabNotice({ windowId, tabId, right, top }: { windowId: string
   const { shown, appear } = usePresence(live, NEW_TAB_NOTICE.motion);
   const { hovered, hoverProps } = useHover();
   const hover = !!live && hovered;
+  const slide = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (live) holdNewTabNotice(windowId, live, hover);
+    const run = Animated.timing(slide, { toValue: hover ? 1 : 0, duration: duration.fast, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
   }, [hover]);
   if (!shown) return null;
   return (
@@ -25,27 +29,25 @@ export function NewTabNotice({ windowId, tabId, right, top }: { windowId: string
           transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-NEW_TAB_NOTICE.rise, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
         }}
       >
-        <Pressable {...hoverProps} onPress={() => goToNoticedTab(windowId, shown)} accessibilityRole="button" accessibilityLabel="New tab opened. Go to the new tab." style={POINTER}>
-          {({ pressed }) => (
-            <View style={{ opacity: pressed ? NEW_TAB_NOTICE.pressedOpacity : 1 }}>
-              <Hud shape="capsule" height={NEW_TAB_NOTICE.height}>
-                <View style={[ROW, { backgroundColor: hover ? windowColors(theme.dark).noticeHover : undefined }]}>
-                  <Symbol name="plus.square.on.square" size={12} weight="semibold" color={theme.icon} style={ICON} />
-                  <Text size="small" weight="semibold" numberOfLines={1}>
-                    New tab opened
-                  </Text>
-                  <Symbol
-                    name="arrow.right"
-                    size={10}
-                    weight="semibold"
-                    color={hover ? theme.textPrimary : theme.textSecondary}
-                    style={[ICON, { transform: [{ translateX: hover ? NEW_TAB_NOTICE.arrowNudge : 0 }] }]}
-                  />
-                </View>
-              </Hud>
-            </View>
-          )}
-        </Pressable>
+        <View {...hoverProps} style={POINTER}>
+          <Pressable onPress={() => goToNoticedTab(windowId, shown)} accessibilityRole="button" accessibilityLabel="New tab opened. Go to the new tab." style={POINTER}>
+            {({ pressed }) => (
+              <View style={{ opacity: pressed ? NEW_TAB_NOTICE.pressedOpacity : 1 }}>
+                <Hud shape="capsule" height={NEW_TAB_NOTICE.height}>
+                  <View style={[ROW, { backgroundColor: hover ? windowColors(theme.dark).noticeHover : undefined }]}>
+                    <Symbol name="plus.square.on.square" size={12} weight="semibold" color={theme.icon} style={ICON} />
+                    <Text size="small" weight="semibold" numberOfLines={1}>
+                      New tab opened
+                    </Text>
+                    <Animated.View style={{ transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, NEW_TAB_NOTICE.arrowNudge] }) }] }}>
+                      <Symbol name="arrow.right" size={10} weight="semibold" color={hover ? theme.textPrimary : theme.textSecondary} style={ICON} />
+                    </Animated.View>
+                  </View>
+                </Hud>
+              </View>
+            )}
+          </Pressable>
+        </View>
       </Animated.View>
     </View>
   );
