@@ -44,10 +44,10 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const sidebarRight = useSidebarSide(windowId) === "right";
-  const overRows = panelCoversRows({ open: panel.open, newTab: !!panel.newTab, centred, hasActiveTab: !!activeId, sidebarAnchor: !!anchor?.sidebar });
+  const overRows = panelCoversRows({ open: panel.open, newTab: !!panel.newTab, centred: centred && !!card, hasActiveTab: !!activeId, sidebarAnchor: !!anchor?.sidebar });
   useEffect(() => {
     if (panel.open) dismissHover();
-  }, [panel.open]);
+  }, [panel.open, overRows, windowId]);
   useEffect(() => holdRowsCovered(windowId, overRows), [overRows, windowId]);
   if (!panel.open || !activeId) return null;
   if (panel.newTab) return card ? <CentredBar windowId={windowId} tabId={activeId} target={panel.newTab} card={card} /> : null;

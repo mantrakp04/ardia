@@ -55,7 +55,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
       "How many tabs and windows you open (a count, not which)",
-      "Opening split view, switching profiles and opening the command bar",
+      "Opening split view, switching profiles and opening the command bar, with whether it had a tab to show over and whether it was holding the sidebar's tab rows covered (yes or no)",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
