@@ -43,6 +43,9 @@ page, and a number never moves to another element. Long runs of one role fold in
 - A field that ignores `fill`: `focus @e1`, then `keyboard inserttext "text"` (or `keyboard type` for keystrokes).
 - A typeahead or chip input: `select`, not `fill`. When `select` lists two or no suggestions, pick an exact one.
 - `find role` with several matches clicks nothing and lists them with refs; use the ref you mean.
+- When `select` says no list is linked to the field, click the option: `find role option click --name "…"`.
+- Selectors take CSS, `@e3`, `text=Save`, `role=button[name="Save"]` and `li:has-text("Ana")`; `[role=main]` also
+  matches `<main>`.
 - `drag` from a `draggable` source does HTML5 drag and drop (the answer says `HTML5 drag and drop`, `the target
   didn't accept the drop`, or `plain mouse drag`). A reordered list often shows `changes: none`; check with
   `read -s <list>` or `get text`.

@@ -46,7 +46,8 @@ EOF
   from that answer and verify from it. Snapshot again only when it doesn't show what you need.
 - Put every step you can already name in one `batch`, repeated rounds of a form included: a ref lasts as long as its
   element. On `stale_ref`, the answer has the new refs; carry on from there. `find label "Title" fill "…"` and
-  `find role button click --name "Save"` need no refs and survive rebuilt dialogs.
+  `find role button click --name "Save"` need no refs and survive rebuilt dialogs. A line can carry its own flags
+  (`--no-changes`); a last line `close` closes your tabs once every line succeeded.
 - `fill` types, and sets date (`YYYY-MM-DD`), time (`HH:MM`), color and range inputs. `select` picks: options of a
   `<select>`, and on a typeahead, chip input, custom dropdown or datalist it types each value and clicks the match
   (`select @e5 "Priya Raman" alex@example.com`). No match or two fails and lists the suggestions.
