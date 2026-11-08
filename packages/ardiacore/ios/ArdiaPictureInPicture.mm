@@ -72,6 +72,7 @@ void InstallDragMonitor() {
                                        gDragHome = [[ArdiaPiPController forWindow:window] gestureHome];
                                        gDragSamples.clear();
                                        SampleDrag(event, mouse);
+                                       ardia_host::NotePointer(event, @"pipDrag");
                                        return nil;
                                      }
                                      NSWindow *window = gDragged;
@@ -84,6 +85,7 @@ void InstallDragMonitor() {
                                        gDragSamples.clear();
                                        [[ArdiaPiPController forWindow:window] dragReleasedAt:grabbed
                                                                                  velocity:NSMakePoint(velocity.x, velocity.y)];
+                                       ardia_host::NotePointer(event, @"pipDrag");
                                        return nil;
                                      }
                                      NSPoint mouse = ScreenLocation(event);
@@ -156,6 +158,8 @@ NSString *DevShowAlpha(NSWindow *window, float alpha) {
 namespace ardia_pip {
 
 void WatchZoom() { InstallZoomMonitor(); }
+
+NSWindow *GrabbedWindow() { return gDragged; }
 
 void TabRequestedActivation(ArdiaWebView *view) {
   for (NSWindow *window in NSApp.windows)

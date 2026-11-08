@@ -1,5 +1,7 @@
 #import "ArdiaInternal.h"
 #import "ArdiaContentBlockerInternal.h"
+#import "ArdiaPictureInPicture.h"
+#import "ArdiaPointerTrace.h"
 #import "ArdiaWindowController.h"
 
 #import <objc/message.h>
@@ -61,6 +63,40 @@ void NoteFocusChange(NSString *what, NSWindow *window) {
   if (history.count > kFocusHistoryLength) [history removeObjectAtIndex:0];
 }
 
+ardia_pointer::Trace &PointerTrace() {
+  static ardia_pointer::Trace trace;
+  return trace;
+}
+
+double Uptime() { return NSProcessInfo.processInfo.systemUptime; }
+
+NSString *DescribeFrame(NSRect frame) {
+  return [NSString stringWithFormat:@"%.0f,%.0f %.0fx%.0f", NSMinX(frame), NSMinY(frame), NSWidth(frame), NSHeight(frame)];
+}
+
+NSArray<NSString *> *PointerLines() {
+  NSMutableArray<NSString *> *lines = [NSMutableArray array];
+  const double now = Uptime();
+  [lines addObject:[NSString stringWithFormat:@"pointer buttons 0x%lx, run loop mode %@", (unsigned long)NSEvent.pressedMouseButtons,
+                                              NSRunLoop.currentRunLoop.currentMode ?: @"none"]];
+  [lines addObject:[@"pointer " stringByAppendingString:@(PointerTrace().LoopLine(now).c_str())]];
+  [lines addObject:[@"pointer pip grabbed " stringByAppendingString:DescribeFocusWindow(ardia_pip::GrabbedWindow())]];
+  [lines addObject:[@"pointer modal " stringByAppendingString:DescribeFocusWindow(NSApp.modalWindow)]];
+  NSArray<NSWindow *> *ordered = NSApp.orderedWindows;
+  for (NSWindow *window in NSApp.windows) {
+    if (window.attachedSheet)
+      [lines addObject:[NSString stringWithFormat:@"pointer sheet %@ on %@", DescribeFocusWindow(window.attachedSheet), DescribeFocusWindow(window)]];
+  }
+  for (NSWindow *window in NSApp.windows) {
+    if (!window.isVisible) continue;
+    const NSUInteger depth = [ordered indexOfObject:window];
+    [lines addObject:[NSString stringWithFormat:@"pointer window %@ frame %@ z%@", DescribeFocusWindow(window), DescribeFrame(window.frame),
+                                                depth == NSNotFound ? @"-" : [NSString stringWithFormat:@"%lu", (unsigned long)depth]]];
+  }
+  for (const std::string &line : PointerTrace().HistoryLines(now)) [lines addObject:@(line.c_str())];
+  return lines;
+}
+
 }
 
 void WatchFocusChanges() {
@@ -86,7 +122,37 @@ void WatchFocusChanges() {
   [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
     NoteFocusChange(@"app inactive", nil);
   }];
+  [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp
+                                        handler:^NSEvent *(NSEvent *event) {
+                                          NotePointer(event, nil);
+                                          return event;
+                                        }];
 }
+
+void NotePointer(NSEvent *event, NSString *swallowedBy) {
+  const bool down = event.type == NSEventTypeLeftMouseDown;
+  if (!down && event.type != NSEventTypeLeftMouseUp) return;
+  const std::string by = swallowedBy.UTF8String ?: "";
+  ardia_pointer::Trace &trace = PointerTrace();
+  if (trace.Merge(event.timestamp, down, by)) return;
+  NSWindow *window = event.window;
+  NSView *frameView = window.contentView.superview;
+  NSView *hit = frameView ? [frameView hitTest:event.locationInWindow] : nil;
+  trace.Record({event.timestamp, down, (long)window.windowNumber, (long)window.level, hit ? hit.className.UTF8String : "none", by});
+}
+
+void BeginPressLoop(NSString *name) {
+  const unsigned long generation = PointerTrace().BeginLoop(name.UTF8String ?: "unnamed", Uptime());
+  const int64_t delay = (int64_t)((ardia_pointer::kLongLoopSeconds + 0.1) * NSEC_PER_SEC);
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    std::string open;
+    if (!PointerTrace().TakeLongLoop(generation, Uptime(), &open)) return;
+    NSLog(@"[ardiacore] press loop %s still open after %.0fs, pressed buttons 0x%lx", open.c_str(), ardia_pointer::kLongLoopSeconds,
+          (unsigned long)NSEvent.pressedMouseButtons);
+  });
+}
+
+void EndPressLoop() { PointerTrace().EndLoop(Uptime()); }
 
 NSString *FocusState() {
   NSWindow *key = NSApp.keyWindow, *main = NSApp.mainWindow;
@@ -104,6 +170,7 @@ NSString *FocusState() {
     [lines addObject:line];
   }
   for (NSString *change in FocusHistory()) [lines addObject:[@"was " stringByAppendingString:change]];
+  [lines addObjectsFromArray:PointerLines()];
   return [lines componentsJoinedByString:@"\n"];
 }
 

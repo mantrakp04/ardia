@@ -8,6 +8,8 @@ namespace ardia_pip {
 
 void WatchZoom();
 
+NSWindow *GrabbedWindow();
+
 void VideoEntered(ArdiaWebView *view, NSString *host);
 
 void DocumentEntered(ArdiaWebView *view);

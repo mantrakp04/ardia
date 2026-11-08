@@ -341,6 +341,18 @@ static void (^gQuitCancelledHandler)(void);
   return gDataDirectory ?: @"";
 }
 
++ (void)beginPressLoop:(NSString *)name {
+  ardia_host::BeginPressLoop(name);
+}
+
++ (void)endPressLoop {
+  ardia_host::EndPressLoop();
+}
+
++ (void)notePointer:(NSEvent *)event swallowedBy:(NSString *)name {
+  ardia_host::NotePointer(event, name);
+}
+
 + (NSDictionary<NSString *, id> *)engineInfo {
   ArdiaCoreEngine *engine = ArdiaCoreEngine.sharedEngine;
   NSInteger chromeWindows = 0;
