@@ -21,8 +21,9 @@ extension ArdiaWebView: PageTab {
       switch result {
       case .failure(let error):
         completion(["filled": [String](), "error": error.rawValue])
-      case .success(let values):
-        self.fillVault(frame: frameId, origin: frameOrigin, values: values, submit: submit) { filled in completion(["filled": filled]) }
+      case .success(let fill):
+        let submits = submit && fill.touched
+        self.fillVault(frame: frameId, origin: frameOrigin, values: fill.values, submit: submits) { filled in completion(["filled": filled]) }
       }
     }
   }

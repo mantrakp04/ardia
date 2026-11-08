@@ -1,5 +1,10 @@
 import Foundation
 
+struct VaultFillValues: Sendable {
+  let values: [String: String]
+  let touched: Bool
+}
+
 actor VaultBroker {
   static let shared = VaultBroker()
   static let itemsLifetime: TimeInterval = 60
@@ -143,7 +148,7 @@ actor VaultBroker {
   }
 
   func fillValues(provider providerId: String, id itemId: String, fields: [String], origin: String, userChose: Bool) async
-    -> Result<[String: String], VaultFillError>
+    -> Result<VaultFillValues, VaultFillError>
   {
     guard let provider = VaultRegistry.provider(providerId) else { return .failure(.notFound) }
     guard VaultOriginMatch.isSecure(origin) else { return .failure(.insecure) }
@@ -157,7 +162,11 @@ actor VaultBroker {
       let field: VaultField? = name == "otp" ? .totp : VaultField(rawValue: name)
       if let field, !wanted.contains(field) { wanted.append(field) }
     }
-    if wanted.contains(.password), !(await ownerAllows("fill your password")) { return .failure(.notAuthorized) }
+    var touched = false
+    if wanted.contains(.password) {
+      touched = VaultOwnerCheck.takeGrant()
+      if !touched, !(await ownerAllows("fill your password")) { return .failure(.notAuthorized) }
+    }
     var values: [String: String] = [:]
     for field in wanted {
       if field == .username && !item.username.isEmpty {
@@ -173,7 +182,7 @@ actor VaultBroker {
         return .failure(error)
       }
     }
-    return values.isEmpty ? .failure(.notFound) : .success(values)
+    return values.isEmpty ? .failure(.notFound) : .success(VaultFillValues(values: values, touched: touched))
   }
 
   func save(provider providerId: String, origin: String, username: String, password: String, title: String?) async

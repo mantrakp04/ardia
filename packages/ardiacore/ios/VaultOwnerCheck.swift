@@ -12,7 +12,7 @@ enum VaultOwnerCheck {
     grantLock.unlock()
   }
 
-  private static func takeGrant() -> Bool {
+  static func takeGrant() -> Bool {
     grantLock.lock()
     defer { grantLock.unlock() }
     let fresh = grantedAt.map { Date().timeIntervalSince($0) < grantLifetime } ?? false

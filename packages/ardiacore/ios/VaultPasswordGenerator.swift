@@ -17,8 +17,8 @@ enum VaultPasswordGenerator {
   static let groupLength = 5
   static let separator: Character = "-"
   static let alphanumericLength = 20
-  static let passphraseWords = 4
-  static let shortestPassphraseWords = 3
+  static let passphraseWords = 5
+  static let shortestPassphraseWords = 4
   static var length: Int { groupedLength(groups) }
 
   private struct Rule {

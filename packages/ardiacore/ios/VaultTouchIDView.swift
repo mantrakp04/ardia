@@ -10,7 +10,7 @@ final class VaultTouchIDView: ExpoView {
   var armed = false {
     didSet {
       guard armed != oldValue else { return }
-      if armed { beginArming() }
+      if armed { beginArming() } else { arming += 1 }
       sync()
     }
   }
@@ -215,8 +215,7 @@ final class VaultTouchIDView: ExpoView {
       phase = .granted
       failureStreak = 0
       VaultOwnerCheck.grant()
-      NSLog("[vaults] touch id granted, asking the menu to act")
-      ArdiaEvents.emit("vaults.touchID", data: [:])
+      NSLog("[vaults] touch id granted")
       emit(.granted)
       return
     }

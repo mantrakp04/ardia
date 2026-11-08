@@ -169,7 +169,16 @@ export type VaultField = {
 };
 export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab" | "Typed" | "Cleared";
 export type VaultKeyPress = { frameId: string; key: VaultKey };
-export type VaultSubmission = { frameId: string; origin: string; username: string; newPassword: boolean; generated: boolean };
+export type VaultUsernameSource = "form" | "step" | "page" | "nearby" | "";
+export type VaultSubmission = {
+  frameId: string;
+  origin: string;
+  username: string;
+  newPassword: boolean;
+  generated: boolean;
+  usernameFrom: VaultUsernameSource;
+  trusted: boolean;
+};
 export type VaultPasswordStyle = "strong" | "alphanumeric" | "easyToType" | "passphrase";
 export type VaultFillField = "username" | "password" | "totp";
 export type VaultFilledField = "username" | "password" | "newPassword" | "otp";

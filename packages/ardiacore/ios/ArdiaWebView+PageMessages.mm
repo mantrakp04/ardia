@@ -50,6 +50,11 @@ static NSArray<NSString *> *VaultKeys() { return @[ @"ArrowDown", @"ArrowUp", @"
 
 static const double kVaultMaxLength = 4096;
 
+static NSString *VaultUsernameSource(NSDictionary *d) {
+  NSString *source = Text(d, @"usernameFrom", 16);
+  return [@[ @"form", @"step", @"page", @"nearby" ] containsObject:source ?: @""] ? source : @"";
+}
+
 static NSInteger VaultMaxLength(NSDictionary *d) {
   double value;
   if (!Finite(d, @"maxLength", &value) || value <= 0) return 0;
@@ -318,7 +323,9 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
         @"origin" : origin,
         @"username" : username,
         @"newPassword" : @(Flag(dict, @"newPassword")),
-        @"generated" : @([capture isGeneratedPassword:password origin:origin])
+        @"generated" : @([capture isGeneratedPassword:password origin:origin]),
+        @"usernameFrom" : VaultUsernameSource(dict),
+        @"trusted" : @(Flag(dict, @"trusted"))
       }];
 }
 
