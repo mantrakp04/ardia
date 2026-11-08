@@ -12,6 +12,7 @@ public class SymbolModule: Module {
       Prop("size") { (view: SymbolView, size: Double) in view.pointSize = size }
       Prop("weight") { (view: SymbolView, weight: String) in view.weight = weight }
       Prop("color") { (view: SymbolView, hex: String) in view.tint = RGBA(hex: hex)?.srgb }
+      Prop("centerInk") { (view: SymbolView, on: Bool) in view.centerInk = on }
     }
   }
 }

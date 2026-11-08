@@ -20,6 +20,7 @@ export type SymbolProps = ViewProps & {
   size?: number;
   weight?: "light" | "regular" | "medium" | "semibold" | "bold";
   color?: string;
+  centerInk?: boolean;
 };
 
 export const Symbol = requireNativeViewManager<SymbolProps>("ArdiaSymbol");
