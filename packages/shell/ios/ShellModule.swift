@@ -20,6 +20,7 @@ public class ShellModule: Module {
       _ = installSubmenuAction
       _ = installInputSourceKeys
       _ = installScrollViewInsetFix
+      _ = installHorizontalWheelScroll
       _ = installOutsidePressMonitor
       _ = installWindowMoveFallback
       self.lifetime.begin(self) {
