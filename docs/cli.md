@@ -257,13 +257,14 @@ snapped to its step). It needs no visible tab and sends no key events. Text fiel
 `select` on a combobox picks from its suggestions per value: a typeahead or chip input is filled with the value, a
 button that opens a listbox is clicked, an input with a `<datalist>` takes the matching entry. Options come only from
 a popup the field owns (`aria-controls`, `aria-owns`, `aria-activedescendant`) or one inside the field's component
-(the nearest ancestor holding a listbox and no other field); anything else refuses (`no_fresh_suggestions`), names the
+(the nearest ancestor holding a listbox and no other control, where a control is a field, a combobox or a button with
+`aria-haspopup`, and whose lists no other control owns); anything else refuses (`no_fresh_suggestions`), names the
 visible lists and points at `find role option click --name …`. A MutationObserver in the isolated world tracks the
-options' own content (ids and text): the list counts once it changed after the last keystroke and stayed put 350 ms,
-or changed during the typing and nothing changed for 1 s after it (a list filtered as you type), with no
-`aria-busy="true"`; changes above the popup don't count, and an unchanged list times out after 4 s instead of being
-picked. The match is the exact text, else an option whose line or email is the value, else the only one containing
-it; two or none fail and list the suggestions. `fill` on a typeahead types only, then says how many suggestions show
+options' own content (ids, text, labels and values); changes above the popup don't count. An exact match (the
+option's text, `aria-label`, `value` or `data-value`, or an email in them) is picked once the list has been quiet
+350 ms with no `aria-busy="true"`. A looser match (a whole line of the option, else the only one containing the value)
+needs the options to have changed after the last keystroke; without that, after 4 s it refuses and lists what's
+showing, since the list may be for an earlier query. Two matches or none fail and list the suggestions. `fill` on a typeahead types only, then says how many suggestions show
 and the `select` command to pick one.
 
 Every input command confirms the page got it. Capture listeners in the isolated world count trusted `mousedown`,
