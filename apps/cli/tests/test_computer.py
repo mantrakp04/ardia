@@ -1,0 +1,445 @@
+import contextlib
+import hashlib
+import io
+import json
+import os
+import plistlib
+import shutil
+import sys
+import tarfile
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from ardia_cli import cli, computer, skills
+
+SCRATCH = Path.home() / "ardia-scratch"
+REAL_DOWNLOAD = computer.download
+
+
+def quiet(function, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+        status = function(*args, **kwargs)
+    return status, out.getvalue(), err.getvalue()
+
+
+def info_plist(version=computer.VERSION, bundle_id=computer.BUNDLE_ID) -> bytes:
+    return plistlib.dumps({"CFBundleIdentifier": bundle_id, "CFBundleShortVersionString": version, "CFBundleExecutable": "cua-driver"})
+
+
+def tarball(path: Path, entries: dict, links: dict | None = None) -> str:
+    with tarfile.open(path, "w:gz") as tar:
+        for name, data in entries.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            info.mode = 0o755
+            tar.addfile(info, io.BytesIO(data))
+        for name, target in (links or {}).items():
+            info = tarfile.TarInfo(name)
+            info.type = tarfile.SYMTYPE
+            info.linkname = target
+            tar.addfile(info)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def driver_entries(top=computer.DRIVER_TOP, version=computer.VERSION) -> dict:
+    return {
+        f"{top}/cua-driver": b"bare binary",
+        f"{top}/libcua_driver_sdk.dylib": b"sdk",
+        f"{top}/LICENSE": b"MIT",
+        f"{top}/THIRD_PARTY_NOTICES.md": b"notices",
+        f"{top}/CuaDriver.app/Contents/Info.plist": info_plist(version),
+        f"{top}/CuaDriver.app/Contents/MacOS/cua-driver": b"#!/bin/sh\n",
+    }
+
+
+def skill_entries(body=b"---\nname: cua-driver\n---\nv1\n") -> dict:
+    top = computer.SKILLS_TOP
+    return {
+        f"{top}/SKILL.md": body,
+        f"{top}/MACOS.md": b"mac\n",
+        f"{top}/LINUX.md": b"linux\n",
+        f"{top}/WINDOWS.md": b"windows\n",
+        f"{top}/WORKFLOW.md": b"workflow\n",
+    }
+
+
+class Sandbox(unittest.TestCase):
+    def setUp(self):
+        base = SCRATCH if SCRATCH.is_dir() else Path(tempfile.gettempdir())
+        self.root = Path(tempfile.mkdtemp(prefix="computer", dir=base)).resolve()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.home = self.root / "home"
+        self.project = self.root / "project"
+        self.cli_home = self.root / "cli"
+        self.applications = self.root / "Applications"
+        self.assets = self.root / "assets"
+        for folder in (self.home, self.project, self.applications, self.assets):
+            folder.mkdir()
+        self.served: dict[str, Path] = {}
+        self.downloads: list[str] = []
+        patches = [
+            mock.patch.dict(os.environ, {"HOME": str(self.home), "ARDIA_CLI_HOME": str(self.cli_home), "ARDIA_CLI_BIN_DIR": str(self.home / "bin"), "DO_NOT_TRACK": "1"}),
+            mock.patch.object(Path, "home", classmethod(lambda cls: self.home)),
+            mock.patch.object(Path, "cwd", classmethod(lambda cls: self.project)),
+            mock.patch.object(computer, "APPLICATIONS", self.applications),
+            mock.patch.object(computer, "download", self.fake_download),
+            mock.patch.object(computer, "verify_app", lambda app: None),
+            mock.patch.object(computer, "register_app", lambda app: None),
+            mock.patch.object(computer, "run_driver_quietly", lambda binary, *args: 0),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def fake_download(self, url: str, dest: Path) -> None:
+        self.downloads.append(url)
+        name = url.rsplit("/", 1)[-1]
+        if name not in self.served:
+            raise OSError("HTTP Error 404: Not Found")
+        shutil.copyfile(self.served[name], dest)
+
+    def serve(self, asset: str, entries: dict, links: dict | None = None) -> str:
+        path = self.assets / asset
+        digest = tarball(path, entries, links)
+        self.served[asset] = path
+        return digest
+
+    def serve_driver(self, entries: dict | None = None, links: dict | None = None):
+        digest = self.serve(computer.DRIVER_ASSET, entries or driver_entries(), links)
+        patch = mock.patch.object(computer, "DRIVER_SHA256", digest)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def serve_skills(self, entries: dict | None = None):
+        digest = self.serve(computer.SKILLS_ASSET, entries or skill_entries())
+        patch = mock.patch.object(computer, "SKILLS_SHA256", digest)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+
+class PinnedDownload(Sandbox):
+    def test_fetches_the_pinned_release_and_keeps_only_the_app(self):
+        self.serve_driver()
+        status, _, err = quiet(computer.ensure_driver)
+        app = self.cli_home / "cua-driver" / computer.VERSION / "CuaDriver"
+        self.assertEqual(status, app)
+        self.assertEqual(self.downloads, [f"https://github.com/trycua/cua/releases/download/cua-driver-rs-v{computer.VERSION}/{computer.DRIVER_ASSET}"])
+        self.assertTrue((app / computer.APP_BINARY).is_file())
+        self.assertTrue((app.parent / "LICENSE").is_file())
+        self.assertFalse((app.parent / "libcua_driver_sdk.dylib").exists())
+        self.assertFalse((app.parent / "cua-driver").exists())
+        self.assertIn(f"sha256 {computer.DRIVER_SHA256}", err)
+        self.assertEqual([entry.name for entry in app.parent.iterdir() if entry.name.startswith(".")], [])
+        quiet(computer.ensure_driver)
+        self.assertEqual(len(self.downloads), 1)
+
+    def test_checksum_mismatch_installs_nothing(self):
+        self.serve(computer.DRIVER_ASSET, driver_entries())
+        with mock.patch.object(computer, "DRIVER_SHA256", "0" * 64):
+            with self.assertRaises(computer.Refused) as caught:
+                quiet(computer.ensure_driver)
+        self.assertIn("checksum mismatch", str(caught.exception))
+        version_home = self.cli_home / "cua-driver" / computer.VERSION
+        self.assertEqual(list(version_home.iterdir()), [])
+
+    def test_passthrough_reports_a_mismatch_and_never_execs(self):
+        self.serve(computer.DRIVER_ASSET, driver_entries())
+        with mock.patch.object(computer, "DRIVER_SHA256", "0" * 64), mock.patch.object(os, "execve") as execve:
+            status, _, err = quiet(computer.main, ["list-tools"])
+        self.assertEqual(status, 1)
+        self.assertIn("checksum mismatch", err)
+        execve.assert_not_called()
+
+    def test_refuses_entries_outside_the_top_folder_and_links(self):
+        self.serve_driver({**driver_entries(), "elsewhere/evil": b"x"})
+        with self.assertRaises(computer.Refused):
+            quiet(computer.ensure_driver)
+        self.serve_driver(driver_entries(), links={f"{computer.DRIVER_TOP}/CuaDriver.app/Contents/Resources": "/etc"})
+        with self.assertRaises(computer.Refused):
+            quiet(computer.ensure_driver)
+        self.assertFalse((self.cli_home / "cua-driver" / computer.VERSION / "CuaDriver").exists())
+
+    def test_refuses_an_app_of_another_version(self):
+        self.serve_driver(driver_entries(version="0.0.1"))
+        with self.assertRaises(computer.Refused) as caught:
+            quiet(computer.ensure_driver)
+        self.assertIn("not the pinned", str(caught.exception))
+
+    def test_downloads_are_https_only(self):
+        with self.assertRaises(computer.Refused):
+            REAL_DOWNLOAD("http://github.com/x", self.root / "x")
+        self.assertFalse((self.root / "x").exists())
+
+    def test_old_driver_versions_are_pruned_down_to_one(self):
+        home = self.cli_home / "cua-driver"
+        for index, name in enumerate(("0.1.0", "0.2.0", "0.3.0")):
+            (home / name).mkdir(parents=True)
+            os.utime(home / name, (index + 1, index + 1))
+        (home / "keep-me").mkdir()
+        self.serve_driver()
+        quiet(computer.ensure_driver)
+        self.assertEqual(sorted(entry.name for entry in home.iterdir()), sorted([computer.VERSION, "0.3.0", "keep-me"]))
+
+
+class Passthrough(Sandbox):
+    def install_fake_app(self, version=computer.VERSION) -> Path:
+        app = self.applications / computer.APP_NAME
+        (app / "Contents" / "MacOS").mkdir(parents=True)
+        (app / "Contents" / "Info.plist").write_bytes(info_plist(version))
+        (app / computer.APP_BINARY).write_text("#!/bin/sh\n")
+        return app
+
+    def test_execs_the_installed_app_with_argv_unchanged(self):
+        app = self.install_fake_app()
+        with mock.patch.object(os, "execve") as execve, mock.patch.dict(os.environ, {"CUA_DRIVER_RS_UPDATE_CHECK": "1"}):
+            quiet(cli.main, ["computer", "call", "click", '{"pid": 1, "x": 2}', "--json"])
+        binary, argv, env = execve.call_args.args
+        self.assertEqual(binary, str(app / computer.APP_BINARY))
+        self.assertEqual(argv, [binary, "call", "click", '{"pid": 1, "x": 2}', "--json"])
+        self.assertEqual(env["CUA_DRIVER_RS_TELEMETRY_ENABLED"], "0")
+        self.assertEqual(env["CUA_DRIVER_RS_UPDATE_CHECK"], "1")
+
+    def test_help_word_maps_to_the_driver_help(self):
+        self.install_fake_app()
+        with mock.patch.object(os, "execve") as execve:
+            quiet(computer.main, ["help", "permissions"])
+        self.assertEqual(execve.call_args.args[1][1:], ["--help", "permissions"])
+
+    def test_without_setup_daemon_commands_point_at_setup(self):
+        with mock.patch.object(os, "execve") as execve:
+            status, _, err = quiet(computer.main, ["mcp"])
+        self.assertEqual(status, 1)
+        self.assertIn("ardia computer setup", err)
+        execve.assert_not_called()
+
+    def test_without_setup_other_commands_use_the_bundled_copy(self):
+        self.serve_driver()
+        with mock.patch.object(os, "execve") as execve:
+            quiet(computer.main, ["list-tools"])
+        self.assertEqual(execve.call_args.args[0], str(self.cli_home / "cua-driver" / computer.VERSION / "CuaDriver" / computer.APP_BINARY))
+
+    def test_update_channel_and_skills_are_refused(self):
+        for word in ("update", "channel", "skills"):
+            with mock.patch.object(os, "execve") as execve:
+                status, _, err = quiet(computer.main, [word, "--apply"])
+            self.assertEqual(status, 2)
+            self.assertIn("ardia", err)
+            execve.assert_not_called()
+
+    def test_an_outdated_app_ardia_installed_says_so(self):
+        app = self.install_fake_app(version="0.0.9")
+        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": "abc"})
+        with mock.patch.object(os, "execve"):
+            _, _, err = quiet(computer.main, ["list-tools"])
+        self.assertIn("ardia computer setup", err)
+
+    def test_shared_flags_are_refused(self):
+        status, _, err = quiet(cli.main, ["--port", "9", "computer", "list-tools"])
+        self.assertEqual(status, 2)
+        self.assertIn("computer doesn't take --port", err)
+
+    def test_help_mentions_computer(self):
+        _, out, _ = quiet(cli.main, ["computer", "--help"])
+        self.assertIn("ardia computer setup", out)
+        self.assertIn(computer.VERSION, out)
+        with self.assertRaises(SystemExit):
+            quiet(cli.main, ["--help"])
+        self.assertIn("computer", cli.build_parser().format_help())
+
+
+class Setup(Sandbox):
+    def setUp(self):
+        super().setUp()
+        self.serve_driver()
+        patches = [
+            mock.patch.object(computer, "copy_app", lambda source, dest: shutil.copytree(source, dest)),
+            mock.patch.object(computer, "code_hash", lambda app: computer.app_version(app)),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_installs_into_applications_and_records_it(self):
+        status, out, _ = quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(status, 0)
+        app = self.applications / computer.APP_NAME
+        self.assertTrue((app / computer.APP_BINARY).is_file())
+        self.assertIn(f"installed {app}", out)
+        self.assertEqual(computer.read_record()["path"], str(app))
+        link = self.home / "bin" / "cua-driver"
+        self.assertTrue(link.is_symlink())
+        self.assertIn("computer", Path(os.readlink(link)).read_text())
+        self.assertEqual([entry.name for entry in self.applications.iterdir()], [computer.APP_NAME])
+
+    def test_never_replaces_an_app_ardia_didnt_install(self):
+        app = self.applications / computer.APP_NAME
+        (app / "Contents").mkdir(parents=True)
+        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.41.3"))
+        status, out, _ = quiet(computer.setup, ["--no-grant"])
+        self.assertEqual(status, 0)
+        self.assertIn("kept", out)
+        self.assertEqual(computer.app_version(app), "0.41.3")
+
+    def test_updates_an_app_it_installed_and_refresh_is_a_no_op_once_current(self):
+        app = self.applications / computer.APP_NAME
+        (app / "Contents" / "MacOS").mkdir(parents=True)
+        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.0.9"))
+        computer.save_record({"path": str(app), "version": "0.0.9", "cdhash": "0.0.9"})
+        status, out, _ = quiet(computer.refresh)
+        self.assertEqual(status, 0)
+        self.assertIn(f"updated {app}", out)
+        self.assertEqual(computer.app_version(app), computer.VERSION)
+        self.assertEqual(quiet(computer.refresh)[1], "")
+
+    def test_refresh_leaves_a_foreign_app_alone(self):
+        app = self.applications / computer.APP_NAME
+        (app / "Contents").mkdir(parents=True)
+        (app / "Contents" / "Info.plist").write_bytes(info_plist("0.0.9"))
+        self.assertEqual(quiet(computer.refresh), (0, "", ""))
+        self.assertEqual(computer.app_version(app), "0.0.9")
+
+    def test_keeps_a_cua_driver_command_that_isnt_ours(self):
+        (self.home / "bin").mkdir()
+        (self.home / "bin" / "cua-driver").write_text("theirs\n")
+        _, out, _ = quiet(computer.setup, ["--no-grant"])
+        self.assertIn("kept", out)
+        self.assertEqual((self.home / "bin" / "cua-driver").read_text(), "theirs\n")
+
+
+class McpConfig(Sandbox):
+    def test_claude_code_and_codex_point_at_ardia_computer_mcp(self):
+        ardia = self.cli_home / "current" / "bin" / "ardia"
+        ardia.parent.mkdir(parents=True)
+        ardia.write_text("#!/bin/sh\n")
+        _, out, _ = quiet(computer.main, ["mcp-config", "--target", "claude-code"])
+        prefix = "claude mcp add-json --scope user cua-driver "
+        self.assertTrue(out.startswith(prefix))
+        import shlex
+
+        entry = json.loads(shlex.split(out[len(prefix):])[0])
+        self.assertEqual(entry, {"command": str(ardia), "args": ["computer", "mcp"]})
+        _, out, _ = quiet(computer.main, ["mcp-config", "--target", "codex"])
+        self.assertEqual(shlex.split(out), ["codex", "mcp", "add", "cua-driver", "--", str(ardia), "computer", "mcp"])
+        _, out, _ = quiet(computer.main, ["mcp-config"])
+        self.assertEqual(json.loads(out), {"mcpServers": {"cua-driver": {"command": str(ardia), "args": ["computer", "mcp"]}}})
+
+
+class CuaSkills(Sandbox):
+    def setUp(self):
+        super().setUp()
+        self.serve_skills()
+
+    def cua(self, base: str = ".claude/skills") -> Path:
+        return self.home / base / "cua-driver"
+
+    def test_install_puts_the_pinned_cua_skill_next_to_ours(self):
+        status, out, _ = quiet(skills.install, ["claude-code"], False)
+        self.assertEqual(status, 0)
+        folder = self.cua()
+        self.assertEqual(sorted(entry.name for entry in folder.iterdir()), [skills.MARKER, "MACOS.md", "SKILL.md", "WORKFLOW.md"])
+        marker = json.loads((folder / skills.MARKER).read_text())
+        self.assertEqual((marker["vendor"], marker["skill"], marker["version"]), ("ardia", "cua-driver", computer.VERSION))
+        self.assertIn(f"cua-driver {computer.VERSION}: {folder}", out)
+        ours = json.loads((self.home / ".claude/skills/ardia" / skills.MARKER).read_text())
+        self.assertEqual(ours["companions"], ["cua-driver"])
+
+    def test_no_cua_skips_it(self):
+        status, _, _ = quiet(cli.main, ["skills", "install", "--target", "codex", "--no-cua"])
+        self.assertEqual(status, 0)
+        self.assertFalse(self.cua(".agents/skills").exists())
+        self.assertEqual(quiet(skills.refresh)[0], 0)
+        self.assertFalse(self.cua(".agents/skills").exists())
+
+    def test_a_cua_skill_from_cuas_installer_is_left_alone(self):
+        theirs = self.home / ".cua-driver" / "skills" / "cua-driver"
+        theirs.mkdir(parents=True)
+        (theirs / "SKILL.md").write_text("theirs\n")
+        (self.home / ".claude/skills").mkdir(parents=True)
+        self.cua().symlink_to(theirs)
+        status, out, _ = quiet(skills.install, ["claude-code"], False)
+        self.assertEqual(status, 0)
+        self.assertIn(f"kept {self.cua()}", out)
+        self.assertEqual((theirs / "SKILL.md").read_text(), "theirs\n")
+        self.assertEqual(sorted(entry.name for entry in theirs.iterdir()), ["SKILL.md"])
+        _, out, _ = quiet(skills.refresh)
+        self.assertEqual((theirs / "SKILL.md").read_text(), "theirs\n")
+        self.assertTrue(self.cua().is_symlink())
+
+    def test_an_unmarked_cua_folder_is_left_alone(self):
+        folder = self.cua()
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("hand made\n")
+        for marker in (None, '{"vendor": "ardia", "files": ["SKILL.md"]}'):
+            if marker:
+                (folder / skills.MARKER).write_text(marker)
+            _, out, _ = quiet(skills.install, ["claude-code"], False)
+            self.assertIn(f"kept {folder}", out)
+            self.assertEqual((folder / "SKILL.md").read_text(), "hand made\n")
+
+    def test_refresh_rewrites_ours_and_drops_files_it_no_longer_ships(self):
+        quiet(skills.install, ["claude-code"], False)
+        folder = self.cua()
+        (folder / "mine.md").write_text("mine\n")
+        self.serve_skills({f"{computer.SKILLS_TOP}/SKILL.md": b"v2\n", f"{computer.SKILLS_TOP}/MACOS.md": b"mac2\n"})
+        shutil.rmtree(self.cli_home / "cua-driver" / computer.VERSION / "skills")
+        status, out, _ = quiet(skills.refresh)
+        self.assertEqual(status, 0)
+        self.assertEqual((folder / "SKILL.md").read_text(), "v2\n")
+        self.assertFalse((folder / "WORKFLOW.md").exists())
+        self.assertTrue((folder / "mine.md").exists())
+        self.assertIn(f"refreshed {folder}", out)
+
+    def test_refresh_never_writes_through_a_linked_file(self):
+        quiet(skills.install, ["claude-code"], False)
+        target = self.root / "elsewhere.md"
+        target.write_text("theirs\n")
+        (self.cua() / "SKILL.md").unlink()
+        (self.cua() / "SKILL.md").symlink_to(target)
+        self.assertEqual(quiet(skills.refresh)[0], 0)
+        self.assertEqual(target.read_text(), "theirs\n")
+        self.assertFalse((self.cua() / "SKILL.md").is_symlink())
+
+    def test_refresh_adds_it_once_to_copies_from_before_and_never_brings_back_a_deleted_one(self):
+        quiet(skills.install, ["claude-code"], False, False)
+        ours = self.home / ".claude/skills/ardia" / skills.MARKER
+        data = json.loads(ours.read_text())
+        del data["companions"]
+        ours.write_text(json.dumps(data))
+        self.assertEqual(quiet(skills.refresh)[0], 0)
+        self.assertTrue((self.cua() / "SKILL.md").is_file())
+        shutil.rmtree(self.cua())
+        self.assertEqual(quiet(skills.refresh)[0], 0)
+        self.assertFalse(self.cua().exists())
+        quiet(skills.install, ["claude-code"], False)
+        self.assertTrue(self.cua().exists())
+
+    def test_a_failed_download_is_reported_and_retried_on_the_next_refresh(self):
+        self.served.clear()
+        status, out, _ = quiet(skills.install, ["claude-code"], False)
+        self.assertEqual(status, 1)
+        self.assertIn(f"error {self.cua()}", out)
+        self.assertTrue((self.home / ".claude/skills/ardia/SKILL.md").is_file())
+        self.assertNotIn("companions", json.loads((self.home / ".claude/skills/ardia" / skills.MARKER).read_text()))
+        self.serve_skills()
+        self.assertEqual(quiet(skills.refresh)[0], 0)
+        self.assertTrue((self.cua() / "SKILL.md").is_file())
+
+    def test_a_cua_skill_checksum_mismatch_installs_nothing(self):
+        with mock.patch.object(computer, "SKILLS_SHA256", "f" * 64):
+            status, out, _ = quiet(skills.install, ["claude-code"], False)
+        self.assertEqual(status, 1)
+        self.assertIn("checksum mismatch", out)
+        self.assertFalse(self.cua().exists())
+
+    def test_the_ardia_marker_doesnt_claim_a_cua_folder_and_back(self):
+        quiet(skills.install, ["claude-code"], False)
+        self.assertIsNone(skills.marked_files(self.cua()))
+        self.assertIsNone(skills.marked_files(self.home / ".claude/skills/ardia", skills.CUA_SKILL))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -12,7 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import cli, skills
+from ardia_cli import cli, computer, skills
 
 SCRATCH = Path.home() / "ardia-scratch"
 OLD_LAYOUT = ("SKILL.md", "references/automation.md", "references/browse.md", "references/config.md",
@@ -39,6 +39,7 @@ class Refresh(unittest.TestCase):
             mock.patch.dict(os.environ, {"HOME": str(self.home), "ARDIA_CLI_HOME": str(self.cli_home), "DO_NOT_TRACK": "1"}),
             mock.patch.object(Path, "home", classmethod(lambda cls: self.home)),
             mock.patch.object(Path, "cwd", classmethod(lambda cls: self.project)),
+            mock.patch.object(computer, "skill_pack", lambda env=None: {"SKILL.md": b"---\nname: cua-driver\n---\n"}),
         ]
         for patch in patches:
             patch.start()
@@ -244,7 +245,7 @@ class Contents(unittest.TestCase):
         description = frontmatter[1].split(": ", 1)[1]
         self.assertLessEqual(len(description), 1024)
         self.assertNotIn(": ", description)
-        self.assertLess(len(text), 5600)
+        self.assertLess(len(text), 5700)
         for reference in re.findall(r"`(?:references/)?([a-z-]+\.md)`", text):
             self.assertTrue((source / "references" / reference).is_file(), reference)
 

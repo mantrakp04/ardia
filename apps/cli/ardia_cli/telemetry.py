@@ -389,6 +389,12 @@ def finish(status: int, error: BaseException | None = None) -> None:
         pass
 
 
+def finish_before_exec() -> None:
+    global _call
+    finish(0)
+    _call = None
+
+
 def report_exception(error: BaseException, mechanism: str, config: dict, fatal: bool = False) -> None:
     from ardia_cli import command_metrics
 

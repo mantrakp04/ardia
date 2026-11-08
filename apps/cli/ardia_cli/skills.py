@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 
 SKILL_NAME = "ardia"
+CUA_SKILL = "cua-driver"
+COMPANIONS = (CUA_SKILL,)
 MARKER = ".ardia-skill"
 TARGETS = {
     "general": (".agents/skills", ".agents/skills"),
@@ -57,7 +59,7 @@ def safe_relative(name) -> bool:
     return all(part not in ("", ".", "..") for part in parts) and parts[0] != MARKER
 
 
-def marked_files(folder: Path) -> list[str] | None:
+def read_marker(folder: Path, skill: str = SKILL_NAME) -> dict | None:
     marker = folder / MARKER
     if marker.is_symlink() or not marker.is_file():
         return None
@@ -66,6 +68,15 @@ def marked_files(folder: Path) -> list[str] | None:
     except (OSError, ValueError):
         return None
     if not isinstance(data, dict) or data.get("vendor") != "ardia" or not isinstance(data.get("files"), list):
+        return None
+    if data.get("skill", SKILL_NAME) != skill:
+        return None
+    return data
+
+
+def marked_files(folder: Path, skill: str = SKILL_NAME) -> list[str] | None:
+    data = read_marker(folder, skill)
+    if data is None:
         return None
     return [name for name in data["files"] if safe_relative(name)]
 
@@ -133,25 +144,72 @@ def remove_file(folder: Path, name: str) -> None:
         path.unlink()
 
 
-def install_into(folder: Path) -> None:
+def write_pack(folder: Path, previous: list[str], pack: dict[str, bytes], marker: dict) -> None:
+    files = sorted(pack)
+    for name in files:
+        write_file(folder, name, pack[name])
+    for name in sorted(set(previous) - set(files)):
+        remove_file(folder, name)
+    write_file(folder, MARKER, (json.dumps({**marker, "files": files}, indent=2) + "\n").encode("utf-8"))
+
+
+def install_into(folder: Path, companions: list[str] | None = None) -> None:
     previous: list[str] = []
     if folder.is_symlink() or folder.exists():
         owned = owned_files(folder)
         if owned is None:
             raise FileExistsError(f"{folder} exists and isn't the ardia skill (no {MARKER} marker); move it away first")
         previous = owned
+        if companions is None:
+            companions = (read_marker(folder) or {}).get("companions")
     else:
         folder.mkdir(parents=True)
     source = skill_source()
-    files = shipped_files()
-    for name in files:
-        write_file(folder, name, (source / name).read_bytes())
-    for name in sorted(set(previous) - set(files)):
-        remove_file(folder, name)
+    pack = {name: (source / name).read_bytes() for name in shipped_files()}
     from ardia_cli import __version__
 
-    marker = {"vendor": "ardia", "version": __version__, "files": files}
-    write_file(folder, MARKER, (json.dumps(marker, indent=2) + "\n").encode("utf-8"))
+    marker = {"vendor": "ardia", "version": __version__}
+    if isinstance(companions, list):
+        marker["companions"] = [name for name in companions if name in COMPANIONS]
+    write_pack(folder, previous, pack, marker)
+
+
+def note_companions(folder: Path, names: list[str]) -> None:
+    data = read_marker(folder)
+    if data is None:
+        return
+    data["companions"] = names
+    write_file(folder, MARKER, (json.dumps(data, indent=2) + "\n").encode("utf-8"))
+
+
+def companion_folder(folder: Path) -> Path:
+    return folder.parent / CUA_SKILL
+
+
+def install_companion(folder: Path) -> str:
+    from ardia_cli import computer
+
+    previous: list[str] = []
+    if folder.is_symlink() or folder.exists():
+        owned = None if folder.is_symlink() or not folder.is_dir() else marked_files(folder, CUA_SKILL)
+        if owned is None:
+            return f"kept {folder}: a {CUA_SKILL} skill is already there and ardia didn't install it (cua-driver's own installer?)"
+        previous = owned
+    pack = computer.skill_pack()
+    if not folder.exists():
+        folder.mkdir(parents=True)
+    marker = {"vendor": "ardia", "skill": CUA_SKILL, "upstream": f"trycua/cua cua-driver-rs-v{computer.VERSION}", "version": computer.VERSION}
+    write_pack(folder, previous, pack, marker)
+    return f"{CUA_SKILL} {computer.VERSION}: {folder}"
+
+
+def companion_line(folder: Path) -> tuple[str, int]:
+    from ardia_cli import computer
+
+    try:
+        return install_companion(folder), 0
+    except (OSError, computer.Refused) as error:
+        return f"error {folder}: {error}", 1
 
 
 def record_path() -> Path:
@@ -178,7 +236,7 @@ def save_record(folders: list[Path]) -> None:
         pass
 
 
-def install(targets: list[str], project: bool) -> int:
+def install(targets: list[str], project: bool, computer_use: bool = True) -> int:
     written: dict[Path, list[str]] = {}
     for target in dict.fromkeys(targets):
         written.setdefault(destination(target, project), []).append(target)
@@ -186,13 +244,20 @@ def install(targets: list[str], project: bool) -> int:
     installed = []
     for folder, names in written.items():
         try:
-            install_into(folder)
+            install_into(folder, None if computer_use else [])
         except OSError as error:
             print(f"{', '.join(names)}: error {error}")
             status = 1
             continue
         installed.append(folder.absolute())
         print(f"{', '.join(names)}: {folder}")
+        if computer_use:
+            line, failed = companion_line(companion_folder(folder))
+            print(f"{', '.join(names)}: {line}")
+            if failed:
+                status = 1
+            else:
+                note_companions(folder, list(COMPANIONS))
     if installed:
         save_record(recorded_folders() + installed)
     return status
@@ -216,5 +281,16 @@ def refresh() -> int:
             status = 1
             continue
         print(f"refreshed {folder}")
+        companions = (read_marker(folder) or {}).get("companions")
+        cua = companion_folder(folder)
+        ours = marked_files(cua, CUA_SKILL) is not None and not cua.is_symlink()
+        if (companions is None and not (cua.is_symlink() or cua.exists())) or (ours and (companions is None or CUA_SKILL in companions)):
+            line, failed = companion_line(cua)
+            print(line if line.startswith("error") else f"refreshed {cua}")
+            if failed:
+                status = 1
+                continue
+        if companions is None:
+            note_companions(folder, list(COMPANIONS))
     save_record(kept)
     return status

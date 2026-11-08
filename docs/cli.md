@@ -61,7 +61,10 @@ the pins into `pyproject.toml`).
   included, is refused. Each folder it wrote goes into `$ARDIA_CLI_HOME/skills.json`. `ardia skills refresh`
   rewrites every folder in that list and every user-level folder above that is ours, prints `skipped <folder>` for
   the ones that aren't, refuses a linked subfolder, and keeps only our folders in the list. `install.sh` runs it after
-  each upgrade, so installed copies follow the CLI.
+  each upgrade, so installed copies follow the CLI. Both also install cua-driver's skill next to ours (see Computer
+  use); `--no-cua` skips it.
+- `ardia computer <cua-driver command> [args]`, `ardia computer setup [--no-grant]` and
+  `ardia computer mcp-config [--target …]` operate native Mac apps through the pinned cua-driver (see Computer use).
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).
 - `ardia config path|init|get|set|unset|list|edit|check` reads, writes and checks `config.json` (see
   `docs/config.md`, The ardia command). Never needs Ardia running.
@@ -873,6 +876,84 @@ It records `star.prompted_at` first, so it never shows twice. `ARDIA_STAR_PROMPT
 `ardia browse --session ardia-star open https://github.com/mantrakp04/ardia --show` (its own session, so the agent's
 tab stays where it was) and says to ask the user to click Star; it never clicks it. If that fails too it prints the
 URL and exits 1. Whatever happened, it records `star.done_at` so the nudge never shows again.
+
+## Computer use
+
+`ardia computer` is [cua-driver](https://github.com/trycua/cua/tree/main/libs/cua-driver) (MIT, Cua AI): an MCP server
+and CLI that operates native apps through the accessibility tree, in background windows, with a cursor of its own.
+The browser stays `ardia browse`; `ardia computer` is for everything that isn't a web page in Ardia. Code:
+`ardia_cli/computer.py`.
+
+### What ships and where it lands
+
+The CLI tarball doesn't carry it (it would add about 31 MB compressed, 83 MB installed, for everyone). It's fetched
+on first use from cua's GitHub release, pinned in `computer.py`: `VERSION`, `DRIVER_SHA256` (the
+`cua-driver-rs-<V>-darwin-arm64.tar.gz` asset, about 85 MB) and `SKILLS_SHA256` (`cua-driver-rs-v<V>-skills.tar.gz`).
+A download is https only (redirects too), checked against the pinned digest before anything is extracted (a mismatch
+installs nothing), and extracted with no links, special files or entries outside the archive's folder. Only the
+signed `CuaDriver.app`, `LICENSE` and `THIRD_PARTY_NOTICES.md` are kept, in `$ARDIA_CLI_HOME/cua-driver/<V>/`; the
+app is stored as `CuaDriver` (no `.app`) so LaunchServices never sees a second copy. It must be Cua AI's: bundle id
+`com.trycua.driver`, the pinned version, and `codesign --verify --deep --strict` against
+`identifier "com.trycua.driver" and anchor apple generic and certificate leaf[subject.OU] = "YCK386LBJ7"`. The
+bundle is Developer ID signed, hardened and notarized with a stapled ticket; ardia never re-signs or modifies it, so
+our own signing and notarization are untouched. The current and one older version stay; `install.sh` keeps the
+folder across upgrades and `--uninstall` removes it.
+
+### Permissions
+
+macOS ties Accessibility and Screen Recording to the app that asks. cua-driver's daemon is always
+`/Applications/CuaDriver.app` (hardcoded upstream): `cua-driver mcp` starts it with `open -n -g
+/Applications/CuaDriver.app --args serve`, and `permissions grant` asks for the switches from inside it, so the
+grants land on `com.trycua.driver`, never on the terminal, the agent or ardia. `ardia computer setup` therefore
+copies the verified app there with `ditto`, checks the copy again, registers it with LaunchServices, records its
+path, version and CDHash in `$ARDIA_CLI_HOME/cua-driver/applications.json`, links `$ARDIA_CLI_BIN_DIR/cua-driver`
+(default `~/.local/bin`) to a shim that runs `ardia computer` (cua's skill calls `cua-driver`), turns cua-driver's
+telemetry off (`cua-driver telemetry disable`, saved in `~/.cua-driver/config.json`; the daemon starts through
+LaunchServices and never sees our environment), then runs `cua-driver permissions grant` when it has a terminal.
+A `CuaDriver.app` that ardia didn't put there (cua's own installer, another version) is kept and used as it is, and
+a `cua-driver` command that isn't our link is kept too. Replacing ardia's copy with a newer one signed by the same
+team keeps the grants (TCC matches the designated requirement).
+
+### Running it
+
+`ardia computer <args>` execs the driver with the arguments unchanged: `/Applications/CuaDriver.app`'s binary when
+it's there, otherwise the bundled copy (fetched on demand), which can answer `--version`, `--help`, `list-tools`,
+`describe` and the like. `mcp`, `call`, `serve` and `permissions` need the installed app, so before setup they print
+one line pointing at `ardia computer setup` and exit 1. `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` and
+`CUA_DRIVER_RS_UPDATE_CHECK=0` are set unless the caller set them. `update`, `channel` and `skills` exit 2 with where
+to go instead: the driver moves with ardia, not with cua's curl-to-bash installer. `help` is cua-driver's `--help`.
+When ardia's copy in `/Applications` is older than the pin, it says to run setup. Shared flags (`--port` and the
+rest) are refused.
+
+`ardia computer mcp-config --target general|claude-code|codex|cursor|opencode` prints the MCP entry, which runs
+`$ARDIA_CLI_HOME/current/bin/ardia computer mcp` so it keeps working across upgrades: `claude mcp add-json --scope
+user cua-driver '…'` for Claude Code, `codex mcp add cua-driver -- … computer mcp` for Codex, and the JSON to paste
+for the others.
+
+`install.sh` starts `ardia computer refresh` in the background after each upgrade: when the app in `/Applications`
+is ardia's (path and CDHash match the record) and older than the pin, it stops the daemon and swaps in the new one
+(staged next to it, renamed into place); otherwise it does nothing.
+
+### Its skill
+
+`ardia skills install` puts cua-driver's own skill (`SKILL.md` plus its references, `LINUX.md` and `WINDOWS.md`
+left out) in a `cua-driver` folder next to each `ardia` folder, from the pinned skills asset (cached in
+`$ARDIA_CLI_HOME/cua-driver/<V>/skills`). It writes the same `.ardia-skill` marker with `"skill": "cua-driver"` and
+the upstream tag, under the same rules as ours: files written by rename, only files its marker listed removed,
+links never followed. A `cua-driver` folder or link without our marker (cua's installer links
+`~/.cua-driver/skills/cua-driver` into each agent) is left alone and reported as `kept`. Our `ardia` marker records
+`"companions": ["cua-driver"]` once the companion is in place; `refresh` rewrites a marked companion, adds one
+next to an `ardia` folder written before companions existed, and never brings back one the user deleted. A failed
+download fails the command (exit 1), leaves our skill installed, and is retried by the next refresh. `--no-cua`
+records no companions. Our `SKILL.md` has one line pointing native-app work at `ardia computer`.
+
+### Bumping it
+
+Change `VERSION`, `DRIVER_SHA256` and `SKILLS_SHA256` at the top of `ardia_cli/computer.py`, taking the digests
+from the release's `SHA256SUMS` and checking them against your own download (`shasum -a 256`), then run
+`ardia computer --version` against a scratch `ARDIA_CLI_HOME`, the tests, and `ardia computer --help` for new or
+renamed subcommands (`DRIVER_COMMANDS`, `DAEMON_COMMANDS`). Pick a release at least a week or two old: cua ships
+several a day. The bump ships with the next CLI release; `install.sh` then updates ardia's copy in `/Applications`.
 
 ## Install and upgrade
 

@@ -8,6 +8,7 @@ allowed-tools: Bash(ardia:*)
 
 `ardia browse` runs agent-browser's commands on the Ardia the user has open, with their tabs and logins. Every call
 is a turn, and every turn re-reads all the output before it: do the most per call and print the least.
+Native Mac apps, not web pages: computer use with `ardia computer` (cua-driver; its `cua-driver` skill has the how).
 
 ## Start
 
