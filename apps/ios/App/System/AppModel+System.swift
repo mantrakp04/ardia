@@ -69,9 +69,10 @@ extension AppModel {
     browse.readerTabID = nil
   }
 
-  func drainSystemInbox() {
+  func drainSystemInbox(sendsOnly: Bool = false) {
     guard !isDemo, let store = systemStore else { return }
     for item in store.pendingInbox() where !inboxInFlight.contains(item.id) {
+      if sendsOnly, case .open = item.action { continue }
       if inboxSent.contains(item.id) {
         store.removeFromInbox(item.id)
         continue
