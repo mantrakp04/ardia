@@ -637,7 +637,8 @@ In the app:
   and `kScreenCaptureKitPickerScreen` are file-local to `thumbnail_capturer_mac.mm`, already on by default and only
   for the picker's thumbnails, so they don't move macOS 14 off Chromium's own filter. The Mac capture check of an
   Ardia window is still to run; `screen_share_started` and `screen_share_ended` with `via` `system_picker` show how
-  these shares go in the field.
+  these shares go in the field. Many short ones may point at black frames, but a share cancelled or stopped on
+  purpose looks the same, so they are a hint to check on a Mac, not proof.
 
 Verified in the app: a "Tab" track at 1558×1080 delivering frames, plus a "Tab Audio" track.
 

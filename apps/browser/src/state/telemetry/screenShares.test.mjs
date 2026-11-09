@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -8,7 +8,8 @@ globalThis.fetch = async () => ({ status: 200 });
 
 const client = await import("./client.ts");
 client.loadChoice();
-const { noteDisplayAnswer, noteScreenAccess, screenSharePages } = await import("./screenShares.ts");
+const { endRunningScreenShares, noteDisplayAnswer, noteScreenAccess, screenSharePages } = await import("./screenShares.ts");
+after(() => client.setSharing(false, "settings"));
 
 const shareEvents = async () => {
   await client.saveQueueNow();
@@ -76,6 +77,23 @@ test("camera and microphone access alone is not a screen share", async () => {
   const before = (await shareEvents()).length;
   screenSharePages({ g: { mediaAccess: { camera: true, microphone: true, screen: false } } }, { g: { mediaAccess: null } }, 5_000_000);
   assert.equal((await shareEvents()).length, before);
+});
+
+test("quitting ends the shares still running, once each, with the seconds they lasted", async () => {
+  const before = (await shareEvents()).length;
+  noteDisplayAnswer("tab-i", "tab", 7_000_000);
+  noteScreenAccess("tab-i", true, 7_000_200);
+  noteScreenAccess("tab-j", true, 7_000_300);
+  noteScreenAccess("tab-j", false, 7_002_000);
+  endRunningScreenShares(7_030_200);
+  endRunningScreenShares(7_060_000);
+  noteScreenAccess("tab-i", false, 7_061_000);
+  assert.deepEqual((await shareEvents()).slice(before), [
+    ["screen_share_started", "tab", undefined],
+    ["screen_share_started", "system_picker", undefined],
+    ["screen_share_ended", "system_picker", 2],
+    ["screen_share_ended", "tab", 30],
+  ]);
 });
 
 test("nothing is kept while sharing is off, and a share that began then is not reported when sharing comes back", async () => {

@@ -17,7 +17,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
-import { screenSharePages } from "./screenShares";
+import { endRunningScreenShares, screenSharePages } from "./screenShares";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -239,6 +239,7 @@ export function sessionEnding() {
   emitCounts();
   emitOmniboxLatency();
   emitTabPresses();
+  endRunningScreenShares();
   journeysEnding();
   capture("app_session_ended", { duration_minutes: Math.round((Date.now() - startedAt) / 60_000) });
   endSession();

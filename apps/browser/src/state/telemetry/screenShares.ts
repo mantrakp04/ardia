@@ -1,3 +1,4 @@
+import type { PageState } from "../tabs/pageState";
 import { capture, isSharing, useTelemetry } from "./client";
 
 const ANSWER_MATCH_MS = 15_000;
@@ -33,11 +34,21 @@ export function noteScreenAccess(tabId: string, on: boolean, now = Date.now()) {
     capture("screen_share_started", { via });
   } else if (!on && share) {
     running.delete(tabId);
-    capture("screen_share_ended", { via: share.via, seconds: Math.max(0, Math.round((now - share.startedAt) / 1000)) });
+    emitEnded(share, now);
   }
 }
 
-type SharePages = Record<string, { mediaAccess: { screen: boolean } | null } | undefined>;
+function emitEnded(share: Running, now: number) {
+  capture("screen_share_ended", { via: share.via, seconds: Math.max(0, Math.round((now - share.startedAt) / 1000)) });
+}
+
+export function endRunningScreenShares(now = Date.now()) {
+  const shares = [...running.values()];
+  running = new Map();
+  for (const share of shares) emitEnded(share, now);
+}
+
+type SharePages = Record<string, Pick<PageState, "mediaAccess"> | undefined>;
 
 export function screenSharePages(pages: SharePages, previous: SharePages, now = Date.now()) {
   if (pages === previous) return;
