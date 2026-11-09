@@ -2,6 +2,7 @@
 #import "ArdiaContentBlockerInternal.h"
 #import "ArdiaWindowController.h"
 
+#import <Carbon/Carbon.h>
 #import <objc/message.h>
 
 namespace ardia_host {
@@ -61,6 +62,26 @@ void NoteFocusChange(NSString *what, NSWindow *window) {
   if (history.count > kFocusHistoryLength) [history removeObjectAtIndex:0];
 }
 
+NSString *CurrentInputSourceId() {
+  if (!NSThread.isMainThread) return @"unavailable off the main thread";
+  TISInputSourceRef source = TISCopyCurrentKeyboardInputSource();
+  if (!source) return @"none";
+  NSString *identifier = (__bridge NSString *)TISGetInputSourceProperty(source, kTISPropertyInputSourceID);
+  NSString *described = identifier.length ? [identifier copy] : @"unknown";
+  CFRelease(source);
+  return described;
+}
+
+NSString *DescribeTextInput(NSResponder *responder) {
+  if (!responder) return @"responder none";
+  const BOOL client = [responder conformsToProtocol:@protocol(NSTextInputClient)];
+  NSString *marked = !client ? @"n/a" : [(id<NSTextInputClient>)responder hasMarkedText] ? @"yes" : @"no";
+  NSTextInputContext *context = [responder respondsToSelector:NSSelectorFromString(@"inputContext")] ? [responder valueForKey:@"inputContext"] : nil;
+  NSString *contextSource = context ? (context.selectedKeyboardInputSource ?: @"none") : @"no input context";
+  return [NSString stringWithFormat:@"responder %@, text input client %@, marked text %@, context source %@", responder.className,
+                                    client ? @"yes" : @"no", marked, contextSource];
+}
+
 }
 
 void WatchFocusChanges() {
@@ -86,6 +107,10 @@ void WatchFocusChanges() {
   [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
     NoteFocusChange(@"app inactive", nil);
   }];
+  [center addObserverForName:NSTextInputContextKeyboardSelectionDidChangeNotification object:nil queue:NSOperationQueue.mainQueue
+                  usingBlock:^(NSNotification *) {
+    NoteFocusChange([@"input source changed to " stringByAppendingString:CurrentInputSourceId()], nil);
+  }];
 }
 
 NSString *FocusState() {
@@ -94,6 +119,7 @@ NSString *FocusState() {
   [lines addObject:[NSString stringWithFormat:@"app %@, modal %@", NSApp.isActive ? @"active" : @"inactive",
                                               NSApp.modalWindow ? DescribeFocusWindow(NSApp.modalWindow) : @"none"]];
   [lines addObject:[NSString stringWithFormat:@"key %@, responder %@", DescribeFocusWindow(key), DescribeFocusResponder(key.firstResponder)]];
+  [lines addObject:[NSString stringWithFormat:@"input source %@, key %@", CurrentInputSourceId(), DescribeTextInput(key.firstResponder)]];
   [lines addObject:[NSString stringWithFormat:@"main %@%@", DescribeFocusWindow(main),
                                               main && main != key ? [@", responder " stringByAppendingString:DescribeFocusResponder(main.firstResponder)] : @""]];
   for (NSWindow *window in NSApp.windows) {
