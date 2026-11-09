@@ -48,7 +48,7 @@ export function BoostsPane({ profileId: chosen }: { profileId: string | null }) 
           <Row title="No Boosts yet" description="Open Site Controls on any page and choose New Boost." />
         </Group>
       )}
-      <SectionHeader anchor="boosts.import" />
+      <SectionHeader anchor="boosts.import" description={null} />
       <Group>
         <Row anchor="boosts.import">
           <Button title="Import Boost…" onPress={() => showSettingsSheet(<ImportBoostSheet profileId={profileId} />)} />

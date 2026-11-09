@@ -11,6 +11,7 @@ import type { Tab } from "../browser/types";
 import { organizeActions } from "./organizeActions";
 import { muteState, muteTitle, siteMuteTitle } from "../tabs/mute";
 import { canBoostTab, hasActiveSiteBoosts, siteBoostsOfTab } from "../boostUi/actions";
+import { useBoostStore } from "../boosts/store";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
 
@@ -138,10 +139,16 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
   return out;
 }
 
-const barActionsOf = new WeakMap<BrowserState, Map<string, CommandAction[]>>();
+let barActionsOf = new WeakMap<BrowserState, Map<string, CommandAction[]>>();
+let boostsSeen = useBoostStore.getState().boostsByProfile;
 
 export function currentBarActions(windowId: string): CommandAction[] {
   const s = useBrowser.getState();
+  const boosts = useBoostStore.getState().boostsByProfile;
+  if (boosts !== boostsSeen) {
+    boostsSeen = boosts;
+    barActionsOf = new WeakMap();
+  }
   let byWindow = barActionsOf.get(s);
   if (!byWindow) barActionsOf.set(s, (byWindow = new Map()));
   const key = `${windowId}|${menuBarRevision()}`;

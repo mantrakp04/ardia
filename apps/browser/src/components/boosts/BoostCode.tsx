@@ -33,7 +33,9 @@ function CodeField({ value, placeholder, onPreview, onCommit }: { value: string;
         setText(next);
         onPreview(next);
       }}
-      onBlur={() => onCommit(text)}
+      onBlur={() => {
+        if (text !== value) onCommit(text);
+      }}
       placeholder={placeholder}
       placeholderTextColor={theme.textTertiary}
       selectionColor={theme.selection}

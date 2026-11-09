@@ -51,7 +51,7 @@ function ToolButton({ icon, title, tooltip, active, onPress }: { icon: string; t
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} tooltip={tooltip} style={{ flex: 1 }}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tooltip}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tooltip} accessibilityState={{ selected: !!active }}>
         {({ pressed }) => (
           <View
             style={{

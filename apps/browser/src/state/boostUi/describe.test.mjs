@@ -9,7 +9,7 @@ test("an untouched boost changes nothing", () => {
 });
 
 test("each setting adds one line", () => {
-  const lines = boostChanges({ ...blank, colors: { invert: true }, font: "Futura", size: 125, textCase: "upper", zaps: ["a", "b"], css: "a{}\nb{}" });
+  const lines = boostChanges({ ...blank, colors: { invert: true }, font: "Futura", size: 125, textCase: "upper", zaps: ["a", "b"], css: "a{}\nb{}", js: "run()" });
   assert.deepEqual(lines, [
     "Recolours the page with inverted lightness",
     "Sets the font to Futura",
@@ -17,6 +17,7 @@ test("each setting adds one line", () => {
     "Shows text in UPPERCASE",
     "Hides 2 elements",
     "Adds 2 lines of CSS",
+    "Runs JavaScript",
   ]);
 });
 

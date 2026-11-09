@@ -178,6 +178,9 @@ class ACPageObserver : public content::RenderFrameObserver,
       return;
     }
     boost_css_ = css;
+    if (pending_boost_) {
+      pending_boost_->css = css;
+    }
     if (document_started_) {
       ApplyBoostStyle();
     }

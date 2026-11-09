@@ -30,5 +30,5 @@ test("a boost made on www gets the bare domain", () => {
 
 test("only enabled boosts apply", () => {
   const list = [boost("example.com"), boost("example.com", false, false), boost("other.com")];
-  assert.equal(boostsForHost(list, "www.example.com").length, 1);
+  assert.deepEqual(boostsForHost(list, "www.example.com"), [list[0]]);
 });

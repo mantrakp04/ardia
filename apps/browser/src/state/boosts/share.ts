@@ -1,3 +1,4 @@
+import { boostDomain } from "./match";
 import { boostableDomain, importableCss, safeSelector } from "./valid";
 import { BOOST_CASES, BOOST_FONTS, BOOST_SIZES, type Boost, type BoostColors } from "./types";
 
@@ -187,7 +188,7 @@ export function decodeBoost(code: string): Boost | ShareError {
     id: "",
     name,
     author,
-    domain,
+    domain: boostDomain(domain),
     subdomains,
     enabled: true,
     colors: readColorsResult,

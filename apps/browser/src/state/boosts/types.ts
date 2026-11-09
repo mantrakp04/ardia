@@ -66,5 +66,3 @@ export const BOOST_FONTS = [
   "SF Pro",
 ] as const;
 
-export const MAX_ZAP_MATCHES = 100;
-export const MAX_ZAP_CANDIDATES = 15;

@@ -1,11 +1,13 @@
 import type { Boost } from "../boosts/types";
+import { boostDomain } from "../boosts/match";
 
 const CASES = { none: "", lower: "lowercase", upper: "UPPERCASE", title: "Title Case" } as const;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function siteLine(boost: Pick<Boost, "domain" | "subdomains">): string {
-  return boost.subdomains ? `${boost.domain} and every subdomain` : `${boost.domain} and www.${boost.domain}`;
+  const domain = boostDomain(boost.domain);
+  return boost.subdomains ? `${domain} and every subdomain` : `${domain} and www.${domain}`;
 }
 
 export function boostChanges(boost: Boost): string[] {

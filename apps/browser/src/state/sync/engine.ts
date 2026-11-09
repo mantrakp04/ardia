@@ -349,7 +349,9 @@ export function startSync() {
     if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.groups !== prev.groups) scheduleSync();
   });
   useBoostStore.subscribe(() => {
-    if (doc.enabled && !cycle) scheduleSync();
+    if (!doc.enabled || !doc.types.boosts) return;
+    if (cycle) again = true;
+    else scheduleSync();
   });
   if (__DEV__) {
     (globalThis as { acSync?: object }).acSync = {

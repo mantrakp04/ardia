@@ -9,16 +9,16 @@ const useBoostEditors = create<{ byWindow: Record<string, BoostEditor> }>()(() =
 
 export function openBoostEditor(windowId: string, tabId: string, boostId: string) {
   const open = useBoostEditors.getState().byWindow[windowId];
-  if (open && open.tabId !== tabId) {
+  if (open && (open.tabId !== tabId || open.boostId !== boostId)) {
     dropPendingPreview(open.tabId);
     void clearBoostPreview(open.tabId).catch(orWarn(undefined));
   }
   useBoostEditors.setState((s) => ({ byWindow: { ...s.byWindow, [windowId]: { tabId, boostId } } }));
 }
 
-export function closeBoostEditor(windowId: string) {
+export function closeBoostEditor(windowId: string, boostId?: string) {
   const open = useBoostEditors.getState().byWindow[windowId];
-  if (!open) return;
+  if (!open || (boostId !== undefined && open.boostId !== boostId)) return;
   const { [windowId]: _, ...rest } = useBoostEditors.getState().byWindow;
   useBoostEditors.setState({ byWindow: rest });
   dropPendingPreview(open.tabId);

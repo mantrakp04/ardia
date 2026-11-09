@@ -29,7 +29,7 @@ const LIB_VERSION = "1.0.0";
 const production = PRODUCTION_HOSTS.includes(location.hostname);
 export const pageUrl = () => {
   const url = new URL(location.href);
-  if (url.pathname.startsWith("/boost")) url.hash = "";
+  if (url.pathname.replace(/\/$/, "").endsWith("/boost")) url.hash = "";
   return url.href;
 };
 

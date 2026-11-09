@@ -68,7 +68,8 @@ function Panel({ windowId, tabId, profileId, stored }: { windowId: string; tabId
   nameRef.current = { name, stored: stored.name };
   const commitName = () => {
     const next = name.trim();
-    if (next && next !== stored.name) updateBoost(profileId, stored.id, { name: next });
+    if (!next) setName(stored.name);
+    else if (next !== stored.name) updateBoost(profileId, stored.id, { name: next });
   };
   useEffect(
     () => () => {

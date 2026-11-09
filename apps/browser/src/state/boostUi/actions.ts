@@ -78,7 +78,7 @@ export async function deleteBoostAfterConfirm(profileId: string, boost: Boost, w
     windowId,
   });
   if (!confirmed) return;
-  if (windowId) closeBoostEditor(windowId);
+  if (windowId) closeBoostEditor(windowId, boost.id);
   deleteBoost(profileId, boost.id);
 }
 
@@ -100,7 +100,7 @@ export async function showBoostMenu(profileId: string, boost: Boost, windowId: s
   ]);
   if (choice === "rename") await renameBoost(profileId, boost, windowId);
   else if (choice === "subdomains") updateBoost(profileId, boost.id, { subdomains: !boost.subdomains });
-  else if (choice === "share") copyShareCode(loadBoosts(profileId).find((b) => b.id === boost.id) ?? boost);
+  else if (choice === "share") copyShareCode(loadBoosts(currentBoostsKey(profileId)).find((b) => b.id === boost.id) ?? boost);
   else if (choice === "reset") await resetBoostAfterConfirm(profileId, boost, windowId);
   else if (choice === "delete") await deleteBoostAfterConfirm(profileId, boost, windowId);
 }

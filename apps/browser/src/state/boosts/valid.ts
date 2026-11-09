@@ -56,8 +56,8 @@ export function validBoost(id: string, raw: unknown): Boost | null {
 
 export const withoutId = ({ id: _id, ...rest }: Boost) => rest;
 
-const UNSAFE_SELECTOR = /[{};@<>]|\/\*/;
-const WEB_URL = /url\(\s*(?!["']?data:)/i;
+const UNSAFE_SELECTOR = /[{};@<]|\/\*/;
+const WEB_URL = /url\(\s*(?!["']?\s*data:)/i;
 const FETCHING_CSS = /@import|image-set\(|image\(|cross-fade\(|src\(|\\/i;
 
 export const safeSelector = (selector: string) => selector.trim().length > 0 && !UNSAFE_SELECTOR.test(selector) && !/(^|[^\\])(\\\\)*\\$/.test(selector);

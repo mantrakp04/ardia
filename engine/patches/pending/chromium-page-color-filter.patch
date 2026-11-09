@@ -112,16 +112,16 @@ diff --git a/components/viz/service/display/overlay_processor_mac.cc b/component
 index 0d322be..9b848ac 100644
 --- a/components/viz/service/display/overlay_processor_mac.cc
 +++ b/components/viz/service/display/overlay_processor_mac.cc
-@@ -56,7 +56,7 @@ void OverlayProcessorMac::ProcessForOverlays(
+@@ -56,7 +56,8 @@ void OverlayProcessorMac::ProcessForOverlays(
  
    // First, try to use ProcessForCALayerOverlays to replace all DrawQuads in
    // |render_pass->quad_list| with CALayerOverlays in |candidates|.
--  bool success = output_color_matrix == SkM44() &&
-+  bool success = !page_color_filter_active_ &&
+   bool success = output_color_matrix == SkM44() &&
++                 !page_color_filter_active_ &&
                   ca_layer_overlay_processor_->ProcessForCALayerOverlays(
                       render_pass, resource_provider,
                       gfx::RectF(render_pass->output_rect), candidates);
-@@ -89,4 +89,8 @@ gfx::CALayerResult OverlayProcessorMac::GetCALayerErrorCode() const {
+@@ -89,4 +90,8 @@ gfx::CALayerResult OverlayProcessorMac::GetCALayerErrorCode() const {
    return ca_layer_overlay_processor_->ca_layer_result();
  }
  
