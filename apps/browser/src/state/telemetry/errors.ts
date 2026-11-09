@@ -1,9 +1,11 @@
-import { crashReports, systemInfo } from "../../platform/app";
-import { advanceCrashCursor, capture, crashCursor, isSharing, loadChoice, saveQueueNow } from "./client";
+import { crashReports } from "../../platform/app";
+import { advanceCrashCursor, capture, crashCursor, loadChoice, saveQueueNow } from "./client";
+import { contextAt, contextProperties, sessionStart } from "./diagnostics";
+import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
-import { errorCode, errorMessage, errorType, nativeCrashExceptions, parseStack, type ExceptionFrame } from "./sanitize";
+import { errorCode, errorMessage, errorType, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
 
-type Mechanism = "onerror" | "onunhandledrejection" | "react" | "console" | "native_crash";
+type Mechanism = "onerror" | "onunhandledrejection" | "react" | "console" | "native_crash" | "helper_crash";
 
 const MAX_PER_SESSION = 25;
 const reported = new WeakSet<object>();
@@ -25,7 +27,6 @@ function exceptionProperties(entries: ExceptionEntry[], mechanism: Mechanism, ha
 }
 
 export function captureException(error: unknown, mechanism: Mechanism, { fatal = false, handled = false } = {}) {
-  if (!isSharing()) return;
   try {
     if (error && typeof error === "object") {
       if (reported.has(error)) return;
@@ -72,7 +73,7 @@ export function holdFatalReports(manager: ExceptionsManagerType | null): boolean
   const original = manager?.handleException;
   if (!manager || typeof original !== "function") return false;
   manager.handleException = (error, isFatal) => {
-    if (!isFatal || !isSharing()) return original.call(manager, error, isFatal);
+    if (!isFatal) return original.call(manager, error, isFatal);
     const mechanism = (error as { isComponentError?: boolean } | null)?.isComponentError ? "react" : "onerror";
     captureException(error, mechanism, { fatal: true });
     void saveQueueNow().then(() => original.call(manager, error, isFatal));
@@ -92,7 +93,7 @@ export function installErrorReporting() {
   const previous = g.ErrorUtils?.getGlobalHandler?.();
   g.ErrorUtils?.setGlobalHandler?.((error, isFatal) => {
     captureException(error, "onerror", { fatal: !!isFatal });
-    if (isFatal && isSharing() && !fatalReportsHeld) void saveQueueNow().then(() => previous?.(error, isFatal));
+    if (isFatal && !fatalReportsHeld) void saveQueueNow().then(() => previous?.(error, isFatal));
     else previous?.(error, isFatal);
   });
 
@@ -124,30 +125,44 @@ export function installErrorReporting() {
   }
 }
 
-export async function reportNativeCrashes() {
-  if (!isSharing()) return;
+const VERSION = /^\d+\.\d+\.\d+(?:-[a-z]+\.\d+)?$/;
+const BUILD = /^[\w.-]{1,32}$/;
+const ENGINE_VERSION = /^\d+(?:\.\d+){1,3}$/;
+const optional = (value: string | undefined, pattern: RegExp) => (value && pattern.test(value) ? value : null);
+const whole = (value: number | undefined) => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
+
+export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []) {
   const since = crashCursor();
   const reports = await crashReports(since).catch(() => []);
-  const version = systemInfo().appVersion;
   let latest = since;
   for (const report of reports) {
-    latest = Math.max(latest, report.time);
-    if (report.appVersion && report.appVersion !== version) continue;
+    latest = Math.max(latest, report.fileTime ?? report.time);
+    const browser = report.process === "browser";
+    const mechanism: Mechanism = browser ? "native_crash" : "helper_crash";
     const { name, signal, subtype, images, exceptions } = nativeCrashExceptions(report);
+    const context = contextAt(contexts, report.time, [sessionStart()]);
     capture(
       "$exception",
       {
         $exception_level: "fatal",
-        source: "native_crash",
+        source: mechanism,
+        crash_process: report.process,
         crash_signal: signal,
         crash_subtype: subtype,
+        crash_termination: nativeCrashTermination(report.terminationNamespace),
         objc_exception: name,
         crashed_minutes_ago: Math.round((Date.now() - report.time) / 60_000),
+        crashed_version: browser ? optional(report.appVersion, VERSION) : null,
+        crashed_build: browser ? optional(report.build, BUILD) : null,
+        crashed_engine_version: browser ? null : optional(report.engineVersion, ENGINE_VERSION),
+        crash_uptime_s: whole(report.uptimeSeconds),
+        crash_vm_writable_mb: whole(report.vmWritableMB),
+        ...contextProperties(context, "ctx_", report.time),
       },
       {
         urgent: true,
         persist: true,
-        raw: { ...exceptionProperties(exceptions, "native_crash", false), crash_images: images },
+        raw: { ...exceptionProperties(exceptions, mechanism, false), crash_images: images },
       },
     );
   }

@@ -14,7 +14,7 @@ export const setWindowTitle = (id: string, title: string) => Windows.setWindowTi
 export type LightsPlace = readonly [x: number, y: number] | readonly [fromRight: number, y: number, edge: "right"];
 export const setTrafficLightsCenter = (id: string, center: LightsPlace | null) =>
   Windows.setTrafficLightsCenter(id, center && [center[0], center[1]], center?.[2] === "right");
-export const watchSidebarEdge = (id: string, on: boolean, hold = 0, right = false) => void Windows.watchSidebarEdge(id, on, hold, right);
+export const watchSidebarEdge = (id: string, on: boolean, hold = 0, right = false, whilePressed = false) => void Windows.watchSidebarEdge(id, on, hold, right, whilePressed);
 export const windowFrame = (id: string) => Windows.windowFrame(id);
 export const windowIds = () => Windows.windowIds();
 export const onWindowEvent = (listener: (e: WindowEvent) => void) => Windows.addListener("onWindowEvent", listener);

@@ -125,16 +125,19 @@ void CloseLinkTabs() {
   return [ClosedLaunch() containsObject:key];
 }
 
-+ (void)rehomeFromWindow:(ArdiaWindowController *)closing {
++ (BOOL)rehomeFromWindow:(ArdiaWindowController *)closing {
   for (ArdiaCoreTab *tab in Parked().allValues) {
     if (tab.closed || [ArdiaWindowController holding:tab] != closing || !tab.profile) continue;
     ArdiaWindowController *keeper = [ArdiaWindowController strayWindowForProfile:tab.profile];
     keeper.hostChanges++;
     closing.hostChanges++;
-    [keeper.coreWindow adoptTab:tab];
+    const ArdiaCoreAdoption adoption = [keeper.coreWindow adoptTab:tab];
     closing.hostChanges--;
     keeper.hostChanges--;
+    if (adoption != ArdiaCoreAdoptionAdopted) [keeper.coreWindow close];
+    if (adoption == ArdiaCoreAdoptionBusy) return NO;
   }
+  return YES;
 }
 
 + (void)keepOffscreen:(ArdiaCoreTab *)tab holder:(id<ArdiaParkedPageHolder>)holder {

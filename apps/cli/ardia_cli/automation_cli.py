@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ardia_cli import control, hooks
 from ardia_cli.control import MethodError, Unreachable
+from ardia_cli.printable import shown
 
 DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 RUN_DESCRIPTION = """\
@@ -260,7 +261,7 @@ def cmd_commands(args) -> int:
     for item in rows:
         variants = item.get("variants")
         tail = f"  [{', '.join(map(str, variants))}]" if variants else ""
-        say(f"{str(item.get('id', '')).ljust(width)}  {item.get('title', '')}{tail}")
+        say(shown(f"{str(item.get('id', '')).ljust(width)}  {item.get('title', '')}{tail}"))
     return 0
 
 
@@ -280,12 +281,12 @@ def cmd_windows(args) -> int:
             continue
         flags = [str(window.get("kind", "normal"))] + (["focused"] if window.get("focused") else [])
         profile = window.get("profileName") or window.get("profile") or ""
-        say(f"window {window.get('id')}  {', '.join(flags)}  {profile}".rstrip())
+        say(shown(f"window {window.get('id')}  {', '.join(flags)}  {profile}".rstrip()))
         for tab in window.get("tabs") or []:
             marks = ("*" if tab.get("active") else " ") + ("p" if tab.get("pinned") else " ")
             group = f"  (group {tab['group']})" if tab.get("group") is not None else ""
             title = tab.get("title") or ""
-            say(f"  {marks} {tab.get('id')}  {title}  {tab.get('url', '')}{group}")
+            say(shown(f"  {marks} {tab.get('id')}  {title}  {tab.get('url', '')}{group}"))
     return 0
 
 
@@ -308,7 +309,7 @@ def describe_event(event: dict) -> str:
         parts.append(", ".join(map(str, data["keys"])))
     if "tabId" not in data and data.get("profile"):
         parts.append(str(data["profile"]))
-    return "  ".join(parts)
+    return "  ".join(shown(part) for part in parts)
 
 
 def cmd_events(args) -> int:

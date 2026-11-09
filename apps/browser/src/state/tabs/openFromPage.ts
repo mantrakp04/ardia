@@ -3,6 +3,8 @@ import { openWindow } from "../browser/actions";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { peekSourceOf } from "../peek/peek";
+import { leavesSite, newTabLinkRoute, siteLanding } from "../peek/newTabLinkRoute";
+import { openLittleArdia } from "../littleArdia/actions";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
@@ -47,12 +49,21 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
     return;
   }
   if (disposition === "peek") {
-    if (page.tabId) s.openPeek(page.tabId, url, point ?? null);
+    if (!page.tabId) return;
+    const pageUrl = s.tabs[page.tabId]?.url ?? "";
+    if (request.site && (w.kind !== "main" || !leavesSite(url, pageUrl))) return void s.navigate(page.tabId, url, { userInitiated: false });
+    s.openPeek(page.tabId, url, point ?? null, request.site ? { landing: siteLanding(pageUrl, "source") } : {});
     return;
   }
   const from = peekSource ? { ...page, tabId: peekSource } : page;
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
     return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true, gated });
+  }
+  if (disposition === "foreground" && request.fromClick && isAdoptKind(adoptId, "ardiacore") && page.tabId) {
+    const route = newTabLinkRoute(s, page.tabId, url);
+    if (route === "peek") return void s.openPeek(page.tabId, url, point ?? null, { adoptId });
+    if (route === "otherSite") return void s.openPeek(page.tabId, url, point ?? null, { adoptId, landing: siteLanding(s.tabs[page.tabId]!.url, "tab") });
+    if (route === "littleArdia") return void openLittleArdia(url, from.profileId, adoptId);
   }
   if (disposition === "split") {
     if (from.tabId) return openLinkInSplit(from.tabId, url, adoptId);

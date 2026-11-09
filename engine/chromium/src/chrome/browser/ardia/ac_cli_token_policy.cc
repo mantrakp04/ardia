@@ -206,6 +206,13 @@ std::string TokenClient::Refusal(const std::string& method,
     if (params.FindBool("includeCommandLineAPI").value_or(false)) {
       return "with the command line API";
     }
+  } else if (method == "Input.dispatchMouseEvent") {
+    const std::string* type = params.FindString("type");
+    const std::string* button = params.FindString("button");
+    if (type && (*type == "mousePressed" || *type == "mouseReleased") &&
+        (!button || *button == "none")) {
+      return "without a button";
+    }
   } else if (method == "Input.dispatchKeyEvent") {
     if (!EditingCommandsAllowed(params.Find("commands"))) {
       return "with those editing commands";
@@ -233,8 +240,12 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame) {
-  return !cli_token_policy_internal::Registry().contains(root_client) ||
+  return !IsTokenClient(root_client) ||
          cli_token_policy_internal::IsWebFrame(frame);
+}
+
+bool IsTokenClient(content::DevToolsAgentHostClient* root_client) {
+  return cli_token_policy_internal::Registry().contains(root_client);
 }
 
 }

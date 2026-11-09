@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)tookTransfer:(NSString *)key;
 + (void)releaseTransfer:(NSString *)key;
 + (BOOL)launchWasClosed:(NSString *)key;
-+ (void)rehomeFromWindow:(ArdiaWindowController *)closing;
++ (BOOL)rehomeFromWindow:(ArdiaWindowController *)closing;
 
 + (void)keepOffscreen:(ArdiaCoreTab *)tab holder:(id<ArdiaParkedPageHolder>)holder;
 + (nullable id<ArdiaParkedPageHolder>)takeHolderOfTab:(ArdiaCoreTab *)tab;

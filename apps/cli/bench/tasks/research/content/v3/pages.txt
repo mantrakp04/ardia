@@ -1,0 +1,685 @@
+@@ overview
+Halyard is a hosted event-streaming API. You publish events to **streams** over HTTPS, and your services read them back through **consumer groups** or receive them as **webhooks**. There are no brokers to run, no partitions to rebalance by hand, and no client library required: every operation is a plain HTTP request.
+
+## What you can build
+
+- Order, payment and inventory pipelines where every service sees every change in order.
+- Activity feeds and audit trails that you can replay from any point in time.
+- Fan-out to partners over signed webhooks, with automatic retries.
+
+## How the docs are organized
+
+- **Get started** walks you from an API key to your first published event in about five minutes.
+- **Guides** cover producing, consuming and webhooks in depth.
+- **Platform** documents plans, limits, security and compliance.
+- **API reference** lists every endpoint with its parameters and errors.
+
+> **Note:** These pages document API v3, the current version. If you still call `/v2/` endpoints, switch the version in the header to read the v2 docs, and plan your move with [Migrating from v2](/v3/resources/migrating-from-v2).
+
+@@ quickstart
+This guide takes you from a new workspace to a published and consumed event.
+
+## 1. Create an API key
+
+In the dashboard, open **Settings › API keys** and choose **Create key**. Give it the `streams:write` and `events:read` scopes. Keys start with `hk_live_` or `hk_sandbox_`.
+
+```bash
+export HALYARD_API_KEY=hk_sandbox_51Hf2kQe8...
+```
+
+## 2. Create a stream
+
+```bash
+curl https://api.halyard.dev/v3/streams \
+  -H "Authorization: Bearer $HALYARD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "orders", "partitions": 6}'
+```
+
+## 3. Publish an event
+
+```bash
+curl https://api.halyard.dev/v3/streams/str_8Kq2vX/events \
+  -H "Authorization: Bearer $HALYARD_API_KEY" \
+  -d '{"type": "order.created", "key": "cus_311", "data": {"total": 4200}}'
+```
+
+## 4. Read it back
+
+Create a consumer group with `start_at: "earliest"` and call [Read events](/v3/reference/read-events). You should see the event you just published, with its partition and offset.
+
+## Next steps
+
+- Learn how [streams and partitions](/v3/concepts/streams) affect ordering.
+- Receive events without polling using [webhooks](/v3/webhooks/overview).
+
+@@ authentication
+Every request authenticates with an API key sent as a bearer token.
+
+```http
+Authorization: Bearer hk_live_51Hf2kQe8...
+```
+
+## Key types
+
+| Prefix | Environment | Notes |
+| --- | --- | --- |
+| `hk_live_` | Production | Counts toward your plan's usage and rate limits. |
+| `hk_sandbox_` | Sandbox | Isolated data, limited to 10 streams and 7 days of retention. |
+
+## Scopes
+
+Keys carry one or more scopes: `streams:read`, `streams:write`, `events:read`, `events:write`, `webhooks:manage` and `audit:read`. A request without the right scope fails with `403 insufficient_scope`.
+
+## Rotating keys
+
+Create the new key, deploy it, then revoke the old one. Revocation takes effect within 30 seconds worldwide. Key creation and revocation are recorded in the [audit log](/v3/platform/audit-logs).
+
+> **Warning:** Never embed live keys in browser or mobile code. Use a server-side proxy or short-lived tokens.
+
+@@ concepts/streams
+A **stream** is an append-only log of events. Each stream is split into **partitions**; events with the same partition key always land on the same partition and are read in the order they were written.
+
+## Choosing a partition count
+
+More partitions allow more consumers to read in parallel. A good starting point is one partition per 1,000 events per second at peak, with a minimum of 6. You can raise the count later, but never lower it, and raising it changes which partition a key maps to for new events.
+
+## Retention
+
+Events stay readable for the stream's `retention_hours`. The maximum depends on your plan:
+
+| Plan | Maximum retention |
+| --- | --- |
+| Starter | 3 days |
+| Team | 7 days |
+| Business | 30 days |
+| Enterprise | 365 days |
+
+@@ concepts/events
+An **event** is a JSON object with a `type`, an optional partition `key`, and a `data` payload. Halyard adds an `id`, the `partition`, the `offset` and a `published_at` timestamp.
+
+```json
+{
+  "id": "evt_01JB9X4T2Q",
+  "type": "order.created",
+  "key": "cus_311",
+  "partition": 7,
+  "offset": 88213,
+  "published_at": "2026-10-02T17:05:44.120Z",
+  "data": {"total": 4200, "currency": "usd"}
+}
+```
+
+## Naming event types
+
+Use `noun.verb` in the past tense: `order.created`, `invoice.paid`, `shipment.delayed`. Webhook filters and schemas match on the type, so keep it stable.
+
+## Size
+
+An encoded event can be at most 1 MB. See [Size limits and quotas](/v3/platform/quotas) for the full list.
+
+@@ concepts/consumer-groups
+A **consumer group** reads a stream on behalf of one application. Halyard assigns each partition to one member of the group at a time, so adding instances spreads the work without duplicating it.
+
+## Membership and rebalancing
+
+Members join implicitly when they call [Read events](/v3/reference/read-events) with a `member_id`. If a member stops polling for 30 seconds, its partitions move to the remaining members. Each rebalance increments the group's `generation`.
+
+## Committing progress
+
+A group remembers one committed offset per partition. Commit after you have finished processing, not before, so that a crash replays work instead of losing it. See [Offsets and replay](/v3/concepts/offsets).
+
+@@ concepts/offsets
+Every event has an **offset**: its position in its partition. Offsets increase by one per event and are never reused.
+
+## Committed offsets
+
+A consumer group's committed offset is the last event it has finished processing. You can read the committed offset and the lag for every partition with [Retrieve committed offsets](/v3/reference/get-offsets).
+
+## Replay
+
+To process history again, move the group's commits backwards with `force: true`, or create a new group with `start_at` set to a timestamp. See [Replaying history](/v3/guides/replay).
+
+> **Note:** In v2, offsets were read and committed through `/v2/streams/{stream_id}/offsets`. In v3 they live under the consumer group. The v2 endpoints are deprecated; see [Deprecations and sunsets](/v3/resources/deprecations).
+
+@@ concepts/schemas
+Attach a **schema** to a stream to reject malformed events at publish time. Halyard supports JSON Schema draft 2020-12.
+
+## Compatibility modes
+
+| Mode | Allowed changes |
+| --- | --- |
+| `backward` | Add optional fields, remove fields. Default. |
+| `forward` | Add fields, remove optional fields. |
+| `full` | Only add or remove optional fields. |
+| `none` | Any change. |
+
+## Versions
+
+Each schema update creates a new version. Events record the schema version they were validated against in `schema_version`.
+
+@@ sdks
+You can call Halyard with any HTTP client, but our official libraries handle retries, batching and signature checks for you.
+
+| Language | Package | Minimum runtime |
+| --- | --- | --- |
+| Node.js | `@halyard/node` 5.x | Node 20 |
+| Python | `halyard` 4.x | Python 3.10 |
+| Go | `github.com/halyard-dev/halyard-go/v3` | Go 1.22 |
+| Java | `dev.halyard:halyard-java` 3.x | Java 17 |
+| Ruby | `halyard` 2.x | Ruby 3.2 |
+
+```bash
+npm install @halyard/node
+```
+
+Libraries released before v3 (Node 4.x, Python 3.x) target API v2 and stop working when v2 endpoints are sunset.
+
+@@ guides/publishing
+Publish with [Publish an event](/v3/reference/publish-event) for low volumes, or [Publish a batch](/v3/reference/publish-batch) above a few events per second.
+
+## Partition keys
+
+Pick a key that groups events which must stay in order, such as a customer or order ID. Events without a key are spread round-robin and have no ordering guarantee.
+
+## Acknowledgements
+
+A `200` response means the event is durably stored in three availability zones. If the request times out, retry with the same `idempotency_key` to avoid duplicates.
+
+```js
+await halyard.events.publish("str_8Kq2vX", {
+  type: "order.created",
+  key: order.customerId,
+  data: order,
+  idempotencyKey: `order-${order.id}`,
+});
+```
+
+@@ guides/batch-ingest
+Batching is the cheapest way to publish at volume: a batch of 500 events counts as one request toward your rate limit.
+
+## Limits
+
+- Up to 500 events per batch.
+- The whole request body may be at most 5 MB.
+- Each event may still be at most 1 MB.
+
+## Partial failures
+
+A batch is not atomic. The response lists rejected events by `index` with a reason code, and you should retry only those. The Node and Python libraries do this for you.
+
+```json
+{"accepted": 498, "rejected": [{"index": 17, "code": "schema_mismatch"}]}
+```
+
+@@ guides/idempotency
+Send an `idempotency_key` with a publish to make retries safe. If Halyard has already stored an event with the same key on the same stream in the last 24 hours, it returns the original event instead of storing a duplicate.
+
+## Choosing keys
+
+Derive the key from your own data, such as `order-123-created`, rather than generating a random value per attempt. Keys can be up to 255 characters.
+
+> **Note:** Idempotency keys are scoped per stream. The same key on two different streams stores two events.
+
+@@ guides/consuming
+Consumers read through a consumer group using long polling.
+
+```python
+while True:
+    batch = halyard.consumer_groups.read("cg_5TzQ1m", max=100, wait_ms=20000)
+    for event in batch.events:
+        handle(event)
+    halyard.consumer_groups.commit("cg_5TzQ1m", batch.next_offsets)
+```
+
+## Throughput
+
+One member can usually process a few thousand events per second. If `lag` keeps growing, add members, up to one per partition.
+
+## Ordering
+
+Events are ordered within a partition only. If you need global ordering, use a single partition, which caps throughput.
+
+@@ guides/replay
+Replay lets you reprocess events after a bug fix or backfill a new service.
+
+## Replay an existing group
+
+Commit an older offset with `force: true` on [Commit offsets](/v3/reference/commit-offsets). The group resumes from there on its next read.
+
+## Replay into a new group
+
+Create a group with `start_at` set to an ISO 8601 timestamp. Halyard finds the first event on each partition published at or after that time.
+
+> **Warning:** You can only replay events that are still inside the stream's retention period.
+
+@@ guides/dead-letter
+When a webhook delivery or a consumer keeps failing on the same event, set it apart instead of blocking the partition.
+
+## Webhook dead letters
+
+After the final retry, Halyard writes the undelivered event to the endpoint's dead-letter stream, named `<stream>.dlq`, with the last response status and body attached.
+
+## Consumer dead letters
+
+Consumers decide for themselves: publish the event to a `.dlq` stream with your error, then commit past it. Dead-letter streams are ordinary streams and count toward your quotas.
+
+@@ webhooks/overview
+Webhooks push events to an HTTPS endpoint you control, so you don't have to run a consumer.
+
+## How delivery works
+
+1. You register an endpoint with [Create a webhook endpoint](/v3/reference/create-webhook).
+2. For every matching event, Halyard sends a `POST` with a JSON body and a `Halyard-Signature` header.
+3. Your endpoint answers with any `2xx` status within 10 seconds.
+
+## Payload size
+
+Webhook request bodies are capped at **256 KB**. When an event is larger, Halyard sends a thin notification instead, with the event's `id` and a `fetch_url` you can call to retrieve the full event.
+
+## Ordering
+
+Deliveries for the same partition key are sent one at a time, in order. Deliveries for different keys may arrive in parallel.
+
+Next, [verify every request's signature](/v3/webhooks/signatures) before trusting it.
+
+@@ webhooks/signatures
+Every webhook request carries a `Halyard-Signature` header so you can confirm it came from Halyard and was not modified.
+
+```http
+Halyard-Signature: t=1792345678,v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
+```
+
+## How the signature is computed
+
+The `v1` value is an **HMAC-SHA256** of the string `{t}.{raw request body}`, keyed with the endpoint's signing secret (it starts with `whsec_`), encoded as lowercase hex.
+
+## Verifying in Node.js
+
+```js
+import crypto from "node:crypto";
+
+function verify(header, rawBody, secret) {
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=")));
+  const expected = crypto.createHmac("sha256", secret).update(`${parts.t}.${rawBody}`).digest("hex");
+  const fresh = Math.abs(Date.now() / 1000 - Number(parts.t)) < 300;
+  return fresh && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1));
+}
+```
+
+## Replay protection
+
+Reject requests whose timestamp `t` is more than five minutes old.
+
+> **Note:** API v2 signed webhooks with HMAC-SHA1 in an `X-Halyard-Signature` header. v3 endpoints only send the `Halyard-Signature` header described here. Asymmetric (Ed25519) signatures are on the roadmap and not yet available.
+
+@@ webhooks/retries
+If your endpoint doesn't answer `2xx` within 10 seconds, Halyard retries with exponential backoff.
+
+| Attempt | Delay after previous attempt |
+| --- | --- |
+| 2 | 30 seconds |
+| 3 | 2 minutes |
+| 4 | 10 minutes |
+| 5 | 1 hour |
+| 6 to 12 | 4 hours |
+
+After 12 failed attempts (about 28 hours), the event goes to the endpoint's [dead-letter stream](/v3/guides/dead-letter). An endpoint that fails every delivery for 3 days is disabled and the workspace owners are emailed.
+
+## Redelivery
+
+You can redeliver any event from the last 30 days from the dashboard's **Webhooks › Deliveries** view.
+
+@@ webhooks/local-development
+Use the Halyard CLI to forward webhooks to a server on your machine.
+
+```bash
+brew install halyard-dev/tap/halyard
+halyard login
+halyard listen --stream orders --forward-to http://localhost:3000/hooks
+```
+
+The CLI prints a temporary signing secret. Use it in your local verification code; it changes every time you run `listen`.
+
+## Triggering sample events
+
+```bash
+halyard trigger order.created --stream orders
+```
+
+@@ guides/pagination
+List endpoints return results in pages using an opaque cursor.
+
+```json
+{"data": [...], "next_cursor": "c_Mjk0MQ"}
+```
+
+Pass `next_cursor` as `cursor` to get the next page. When `next_cursor` is `null`, there are no more results. Cursors expire after 24 hours.
+
+## Page size
+
+Use `limit` to set the page size, from 1 to 100. The default is 20.
+
+> **Note:** v2 used `page` and `per_page` parameters. Those are ignored by v3 endpoints.
+
+@@ guides/errors
+Errors use conventional HTTP status codes and a JSON body.
+
+```json
+{"error": {"code": "rate_limited", "message": "Rate limit exceeded. Retry after 3 seconds.", "request_id": "req_7XcPq2"}}
+```
+
+## Retrying
+
+| Status | Retry? |
+| --- | --- |
+| 400, 401, 403, 404, 409, 422 | No. Fix the request. |
+| 413 | No. Make the payload smaller. |
+| 429 | Yes, after `Retry-After` seconds. |
+| 500, 502, 503 | Yes, with exponential backoff and jitter. |
+
+Always log the `request_id`; support will ask for it.
+
+@@ platform/plans
+Every plan includes unlimited streams within its quotas, webhooks, and the full v3 API. Prices are per workspace per month, billed annually.
+
+| | Starter | Team | Business | Enterprise |
+| --- | --- | --- | --- | --- |
+| Price | Free | $99 | $499 | Contact sales |
+| Events per month | 5 million | 100 million | 1 billion | Custom |
+| Max retention | 3 days | 7 days | 30 days | 365 days |
+| Webhook endpoints | 3 | 25 | 100 | Unlimited |
+| Audit logs | No | No | 180 days | 365 days |
+| SAML single sign-on | No | No | Yes | Yes |
+| Data residency | No | No | No | Yes |
+| Support | Community | Email | Email, 8-hour response | 24/7, 1-hour response |
+
+API request limits for each plan are listed on [Rate limits](/v3/platform/rate-limits).
+
+## Overages
+
+Team and Business workspaces can go over their monthly event allowance at $0.80 per extra million events. Starter workspaces stop accepting events until the next month.
+
+@@ platform/rate-limits
+Halyard limits how many API requests a workspace can make per minute. Limits apply per workspace across all API keys, and are counted in a sliding 60-second window.
+
+## Limits by plan
+
+| Plan | Requests per minute | Burst (per second) |
+| --- | --- | --- |
+| Starter | 300 | 20 |
+| Team | 1,200 | 60 |
+| Business | 5,000 | 250 |
+| Enterprise | Custom, from 10,000 | Custom |
+
+A batch publish counts as one request, however many events it contains. Webhook deliveries don't count toward your limit.
+
+## Response headers
+
+Every response includes your current standing:
+
+```http
+Halyard-RateLimit-Limit: 1200
+Halyard-RateLimit-Remaining: 1187
+Halyard-RateLimit-Reset: 41
+```
+
+## When you hit the limit
+
+Requests over the limit fail with `429 rate_limited` and a `Retry-After` header in seconds. The official libraries wait and retry automatically.
+
+> **Note:** We review plan limits regularly. Changes are announced in the [changelog](/v3/resources/changelog) as they take effect.
+
+@@ platform/quotas
+These limits apply to every plan unless noted.
+
+| Limit | Value |
+| --- | --- |
+| Event size (encoded) | 1 MB |
+| Batch publish request body | 5 MB |
+| Events per batch | 500 |
+| Webhook request body | 256 KB |
+| Webhook response timeout | 10 seconds |
+| Partitions per stream | 256 |
+| Streams per workspace | 1,000 (Enterprise: custom) |
+| Consumer groups per stream | 50 |
+| Schema size | 64 KB |
+
+Need more? Business and Enterprise customers can ask support to raise streams and consumer groups. Event and webhook sizes can't be raised.
+
+@@ platform/audit-logs
+Audit logs record who did what in your workspace: API key changes, stream creation and deletion, webhook changes, member invites and SSO events. They're available on the Business and Enterprise plans.
+
+## Retention
+
+| Plan | Audit log retention |
+| --- | --- |
+| Starter | Not available |
+| Team | Not available |
+| Business | 180 days |
+| Enterprise | 365 days |
+
+Events older than the retention period are deleted and can't be recovered. To keep them longer, stream audit events to your own storage.
+
+## Streaming audit events
+
+Enterprise workspaces can deliver audit events to a Halyard stream of their own, then on to S3, BigQuery or a SIEM. Business workspaces can export the last 180 days as CSV from **Settings › Audit log**.
+
+## Reading audit events by API
+
+Use [List audit events](/v3/reference/list-audit-events) with a key that has the `audit:read` scope.
+
+@@ platform/sso
+Business and Enterprise workspaces can require members to sign in with SAML 2.0.
+
+## Supported identity providers
+
+Okta, Microsoft Entra ID, Google Workspace, OneLogin, JumpCloud and any SAML 2.0 provider.
+
+## Setup
+
+1. In **Settings › Security**, choose **Configure SAML** and copy the ACS URL and entity ID.
+2. Create a SAML app in your identity provider with those values.
+3. Paste the provider's metadata URL back into Halyard and check the connection.
+4. Turn on **Require SSO**. Owners keep a password fallback for emergencies.
+
+SCIM provisioning is available on Enterprise.
+
+@@ platform/encryption
+All data is encrypted in transit with TLS 1.2 or later and at rest with AES-256.
+
+## Customer-managed keys
+
+Enterprise workspaces can bring their own AWS KMS key. Halyard uses it to wrap the per-stream data keys, so revoking the key makes the data unreadable within 15 minutes.
+
+## Key rotation
+
+Halyard-managed keys rotate every 90 days. Customer-managed keys rotate on your schedule.
+
+@@ platform/data-residency
+Enterprise workspaces can pin all event data, backups and logs to one geography.
+
+| Geography | Regions |
+| --- | --- |
+| United States | `us-west-2`, `us-east-1` |
+| European Union | `eu-central-1`, `eu-west-1` |
+| United Kingdom | `eu-west-2` |
+| Australia | `ap-southeast-2` |
+
+Account metadata (workspace name, member emails, billing) is stored in the United States for every workspace.
+
+@@ platform/regions
+Choose a region when you create a stream. Streams can't move between regions; to migrate, mirror into a new stream and switch consumers over.
+
+| Region | Location | Status |
+| --- | --- | --- |
+| `us-west-2` | Oregon | Generally available |
+| `us-east-1` | N. Virginia | Generally available |
+| `eu-central-1` | Frankfurt | Generally available |
+| `eu-west-1` | Ireland | Generally available |
+| `eu-west-2` | London | Generally available |
+| `ap-southeast-2` | Sydney | Generally available |
+| `ap-northeast-1` | Tokyo | Preview |
+
+@@ platform/sla
+Business and Enterprise plans include a monthly uptime commitment for the publish and read APIs.
+
+| Plan | Monthly uptime | Service credit |
+| --- | --- | --- |
+| Business | 99.9% | 10% below 99.9%, 25% below 99.0% |
+| Enterprise | 99.95% | 10% below 99.95%, 25% below 99.5%, 50% below 99.0% |
+
+Scheduled maintenance is announced 7 days ahead on status.halyard.dev and doesn't count as downtime. Claim credits within 30 days by contacting support.
+
+@@ reference/overview
+The Halyard API is organized around REST. All requests go to `https://api.halyard.dev/v3/` over HTTPS, accept JSON bodies and return JSON.
+
+## Base URL
+
+```http
+https://api.halyard.dev/v3
+```
+
+## Versioning
+
+The version is part of the path. We add fields and endpoints without changing the version; anything that would break existing code ships in a new major version. Each major version is supported for at least 12 months after its successor is released.
+
+## Request IDs
+
+Every response has a `Halyard-Request-Id` header. Include it when you contact support.
+
+## Resources
+
+- [Streams](/v3/reference/list-streams)
+- [Events](/v3/reference/publish-event)
+- [Consumer groups](/v3/reference/create-consumer-group)
+- [Webhook endpoints](/v3/reference/create-webhook)
+- [Audit logs](/v3/reference/list-audit-events)
+
+@@ resources/changelog
+New features, changes and fixes to the Halyard API and platform, newest first.
+
+## October 28, 2026
+
+- **v2 sunset schedule published.** Every v2 endpoint now has a sunset date. See [Deprecations and sunsets](/v3/resources/deprecations).
+- The `@halyard/node` 5.3 library adds automatic batch splitting for bodies over 5 MB.
+
+## October 14, 2026
+
+- **Higher rate limits on Team.** The Team plan now allows **2,000 requests per minute** (up from 1,200), with a burst of 100 per second. Business stays at 5,000 requests per minute. The new limit applies to every Team workspace automatically.
+- Fixed `Halyard-RateLimit-Reset` sometimes reporting a negative value.
+
+## September 30, 2026
+
+- **Longer audit log retention on Enterprise.** Enterprise workspaces now keep audit events for 365 days, up from 180. Business stays at 180 days.
+- New `audit:read` scope for API keys.
+
+## September 9, 2026
+
+- **Larger webhook payloads.** Webhook request bodies can now be up to 256 KB, up from 128 KB. Larger events are still delivered as thin notifications with a `fetch_url`.
+- Webhook deliveries now include a `Halyard-Delivery-Attempt` header.
+
+## August 12, 2026
+
+- Business plan price changes to $499 per month for new workspaces. Existing workspaces keep their price until renewal.
+- Starter workspaces get 5 million events per month, up from 2 million.
+
+## July 22, 2026
+
+- Batch publish accepts up to 500 events per request, up from 250.
+
+## July 1, 2026
+
+- Data residency for the United Kingdom (`eu-west-2`) and Australia (`ap-southeast-2`).
+
+## May 11, 2026
+
+- Idempotency keys can be up to 255 characters, up from 64.
+
+## March 19, 2026
+
+- **API v3 is generally available.** v2 enters maintenance mode: it keeps working and gets security fixes, but no new features.
+
+@@ resources/deprecations
+These features and endpoints are deprecated. Each one keeps working until its sunset date, then returns `410 Gone`.
+
+## v2 endpoint sunsets
+
+| Endpoint | Replacement | Sunset date |
+| --- | --- | --- |
+| `GET /v2/streams` | `GET /v3/streams` | June 30, 2027 |
+| `POST /v2/streams` | `POST /v3/streams` | June 30, 2027 |
+| `POST /v2/streams/{stream_id}/events` | `POST /v3/streams/{stream_id}/events` | June 30, 2027 |
+| `GET /v2/streams/{stream_id}/events` | `GET /v3/consumer-groups/{group_id}/events` | April 30, 2027 |
+| `POST /v2/streams/{stream_id}/offsets` | `POST /v3/consumer-groups/{group_id}/offsets` | January 31, 2027 |
+| `GET /v2/streams/{stream_id}/offsets` | `GET /v3/consumer-groups/{group_id}/offsets` | April 30, 2027 |
+| `POST /v2/webhooks` | `POST /v3/webhook-endpoints` | March 31, 2027 |
+
+## Other deprecations
+
+| Feature | Notes | Removal |
+| --- | --- | --- |
+| `X-Halyard-Signature` (HMAC-SHA1) on v2 webhooks | Verify `Halyard-Signature` instead. | March 31, 2027 |
+| `page` and `per_page` pagination | Use cursors. | With v2 |
+| Node.js library 4.x | Upgrade to 5.x. | June 30, 2027 |
+
+We email workspace owners 90, 30 and 7 days before each sunset that affects them, based on the last 30 days of traffic.
+
+@@ resources/migrating-from-v2
+v3 keeps the same resources as v2 but changes a few shapes. Most integrations migrate in a day.
+
+## What changed
+
+| Area | v2 | v3 |
+| --- | --- | --- |
+| Base path | `/v2/` | `/v3/` |
+| Offsets | `/v2/streams/{stream_id}/offsets?group=` | `/v3/consumer-groups/{group_id}/offsets` |
+| Pagination | `page`, `per_page` | `cursor`, `limit` |
+| Webhook signature | `X-Halyard-Signature`, HMAC-SHA1 | `Halyard-Signature`, HMAC-SHA256 with timestamp |
+| Max event size | 256 KB | 1 MB |
+| Errors | `{"message": ...}` | `{"error": {"code", "message", "request_id"}}` |
+
+## Suggested order
+
+1. Upgrade your client library to a v3 release.
+2. Move producers first; v2 consumers can read events published through v3.
+3. Move consumers, creating v3 consumer groups that start at the v2 group's committed offsets.
+4. Rotate webhook endpoints to v3 and update signature verification.
+
+See [Deprecations and sunsets](/v3/resources/deprecations) for the dates.
+
+@@ resources/glossary
+| Term | Meaning |
+| --- | --- |
+| Stream | An append-only, partitioned log of events. |
+| Partition | An ordered slice of a stream. |
+| Offset | An event's position in its partition. |
+| Consumer group | A named reader that tracks committed offsets. |
+| Lag | How many events a group has not yet committed. |
+| Webhook endpoint | An HTTPS URL that receives events. |
+| Signing secret | The `whsec_` key used to sign webhook requests. |
+| Workspace | Your account's container for streams, keys and members. |
+
+@@ resources/support
+## Contact
+
+- **Email:** support@halyard.dev (Team plan and above)
+- **Community:** community.halyard.dev
+- **Status:** status.halyard.dev
+
+## Response times
+
+| Plan | First response |
+| --- | --- |
+| Starter | Community only |
+| Team | 1 business day |
+| Business | 8 hours |
+| Enterprise | 1 hour, 24/7 |
+
+## Security reports
+
+Email security@halyard.dev. We acknowledge reports within one business day and run a private bug bounty for verified researchers.
+
+## Compliance documents
+
+Our SOC 2 Type II report and latest third-party security assessment are available under NDA from **Settings › Compliance** on Business and Enterprise.

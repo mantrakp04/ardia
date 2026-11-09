@@ -4,6 +4,7 @@ export type Outcome = "win" | "loss" | "tie";
 
 export type Verdict = {
   figure: Figure | null;
+  word: string | null;
   line: string;
   note: string | null;
   photoFinish: boolean;
@@ -41,15 +42,12 @@ export type Card = {
 export type Scorecard = {
   cards: Card[];
   total: number;
-  losses: number;
-  takenBy: { name: string; count: number }[];
   roster: string[];
 };
 
 const PHOTO_FINISH_PCT = 5;
 
 const figureText = (f: Figure) => `${display(f)}${f.suffix}`;
-const comparativeOf = (line: string) => line.replace(/\s+(than|for)\s+.*$/, "");
 const plainCase = (sub: string) => sub.replace(/\s*\(.*$/, "");
 const valueText = (bar: Bar) => `${display(bar.value)}${bar.unit === "%" ? "%" : ` ${bar.unit}`}`;
 
@@ -69,20 +67,8 @@ const isPhotoFinish = (f: Figure | null) => !!f && f.suffix === "%" && f.value <
 
 function verdictOf(row: Row): Verdict {
   const { call } = row;
-  const outcome = outcomeOf(row);
-  if (outcome !== "loss" || call.lost) {
-    const note = outcome === "loss" ? null : call.second ? `${figureText(call.second.figure)} ${call.second.line}` : null;
-    return { figure: call.figure, line: call.line, note, photoFinish: isPhotoFinish(call.figure) };
-  }
-  const beaten = call.second;
-  const consolation = call.figure ? `Ardia’s still ${figureText(call.figure)} ${call.line}.` : call.line;
-  if (!beaten) return { figure: null, line: `Within a hair of ${winnerOf(row)}.`, note: consolation, photoFinish: true };
-  return {
-    figure: beaten.figure,
-    line: `${comparativeOf(beaten.line)} than Ardia`,
-    note: consolation,
-    photoFinish: isPhotoFinish(beaten.figure),
-  };
+  const note = call.second ? `${figureText(call.second.figure)} ${call.second.line}` : null;
+  return { figure: call.figure, word: call.word ?? null, line: call.line, note, photoFinish: isPhotoFinish(call.figure) };
 }
 
 function lanesOf(row: Row, roster: string[]): Lane[] {
@@ -144,17 +130,12 @@ export function scorecardOf(bench: Bench): Scorecard {
   const rows = bench.groups.flatMap((g) => g.rows);
   const ardiaName = rows[0].bars.find((b) => b.isArdia)!.name;
   const roster = [ardiaName, ...bench.rivals];
-  const outcomes = rows.map((r) => ({ outcome: outcomeOf(r), winner: winnerOf(r) }));
-  const takenBy = new Map<string, number>();
-  for (const o of outcomes) if (o.outcome === "loss") takenBy.set(o.winner, (takenBy.get(o.winner) ?? 0) + 1);
   const cards = bench.groups.map((g) => cardOf(g, roster));
   const singles = cards.filter((c) => !c.wide);
   if (singles.length % 2 === 1) singles[singles.length - 1].solo = true;
   return {
     cards,
     total: rows.length,
-    losses: outcomes.filter((o) => o.outcome === "loss").length,
-    takenBy: [...takenBy].map(([name, count]) => ({ name, count })),
     roster,
   };
 }

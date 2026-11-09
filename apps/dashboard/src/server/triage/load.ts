@@ -1,4 +1,5 @@
 import { count, list, text, time, triageDatabase, triageRows } from "./connection";
+import { loadLeads } from "./leads";
 import { effectiveRepliesSql, ensureReplyActions, loadReplies } from "./replies";
 
 const optionalId = (value: unknown) => (value == null ? null : count(value));
@@ -134,8 +135,8 @@ export async function loadRequests(signal?: AbortSignal) {
 }
 
 export async function loadReplyQueue(signal?: AbortSignal) {
-  const [replies, syncedAt] = await Promise.all([loadReplies(signal), lastSync(signal)]);
-  return { syncedAt, replies };
+  const [replies, leads, syncedAt] = await Promise.all([loadReplies(signal), loadLeads(signal), lastSync(signal)]);
+  return { syncedAt, replies, leads };
 }
 
 export async function loadPeople(signal?: AbortSignal) {

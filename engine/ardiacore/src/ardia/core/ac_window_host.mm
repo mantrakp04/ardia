@@ -13,6 +13,7 @@
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views_impl.h"
 #import "components/remote_cocoa/app_shim/bridged_content_view.h"
 #include "content/public/browser/web_contents.h"
@@ -248,21 +249,43 @@ std::vector<Browser*> WindowHost::browsers() const {
   return list;
 }
 
+namespace {
+
+bool IsClosing(BrowserWindowInterface* browser) {
+  return browser->IsDeleteScheduled() ||
+         UnloadController::From(browser)->is_attempting_to_close_browser();
+}
+
+}
+
+bool WindowHost::AdmitsTabsFor(Profile* profile) const {
+  if (!profile || IsProfileDying(profile) || close_state_ != CloseState::kOpen ||
+      !widget_ || widget_close_allowed_ || browser_shutdown::IsTryingToQuit()) {
+    return false;
+  }
+  if (Browser* browser = ExistingBrowserFor(profile)) {
+    return !IsClosing(browser);
+  }
+  return !IsProfileDeleting(profile) &&
+         GetBrowserWindowCreationStatusForProfile(*profile) ==
+             BrowserWindowInterface::CreationStatus::kOk;
+}
+
+bool WindowHost::LetsTabsGo(BrowserWindowInterface* browser,
+                            content::WebContents* contents) {
+  if (IsClosing(browser)) {
+    return false;
+  }
+  TabBridge* bridge = TabBridge::FromWebContents(contents);
+  return !bridge || !bridge->closing_after_unload();
+}
+
 Browser* WindowHost::BrowserFor(Profile* profile) {
-  if (!profile || IsProfileDying(profile)) {
+  if (!AdmitsTabsFor(profile)) {
     return nullptr;
   }
   if (Browser* browser = ExistingBrowserFor(profile)) {
     return browser;
-  }
-  if (IsProfileDeleting(profile)) {
-    return nullptr;
-  }
-  if (close_state_ != CloseState::kOpen || !widget_ || widget_close_allowed_ ||
-      browser_shutdown::IsTryingToQuit() ||
-      GetBrowserWindowCreationStatusForProfile(*profile) !=
-          BrowserWindowInterface::CreationStatus::kOk) {
-    return nullptr;
   }
   auto* window = new ACBrowserWindow(GetWeakPtr());
   BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
@@ -297,6 +320,15 @@ void WindowHost::AddBrowser(Browser* browser) {
     }
   }
   browser->GetTabStripModel()->AddObserver(this);
+  close_cancelled_[browser] = browser->RegisterBrowserCloseCancelled(
+      base::BindRepeating(
+          [](base::WeakPtr<WindowHost> host, BrowserWindowInterface*,
+             BrowserWindowInterface::ClosingStatus) {
+            if (host) {
+              host->NotifyCanTakeTabs();
+            }
+          },
+          GetWeakPtr()));
   if (!active_profile_) {
     SetActiveProfile(profile);
   }

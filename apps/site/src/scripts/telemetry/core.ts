@@ -12,6 +12,7 @@ import {
   WEB_LIB,
   type TelemetryEvent,
 } from "../../data/telemetry";
+import { INGEST_KEY_HEADER, SITE_INGEST_KEY } from "../../../../../packages/core/src/ingestKeys";
 import { KEYS, read, readJSON, write } from "../storage";
 import { parseUserAgent } from "./ua";
 
@@ -292,7 +293,7 @@ function post(items: Queued[], beacon: boolean) {
   const payload = body(items);
   if (beacon && typeof navigator.sendBeacon === "function") {
     try {
-      if (navigator.sendBeacon(LOGS_PATH, new Blob([payload], { type: "application/json" }))) return;
+      if (navigator.sendBeacon(`${LOGS_PATH}?ardia_key=${SITE_INGEST_KEY}`, new Blob([payload], { type: "application/json" }))) return;
     } catch {}
   }
   const retry = () => {
@@ -306,7 +307,7 @@ function post(items: Queued[], beacon: boolean) {
   fetch(LOGS_PATH, {
     method: "POST",
     body: payload,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", [INGEST_KEY_HEADER]: SITE_INGEST_KEY },
     keepalive: payload.length < MAX_BODY,
     credentials: "omit",
   })

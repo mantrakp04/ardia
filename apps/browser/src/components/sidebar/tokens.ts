@@ -85,6 +85,8 @@ export const TAB_ROW = { contentLeft: 9, trailing: 6, titleGap: 5, titleHeight: 
 
 export const TILE_RIM = 1;
 
+export const AWAY_TITLE = { slashAlpha: 0.45, slashGap: 4, pinnedMaxWidth: "45%" } as const;
+
 export const TABULAR_NUMS: ("tabular-nums")[] = ["tabular-nums"];
 
 export const SIDEBAR_TYPE = { compact: font.small.fontSize } as const;

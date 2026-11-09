@@ -9,7 +9,7 @@ import { restoreLaunchLook, saveLaunchLook } from "../windows/launchLook";
 import { parkWindowPins } from "../pins/parkedPins";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { isPeekTab } from "../peek/peek";
-import type { BrowserWindow, ParkedPins, SplitView, Tab } from "../browser/types";
+import type { BrowserWindow, ClosedWindow, ParkedPins, SplitView, Tab } from "../browser/types";
 import { downloadSession } from "../downloads/downloadsSlice";
 import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
 import { sessionWithCleanUpMinutes } from "../settings/cleanUpAfter";
@@ -18,7 +18,7 @@ import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
 import { isFields, isString, isStringList } from "../../lib/decode";
-import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
+import { pageFromDisk, pinFromDisk, splitsChecked, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
 const SAVE_DELAY_MS = 800;
 const SESSION_VERSION = 10;
@@ -124,6 +124,12 @@ type SavedSession = Omit<HydrateData, "history" | "bookmarks" | "downloads"> & {
   tabs: Record<string, Tab>;
 };
 
+function settingsWithAutoHideTabs(settings: unknown, windows: SavedObject[]): HydrateData["settings"] {
+  if (!isFields(settings)) return undefined;
+  if ("autoHideTabs" in settings || !windows.length) return settings as HydrateData["settings"];
+  return { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } as HydrateData["settings"];
+}
+
 export function parseSession(json: string | null | undefined): SavedSession | null {
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
@@ -131,7 +137,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     profiles: byProfile(raw.profiles, profileOk),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
-    settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
+    settings: settingsWithAutoHideTabs(raw.settings, rows(raw.windows, windowOk)),
     settingsMeta: parseSettingsMeta(raw.settingsMeta),
     windows: byId(rows<BrowserWindow & { incognito?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, ...w }): BrowserWindow => ({ ...w, kind: "main" }))),
     windowOrder: strings(raw.windowOrder),
@@ -141,8 +147,8 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     groups: byId(rows(raw.groups, groupOk)),
     splits: byId(rows<SplitView>(raw.splits, splitOk).map((v) => ({ ...v, slots: slotsFromDisk(v.slots)! }))),
     closedTabs: rows(raw.closedTabs, closedTabOk),
-    closedWindows: rows(raw.closedWindows, tabListOk),
-    parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, parkedSplitsChecked(park)])),
+    closedWindows: rows<ClosedWindow>(raw.closedWindows, tabListOk).map(splitsChecked),
+    parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, splitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
     topAppsMerged: typeof raw.topAppsMerged === "string" ? raw.topAppsMerged : undefined,
@@ -202,7 +208,7 @@ function closedForLaunch(session: SavedSession): HydrateData {
   let parkedPins = session.parkedPins ?? {};
   for (const w of Object.values(session.windows)) parkedPins = parkWindowPins(parkedPins, w, pinSource);
   const closedWindows = [
-    ...(session.closedWindows ?? []),
+    ...(session.closedWindows ?? []).filter((c) => c.tabs.length).map(({ lastWindow: _, activePin: __, ...c }) => c),
     ...Object.values(session.windows)
       .map((w) =>
         closedWindowEntry(

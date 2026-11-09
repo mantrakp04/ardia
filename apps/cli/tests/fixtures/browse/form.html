@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Fixture Form</title>
+<style>
+  body { font: 14px system-ui; margin: 24px; }
+  label { display: block; margin-top: 8px; }
+  #report { display: none; }
+</style>
+</head>
+<body>
+<h1>Typed inputs</h1>
+<label for="d">Date</label><input id="d" type="date" value="2026-11-06">
+<label for="t">Time</label><input id="t" type="time" step="900">
+<label for="dt">When</label><input id="dt" type="datetime-local">
+<label for="m">Month</label><input id="m" type="month">
+<label for="w">Week</label><input id="w" type="week">
+<label for="c">Colour</label><input id="c" type="color" value="#000000">
+<label for="r">Volume</label><input id="r" type="range" min="0" max="100" step="10" value="50">
+<label for="name">Name</label><input id="name" type="text">
+<button id="open" type="button">New item</button>
+<dialog id="dlg">
+  <form id="item">
+    <label for="i-title">Title</label><input id="i-title" name="title" required>
+    <label for="i-day">Day</label><input id="i-day" name="day" type="date" required>
+    <label for="i-at">At</label><input id="i-at" name="at" type="time" required>
+    <label for="i-kind">Kind</label><select id="i-kind" name="kind"><option value="a">Alpha</option><option value="b">Beta</option></select>
+    <button id="save" type="submit">Save item</button>
+  </form>
+</dialog>
+<ul id="list"></ul>
+<pre id="report"></pre>
+<script>
+  const seen = { input: {}, change: {}, items: [] };
+  for (const el of document.querySelectorAll("input")) {
+    el.addEventListener("input", () => { seen.input[el.id] = el.value; report(); });
+    el.addEventListener("change", () => { seen.change[el.id] = el.value; report(); });
+  }
+  function report() { document.getElementById("report").textContent = JSON.stringify(seen); }
+  const dlg = document.getElementById("dlg");
+  document.getElementById("open").onclick = () => { document.getElementById("item").reset(); dlg.showModal(); };
+  document.getElementById("item").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const item = Object.fromEntries(new FormData(event.target).entries());
+    seen.items.push(item);
+    report();
+    try {
+      await fetch("/save?token=fixture-secret-token&id=7", { method: "POST", body: JSON.stringify(item) });
+    } catch (error) {}
+    dlg.close();
+    const li = document.createElement("li");
+    li.textContent = `${item.title} ${item.day} ${item.at} ${item.kind}`;
+    document.getElementById("list").appendChild(li);
+  });
+  report();
+</script>
+</body>
+</html>

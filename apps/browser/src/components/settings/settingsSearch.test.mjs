@@ -113,7 +113,8 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   const { DEFAULT_SETTINGS } = await import("../../state/settings/settings.ts");
   const unshown = (settings, env) => new Set(unshownSettings({ ...DEFAULT_SETTINGS, ...settings }, env).split("\n").filter(Boolean));
   const across = unshown({}, { top: true });
-  for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
+  assert.ok(!across.has("tabs.showSidebarButton"), "the Hide Tabs button shows in both layouts");
+  for (const id of ["tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
   assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], ["tabs.dragToGroupInTopStrip"]);
   assert.ok(unshown({}, { top: false, glass: true }).has("appearance.glassTintAmount"));
   for (const id of ["appearance.interfaceStyle", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]) assert.ok(unshown({}, { top: false }).has(id), id);

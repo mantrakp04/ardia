@@ -3,6 +3,7 @@ import { playNudge } from "./nudge";
 import { prefersReducedMotion } from "./shims/web/gl/clock";
 import { powerUpFragment } from "./shims/web/gl/sources";
 import { prewarmSurfaces } from "./shims/web/gl/surface";
+import { APP_DOWNLOAD_EVENT } from "./shims/webDemo";
 
 const PREWARM_WAIT_MS = 3000;
 
@@ -55,6 +56,8 @@ export function startEmbed() {
     state = next;
     publish();
   });
+
+  addEventListener(APP_DOWNLOAD_EVENT, () => post({ type: "ardia-demo:download" }));
 
   addEventListener("message", (event: MessageEvent<Inbound>) => {
     if (event.source !== host || event.origin !== origin || !event.data || typeof event.data !== "object") return;

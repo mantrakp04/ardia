@@ -122,6 +122,24 @@ void WindowHost::NotifyCloseCancelled() {
                      GetWeakPtr()));
 }
 
+void WindowHost::NotifyCanTakeTabs() {
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<WindowHost> host) {
+                       if (!host || host->close_state_ != CloseState::kOpen ||
+                           browser_shutdown::IsTryingToQuit()) {
+                         return;
+                       }
+                       ArdiaCoreWindow* owner = host->owner_;
+                       id<ArdiaCoreWindowDelegate> delegate = owner.delegate;
+                       if ([delegate respondsToSelector:@selector
+                                     (windowCanTakeTabs:)]) {
+                         [delegate windowCanTakeTabs:owner];
+                       }
+                     },
+                     GetWeakPtr()));
+}
+
 void WindowHost::CommitClose() {
   close_state_ = CloseState::kClosing;
   if (browsers_.empty()) {
@@ -204,6 +222,7 @@ void WindowHost::BrowserWindowDestroyed(ACBrowserWindow* window) {
   }
   for (auto it = browsers_.begin(); it != browsers_.end(); ++it) {
     if (it->second == window->browser()) {
+      close_cancelled_.erase(it->second.get());
       it->second->GetTabStripModel()->RemoveObserver(this);
       if (active_profile_ == it->first) {
         active_profile_ = nullptr;
@@ -222,6 +241,8 @@ void WindowHost::BrowserWindowDestroyed(ACBrowserWindow* window) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&WindowHost::ContinueCloseAttempt, GetWeakPtr(),
                                   close_attempt_));
+  } else if (close_state_ == CloseState::kOpen) {
+    NotifyCanTakeTabs();
   }
 }
 

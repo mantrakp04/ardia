@@ -1,6 +1,9 @@
 import { setSwitcherCapture, switcherPointerMoved } from "../../platform/focus";
 import { useBrowser } from "../browser/store";
 import { recentTabIds } from "../pins/tabCleanup";
+import { viewTabIds } from "../browser/model";
+import { isAsleep } from "../tabs/pageSession";
+import { noteTabSwitcherOpened } from "../telemetry/usage";
 import { setSidebarUi, sidebarUi } from "./sidebarUi";
 
 const SHOW_AFTER_MS = 140;
@@ -14,8 +17,10 @@ let pointerStale = false;
 export function switcherStep(windowId: string, backward: boolean) {
   const current = sidebarUi().switcher;
   if (current && current.windowId === windowId) return moveSwitcher(backward ? -1 : 1);
-  const ids = recentTabIds(useBrowser.getState(), windowId);
+  const s = useBrowser.getState();
+  const ids = recentTabIds(s, windowId);
   if (ids.length < 2) return;
+  noteTabSwitcherOpened(viewTabIds(s, windowId).filter((id) => isAsleep(s.tabs[id])).length);
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
   void setSwitcherCapture(true);
   clearTimeout(showTimer);

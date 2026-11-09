@@ -118,7 +118,9 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     controller.view = view;
     controller.host = host;
     [controller roundCorners];
+    JoinFullScreenSpaces(window);
     PreventActivation(window);
+    if (fresh) [view emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(window))}];
     if (ardia_host::Background()) {
       window.alphaValue = 0;
       window.ignoresMouseEvents = YES;
@@ -176,6 +178,28 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   look();
 }
 
+void DocumentEntered(ArdiaWebView *view) {
+  __block int tries = 0;
+  __block void (^look)(void);
+  __weak ArdiaWebView *weakView = view;
+  look = ^{
+    ArdiaWebView *strongView = weakView;
+    NSWindow *found = nil;
+    for (NSWindow *window in NSApp.windows)
+      if (window.visible && IsChromeDocumentPictureInPicture(window) && IsChromeFloatingWindow(window)) found = window;
+    if (strongView && found) {
+      JoinFullScreenSpaces(found);
+      [strongView emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(found))}];
+    }
+    if (!strongView || found || ++tries >= 20) {
+      look = nil;
+      return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), look);
+  };
+  look();
+}
+
 }
 
 @implementation ArdiaWebView (PictureInPictureDev)
@@ -199,7 +223,9 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
       @"subrole" : window.accessibilitySubrole ?: @"",
+      @"canHide" : @(window.canHide),
       @"collectionBehavior" : @(window.collectionBehavior),
+      @"joinsFullScreenSpaces" : @(JoinsFullScreenSpaces(window)),
       @"styled" : @(controller != nil),
       @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
       @"cornerRadius" : @(content.cornerRadius),

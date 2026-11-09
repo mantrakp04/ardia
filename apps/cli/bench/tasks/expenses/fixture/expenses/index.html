@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>October 2026 · Expense report · Northwind Expenses</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">$</span> Northwind Expenses</div>
+  <nav class="tabs" aria-label="Sections"><a href="#" aria-current="page">Reports</a><a href="#">Cards</a><a href="#">Policies</a></nav>
+  <div class="me">Jordan Lee</div>
+</header>
+<main class="page">
+  <div id="banner" class="banner" role="status" hidden></div>
+  <div class="report-head">
+    <div>
+      <p class="crumbs"><a href="#">Reports</a> / October 2026</p>
+      <h1 id="report-title">October 2026</h1>
+      <p class="sub"><span id="status-chip" class="chip">Draft</span> <span id="save-state" class="muted"></span></p>
+    </div>
+    <div class="head-actions">
+      <button id="add-line" class="btn" type="button">Add line</button>
+      <button id="submit-report" class="btn primary" type="button">Submit report</button>
+    </div>
+  </div>
+  <p class="policy">Amounts are reported in USD. Convert foreign-currency purchases with Finance's rate for the month.</p>
+  <table class="lines" aria-label="Expense lines">
+    <thead>
+      <tr><th class="h-handle"><span class="sr">Reorder</span></th><th>Merchant</th><th>Date</th><th>Category</th><th class="num">Amount</th><th class="h-actions"><span class="sr">Actions</span></th></tr>
+    </thead>
+    <tbody id="lines"></tbody>
+    <tfoot><tr><td></td><td colspan="3">Total</td><td id="total" class="num">$0.00</td><td></td></tr></tfoot>
+  </table>
+  <p class="hint muted">Drag a row by its handle to reorder.</p>
+  <div id="live" class="sr" aria-live="assertive" aria-atomic="true"></div>
+</main>
+
+<div id="scrim" class="scrim" hidden></div>
+<aside id="panel" class="panel" role="dialog" aria-modal="false" aria-labelledby="panel-title" hidden>
+  <form id="line-form" novalidate>
+    <div class="panel-head">
+      <h2 id="panel-title">Add line</h2>
+      <button type="button" class="icon" id="panel-close" aria-label="Close">✕</button>
+    </div>
+    <div class="field">
+      <label for="merchant">Merchant</label>
+      <input id="merchant" name="merchant" autocomplete="off" spellcheck="false">
+      <p class="err" id="err-merchant"></p>
+    </div>
+    <div class="field">
+      <span class="label" id="date-label">Date</span>
+      <div class="datepicker" id="datepicker">
+        <output id="date-display" class="date-display" aria-labelledby="date-label">No date selected</output>
+        <button type="button" id="date-toggle" class="btn small" aria-haspopup="dialog" aria-expanded="false" aria-label="Choose date">📅</button>
+        <div id="calendar" class="calendar" role="dialog" aria-label="Choose date" hidden>
+          <div class="cal-head">
+            <button type="button" class="icon" id="cal-prev" aria-label="Previous month">‹</button>
+            <h3 id="cal-title" aria-live="polite"></h3>
+            <button type="button" class="icon" id="cal-next" aria-label="Next month">›</button>
+          </div>
+          <table role="grid" aria-labelledby="cal-title" class="cal-grid">
+            <thead><tr><th abbr="Sunday">Su</th><th abbr="Monday">Mo</th><th abbr="Tuesday">Tu</th><th abbr="Wednesday">We</th><th abbr="Thursday">Th</th><th abbr="Friday">Fr</th><th abbr="Saturday">Sa</th></tr></thead>
+            <tbody id="cal-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <p class="err" id="err-date"></p>
+    </div>
+    <div class="field">
+      <span class="label">Category</span>
+      <category-picker id="category" label="Category"></category-picker>
+      <p class="err" id="err-category"></p>
+    </div>
+    <div class="field">
+      <label for="amount">Amount (USD)</label>
+      <input id="amount" name="amount" inputmode="numeric" autocomplete="off" placeholder="$0.00">
+      <p class="err" id="err-amount"></p>
+    </div>
+    <div class="panel-actions">
+      <button type="button" class="btn" id="panel-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="save-line">Save line</button>
+    </div>
+  </form>
+</aside>
+
+<div id="modal-scrim" class="scrim" hidden></div>
+<div id="confirm" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden>
+  <h2 id="confirm-title">Submit October 2026?</h2>
+  <p id="confirm-summary"></p>
+  <p>Once it's submitted you can't change it. Type <b>SUBMIT</b> to confirm.</p>
+  <label for="confirm-input" class="sr">Type SUBMIT to confirm</label>
+  <input id="confirm-input" autocomplete="off" spellcheck="false" placeholder="SUBMIT">
+  <p class="err" id="confirm-error"></p>
+  <div class="panel-actions">
+    <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+    <button type="button" class="btn primary" id="confirm-ok" disabled>Submit report</button>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="category-picker.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

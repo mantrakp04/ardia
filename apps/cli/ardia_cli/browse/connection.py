@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from ardia_cli import guard
+from ardia_cli import command_metrics, guard
 from ardia_cli.browse.errors import POLICY_REFUSAL, CdpError, CdpTimeout, ConnectionLost, Gated, OutcomeUnknown, Unreachable
 
 MAX_MESSAGE = 256 * 1024 * 1024
@@ -23,6 +23,7 @@ EVENTS = (
     "Page.javascriptDialogClosed",
     "Page.frameDetached",
     "Page.screencastFrame",
+    "Input.dragIntercepted",
     "Runtime.consoleAPICalled",
     "Runtime.exceptionThrown",
     "Runtime.executionContextsCleared",
@@ -127,6 +128,7 @@ class Browser:
         command = {"method": method, "params": params or {}}
         if session:
             command["sessionId"] = session
+        started = command_metrics.clock()
         try:
             response = await self.link.execute_command(command, timeout=timeout)
         except CommandFailed as error:
@@ -142,6 +144,7 @@ class Browser:
             raise CdpTimeout(method, timeout) from None
         except WebSocketConnectionClosed:
             raise ConnectionLost() from None
+        command_metrics.cdp_call(started)
         return response.get("result") or {}
 
     async def send_nowait(self, method: str, params: dict | None = None, session: str | None = None):

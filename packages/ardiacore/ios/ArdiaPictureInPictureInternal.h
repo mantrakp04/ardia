@@ -13,6 +13,7 @@ struct Screen;
 - (void)_setPreventsActivation:(BOOL)prevents;
 - (BOOL)_preventsActivation;
 - (NSInteger)_resizeDirectionForMouseLocation:(NSPoint)location;
+- (BOOL)_isNonactivatingPanel;
 @end
 
 namespace ardia_pip {
@@ -112,6 +113,9 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 @interface ArdiaPiPController (Workspaces)
 @end
 
+@interface ArdiaPiPController (Placement)
+@end
+
 @interface ArdiaPiPController (Swipe)
 + (BOOL)handleSwipe:(NSEvent *)event;
 + (void)abandonSwipeOn:(NSWindow *)window;
@@ -138,6 +142,8 @@ extern const void *const kZoomKey;
 BOOL IsChromeFloatingWindow(NSWindow *window);
 BOOL IsChromeVideoPictureInPicture(NSWindow *window);
 BOOL IsChromeDocumentPictureInPicture(NSWindow *window);
+BOOL JoinsFullScreenSpaces(NSWindow *window);
+void JoinFullScreenSpaces(NSWindow *window);
 NSScreen *ScreenFor(NSRect frame);
 void PreventActivation(NSWindow *window);
 BOOL PreventsActivation(NSWindow *window);

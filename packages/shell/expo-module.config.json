@@ -39,7 +39,9 @@
       "UserScriptsModule",
       "ConfigModule",
       "AutomationModule",
-      "SystemSignalsModule"
+      "SystemSignalsModule",
+      "ReportModule",
+      "TelemetryLocalModule"
     ]
   }
 }
