@@ -8,6 +8,7 @@ export const SECTION_NAMES = [
   "funnels.installs",
   "funnels.retention",
   "health",
+  "health.cli",
   "performance",
   "settings",
   "settings.tint",
@@ -19,6 +20,5 @@ export const SECTION_NAMES = [
   "site.vitals",
   "errors.exceptions",
   "errors.logs",
-  "feedback.cli",
   "github",
 ] as const;

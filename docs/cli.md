@@ -79,22 +79,51 @@ the pins into `pyproject.toml`).
   `pageGeneration`, bumped whenever that target changes (a slept tab reloading). The app asks each live tab through
   ArdiaCore's `devToolsCall` (`Target.getTargetInfo`, engine call `engine.cliTabTargets`); an older build leaves both
   out.
+- `ardia tabs`, `ardia groups` and `ardia apply` list and organize tabs and groups by id: open URLs into a window,
+  profile, group or spot, move tabs between groups, windows and profiles without reloading, pin, mute, sleep, wake,
+  close, rename and set icons; create, nest, reorder, pin, collapse, recolour, ungroup, close and delete groups; and
+  apply a JSON batch of those in one call (`ardia_cli/workspace_cli.py`; protocol, operations and rules in
+  `docs/automation.md` › Tabs and groups). Groups can be named by id or by name (`--group Work`, `ardia groups update
+  Work …`); output names them next to their ids (`created group 💼 Work (g-…) with 4 tabs`, `moved Inbox (tab-…)`).
+  `--json` prints the app's reply. Exit 0 done, 1 refused, a bad request
+  or a batch stopped at a failing operation, 2 Ardia can't be reached or the connection dropped after sending. Human
+  output shows control characters in page text, titles and names as `\u00NN` (`ardia_cli/printable.py`), so a page
+  title can't drive the terminal (an OSC 52 clipboard write, say): see Terminal output.
 - `ardia events [EVENT…]` streams browser events (see `docs/automation.md`).
-- `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`).
+- `ardia on EVENT[,EVENT…] -- PROGRAM` runs a program for each event (see `docs/automation.md`). PROGRAM's output goes
+  to the terminal untouched; event data such as `ARDIA_TITLE` and `ARDIA_URL` comes from pages, so a program that
+  prints it should escape control characters, as the CLI's own output does.
 - `ardia hooks run|install|uninstall|list` runs the hooks in `hooks.json`, at login through a LaunchAgent (see
   `docs/automation.md`).
-- `ardia feedback [--command CMD] [--data-dir DIR] TEXT|-` sends the developer a note about what got in the way
-  (see Feedback and the star nudge). Exit 0 whether it was sent or kept on the Mac, 2 with no text.
+- `ardia feedback --title TITLE [--kind bug|slow|idea|other] [--attach FILE]… [--command CMD] [--data-dir DIR] TEXT|-`
+  reports a problem or an idea to the developer (see Feedback and the star nudge). Exit 0 sent (or the same report
+  already went out today), 1 not sent and kept on the Mac (the line says why), 2 a missing or bad title, description
+  or attachment.
 - `ardia star [--data-dir DIR]` stars github.com/mantrakp04/ardia for the user, run only after they said yes (see
   Feedback and the star nudge). Exit 0 starred or the page opened, 1 neither worked.
 - `ardia --version`, `ardia --help`, `ardia browse --help`, `ardia scripts <command> --help`,
   `ardia config <command> --help`, `ardia theme <command> --help`, `ardia hooks <command> --help` and `--help` on
-  each of `pinned`, `history`, `run`, `commands`, `windows`, `events` and `on`.
+  each of `pinned`, `history`, `run`, `commands`, `windows`, `events`, `on`, `apply`, and `tabs` and `groups` and
+  their commands.
 
 `ardia exec` is gone: `ardia browse` is the one way to drive the browser. `ardia exec …` (and any other unknown
 command) prints `ardia: unknown command '…'` with where to go instead, and exits 2. What `exec` offered maps to
 `ardia browse` for pages, `ardia pinned` and `ardia history` for `pinned()` and `history()`, and `ardia run`,
 `ardia windows` and `ardia events` for `run()`, `windows()` and `events()`.
+
+### Terminal output
+
+Page text, titles, notes, names and other text from pages or files reach the terminal only with their control
+characters (C0, C1 and DEL) shown as `\u00NN`, so a page can't write escape sequences (an OSC 52 clipboard write, a
+screen clear) through the CLI. Two places do it, so new commands get it without asking: `ardia browse` and
+`ardia notes` text output in `render` (`browse/daemon.py`), keeping line breaks and tabs, so snapshots, page text and
+notes read as before; and `cli.main` wraps stdout and stderr for every other command (`printable.inert_output`), with
+single-line fields (titles in `tabs`, `windows`, `events`, `pinned`, `history`) escaping line breaks too. Other text
+(accents, CJK, Arabic, emoji) is untouched. JSON output (`--json`, and `AGENT_BROWSER_JSON` for browse) keeps
+C0 controls as `json.dumps` writes them and escapes only U+007F–U+009F (raw there because of `ensure_ascii=False`) as
+`\u00NN` (`printable.json_safe`, in browse's JSON render and in the JSON-mode stdout writer), so it decodes to the
+same values and non-ASCII text stays readable; stderr is always guarded. The `\u00NN` form keeps text that is itself
+JSON (a script's result) valid JSON.
 
 ### Shared options
 
@@ -788,9 +817,10 @@ two parts with an explicit flush between them gets through; that gap is accepted
 
 `ardia_cli/telemetry.py` records crash reports and usage only while the app's "Share anonymous crash reports and usage
 stats" is on for the data dir the command resolved (`--data-dir`, else `$ARDIA_DATA_DIR`, else the installed app's):
-`<data dir>/telemetry.json`, the app's own saved choice, must say `"sharing": true` with an `installId`. That id is the
-events' `distinct_id`, so the command's events join the install's. Nothing is recorded or sent when the file is
-missing, unreadable or says sharing is off, with `DO_NOT_TRACK` set (anything but empty, `0` or `false`) or
+`<data dir>/telemetry.json`, the app's own saved choice, must say `"sharing": true` with an `installId` (and, during a
+14-day watch, a `sharingUntil` still in the future). That id is the events' `distinct_id`, so the command's events join
+the install's. The CLI reads only the fields it needs and ignores the rest, at any `version`, so a newer app format never
+silently stops CLI telemetry. Nothing is sent when the file is missing, unreadable or says sharing is off, with `DO_NOT_TRACK` set (anything but empty, `0` or `false`) or
 `ARDIA_TELEMETRY=0` (or `false`, `off`, `no`), for a command pointed at a test endpoint (`--port`, `--ws`, `--cdp`,
 `ARDIA_PORT`, `ARDIA_WS`, `ARDIA_CDP_URL`, `AGENT_BROWSER_CDP`), or from a checkout (version `0.0.0.dev0`). `ardia
 --version` records nothing.
@@ -799,7 +829,10 @@ The wire format is the app's: OTLP log records (`otlp.ts` `eventRecord`/`logsReq
 to `https://ardia.dev/otel/v1/logs`, scope `ardia.analytics`, resource `service.name` `ardia-cli`, so they land in
 `telemetry.events` with `source = 'ardia-cli'`. Every event carries `$lib` `ardia-cli`, `cli_version`, `$os_version`,
 `arch`, `python_version`, `$environment` (`production` for the installed app's data dir, `test` for any other, `dev`
-from a checkout), `$geoip_disable` and `$process_person_profile: false`.
+from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$session_id`: the app's `sessionId` from
+`telemetry.json` while it says `sessionOpen`, else one UUIDv7 per CLI process. During a watch, events also carry
+`watch_report` (`FB-…`). Every post sends `X-Ardia-Key` with the CLI's public ingest key (`CLI_INGEST_KEY` in
+`telemetry.py`, the same value as `packages/core/src/ingestKeys.ts`; a test keeps them equal).
 
 - `cli_command`, one per run: `command` (the first command word; `unknown` for a word it doesn't know, `none` for
   bare `ardia` and `--help`), `subcommand` (the second word; for `browse`, the browse command, or `other` when it
@@ -812,7 +845,8 @@ from a checkout), `$geoip_disable` and `$process_person_profile: false`.
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `batch_steps`, and `cdp_calls` with `cdp_ms_total` (the
+  `output_chars` and `output_truncated`, `humanize`, `batch_steps` (also the operations an `ardia apply`, `tabs …`
+  or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
   (`command_metrics.py`).
 - `$exception` for a crash the CLI didn't handle (`source` and mechanism `cli_unhandled`, level `fatal`) or one inside
@@ -826,13 +860,16 @@ from a checkout), `$geoip_disable` and `$process_person_profile: false`.
   endpoints, a checkout): it reports a command's crash only when that request was eligible, and a crash of the
   daemon itself only when the last request it took was.
 
-- `cli_feedback`, one per `ardia feedback`: `text` (the note), `text_truncated`, `text_chars` (its length before
-  scrubbing), `about_command` (`--command`, scrubbed and capped at 300), `agent` (the caller name the control pill
-  shows, from `caller.py`), `recent_commands` (the last five command names this CLI home ran, like `browse click` or
-  `browse fill (exit 1)`, never their arguments) and `cli_version`. See Feedback and the star nudge.
+It never sends argv values, URLs, page text, selectors, refs, typed text, JS, notes, file paths, cookies or anything
+from the page. Reports from `ardia feedback` don't go through this pipeline (see Feedback and the star nudge).
 
-Apart from `cli_feedback`'s scrubbed text, it never sends argv values, URLs, page text, selectors, refs, typed text,
-JS, notes, file paths, cookies or anything from the page.
+Every event it builds, sent or not, is also appended to a 7-day local copy, `<data dir>/Telemetry/local/cli-<UTC
+day>.jsonl` (folder 0700 when the CLI makes it; the app shares it, so one it made without group or other write access
+is used too), one record per line with `sent` true when it was queued for ardia.dev and false when sharing is off
+(`distinct_id` is then `local`). Files older than 7 days are deleted and the total is capped at 4 MB, oldest lines
+first, on every append, under `cli-local.lock`. It's written whenever the command would send if sharing were on, so
+the opt-outs, test endpoints and a checkout above keep no copy either. It leaves the Mac only as the normal events
+(sharing on) or when someone attaches it to a report.
 
 Nothing waits on the network. Events go to `<data dir>/Telemetry/cli-queue.jsonl` (folder 0700, file 0600, under
 `cli-queue.lock`; at most 500 events and 256 KB, the oldest dropped). At exit, once at least 60 s have passed since the
@@ -852,28 +889,65 @@ runs against a local stub with fixture data dirs.
 
 ## Feedback and the star nudge
 
-`ardia feedback "<what annoyed you, what you expected>"` (or the text on stdin, or `-`) is for agents to tell the
-developer about friction: a confusing error, a missing command, output that cost turns. `telemetry_scrub.free_text`
-first replaces control characters. Then, from the first sensitive word (password, passwd, pwd, secret, token, api
-key/api_key/apikey, authorization, bearer, basic, digest, cookie, session, credential, private key, auth; any case,
-inside other words too), everything to the end of the note becomes `<redacted>`, whatever quoting, line breaks or
-continuations follow. This over-redacts on purpose: the note is about the CLI, and nothing after someone writes
-"token" is worth the risk. On what's left it drops a URL's login and query (`https://host/path?<redacted>`), known
-token shapes (`ghp_…`, `github_pat_…`, `sk-…`, `xox?-…`, `AKIA…`, `AIza…`, JWTs), emails, mixed letter-and-digit runs of 32 or more,
-card-like numbers and the user name in `/Users/<name>`, then caps it at 1,000 characters. It goes out under exactly the
-consent and opt-outs above, as a `cli_feedback` event; the flush starts at once instead of waiting out the 60 s
-interval, unless the flusher is backing off after a failure. At most 20 notes a rolling day go out per CLI home, and
-the same text twice in a day is sent once (`$ARDIA_CLI_HOME/Usage/usage.json`, under `usage.lock`). Anything not
-sent (sharing off, an opt-out, a test endpoint, over the limit) is kept, scrubbed, in
-`$ARDIA_CLI_HOME/Usage/feedback.jsonl` (newest 200), and the one line it prints says so.
+`ardia feedback --title "<short title>" "<what you ran, what happened, what you expected>"` (or the description on
+stdin, or `-`) is for agents and people to report a problem or an idea: a confusing error, a missing command, output
+that cost turns, something slow. It follows the contract in `docs/feedback.md`: `--title` is required, 1-67 characters
+once runs of whitespace are folded into one space; the description is required and kept to 4,000 characters after
+scrubbing; `--kind` is `bug` (the default), `slow`, `idea` or `other`; `--command` names the command that misbehaved.
 
-The owner reads them on dash.ardia.dev › Errors › Agent feedback, or with
-`SELECT timestamp, properties['agent'], properties['cli_version'], properties['about_command'],
-properties['recent_commands'], properties['text'] FROM telemetry.events WHERE event = 'cli_feedback' AND
-source = 'ardia-cli' ORDER BY timestamp DESC`.
+Sending a report is consent for that report, so it goes out whether or not the app's sharing is on. With sharing on
+(`telemetry.json` for `--data-dir`, `$ARDIA_DATA_DIR` or the installed app's data dir; from a checkout, only an
+explicit data dir is read) the report carries the install id, so it joins that install's events; otherwise a one-time
+UUIDv4 made for that report. `session_id` is the same one the events carry. It posts to `https://ardia.dev/api/feedback`
+with `X-Ardia-Key` (the CLI key): `kind`, `title`, `description`, `source: "cli"`, `install_id`, `session_id`,
+`app_version` and `app_build` (the app's `lastVersion`/`lastBuild` from `telemetry.json`), `channel`, `os_version`,
+`arch`, `cli_version`, `watch_days: 0`, `diagnostics` (`agent`, the caller name the control pill shows from
+`caller.py`; `about_command`, scrubbed and capped at 300; `recent_commands`, the last five command names this CLI home
+ran, like `browse click` or `browse fill (exit 1)`, never their arguments; `description_truncated`; `environment`;
+`python_version`) and `attachments`. Then it uploads each file with `PUT <endpoint>/<id>/files/<name>` and the
+`upload_token` as a Bearer token, and calls `POST <endpoint>/<id>/complete`. It prints `Sent. Reference FB-…`, the
+GitHub issue link and "You appear to us as <name>" from the service's answer, and says "Sent" only after a 2xx from
+`complete`.
+
+`--attach FILE` (repeatable, 10 at most) takes the contract's kinds: one `.mp4` as `recording.mp4` (100 MB), one
+`.json.gz` as `trace.json.gz` (50 MB), `.ips` crash reports as `crash-<n>.ips`, and `.png`, `.jpg`, `.jpeg`, `.gif`,
+`.webp`, `.heic`, `.mov`, `.txt`, `.log`, `.md`, `.json`, `.jsonl` or `.csv` as `attachment-<n>.<ext>` (10 MB each).
+Anything else, an empty file or one over its cap is refused before anything is sent. Files aren't scrubbed; they stay
+private and never reach GitHub.
+
+`telemetry_scrub.scrub` removes secrets by exact pattern, never by cutting at a keyword, so a report about
+`ardia browse session`, `auth save` or an expired token keeps its words. It replaces control characters, then
+removes: private key blocks; every parameter of a Digest header; the value of `Authorization`, `Proxy-Authorization`,
+`Cookie`, `Set-Cookie`, `Api-Key`, `Private-Token` and `X-…-Token/Key/Secret/Auth/Session/Password` headers; URL logins
+and queries (`https://host/path?<redacted>`); `key=value`, `key: value`, `key => value` and `--key value` where the key
+names a secret (`password`, `passwd`, `pwd`, `passphrase`, `secret`, `token`, `api_key`, `access_key`, `private_key`,
+`credential(s)`, `session_id`/`session_key`/`session_token`, `sessionid`, `auth_token`/`auth_key`/`auth_code`,
+`cookie`, `signature`, `otp`, and names ending in them like `client_secret` or `access_token`), quoted values whole,
+escapes and unclosed quotes included; session cookie pairs (`sid=`, `PHPSESSID=`, `connect.sid=`, `_x_session=`…);
+`Bearer`/`Basic` followed by something credential-shaped (a digit or `._~+/=-`, 20 letters, or quoted); known key
+formats (`ghp_…`, `github_pat_…`, `sk-…`, `sk_live_…`, `xox?-…`, `glpat-…`, `npm_…`, `AKIA…`/`ASIA…`, `AIza…`,
+`ya29.…`, `hf_…`) and JWTs as `<secret>`; emails as `<email>`; mixed letter-and-digit runs of 32 or more as
+`<secret>`; card numbers that pass the Luhn check as `<number>`; and the name in `/Users/<name>` and `/home/<name>`.
+A title or description with nothing left but those placeholders is refused (exit 2). The raw length isn't sent.
+
+When it isn't sent, the report is kept, scrubbed, in `$ARDIA_CLI_HOME/Usage/feedback.jsonl` (newest 200, with the
+reason and any reference the service gave), and the line says exactly why: `DO_NOT_TRACK=… is set`,
+`ARDIA_TELEMETRY=… is set`, `ARDIA_PORT points ardia at a test browser` (any of the test endpoint variables), a
+checkout build (`0.0.0.dev0`, which never sends to ardia.dev), an `ARDIA_FEEDBACK_URL` that isn't loopback, the daily
+limit, the network failing (with the system's reason), or the service's HTTP status and message. At most 20 reports a
+rolling day go out per CLI home, and the same kind, title and description twice in a day is sent once
+(`$ARDIA_CLI_HOME/Usage/usage.json`, under `usage.lock`); a report that fails gives its slot back, and when another
+`ardia` holds that lock the report is kept with that reason. From a checkout without `ARDIA_CLI_HOME`, nothing is
+counted or saved, and the line says so.
+
+`ARDIA_FEEDBACK_URL` is for tests: a loopback `http://` URL gets the reports instead of ardia.dev, from a checkout too
+(an origin alone gets `/api/feedback` added); any other value keeps reports on the Mac. `tests/test_feedback.py` runs
+against a stub of the service and, when `node` is there, against `node infra/feedback/server.mjs --local <tmp dir>`.
+
+The owner reads them on dash.ardia.dev › Feedback, and each opens a GitHub issue.
 
 Every command (but `feedback` and `star`) also leaves its name and, when it failed, its exit code in that state's
-`recent` list (five at most), for the next note's `recent_commands`. From a checkout (`0.0.0.dev0`) nothing is recorded
+`recent` list (five at most), for the next report's `recent_commands`. From a checkout (`0.0.0.dev0`) nothing is recorded
 unless `ARDIA_CLI_HOME` is set, so tests never touch the installed CLI's state.
 
 A task is a stretch of `ardia browse` work: it starts with a successful command that does something (`open`, `click`,

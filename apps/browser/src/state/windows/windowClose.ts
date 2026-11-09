@@ -3,7 +3,7 @@ import { onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
 import { tabsClosedWithWindow } from "../tabs/tabShare";
-import { isOpenRegularWindow, isSmall } from "./small";
+import { isLastRegularWindow, isOpenRegularWindow, isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
 
@@ -24,9 +24,12 @@ async function requestClose(windowId: string) {
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const asked = new Set<string>();
+  let last = false;
   for (;;) {
     const now = useBrowser.getState();
     if (!now.windows[windowId]) return;
+    last = isLastRegularWindow(now, windowId);
+    if (last) break;
     const closing = tabsClosedWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
     if (!now.settings.warnBeforeClosingWindow || closing.length < MIN_TABS || closing.every((id) => asked.has(id))) break;
     const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
@@ -34,7 +37,7 @@ async function requestClose(windowId: string) {
     if (!confirmed) return;
     for (const id of closing) asked.add(id);
   }
-  closeWindowAnimated(windowId);
+  closeWindowAnimated(windowId, { keepsLastWindow: last });
 }
 
 const unpinnedTabIds = (windowId: string) => {

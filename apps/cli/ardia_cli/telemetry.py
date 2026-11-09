@@ -9,12 +9,13 @@ from pathlib import Path
 from ardia_cli import __version__
 
 LOGS_URL = "https://ardia.dev/otel/v1/logs"
+INGEST_KEY_HEADER = "X-Ardia-Key"
+CLI_INGEST_KEY = "ak_cli_67adb8ebc49841125eda860e"
 TEST_URL_ENV = "ARDIA_TELEMETRY_URL"
 EVENTS_SCOPE = "ardia.analytics"
 SERVICE_NAME = "ardia-cli"
 LIB = "ardia-cli"
 CONSENT_FILE = "telemetry.json"
-CONSENT_VERSION = 1
 FOLDER = "Telemetry"
 SPOOL = "cli-queue.jsonl"
 SPOOL_LOCK = "cli-queue.lock"
@@ -22,6 +23,12 @@ FLUSH_LOCK = "cli-flush.lock"
 FLUSH_CLAIM_LOCK = "cli-flush-claim.lock"
 FLUSH_STATE = "cli-flush.json"
 MAX_CONSENT_BYTES = 64 * 1024
+LOCAL_FOLDER = "local"
+LOCAL_PREFIX = "cli-"
+LOCAL_LOCK = "cli-local.lock"
+LOCAL_DAYS = 7
+LOCAL_ONLY_ID = "local"
+MAX_LOCAL_BYTES = 4 * 1024 * 1024
 MAX_SPOOL_BYTES = 256 * 1024
 COUNT_CHECK_BYTES = 64 * 1024
 MAX_EVENTS = 500
@@ -149,7 +156,7 @@ def cli_target(argv: list, env) -> Target | None:
     return target(data_dir_arg(tokens), names_test_endpoint(tokens), env)
 
 
-def consent(root: Path) -> str | None:
+def read_consent(root: Path) -> dict | None:
     import stat
 
     try:
@@ -169,15 +176,66 @@ def consent(root: Path) -> str | None:
         doc = json.loads(raw)
     except ValueError:
         return None
-    if not isinstance(doc, dict):
+    return doc if isinstance(doc, dict) else None
+
+
+def epoch_seconds(value) -> float | None:
+    from datetime import datetime
+
+    if isinstance(value, bool):
         return None
-    version = doc.get("version", 0)
-    if isinstance(version, bool) or not isinstance(version, int) or not 0 <= version <= CONSENT_VERSION:
-        return None
-    install_id = doc.get("installId")
-    if doc.get("sharing") is True and isinstance(install_id, str) and INSTALL_ID.match(install_id):
-        return install_id
+    if isinstance(value, (int, float)):
+        return value / 1000 if value > 1e11 else float(value)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
     return None
+
+
+def valid_id(value) -> str | None:
+    return value.lower() if isinstance(value, str) and INSTALL_ID.match(value.lower()) else None
+
+
+def sharing_id(doc: dict | None, now: float | None = None) -> str | None:
+    if not doc or doc.get("sharing") is not True:
+        return None
+    until = epoch_seconds(doc.get("sharingUntil")) if doc.get("sharingUntil") is not None else None
+    if until is not None and until <= (time.time() if now is None else now):
+        return None
+    return valid_id(doc.get("installId"))
+
+
+def consent(root: Path) -> str | None:
+    return sharing_id(read_consent(root))
+
+
+_process_session: str | None = None
+
+
+def session_id(doc: dict | None) -> str:
+    global _process_session
+    if doc and doc.get("sessionOpen") is True:
+        app_session = valid_id(doc.get("sessionId"))
+        if app_session:
+            return app_session
+    if _process_session is None:
+        _process_session = uuid7()
+    return _process_session
+
+
+def watch_report(doc: dict | None) -> str | None:
+    report = doc.get("watchReport") if doc else None
+    return report if isinstance(report, str) and re.fullmatch(r"FB-[A-Z0-9]{2,16}", report) else None
+
+
+def common_properties(doc: dict | None) -> dict:
+    properties = {"$session_id": session_id(doc)}
+    report = watch_report(doc) if sharing_id(doc) else None
+    if report:
+        properties["watch_report"] = report
+    return properties
 
 
 def uuid7() -> str:
@@ -310,6 +368,13 @@ def note_browse(argv: list, command: str = "browse") -> None:
         _call.browse_argv = list(argv)
 
 
+def note_count(key: str, value) -> None:
+    from ardia_cli import command_metrics
+
+    if _call is not None:
+        _call.metrics.update(command_metrics.clean({key: value}))
+
+
 def note_error_code(code) -> None:
     if _call is not None and isinstance(code, str) and code:
         _call.error_code = code
@@ -369,16 +434,20 @@ def finish(status: int, error: BaseException | None = None) -> None:
         where = cli_target(call.argv, os.environ)
         if where is None:
             return
-        install_id = consent(where.root)
+        doc = read_consent(where.root)
+        install_id = sharing_id(doc)
+        records = []
+        if error is not None:
+            crash = exception_record(error, "cli_unhandled", True, install_id or LOCAL_ONLY_ID, where.environment)
+            if crash:
+                records.append(crash)
+        records.append(command_record(call, status, error is not None, install_id or LOCAL_ONLY_ID, where.environment))
+        for record in records:
+            record["properties"].update(common_properties(doc))
+        keep_local_copy(where.root, records, install_id is not None)
         if install_id is None:
             discard_spool(where.root)
             return
-        records = []
-        if error is not None:
-            crash = exception_record(error, "cli_unhandled", True, install_id, where.environment)
-            if crash:
-                records.append(crash)
-        records.append(command_record(call, status, error is not None, install_id, where.environment))
         dir_fd = append(where.root, records)
         if dir_fd is not None:
             try:
@@ -404,11 +473,14 @@ def report_exception(error: BaseException, mechanism: str, config: dict, fatal: 
         where = target(config.get("data_root"), bool(config.get("ws") or config.get("port")), os.environ)
         if where is None:
             return
-        install_id = consent(where.root)
-        if install_id is None:
+        doc = read_consent(where.root)
+        install_id = sharing_id(doc)
+        record = exception_record(error, mechanism, fatal, install_id or LOCAL_ONLY_ID, where.environment)
+        if record is None:
             return
-        record = exception_record(error, mechanism, fatal, install_id, where.environment)
-        if record is not None:
+        record["properties"].update(common_properties(doc))
+        keep_local_copy(where.root, [record], install_id is not None)
+        if install_id is not None:
             dir_fd = append(where.root, [record])
             if dir_fd is not None:
                 os.close(dir_fd)
@@ -508,6 +580,122 @@ def append(root: Path, records: list[dict]) -> int | None:
         os.close(dir_fd)
         raise
     return dir_fd
+
+
+def open_local_folder(root: Path) -> int:
+    import stat
+
+    from ardia_cli.browse import paths
+
+    dir_fd = open_folder(root)
+    try:
+        try:
+            os.mkdir(LOCAL_FOLDER, 0o700, dir_fd=dir_fd)
+        except FileExistsError:
+            pass
+        local = os.open(LOCAL_FOLDER, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    finally:
+        os.close(dir_fd)
+    info = os.fstat(local)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o022:
+        os.close(local)
+        raise paths.PathError(f"{LOCAL_FOLDER} isn't a private folder of yours")
+    return local
+
+
+def local_name(now: float) -> str:
+    return f"{LOCAL_PREFIX}{time.strftime('%Y-%m-%d', time.gmtime(now))}.jsonl"
+
+
+def local_files(dir_fd: int) -> list[tuple[str, int]]:
+    found = []
+    for name in os.listdir(dir_fd):
+        if re.fullmatch(LOCAL_PREFIX + r"\d{4}-\d{2}-\d{2}\.jsonl", name):
+            try:
+                found.append((name, os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_size))
+            except FileNotFoundError:
+                continue
+    return sorted(found)
+
+
+def drop_oldest_lines(dir_fd: int, name: str, size: int, excess: int) -> int:
+    from ardia_cli.browse import paths
+
+    fd = paths.open_private_file(name, dir_fd, os.O_RDONLY)
+    try:
+        raw = os.read(fd, size)
+    finally:
+        os.close(fd)
+    cut = raw.find(b"\n", max(0, excess - 1))
+    rest = raw[cut + 1:] if cut >= 0 else b""
+    if not rest:
+        paths.unlink_quietly(name, dir_fd)
+        return size
+    temp = f".{name}.{os.getpid()}.tmp"
+    fd = paths.open_private_file(temp, dir_fd, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+    try:
+        os.write(fd, rest)
+    finally:
+        os.close(fd)
+    os.rename(temp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+    return size - len(rest)
+
+
+def prune_local(dir_fd: int, now: float) -> None:
+    from ardia_cli.browse import paths
+
+    oldest_kept = local_name(now - (LOCAL_DAYS - 1) * 86400)
+    files = []
+    for name, size in local_files(dir_fd):
+        if name < oldest_kept:
+            paths.unlink_quietly(name, dir_fd)
+        else:
+            files.append((name, size))
+    excess = sum(size for _, size in files) - MAX_LOCAL_BYTES
+    for name, size in files:
+        if excess <= 0:
+            break
+        excess -= drop_oldest_lines(dir_fd, name, size, excess)
+
+
+def local_line(record: dict, sent: bool) -> bytes:
+    return (json.dumps({**record, "sent": sent}, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+
+
+def keep_local_copy(root: Path, records: list[dict], sent: bool, now: float | None = None) -> bool:
+    from ardia_cli.browse import paths
+
+    now = time.time() if now is None else now
+    data = b"".join(local_line(record, sent) for record in records)
+    if not data or len(data) > MAX_LOCAL_BYTES:
+        return False
+    try:
+        dir_fd = open_local_folder(root)
+    except (OSError, paths.PathError):
+        return False
+    try:
+        lock = None
+        for attempt in range(LOCK_ATTEMPTS):
+            lock = take_lock(LOCAL_LOCK, dir_fd)
+            if lock is not None or attempt + 1 == LOCK_ATTEMPTS:
+                break
+            time.sleep(LOCK_RETRY_S)
+        if lock is None:
+            return False
+        try:
+            fd = paths.open_private_file(local_name(now), dir_fd, os.O_WRONLY | os.O_CREAT | os.O_APPEND)
+            try:
+                os.write(fd, data)
+            finally:
+                os.close(fd)
+            prune_local(dir_fd, now)
+            return True
+        finally:
+            os.close(lock)
+    except (OSError, paths.PathError):
+        return False
+    finally:
+        os.close(dir_fd)
 
 
 def discard_spool(root: Path) -> None:
@@ -707,12 +895,13 @@ def post(url: str, body: bytes) -> int:
     import urllib.error
     import urllib.request
 
-    request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", INGEST_KEY_HEADER: CLI_INGEST_KEY}, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=SEND_TIMEOUT_S) as response:
             return response.status
     except urllib.error.HTTPError as error:
-        return error.code
+        with error:
+            return error.code
     except Exception:
         return 0
 

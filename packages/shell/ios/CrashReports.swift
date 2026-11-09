@@ -14,7 +14,7 @@ enum CrashReports {
       bundle: Bundle.main.bundleURL.resolvingSymlinksInPath().path,
       bundleId: Bundle.main.bundleIdentifier ?? "",
       version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
-    let prefixes = [executable.lastPathComponent] + helperNames
+    let prefixes = [executable.lastPathComponent] + helpers.map(\.name)
     let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiagnosticReports")
     let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
     var reports: [[String: Any]] = []
@@ -24,10 +24,10 @@ enum CrashReports {
         let report = parse(url, owner: ours, time: modified) else { continue }
       reports.append(report)
     }
-    let sorted = reports.sorted { ($0["time"] as? Double ?? 0) < ($1["time"] as? Double ?? 0) }
+    let sorted = reports.sorted { ($0["fileTime"] as? Double ?? 0) < ($1["fileTime"] as? Double ?? 0) }
     let browser = sorted.filter { $0["process"] as? String == "browser" }.suffix(perProcessKind)
-    let helpers = sorted.filter { $0["process"] as? String != "browser" }.suffix(perProcessKind)
-    return (browser + helpers).sorted { ($0["time"] as? Double ?? 0) < ($1["time"] as? Double ?? 0) }
+    let helperReports = sorted.filter { $0["process"] as? String != "browser" }.suffix(perProcessKind)
+    return (browser + helperReports).sorted { ($0["fileTime"] as? Double ?? 0) < ($1["fileTime"] as? Double ?? 0) }
   }
 
   private struct Owner {
@@ -37,19 +37,27 @@ enum CrashReports {
     let version: String?
   }
 
-  private static let helperNames: [String] = {
+  private static let helpers: [(name: String, bundleId: String?)] = {
     guard let frameworks = Bundle.main.privateFrameworksURL else { return [] }
-    let helpers = frameworks.appendingPathComponent("Chromium Framework.framework/Versions/Current/Helpers")
-    let entries = (try? FileManager.default.contentsOfDirectory(atPath: helpers.path)) ?? []
-    return entries.filter { $0.hasSuffix(".app") }.map { String($0.dropLast(4)) }
+    let folder = frameworks.appendingPathComponent("Chromium Framework.framework/Versions/Current/Helpers")
+    let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+    return entries.filter { $0.hasSuffix(".app") }.map { entry in
+      (String(entry.dropLast(4)), Bundle(url: folder.appendingPathComponent(entry))?.bundleIdentifier)
+    }
   }()
 
+  private static func isOurs(bundleId: String?, owner: Owner) -> Bool {
+    guard let bundleId else { return true }
+    return bundleId == owner.bundleId || helpers.contains { $0.bundleId == bundleId }
+  }
+
   private static func process(procPath: String, header: [String: Any], mainThread: String?, owner: Owner) -> String? {
-    if let bundleId = header["bundleID"] as? String, !owner.bundleId.isEmpty, !bundleId.hasPrefix(owner.bundleId) { return nil }
-    guard let contents = procPath.range(of: ".app/Contents/") else { return nil }
+    guard isOurs(bundleId: header["bundleID"] as? String, owner: owner),
+      let contents = procPath.range(of: ".app/Contents/") else { return nil }
     let inside = String(procPath[contents.upperBound...])
     let candidate = "\(owner.bundle)/Contents/\(inside)"
-    let pattern = procPath.replacingOccurrences(of: "?", with: "\\?").replacingOccurrences(of: "/Users/USER/", with: "/Users/*/")
+    let pattern = procPath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "?", with: "\\?")
+      .replacingOccurrences(of: "/Users/USER/", with: "/Users/*/")
     guard procPath == candidate || NSPredicate(format: "SELF LIKE %@", pattern).evaluate(with: candidate) else { return nil }
     if candidate == owner.executable {
       if let sliceUUID = header["slice_uuid"] as? String, let running = executableUUID, sliceUUID.lowercased() != running,
@@ -143,15 +151,16 @@ enum CrashReports {
         return out
       }
     }
-    var report: [String: Any] = ["time": time.timeIntervalSince1970 * 1000, "frames": simplified(frames), "process": process]
+    let crashed = reportTime(body["captureTime"]) ?? time
+    var report: [String: Any] = [
+      "time": crashed.timeIntervalSince1970 * 1000, "fileTime": time.timeIntervalSince1970 * 1000, "frames": simplified(frames), "process": process,
+    ]
     if let thrown = body["lastExceptionBacktrace"] as? [[String: Any]], !thrown.isEmpty {
       report["exceptionFrames"] = simplified(thrown)
     }
     let appImages = bundledImages(usedImages, procPath: procPath)
     if !appImages.isEmpty { report["images"] = appImages }
-    let thrown = thrownException(body)
-    if let name = thrown.name { report["exceptionName"] = name }
-    if let reason = thrown.reason { report["exceptionReason"] = reason }
+    if let name = thrownExceptionName(body) { report["exceptionName"] = name }
     if let subtype = exception["subtype"] as? String, let kind = subtype.split(separator: " ").first {
       report["exceptionSubtype"] = String(kind)
     }
@@ -190,37 +199,23 @@ enum CrashReports {
     }.prefix(24).map { $0 }
   }
 
-  private static func thrownException(_ body: [String: Any]) -> (name: String?, reason: String?) {
+  private static func thrownExceptionName(_ body: [String: Any]) -> String? {
     let valid = try! NSRegularExpression(pattern: "^[A-Z][A-Za-z0-9_]{2,63}$")
     func checked(_ full: String) -> String? {
       let name = String(full.prefix { $0 != ":" })
       return valid.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) == nil ? nil : name
     }
-    func firstLine(_ reason: String?) -> String? {
-      guard let line = reason?.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first, !line.isEmpty else {
-        return nil
-      }
-      return String(line)
-    }
-    if let details = body["exceptionReason"] as? [String: Any], let name = details["name"] as? String {
-      return (checked(name), firstLine(details["composed_message"] as? String ?? details["format_string"] as? String))
-    }
-    let uncaught = try! NSRegularExpression(
-      pattern: "uncaught exception '(.{1,2000}?)', reason: '(.*)'\\s*$", options: [.dotMatchesLineSeparators])
+    if let details = body["exceptionReason"] as? [String: Any], let name = details["name"] as? String { return checked(name) }
     let named = try! NSRegularExpression(pattern: "uncaught exception '([^']{1,64})'")
     for case let lines as [String] in (body["asi"] as? [String: Any] ?? [:]).values {
       for line in lines {
-        let whole = NSRange(line.startIndex..., in: line)
-        if let match = uncaught.firstMatch(in: line, range: whole),
-          let name = Range(match.range(at: 1), in: line), let reason = Range(match.range(at: 2), in: line) {
-          return (checked(String(line[name])), firstLine(String(line[reason])))
-        }
-        if let match = named.firstMatch(in: line, range: whole), let name = Range(match.range(at: 1), in: line) {
-          return (checked(String(line[name])), nil)
+        if let match = named.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+          let name = Range(match.range(at: 1), in: line) {
+          return checked(String(line[name]))
         }
       }
     }
-    return (nil, nil)
+    return nil
   }
 
   #if DEBUG

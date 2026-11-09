@@ -50,6 +50,7 @@ export type OpenWindowRequest = {
   profile?: string;
   point?: { x: number; y: number };
   site?: boolean;
+  fromClick?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -109,7 +110,7 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean };
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {

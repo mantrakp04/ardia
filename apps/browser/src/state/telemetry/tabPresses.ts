@@ -1,4 +1,4 @@
-import { capture, isSharing } from "./client";
+import { capture, useTelemetry } from "./client";
 import { percentile } from "./transport";
 
 export type TabPressEnd = "click" | "dragClick" | "drag";
@@ -12,8 +12,16 @@ let pending = false;
 let shown: { tabId: string; at: number } | null = null;
 let toPageClick: number[] = [];
 
+function forgetPresses() {
+  tally = empty();
+  pending = false;
+  shown = null;
+  toPageClick = [];
+}
+
+useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
+
 export function notePressStarted() {
-  if (!isSharing()) return;
   if (pending) tally.unanswered++;
   pending = true;
   tally.presses++;
@@ -31,7 +39,7 @@ export function notePressEnded(end: TabPressEnd, tabId: string | null = null) {
 export function notePagePress(tabId: string) {
   const last = shown;
   shown = null;
-  if (!last || last.tabId !== tabId || !isSharing()) return;
+  if (!last || last.tabId !== tabId) return;
   const ms = Date.now() - last.at;
   if (ms >= 0 && ms < PAGE_CLICK_WINDOW_MS && toPageClick.length < MAX_SAMPLES) toPageClick.push(ms);
 }
@@ -41,7 +49,7 @@ export function emitTabPresses() {
   const samples = toPageClick.sort((a, b) => a - b);
   tally = empty();
   toPageClick = [];
-  if (!isSharing() || !counts.presses) return;
+  if (!counts.presses) return;
   const at = (p: number) => (samples.length ? percentile(samples, p) : null);
   capture("tab_presses", { ...counts, page_click_ms_p50: at(0.5), page_click_ms_p75: at(0.75), page_click_n: samples.length });
 }

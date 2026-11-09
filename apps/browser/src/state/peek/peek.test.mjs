@@ -296,3 +296,51 @@ test("a peek can adopt the page Chrome already opened for the link", () => {
   assert.equal(S().tabs[id].page.adopt, "ardiacore:7");
   assert.equal(peekTabId(S(), w), id);
 });
+
+test("a private window's new-tab links stay tabs whatever the setting", async () => {
+  const { newTabLinkRoute } = await import("./newTabLinkRoute.ts");
+  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  const w = S().createWindow({ kind: "private", url: "https://mail.example/" });
+  const [tab] = S().windows[w].tabIds;
+  for (const choice of ["peek", "littleArdia"]) {
+    S().updateSettings({ newTabLinksOpenIn: choice });
+    assert.equal(newTabLinkRoute(S(), tab, "https://other.example/"), "tab", choice);
+  }
+  S().updateSettings({ newTabLinksOpenIn: "tab" });
+});
+
+test("a peek from a pinned tab becomes a tab only when its first settled page past any wrapper is the pinned site", async () => {
+  const { startPeeks } = await import("./actions.ts");
+  const { siteLanding } = await import("./newTabLinkRoute.ts");
+  startPeeks();
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const load = async (id, url) => {
+    S().updateTab(id, { url }, { isLoading: true });
+    await settle();
+    S().updateTab(id, { url }, { isLoading: false });
+    await settle();
+  };
+  const open = (url) => {
+    S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+    const w = S().createWindow({ url: "https://www.youtube.com/" });
+    const [pinned] = S().windows[w].tabIds;
+    S().pinTabs([pinned], true);
+    S().activate(pinned);
+    const id = S().openPeek(pinned, url, null, { landing: siteLanding("https://www.youtube.com/", "tab") });
+    return { w, id };
+  };
+  let { w, id } = open("https://www.youtube.com/redirect?q=https%3A%2F%2Fother.example%2F");
+  await settle();
+  assert.equal(peekTabId(S(), w), id, "the wrapper's own address on the pinned host doesn't promote it");
+  await load(id, "https://www.youtube.com/redirect?q=https%3A%2F%2Fother.example%2F");
+  assert.equal(peekTabId(S(), w), id, "nor does the wrapper page settling");
+  await load(id, "https://other.example/");
+  assert.equal(peekTabId(S(), w), id);
+  await load(id, "https://www.youtube.com/watch");
+  assert.equal(peekTabId(S(), w), id, "going back to the pinned site by hand keeps the peek");
+  ({ w, id } = open("https://bit.example/x"));
+  await load(id, "https://www.youtube.com/watch?v=1");
+  await settle();
+  assert.equal(peekTabId(S(), w), undefined, "a redirector landing on the pinned site becomes a tab");
+  assert.ok(S().windows[w].tabIds.includes(id));
+});

@@ -2,7 +2,7 @@ import { diagnosticsSample, hardwareInfo, type HardwareInfo } from "../../platfo
 import { systemState } from "../../platform/performance";
 import { withDeadline } from "../../lib/deadline";
 import { useBrowser } from "../browser/store";
-import { capture, isSharing, saveContext } from "./client";
+import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
 import { appInfo } from "./transport";
 
@@ -11,12 +11,16 @@ const FIRST_CONTEXT_MS = 3_000;
 const HARDWARE_WAIT_MS = 1_000;
 const MAX_PAGE_PROCESS_EVENTS = 30;
 const MINUTE_MS = 60_000;
+const MAX_SAMPLES = 12;
 
 const startedAt = Date.now();
-const sessionStart = () => appInfo().processStart ?? startedAt;
+export const sessionStart = () => appInfo().processStart ?? startedAt;
 let appMemoryMb: number | null = null;
 let pageProcessesGone = 0;
 let pageProcessEvents = 0;
+let samples: SavedContext[] = [];
+let firstSample: ReturnType<typeof setTimeout> | undefined;
+let everySample: ReturnType<typeof setInterval> | undefined;
 
 const size = (o: object) => Object.keys(o).length;
 const sessionMinutes = (at = Date.now()) => Math.max(0, Math.round((at - sessionStart()) / MINUTE_MS));
@@ -49,13 +53,38 @@ export async function recordContext(): Promise<SavedContext | null> {
     memory_pressure: pressure,
     page_processes_gone: pageProcessesGone,
   };
+  if (!isSharing()) return null;
+  samples = [...samples, context].slice(-MAX_SAMPLES);
   saveContext(context);
   return context;
 }
 
+export const contextSamples = () => samples;
+
+function forgetContext() {
+  samples = [];
+  appMemoryMb = null;
+  pageProcessesGone = 0;
+}
+
+useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetContext());
+
+useBrowser.subscribe((s, prev) => {
+  if (s.profiles === prev.profiles || size(s.profiles) >= size(prev.profiles)) return;
+  forgetContext();
+  saveContext(null);
+});
+
 export function startContextSamples() {
-  setTimeout(() => void recordContext(), FIRST_CONTEXT_MS);
-  setInterval(() => void recordContext(), CONTEXT_EVERY_MS);
+  stopContextSamples();
+  firstSample = setTimeout(() => void recordContext(), FIRST_CONTEXT_MS);
+  everySample = setInterval(() => void recordContext(), CONTEXT_EVERY_MS);
+}
+
+export function stopContextSamples() {
+  clearTimeout(firstSample);
+  clearInterval(everySample);
+  firstSample = everySample = undefined;
 }
 
 const CONTEXT_FIELDS = ["tabs", "windows", "profiles", "footprint_mb", "app_memory_mb", "free_disk_gb", "memory_pressure", "page_processes_gone"] as const;
@@ -70,8 +99,18 @@ export function contextProperties(context: SavedContext | null, prefix: string, 
   return out;
 }
 
-export function contextCovers(context: SavedContext | null, at: number): boolean {
-  return !!context && typeof context.session_start === "number" && at >= context.session_start;
+const startOf = (c: SavedContext | null) => (c && typeof c.session_start === "number" && typeof c.at === "number" ? c.session_start : null);
+
+export function contextAt(contexts: (SavedContext | null)[], at: number, sessionStarts: number[]): SavedContext | null {
+  const starts = [...sessionStarts, ...contexts.map(startOf)].filter((start): start is number => start !== null && start <= at);
+  if (!starts.length) return null;
+  const session = Math.max(...starts);
+  let best: SavedContext | null = null;
+  for (const c of contexts) {
+    if (startOf(c) !== session || (c!.at as number) > at) continue;
+    if (!best || (c!.at as number) > (best.at as number)) best = c;
+  }
+  return best;
 }
 
 const chipName = (chip: string) => chip.split(" @ ", 1)[0]!.replace(/\(R\)|\(TM\)/g, "").replace(/\s+/g, " ").trim();
@@ -95,7 +134,6 @@ export async function hardwareProperties(): Promise<Record<string, unknown>> {
 const GONE_REASONS = new Set(["abnormal", "killed", "crashed", "oom", "launchFailed", "integrity", "unknown"]);
 
 export function trackPageProcessGone(info: { reason: string; code: number }, visible: boolean) {
-  if (!isSharing()) return;
   pageProcessesGone++;
   if (pageProcessEvents >= MAX_PAGE_PROCESS_EVENTS) return;
   pageProcessEvents++;

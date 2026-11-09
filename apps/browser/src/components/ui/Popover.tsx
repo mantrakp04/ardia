@@ -8,6 +8,7 @@ import { useTheme } from "./theme";
 import { concentric, font as typeScale, lineHeight, POPOVER_WIDTH, radius, shadow, space, weight } from "./tokens";
 import { useHover } from "./useHover";
 import { Panel, type PanelProps } from "./Panel";
+import { OutsidePressArea } from "./native";
 import { useGlass } from "./Glass";
 
 export const POPOVER_MARGIN = space.m;
@@ -116,9 +117,11 @@ export function Popover({
       {fitHeight && <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setRoom(e.nativeEvent.layout.height)} />}
       {modal && onDismiss && !closing && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />}
       <Animated.View pointerEvents={closing ? "none" : "auto"} style={{ position: "absolute", top, right, left, width: typeof width === "number" ? width : POPOVER_WIDTH[width], ...motion }}>
-        <PopoverSurface glass={glass}>
-          {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
-        </PopoverSurface>
+        <OutsidePressArea onOutsidePress={onDismiss && !closing ? onDismiss : undefined}>
+          <PopoverSurface glass={glass}>
+            {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
+          </PopoverSurface>
+        </OutsidePressArea>
       </Animated.View>
     </>
   );

@@ -13,6 +13,8 @@ import { useTheme } from "../ui/theme";
 import { TabIcon } from "../sidebar/TabIcon";
 import { AwayTitleLabel } from "../sidebar/AwayTitle";
 import { useHoverCardMotion, useHoverCardPlacement } from "../sidebar/hoverMotion";
+import { HOVER_CARD_HEADER } from "../sidebar/hoverPlacement";
+import { TAB_ROW } from "../sidebar/tokens";
 import { STRIP_CARD_GAP, STRIP_CARD_MARGIN, STRIP_CARD_WIDTH } from "./tokens";
 
 export function useStripCardHover(windowId: string, tabId: string, view: RefObject<View | null>) {
@@ -64,7 +66,7 @@ function StripCardContent({ tabId }: { tabId: string }) {
   const away = awayTitle(tab);
   return (
     <HoverPanel width={STRIP_CARD_WIDTH} pad="ml">
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: TAB_ROW.titleGap, height: HOVER_CARD_HEADER }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
         {away ? (
           <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />

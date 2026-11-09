@@ -14,6 +14,8 @@ import type {
   WindowEvent,
 } from "@ardia/shell";
 import { nativeEvents, unfaked } from "./events";
+import { reportModule } from "./report";
+import { telemetryLocalModule } from "./telemetryLocal";
 
 type Modules = ShellNativeModules;
 
@@ -170,7 +172,7 @@ const app: Modules["ArdiaApp"] = {
   playIntroMusic: () => Promise.resolve(),
   setIntroMusicMuted: () => Promise.resolve(),
   stopIntroMusic: () => Promise.resolve(),
-  crashReports: (since) => Promise.resolve(diagnostics.crashReports.filter((r) => r.time > since)),
+  crashReports: (since) => Promise.resolve(diagnostics.crashReports.filter((r) => (r.fileTime ?? r.time) > since)),
   hardwareInfo: () => Promise.resolve(structuredClone(diagnostics.hardware)),
   diagnosticsSample: () => Promise.resolve({ ...diagnostics.sample }),
 };
@@ -392,4 +394,6 @@ export const shellNativeModules: Modules = {
   ArdiaConfig: config,
   ArdiaAutomation: automation,
   ArdiaSystemSignals: systemSignalsModule,
+  ArdiaTelemetryLocal: telemetryLocalModule,
+  ArdiaReport: reportModule,
 };

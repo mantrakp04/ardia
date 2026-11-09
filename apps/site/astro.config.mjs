@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { constants, gzipSync } from "node:zlib";
 
-const computerUsePublished = false;
+const computerUsePublished = true;
 
 function demo() {
   const demoDir = fileURLToPath(new URL("../../packages/demo/", import.meta.url));

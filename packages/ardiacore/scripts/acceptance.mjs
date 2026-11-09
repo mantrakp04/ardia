@@ -64,7 +64,7 @@ const usesPageA = [
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
   "notifications", "now-playing", "media-state", "auto-picture-in-picture", "picture-in-picture-opt-out", "pip-window", "page-focus",
-  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
+  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
@@ -3843,96 +3843,33 @@ try {
     }
   });
 
-  await check("fullscreen-menu-bar-reveal", async () => {
-    const tab = await openTab(`${base}/b?fs-reveal`, "Page B");
+  await check("fullscreen-system-title-bar", async () => {
+    const tab = await openTab(`${base}/b?fs-title-bar`, "Page B");
     const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
     const win = (action) => engine("windows.dev", { window: n, action });
-    const reveal = async (amount) => JSON.parse(await win(amount === undefined ? "fullScreenReveal" : `fullScreenReveal:${amount}`));
-    const out = {};
+    const windowId = await evalApp(`return ac.store.getState().tabs[${JSON.stringify(tab.id)}]?.windowId ?? null`);
+    const appFullScreen = () => evalApp(`return !!ac.store.getState().windows[${JSON.stringify(windowId)}]?.fullScreen`);
     try {
-      const t = await pageFor(tab.id, "/b?fs-reveal");
-      let moves = 0;
-      const pageOrigin = async () => {
-        await cdp(t, "Runtime.evaluate", { expression: "window.__origin = null; addEventListener('mousemove', (e) => { window.__origin = { y: e.screenY - e.clientY }; }, { once: true }); true", returnByValue: true });
-        await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: 60, y: 200 + ++moves });
-        return (await until("the page's mousemove", async () => (await cdp(t, "Runtime.evaluate", { expression: "window.__origin", returnByValue: true })).result.value, 3000)).y;
-      };
-      const windowed = { state: await reveal(), lights: await win("lights") };
-      if (windowed.state.height !== 0 || windowed.state.hostTop !== 0) throw new Error(`content moved outside full screen: ${JSON.stringify(windowed.state)}`);
-      const suppressible = windowed.state.titlebarMaxHeight !== null;
-      if (suppressible && !(windowed.state.titlebarMaxHeight > 0)) throw new Error(`the title bar is suppressed outside full screen: ${JSON.stringify(windowed.state)}`);
+      const windowed = await win("lights");
+      if (await appFullScreen()) throw new Error("the app thinks a windowed window is full screen");
       await fsWindow(tab.id, "fakeFullScreen:1");
       await until("the window in full screen", async () => {
         const w = await fsWindow(tab.id);
         return w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
       }, 6000);
-      const rest = await reveal(0);
-      const restOrigin = await pageOrigin();
-      if (!rest.lights || !rest.lights.hidden || rest.standardLightsHidden.some((h) => !h)) throw new Error(`full-screen lights at rest: ${JSON.stringify(rest)}`);
-      const restHit = await win(`hit:${rest.lights.left + 7},${rest.lights.top + 7}`);
-      if (restHit.includes("ArdiaFullScreenLights")) throw new Error(`the hidden close light takes clicks: ${restHit}`);
-      const hovered = JSON.parse(await win("fullScreenLightsHover:1"));
-      const hoverHit = await win(`hit:${hovered.lights.left + 7},${hovered.lights.top + 7}`);
-      const unhovered = JSON.parse(await win("fullScreenLightsHover:0"));
-      if (hovered.lights.hidden || hovered.lights.top !== rest.lights.top || !hoverHit.includes("ArdiaFullScreenLights") || !unhovered.lights.hidden)
-        throw new Error(`the pointer near the lights: ${JSON.stringify({ hovered: hovered.lights, hoverHit, unhovered: unhovered.lights })}`);
-      out.rest = { hidden: rest.lights.hidden, hoverShows: !hovered.lights.hidden, band: hovered.lights.band?.frame };
-      if (suppressible && (rest.titlebarMaxHeight !== 0 || rest.titlebarMinHeight !== 0)) throw new Error(`the system title bar isn't suppressed: ${JSON.stringify(rest)}`);
-      out.screen = { case: rest.overlap > 0 ? "menu bar over the window" : "window below the menu bar (notch)", menuBarHeight: rest.menuBarHeight, overlap: rest.overlap };
-      out.steps = [];
-      for (const amount of [0.5, 1, 0]) {
-        const s = await reveal(amount);
-        const h = s.height;
-        const bad = [];
-        if (Math.abs(h - amount * s.overlap) > 0.5) bad.push(`height ${h} for ${amount} × ${s.overlap}`);
-        if (s.hostTop !== h || s.rootTop !== h) bad.push(`content at ${s.hostTop}/${s.rootTop}`);
-        if (JSON.stringify([s.hostSize, s.rootSize, s.pages.map((p) => p.size)]) !== JSON.stringify([rest.hostSize, rest.rootSize, rest.pages.map((p) => p.size)])) bad.push("a size changed");
-        if (s.pages.some((p, i) => p.top !== rest.pages[i].top + h)) bad.push(`pages at ${s.pages.map((p) => p.top)}`);
-        if (!s.backdrops.length || s.backdrops.some((b) => b.top !== 0)) bad.push(`backdrops at ${s.backdrops.map((b) => b.top)}`);
-        if (s.lights.top !== rest.lights.top + h || s.lights.hidden !== (amount === 0)) bad.push(`lights at ${s.lights.top}${s.lights.hidden ? " hidden" : " shown"}`);
-        const lightsHit = await win(`hit:${s.lights.left + 7},${s.lights.top + 7}`);
-        if (lightsHit.includes("ArdiaFullScreenLights") !== (amount > 0)) bad.push(`the close light hits ${lightsHit}`);
-        const origin = await pageOrigin();
-        if (origin !== restOrigin + h) bad.push(`Chromium places the page at ${origin}, not ${restOrigin + h}`);
-        if (bad.length) throw new Error(`reveal ${amount}: ${bad.join("; ")}: ${JSON.stringify(s)}`);
-        out.steps.push({ amount, height: h, lightsTop: s.lights.top, pageOrigin: origin });
-      }
-      const placed = await reveal(0.5);
-      const placedOrigin = await pageOrigin();
-      for (const name of ["NSWindowDidResizeNotification", "NSWindowDidChangeScreenNotification", "NSWindowDidChangeBackingPropertiesNotification"])
-        await win(`postNotification:window:${name}`);
-      const replaced = await reveal();
-      const replacedOrigin = await pageOrigin();
-      const where = (s) => JSON.stringify([s.height, s.hostTop, s.rootTop, s.backdrops, s.pages, s.lights]);
-      if (where(replaced) !== where(placed) || replacedOrigin !== placedOrigin) throw new Error(`a geometry change moved the revealed window: ${where(placed)} ${placedOrigin} → ${where(replaced)} ${replacedOrigin}`);
-      out.geometryChange = { height: replaced.height, pageOrigin: replacedOrigin };
-      await reveal(1);
-      await fsEnter(tab.id, t);
-      const video = await until("page full screen in the window", async () => {
-        const s = await reveal();
-        return s.pageFullScreen ? s : null;
-      }, 6000);
-      if (video.height !== 0 || video.hostTop !== 0 || !video.lights.hidden) throw new Error(`page full screen moved with the menu bar: ${JSON.stringify(video)}`);
-      await fsEscape(t);
-      await fsLeft(tab.id, t, "Esc ended the page's full screen");
-      const back = await until("the reveal back after page full screen", async () => {
-        const s = await reveal();
-        return !s.pageFullScreen ? s : null;
-      }, 6000);
-      if (back.height !== back.overlap || back.lights.hidden) throw new Error(`the reveal didn't come back after page full screen: ${JSON.stringify(back)}`);
-      out.video = { height: video.height, lightsHidden: video.lights.hidden, after: back.height };
+      await until("the app told the window is full screen, so the sidebar's button moves to the edge", async () => ((await appFullScreen()) ? true : null), 3000);
+      const own = await win("hit:20,20");
+      if (own.includes("ArdiaFullScreenLights")) throw new Error(`our own full-screen lights are back: ${own}`);
       await fsWindow(tab.id, "fakeFullScreen:0");
       await until("the window out of full screen", async () => {
         const w = await fsWindow(tab.id);
         return !w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
       }, 6000);
-      const after = { state: await reveal(), lights: await win("lights") };
-      if (after.state.height !== 0 || after.state.hostTop !== 0 || after.state.amount !== 0 || after.state.standardLightsHidden.some((h) => h)) throw new Error(`leaving full screen kept the reveal: ${JSON.stringify(after.state)}`);
-      if (after.lights !== windowed.lights || after.state.titlebarMaxHeight !== windowed.state.titlebarMaxHeight) throw new Error(`windowed lights ${windowed.lights} → ${after.lights}, title bar ${windowed.state.titlebarMaxHeight} → ${after.state.titlebarMaxHeight}`);
-      out.windowed = { lights: after.lights, titlebarMaxHeight: after.state.titlebarMaxHeight, suppressible };
-      return out;
+      await until("the app told the window left full screen", async () => (!(await appFullScreen()) ? true : null), 3000);
+      const after = await win("lights");
+      if (after !== windowed) throw new Error(`windowed lights ${windowed} → ${after}`);
+      return { windowedLights: after };
     } finally {
-      await win("fullScreenReveal:0").catch(() => null);
       if ((await fsWindow(tab.id).catch(() => null))?.fullScreen) await fsWindow(tab.id, "fakeFullScreen:0").catch(() => null);
       await closeTab(tab.id).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);

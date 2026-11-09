@@ -3,6 +3,7 @@ import sys
 
 from ardia_cli import browsing
 from ardia_cli.endpoint import data_root
+from ardia_cli.printable import shown
 
 DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 READS = """\
@@ -90,13 +91,13 @@ def describe_pin(row: dict) -> str:
     if row.get("folder"):
         parts.append(f"(folder {row['folder']})")
     parts.append(f"[{row['profile']}]" + (" parked" if row.get("parked") else ""))
-    return "  ".join(parts)
+    return "  ".join(shown(part) for part in parts)
 
 
 def describe_visit(row: dict) -> str:
-    return "  ".join([row["last_visit"], f"{row['visits']:>4}", row["title"] or "-", row["url"], f"[{row['profile']}]"])
+    return "  ".join(shown(part) for part in [row["last_visit"], f"{row['visits']:>4}", row["title"] or "-", row["url"], f"[{row['profile']}]"])
 
 
 def describe_domain(row: dict) -> str:
     pages = f"{row['pages']} page{'s' if row['pages'] != 1 else ''}"
-    return "  ".join([f"{row['visits']:>5}", row["domain"], pages, row["top_title"] or "-", f"[{row['profile']}]"])
+    return "  ".join(shown(part) for part in [f"{row['visits']:>5}", row["domain"], pages, row["top_title"] or "-", f"[{row['profile']}]"])

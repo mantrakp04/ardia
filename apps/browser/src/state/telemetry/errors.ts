@@ -1,6 +1,6 @@
 import { crashReports } from "../../platform/app";
-import { advanceCrashCursor, capture, crashCursor, isSharing, loadChoice, saveQueueNow } from "./client";
-import { contextCovers, contextProperties } from "./diagnostics";
+import { advanceCrashCursor, capture, crashCursor, loadChoice, saveQueueNow } from "./client";
+import { contextAt, contextProperties, sessionStart } from "./diagnostics";
 import type { SavedContext } from "./savedContext";
 import { recordLog } from "./logs";
 import { errorCode, errorMessage, errorType, nativeCrashExceptions, nativeCrashTermination, parseStack, type ExceptionFrame } from "./sanitize";
@@ -27,7 +27,6 @@ function exceptionProperties(entries: ExceptionEntry[], mechanism: Mechanism, ha
 }
 
 export function captureException(error: unknown, mechanism: Mechanism, { fatal = false, handled = false } = {}) {
-  if (!isSharing()) return;
   try {
     if (error && typeof error === "object") {
       if (reported.has(error)) return;
@@ -74,7 +73,7 @@ export function holdFatalReports(manager: ExceptionsManagerType | null): boolean
   const original = manager?.handleException;
   if (!manager || typeof original !== "function") return false;
   manager.handleException = (error, isFatal) => {
-    if (!isFatal || !isSharing()) return original.call(manager, error, isFatal);
+    if (!isFatal) return original.call(manager, error, isFatal);
     const mechanism = (error as { isComponentError?: boolean } | null)?.isComponentError ? "react" : "onerror";
     captureException(error, mechanism, { fatal: true });
     void saveQueueNow().then(() => original.call(manager, error, isFatal));
@@ -94,7 +93,7 @@ export function installErrorReporting() {
   const previous = g.ErrorUtils?.getGlobalHandler?.();
   g.ErrorUtils?.setGlobalHandler?.((error, isFatal) => {
     captureException(error, "onerror", { fatal: !!isFatal });
-    if (isFatal && isSharing() && !fatalReportsHeld) void saveQueueNow().then(() => previous?.(error, isFatal));
+    if (isFatal && !fatalReportsHeld) void saveQueueNow().then(() => previous?.(error, isFatal));
     else previous?.(error, isFatal);
   });
 
@@ -133,16 +132,15 @@ const optional = (value: string | undefined, pattern: RegExp) => (value && patte
 const whole = (value: number | undefined) => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
 
 export async function reportNativeCrashes(contexts: (SavedContext | null)[] = []) {
-  if (!isSharing()) return;
   const since = crashCursor();
   const reports = await crashReports(since).catch(() => []);
   let latest = since;
   for (const report of reports) {
-    latest = Math.max(latest, report.time);
+    latest = Math.max(latest, report.fileTime ?? report.time);
     const browser = report.process === "browser";
     const mechanism: Mechanism = browser ? "native_crash" : "helper_crash";
     const { name, signal, subtype, images, exceptions } = nativeCrashExceptions(report);
-    const context = contexts.filter((c) => contextCovers(c, report.time)).at(-1) ?? null;
+    const context = contextAt(contexts, report.time, [sessionStart()]);
     capture(
       "$exception",
       {

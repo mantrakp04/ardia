@@ -6,7 +6,7 @@ import { addBookmark, moveBookmark } from "./actions";
 import { addFolderToSidebar } from "./bookmarkGroups";
 import { insertTarget, linkTitle, moveTarget, sameSpot, type DropSpot } from "./barDrop";
 import { closeFolderMenus, closeSprungMenus, holdMenuPanel, panelKey, useFolderMenus } from "./folderMenus";
-import { onAppEvent, setDragEscapeCapture } from "../drag/dragNative";
+import { captureEscape, onAppEvent } from "../drag/dragNative";
 import { isWebPageUrl } from "../../lib/url";
 import { isWithin } from "./bookmarks";
 import { NO_SIDEBAR_EDGE, overSidebar, type SidebarEdge } from "./sidebarEdge";
@@ -197,7 +197,7 @@ export function watchBookmarkEscape() {
       const want = useFolderMenus.getState().panels.length > 0 || useBarDrag.getState().source?.kind === "bookmark";
       if (want === capturing) return;
       capturing = want;
-      setDragEscapeCapture(want);
+      captureEscape("bookmarks", want);
     };
     const menus = useFolderMenus.subscribe(sync);
     const drags = useBarDrag.subscribe(sync);
@@ -210,7 +210,7 @@ export function watchBookmarkEscape() {
       menus();
       drags();
       keys.remove();
-      if (capturing) setDragEscapeCapture(false);
+      if (capturing) captureEscape("bookmarks", false);
     };
   }
   return () => {
