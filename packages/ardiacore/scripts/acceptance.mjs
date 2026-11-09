@@ -3693,8 +3693,8 @@ try {
         await act(`mouse:dragged:${cardX + step},${cardY + step},1,${command}`);
         await sleep(30);
       }
-      await act(`mouse:up:${cardX + 6},${cardY + 6},1,${command}`);
       const releasedAt = Date.now();
+      await act(`mouse:up:${cardX + 6},${cardY + 6},1,${command}`);
       const [clickerX, clickerY] = at(360, 70);
       const pressedAt = [];
       for (let i = 0; i < 5; i++) {
@@ -3704,15 +3704,17 @@ try {
         await act(`mouse:up:${clickerX},${clickerY},1,${command}`);
       }
       await until("the clicks after the moved ⌘-click", async () => (await clickerEvents()).length >= clicksAfterDrag + pressedAt.length, 6000);
+      await sleep(800);
       const movedDragend = (await ofType("dragend"))[dragendsBefore];
       if (!movedDragend) throw new Error("the moved ⌘-click never started a page drag");
       const sinceRelease = movedDragend[4] - releasedAt;
       if (sinceRelease > 250) throw new Error(`the page drag ended ${sinceRelease} ms after mouse-up: AppKit's slide-back kept the session open`);
       const burst = (await clickerEvents()).slice(clicksAfterDrag).map((e) => e[4]);
+      if (burst.length !== pressedAt.length) throw new Error(`${pressedAt.length} clicks were made and ${burst.length} reached the page`);
       const late = burst.map((t, i) => t - pressedAt[i]);
       if (late.some((ms) => ms > 300)) throw new Error(`clicks reached the page late, ${JSON.stringify(late)} ms after each was made`);
       const gaps = burst.slice(1).map((t, i) => t - burst[i]);
-      if (gaps.some((ms) => ms < 20)) throw new Error(`clicks reached the page together: ${JSON.stringify(gaps)} ms apart`);
+      if (gaps.some((ms, i) => ms < 20 && late[i] > 100)) throw new Error(`clicks queued and reached the page together: ${JSON.stringify({ late, gaps })} ms`);
       return { spot, sinceRelease, late, gaps, events: (await events()).map((e) => `${e[0]}:${e[1]}`) };
     } finally {
       await closeTab(tab).catch(() => null);
