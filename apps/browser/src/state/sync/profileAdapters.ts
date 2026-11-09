@@ -3,6 +3,7 @@ import { useBrowser } from "../browser/store";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { sanitizeTheme } from "../../lib/profileLook";
 import type { Profile, ProfileTheme } from "../browser/types";
+import { noteTopAppsSharingFromSync } from "../telemetry/topAppsSharing";
 import { PROFILE, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, profileRecord, topAppsRecord, type TopAppsRecord } from "./records";
 
 const store = () => useBrowser.getState();
@@ -133,7 +134,10 @@ export function profileTopAppsAdapter(links: () => Record<string, { syncId: stri
       for (const [id, { syncId }] of linked()) {
         const key = `${PROFILE_TOP_APPS}${syncId}`;
         const record = changed.has(key) ? topAppsRecord(visible.get(key)) : null;
-        if (record) store().updateProfile(id, { shareTopApps: record.on || undefined });
+        if (!record) continue;
+        const changes = record.on !== !!store().profiles[id]!.shareTopApps;
+        store().updateProfile(id, { shareTopApps: record.on || undefined });
+        if (changes) noteTopAppsSharingFromSync(store(), "synced_record", record.on);
       }
     },
   };

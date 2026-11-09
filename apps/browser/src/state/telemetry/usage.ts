@@ -18,6 +18,7 @@ import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
+import { releaseTopAppsSharing, topAppsSharingAtLaunch } from "./topAppsSharing";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -197,15 +198,18 @@ const rebootedSince = (lastLaunchAt: number | null) => {
 };
 
 async function launchEvents(session: ReturnType<typeof startClient>) {
+  const topApps = topAppsSharingAtLaunch(useBrowser.getState(), session.updatedFrom);
   const hardware = await hardwareProperties();
   const previous = session.previous === "unclean" ? { ...contextProperties(session.context, "prev_", Date.now()), rebooted_since: rebootedSince(session.lastLaunchAt) } : {};
   capture("app_launched", { previous_session: session.previous, ...hardware, ...previous });
   if (session.updatedFrom) capture("app_updated", { from_version: session.updatedFrom });
+  capture("top_apps_sharing", topApps);
 }
 
 export function startUsage() {
   const session = startClient();
   previousContext = session.context;
+  releaseTopAppsSharing();
   void launchEvents(session);
   launchCrashRead = setTimeout(() => void reportNativeCrashes([previousContext]), session.previous === "unclean" ? 1000 : 5000);
   startWatchChecks();
