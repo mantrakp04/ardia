@@ -64,6 +64,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   private var wasLoading = false
   private lazy var swipePan = UIPanGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
   private var swipe: SwipeState?
+  private var swipeAnimator: UIViewPropertyAnimator?
   private lazy var refreshFeedback = UIImpactFeedbackGenerator(style: .light, view: self)
   private lazy var swipeFeedback = UIImpactFeedbackGenerator(style: .medium, view: self)
 
@@ -509,13 +510,15 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     let initial = min(velocity / distance, 6)
     let animator = UIViewPropertyAnimator(duration: 0.22, timingParameters: UISpringTimingParameters(dampingRatio: 1, initialVelocity: CGVector(dx: initial, dy: 0)))
     animator.addAnimations { [self] in layoutSwipe(swipe, progress: commit ? 1 : 0) }
+    let origin = page
     animator.addCompletion { [weak self] _ in
       guard let self else { return }
+      self.swipeAnimator = nil
       self.webView?.transform = .identity
       self.webView?.layer.shadowOpacity = 0
       swipe.shade.removeFromSuperview()
       self.swipe = nil
-      guard commit, let page = self.page else {
+      guard commit, let page = origin, page === self.page else {
         swipe.target.removeFromSuperview()
         return
       }
@@ -529,10 +532,13 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
         swipe.target.removeFromSuperview()
       }
     }
+    swipeAnimator = animator
     animator.startAnimation()
   }
 
   private func cancelSwipe() {
+    swipeAnimator?.stopAnimation(true)
+    swipeAnimator = nil
     guard let swipe else { return }
     swipe.target.removeFromSuperview()
     swipe.shade.removeFromSuperview()
