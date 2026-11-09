@@ -98,7 +98,7 @@ function hideSidePanel(windowId: string) {
 }
 
 export function closeSidePanelOnTab(windowId: string) {
-  const tabId = shownReadyTab(windowId) ?? useExtensions.getState().sidePanels[windowId]?.tabId;
+  const tabId = shownPageId(useBrowser.getState(), windowId) ?? useExtensions.getState().sidePanels[windowId]?.tabId;
   if (!tabId) return closeSidePanel(windowId);
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);

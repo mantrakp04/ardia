@@ -212,6 +212,20 @@ test("opening the side panel again on a tab where it was closed brings it back",
   assert.equal(panels.panelClosedOnTab(w, a), false, "a full close forgets the closed tabs");
 });
 
+test("the X while the tab switched to is still loading closes the panel for that tab, not the one left", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  usePages.setState({ ready: { [a]: 1 } });
+  S().activate(b);
+  panels.closeSidePanelOnTab(w);
+  assert.equal(panels.panelClosedOnTab(w, b), true);
+  assert.equal(panels.panelClosedOnTab(w, a), false);
+  assert.equal(E().sidePanels[w].hidden, true);
+  panels.closeSidePanel(w);
+});
+
 test("the X on the only open panel closes it for the window", async () => {
   const { w, answer } = setup();
   const opened = panels.openSidePanel(w, "ext");
