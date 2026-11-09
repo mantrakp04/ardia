@@ -56,6 +56,14 @@ final class FocusHandoff {
   private(set) var trace: [String] = []
   var afterPendingUI: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }
 
+  func summary(of window: NSWindow) -> String {
+    let epoch = epochs[window.windowNumber] ?? 0
+    guard let gate = gates[ObjectIdentifier(window)] else { return "key epoch \(epoch), no paste gate" }
+    let remaining = Int((gate.deadline - CACurrentMediaTime()) * 1000)
+    let state = remaining > 0 ? "open, \(remaining) ms left" : "expired \(-remaining) ms ago, not yet ended"
+    return "key epoch \(epoch), paste gate \(state), \(gate.generations.count) generations, \(gate.held.count) held"
+  }
+
   var gatesKeyWindow: Bool { NSApp.keyWindow.map { gates[ObjectIdentifier($0)] != nil } ?? false }
 
   @discardableResult

@@ -44,6 +44,7 @@ void InstallActivationGuardsLate();
 bool Background();
 void LogActivation(NSString *what);
 void WatchFocusChanges();
+void NoteProfileSwitch(ArdiaCoreProfile *profile, NSWindow *_Nullable window);
 NSString *FocusState();
 NSString *PageMoveAt(NSWindow *window, NSPoint point);
 void SetAppActive(bool active);

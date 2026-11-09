@@ -12,6 +12,8 @@ BOOL (^gShouldClose)(NSWindow *);
 
 void (^gSwapped)(NSWindow *, NSWindow *);
 
+NSString *(^gFocusHandoffSummary)(NSWindow *);
+
 }
 
 NSView *ArdiaWindowRootView(NSWindow *window) {
@@ -72,6 +74,7 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
     ArdiaWindowController *shown = weakController;
     if (!p || !coreWindow || !shown) return;
     coreWindow.activeProfile = p;
+    ardia_host::NoteProfileSwitch(p, coreWindow.window);
     ArdiaCoreTab *tab = [ArdiaTabStrip activeTabInWindow:shown profile:p];
     ArdiaWebView *view = tab ? [ArdiaTabRegistry viewForTab:tab] : nil;
     NSWindow *shownWindow = coreWindow.window;
@@ -154,6 +157,14 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (BOOL (^)(NSWindow *, NSEvent *))refusesUnhandledKeyHandler {
   return gRefusesUnhandledKey;
+}
+
++ (void)setFocusHandoffSummaryHandler:(NSString *(^)(NSWindow *))handler {
+  gFocusHandoffSummary = [handler copy];
+}
+
++ (NSString *(^)(NSWindow *))focusHandoffSummaryHandler {
+  return gFocusHandoffSummary;
 }
 
 + (void)embedRootView:(NSView *)root inWindow:(NSWindow *)window {
