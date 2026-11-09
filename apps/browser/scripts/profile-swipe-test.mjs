@@ -538,6 +538,24 @@ try {
     assert.ok(middle.events.every((e) => !e.swallowed), "other buttons pass through");
     return { pressed, released, back, edge, middle };
   });
+  await test("mouse side buttons over the top tab strip page between profiles", async () => {
+    await reset();
+    await ac('ac.store.getState().updateSettings({ tabLayout: "top" }); return true;');
+    try {
+      for (let start = Date.now(); Date.now() - start < 3000 && !(await ac('return !!globalThis.acSwipe.strip("w1");'));) await sleep(50);
+      await sleep(250);
+      const strip = (steps) => ac(`return globalThis.acSwipe.strip("w1").devSimulate(${JSON.stringify(steps)}, {ignorePreference:true});`);
+      const forward = await strip(click(4));
+      await waitProfile("work");
+      const back = await strip(click(3));
+      await waitProfile("default");
+      for (const result of [forward, back]) assert.ok(result.events.every((e) => e.swallowed), "side buttons over the strip are the pager's");
+      return { forward, back };
+    } finally {
+      await ac('ac.store.getState().updateSettings({ tabLayout: "sidebar" }); return true;');
+      for (let start = Date.now(); Date.now() - start < 3000 && !(await ac('return !!globalThis.acSwipe.sidebar("w1");'));) await sleep(50);
+    }
+  });
   await test("a side-button click sent to the app reaches the pager through the event monitor", async () => {
     await reset();
     const result = await simulate(click(4).map((step) => ({ ...step, dispatch: "app" })));
