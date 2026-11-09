@@ -4,12 +4,13 @@ import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useCardFrame } from "../window/cardFrame";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
+import { useBrowser } from "../../state/browser/store";
 import { currentSettings } from "../../state/browser/current";
 import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -23,26 +24,70 @@ function rubberBand(width: number): number {
   if (width < MIN_WIDTH) return MIN_WIDTH - band(MIN_WIDTH - width);
   return width;
 }
+const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
+const alive = (windowId: string, p: SidePanel, currentKey: string) => panelTabOpen(windowId, p.tabId) || panelKey(p) === currentKey;
 const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 
 export function ExtensionSidePanel() {
   const windowId = useWindowId();
-  const panel = useExtensions((e) => e.sidePanels[windowId]);
+  const entry = useExtensions((e) => e.sidePanels[windowId]);
+  const panel = entry && !entry.hidden ? entry : undefined;
+  const state = !entry ? "closed" : entry.hidden ? "hidden" : "shown";
   const savedWidth = useSettings((st) => st.extensionSidePanelWidth ?? 360);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
+  const [leaving, setLeaving] = useState(false);
   const gap = useCardFrame().splitGap;
+  const [kept, setKept] = useState<SidePanel[]>(panel ? [panel] : []);
+  const shownKey = useRef("");
+  const entryNow = useRef(entry);
+  useEffect(() => {
+    shownKey.current = panel && shown ? panelKey(shown) : "";
+    entryNow.current = entry;
+  });
+
+  const lastSeen = useRef<{ state: string; tab?: string }>({ state: "closed" });
 
   useEffect(() => {
     if (panel) setShown(panel);
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
-      if (finished && !panel) setShown(undefined);
+    const tab = shownReadyTab(windowId);
+    const before = lastSeen.current;
+    const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
+    setLeaving(!panel && !tabSwitch && !!shown);
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
+      if (!finished) return;
+      setLeaving(false);
+      const now = entryNow.current;
+      if (!now) {
+        setShown(undefined);
+        setKept([]);
+      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId)));
     });
-  }, [!!panel]);
+  }, [state]);
   useEffect(() => {
-    if (panel) setShown(panel);
-  }, [panel?.url, panel?.extensionId, panel?.opened]);
+    lastSeen.current = { state, tab: shownReadyTab(windowId) };
+  });
+  useEffect(() => {
+    if (!panel) return;
+    setShown(panel);
+    setKept((k) => {
+      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(windowId, p, panelKey(panel)));
+      const next = k.filter(keep);
+      return next.some((p) => panelKey(p) === panelKey(panel)) ? next.map((p) => (panelKey(p) === panelKey(panel) ? panel : p)) : [...next, panel];
+    });
+  }, [panel && panelKey(panel), panel?.tabId, panel?.opened]);
+  useEffect(
+    () =>
+      useBrowser.subscribe((s, prev) => {
+        if (s.tabs === prev.tabs) return;
+        setKept((k) => {
+          const open = k.filter((p) => alive(windowId, p, shownKey.current));
+          return open.length === k.length ? k : open;
+        });
+      }),
+    [],
+  );
 
   const width = dragWidth ?? savedWidth;
   const start = useRef(width);
@@ -81,7 +126,14 @@ export function ExtensionSidePanel() {
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
-        <PanelCard key={`${shown.extensionId}|${shown.pageProfile}|${shown.url}`} windowId={windowId} panel={shown} />
+        {kept.map((p) => {
+          const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
+          const close = () => {
+            if (current && closeSidePanelOnTab(windowId, p.tabId)) return;
+            setKept((k) => k.filter((x) => x !== p));
+          };
+          return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
+        })}
         <View
           {...responder.panHandlers}
           onDoubleClick={() => updateSettings({ extensionSidePanelWidth: 360 })}
@@ -92,7 +144,7 @@ export function ExtensionSidePanel() {
   );
 }
 
-function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) {
+function PanelCard({ windowId, panel, current, onWindowClose }: { windowId: string; panel: SidePanel; current: boolean; onWindowClose: () => void }) {
   const { extensionId, profile, pageProfile, url, opened } = panel;
   const theme = useTheme();
   const cardRadius = useCardFrame().radius;
@@ -100,13 +152,16 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
   const [loaded, setLoaded] = useState(false);
   const lookingUp = useExtensions((e) => !!e.sidePanelLookups[windowId]);
   useEffect(() => {
-    if (loaded && takeSidePanelFocus(windowId, panel)) void web.current?.focus();
-  }, [loaded, opened, lookingUp]);
+    if (current && loaded && takeSidePanelFocus(windowId, panel)) void web.current?.focus();
+  }, [current, loaded, opened, lookingUp]);
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;
   return (
-    <View style={{ flex: 1, borderRadius: cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
+    <View
+      pointerEvents={current ? "auto" : "none"}
+      style={{ ...StyleSheet.absoluteFillObject, opacity: current ? 1 : 0, borderRadius: cardRadius, overflow: "hidden", backgroundColor: theme.card }}
+    >
       <Box row gap="m" style={HEADER_ROW}>
         {icon ? <Image source={{ uri: icon }} style={{ width: 16, height: 16 }} /> : null}
         <Text numberOfLines={1} weight="medium" style={FLEX}>
@@ -121,7 +176,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
-        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
+        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanelOnTab(windowId)} />
       </Box>
       <Divider />
       <View style={PAGE}>
@@ -131,12 +186,15 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
           url={url}
           profile={pageProfile}
           standalone
+          visible={current}
+          warm={!current}
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onNavigationChange={({ isLoading }) => {
             if (!isLoading) setLoaded(true);
           }}
-          onWindowClose={() => closeSidePanel(windowId, extensionId)}
+          onWindowClose={onWindowClose}
+          onCrashed={current ? undefined : onWindowClose}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
       </View>

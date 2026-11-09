@@ -257,7 +257,8 @@ export function extensionMenuItems(ext: Pick<InstalledExtension, "name" | "enabl
 
 export async function showExtensionMenu(windowId: string, ext: InstalledExtension) {
   const profile = extensionProfile(useBrowser.getState(), windowId);
-  const choice = await showMenu(extensionMenuItems(ext, useExtensions.getState().sidePanels[windowId]?.extensionId === ext.id));
+  const panel = useExtensions.getState().sidePanels[windowId];
+  const choice = await showMenu(extensionMenuItems(ext, panel?.extensionId === ext.id && !panel.hidden));
   if (choice === "options") openOptions(windowId, ext);
   if (choice === "pin") void setPinned(profile, ext.id, !ext.pinned);
   if (choice === "enable") void setEnabled(profile, ext.id, !ext.enabled);

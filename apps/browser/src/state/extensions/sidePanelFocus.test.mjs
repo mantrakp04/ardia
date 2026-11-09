@@ -220,3 +220,19 @@ test("a panel of another window never takes focus", async () => {
   assert.equal(take(w, panel), true);
   panels.closeSidePanel(w);
 });
+
+test("opening the panel again on a tab where it was hidden takes keyboard focus", async () => {
+  const { w, b } = setup();
+  const first = await open(w);
+  assert.equal(take(w, first), true);
+  native.extensionAnswers.sidePanelUrl = async () => null;
+  S().activate(b);
+  await panels.syncSidePanel(w);
+  assert.equal(E().sidePanels[w].hidden, true);
+  native.extensionAnswers.sidePanelUrl = async (tabId, extensionId) => `chrome-extension://${extensionId}/b.html`;
+  await panels.toggleSidePanel(w, "one");
+  const reopened = E().sidePanels[w];
+  assert.equal(reopened.hidden, undefined);
+  assert.equal(take(w, reopened), true);
+  panels.closeSidePanel(w);
+});
