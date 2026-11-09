@@ -189,7 +189,7 @@ test("a typed address keeps opening the saved page, even when a renamed tab is o
     assert.equal(first?.kind === "page" && first.url, saved, `${typed}: opens the saved page first`);
     assert.equal(first?.kind === "page" && first.tabId, undefined, `${typed}: first row opens, it does not switch`);
     assert.equal(first?.kind === "page" && first.title, "Docs", `${typed}: first row keeps the saved title`);
-    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === saved && i.title === "Work board"), `${typed}: the tab keeps its Switch to Tab row`);
+    assert.ok(items.some((i) => i.kind === "page" && i.tabId === "t7" && i.url === open && i.title === "Work board"), `${typed}: the Switch to Tab row opens the tab's own address`);
   }
 });
 
@@ -226,7 +226,7 @@ test("a renamed tab on a fragment of a saved page leaves the path completion and
     assert.deepEqual(first, alone.items[0], `${typed}: the first row is the one without the tab`);
   }
   const switching = buildSuggestions("work board", { tabs: [tab], history: hist }, { now }).items.find((i) => i.kind === "page");
-  assert.deepEqual(switching?.kind === "page" && { url: switching.url, title: switching.title, tabId: switching.tabId }, { url: saved, title: "Work board", tabId: "t7" });
+  assert.deepEqual(switching?.kind === "page" && { url: switching.url, title: switching.title, tabId: switching.tabId }, { url: tab.url, title: "Work board", tabId: "t7" });
 });
 
 test("a tab without a custom title keeps showing its page title", () => {
