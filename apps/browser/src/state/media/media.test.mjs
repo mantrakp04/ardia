@@ -192,6 +192,77 @@ test("with sidebar media controls off nothing is left paused, and turning them o
   assert.equal(M().leftPaused[b], true);
 });
 
+function sidebarPlayer(windowId) {
+  let shown;
+  return () => {
+    const hidden = media.hiddenPlayerTabs(S(), windowId, S().windows[windowId].profileId, Object.keys(M().sessions));
+    return (shown = media.playerTabFor(M(), media.sidebarPlayerCandidates(M(), hidden), shown));
+  };
+}
+
+async function pausedInTheBackground() {
+  const { w, a, b } = await playingIn("b.com");
+  S().activate(a);
+  const c = S().newTab(w, { url: "c.com", background: true });
+  const player = sidebarPlayer(w);
+  assert.equal(player(), b, "left playing");
+  media.setNowPlaying(b, report({ playbackState: "paused" }));
+  assert.equal(player(), b, "paused after it was left: its player stays so it can be resumed");
+  await tick();
+  return { w, a, b, c, player };
+}
+
+test("a tab paused in the background gives the sidebar player to a tab that starts playing in the background", async () => {
+  const { b, c, player } = await pausedInTheBackground();
+  media.setNowPlaying(c, report());
+  assert.equal(player(), c, "the newly playing tab");
+  media.setNowPlaying(c, report({ playbackState: "paused" }));
+  assert.equal(player(), c, "paused in turn: it keeps the player");
+  assert.equal(M().leftPaused[b], true);
+});
+
+test("a tab paused in the background loses the sidebar player to a tab that starts playing on screen, and doesn't get it back when that tab pauses", async () => {
+  const { a, b, c, player } = await pausedInTheBackground();
+  S().activate(c);
+  media.setNowPlaying(c, report());
+  assert.equal(player(), undefined, "the playing tab is on screen and the paused one is stale");
+  media.setNowPlaying(c, report({ playbackState: "paused" }));
+  assert.equal(player(), undefined, "nothing playing now: the stale card stays gone");
+  media.setNowPlaying(c, null);
+  assert.equal(player(), undefined, "its session ended");
+  media.setNowPlaying(b, report());
+  assert.equal(player(), b, "playing again in the background");
+  S().activate(a);
+  assert.equal(player(), b);
+});
+
+test("a play that started earlier doesn't take the sidebar player from a tab paused later", async () => {
+  const { b, c, player } = await pausedInTheBackground();
+  media.setNowPlaying(c, report());
+  assert.equal(player(), c);
+  media.setNowPlaying(b, report());
+  assert.equal(player(), c, "b plays again, but c started first");
+  media.setNowPlaying(c, report({ playbackState: "paused" }));
+  assert.equal(player(), c, "paused in the background while b plays: c keeps the player");
+  media.setNowPlaying(b, report({ playbackState: "paused" }));
+  assert.equal(player(), c);
+});
+
+test("a play in another window or profile doesn't take the sidebar player", async () => {
+  const { w, b, player } = await pausedInTheBackground();
+  const otherWindow = S().createWindow({ url: "z.com" });
+  const z = S().newTab(otherWindow, { url: "z2.com", background: true });
+  media.setNowPlaying(z, report());
+  assert.equal(M().leftPaused[b], undefined, "another window");
+  assert.equal(player(), b);
+
+  const work = S().createProfile({ name: "Work" });
+  S().switchProfile(w, work);
+  const y = S().newTab(w, { url: "y.com" });
+  media.setNowPlaying(y, report());
+  assert.equal(M().leftPaused[b], undefined, "another profile");
+});
+
 test("a session that ends while its tab is in the background stops being left paused", async () => {
   const { a, b } = await playingIn("b.com");
   media.setNowPlaying(b, report({ playbackState: "paused" }));
