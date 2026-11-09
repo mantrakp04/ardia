@@ -93,7 +93,7 @@ function hideSidePanel(windowId: string) {
 }
 
 export function closeSidePanelOnTab(windowId: string) {
-  const tabId = useExtensions.getState().sidePanels[windowId]?.tabId;
+  const tabId = shownReadyTab(windowId) ?? useExtensions.getState().sidePanels[windowId]?.tabId;
   if (!tabId) return closeSidePanel(windowId);
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);
@@ -141,7 +141,7 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
         : null;
   if (fetches.get(windowId) !== ticket) return;
   if (!shownIn(windowId, extensionId)) return closeSidePanel(windowId);
-  if (!url && readyTab) shownTabs.get(windowId)?.delete(readyTab);
+  if (!url && readyTab && shownTabs.get(windowId)?.delete(readyTab)) tabsOf(closedTabs, windowId).add(readyTab);
   if (!url) return readyTab ? hideSidePanel(windowId) : closeSidePanel(windowId);
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: openings.get(windowId) ?? 0, tabId: readyTab };

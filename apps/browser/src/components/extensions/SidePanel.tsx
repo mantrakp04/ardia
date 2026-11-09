@@ -37,6 +37,7 @@ export function ExtensionSidePanel() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
+  const [leaving, setLeaving] = useState(false);
   const gap = useCardFrame().splitGap;
   const [kept, setKept] = useState<SidePanel[]>(panel ? [panel] : []);
   const shownKey = useRef("");
@@ -50,14 +51,18 @@ export function ExtensionSidePanel() {
 
   useEffect(() => {
     if (panel) setShown(panel);
-    else setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelClosedOnTab(windowId, p.tabId)));
     const tab = shownReadyTab(windowId);
     const before = lastSeen.current;
     const tabSwitch = before.state !== "closed" && state !== "closed" && !!tab && tab !== before.tab;
+    setLeaving(!panel && !tabSwitch && !!shown);
     Animated.timing(appear, { toValue: panel ? 1 : 0, duration: tabSwitch ? 0 : duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
-      if (!finished || entryNow.current) return;
-      setShown(undefined);
-      setKept([]);
+      if (!finished) return;
+      setLeaving(false);
+      const now = entryNow.current;
+      if (!now) {
+        setShown(undefined);
+        setKept([]);
+      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelClosedOnTab(windowId, p.tabId)));
     });
   }, [state]);
   useEffect(() => {
@@ -122,7 +127,7 @@ export function ExtensionSidePanel() {
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
         {kept.map((p) => {
-          const current = !!panel && panelKey(p) === panelKey(shown);
+          const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
           const close = () => (current ? closeSidePanel(windowId, p.extensionId) : setKept((k) => k.filter((x) => panelKey(x) !== panelKey(p))));
           return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
         })}
