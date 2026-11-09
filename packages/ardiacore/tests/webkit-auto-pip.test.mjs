@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const path = (name) => fileURLToPath(new URL(name, import.meta.url));
-const read = (name) => readFileSync(path(name), "utf8");
+const read = (name) => (existsSync(path(name)) ? readFileSync(path(name), "utf8") : "");
 const tab = read("../ios/WebKitTab.swift");
 const sight = read("../ios/WebKitTab+AutoPictureInPicture.swift");
 const pageTab = read("../ios/WebKitTab+PageTab.swift");
