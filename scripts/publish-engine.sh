@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Publishes this checkout's arm64 engine for CI releases: packs the local Chromium Framework (stripped, unpruned, as
-# release.sh packs it) and, for a Helium engine, its source, then uploads both to the GitHub prerelease
-# engine-<engine tree:12> (never latest) and appends the tree's line to packages/ardiacore/prebuilt-engines.tsv.
+# release.sh packs it), the unstripped images strip-engine.sh keeps (ArdiaCore-<tree:12>-symbols.tar.xz, with
+# ArdiaCore-<tree:12>-uuids.txt listing each image's UUID: scripts/symbolicate-crash.sh reads them) and, for a Helium
+# engine, its source, then uploads them to the GitHub prerelease engine-<engine tree:12> (never latest) and appends the
+# tree's line to packages/ardiacore/prebuilt-engines.tsv.
 #
 #   scripts/publish-engine.sh [--dry-run] [--out <dir>] [<Chromium Framework.framework>]
 #   scripts/publish-engine.sh -h | --help
@@ -53,6 +55,8 @@ rm -rf "$out" && mkdir -p "$out"
 out="$(cd "$out" && pwd -P)"
 archive="$out/ArdiaCore-$short.tar.xz"
 source_archive="$out/ArdiaCore-$short-source.tar.xz"
+symbols_archive="$out/$(engine_symbols_name "$tag")"
+uuids_file="$out/$(engine_uuids_name "$tag")"
 work="$out/pack"
 mkdir -p "$work/Ardia.app/Contents/Frameworks"
 echo "==> Copy the engine"
@@ -71,7 +75,9 @@ tar --no-mac-metadata -cf - -C "$work/Ardia.app/Contents/Frameworks" "Chromium F
 rm -rf "$work"
 sha="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
 echo "$sha  $(basename "$archive")" >"$archive.sha256"
-assets=("$archive" "$archive.sha256")
+echo "==> Symbols"
+"$root/scripts/lib/pack-symbols.sh" "$out/symbols" "$symbols_archive" "$uuids_file"
+assets=("$archive" "$archive.sha256" "$symbols_archive" "$uuids_file")
 if [ -n "$helium_engine" ]; then
   echo "==> Source"
   "$root/scripts/engine-source.sh" "$tag" "$source_archive" >/dev/null
@@ -80,7 +86,7 @@ fi
 line="$(printf '%s\t%s\t%s' "$tree" "$tag" "$sha")"
 
 echo "==> Publish"
-notes="ArdiaCore's engine for engine/ tree $tree (commit $commit), for builds without a Chromium tree (packages/ardiacore/scripts/fetch-engine.sh). Not an app release."
+notes="ArdiaCore's engine for engine/ tree $tree (commit $commit), for builds without a Chromium tree (packages/ardiacore/scripts/fetch-engine.sh), with its unstripped symbols for scripts/symbolicate-crash.sh. Not an app release."
 if [ "$dry" = 1 ] || ! gh release view "$tag" -R "$REPO" >/dev/null 2>&1; then
   run gh release create "$tag" -R "$REPO" --prerelease --latest=false --target "$commit" --title "Engine $short" --notes "$notes"
 fi

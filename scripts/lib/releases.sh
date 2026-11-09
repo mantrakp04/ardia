@@ -18,6 +18,9 @@ channel_of() {
 
 appcast() { python3 -I "$APPCAST_PY" "$@"; }
 
+engine_symbols_name() { echo "ArdiaCore-${1#engine-}-symbols.tar.xz"; }
+engine_uuids_name() { echo "ArdiaCore-${1#engine-}-uuids.txt"; }
+
 latest_stable_tag() {
   local tag
   tag="$(gh release view -R "$REPO" --json tagName -q .tagName)"
