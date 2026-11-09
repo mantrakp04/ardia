@@ -454,3 +454,18 @@ Use a Release app and benchmark bundle built from the same `main` revision, with
 The phase runs alone, waits for the selected local page's first contentful paint, settles for `--idle` seconds (default 60), and reports physical footprint for the whole descendant process tree and browser process. Each raw result records the hydrated setting, logical profile/tab/window counts, and settling duration. Logical profile count is fixture metadata, **not** proof of how many Chromium BrowserContexts loaded. These results measure deferred startup, not releasing already visited profiles or timeout-based inactivity unloading. The process-tree measurement includes the bundled content blocker and its processes but no user-installed extensions. Keep measurement runs serial and compare equal profile counts and builds.
 
 With **Load profiles when opened** enabled, native bookmark/history reads and their sync adapters also wait until a profile opens. Cached bookmarks remain available before then. Turning the setting off restores startup reads and sync readiness for every profile after restart
+
+## Profile unloading memory
+
+Use a Release app and benchmark bundle from the same profile-unloading revision with the matching Chromium framework. Both arms use that same app and fixture, preload the profiles, enable Memory Saver, and select one profile in one window. The candidate unloads inactive profiles after five minutes; the control has unloading Off. The fixture adds no third-party extensions and uses no personal browser data.
+
+```sh
+node apps/browser/scripts/perf/native-bench.mjs \
+  --app /absolute/path/Ardia.app --control /absolute/path/Ardia.app \
+  --only profiles --profile-count 8 --runs 3 --idle 360 \
+  --preload-profiles true --control-preload-profiles true \
+  --unload-profiles-after 5m --control-unload-profiles-after never \
+  --out /tmp/ardia-profile-unloading-bench
+```
+
+Each run records process-tree and browser-process physical footprint about 60 seconds after the selected page paints and again after the idle interval. The six-minute idle period leaves time for the five-minute threshold and the 60-second release poll. Use profile counts 2, 4, 8 and 16 for a table comparable to #802. Run measurements serially. Memory Saver must first discard pages, and Chromium keepalives or other native work may delay release.

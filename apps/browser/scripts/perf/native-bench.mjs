@@ -43,6 +43,8 @@
 //                               sample     main-thread `sample`s, idle and while switching and scrolling
 //                               profiles   clean profile startup memory; --profile-count defaults to 8
 //     --preload-profiles <bool> candidate fixture setting (default false); --control-preload-profiles defaults true
+//     --unload-profiles-after <duration> candidate idle timeout (default 5m); control defaults to never
+//     --control-unload-profiles-after <duration> control idle timeout (default never)
 //                               prepare    prepare the app copies and exit (see --prepared)
 //     --env K=V               repeatable: extra environment for every instance (DYLD_INSERT_LIBRARIES is appended to
 //                             the marker library). Instances stay muted; don't pass ARDIA_INSTANCE allowAudio.
@@ -97,8 +99,6 @@
 //                                                        app's index.js and its imports)
 //   launch → first page painted             launchRun   the seed tab's first-contentful-paint (PerformanceObserver)
 //   launch → first page's first frame       launchRun   the seed tab's first requestAnimationFrame callback
-//   profile startup memory, … configured profiles  profilesRun: descendant process phys_footprint after selected FCP + --idle
-//   profile startup memory, browser process       profilesRun: browser process only, at the same checkpoint
 //   idle CPU / idle wakeups/s (…)           sessionRun  idle: idleWindow(), acperf rusage over the process tree --idle
 //                                                        secs apart with the channel paused, at 1 tab and at 20
 //   memory (phys_footprint), …              sessionRun  memory: footprint() of the tree at 1 tab (30 s after launch,
@@ -161,6 +161,8 @@ const { values: opt } = parseArgs({
     "profile-count": { type: "string", default: "8" },
     "preload-profiles": { type: "string", default: "false" },
     "control-preload-profiles": { type: "string", default: "true" },
+    "unload-profiles-after": { type: "string", default: "5m" },
+    "control-unload-profiles-after": { type: "string", default: "never" },
     "fresh-copy": { type: "boolean" },
     "trace-startup": { type: "string" },
     "page-port": { type: "string", default: "0" },
@@ -563,7 +565,8 @@ async function makeTemplate(side) {
   mkdirSync(dir, { recursive: true });
   if (only.has("profiles")) {
     const preload = opt[side.role === "control" ? "control-preload-profiles" : "preload-profiles"] === "true";
-    writeFileSync(join(dir, "session.json"), JSON.stringify(profileSeed(base(), +opt["profile-count"], !preload)));
+    const unloadAfter = opt[side.role === "control" ? "control-unload-profiles-after" : "unload-profiles-after"];
+    writeFileSync(join(dir, "session.json"), JSON.stringify(profileSeed(base(), +opt["profile-count"], !preload, unloadAfter)));
     writeFileSync(join(dir, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
     return;
   }
@@ -935,18 +938,23 @@ async function profilesRun(side, i) {
     await app.launch();
     if (!await app.pageState("id=profile-0", 30_000, (s) => s.fcp)) throw new Error("profile fixture page did not paint");
     const settleMs = +opt.idle * 1000;
-    await sleep(settleMs);
+    const warmupMs = Math.min(settleMs, 60_000);
+    await sleep(warmupMs);
+    const beforeMemory = footprint(usage(app.pid));
+    await sleep(settleMs - warmupMs);
     const state = await app.run(`const s = ac.store.getState(); return {
       logicalProfiles: Object.keys(s.profiles).length, tabs: Object.keys(s.tabs).length,
       windows: s.windowOrder.length, loadProfilesWhenOpened: s.settings.loadProfilesWhenOpened,
+      unloadProfilesAfter: s.settings.unloadProfilesAfter,
     };`);
     const expected = opt[side.role === "control" ? "control-preload-profiles" : "preload-profiles"] === "false";
-    if (state.logicalProfiles !== +opt["profile-count"] || state.loadProfilesWhenOpened !== expected) throw new Error("profile fixture or preload setting did not hydrate");
-    const result = { ...state, settleMs, thirdPartyExtensions: false, memory: footprint(usage(app.pid)) };
+    const expectedUnload = opt[side.role === "control" ? "control-unload-profiles-after" : "unload-profiles-after"];
+    if (state.logicalProfiles !== +opt["profile-count"] || state.loadProfilesWhenOpened !== expected || state.unloadProfilesAfter !== expectedUnload) throw new Error("profile fixture or settings did not hydrate");
+    const result = { ...state, warmupMs, settleMs, thirdPartyExtensions: false, beforeMemory, memory: footprint(usage(app.pid)) };
     side.results.profiles.push(result);
     log(`${side.tag}profiles ${i}:`, JSON.stringify(result));
   } finally {
-    await app.done();
+    await app.quit();
   }
 }
 
@@ -1137,8 +1145,10 @@ function summary(res) {
   add("launch → first page's first frame", res.launch.map((r) => r.firstFrame), "ms");
   const profiles = res.profiles ?? [];
   if (profiles.length) {
-    add(`profile startup memory, ${profiles[0].logicalProfiles} configured profiles (phys_footprint)`, profiles.map((r) => r.memory.totalMB), "MB");
-    add("profile startup memory, browser process", profiles.map((r) => r.memory.kinds.browser), "MB");
+    add(`profile memory at ${profiles[0].warmupMs / 1000}s, ${profiles[0].logicalProfiles} configured profiles (phys_footprint)`, profiles.map((r) => r.beforeMemory.totalMB), "MB");
+    add(`profile memory after ${profiles[0].settleMs / 1000}s (phys_footprint)`, profiles.map((r) => r.memory.totalMB), "MB");
+    add("profile memory change during idle (phys_footprint)", profiles.map((r) => r.memory.totalMB - r.beforeMemory.totalMB), "MB");
+    add("profile memory after idle, browser process", profiles.map((r) => r.memory.kinds.browser), "MB");
   }
   const S = res.session;
   for (const t of ["tabs1", "tabs20"]) {
@@ -1244,6 +1254,7 @@ if (only.has("profiles")) {
   if (only.size !== 1 || opt.seed) fail("profiles runs alone with its own clean fixture");
   if (!Number.isSafeInteger(+opt["profile-count"]) || +opt["profile-count"] < 1) fail("profile-count must be a positive integer");
   for (const key of ["preload-profiles", "control-preload-profiles"]) if (!["true", "false"].includes(opt[key])) fail(`${key} must be true or false`);
+  for (const key of ["unload-profiles-after", "control-unload-profiles-after"]) if (!["never", "5m", "15m", "1h", "2h"].includes(opt[key])) fail(`${key} must be one of never, 5m, 15m, 1h or 2h`);
 }
 if (opt.control && opt.compare) log("--compare is ignored with --control: the control is the before column");
 

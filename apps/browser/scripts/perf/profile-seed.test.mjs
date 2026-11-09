@@ -14,6 +14,8 @@ for (const count of [1, 2, 4, 8, 16]) {
     assert.equal(new Set(seed.tabs.map((tab) => tab.profileId)).size, count);
     assert.ok(seed.tabs.every((tab) => tab.page.kind === "idle" && tab.lastActiveAt === 0 && tab.url.startsWith("http://127.0.0.1:9000/")));
     assert.equal(seed.settings.loadProfilesWhenOpened, true);
+    assert.equal(seed.settings.unloadProfilesAfter, "5m");
+    assert.equal(seed.settings.memorySaver, true);
     const control = profileSeed("http://127.0.0.1:9000", count, false);
     seed.settings.loadProfilesWhenOpened = false;
     assert.deepEqual(seed, control, "the preload setting is the only fixture difference");
@@ -22,4 +24,11 @@ for (const count of [1, 2, 4, 8, 16]) {
 
 test("invalid profile counts are rejected", () => {
   for (const count of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => profileSeed("http://localhost", count));
+});
+
+test("the unload interval is the only fixture difference between matched profile runs", () => {
+  const unloading = profileSeed("http://127.0.0.1:9000", 8, false, "5m");
+  const control = profileSeed("http://127.0.0.1:9000", 8, false, "never");
+  unloading.settings.unloadProfilesAfter = "never";
+  assert.deepEqual(unloading, control);
 });

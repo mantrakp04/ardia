@@ -1,4 +1,4 @@
-export function profileSeed(origin, count = 8, loadProfilesWhenOpened = true) {
+export function profileSeed(origin, count = 8, loadProfilesWhenOpened = true, unloadProfilesAfter = "5m") {
   if (!Number.isSafeInteger(count) || count < 1) throw new Error("profile-count must be a positive integer");
   const ids = Array.from({ length: count }, (_, i) => i ? `profile-${i}` : "default");
   const windowId = "w-profile-bench";
@@ -12,7 +12,7 @@ export function profileSeed(origin, count = 8, loadProfilesWhenOpened = true) {
     version: 9,
     profiles: Object.fromEntries(ids.map((id, i) => [id, { id, name: `Profile ${i + 1}`, color: "plum", icon: null, createdAt: i }])),
     profileOrder: ids,
-    settings: { loadProfilesWhenOpened, searchSuggestions: false, warnBeforeClosingWindow: false },
+    settings: { loadProfilesWhenOpened, unloadProfilesAfter, memorySaver: true, searchSuggestions: false, warnBeforeClosingWindow: false },
     windows: [{
       id: windowId, profileId: "default", tabIds: tabs.map((tab) => tab.id),
       activeTabIds: Object.fromEntries(tabs.map((tab) => [tab.profileId, tab.id])),
