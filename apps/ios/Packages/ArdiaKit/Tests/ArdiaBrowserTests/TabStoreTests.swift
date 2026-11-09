@@ -257,6 +257,18 @@ struct StoreFixture {
     #expect(byURL["https://typed.example/"] == "work")
   }
 
+  @Test func aLinkOpensInTheSpaceOfTheTabThatOpenedIt() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    fixture.store.profileSyncId = "work"
+    let work = fixture.open("https://work.example/")
+    fixture.store.profileSyncId = "personal"
+    let child = fixture.store.open(.url(URL(string: "https://work.example/child")!, origin: .link), placement: .after(work.id))
+    let typed = fixture.store.open(.url(URL(string: "https://typed.example/")!))
+    #expect(child.profileSyncId == "work")
+    #expect(typed.profileSyncId == "personal")
+  }
+
   @Test func visitsForChosenURLsMatchTheFullScanAndSkipPrivateTabs() throws {
     let fixture = try StoreFixture()
     defer { fixture.cleanUp() }

@@ -166,7 +166,7 @@ extension AppModel {
     if let profileSyncId, sync.isEnabled, profileSyncId != tabs.profileSyncId {
       switchProfile(to: profileSyncId)
     }
-    if let existing = tabs.openTabs.first(where: { $0.url == url }) {
+    if let existing = tabs.openTabs.first(where: { $0.url == url && !$0.isPrivate && $0.profileSyncId == tabs.profileSyncId }) {
       sheet = nil
       openTab(existing.id)
       return

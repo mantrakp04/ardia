@@ -91,12 +91,13 @@ public final class TabStore: LocalBrowsingSource {
   @discardableResult
   public func open(_ destination: TabDestination, placement: TabPlacement = .end, selecting: Bool = true, isPrivate: Bool = false) -> BrowserTab {
     let date = now()
+    let profile = openerProfile(placement) ?? profileSyncId
     let tab: BrowserTab
     switch destination {
     case .url(let url, let origin):
-      tab = BrowserTab(url: url.absoluteString, created: date, position: 0, origin: origin, profileSyncId: profileSyncId)
+      tab = BrowserTab(url: url.absoluteString, created: date, position: 0, origin: origin, profileSyncId: profile)
     case .search(let query):
-      tab = BrowserTab(url: BrowserURL.searchURL(template: searchTemplate, query: query), title: query, created: date, position: 0, origin: .search, profileSyncId: profileSyncId)
+      tab = BrowserTab(url: BrowserURL.searchURL(template: searchTemplate, query: query), title: query, created: date, position: 0, origin: .search, profileSyncId: profile)
     case .sent(let received):
       tab = BrowserTab(url: received.url, title: received.title, created: date, position: 0, origin: .sent, profileSyncId: received.profileSyncId, receivedKey: received.key, receivedFromDevice: received.fromDevice)
     }
@@ -143,6 +144,11 @@ public final class TabStore: LocalBrowsingSource {
 
   public func closeAllPrivate() {
     closePrivate(privateTabs.map(\.id))
+  }
+
+  private func openerProfile(_ placement: TabPlacement) -> String? {
+    guard case .after(let id) = placement, let opener = tab(id), !opener.isPrivate else { return nil }
+    return opener.profileSyncId
   }
 
   private func placementIsPrivate(_ placement: TabPlacement) -> Bool {
