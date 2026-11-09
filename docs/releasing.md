@@ -294,6 +294,15 @@ latest, so the feed and the download links never move to it) and appends `<tree>
 `packages/ardiacore/prebuilt-engines.tsv`: commit and push that line before dispatching. A release whose `engine/`
 tree has no engine fails its build at once, saying which script to run.
 
+The same script uploads the engine's unstripped images (`ArdiaCore-<tree:12>-symbols.tar.xz`, the copies
+`strip-engine.sh` keeps) and `ArdiaCore-<tree:12>-uuids.txt`, a `<uuid> <arch> <path>` row per image. A crash's
+"Chromium Framework + 0x2e2334" is named with `scripts/symbolicate-crash.sh <Chromium Framework UUID> 0x2e2334 …`: it
+finds the engine release whose rows hold that UUID, downloads that image into `dist/engine-symbols` and runs
+`atos -arch arm64 -l 0x0` on the offsets. Engines published before the symbols were uploaded have none; to backfill
+one, run `scripts/lib/pack-symbols.sh <its dist/…/symbols folder> <archive> <uuids file>` and upload both with
+`gh release upload engine-<tree:12> --clobber`, under the names `engine_symbols_name` and `engine_uuids_name` give in
+`scripts/lib/releases.sh`.
+
 ## The engine switch (0.2.21 → 0.2.22)
 
 0.2.22 is the first release on ArdiaCore; 0.2.21 and earlier ran on CEF. It's the same app to macOS and Sparkle (bundle
