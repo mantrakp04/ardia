@@ -45,6 +45,8 @@ export const APP_EVENTS = [
   "perf_memory",
   "perf_omnibox",
   "profile_switched",
+  "screen_share_ended",
+  "screen_share_started",
   "settings_section_opened",
   "sharing_turned_on",
   "split_view_opened",

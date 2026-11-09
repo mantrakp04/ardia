@@ -57,6 +57,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tabs and windows you open (a count, not which)",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
+      "When a page starts and stops sharing your screen, a window or a tab: how the share was picked (Ardia's sheet, a tab, or the system's picker) and how many seconds it lasted. Never which window, screen or site",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",

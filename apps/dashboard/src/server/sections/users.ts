@@ -306,6 +306,8 @@ const NAMES: Record<string, string> = {
   translate_used: "Translate used",
   sync_toggled: "Sync toggled",
   extension_installed: "Extension installed",
+  screen_share_started: "Screen share started",
+  screen_share_ended: "Screen share ended",
 };
 
 export async function usersUsage(range: RangeKey, signal?: AbortSignal) {

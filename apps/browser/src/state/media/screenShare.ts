@@ -3,6 +3,7 @@ import { webviews } from "../../platform/webviews";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { usePages } from "../tabs/pageState";
+import { noteDisplayAnswer } from "../telemetry/screenShares";
 import { useMedia, type TabShare } from "./media";
 
 export { getDisplayMediaSources, type DisplayMediaAudio, type DisplayMediaSource } from "../../platform/media";
@@ -95,9 +96,10 @@ if (__DEV__)
     shareTab: (tabId: string, sharedTabId: string, audio = true) => shareTab(tabId, sharedTabId, audio),
   };
 
-export function answerDisplayMedia(tabId: string, sourceId: string | null, audio = false) {
+export function answerDisplayMedia(tabId: string, sourceId: string | null, audio = false, via: "sheet" | "tab" = "sheet") {
   const request = useMedia.getState().displayRequests[tabId];
   if (!request) return;
+  if (sourceId) noteDisplayAnswer(tabId, via);
   void webviews.get(tabId)?.resolveDisplayMedia(request.id, sourceId, audio);
   useMedia.setState((m) => {
     const displayRequests = { ...m.displayRequests };
@@ -112,7 +114,7 @@ export async function shareTab(tabId: string, sharedTabId: string, audio: boolea
   const source = await webviews.get(sharedTabId)?.mediaCaptureSourceId();
   if (useMedia.getState().displayRequests[tabId] !== request) return;
   if (source) noteTabShare(tabId, sharedTabId, request.origin);
-  answerDisplayMedia(tabId, source ?? null, audio);
+  answerDisplayMedia(tabId, source ?? null, audio, "tab");
 }
 
 export function cancelDisplayMediaOnNavigation() {

@@ -3,6 +3,7 @@ import { onExtensionsChanged } from "../../platform/extensions";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
+import { usePages } from "../tabs/pageState";
 import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
@@ -16,6 +17,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
+import { screenSharePages } from "./screenShares";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -83,6 +85,10 @@ function watchTranslate() {
   useTranslate.subscribe((s, prev) => {
     for (const tabId in s) if (s[tabId]?.status === "translating" && prev[tabId]?.status !== "translating") capture("translate_used");
   });
+}
+
+function watchScreenShares() {
+  usePages.subscribe((s, prev) => screenSharePages(s.pages, prev.pages));
 }
 
 function watchExtensions() {
@@ -177,6 +183,7 @@ export function startUsage() {
   watchStore();
   watchSync();
   watchTranslate();
+  watchScreenShares();
   watchExtensions();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
