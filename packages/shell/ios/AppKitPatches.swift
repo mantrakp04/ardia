@@ -90,8 +90,8 @@ let installHorizontalWheelScroll: Void = {
       return
     }
     let origin = view.documentVisibleRect.origin
-    WheelTally.strip.note(from: Double(origin.x), to: x)
     document.scroll(NSPoint(x: x, y: origin.y))
+    WheelTally.strip.note(from: Double(origin.x), to: Double(view.documentVisibleRect.origin.x))
   }
   let imp = imp_implementationWithBlock(block)
   if !class_addMethod(cls, scrollWheel, imp, method_getTypeEncoding(method)) {

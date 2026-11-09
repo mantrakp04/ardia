@@ -54,7 +54,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Launches, updates, and whether the last session ended cleanly",
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
-      "How many mouse wheel notches over the top tab strip scrolled it sideways, and how many of them moved it, summed up once an hour",
+      "How many mouse wheel events over the top tab strip the app turned into sideways scrolling, and how many of them moved it, summed up once an hour",
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups) and how many of its batches were refused or stopped",
       "Opening split view, switching profiles and opening the command bar",

@@ -215,6 +215,16 @@ test("turning sharing off forgets pending presses and samples, so they never go 
   assert.deepEqual(presses.devTabPresses(), { presses: 0, clicks: 0, drag_clicks: 0, drags: 0, unanswered: 0, pending: false, toPageClick: 0 });
 });
 
+test("wheel notches counted while sharing was off are dropped when sharing is turned on, never sent", async () => {
+  client.setSharing(false, "settings");
+  Object.assign(stub.stripWheel, { ticks: 6, moved: 6 });
+  client.setSharing(true, "settings");
+  assert.deepEqual(stub.stripWheel, { ticks: 0, moved: 0 });
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  assert.equal(events("tab_presses").length, 0);
+});
+
 test("with sharing off no context is saved, and tab presses stay in the local copy, never queued", async () => {
   client.setSharing(false, "settings");
   assert.equal(await diagnostics.recordContext(), null);

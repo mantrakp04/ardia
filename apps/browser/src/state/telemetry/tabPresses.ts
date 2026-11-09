@@ -21,7 +21,7 @@ function forgetPresses() {
   takeStripWheelCounts();
 }
 
-useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
+useTelemetry.subscribe((s, prev) => prev.sharing !== s.sharing && forgetPresses());
 
 export function notePressStarted() {
   if (pending) tally.unanswered++;

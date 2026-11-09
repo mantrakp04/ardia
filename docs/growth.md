@@ -194,9 +194,11 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     chips, `clicks` (the press opened the tab), `drag_clicks` (it became a drag and was rescued as a click),
     `drags`, `unanswered` (a press that got neither before the next one), `page_click_ms_p50`/`_p75`/`page_click_n`
     (from opening a tab with a press to the first press in its page, within 60 s). It is also sent when only the wheel
-    counted: `strip_wheel_ticks` (plain mouse wheel notches over an overflowing top strip that the shell turned into
-    sideways scrolling) and `strip_wheel_moved` (those that moved the strip). Ticks above 0 with moved at 0 means the
-    strip sat at an end or could not move; ticks at 0 with wheel users on a full strip means the wheel never reaches it.
+    counted: `strip_wheel_ticks` (plain mouse wheel events over an overflowing top strip that the shell turned into
+    sideways scrolling, one per event whatever its size, so a smooth wheel counts many and one notch counts once) and
+    `strip_wheel_moved` (those after which the strip had actually moved). Counts from while sharing was off are dropped
+    when it turns on. Ticks above 0 with moved at 0 means the strip sat at an end or could not move; ticks at 0 with
+    wheel users on a full strip means the wheel never reaches it.
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
