@@ -264,6 +264,23 @@ test("opening the side panel again on a tab that is still loading takes back its
   panels.closeSidePanel(w);
 });
 
+test("a panel page closing while another tab's panel is being looked up closes only its own tab", async () => {
+  const { w, a, b, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  assert.equal(panels.closeSidePanelOnTab(w, a), false);
+  assert.equal(panels.panelClosedOnTab(w, a), true);
+  assert.equal(panels.panelClosedOnTab(w, b), false);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  assert.equal(E().sidePanels[w].hidden, undefined);
+  assert.equal(E().sidePanels[w].tabId, b);
+  assert.equal(panels.closeSidePanelOnTab(w, b), true);
+  panels.closeSidePanel(w);
+});
+
 test("the X on the only open panel closes it for the window", async () => {
   const { w, answer } = setup();
   const opened = panels.openSidePanel(w, "ext");

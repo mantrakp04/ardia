@@ -128,7 +128,10 @@ export function ExtensionSidePanel() {
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
         {kept.map((p) => {
           const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
-          const close = () => (current ? closeSidePanelOnTab(windowId) : setKept((k) => k.filter((x) => panelKey(x) !== panelKey(p))));
+          const close = () => {
+            if (current && closeSidePanelOnTab(windowId, p.tabId)) return;
+            setKept((k) => k.filter((x) => x !== p));
+          };
           return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
         })}
         <View

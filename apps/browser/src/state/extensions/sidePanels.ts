@@ -97,15 +97,23 @@ function hideSidePanel(windowId: string) {
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: { ...now, hidden: true } } }));
 }
 
-export function closeSidePanelOnTab(windowId: string) {
-  const tabId = shownPageId(useBrowser.getState(), windowId) ?? useExtensions.getState().sidePanels[windowId]?.tabId;
-  if (!tabId) return closeSidePanel(windowId);
+export function closeSidePanelOnTab(windowId: string, ownerTabId?: string): boolean {
+  const shownTab = shownPageId(useBrowser.getState(), windowId) ?? useExtensions.getState().sidePanels[windowId]?.tabId;
+  const tabId = ownerTabId ?? shownTab;
+  if (!tabId) {
+    closeSidePanel(windowId);
+    return true;
+  }
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);
+  if (tabId !== shownTab) return false;
   const others = [...(shownTabs.get(windowId) ?? [])].some((id) => panelTabOpen(windowId, id));
-  if (!others) return closeSidePanel(windowId);
-  nextFetch(windowId);
-  hideSidePanel(windowId);
+  if (!others) closeSidePanel(windowId);
+  else {
+    nextFetch(windowId);
+    hideSidePanel(windowId);
+  }
+  return true;
 }
 
 export function toggleSidePanel(windowId: string, extensionId: string): Promise<void> | void {
