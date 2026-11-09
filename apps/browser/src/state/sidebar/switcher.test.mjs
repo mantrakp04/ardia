@@ -61,3 +61,18 @@ test("with only one open tab ⌃Tab does nothing, whatever closed tabs the windo
   assert.equal(sidebarUi().switcher, null);
   assert.equal(model.activeTabId(S(), w), a);
 });
+
+test("a row whose tab moved to another window while the switcher was up leaves that window's tab alone", () => {
+  const [w, a, b, c] = windowWith("a", "b", "c");
+  const other = S().createWindow({ url: "https://other.com/" });
+  switcherStep(w, false);
+  assert.deepEqual(sidebarUi().switcher.ids, [a, b, c]);
+  S().moveTabsToWindow([b, c], other);
+  assert.equal(S().tabs[b].windowId, other);
+  const shown = model.activeTabId(S(), other);
+  assert.notEqual(shown, b);
+  commitSwitcher();
+  assert.equal(sidebarUi().switcher, null);
+  assert.equal(model.activeTabId(S(), other), shown);
+  assert.equal(model.activeTabId(S(), w), a);
+});

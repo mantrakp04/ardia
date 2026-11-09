@@ -1,6 +1,6 @@
 import { setSwitcherCapture, switcherPointerMoved } from "../../platform/focus";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, viewTabIds } from "../browser/model";
 import { isPageUnloaded } from "../pins/pinShare";
 import { recentTabIds } from "../pins/tabCleanup";
 import { setSidebarUi, sidebarUi } from "./sidebarUi";
@@ -84,7 +84,8 @@ export function commitSwitcher(index?: number) {
   endSwitcher();
   const id = s.ids[index ?? pointed ?? s.index];
   const state = useBrowser.getState();
-  if (id && state.tabs[id] && (id === activeTabId(state, s.windowId) || !isPageUnloaded(state, id))) state.activate(id);
+  if (!id || !viewTabIds(state, s.windowId).includes(id)) return;
+  if (id === activeTabId(state, s.windowId) || !isPageUnloaded(state, id)) state.activate(id);
 }
 
 export function cancelSwitcher() {
