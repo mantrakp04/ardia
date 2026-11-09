@@ -22,7 +22,7 @@ import { useEasedColor, type ToolbarPalette } from "../ui/toolbarColors";
 import { useSitePalette } from "./useSitePalette";
 import { setToolbarExtensionsWidth } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "../sidebar/geometry";
-import { FieldSiteButton, SidebarFieldFill } from "../sidebar/SidebarField";
+import { SidebarFieldFill } from "../sidebar/SidebarField";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { GlassFill, useGlass } from "../ui/Glass";
@@ -43,7 +43,6 @@ export const useToolbarTab = (tabId: string | undefined) => useTab(tabId, useSha
 
 export const urlFieldRight = (inSplit: boolean, extensionsWidth: number, row: ToolbarRow) => (inSplit ? 12 + 2 * (row.button - 2) : 12) + extensionsWidth;
 const LOCK = { left: 7, width: 18, gap: space.xs } as const;
-const SIDEBAR_TEXT_GAP = 6;
 export const urlTextLeft = (insecure: boolean) => (insecure ? LOCK.left + LOCK.width + LOCK.gap : 8);
 export const insecureLevel = (p: PageState) =>
   p.security && (p.security.level === "insecure" || p.security.level === "certificateError") ? p.security.level : null;
@@ -173,7 +172,6 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
 type UrlFieldProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string; onFocus: () => void };
 
 export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, windowId, inSplit, onFocus, style }: UrlFieldProps & { inSplit: boolean; style: ViewStyle }) {
-  const theme = useTheme();
   const row = useToolbarRow();
   const splitHint = useShortcutHint("openSplitPane");
   const field = useUrlField(tab, windowId, onFocus);
@@ -185,16 +183,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
       {glass ? (
         <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}
-      {insecure && (
-        <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
-          <Symbol
-            name="lock.open.trianglebadge.exclamationmark.fill"
-            size={12}
-            color={insecure === "certificateError" ? theme.destructive : palette.secondary}
-            style={{ width: LOCK.width, height: row.field }}
-          />
-        </Pressable>
-      )}
+      {insecure && <InsecureLock level={insecure} palette={palette} height={row.field} onPress={toggleSiteControls} />}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
         <Pressable onPress={field.openPanel} style={{ flex: 1, height: row.field, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : urlTextLeft(false) }}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -238,16 +227,9 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
   return (
     <View {...field.hoverProps} style={{ flexDirection: "row", alignItems: "center", height, borderRadius: SIDEBAR_FIELD.radius }}>
       <SidebarFieldFill hovered={hovered} />
-      <FieldSiteButton
-        icon={insecure ? "lock.open.trianglebadge.exclamationmark.fill" : "slider.horizontal.3"}
-        color={insecure === "certificateError" ? theme.destructive : undefined}
-        tooltip={insecure ? "Connection is not secure" : "Site Controls"}
-        active={popover === "siteControls"}
-        palette={palette}
-        onPress={toggleSiteControls}
-      />
+      {insecure && <InsecureLock level={insecure} palette={palette} height={height} onPress={toggleSiteControls} />}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
-        <Pressable onPress={field.openPanel} style={{ flex: 1, height, justifyContent: "center", paddingLeft: SIDEBAR_TEXT_GAP }}>
+        <Pressable onPress={field.openPanel} style={{ flex: 1, height, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : space.l }}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text numberOfLines={1} ellipsizeMode="head" weight="medium" color={palette.text} style={SHRINK}>
               {field.host}
@@ -258,7 +240,12 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
       </ContextMenuArea>
       <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
         <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls} accessory={accessory}>
-          {hovered && <PageButton tab={tab} palette={palette} windowId={windowId} />}
+          {hovered && (
+            <>
+              <PageButton tab={tab} palette={palette} windowId={windowId} />
+              <Button variant="icon" toolbar palette={palette} icon="slider.horizontal.3" look="field" onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
+            </>
+          )}
         </FieldButtons>
       </ToolbarRowContext.Provider>
       {progress !== null ? (
@@ -272,6 +259,15 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
 
 const HOST_FULL = { flexShrink: 0, maxWidth: "100%" } as const;
 const SHRINK = { flexShrink: 1 } as const;
+
+function InsecureLock({ level, palette, height, onPress }: { level: NonNullable<ReturnType<typeof insecureLevel>>; palette: ToolbarPalette; height: number; onPress: () => void }) {
+  const theme = useTheme();
+  return (
+    <Pressable onPress={onPress} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
+      <Symbol name="lock.open.trianglebadge.exclamationmark.fill" size={12} color={level === "certificateError" ? theme.destructive : palette.secondary} style={{ width: LOCK.width, height }} />
+    </Pressable>
+  );
+}
 
 type PageButtonProps = { tab: ToolbarTab; palette: ToolbarPalette; windowId: string };
 

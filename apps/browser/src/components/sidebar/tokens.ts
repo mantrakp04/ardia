@@ -26,7 +26,6 @@ const DARK = {
   engineMarkPlate: "#2C2C2E",
   incognitoBadge: "rgba(255,255,255,0.08)",
   tileGlow: "#FFFFFF",
-  fieldButtonPlate: "rgba(255,255,255,0.08)",
 };
 
 const LIGHT: typeof DARK = {
@@ -51,7 +50,6 @@ const LIGHT: typeof DARK = {
   engineMarkPlate: "#FFFFFF",
   incognitoBadge: "rgba(0,0,0,0.06)",
   tileGlow: "#000000",
-  fieldButtonPlate: "rgba(255,255,255,0.75)",
 };
 
 type SidebarTokens = typeof DARK;
