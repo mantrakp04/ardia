@@ -45,6 +45,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "The same for crashes of Ardia's page, graphics and helper processes, plus the version that crashed, how long the process had run, the total size of its writable memory regions, and how the system ended it (its termination reason, like a signal or a code-signing kill)",
       "When a page's process stops (crashed, killed, out of memory or failed to start): why, its exit code, whether the tab was on screen, and how many tabs, windows and profiles were open",
       "Every 10 minutes Ardia notes on this Mac its tab, window and profile counts, its memory use, rough free disk space, the Mac's memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the Mac restarted since. Turning sharing off or deleting a profile erases it",
+      "On the built-in streaming-video sites only (like Netflix and Tencent Video), when protected playback fails: the site's host name, the DRM system it asked for (like Widevine), the media error code, and the host names of the requests the ad blocker stopped on that page. Never the page's address or what you watch",
       "Warning and error log lines, cleaned the same way",
     ],
   },
@@ -99,7 +100,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "Never",
     items: [
-      "Web addresses, site names or page titles",
+      "Web addresses, site names or page titles, except the host name of a built-in streaming-video site when its protected playback fails",
       "Anything you type or search for",
       "History, bookmarks, passwords or what's in your tabs",
       "Profile, extension or file names",

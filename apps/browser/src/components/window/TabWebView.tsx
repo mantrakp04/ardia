@@ -44,6 +44,7 @@ import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { notePagePress } from "../../state/telemetry/tabPresses";
+import { trackDrmDiagnostic } from "../../state/telemetry/protectedMedia";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -253,6 +254,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onSelection={(selection) => setPageSelection(tabId, selection)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
+      onDrmDiagnostic={trackDrmDiagnostic}
       onNotificationClose={closeWebNotification}
       onDiscarded={(url) => {
         pending.current = url;

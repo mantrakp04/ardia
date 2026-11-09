@@ -157,6 +157,14 @@ export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
 export type ScrollState = "down" | "up" | "top";
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
+export type DrmDiagnostic = {
+  host: string;
+  keySystem: string;
+  stage: string;
+  code: number;
+  main: boolean;
+  blockedHosts: string[];
+};
 
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;
@@ -207,6 +215,7 @@ export type WebViewProps = ViewProps & {
   onSelection?: (selection: PageSelection | null) => void;
   onScroll?: (state: ScrollState) => void;
   onProtectedMedia?: (request: ProtectedMediaRequest) => void;
+  onDrmDiagnostic?: (diagnostic: DrmDiagnostic) => void;
   onReady?: () => void;
   onDiscarded?: (url: string) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;

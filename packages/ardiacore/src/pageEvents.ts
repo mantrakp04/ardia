@@ -10,6 +10,7 @@ import type {
   CrashInfo,
   DisplayMediaRequest,
   DownloadNavigation,
+  DrmDiagnostic,
   FindResult,
   LoadError,
   MediaAccess,
@@ -61,6 +62,7 @@ type NativeEvents = {
   onSelection: { selection: PageSelection | null };
   onScroll: { state: ScrollState };
   onProtectedMedia: ProtectedMediaRequest;
+  onDrmDiagnostic: DrmDiagnostic;
   onReady: object;
   onDiscarded: { url: string };
   onPasswordPrompt: PasswordPrompt;
@@ -106,6 +108,7 @@ const PAGE_EVENTS = {
   onSelection: "selection",
   onScroll: "scroll",
   onProtectedMedia: "protectedMedia",
+  onDrmDiagnostic: "drmDiagnostic",
   onReady: "ready",
   onDiscarded: "discarded",
   onPasswordPrompt: "passwordPrompt",
@@ -151,6 +154,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onSelection: (e) => [e.selection],
   onScroll: (e) => [e.state],
   onProtectedMedia: (e) => [e],
+  onDrmDiagnostic: (e) => [e],
   onReady: () => [],
   onDiscarded: (e) => [toAppUrl(e.url)],
   onPasswordPrompt: (e) => [e],

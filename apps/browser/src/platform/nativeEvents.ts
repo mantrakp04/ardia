@@ -27,6 +27,7 @@ export const HELD_PAGE_EVENTS: ReadonlySet<string> = new Set<PageEventName>([
   "contentBlocked",
   "mediaAccess",
   "loadError",
+  "drmDiagnostic",
 ]);
 const isHeldPageEvent = (args: unknown[]) =>
   args[1] === "topPageEvent" && HELD_PAGE_EVENTS.has(String((args[2] as { name?: unknown } | null)?.name));
