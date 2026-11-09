@@ -368,6 +368,13 @@ def note_browse(argv: list, command: str = "browse") -> None:
         _call.browse_argv = list(argv)
 
 
+def note_count(key: str, value) -> None:
+    from ardia_cli import command_metrics
+
+    if _call is not None:
+        _call.metrics.update(command_metrics.clean({key: value}))
+
+
 def note_error_code(code) -> None:
     if _call is not None and isinstance(code, str) and code:
         _call.error_code = code

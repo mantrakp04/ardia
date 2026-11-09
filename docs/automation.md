@@ -72,8 +72,9 @@ bookmark searches) and their fixed page title.
 
 ### Methods
 
-- `hello` `{"caller"?: {"name", "app"?}}` → `{"app": "Ardia", "version": "0.2.44", "protocol": 2}`. Protocol 2 added
-  `subscribe`'s options, `run`'s `tab`, `answer` and decide requests; protocol 1 clients keep working. `caller` names
+- `hello` `{"caller"?: {"name", "app"?}}` → `{"app": "Ardia", "version": "0.2.44", "protocol": 3}`. Protocol 2 added
+  `subscribe`'s options, `run`'s `tab`, `answer` and decide requests; protocol 3 added `workspace` and `apply`
+  (Tabs and groups, below); older clients keep working. `caller` names
   who runs the client for the pill (The pill), display only.
 - `caller` → `{"ok": true}` puts the connection's `hello` caller on the pill now (`ok` is false without one). The
   `browse` daemon and `scripts test` call it, since their CDP connections carry no name.
@@ -104,6 +105,106 @@ bookmark searches) and their fixed page title.
   subscription accepted and runs a decide request only when its `revision` matches one of them, so a request for an
   approved revision never runs an edited program.
 - `answer` `{"decide", "answer"}`: see Protocol.
+- `workspace` `{"window"?, "profile"?}` and `apply` `{"ops": [...]}`: see Tabs and groups.
+
+### Tabs and groups
+
+Issue #876. Everything the sidebar does to tabs and groups, by id, through the same store actions the sidebar
+calls (`placeTabs`, `pinTabs`, `groupTabs`, `updateGroup`, `moveGroup`, `ungroup`, `closeGroup`, `deleteGroup`,
+`newTab`, `closeTabs`, `setMuted`, `updateTab`, `moveTabsToWindow`, `moveTabToProfile`, `moveGroupToWindow`,
+`moveGroupToProfile`), so pins, group nesting, the pin mirror, Chrome's tab strips and sync follow exactly as for a
+drag or a menu pick. Code: `state/automation/workspace*.ts`.
+
+`workspace` → `{"profiles": [{"id", "name"}], "windows": [{"id", "kind", "focused", "profile", "profileName",
+"activeTab", "spaces": [space]}]}`, eligible windows only (Who's included), narrowed by `window` or `profile`
+(`no_window` for one that isn't there). A window holds one space per profile it has tabs of, the shown one with
+`"shown": true`: `{"profile", "profileName", "shown", "activeTab", "topApps", "pinned", "tabs"}`, each list in sidebar
+order. `topApps` holds tiles and tile folders (`{"type": "folder", "id", "name", "items"}`); `pinned` the pinned rows
+and pinned groups, interleaved as shown; `tabs` the rest. A group is `{"type": "group", "id", "name", "label" (the
+shown name, made from its tabs when `name` is empty), "icon" (an emoji, `symbol:<SF Symbol>`, `"none"` for No Icon,
+or null for the default), "color" (`neutral`, `none` or one of Chrome's nine), "collapsed", "pinned", "parent",
+"items"}`, its items its own tabs and child groups in order. A tab is `{"type": "tab", "id", "url", "title",
+"customTitle", "icon", "pin" (`tile`, `row` or null), "pinned" (also true in a pinned group), "folder", "group" (the
+innermost), "split", "active", "muted", "asleep", "index"}`; URLs and titles as in `windows` (internal pages
+redacted). Peek tabs, private windows and incognito profiles never appear. It doesn't show the pill.
+
+`apply` runs a batch of operations in order and shows the pill like `run`. Every operation is checked before the
+first runs: an unknown `op` or field (typos included), a wrong type, more than 500 operations or 100 URLs in one
+list is `bad_request`, a URL the socket won't open is `refused`, and nothing runs. Then each one checks its targets
+just before it runs, against the state the earlier ones left: a tab or group that is gone, moved out of reach, private
+or in an incognito profile is `no_window`, never a stand-in. Ids are looked up as the store's own entries only, so
+`constructor` or `__proto__` is no id. Each operation works on the tabs the store will really move: the ones named
+plus the other panes of their split rows (`withSplitRows`, as `placeTabs`, `pinTabs` and `groupTabs` expand them).
+Before its first change it checks every target, destination, section and restriction on that set; what fails there
+changes nothing. After its changes it checks that the store did what was asked (each tab in the window, profile,
+group and spot asked, on the right side of its anchor; each group with the parent, pin, position and fields asked; a
+removed group gone). If that check fails the reply is `failed`, never success, and says what happened: an `open` or
+`group.create` closes the tabs it made (the message says so, and `error.changed` lists any it couldn't close, and the
+tabs and group a `group.create` was given or made that are still there); any other operation lists the tabs and
+groups it may have changed in `error.changed`. Tabs open one by one, and a URL a declarative `tab.opening` rule
+cancels stops the operation as `refused` and closes the tabs it had opened before it. A program hook decides after
+the reply, so it can still cancel (close) a tab the reply listed. The first failure stops the batch; the
+operations before it stay (no rollback: each was the user's own complete action). Batches never interleave: a
+second `apply` waits for the first. Turning control off stops a running batch before its next operation.
+
+Reply: `{"ok", "applied", "results": [{"op", "tabs"?, "group"?, "label"?, "icon"?, "outcomes"?}], "error"?: {"index", "code",
+"message"}, "tabs": [tab], "groups": [group without items, with "tabs"], "windows": [{"id", "activeTab"}]}`: every tab
+and group an operation named or made, as they ended up, and the shown tab of every window touched. A group
+operation's result also has the group's `label` and `icon` (for `group.ungroup`, `close` and `delete`, as they were
+before it went), so the CLI prints `created group 💼 Work (g-…) with 4 tabs`. A failed operation is a normal reply
+with `ok: false`; only a request that fails the up-front check is an `error` reply.
+
+Ids may be `$N` (N less than the operation's own index): what operation N made, its group in a group field, its
+tabs in a tab field (one tab where only one fits). A group field (`group`, `parent`) also takes a group's name, as a
+string or `{"name": "Work"}`: `$N` first, then an exact group id (ids win, even over a group named like one), then
+the name, matched case-insensitively and ignoring surrounding spaces against the groups' names (and their shown
+labels, for groups without a name). Names are looked up in one window: the operation's `window` and `profile` when
+it has them (for `group.move`'s `parent`, the window the group goes to), else the window of the tabs it names, else
+the last focused window. A name no group there has is `no_window`; a name several share is `bad_request` with each
+one's id. A string that is exactly `$` and digits is always a reference, never a name. `before`/`after` take a tab or a group id and put the tabs (or
+group) next to it, in that tab's group and section. With `group` (or `parent`) too, the anchor must be inside that
+group, in its window and profile, else `bad_request`. The anchor's section decides the section: next to a Top Apps
+tile the tabs become tiles, next to a pinned row or a top-level pinned group they become pinned rows (a moved group
+becomes pinned), next to a tab in a group they join that group. `open` with `pin` must name an anchor of that kind
+(`tile` next to a tile, `row` next to a pinned row or pinned group), a group can't go next to a tile, and a
+`pinned` that contradicts the anchor's section is `bad_request`; all of it before anything opens or moves. With `"group": null` too, the tabs go to the top level next to
+the anchor's outermost group (before its first tab, or after its last). With neither, a tab moving to a window or
+profile goes where the store puts moved tabs.
+
+| `op` | Fields | Does |
+|---|---|---|
+| `open` | `urls` (one or a list), `window`?, `profile`?, `group`?, `before`?/`after`?, `pin`? (`tile`/`row`), `activate`? | `newTab` in the background for each, in order, where new tabs go (or as placed); `window` defaults to the last focused one, or one showing `profile`. `activate` shows the first (never focuses the window) |
+| `tab.move` | `tabs`, `group`? (id, or null for the top level), `before`?/`after`?, `window`?, `profile`? | Moves without reloading: into another profile (`moveTabToProfile`), window (`moveTabsToWindow`), then placed (`placeTabs`), keeping the order given. A group or anchor in another window or profile takes the tabs there. `null` with no anchor puts them just below their old top group |
+| `tab.pin` / `tab.unpin` | `tabs`, `as`? (`tile`/`row`) | `pinTabs`; unpinning a tab of a pinned group takes it out (`placeTabs`), as Unpin does. A split's panes pin together, as rows: `as: "tile"` on one is `bad_request` |
+| `tab.activate` | `tab` | `activate` |
+| `tab.mute` / `tab.unmute` | `tabs` | `setMuted`; unmute also unmutes the site, as the menu does |
+| `tab.sleep` | `tabs` | Pinned tabs unload (`closeTabs`, as their ✕); others are discarded by Chrome. A tab is left alone (`shown`) when it, a pinned copy sharing its page, or a pane of its split is shown in any window. `outcomes`: `asleep`, `already`, `shown`, `refused`, `unsupported` |
+| `tab.wake` | `tabs` | Loads a sleeping tab in the background (`updateTab` with its woken page, or a reload for a discarded one). `outcomes`: `awake`, `already`, `failed` |
+| `tab.close` | `tabs` | `closeTabs`: as ✕, so pinned tabs unload; never closes a window (a window left empty gets a New Tab) |
+| `tab.rename` / `tab.icon` | `tab`, `title` / `icon` (null resets) | `updateTab` `customTitle` / `customIcon`, as Rename… and Change Icon… |
+| `group.create` | `tabs`?, `urls`?, `window`?, `profile`?, `parent`?, `pinned`? (default true, like New Group with Tab), `name`?, `icon`?, `color`?, `collapsed`?, `before`?/`after`? | Opens `urls`, else one New Tab when no `tabs`; places them (out of their old groups, into the parent), `groupTabs`, then `updateGroup`. With no anchor and no parent, a group made from tabs of another group goes just above that group's outermost group (its first tab left), so groups made one after another from one group keep their creation order and the group, with the tabs left in it, stays below them; `group.ungroup` of it then leaves those tabs where they are, as the sidebar's Ungroup does. A group made from loose tabs goes where its first tab was. An anchor decides where the group goes, by the rule above: next to a pinned row or a top-level pinned group it is a pinned group there; next to a tab or group inside group P it is nested in P; next to a Top Apps tile it is refused; a `pinned` or `parent` that contradicts that is `bad_request`, before anything opens. Top Apps tiles in `tabs` are refused. The post-check covers its parent, pinned state and side of the anchor; if it fails, or a URL doesn't open (a `tab.opening` rule cancelled it: `refused`), the tabs it opened are closed again and the tabs it was given stay where they were moved (`error.changed`) |
+| `group.update` | `group`, `name`?, `icon`?, `color`?, `collapsed`? (at least one) | `updateGroup` |
+| `group.move` | `group`, `parent`? (id or null), `pinned`?, `before`?/`after`?, `window`?, `profile`? | `moveGroupToProfile`, `moveGroupToWindow` (not a pinned group: it is in every window of its profile), then `moveGroup`. A move to another profile gives the group a new id; the result has it |
+| `group.ungroup` / `group.close` / `group.delete` | `group` | `ungroup` (tabs stay), `closeGroup` (to Recently Closed Groups), `deleteGroup` |
+
+- **No confirmations, no focus.** The sidebar's dialogs (closing a group, moving tabs to a profile) don't show: the
+  caller asked for exactly this. Nothing focuses a window, and nothing changes which tab a window shows unless asked
+  (`activate`, `tab.activate`) or unavoidable (closing or moving away the tab it shows); the store's own moves take a
+  `background` option for this.
+- **Refused.** A shared folder's group (`groupKeptOpen`) is never ungrouped, closed, deleted, unpinned, nested or
+  moved to another profile here (the sidebar asks first), and no operation may remove or empty one indirectly: closing
+  or deleting a child that holds all its tabs (the store closes the outermost group with the same tabs), moving,
+  pinning or regrouping all its members, or moving a child group out with them; Little Ardia tabs aren't organized (it holds one tab); a Top Apps tile
+  doesn't change profile.
+- **URLs** go through the omnibox's own fix-up (`fixupUrl`, so `example.com` works) and then must be http or https
+  with a host and no user info (`lib/urlParts.ts`'s strict reading), `file://`, `about:blank`, or `ardia://history`,
+  `bookmarks`, `downloads` or `newtab`. Never `javascript:`, `data:`, `blob:`, `view-source:`, `chrome:`, other
+  `ardia://` pages (settings, flags, extensions…) or schemes that open other apps.
+- **Icons** are what the icon picker offers: an emoji from its list (`lib/emojiData.ts`), `symbol:<name>` (an SF
+  Symbol name, lowercase with dots), `"none"` (groups: No Icon) or null. Names are trimmed text of at most 200
+  characters without control characters.
+- **Telemetry:** `usage_counts` carries `cli_tab_edits`, `cli_group_edits` (operations applied) and
+  `cli_edit_failures` (batches refused or stopped); the CLI's `cli_command` has the subcommand and `batch_steps`.
 
 ### Which commands
 
@@ -309,10 +410,10 @@ an aborted query is cancelled (the program is killed). The program prints `[{"ti
 
 ### The pill
 
-`run` shows the "ardia is controlling Ardia" pill like a CDP connection does: it counts as active from the moment
-the request arrives until its reply is written, then the usual 3 s hold. A `run` or `caller` on a connection whose
+`run` and `apply` show the "ardia is controlling Ardia" pill like a CDP connection does: it counts as active from the moment
+the request arrives until its reply is written, then the usual 3 s hold. A `run`, `apply` or `caller` on a connection whose
 `hello` named a caller puts that name (and app icon) on the pill, the most recent one winning (`docs/cli.md`). The indicator combines CDP connections and
-socket runs; neither overwrites the other. `hello`, `commands`, `windows` and `subscribe` don't show it, so a hooks
+socket runs; neither overwrites the other. `hello`, `commands`, `windows`, `workspace` and `subscribe` don't show it, so a hooks
 runner connected all day doesn't keep it up. Stop hides it at once.
 
 ## The ardia command
@@ -325,6 +426,13 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
   sending is reported, never retried, with exit 2 and a line saying the command may or may not have run.
 - `ardia commands [--json]` lists command ids, titles and variants.
 - `ardia windows [--json]` prints the windows and their tabs.
+- `ardia tabs [--window ID] [--profile ID] [--flat] [--json]` prints the workspace (each window's spaces, Top Apps,
+  pinned section, groups nested); `ardia tabs open|move|pin|unpin|activate|mute|unmute|sleep|wake|close|rename|icon …`
+  and `ardia groups [create|update|rename|move|ungroup|close|delete] …` each send one `apply` operation; `ardia groups`
+  alone lists the groups. `ardia apply [FILE|-]` sends a batch (a JSON list or `{"ops": [...]}`). Exit 1 for a
+  refusal, a bad request or a stopped batch (with how many operations ran), 2 when Ardia can't be reached or the
+  connection dropped after sending (it may or may not have run; never retried); an Ardia without protocol 3 gets
+  "update Ardia".
 - `ardia events [EVENT…] [--json] [--full-urls] [--idle DURATION]` streams events (default all but the named-only
   ones) until interrupted; `--json` prints the raw lines. Event names are checked against the table above (a typo
   fails with the closest names, exit 1); a lost connection exits 2. `dropped` is reported on stderr in the text
@@ -346,6 +454,8 @@ checks the server's uid, and exits 2 with one line when Ardia isn't running, con
   `ARDIA_TAB_ID`, `ARDIA_PROFILE`, `ARDIA_URL`, `ARDIA_TITLE`, all set or removed for every run (never inherited from
   the runner), NULs stripped and each cut to 4 KB. `notification.shown` sets neither `ARDIA_TITLE` nor `ARDIA_URL`.
   A hook without `fullUrls` gets URLs without their query and fragment even when another hook asked for full ones.
+  Event data (`ARDIA_TITLE`, `ARDIA_URL`, the JSON line) comes from pages, so a program that prints it to a terminal
+  should escape control characters first, as the CLI's own output does; the runner leaves PROGRAM's output alone.
 - PROGRAM runs from argv, never through a shell unless PROGRAM is one; event values are never put into the command
   line. A leading `~` in PROGRAM is expanded, nothing else is.
 - `--match`/`match` take userscript match patterns (`urlmatch.py`); several match if any does; an event without a URL
@@ -438,10 +548,12 @@ The runner fires them and passes a `schedule.fired` event (it never comes from A
 
 The app side: node tests for the handlers (the command classification, refusals, `no_window` without fallback, the
 eligibility rule including closes and Peek, internal-page redaction, event shapes, subscribe replacement, the
-generation check; `automationHooks.test.mjs` for launch replay, named-only events, URL minimization, tab targets,
+generation check; `workspace.test.mjs` for the tab and group operations, URL and icon checks, batch stops, `$N`
+references, private windows and the shown tab never changing; `automationHooks.test.mjs` for launch replay, named-only events, URL minimization, tab targets,
 the new events, decide rules with control off, approvals, program decisions bound to their runner with duplicate,
 foreign and late answers refused, permissions, link routing and omnibox hooks; `hookFile.test.mjs` for the file
 checks, approval classes and rewrite safety) and a hidden-instance check over the real socket. The CLI side: unit tests against a fake socket
 server speaking the protocol (`test_hooks_more.py` covers validation, subscription options, launch dedupe across
 restarts, command hooks and their rate limit, decide programs, cancels and timeouts, and the scheduler on fake
-clocks), and one end-to-end run against a hidden instance.
+clocks; `test_workspace.py` for the tabs, groups and apply commands), and one end-to-end run against a hidden
+instance.

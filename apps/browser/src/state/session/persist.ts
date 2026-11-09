@@ -124,6 +124,12 @@ type SavedSession = Omit<HydrateData, "history" | "bookmarks" | "downloads"> & {
   tabs: Record<string, Tab>;
 };
 
+function settingsWithAutoHideTabs(settings: unknown, windows: SavedObject[]): HydrateData["settings"] {
+  if (!isFields(settings)) return undefined;
+  if ("autoHideTabs" in settings || !windows.length) return settings as HydrateData["settings"];
+  return { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } as HydrateData["settings"];
+}
+
 export function parseSession(json: string | null | undefined): SavedSession | null {
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
@@ -131,7 +137,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     profiles: byProfile(raw.profiles, profileOk),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
-    settings: isFields(raw.settings) ? (raw.settings as HydrateData["settings"]) : undefined,
+    settings: settingsWithAutoHideTabs(raw.settings, rows(raw.windows, windowOk)),
     settingsMeta: parseSettingsMeta(raw.settingsMeta),
     windows: byId(rows<BrowserWindow & { incognito?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, ...w }): BrowserWindow => ({ ...w, kind: "main" }))),
     windowOrder: strings(raw.windowOrder),

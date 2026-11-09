@@ -51,7 +51,7 @@ function fresh() {
 test("hello, unknown methods and malformed lines", async () => {
   fresh();
   await controlOn();
-  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 2 });
+  assert.deepEqual(call("hello").result, { app: "Ardia", version: "1.0", protocol: 3 });
   const unknown = call("dance");
   assert.equal(unknown.error.code, "unknown_method");
   const bad = call(null, null, { raw: "not json" });
