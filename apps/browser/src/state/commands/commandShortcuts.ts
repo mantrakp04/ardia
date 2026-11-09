@@ -3,7 +3,7 @@ import type { MenuShortcut } from "../../platform/commands";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { shortcutSources } from "./commandCatalog";
-import { formatShortcut, resolveShortcuts, storedShortcut, type ResolvedShortcuts, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "./shortcuts";
+import { formatShortcut, resolveShortcuts, type ResolvedShortcuts, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "./shortcuts";
 
 export { cancelShortcutRecording, recordShortcut, type MenuShortcut } from "../../platform/commands";
 
@@ -15,14 +15,11 @@ type MenuBar = { listed: ReadonlySet<string>; fixed: readonly ShortcutSource[] }
 const useMenuBar = create<{ bar: MenuBar | undefined; revision: number }>()(() => ({ bar: undefined, revision: 0 }));
 let resolvedFor: { overrides: ShortcutOverrides; profiles: readonly string[]; menuBar: MenuBar | undefined; resolved: ResolvedShortcuts } | undefined;
 
-const fixedSource = (item: MenuShortcut): ShortcutSource => ({
-  id: item.id,
-  fixed: true,
-  keys: [{ key: item.defaultKey, modifiers: item.defaultModifiers }, ...(item.aliases ?? []).map(storedShortcut)],
-});
-
 export function setMenuBarShortcuts(items: readonly MenuShortcut[]) {
-  const bar = { listed: new Set(items.map((item) => item.id)), fixed: items.filter((item) => !item.remappable).map(fixedSource) };
+  const fixed = items.flatMap((item): ShortcutSource[] =>
+    item.remappable ? [] : [{ id: item.id, fixed: true, keys: [{ key: item.key, modifiers: item.modifiers }] }],
+  );
+  const bar = { listed: new Set(items.map((item) => item.id)), fixed };
   useMenuBar.setState((m) => ({ bar, revision: m.revision + 1 }));
 }
 
@@ -53,13 +50,38 @@ export function menuShortcut(id: string, s: ShortcutState = useBrowser.getState(
   return { key: shortcut.key, modifiers: shortcut.modifiers.filter((m): m is MenuModifier => m !== "function") };
 }
 
-export function menuCommandAlternate(id: string, s: ShortcutState = useBrowser.getState()): MenuKey | null {
-  const primary = menuShortcut(id, s);
-  const modifiers = primary.modifiers ?? [];
+function commandAlternateOf(id: string, s: ShortcutState): Shortcut | null {
+  const primary = shortcutOf(id, s);
+  const modifiers = primary?.modifiers ?? [];
   if (modifiers.includes("command")) return null;
-  const alternate = { ...primary, modifiers: [...modifiers, "command" as const] };
-  if (alternate.key && resolvedShortcuts(s).holdersOf({ key: alternate.key, modifiers: alternate.modifiers }).length) return null;
+  const alternate: Shortcut = { key: primary?.key ?? "", modifiers: [...modifiers, "command"] };
+  if (alternate.key && resolvedShortcuts(s).holdersOf(alternate).length) return null;
   return alternate;
+}
+
+export function menuCommandAlternate(id: string, s: ShortcutState = useBrowser.getState()): MenuKey | null {
+  const alternate = commandAlternateOf(id, s);
+  if (!alternate) return null;
+  if (!alternate.key || alternate.modifiers.includes("function")) return { modifiers: ["command"] };
+  return { key: alternate.key, modifiers: alternate.modifiers.filter((m): m is MenuModifier => m !== "function") };
+}
+
+const menuBarBindingsOf = new WeakMap<ResolvedShortcuts, Record<string, string[][]>>();
+const stored = ({ key, modifiers }: Shortcut) => [key, ...modifiers];
+
+export function menuBarBindings(s: ShortcutState): Record<string, string[][]> {
+  const resolved = resolvedShortcuts(s);
+  const cached = menuBarBindingsOf.get(resolved);
+  if (cached) return cached;
+  const fixed = new Set(useMenuBar.getState().bar?.fixed.map((source) => source.id));
+  const bindings: Record<string, string[][]> = {};
+  for (const [id, keys] of resolved.bindings) if (!fixed.has(id)) bindings[id] = keys.map(stored);
+  for (const id of s.profileOrder) {
+    const alternate = commandAlternateOf(`switchProfile:${id}`, s);
+    bindings[`newWindow:${id}`] = alternate ? [stored(alternate)] : [];
+  }
+  menuBarBindingsOf.set(resolved, bindings);
+  return bindings;
 }
 
 export function withShortcut(title: string, hint: string | undefined): string {

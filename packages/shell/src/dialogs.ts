@@ -1,5 +1,3 @@
-import { Shell } from "./shellNative";
-
 export type ConfirmOptions = {
   title: string;
   message?: string;
@@ -19,8 +17,9 @@ export type PromptOptions = {
   windowId?: string;
 };
 
-export const pickFiles = () => Shell.pickFiles();
-export const pickFolder = (current: string | null, prompt: string | null = null) => Shell.pickFolder(current, prompt);
-
-export const confirm = (options: ConfirmOptions) => Shell.confirm(options);
-export const prompt = (options: PromptOptions) => Shell.prompt(options);
+export type DialogsNative = {
+  confirm(options: ConfirmOptions): Promise<{ confirmed: boolean; suppressed: boolean }>;
+  prompt(options: PromptOptions): Promise<string | null>;
+  pickFiles(): Promise<string[]>;
+  pickFolder(current: string | null, prompt: string | null): Promise<string | null>;
+};

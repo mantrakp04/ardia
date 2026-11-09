@@ -1,8 +1,7 @@
-import { cleanUrl } from "@ardia/core";
 import { confirm } from "../../platform/dialogs";
-import { copyText } from "../../platform/clipboard";
-import { showMenu } from "../../platform/menus";
-import { openUrl } from "../bookmarks/actions";
+import { showMenu, type MenuItem } from "../../platform/menus";
+import { menuSections } from "../app/menuSections";
+import { copyLinkItems, openAllItems, openLinkItems, runLinkChoice, type Link } from "../bookmarks/linkMenus";
 
 export async function confirmRemoveSelected(windowId: string): Promise<boolean> {
   const { confirmed } = await confirm({
@@ -15,21 +14,30 @@ export async function confirmRemoveSelected(windowId: string): Promise<boolean> 
   return confirmed;
 }
 
-export async function openHistoryRowMenu(url: string, windowId: string, onMoreFromSite: (url: string) => void, onRemove: (url: string) => void) {
-  const choice = await showMenu([
-    { id: "tab", title: "Open in New Tab" },
-    { id: "window", title: "Open in New Window" },
-    { id: "incognito", title: "Open in Incognito Window" },
-    { separator: true },
-    { id: "copy", title: "Copy Link" },
-    { id: "more", title: "More from This Site" },
-    { separator: true },
-    { id: "remove", title: "Remove from History" },
-  ]);
-  if (choice === "tab") openUrl(url, windowId, "foreground");
-  if (choice === "window") openUrl(url, windowId, "window");
-  if (choice === "incognito") openUrl(url, windowId, "incognito");
-  if (choice === "copy") copyText(cleanUrl(url));
-  if (choice === "more") onMoreFromSite(url);
-  if (choice === "remove") onRemove(url);
+export function historyRowMenuItems(count: number): MenuItem[] {
+  if (count > 1)
+    return menuSections(openAllItems(count, count), copyLinkItems(count), [{ id: "remove", title: `Remove ${count} Pages from History…`, symbol: "trash" }]);
+  return menuSections(
+    openLinkItems(),
+    [...copyLinkItems(), { id: "more", title: "More from This Site", symbol: "magnifyingglass" }],
+    [{ id: "remove", title: "Remove from History", symbol: "trash" }],
+  );
+}
+
+export async function openHistoryRowMenu(entries: Link[], windowId: string, onMoreFromSite: (url: string) => void, onRemove: (urls: string[]) => void) {
+  if (!entries.length) return;
+  const choice = await showMenu(historyRowMenuItems(entries.length));
+  if (runLinkChoice(choice, entries, windowId)) return;
+  if (choice === "more") onMoreFromSite(entries[0]!.url);
+  if (choice === "remove") {
+    if (entries.length > 1 && !(await confirmRemoveSelected(windowId))) return;
+    onRemove(entries.map((e) => e.url));
+  }
+}
+
+export function shownSelection(selected: Set<string>, rows: { entry: { url: string } }[]): Set<string> {
+  if (!selected.size) return selected;
+  const shown = new Set(rows.map((r) => r.entry.url));
+  const kept = [...selected].filter((url) => shown.has(url));
+  return kept.length === selected.size ? selected : new Set(kept);
 }

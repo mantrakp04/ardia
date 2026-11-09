@@ -90,24 +90,26 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
     });
 }
 
-+ (void)setTrafficLightsCenter:(NSValue *)center inWindow:(NSWindow *)window {
++ (void)setTrafficLightsCenter:(NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window {
   if (objc_getAssociatedObject(window, kLightsShownKey)) {
     objc_setAssociatedObject(window, kLightsShownKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(window, kLightsMoveKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     TranslateTrafficLights(window, 0);
   }
+  const BOOL wasTrailing = ArdiaTrafficLightsTrailing(window);
   NSValue *current = objc_getAssociatedObject(window, kLightsCenterKey);
-  if (current == center || [current isEqual:center]) return;
+  if (wasTrailing == trailing && (current == center || [current isEqual:center])) return;
+  objc_setAssociatedObject(window, kLightsTrailingKey, trailing ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   objc_setAssociatedObject(window, kLightsCenterKey, center, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   RetileTrafficLights(window);
-  PlaceFullScreenLights(window);
 }
 
-+ (void)moveTrafficLightsCenter:(NSValue *)center inWindow:(NSWindow *)window {
++ (void)moveTrafficLightsCenter:(NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window {
+  if (ArdiaTrafficLightsTrailing(window) != trailing) return [self setTrafficLightsCenter:center trailing:trailing inWindow:window];
   id shown = objc_getAssociatedObject(window, kLightsShownKey);
   NSValue *current = shown ? (shown == NSNull.null ? nil : shown) : objc_getAssociatedObject(window, kLightsCenterKey);
   if (current == center || [current isEqual:center]) return;
-  if (!MoveTrafficLights(window, center)) [self setTrafficLightsCenter:center inWindow:window];
+  if (!MoveTrafficLights(window, center)) [self setTrafficLightsCenter:center trailing:trailing inWindow:window];
 }
 
 + (void)setSwappedHandler:(void (^)(NSWindow *, NSWindow *))handler {
@@ -120,7 +122,12 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (void)closeWindow:(NSWindow *)window {
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
-  [ArdiaWebView keepTransfersOfWindow:window];
+  if (![ArdiaWebView keepTransfersOfWindow:window]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [ArdiaChromeWindowHost closeWindow:window];
+    });
+    return;
+  }
   if (controller) [controller.coreWindow close];
   else [window close];
 }
@@ -160,6 +167,14 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   else [host addSubview:root];
   controller.root = root;
   [ArdiaEarlyWindow rootEmbedded:root inWindow:window];
+}
+
++ (NSView *)embeddedRootOfWindow:(NSWindow *)window {
+  return [ArdiaCoreWindow embeddedRootOfWindow:window];
+}
+
++ (Class)contentViewClass {
+  return ArdiaCoreWindow.contentViewClass;
 }
 
 + (NSView *)rootViewOfWindow:(NSWindow *)window {

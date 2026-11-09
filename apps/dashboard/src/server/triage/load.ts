@@ -1,4 +1,5 @@
 import { count, list, text, time, triageDatabase, triageRows } from "./connection";
+import { loadLeads } from "./leads";
 import { effectiveRepliesSql, ensureReplyActions, loadReplies } from "./replies";
 
 const optionalId = (value: unknown) => (value == null ? null : count(value));
@@ -21,7 +22,7 @@ export async function loadOverview(signal?: AbortSignal) {
   const db = triageDatabase();
   const [dimensions, replies, releases, top, syncedAt] = await Promise.all([
     triageRows(`SELECT dimension, value, n FROM ${db}.ardia_v_overview WHERE dimension NOT IN ('reply_status', 'drafted_reply_platform')`, signal),
-    triageRows(`SELECT ifNull(toString(platform), 'other') AS platform, toString(effective_status) AS status, count() AS n FROM (${effectiveRepliesSql()}) GROUP BY platform, status`, signal),
+    triageRows(`SELECT ifNull(toString(platform), 'other') AS platform, if(is_snoozed, 'snoozed', toString(effective_status)) AS status, count() AS n FROM (${effectiveRepliesSql()}) GROUP BY platform, status`, signal),
     triageRows(
       `SELECT rel.tag AS tag, rel.name AS name, rel.channel AS channel, rel.published_at AS published_at, rel.url AS url, rel.x_post_url AS x_post_url,
               ifNull(s.fixed_requests, 0) AS fixed, ifNull(t.tagged, 0) AS tagged, ifNull(an.announcements, 0) AS announcements
@@ -81,7 +82,7 @@ export async function loadRequests(signal?: AbortSignal) {
        FROM ${db}.ardia_requests AS r FINAL
        LEFT JOIN (${requestAggregates(db)}) AS a ON a.request_id = r.id
        LEFT JOIN (SELECT number, title, state FROM ${db}.ardia_issues FINAL) AS i ON i.number = r.issue_number
-       LEFT JOIN (SELECT request_id, countIf(effective_status = 'drafted') AS waiting FROM (${effectiveRepliesSql()}) GROUP BY request_id) AS w ON w.request_id = r.id
+       LEFT JOIN (SELECT request_id, countIf(effective_status = 'drafted' AND NOT is_snoozed) AS waiting FROM (${effectiveRepliesSql()}) GROUP BY request_id) AS w ON w.request_id = r.id
        ORDER BY r.id`,
       signal,
     ),
@@ -134,8 +135,8 @@ export async function loadRequests(signal?: AbortSignal) {
 }
 
 export async function loadReplyQueue(signal?: AbortSignal) {
-  const [replies, syncedAt] = await Promise.all([loadReplies(signal), lastSync(signal)]);
-  return { syncedAt, replies };
+  const [replies, leads, syncedAt] = await Promise.all([loadReplies(signal), loadLeads(signal), lastSync(signal)]);
+  return { syncedAt, replies, leads };
 }
 
 export async function loadPeople(signal?: AbortSignal) {

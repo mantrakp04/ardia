@@ -79,6 +79,8 @@ export type ApplyRecords = {
   now: number;
   horizon: number;
   joined: boolean;
+  held(): boolean;
+  landed(key: string): void;
 };
 
 export interface Adapter {
@@ -105,4 +107,5 @@ export type ScopeOptions = {
   pruneGrace?: number;
   damagedGiveUp?: number;
   persist?: (batches: LogFile[]) => Promise<void>;
+  holdApply?: () => boolean;
 };

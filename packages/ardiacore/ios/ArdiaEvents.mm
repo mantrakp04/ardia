@@ -1,4 +1,5 @@
 #import "ArdiaEvents.h"
+#import "ArdiaDownloadMover.h"
 
 namespace {
 
@@ -25,6 +26,7 @@ NSString *DomainOf(NSString *name) {
 }
 
 + (void)emit:(NSString *)name data:(NSDictionary *)data {
+  if ([name isEqualToString:@"downloads.changed"] && data) data = [ArdiaDownloadMover.shared noteDownloadEvent:data];
   if (void (^sender)(NSString *, NSDictionary *) = Senders()[DomainOf(name)]) sender(name, data ?: @{});
 }
 

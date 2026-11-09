@@ -4,16 +4,16 @@ import { pageOf } from "./pageState";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { hasPage } from "./pageSession";
+import { adoptOf, hasPage } from "./pageSession";
 import { splitOf } from "../splits/splits";
 import type { Tab } from "../browser/types";
+import { isWebPageUrl } from "../../lib/url";
 
-const WEB_PAGE = /^(https?|file):/i;
 const OFFERED = /^(tab|ardiacore):/;
 
 export type Switch = { tabId: string; offered?: string; over: string } | { tabId: null; over: string };
 
-const hasWebPage = (t: Tab | undefined): t is Tab => !!t && hasPage(t) && WEB_PAGE.test(t.url);
+const hasWebPage = (t: Tab | undefined): t is Tab => !!t && hasPage(t) && isWebPageUrl(t.url);
 
 function plainPage(tabId: string): boolean {
   const page = pageOf(tabId);
@@ -30,8 +30,9 @@ function revealFor(s: BrowserState, prev: BrowserState, windowId: string, next: 
   const had = prev.tabs[next];
   if (!hasWebPage(tab) || tab.windowId !== windowId) return null;
   if (hasWebPage(had)) return had.windowId === windowId && was.tabIds.includes(next) ? { tabId: next, over: before } : null;
-  if (!had && tab.adoptId && OFFERED.test(tab.adoptId) && hasWebPage(prev.tabs[before]) && !useToolbarAutoHide.getState().scrolledDown[before])
-    return { tabId: next, offered: tab.adoptId, over: before };
+  const adopt = adoptOf(tab);
+  if (!had && adopt && OFFERED.test(adopt) && hasWebPage(prev.tabs[before]) && !useToolbarAutoHide.getState().scrolledDown[before])
+    return { tabId: next, offered: adopt, over: before };
   return null;
 }
 

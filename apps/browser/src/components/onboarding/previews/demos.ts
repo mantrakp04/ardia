@@ -5,6 +5,8 @@ import { CmdlCentred, CmdlField, NewTabOpensBar, NewTabOpensPage, newTabAt, type
 import { quit, tidy, windows } from "./scenes/LifecycleScenes";
 import { links } from "./scenes/LinkScenes";
 import { appearance, siteColor } from "./scenes/LookScenes";
+import { interfaceStyle } from "./scenes/StyleScenes";
+import { switcher } from "./scenes/SwitcherScenes";
 import { addressMove, TabsSidebar, TabsTop } from "./scenes/TabScenes";
 import { sceneMs } from "./tokens";
 
@@ -29,8 +31,12 @@ export const DEMOS: Record<PreviewId, { duration: number; Scene: Scene }> = {
   "appearance-auto": { duration: sceneMs.appearance, Scene: appearance("auto") },
   "appearance-light": { duration: sceneMs.appearance, Scene: appearance("light") },
   "appearance-dark": { duration: sceneMs.appearance, Scene: appearance("dark") },
+  "style-glass": { duration: sceneMs.style, Scene: interfaceStyle(true) },
+  "style-classic": { duration: sceneMs.style, Scene: interfaceStyle(false) },
   "sitecolor-on": { duration: sceneMs.siteColor, Scene: siteColor(true) },
   "sitecolor-off": { duration: sceneMs.siteColor, Scene: siteColor(false) },
+  "switcher-dots": { duration: sceneMs.switcher, Scene: switcher(false) },
+  "switcher-icons": { duration: sceneMs.switcher, Scene: switcher(true) },
   "typed-website": { duration: sceneMs.typed, Scene: typed(false) },
   "typed-search": { duration: sceneMs.typed, Scene: typed(true) },
   "block-on": { duration: sceneMs.block, Scene: block(true) },

@@ -1,44 +1,50 @@
-import { Surface, Symbol, VisualEffect, type SurfaceProps } from "@ardia/shell";
+import { Symbol, VisualEffect } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button, PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./Button";
+import { Button } from "./Button";
+import { PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./ButtonKinds";
 import { curve, duration } from "./motion";
-import { hex, useTheme } from "./theme";
-import { hairline, radius, shadow, space, font as typeScale, weight } from "./tokens";
+import { useTheme } from "./theme";
+import { concentric, font as typeScale, lineHeight, POPOVER_WIDTH, radius, shadow, space, weight } from "./tokens";
 import { useHover } from "./useHover";
+import { Panel, type PanelProps } from "./Panel";
+import { OutsidePressArea } from "./native";
+import { useGlass } from "./Glass";
 
-export const POPOVER_MARGIN = 8;
+export const POPOVER_MARGIN = space.m;
 
-const INSET = 16;
-const ROW_INSET = 6;
+const INSET = space.xl;
+const ROW_INSET = space.s;
 const RADIUS = radius.panel;
 const ROW_HEIGHT = 32;
+const SEPARATOR_GAP = 5;
 const ICON_SLOT = 20;
-const ICON_GAP = 10;
+const ICON_GAP = space.ml;
 export const PANEL = {
   radius: RADIUS,
   inset: INSET,
   rowInset: ROW_INSET,
   rowPadding: INSET - ROW_INSET,
-  rowRadius: RADIUS - ROW_INSET,
+  rowRadius: concentric(RADIUS, ROW_INSET),
   rowHeight: ROW_HEIGHT,
   iconSlot: ICON_SLOT,
   iconSize: 13,
   iconGap: ICON_GAP,
   textColumn: INSET + ICON_SLOT + ICON_GAP,
   listPadding: INSET - (ROW_HEIGHT - ICON_SLOT) / 2,
-  headerGap: 8,
-  separatorGap: 5,
-  titleSize: 13,
-  titleLine: 16,
-  subtitleSize: 11,
-  subtitleLine: 14,
-  valueSize: 12,
+  headerGap: space.m,
+  separatorGap: SEPARATOR_GAP,
+  titleSize: typeScale.body.fontSize,
+  titleLine: lineHeight.body,
+  subtitleSize: typeScale.caption.fontSize,
+  subtitleLine: lineHeight.caption,
+  valueSize: typeScale.small.fontSize,
+  largeIcon: 32,
 } as const;
 
 export const POPOVER_MOTION = {
-  open: { duration: duration.popoverOpen, easing: curve.outCubic },
-  close: { duration: duration.popoverClose, easing: curve.inQuad },
+  open: { duration: duration.base, easing: curve.enter },
+  close: { duration: duration.fast, easing: curve.exit },
 } as const;
 
 export function usePopoverPresence(open: boolean) {
@@ -64,7 +70,7 @@ export function usePopoverMotion(closing: boolean, onClosed?: () => void, ready 
   return appear;
 }
 
-export function usePopoverMotionStyle(appear: Animated.Value, origin: string, upward = false) {
+export function usePopoverMotionStyle(appear: Animated.Value, origin: string | [number | string, number | string, number], upward = false) {
   return useMemo(
     () => ({
       opacity: appear,
@@ -89,8 +95,9 @@ export function Popover({
   fitHeight = false,
   closing = false,
   onClosed,
+  glass = false,
 }: {
-  width: number;
+  width: keyof typeof POPOVER_WIDTH | number;
   top: number;
   right?: number;
   left?: number;
@@ -100,6 +107,7 @@ export function Popover({
   fitHeight?: boolean;
   closing?: boolean;
   onClosed?: () => void;
+  glass?: boolean;
 }) {
   const appear = usePopoverMotion(closing, onClosed);
   const motion = usePopoverMotionStyle(appear, right !== undefined ? "top right" : "top left");
@@ -108,55 +116,50 @@ export function Popover({
     <>
       {fitHeight && <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setRoom(e.nativeEvent.layout.height)} />}
       {modal && onDismiss && !closing && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />}
-      <Animated.View pointerEvents={closing ? "none" : "auto"} style={{ position: "absolute", top, right, left, width, ...motion }}>
-        <PopoverSurface>
-          {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
-        </PopoverSurface>
+      <Animated.View pointerEvents={closing ? "none" : "auto"} style={{ position: "absolute", top, right, left, width: typeof width === "number" ? width : POPOVER_WIDTH[width], ...motion }}>
+        <OutsidePressArea onOutsidePress={onDismiss && !closing ? onDismiss : undefined}>
+          <PopoverSurface glass={glass}>
+            {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
+          </PopoverSurface>
+        </OutsidePressArea>
       </Animated.View>
     </>
   );
 }
 
-export function PopoverSurface({ children, ...props }: SurfaceProps) {
+export function PopoverSurface({ children, glass = false, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow" | "glass"> & { glass?: boolean }) {
   const theme = useTheme();
-  const level = shadow.popover;
+  const paneGlass = useGlass("panes");
+  if (glass && paneGlass)
+    return (
+      <Panel {...props} glass fill={theme.panel} radius={PANEL.radius}>
+        {children}
+      </Panel>
+    );
   return (
-    <Surface
-      {...props}
-      fill={hex(theme.popoverFill)}
-      cornerRadius={PANEL.radius}
-      borderColor={hex(theme.popoverBorder)}
-      borderWidth={hairline.panel}
-      shadowColor={level.color}
-      shadowOpacity={theme.dark ? level.opacity.dark : level.opacity.light}
-      shadowRadius={level.radius}
-      shadowOffset={level.offset}
-    >
+    <Panel {...props} fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
       <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
       <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
       {children}
-    </Surface>
+    </Panel>
   );
 }
 
 export function PanelHeader({
   icon,
-  iconSize = PANEL.iconSlot,
   title,
   subtitle,
-  subtitleLines = 1,
   large,
   accessory,
 }: {
   icon: ReactNode;
-  iconSize?: number;
   title: string;
   subtitle?: string | null;
-  subtitleLines?: number;
   large?: boolean;
   accessory?: ReactNode;
 }) {
   const theme = useTheme();
+  const iconSize = large ? PANEL.largeIcon : PANEL.iconSlot;
   const titleLine = large ? PANEL.titleLine + 1 : PANEL.titleLine;
   const [textHeight, setTextHeight] = useState(titleLine + (subtitle ? PANEL.subtitleLine : 0));
   const overhang = Math.max(0, (textHeight - iconSize) / 2);
@@ -177,7 +180,7 @@ export function PanelHeader({
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={subtitleLines} style={{ fontSize: large ? typeScale.footnote.fontSize : PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
+          <Text numberOfLines={large ? 2 : 1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
             {subtitle}
           </Text>
         ) : null}
@@ -195,7 +198,7 @@ export function PopoverValue({ title, onPress, chevron = "chevron.up.chevron.dow
   return (
     <View {...hoverProps} tooltip={tooltip} style={{ marginRight: -VALUE_PAD }}>
       <Pressable onPress={onPress}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 3, height: 22, paddingLeft: space.m, paddingRight: VALUE_PAD, borderRadius: radius.m, backgroundColor: hovered ? theme.toolbarHover : undefined }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, height: 22, paddingLeft: space.m, paddingRight: VALUE_PAD, borderRadius: radius.control, backgroundColor: hovered ? theme.toolbarHover : undefined }}>
           <Text style={{ fontSize: PANEL.valueSize, color: theme.textSecondary }}>{title}</Text>
           <Symbol name={chevron} size={9} weight={chevron === "chevron.down" ? "semibold" : undefined} color={theme.textSecondary} style={{ width: 8, height: 14 }} />
         </View>

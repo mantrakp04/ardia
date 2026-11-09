@@ -1,49 +1,54 @@
 ---
+import { base } from "../data/site";
 import Shot from "./Shot.astro";
 import DownloadButton from "./DownloadButton.astro";
 import Plate from "./Plate.astro";
 import windowShot from "../assets/shots/window.webp";
 
 const fullPage = /\/try\/?$/.test(Astro.url.pathname);
-const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}demo/`}?embed${fullPage ? "&warm" : ""}`;
+const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
 ---
 
 <section class="showcase" id="demo" aria-label="The app" data-shot="office">
   <div class="wrap">
     <figure class="showcase-figure">
-      <div class="tilt" data-settle>
-        <Plate hour="morning" sun={{ x: 0.84, y: 0.16 }} still class="showcase-plate">
-          <div class="demo" data-demo data-demo-src={demoSrc}>
-            <p class="label demo-cue">
-              <span>Not a screenshot.</span>
-              <span class="demo-cue-swap">
-                <span class="demo-nudge"><span class="go-on">Go on, </span><span class="by-pointer">click</span><span class="by-touch">tap</span> a tab</span>
-                <span class="demo-told" aria-hidden="true">Told you.</span>
-              </span>
-            </p>
-            <div class="demo-poster" data-demo-poster>
-              <Shot
-                src={windowShot}
-                alt="The Ardia window in light mode: pinned tiles and tabs in the sidebar, and Wikipedia’s article on The Hay Wain, John Constable’s painting of a hay cart crossing a river, open on the right."
-                sizes="(max-width: 1440px) 88vw, 1240px"
-              />
-            </div>
-            <div class="demo-stage" data-demo-stage></div>
+      <Plate hour="morning" sun={{ x: 0.84, y: 0.16 }} still class="showcase-plate">
+        <div class="demo" data-demo>
+          <p class="label demo-cue">
+            <span>Not a screenshot.</span>
+            <span class="demo-cue-swap">
+              <span class="demo-nudge"><span class="go-on">Go on, </span><span class="by-pointer">click</span><span class="by-touch">tap</span> a tab</span>
+              <span class="demo-told" aria-hidden="true">Told you.</span>
+            </span>
+          </p>
+          <div class="demo-poster" data-demo-poster>
+            <Shot
+              src={windowShot}
+              alt="The Ardia window in light mode: pinned tiles and tabs in the sidebar, and Wikipedia’s article on The Hay Wain, John Constable’s painting of a hay cart crossing a river, open on the right."
+              sizes="(max-width: 1440px) 88vw, 1240px"
+            />
           </div>
-        </Plate>
-      </div>
-      <div class="demo-controls" data-demo-controls hidden>
-        <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
-          <span data-demo-customize-label>Customize it</span>
-        </button>
-        <div class="demo-code" data-demo-code hidden>
-          <p class="label demo-code-label">Your setup code</p>
-          <div class="demo-code-row">
-            <code class="demo-code-value" data-demo-code-value></code>
-            <button type="button" class="demo-copy" data-demo-copy data-track="demo_setup_code_copied">Copy</button>
+          <div class="demo-stage" data-demo-stage>
+            <iframe
+              class="demo-frame"
+              src={demoSrc}
+              title="Ardia, live: try the sidebar, split view and the command bar"
+              allow="clipboard-write"
+              loading="eager"></iframe>
           </div>
-          <p class="demo-code-line">Paste it into Ardia after you download it, on its first screen or in Settings › General. It sets itself up just like this.</p>
         </div>
+      </Plate>
+      <div class="demo-controls" data-demo-controls hidden>
+        <div class="demo-actions">
+          <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
+            <span data-demo-customize-label>Customize it</span>
+          </button>
+          <span class="demo-code" data-demo-code hidden>
+            <DownloadButton location="demo-code" label="Download & copy code" meta="" class="demo-get" />
+          </span>
+        </div>
+        <code class="demo-code-value" data-demo-code-value hidden></code>
+        <p class="demo-code-line" data-demo-code-line hidden>Your setup code goes to your clipboard as the download starts. Paste it on Ardia’s first screen and it sets itself up just like this.</p>
       </div>
     </figure>
     <aside class="band" aria-label="Download" data-download-band hidden>
@@ -74,30 +79,14 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
 <style>
   .showcase {
     padding-top: clamp(24px, 4vw, 64px);
+    padding-bottom: calc(var(--edge) + clamp(32px, 4vw, 64px));
   }
   .showcase-figure {
     margin: 0 auto;
-    perspective: 1600px;
   }
   @media (hover: hover) and (pointer: fine) and (min-width: 900px) {
     .showcase-figure {
       max-width: max(860px, calc((100svh - 170px) / 0.66));
-    }
-  }
-  .tilt {
-    transform-origin: 50% 0%;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .tilt {
-      transform: rotateX(12deg) scale(0.92) translateY(40px);
-      opacity: 0.5;
-      transition:
-        transform 1300ms var(--ease-out),
-        opacity 900ms var(--ease-out);
-    }
-    :global(.js) .tilt:global(.in) {
-      transform: none;
-      opacity: 1;
     }
   }
   .demo {
@@ -120,12 +109,8 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
     box-shadow:
       0 1px 2px rgb(22 19 15 / 0.2),
       0 8px 18px -6px rgb(22 19 15 / 0.35);
-    opacity: 0;
-    transform: translateY(6px);
+    visibility: hidden;
     pointer-events: none;
-    transition:
-      opacity 500ms var(--ease-out),
-      transform 500ms var(--ease-out);
   }
   .demo-cue::after {
     content: "";
@@ -137,8 +122,7 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
     border-bottom: 0;
   }
   .demo[data-live] .demo-cue {
-    opacity: 1;
-    transform: none;
+    visibility: visible;
   }
   .demo-cue-swap {
     display: grid;
@@ -187,9 +171,6 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
       align-items: center;
     }
   }
-  .demo-poster {
-    transition: opacity 500ms var(--ease-out);
-  }
   .demo-stage {
     position: absolute;
     inset: 0;
@@ -200,33 +181,38 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
       0 22px 44px rgb(22 19 15 / 0.2);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 500ms var(--ease-out);
-  }
-  .demo-stage:empty {
-    display: none;
   }
   .demo[data-live] .demo-stage {
     opacity: 1;
     pointer-events: auto;
   }
   .demo[data-live] .demo-poster {
-    opacity: 0;
+    visibility: hidden;
   }
-  .demo-stage :global(.demo-frame) {
+  .demo-frame {
     display: block;
+    width: 100%;
+    height: 100%;
     border: 0;
     transform-origin: 0 0;
     background: transparent;
   }
-  .demo-stage[data-far] :global(.demo-frame) {
+  .demo-stage[data-far] .demo-frame {
     content-visibility: auto;
   }
   .demo-controls {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
     margin-top: clamp(18px, 2.2vw, 28px);
+    text-align: center;
+  }
+  .demo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
   }
   .demo-controls[hidden] {
     display: none;
@@ -234,11 +220,6 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   :global(.js) .demo-controls[hidden] {
     display: flex;
     visibility: hidden;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .demo-controls:not([hidden]) {
-      animation: band-in 600ms var(--ease-out) both;
-    }
   }
   .demo-customize {
     --h: 46px;
@@ -257,62 +238,37 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   .demo-customize:disabled::before {
     transform: translateX(-104%) skewX(-12deg);
   }
-  .demo-customize:focus-visible,
-  .demo-copy:focus-visible {
+  .demo-customize:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   .demo-code {
-    display: grid;
-    justify-items: center;
-    gap: 10px;
-    max-width: 640px;
-    text-align: center;
+    display: flex;
   }
-  .demo-code[hidden] {
+  .demo-code[hidden],
+  .demo-code-value[hidden],
+  .demo-code-line[hidden] {
     display: none;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .demo-code {
+    .demo-code,
+    .demo-code-line {
       animation: band-in 600ms var(--ease-out) both;
     }
   }
-  .demo-code-label {
-    color: var(--ink-3);
-  }
-  .demo-code-row {
-    display: flex;
-    align-items: stretch;
-    max-width: 100%;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--rule-strong);
+  .demo-code :global(.demo-get) {
+    --h: 46px;
   }
   .demo-code-value {
-    min-width: 0;
+    max-width: 100%;
     padding: 11px 14px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--rule-strong);
     font-family: var(--mono);
     font-size: clamp(0.72rem, 0.66rem + 0.3vw, 0.86rem);
     letter-spacing: 0.01em;
     overflow-wrap: anywhere;
     user-select: all;
-  }
-  .demo-copy {
-    flex: none;
-    padding: 0 16px;
-    border: 0;
-    border-left: 1px solid var(--rule-strong);
-    border-radius: 0 4px 4px 0;
-    background: var(--ink);
-    color: var(--paper);
-    font: inherit;
-    font-size: var(--t-small);
-    font-weight: 600;
-    cursor: pointer;
-    touch-action: manipulation;
-    transition: background-color 160ms var(--ease-out);
-  }
-  .demo-copy:hover {
-    background: var(--accent);
   }
   .demo-code-line {
     max-width: 46ch;

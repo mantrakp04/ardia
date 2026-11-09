@@ -3,16 +3,17 @@ import { useBrowser } from "../browser/store";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { sanitizeTheme } from "../../lib/profileLook";
 import type { Profile, ProfileTheme } from "../browser/types";
+import { PROFILE, PROFILE_THEME, PROFILE_TOP_APPS, SHARE, profileRecord, topAppsRecord, type TopAppsRecord } from "./records";
 
 const store = () => useBrowser.getState();
 
-export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; th?: ProfileTheme | null };
+export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; d?: true; o?: true; th?: ProfileTheme | null };
 
 export type ProfileThemeRecord = { t: ProfileTheme } | { preset: true };
 
 export type ThemeAngleRecord = { a?: number; d?: number };
 
-export const themeAngleKey = (syncId: string) => `pth:${syncId}:angle`;
+export const themeAngleKey = (syncId: string) => `${PROFILE_THEME}${syncId}:angle`;
 
 function withoutAngles({ angle: _angle, dark, ...theme }: ProfileTheme): ProfileTheme {
   if (!dark) return theme;
@@ -43,7 +44,7 @@ export function legacyThemeOf(record: ProfileRecord): Pick<Profile, "theme"> | n
 export function profilesAdapter(links: () => Record<string, { syncId: string }>): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   return {
-    prefix: "prof:",
+    prefix: PROFILE,
     adoptRemoteOnJoin: true,
     extract: (_base, _queued, _now, known) => {
       const values = new Map<string, unknown>();
@@ -51,8 +52,8 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
       for (const [id, { syncId }] of linked()) {
         const p = store().profiles[id]!;
         const sharesSyncedData = !!p.dataId && p.dataId !== id && !!all[p.dataId] && !!store().profiles[p.dataId];
-        if (sharesSyncedData && !known(`share:${syncId}`)) continue;
-        values.set(`prof:${syncId}`, {
+        if (sharesSyncedData && !known(`${SHARE}${syncId}`)) continue;
+        values.set(`${PROFILE}${syncId}`, {
           n: p.name,
           c: p.color,
           i: p.icon,
@@ -64,10 +65,11 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
     },
     apply: (visible, changed, _base, records) => {
       for (const [id, { syncId }] of linked()) {
-        const record = visible.get(`prof:${syncId}`) as ProfileRecord | undefined;
-        if (!record || !changed.has(`prof:${syncId}`)) continue;
-        const legacy = store().profiles[id]!.theme === undefined && !records.known(`pth:${syncId}`) ? legacyThemeOf(record) : null;
-        store().updateProfile(id, { name: record.n, color: record.c, icon: record.i, ...legacy });
+        const record = profileRecord(visible.get(`${PROFILE}${syncId}`));
+        if (!record || !changed.has(`${PROFILE}${syncId}`)) continue;
+        const legacy = store().profiles[id]!.theme === undefined && !records.known(`${PROFILE_THEME}${syncId}`) ? legacyThemeOf(record) : null;
+        store().updateProfile(id, { name: record.n, icon: record.i });
+        store().setProfileLook(id, { color: record.c, ...legacy });
       }
     },
   };
@@ -76,7 +78,6 @@ export function profilesAdapter(links: () => Record<string, { syncId: string }>)
 export function profileThemesAdapter(
   links: () => Record<string, { syncId: string; themeAdopting?: true }>,
   records: () => Record<string, { v: unknown }> | undefined,
-  adopted: (profileId: string) => void = () => {},
 ): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
   const unapplied = (key: string, base: (key: string) => unknown) => {
@@ -84,13 +85,13 @@ export function profileThemesAdapter(
     return !!record && record.v !== null && canonical(record.v) !== canonical(base(key) ?? null);
   };
   return {
-    prefix: "pth:",
+    prefix: PROFILE_THEME,
     adoptRemoteOnJoin: true,
     extract: (base, _queued, _now, known) => {
       const values = new Map<string, unknown>();
       for (const [id, { syncId, themeAdopting }] of linked()) {
         const theme = store().profiles[id]!.theme;
-        const key = `pth:${syncId}`;
+        const key = `${PROFILE_THEME}${syncId}`;
         const angleKey = themeAngleKey(syncId);
         if (theme === undefined || themeAdopting || unapplied(key, base) || unapplied(angleKey, base)) continue;
         values.set(key, (theme ? { t: withoutAngles(theme) } : { preset: true }) satisfies ProfileThemeRecord);
@@ -103,11 +104,36 @@ export function profileThemesAdapter(
     apply: (visible, changed) => {
       for (const [id, { syncId }] of linked()) {
         const angleKey = themeAngleKey(syncId);
-        if (!changed.has(`pth:${syncId}`) && !changed.has(angleKey)) continue;
-        const patch = themeFromRecord(visible.get(`pth:${syncId}`), visible.get(angleKey));
+        if (!changed.has(`${PROFILE_THEME}${syncId}`) && !changed.has(angleKey)) continue;
+        const patch = themeFromRecord(visible.get(`${PROFILE_THEME}${syncId}`), visible.get(angleKey));
         if (!patch) continue;
-        store().updateProfile(id, patch);
-        adopted(id);
+        store().setProfileLook(id, patch);
+      }
+    },
+  };
+}
+
+export function profileTopAppsAdapter(links: () => Record<string, { syncId: string }>): Adapter {
+  const linked = () => Object.entries(links()).filter(([id]) => store().profiles[id]);
+  return {
+    prefix: PROFILE_TOP_APPS,
+    adoptRemoteOnJoin: true,
+    extract: (base, _queued, _now, known, remote) => {
+      const values = new Map<string, unknown>();
+      for (const [id, { syncId }] of linked()) {
+        const key = `${PROFILE_TOP_APPS}${syncId}`;
+        const on = !!store().profiles[id]!.shareTopApps;
+        const unapplied = known(key) && remote(key) !== null && canonical(remote(key)) !== canonical(base(key) ?? null);
+        if ((on || known(key)) && !unapplied) values.set(key, { on } satisfies TopAppsRecord);
+      }
+      const mine = new Set(values.keys());
+      return { values, ignore: (key) => !mine.has(key) };
+    },
+    apply: (visible, changed) => {
+      for (const [id, { syncId }] of linked()) {
+        const key = `${PROFILE_TOP_APPS}${syncId}`;
+        const record = changed.has(key) ? topAppsRecord(visible.get(key)) : null;
+        if (record) store().updateProfile(id, { shareTopApps: record.on || undefined });
       }
     },
   };

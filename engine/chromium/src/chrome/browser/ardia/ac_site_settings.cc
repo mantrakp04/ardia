@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_site_settings.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <memory>
 #include <optional>
@@ -297,12 +297,7 @@ GURL SiteFor(Call& call) {
 }
 }
 
-AC_ENGINE_CALL(ac_site_settings_get) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                       ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_site_settings_get, ardia::OffTheRecord::kAllow) {
   ardia::StateFor<ardia::SiteSettingsState>(call.profile());
   const GURL site = ardia::SiteFor(call);
   if (!site.is_valid()) {
@@ -326,12 +321,7 @@ AC_ENGINE_CALL(ac_site_settings_get) {
   call.TakeReply().Send(base::DictValue().Set("settings", std::move(settings)));
 }
 
-AC_ENGINE_CALL(ac_site_settings_set) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                       ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_site_settings_set, ardia::OffTheRecord::kAllow) {
   ardia::StateFor<ardia::SiteSettingsState>(call.profile());
   const GURL site = ardia::SiteFor(call);
   if (!site.is_valid()) {
@@ -361,12 +351,7 @@ AC_ENGINE_CALL(ac_site_settings_set) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_site_settings_reset) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                       ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_site_settings_reset, ardia::OffTheRecord::kAllow) {
   ardia::StateFor<ardia::SiteSettingsState>(call.profile());
   const GURL site = ardia::SiteFor(call);
   if (!site.is_valid()) {
@@ -382,12 +367,7 @@ AC_ENGINE_CALL(ac_site_settings_reset) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_site_settings_origins) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                       ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_site_settings_origins, ardia::OffTheRecord::kAllow) {
   ardia::StateFor<ardia::SiteSettingsState>(call.profile());
   HostContentSettingsMap* map = ardia::MapFor(call.profile());
   std::set<std::string> origins;
@@ -401,12 +381,7 @@ AC_ENGINE_CALL(ac_site_settings_origins) {
   call.TakeReply().Send(base::DictValue().Set("origins", std::move(list)));
 }
 
-AC_ENGINE_CALL(ac_site_data_clear) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                       ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_site_data_clear, ardia::OffTheRecord::kAllow) {
   const GURL site = ardia::SiteOf(call.String("origin"));
   if (!site.is_valid()) {
     return call.TakeReply().Send(

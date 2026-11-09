@@ -1,13 +1,14 @@
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { Symbol } from "../ui";
+import { Symbol, Text } from "../ui";
 import { useTheme } from "../ui/theme";
 import { sidebarTokens } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { ENGINE_NAMES, ENGINE_SYMBOLS, type PageEngine } from "../../state/engines/engines";
 import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState";
-import { NO_GROUP_ICON, SYMBOL_PREFIX } from "../../state/groups/groupIcons";
+import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
+import { iconSymbol } from "../../lib/customIcon";
 import { Favicon } from "../favicon/Favicon";
 
 export const TabIcon = memo(function TabIcon({
@@ -15,7 +16,8 @@ export const TabIcon = memo(function TabIcon({
   url,
   favicon,
   icon,
-  size = 16,
+  size: givenSize = 16,
+  compact = false,
   color,
   profileId: profile,
   direct,
@@ -26,11 +28,13 @@ export const TabIcon = memo(function TabIcon({
   favicon?: string | null;
   icon?: string | null;
   size?: number;
+  compact?: boolean;
   color?: string;
   profileId?: string;
   direct?: boolean;
   marks?: number;
 }) {
+  const size = compact ? COMPACT_ICON : givenSize;
   const sleeping = useIsSleeping(tabId ?? "");
   const marks = useIconMarks(tabId, givenMarks);
   const engine = tabId && size >= 14 ? markedEngine(marks) : null;
@@ -73,6 +77,7 @@ function TabProfileIcon({ tabId, ...props }: Omit<Parameters<typeof Icon>[0], "p
 }
 
 const SLEEPING_OPACITY = 0.45;
+const COMPACT_ICON = 14;
 
 function Icon({
   url,
@@ -92,9 +97,10 @@ function Icon({
   direct?: boolean;
 }) {
   const theme = useTheme();
-  if (icon?.startsWith(SYMBOL_PREFIX)) {
+  const symbol = iconSymbol(icon);
+  if (symbol) {
     const ink = icon === NO_GROUP_ICON ? sidebarTokens(theme).noGroupIcon : theme.icon;
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
+    return <Symbol name={symbol} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
   }
   if (icon) {
     return (

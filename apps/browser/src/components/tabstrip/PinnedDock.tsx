@@ -1,24 +1,24 @@
 import { useContext, useMemo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { modifiersOf } from "../../lib/keys";
 import { useIsActiveTab, useTab, useWindowId } from "../../state/browser/hooks";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
-import { clickTab } from "../../state/sidebar/actions";
-import { openTabMenu } from "../../state/sidebar/menus";
 import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
 import { ContextMenuArea, useHover } from "../ui";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
 import { pinOut } from "./dockCross";
 import { FadeIn } from "./FadeIn";
-import { dockWidth, reorder } from "./model";
+import { reorder } from "./model";
 import { PinnedFace } from "./PinnedFace";
-import { dropIndex, type DragGeometry } from "./stripGroups";
+import { dockWidth, dropIndex, type DragGeometry } from "./stripGroups";
 import { TabChip } from "./TabChip";
 import { CHIP_HAIRLINE, DOCK_GAP, GAP, ITEM_HEIGHT, ITEM_TOP, MAX_CHIP, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_SPACING, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
+import { useStripCardHover } from "./StripHoverCard";
+import { TabPressArea } from "../sidebar/TabPressArea";
 
 export function PinnedDock({ tabIds }: { tabIds: string[] }) {
   const theme = useTheme();
@@ -26,6 +26,7 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
   const geometry = strip.dock!.geometry;
   const width = dockWidth(tabIds.length);
   const box = useMemo(() => Animated.add(strip.grow, width), [strip.grow, width]);
+  const glass = useGlass();
   return (
     <View style={{ marginTop: ITEM_TOP, marginRight: DOCK_GAP - GAP, zIndex: 2, width, height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center" }}>
       <Animated.View
@@ -38,11 +39,13 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
           width: box.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: "clamp" }),
           opacity: box.interpolate({ inputRange: [0, PINNED_CELL / 2], outputRange: [0, 1], extrapolate: "clamp" }),
           borderRadius: TAB_RADIUS,
-          borderWidth: CHIP_HAIRLINE,
+          borderWidth: glass ? 0 : CHIP_HAIRLINE,
           borderColor: theme.pinnedRestingStroke,
-          backgroundColor: theme.pinnedResting,
+          backgroundColor: glass ? undefined : theme.pinnedResting,
         }}
-      />
+      >
+        {glass ? <GlassFill radius={TAB_RADIUS} /> : null}
+      </Animated.View>
       <View style={{ flexDirection: "row", gap: PINNED_SPACING }}>
         {tabIds.map((id, i) => {
           const folderId = folderIdOfCell(id);
@@ -82,15 +85,14 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
     cross: dock ? pinOut(() => latestStrip.current, from) : undefined,
     levels: 2,
   });
+  const card = useStripCardHover(windowId, tabId, drag.ref);
   if (!tab) return null;
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }} tooltip={`${tab.customTitle || tab.title || tab.url}${tab.url ? `\n${tab.url}` : ""}`}>
-        <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)}>
-          <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))}>
-            {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
-          </Pressable>
-        </ContextMenuArea>
+    <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} mouseDownCanMoveWindow={false} style={drag.style}>
+      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }}>
+        <TabPressArea windowId={windowId} tab={tab}>
+          {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
+        </TabPressArea>
       </View>
       {drag.crossed && strip && (
         <FadeIn style={{ left: 0, top: -(ITEM_TOP + 0.5), width: strip.chip, height: TOP_STRIP_HEIGHT }}>
@@ -103,6 +105,7 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
 
 function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; tabIds: string[]; geometry: DragGeometry; from: number }) {
   const theme = useTheme();
+  const glass = useGlass();
   const windowId = useWindowId();
   const label = useTileFolderLabel(windowId, folderId);
   const { hovered, hoverProps } = useHover();
@@ -127,10 +130,12 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
             {({ pressed }) => (
               <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
                 {(hovered || pressed) && (
-                  <View style={{ position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET, borderRadius: PINNED_FACE_RADIUS, backgroundColor: pressed ? theme.tabPressed : theme.tabHover }} />
+                  <View style={{ position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET, borderRadius: PINNED_FACE_RADIUS, backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
+                    {glass ? <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "lit"} /> : null}
+                  </View>
                 )}
                 <View pointerEvents="none">
-                  <FolderMosaic tabIds={tabIds} />
+                  <FolderMosaic tabIds={tabIds} scale="strip" />
                 </View>
               </View>
             )}

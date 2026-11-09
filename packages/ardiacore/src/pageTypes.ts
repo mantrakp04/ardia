@@ -1,5 +1,5 @@
 import type { ViewProps } from "react-native";
-import type { ExternalAppRequest } from "./externalApps";
+import type { ExternalAppRequest } from "./permissions";
 import type { FaviconImage } from "./favicons";
 import type { PageCookie, PageEngine } from "./webkit";
 
@@ -14,7 +14,11 @@ export type NavigationState = {
   initialDocumentAccessed?: boolean;
   committedInitial?: boolean;
   committedUrl?: string;
+  committedAt?: number;
+  httpStatus?: number;
 };
+
+export type AppBadge = { origin: string; count: number | null; flag: boolean };
 
 export type MediaState = { playing: boolean; muted: boolean };
 
@@ -45,15 +49,26 @@ export type OpenWindowRequest = {
   postBody?: boolean;
   profile?: string;
   point?: { x: number; y: number };
+  site?: boolean;
+  fromClick?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
 
 export type FindResult = { count: number; active: number; final: boolean };
+export type PageShare = {
+  kind: "text" | "link" | "image" | "video" | "audio" | "page";
+  url?: string;
+  title?: string;
+  text?: string;
+  fileUrl?: string;
+};
 export type PageCommand = {
-  command: "search" | "ask" | "copyLinkToHighlight" | "escape";
+  command: "search" | "ask" | "copyLinkToHighlight" | "escape" | "share";
   text: string;
   modifiers?: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean };
+  share?: PageShare;
+  anchor?: [number, number, number, number];
 };
 export type LoadError = { url: string; code: number; text: string };
 export type NavigationEntry = { url: string; title: string; current: boolean };
@@ -95,7 +110,7 @@ export type WebNotification = {
   isMainFrame: boolean;
 };
 
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
+export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean };
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {
@@ -110,7 +125,7 @@ export type DisplayMediaSource = {
 export type DisplayMediaAudio = { tab: boolean; screen: boolean; window: "application" | "system" | null };
 export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: DisplayMediaAudio | null; sources: DisplayMediaSource[] };
 
-export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
+export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number; user: boolean };
 export type ContentBlockedState = { count: number; url: string };
 
 export type PasswordPrompt = {
@@ -138,6 +153,10 @@ export type AutofillPrompt = {
 };
 export type AutofillPromptAnswer = "accept" | "decline" | "dismiss";
 export type ExtensionActionResult = "none" | "popup" | "sidePanel";
+
+export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
+export type ScrollState = "down" | "up" | "top";
+export type ProtectedMediaRequest = { keySystem: string; main: boolean };
 
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;
@@ -185,13 +204,17 @@ export type WebViewProps = ViewProps & {
   onCommand?: (command: PageCommand) => void;
   onPageFocus?: () => void;
   onPagePress?: () => void;
-  onPageMessage?: (kind: string, data: unknown) => void;
+  onSelection?: (selection: PageSelection | null) => void;
+  onScroll?: (state: ScrollState) => void;
+  onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
   onDiscarded?: (url: string) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onTransferRefused?: (fromWindowId: string) => void;
+  onAppBadge?: (badge: AppBadge) => void;
 };
 
 export type WebViewHandle = {

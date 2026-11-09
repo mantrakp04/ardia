@@ -1,4 +1,3 @@
-import type { View } from "react-native";
 import { create } from "zustand";
 import { goToSettingsPane, useSettingsNav, type SettingsPane } from "./settingsWindows";
 import { settingsProfileFor } from "../extensions/store";
@@ -37,14 +36,3 @@ export function revealSetting({ id, pane, section }: { id: string; pane: Setting
 }
 
 export const flashSetting = (id: string) => useSettingsSearch.setState({ reveal: null, flash: { id, at: Date.now() } });
-
-const anchors = new Map<string, View>();
-
-export const anchorView = (id: string) => anchors.get(id);
-
-export function registerAnchor(id: string, view: View) {
-  anchors.set(id, view);
-  return () => {
-    if (anchors.get(id) === view) anchors.delete(id);
-  };
-}

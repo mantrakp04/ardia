@@ -46,7 +46,7 @@ class Mac {
   constructor(name) {
     this.name = name;
     S().hydrate({});
-    useBrowser.setState({ bookmarksReady: { default: true } });
+    useBrowser.setState({ bookmarksReady: { "": true } });
     this.browser = S();
     this.docs = new Map();
   }
@@ -314,4 +314,36 @@ test("a leftover adoption flag on a theme that's already applied is cleared at s
     await engineA.syncNow();
     assert.deepEqual(S().profiles.default.theme, edited);
   });
+});
+
+test("a Mac joining sync takes a paired profile's choice to share its Top Apps instead of publishing over it", async () => {
+  folder.clear();
+  downloading.clear();
+  damaged.clear();
+  const a = new Mac("A");
+  const c = new Mac("C");
+  const engineA = await import("./engine.ts?shareTopAppsA");
+  const engineC = await import("./engine.ts?shareTopAppsC");
+  await a.with(async () => {
+    S().updateProfile("default", { shareTopApps: true });
+    engineA.startSync();
+    assert.ok("ok" in (await engineA.turnOnSync("/sync")));
+    await engineA.syncNow();
+    await engineA.syncNow();
+  });
+  await c.with(async () => {
+    engineC.startSync();
+    assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
+    await engineC.syncNow();
+    await engineC.syncNow();
+    assert.equal(S().profiles.default.shareTopApps, true, "the paired profile takes the synced choice");
+  });
+  for (let i = 0; i < 2; i++) {
+    await a.with(() => engineA.syncNow());
+    await c.with(() => engineC.syncNow());
+  }
+  await a.with(() => assert.equal(S().profiles.default.shareTopApps, true, "the first Mac keeps its choice"));
+  await c.with(() => assert.equal(S().profiles.default.shareTopApps, true));
+  const records = published("pta:").map((op) => op.v).filter(Boolean);
+  assert.ok(records.length && records.every((v) => v.on === true), `the choice is never published away: ${JSON.stringify(records)}`);
 });

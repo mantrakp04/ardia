@@ -1,0 +1,11 @@
+{
+  "name": "@ardia/feedback-service",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node server.mjs",
+    "local": "node server.mjs --local ./.local",
+    "test": "node --test"
+  }
+}

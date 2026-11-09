@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox - jordan@northwind.dev - Northwind Mail</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">N</span> Northwind Mail</div>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="search" type="search" placeholder="Search mail" aria-label="Search mail" autocomplete="off">
+  </form>
+  <div class="me" title="Jordan Lee">JL</div>
+</header>
+<div class="shell">
+  <nav class="nav" aria-label="Folders">
+    <button class="compose" type="button">Compose</button>
+    <a class="folder active" href="#/inbox" aria-current="page">Inbox <span id="unread-count" class="count"></span></a>
+    <a class="folder" href="#/inbox">Starred</a>
+    <a class="folder" href="#/inbox">Sent</a>
+    <a class="folder" href="#/inbox">Drafts</a>
+    <a class="folder" href="#/inbox">Archive</a>
+  </nav>
+  <section class="list-pane" aria-label="Messages">
+    <div class="list-head"><span id="list-title">Inbox</span><span id="list-meta" class="meta"></span></div>
+    <div id="list" class="list" role="listbox" aria-label="Inbox" tabindex="0">
+      <div id="spacer" class="spacer"></div>
+    </div>
+  </section>
+  <main id="reader" class="reader" aria-label="Reading pane">
+    <div class="empty">Select a message to read it.</div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

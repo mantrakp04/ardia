@@ -1,13 +1,15 @@
 import { create } from "zustand";
+import { sidebarSideOf, tabLayoutOf } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
-import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import type { LightsPlace } from "../../platform/windows";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
-  return useBrowser((s) => s.windows[windowId]?.tabLayout ?? s.settings.tabLayout);
+  return useBrowser((s) => tabLayoutOf(s, windowId));
 }
 
 export function addressBarInSidebar(s: BrowserState, windowId: string): boolean {
@@ -16,7 +18,7 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
     !!w &&
     s.settings.addressBar === "sidebar" &&
     (w.sidebarOpen || switchOn("sidebarSlide")) &&
-    (w.tabLayout ?? s.settings.tabLayout) === "sidebar"
+    tabLayoutOf(s, w.id) === "sidebar"
   );
 }
 
@@ -29,13 +31,19 @@ export function useAddressBarInSidebar(): boolean {
   return useBrowser((s) => addressBarInSidebar(s, windowId));
 }
 
-export function openingLightsCenter(s: BrowserState, windowId: string): [number, number] | null {
+export function openingLightsCenter(s: BrowserState, windowId: string): LightsPlace | null {
   const w = s.windows[windowId];
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
-  if ((w.tabLayout ?? s.settings.tabLayout) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : LIGHTS_CENTER);
+  if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
+  const width = s.settings.sidebarWidth;
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);
+  return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
+
+export const usePageFrameInset = (): number => useBrowser((s) => s.settings.pageFrame);
+
+export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
 
 type UrlAnchor = { left: number; top: number; width: number; sidebar?: { height: number } };
 

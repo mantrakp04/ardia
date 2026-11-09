@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "dark": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent": { "type": "string", "default": "#7C6CFF" },
+        "panel": { "type": "string", "default": "rgba(18,18,18,0.5)" },
+        "textPrimary": { "type": "string", "default": "#FFFFFF" },
+        "grain": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.006 },
+        "tabSelectedShadowRadius": { "type": "number", "minimum": 0, "maximum": 100, "default": 15 },
+        "tabSelectedBorder": {
+          "type": "array",
+          "prefixItems": [{ "type": "string" }, { "type": "string" }],
+          "items": false,
+          "minItems": 2,
+          "default": ["rgba(255,255,255,0.15)", "rgba(255,255,255,0.15)"]
+        }
+      }
+    },
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent": { "type": "string", "default": "#5B4BFF" },
+        "panel": { "type": "string", "default": "rgba(255,255,255,0.6)" },
+        "textPrimary": { "type": "string", "default": "#000000" },
+        "grain": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.004 },
+        "tabSelectedShadowRadius": { "type": "number", "minimum": 0, "maximum": 100, "default": 10 },
+        "tabSelectedBorder": {
+          "type": "array",
+          "prefixItems": [{ "type": "string" }, { "type": "string" }],
+          "items": false,
+          "minItems": 2,
+          "default": ["#00000026", "#00000026"]
+        }
+      }
+    }
+  }
+}

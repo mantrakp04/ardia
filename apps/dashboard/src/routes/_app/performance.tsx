@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { PageHeader, Panel, Stat } from "@/components/blocks";
 import { DataTable } from "@/components/data-table";
+import { TrendSheetProvider, TrendTarget, type TrendOption, type TrendSpec } from "@/components/perf-trend";
 import { QuantileRows } from "@/components/quantiles";
 import { ListSkeleton, Loaded, StatsSkeleton, TableSkeleton, useRange, useSection } from "@/components/section";
 import { Badge } from "@/components/ui/badge";
@@ -21,15 +22,61 @@ export const Route = createFileRoute("/_app/performance")({
 type Perf = SectionData<"performance">;
 type Row = Perf["versions"][number];
 type Q = { count: number; p50: number; p90: number; p99: number } | null;
+type Group = { group: string; count: number; p50: number; p90: number; p99: number };
 
 const LAUNCH_LABEL: Record<string, string> = { warm: "Normal", cold: "Cold, after reboot", first: "First after update", "first-cold": "First after update, cold" };
 const mb = (n: number) => (n >= 1024 ? `${(n / 1024).toFixed(1)} GB` : `${formatExact(Math.round(n))} MB`);
+const mbTick = (n: number) => (n >= 1024 ? `${Number((n / 1024).toFixed(1))} GB` : `${Math.round(n)} MB`);
+const profilesLabel = (g: string) => `${g} ${g === "1" ? "profile" : "profiles"}`;
+
+const pick = (q: Q) => (q ? { count: q.count, p50: q.p50, p90: q.p90, p99: q.p99 } : null);
+const options = (groups: Group[], label: (g: string) => string, all: Q, allLabel: string): TrendOption[] => [
+  { group: "all", label: allLabel, summary: pick(all) },
+  ...groups.map((g) => ({ group: g.group, label: label(g.group), summary: pick(g) })),
+];
+
+function specs(p: Perf) {
+  const launch = options(p.launch, (g) => LAUNCH_LABEL[g] ?? g, p.overall.launch, "All launches");
+  const switching = options(p.switching, profilesLabel, p.overall.switching, "All profile switches");
+  const memory = options(p.memory, (g) => `${g} tabs`, p.overall.memory, "All memory samples");
+  const omnibox: TrendOption[] = [
+    { group: "p50", label: "Omnibox p50 per session", summary: pick(p.overall.omnibox50) },
+    { group: "p95", label: "Omnibox p95 per session", summary: pick(p.overall.omnibox95) },
+  ];
+  const launchSpec = (group: string): TrendSpec => ({ family: "launch", group, context: "Launch to a usable window", color: "var(--chart-2)", format: formatMs, options: launch });
+  return {
+    launch: launchSpec,
+    switching: (group: string): TrendSpec => ({ family: "switch", group, context: "Profile switch time", color: "var(--chart-4)", format: formatMs, options: switching }),
+    memory: (group: string): TrendSpec => ({ family: "memory", group, context: "Memory across all Ardia processes", color: "var(--chart-5)", format: mb, tickUnit: 1024, tick: mbTick, options: memory }),
+    omnibox: (group: string): TrendSpec => ({ family: "omnibox", group, context: "Omnibox time, one value per session", color: "var(--chart-2)", format: formatMs, options: omnibox }),
+    launchCount: (): TrendSpec => ({
+      family: "launch",
+      group: "all",
+      context: "Launches timed",
+      color: "var(--chart-2)",
+      format: formatExact,
+      counts: true,
+      options: [{ group: "all", label: "Launches timed", summary: pick(p.overall.launch) }, ...launch.slice(1)],
+    }),
+  };
+}
+
+function TrendTile({ spec, name, children }: { spec: TrendSpec; name: string; children: ReactNode }) {
+  return (
+    <div className="relative -m-2 rounded-lg p-2 transition-colors hover:bg-accent/50 [&_[data-slot=tooltip-trigger]]:relative [&_[data-slot=tooltip-trigger]]:z-10">
+      <TrendTarget spec={spec} name={name} side="bottom">
+        <div className="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />
+      </TrendTarget>
+      {children}
+    </div>
+  );
+}
 
 function PerformancePage() {
   const range = useRange();
   const perf = useSection("performance");
   return (
-    <>
+    <TrendSheetProvider>
       <PageHeader
         title="Performance"
         description={`${rangeSentence(range)}. Opt-in timings from real copies: launch to a usable window, the omnibox's own per-session p50 and p95, profile switches and memory across all processes.`}
@@ -42,18 +89,41 @@ function PerformancePage() {
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
         <Panel source="app" title="Launch to usable" description="Split by whether it's the first launch of a new version (after an update) and whether it's the first since a reboot.">
           <Loaded query={perf} skeleton={<ListSkeleton rows={4} />}>
-            {(p) => <QuantileRows dimension="Launch" format={formatMs} rows={p.launch.map((g) => ({ key: g.group, label: LAUNCH_LABEL[g.group] ?? g.group, ...g }))} />}
+            {(p) => (
+              <QuantileRows
+                dimension="Launch"
+                format={formatMs}
+                rows={p.launch.map((g) => ({ key: g.group, label: LAUNCH_LABEL[g.group] ?? g.group, ...g }))}
+                wrapRow={(r, node) => <TrendTarget spec={specs(p).launch(r.key)}>{node}</TrendTarget>}
+              />
+            )}
           </Loaded>
         </Panel>
         <Panel source="app" title="Profile switch" description="Time to switch profiles, by how many profiles the person has.">
           <Loaded query={perf} skeleton={<ListSkeleton rows={6} />}>
-            {(p) => <QuantileRows dimension="Profiles" format={formatMs} color="var(--chart-4)" rows={p.switching.map((g) => ({ key: g.group, label: `${g.group} ${g.group === "1" ? "profile" : "profiles"}`, ...g }))} />}
+            {(p) => (
+              <QuantileRows
+                dimension="Profiles"
+                format={formatMs}
+                color="var(--chart-4)"
+                rows={p.switching.map((g) => ({ key: g.group, label: profilesLabel(g.group), ...g }))}
+                wrapRow={(r, node) => <TrendTarget spec={specs(p).switching(r.key)}>{node}</TrendTarget>}
+              />
+            )}
           </Loaded>
         </Panel>
       </div>
       <Panel source="app" title="Memory against tabs" description="All Ardia processes in a memory sample, by how many tabs were open then.">
         <Loaded query={perf} skeleton={<ListSkeleton rows={5} />}>
-          {(p) => <QuantileRows dimension="Open tabs" format={mb} color="var(--chart-5)" rows={p.memory.map((g) => ({ key: g.group, label: `${g.group} tabs`, ...g }))} />}
+          {(p) => (
+            <QuantileRows
+              dimension="Open tabs"
+              format={mb}
+              color="var(--chart-5)"
+              rows={p.memory.map((g) => ({ key: g.group, label: `${g.group} tabs`, ...g }))}
+              wrapRow={(r, node) => <TrendTarget spec={specs(p).memory(r.key)}>{node}</TrendTarget>}
+            />
+          )}
         </Loaded>
       </Panel>
       <Panel
@@ -65,7 +135,7 @@ function PerformancePage() {
           {(p) => <Versions rows={p.versions} />}
         </Loaded>
       </Panel>
-    </>
+    </TrendSheetProvider>
   );
 }
 
@@ -74,19 +144,32 @@ function Summary({ p }: { p: Perf }) {
   const warm = group("warm");
   const first = group("first");
   const o = p.overall;
+  const s = specs(p);
   return (
     <>
-      <Stat source="app" label="Normal launch" value={warm ? formatMs(warm.p50) : "–"} sub={warm ? `p90 ${formatMs(warm.p90)}` : undefined} />
-      <Stat
-        source="app"
-        label="First after update"
-        value={first ? formatMs(first.p50) : "–"}
-        sub={first && warm?.p50 ? `${(first.p50 / warm.p50).toFixed(1)}× normal · p90 ${formatMs(first.p90)}` : undefined}
-      />
-      <Stat source="app" label="Omnibox p50" value={o.omnibox50 ? formatMs(o.omnibox50.p50) : "–"} sub={o.omnibox95 ? `p95 ${formatMs(o.omnibox95.p50)} (median session)` : undefined} />
-      <Stat source="app" label="Profile switch" value={o.switching ? formatMs(o.switching.p50) : "–"} sub={o.switching ? `p90 ${formatMs(o.switching.p90)} · p99 ${formatMs(o.switching.p99)}` : undefined} />
-      <Stat source="app" label="Memory" value={o.memory ? mb(o.memory.p50) : "–"} sub={o.memory ? `p90 ${mb(o.memory.p90)} · p99 ${mb(o.memory.p99)}` : undefined} />
-      <Stat source="app" label="Launches timed" value={o.launch ? formatExact(o.launch.count) : "–"} sub={o.memory ? `${formatExact(o.memory.count)} memory samples` : undefined} />
+      <TrendTile spec={s.launch("warm")} name="Normal launch">
+        <Stat source="app" label="Normal launch" value={warm ? formatMs(warm.p50) : "–"} sub={warm ? `p90 ${formatMs(warm.p90)}` : undefined} />
+      </TrendTile>
+      <TrendTile spec={s.launch("first")} name="First after update">
+        <Stat
+          source="app"
+          label="First after update"
+          value={first ? formatMs(first.p50) : "–"}
+          sub={first && warm?.p50 ? `${(first.p50 / warm.p50).toFixed(1)}× normal · p90 ${formatMs(first.p90)}` : undefined}
+        />
+      </TrendTile>
+      <TrendTile spec={s.omnibox("p50")} name="Omnibox p50">
+        <Stat source="app" label="Omnibox p50" value={o.omnibox50 ? formatMs(o.omnibox50.p50) : "–"} sub={o.omnibox95 ? `p95 ${formatMs(o.omnibox95.p50)} (median session)` : undefined} />
+      </TrendTile>
+      <TrendTile spec={s.switching("all")} name="Profile switch">
+        <Stat source="app" label="Profile switch" value={o.switching ? formatMs(o.switching.p50) : "–"} sub={o.switching ? `p90 ${formatMs(o.switching.p90)} · p99 ${formatMs(o.switching.p99)}` : undefined} />
+      </TrendTile>
+      <TrendTile spec={s.memory("all")} name="Memory">
+        <Stat source="app" label="Memory" value={o.memory ? mb(o.memory.p50) : "–"} sub={o.memory ? `p90 ${mb(o.memory.p90)} · p99 ${mb(o.memory.p99)}` : undefined} />
+      </TrendTile>
+      <TrendTile spec={s.launchCount()} name="Launches timed">
+        <Stat source="app" label="Launches timed" value={o.launch ? formatExact(o.launch.count) : "–"} sub={o.memory ? `${formatExact(o.memory.count)} memory samples` : undefined} />
+      </TrendTile>
     </>
   );
 }

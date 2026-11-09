@@ -3,7 +3,6 @@
 
 #include <optional>
 
-#include "base/functional/callback.h"
 #include "chrome/app/chrome_main_delegate.h"
 
 namespace ardiacore {
@@ -21,11 +20,8 @@ class ACMainDelegate : public ChromeMainDelegate {
   content::ContentRendererClient* CreateContentRendererClient() override;
 };
 
-struct EngineCallbacks {
-  base::OnceClosure started;
-  base::OnceClosure shutting_down;
-};
-void SetEngineCallbacks(EngineCallbacks callbacks);
+void OnEngineStarted();
+void OnEngineShuttingDown();
 void ReleaseAppKeepAlive();
 
 }

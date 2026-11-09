@@ -9,7 +9,11 @@ import {
   SERVICE_NAME,
   SESSION_IDLE_MS,
   SESSION_MAX_MS,
+  WEB_LIB,
+  type TelemetryEvent,
 } from "../../data/telemetry";
+import { INGEST_KEY_HEADER, SITE_INGEST_KEY } from "../../../../../packages/core/src/ingestKeys";
+import { KEYS, read, readJSON, write } from "../storage";
 import { parseUserAgent } from "./ua";
 
 export type Value = string | number | boolean | null | undefined | object;
@@ -21,26 +25,6 @@ interface CaptureOptions {
 }
 
 const LIB_VERSION = "1.0.0";
-
-function read(key: string, store: "local" | "session" = "local"): string | null {
-  try {
-    return (store === "local" ? localStorage : sessionStorage).getItem(key);
-  } catch {
-    return null;
-  }
-}
-export function write(key: string, value: string, store: "local" | "session" = "local") {
-  try {
-    (store === "local" ? localStorage : sessionStorage).setItem(key, value);
-  } catch {}
-}
-function readJSON<T>(key: string): T | null {
-  try {
-    return JSON.parse(read(key) ?? "null") as T | null;
-  } catch {
-    return null;
-  }
-}
 
 const production = PRODUCTION_HOSTS.includes(location.hostname);
 export const enabled = production || read(DEV_OPT_IN_KEY) === "dev";
@@ -77,17 +61,17 @@ function legacyVisitorId(): string | null {
 }
 
 function visitorId(): string {
-  const stored = read("ac:id");
+  const stored = read(KEYS.visitorId);
   if (stored) return stored;
   const id = legacyVisitorId() ?? uuidv7();
-  write("ac:id", id);
+  write(KEYS.visitorId, id);
   return id;
 }
 
 export const distinctId = visitorId();
 
-export const windowId: string = read("ac:window", "session") ?? uuidv7();
-write("ac:window", windowId, "session");
+export const windowId: string = read(KEYS.window, "session") ?? uuidv7();
+write(KEYS.window, windowId, "session");
 
 const CAMPAIGN_PARAMS = [
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
@@ -127,8 +111,10 @@ function searchEngine(host: string): string | null {
 const device = parseUserAgent(navigator.userAgent, "brave" in navigator);
 const language = navigator.language || "";
 
+const { device: ardiaDevice, os: ardiaOs } = document.documentElement.dataset;
+
 const constant: Props = {
-  $lib: "ardia-web",
+  $lib: WEB_LIB,
   $lib_version: LIB_VERSION,
   ...device,
   $raw_user_agent: navigator.userAgent,
@@ -149,10 +135,12 @@ const constant: Props = {
   $search_engine: referringDomain === "$direct" ? null : searchEngine(referringDomain),
   environment,
   release_version: VERSION,
+  ardia_device: ardiaDevice,
+  ardia_os: ardiaOs,
 };
 
 if (device.$os === "Android" && !device.$device_model) {
-  const cached = read("ac:model", "session");
+  const cached = read(KEYS.deviceModel, "session");
   if (cached) constant.$device_model = cached;
   else
     (navigator as Navigator & { userAgentData?: { getHighEntropyValues?(h: string[]): Promise<{ model?: string }> } }).userAgentData
@@ -160,7 +148,7 @@ if (device.$os === "Android" && !device.$device_model) {
       .then(({ model }) => {
         if (!model) return;
         constant.$device_model = model;
-        write("ac:model", model, "session");
+        write(KEYS.deviceModel, model, "session");
       })
       .catch(() => {});
 }
@@ -170,7 +158,7 @@ export function register(props: Props) {
   Object.assign(registered, props);
 }
 
-const cachedFlags = readJSON<{ id: string; props: Props }>("ac:flags");
+const cachedFlags = readJSON<{ id: string; props: Props }>(KEYS.flags);
 if (cachedFlags?.id === distinctId && cachedFlags.props) register(cachedFlags.props);
 
 interface Session {
@@ -200,14 +188,14 @@ export function onSessionChange(fn: (id: string, previous: string) => void) {
 }
 
 function touchSession(now = Date.now()): Session {
-  const stored = readJSON<Session>("ac:session");
+  const stored = readJSON<Session>(KEYS.session);
   let s = stored && typeof stored.id === "string" ? stored : session;
   const lapsed = !s || now - s.last > SESSION_IDLE_MS || now - s.start > SESSION_MAX_MS;
   const previous = session?.id;
   if (lapsed) s = { id: uuidv7(now), start: now, last: now, entry: entryProps() };
   else s!.last = Math.max(s!.last, now);
   session = s!;
-  write("ac:session", JSON.stringify(session));
+  write(KEYS.session, JSON.stringify(session));
   if (previous && previous !== session.id) for (const fn of sessionListeners) fn(session.id, previous);
   return session;
 }
@@ -305,7 +293,7 @@ function post(items: Queued[], beacon: boolean) {
   const payload = body(items);
   if (beacon && typeof navigator.sendBeacon === "function") {
     try {
-      if (navigator.sendBeacon(LOGS_PATH, new Blob([payload], { type: "application/json" }))) return;
+      if (navigator.sendBeacon(`${LOGS_PATH}?ardia_key=${SITE_INGEST_KEY}`, new Blob([payload], { type: "application/json" }))) return;
     } catch {}
   }
   const retry = () => {
@@ -319,7 +307,7 @@ function post(items: Queued[], beacon: boolean) {
   fetch(LOGS_PATH, {
     method: "POST",
     body: payload,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", [INGEST_KEY_HEADER]: SITE_INGEST_KEY },
     keepalive: payload.length < MAX_BODY,
     credentials: "omit",
   })
@@ -356,7 +344,7 @@ function enqueue(scope: Scope, record: LogRecord, instantly = false) {
 
 let pageviewId: string | undefined;
 
-export function capture(event: string, props: Props = {}, options: CaptureOptions = {}): string | undefined {
+export function capture(event: TelemetryEvent, props: Props = {}, options: CaptureOptions = {}): string | undefined {
   if (!enabled) return;
   try {
     const now = Date.now();

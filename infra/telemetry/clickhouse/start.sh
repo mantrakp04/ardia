@@ -15,11 +15,13 @@ for _ in $(seq 1 120); do
   clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" -q "SELECT 1" >/dev/null 2>&1 && break
   sleep 1
 done
-if clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" --multiquery < /etc/ac/schema.sql; then
-  echo "[ac] schema applied"
-else
-  echo "[ac] schema FAILED" >&2
+if ! clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" --multiquery < /etc/ac/schema.sql; then
+  echo "[ac] schema FAILED: stopping the server so the deploy fails instead of serving the old schema" >&2
+  kill -TERM $server
+  wait $server
+  exit 1
 fi
+echo "[ac] schema applied"
 
 ch() { clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" -q "$1"; }
 

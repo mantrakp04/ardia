@@ -34,8 +34,11 @@ export type BarKeyContext = {
   bar: ReturnType<typeof useBarText>;
   hero: boolean;
   shownCompletion: string;
+  input: string;
   items: Suggestion[];
   selectedIndex: number;
+  previewing: boolean;
+  unpreviewed: number;
   current: Suggestion | undefined;
   tabScope: ReturnType<typeof offeredScope>;
   cancelBang(): void;
@@ -51,41 +54,35 @@ export function barKeyDown(e: BarKeyEvent, k: BarKeyContext) {
   const { key, metaKey, altKey, shiftKey, ctrlKey } = e.nativeEvent;
   const { bar, items, selectedIndex, current } = k;
   const { scope, typed } = bar;
-  const move = (delta: 1 | -1) =>
-    bar.setSelected(() => {
-      const n = items.length;
-      if (!n) return 0;
-      if (selectedIndex < 0) return delta > 0 ? 0 : n - 1;
-      return (selectedIndex + delta + n) % n;
-    });
+  const select = (index: number) => bar.dispatch({ kind: "selected", index });
+  const move = (delta: 1 | -1) => {
+    const n = items.length;
+    select(!n ? 0 : selectedIndex < 0 ? (delta > 0 ? 0 : n - 1) : (selectedIndex + delta + n) % n);
+  };
   k.cancelBang();
   if (key === "Escape") {
-    if (scope) return bar.leaveScope(null);
+    if (k.previewing) return select(k.unpreviewed);
+    if (scope) return bar.dispatch({ kind: "leftScope", restore: null });
     if (!k.hero) return k.onDone?.("escape");
-    if (k.shownCompletion) return bar.setSuppressCompletion(true);
+    if (k.shownCompletion) return bar.dispatch({ kind: "completionDropped" });
     return k.reset();
   }
   if (key === "ArrowDown" || (ctrlKey && key === "n")) return move(1);
   if (key === "ArrowUp" || (ctrlKey && key === "p")) return move(-1);
-  if (key === "PageUp") return bar.setSelected(0);
-  if (key === "PageDown") return bar.setSelected(Math.max(0, items.length - 1));
+  if (key === "PageUp") return select(0);
+  if (key === "PageDown") return select(Math.max(0, items.length - 1));
   if (key === "Delete" && shiftKey) return isRemovable(current) ? k.removeRow(current.url) : undefined;
   if ((key === "Tab" && !ctrlKey) || key === "Backspace") {
-    const action = siteSearchKey(key, { shiftKey, altKey, metaKey, ctrlKey }, { typed, completion: k.shownCompletion, scope, offered: k.tabScope, scopeFrom: bar.scopeFrom.current });
-    if (action?.kind === "enter") return bar.enterScope(action.scope, action.from);
-    if (action?.kind === "leave") return bar.leaveScope(action.text);
-    if (action?.kind === "accept") {
-      bar.setTyped(action.text);
-      bar.setSuppressCompletion(true);
-      bar.setPendingSelection({ start: action.text.length, end: action.text.length });
-      return;
-    }
+    const action = siteSearchKey(key, { shiftKey, altKey, metaKey, ctrlKey }, { typed, completion: k.shownCompletion, scope, offered: k.tabScope, scopeFrom: bar.scopeFrom });
+    if (action?.kind === "enter") return bar.dispatch({ kind: "enteredScope", scope: action.scope, from: action.from });
+    if (action?.kind === "leave") return bar.dispatch({ kind: "leftScope", restore: action.text });
+    if (action?.kind === "accept") return bar.dispatch({ kind: "tabAccepted", text: action.text });
     if (key === "Tab") return move(shiftKey ? -1 : 1);
   }
   if (key === "Enter") {
     if (metaKey && shiftKey) return k.forceSearch();
-    if (ctrlKey && !/[\s./:]/.test(typed.trim()) && typed.trim())
-      return k.go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "current");
+    if (ctrlKey && !/[\s./:]/.test(k.input.trim()) && k.input.trim())
+      return k.go(`https://www.${k.input.trim()}.com`, shiftKey ? "newWindow" : "current");
     if (metaKey || altKey || shiftKey) return k.choose(current, dispositionFor({ metaKey, altKey, shiftKey }), true);
   }
 }

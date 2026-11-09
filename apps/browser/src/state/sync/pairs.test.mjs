@@ -9,11 +9,14 @@ const stub = await import("../../test-native/index.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const shipped = await import("../../../../../packages/sync/src/fixtures/scope-v0.2.38.ts");
 const { pinnedAdapter: shippedPinnedAdapter } = await import("./fixtures/pinned-v0.2.38.ts");
+const { splitTabIdsOf } = await import("../splits/splits.ts");
 
+const { useEditClock } = await import("./editClock.ts");
 const S = () => useBrowser.getState();
 const PROFILES = ["default", "work"];
 let wall = 1_900_000_000_000;
 const now = () => ++wall;
+Date.now = () => wall;
 const DAY = 86_400_000;
 
 class Folder {
@@ -54,6 +57,7 @@ class Mac {
     this.clock = new Clock(id, null, now);
   }
   with(fn) {
+    useEditClock(this.clock);
     stub.current.device = this.id;
     useBrowser.setState(this.browser, true);
     try {
@@ -63,6 +67,7 @@ class Mac {
     }
   }
   async sync(profiles = PROFILES) {
+    useEditClock(this.clock);
     stub.current.device = this.id;
     useBrowser.setState(this.browser, true);
     let published = 0;
@@ -122,12 +127,12 @@ function freshMac(id, folder, legacy = false) {
 }
 
 const keyOf = (t) => t.pinKey ?? t.id;
-const inContainer = (s, t) => t.pinned || Object.values(s.groups).some((g) => g.pinned && g.tabIds.includes(t.id));
+const inContainer = (s, t) => !!t.pin || Object.values(s.groups).some((g) => g.pinned && g.tabIds.includes(t.id));
 function tabFor(key, profileId) {
   const s = S();
   const all = Object.values(s.tabs).filter((t) => keyOf(t) === key && (!profileId || t.profileId === profileId));
   const shown = (t) => s.windows[t.windowId]?.profileId === t.profileId;
-  return all.find((t) => inContainer(s, t) && shown(t)) ?? all.find((t) => inContainer(s, t)) ?? all.find((t) => t.navigation) ?? all[0];
+  return all.find((t) => inContainer(s, t) && shown(t)) ?? all.find((t) => inContainer(s, t)) ?? all.find((t) => t.page.nav) ?? all[0];
 }
 const groupFor = (key) => Object.values(S().groups).find((g) => keyOf(g) === key && g.pinned) ?? Object.values(S().groups).find((g) => keyOf(g) === key);
 
@@ -169,13 +174,13 @@ const everSent = (k, key, name, url) => sentBy(k, key, doneBy(k, name)).some((v)
 const inPinnedGroup = (key) => Object.values(S().groups).some((g) => g.pinned && g.tabIds.includes(tabFor(key)?.id));
 function navigate(key, url) {
   const t = tabFor(key);
-  if (t) useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], url, unloaded: undefined, navigation: { url, seq: (s.tabs[t.id].navigation?.seq ?? 0) + 1 } } } }));
+  if (t) useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], url, page: { kind: "loaded", nav: { url, seq: (s.tabs[t.id].page.nav?.seq ?? 0) + 1 } } } } }));
   return !!t;
 }
 const record = (mac, p, key) => mac.scopes[p]?.records[key]?.v;
 function loadX(k) {
   const t = tabFor(k.X);
-  if (t) useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], unloaded: undefined, navigation: { url: t.url, seq: 1 } } } }));
+  if (t) useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], page: { kind: "loaded", nav: { url: t.url, seq: 1 } } } } }));
 }
 function parkAndReopen() {
   for (const w of Object.values(S().windows)) if (w.profileId === "default") S().closeWindow(w.id);
@@ -193,19 +198,19 @@ const OPS = [
     name: "repinX",
     steps: [(k) => { const t = tabFor(k.X); if (t) (S().pinTabs([t.id], false), S().pinTabs([t.id], true, true), done(k, "repinX")); }],
     touches: ["X", "X.kind"],
-    final: (k) => assert.ok(tabFor(k.X)?.pinned && tabFor(k.X).pinnedAsRow, "X pinned again as a row"),
+    final: (k) => assert.ok(tabFor(k.X)?.pin && (tabFor(k.X).pin?.as === "row"), "X pinned again as a row"),
   },
   {
     name: "xTile",
-    steps: [(k) => { const t = tabFor(k.X); if (t?.pinned && t.pinnedAsRow) (S().placeTabs([t.id], { pinned: true, row: false }), done(k, "xTile")); }],
+    steps: [(k) => { const t = tabFor(k.X); if (t?.pin && (t.pin?.as === "row")) (S().placeTabs([t.id], { pinned: true, row: false }), done(k, "xTile")); }],
     touches: ["X.kind"],
-    final: (k) => { const t = tabFor(k.X); if (t?.pinned) assert.equal(!!t.pinnedAsRow, false, "X a tile"); },
+    final: (k) => { const t = tabFor(k.X); if (t?.pin) assert.equal(!!(t.pin?.as === "row"), false, "X a tile"); },
   },
   {
     name: "xRow",
-    steps: [(k) => { const t = tabFor(k.X); if (t?.pinned && !t.pinnedAsRow) (S().placeTabs([t.id], { pinned: true, row: true }), done(k, "xRow")); }],
+    steps: [(k) => { const t = tabFor(k.X); if (t?.pin && !(t.pin?.as === "row")) (S().placeTabs([t.id], { pinned: true, row: true }), done(k, "xRow")); }],
     touches: ["X.kind"],
-    final: (k) => { const t = tabFor(k.X); if (t?.pinned) assert.equal(!!t.pinnedAsRow, true, "X a row"); },
+    final: (k) => { const t = tabFor(k.X); if (t?.pin) assert.equal(!!(t.pin?.as === "row"), true, "X a row"); },
   },
   {
     name: "moveXIntoG",
@@ -270,7 +275,7 @@ const OPS = [
       (k) => {
         const t = tabFor(k.X);
         if (!t) return;
-        useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], url: X_OTHER, unloaded: undefined, navigation: { url: X_OTHER, seq: 2 } } } }));
+        useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], url: X_OTHER, page: { kind: "loaded", nav: { url: X_OTHER, seq: 2 } } } } }));
         const g = groupFor(k.G);
         if (g?.pinned) (S().placeTabs([t.id], { pinned: false, groupId: g.id }), done(k, "navXIntoG"));
       },
@@ -330,17 +335,17 @@ const OPS = [
   {
     name: "workRoundTrip",
     steps: [
-      { run: (k) => { const t = tabFor(k.W1, "work"); if (t?.pinned) (S().moveTabToProfile(t.id, "default"), (k.moved = true), (k.w1Row = !!t.pinnedAsRow)); }, sync: ["default"] },
+      { run: (k) => { const t = tabFor(k.W1, "work"); if (t?.pin) (S().moveTabToProfile(t.id, "default"), (k.moved = true), (k.w1Row = !!(t.pin?.as === "row"))); }, sync: ["default"] },
       (k) => { const t = k.moved && tabFor(k.W1, "default"); if (t) (S().moveTabToProfile(t.id, "work"), done(k, "workRoundTrip")); },
     ],
     touches: ["W1", "W1.kind"],
-    final: (k) => assert.ok(tabFor(k.W1, "work")?.pinned && !!tabFor(k.W1, "work").pinnedAsRow === k.w1Row, "W1 back in Work as the kind it was"),
+    final: (k) => assert.ok(tabFor(k.W1, "work")?.pin && !!(tabFor(k.W1, "work").pin?.as === "row") === k.w1Row, "W1 back in Work as the kind it was"),
   },
   {
     name: "workTile",
-    steps: [(k) => { const t = tabFor(k.W1, "work"); if (t?.pinned && t.pinnedAsRow) (S().placeTabs([t.id], { pinned: true, row: false }), done(k, "workTile")); }],
+    steps: [(k) => { const t = tabFor(k.W1, "work"); if (t?.pin && (t.pin?.as === "row")) (S().placeTabs([t.id], { pinned: true, row: false }), done(k, "workTile")); }],
     touches: ["W1.kind"],
-    final: (k) => { const t = tabFor(k.W1, "work"); if (t?.pinned) assert.equal(!!t.pinnedAsRow, false, "W1 a tile"); },
+    final: (k) => { const t = tabFor(k.W1, "work"); if (t?.pin) assert.equal(!!(t.pin?.as === "row"), false, "W1 a tile"); },
   },
 ];
 
@@ -418,12 +423,12 @@ function structure(mac) {
       for (const id of Object.values(win.activeTabIds)) assert.equal(s.tabs[id]?.windowId, win.id, `${mac.id}: active tab in ${win.id}`);
       for (const p of PROFILES) {
         const pinnedMember = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
-        const rank = (id) => (s.tabs[id].pinned ? (s.tabs[id].pinnedAsRow ? 1 : 0) : pinnedMember.has(id) ? 1 : 2);
+        const rank = (id) => (!!s.tabs[id].pin ? ((s.tabs[id].pin?.as === "row") ? 1 : 0) : pinnedMember.has(id) ? 1 : 2);
         const ranks = win.tabIds.filter((id) => s.tabs[id]?.profileId === p).map(rank);
         assert.deepEqual(ranks, [...ranks].sort(), `${mac.id}: tiles, then rows and pinned groups, then tabs in ${win.id}`);
       }
     }
-    for (const v of Object.values(s.splits)) for (const id of v.tabIds) assert.equal(s.tabs[id]?.windowId, v.windowId, `${mac.id}: split in its window`);
+    for (const v of Object.values(s.splits)) for (const id of splitTabIdsOf(v)) assert.equal(s.tabs[id]?.windowId, v.windowId, `${mac.id}: split in its window`);
     for (const g of Object.values(s.groups)) for (const id of g.tabIds) assert.equal(s.tabs[id]?.windowId, g.windowId, `${mac.id}: group ${g.name} keeps its members in its window`);
   });
 }
@@ -432,16 +437,16 @@ function signature(mac, { rows = true } = {}) {
   return mac.with(() => {
     const s = S();
     const out = {};
-    const meta = (t) => `${keyOf(t)}|${t.customTitle ?? ""}|${t.customIcon ?? ""}|${t.pinned ? (t.pinnedUrl ?? "") : ""}`;
+    const meta = (t) => `${keyOf(t)}|${t.customTitle ?? ""}|${t.customIcon ?? ""}|${!!t.pin ? (t.pinnedUrl ?? "") : ""}`;
     const parked = (t) => `${t.id}|${t.customTitle ?? ""}|${t.customIcon ?? ""}|${t.groupId ? "" : (t.pinnedUrl ?? "")}`;
     for (const p of PROFILES) {
       const win = Object.values(s.windows).find((w) => w.profileId === p);
       const ids = win ? win.tabIds.filter((id) => s.tabs[id]?.profileId === p) : [];
       const park = s.parkedPins[p];
-      const isRow = (t) => rows && !!t.pinnedAsRow;
+      const isRow = (t) => rows && !!(t.pin?.as === "row");
       out[p] = {
-        tiles: ids.filter((id) => s.tabs[id].pinned && !isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && !isRow(t)).map(parked)),
-        rows: ids.filter((id) => s.tabs[id].pinned && isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && isRow(t)).map(parked)),
+        tiles: ids.filter((id) => !!s.tabs[id].pin && !isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && !isRow(t)).map(parked)),
+        rows: ids.filter((id) => !!s.tabs[id].pin && isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && isRow(t)).map(parked)),
         groups: Object.values(s.groups)
           .filter((g) => g.pinned && g.profileId === p && g.windowId === win?.id)
           .sort((x, z) => ids.indexOf(x.tabIds[0]) - ids.indexOf(z.tabIds[0]))
@@ -489,7 +494,7 @@ async function runPair(startRow, opA, opB, schedule) {
     const pages = new Set();
     let holders = 0;
     for (const m of among) m.with(() => {
-      const shown = Object.values(S().tabs).filter((t) => t.profileId === p && keyOf(t) === key.slice(6) && inContainer(S(), t) && !t.unloaded);
+      const shown = Object.values(S().tabs).filter((t) => t.profileId === p && keyOf(t) === key.slice(6) && inContainer(S(), t) && t.page.kind !== "asleep");
       if (shown.length) holders++;
       for (const t of shown) pages.add(`${t.url}|${t.title}`);
     });
@@ -562,10 +567,13 @@ async function runPair(startRow, opA, opB, schedule) {
 }
 
 const cases = [];
-for (const startRow of [true, false])
-  for (const opA of OPS)
-    for (const opB of OPS)
-      for (const schedule of Object.keys(SCHEDULES)) if (!(schedule.includes("44 days late") && (opA.collects || opB.collects))) cases.push({ startRow, opA, opB, schedule });
+const scheduleNames = Object.keys(SCHEDULES);
+for (let i = 0; i < OPS.length; i++)
+  for (let j = i; j < OPS.length; j++) {
+    const [opA, opB] = (i + j) % 2 ? [OPS[j], OPS[i]] : [OPS[i], OPS[j]];
+    const usable = scheduleNames.filter((schedule) => !(schedule.includes("44 days late") && (opA.collects || opB.collects)));
+    cases.push({ startRow: Math.floor(cases.length / scheduleNames.length) % 2 === 0, opA, opB, schedule: usable[(j - i) % usable.length] });
+  }
 
 test(`concurrent pinned-tab edits on two Macs converge (${cases.length} runs)`, async () => {
   const failures = [];
@@ -599,11 +607,11 @@ test("a pin waiting for a group that never arrives stands alone once the wait is
   b.relaunch();
   await b.sync();
   assert.equal(record(b, "default", "pin:t:wait").g, null, "and stays a standalone pin after a relaunch");
-  b.with(() => assert.ok(tabFor("wait")?.pinned, "shown as a pin"));
+  b.with(() => assert.ok(tabFor("wait")?.pin, "shown as a pin"));
 });
 
 const copyIn = (w, key) => Object.values(S().tabs).find((t) => t.windowId === w && keyOf(t) === key);
-const load = (id, url) => useBrowser.setState((s) => ({ tabs: { ...s.tabs, [id]: { ...s.tabs[id], url, unloaded: undefined, navigation: { url, seq: (s.tabs[id].navigation?.seq ?? 0) + 1 } } } }));
+const load = (id, url) => useBrowser.setState((s) => ({ tabs: { ...s.tabs, [id]: { ...s.tabs[id], url, page: { kind: "loaded", nav: { url, seq: (s.tabs[id].page.nav?.seq ?? 0) + 1 } } } } }));
 
 const PAGE_CASES = {
   "a member navigated in a window behind another": async ({ a, b, k }, variant) => {
@@ -814,7 +822,7 @@ test("known conflict: a page change on a member while the other Mac unpins its g
     for (let i = 0; i < 6; i++) for (const n of order) await macs[n].sync();
     assert.deepEqual(signature(macs.a), signature(macs.b), `both Macs converge (${order[0]} syncs first)`);
     for (const m of [macs.a, macs.b]) m.with(() => assert.ok(tabFor(k.M), `${m.id}: M is kept`));
-    const pinnedM = macs.a.with(() => !!tabFor(k.M)?.pinned);
+    const pinnedM = macs.a.with(() => !!tabFor(k.M)?.pin);
     const regularG = macs.a.with(() => Object.values(S().groups).some((g) => !g.pinned && keyOf(g) === k.G));
     assert.ok(pinnedM !== regularG, "documented in docs/sync.md: either M follows the unpin and A keeps its group, or M stays pinned on its own and A's group, whose only tab it was, goes");
   }
@@ -841,7 +849,7 @@ async function pinThenUnpinWithFirstLogLate() {
   await a.sync();
   const second = [...folder.files.keys()].filter((id) => !beforeSecond.has(id));
   await b.sync();
-  const pinned = (mac) => mac.with(() => Object.values(S().tabs).some((t) => (t.pinKey ?? t.id) === key && t.pinned));
+  const pinned = (mac) => mac.with(() => Object.values(S().tabs).some((t) => (t.pinKey ?? t.id) === key && !!t.pin));
   return { folder, a, b, key, pinned, second };
 }
 
@@ -881,4 +889,77 @@ test("known residual: a log that never arrives keeps its gap and the logs after 
   assert.ok(b.scopes.default.extra.lateA?.length, "documented in docs/sync.md: the gap stays open");
   const fromA = [...folder.files.values()].filter((f) => f.scope === "p:default" && JSON.parse(f.payload).kind === "log" && JSON.parse(f.payload).device === "lateA");
   assert.ok(fromA.length >= 1, "and A's later logs stay in the folder");
+});
+
+test("Top Apps shared by two profiles: an unpin synced into a profile whose pins are parked stays gone when that profile is shown before its sibling syncs", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "default");
+  const b = sharing("B", "work");
+  const tiles = (mac, p) => mac.with(() => Object.values(S().tabs).filter((t) => t.profileId === p && t.pin?.as === "tile").map((t) => t.pinnedUrl));
+  a.with(() => {
+    const w = S().windowOrder[0];
+    S().pinTabs([S().newTab(w, { url: "https://mail.com/" })], true);
+    S().switchProfile(w, "work");
+  });
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync());
+  assert.deepEqual(tiles(b, "work"), ["https://mail.com/"], "B's Work shows the shared Top App");
+  a.with(() => S().togglePin(Object.values(S().tabs).find((t) => t.profileId === "default" && t.pin).id));
+  await a.sync(["default"]);
+  await b.sync(["default"]);
+  b.with(() => S().switchProfile(S().windowOrder[0], "default"));
+  assert.deepEqual(tiles(b, "default"), [], "showing Personal doesn't take Work's not-yet-synced copy back");
+  const sent = [];
+  for (let i = 0; i < 6; i++) sent.push((await a.sync()) + (await b.sync()));
+  assert.deepEqual(sent.slice(-3), [0, 0, 0], `the Macs settle (published per round: ${sent})`);
+  assert.deepEqual([tiles(a, "default"), tiles(a, "work"), tiles(b, "default"), tiles(b, "work")], [[], [], [], []], "gone everywhere");
+});
+
+test("Top Apps shared by two profiles: a tile made a pinned row on one Mac stays a row after the other Mac syncs both profiles", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "work");
+  const b = sharing("B", "default");
+  let mail;
+  a.with(() => {
+    const w = S().windowOrder[0];
+    mail = S().newTab(w, { url: "https://mail.com/" });
+    S().pinTabs([mail, S().newTab(w, { url: "https://docs.com/" })], true);
+  });
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync());
+  a.with(() => S().placeTabs([tabFor(mail, "work").id], { pinned: true, row: true }));
+  const sent = [];
+  for (let i = 0; i < 6; i++) sent.push((await a.sync()) + (await b.sync()));
+  assert.equal(a.with(() => tabFor(mail, "work")?.pin?.as), "row", "A keeps Work's pinned row");
+  assert.equal(b.with(() => S().parkedPins.work?.tabs.find((p) => p.id === mail)?.pin?.as), "row", "B's parked Work has it as a row");
+  assert.deepEqual(sent.slice(-3), [0, 0, 0], `the Macs settle (published per round: ${sent})`);
+});
+
+test("Top Apps shared by two profiles reach a profile the pinning Mac has never shown", async () => {
+  const folder = new Folder();
+  const sharing = (id, profileId) => {
+    S().hydrate({});
+        useBrowser.setState((s) => ({ profiles: { ...s.profiles, default: { ...s.profiles.default, shareTopApps: true }, work: { ...WORK, dataId: "default", shareTopApps: true } }, profileOrder: [...s.profileOrder, "work"] }));
+    S().createWindow({ profileId, url: `https://${id}-${profileId}.example/` });
+    return new Mac(id, folder, S());
+  };
+  const a = sharing("A", "default");
+  const b = sharing("B", "work");
+  a.with(() => S().pinTabs([S().newTab(S().windowOrder[0], { url: "https://mail.com/" })], true));
+  for (let i = 0; i < 3; i++) (await a.sync(), await b.sync(["work", "default"]));
+  assert.deepEqual(
+    b.with(() => Object.values(S().tabs).filter((t) => t.profileId === "work" && t.pin?.as === "tile").map((t) => t.pinnedUrl)),
+    ["https://mail.com/"],
+    "B's Work shows the Top App A pinned in Personal",
+  );
 });

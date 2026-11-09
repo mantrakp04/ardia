@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 
 @class ArdiaCoreTab;
+@class ArdiaSavedSession;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -8,9 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setDataDirectory:(nullable NSString *)directory;
 + (void)noteLayoutChangeIn:(nullable NSWindow *)window;
 + (void)recordNow;
-+ (void)prefetchForSession:(NSDictionary *)session;
++ (void)prefetchForSession:(nullable ArdiaSavedSession *)session;
 + (void)discardPrefetch;
-+ (BOOL)canShowWindow:(NSString *)windowId session:(NSDictionary *)session;
++ (BOOL)canShowWindow:(NSString *)windowId session:(ArdiaSavedSession *)session;
 + (BOOL)showWindow:(NSString *)windowId
              frame:(NSArray<NSNumber *> *)frame
                key:(NSString *)key
@@ -23,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
                           frame:(NSArray<NSNumber *> *)frame
                         profile:(NSString *)profile
                        backdrop:(NSDictionary *)backdrop
+                       settings:(NSDictionary *)settings
                            like:(nullable NSString *)windowId;
 + (nullable NSWindow *)claimLittleWindowForLink:(NSString *)mark profile:(nullable NSString *)profile;
 + (void)forgetPictures;

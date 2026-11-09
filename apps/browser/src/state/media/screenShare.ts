@@ -11,7 +11,7 @@ export function useShareFor(tabId: string): [string, TabShare] | null {
   const shares = useMedia((m) => m.tabShares);
   const profile = useBrowser((s) => {
     const tab = s.tabs[tabId];
-    return tab && /^https?:|^file:/.test(tab.url) ? engineProfile(tab.profileId) : null;
+    return tab && /^https?:|^file:/.test(tab.url) ? engineProfile(s, tab.profileId) : null;
   });
   const capturing = usePages((p) => Object.keys(shares).filter((id) => p.pages[id]?.mediaAccess?.screen).join(","));
   if (profile === null) return null;
@@ -19,7 +19,7 @@ export function useShareFor(tabId: string): [string, TabShare] | null {
     const share = shares[capturer];
     if (!share || share.dismissed[tabId]) continue;
     const owner = useBrowser.getState().tabs[capturer];
-    if (owner && engineProfile(owner.profileId) === profile) return [capturer, share];
+    if (owner && engineProfile(useBrowser.getState(), owner.profileId) === profile) return [capturer, share];
   }
   return null;
 }
@@ -73,10 +73,10 @@ export function shareableTabs(tabId: string) {
   const s = useBrowser.getState();
   const tab = s.tabs[tabId];
   if (!tab) return [];
-  const profile = engineProfile(tab.profileId);
+  const profile = engineProfile(s, tab.profileId);
   const live = usePages.getState().ready;
   return Object.values(s.tabs)
-    .filter((t) => !!live[t.id] && engineProfile(t.profileId) === profile && /^https?:|^file:/.test(t.url))
+    .filter((t) => !!live[t.id] && engineProfile(s, t.profileId) === profile && /^https?:|^file:/.test(t.url))
     .sort((a, b) => (a.id === tabId ? 1 : b.id === tabId ? -1 : b.lastActiveAt - a.lastActiveAt));
 }
 

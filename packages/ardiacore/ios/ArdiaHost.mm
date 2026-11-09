@@ -5,7 +5,6 @@
 #import "ArdiaStartup.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
-#import "ArdiaNotifications.h"
 
 #import <Security/Security.h>
 #import <objc/runtime.h>
@@ -24,7 +23,6 @@ id<NSApplicationDelegate> (^gMakeDelegate)(void);
 
 id<NSApplicationDelegate> gAppDelegate;
 
-BOOL gStarted;
 
 NSString *gDataDirectory;
 
@@ -35,7 +33,7 @@ namespace {
 BOOL gMenuShortcutsReady;
 
 void SendReservedShortcuts() {
-  if (!gStarted || !gMenuShortcutsReady) return;
+  if (!ArdiaLaunchSequence.shared.engineRunning || !gMenuShortcutsReady) return;
   [ArdiaCoreEngine reservedShortcutsChanged];
 }
 
@@ -46,12 +44,7 @@ namespace ardia_host {
 void WatchReservedShortcuts() {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
-    [center addObserverForName:ArdiaMenuShortcutsChangedNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *) {
-      gMenuShortcutsReady = YES;
-      SendReservedShortcuts();
-    }];
-    [center addObserverForName:NSTextInputContextKeyboardSelectionDidChangeNotification object:nil queue:NSOperationQueue.mainQueue
+    [NSNotificationCenter.defaultCenter addObserverForName:NSTextInputContextKeyboardSelectionDidChangeNotification object:nil queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *) { SendReservedShortcuts(); }];
   });
   SendReservedShortcuts();
@@ -73,23 +66,32 @@ ArdiaBootstrapDelegate *gBootstrap;
 
 bool gScratchDataDir = false;
 
-bool gAppKitWillFinish = false;
 
-bool gAppKitDidFinish = false;
 
-NSArray<NSURL *> *gPendingLaunchURLs;
 
-NSArray<NSURL *> *gLaunchLinks;
 
-bool gLinksHandled = false;
 
-bool gJSStarted = false;
 
 NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts = [NSMutableDictionary dictionary];
 
 }
 
 @implementation ArdiaHost
+
+static void (^gQuitCancelledHandler)(void);
+
++ (void (^)(void))quitCancelledHandler {
+  return gQuitCancelledHandler;
+}
+
++ (void)setQuitCancelledHandler:(void (^)(void))handler {
+  gQuitCancelledHandler = [handler copy];
+}
+
++ (void)menuShortcutsChanged {
+  gMenuShortcutsReady = YES;
+  SendReservedShortcuts();
+}
 
 + (void)replayInstallPrompts {
   for (NSDictionary *prompt in gInstallPrompts.allValues) [ArdiaEvents emit:@"extensions.installPrompt" data:prompt];
@@ -150,6 +152,10 @@ NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts = [NSMutableDic
     if ([Profiles().allValues containsObject:p]) return;
   }
   if (p) [engine releaseProfile:p];
+}
+
++ (NSArray<NSString *> *)loadedProfiles {
+  return ardia_host::LoadedDataProfileNames();
 }
 
 + (BOOL)stopCapture:(NSString *)tabId {
@@ -248,6 +254,44 @@ NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts = [NSMutableDic
   return tab ? tab.tabId : -1;
 }
 
++ (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion {
+  static NSMutableDictionary<NSString *, NSString *> *lastTarget;
+  static NSMutableDictionary<NSString *, NSNumber *> *generations;
+  if (!lastTarget) {
+    lastTarget = [NSMutableDictionary dictionary];
+    generations = [NSMutableDictionary dictionary];
+  }
+  NSMutableDictionary<NSString *, id> *answer = [NSMutableDictionary dictionary];
+  void (^record)(NSString *, NSString *) = ^(NSString *tabId, NSString *targetId) {
+    if (targetId && ![lastTarget[tabId] isEqualToString:targetId]) {
+      lastTarget[tabId] = targetId;
+      generations[tabId] = @(generations[tabId].integerValue + 1);
+    }
+    answer[tabId] = @{@"targetId" : targetId ?: NSNull.null, @"pageGeneration" : generations[tabId] ?: @0};
+  };
+  dispatch_group_t pending = dispatch_group_create();
+  for (NSString *tabId in tabIds) {
+    ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+    if (!tab || tab.closed || tab.discarded) {
+      record(tabId, nil);
+      continue;
+    }
+    dispatch_group_enter(pending);
+    [tab devToolsCall:@"Target.getTargetInfo"
+               params:@{}
+              timeout:1.0
+           completion:^(NSDictionary *result, NSString *error) {
+             id info = result[@"targetInfo"];
+             id targetId = [info isKindOfClass:NSDictionary.class] ? info[@"targetId"] : nil;
+             record(tabId, [targetId isKindOfClass:NSString.class] ? targetId : nil);
+             dispatch_group_leave(pending);
+           }];
+  }
+  dispatch_group_notify(pending, dispatch_get_main_queue(), ^{
+    completion(answer);
+  });
+}
+
 + (void)resolvePermission:(NSString *)requestId result:(NSString *)result remember:(BOOL)remember {
   [ArdiaCoreEngine resolvePermission:requestId result:result remember:remember];
 }
@@ -290,7 +334,7 @@ NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts = [NSMutableDic
 }
 
 + (BOOL)isStarted {
-  return gStarted;
+  return ArdiaLaunchSequence.shared.engineRunning;
 }
 
 + (NSString *)dataDirectory {
@@ -311,6 +355,7 @@ NSMutableDictionary<NSString *, NSDictionary *> *gInstallPrompts = [NSMutableDic
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
+    @"focus" : ardia_host::FocusState(),
   };
 }
 

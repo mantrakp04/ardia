@@ -14,7 +14,7 @@ import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
-import { splitOf } from "../splits/splits";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
 
 export type { AutofillPrompt, AutofillPromptAnswer, PasswordPrompt, PasswordPromptAnswer } from "../../platform/tabs";
 
@@ -58,10 +58,12 @@ const IDLE_PAGE: PageState = {
   newTabShown: null,
 };
 
+export type PagePopover = "siteControls" | "popups" | "zoom";
+
 type Store = {
   pages: Record<string, PageState>;
   ready: Record<string, number>;
-  popover: Record<string, "siteControls" | "popups" | "zoom" | null>;
+  popover: Record<string, PagePopover | null>;
 };
 
 export const usePages = create<Store>()(() => ({ pages: {}, ready: {}, popover: {} }));
@@ -114,7 +116,7 @@ export function useFullscreenTab(windowId: string): string | undefined {
     if (!fullscreen) return undefined;
     const active = activeTabId(s, windowId);
     const peek = peekTabId(s, windowId);
-    const shown = [...(peek ? [peek] : []), ...(active ? (splitOf(s, active)?.tabIds ?? [active]) : [])];
+    const shown = [...(peek ? [peek] : []), ...(active ? (splitTabIdsOf(splitOf(s, active)) ?? [active]) : [])];
     return shown.find((id) => fullscreen.split("\n").includes(id));
   });
 }

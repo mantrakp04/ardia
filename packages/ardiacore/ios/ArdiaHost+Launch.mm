@@ -1,16 +1,21 @@
 #import "ArdiaHostInternal.h"
 #import "ArdiaLaunchConfig.h"
+#import "ArdiaSavedSession.h"
+#import "ArdiaSavedDocument.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaServices.h"
 #import "ArdiaNavigationDownloads.h"
 #import "ArdiaStartup.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
-#import "ArdiaNotifications.h"
 
 #import <Security/Security.h>
 #import <objc/runtime.h>
 
+#include <libproc.h>
+#include <sys/stat.h>
+
+#include <atomic>
 #include <cctype>
 #include <cstring>
 #include <set>
@@ -21,6 +26,75 @@ using namespace ardia_host;
 
 static void TryEarlyLittleWindow();
 
+static NSMutableDictionary<NSString *, NSDictionary *> *gLaunchURLSenders;
+static bool gReplayingLaunchURLs;
+
+static NSString *const kHoldIncomingLinksDefault = @"ArdiaHoldIncomingLinks";
+
+static NSString *const kLinkPolicyStampDefault = @"ArdiaLinkPolicyStamp";
+static NSString *const kMissingFileStamp = @"missing";
+static std::atomic<bool> gLinkPolicyReady{false};
+
+static NSString *AppDataDirectory();
+
+static NSString *StatStamp(const struct stat &info) {
+  return [NSString stringWithFormat:@"%llu:%llu:%lld:%ld.%09ld:%ld.%09ld", (unsigned long long)info.st_dev, (unsigned long long)info.st_ino,
+                                    (long long)info.st_size, info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec, info.st_ctimespec.tv_sec,
+                                    info.st_ctimespec.tv_nsec];
+}
+
+static NSString *PathStamp(NSString *path) {
+  struct stat info;
+  if (stat(path.fileSystemRepresentation, &info) == 0) return StatStamp(info);
+  return errno == ENOENT ? kMissingFileStamp : [NSString stringWithFormat:@"unreadable:%d", errno];
+}
+
+static NSString *HooksFileStamp() {
+  return PathStamp([ArdiaLaunchConfig.shared.configDirectory stringByAppendingPathComponent:@"hooks.json"]);
+}
+
+static NSString *LinkPolicyFingerprint(NSString *hooksStamp) {
+  NSString *folder = ArdiaLaunchConfig.shared.configDirectory ?: @"";
+  return [@[
+    folder, hooksStamp, PathStamp([folder stringByAppendingPathComponent:@"config.json"]),
+    PathStamp([AppDataDirectory() stringByAppendingPathComponent:@"automation-approvals.json"])
+  ] componentsJoinedByString:@"|"];
+}
+
+static bool SavedLinkHold() {
+  return [NSUserDefaults.standardUserDefaults boolForKey:kHoldIncomingLinksDefault];
+}
+
+static bool HoldsIncomingLinks() {
+  if (gLinkPolicyReady) return SavedLinkHold();
+  NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:kLinkPolicyStampDefault];
+  return SavedLinkHold() || ![saved isEqualToString:LinkPolicyFingerprint(HooksFileStamp())];
+}
+
+static pid_t SenderPID(NSAppleEventDescriptor *event) {
+  NSData *token = [event attributeDescriptorForKeyword:keySenderAuditTokenAttr].data;
+  if (token.length == sizeof(audit_token_t)) {
+    audit_token_t audit;
+    memcpy(&audit, token.bytes, sizeof audit);
+    if ((pid_t)audit.val[5] > 0) return (pid_t)audit.val[5];
+  }
+  return [event attributeDescriptorForKeyword:keySenderPIDAttr].int32Value;
+}
+
+static NSDictionary *SenderOfCurrentURLEvent() {
+  NSAppleEventDescriptor *event = NSAppleEventManager.sharedAppleEventManager.currentAppleEvent;
+  if (!event) return nil;
+  const bool getURL = event.eventClass == kInternetEventClass && event.eventID == kAEGetURL;
+  const bool openDocuments = event.eventClass == kCoreEventClass && event.eventID == kAEOpenDocuments;
+  if (!getURL && !openDocuments) return nil;
+  const pid_t pid = SenderPID(event);
+  NSRunningApplication *app = pid > 0 ? [NSRunningApplication runningApplicationWithProcessIdentifier:pid] : nil;
+  NSString *name = app.localizedName;
+  char process[2 * MAXCOMLEN + 1] = {};
+  if (!name.length && pid > 0 && proc_name(pid, process, sizeof process) > 0) name = @(process);
+  return @{@"bundleId" : app.bundleIdentifier ?: NSNull.null, @"appName" : name.length ? name : NSNull.null};
+}
+
 @implementation ArdiaBootstrapDelegate
 - (instancetype)init {
   if ((self = [super init])) _urls = [NSMutableArray array];
@@ -28,6 +102,11 @@ static void TryEarlyLittleWindow();
 }
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
   [_urls addObjectsFromArray:urls];
+  if (NSDictionary *sender = SenderOfCurrentURLEvent()) {
+    if (!gLaunchURLSenders) gLaunchURLSenders = [NSMutableDictionary dictionary];
+    for (NSURL *url in urls)
+      if (url.absoluteString.length) gLaunchURLSenders[url.absoluteString] = sender;
+  }
   TryEarlyLittleWindow();
 }
 @end
@@ -43,15 +122,8 @@ static NSString *AppDataDirectory() {
   return [support URLByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier ?: @"Ardia"].path;
 }
 
-static NSDictionary *SavedSession(NSString *dir) {
-  NSData *data = dir ? [NSData dataWithContentsOfFile:[dir stringByAppendingPathComponent:@"session.json"]] : nil;
-  NSDictionary *session = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
-  return [session isKindOfClass:NSDictionary.class] ? session : nil;
-}
-
-static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *dir, NSDictionary *session) {
-  NSString *linkProfile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
-  if (!links.count || !linkProfile || LaunchTabSwitchedOff()) return;
+static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *linkProfile) {
+  if (!links.count || !linkProfile || LaunchTabSwitchedOff() || HoldsIncomingLinks()) return;
   NSMutableArray<NSString *> *urls = [NSMutableArray array];
   for (NSURL *link in links)
     if (!link.isFileURL && link.absoluteString.length) [urls addObject:link.absoluteString];
@@ -60,15 +132,23 @@ static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *dir, NSDictionary
 
 namespace ardia_host {
 
+void ReplayLaunchURLs(NSArray<NSURL *> *urls) {
+  if (![gAppDelegate respondsToSelector:@selector(application:openURLs:)]) return;
+  gReplayingLaunchURLs = true;
+  [gAppDelegate application:NSApp openURLs:urls];
+  gReplayingLaunchURLs = false;
+  gLaunchURLSenders = nil;
+}
+
 void LinksArrived(NSArray<NSURL *> *urls) {
-  if (gLinksHandled || !urls.count) return;
-  gLinksHandled = true;
-  if (!gJSStarted) {
-    gLaunchLinks = [urls copy];
-    return;
-  }
-  NSString *dir = AppDataDirectory();
-  ParkLaunchLinks(urls, dir, SavedSession(dir));
+  static bool handled;
+  if (handled || !urls.count) return;
+  handled = true;
+  NSArray<NSURL *> *links = [urls copy];
+  [ArdiaLaunchSequence.shared after:ArdiaLaunchJSStarted
+                                 do:^{
+                                   ParkLaunchLinks(links, [ArdiaSavedSession readFrom:AppDataDirectory()].linkProfile);
+                                 }];
 }
 
 }
@@ -130,57 +210,38 @@ static void ReportLoweredWindowOcclusion() {
 namespace ardia_host {
 
 void StartLaunchTab() {
-  gJSStarted = true;
-  NSString *dir = AppDataDirectory();
-  NSDictionary *session = SavedSession(dir);
-  NSArray<NSURL *> *links = gLaunchLinks;
-  gLaunchLinks = nil;
-  ParkLaunchLinks(links, dir, session);
-  NSDictionary *hint = session[@"launchTab"];
-  if (![hint isKindOfClass:NSDictionary.class]) return;
-  NSString *key = hint[@"id"], *url = hint[@"url"], *profile = hint[@"profile"];
-  if (![key isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class] || ![profile isKindOfClass:NSString.class]) return;
-  [ArdiaWebView startLaunchTab:key url:url profile:profile];
+  [ArdiaLaunchSequence.shared reach:ArdiaLaunchJSStarted];
+  ArdiaSavedSession *session = [ArdiaSavedSession readFrom:AppDataDirectory()];
+  NSString *key = session.launchTabId;
+  if (!key) return;
+  [ArdiaWebView startLaunchTab:key url:session.launchTabURL profile:session.launchTabProfile];
   if (ArdiaCoreTab *tab = ArdiaTabParking.launchTab) [ArdiaEarlyWindow attachPage:tab key:key];
 }
 
 }
 
-static bool gLaunchedHidden;
-
-namespace ardia_host {
-
-bool gEarlyWindowPending;
-
-}
-
-static bool gLaunchedForDocuments;
+static constexpr NSInteger kOnboardingVersion = 1;
 
 static bool OnboardingPending(NSString *dir) {
-  NSData *data = [NSData dataWithContentsOfFile:[dir stringByAppendingPathComponent:@"onboarding.json"]];
-  NSDictionary *saved = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
-  if (![saved isKindOfClass:NSDictionary.class]) return false;
+  NSDictionary *saved = [ArdiaSavedDocument read:@"onboarding.json" in:dir oldest:0 newest:kOnboardingVersion];
+  if (!saved) return false;
   const bool completed = [saved[@"completedAt"] isKindOfClass:NSNumber.class] && [saved[@"completedAt"] doubleValue] > 0;
   return !completed && [saved[@"startedAt"] isKindOfClass:NSNumber.class];
 }
 
 static void TryEarlyWindow() {
   NSString *dir = AppDataDirectory();
-  if (gLaunchedHidden || gLaunchedForDocuments || NSApp.isHidden || gBootstrap.urls.count || LaunchTabSwitchedOff() || OnboardingPending(dir)) return;
-  NSDictionary *session = SavedSession(dir);
-  NSDictionary *hint = session[@"launchTab"];
-  NSString *focused = session[@"focusedWindowId"];
-  if (![hint isKindOfClass:NSDictionary.class] || ![focused isKindOfClass:NSString.class]) return;
-  NSString *key = hint[@"id"], *url = hint[@"url"], *profile = hint[@"profile"];
-  if (![key isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class] || ![profile isKindOfClass:NSString.class]) return;
-  NSDictionary *window = nil;
-  for (NSDictionary *w in [session[@"windows"] isKindOfClass:NSArray.class] ? session[@"windows"] : @[])
-    if ([w isKindOfClass:NSDictionary.class] && [w[@"id"] isEqual:focused]) window = w;
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  if (launch.launchedHidden || launch.launchedForDocuments || NSApp.isHidden || gBootstrap.urls.count || LaunchTabSwitchedOff() || OnboardingPending(dir)) return;
+  ArdiaSavedSession *session = [ArdiaSavedSession atLaunch:dir];
+  NSString *focused = session.focusedWindowId, *key = session.launchTabId, *url = session.launchTabURL, *profile = session.launchTabProfile;
+  if (!focused || !key) return;
+  NSDictionary *window = [session windowWithId:focused];
   if (!window || [window[@"incognito"] boolValue] || window[@"kind"] || ![window[@"frame"] isKindOfClass:NSArray.class]) return;
   if (![window[@"tabIds"] isKindOfClass:NSArray.class] || ![window[@"tabIds"] containsObject:key]) return;
-  for (NSDictionary *split in [session[@"splits"] isKindOfClass:NSArray.class] ? session[@"splits"] : @[])
-    if ([split isKindOfClass:NSDictionary.class] && [split[@"tabIds"] isKindOfClass:NSArray.class] && [split[@"tabIds"] containsObject:key]) return;
-  NSDictionary *backdrop = [session[@"launchBackdrop"] isKindOfClass:NSDictionary.class] ? session[@"launchBackdrop"] : nil;
+  for (NSDictionary *split in session.splits)
+    if ([[session tabIdsOfSplit:split] containsObject:key]) return;
+  NSDictionary *backdrop = session.launchBackdrop;
   const bool dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]]
       isEqualToString:NSAppearanceNameDarkAqua];
   if (!backdrop || ![backdrop[@"dark"] isKindOfClass:NSNumber.class] || [backdrop[@"dark"] boolValue] != dark) return;
@@ -219,18 +280,20 @@ static NSArray<NSNumber *> *LittleArdiaFrame(id size) {
 static bool gEarlyLittleTried;
 
 static void TryEarlyLittleWindow() {
-  if (gEarlyLittleTried || !gStarted || gJSStarted || gBootstrap.urls.count != 1) return;
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  if (gEarlyLittleTried || !launch.engineRunning || [launch reached:ArdiaLaunchJSStarted] || gBootstrap.urls.count != 1) return;
   gEarlyLittleTried = true;
+  if (HoldsIncomingLinks()) return;
   NSURL *link = gBootstrap.urls.firstObject;
   NSString *scheme = link.scheme.lowercaseString;
   if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return;
   NSString *dir = AppDataDirectory();
-  if (gLaunchedHidden || NSApp.isHidden || LaunchTabSwitchedOff() || OnboardingPending(dir)) return;
-  NSDictionary *session = SavedSession(dir);
-  NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
+  if (launch.launchedHidden || NSApp.isHidden || LaunchTabSwitchedOff() || OnboardingPending(dir)) return;
+  ArdiaSavedSession *session = [ArdiaSavedSession atLaunch:dir];
+  NSDictionary *settings = session.settings ?: @{};
   if ([settings[@"openLinksInLittleArdia"] isEqual:@NO]) return;
-  NSString *profile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
-  NSDictionary *backdrop = [session[@"launchBackdrop"] isKindOfClass:NSDictionary.class] ? session[@"launchBackdrop"] : nil;
+  NSString *profile = session.linkProfile;
+  NSDictionary *backdrop = session.launchBackdrop;
   const bool dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]]
       isEqualToString:NSAppearanceNameDarkAqua];
   if (!profile || !backdrop || ![backdrop[@"dark"] isKindOfClass:NSNumber.class] || [backdrop[@"dark"] boolValue] != dark) return;
@@ -241,8 +304,8 @@ static void TryEarlyLittleWindow() {
   [ArdiaWebView startLinkTabs:@[ url ] profile:profile];
   ArdiaCoreTab *tab = ArdiaTabParking.firstLinkTab;
   NSString *mark = tab ? [ArdiaTabParking linkMarkForTab:tab] : nil;
-  NSString *focused = [session[@"focusedWindowId"] isKindOfClass:NSString.class] ? session[@"focusedWindowId"] : nil;
-  if (mark) [ArdiaEarlyWindow showLittleWindowForLink:tab mark:mark url:url frame:frame profile:profile backdrop:backdrop like:focused];
+  NSString *focused = session.focusedWindowId;
+  if (mark) [ArdiaEarlyWindow showLittleWindowForLink:tab mark:mark url:url frame:frame profile:profile backdrop:backdrop settings:settings like:focused];
 }
 
 namespace ardia_host {
@@ -258,6 +321,35 @@ void StartEarlyWindow() {
 }
 
 @implementation ArdiaHost (Launch)
+
++ (BOOL)holdsIncomingLinks {
+  return SavedLinkHold();
+}
+
++ (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(NSString *)hooksStamp {
+  NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+  if (hold) [defaults setBool:YES forKey:kHoldIncomingLinksDefault];
+  else [defaults removeObjectForKey:kHoldIncomingLinksDefault];
+  NSString *current = HooksFileStamp();
+  if (hooksStamp && [hooksStamp isEqualToString:current]) [defaults setObject:LinkPolicyFingerprint(current) forKey:kLinkPolicyStampDefault];
+  else [defaults removeObjectForKey:kLinkPolicyStampDefault];
+  [defaults synchronize];
+  gLinkPolicyReady = true;
+}
+
++ (NSString *)fileStampOfDescriptor:(int)fd {
+  struct stat info;
+  return fstat(fd, &info) == 0 ? StatStamp(info) : [NSString stringWithFormat:@"unreadable:%d", errno];
+}
+
++ (NSString *)missingFileStamp {
+  return kMissingFileStamp;
+}
+
++ (NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url {
+  if (NSDictionary *sender = SenderOfCurrentURLEvent()) return sender;
+  return gReplayingLaunchURLs ? gLaunchURLSenders[url] : nil;
+}
 
 + (int)runWithArgc:(int)argc argv:(char **)argv delegate:(id<NSApplicationDelegate> (^)(void))makeDelegate {
   ArdiaLaunchConfig *config = ArdiaLaunchConfig.shared;
@@ -293,7 +385,7 @@ void StartEarlyWindow() {
                                                   object:nil
                                                    queue:nil
                                               usingBlock:^(NSNotification *) {
-                                                gAppKitWillFinish = true;
+                                                [ArdiaLaunchSequence.shared reach:ArdiaLaunchAppKitWillFinish];
                                               }];
   if ([config traced:@"visibility"]) {
     [NSNotificationCenter.defaultCenter addObserverForName:NSWindowDidChangeOcclusionStateNotification
@@ -314,28 +406,16 @@ void StartEarlyWindow() {
         NSLog(@"[ardiacore-vis] workspace %@", note.name);
       }];
   }
+  [ArdiaLaunchSequence.shared after:ArdiaLaunchEngineStarted | ArdiaLaunchAppKitDidFinish do:^{ StartEarlyWindow(); }];
   [NSNotificationCenter.defaultCenter addObserverForName:NSApplicationDidFinishLaunchingNotification
                                                   object:nil
                                                    queue:nil
                                               usingBlock:^(NSNotification *) {
-                                                gAppKitDidFinish = true;
                                                 NSAppleEventDescriptor *event = NSAppleEventManager.sharedAppleEventManager.currentAppleEvent;
-                                                if (event.eventID == kAEOpenApplication &&
-                                                    [event paramDescriptorForKeyword:keyAEPropData].enumCodeValue == keyAELaunchedAsLogInItem)
-                                                  gLaunchedHidden = true;
-                                                if (event && !(event.eventClass == kCoreEventClass && event.eventID == kAEOpenApplication))
-                                                  gLaunchedForDocuments = true;
-                                                if (gEarlyWindowPending) {
-                                                  gEarlyWindowPending = false;
-                                                  StartEarlyWindow();
-                                                }
-                                                if (!gPendingLaunchURLs.count) return;
-                                                dispatch_async(dispatch_get_main_queue(), ^{
-                                                  NSArray<NSURL *> *urls = gPendingLaunchURLs;
-                                                  gPendingLaunchURLs = nil;
-                                                  if (urls.count && [gAppDelegate respondsToSelector:@selector(application:openURLs:)])
-                                                    [gAppDelegate application:NSApp openURLs:urls];
-                                                });
+                                                const BOOL hidden = event.eventID == kAEOpenApplication &&
+                                                                    [event paramDescriptorForKeyword:keyAEPropData].enumCodeValue == keyAELaunchedAsLogInItem;
+                                                const BOOL documents = event && !(event.eventClass == kCoreEventClass && event.eventID == kAEOpenApplication);
+                                                [ArdiaLaunchSequence.shared appKitFinishedHidden:hidden forDocuments:documents];
                                               }];
 
   std::vector<std::string> extra = {
@@ -351,10 +431,10 @@ void StartEarlyWindow() {
   };
   const bool mockKeychain = gScratchDataDir || !IsTeamSigned();
   if (mockKeychain) extra.push_back("--use-mock-keychain");
-  ardia_host::PrepareStartup(gDataDirectory, extra);
+  ardia_host::PrepareStartup(gDataDirectory);
   @autoreleasepool {
     [ArdiaEarlyWindow setDataDirectory:AppDataDirectory()];
-    [ArdiaEarlyWindow prefetchForSession:SavedSession(AppDataDirectory()) ?: @{}];
+    [ArdiaEarlyWindow prefetchForSession:[ArdiaSavedSession atLaunch:AppDataDirectory()]];
   }
   const bool background = config.background;
   if (background && ![config instanceFlag:@"allowOcclusion"]) {

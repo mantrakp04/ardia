@@ -5,6 +5,7 @@ export type ShortcutSource = { id: string; keys: Shortcut[]; fixed?: boolean };
 export type ShortcutOverrides = Record<string, string[]>;
 export type ResolvedShortcuts = {
   bindings: ReadonlyMap<string, Shortcut[]>;
+  defaultsOf(id: string): Shortcut[];
   conflictsOf(id: string): string[];
   holdersOf(shortcut: Shortcut): string[];
 };
@@ -107,8 +108,10 @@ export function resolveShortcuts(sources: readonly ShortcutSource[], overrides: 
     bindings.set(source.id, keys);
     for (const combo of seen) holders.set(combo, [...(holders.get(combo) ?? []), source.id]);
   }
+  const defaults = new Map(sources.map((source) => [source.id, source.keys]));
   return {
     bindings,
+    defaultsOf: (id) => defaults.get(id) ?? [],
     holdersOf: (shortcut) => holders.get(comboKey(shortcut)) ?? [],
     conflictsOf: (id) => [...new Set((bindings.get(id) ?? []).flatMap((k) => holders.get(comboKey(k)) ?? []))].filter((other) => other !== id),
   };

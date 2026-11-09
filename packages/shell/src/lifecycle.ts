@@ -1,4 +1,5 @@
-import { Shell } from "./shellNative";
+import type { EventSubscription } from "expo-modules-core";
+import type { BangListReply } from "./documents";
 
 export type AppEvent =
   | { type: "reopen" }
@@ -8,16 +9,27 @@ export type AppEvent =
   | { type: "quitWarningSuppressed" }
   | { type: "resignActive" }
   | { type: "screenLocked" }
+  | { type: "lockedOrAsleep" }
   | { type: "switcherReleased" }
   | { type: "switcherKey"; key: "escape" | "next" | "previous" }
   | { type: "switcherMouseUp" }
   | { type: "dragEscape" };
 
-export const setAppearance = (mode: "auto" | "light" | "dark") => Shell.setAppearance(mode);
-export const isDarkAppearance = () => Shell.isDarkAppearance();
+export type AppearanceMode = "auto" | "light" | "dark";
 
-export const replyToTerminate = (ok: boolean) => Shell.replyToTerminate(ok);
+export type OpenURLSource = { bundleId: string | null; appName: string | null };
 
-export const onAppEvent = (listener: (e: AppEvent) => void) => Shell.addListener("onAppEvent", listener);
-export const onOpenURLs = (listener: (urls: string[], pointer?: [number, number]) => void) =>
-  Shell.addListener("onOpenURLs", ({ urls, pointer }) => listener(urls, pointer));
+type ShellEvents = {
+  onAppEvent: (e: AppEvent) => void;
+  onOpenURLs: (e: { urls: string[]; pointer?: [number, number]; source?: OpenURLSource }) => void;
+};
+
+export type ShellNative = {
+  addListener<K extends keyof ShellEvents>(name: K, listener: ShellEvents[K]): EventSubscription;
+  setAppearance(mode: AppearanceMode): Promise<void>;
+  isDarkAppearance(): Promise<boolean>;
+  startDictation(): void;
+  fetchBangList(etag: string | null): Promise<BangListReply>;
+  copyText(text: string): void;
+  readText(): Promise<string>;
+};

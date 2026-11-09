@@ -17,11 +17,13 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)embedRootView:(NSView *)root inWindow:(NSWindow *)window;
 
 + (nullable NSView *)rootViewOfWindow:(NSWindow *)window;
++ (nullable NSView *)embeddedRootOfWindow:(NSWindow *)window;
+@property(class, nonatomic, readonly) Class contentViewClass;
 
 + (void)removeRootViewOfWindow:(NSWindow *)window;
 
-+ (void)setTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
-+ (void)moveTrafficLightsCenter:(nullable NSValue *)center inWindow:(NSWindow *)window;
++ (void)setTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
++ (void)moveTrafficLightsCenter:(nullable NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window;
 
 + (void)closeWindow:(NSWindow *)window;
 
@@ -38,10 +40,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 NSView *_Nullable ArdiaWindowRootView(NSWindow *_Nullable window);
 NSValue *_Nullable ArdiaTrafficLightsCenter(NSWindow *_Nullable window);
+BOOL ArdiaTrafficLightsTrailing(NSWindow *_Nullable window);
 
 @interface ArdiaChromeWindowHost (Dev)
 
 + (nullable NSString *)devAction:(NSString *)action window:(NSWindow *)window;
+
+@end
+
+@interface ArdiaChromeWindowHost (DevFullScreenProbe)
+
++ (NSString *)devFullScreenProbe:(nullable NSString *)argument window:(NSWindow *)window;
 
 @end
 

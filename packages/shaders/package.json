@@ -11,6 +11,9 @@
     "test": "node scripts/meadow.mjs --check",
     "meadow": "node scripts/meadow.mjs"
   },
+  "dependencies": {
+    "@ardia/core": "workspace:*"
+  },
   "peerDependencies": {
     "expo": "*",
     "react": "*",

@@ -58,7 +58,7 @@ function placed(s: BrowserState, prev: BrowserState) {
   return changedIds(s.tabs, prev.tabs).some((id) => {
     const a = s.tabs[id];
     const b = prev.tabs[id];
-    return !a || !b || a.windowId !== b.windowId || a.profileId !== b.profileId || a.pinned !== b.pinned;
+    return !a || !b || a.windowId !== b.windowId || a.profileId !== b.profileId || !!a.pin !== !!b.pin;
   });
 }
 

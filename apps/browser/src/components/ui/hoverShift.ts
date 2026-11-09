@@ -89,23 +89,53 @@ function opensOnHover(host: Fiber): boolean {
 }
 
 type Measured = { host: Fiber; was: Frame | null; now: Frame | null };
+type Frames = { host: Fiber; was: Frame; now: Frame };
+type Opening = Frames & { grow: number; side: "start" | "end" };
 
-function hoverSlotOpenings(views: Measured[]): Set<Fiber> {
+const framed = (v: Measured): v is Frames => !!v.was && !!v.now;
+const level = (v: Frames) => near(v.was[1], v.now[1]) && near(v.was[3], v.now[3]);
+
+function opening(v: Frames): Opening | null {
+  if (!opensOnHover(v.host) || !level(v)) return null;
+  const grow = v.now[2] - v.was[2];
+  if (grow <= EPSILON) return null;
+  if (near(right(v.was), right(v.now))) return { ...v, grow, side: "end" };
+  if (near(v.was[0], v.now[0])) return { ...v, grow, side: "start" };
+  return null;
+}
+
+const parentView = (f: Fiber) => hostParent(f)?.stateNode;
+
+function isAncestor(ancestor: Fiber, f: Fiber): boolean {
+  for (let x = f.return; x; x = x.return) if (isHost(x) && x.stateNode === ancestor.stateNode) return true;
+  return false;
+}
+
+export function hoverSlotOpenings(views: Measured[]): Set<Fiber> {
   const allowed = new Set<Fiber>();
-  for (const slot of views) {
-    const { was, now } = slot;
-    if (!was || !now || !opensOnHover(slot.host)) continue;
-    const grow = now[2] - was[2];
-    if (grow <= EPSILON || !near(right(was), right(now)) || !near(was[1], now[1]) || !near(was[3], now[3])) continue;
-    allowed.add(slot.host);
-    const parent = hostParent(slot.host);
-    for (const v of views) {
-      if (v === slot || !v.was || !v.now || hostParent(v.host) !== parent) continue;
-      const narrowed =
-        near(v.was[0], v.now[0]) && near(v.was[1], v.now[1]) && near(v.was[3], v.now[3]) &&
-        near(v.was[2] - v.now[2], grow) && near(right(v.was), was[0]) && near(right(v.now), now[0]);
-      if (narrowed) allowed.add(v.host);
-    }
+  const all = views.filter(framed);
+  const openings = all.flatMap((v) => opening(v) ?? []);
+  for (const o of openings) allowed.add(o.host);
+  const squeezed: { host: Fiber; dx: number }[] = [];
+  for (const v of all) {
+    if (allowed.has(v.host) || !level(v)) continue;
+    const parent = parentView(v.host);
+    const beside = openings.filter((o) => parentView(o.host) === parent);
+    const before = beside.filter((o) => o.side === "start" && near(right(o.was), v.was[0]) && near(right(o.now), v.now[0]));
+    const after = beside.filter((o) => o.side === "end" && near(o.was[0], right(v.was)) && near(o.now[0], right(v.now)));
+    if (!before.length && !after.length) continue;
+    const dx = before.reduce((sum, o) => sum + o.grow, 0);
+    const dw = -dx - after.reduce((sum, o) => sum + o.grow, 0);
+    if (!near(v.now[0] - v.was[0], dx) || !near(v.now[2] - v.was[2], dw)) continue;
+    allowed.add(v.host);
+    squeezed.push({ host: v.host, dx });
+  }
+  for (const v of all) {
+    if (allowed.has(v.host)) continue;
+    const carrier = squeezed.find((s) => isAncestor(s.host, v.host));
+    if (!carrier) continue;
+    const carried = near(v.now[0] - v.was[0], carrier.dx) && near(v.was[1], v.now[1]) && near(v.was[2], v.now[2]) && near(v.was[3], v.now[3]);
+    if (carried) allowed.add(v.host);
   }
   return allowed;
 }

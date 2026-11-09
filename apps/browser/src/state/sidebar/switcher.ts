@@ -1,6 +1,9 @@
-import { restartSwitcherPointer, setSwitcherCapture, switcherPointerMoved } from "../../platform/focus";
+import { setSwitcherCapture, switcherPointerMoved } from "../../platform/focus";
 import { useBrowser } from "../browser/store";
-import { recentTabIds } from "../pins/organize";
+import { recentTabIds } from "../pins/tabCleanup";
+import { viewTabIds } from "../browser/model";
+import { isAsleep } from "../tabs/pageSession";
+import { noteTabSwitcherOpened } from "../telemetry/usage";
 import { setSidebarUi, sidebarUi } from "./sidebarUi";
 
 const SHOW_AFTER_MS = 140;
@@ -14,10 +17,12 @@ let pointerStale = false;
 export function switcherStep(windowId: string, backward: boolean) {
   const current = sidebarUi().switcher;
   if (current && current.windowId === windowId) return moveSwitcher(backward ? -1 : 1);
-  const ids = recentTabIds(useBrowser.getState(), windowId);
+  const s = useBrowser.getState();
+  const ids = recentTabIds(s, windowId);
   if (ids.length < 2) return;
+  noteTabSwitcherOpened(viewTabIds(s, windowId).filter((id) => isAsleep(s.tabs[id])).length);
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
-  setSwitcherCapture(true);
+  void setSwitcherCapture(true);
   clearTimeout(showTimer);
   showTimer = setTimeout(() => {
     const s = sidebarUi().switcher;
@@ -32,7 +37,7 @@ export function moveSwitcher(step: 1 | -1) {
   stopPointerWatch();
   pointerStale = true;
   const move = ++keyboardMoves;
-  void restartSwitcherPointer().then(() => {
+  void setSwitcherCapture(true).then(() => {
     if (move !== keyboardMoves || !sidebarUi().switcher) return;
     pointerStale = false;
     if (hoveredRow !== null) watchPointer();
@@ -94,6 +99,6 @@ function endSwitcher() {
   hoveredRow = null;
   pointerStale = false;
   keyboardMoves++;
-  setSwitcherCapture(false);
+  void setSwitcherCapture(false);
   setSidebarUi({ switcher: null });
 }

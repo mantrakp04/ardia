@@ -42,7 +42,7 @@ export function startTabPictures() {
       }
     for (const w of Object.values(s.windows)) {
       const id = w.activeTabIds[w.profileId];
-      if (!id || w.incognito) continue;
+      if (!id || w.kind === "private") continue;
       const was = prev.windows[w.id];
       if (id === was?.activeTabIds[was.profileId] && s.tabs[id]?.url === prev.tabs[id]?.url) continue;
       if (isIncognitoProfile(s.tabs[id]?.profileId ?? "")) continue;

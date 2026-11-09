@@ -10,14 +10,14 @@ const S = () => useBrowser.getState();
 const profile = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
 const tab = (i) => ({
   id: `t${i}`, windowId: "w", profileId: "default", url: `https://example.com/${i}`, title: `Tab ${i}`, favicon: null, pinned: false,
-  muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, openerId: null, createdAt: i, lastActiveAt: i,
+  muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "idle" }, openerId: null, createdAt: i, lastActiveAt: i,
 });
 
 function hydrate({ collapsed = false, nested = null, active = "t0" } = {}) {
   const tabs = Array.from({ length: 40 }, (_, i) => tab(i));
   S().hydrate({
     profiles: { default: profile },
-    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: tabs.map((t) => t.id), activeTabIds: { default: active }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
+    windows: { w: { id: "w", profileId: "default", kind: "main", tabIds: tabs.map((t) => t.id), activeTabIds: { default: active }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
     tabs: Object.fromEntries(tabs.map((t) => [t.id, t])),
     groups: {
       g: { id: "g", windowId: "w", profileId: "default", name: "G", icon: null, color: "blue", collapsed, pinned: false, tabIds: ["t2", "t3", "t4", "t5", "t6"], createdAt: 0 },
@@ -79,7 +79,7 @@ test("a nested group first in its parent sits a row gap below the parent's heade
     const s = S();
     const members = groupEntries(s, "g");
     assert.equal(members[0], gap ? "g:n" : "t:t2");
-    assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + gap + entriesHeight(s, "w", "default", members) + 2);
+    assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + gap + entriesHeight(s, "w", "default", members));
     assert.equal(rowSpan(s, "w", "default", "t4", false).top, 2 * 37 + 0.5 + 34 + gap + (gap ? entryHeight(s, "w", "default", "g:n") + 3 : 2 * 37));
   }
 });
@@ -87,7 +87,7 @@ test("a nested group first in its parent sits a row gap below the parent's heade
 test("a collapsed group keeps its active nested group a row gap below its header", () => {
   hydrate({ collapsed: true, nested: ["t2", "t3"], active: "t3" });
   const s = S();
-  assert.equal(entryHeight(s, "w", "default", "g:n"), 1 + 34 + 34 + 2);
-  assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + 3 + entryHeight(s, "w", "default", "g:n") + 2);
+  assert.equal(entryHeight(s, "w", "default", "g:n"), 1 + 34 + 34);
+  assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + 3 + entryHeight(s, "w", "default", "g:n"));
   assert.equal(rowSpan(s, "w", "default", "t3", false).top, 2 * 37 + 0.5 + 34 + 3 + 0.5 + 34);
 });

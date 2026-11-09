@@ -29,6 +29,15 @@ constexpr double kClaimedSeconds = 5;
 
 constexpr double kUntakenAfterContentSeconds = 2;
 
+constexpr double kDefaultPageFrame = 9, kMaxPageFrame = 12, kCardRadius = 10;
+
+double PageFrameOf(NSDictionary *settings) {
+  id saved = settings[@"pageFrame"];
+  if (![saved isKindOfClass:NSNumber.class]) return kDefaultPageFrame;
+  const double frame = [saved doubleValue];
+  return frame >= 0 && frame <= kMaxPageFrame && frame == floor(frame) ? frame : kDefaultPageFrame;
+}
+
 }
 
 namespace ardia_early_window {
@@ -128,8 +137,8 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   Record(YES);
 }
 
-+ (void)prefetchForSession:(NSDictionary *)session {
-  NSString *focused = [session[@"focusedWindowId"] isKindOfClass:NSString.class] ? session[@"focusedWindowId"] : nil;
++ (void)prefetchForSession:(ArdiaSavedSession *)session {
+  NSString *focused = session.focusedWindowId;
   if (!focused.length || !gLayoutPath || gPrefetch) return;
   gPrefetch = dispatch_group_create();
   gPrefetchedWindow = [focused copy];
@@ -159,7 +168,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   CGImageRelease(image);
 }
 
-+ (BOOL)canShowWindow:(NSString *)windowId session:(NSDictionary *)session {
++ (BOOL)canShowWindow:(NSString *)windowId session:(ArdiaSavedSession *)session {
   if (!gLayoutPath || !windowId.length || Shown().count) return NO;
   LoadLayouts();
   NSDictionary *layout = gLayouts[windowId];
@@ -167,8 +176,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   if (![layout isKindOfClass:NSDictionary.class] || !state || ![layout[@"state"] isEqual:state]) return NO;
   NSString *content = ContentOf(session, windowId);
   gPictureCurrent = content.length && [layout[@"pictureContent"] isEqual:content];
-  NSDictionary *hint = [session[@"launchTab"] isKindOfClass:NSDictionary.class] ? session[@"launchTab"] : nil;
-  gLaunchURL = [hint[@"url"] isKindOfClass:NSString.class] ? [hint[@"url"] copy] : nil;
+  gLaunchURL = [session.launchTabURL copy];
   return YES;
 }
 
@@ -260,7 +268,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   NSArray *size = layout[@"size"];
   const BOOL sameSize = [size isKindOfClass:NSArray.class] && size.count == 2 && fabs([size[0] doubleValue] - NSWidth(window.frame)) < 0.5 &&
                         fabs([size[1] doubleValue] - NSHeight(window.frame)) < 0.5;
-  if (picture && sameSize && gPictureCurrent && (!layout[@"glass"] || AddLiveGlass(layout[@"glass"], host, backdropView))) {
+  if (picture && sameSize && gPictureCurrent && !layout[@"glass"]) {
     NSView *view = [[NSView alloc] initWithFrame:host.bounds];
     view.wantsLayer = YES;
     view.layer.contents = (__bridge id)picture;
@@ -329,16 +337,20 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
                           frame:(NSArray<NSNumber *> *)frame
                         profile:(NSString *)profile
                        backdrop:(NSDictionary *)backdrop
+                       settings:(NSDictionary *)settings
                            like:(NSString *)windowId {
   if (!gLayoutPath || !tab || tab.closed || !url.length || !mark.length) return NO;
   for (ArdiaEarlyShown *s in Shown())
     if ([s.appWindow isEqualToString:kLittleWindow]) return NO;
   LoadLayouts();
   NSDictionary *main = windowId.length && [gLayouts[windowId] isKindOfClass:NSDictionary.class] ? gLayouts[windowId] : @{};
+  const double pageFrame = PageFrameOf(settings);
+  NSNumber *cardInset = @(pageFrame);
+  const CGFloat radius = round(kCardRadius * MIN(1.0, pageFrame / kDefaultPageFrame) * 2) / 2;
   NSMutableDictionary *layout = [@{
-    @"page" : @[ @6, @38, @6, @6 ],
-    @"card" : @[ @6, @38, @6, @6 ],
-    @"radius" : [main[@"radius"] isKindOfClass:NSNumber.class] ? main[@"radius"] : @10,
+    @"page" : @[ cardInset, @38, cardInset, cardInset ],
+    @"card" : @[ cardInset, @38, cardInset, cardInset ],
+    @"radius" : @(radius),
     @"curve" : [main[@"curve"] isKindOfClass:NSString.class] ? main[@"curve"] : kCACornerCurveCircular,
     @"lights" : @[ @20, @19 ],
   } mutableCopy];

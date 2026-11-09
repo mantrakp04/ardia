@@ -28,11 +28,13 @@ final class WindowProfileView: ExpoView {
 
   private func apply() {
     guard let window else { return }
-    if applied?.profile != profile { ChromeWindows.showProfile(profile, in: window) }
+    if applied?.profile != profile { ArdiaChromeWindowHost.showProfile(profile, in: window) }
     if let applied, applied.profile != profile || applied.selection != selection {
-      NotificationCenter.default.post(name: .ardiaPagerActivity, object: window)
+      ArdiaWebView.wakeNeighbourPages(in: window)
     }
-    if applied?.neighbours != neighbours, let current = self.window { ChromeWindows.prepare(neighbours, for: current) }
+    if applied?.neighbours != neighbours, !neighbours.isEmpty, let current = self.window {
+      ArdiaChromeWindowHost.prepareProfiles(neighbours, for: current)
+    }
     applied = (profile, neighbours, selection)
   }
 }

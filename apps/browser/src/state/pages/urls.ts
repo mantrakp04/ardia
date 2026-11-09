@@ -1,24 +1,21 @@
+import { appUrlRoute, type AppPageHost } from "@ardia/core";
 import { focus } from "../browser/actions";
 import { useBrowser } from "../browser/store";
 import { activeTabId, resolveWindowId, viewTabIds } from "../browser/model";
 import type { Tab } from "../browser/types";
+import { navigationOf } from "../tabs/pageSession";
 
-type InternalPageId = "history" | "bookmarks" | "downloads";
-
-export const INTERNAL_PAGES: Record<InternalPageId, { title: string }> = {
+export const INTERNAL_PAGES: Record<AppPageHost, { title: string }> = {
   history: { title: "History" },
   bookmarks: { title: "Bookmarks" },
   downloads: { title: "Downloads" },
 };
 
-const SCHEME = "ardia://";
+const internalUrl = (page: AppPageHost, query?: string) => `ardia://${page}${query ? `?q=${encodeURIComponent(query)}` : ""}`;
 
-const internalUrl = (page: InternalPageId, query?: string) => `${SCHEME}${page}${query ? `?q=${encodeURIComponent(query)}` : ""}`;
-
-export function internalPageOf(url: string | null | undefined): InternalPageId | null {
-  if (!url?.toLowerCase().startsWith(SCHEME)) return null;
-  const page = url.slice(SCHEME.length).split(/[/?#]/)[0]!.toLowerCase();
-  return page in INTERNAL_PAGES ? (page as InternalPageId) : null;
+export function internalPageOf(url: string | null | undefined): AppPageHost | null {
+  const route = url ? appUrlRoute(url) : null;
+  return route?.kind === "page" ? route.page : null;
 }
 
 export function internalQuery(url: string): string {
@@ -30,11 +27,11 @@ export function internalQuery(url: string): string {
   }
 }
 
-export const tabDestination = (t: Pick<Tab, "url" | "navigation">) => t.navigation?.url ?? t.url;
+export const tabDestination = (t: Pick<Tab, "url" | "page">) => navigationOf(t)?.url ?? t.url;
 
-export const isInternalTab = (t: Pick<Tab, "url" | "navigation">) => internalPageOf(tabDestination(t)) !== null;
+export const isInternalTab = (t: Pick<Tab, "url" | "page">) => internalPageOf(tabDestination(t)) !== null;
 
-export function openInternalPage(page: InternalPageId, windowId?: string | null, options: { query?: string; background?: boolean } = {}) {
+export function openInternalPage(page: AppPageHost, windowId?: string | null, options: { query?: string; background?: boolean } = {}) {
   const s = useBrowser.getState();
   const id = resolveWindowId(s, windowId);
   if (!id) return;

@@ -11,5 +11,5 @@ test("the Incognito heading stays inside the page at the smallest window", () =>
 
 test("a tall window keeps the bar where it was", () => {
   assert.equal(newTabBarTop(900, 0, HEADING), newTabBarTop(900, 0));
-  assert.equal(newTabBarTop(900, 0), Math.max(900 / 2 - 158, 100) + 38 + 1);
+  assert.equal(newTabBarTop(900, 0), 331);
 });

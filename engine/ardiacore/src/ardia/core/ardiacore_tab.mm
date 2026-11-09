@@ -10,6 +10,7 @@
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
@@ -135,7 +136,13 @@ using ardiacore::NS;
 }
 
 - (BOOL)audible {
-  return _contents && _contents->IsCurrentlyAudible();
+  if (!_contents) {
+    return NO;
+  }
+  if (auto* helper = RecentlyAudibleHelper::FromWebContents(_contents)) {
+    return helper->WasRecentlyAudible();
+  }
+  return _contents->IsCurrentlyAudible();
 }
 
 - (BOOL)muted {
@@ -330,10 +337,9 @@ using ardiacore::NS;
 }
 
 - (void)closeNow {
-  if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self closeNow];
-    });
+  if (ardiacore::DeferWhileAnyNotifies(^{
+        [self closeNow];
+      })) {
     return;
   }
   if (!_contents || ardiacore::CloseExtensionView(_contents)) {
@@ -362,10 +368,9 @@ using ardiacore::NS;
 }
 
 - (void)close {
-  if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self close];
-    });
+  if (ardiacore::DeferWhileAnyNotifies(^{
+        [self close];
+      })) {
     return;
   }
   if (!_contents || ardiacore::CloseExtensionView(_contents)) {

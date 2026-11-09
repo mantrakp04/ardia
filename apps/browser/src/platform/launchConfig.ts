@@ -1,8 +1,14 @@
-import { launchConfig as readLaunchConfig, type LaunchConfig } from "@ardia/shell";
+import { nativeModule, type LaunchConfig } from "@ardia/shell";
 
 let config: LaunchConfig | null = null;
 
-const current = (): LaunchConfig => (config ??= readLaunchConfig());
+const current = (): LaunchConfig => (config ??= nativeModule("ArdiaApp").launchConfig());
+
+export const configDirectory = (): string => current().configDirectory;
+
+export const isTestInstance = (): boolean => current().testInstance;
+
+export const feedbackURLOverride = (): string | null => current().feedbackURL ?? null;
 
 export const switchOverride = (name: string): boolean | undefined => current().switches[name];
 

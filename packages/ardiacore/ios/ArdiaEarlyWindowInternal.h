@@ -1,5 +1,6 @@
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaInternal.h"
+#import "ArdiaSavedSession.h"
 
 #include <os/lock.h>
 
@@ -59,13 +60,12 @@ NSHashTable<ArdiaCoreTab *> *Watched();
 dispatch_queue_t Writer();
 NSMutableArray<ArdiaEarlyShown *> *Shown();
 ArdiaEarlyShown *ShownForWindow(NSWindow *window);
-NSString *StateOf(NSDictionary *session, NSString *windowId);
-NSString *ContentOf(NSDictionary *session, NSString *windowId);
+NSString *StateOf(ArdiaSavedSession *session, NSString *windowId);
+NSString *ContentOf(ArdiaSavedSession *session, NSString *windowId);
 bool ReadInsets(id value, CGFloat out[4]);
 bool Fits(const CGFloat insets[4], NSView *host);
 NSRect RectFromInsets(const CGFloat insets[4], NSView *host);
 NSString *PicturePath(NSString *windowId);
-BOOL AddLiveGlass(NSArray *records, NSView *host, NSView *parent);
 BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMutableDictionary *layout);
 void DropPictureFile(NSString *windowId);
 void LoadLayouts();

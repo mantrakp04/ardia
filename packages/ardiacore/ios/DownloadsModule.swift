@@ -2,22 +2,20 @@ import ExpoModulesCore
 
 public class DownloadsModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaDownloads")
-    Events("downloads")
+    Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
     OnCreate {
-      EngineCall.listen("downloads", self)
       ArdiaServices.watchDownloadEvents()
     }
 
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      DownloadsModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static func command(_ action: String) -> CallHandler {
     { args, reply in
-      let id = args.text("id")
+      let id = try args.text("id")
       PageEngines.owner(of: id).downloadCommand(action, id: id)
       reply.ok()
     }

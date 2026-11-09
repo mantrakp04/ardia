@@ -8,10 +8,11 @@ final class ScriptTab: NSObject {
     uniqueID = id
   }
 
-  private var info: ShellScripting.TabInfo? { ShellScripting.tab(uniqueID) }
+  private var found: (window: ScriptWindowState, tab: ScriptTabState)? { ShellScripting.tab(uniqueID) }
+  private var info: ScriptTabState? { found?.tab }
 
   override var objectSpecifier: NSScriptObjectSpecifier? {
-    guard let windowId = info?.windowId else { return nil }
+    guard let windowId = found?.window.id else { return nil }
     let window = ScriptWindow(id: windowId)
     return NSUniqueIDSpecifier(
       containerClassDescription: NSScriptClassDescription(for: ScriptWindow.self)!, containerSpecifier: window.objectSpecifier,
@@ -22,8 +23,7 @@ final class ScriptTab: NSObject {
   @objc var loading: Bool { info?.loading ?? false }
   @objc var isPinned: Bool { info?.pinned ?? false }
   @objc var isFocused: Bool {
-    guard let info else { return false }
-    return ShellScripting.window(info.windowId)?.activeTabId == uniqueID
+    found?.window.activeTabId == uniqueID
   }
 
   @objc(URL) var scriptURL: String {

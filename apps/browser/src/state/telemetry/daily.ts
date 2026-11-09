@@ -1,9 +1,8 @@
 import { readDocument, saveDocument } from "../../platform/documents";
 import { updaterState } from "../../platform/app";
-import { devTestValue } from "../../platform/launchConfig";
-import { appInfo, environment, uuidv4 } from "./client";
-import { logRequest, type RequestLogEntry } from "./requestLog";
-import { DEV_SEND_TEST_KEY, LOGS_URL } from "./config";
+import { environment } from "./client";
+import { uuidv4 } from "./ids";
+import { appInfo, mayPost, post } from "./transport";
 import { EVENTS_SCOPE, eventRecord, logsRequest, outcome } from "./otlp";
 import { parseSaved, versionedJson, unchanged, type Migrations } from "../../lib/savedDocument";
 
@@ -85,8 +84,6 @@ async function saveDailyState(state: DailyState): Promise<boolean> {
   }
 }
 
-const allowedToSend = () => devTestValue(DEV_SEND_TEST_KEY) === "1" || (!__DEV__ && appInfo().isolatedInstance === false);
-
 async function updateChannel(): Promise<string | null> {
   try {
     const state = await updaterState();
@@ -130,22 +127,6 @@ let sending = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let nextAt = 0;
 
-async function post(body: string): Promise<number> {
-  const entry: RequestLogEntry = { at: new Date().toISOString(), kind: "daily", url: LOGS_URL, count: 1, bytes: body.length, status: null };
-  if (!allowedToSend()) {
-    logRequest({ ...entry, dryRun: true }, body);
-    return 200;
-  }
-  try {
-    const response = await fetch(LOGS_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body });
-    entry.status = response.status;
-  } catch {
-    entry.status = 0;
-  }
-  logRequest(entry, body);
-  return entry.status;
-}
-
 export async function sendDailyPing(now = Date.now()): Promise<"sent" | "already" | "failed" | "busy"> {
   if (sending) return "busy";
   sending = true;
@@ -161,7 +142,7 @@ export async function sendDailyPing(now = Date.now()): Promise<"sent" | "already
     if (!state.pending.length) return (failures = 0, "already");
     let sent = false;
     for (const ping of [...state.pending].sort((a, b) => a.timestamp.localeCompare(b.timestamp))) {
-      const result = outcome(await post(dailyBody(ping.id, ping.timestamp, ping.properties)), 1);
+      const result = outcome(await post("daily", dailyBody(ping.id, ping.timestamp, ping.properties), 1), 1);
       if (result === "retry" || result === "split") return (failures++, "failed");
       sent ||= result === "sent";
       const current = readDailyState();
@@ -190,7 +171,7 @@ export function startDaily(installedBefore: boolean) {
   schedule(FIRST_PING_DELAY_MS);
 }
 
-export const devDaily = () => ({ ...readDailyState(), existingInstall, failures, nextAt: nextAt ? new Date(nextAt).toISOString() : null, allowed: allowedToSend() });
+export const devDaily = () => ({ ...readDailyState(), existingInstall, failures, nextAt: nextAt ? new Date(nextAt).toISOString() : null, allowed: mayPost("daily") });
 
 export function resetDailyForTests(installedBefore = false) {
   clearTimeout(timer);

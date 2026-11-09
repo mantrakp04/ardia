@@ -3,9 +3,9 @@ import { compareVersions, isNightly } from "../../lib/versions";
 import { num, query, str } from "../clickhouse";
 import { APP_SOURCE, prop, since } from "../sql";
 
-const LAUNCH_KIND = `multiIf(properties['first_of_version'] = 'true' AND properties['cold'] = 'true', 'first-cold', properties['first_of_version'] = 'true', 'first', properties['cold'] = 'true', 'cold', 'warm')`;
-const PROFILES = `multiIf(toUInt32OrZero(properties['profiles']) <= 3, properties['profiles'], toUInt32OrZero(properties['profiles']) <= 5, '4–5', toUInt32OrZero(properties['profiles']) <= 9, '6–9', '10+')`;
-const TABS = `multiIf(toUInt32OrZero(properties['tabs']) = 0, '0', toUInt32OrZero(properties['tabs']) <= 5, '1–5', toUInt32OrZero(properties['tabs']) <= 20, '6–20', toUInt32OrZero(properties['tabs']) <= 50, '21–50', '51+')`;
+export const LAUNCH_KIND = `multiIf(properties['first_of_version'] = 'true' AND properties['cold'] = 'true', 'first-cold', properties['first_of_version'] = 'true', 'first', properties['cold'] = 'true', 'cold', 'warm')`;
+export const PROFILES = `multiIf(toUInt32OrZero(properties['profiles']) <= 3, properties['profiles'], toUInt32OrZero(properties['profiles']) <= 5, '4–5', toUInt32OrZero(properties['profiles']) <= 9, '6–9', '10+')`;
+export const TABS = `multiIf(toUInt32OrZero(properties['tabs']) = 0, '0', toUInt32OrZero(properties['tabs']) <= 5, '1–5', toUInt32OrZero(properties['tabs']) <= 20, '6–20', toUInt32OrZero(properties['tabs']) <= 50, '21–50', '51+')`;
 
 export const METRICS = ["launch", "omnibox_p50", "omnibox_p95", "switch", "memory"] as const;
 export type Metric = (typeof METRICS)[number];

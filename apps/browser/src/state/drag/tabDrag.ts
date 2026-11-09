@@ -6,16 +6,22 @@ import { lastPicture, startTabPictures } from "../tabs/tabPictures";
 import { webviews } from "../../platform/webviews";
 import { useBrowser } from "../browser/store";
 import type { Frame } from "../browser/types";
-import { splitOf, type SplitSide } from "../splits/splits";
+import { tabTitle } from "../browser/model";
+import { splitOf, type SplitSide, splitTabIdsOf } from "../splits/splits";
 import { dropTabIntoSplit } from "../splits/actions";
 import { dropTabsOutside, screenPoint, windowUnder } from "./windowDrop";
+import { dropTabsOnBar, followTabDragOnBar } from "../bookmarks/barDrag";
 
 export type DropTarget = { tabId: string; side: SplitSide };
+type Insert = { windowId: string; beforeId: string | null };
+type Picture = { chip: () => [number, number, number, number]; grab: [number, number] };
+type TabDragSession = { seq: number; liveFrame: Frame | null; pointer: [number, number]; picture: Picture | null; sentShape: DragPreviewShape };
 
-type TabDrag = {
+export type TabDragging = {
+  phase: "tab";
   tabId: string | null;
   tabIds: string[];
-  windowId: string | null;
+  windowId: string;
   x: number;
   y: number;
   lifted: boolean | null;
@@ -24,70 +30,76 @@ type TabDrag = {
   outside: boolean;
   overWindow: string | null;
   overPoint: [number, number] | null;
-  insert: { windowId: string; beforeId: string | null } | null;
+  insert: Insert | null;
+  session: TabDragSession;
 };
 
-export const useTabDrag = create<TabDrag>()(() => ({
-  tabId: null,
-  tabIds: [],
-  windowId: null,
-  x: 0,
-  y: 0,
-  lifted: null,
-  onPage: false,
-  target: null,
-  outside: false,
-  overWindow: null,
-  overPoint: null,
-  insert: null,
-}));
+export type ExternalDragging = {
+  phase: "external";
+  owner: { windowId: string; token: number };
+  overWindow: string;
+  overPoint: [number, number];
+  insert: Insert | null;
+};
+
+export type TabDrag = { phase: "idle" } | TabDragging | ExternalDragging;
+
+const IDLE: TabDrag = { phase: "idle" };
+
+export const useTabDrag = create<TabDrag>()(() => IDLE);
+
+useTabDrag.subscribe(followTabDragOnBar);
 
 if (__DEV__) (globalThis as { acTabDrag?: typeof useTabDrag }).acTabDrag = useTabDrag;
 
 startTabPictures();
 
 let dragSeq = 0;
-let liveFrame: Frame | null = null;
-let pointer: [number, number] = [-1, -1];
-type Picture = { chip: () => [number, number, number, number]; grab: [number, number] };
-let picture: Picture | null = null;
-let sentShape: DragPreviewShape = "hidden";
-let begun = false;
+let previewShown = false;
 
-export const tabDragging = () => useTabDrag.getState().tabIds.length > 0;
+const tabDragState = (): TabDragging | null => {
+  const d = useTabDrag.getState();
+  return d.phase === "tab" ? d : null;
+};
 
-export const tabDragOutside = () => useTabDrag.getState().outside;
+export const tabDragging = () => useTabDrag.getState().phase !== "idle";
+
+export const tabDragOutside = () => !!tabDragState()?.outside;
 
 export function beginTabDrag(tabId: string | null, tabIds: string[] = tabId ? [tabId] : []): number {
-  if (begun) dragPreview.cancel();
-  begun = false;
-  picture = null;
-  sentShape = "hidden";
-  pointer = [-1, -1];
-  const windowId = useBrowser.getState().tabs[tabIds[0] ?? ""]?.windowId ?? null;
-  useTabDrag.setState({ ...IDLE, tabId, tabIds, windowId, x: -1, y: -1 });
+  if (previewShown) dragPreview.cancel();
+  previewShown = false;
   const seq = ++dragSeq;
-  liveFrame = null;
-  if (windowId)
-    void windowFrame(windowId)
-      .then((frame) => {
-        if (seq === dragSeq) liveFrame = frame;
-      })
-      .catch(() => {});
+  const windowId = useBrowser.getState().tabs[tabIds[0] ?? ""]?.windowId;
+  if (!windowId) {
+    useTabDrag.setState(IDLE, true);
+    return seq;
+  }
+  const session: TabDragSession = { seq, liveFrame: null, pointer: [-1, -1], picture: null, sentShape: "hidden" };
+  useTabDrag.setState(
+    { phase: "tab", tabId, tabIds, windowId, x: -1, y: -1, lifted: null, onPage: false, target: null, outside: false, overWindow: null, overPoint: null, insert: null, session },
+    true,
+  );
+  void windowFrame(windowId)
+    .then((frame) => {
+      session.liveFrame = frame;
+    })
+    .catch(() => {});
   return seq;
 }
 
 export function updateTabDrag(x: number, y: number, lifted: boolean | null = null) {
-  const drag = useTabDrag.getState();
-  if (!drag.tabIds.length || !drag.windowId) return;
+  const drag = tabDragState();
+  if (!drag) return;
+  const { session } = drag;
   const s = useBrowser.getState();
-  const { outside, overWindow } = windowUnder(s, drag.windowId, x, y, liveFrame);
+  const { outside, overWindow } = windowUnder(s, drag.windowId, x, y, session.liveFrame);
   if (overWindow && overWindow !== drag.overWindow && s.settings.tabReorderHaptics) hapticTick();
-  const screen = overWindow ? screenPoint(s, drag.windowId, x, y, liveFrame) : null;
+  const screen = overWindow ? screenPoint(s, drag.windowId, x, y, session.liveFrame) : null;
   const over = overWindow ? s.windows[overWindow]?.frame : null;
   const overPoint: [number, number] | null = screen && over ? [screen[0] - over[0], over[1] + over[3] - screen[1]] : null;
   const insert = drag.insert?.windowId === overWindow ? drag.insert : null;
-  pointer = [x, y];
+  session.pointer = [x, y];
   if (lifted === false && drag.lifted === false && !outside && !drag.outside) return;
   useTabDrag.setState({ x, y, lifted, outside, overWindow, overPoint, insert });
   syncPreview();
@@ -100,7 +112,9 @@ export function setInsertResolver(windowId: string, resolver: ((point: [number, 
 }
 
 export function setInsert(windowId: string, beforeId: string | null | undefined) {
-  const { overWindow, insert } = useTabDrag.getState();
+  const d = useTabDrag.getState();
+  if (d.phase === "idle") return;
+  const { overWindow, insert } = d;
   const next = overWindow === windowId && beforeId !== undefined ? { windowId, beforeId } : null;
   if (insert?.windowId === next?.windowId && insert?.beforeId === next?.beforeId) return;
   if (!next && insert?.windowId !== windowId) return;
@@ -108,57 +122,55 @@ export function setInsert(windowId: string, beforeId: string | null | undefined)
   syncPreview();
 }
 
-function previewShape(d: TabDrag): DragPreviewShape {
-  if (!d.tabIds.length) return "hidden";
+function previewShape(d: TabDragging): DragPreviewShape {
   if (d.outside) return d.overWindow && d.insert?.windowId === d.overWindow ? "pill" : "card";
   return (d.lifted ?? d.onPage) ? "card" : "hidden";
 }
 
 function syncPreview() {
-  const d = useTabDrag.getState();
-  if (!d.windowId) return;
+  const d = tabDragState();
+  if (!d) return;
+  const { session } = d;
   const shape = previewShape(d);
-  if (shape === "hidden" && sentShape === "hidden") return;
-  if (shape !== "hidden" && picture) takePicture(picture, d.windowId);
-  sentShape = shape;
-  dragPreview.update(shape, pointer);
+  if (shape === "hidden" && session.sentShape === "hidden") return;
+  if (shape !== "hidden" && session.picture) takePicture(d, session.picture);
+  session.sentShape = shape;
+  dragPreview.update(shape, session.pointer);
 }
 
 export function setDragPicture(drag: number, chip: [number, number, number, number] | (() => [number, number, number, number]), grab: [number, number]) {
-  const { windowId, tabIds } = useTabDrag.getState();
-  if (drag !== dragSeq || !windowId || !tabIds.length) return;
+  const d = tabDragState();
+  if (d?.session.seq !== drag) return;
   const rect = typeof chip === "function" ? chip() : chip;
-  picture = { chip: typeof chip === "function" ? chip : () => chip, grab: [grab[0] - rect[0], grab[1] - rect[1]] };
+  d.session.picture = { chip: typeof chip === "function" ? chip : () => chip, grab: [grab[0] - rect[0], grab[1] - rect[1]] };
   syncPreview();
 }
 
-function takePicture({ chip, grab }: Picture, windowId: string) {
-  picture = null;
-  begun = true;
-  const drag = dragSeq;
-  const { tabId } = useTabDrag.getState();
+function takePicture({ session, windowId, tabId }: TabDragging, { chip, grab }: Picture) {
+  session.picture = null;
+  previewShown = true;
   const rect = chip();
   dragPreview.begin(windowId, rect, [rect[0] + grab[0], rect[1] + grab[1]]);
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   const active = w?.activeTabIds[w.profileId];
   const shown = tabId ?? active;
-  const onScreen = !!shown && (shown === active || !!splitOf(s, active)?.tabIds.includes(shown));
+  const onScreen = !!shown && (shown === active || !!splitTabIdsOf(splitOf(s, active))?.includes(shown));
   const live = (onScreen && webviews.get(shown)?.capturePicture(0.35).catch(() => null)) || Promise.resolve(null);
   void live.then((page) => {
-    if (drag !== dragSeq || !useTabDrag.getState().tabIds.length) return;
+    if (tabDragState()?.session !== session) return;
     if (page) return dragPreview.page(page.data, page.frame);
     const tab = shown ? useBrowser.getState().tabs[shown] : undefined;
     if (!shown || (onScreen && !tab?.url)) return;
     const last = lastPicture(shown);
     if (last) return dragPreview.page(last.data, last.frame);
-    if (tab) dragPreview.placeholder(tab.customTitle || tab.title || tab.url || "New Tab", tab.favicon);
+    if (tab) dragPreview.placeholder(tabTitle(tab), tab.favicon);
   });
 }
 
 export function setDropTarget(target: DropTarget | null) {
-  const current = useTabDrag.getState().target;
-  if (current?.tabId === target?.tabId && current?.side === target?.side) return;
+  const d = tabDragState();
+  if (!d || (d.target?.tabId === target?.tabId && d.target?.side === target?.side)) return;
   useTabDrag.setState({ target });
 }
 
@@ -168,48 +180,42 @@ export function setTargetResolver(resolver: typeof resolveTarget) {
 }
 
 export function setOnPage(onPage: boolean) {
-  if (useTabDrag.getState().onPage === onPage) return;
+  const d = tabDragState();
+  if (!d || d.onPage === onPage) return;
   useTabDrag.setState({ onPage });
   syncPreview();
 }
 
-const IDLE = {
-  tabId: null,
-  tabIds: [],
-  windowId: null,
-  lifted: null,
-  onPage: false,
-  target: null,
-  outside: false,
-  overWindow: null,
-  overPoint: null,
-  insert: null,
-} as const;
-
 export function endTabDrag(): boolean {
-  const drag = useTabDrag.getState();
-  const { tabId, tabIds, windowId, outside, overWindow, overPoint } = drag;
-  const [x, y] = pointer;
+  const drag = tabDragState();
+  if (!drag) {
+    useTabDrag.setState(IDLE, true);
+    if (previewShown) dragPreview.end();
+    return false;
+  }
+  const { tabId, tabIds, windowId, outside, overWindow, overPoint, session } = drag;
+  const [x, y] = session.pointer;
   const resolveInsert = overWindow && overPoint ? insertResolvers.get(overWindow) : undefined;
-  const insertBefore = resolveInsert ? resolveInsert(overPoint!) : drag.insert?.windowId === overWindow ? drag.insert?.beforeId : undefined;
+  const insertBefore = resolveInsert && overPoint ? resolveInsert(overPoint) : drag.insert?.windowId === overWindow ? drag.insert?.beforeId : undefined;
   const target = resolveTarget ? resolveTarget(x, y, drag.target, outside) : drag.target;
   const onPage = !outside && !!(drag.lifted ?? drag.onPage);
-  useTabDrag.setState({ ...IDLE, tabIds: [] });
-  dragSeq++;
-  picture = null;
-  const shown = begun;
-  sentShape = "hidden";
+  useTabDrag.setState(IDLE, true);
+  const shown = previewShown;
+  if (!outside && dropTabsOnBar(tabIds, windowId, x, y)) {
+    if (shown) dragPreview.end();
+    return true;
+  }
   if (target && tabId) {
     dragPreview.end();
     dropTabIntoSplit(tabId, target.tabId, target.side);
     return true;
   }
-  if (!(outside || onPage) || !windowId || !tabIds.length) {
+  if (!(outside || onPage)) {
     if (shown) dragPreview.end();
     return false;
   }
   const asked: { frame: [number, number, number, number] | null } = { frame: null };
-  const moved = dropTabsOutside(tabIds, windowId, x, y, (frame) => (asked.frame = frame), liveFrame);
+  const moved = dropTabsOutside(tabIds, windowId, x, y, (frame) => (asked.frame = frame), session.liveFrame);
   dragPreview.end(asked.frame ? moved : null, asked.frame);
   if (moved && moved === overWindow && insertBefore !== undefined) useBrowser.getState().placeTabs(tabIds, { pinned: false, beforeId: insertBefore });
   if (moved) focus(moved);
@@ -217,35 +223,29 @@ export function endTabDrag(): boolean {
 }
 
 export function cancelTabDrag() {
-  useTabDrag.setState({ ...IDLE, tabIds: [] });
-  dragSeq++;
-  picture = null;
-  if (begun) dragPreview.cancel();
-  begun = false;
-  sentShape = "hidden";
+  useTabDrag.setState(IDLE, true);
+  if (previewShown) dragPreview.cancel();
+  previewShown = false;
 }
 
-const EXTERNAL_DRAG = "external";
-let externalOwner: { windowId: string; token: number } | null = null;
-const ownsExternal = (windowId: string, token: number) =>
-  useTabDrag.getState().windowId === EXTERNAL_DRAG && externalOwner?.windowId === windowId && externalOwner.token === token;
+const ownedExternal = (windowId: string, token: number) => {
+  const d = useTabDrag.getState();
+  return d.phase === "external" && d.owner.windowId === windowId && d.owner.token === token;
+};
 
 export function beginExternalDrag(windowId: string, point: [number, number], token: number) {
-  const drag = useTabDrag.getState();
-  if (drag.tabIds.length && drag.windowId !== EXTERNAL_DRAG) return;
-  externalOwner = { windowId, token };
-  useTabDrag.setState({ ...IDLE, tabIds: [EXTERNAL_DRAG], windowId: EXTERNAL_DRAG, overWindow: windowId, overPoint: point, x: -1, y: -1 });
+  if (useTabDrag.getState().phase === "tab") return;
+  useTabDrag.setState({ phase: "external", owner: { windowId, token }, overWindow: windowId, overPoint: point, insert: null }, true);
 }
 
 export function moveExternalDrag(windowId: string, point: [number, number], token: number) {
-  if (ownsExternal(windowId, token)) useTabDrag.setState({ overPoint: point });
+  if (ownedExternal(windowId, token)) useTabDrag.setState({ overPoint: point });
 }
 
 export function endExternalDrag(windowId: string, point: [number, number] | null, token: number): string | null | undefined {
-  if (!ownsExternal(windowId, token)) return undefined;
+  if (!ownedExternal(windowId, token)) return undefined;
   const resolve = point ? insertResolvers.get(windowId) : undefined;
   const beforeId = resolve && point ? resolve(point) : undefined;
-  externalOwner = null;
-  useTabDrag.setState({ ...IDLE, tabIds: [] });
+  useTabDrag.setState(IDLE, true);
   return beforeId;
 }

@@ -1,28 +1,27 @@
 import { memo, useEffect, useMemo, useState, type RefObject } from "react";
-import { Animated, Text, View } from "react-native";
-import { radius, Symbol, weight } from "../ui";
+import { Animated, View } from "react-native";
+import { radius, space, Symbol, Text } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useSettings } from "../../state/browser/hooks";
 import { isIncognitoProfile } from "../../state/browser/model";
 import { newCapture } from "../../state/sidebar/listCapture";
-import { useCanTidyPins, useCapturedSidebarEntries } from "../../state/sidebar/hooks";
+import { useCanTidyPins, useCapturedSidebarEntries, usePinnedCollapsed, usePinnedKept } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { ClearDivider } from "./ClearDivider";
 import { useDragController, useDragItem } from "./DragProvider";
-import { type EntryMotion } from "./EntryMotion";
-import { GroupBlock } from "./GroupBlock";
+import { Fold, useFold } from "./Fold";
+import { SidebarEntry } from "./GroupBlock";
 import { GhostSlot, ListMotionContext, useListMotion } from "./ListMotion";
-import { LiveFolderBlock } from "./LiveFolderBlock";
 import { PinnedGrid } from "./PinnedGrid";
-import { LIVE, usePinnedSequence } from "../../state/sidebar/pinnedOrder";
+import { usePinnedSequence } from "../../state/sidebar/pinnedOrder";
 import { SCROLL_EDGE } from "./ScrollEdge";
-import { firstPaintEntriesNow, usePendingEntriesHeight } from "../../state/sidebar/geometry";
-import { SplitRowItem, TabRowItem } from "./TabRow";
+import { entryHeightNow, firstPaintEntriesNow, usePendingEntriesHeight } from "../../state/sidebar/geometry";
 import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
 import { ROW_PITCH, ROWS_PER_FRAME, type SidebarGeometry } from "./pageLayout";
 import { NewTabRow } from "./NewTabRow";
 import { CleanUpUpsell } from "./CleanUpUpsell";
-import { SIDEBAR_TYPE, sidebarTokens } from "./tokens";
+import { sidebarTokens, TAB_ROW } from "./tokens";
+import { tailKey } from "./dragModel";
 
 type PageRowsProps = {
   windowId: string;
@@ -32,14 +31,18 @@ type PageRowsProps = {
   lazy: boolean;
   offScreen: boolean;
   tiles: string[];
+  underDockedTiles: boolean;
   innerWidth: number;
   inlineNewTab: boolean;
   controller: ReturnType<typeof useDragController>;
   geometry: RefObject<SidebarGeometry> | undefined;
+  regions: SidebarGeometry["regions"];
   onListHeight: (height: number) => void;
 };
 
-export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
+const DOCKED_TILES_GAP = SCROLL_EDGE.gap + SCROLL_EDGE.line + SCROLL_EDGE.inset;
+
+export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, regions, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
   const { list: all } = useCapturedSidebarEntries(windowId, profileId, captured);
   const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, profileId, all, lazy));
@@ -58,9 +61,13 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const showClear = useSettings((s) => s.showClearButton);
   const clearable = showClear && !offScreen && all.length > 0;
   const tidy = useCanTidyPins(windowId, profileId, offScreen);
-  const divided = clearable || tidy;
   const pinned = usePinnedSequence(windowId, profileId, offScreen);
   const pinnedSection = pinned.length > 0;
+  const divided = clearable || tidy || pinnedSection;
+  const collapsed = usePinnedCollapsed(profileId);
+  const pinnedFold = useFold(collapsed);
+  const kept = usePinnedKept(windowId, profileId, pinned);
+  const pinnedGap = collapsed && !kept && !pinnedFold.moving ? 0 : layout.rowGap;
   const newTabButtonAtTop = useSettings((s) => s.newTabButtonPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
@@ -77,21 +84,37 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);
           }}
-          onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
-          style={{ marginTop: tiles.length ? 6 : 0, gap: layout.rowGap }}
+          onLayout={(e) => void (regions.pinnedGroups = e.nativeEvent.layout.y)}
+          style={{ marginTop: tiles.length && pinnedSection ? space.s : 0, gap: pinnedGap }}
         >
-          {pinned.map((entry) => (
-            <PinnedEntry key={entry} entry={entry} windowId={windowId} />
-          ))}
-          <Tail id="tail:pinnedGroups" section="pinnedGroups" />
+          {pinnedSection ? (
+            <Fold
+              fold={pinnedFold}
+              collapsed={collapsed}
+              entries={pinned.map((entry) => ({ key: entry, node: <SidebarEntry entry={entry} section="pinnedGroups" rowSection="pinnedRows" /> }))}
+              keep={kept}
+              estimate={(key) => entryHeightNow(windowId, profileId, key)}
+            />
+          ) : null}
+          <Tail section="pinnedGroups" />
         </View>
-        {divided ? <ClearDivider windowId={windowId} profileId={profileId} spaced={pinnedSection} clear={clearable} tidy={tidy} /> : null}
+        {divided ? (
+          <ClearDivider
+            windowId={windowId}
+            profileId={profileId}
+            spaced={pinnedSection}
+            lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
+            clear={clearable}
+            tidy={tidy}
+            pinned={pinnedSection ? { collapsed, open: pinnedFold.open } : null}
+          />
+        ) : null}
         <View
           ref={(v) => {
             controller?.regions.set("list", v);
           }}
-          onLayout={geometry ? (e) => void (geometry.current.regions.list = e.nativeEvent.layout.y) : undefined}
-          style={{ marginTop: pinnedSection && !divided ? 7 : 0, gap: layout.rowGap }}
+          onLayout={(e) => void (regions.list = e.nativeEvent.layout.y)}
+          style={{ gap: layout.rowGap }}
         >
           {newTabButtonAtTop && inlineNewTab ? <NewTabRow windowId={windowId} /> : null}
           {motion.fading
@@ -99,12 +122,12 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
                 "ghost" in slot ? (
                   <GhostSlot key={slot.ghost.key} snapshot={slot.ghost.snapshot} top={slot.top} opacity={slot.ghost.opacity} />
                 ) : (
-                  <ListEntry key={slot.entry} entry={slot.entry} motion={motion.motion(slot.entry)} />
+                  <SidebarEntry key={slot.entry} entry={slot.entry} section="list" motion={motion.motion(slot.entry)} />
                 ),
               )
-            : list.map((entry) => <ListEntry key={entry} entry={entry} motion={motion.motion(entry)} />)}
+            : list.map((entry) => <SidebarEntry key={entry} entry={entry} section="list" motion={motion.motion(entry)} />)}
           {pending ? <View style={{ height: pending }} /> : null}
-          <Tail id="tail:list" section="list" />
+          <Tail section="list" />
           {!newTabButtonAtTop && inlineNewTab ? <NewTabRow windowId={windowId} shift={motion.tail} clip={motion.tailClip} /> : null}
         </View>
         {current ? <CleanUpUpsell windowId={windowId} shift={motion.tail} /> : null}
@@ -113,23 +136,8 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   );
 }
 
-const PinnedEntry = memo(function PinnedEntry({ entry, windowId }: { entry: string; windowId: string }) {
-  const id = entry.slice(entry.indexOf(":") + 1);
-  if (entry.startsWith(LIVE)) return <LiveFolderBlock folderId={id} windowId={windowId} />;
-  if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="pinnedGroups" />;
-  if (entry.startsWith("s:")) return <SplitRowItem splitId={id} section="pinnedRows" />;
-  return <TabRowItem tabId={id} section="pinnedRows" />;
-});
-
-const ListEntry = memo(function ListEntry({ entry, motion }: { entry: string; motion: EntryMotion | null }) {
-  const id = entry.slice(2);
-  if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="list" motion={motion} />;
-  if (entry.startsWith("s:")) return <SplitRowItem splitId={id} section="list" motion={motion} />;
-  return <TabRowItem tabId={id} section="list" motion={motion} />;
-});
-
-const Tail = memo(function Tail({ id, section }: { id: string; section: "list" | "pinnedRows" | "pinnedGroups" }) {
-  const { wrapper } = useDragItem(id, { kind: "tail", tabIds: [], section });
+const Tail = memo(function Tail({ section }: { section: "list" | "pinnedGroups" }) {
+  const { wrapper } = useDragItem(tailKey(section), { kind: "tail", tabIds: [], section });
   return <Animated.View ref={wrapper.ref} style={wrapper.style} />;
 });
 
@@ -137,9 +145,11 @@ function IncognitoBadge() {
   const theme = useTheme();
   if (!useAddressBarInSidebar()) return null;
   return (
-    <View style={{ height: 30, marginBottom: 4, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, borderRadius: radius.l, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
+    <View style={{ height: 30, marginBottom: space.xs, paddingHorizontal: TAB_ROW.contentLeft, flexDirection: "row", alignItems: "center", gap: space.m, borderRadius: radius.tile, backgroundColor: sidebarTokens(theme).incognitoBadge }}>
       <Symbol name={INCOGNITO_ICON} size={13} weight="semibold" color={theme.textPrimary} style={{ width: 18, height: 16 }} />
-      <Text style={{ fontSize: SIDEBAR_TYPE.compact, fontWeight: weight.semibold, color: theme.textPrimary }}>Incognito</Text>
+      <Text size="small" weight="semibold">
+        Incognito
+      </Text>
     </View>
   );
 }

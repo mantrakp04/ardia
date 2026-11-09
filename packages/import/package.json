@@ -11,6 +11,9 @@
     "test": "swift test --scratch-path \"${TMPDIR:-/tmp}/ardia-import-swiftpm\"",
     "fixtures": "python3 fixtures/generate.py"
   },
+  "dependencies": {
+    "@ardia/core": "workspace:*"
+  },
   "peerDependencies": {
     "expo": "*",
     "react-native": "*"

@@ -4,4 +4,16 @@ export const profileColors = {
   unknownSwatch: "#888888",
 } as const;
 
-export const profileType = { sheetTitle: 15, sheetBody: 12.5, sheetBodyLine: 17, noteLine: 15 } as const;
+export const SHARE_ROW_HEIGHT = 32;
+
+export const profileSwitcher = {
+  height: 41,
+  band: 28,
+  dotCell: 12,
+  dot: 6,
+  iconCell: 26,
+  icon: 11,
+  dotTooltipLift: 18.25,
+  dots: { selected: 0.85, hovered: 0.4, idle: 0.2 },
+  icons: { selected: 1, hovered: 0.7, idle: 0.42 },
+} as const;

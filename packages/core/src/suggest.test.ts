@@ -28,6 +28,8 @@ function rows(items: Suggestion[]): string[] {
         return `create:${i.id}`;
       case "extension":
         return `extension:${i.open}:${i.id}`;
+      case "provider":
+        return `provider:${i.providerId}:${i.url}`;
     }
   });
 }

@@ -1,7 +1,6 @@
 import { Animated } from "react-native";
 import { dragGeometry, type DragGeometry } from "./stripGroups";
-
-export const SLIDE = { stiffness: 8100, damping: 180, mass: 1, restDisplacementThreshold: 0.25, restSpeedThreshold: 2, useNativeDriver: false } as const;
+import { SLIDE } from "./tokens";
 
 type Slot = { geometry: () => DragGeometry; index: () => number; shift: Animated.Value; to: number };
 const slots = new Set<Slot>();

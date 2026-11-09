@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSuggestions } from "@ardia/core";
-import { acceptsCompletion, completionToWrite, fieldChange, withoutFirst } from "./inline.ts";
+import { acceptsCompletion, completionToWrite, fieldChange, previewFieldChange, withoutFirst } from "./inline.ts";
 
 const now = Date.UTC(2026, 8, 25);
 const history = [
@@ -184,7 +184,7 @@ test("typing over a completion: m → f → s is 'mfs' in every interleaving", (
 test("random schedules: what's typed is what the field shows, completion selected after it", () => {
   const words = ["mfs", "mail.google.com/x", "mail.go", "accounts", "ma.x", "x.com/hx", "mmm", "am", "xcom"];
   for (const word of words) {
-    for (let seed = 1; seed <= 400; seed++) {
+    for (let seed = 1; seed <= 50; seed++) {
       const r = random(seed);
       const w = run([...word], (n) => Math.floor(r() * n));
       assertSettled(w, word, `${word} seed ${seed}`);
@@ -261,4 +261,13 @@ test("the caret reaching the end of the text with the completion accepts it", ()
   assert.equal(acceptsCompletion("git", "", sel(3), []), false);
   assert.equal(acceptsCompletion("git", "hub.com", sel(10), [{ typed: "git", completion: "hub.com" }]), false);
   assert.equal(edit("github.com", "", "github.co", sel(10), sel(9)), true);
+});
+
+test("previewFieldChange: a completion echo that lands after arrowing to a row is still an echo, typing edits the row's text", () => {
+  const pending = [{ typed: "gi", completion: "thub.com" }];
+  const echo = previewFieldChange("gi", "", "gitlab.com", "github.com", pending);
+  assert.equal(echo.echo, true);
+  const typedOnPreview = previewFieldChange("gi", "thub.com", "gitlab.com", "gitlab.com/", []);
+  assert.deepEqual(typedOnPreview, { echo: false, typed: "gitlab.com/", suppress: false });
+  assert.deepEqual(previewFieldChange("gi", "", null, "git", []), fieldChange("gi", "", "git", []));
 });

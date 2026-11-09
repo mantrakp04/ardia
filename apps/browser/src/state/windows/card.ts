@@ -1,17 +1,18 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useBrowser } from "../browser/store";
-import { activeTabId, wake } from "../browser/model";
+import { useBrowser, type BrowserState } from "../browser/store";
+import { activeTabId, engineProfile } from "../browser/model";
 import type { SplitView, Tab } from "../browser/types";
 import { tabEngine } from "../engines/engines";
 import { holderOf } from "../pins/pinShare";
 import { splitOf } from "../splits/splits";
-import { needsPage } from "../tabs/pageSession";
+import { adoptOf, frozenOn, needsPage, wokenPage } from "../tabs/pageSession";
 import { pageOf, patchPage } from "../tabs/pageState";
 import { wantsPage } from "../tabs/tabPages";
 import { removeTabs } from "../tabs/tabs";
 import { isSmallWindow } from "./small";
 import type { PagerPage } from "./profilePager";
+import { isWebPageUrl } from "../../lib/url";
 
 export const useSplitOf = (tabId: string | undefined) => useBrowser((s) => splitOf(s, tabId));
 
@@ -60,7 +61,7 @@ export function wakePanes(ids: string[]) {
     const t = s.tabs[id];
     if (!t || !needsPage(t)) continue;
     const holder = holderOf(s, id);
-    s.updateTab(id, holder ? { pageIn: holder.id, unloaded: undefined } : wake(t));
+    s.updateTab(id, { page: holder ? frozenOn(t, holder.id) : wokenPage(t) });
   }
 }
 
@@ -81,40 +82,46 @@ export const useWarmTabIds = (windowId: string, pagerPages: PagerPage[] | null, 
 
 export const useSplitsOf = (tabIds: string[]) => useBrowser(useShallow((s) => tabIds.map((id) => splitOf(s, id)).filter((v): v is SplitView => !!v)));
 
-export function useShownPaneKeys(mounted: string[], panes: object): string[] {
-  const shownMemo = useRef<{ mounted?: string[]; panes?: object; tabs?: object; keys: string[]; ids: string[]; found: (Tab | undefined)[] }>({ keys: [], ids: [], found: [] });
-  return useBrowser(
-    useShallow((s) => {
-      const memo = shownMemo.current;
-      if (memo.mounted === mounted && memo.panes === panes) {
-        if (memo.tabs === s.tabs) return memo.keys;
-        let same = true;
-        let found = memo.found;
-        for (let i = 0; i < memo.ids.length && same; i++) {
-          const t = s.tabs[memo.ids[i]!];
-          const was = found[i];
-          if (t === was) continue;
-          if (!t || !was || t.createdAt !== was.createdAt || t.profileId !== was.profileId) same = false;
-          else {
-            if (found === memo.found) found = found.slice();
-            found[i] = t;
-          }
-        }
-        if (same) {
-          shownMemo.current = { ...memo, tabs: s.tabs, found };
-          return memo.keys;
-        }
+type ShownMemo = { mounted?: string[]; panes?: object; tabs?: object; profiles?: object; keys: string[]; ids: string[]; found: (Tab | undefined)[] };
+
+export const newShownMemo = (): ShownMemo => ({ keys: [], ids: [], found: [] });
+
+export const paneKeyOf = (s: Pick<BrowserState, "profiles">, t: Pick<Tab, "id" | "profileId">) => `${t.id}|${engineProfile(s, t.profileId)}`;
+
+export function shownPaneKeys(shownMemo: { current: ShownMemo }, s: BrowserState, mounted: string[], panes: object): string[] {
+  const memo = shownMemo.current;
+  if (memo.mounted === mounted && memo.panes === panes && memo.profiles === s.profiles) {
+    if (memo.tabs === s.tabs) return memo.keys;
+    let same = true;
+    let found = memo.found;
+    for (let i = 0; i < memo.ids.length && same; i++) {
+      const t = s.tabs[memo.ids[i]!];
+      const was = found[i];
+      if (t === was) continue;
+      if (!t || !was || t.createdAt !== was.createdAt || paneKeyOf(s, t) !== paneKeyOf(s, was)) same = false;
+      else {
+        if (found === memo.found) found = found.slice();
+        found[i] = t;
       }
-      const ids = [...new Set([...mounted, ...Object.keys(panes)])];
-      const found = ids.map((id) => s.tabs[id]);
-      const keys = found
-        .filter((t): t is Tab => !!t)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((t) => `${t.id}|${t.profileId}`);
-      shownMemo.current = { mounted, panes, tabs: s.tabs, keys, ids, found };
-      return keys;
-    }),
-  );
+    }
+    if (same) {
+      shownMemo.current = { ...memo, tabs: s.tabs, found };
+      return memo.keys;
+    }
+  }
+  const ids = [...new Set([...mounted, ...Object.keys(panes)])];
+  const found = ids.map((id) => s.tabs[id]);
+  const keys = found
+    .filter((t): t is Tab => !!t)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((t) => paneKeyOf(s, t));
+  shownMemo.current = { mounted, panes, tabs: s.tabs, profiles: s.profiles, keys, ids, found };
+  return keys;
+}
+
+export function useShownPaneKeys(mounted: string[], panes: object): string[] {
+  const shownMemo = useRef<ShownMemo>(newShownMemo());
+  return useBrowser(useShallow((s) => shownPaneKeys(shownMemo, s, mounted, panes)));
 }
 
 export function downloadNavigated(tabId: string, committedUrl: string | null | undefined, skipped: boolean | undefined) {
@@ -127,14 +134,27 @@ export function downloadNavigated(tabId: string, committedUrl: string | null | u
     return;
   }
   const others = s.windows[t.windowId]?.tabIds.some((id) => id !== tabId && s.tabs[id]?.profileId === t.profileId);
-  const opened = !!(t.openerId || t.adoptId) && !pageOf(tabId).wasNewTab;
+  const opened = !!(t.openerId || adoptOf(t)) && !pageOf(tabId).wasNewTab;
   if (!skipped && opened && !s.live[tabId]?.canGoBack && others) return useBrowser.getState().closeTab(tabId);
   patchPage(tabId, { backToNewTab: false, newTabShown: null });
   useBrowser.getState().updateTab(tabId, { url: "", title: "", favicon: null });
 }
 
+
+export function newTabLingeringOver(windowId: string, from: string | undefined, to: string | undefined, mounted: string[]): string | undefined {
+  if (!from || !to || from === to || !mounted.includes(to)) return undefined;
+  const s = useBrowser.getState();
+  const was = s.tabs[from];
+  const next = s.tabs[to];
+  if (!was || !next || was.url || was.windowId !== windowId || next.windowId !== windowId || !isWebPageUrl(next.url)) return undefined;
+  if (isSmallWindow(s.windows[windowId]) || splitOf(s, from) || splitOf(s, to)) return undefined;
+  return from;
+}
+
 export function activateFocusedPane(tabId: string) {
   const s = useBrowser.getState();
   const t = s.tabs[tabId];
-  if (t && splitOf(s, tabId) && s.windows[t.windowId]?.activeTabIds[t.profileId] !== tabId) s.activate(tabId);
+  const split = t && splitOf(s, tabId);
+  const shown = t && activeTabId(s, t.windowId);
+  if (split && shown !== tabId && splitOf(s, shown)?.id === split.id) s.activate(tabId);
 }

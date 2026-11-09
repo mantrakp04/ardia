@@ -4,9 +4,8 @@ set -euo pipefail
 old="${1:?usage: channel-test.sh <installed app> [new app]}"
 new="${2:-$old}"
 here="$(cd "$(dirname "$0")" && pwd)"
-root="$(git -C "$here" rev-parse --show-toplevel)"
+. "$here/lib/harness.sh"
 test_id="com.ardia.browser.channeltest"
-port="${CHANNEL_TEST_PORT:-8797}"
 work="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/ac-channel-test.XXXXXX")" && pwd -P)"
 server=""
 status=0
@@ -23,21 +22,14 @@ check() {
 plist() { /usr/libexec/PlistBuddy "$@"; }
 info() { plist -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null || true; }
 
-if nc -z -G 2 127.0.0.1 "$port" 2>/dev/null; then
-  echo "error: port $port is taken (CHANNEL_TEST_PORT)" >&2
-  exit 1
-fi
-pods="$root/apps/browser/macos/Pods/Sparkle"
-swiftc -O "$here/ed25519.swift" -o "$work/ed25519" 2>/dev/null
-public_key="$("$work/ed25519" generate "$work/key")"
-identity="$(security find-identity -v -p codesigning | awk '/"Apple Development/ { print $2; exit }')"
-[ -n "$identity" ] || { echo "error: no Apple Development identity to sign the test copies with" >&2; exit 1; }
-ditto "$old/Contents/Frameworks/Sparkle.framework" "$work/fw/Sparkle.framework"
-swiftc -O "$here/sparkle-host.swift" -F "$pods" -framework Sparkle -Xlinker -rpath -Xlinker "$work/fw" \
-  -o "$work/sparkle-host" 2>"$work/swiftc.log" || { cat "$work/swiftc.log" >&2; exit 1; }
-swiftc -O "$here/version-order.swift" -F "$pods" -framework Sparkle -Xlinker -rpath -Xlinker "$work/fw" \
-  -o "$work/version-order" 2>"$work/swiftc.log" || { cat "$work/swiftc.log" >&2; exit 1; }
-codesign --force --timestamp=none --sign "$identity" "$work/sparkle-host" "$work/version-order" 2>/dev/null
+pods="$harness_root/apps/browser/macos/Pods/Sparkle"
+public_key="$(test_signing_key "$work")"
+identity="$(signing_identity)"
+build_sparkle_tool "$work" "$old" sparkle-host "$identity"
+build_sparkle_tool "$work" "$old" version-order "$identity"
+mkdir -p "$work/feeds"
+serve_dir "$work/feeds"
+port="$served_port"
 
 from="$(info "$old" CFBundleShortVersionString)" build="$(info "$old" CFBundleVersion)"
 case "$from" in *-nightly.*) echo "error: start from a stable build ($old is $from)" >&2; exit 1 ;; esac
@@ -52,13 +44,11 @@ check "Sparkle's comparator orders the builds $from < $nightly1 < $next-nightly.
 "$work/version-order" "$nightly1=$nightly1" "$next-nightly.2=$next-nightly.2" >/dev/null 2>&1 && ok=0 || ok=1
 check "the short versions alone don't order nightlies ($nightly1 vs $next-nightly.2), so sparkle:version stays the build number" $ok
 
-zip_name="$(sed -n 's/^ *public static let appFileName = "\(.*\)"$/\1/p' "$root/packages/sync/ios/Core/LegacyMigration.swift")"
-[[ "$zip_name" == *.app ]] || { echo "error: can't read the legacy app name from LegacyMigration.swift" >&2; exit 1; }
+zip_name="$("$harness_root/scripts/lib/legacy-name.sh" appFileName)"
 installed_name="$(basename "$old")"
 mkdir -p "$work/installed" "$work/home"
 ditto "$old" "$work/installed/$installed_name"
-plist -c "Set :CFBundleIdentifier $test_id" -c "Set :SUPublicEDKey $public_key" "$work/installed/$installed_name/Contents/Info.plist"
-codesign --force --deep --timestamp=none --sign "$identity" "$work/installed/$installed_name" 2>/dev/null
+retag "$work/installed/$installed_name" "$test_id" "$public_key" "$identity"
 
 candidate() {
   local short="$1" number="$2" channel="$3" dir="$work/candidates/$1"
@@ -99,10 +89,6 @@ publish nightly-then-stable "$nightly1" "$stable"
 publish all "$nightly1" "$stable" "$nightly2"
 grep -c '<sparkle:channel>nightly</sparkle:channel>' "$work/feeds/all/appcast.xml" | grep -qx 2 && ok=1 || ok=0
 check "generate_appcast --channel nightly tags the nightly items and leaves the stable one untagged" $ok
-
-python3 -m http.server "$port" --bind 127.0.0.1 --directory "$work/feeds" >/dev/null 2>&1 &
-server=$!
-sleep 1
 
 scenario() {
   local what="$1" feed="$2" expected="$3" channels="${4:-}" copy="$work/run/$2-${4:-stable}"

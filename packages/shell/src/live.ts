@@ -1,5 +1,4 @@
 import type { EventSubscription } from "expo-modules-core";
-import { nativeModule } from "./nativeModules";
 
 export type CalendarAuthorization = "fullAccess" | "writeOnly" | "denied" | "restricted" | "notDetermined";
 
@@ -40,23 +39,8 @@ export type CalendarNative = {
   events(start: number, end: number, calendarIds: string[]): Promise<SystemCalendarEvent[]>;
 };
 
-const Calendar = nativeModule("ArdiaCalendar");
-
-export const calendarAuthorization = (): CalendarAuthorization => Calendar.authorizationStatus();
-export const requestCalendarAccess = () => Calendar.requestAccess();
-export const systemCalendars = () => Calendar.calendars();
-export const systemCalendarEvents = (start: number, end: number, calendarIds: string[] = []) =>
-  Calendar.events(start, end, calendarIds);
-export const onCalendarChanged = (listener: () => void) => Calendar.addListener("onCalendarChanged", listener);
-
 export type KeychainNative = {
   get(account: string): Promise<string | null>;
   set(account: string, secret: string): Promise<boolean>;
   delete(account: string): Promise<boolean>;
 };
-
-const Keychain = nativeModule("ArdiaKeychain");
-
-export const keychainGet = (account: string) => Keychain.get(account);
-export const keychainSet = (account: string, secret: string) => Keychain.set(account, secret);
-export const keychainDelete = (account: string) => Keychain.delete(account);

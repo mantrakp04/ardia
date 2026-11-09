@@ -1,8 +1,9 @@
 import { toAppUrl } from "@ardia/core";
 import type { NativeSyntheticEvent } from "react-native";
-import type { ExternalAppRequest } from "./externalApps";
+import type { ExternalAppRequest } from "./permissions";
 import type {
   ActivateRequest,
+  AppBadge,
   AutofillPrompt,
   BlockedPopup,
   ContentBlockedState,
@@ -17,8 +18,11 @@ import type {
   NowPlaying,
   OpenWindowRequest,
   PageCommand,
+  PageSelection,
   PasswordPrompt,
   PictureInPictureState,
+  ProtectedMediaRequest,
+  ScrollState,
   SecurityInfo,
   WebNotification,
   WebViewProps,
@@ -54,24 +58,69 @@ type NativeEvents = {
   onCommand: PageCommand;
   onPageFocus: object;
   onPagePress: object;
-  onPageMessage: { kind: string; data: unknown };
+  onSelection: { selection: PageSelection | null };
+  onScroll: { state: ScrollState };
+  onProtectedMedia: ProtectedMediaRequest;
   onReady: object;
   onDiscarded: { url: string };
   onPasswordPrompt: PasswordPrompt;
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
+  onTransferRefused: { from: string };
+  onAppBadge: AppBadge;
 };
 export type Handlers = keyof NativeEvents;
 export type PageEvent = { name: string; data: unknown };
 export type NativeProps = Omit<WebViewProps, Handlers> & { pageEvents: string[]; onPageEvent: (e: NativeSyntheticEvent<PageEvent>) => void };
 
-const PAGE_EVENT_NAMES: Partial<Record<Handlers, string>> = { onNavigationChange: "navigation", onFindResult: "find", onPageFocus: "focus" };
-export const pageEventOf = (handler: Handlers) => PAGE_EVENT_NAMES[handler] ?? `${handler[2]!.toLowerCase()}${handler.slice(3)}`;
-const HANDLER_OF_PAGE_EVENT = new Map<string, Handlers>();
+const PAGE_EVENTS = {
+  onNavigationChange: "navigation",
+  onProgress: "progress",
+  onFavicon: "favicon",
+  onMedia: "media",
+  onNowPlaying: "nowPlaying",
+  onMediaAccess: "mediaAccess",
+  onOpenWindow: "openWindow",
+  onPopupBlocked: "popupBlocked",
+  onFindResult: "find",
+  onFullscreen: "fullscreen",
+  onStatus: "status",
+  onCrashed: "crashed",
+  onUnresponsive: "unresponsive",
+  onResponsive: "responsive",
+  onLoadError: "loadError",
+  onSecurity: "security",
+  onZoom: "zoom",
+  onContentBlocked: "contentBlocked",
+  onDownloadNavigation: "downloadNavigation",
+  onNotification: "notification",
+  onNotificationClose: "notificationClose",
+  onPictureInPicture: "pictureInPicture",
+  onActivateRequest: "activateRequest",
+  onDisplayMediaRequest: "displayMediaRequest",
+  onWindowClose: "windowClose",
+  onCommand: "command",
+  onPageFocus: "focus",
+  onPagePress: "pagePress",
+  onSelection: "selection",
+  onScroll: "scroll",
+  onProtectedMedia: "protectedMedia",
+  onReady: "ready",
+  onDiscarded: "discarded",
+  onPasswordPrompt: "passwordPrompt",
+  onAutofillPrompt: "autofillPrompt",
+  onExternalApp: "externalApp",
+  onPreferredSize: "preferredSize",
+  onTransferRefused: "transferRefused",
+  onAppBadge: "appBadge",
+} as const satisfies Record<Handlers, string>;
+export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
+export const pageEventOf = (handler: Handlers): PageEventName => PAGE_EVENTS[handler];
+const HANDLER_OF_PAGE_EVENT = new Map<string, Handlers>(Object.entries(PAGE_EVENTS).map(([handler, name]) => [name, handler as Handlers]));
 
 const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<WebViewProps[K]>> } = {
-  onNavigationChange: (e) => [{ ...e, url: toAppUrl(e.url) }],
+  onNavigationChange: (e) => [{ ...e, url: toAppUrl(e.url), ...(e.committedUrl === undefined ? {} : { committedUrl: toAppUrl(e.committedUrl) }) }],
   onProgress: (e) => [e.progress],
   onFavicon: (e) => [e.url, e.urls],
   onMedia: (e) => [e],
@@ -99,18 +148,18 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onCommand: (e) => [e],
   onPageFocus: () => [],
   onPagePress: () => [],
-  onPageMessage: (e) => [e.kind, e.data],
+  onSelection: (e) => [e.selection],
+  onScroll: (e) => [e.state],
+  onProtectedMedia: (e) => [e],
   onReady: () => [],
   onDiscarded: (e) => [toAppUrl(e.url)],
   onPasswordPrompt: (e) => [e],
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
+  onTransferRefused: (e) => [e.from],
+  onAppBadge: (e) => [e],
 };
-
-for (const handler of Object.keys(unwrap) as Handlers[]) HANDLER_OF_PAGE_EVENT.set(pageEventOf(handler), handler);
-
-for (const handler of Object.keys(unwrap) as Handlers[]) HANDLER_OF_PAGE_EVENT.set(pageEventOf(handler), handler);
 
 export const isPageEventProp = (key: string): key is Handlers => key in unwrap;
 

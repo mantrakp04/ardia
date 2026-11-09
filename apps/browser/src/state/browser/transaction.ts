@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 
-export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean) {
+export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean, settle?: (s: T, prev: T) => T) {
   let depth = 0;
   let heard: T | null = null;
   let hear = () => {};
@@ -10,7 +10,20 @@ export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean) {
     (set, get, api) => {
       type Listener = (s: T, prev: T) => void;
       const listeners = new Set<Listener>();
-      const notify = (prev: T) => listeners.forEach((listener) => listener(api.getState(), prev));
+      let settling = false;
+      const publish = (prev: T) => {
+        const current = api.getState();
+        const settled = settle ? settle(current, prev) : current;
+        if (settled !== current) {
+          settling = true;
+          try {
+            (set as (state: T, replace: true) => void)(settled, true);
+          } finally {
+            settling = false;
+          }
+        }
+        listeners.forEach((listener) => listener(api.getState(), prev));
+      };
       hear = () => {
         const prev = heard;
         if (prev === null) return;
@@ -19,13 +32,14 @@ export function transactional<T>(heardAlone?: (s: T, prev: T) => boolean) {
         const held = depth;
         depth = 0;
         try {
-          notify(prev);
+          publish(prev);
         } finally {
           depth = held;
         }
       };
       api.subscribe((s, prev) => {
-        if (!depth) return notify(prev);
+        if (settling) return;
+        if (!depth) return publish(prev);
         heard ??= prev;
         if (heardAlone?.(s, prev)) hear();
       });

@@ -1,25 +1,24 @@
-import { getSiteSettings, resolveExternalApp, setSiteSetting } from "../../state/site/siteSettings";
+import { setSiteSetting } from "../../state/site/siteSettings";
+import { answerExternalApp } from "../../state/site/prompts";
 import {
-  type AutofillPrompt as ChromeAutofillPrompt,
   type AutofillPromptAnswer,
-  type PasswordPrompt as ChromePasswordPrompt,
   type PasswordPromptAnswer,
   patchPage,
   pageOf,
   setPopover,
   usePage,
 } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { useState } from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, View } from "react-native";
 import { useTheme } from "../ui/theme";
+import { space } from "../ui/tokens";
 import { webviews } from "../../state/tabs/webviewHandles";
-import { currentTab } from "../../state/browser/current";
-import { engineProfile } from "../../state/browser/model";
-import { Button, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, Symbol, Text, useHover } from "../ui";
+import { currentEngineProfile, currentTab } from "../../state/browser/current";
+import { Box, Button, DialogActions, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, POPOVER_WIDTH, Symbol, Text, tracking } from "../ui";
 import { answerPermission, describePermission } from "../../state/site/permissions";
 import { hostOrOrigin } from "../../lib/url";
-import { CheckRow, IconTile, usePromptInputGuard } from "./PromptParts";
-import { useSiteTokens } from "./tokens";
+import { CheckRow, PromptIcon, usePromptInputGuard, Well } from "./PromptParts";
 
 export function PromptBody({
   icons,
@@ -37,26 +36,33 @@ export function PromptBody({
   children: React.ReactNode;
 }) {
   return (
-    <View style={{ padding: PANEL.inset, gap: 10 }}>
-      <View style={{ flexDirection: "row", gap: 6 }}>
-        {image ? <Image source={{ uri: image }} style={{ width: 32, height: 32, marginLeft: -1, marginVertical: -1 }} /> : null}
-        {icons.map((icon) => (
-          <IconTile key={icon} icon={icon} />
-        ))}
-      </View>
-      <View style={{ gap: 3 }}>
-        <Text weight="semibold">{title}</Text>
-        {message ? (
-          <Text size="small" tone="textSecondary">
-            {message}
-          </Text>
-        ) : null}
-      </View>
-      {detail}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", marginTop: 2 }}>{children}</View>
+    <View style={{ padding: PANEL.inset }}>
+      <Box gap="ml">
+        <Box row gap="s">
+          {image ? <Image source={{ uri: image }} style={PROMPT_IMAGE} /> : null}
+          {icons.map((icon) => (
+            <PromptIcon key={icon} icon={icon} />
+          ))}
+        </Box>
+        <Box gap="xs">
+          <Text weight="semibold">{title}</Text>
+          {message ? (
+            <Text size="small" tone="textSecondary">
+              {message}
+            </Text>
+          ) : null}
+        </Box>
+        {detail}
+      </Box>
+      <DialogActions>{children}</DialogActions>
     </View>
   );
 }
+
+const PROMPT_IMAGE = { width: 32, height: 32 } as const;
+
+export const PERMISSION_PROMPT_WIDTH = POPOVER_WIDTH.s;
+export const EXTERNAL_APP_WIDTH = POPOVER_WIDTH.m;
 
 export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const request = usePage(tabId, (p) => p.permission);
@@ -64,7 +70,7 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
   if (!request) return null;
   const { icons, question } = describePermission(request);
   return (
-    <Popover key={request.id} width={300} top={top} left={left} modal={false}>
+    <Popover key={request.id} width={PERMISSION_PROMPT_WIDTH} top={top} left={left} modal={false}>
       <View>
         <PromptBody icons={icons} title={question} message="Click the lock to change this any time">
           <Button variant="pill" title="Don't Allow" onPress={guard(() => answerPermission(tabId, request.id, "deny"))} />
@@ -76,7 +82,7 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
   );
 }
 
-export const BLOCKED_POPUPS_WIDTH = 360;
+export const BLOCKED_POPUPS_WIDTH = POPOVER_WIDTH.l;
 
 export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string; right?: number; left?: number; top: number }) {
   const popups = usePage(tabId, (p) => p.popups);
@@ -89,9 +95,9 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
     patchPage(tabId, { popups: [] });
     close();
   };
-  const profile = () => engineProfile(currentTab(tabId)?.profileId ?? "");
+  const profile = () => currentEngineProfile(currentTab(tabId)?.profileId ?? "");
   return (
-    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
+    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}
@@ -136,28 +142,14 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
           />
         ))}
         {popups.length > 5 ? (
-          <Text size="caption" tone="textSecondary" style={{ paddingLeft: PANEL.textColumn, paddingTop: 2 }}>{`and ${popups.length - 5} more`}</Text>
+          <Text size="caption" tone="textSecondary" style={{ paddingLeft: PANEL.textColumn, paddingTop: space.xxs }}>{`and ${popups.length - 5} more`}</Text>
         ) : null}
       </View>
     </Popover>
   );
 }
 
-export async function shouldPromptForPopups(profile: string, origin: string): Promise<boolean> {
-  try {
-    const settings = await getSiteSettings(profile, origin);
-    return settings.popups.isDefault;
-  } catch {
-    return true;
-  }
-}
-
-export function showPasswordPrompt(tabId: string, prompt: ChromePasswordPrompt) {
-  patchPage(tabId, { passwordPrompt: prompt.state === "saved" ? null : prompt });
-}
-
 export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
-  const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.passwordPrompt);
   const [chosen, setChosen] = useState<string | null>(null);
   const guard = usePromptInputGuard(prompt ? `${prompt.origin}|${prompt.username}|${prompt.state}` : null);
@@ -172,7 +164,7 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
   });
   const choices = update && prompt.usernames.length > 1 ? prompt.usernames : [];
   return (
-    <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} width={update ? 310 : 350} top={top} right={right} modal={false}>
+    <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} width={update ? POPOVER_WIDTH.s : POPOVER_WIDTH.m} top={top} right={right} modal={false}>
       <View>
         <PromptBody
           icons={["key.fill"]}
@@ -180,22 +172,22 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
           message={update ? `It will be auto-filled on ${site}` : "That way, it'll be auto-filled next time"}
           detail={
             choices.length ? (
-              <View style={{ borderRadius: 8, paddingVertical: 3, backgroundColor: well }}>
+              <Well list>
                 {choices.map((name) => (
                   <UsernameChoice key={name} name={name} selected={name === username} onPress={() => setChosen(name)} />
                 ))}
-              </View>
+              </Well>
             ) : (
-              <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 3, backgroundColor: well }}>
+              <Well gap="xs">
                 <Text lines={1} size="small" weight="medium">
                   {username || (prompt.federation ? `Signed in with ${hostOrOrigin(prompt.federation)}` : "No username")}
                 </Text>
                 {prompt.passwordLength > 0 && (
-                  <Text lines={1} size="small" tone="textSecondary" style={{ letterSpacing: 1 }}>
+                  <Text lines={1} size="small" tone="textSecondary" style={{ letterSpacing: tracking.wide }}>
                     {"•".repeat(Math.min(prompt.passwordLength, 16))}
                   </Text>
                 )}
-              </View>
+              </Well>
             )
           }
         >
@@ -209,13 +201,7 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
   );
 }
 
-export function showAutofillPrompt(tabId: string, prompt: ChromeAutofillPrompt | null, id: number) {
-  if (prompt) patchPage(tabId, { autofillPrompt: prompt });
-  else if (pageOf(tabId).autofillPrompt?.id === id) patchPage(tabId, { autofillPrompt: null });
-}
-
 export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
-  const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.autofillPrompt);
   const guard = usePromptInputGuard(prompt?.id);
   if (!prompt) return null;
@@ -226,7 +212,7 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
   const changes = prompt.changes ?? [];
   const values = (key: "to" | "from") => changes.filter((c) => c[key]).map((c) => c[key]);
   const section = (lines: string[], label?: string) => (
-    <View key={label ?? "lines"} style={{ gap: 3 }}>
+    <Box key={label ?? "lines"} gap="xs">
       {label ? (
         <Text size="caption" tone="textSecondary">
           {label}
@@ -237,7 +223,7 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
           {line}
         </Text>
       ))}
-    </View>
+    </Box>
   );
   const sections =
     prompt.kind !== "updateAddress"
@@ -246,7 +232,7 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
         ? [section(values("to"), prompt.newLabel), section(values("from"), prompt.oldLabel)]
         : [section(values("to"))];
   return (
-    <Popover key={prompt.id} width={350} top={top} right={right} modal={false}>
+    <Popover key={prompt.id} width={POPOVER_WIDTH.m} top={top} right={right} modal={false}>
       <View>
         <PromptBody
           icons={[prompt.kind === "saveCard" ? "creditcard.fill" : "mappin.and.ellipse"]}
@@ -254,7 +240,7 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
           message={prompt.message || null}
           detail={
             <>
-              <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 8, backgroundColor: well }}>{sections}</View>
+              <Well gap="m">{sections}</Well>
               {prompt.footer ? (
                 <Text size="caption" tone="textSecondary">
                   {prompt.footer}
@@ -282,7 +268,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
     setAlways(false);
   });
   return (
-    <Popover key={request.id} width={340} top={top} left={left} modal={false}>
+    <Popover key={request.id} width={EXTERNAL_APP_WIDTH} top={top} left={left} modal={false}>
       <View>
         <PromptBody
           icons={request.icon ? [] : [request.app ? "app" : "questionmark.app.dashed"]}
@@ -308,30 +294,9 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
   );
 }
 
-export function answerExternalApp(tabId: string, open: boolean, remember = false) {
-  const request = pageOf(tabId).externalApp;
-  if (!request) return;
-  patchPage(tabId, { externalApp: null });
-  void resolveExternalApp(request.id, open, remember);
-}
-
 function UsernameChoice({ name, selected, onPress }: { name: string; selected: boolean; onPress: () => void }) {
   const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <View style={{ height: 28, marginHorizontal: 3, paddingHorizontal: 7, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: hovered ? theme.rowHover : undefined }}>
-          {selected ? (
-            <Symbol name="checkmark" size={10} weight="semibold" color={theme.textPrimary} style={{ width: 14, height: 14 }} />
-          ) : (
-            <View style={{ width: 14, height: 14 }} />
-          )}
-          <Text lines={1} size="small" style={{ flex: 1 }}>
-            {name || "No username"}
-          </Text>
-        </View>
-      </Pressable>
-    </View>
-  );
+  return <MenuRow leading={selected ? <Symbol name="checkmark" size={10} weight="semibold" color={theme.textPrimary} style={CHECK_GLYPH} /> : <View style={CHECK_GLYPH} />} title={name || "No username"} onPress={onPress} />;
 }
+
+const CHECK_GLYPH = { width: 14, height: 14 } as const;

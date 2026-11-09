@@ -3,6 +3,7 @@
 #import "ArdiaChromeWindowHost.h"
 #import "ArdiaPiPThrowMath.h"
 
+#import <dlfcn.h>
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -117,7 +118,9 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     controller.view = view;
     controller.host = host;
     [controller roundCorners];
+    JoinFullScreenSpaces(window);
     PreventActivation(window);
+    if (fresh) [view emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(window))}];
     if (ardia_host::Background()) {
       window.alphaValue = 0;
       window.ignoresMouseEvents = YES;
@@ -132,6 +135,20 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     return true;
   }
   return false;
+}
+
+}
+
+namespace {
+
+NSString *DevShowAlpha(NSWindow *window, float alpha) {
+  using MainConnection = int (*)(void);
+  using SetAlpha = int (*)(int, int, float);
+  auto connection = (MainConnection)dlsym(RTLD_DEFAULT, "CGSMainConnectionID");
+  auto set = (SetAlpha)dlsym(RTLD_DEFAULT, "CGSSetWindowAlpha");
+  if (!ArdiaLaunchConfig.shared.testInstance) return @"test instances only";
+  if (!connection || !set) return @"no CGSSetWindowAlpha";
+  return set(connection(), (int)window.windowNumber, alpha) == 0 ? @"started" : @"refused";
 }
 
 }
@@ -153,6 +170,28 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   look = ^{
     ArdiaWebView *strongView = weakView;
     if (!strongView || Attach(strongView, host) || ++tries >= 20) {
+      look = nil;
+      return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), look);
+  };
+  look();
+}
+
+void DocumentEntered(ArdiaWebView *view) {
+  __block int tries = 0;
+  __block void (^look)(void);
+  __weak ArdiaWebView *weakView = view;
+  look = ^{
+    ArdiaWebView *strongView = weakView;
+    NSWindow *found = nil;
+    for (NSWindow *window in NSApp.windows)
+      if (window.visible && IsChromeDocumentPictureInPicture(window) && IsChromeFloatingWindow(window)) found = window;
+    if (strongView && found) {
+      JoinFullScreenSpaces(found);
+      [strongView emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(found))}];
+    }
+    if (!strongView || found || ++tries >= 20) {
       look = nil;
       return;
     }
@@ -183,11 +222,17 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"alpha" : @(window.alphaValue),
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
+      @"subrole" : window.accessibilitySubrole ?: @"",
+      @"canHide" : @(window.canHide),
+      @"collectionBehavior" : @(window.collectionBehavior),
+      @"joinsFullScreenSpaces" : @(JoinsFullScreenSpaces(window)),
       @"styled" : @(controller != nil),
-      @"rounded" : @(content.cornerRadius == kCornerRadius && content.masksToBounds && !window.opaque),
+      @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
+      @"cornerRadius" : @(content.cornerRadius),
       @"rim" : @(controller.overlay.layer.borderWidth),
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
+      @"key" : @(window.keyWindow),
       @"host" : controller.host ?: @"",
       @"backToTab" : @(controller.view != nil),
       @"minSize" : NSStringFromSize(window.contentMinSize),
@@ -209,6 +254,11 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   else if ([action isEqual:@"menu"]) return [[controller.menu.itemArray valueForKey:@"title"] componentsJoinedByString:@"|"];
   else if ([action hasPrefix:@"snapshot:"]) return [controller snapshot:[action substringFromIndex:9]];
   else if ([action hasPrefix:@"frame:"]) [controller.window setFrame:NSRectFromString([action substringFromIndex:6]) display:YES];
+  else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
+  else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
+  else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"keepOnTop"]) controller.keepOnTop = !controller.keepOnTop;
+  else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];
   else if ([action isEqual:@"throw"]) {

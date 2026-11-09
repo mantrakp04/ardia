@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
@@ -77,11 +76,14 @@ base::DictValue Row(const history::URLRow& row) {
 constexpr base::TimeDelta kBatchDelay = base::Milliseconds(20);
 constexpr size_t kBatchMax = 2000;
 
-class Watcher : public history::HistoryServiceObserver {
+class Watcher : public ProfileState, public history::HistoryServiceObserver {
  public:
-  Watcher(Profile* profile, history::HistoryService* service)
-      : profile_(profile) {
-    observation_.Observe(service);
+  explicit Watcher(Profile* profile) : ProfileState(profile) {}
+
+  void Start(history::HistoryService* service) {
+    if (!observation_.IsObserving()) {
+      observation_.Observe(service);
+    }
   }
 
   void OnURLVisited(history::HistoryService*,
@@ -119,9 +121,17 @@ class Watcher : public history::HistoryServiceObserver {
             .Set("urls", std::move(urls)));
   }
 
-  void HistoryServiceBeingDeleted(history::HistoryService*) override;
+  void HistoryServiceBeingDeleted(history::HistoryService*) override {
+    Flush();
+    observation_.Reset();
+  }
 
  private:
+  void Release() override {
+    flush_.Stop();
+    observation_.Reset();
+  }
+
   void Add(base::DictValue change) {
     pending_.Append(std::move(change));
     if (pending_.size() >= kBatchMax) {
@@ -137,31 +147,18 @@ class Watcher : public history::HistoryServiceObserver {
     if (pending_.empty()) {
       return;
     }
-    Emit("history.changed", profile_,
+    Emit("history.changed", profile(),
          base::DictValue().Set("kind", "batch").Set("changes",
                                                     std::move(pending_)));
     pending_ = base::ListValue();
   }
 
-  raw_ptr<Profile> profile_;
   base::ListValue pending_;
   base::OneShotTimer flush_;
   base::ScopedObservation<history::HistoryService,
                           history::HistoryServiceObserver>
       observation_{this};
 };
-
-std::map<Profile*, std::unique_ptr<Watcher>>& Watchers() {
-  static base::NoDestructor<std::map<Profile*, std::unique_ptr<Watcher>>>
-      watchers;
-  return *watchers;
-}
-
-void Watcher::HistoryServiceBeingDeleted(history::HistoryService*) {
-  Flush();
-  observation_.Reset();
-  Watchers().erase(profile_);
-}
 
 struct Page {
   GURL url;
@@ -237,11 +234,7 @@ class MissingVisitsTask : public history::HistoryDBTask {
 using ardia::Call;
 using ardia::Reply;
 
-AC_ENGINE_CALL(ac_history_query) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_history_query) {
   history::HistoryService* service = ardia::HistoryFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no history");
@@ -293,11 +286,7 @@ AC_ENGINE_CALL(ac_history_query) {
       &ardia::Tracker());
 }
 
-AC_ENGINE_CALL(ac_history_add) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_history_add) {
   history::HistoryService* service = ardia::HistoryFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no history");
@@ -367,11 +356,7 @@ AC_ENGINE_CALL(ac_history_add) {
       &ardia::Tracker());
 }
 
-AC_ENGINE_CALL(ac_history_import) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_history_import) {
   history::HistoryService* service = ardia::HistoryFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no history");
@@ -401,11 +386,7 @@ AC_ENGINE_CALL(ac_history_import) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_history_delete_urls) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_history_delete_urls) {
   history::HistoryService* service = ardia::HistoryFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no history");
@@ -421,19 +402,11 @@ AC_ENGINE_CALL(ac_history_delete_urls) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_history_watch) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_history_watch) {
   history::HistoryService* service = ardia::HistoryFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no history");
   }
-  auto& watchers = ardia::Watchers();
-  if (!watchers.contains(call.profile())) {
-    watchers[call.profile()] =
-        std::make_unique<ardia::Watcher>(call.profile(), service);
-  }
+  ardia::StateFor<ardia::Watcher>(call.profile()).Start(service);
   call.TakeReply().Ok();
 }

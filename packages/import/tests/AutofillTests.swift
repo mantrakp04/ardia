@@ -37,14 +37,14 @@ final class AutofillTests: XCTestCase {
     XCTAssertEqual(locked.failed, [])
     XCTAssertEqual(locked.addressCount, 3)
     XCTAssertEqual(locked.cardCount, 0)
-    XCTAssertEqual(locked.warnings.map(\.code), ["locked"])
+    XCTAssertEqual(locked.warnings.map(\.code), [.locked])
 
     importer.setKey(Fixtures.chromiumKey, for: "chrome")
     let open = try importer.importData(browserId: "chrome", profileId: "Default", kinds: [.autofill, .cookies])
     XCTAssertEqual(open.failed, [])
     XCTAssertEqual(open.cardCount, 2)
     XCTAssertEqual(open.cookieCount, 6)
-    XCTAssertEqual(Set(open.warnings.map(\.code)), ["undecryptable"])
+    XCTAssertEqual(Set(open.warnings.map(\.code)), [.undecryptable])
   }
 
   func testUnlockAfterForgetDropsKey() throws {

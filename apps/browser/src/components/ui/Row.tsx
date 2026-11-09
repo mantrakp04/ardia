@@ -1,8 +1,9 @@
 import { Symbol } from "@ardia/shell";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Divider } from "./Divider";
 import { useTheme } from "./theme";
-import { radius, space, font as typeScale } from "./tokens";
+import { lineHeight, radius, space, font as typeScale } from "./tokens";
 import { useHover } from "./useHover";
 
 export function Row({ title, description, children, icon, onPress }: { title?: ReactNode; description?: ReactNode; children?: ReactNode; icon?: ReactNode; onPress?: () => void }) {
@@ -13,7 +14,7 @@ export function Row({ title, description, children, icon, onPress }: { title?: R
       style={{
         minHeight: 40,
         paddingHorizontal: space.l,
-        paddingVertical: 9,
+        paddingVertical: space.m,
         flexDirection: "row",
         alignItems: "center",
         gap: space.l,
@@ -25,7 +26,7 @@ export function Row({ title, description, children, icon, onPress }: { title?: R
         {typeof title === "string" ? <Text style={{ ...typeScale.body, color: theme.textPrimary }}>{title}</Text> : title}
         {description ? (
           typeof description === "string" ? (
-            <Text style={{ ...typeScale.footnote, marginTop: space.xxs, color: theme.textSecondary, lineHeight: 15 }}>{description}</Text>
+            <Text style={{ ...typeScale.caption, marginTop: space.xxs, color: theme.textSecondary, lineHeight: lineHeight.caption }}>{description}</Text>
           ) : (
             description
           )
@@ -43,19 +44,14 @@ export function Row({ title, description, children, icon, onPress }: { title?: R
   );
 }
 
-export function Group({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Group({ children }: { children: ReactNode }) {
   const theme = useTheme();
   const rows = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean);
   return (
-    <View
-      style={[
-        { borderRadius: radius.card, backgroundColor: theme.groupFill, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: theme.groupBorder, overflow: "hidden" },
-        style,
-      ]}
-    >
+    <View style={{ borderRadius: radius.panel, backgroundColor: theme.groupFill, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: theme.groupBorder, overflow: "hidden" }}>
       {rows.map((row, i) => (
         <View key={i}>
-          {i > 0 && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: space.l, backgroundColor: theme.divider }} />}
+          {i > 0 && <Divider thick inset="l" />}
           {row}
         </View>
       ))}

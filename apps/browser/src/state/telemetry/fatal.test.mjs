@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
@@ -35,11 +35,13 @@ const { onUncaughtError } = load("src/private/renderer/errorhandling/ErrorHandle
 const ExceptionsManager = loaded["../../../../Libraries/Core/ExceptionsManager"].default;
 
 const { holdFatalReports, installErrorReporting } = await import("./errors.ts");
+const { setSharing } = await import("./client.ts");
 console.error = () => {};
 installErrorReporting();
+after(() => setSharing(false, "settings"));
 assert.equal(holdFatalReports(ExceptionsManager), true);
 
-const shell = stub.shellNativeModules.ArdiaShell;
+const shell = stub.shellNativeModules.ArdiaDocuments;
 const realSave = shell.saveDocument;
 let saves = 0;
 shell.saveDocument = (...args) => (saves++, realSave(...args));

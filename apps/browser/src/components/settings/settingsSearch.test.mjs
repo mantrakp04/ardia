@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { editDistance, groupByPane, search } from "./searchMatch.ts";
-import { SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
+import { ADVANCED_PANES, SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
 
 const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
@@ -13,6 +13,7 @@ test("synonyms find the setting they stand for", () => {
   assert.equal(first("dark mode"), "appearance.theme");
   assert.equal(first("adblock"), "privacy.blockAds");
   assert.equal(first("pip"), "tabs.autoPictureInPicture");
+  assert.equal(first("mouse wheel"), "privacy.commandScrollZoom");
   assert.equal(first("vertical tabs"), "tabs.layout");
   assert.equal(first("1password"), "passwords.managerApps");
 });
@@ -61,6 +62,11 @@ test("results group by pane, best group first, best row first", () => {
   assert.equal(new Set(panes).size, panes.length);
 });
 
+test("every pane keeps a basic setting unless it hides whole", () => {
+  const panes = new Set(SETTINGS.map((s) => s.pane));
+  for (const pane of panes) if (!ADVANCED_PANES.has(pane)) assert.ok(SETTINGS.some((s) => s.pane === pane && !s.advanced), pane);
+});
+
 test("an empty query finds nothing", () => {
   assert.deepEqual(ids(""), []);
   assert.deepEqual(ids("   "), []);
@@ -79,7 +85,10 @@ test("every indexed setting is anchored in its pane, and every anchor is indexed
     .map((f) => readFileSync(new URL(f, dir), "utf8"))
     .join("\n");
   const panes = new Set(SETTINGS.map((s) => s.pane));
-  const anchors = new Set([...sources.matchAll(/["`]([a-zA-Z]+)\.([a-zA-Z]+)["`]/g)].filter((m) => panes.has(m[1])).map((m) => `${m[1]}.${m[2]}`));
+  const anchors = new Set([
+    ...[...sources.matchAll(/["`]([a-zA-Z]+)\.([a-zA-Z]+)["`]/g)].filter((m) => panes.has(m[1])).map((m) => `${m[1]}.${m[2]}`),
+    ...[...sources.matchAll(/<SourceRow id="(\w+)"/g)].map((m) => `liveFolders.${m[1]}`),
+  ]);
   const indexed = new Set(SETTINGS.map((s) => s.id));
   for (const id of indexed) assert.ok(anchors.has(id), `${id} is in the index but no pane anchors it`);
   for (const id of anchors) assert.ok(indexed.has(id), `${id} is anchored in a pane but not in the index`);
@@ -97,4 +106,30 @@ test("every settings row with a fixed title is searchable", () => {
       assert.ok(/anchor=/.test(m[1]), `${file}: <Row title="${m[2]}"> in ${owner} has no anchor, so search can't find it`);
     }
   }
+});
+
+test("a row its pane doesn't draw is left out of search, by the same rule the pane hides it with", async () => {
+  const { unshownSettings } = await import("./settingsIndex.ts");
+  const { DEFAULT_SETTINGS } = await import("../../state/settings/settings.ts");
+  const unshown = (settings, env) => new Set(unshownSettings({ ...DEFAULT_SETTINGS, ...settings }, env).split("\n").filter(Boolean));
+  const across = unshown({}, { top: true });
+  assert.ok(!across.has("tabs.showSidebarButton"), "the Hide Tabs button shows in both layouts");
+  for (const id of ["tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
+  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], ["tabs.dragToGroupInTopStrip"]);
+  assert.ok(unshown({}, { top: false, glass: true }).has("appearance.glassTintAmount"));
+  for (const id of ["appearance.interfaceStyle", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]) assert.ok(unshown({}, { top: false }).has(id), id);
+  const classic = unshown({ interfaceStyle: "classic" }, { top: false, glass: true });
+  assert.deepEqual([...classic], ["tabs.dragToGroupInTopStrip", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
+  assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.memorySaverMode"));
+  assert.ok(unshown({ pageEngine: "webkit" }, { top: false }).has("engines.protectedVideo"));
+});
+
+const SHOWN_BY_LOADED_DATA = ["General.tsx: general.downloadsAllProfiles", "General.tsx: general.updateChannel"];
+
+test("panes leave showing and hiding an anchored row to the row's own rule", () => {
+  const dir = new URL("./panes/", import.meta.url);
+  const wrapped = readdirSync(dir).flatMap((file) =>
+    [...readFileSync(new URL(file, dir), "utf8").matchAll(/\{[^{}\n]*&&\s*(?:\(\s*)?(?:<Row anchor="([\w.]+)"|toggle\("\w+", "([\w.]+)"\))/g)].map((m) => `${file}: ${m[1] ?? m[2]}`),
+  );
+  assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });

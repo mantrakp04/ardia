@@ -5,17 +5,19 @@ import {
   inspectUnpackedExtension,
   installExtension,
   listExtensions,
+  reloadExtension,
   resolveExtensionInstallPrompt,
   setExtensionEnabled,
   uninstallExtension,
-  webStoreExtensionId,
   type ActionState,
   type ExtensionInstallPrompt,
-  type ExtensionPackage,
   type InstalledExtension,
 } from "../../platform/extensions";
+import { webStoreExtensionId } from "@ardia/core";
 import { confirm } from "../../platform/dialogs";
-import { showMenu } from "../../platform/menus";
+import { showMenu, type MenuItem } from "../../platform/menus";
+import type { ChoiceItem } from "../app/menuChoice";
+import { menuSections } from "../app/menuSections";
 import { openWindow } from "../browser/actions";
 import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
@@ -23,9 +25,8 @@ import { engineProfile } from "../browser/model";
 import { shownPageId } from "../peek/peek";
 import { goToSettingsPane, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
-import { extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
-
-export { permissionWarnings, reloadExtension } from "../../platform/extensions";
+import { extensionPageUrl, extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
+import { errorText } from "../../lib/errors";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -73,74 +74,58 @@ export const findExtension = (profile: string, id: string) => useExtensions.getS
 export function addFromWebStore(windowId: string, urlOrId: string, profile = extensionProfile(useBrowser.getState(), windowId)) {
   const id = webStoreExtensionId(urlOrId);
   if (!id) {
-    const pkg = { name: "Extension", version: "", description: "", manifestVersion: 3, icon: null, permissions: [], optionalPermissions: [], hostPermissions: [], hasAction: false, popup: null, optionsPage: null, sidePanel: null, path: "" };
-    useExtensions.setState({ install: { windowId, profile, source: "webStore", status: "error", pkg, error: "That isn't a link to an extension in the Chrome Web Store." } });
+    useExtensions.setState({ install: { windowId, profile, source: "webStore", status: "error", error: "That isn't a link to an extension in the Chrome Web Store." } });
     return;
   }
   const url = `https://chromewebstore.google.com/detail/${id}`;
   const s = useBrowser.getState();
-  const target = s.windows[windowId] ? windowId : s.ui.focusOrder.find((w) => s.windows[w] && extensionProfile(s, w) === profile && !s.windows[w]!.incognito);
+  const target = s.windows[windowId] ? windowId : s.ui.focusOrder.find((w) => s.windows[w] && extensionProfile(s, w) === profile && s.windows[w]!.kind !== "private");
   if (target) s.newTab(target, { url });
-  else openWindow({ profileId: s.profileOrder.find((p) => engineProfile(p) === profile), url });
+  else openWindow({ profileId: s.profileOrder.find((p) => engineProfile(s, p) === profile), url });
 }
 
-export async function loadUnpacked(windowId: string, profile = extensionProfile(useBrowser.getState(), windowId)) {
+export async function loadUnpacked(windowId: string, profile = extensionProfile(useBrowser.getState(), windowId)): Promise<boolean> {
   const path = await chooseExtensionFolder();
-  if (!path) return;
+  if (!path) return false;
   try {
     const pkg = await inspectUnpackedExtension(path);
     useExtensions.setState({ install: { windowId, profile, source: "unpacked", status: "ready", pkg } });
   } catch (error) {
-    useExtensions.setState({ install: { windowId, profile, source: "unpacked", status: "error", error: message(error) } });
+    useExtensions.setState({ install: { windowId, profile, source: "unpacked", status: "error", error: errorText(error) } });
   }
+  return true;
 }
 
 export function showInstallPrompt(windowId: string, prompt: ExtensionInstallPrompt) {
   const current = useExtensions.getState().install;
-  if (current?.prompt) void resolveExtensionInstallPrompt(current.prompt.requestId, false);
+  if (current?.status === "prompt") void resolveExtensionInstallPrompt(current.prompt.requestId, false);
   else cancelInstall();
-  const pkg: ExtensionPackage = {
-    id: prompt.id,
-    name: prompt.name,
-    version: prompt.version,
-    description: "",
-    manifestVersion: 3,
-    icon: prompt.icon || null,
-    permissions: [],
-    optionalPermissions: [],
-    hostPermissions: [],
-    hasAction: false,
-    popup: null,
-    optionsPage: null,
-    sidePanel: null,
-    path: "",
-  };
-  useExtensions.setState({ install: { windowId, profile: prompt.profile, source: "webStore", status: "ready", pkg, prompt } });
+  useExtensions.setState({ install: { windowId, profile: prompt.profile, source: "webStore", status: "prompt", prompt } });
 }
 
 export async function confirmInstall() {
   const request = useExtensions.getState().install;
-  if (!request?.pkg || request.status !== "ready") return;
-  if (request.prompt) {
+  if (request?.status === "prompt") {
     useExtensions.setState({ install: null });
     await resolveExtensionInstallPrompt(request.prompt.requestId, true);
     for (const ms of [1500, 5000]) setTimeout(() => void refreshExtensions(request.profile), ms);
     return;
   }
+  if (request?.status !== "ready") return;
   useExtensions.setState({ install: { ...request, status: "installing" } });
   try {
     await installExtension(request.pkg, request.profile);
     useExtensions.setState({ install: null });
     await refreshExtensions(request.profile);
   } catch (error) {
-    useExtensions.setState({ install: { ...request, status: "error", error: message(error) } });
+    useExtensions.setState({ install: { windowId: request.windowId, profile: request.profile, source: request.source, status: "error", error: errorText(error) } });
   }
 }
 
 export function cancelInstall() {
   const request = useExtensions.getState().install;
   if (!request) return;
-  if (request.prompt) void resolveExtensionInstallPrompt(request.prompt.requestId, false);
+  if (request.status === "prompt") void resolveExtensionInstallPrompt(request.prompt.requestId, false);
   useExtensions.setState({ install: null });
 }
 
@@ -155,37 +140,41 @@ export async function removeExtension(profile: string, ext: InstalledExtension, 
   if (!confirmed) return;
   if (useExtensions.getState().popup?.extensionId === ext.id) closeExtensionPopup();
   closeSidePanelsOf(ext.id);
-  try {
-    await uninstallExtension(ext.id, profile);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, "remove", () => uninstallExtension(ext.id, profile));
 }
 
 export async function setEnabled(profile: string, id: string, enabled: boolean) {
   patchExtension(profile, id, { enabled, state: enabled ? "ENABLED" : "DISABLED" });
-  try {
-    await setExtensionEnabled(id, profile, enabled);
-  } finally {
-    await refreshExtensions(profile);
-  }
+  await changeThenRefresh(profile, enabled ? "turn on" : "turn off", () => setExtensionEnabled(id, profile, enabled));
 }
 
 export async function setPinned(profile: string, id: string, pinned: boolean) {
   patchExtension(profile, id, { pinned });
-  try {
-    await configureExtension(id, profile, { pinned });
-  } catch {
-    await refreshExtensions(profile);
-  }
+  const done = await changed(pinned ? "pin" : "unpin", () => configureExtension(id, profile, { pinned }));
+  if (!done) await refreshExtensions(profile);
 }
 
 export async function configure(profile: string, id: string, options: Parameters<typeof configureExtension>[2]) {
+  await changeThenRefresh(profile, "configure", () => configureExtension(id, profile, options));
+}
+
+export async function reload(profile: string, id: string) {
+  await changeThenRefresh(profile, "reload", () => reloadExtension(id, profile));
+}
+
+async function changed(what: string, change: () => Promise<void>): Promise<boolean> {
   try {
-    await configureExtension(id, profile, options);
-  } finally {
-    await refreshExtensions(profile);
+    await change();
+    return true;
+  } catch (error) {
+    console.warn(`[extensions] ${what} failed`, error);
+    return false;
   }
+}
+
+async function changeThenRefresh(profile: string, what: string, change: () => Promise<void>) {
+  await changed(what, change);
+  await refreshExtensions(profile);
 }
 
 function patchExtension(profile: string, id: string, patch: Partial<InstalledExtension>) {
@@ -229,7 +218,7 @@ export async function activateExtension(
   const result = web ? await web.executeExtensionAction(ext.id) : null;
   const readyTab = readyTabOf(tabId);
   if (!state && result === "popup" && readyTab) state = (await extensionActionStates(readyTab, [ext.id]))[ext.id];
-  const url = state ? state.popup : ext.popup ? `chrome-extension://${ext.id}/${ext.popup.replace(/^\//, "")}` : "";
+  const url = state ? state.popup : ext.popup ? extensionPageUrl(ext.id, ext.popup) : "";
   if (result === "none") return;
   if (result === "sidePanel") return void toggleSidePanel(windowId, ext.id);
   if (!url) return void (result === null && showExtensionMenu(windowId, ext));
@@ -250,31 +239,48 @@ export async function openActionPopup(windowId: string, extensionId: string, anc
   useExtensions.setState({ popup: { windowId, pageProfile: pageProfile(useBrowser.getState(), windowId), extensionId, url, anchor, opened: request } });
 }
 
+export function extensionMenuItems(ext: Pick<InstalledExtension, "name" | "enabled" | "pinned" | "optionsUrl" | "sidePanel" | "mayModify">, sidePanelOpen: boolean): MenuItem[] {
+  return menuSections(
+    [{ id: "name", title: ext.name, enabled: false }],
+    [
+      { id: "options", title: "Options", symbol: "gearshape", enabled: !!ext.optionsUrl && ext.enabled },
+      !!ext.sidePanel && ext.enabled && { id: "sidePanel", title: sidePanelOpen ? "Close Side Panel" : "Open Side Panel", symbol: "sidebar.right" },
+      { id: "pin", title: ext.pinned ? "Unpin from Toolbar" : "Pin to Toolbar", symbol: ext.pinned ? "pin.slash" : "pin" },
+    ],
+    [
+      { id: "enable", title: ext.enabled ? "Turn Off" : "Turn On", symbol: "power" },
+      { id: "manage", title: "Manage Extension", symbol: "puzzlepiece.extension" },
+    ],
+    [{ id: "remove", title: "Remove Extension…", symbol: "trash", enabled: ext.mayModify }],
+  );
+}
+
 export async function showExtensionMenu(windowId: string, ext: InstalledExtension) {
   const profile = extensionProfile(useBrowser.getState(), windowId);
-  const choice = await showMenu([
-    { id: "name", title: ext.name, enabled: false },
-    { separator: true },
-    { id: "options", title: "Options", enabled: !!ext.optionsUrl && ext.enabled },
-    ...(ext.sidePanel && ext.enabled
-      ? [{ id: "sidePanel", title: useExtensions.getState().sidePanels[windowId]?.extensionId === ext.id ? "Close Side Panel" : "Open Side Panel" }]
-      : []),
-    { id: "pin", title: ext.pinned ? "Unpin from Toolbar" : "Pin to Toolbar", symbol: ext.pinned ? "pin.slash" : "pin" },
-    { id: "enable", title: ext.enabled ? "Turn Off" : "Turn On" },
-    { separator: true },
-    { id: "remove", title: "Remove Extension…", enabled: ext.mayModify },
-    { id: "manage", title: "Manage Extensions…" },
-  ]);
+  const choice = await showMenu(extensionMenuItems(ext, useExtensions.getState().sidePanels[windowId]?.extensionId === ext.id));
   if (choice === "options") openOptions(windowId, ext);
   if (choice === "pin") void setPinned(profile, ext.id, !ext.pinned);
   if (choice === "enable") void setEnabled(profile, ext.id, !ext.enabled);
   if (choice === "remove") void removeExtension(profile, ext, windowId);
   if (choice === "sidePanel") void toggleSidePanel(windowId, ext.id);
-  if (choice === "manage") openManageExtensions(windowId);
+  if (choice === "manage") {
+    openExtensionDetails(extensionsProfileId(null, windowId), ext.id);
+    openSettings();
+  }
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+export type ExtensionListChoice = "add" | "manage" | "pin";
+
+export const EXTENSION_LIST_ITEMS: ChoiceItem<never, ExtensionListChoice>[] = [
+  { id: "add", title: "Add Extension…", symbol: "plus" },
+  { id: "manage", title: "Manage Extensions…", symbol: "puzzlepiece.extension" },
+  { id: "pin", title: "Pin Extensions…", symbol: "pin" },
+];
+
+export function runExtensionListChoice(choice: ExtensionListChoice | null, windowId: string) {
+  if (choice === "add") openWebStore(windowId);
+  if (choice === "manage") openManageExtensions(windowId);
+  if (choice === "pin") openPinDialog(windowId);
 }
 
 export function extensionMenu(s: BrowserState, windowId: string | undefined) {

@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { shell } from "../../platform/devShell";
 import { readDocument, writeDocument } from "../../platform/documents";
+import { DEV_EVAL_RESULT, watchDevEval } from "../../lib/devEval";
 import { omniboxDrivers } from "../omnibox/devDriver";
 import { pagesDrivers } from "../pages/devDrivers";
 import { usePages } from "../../state/tabs/pageState";
@@ -36,6 +37,15 @@ export function startDevHarness() {
     pageState: usePages,
     openSettings,
     favicons,
+    get bookmarks(): typeof import("../../state/bookmarks/bookmarks") {
+      return require("../../state/bookmarks/bookmarks");
+    },
+    get history(): typeof import("../../state/history/history") {
+      return require("../../state/history/history");
+    },
+    get profileLoading(): typeof import("../../state/profiles/profileLoading") {
+      return require("../../state/profiles/profileLoading");
+    },
     get checkIn(): typeof import("../../state/onboarding/defaultBrowserCheckIn") {
       return require("../../state/onboarding/defaultBrowserCheckIn");
     },
@@ -51,8 +61,8 @@ export function startDevHarness() {
     get peek(): typeof import("../../state/peek/actions") {
       return require("../../state/peek/actions");
     },
-    get toasts(): typeof import("../../state/splits/actions").useToasts {
-      return require("../../state/splits/actions").useToasts;
+    get toasts(): typeof import("../../state/app/toasts").useToasts {
+      return require("../../state/app/toasts").useToasts;
     },
     get extensions(): typeof import("../../state/extensions/actions") {
       return require("../../state/extensions/actions");
@@ -63,6 +73,12 @@ export function startDevHarness() {
     get bangs(): typeof import("../../state/omnibox/bangs") {
       return require("../../state/omnibox/bangs");
     },
+    get omniboxProviders(): typeof import("../../state/omnibox/activeProviders") & typeof import("../../state/omnibox/providerApproval") & typeof import("../../state/omnibox/providers") {
+      return { ...require("../../state/omnibox/activeProviders"), ...require("../../state/omnibox/providerApproval"), ...require("../../state/omnibox/providers") };
+    },
+    get automationApprovals(): typeof import("../../state/automation/approvals") {
+      return require("../../state/automation/approvals");
+    },
     get switcher(): typeof import("../../state/sidebar/switcher") {
       return require("../../state/sidebar/switcher");
     },
@@ -72,48 +88,80 @@ export function startDevHarness() {
     get sidebarHover(): typeof import("../../state/sidebar/hover") & typeof import("../sidebar/hoverMotion") {
       return { ...require("../../state/sidebar/hover"), ...require("../sidebar/hoverMotion") };
     },
+    get stripHover(): typeof import("../../state/tabs/stripHover") {
+      return require("../../state/tabs/stripHover");
+    },
+    get windowLayout(): typeof import("../../state/windows/layout") {
+      return require("../../state/windows/layout");
+    },
     get toolbarAutoHide(): typeof import("../../state/windows/toolbarAutoHide") {
       return require("../../state/windows/toolbarAutoHide");
     },
     get hoverShift(): typeof import("../ui/hoverShift") {
       return require("../ui/hoverShift");
     },
-    get settingsSearch(): typeof import("../../state/settings/searchState") & typeof import("../settings/SettingsSearch") {
-      return { ...require("../../state/settings/searchState"), ...require("../settings/SettingsSearch") };
+    get settingsSearch(): typeof import("../../state/settings/searchState") & typeof import("../settings/SettingsSearch") & typeof import("../settings/anchors") {
+      return { ...require("../../state/settings/searchState"), ...require("../settings/SettingsSearch"), ...require("../settings/anchors") };
     },
     get settingsNav(): typeof import("../../state/settings/settingsWindows").useSettingsNav {
       return require("../../state/settings/settingsWindows").useSettingsNav;
     },
-    get preload(): typeof import("../../platform/preload") {
-      return require("../../platform/preload");
+    get preload(): typeof import("../../state/tabs/prewarm") {
+      return require("../../state/tabs/prewarm");
+    },
+    get unread(): typeof import("../../state/tabs/unread") {
+      return require("../../state/tabs/unread");
     },
     get syncSheets(): typeof import("../settings/panes/SyncSheets") {
       return require("../settings/panes/SyncSheets");
+    },
+    get menus(): typeof import("../../state/sidebar/menus") &
+      typeof import("../../state/site/reloadMenu") &
+      typeof import("../profiles/profileMenu") &
+      typeof import("../../state/bookmarks/bookmarkMenus") &
+      typeof import("../../state/bookmarks/barMenus") &
+      typeof import("../../state/history/historyMenus") &
+      typeof import("../../state/downloads/downloadMenu") &
+      typeof import("../../platform/clipboard") & { useBookmarkDialog: typeof import("../../state/bookmarks/actions").useBookmarkDialog } {
+      return {
+        useBookmarkDialog: require("../../state/bookmarks/actions").useBookmarkDialog,
+        ...require("../../state/sidebar/menus"),
+        ...require("../../state/site/reloadMenu"),
+        ...require("../profiles/profileMenu"),
+        ...require("../../state/bookmarks/bookmarkMenus"),
+        ...require("../../state/bookmarks/barMenus"),
+        ...require("../../state/history/historyMenus"),
+        ...require("../../state/downloads/downloadMenu"),
+        ...require("../../platform/clipboard"),
+      };
     },
     showWhatsSent: () => {
       const { showSettingsSheet } = require("../../state/settings/sheet") as typeof import("../../state/settings/sheet");
       const { WhatsSentSheet } = require("../settings/panes/ShareDiagnostics") as typeof import("../settings/panes/ShareDiagnostics");
       showSettingsSheet(createElement(WhatsSentSheet));
     },
+    get config(): typeof import("../../state/config/basePalette") & typeof import("../../state/config/configFiles") & typeof import("../../state/app/toasts") {
+      return { ...require("../../state/config/basePalette"), ...require("../../state/config/configFiles"), ...require("../../state/app/toasts") };
+    },
     get live(): { store: typeof import("../../state/live/store"); engine: typeof import("../../state/live/engine") } {
       return { store: require("../../state/live/store"), engine: require("../../state/live/engine") };
     },
+    get sharedFolders(): typeof import("../../state/sharedFolders/store") & typeof import("../../state/sharedFolders/engine") & typeof import("../../state/sharedFolders/actions") {
+      return { ...require("../../state/sharedFolders/store"), ...require("../../state/sharedFolders/engine"), ...require("../../state/sharedFolders/actions") };
+    },
+    get automation(): typeof import("../../state/automation/approvals") & typeof import("../../state/automation/hookRules") & typeof import("../../state/automation/hookPolicy") & typeof import("../../state/automation/decideSocket") {
+      return { ...require("../../state/automation/approvals"), ...require("../../state/automation/hookRules"), ...require("../../state/automation/hookPolicy"), ...require("../../state/automation/decideSocket") };
+    },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;
-  const scriptId = (source: string | null) => source?.match(/^\/\/ *(\S+)/)?.[1];
-  let lastId = scriptId(readDocument("dev-eval.js")) ?? "";
-  setInterval(function pollDevEval() {
-    const source = readDocument("dev-eval.js");
-    const id = scriptId(source);
-    if (!source || !id || id === lastId) return;
-    lastId = id;
+  watchDevEval(readDocument, __DEV__ ? 50 : 250, (id, source) => {
     const evalLog = ((globalThis as { __devEvalLog?: string[] }).__devEvalLog ??= []);
     const took = Date.now();
     evalLog.push(`${id} taken ${took}`);
     if (evalLog.length > 12) evalLog.shift();
     const done = (body: object) => {
       evalLog.push(`${id} settled +${Date.now() - took} ms`);
-      writeDocument("dev-eval-result.json", JSON.stringify({ id, ...body }));
+      writeDocument(DEV_EVAL_RESULT, JSON.stringify({ id, ...body }));
     };
     try {
       const fn = new Function("ac", source) as (n: typeof ac) => unknown;
@@ -124,5 +172,5 @@ export function startDevHarness() {
     } catch (error) {
       done({ error: String(error) });
     }
-  }, __DEV__ ? 50 : 250);
+  });
 }

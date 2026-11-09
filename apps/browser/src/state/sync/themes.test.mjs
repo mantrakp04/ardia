@@ -6,6 +6,7 @@ globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
 const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
 const adapters = await import("./profileAdapters.ts");
+const { settleThemeAdoption } = await import("./syncThemes.ts");
 
 const S = () => useBrowser.getState();
 const LINKS = () => ({ default: { syncId: "s1" } });
@@ -76,7 +77,7 @@ class Mac {
     this.scope = emptyScope();
     this.scope.joined = !joining;
     this.clock = new Clock(id);
-    this.adapters = legacy ? [profilesAdapterV0238(LINKS)] : [adapters.profilesAdapter(LINKS), adapters.profileThemesAdapter(LINKS, () => this.scope.records)];
+    this.adapters = legacy ? [profilesAdapterV0238(LINKS)] : [adapters.profilesAdapter(LINKS), adapters.profileThemesAdapter(LINKS, () => this.scope.records), adapters.profileTopAppsAdapter(LINKS)];
   }
   with(fn) {
     useBrowser.setState(this.browser, true);
@@ -236,7 +237,7 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   const link = { syncId: "s1", themeAdopting: true };
   joining.adapters = [
     adapters.profilesAdapter(LINKS),
-    adapters.profileThemesAdapter(() => ({ default: link }), () => joining.scope.records, () => delete link.themeAdopting),
+    adapters.profileThemesAdapter(() => ({ default: link }), () => joining.scope.records),
   ];
   joining.with(() => S().updateProfile("default", { theme: own }));
   await rounds([joining], 3);
@@ -246,6 +247,7 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   folder.downloading.delete(themeFile);
   await rounds([joining, first], 3);
   assert.deepEqual(joining.profile().theme, THEME, "the downloaded theme applies");
+  settleThemeAdoption({ default: link }, joining.scope, true);
   assert.equal(link.themeAdopting, undefined, "and the profile is adopted");
   assert.deepEqual(first.profile().theme, THEME, "and the first Mac keeps it");
   assert.equal(await rounds([joining, first], 3), 0);
@@ -326,3 +328,45 @@ test("a theme without an angle publishes no angle record", async () => {
   await a.sync();
   assert.ok(!Object.keys(a.scope.records).some((key) => key.endsWith(":angle")));
 });
+
+test("a profile's choice to share its Top Apps syncs to the other Mac", async () => {
+  const folder = new Folder();
+  const a = new Mac("a", folder);
+  await a.sync();
+  const b = new Mac("b", folder, { joining: true });
+  await rounds([a, b], 3);
+  a.with(() => S().updateProfile("default", { shareTopApps: true }));
+  await rounds([a, b], 3);
+  assert.equal(b.profile().shareTopApps, true, "B's profile shares its Top Apps too");
+  assert.equal(await rounds([a, b], 4), 0);
+  b.with(() => S().updateProfile("default", { shareTopApps: undefined }));
+  await rounds([a, b], 3);
+  assert.equal(a.profile().shareTopApps, undefined, "and keeps its own again when B's does");
+  assert.equal(await rounds([a, b], 4), 0);
+});
+
+for (const [version, sharingDefault] of [["0.2.43", false], ["0.2.44", true]]) {
+  test(`with a Mac still on ${version}: an opt-in made here survives its idle syncs, its own records never opt a profile in, and the two settle`, async () => {
+    const folder = new Folder();
+    const a = new Mac("a", folder);
+    await a.sync();
+    const old = new Mac("old", folder, { joining: true });
+    const legacy = profilesAdapterV0238(LINKS);
+    old.adapters = [
+      {
+        ...legacy,
+        extract: () => ({ values: new Map([...legacy.extract().values].map(([k, v]) => [k, { ...v, ...(sharingDefault && S().profiles.default.ownTopApps ? { o: true } : {}) }])), ignore: () => false }),
+      },
+    ];
+    await rounds([old, a], 3);
+    assert.equal(a.profile().shareTopApps, undefined, `${version}'s profile record doesn't opt this Mac in`);
+    a.with(() => S().updateProfile("default", { shareTopApps: true }));
+    await rounds([a, old], 4);
+    old.with(() => S().updateProfile("default", { name: "Home" }));
+    await rounds([old, a], 4);
+    assert.equal(a.profile().name, "Home", `${version}'s rename arrived`);
+    assert.equal(a.profile().shareTopApps, true, `and ${version} rewriting the profile record leaves the opt-in alone`);
+    assert.deepEqual(Object.entries(a.scope.records).filter(([k]) => k.startsWith("pta:")).map(([, r]) => r.v), [{ on: true }]);
+    assert.equal(await rounds([old, a], 4), 0, "nothing is republished once both have synced");
+  });
+}

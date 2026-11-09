@@ -1,15 +1,17 @@
-import { WebView, Box, Button, Text } from "../ui";
+import { Box, Button, Divider, springs, Text, WebView, type WebViewHandle } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
+import { useCardFrame } from "../window/cardFrame";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { currentSettings } from "../../state/browser/current";
 import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, findExtension, showExtensionMenu, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
+import { GLYPH } from "../toolbar/tokens";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 600;
@@ -30,16 +32,17 @@ export function ExtensionSidePanel() {
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
+  const gap = useCardFrame().splitGap;
 
   useEffect(() => {
     if (panel) setShown(panel);
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.fade, easing: curve.outCubic, useNativeDriver: false }).start(({ finished }) => {
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false }).start(({ finished }) => {
       if (finished && !panel) setShown(undefined);
     });
   }, [!!panel]);
   useEffect(() => {
     if (panel) setShown(panel);
-  }, [panel?.url, panel?.extensionId]);
+  }, [panel?.url, panel?.extensionId, panel?.opened]);
 
   const width = dragWidth ?? savedWidth;
   const start = useRef(width);
@@ -62,7 +65,7 @@ export function ExtensionSidePanel() {
           if (raw === target) return finish();
           const value = new Animated.Value(raw);
           value.addListener(({ value: v }) => setDragWidth(v));
-          Animated.timing(value, { toValue: target, duration: duration.resize, easing: curve.outBack, useNativeDriver: false }).start(() => {
+          Animated.spring(value, { toValue: target, ...springs.bouncy, useNativeDriver: false }).start(() => {
             value.removeAllListeners();
             finish();
           });
@@ -74,7 +77,7 @@ export function ExtensionSidePanel() {
   );
 
   if (!shown) return null;
-  const room = width + layout.cardInset - 1;
+  const room = width + gap;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
@@ -90,13 +93,20 @@ export function ExtensionSidePanel() {
 }
 
 function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) {
-  const { extensionId, profile, pageProfile, url } = panel;
+  const { extensionId, profile, pageProfile, url, opened } = panel;
   const theme = useTheme();
+  const cardRadius = useCardFrame().radius;
+  const web = useRef<WebViewHandle>(null);
+  const [loaded, setLoaded] = useState(false);
+  const lookingUp = useExtensions((e) => !!e.sidePanelLookups[windowId]);
+  useEffect(() => {
+    if (loaded && takeSidePanelFocus(windowId, panel)) void web.current?.focus();
+  }, [loaded, opened, lookingUp]);
   const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;
   return (
-    <View style={{ flex: 1, borderRadius: layout.cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
+    <View style={{ flex: 1, borderRadius: cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
       <Box row gap="m" style={HEADER_ROW}>
         {icon ? <Image source={{ uri: icon }} style={{ width: 16, height: 16 }} /> : null}
         <Text numberOfLines={1} weight="medium" style={FLEX}>
@@ -104,24 +114,28 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
         </Text>
         <Button variant="icon"
           icon="ellipsis"
-          size={13}
+          glyph={GLYPH}
           tooltip="More"
           onPress={() => {
             const found = findExtension(profile, extensionId);
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
-        <Button variant="icon" icon="xmark" size={12} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
+        <Button variant="icon" icon="xmark" glyph={GLYPH} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
       </Box>
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.divider }} />
+      <Divider />
       <View style={PAGE}>
         <WebView
+          ref={web}
           style={StyleSheet.absoluteFill}
           url={url}
           profile={pageProfile}
           standalone
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
+          onNavigationChange={({ isLoading }) => {
+            if (!isLoading) setLoaded(true);
+          }}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />

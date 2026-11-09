@@ -9,6 +9,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/find_in_page/find_notification_details.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -89,16 +90,13 @@ void TabBridge::OnFindTabHelperDestroyed(find_in_page::FindTabHelper* helper) {
   find_helper_ = nullptr;
 }
 
-std::optional<WindowOpenDisposition> TabBridge::TakeOpenDisposition() {
-  std::optional<WindowOpenDisposition> d = open_disposition_;
-  open_disposition_.reset();
-  return d;
-}
 
 constexpr base::TimeDelta kCloseStepDeadline = base::Seconds(2);
 
 void TabBridge::CloseAfterUnloadHandlers(bool window_closing) {
-  closing_after_unload_ = true;
+  if (!closing_after_unload()) {
+    close_step_ = CloseStep::kAwaitingBeforeUnload;
+  }
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&TabBridge::EnforceCloseDeadline,
@@ -112,10 +110,10 @@ void TabBridge::CloseAfterUnloadHandlers(bool window_closing) {
 }
 
 void TabBridge::StartUnload() {
-  if (unload_started_) {
+  if (close_step_ == CloseStep::kUnloading) {
     return;
   }
-  unload_started_ = true;
+  close_step_ = CloseStep::kUnloading;
   web_contents()->ClosePage();
 }
 
@@ -134,22 +132,22 @@ void TabBridge::EnforceCloseDeadline(bool unload_given) {
 
 void TabBridge::BeforeUnloadFired(bool proceed) {
   if (proceed) {
-    if (closing_after_unload_) {
-      unload_started_ = true;
+    if (close_step_ == CloseStep::kAwaitingBeforeUnload) {
+      close_step_ = CloseStep::kUnloading;
     }
     return;
   }
-  if (closing_after_unload_) {
+  if (closing_after_unload()) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&TabBridge::StartUnload,
                                   weak_factory_.GetWeakPtr()));
     return;
   }
-  closed_by_host_ = false;
+  close_step_ = CloseStep::kOpen;
 }
 
 void TabBridge::ReportWillClose() {
-  if (closed_by_host_ || will_close_reported_) {
+  if (close_step_ != CloseStep::kOpen || will_close_reported_) {
     return;
   }
   will_close_reported_ = true;
@@ -181,8 +179,7 @@ const char* TerminationName(base::TerminationStatus status) {
 
 void TabBridge::PrimaryMainFrameRenderProcessGone(
     base::TerminationStatus status) {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   if (status == base::TERMINATION_STATUS_NORMAL_TERMINATION ||
       status == base::TERMINATION_STATUS_STILL_RUNNING) {
     return;
@@ -206,8 +203,7 @@ void TabBridge::CheckSecurity() {
 }
 
 void TabBridge::DidChangeVisibleSecurityState() {
-  base::AutoReset<int> notifying(&g_navigation_notifying,
-                                 g_navigation_notifying + 1);
+  ScopedNotifying notifying(ScopedNotifying::Kind::kNavigation);
   CheckSecurity();
 }
 
@@ -333,7 +329,26 @@ void TabBridge::BlockedUrlAdded(int32_t popup_id, const GURL& url) {
                      weak_factory_.GetWeakPtr(), popup_id, popup));
 }
 
+void TabBridge::EnsureAudibleObserved() {
+  if (audible_subscription_) {
+    return;
+  }
+  if (auto* helper = RecentlyAudibleHelper::FromWebContents(web_contents())) {
+    audible_subscription_ = helper->RegisterRecentlyAudibleChangedCallback(
+        base::BindRepeating(&TabBridge::OnRecentlyAudibleChanged,
+                            base::Unretained(this)));
+  }
+}
+
+void TabBridge::OnRecentlyAudibleChanged(bool was_recently_audible) {
+  [tab_ notify:@selector(tabDidChangeAudio:)];
+}
+
 void TabBridge::OnAudioStateChanged(bool audible) {
+  if (audible_subscription_) {
+    return;
+  }
+  EnsureAudibleObserved();
   [tab_ notify:@selector(tabDidChangeAudio:)];
 }
 
@@ -342,6 +357,7 @@ void TabBridge::DidUpdateAudioMutingState(bool muted) {
 }
 
 void TabBridge::WebContentsDestroyed() {
+  audible_subscription_ = {};
   if (popups_) {
     popups_->manager()->RemoveObserver(this);
     popups_ = nullptr;

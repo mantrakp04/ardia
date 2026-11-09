@@ -1,6 +1,6 @@
 import { inputIdleSeconds, trimEngineMemory } from "../../platform/performance";
 import { useBrowser } from "../browser/store";
-import { isQuitting } from "../app/nativeSync";
+import { isQuitting } from "../app/quit";
 
 const QUIET_MS = 5000;
 const MIN_GAP_MS = 30000;

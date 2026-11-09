@@ -4,7 +4,7 @@ public enum Handoff {
   private static var urls: [String: URL] = [:]
 
   static func setActivity(windowId: String, url: String?, title: String?) {
-    guard let window = WindowManager.shared.windows[windowId] else { return }
+    guard let window = WindowManager.shared.window(windowId) else { return }
     guard let url = url.flatMap(URL.init(string:)), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
       urls[windowId] = nil
       window.userActivity?.invalidate()

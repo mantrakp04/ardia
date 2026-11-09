@@ -7,4 +7,4 @@ type FieldTiming = {
   drain(): [key: string, kind: string, at: number][];
 };
 
-export const fieldTiming = NativeModules.ACFieldTiming as FieldTiming | undefined;
+export const fieldTiming = NativeModules.ACFieldTiming as FieldTiming;
