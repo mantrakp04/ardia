@@ -236,7 +236,8 @@ export function createLinuxCalendar(host: ArdiaHost): LinuxCalendar {
       const results = reply?.calendars ?? {};
       const found: SystemCalendarEvent[] = [];
       const failures: CalendarObjects[] = [];
-      const budget: ExpansionBudget = { deadline: performance.now() + EXPANSION_BUDGET_MS, truncated: [] };
+      const budget: ExpansionBudget = { deadline: Infinity, truncated: [] };
+      let expansionLeft = EXPANSION_BUDGET_MS;
       const next: CalendarRefreshReport = { truncatedCalendars: [], truncatedEvents: [], skippedObjects: 0, failedCalendars: [] };
       for (const calendar of wanted) {
         const result = results[calendar.id];
@@ -256,7 +257,13 @@ export function createLinuxCalendar(host: ArdiaHost): LinuxCalendar {
             for (const [tzid, ics] of Object.entries(zones?.timezones ?? {})) fetched.set(tzid, typeof ics === "string" ? ics : null);
           }
           const before = budget.truncated.length;
-          found.push(...calendarEvents(components, calendar, start, end, fetched, budget));
+          const expanding = performance.now();
+          budget.deadline = expanding + expansionLeft;
+          try {
+            found.push(...calendarEvents(components, calendar, start, end, fetched, budget));
+          } finally {
+            expansionLeft = Math.max(0, expansionLeft - (performance.now() - expanding));
+          }
           next.truncatedEvents.push(...budget.truncated.slice(before).map((uid) => `${calendar.id}/${uid}`));
         } catch (error) {
           failures.push({ status: "failed", message: `${calendar.title} couldn't be read: ${String((error as Error)?.message ?? error)}` });

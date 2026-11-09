@@ -258,3 +258,23 @@ test("one unreadable object or calendar doesn't blank the others, and truncation
   assert.deepEqual(report.truncatedCalendars, ["work"]);
   assert.equal(report.skippedObjects, 2);
 });
+
+test("a slow time zone lookup doesn't use up the time for expanding repeating meetings", async () => {
+  const realNow = performance.now.bind(performance);
+  let lookups = 0;
+  const { calendar, host } = fixture({ consent: true, replies: { timezones: ([, tzids]) => {
+    lookups += 1;
+    return { timezones: Object.fromEntries(tzids.map((tzid) => [tzid, tzid === "W. Europe Standard Time" ? WINDOWS_ZONE : null])) };
+  } } });
+  await calendar("calendars")();
+  const lookupTime = 5000;
+  performance.now = () => realNow() + (lookups ? lookupTime : 0);
+  try {
+    const events = await calendar("events")(START, END, ["work", "personal"]);
+    assert.equal(lookups, 1);
+    assert.deepEqual(events.map((e) => e.title), ["Standup (moved)", "Election Day", "Design review", "Team dinner", "Lunch", "Berlin call", "Sync"]);
+    assert.deepEqual(linuxCalendar(host).lastRefresh().truncatedEvents, []);
+  } finally {
+    performance.now = realNow;
+  }
+});
