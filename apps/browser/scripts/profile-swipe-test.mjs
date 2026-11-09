@@ -538,6 +538,20 @@ try {
     assert.ok(middle.events.every((e) => !e.swallowed), "other buttons pass through");
     return { pressed, released, back, edge, middle };
   });
+  await test("a side-button click sent to the app reaches the pager through the event monitor", async () => {
+    await reset();
+    const result = await simulate(click(4).map((step) => ({ ...step, dispatch: "app" })));
+    await waitProfile("work");
+    return result;
+  });
+  await test("forward then back clicked at once on the first profile returns to it", async () => {
+    await reset();
+    const result = await simulate([...click(4), ...click(3)].map((step) => ({ ...step, delayMs: 0 })));
+    await sleep(600);
+    assert.equal(await profile(), "default", "the back click steps although the forward click's switch hasn't reached React yet");
+    assert.ok(result.events.every((e) => e.swallowed), "both clicks are the pager's");
+    return result;
+  });
   await test("overlapping side-button presses each switch on their own release", async () => {
     await reset();
     const pressed = await simulate([{ phase: "buttonDown", button: 4 }, { phase: "buttonDown", button: 3 }]);

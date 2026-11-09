@@ -126,9 +126,14 @@ NSEvent *SyntheticButton(NSWindow *window, NSPoint point, BOOL down, NSInteger b
     } else if ([phase isEqualToString:@"buttonDown"] || [phase isEqualToString:@"buttonUp"]) {
       NSPoint at = NSMakePoint(s[@"x"] ? [s[@"x"] doubleValue] : point.x, s[@"y"] ? [s[@"y"] doubleValue] : point.y);
       NSEvent *event = SyntheticButton(window, at, [phase isEqualToString:@"buttonDown"], [s[@"button"] integerValue]);
-      NSEvent *out = HandleOtherMouse(event);
-      [log addObject:@{@"phase" : phase, @"button" : @(event.buttonNumber), @"swallowed" : @(out == nil)}];
-      if (out) [window sendEvent:out];
+      if ([s[@"dispatch"] isEqualToString:@"app"]) {
+        [NSApp sendEvent:event];
+        [log addObject:@{@"phase" : phase, @"button" : @(event.buttonNumber), @"dispatch" : @"app"}];
+      } else {
+        NSEvent *out = HandleOtherMouse(event);
+        [log addObject:@{@"phase" : phase, @"button" : @(event.buttonNumber), @"swallowed" : @(out == nil)}];
+        if (out) [window sendEvent:out];
+      }
     } else {
       NSEvent *event = SyntheticScroll(window, point, s, startNs);
       if (event.window != window || fabs(event.locationInWindow.x - inWindow.x) > 1 || fabs(event.locationInWindow.y - inWindow.y) > 1) {

@@ -408,10 +408,8 @@ NSEvent *HandleOtherMouse(NSEvent *event) {
   if (!press.held) return event;
   NSView<ArdiaSwipeTarget> *pager = press.target;
   press = SideButtonPress();
-  BOOL back = event.buttonNumber == kBackButton;
-  BOOL available = back ? pager.canSwipeBack : pager.canSwipeForward;
-  Diag(@{@"diag" : @"sideButton", @"button" : @(event.buttonNumber), @"available" : @(available)});
-  if (available) SendDiscreteSwipe(pager, back);
+  Diag(@{@"diag" : @"sideButton", @"button" : @(event.buttonNumber)});
+  SendDiscreteSwipe(pager, event.buttonNumber == kBackButton);
   return nil;
 }
 
