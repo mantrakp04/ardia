@@ -27,3 +27,27 @@ enum WheelAxis {
     return horizontal.clamped(offset - points)
   }
 }
+
+final class WheelTally {
+  static let strip = WheelTally()
+
+  private let lock = NSLock()
+  private var ticks = 0
+  private var moved = 0
+
+  func note(from offset: Double, to target: Double) {
+    lock.lock()
+    defer { lock.unlock() }
+    ticks += 1
+    if target != offset { moved += 1 }
+  }
+
+  func take() -> (ticks: Int, moved: Int) {
+    lock.lock()
+    defer { lock.unlock() }
+    let taken = (ticks: ticks, moved: moved)
+    ticks = 0
+    moved = 0
+    return taken
+  }
+}

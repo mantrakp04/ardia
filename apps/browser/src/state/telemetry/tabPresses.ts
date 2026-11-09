@@ -1,3 +1,4 @@
+import { takeStripWheelCounts } from "../../platform/app";
 import { capture, useTelemetry } from "./client";
 import { percentile } from "./transport";
 
@@ -17,6 +18,7 @@ function forgetPresses() {
   pending = false;
   shown = null;
   toPageClick = [];
+  takeStripWheelCounts();
 }
 
 useTelemetry.subscribe((s, prev) => prev.sharing && !s.sharing && forgetPresses());
@@ -47,11 +49,19 @@ export function notePagePress(tabId: string) {
 export function emitTabPresses() {
   const counts = tally;
   const samples = toPageClick.sort((a, b) => a - b);
+  const wheel = takeStripWheelCounts();
   tally = empty();
   toPageClick = [];
-  if (!counts.presses) return;
+  if (!counts.presses && !wheel.ticks) return;
   const at = (p: number) => (samples.length ? percentile(samples, p) : null);
-  capture("tab_presses", { ...counts, page_click_ms_p50: at(0.5), page_click_ms_p75: at(0.75), page_click_n: samples.length });
+  capture("tab_presses", {
+    ...counts,
+    page_click_ms_p50: at(0.5),
+    page_click_ms_p75: at(0.75),
+    page_click_n: samples.length,
+    strip_wheel_ticks: wheel.ticks,
+    strip_wheel_moved: wheel.moved,
+  });
 }
 
 export const devTabPresses = () => ({ ...tally, pending, toPageClick: toPageClick.length });

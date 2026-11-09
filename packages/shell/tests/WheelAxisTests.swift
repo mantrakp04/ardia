@@ -66,4 +66,17 @@ final class WheelAxisTests: XCTestCase {
     XCTAssertNil(sideways(notch(-1), horizontal: flat))
     XCTAssertNil(sideways(notch(-1), horizontal: ScrollRange(lowest: 0, highest: 0.4)))
   }
+
+  func testTheTallyCountsEveryNotchAndThoseThatMovedTheStripAndIsReadOnce() {
+    let tally = WheelTally()
+    tally.note(from: 0, to: 40)
+    tally.note(from: 40, to: 80)
+    tally.note(from: 600, to: 600)
+    let first = tally.take()
+    XCTAssertEqual(first.ticks, 3)
+    XCTAssertEqual(first.moved, 2)
+    let second = tally.take()
+    XCTAssertEqual(second.ticks, 0)
+    XCTAssertEqual(second.moved, 0)
+  }
 }

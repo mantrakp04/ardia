@@ -54,6 +54,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Launches, updates, and whether the last session ended cleanly",
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
+      "How many mouse wheel notches over the top tab strip scrolled it sideways, and how many of them moved it, summed up once an hour",
       "How many tabs and windows you open (a count, not which)",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",

@@ -182,15 +182,31 @@ test("tab presses count clicks, drags turned into clicks, drags and presses that
   assert.equal(events("tab_presses").length, 1);
 });
 
+test("wheel notches the shell turned into sideways strip scrolling go out with the tab presses, read once", async () => {
+  Object.assign(stub.stripWheel, { ticks: 7, moved: 5 });
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  const props = events("tab_presses").at(-1).properties;
+  assert.equal(props.presses, 0);
+  assert.equal(props.strip_wheel_ticks, 7);
+  assert.equal(props.strip_wheel_moved, 5);
+  const sent = events("tab_presses").length;
+  presses.emitTabPresses();
+  await client.saveQueueNow();
+  assert.equal(events("tab_presses").length, sent);
+});
+
 test("turning sharing off forgets pending presses and samples, so they never go out under the next install id", async () => {
   await diagnostics.recordContext();
   assert.ok(diagnostics.contextSamples().length > 0);
   presses.notePressStarted();
   presses.notePressEnded("click", "t9");
   presses.notePressStarted();
+  Object.assign(stub.stripWheel, { ticks: 4, moved: 4 });
   client.setSharing(false, "settings");
   client.setSharing(true, "settings");
   assert.equal(diagnostics.contextSamples().length, 0);
+  assert.deepEqual(stub.stripWheel, { ticks: 0, moved: 0 });
   presses.notePagePress("t9");
   presses.notePressEnded("click", "t9");
   presses.emitTabPresses();

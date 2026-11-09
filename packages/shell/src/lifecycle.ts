@@ -17,6 +17,8 @@ export type AppEvent =
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
+export type StripWheelCounts = { ticks: number; moved: number };
+
 export type OpenURLSource = { bundleId: string | null; appName: string | null };
 
 type ShellEvents = {
@@ -32,4 +34,5 @@ export type ShellNative = {
   fetchBangList(etag: string | null): Promise<BangListReply>;
   copyText(text: string): void;
   readText(): Promise<string>;
+  takeStripWheelCounts(): StripWheelCounts;
 };
