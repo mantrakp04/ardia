@@ -170,6 +170,7 @@ function mobileDisplay(url        , title = "")                                 
 
 });
 __define("packages/core/src/index.ts", function (exports, __require) {
+  __exportAll(exports, __require("packages/core/src/anonymousIdentity.ts"));
   __exportAll(exports, __require("packages/core/src/appUrls.ts"));
   __exportAll(exports, __require("packages/core/src/bangs.ts"));
   __exportAll(exports, __require("packages/core/src/calculator.ts"));
@@ -179,6 +180,7 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/extensionRows.ts"));
   __exportAll(exports, __require("packages/core/src/fuzzy.ts"));
   __exportAll(exports, __require("packages/core/src/idn.ts"));
+  __exportAll(exports, __require("packages/core/src/ingestKeys.ts"));
   __exportAll(exports, __require("packages/core/src/omnibox.ts"));
   __exportAll(exports, __require("packages/core/src/openTabs.ts"));
   __exportAll(exports, __require("packages/core/src/providerConfig.ts"));
@@ -214,6 +216,110 @@ __define("packages/core/src/index.ts", function (exports, __require) {
 
 
 
+
+
+
+});
+__define("packages/core/src/anonymousIdentity.ts", function (exports, __require) {
+  __export(exports, "IDENTITY_ADJECTIVES", () => IDENTITY_ADJECTIVES);
+  __export(exports, "IDENTITY_ANIMALS", () => IDENTITY_ANIMALS);
+  __export(exports, "hslHex", () => hslHex);
+  __export(exports, "anonymousIdentity", () => anonymousIdentity);
+const IDENTITY_ADJECTIVES = [
+  "Agile", "Amber", "Amiable", "Astute", "Arctic", "Artful", "Autumn", "Azure",
+  "Balmy", "Beaming", "Blissful", "Bold", "Bouncy", "Brave", "Breezy", "Bright",
+  "Brisk", "Bubbly", "Buoyant", "Calm", "Candid", "Carefree", "Charming", "Cheerful",
+  "Chipper", "Classy", "Clever", "Coastal", "Cordial", "Cosmic", "Cozy", "Crimson",
+  "Curious", "Dapper", "Daring", "Dazzling", "Dreamy", "Eager", "Earnest", "Elated",
+  "Electric", "Elegant", "Epic", "Fabled", "Fair", "Fearless", "Festive", "Fluent",
+  "Fond", "Friendly", "Frosty", "Gallant", "Gentle", "Gilded", "Glad", "Gleaming",
+  "Glowing", "Golden", "Graceful", "Grand", "Happy", "Hardy", "Harmonic", "Hearty",
+  "Helpful", "Honest", "Hopeful", "Humble", "Jaunty", "Jolly", "Jovial", "Joyful",
+  "Keen", "Kind", "Lively", "Loyal", "Lucky", "Lunar", "Magic", "Mellow",
+  "Merry", "Mighty", "Misty", "Modest", "Mossy", "Nimble", "Noble", "Northern",
+  "Ocean", "Peppy", "Placid", "Playful", "Plucky", "Polite", "Proud", "Quick",
+  "Quiet", "Radiant", "Rapid", "Ready", "Regal", "Rosy", "Royal", "Rustic",
+  "Serene", "Silver", "Sincere", "Snowy", "Solar", "Sparkly", "Spirited", "Steady",
+  "Stellar", "Sterling", "Sunny", "Swift", "Tidy", "Tranquil", "Trusty", "Upbeat",
+  "Valiant", "Velvet", "Vivid", "Warm", "Wise", "Witty", "Zany", "Zesty",
+]         ;
+
+const IDENTITY_ANIMALS = [
+  "Albatross", "Alpaca", "Antelope", "Armadillo", "Badger", "Beaver", "Bison", "Bluebird",
+  "Bobcat", "Buffalo", "Bunny", "Butterfly", "Camel", "Canary", "Capybara", "Caribou",
+  "Cheetah", "Chickadee", "Chinchilla", "Chipmunk", "Cockatoo", "Condor", "Cardinal", "Cougar",
+  "Coyote", "Crane", "Cricket", "Dingo", "Dolphin", "Dove", "Dragonfly", "Duckling",
+  "Eagle", "Egret", "Elephant", "Elk", "Falcon", "Fawn", "Ferret", "Finch",
+  "Firefly", "Flamingo", "Fox", "Gazelle", "Gecko", "Gibbon", "Giraffe", "Goldfinch",
+  "Gopher", "Gorilla", "Grouse", "Hare", "Hawk", "Hedgehog", "Heron", "Hummingbird",
+  "Ibex", "Ibis", "Iguana", "Impala", "Jackrabbit", "Jaguar", "Jay", "Kangaroo",
+  "Kestrel", "Kingfisher", "Kitten", "Kiwi", "Koala", "Ladybug", "Lark", "Lemur",
+  "Leopard", "Lion", "Llama", "Lobster", "Lynx", "Macaw", "Magpie", "Manatee",
+  "Marmot", "Marten", "Meerkat", "Mink", "Mongoose", "Moose", "Narwhal", "Newt",
+  "Nightingale", "Ocelot", "Octopus", "Oriole", "Osprey", "Ostrich", "Otter", "Owl",
+  "Panda", "Panther", "Parrot", "Pelican", "Penguin", "Pheasant", "Platypus", "Puffin",
+  "Puma", "Quail", "Quokka", "Rabbit", "Raccoon", "Raven", "Reindeer", "Robin",
+  "Salmon", "Seahorse", "Seal", "Sparrow", "Squirrel", "Starling", "Stork", "Swallow",
+  "Swan", "Tiger", "Toucan", "Turtle", "Walrus", "Whale", "Wombat", "Wren",
+]         ;
+
+                                                                                  
+                                                                          
+
+function fnv1a32(text        )         {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function sequence(seed        ) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x9e3779b9) >>> 0;
+    let z = state;
+    z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
+    z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
+    return (z ^ (z >>> 16)) >>> 0;
+  };
+}
+
+const hex = (value        ) => Math.round(value * 255).toString(16).padStart(2, "0");
+
+function hslHex(hue        , saturation        , lightness        )         {
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const k = (n        ) => (n + hue / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n        ) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return `#${hex(channel(0))}${hex(channel(8))}${hex(channel(4))}`;
+}
+
+const brightHue = (hue        ) => hue >= 45 && hue <= 200;
+
+const gradientStop = (hue        , saturation        , lightness        ) => {
+  const h = (hue + 360) % 360;
+  return hslHex(h, saturation, brightHue(h) ? lightness - 10 : lightness);
+};
+
+function anonymousIdentity(id        )                    {
+  const next = sequence(fnv1a32(id.trim().toLowerCase()));
+  const adjective = IDENTITY_ADJECTIVES[next() % IDENTITY_ADJECTIVES.length] ;
+  const animal = IDENTITY_ANIMALS[next() % IDENTITY_ANIMALS.length] ;
+  const hue = next() % 360;
+  const spread = 28 + (next() % 30);
+  const direction = next() % 2 ? 1 : -1;
+  const saturation = 68 + (next() % 18);
+  const lightness = 54 + (next() % 10);
+  const colors                           = [
+    gradientStop(hue, saturation, lightness),
+    gradientStop(hue + direction * spread, saturation, lightness + 4),
+    gradientStop(hue + direction * spread * 2, saturation - 6, lightness - 4),
+  ];
+  return { name: `${adjective} ${animal}`, avatar: { colors, angle: next() % 360 } };
+}
 
 });
 __define("packages/core/src/appUrls.ts", function (exports, __require) {
@@ -1860,6 +1966,33 @@ function matchActions                           (query        , actions         
     if (score > 0) hits.push({ action: actions[a] , score, exact });
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+});
+__define("packages/core/src/ingestKeys.ts", function (exports, __require) {
+  __export(exports, "APP_INGEST_KEY", () => APP_INGEST_KEY);
+  __export(exports, "CLI_INGEST_KEY", () => CLI_INGEST_KEY);
+  __export(exports, "SITE_INGEST_KEY", () => SITE_INGEST_KEY);
+  __export(exports, "INGEST_KEY_HEADER", () => INGEST_KEY_HEADER);
+  __export(exports, "INGEST_KEYS", () => INGEST_KEYS);
+  __export(exports, "ingestSourceOf", () => ingestSourceOf);
+const APP_INGEST_KEY = "ak_app_41b5d0762fd8ade6949ac2ac";
+const CLI_INGEST_KEY = "ak_cli_67adb8ebc49841125eda860e";
+const SITE_INGEST_KEY = "ak_site_6b26588b3764ae7d0f6d63d7";
+
+const INGEST_KEY_HEADER = "X-Ardia-Key";
+
+                                                  
+
+const INGEST_KEYS                                         = {
+  app: APP_INGEST_KEY,
+  cli: CLI_INGEST_KEY,
+  site: SITE_INGEST_KEY,
+};
+
+function ingestSourceOf(key                           )                      {
+  for (const [source, value] of Object.entries(INGEST_KEYS)) if (key === value) return source                ;
+  return null;
 }
 
 });
