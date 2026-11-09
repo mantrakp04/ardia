@@ -7,6 +7,16 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const path = (name) => fileURLToPath(new URL(name, import.meta.url));
+const sources = [
+  "../ios/WebKitTab.swift",
+  "../ios/WebKitTab+AutoPictureInPicture.swift",
+  "../ios/WebKitTab+PageTab.swift",
+  "../ios/WebKitWebView.swift",
+  "../ios/WebKitAutoPictureInPicture.swift",
+  "../ios/ArdiaChromeWindowHost.h",
+  "../ios/ArdiaChromeWindowHost.mm",
+  "./webkit-auto-pip.test.swift",
+];
 const read = (name) => (existsSync(path(name)) ? readFileSync(path(name), "utf8") : "");
 const tab = read("../ios/WebKitTab.swift");
 const sight = read("../ios/WebKitTab+AutoPictureInPicture.swift");
@@ -15,6 +25,11 @@ const webView = read("../ios/WebKitWebView.swift");
 const windowHostHeader = read("../ios/ArdiaChromeWindowHost.h");
 const windowHost = read("../ios/ArdiaChromeWindowHost.mm");
 const swiftc = process.env.SWIFTC || "swiftc";
+
+test("every source the checks read exists", () => {
+  const missing = sources.filter((name) => !existsSync(path(name)));
+  assert.deepEqual(missing, []);
+});
 
 test("WebKit tabs keep the autoPictureInPicture flag instead of a stub that reads false", () => {
   assert.doesNotMatch(pageTab, /var autoPictureInPicture\b[^\n]*get \{ false \}/);
