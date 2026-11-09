@@ -32,20 +32,14 @@ export function tileCells(tabs: Record<string, Tab>, tiles: string[]): string[] 
   return out;
 }
 
-export function folderMembers(s: Pick<BrowserState, "tabs" | "windows">, windowId: string, folderId: string): string[] {
-  let profileId: string | undefined;
-  return (s.windows[windowId]?.tabIds ?? []).filter((id) => {
-    const t = s.tabs[id];
-    if (tileFolderOf(t)?.id !== folderId) return false;
-    profileId ??= t!.profileId;
-    return t!.profileId === profileId;
-  });
+export function folderMembers(s: Pick<BrowserState, "tabs" | "windows">, windowId: string, folderId: string, profileId = s.windows[windowId]?.profileId): string[] {
+  return (s.windows[windowId]?.tabIds ?? []).filter((id) => s.tabs[id]?.profileId === profileId && tileFolderOf(s.tabs[id])?.id === folderId);
 }
 
 
 
-export function folderIn(s: Pick<BrowserState, "tabs" | "windows">, windowId: string, folderId: string): TileFolder | undefined {
-  const first = folderMembers(s, windowId, folderId)[0];
+export function folderIn(s: Pick<BrowserState, "tabs" | "windows">, windowId: string, folderId: string, profileId?: string): TileFolder | undefined {
+  const first = folderMembers(s, windowId, folderId, profileId)[0];
   return first ? tileFolderOf(s.tabs[first]) : undefined;
 }
 
@@ -67,7 +61,7 @@ export function addToTileFolder(s: BrowserState, ids: string[], ontoId: string, 
   const moving = sameWindow(s, ids, onto!).filter((id) => id !== ontoId);
   const next = tileFolderOf(onto) === folder ? s : { ...s, tabs: { ...s.tabs, [ontoId]: withTileFolder(onto!, folder) } };
   if (!moving.length) return next;
-  const last = folderMembers(next, onto!.windowId, folder.id).filter((id) => !moving.includes(id)).at(-1);
+  const last = folderMembers(next, onto!.windowId, folder.id, onto!.profileId).filter((id) => !moving.includes(id)).at(-1);
   const at = beforeId && !moving.includes(beforeId) ? beforeId : after(next, onto!.windowId, last, moving);
   return placing(next, moving, { pinned: true, row: false, beforeId: at, tileFolder: folder });
 }
@@ -87,7 +81,7 @@ export function leaveTileFolder(s: BrowserState, ids: string[]): BrowserState {
   const folder = tileFolderOf(first);
   if (!first || !folder) return s;
   const moving = sameWindow(s, ids, first).filter((id) => tileFolderOf(s.tabs[id])?.id === folder.id);
-  const last = folderMembers(s, first.windowId, folder.id).filter((id) => !moving.includes(id)).at(-1);
+  const last = folderMembers(s, first.windowId, folder.id, first.profileId).filter((id) => !moving.includes(id)).at(-1);
   return placing(s, moving, { pinned: true, row: false, beforeId: after(s, first.windowId, last, moving), tileFolder: null });
 }
 

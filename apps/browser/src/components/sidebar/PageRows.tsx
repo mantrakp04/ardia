@@ -36,12 +36,13 @@ type PageRowsProps = {
   inlineNewTab: boolean;
   controller: ReturnType<typeof useDragController>;
   geometry: RefObject<SidebarGeometry> | undefined;
+  regions: SidebarGeometry["regions"];
   onListHeight: (height: number) => void;
 };
 
 const DOCKED_TILES_GAP = SCROLL_EDGE.gap + SCROLL_EDGE.line + SCROLL_EDGE.inset;
 
-export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
+export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, regions, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
   const { list: all } = useCapturedSidebarEntries(windowId, profileId, captured);
   const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, profileId, all, lazy));
@@ -83,7 +84,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);
           }}
-          onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
+          onLayout={(e) => void (regions.pinnedGroups = e.nativeEvent.layout.y)}
           style={{ marginTop: tiles.length && pinnedSection ? space.s : 0, gap: pinnedGap }}
         >
           {pinnedSection ? (
@@ -112,7 +113,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
           ref={(v) => {
             controller?.regions.set("list", v);
           }}
-          onLayout={geometry ? (e) => void (geometry.current.regions.list = e.nativeEvent.layout.y) : undefined}
+          onLayout={(e) => void (regions.list = e.nativeEvent.layout.y)}
           style={{ gap: layout.rowGap }}
         >
           {newTabButtonAtTop && inlineNewTab ? <NewTabRow windowId={windowId} /> : null}

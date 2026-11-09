@@ -92,6 +92,7 @@ export function Sidebar({ width }: { width: number }) {
                     key={page.id}
                     profileId={page.id}
                     slot={page.slot}
+                    paging={paging}
                     width={width}
                     current={page.id === current}
                     resting={!!page.resting}

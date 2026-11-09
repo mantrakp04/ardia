@@ -3,7 +3,9 @@ import { isWindowClosing } from "../windows/closingWindows";
 import type { Frame } from "../browser/types";
 import type { TabPlacement } from "../pins/placing";
 import { isRegularWindow } from "../windows/small";
-
+import { installDroppedCrx } from "../extensions/crxDrop";
+import { activeTabId } from "../browser/model";
+import { splitOf, splitTabIdsOf } from "../splits/splits";
 
 export function screenPoint(s: BrowserState, windowId: string, x: number, y: number, live?: Frame | null): [number, number] | null {
   const frame = live ?? s.windows[windowId]?.frame;
@@ -58,4 +60,37 @@ export function openDroppedUrls(windowId: string, profileId: string, placement: 
   const ids = urls.map((url, i) => s.newTab(windowId, { url, background: paged || i > 0, profileId })).filter(Boolean);
   if (ids.length && placement && !paged) useBrowser.getState().placeTabs(ids, placement);
   return ids;
+}
+
+export type DroppedEntry = { kind: "file"; url: string } | { kind: "url"; url: string } | { kind: "text"; text: string };
+
+export function droppedInputs(items: DroppedEntry[]): string[] {
+  return items.flatMap((item) => {
+    if (item.kind === "file") return /^file:\/\/\/[^/]/i.test(item.url) ? [item.url] : [];
+    const input = item.kind === "url" ? item.url.trim() : item.text.trim();
+    return input ? [input] : [];
+  });
+}
+
+export function showsNewTab(s: BrowserState, tabId: string): boolean {
+  const tab = s.tabs[tabId];
+  if (!tab || tab.url) return false;
+  const shown = activeTabId(s, tab.windowId);
+  return shown === tabId || !!splitTabIdsOf(splitOf(s, shown))?.includes(tabId);
+}
+
+export function openDroppedInTab(tabId: string, items: DroppedEntry[]): void {
+  const s = useBrowser.getState();
+  const tab = s.tabs[tabId];
+  if (!tab || !showsNewTab(s, tabId)) return;
+  const [first, ...rest] = installDroppedCrx(tab.windowId, droppedInputs(items));
+  if (!first) return;
+  s.navigate(tabId, first);
+  let previous: string | undefined;
+  for (const input of rest) {
+    const now = useBrowser.getState();
+    const at = previous ? (now.windows[tab.windowId]?.tabIds.indexOf(previous) ?? -1) + 1 : 0;
+    const id = now.newTab(tab.windowId, { url: input, background: true, profileId: tab.profileId, ...(at > 0 ? { index: at } : {}) });
+    if (id) previous = id;
+  }
 }

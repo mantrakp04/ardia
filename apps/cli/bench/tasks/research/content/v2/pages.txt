@@ -1,0 +1,185 @@
+@@ overview
+Halyard is a hosted event-streaming API. Publish events to streams over HTTPS and read them back with consumer groups or webhooks.
+
+These pages document API v2. All v2 requests go to `https://api.halyard.dev/v2/`.
+
+## Sections
+
+- **Get started:** keys, your first stream and your first event.
+- **Guides:** publishing, consuming and webhooks.
+- **Platform:** plans, rate limits and other limits.
+- **API reference:** every v2 endpoint.
+
+@@ quickstart
+## 1. Get an API key
+
+Open **Settings › API keys** in the dashboard and create a key.
+
+## 2. Create a stream
+
+```bash
+curl https://api.halyard.dev/v2/streams \
+  -u "$HALYARD_API_KEY:" \
+  -d name=orders -d partitions=4
+```
+
+## 3. Publish an event
+
+```bash
+curl https://api.halyard.dev/v2/streams/str_8Kq2vX/events \
+  -u "$HALYARD_API_KEY:" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "order.created", "data": {"total": 4200}}'
+```
+
+## 4. Read events
+
+```bash
+curl "https://api.halyard.dev/v2/streams/str_8Kq2vX/events?group=quickstart" \
+  -u "$HALYARD_API_KEY:"
+```
+
+@@ authentication
+v2 accepts the API key as the username in HTTP Basic auth, or as a bearer token.
+
+```bash
+curl https://api.halyard.dev/v2/streams -u "hk_live_51Hf2kQe8...:"
+```
+
+Keys have full access to the workspace. Scoped keys are only available in v3.
+
+@@ concepts/streams
+A stream is an ordered log of events split into partitions. Events with the same `key` go to the same partition. v2 streams support up to 64 partitions and 30 days of retention.
+
+@@ concepts/consumer-groups
+A consumer group is identified by name within a stream. Halyard stores one committed offset per partition for each group.
+
+## Reading and committing
+
+Read with `GET /v2/streams/{stream_id}/events?group=<name>`, then commit what you processed with [Commit consumer offsets](/v2/reference/commit-offsets). Check progress with [Get consumer offsets](/v2/reference/get-offsets).
+
+> **Deprecated:** Both offsets endpoints are deprecated and have sunset dates. See each endpoint's page.
+
+@@ guides/publishing
+Publish one event per request with [Publish an event](/v2/reference/publish-event). v2 has no batch endpoint; use v3 for batching.
+
+## Limits
+
+Events can be up to 256 KB. Larger events fail with `413 event_too_large`.
+
+@@ guides/consuming
+Poll [Read events](/v2/reference/read-events) in a loop, process the events, then commit offsets. v2 does not support long polling, so sleep between empty reads.
+
+```python
+while True:
+    events = client.read(stream, group="billing", max=200)
+    if not events:
+        time.sleep(1)
+        continue
+    process(events)
+    client.commit(stream, group="billing", offsets=last_offsets(events))
+```
+
+@@ webhooks/overview
+Webhooks deliver events to a URL you register with [Create a webhook](/v2/reference/create-webhook).
+
+## Delivery
+
+Halyard sends a `POST` per event. Respond with `200` within 15 seconds. Failed deliveries are retried 5 times over about 2 hours.
+
+## Payload size
+
+Webhook payloads are limited to **64 KB**. Events larger than that are not delivered by webhook.
+
+@@ webhooks/signatures
+v2 webhook requests include an `X-Halyard-Signature` header: an **HMAC-SHA1** of the raw request body, keyed with the webhook's secret, hex-encoded.
+
+```python
+import hmac, hashlib
+
+def verify(body: bytes, header: str, secret: str) -> bool:
+    expected = hmac.new(secret.encode(), body, hashlib.sha1).hexdigest()
+    return hmac.compare_digest(expected, header)
+```
+
+v2 signatures don't include a timestamp, so they don't protect against replayed requests.
+
+@@ platform/plans
+| | Starter | Team | Business | Enterprise |
+| --- | --- | --- | --- | --- |
+| Price | Free | $79 | $399 | Contact sales |
+| Events per month | 2 million | 50 million | 500 million | Custom |
+| Max retention | 1 day | 7 days | 30 days | 30 days |
+| Audit logs | No | No | 90 days | 180 days |
+| Support | Community | Email | Email | Dedicated |
+
+@@ platform/rate-limits
+Requests are limited per workspace per minute.
+
+| Plan | Requests per minute |
+| --- | --- |
+| Starter | 120 |
+| Team | 600 |
+| Business | 3,000 |
+| Enterprise | Custom |
+
+Requests over the limit get `429 Too Many Requests` with a `Retry-After` header.
+
+@@ platform/quotas
+| Limit | Value |
+| --- | --- |
+| Event size | 256 KB |
+| Webhook payload | 64 KB |
+| Partitions per stream | 64 |
+| Streams per workspace | 200 |
+| Consumer groups per stream | 20 |
+
+@@ platform/audit-logs
+Business and Enterprise workspaces can view an audit log of key, stream and member changes under **Settings › Audit log**.
+
+| Plan | Retention |
+| --- | --- |
+| Business | 90 days |
+| Enterprise | 180 days |
+
+v2 has no audit log API. Use v3's [List audit events](/v3/reference/list-audit-events).
+
+@@ reference/overview
+All v2 requests go to `https://api.halyard.dev/v2/` and return JSON. Authenticate with your API key as described in [Authentication](/v2/authentication).
+
+## Errors
+
+v2 errors return a JSON body with a `message` field and an HTTP status code. Rate-limited requests get `429`.
+
+## Endpoints
+
+- [List streams](/v2/reference/list-streams) and [Create a stream](/v2/reference/create-stream)
+- [Publish an event](/v2/reference/publish-event) and [Read events](/v2/reference/read-events)
+- [Get consumer offsets](/v2/reference/get-offsets) and [Commit consumer offsets](/v2/reference/commit-offsets)
+- [Create a webhook](/v2/reference/create-webhook)
+
+@@ resources/changelog
+Changes to API v2. For newer features, see the [v3 changelog](/v3/resources/changelog).
+
+## October 28, 2026
+
+- Sunset dates announced for all v2 endpoints. Deprecation notices added to the offsets endpoints.
+
+## March 19, 2026
+
+- v2 enters maintenance mode. API v3 is generally available.
+
+## November 3, 2025
+
+- Team plan rate limit raised to 600 requests per minute.
+
+## August 21, 2025
+
+- Webhook payload limit raised to 64 KB.
+
+## April 9, 2025
+
+- Consumer groups can be listed in the dashboard.
+
+@@ resources/support
+Email support@halyard.dev or visit community.halyard.dev. Include the `X-Request-Id` header from the failing response.

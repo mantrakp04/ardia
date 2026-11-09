@@ -50,6 +50,8 @@ extern int g_ardia_disk_space_check_seconds;
 
 extern bool g_ardia_auto_picture_in_picture_off;
 
+extern bool g_ardia_widevine_without_cdm;
+
 extern bool (*g_ardia_safe_storage_key_may_be_created)();
 
 extern void (*g_ardia_safe_storage_unreadable)(int status,
@@ -134,5 +136,12 @@ extern bool (*g_ardia_devtools_may_attach)(
 extern bool (*g_ardia_devtools_may_input)(
     content::DevToolsAgentHostClient* root_client,
     content::RenderFrameHost* frame);
+
+extern void (*g_ardia_devtools_session_attached)(
+    content::DevToolsAgentHostClient* root_client,
+    content::DevToolsAgentHost* host,
+    const void* session);
+
+extern void (*g_ardia_devtools_session_detached)(const void* session);
 
 #endif

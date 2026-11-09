@@ -196,7 +196,7 @@ test("a member moved to another profile leaves the folder; a folder left with on
   act((s) => folders.addToTileFolder(s, [c], a));
   const id = folderOf(a).id;
   useBrowser.setState({ tabs: { ...S().tabs, [b]: { ...S().tabs[b], tileFolder: { id, name: "" } } } });
-  assert.deepEqual(folders.folderMembers(S(), w, id).map(host), ["a", "c"], "another profile's tab with the same folder id isn't a member");
+  assert.deepEqual(folders.folderMembers(S(), w, id, "default").map(host), ["a", "c"], "another profile's tab with the same folder id isn't a member");
 });
 
 test("a parked folder that drops to one tab is that tile when it comes back", () => {

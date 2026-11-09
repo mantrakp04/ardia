@@ -80,6 +80,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
       controller.addUserScript(WKUserScript(source: Self.hidePasskeys, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page))
     }
     config.userContentController = controller
+    WebKitContentBlocker.shared.attach(controller)
     config.applicationNameForUserAgent = "Version/\(Self.safariVersion) Safari/605.1.15"
     config.mediaTypesRequiringUserActionForPlayback = []
     config.allowsAirPlayForMediaPlayback = true

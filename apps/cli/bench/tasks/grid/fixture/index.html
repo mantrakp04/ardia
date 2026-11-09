@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventory · All warehouses · Stockroom</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">▦</span> Stockroom</div>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#" aria-current="page">Inventory</a><a href="#">Purchase orders</a><a href="#">Receiving</a><a href="#">Reports</a>
+  </nav>
+  <div class="me"><span class="avatar" aria-hidden="true">JL</span> Jordan Lee</div>
+</header>
+<main class="sheet">
+  <div class="sheet-head">
+    <div>
+      <p class="crumbs">Northwind Labs · Operations</p>
+      <h1>Inventory — all warehouses</h1>
+    </div>
+    <div class="save-area">
+      <span id="save-state" class="save-state" role="status" aria-live="polite">Loading…</span>
+      <button id="discard" class="btn" type="button" disabled>Discard</button>
+      <button id="save" class="btn primary" type="button" disabled>Save</button>
+    </div>
+  </div>
+  <div class="toolbar" role="search">
+    <div class="field grow">
+      <label for="quick" class="sr">Search rows</label>
+      <input id="quick" type="search" placeholder="Search SKU, item, supplier…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="f-warehouse">Warehouse</label>
+      <select id="f-warehouse"><option value="">All</option></select>
+    </div>
+    <div class="field">
+      <label for="f-category">Category</label>
+      <select id="f-category"><option value="">All</option></select>
+    </div>
+    <div class="field">
+      <label for="f-status">Status</label>
+      <select id="f-status"><option value="">All</option></select>
+    </div>
+    <button id="clear-filters" class="btn link" type="button" hidden>Clear filters</button>
+    <span id="count" class="count muted"></span>
+    <button id="add-row" class="btn" type="button" disabled>＋ Add row</button>
+  </div>
+  <div id="banner" class="banner" role="alert" hidden></div>
+  <div class="grid-wrap">
+    <div id="grid" class="grid" role="grid" aria-label="Inventory" aria-multiselectable="false" tabindex="0">
+      <div class="head" role="rowgroup">
+        <div id="head-row" class="row head-row" role="row" aria-rowindex="1"></div>
+      </div>
+      <div id="canvas" class="canvas" role="rowgroup"></div>
+    </div>
+    <div id="loading" class="loading">Loading inventory…</div>
+  </div>
+  <footer class="statusbar">
+    <span id="position" class="muted"></span>
+    <span class="muted">Double-click a cell or press Enter to edit · Enter or Tab to apply · Esc to cancel</span>
+  </footer>
+</main>
+<datalist id="list-category"></datalist>
+<datalist id="list-warehouse"></datalist>
+<datalist id="list-status"></datalist>
+<dialog id="discard-dialog" aria-labelledby="discard-title">
+  <h2 id="discard-title">Discard unsaved changes?</h2>
+  <p id="discard-summary"></p>
+  <div class="dialog-actions">
+    <button type="button" class="btn" id="discard-cancel">Keep editing</button>
+    <button type="button" class="btn danger" id="discard-ok">Discard changes</button>
+  </div>
+</dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

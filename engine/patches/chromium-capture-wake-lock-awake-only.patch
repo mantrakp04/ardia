@@ -1,0 +1,12 @@
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -2866,7 +2866,7 @@
+     }
+   }
+ 
+-  if (capture_wake_lock_) {
++  if (capture_wake_lock_ && stay_awake_capturer_count_) {
+     capture_wake_lock_->RequestWakeLock();
+   }
+ 

@@ -32,6 +32,7 @@ constexpr HeldKind kHeldKinds[] = {
     {.kind = "theme"},
     {.kind = "media", .keyed_by_frame = true},
     {.kind = "nowPlaying", .cleared_by_null = true},
+    {.kind = "appBadge"},
 };
 
 const HeldKind* HeldKindNamed(std::string_view kind) {

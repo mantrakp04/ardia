@@ -2,10 +2,12 @@ import { emptyScope, holdsBack, SyncNative, visible, type ScopeState } from "../
 import { useBrowser } from "../browser/store";
 import { isIncognitoProfile } from "../browser/model";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
-import { PROFILE, SHARE, profileRecord, profileScope, recordId, shareRecord } from "./records";
+import { PROFILE, PROFILE_TOP_APPS, SHARE, profileRecord, profileScope, recordId, shareRecord, topAppsRecord } from "./records";
 import type { ProfileRecord } from "./profileAdapters";
 import { APP_SCOPE, type SyncDoc } from "./syncDoc";
 import { pairTheme } from "./syncThemes";
+
+const remoteTopApps = (doc: SyncDoc, syncId: string) => topAppsRecord(doc.scopes[APP_SCOPE]?.records[`${PROFILE_TOP_APPS}${syncId}`]?.v);
 
 export const remoteProfileRecord = (doc: SyncDoc, syncId: string) => profileRecord(doc.scopes[APP_SCOPE]?.records[`${PROFILE}${syncId}`]?.v) ?? undefined;
 
@@ -63,13 +65,14 @@ export function linkProfiles(doc: SyncDoc, app: ScopeState) {
   for (const id of s.profileOrder) {
     const profile = s.profiles[id];
     if (!profile || isIncognitoProfile(id) || doc.profiles[id]) continue;
-    const [match, matched] = doc.joining
+    const [match] = doc.joining
       ? (remote.find(([syncId, r]) => !taken.has(syncId) && (id === DEFAULT_PROFILE_ID ? r.d : r.n === profile.name)) ?? [])
       : [];
     const syncId = match ?? SyncNative!.newDeviceId();
     doc.profiles[id] = { syncId, enabled: true };
     taken.add(syncId);
-    if (matched && !!matched.o !== !!profile.ownTopApps) s.updateProfile(id, { ownTopApps: matched.o });
+    const topApps = match ? remoteTopApps(doc, match) : null;
+    if (topApps && topApps.on !== !!profile.shareTopApps) s.updateProfile(id, { shareTopApps: topApps.on || undefined });
     if (match) {
       doc.scopes[profileScope(syncId)] = { ...emptyScope(), awaitRemote: true };
       pairTheme(app, id, doc.profiles[id]!);
@@ -80,7 +83,7 @@ export function linkProfiles(doc: SyncDoc, app: ScopeState) {
 }
 
 export function addLinkedProfile(doc: SyncDoc, syncId: string, record: ProfileRecord, shareWith: string | null): string {
-  const id = useBrowser.getState().createProfile({ name: record.n, color: record.c, icon: record.i, shareWith, ownTopApps: record.o });
+  const id = useBrowser.getState().createProfile({ name: record.n, color: record.c, icon: record.i, shareWith, shareTopApps: remoteTopApps(doc, syncId)?.on });
   doc.profiles[id] = { syncId, enabled: true };
   pairTheme(doc.scopes[APP_SCOPE], id, doc.profiles[id]!, record);
   doc.scopes[profileScope(syncId)] = { ...emptyScope(), awaitRemote: true };

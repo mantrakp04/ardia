@@ -9,6 +9,7 @@ import { aimDrop, dragRange, dropIndex } from "./stripGroups";
 import { makeRoom, registerSlot, reorderOffsets, settleRoom } from "./stripReorder";
 import { SLIDE } from "./tokens";
 import { LIFT_MS, LIFT_SLOP, ONTO_EDGE, TOP_STRIP_HEIGHT } from "./tokens";
+import { endHeldTabPress, TAB_CLICK_SLOP } from "../../state/sidebar/heldTabPress";
 
 const IDLE = { kind: "idle" } as const;
 
@@ -21,7 +22,7 @@ export function useStripDrag(item: StripDrag) {
   const view = useRef<View>(null);
   const latest = useRef(item);
   latest.current = item;
-  const drag = useRef({ stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids: [] as string[], dx: 0, to: -1, grab: item.width / 2, crossed: false, onto: null as DropTarget | null });
+  const drag = useRef({ stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids: [] as string[], dx: 0, to: -1, grab: item.width / 2, crossed: false, onto: null as DropTarget | null, far: 0 });
   useEffect(() => registerSlot(() => latest.current.geometry, () => latest.current.from, shift), []);
   const aimAt = (dx: number) => {
     const { geometry, from, targets } = latest.current;
@@ -54,6 +55,8 @@ export function useStripDrag(item: StripDrag) {
     }
     setLook(on ? "crossed" : "dragging");
   };
+  const pressAt = useRef([0, 0]);
+  const travel = (x: number, y: number) => Math.hypot(x - pressAt.current[0]!, y - pressAt.current[1]!);
   const phase = useRef<{ kind: "idle" } | { kind: "dragging" } | { kind: "settling"; land: () => void }>(IDLE);
   const raised = useRef<number | null>(null);
   const raise = (on: boolean) => {
@@ -122,18 +125,19 @@ export function useStripDrag(item: StripDrag) {
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, g) => {
           if (tabDragging()) return false;
+          pressAt.current = [g.moveX - g.dx, g.moveY - g.dy];
           const axis = latest.current.axis;
           if (axis === "y") return Math.abs(g.dy) > 6 && Math.abs(g.dy) > Math.abs(g.dx);
           if (axis === "x") return Math.abs(g.dx) > 4;
           return Math.abs(g.dx) > 4 || Math.abs(g.dy) > 6;
         },
-        onPanResponderGrant: (e) => {
+        onPanResponderGrant: (e, g) => {
           const ids = latest.current.ids();
           const grab: [number, number] = [e.nativeEvent.pageX, e.nativeEvent.pageY];
           landSettle();
           dx.stopAnimation();
           dx.setValue(0);
-          const mine = { stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids, dx: 0, to: -1, grab: latest.current.width / 2, crossed: false, onto: null };
+          const mine = { stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids, dx: 0, to: -1, grab: latest.current.width / 2, crossed: false, onto: null, far: travel(g.moveX, g.moveY) };
           setOnto(null);
           drag.current = mine;
           phase.current = { kind: "dragging" };
@@ -150,6 +154,7 @@ export function useStripDrag(item: StripDrag) {
         },
         onPanResponderMove: (_, g) => {
           const { geometry, from, tabId, range, local, cross } = latest.current;
+          drag.current.far = Math.max(drag.current.far, travel(g.moveX, g.moveY));
           const lifted = !local && !!tabId && drag.current.ids.length === 1 && g.moveY > drag.current.stripBottom + LIFT_SLOP;
           setLifted(lifted);
           const [min, max] = (typeof range === "function" ? range(drag.current.grab) : range) ?? (from < 0 ? [0, 0] : dragRange(geometry, from));
@@ -164,20 +169,21 @@ export function useStripDrag(item: StripDrag) {
           if (!across) makeRoomAt(lifted || from < 0 ? -1 : (aim?.to ?? dropIndex(geometry, from, g.dx)));
           if (!local) updateTabDrag(g.moveX, g.moveY, lifted);
         },
-        onPanResponderRelease: (_, g) => {
+        onPanResponderRelease: (e, g) => {
           const { local, drop, from, range, geometry } = latest.current;
-          const { ids, lifted, crossed, grab } = drag.current;
+          const { ids, lifted, crossed, grab, far } = drag.current;
           phase.current = IDLE;
           const bounds = typeof range === "function" ? range(grab) : range;
           const travelled = bounds ? Math.max(bounds[0], Math.min(bounds[1], g.dx)) : g.dx;
           let onto: DropTarget | null = null;
+          let carried = false;
           const outcome = releaseDrop({
             local: !!local,
             lifted,
             from,
             drops: !!drop,
             crossed,
-            endWindowDrag: endTabDrag,
+            endWindowDrag: () => (carried = endTabDrag()),
             landAcross: () => latest.current.cross?.land(drag.current.dx, grab, ids),
             clearAim: () => {
               setCross(false);
@@ -196,9 +202,12 @@ export function useStripDrag(item: StripDrag) {
               return !!moved;
             },
           });
+          const to = outcome.kind === "settle" ? indexAt(g.dx) : NaN;
+          const stayed = to === from || (from < 0 && outcome.kind === "handedOff" && !lifted && !carried);
+          const click = stayed && Math.max(far, travel(g.moveX, g.moveY), travel(e.nativeEvent.pageX, e.nativeEvent.pageY)) <= TAB_CLICK_SLOP;
+          endHeldTabPress(ids, click ? e : null);
           if (outcome.kind === "across") return settleAcross(outcome.landing);
           if (outcome.kind !== "settle") return reset();
-          const to = indexAt(g.dx);
           settleInto(to === from ? null : to, () => {
             const mark = storeMark();
             if (local) drop?.(travelled, ids);
@@ -207,6 +216,7 @@ export function useStripDrag(item: StripDrag) {
           });
         },
         onPanResponderTerminate: () => {
+          endHeldTabPress([], null);
           const local = latest.current.local;
           reset();
           if (!local) cancelTabDrag();

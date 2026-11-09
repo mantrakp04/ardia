@@ -1,0 +1,17 @@
+--- a/chrome/browser/extensions/api/extension_action/extension_action_api.cc
++++ b/chrome/browser/extensions/api/extension_action/extension_action_api.cc
+@@ -122,8 +122,12 @@
+ bool HasPopupOnActiveTab(BrowserWindowInterface& browser,
+                          content::BrowserContext* browser_context,
+                          const Extension& extension) {
+-  content::WebContents* web_contents =
+-      TabListInterface::From(&browser)->GetActiveTab()->GetContents();
++  tabs::TabInterface* active_tab =
++      TabListInterface::From(&browser)->GetActiveTab();
++  if (!active_tab) {
++    return false;
++  }
++  content::WebContents* web_contents = active_tab->GetContents();
+   ExtensionAction* extension_action =
+       ExtensionActionManager::Get(browser_context)
+           ->GetExtensionAction(extension);

@@ -113,6 +113,59 @@ test("the store's tree and Chrome's stay alike: the app's edits go as ops, an ex
   stop();
 });
 
+test("select all and delete clears a 2,400-bookmark import from the store and Chrome in one go, and undo puts every one back in place", async () => {
+  S().hydrate({});
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  stub.docs.clear();
+  stub.bookmarkDbs.clear();
+  const stop = startBookmarks();
+  await settle();
+  await reloadBookmarks();
+  const roots = bookmarkRoots(S(), "default");
+  const kept = S().addBookmark({ profileId: "default", url: "https://kept.example/", title: "Kept" });
+  const links = Array.from({ length: 2100 }, (_, i) => ({ title: `Page ${i}`, url: `https://example.test/${i}` }));
+  const folders = Array.from({ length: 3 }, (_, f) => ({ title: `Folder ${f}`, children: Array.from({ length: 100 }, (_, i) => ({ title: `F${f} ${i}`, url: `https://example.test/f${f}/${i}` })) }));
+  S().addBookmarkTree("default", [...folders.slice(0, 2), ...links, folders[2]], roots.bar);
+  await settle();
+  const before = storeTree();
+  assert.deepEqual(chromeTree(), before);
+  const all = [...S().bookmarks.nodes[roots.bar].children];
+  assert.equal(all.length, 2104);
+
+  const doomed = all.filter((id) => id !== kept);
+  const started = performance.now();
+  const removed = S().removeBookmarks(doomed);
+  const removeMs = performance.now() - started;
+  assert.equal(removed.places.length, 2103);
+  assert.equal(removed.nodes.length, 2403, "the folders' links go with them");
+  assert.deepEqual(S().bookmarks.nodes[roots.bar].children, [kept]);
+  await settle();
+  assert.deepEqual(chromeTree().bar, { "Bookmarks Bar": ["Kept=https://kept.example/"] });
+
+  const restoring = performance.now();
+  S().restoreBookmarks(removed);
+  const restoreMs = performance.now() - restoring;
+  await settle();
+  assert.deepEqual(storeTree(), before);
+  assert.deepEqual(chromeTree(), before);
+  assert.ok(removeMs < 250 && restoreMs < 250, `remove ${removeMs.toFixed(0)} ms, restore ${restoreMs.toFixed(0)} ms`);
+  stop();
+});
+
+test("undo puts deleted rows back between the rows that stayed, in every folder they came from", () => {
+  S().hydrate({});
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  const roots = (S().addBookmarkTree("default", []), bookmarkRoots(S(), "default"));
+  const [a, b, c, d, e] = S().addBookmarkTree("default", ["A", "B", "C", "D", "E"].map((t) => ({ title: t, url: `https://${t}.example/` })), roots.bar);
+  const [x, y, z] = S().addBookmarkTree("default", ["X", "Y", "Z"].map((t) => ({ title: t, url: `https://${t}.example/` })), roots.other);
+  const removed = S().removeBookmarks([e, a, c, y, z]);
+  assert.deepEqual(S().bookmarks.nodes[roots.bar].children, [b, d]);
+  assert.deepEqual(S().bookmarks.nodes[roots.other].children, [x]);
+  S().restoreBookmarks(removed);
+  assert.deepEqual(S().bookmarks.nodes[roots.bar].children, [a, b, c, d, e]);
+  assert.deepEqual(S().bookmarks.nodes[roots.other].children, [x, y, z]);
+});
+
 test("an edit made at launch, before Chrome's tree is read, reaches Chrome and stays", async () => {
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});

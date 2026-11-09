@@ -18,7 +18,7 @@ import { webviewRef, webviews } from "../../state/tabs/webviewHandles";
 import { noteIssued, takeStartedNavigation } from "../../state/tabs/earlyNavigate";
 import { currentEngineProfile, currentTab, isTabSilenced } from "../../state/browser/current";
 import { closeTabNow, updateLive, updateTab } from "../../state/tabs/actions";
-import { setFind } from "../../state/windows/actions";
+import { returnRefusedMove, setFind } from "../../state/windows/actions";
 import { activateFocusedPane, currentTabEngine, downloadNavigated, useTabEngine } from "../../state/windows/card";
 import { setPageProgress } from "../../state/tabs/pageProgress";
 import { shallowEqual, useBrowserWhile, useProfilesValue, useTabValue } from "../../state/tabs/tabWatch";
@@ -28,7 +28,7 @@ import { zoomChangedByUser } from "../../state/site/zoomBubble";
 import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
 import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
-import { leftPage } from "../../state/tabs/pageEvents";
+import { leftPage, pageEnded } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
 import { shareFromPage } from "../../state/site/share";
 import { useAutoPictureInPicture } from "../../state/media/pip";
@@ -41,6 +41,9 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
+import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
+import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
+import { notePagePress } from "../../state/telemetry/tabPresses";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -64,6 +67,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const backdrop = useMemo(() => opaqueCard(theme), [theme.card, theme.windowTint[0], theme.windowTint[1]]);
 
   const lastPage = useRef<string | null>(null);
+  const restore = useRef<string | null>(null);
   const pending = useRef<string | null>(navigation?.url ?? (adoptId ? (tab()?.url ?? null) : null));
 
   const seq = navigation?.seq;
@@ -94,7 +98,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const fromNewTab = useRef(pageOf(tabId).wasNewTab && !adoptId);
   useEffect(() => {
     persistEngine(tabId, engine);
-    return () => noteGone(tabId);
+    return () => {
+      noteGone(tabId);
+      forgetUnreadIfGone(tabId);
+    };
   }, []);
   const mountedProfile = useRef(profileId);
   useLayoutEffect(
@@ -102,7 +109,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       const t = tab();
       const sameEngine = currentTabEngine(tabId) === engine;
       if (wantsPage(t) && sameEngine && currentEngineProfile(t.profileId) === currentEngineProfile(mountedProfile.current) && !isQuitting()) handOff(tabId, currentEngineProfile(t.profileId), engine);
-      else setPageProgress(tabId, 0);
+      else {
+        setPageProgress(tabId, 0);
+        if (!isQuitting()) pageEnded(tabId);
+      }
     },
     [],
   );
@@ -140,6 +150,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
+        noteUnreadLoading(tabId, isLoading);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
         const untouched = committedInitial === undefined ? reported === "" && !(tab()?.openerId && adoptId) : committedInitial && !initialDocumentAccessed;
@@ -149,6 +160,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
           adopted.current = url;
           updateTab(tabId, { page: loadedPage(navigationTo(url)) });
         }
+        if (lastPage.current === null && target !== null && !target.startsWith("about:")) restore.current = target;
+        if (!isLoading || (committedUrl && !isBlank(committedUrl))) restore.current = null;
+        const restoring = restore.current !== null;
         if (target !== null && isBlank(url) && !target.startsWith("about:") && untouched) {
           updateLive(tabId, { isLoading: true });
           return;
@@ -165,7 +179,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
           patchPage(tabId, { newTabShown: null });
         }
         if (fromNewTab.current && url && !isBlank(url)) patchPage(tabId, { backToNewTab: true });
-        updateTab(tabId, { url, title }, { isLoading, canGoBack, canGoForward, themeColor: shownTheme });
+        const shownTitle = !title && restoring ? (tab()?.title ?? title) : title;
+        updateTab(tabId, { url, title: shownTitle }, { isLoading, canGoBack, canGoForward, themeColor: shownTheme });
         dropOutlivedFavicon(tabId, url, isLoading);
         if (engine === "webkit") noteWebKitPage(tabId, { url, title, isLoading, committedUrl: committedUrl ?? "" });
         if (lastPage.current !== null && withoutFragment(url) !== lastPage.current) leftPage(tabId, url, lastPage.current, engine, peekOf !== undefined);
@@ -190,7 +205,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         noteIconPage(tabId);
         updateTab(tabId, { favicon });
         noteFavicon(tabId, favicon);
+        noteUnreadFavicon(tabId, tab()?.url ?? "", favicon);
       }}
+      onAppBadge={(badge) => noteAppBadge(tabId, badge)}
       onMedia={({ playing, muted }) => {
         updateLive(tabId, { playingAudio: playing });
         if (!muted && isTabSilenced(tabId)) void webviews.get(tabId)?.setMuted(true);
@@ -201,7 +218,12 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onOpenWindow={onOpenWindow}
       onStatus={(status) => patchPage(tabId, { status })}
       onCrashed={(crashed) => {
-        if (!isQuitting()) patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
+        if (!isQuitting()) {
+          pageEnded(tabId);
+          patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
+          trackPageProcessGone(crashed, visible);
+        }
+        noteUnreadPageEnded(tabId);
       }}
       onUnresponsive={() => patchPage(tabId, { unresponsive: true })}
       onResponsive={() => patchPage(tabId, { unresponsive: false })}
@@ -214,8 +236,12 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onAutofillPrompt={(prompt, id) => showAutofillPrompt(tabId, prompt, id)}
       onExternalApp={(externalApp) => patchPage(tabId, { externalApp })}
       onPageFocus={() => activateFocusedPane(tabId)}
-      onPagePress={() => activateFocusedPane(tabId)}
+      onPagePress={() => {
+        notePagePress(tabId);
+        activateFocusedPane(tabId);
+      }}
       onWindowClose={() => !isQuitting() && closeTabNow(tabId)}
+      onTransferRefused={(from) => returnRefusedMove(tabId, from)}
       onNotification={(notification) => showWebNotification(tabId, notification)}
       onCommand={({ command, text, modifiers, share, anchor }) => {
         if (command === "search") searchSelection(tabId, text, modifiers);
@@ -231,10 +257,12 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onDiscarded={(url) => {
         pending.current = url;
         fromNewTab.current = false;
+        pageEnded(tabId);
         patchPage(tabId, { backToNewTab: false, status: "" });
         updateLive(tabId, { isLoading: false, canGoBack: false, canGoForward: false, playingAudio: false });
         setPageProgress(tabId, 0);
         noteDiscarded(tabId);
+        noteUnreadPageEnded(tabId);
       }}
       onActivateRequest={() => {
         const t = tab();

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Item | Fixture Shop</title></head>
+<body>
+<header><nav><a href="listing.html">Docks</a></nav><p>Sitewide banner text</p></header>
+<main><p>Loading…</p></main>
+<script>
+const n = Number(new URLSearchParams(location.search).get("n")) || 0;
+setTimeout(() => {
+  document.title = `Dock ${n} | Fixture Shop`;
+  document.querySelector("main").innerHTML =
+    `<h1>Dock ${n}</h1><p class="price">$${100 + n * 10}.00</p>` +
+    `<table class="specs"><tr><th>Displays</th><td>${n % 2 ? "Two 4K60" : "One 4K60"}</td></tr>` +
+    `<tr><th>Charging</th><td>${60 + n * 10} W</td></tr></table>` +
+    `<button id="add" onclick="this.textContent = 'Added'; document.getElementById('cart').textContent = 'Cart: 1'">Add to cart</button>` +
+    `<p id="cart">Cart: 0</p>`;
+}, 150);
+</script>
+</body></html>

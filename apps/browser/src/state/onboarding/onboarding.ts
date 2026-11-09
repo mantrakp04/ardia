@@ -32,12 +32,7 @@ export type QuestionId =
   | "quit"
   | "windows"
   | "tabsMore"
-  | "color"
-  | "switcher"
-  | "appearance"
-  | "style"
-  | "siteColor"
-  | "lookMore"
+  | "color" | "switcher" | "appearance" | "style" | "frame" | "siteColor" | "lookMore"
   | "engine"
   | "typed"
   | "crash"
@@ -68,6 +63,7 @@ export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
     { id: "switcher", keys: ["profileSwitcherIcons"], askedWithPreset: true },
     { id: "appearance", keys: ["appearance"] },
     { id: "style", keys: ["interfaceStyle", "glassTintWithTheme", "glassTintAmount"], askedWithPreset: true },
+    { id: "frame", keys: ["pageFrame"], askedWithPreset: true },
     { id: "siteColor", keys: ["extendWebsiteColor"] },
     { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
   ],

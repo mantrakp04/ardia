@@ -154,6 +154,10 @@ static void (^gQuitCancelledHandler)(void);
   if (p) [engine releaseProfile:p];
 }
 
++ (NSArray<NSString *> *)loadedProfiles {
+  return ardia_host::LoadedDataProfileNames();
+}
+
 + (BOOL)stopCapture:(NSString *)tabId {
   ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
   return [tab stopCapture];
@@ -250,6 +254,44 @@ static void (^gQuitCancelledHandler)(void);
   return tab ? tab.tabId : -1;
 }
 
++ (void)cliTabTargets:(NSArray<NSString *> *)tabIds completion:(void (^)(NSDictionary<NSString *, id> *targets))completion {
+  static NSMutableDictionary<NSString *, NSString *> *lastTarget;
+  static NSMutableDictionary<NSString *, NSNumber *> *generations;
+  if (!lastTarget) {
+    lastTarget = [NSMutableDictionary dictionary];
+    generations = [NSMutableDictionary dictionary];
+  }
+  NSMutableDictionary<NSString *, id> *answer = [NSMutableDictionary dictionary];
+  void (^record)(NSString *, NSString *) = ^(NSString *tabId, NSString *targetId) {
+    if (targetId && ![lastTarget[tabId] isEqualToString:targetId]) {
+      lastTarget[tabId] = targetId;
+      generations[tabId] = @(generations[tabId].integerValue + 1);
+    }
+    answer[tabId] = @{@"targetId" : targetId ?: NSNull.null, @"pageGeneration" : generations[tabId] ?: @0};
+  };
+  dispatch_group_t pending = dispatch_group_create();
+  for (NSString *tabId in tabIds) {
+    ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+    if (!tab || tab.closed || tab.discarded) {
+      record(tabId, nil);
+      continue;
+    }
+    dispatch_group_enter(pending);
+    [tab devToolsCall:@"Target.getTargetInfo"
+               params:@{}
+              timeout:1.0
+           completion:^(NSDictionary *result, NSString *error) {
+             id info = result[@"targetInfo"];
+             id targetId = [info isKindOfClass:NSDictionary.class] ? info[@"targetId"] : nil;
+             record(tabId, [targetId isKindOfClass:NSString.class] ? targetId : nil);
+             dispatch_group_leave(pending);
+           }];
+  }
+  dispatch_group_notify(pending, dispatch_get_main_queue(), ^{
+    completion(answer);
+  });
+}
+
 + (void)resolvePermission:(NSString *)requestId result:(NSString *)result remember:(BOOL)remember {
   [ArdiaCoreEngine resolvePermission:requestId result:result remember:remember];
 }
@@ -313,6 +355,7 @@ static void (^gQuitCancelledHandler)(void);
     @"chromeWindows" : @(chromeWindows),
     @"keepAlive" : engine.keepAliveState ?: @"",
     @"lastUsedProfile" : engine.defaultProfile.name ?: @"",
+    @"focus" : ardia_host::FocusState(),
   };
 }
 

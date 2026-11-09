@@ -40,6 +40,9 @@ public class EngineModule: Module {
     "setCliControl": { args, reply in
       EngineCall.passing("ac_cli_control", profile: args.profile, args: ["on": try args.bool("on")], reply: reply)
     },
+    "cliTabTargets": { args, reply in
+      ArdiaHost.cliTabTargets(try args.strings("tabIds")) { reply.ok($0) }
+    },
     "setCliActiveTab": { args, reply in
       let active = try args.optionalText("tabId").map { ArdiaHost.chromeTabId(ofTab: $0) } ?? -1
       EngineCall.passing("ac_cli_control", profile: args.profile, args: ["active": active], reply: reply)

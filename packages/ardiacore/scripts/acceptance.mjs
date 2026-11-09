@@ -56,15 +56,15 @@ const usesPageA = [
   "cmd-click", "evaluate", "tab-strips", "tab-switch", "status-text", "load-error", "chrome-strings",
   "context-menu-search", "duplicate-and-reopen", "device-chooser", "bluetooth-chooser",
   "bluetooth-settings", "cast-dialog", "cast-routes", "theme-commit", "user-selection",
-  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures",
+  "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures", "blank-frame-share", "pip-share-without-click",
   "restore-after-close", "discard-outcomes", "memory-saver", "capture-picture", "unresponsive", "permission-dismissed",
   "save-page", "activate-request", "extension-popup-and-panel", "scroll-zoom", "print-preview",
   "extension-prompts", "traffic-lights-after-profile-switch", "extension-configure",
   "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
-  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "picture-in-picture-opt-out", "pip-window", "page-focus",
+  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
@@ -334,6 +334,27 @@ const server = createServer((req, res) => {
         return Array.from(g.getImageData(bitmap.width >> 1, bitmap.height >> 1, 1, 1).data.slice(0, 3));
       };
     </script>`));
+  if (url.pathname === "/blank-share")
+    return res.end(page("Blank Share", `<iframe id="blank"></iframe><iframe id="srcdoc" srcdoc="<p>srcdoc</p>"></iframe>`, `<script>
+      window.__share = {};
+      window.__streams = [];
+      window.share = (kind) => {
+        window.__share[kind] = "pending";
+        document.getElementById(kind).contentWindow.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { window.__streams.push(s); window.__share[kind] = "live"; }, (e) => (window.__share[kind] = e.name));
+        return true;
+      };
+    </script>`));
+  if (url.pathname === "/pip-share")
+    return res.end(page("PiP Share", "pip share", `<script>
+      window.openPip = async () => { window.__pip = await documentPictureInPicture.requestWindow({ width: 320, height: 180 }); return "ok"; };
+      window.pipShare = () => {
+        window.__pipShare = "pending";
+        window.__pip.navigator.mediaDevices.getDisplayMedia({ video: true })
+          .then((s) => { s.getTracks().forEach((t) => t.stop()); window.__pipShare = "live"; }, (e) => (window.__pipShare = e.name));
+        return true;
+      };
+    </script>`));
   if (url.pathname === "/media") return res.end(page("Media", `<audio id="tone" src="/tone.wav" loop></audio>`));
   if (url.pathname === "/fresh") return res.end(page("Fresh", "fresh"));
   if (url.pathname === "/np-frames") return res.end(page("NP frames", `<audio id="tone" src="/tone.wav" loop></audio><iframe src="/np-child"></iframe>`));
@@ -361,6 +382,7 @@ const server = createServer((req, res) => {
         const v = document.getElementById("v"); v.srcObject = stream;
         return v.play().then(() => "ok", (e) => e.name);
       };
+      if (location.search.includes("optout")) document.getElementById("v").disablePictureInPicture = true;
       if (location.search.includes("docpip"))
         navigator.mediaSession.setActionHandler("enterpictureinpicture", async () => {
           const w = await documentPictureInPicture.requestWindow({ width: 320, height: 180 });
@@ -1488,6 +1510,69 @@ try {
       await closeTab(other.id);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
       await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
+    }
+  });
+
+  await check("blank-frame-share", async () => {
+    const target = await openTab(`${base}/capture-target?blank`, "Capture Target", true);
+    const tab = await openTab(`${base}/blank-share`, "Blank Share");
+    let t = null;
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      t = await pageFor(tab.id, "/blank-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      await until("the srcdoc frame", async () => (await value("document.getElementById('srcdoc').contentDocument?.body?.textContent === 'srcdoc'")) || null, 5000);
+      const asks = async () => (await eventsOf(tab.id)).filter((x) => x.name === "displayMediaRequest").length;
+      const results = {};
+      for (const kind of ["blank", "srcdoc"]) {
+        await until(`no click active before ${kind}`, async () => (await value("navigator.userActivation.isActive")) === false || null, 8000);
+        const asked = await asks();
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})` });
+        const unclicked = await until(`${kind} without a click`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          return v !== "pending" ? v : null;
+        }, 5000);
+        if (unclicked !== "InvalidStateError" || (await asks()) !== asked) throw new Error(`${kind} without a click: ${unclicked}, picker asks ${(await asks()) - asked}`);
+        await cdp(t, "Runtime.evaluate", { expression: `share(${JSON.stringify(kind)})`, userGesture: true });
+        await until(`Ardia's picker for ${kind}`, async () => ((await asks()) > asked ? true : null), 10000);
+        const source = await evalApp(`return ac.webviews.get("${target.id}").mediaCaptureSourceId()`);
+        if (!source) throw new Error("no capture source id for the target tab");
+        await evalApp(`globalThis.acSharePicker.answerDisplayMedia("${tab.id}", ${JSON.stringify(source)}); return true`);
+        const clicked = await until(`${kind} live`, async () => {
+          const v = await value(`window.__share[${JSON.stringify(kind)}]`);
+          if (v !== "pending" && v !== "live") throw new Error(`${kind} with a click: ${v}`);
+          return v === "live" ? v : null;
+        }, 15000);
+        results[kind] = { unclicked, clicked };
+      }
+      return results;
+    } finally {
+      if (t) await cdp(t, "Runtime.evaluate", { expression: "window.__streams.forEach((s) => s.getTracks().forEach((x) => x.stop())); true" }).catch(() => null);
+      await closeTab(tab.id);
+      await closeTab(target.id);
+    }
+  });
+
+  await check("pip-share-without-click", async () => {
+    const tab = await openTab(`${base}/pip-share`, "PiP Share");
+    try {
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
+      const t = await pageFor(tab.id, "/pip-share");
+      const value = async (expression) => (await cdp(t, "Runtime.evaluate", { expression, returnByValue: true })).result.value;
+      const opened = (await cdp(t, "Runtime.evaluate", { expression: "openPip()", awaitPromise: true, userGesture: true, returnByValue: true })).result.value;
+      if (opened !== "ok") throw new Error(`requestWindow: ${opened}`);
+      await sleep(5500);
+      await until("the click expired", async () => (await value("navigator.userActivation.isActive")) === false || null, 5000);
+      await cdp(t, "Runtime.evaluate", { expression: "pipShare()" });
+      const result = await until("the PiP window's request answered", async () => {
+        const v = await value("window.__pipShare");
+        return v !== "pending" ? v : null;
+      }, 5000);
+      if (result !== "InvalidStateError") throw new Error(`getDisplayMedia in the PiP window without a click: ${result}`);
+      return { opened, result };
+    } finally {
+      await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`).catch(() => null);
+      await closeTab(tab.id);
     }
   });
 
@@ -2841,6 +2926,25 @@ try {
     return { updated: revealed.password, unlocked, never: never?.origins?.length ?? never, allowed, exported: exported?.status ?? exported, written };
   });
 
+  await check("passwords-save-again", async () => {
+    const origin = `https://again-${process.pid}-${Date.now().toString(36)}.test`;
+    try {
+      const first = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (first?.error) throw new Error(`first save: ${first.error}`);
+      const again = await secret("ArdiaPasswords", "save", "", origin, "user", "pw1");
+      if (again?.error) throw new Error(`saving the same login again: ${again.error}`);
+      const other = await secret("ArdiaPasswords", "save", "", origin, "user", "pw2");
+      if (other?.error !== "Could not save the password (invalid, or already saved)") throw new Error(`saving another password for it: ${JSON.stringify(other)}`);
+      const revealed = await until("the first password", async () => {
+        const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "user" });
+        return r?.password === "pw1" ? r : null;
+      });
+      return { again: "saved", other: other.error, password: revealed.password };
+    } finally {
+      await engineOrError("passwords.remove", { profile: "", origin, username: "user" });
+    }
+  });
+
   await check("autofill-cards", async () => {
     const saved = await secret("ArdiaAutofill", "saveCard", "", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111");
     if (saved?.error) throw new Error(`save: ${saved.error}`);
@@ -3259,6 +3363,13 @@ try {
         return e?.payload.playing && e.payload.muted ? e : null;
       }, 8000);
       await until("live.playingAudio", async () => (await live(first.id))?.playingAudio === true, 5000);
+      const blipFrom = (await eventsOf(first.id)).at(-1)?.t ?? 0;
+      const stopsSince = async (t) => (await eventsOf(first.id)).filter((x) => x.t > t && x.name === "media" && !x.payload?.playing).length;
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
+      await new Promise((r) => setTimeout(r, 700));
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').play(); true", userGesture: true });
+      await new Promise((r) => setTimeout(r, 500));
+      if (await stopsSince(blipFrom)) throw new Error("a 0.7 s pause reported the tab as silent");
       const pausedAt = Date.now();
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('tone').pause(); true" });
       const off = await until("onMedia stopped", async () => {
@@ -3266,6 +3377,7 @@ try {
         return e && !e.payload.playing ? e : null;
       }, 8000);
       const stoppedAfterMs = Date.now() - pausedAt;
+      if (stoppedAfterMs < 1500) throw new Error(`the speaker went off ${stoppedAfterMs} ms after the sound stopped, not after Chrome's 2 s hold`);
       await until("live.playingAudio off", async () => (await live(first.id))?.playingAudio === false, 5000);
       await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`);
       const unmuted = await until("onMedia unmuted", async () => {
@@ -3289,7 +3401,8 @@ try {
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
         .catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await pipWindows())}`); });
-      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab)
+      if (!video.rounded || !video.keepOnTop || video.rim !== 1 || video.level < 3 || video.host !== "127.0.0.1" || !video.backToTab ||
+          video.subrole !== "AXSystemFloatingWindow")
         throw new Error(`not styled as on CEF: ${JSON.stringify(video)}`);
       await sleep(800);
       const videoShown = (await pipWindows())?.find((w) => w.window === video.window) ?? video;
@@ -3346,6 +3459,59 @@ try {
     }
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     return results;
+  });
+
+  await check("picture-in-picture-opt-out", async () => {
+    const optedOut = (t) => cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture", returnByValue: true }).then((r) => r.result.value);
+    const manualTab = await openTab(`${base}/video?optout`, "Video");
+    let manual;
+    try {
+      await evalApp(`return ac.webviews.get("${manualTab.id}").setMuted(true)`);
+      const t = await startVideo(manualTab.id, false);
+      const own = (await cdp(t, "Runtime.evaluate", {
+        expression: "document.getElementById('v').requestPictureInPicture().then(() => 'entered', (e) => e.name)",
+        awaitPromise: true, userGesture: true, returnByValue: true,
+      })).result.value;
+      if (own !== "InvalidStateError") throw new Error(`the page's own requestPictureInPicture wasn't refused: ${own}`);
+      await pipByHand(manualTab.id);
+      const on = await until("manual PiP of a disablePictureInPicture video", async () => lastEvent(manualTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
+      const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (element !== "v" || (await optedOut(t)) !== true) throw new Error(`in PiP: element ${element}, disablePictureInPicture ${await optedOut(t)}`);
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').disablePictureInPicture = true; true" });
+      await sleep(700);
+      const afterRewrite = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
+      if (afterRewrite !== "v") throw new Error("the page writing disablePictureInPicture again closed PiP");
+      await evalApp(`return ac.webviews.get("${manualTab.id}").exitPictureInPicture()`);
+      await until("manual PiP off", async () => {
+        const e = await lastEvent(manualTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 5000);
+      manual = { pageOwnRequest: own, on: on.payload, element };
+    } finally {
+      await closeTab(manualTab.id);
+    }
+    const autoTab = await openTab(`${secureBase}/video?auto&file&optout`, "Video");
+    let auto;
+    try {
+      const t = await startVideo(autoTab.id, true);
+      await until("live.playingAudio", async () => (await live(autoTab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying with video", async () => lastEvent(autoTab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      const out = await until("auto PiP of a disablePictureInPicture video", async () => lastEvent(autoTab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 8000);
+      const kept = await optedOut(t);
+      await evalApp(`ac.actions.switchToTab("${autoTab.id}"); return true`);
+      const back = await until("auto PiP ended", async () => {
+        const e = await lastEvent(autoTab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 8000);
+      if (kept !== true) throw new Error(`auto PiP changed the page's disablePictureInPicture: ${kept}`);
+      auto = { out: out.payload, back: back.payload };
+    } finally {
+      await closeTab(autoTab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+    return { manual, auto };
   });
 
   await check("pip-window", async () => {
@@ -3677,88 +3843,33 @@ try {
     }
   });
 
-  await check("fullscreen-menu-bar-reveal", async () => {
-    const tab = await openTab(`${base}/b?fs-reveal`, "Page B");
+  await check("fullscreen-system-title-bar", async () => {
+    const tab = await openTab(`${base}/b?fs-title-bar`, "Page B");
     const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
     const win = (action) => engine("windows.dev", { window: n, action });
-    const reveal = async (amount) => JSON.parse(await win(amount === undefined ? "fullScreenReveal" : `fullScreenReveal:${amount}`));
-    const out = {};
+    const windowId = await evalApp(`return ac.store.getState().tabs[${JSON.stringify(tab.id)}]?.windowId ?? null`);
+    const appFullScreen = () => evalApp(`return !!ac.store.getState().windows[${JSON.stringify(windowId)}]?.fullScreen`);
     try {
-      const t = await pageFor(tab.id, "/b?fs-reveal");
-      let moves = 0;
-      const pageOrigin = async () => {
-        await cdp(t, "Runtime.evaluate", { expression: "window.__origin = null; addEventListener('mousemove', (e) => { window.__origin = { y: e.screenY - e.clientY }; }, { once: true }); true", returnByValue: true });
-        await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: 60, y: 200 + ++moves });
-        return (await until("the page's mousemove", async () => (await cdp(t, "Runtime.evaluate", { expression: "window.__origin", returnByValue: true })).result.value, 3000)).y;
-      };
-      const windowed = { state: await reveal(), lights: await win("lights") };
-      if (windowed.state.height !== 0 || windowed.state.hostTop !== 0) throw new Error(`content moved outside full screen: ${JSON.stringify(windowed.state)}`);
-      const suppressible = windowed.state.titlebarMaxHeight !== null;
-      if (suppressible && !(windowed.state.titlebarMaxHeight > 0)) throw new Error(`the title bar is suppressed outside full screen: ${JSON.stringify(windowed.state)}`);
+      const windowed = await win("lights");
+      if (await appFullScreen()) throw new Error("the app thinks a windowed window is full screen");
       await fsWindow(tab.id, "fakeFullScreen:1");
       await until("the window in full screen", async () => {
         const w = await fsWindow(tab.id);
         return w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
       }, 6000);
-      const rest = await reveal(0);
-      const restOrigin = await pageOrigin();
-      if (!rest.lights || rest.lights.hidden || rest.standardLightsHidden.some((h) => !h)) throw new Error(`full-screen lights: ${JSON.stringify(rest)}`);
-      if (suppressible && (rest.titlebarMaxHeight !== 0 || rest.titlebarMinHeight !== 0)) throw new Error(`the system title bar isn't suppressed: ${JSON.stringify(rest)}`);
-      out.screen = { case: rest.overlap > 0 ? "menu bar over the window" : "window below the menu bar (notch)", menuBarHeight: rest.menuBarHeight, overlap: rest.overlap };
-      out.steps = [];
-      for (const amount of [0.5, 1, 0]) {
-        const s = await reveal(amount);
-        const h = s.height;
-        const bad = [];
-        if (Math.abs(h - amount * s.overlap) > 0.5) bad.push(`height ${h} for ${amount} × ${s.overlap}`);
-        if (s.hostTop !== h || s.rootTop !== h) bad.push(`content at ${s.hostTop}/${s.rootTop}`);
-        if (JSON.stringify([s.hostSize, s.rootSize, s.pages.map((p) => p.size)]) !== JSON.stringify([rest.hostSize, rest.rootSize, rest.pages.map((p) => p.size)])) bad.push("a size changed");
-        if (s.pages.some((p, i) => p.top !== rest.pages[i].top + h)) bad.push(`pages at ${s.pages.map((p) => p.top)}`);
-        if (!s.backdrops.length || s.backdrops.some((b) => b.top !== 0)) bad.push(`backdrops at ${s.backdrops.map((b) => b.top)}`);
-        if (s.lights.top !== rest.lights.top + h || s.lights.hidden) bad.push(`lights at ${s.lights.top}${s.lights.hidden ? " hidden" : ""}`);
-        const lightsHit = await win(`hit:${s.lights.left + 7},${s.lights.top + 7}`);
-        if (!lightsHit.includes("ArdiaFullScreenLights")) bad.push(`the close light hits ${lightsHit}`);
-        const origin = await pageOrigin();
-        if (origin !== restOrigin + h) bad.push(`Chromium places the page at ${origin}, not ${restOrigin + h}`);
-        if (bad.length) throw new Error(`reveal ${amount}: ${bad.join("; ")}: ${JSON.stringify(s)}`);
-        out.steps.push({ amount, height: h, lightsTop: s.lights.top, pageOrigin: origin });
-      }
-      const placed = await reveal(0.5);
-      const placedOrigin = await pageOrigin();
-      for (const name of ["NSWindowDidResizeNotification", "NSWindowDidChangeScreenNotification", "NSWindowDidChangeBackingPropertiesNotification"])
-        await win(`postNotification:window:${name}`);
-      const replaced = await reveal();
-      const replacedOrigin = await pageOrigin();
-      const where = (s) => JSON.stringify([s.height, s.hostTop, s.rootTop, s.backdrops, s.pages, s.lights]);
-      if (where(replaced) !== where(placed) || replacedOrigin !== placedOrigin) throw new Error(`a geometry change moved the revealed window: ${where(placed)} ${placedOrigin} → ${where(replaced)} ${replacedOrigin}`);
-      out.geometryChange = { height: replaced.height, pageOrigin: replacedOrigin };
-      await reveal(1);
-      await fsEnter(tab.id, t);
-      const video = await until("page full screen in the window", async () => {
-        const s = await reveal();
-        return s.pageFullScreen ? s : null;
-      }, 6000);
-      if (video.height !== 0 || video.hostTop !== 0 || !video.lights.hidden) throw new Error(`page full screen moved with the menu bar: ${JSON.stringify(video)}`);
-      await fsEscape(t);
-      await fsLeft(tab.id, t, "Esc ended the page's full screen");
-      const back = await until("the reveal back after page full screen", async () => {
-        const s = await reveal();
-        return !s.pageFullScreen ? s : null;
-      }, 6000);
-      if (back.height !== back.overlap || back.lights.hidden) throw new Error(`the reveal didn't come back after page full screen: ${JSON.stringify(back)}`);
-      out.video = { height: video.height, lightsHidden: video.lights.hidden, after: back.height };
+      await until("the app told the window is full screen, so the sidebar's button moves to the edge", async () => ((await appFullScreen()) ? true : null), 3000);
+      const own = await win("hit:20,20");
+      if (own.includes("ArdiaFullScreenLights")) throw new Error(`our own full-screen lights are back: ${own}`);
       await fsWindow(tab.id, "fakeFullScreen:0");
       await until("the window out of full screen", async () => {
         const w = await fsWindow(tab.id);
         return !w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
       }, 6000);
-      const after = { state: await reveal(), lights: await win("lights") };
-      if (after.state.height !== 0 || after.state.hostTop !== 0 || after.state.amount !== 0 || after.state.standardLightsHidden.some((h) => h)) throw new Error(`leaving full screen kept the reveal: ${JSON.stringify(after.state)}`);
-      if (after.lights !== windowed.lights || after.state.titlebarMaxHeight !== windowed.state.titlebarMaxHeight) throw new Error(`windowed lights ${windowed.lights} → ${after.lights}, title bar ${windowed.state.titlebarMaxHeight} → ${after.state.titlebarMaxHeight}`);
-      out.windowed = { lights: after.lights, titlebarMaxHeight: after.state.titlebarMaxHeight, suppressible };
-      return out;
+      await until("the app told the window left full screen", async () => (!(await appFullScreen()) ? true : null), 3000);
+      const after = await win("lights");
+      if (after !== windowed) throw new Error(`windowed lights ${windowed} → ${after}`);
+      return { windowedLights: after };
     } finally {
-      await win("fullScreenReveal:0").catch(() => null);
       if ((await fsWindow(tab.id).catch(() => null))?.fullScreen) await fsWindow(tab.id, "fakeFullScreen:0").catch(() => null);
       await closeTab(tab.id).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);

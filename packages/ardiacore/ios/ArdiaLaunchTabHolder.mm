@@ -30,7 +30,7 @@ static const NSUInteger kHeldPageStateTotalBytes = 256 * 1024;
 }
 
 - (void)holdPageMessage:(NSString *)kind json:(NSString *)json frame:(NSString *)frame main:(BOOL)main origin:(NSString *)origin {
-  if (![@[ @"hello", @"theme", @"media", @"nowPlaying" ] containsObject:kind ?: @""]) return;
+  if (![@[ @"hello", @"theme", @"media", @"nowPlaying", @"appBadge" ] containsObject:kind ?: @""]) return;
   if ([kind isEqualToString:@"hello"]) {
     NSString *from = frame ?: @"";
     [self forgetHeldPageStateWhere:^BOOL(NSDictionary *held) { return main || [held[@"frame"] isEqualToString:from]; }];

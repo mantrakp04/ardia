@@ -205,6 +205,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
     for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
       NotificationCenter.default.addObserver(self, selector: #selector(fullScreenChanged(_:)), name: name, object: window)
     }
+    for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(fullScreenWillChange(_:)), name: name, object: window)
+    }
   }
 
   private func observeDelegateNotifications(_ window: NSWindow) {
@@ -417,14 +420,22 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
+  @objc func fullScreenWillChange(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, let id = id(of: window), managed[id] != nil else { return }
+    sendFullScreen(window, id: id, on: notification.name == NSWindow.willEnterFullScreenNotification)
+  }
+
   @objc func fullScreenChanged(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window), let entry = managed[id] else { return }
     let entered = notification.name == NSWindow.didEnterFullScreenNotification
     entry.isFullScreen = entered
-    if isMainWindow(window) {
-      ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": entered && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
-    }
+    sendFullScreen(window, id: id, on: entered)
     if entered { fullScreen.entered(id) }
+  }
+
+  private func sendFullScreen(_ window: NSWindow, id: String, on: Bool) {
+    guard isMainWindow(window) else { return }
+    ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": on && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
   }
 
   private static let resizeReportDelay: TimeInterval = 0.25

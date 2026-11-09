@@ -23,6 +23,15 @@ namespace {
 
 constexpr base::TimeDelta kGrantLifetime = base::Seconds(15);
 
+bool g_pages_pick_display_media = true;
+
+bool IsNativeDisplayCapture(blink::mojom::MediaStreamType type) {
+  return type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE ||
+         type == blink::mojom::MediaStreamType::DISPLAY_AUDIO_CAPTURE ||
+         type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE_THIS_TAB ||
+         type == blink::mojom::MediaStreamType::DISPLAY_VIDEO_CAPTURE_SET;
+}
+
 class DesktopCaptureGrant : public content::WebContentsUserData<DesktopCaptureGrant> {
  public:
   ~DesktopCaptureGrant() override = default;
@@ -64,6 +73,35 @@ void ShareAudio(content::DesktopMediaID& media_id, const std::string& audio) {
   }
 }
 
+}
+
+void SetPagesPickDisplayMedia(bool pages_pick) {
+  g_pages_pick_display_media = pages_pick;
+}
+
+bool PagesPickDisplayMedia() {
+  return g_pages_pick_display_media;
+}
+
+bool AnswerNativeDisplayCapture(content::WebContents* contents,
+                                const content::MediaStreamRequest& request,
+                                content::MediaResponseCallback* callback) {
+  if (!g_pages_pick_display_media || request.request_type == blink::MEDIA_DEVICE_UPDATE ||
+      !(IsNativeDisplayCapture(request.video_type) ||
+        IsNativeDisplayCapture(request.audio_type))) {
+    return false;
+  }
+  content::RenderFrameHost* frame =
+      content::RenderFrameHost::FromID(request.render_process_id, request.render_frame_id);
+  if (frame && frame->HasTransientUserActivation()) {
+    return false;
+  }
+  LOG(WARNING) << "ArdiaCore: refused " << request.security_origin
+               << "'s native display capture without a click";
+  std::move(*callback).Run(blink::mojom::StreamDevicesSet(),
+                           blink::mojom::MediaStreamRequestResult::NO_TRANSIENT_ACTIVATION,
+                           nullptr);
+  return true;
 }
 
 bool IsDesktopCaptureSystemAudioSupported() {

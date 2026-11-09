@@ -1,9 +1,9 @@
 import { completeInline } from "../../state/omnibox/textInput";
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { findNodeHandle, type TextInput } from "react-native";
-import { acceptsCompletion, completionToWrite, fieldChange, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
+import { acceptsCompletion, completionToWrite, previewFieldChange, withoutFirst, type EditContext, type FieldChange, type Inline, type PendingInline, type Selection } from "./inline";
 
-export function useInlineCompletion(input: RefObject<TextInput | null>, typed: string, wanted: string) {
+export function useInlineCompletion(input: RefObject<TextInput | null>, typed: string, wanted: string, preview: string | null) {
   const [inline, setInline] = useState<Inline | null>(null);
   const pending = useRef<PendingInline[]>([]);
   const heard = useRef(typed);
@@ -14,6 +14,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
       heard.current = typed;
       pending.current = pending.current.map((p) => ({ ...p, orphaned: true }));
     }
+    if (preview !== null) return;
     const write = completionToWrite(typed, wanted, shown, pending.current);
     const tag = write && findNodeHandle(input.current);
     if (!write || tag == null) return;
@@ -24,10 +25,10 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
       if (result === 1) setInline(write);
     };
     completeInline(tag, write.typed, write.completion).then(settle, () => settle(0));
-  }, [input, typed, wanted, shown]);
+  }, [input, typed, wanted, shown, preview]);
 
   const read = (next: string, edit?: EditContext): FieldChange => {
-    const change = fieldChange(typed, shown, next, pending.current, edit);
+    const change = previewFieldChange(typed, shown, preview, next, pending.current, edit);
     if (change.echo) {
       pending.current = pending.current.slice(change.settled);
       if (!change.stale) setInline(change.inline);
@@ -38,7 +39,7 @@ export function useInlineCompletion(input: RefObject<TextInput | null>, typed: s
     return change;
   };
 
-  const accepts = (selection: Selection) => acceptsCompletion(typed, shown, selection, pending.current);
+  const accepts = (selection: Selection) => preview === null && acceptsCompletion(typed, shown, selection, pending.current);
 
   return { shown, read, accepts };
 }

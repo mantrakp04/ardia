@@ -7,6 +7,10 @@ const start = script.indexOf("    const NavigatorType = window.Navigator;\n");
 const end = script.indexOf("  } catch (e) {}\n", start);
 assert.ok(start > 0 && end > start, "page_script.js has the DRM block");
 const source = script.slice(start, end);
+const helperStart = script.indexOf("  const asNative = ");
+const helperEnd = script.indexOf("  const { keys, setPrototypeOf } = Object;\n", helperStart);
+assert.ok(helperStart > 0 && helperEnd > helperStart, "page_script.js has asNative");
+const asNative = new Function(`${script.slice(helperStart, helperEnd)}return asNative;`)();
 
 class HTMLMediaElement {
   constructor(state = {}) {
@@ -18,17 +22,40 @@ class HTMLMediaElement {
   }
 }
 
-function page(supported) {
+function page(supported, { keyless = null } = {}) {
   const sent = [];
   const timers = [];
   let now = 0;
   const inDocument = [];
   const documentListeners = {};
+  class MediaKeySystemAccess {
+    #keySystem;
+    constructor(keySystem) {
+      this.#keySystem = keySystem;
+    }
+    get keySystem() {
+      return this.#keySystem;
+    }
+  }
+  Object.defineProperty(MediaKeySystemAccess.prototype, "createMediaKeys", {
+    value: {
+      createMediaKeys() {
+        if (!(this instanceof MediaKeySystemAccess)) return Promise.reject(new TypeError("Illegal invocation"));
+        return keyless.includes(this.keySystem) ? Promise.reject(new Error("NotSupportedError")) : Promise.resolve({});
+      },
+    }.createMediaKeys,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
   class Navigator {}
   Object.defineProperty(Navigator.prototype, "requestMediaKeySystemAccess", {
-    value(keySystem) {
-      return supported.includes(keySystem) ? Promise.resolve({ keySystem }) : Promise.reject(new Error("NotSupportedError"));
-    },
+    value: {
+      requestMediaKeySystemAccess(keySystem, configurations) {
+        if (!supported.includes(keySystem)) return Promise.reject(new Error("NotSupportedError"));
+        return Promise.resolve(keyless ? new MediaKeySystemAccess(keySystem) : { keySystem });
+      },
+    }.requestMediaKeySystemAccess,
     writable: true,
     enumerable: true,
     configurable: true,
@@ -47,8 +74,8 @@ function page(supported) {
       } catch (e) {}
     };
   const detachedMediaWatchers = [];
-  const run = new Function("window", "apply", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", source);
-  run({ Navigator }, Reflect.apply, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers);
+  const run = new Function("window", "apply", "asNative", "send", "document", "navigator", "HTMLMediaElement", "setTimeout", "guard", "detachedMediaWatchers", source);
+  run(keyless ? { Navigator, MediaKeySystemAccess } : { Navigator }, Reflect.apply, asNative, (kind, data) => sent.push({ kind, data }), document, navigator, HTMLMediaElement, setTimeout, guard, detachedMediaWatchers);
   const advance = (ms) => {
     now += ms;
     for (let due; (due = timers.filter((t) => t.at <= now).sort((a, b) => a.at - b.at)[0]); ) {
@@ -76,7 +103,7 @@ function page(supported) {
     await assert.rejects(navigator.requestMediaKeySystemAccess(keySystem, []));
     await settle();
   };
-  return { navigator, Navigator, sent, advance, fire, fireDetached, addMedia, detachedPlay, refuse };
+  return { navigator, Navigator, MediaKeySystemAccess, sent, advance, fire, fireDetached, addMedia, detachedPlay, refuse };
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -232,5 +259,61 @@ test("Clear Key and supported systems aren't reported, and the method keeps its 
   assert.equal(descriptor.enumerable, true);
   assert.equal(descriptor.value.name, "requestMediaKeySystemAccess");
   assert.equal(descriptor.value.length, 2);
+  assert.equal("prototype" in descriptor.value, false);
+  assert.throws(() => new descriptor.value(), TypeError);
+  assert.equal(Function.prototype.toString.call(descriptor.value), "function () { [native code] }");
   assert.equal(Object.hasOwn(navigator, "requestMediaKeySystemAccess"), false);
+});
+
+test("an access whose keys can't be created counts as a refusal, so stalled playback prompts", async () => {
+  const p = page(["com.widevine.alpha"], { keyless: ["com.widevine.alpha"] });
+  const access = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  await assert.rejects(access.createMediaKeys());
+  await settle();
+  const video = p.addMedia({ paused: false, readyState: 1 });
+  p.fire(video, "play");
+  p.advance(4999);
+  assert.deepEqual(p.sent, []);
+  p.advance(1);
+  assert.deepEqual(p.sent, drm());
+});
+
+test("keys refused after the click's activation expired still prompt when the access was requested during that click", async () => {
+  const p = page(["com.widevine.alpha"], { keyless: ["com.widevine.alpha"] });
+  p.navigator.userActivation.isActive = true;
+  const access = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  p.navigator.userActivation.isActive = false;
+  await assert.rejects(access.createMediaKeys());
+  await settle();
+  p.advance(4999);
+  assert.deepEqual(p.sent, []);
+  p.advance(1);
+  assert.deepEqual(p.sent, drm());
+});
+
+test("keys refused for an access requested without activation stay quiet without a stalled play", async () => {
+  const p = page(["com.widevine.alpha"], { keyless: ["com.widevine.alpha"] });
+  const access = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  await assert.rejects(access.createMediaKeys());
+  await settle();
+  p.advance(10000);
+  assert.deepEqual(p.sent, []);
+});
+
+test("keys that are created, Clear Key's refused keys and a wrong receiver keep the page quiet", async () => {
+  const p = page(["com.widevine.alpha", "org.w3.clearkey"], { keyless: ["org.w3.clearkey"] });
+  const widevine = await p.navigator.requestMediaKeySystemAccess("com.widevine.alpha", []);
+  assert.deepEqual(await widevine.createMediaKeys(), {});
+  const clearKey = await p.navigator.requestMediaKeySystemAccess("org.w3.clearkey", []);
+  await assert.rejects(clearKey.createMediaKeys());
+  await assert.rejects(p.MediaKeySystemAccess.prototype.createMediaKeys.call({}), TypeError);
+  await settle();
+  p.fire(p.addMedia({ paused: false, readyState: 1 }), "play");
+  p.advance(6000);
+  assert.deepEqual(p.sent, []);
+  const descriptor = Object.getOwnPropertyDescriptor(p.MediaKeySystemAccess.prototype, "createMediaKeys");
+  assert.equal(descriptor.enumerable, true);
+  assert.equal(descriptor.value.name, "createMediaKeys");
+  assert.equal(descriptor.value.length, 0);
+  assert.equal(Function.prototype.toString.call(descriptor.value), "function () { [native code] }");
 });

@@ -9,7 +9,7 @@ import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ardia_cli.browse import actions, snapshot
+from ardia_cli.browse import actions, changes, snapshot
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Gated, OutcomeUnknown, Usage
 from ardia_cli.browse.state import parse_ref, wait_until
 
@@ -21,7 +21,7 @@ ALIASES = {
 MUTATING = {
     "open", "click", "dblclick", "type", "fill", "press", "keyboard", "keydown", "keyup", "hover", "check", "uncheck",
     "select", "drag", "upload", "download", "scroll", "scrollintoview", "mouse", "back", "forward", "reload", "tab",
-    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close",
+    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script",
 }
 KNOWN_SCHEMES = ("http", "https", "about", "data", "file", "blob", "chrome", "view-source")
 LOOPBACK = re.compile(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/|$)")
@@ -45,7 +45,7 @@ class Ctx:
 
     @property
     def humanize(self) -> bool:
-        return self.options.get("humanize", True)
+        return self.options.get("humanize", False)
 
     @property
     def timeout(self) -> float:
@@ -149,6 +149,9 @@ async def wait_for_load(page, loader: str | None, timeout: float, until: str = "
 
 
 async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
+    from ardia_cli.browse import readpages
+
+    before = await readpages.before_navigating(page, url)
     try:
         result = await page.send("Page.navigate", {"url": url}, timeout=ctx.timeout)
     except Gated:
@@ -158,6 +161,8 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     loader = result.get("loaderId")
     if loader:
         await wait_for_load(page, loader, ctx.timeout, until)
+    else:
+        await readpages.after_same_document(page, before, asyncio.get_running_loop().time() + ctx.timeout)
     await page.refresh_frames()
 
 
@@ -177,6 +182,7 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
         raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
     target_id = result["targetId"]
     state.opened.add(target_id)
+    state.registry.note_opened(state.instance, target_id)
     state.target_infos.setdefault(target_id, {"targetId": target_id, "url": "about:blank", "title": "", "type": "page"})
     state.tab_id(target_id)
     if label:
@@ -199,15 +205,31 @@ async def show_tab(ctx: Ctx, page):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 5
     nudge = 0.0
+    shown_since = None
     while True:
         if loop.time() >= nudge:
             await ctx.state.browser.send("Target.activateTarget", {"targetId": page.target_id})
             nudge = loop.time() + 1
-        if not await page.hidden():
-            return
+        if not await page.hidden() and await tab_shown(ctx.state, page) is not False:
+            shown_since = shown_since or loop.time()
+            if loop.time() - shown_since >= SHOWN_HOLD:
+                return
+        else:
+            shown_since = None
+            nudge = min(nudge, loop.time() + 0.2)
         if loop.time() >= deadline:
             raise BrowseError("Ardia didn't show the tab; switch to it in Ardia, or try `ardia browse tab <id> --show` again")
         await asyncio.sleep(0.1)
+
+
+async def tab_shown(state, page) -> bool | None:
+    try:
+        infos = (await state.browser.send("Target.getTargets", {"filter": [{"type": "tab"}]})).get("targetInfos") or []
+    except BrowseError:
+        return None
+    await page.refresh_frames()
+    same = [info for info in infos if info.get("type") == "tab" and info.get("url") == page.url and isinstance(info.get("embedderData"), dict)]
+    return bool(same[0]["embedderData"].get("tabActive")) if len(same) == 1 else None
 
 
 async def apply_open_options(ctx: Ctx, page):
@@ -237,12 +259,39 @@ async def add_init_script(ctx: Ctx, page, source: str, tag: str | None) -> str:
     return identifier
 
 
+def borrowed_tab(state) -> str | None:
+    attached = (getattr(state, "extras", None) or {}).get("attached")
+    current = getattr(state, "current", None)
+    return attached if current and current == attached else None
+
+
 async def current_or_new(ctx: Ctx):
     state = ctx.state
     await state.connect()
-    if state.current and state.current in state.target_infos:
+    borrowed = borrowed_tab(state)
+    if state.current and state.current in state.target_infos and not borrowed:
         return await state.page()
-    return await new_tab(ctx, None)
+    page = await new_tab(ctx, None)
+    if borrowed:
+        note_own_tab(state, page, borrowed)
+    return page
+
+
+def note_own_tab(state, page, borrowed: str):
+    notice = (f"→ Opened in its own background tab [{state.tab_id(page.target_id)}], since this session uses your tab "
+              f"[{state.tab_id(borrowed)}] and won't navigate it")
+    state.extras["notice"] = "\n".join(part for part in (state.extras.get("notice"), notice) if part)
+
+
+def refuse_on_borrowed(ctx: Ctx, page, what: str):
+    borrowed = borrowed_tab(ctx.state)
+    if borrowed and borrowed == page.target_id:
+        tab = ctx.state.tab_id(borrowed)
+        raise BrowseError(
+            f"This session is using your tab [{tab}] (it had no tab of its own), so it won't {what} it. To drive that tab anyway, "
+            f"pick it with `ardia browse tab {tab}`; to browse on your own, use `ardia browse open <url>`",
+            data={"tabId": tab}, code="borrowed_tab",
+        )
 
 
 @command("open")
@@ -257,23 +306,37 @@ async def cmd_open(ctx: Ctx, argv):
     state = ctx.state
     await state.connect()
     url = normalize_url(args[0]) if args else None
-    if state.current and state.current in state.target_infos:
+    show = wants_show(ctx, options)
+    borrowed = state.extras.get("attached") if state.current and state.current == state.extras.get("attached") else None
+    background = None
+    if state.current and state.current in state.target_infos and not borrowed:
         page = await state.page()
         await apply_open_options(ctx, page)
         if url:
             await navigate(ctx, page, url)
-        if wants_show(ctx, options):
+        if show:
             await show_tab(ctx, page)
     else:
-        page = await new_tab(ctx, url, options.get("label"), show=wants_show(ctx, options))
+        page = await new_tab(ctx, url, options.get("label"), show=show)
+        if not show:
+            background = await page.takes_input()
     await page.refresh_frames()
     title = await page_title(page)
-    return Result({"url": page.url, "title": title}, f"✓ {title}\n  {page.url}")
+    data = {"url": page.url, "title": title}
+    text = f"✓ {title}\n  {page.url}"
+    if background is not None:
+        tab = state.tab_id(page.target_id)
+        data.update({"tabId": tab, "background": True, "takesInput": background})
+        if borrowed or not background:
+            where = f"→ Opened in its own background tab [{tab}]" + (f", since this session uses your tab [{state.tab_id(borrowed)}]" if borrowed else "")
+            text += f"\n{where}; " + ("it takes input without being shown" if background else f"this Ardia doesn't deliver input there. use: ardia browse tab {tab} --show (or open <url> --show)")
+    return Result(data, text)
 
 
 @command("back", "forward")
 async def cmd_history(ctx: Ctx, argv):
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, f"go {ctx.command} in")
     history = await page.send("Page.getNavigationHistory")
     index = history.get("currentIndex", 0)
     entries = history.get("entries") or []
@@ -300,6 +363,7 @@ async def cmd_history(ctx: Ctx, argv):
 @command("reload")
 async def cmd_reload(ctx: Ctx, argv):
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "reload")
     before = page.navigations
     await page.send("Page.reload", {})
     await wait_until(lambda: _settled(page, before), ctx.timeout, 0.05, "the reload")
@@ -319,6 +383,7 @@ async def cmd_pushstate(ctx: Ctx, argv):
     _, args = parse(argv)
     need(args, 1, "pushstate <url>")
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "change the address of")
     url = await page.call("(u) => ardiaBrowse.pushState(u)", args[0], frame=page.main_frame)
     page.url = url
     return Result({"url": url}, url)
@@ -326,18 +391,64 @@ async def cmd_pushstate(ctx: Ctx, argv):
 
 @command("snapshot")
 async def cmd_snapshot(ctx: Ctx, argv):
+    from ardia_cli import notes
+
     options, args = parse(
         argv,
-        {"--interactive": "bool", "--compact": "bool", "--depth": "value", "--selector": "value", "--urls": "bool", "--cursor": "bool"},
+        {"--interactive": "bool", "--compact": "bool", "--depth": "value", "--selector": "value", "--urls": "bool", "--cursor": "bool", "--diff": "bool"},
         {"-i": "--interactive", "-c": "--compact", "-d": "--depth", "-s": "--selector", "-u": "--urls", "-C": "--cursor"},
     )
     selector = options.get("selector") or (args[0] if args else None)
-    page = await ctx.state.page()
     depth = int(options["depth"]) if options.get("depth") is not None else None
+    if options.get("diff") and (selector or depth is not None):
+        raise Usage("snapshot --diff compares the whole page, so it takes no -s or -d")
+    page = await ctx.state.page()
+    await page.refresh_frames()
+    before = changes.previous(ctx.state, page) if options.get("diff") else None
     text, _ = await snapshot.take(ctx.state, page, bool(options.get("interactive")), bool(options.get("compact")), depth, selector, bool(options.get("urls")))
     origin = page.frames.get(page.main_frame, {}).get("origin") or page.url
     data = {"origin": origin if origin.endswith("/") else origin + "/", "refs": ctx.state.refs_json(), "snapshot": text}
-    return Result(data, text or "(empty page)", page_content=True)
+    body = text or "(empty page)"
+    if options.get("diff"):
+        if before is None:
+            data["changes"] = None
+            body = "(no earlier snapshot of this document in this session, so here is all of it)\n" + body
+        else:
+            report = changes.diff(before, ctx.state.extras["views"][page.target_id])
+            data["changes"] = changes.as_data(report)
+            body = changes.render(report)
+    root = ctx.state.config.get("data_root")
+    site, header = notes.header(Path(root), page.url) if root else (None, None)
+    if header:
+        data["notes"] = {"site": site, "header": header}
+        body = header + "\n" + body
+    return Result(data, body, page_content=True)
+
+
+@command("notes")
+async def cmd_notes(ctx: Ctx, argv):
+    from ardia_cli import notes
+
+    tab = None
+    if "--tab" in argv:
+        at = argv.index("--tab")
+        if at + 1 >= len(argv):
+            raise Usage("--tab needs a tab id (t1, or the tab-… id `ardia windows` prints)")
+        tab, argv = argv[at + 1], argv[:at] + argv[at + 2:]
+    request = notes.parse_args(argv)
+    if request.text == "-":
+        request.text = ctx.stdin or ""
+    url = None
+    if request.site is None and request.action != "list":
+        if tab is not None:
+            await ctx.state.connect()
+            await ctx.state.refresh_targets()
+            page = await ctx.state.page(await ctx.state.find_tab(tab))
+        else:
+            page = await ctx.state.page()
+        await page.refresh_frames()
+        url = page.url
+    return notes.run_request(Path(ctx.state.config["data_root"]), request, url)
 
 
 async def resolve(ctx: Ctx, selector: str):
@@ -358,8 +469,8 @@ async def cmd_click(ctx: Ctx, argv):
         tab = await new_tab(ctx, href)
         ctx.state.current = previous or tab.target_id
         return Result({"clicked": args[0], "newTab": ctx.state.tab_id(tab.target_id), "url": tab.url})
-    await actions.click(page, element, humanize, 1, options.get("button") or "left")
-    return Result({"clicked": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize, 1, options.get("button") or "left"))
+    return changes.attach(Result({"clicked": args[0]}), report)
 
 
 @command("dblclick")
@@ -367,8 +478,8 @@ async def cmd_dblclick(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "dblclick <selector>")
     page, element = await resolve(ctx, args[0])
-    await actions.click(page, element, ctx.humanize and not options.get("no_humanize"), 2)
-    return Result({"clicked": args[0], "count": 2})
+    _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, ctx.humanize and not options.get("no_humanize"), 2))
+    return changes.attach(Result({"clicked": args[0], "count": 2}), report)
 
 
 @command("hover")
@@ -376,8 +487,8 @@ async def cmd_hover(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "hover <selector>")
     page, element = await resolve(ctx, args[0])
-    await actions.hover(page, element, ctx.humanize and not options.get("no_humanize"))
-    return Result({"hovered": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.hover(page, element, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"hovered": args[0]}), report)
 
 
 @command("focus")
@@ -385,8 +496,8 @@ async def cmd_focus(ctx: Ctx, argv):
     _, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 1, "focus <selector>")
     page, element = await resolve(ctx, args[0])
-    await page.focus_element(element)
-    return Result({"focused": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: page.focus_element(element))
+    return changes.attach(Result({"focused": args[0]}), report)
 
 
 @command("fill")
@@ -394,8 +505,35 @@ async def cmd_fill(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "fill <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted = await actions.fill(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return typed_result("filled", args[0], retargeted)
+    text = " ".join(args[1:])
+    humanize = ctx.humanize and not options.get("no_humanize")
+    typeahead = await actions.combo_kind(page, element) == "typeahead"
+
+    async def run():
+        if not (typeahead and text):
+            return await actions.fill(page, element, text, humanize), []
+        await actions.watch_suggestions(page, element)
+        try:
+            filled = await actions.fill(page, element, text, humanize)
+            return filled, (await actions.settled_suggestions(page, element, actions.SUGGESTION_HINT_WAIT))[1]
+        finally:
+            await actions.unwatch_suggestions(page, element)
+
+    ((retargeted, stored), found), report = await changes.observe(ctx, page, run)
+    result = filled_result("filled", args[0], retargeted, text, stored)
+    if found:
+        result.data["suggestions"] = [item["text"] for item in found]
+        best = text if actions.unique_match(text, found) else found[0]["text"]
+        result.text += (f"\n→ {len(found)} suggestion{'s' if len(found) != 1 else ''} showing, none picked. "
+                        f"To pick one: ardia browse select {args[0]} {shlex.quote(best)}")
+    return changes.attach(result, report)
+
+
+def filled_result(key: str, selector: str, retargeted: bool, text: str, stored: str | None) -> Result:
+    if stored is None:
+        return typed_result(key, selector, retargeted)
+    note = "✓ Done" if stored == text else f"✓ Done (the field holds {stored or 'nothing'})"
+    return Result({key: selector, "value": stored}, note)
 
 
 def typed_result(key: str, selector: str, retargeted: bool) -> Result:
@@ -410,8 +548,8 @@ async def cmd_type(ctx: Ctx, argv):
     options, args = parse(argv, {"--no-humanize": "bool", "--delay": "value"})
     need(args, 2, "type <selector> <text>")
     page, element = await resolve(ctx, args[0])
-    retargeted = await actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize"))
-    return typed_result("typed", args[0], retargeted)
+    retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(args[1:]), ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(typed_result("typed", args[0], retargeted), report)
 
 
 @command("press")
@@ -421,9 +559,9 @@ async def cmd_press(ctx: Ctx, argv):
     page = await ctx.state.page()
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
-    await actions.expect_input(page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)),
-                               {"keydown": 1}, "The key press")
-    return Result({"pressed": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+        page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(args[0], humanize)), {"keydown": 1}, "The key press"))
+    return changes.attach(Result({"pressed": args[0]}), report)
 
 
 @command("keydown", "keyup")
@@ -447,17 +585,18 @@ async def cmd_keyboard(ctx: Ctx, argv):
     if args[0] == "inserttext":
         frame = ctx.state.frame_for(page) or page.main_frame
         await page.require_visible()
-        await actions.expect_input(page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
-                                   {"beforeinput|input": 1} if text else {}, "The text insert")
-        return Result({"inserted": True})
+        _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+            page, frame, lambda: page.input.gesture("keyboard inserttext", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
+            {"beforeinput|input": 1} if text else {}, "The text insert"))
+        return changes.attach(Result({"inserted": True}), report)
     if args[0] != "type":
         raise Usage(f"Unknown keyboard subcommand: {args[0]} (type or inserttext)")
     keyboard = page.input.keyboard()
     humanize = ctx.humanize and not options.get("no_humanize")
     frame = ctx.state.frame_for(page) or page.main_frame
-    await actions.expect_input(page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)),
-                               {"keydown": len(text)}, "The typing")
-    return Result({"typed": True})
+    _, report = await changes.observe(ctx, page, lambda: actions.expect_input(
+        page, frame, lambda: page.input.gesture("keyboard type", lambda: keyboard.type_text(text, humanize=humanize)), {"keydown": len(text)}, "The typing"))
+    return changes.attach(Result({"typed": True}), report)
 
 
 @command("check", "uncheck")
@@ -466,17 +605,32 @@ async def cmd_check(ctx: Ctx, argv):
     need(args, 1, f"{ctx.command} <selector>")
     page, element = await resolve(ctx, args[0])
     wanted = ctx.command == "check"
-    await actions.set_checked(page, element, wanted, ctx.humanize and not options.get("no_humanize"))
-    return Result({"checked" if wanted else "unchecked": args[0]})
+    _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, wanted, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"checked" if wanted else "unchecked": args[0]}), report)
 
 
 @command("select")
 async def cmd_select(ctx: Ctx, argv):
-    _, args = parse(argv, {"--no-humanize": "bool"})
+    options, args = parse(argv, {"--no-humanize": "bool"})
     need(args, 2, "select <selector> <value...>")
     page, element = await resolve(ctx, args[0])
-    await actions.select(page, element, args[1:])
-    return Result({"selected": args[1:]})
+    return await select_in(ctx, page, element, args[0], args[1:], ctx.humanize and not options.get("no_humanize"))
+
+
+async def select_in(ctx: Ctx, page, element, selector: str, values: list[str], humanize: bool) -> Result:
+    if await actions.combo_kind(page, element) == "select":
+        _, report = await changes.observe(ctx, page, lambda: actions.select(page, element, values))
+        return changes.attach(Result({"selected": values}), report)
+    where = await field_name(page, element, selector)
+    picked, report = await changes.observe(ctx, page, lambda: actions.choose(page, element, values, humanize, where))
+    text = "\n".join(f'✓ Picked "{item["picked"]}"' + (f' for "{item["value"]}"' if plain(item["picked"]) != plain(item["value"]) else "") for item in picked)
+    return changes.attach(Result({"selected": values, "picked": [item["picked"] for item in picked]}, text), report)
+
+
+async def field_name(page, element, selector: str) -> str:
+    names = await page.call("(el) => ardiaBrowse.labelText(el).concat([el.getAttribute('placeholder') || ''])", element, frame=element.frame, read=True)
+    name = next((" ".join(str(item).split()) for item in names or [] if str(item).strip()), "")
+    return f'"{name}" ({selector})' if name else selector
 
 
 @command("drag")
@@ -487,8 +641,22 @@ async def cmd_drag(ctx: Ctx, argv):
     target_page, target = await resolve(ctx, args[1])
     if target_page is not page:
         raise BrowseError("Both ends of a drag must be in the same tab")
-    await actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize"))
-    return Result({"dragged": args[0], "to": args[1]})
+    outcome, report = await changes.observe(ctx, page, lambda: actions.drag(page, source, target, ctx.humanize and not options.get("no_humanize")))
+    return changes.attach(Result({"dragged": args[0], "to": args[1], **outcome}, drag_text(outcome)), report)
+
+
+def drag_text(outcome: dict) -> str:
+    if not outcome.get("html5"):
+        return "✓ Done"
+    if not outcome.get("started"):
+        text = "✓ Done (the page didn't start an HTML5 drag, so it was a plain mouse drag)"
+    elif outcome.get("dropped") is False:
+        text = "✓ Done (HTML5 drag; the target didn't accept the drop, so the page got no drop event)"
+    else:
+        text = "✓ Done (HTML5 drag and drop)"
+    if outcome.get("interceptionLeftOn"):
+        text += "\n  Ardia didn't confirm drag interception was turned off; it ends when this session disconnects (30 s idle)"
+    return text
 
 
 @command("upload")
@@ -500,11 +668,15 @@ async def cmd_upload(ctx: Ctx, argv):
         if not os.path.isfile(item):
             raise BrowseError(f"No such file: {item}")
     page, element = await resolve(ctx, args[0])
-    try:
-        await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
-    except Gated:
-        raise Gated("DOM.setFileInputFiles", "upload") from None
-    return Result({"uploaded": files})
+
+    async def run():
+        try:
+            await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
+        except Gated:
+            raise Gated("DOM.setFileInputFiles", "upload") from None
+
+    _, report = await changes.observe(ctx, page, run)
+    return changes.attach(Result({"uploaded": files}), report)
 
 
 @command("scroll")
@@ -516,8 +688,8 @@ async def cmd_scroll(ctx: Ctx, argv):
     element = None
     if options.get("selector"):
         page, element = await resolve(ctx, options["selector"])
-    await actions.scroll(page, direction, amount, ctx.humanize and not options.get("no_humanize"), element)
-    return Result({"scrolled": True})
+    _, report = await changes.observe(ctx, page, lambda: actions.scroll(page, direction, amount, ctx.humanize and not options.get("no_humanize"), element))
+    return changes.attach(Result({"scrolled": True}), report)
 
 
 @command("scrollintoview")
@@ -679,6 +851,8 @@ async def cmd_eval(ctx: Ctx, argv):
         if options.get("base64"):
             script = base64.b64decode(script).decode("utf-8")
     page = await ctx.state.page()
+    if FETCHING.search(script):
+        hint_once(ctx.state, "fetch", FETCH_HINT)
     value = await evaluate_main(page, script)
     origin = page.frames.get(page.main_frame, {}).get("origin") or ""
     return Result({"origin": origin + "/" if origin and not origin.endswith("/") else origin, "result": value}, json.dumps(value, ensure_ascii=False, indent=2), page_content=True)
@@ -696,7 +870,7 @@ async def cmd_get(ctx: Ctx, argv):
 
         parts = urlsplit(url)
         if not ctx.state.endpoint.explicit or parts.query or parts.username or parts.password or "token" in url.lower():
-            raise BrowseError("This CDP URL carries a control token, so ardia browse never prints it; use `ardia exec` to drive the browser from Python")
+            raise BrowseError("This CDP URL carries a control token, so ardia browse never prints it; drive the page with ardia browse commands (`eval` for JavaScript)")
         return Result({"cdpUrl": url}, url)
     page = await ctx.state.page()
     if what == "title":
@@ -759,43 +933,73 @@ async def cmd_is(ctx: Ctx, argv):
     return Result({"origin": origin + "/" if origin else origin, what: bool(value)}, "true" if value else "false")
 
 
-FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "hover", "focus", "dblclick", "text")
+FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
+FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
+MAX_CANDIDATES = 8
+BATCH_DEFAULT_CAP = 6000
+SHOWN_HOLD = 0.3
+FIND_WAIT = 1.5
+
+
+def find_arguments(args: list[str], name: str | None) -> tuple[str, list[str], str | None]:
+    locator, args = args[0], list(args[1:])
+    if "=" in locator and locator.split("=", 1)[0] in FIND_LOCATORS:
+        locator, first = locator.split("=", 1)
+        args.insert(0, first)
+    if locator == "role" and args and args[0] in FIND_ACTIONS and len(args) > 1 and args[1] not in FIND_ACTIONS:
+        args[0], args[1] = args[1], args[0]
+    if locator == "role" and name is None and len(args) >= 2 and args[1] not in FIND_ACTIONS:
+        name = args.pop(1)
+    return locator, args, name
 
 
 @command("find")
 async def cmd_find(ctx: Ctx, argv):
     options, args = parse(argv, {"--name": "value", "--exact": "bool", "--no-humanize": "bool"})
-    need(args, 2, "find <locator> <value> [action] [text]")
-    locator = args[0]
+    need(args, 1, "find <locator> <value> [action] [text]")
+    locator, args, wanted_name = find_arguments(args, options.get("name"))
+    need(args, 1, "find <locator> <value> [action] [text]")
     page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
     exact = bool(options.get("exact"))
     if locator == "nth":
-        need(args, 3, "find nth <index> <selector> [action] [text]")
-        index, value, rest = int(args[1]), args[2], args[3:]
+        need(args, 2, "find nth <index> <selector> [action] [text]")
+        index, value, rest = int(args[0]), args[1], args[2:]
     else:
-        value, rest = args[1], args[2:]
-    element = None
-    role = ""
-    name = ""
-    if locator == "role":
-        element, role, name = await find_role(page, frame, value, options.get("name"), exact)
-    elif locator == "text":
-        element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findText(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"text={value}")
-    elif locator == "label":
-        element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findLabel(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"label={value}")
-    elif locator in ("placeholder", "alt", "title"):
-        element = await page.element_from(await page.call("(a, t, e) => ardiaBrowse.findAttr(a, t, e)", locator, value, exact, frame=frame, by_value=False, read=True), frame, f"{locator}={value}")
-    elif locator == "testid":
-        element = await page.element_from(await page.call("(t) => ardiaBrowse.findAttr('data-testid', t, true)", value, frame=frame, by_value=False, read=True), frame, f"testid={value}")
-    elif locator in ("first", "last", "nth"):
-        position = {"first": 0, "last": -1}.get(locator, index if locator == "nth" else 0)
-        remote = await page.call("(s, i) => { const all = ardiaBrowse.queryAll(s); return all.at(i) || null; }", value, position, frame=frame, by_value=False, read=True)
-        element = await page.element_from(remote, frame, f"{locator} {value}")
-    else:
-        raise Usage(f"Unknown locator: {locator} (role, text, label, placeholder, alt, title, testid, first, last, nth)")
-    if element is None:
-        raise BrowseError(f"Element not found: {locator} {value}", code="not_found")
+        value, rest = args[0], args[1:]
+
+    async def locate():
+        element, role, name = None, "", ""
+        if locator == "role":
+            element, role, name = await find_role(ctx, page, frame, value, wanted_name, exact)
+        elif locator == "text":
+            element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findText(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"text={value}")
+        elif locator == "label":
+            element = await page.element_from(await page.call("(t, e) => ardiaBrowse.findLabel(t, e)", value, exact, frame=frame, by_value=False, read=True), frame, f"label={value}")
+        elif locator in ("placeholder", "alt", "title"):
+            element = await page.element_from(await page.call("(a, t, e) => ardiaBrowse.findAttr(a, t, e)", locator, value, exact, frame=frame, by_value=False, read=True), frame, f"{locator}={value}")
+        elif locator == "testid":
+            element = await page.element_from(await page.call("(t) => ardiaBrowse.findAttr('data-testid', t, true)", value, frame=frame, by_value=False, read=True), frame, f"testid={value}")
+        elif locator in ("first", "last", "nth"):
+            position = {"first": 0, "last": -1}.get(locator, index if locator == "nth" else 0)
+            remote = await page.call("(s, i) => { const all = ardiaBrowse.queryAll(s); return all.at(i) || null; }", value, position, frame=frame, by_value=False, read=True)
+            element = await page.element_from(remote, frame, f"{locator} {value}")
+        else:
+            raise Usage(f"Unknown locator: {locator} (role, text, label, placeholder, alt, title, testid, first, last, nth)")
+        if element is None:
+            raise BrowseError(f"Element not found: {locator} {value}", code="not_found")
+        return element, role, name
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + FIND_WAIT
+    while True:
+        try:
+            element, role, name = await locate()
+            break
+        except BrowseError as error:
+            if error.code != "not_found" or loop.time() >= deadline:
+                raise
+        await asyncio.sleep(0.15)
     action = rest[0] if rest else "click"
     if action not in FIND_ACTIONS:
         raise Usage(f"Unknown action '{action}' for find. Valid actions: {', '.join(FIND_ACTIONS)}.")
@@ -803,49 +1007,84 @@ async def cmd_find(ctx: Ctx, argv):
     element.label = f"@{ref}"
     humanize = ctx.humanize and not options.get("no_humanize")
     if action == "click":
-        await actions.click(page, element, humanize)
-        return Result({"clicked": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize))
+        return changes.attach(Result({"clicked": f"@{ref}"}), report)
     if action == "dblclick":
-        await actions.click(page, element, humanize, 2)
-        return Result({"clicked": f"@{ref}", "count": 2})
+        _, report = await changes.observe(ctx, page, lambda: actions.click(page, element, humanize, 2))
+        return changes.attach(Result({"clicked": f"@{ref}", "count": 2}), report)
     if action == "fill":
-        retargeted = await actions.fill(page, element, " ".join(rest[1:]), humanize)
-        return typed_result("filled", f"@{ref}", retargeted)
+        text = " ".join(rest[1:])
+        (retargeted, stored), report = await changes.observe(ctx, page, lambda: actions.fill(page, element, text, humanize))
+        return changes.attach(filled_result("filled", f"@{ref}", retargeted, text, stored), report)
     if action == "type":
-        retargeted = await actions.type_text(page, element, " ".join(rest[1:]), humanize)
-        return typed_result("typed", f"@{ref}", retargeted)
+        retargeted, report = await changes.observe(ctx, page, lambda: actions.type_text(page, element, " ".join(rest[1:]), humanize))
+        return changes.attach(typed_result("typed", f"@{ref}", retargeted), report)
     if action in ("check", "uncheck"):
-        await actions.set_checked(page, element, action == "check", humanize)
-        return Result({action + "ed": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.set_checked(page, element, action == "check", humanize))
+        return changes.attach(Result({action + "ed": f"@{ref}"}), report)
+    if action == "select":
+        return await select_in(ctx, page, element, f"@{ref}", rest[1:], humanize)
     if action == "hover":
-        await actions.hover(page, element, humanize)
-        return Result({"hovered": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: actions.hover(page, element, humanize))
+        return changes.attach(Result({"hovered": f"@{ref}"}), report)
     if action == "focus":
-        await page.focus_element(element)
-        return Result({"focused": f"@{ref}"})
+        _, report = await changes.observe(ctx, page, lambda: page.focus_element(element))
+        return changes.attach(Result({"focused": f"@{ref}"}), report)
     text = await page.call("(el) => (el.innerText != null ? el.innerText : el.textContent || '').trim()", element, frame=element.frame)
     return Result({"ref": f"@{ref}", "text": text}, text, page_content=True)
 
 
-async def find_role(page, frame, role, name, exact):
-    tree = await page.send("Accessibility.getFullAXTree", {"frameId": frame}, timeout=60)
-    wanted = role.lower()
-    for node in tree.get("nodes") or []:
-        if node.get("ignored"):
+def plain(text: str) -> str:
+    return " ".join(str(text or "").split()).casefold()
+
+
+def role_candidates(nodes: list, role: str, name: str | None, exact: bool) -> tuple[list, str]:
+    wanted = snapshot.ROLE_NAMES.get(role, role).lower()
+    of_role = []
+    for node in nodes:
+        if node.get("ignored") or node.get("backendDOMNodeId") is None:
             continue
         node_role = str((node.get("role") or {}).get("value") or "")
-        if node_role.lower() != wanted or node.get("backendDOMNodeId") is None:
-            continue
-        node_name = str((node.get("name") or {}).get("value") or "").strip()
-        if name is not None:
-            if exact and node_name != name:
-                continue
-            if not exact and name.lower() not in node_name.lower():
-                continue
+        if snapshot.ROLE_NAMES.get(node_role, node_role).lower() == wanted:
+            of_role.append((node, " ".join(str((node.get("name") or {}).get("value") or "").split())))
+    if name is None:
+        return of_role, "role"
+    target = plain(name)
+    same = [item for item in of_role if (item[1] == " ".join(name.split()) if exact else plain(item[1]) == target)]
+    if same or exact:
+        return same, "exact"
+    return [item for item in of_role if target in plain(item[1])], "partial"
+
+
+async def find_role(ctx, page, frame, role, name, exact):
+    tree = await page.send("Accessibility.getFullAXTree", {"frameId": frame}, timeout=60)
+    nodes = tree.get("nodes") or []
+    found, how = role_candidates(nodes, role, name, exact)
+    shown = snapshot.ROLE_NAMES.get(role, role)
+    resolved = []
+    for node, node_name in found[:MAX_CANDIDATES + 1]:
         element = await page.resolve_backend(node["backendDOMNodeId"], frame, f"role={role}")
         if element is not None:
-            return element, node_role, node_name
-    return None, role, name or ""
+            resolved.append((element, node_name))
+    if len(resolved) == 1 or (resolved and name is None):
+        element, node_name = resolved[0]
+        return element, shown, node_name
+    if not resolved:
+        close = list(dict.fromkeys(node_name for _, node_name in role_candidates(nodes, role, None, False)[0] if node_name))[:MAX_CANDIDATES]
+        named = f' named "{name}"' if name is not None else ""
+        hint = f"; the {shown}s here are: " + ", ".join(f'"{text}"' for text in close) if close and name is not None else ""
+        raise BrowseError(f"No {shown}{named} on this page{hint}", data={"candidates": close}, code="not_found")
+    listed = []
+    for element, node_name in resolved[:MAX_CANDIDATES]:
+        listed.append({"ref": "@" + ctx.state.add_ref(page, element, shown, node_name), "name": node_name})
+    more = f" (and {len(found) - MAX_CANDIDATES} more)" if len(found) > MAX_CANDIDATES else ""
+    kind = "are named exactly" if how == "exact" else "have names containing"
+    fix = "Use one of their refs" if how == "exact" else "Use a ref, or the full name"
+    lines = "\n".join(f'  {shown} "{item["name"]}" [ref={item["ref"][1:]}]' for item in listed)
+    raise BrowseError(
+        f'{len(found)} {shown}s {kind} "{name}"{more}, so nothing was clicked. {fix}:\n{lines}',
+        data={"candidates": listed}, code="ambiguous",
+    )
 
 
 @command("tab")
@@ -855,22 +1094,29 @@ async def cmd_tab(ctx: Ctx, argv):
     await state.connect()
     action = args[0] if args else "list"
     if action == "list":
+        from ardia_cli.browse import tabs as tab_registry
+
         await state.refresh_targets()
-        tabs = state.describe_tabs()
-        lines = [f"{'→' if tab['active'] else ' '} [{tab['tabId']}] {tab['title'] or tab['url']} - {tab['url']}" for tab in tabs]
-        return Result({"tabs": tabs}, "\n".join(lines) or "No tabs")
+        tabs = state.describe_tabs(await tab_registry.app_tab_map(state))
+        return Result({"tabs": tabs}, "\n".join(tab_line(tab, state.session) for tab in tabs) or "No tabs")
     if action == "new":
         page = await new_tab(ctx, args[1] if len(args) > 1 else None, options.get("label"), show=wants_show(ctx, options))
         return Result({"tabId": state.tab_id(page.target_id), "targetId": page.target_id, "url": page.url}, page.url or "about:blank")
     if action == "close":
         await state.refresh_targets()
-        target_id = state.find_tab(args[1]) if len(args) > 1 else state.current
+        target_id = await state.find_tab(args[1]) if len(args) > 1 else state.current
         if target_id is None:
             raise BrowseError("This session has no current tab to close")
         if target_id not in state.opened:
             raise BrowseError(f"Tab [{state.tab_id(target_id)}] is one of the user's tabs; ardia browse only closes tabs this session opened")
+        if not state.registry.reserve_close(state.instance, target_id):
+            users = state.registry.others(state.instance)[1].get(target_id) or ["another session"]
+            raise BrowseError(f"Tab [{state.tab_id(target_id)}] is in use by session {', '.join(users)}, so it stays open", code="tab_in_use")
         tab = state.tab_id(target_id)
-        await state.browser.send("Target.closeTarget", {"targetId": target_id})
+        try:
+            await state.browser.send("Target.closeTarget", {"targetId": target_id})
+        finally:
+            state.registry.finish_close(state.instance, target_id)
         state.forget_target(target_id)
         return Result({"closed": tab, "targetId": target_id}, f"✓ Tab [{tab}] closed")
     if action == "active":
@@ -879,15 +1125,32 @@ async def cmd_tab(ctx: Ctx, argv):
             raise BrowseError("The user isn't on a web page right now (New Tab or another Ardia view)")
         action = target_id
     await state.refresh_targets()
-    target_id = state.find_tab(action)
+    target_id = await state.find_tab(action)
     state.current = target_id
+    state.extras.pop("attached", None)
     if state.pin_tab:
         state.extras["pinned_target"] = target_id
     page = await state.page(target_id)
     if wants_show(ctx, options):
         await show_tab(ctx, page)
     title = await page_title(page)
-    return Result({"tabId": state.tab_id(target_id), "targetId": target_id, "title": title, "url": page.url}, f"✓ {title}\n  {page.url}")
+    from ardia_cli.browse import tabs as tab_registry
+
+    await tab_registry.app_tab_map(state)
+    data = {"tabId": state.tab_id(target_id), "appTabId": state.app_tabs.get(target_id), "targetId": target_id, "title": title, "url": page.url}
+    return Result(data, f"✓ {title}\n  {page.url}")
+
+
+def tab_line(tab: dict, session: str) -> str:
+    notes = []
+    if tab.get("openedBy"):
+        notes.append("opened by this session" if tab["openedBySession"] else f"opened by session {tab['openedBy']}")
+    users = [user for user in tab.get("usedBy") or [] if user != tab.get("openedBy")]
+    if users:
+        notes.append(f"in use by session {', '.join(users)}")
+    app = f" {tab['appTabId']} " if tab.get("appTabId") else ""
+    extra = f" ({'; '.join(notes)})" if notes else ""
+    return f"{'→' if tab['active'] else ' '} [{tab['tabId']}]{app} {tab['title'] or tab['url']} - {tab['url']}{extra}"
 
 
 async def user_active_tab(state):
@@ -934,7 +1197,7 @@ async def cmd_frame(ctx: Ctx, argv):
         described = await page.send("DOM.describeNode", {"backendNodeId": element.backend_id})
         frame_id = (described.get("node") or {}).get("frameId")
         if not frame_id or frame_id not in page.frames:
-            raise BrowseError(f"{target} isn't an iframe this tab can reach (a cross-process iframe needs `ardia exec`)")
+            raise BrowseError(f"{target} isn't an iframe this tab can reach (ardia browse doesn't attach cross-process iframes)")
     ctx.state.frames[page.target_id] = frame_id
     return Result({"frame": frame_id, "url": page.frames[frame_id]["url"]})
 
@@ -974,6 +1237,8 @@ async def cmd_storage(ctx: Ctx, argv):
     if rest and rest[0] in ("get", "set", "clear", "remove"):
         rest = rest[1:]
     page = await ctx.state.page()
+    if op != "get":
+        refuse_on_borrowed(ctx, page, f"{op} the {kind} storage of")
     frame = ctx.state.frame_for(page) or page.main_frame
     if op == "set":
         need(rest, 2, f"storage {kind} set <key> <value>")
@@ -993,6 +1258,8 @@ async def cmd_cookies(ctx: Ctx, argv):
                                  "--sameSite": "value", "--expires": "value", "--curl": "value"})
     action = args[0] if args else "get"
     page = await ctx.state.page()
+    if action != "get":
+        refuse_on_borrowed(ctx, page, f"{action} cookies through")
     try:
         if action == "get":
             cookies = (await page.send("Network.getCookies", {"urls": [page.url]} if page.url.startswith("http") else {})).get("cookies") or []
@@ -1065,6 +1332,7 @@ async def cmd_set(ctx: Ctx, argv):
     need(args, 1, "set viewport|device|geo|offline|headers|credentials|media ...")
     setting = ALIASES.get(args[0], args[0])
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, f"change the {setting} of")
     try:
         if setting == "viewport":
             need(args, 3, "set viewport <w> <h> [scale]")
@@ -1129,6 +1397,8 @@ async def cmd_state(ctx: Ctx, argv):
     _, args = parse(argv)
     need(args, 2, "state save|load <path>")
     page = await ctx.state.page()
+    if args[0] != "save":
+        refuse_on_borrowed(ctx, page, "load cookies and storage into")
     path = ctx.path(args[1])
     try:
         if args[0] == "save":
@@ -1253,6 +1523,7 @@ async def cmd_addinitscript(ctx: Ctx, argv):
     if not source:
         raise Usage("Usage: ardia browse addinitscript <js> | --stdin")
     page = await ctx.state.page()
+    refuse_on_borrowed(ctx, page, "add a script to")
     identifier = await add_init_script(ctx, page, source, None)
     return Result({"identifier": identifier}, identifier)
 
@@ -1274,20 +1545,35 @@ async def cmd_removeinitscript(ctx: Ctx, argv):
 
 @command("read")
 async def cmd_read(ctx: Ctx, argv):
-    from ardia_cli.browse import readurl
+    from ardia_cli.browse import readpages, readurl
 
-    options, args = parse(argv, readurl.FLAGS)
-    if args:
-        return readurl.run(args[0], options, ctx.options)
-    if options.get("llms") or options.get("require_md"):
+    options, args = parse(argv, readpages.flags(), readpages.ALIASES)
+    if readpages.single_fetch(options, args):
+        return await asyncio.to_thread(readurl.run, args[0], options, ctx.options)
+    if readpages.wants_pages(options, args):
+        return await readpages.run(ctx, options, args)
+    if options.get("llms") or options.get("require_md") or options.get("http"):
         page = await ctx.state.page()
         return readurl.run(page.url, options, ctx.options)
     page = await ctx.state.page()
     frame = ctx.state.frame_for(page) or page.main_frame
-    content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
+    selector = options.get("selector")
+    if selector:
+        content = await page.call("(s) => ardiaBrowse.queryAll(s).map((el) => ardiaBrowse.readable(el)).filter(Boolean).join('\\n\\n')",
+                                  selector, frame=frame, read=True)
+    else:
+        content = await page.call("() => ardiaBrowse.readable()", frame=frame, read=True)
     content = readurl.post_process(content, options)
     return Result({"content": content, "contentType": "text/html", "finalUrl": page.url, "source": "active-tab-html", "truncated": False, "url": page.url},
                   content, page_content=True)
+
+
+@command("script")
+async def cmd_script(ctx: Ctx, argv):
+    from ardia_cli.browse import script
+
+    options, _ = parse(argv, {"--timeout": "value", "--stdin": "bool"})
+    return await script.run(ctx, ctx.stdin or "", script.parse_timeout(options.get("timeout")))
 
 
 @command("vitals")
@@ -1381,7 +1667,7 @@ async def cmd_session(ctx: Ctx, argv):
 @command("batch")
 async def cmd_batch(ctx: Ctx, argv):
     options, args = parse(argv, {"--bail": "bool"})
-    lines = args if args else [line for line in (ctx.stdin or "").splitlines() if line.strip()]
+    lines = args if args else [line for line in (ctx.stdin or "").splitlines() if line.strip() and not line.lstrip().startswith("#")]
     runs = []
     for line in lines:
         line = line.strip()
@@ -1391,25 +1677,55 @@ async def cmd_batch(ctx: Ctx, argv):
         runs.append(argv_item)
     from ardia_cli.browse.daemon import run_one
 
+    names = [ALIASES.get(item[0], item[0]) if item else "" for item in runs]
+    closing = bool(names) and names[-1] == "close" and not runs[-1][1:] and "close" not in names[:-1]
+    if closing:
+        runs.pop()
+    batch_extras(ctx).pop("close_after_batch", None)
     outcomes = []
-    for item in runs:
+    for index, item in enumerate(runs):
         name = ALIASES.get(item[0], item[0]) if item else ""
         if name in ("batch", "close"):
-            outcomes.append({"command": item, "success": False, "result": None, "error": f"{name} can't run inside batch"})
+            why = "batch can't run inside batch" if name == "batch" else (
+                "close ends this session, so in a batch it only runs as the last line; to close this session's tab and go on, use `tab close`")
+            outcomes.append({"command": item, "success": False, "result": None, "error": why})
+            if options.get("bail"):
+                break
             continue
-        result, error = await run_one(ctx, item)
-        outcome = {"command": item, "success": error is None, "result": result.data if result else None, "error": error.message if error else None,
-                   "text": result.text if result else None}
+        try:
+            command, line_options = batch_line_options(item)
+        except Usage as error:
+            outcomes.append({"command": item, "success": False, "result": None, "error": error.message, "code": error.code})
+            if options.get("bail"):
+                break
+            continue
+        if line_options.pop("full", False):
+            ctx.options["full"] = True
+        wider = line_options.pop("max_output", None)
+        if wider is not None:
+            current = ctx.options.get("max_output")
+            current = BATCH_DEFAULT_CAP if current is None else int(current)
+            ctx.options["max_output"] = 0 if 0 in (current, wider) else max(current, wider)
+        result, error = await run_one(ctx, command, line_options)
+        failed = error is None and bool(getattr(result, "failed", False))
+        outcome = {"command": item, "success": error is None and not failed, "result": result.data if result else None,
+                   "error": error.message if error else ("the command reported a failure" if failed else None), "text": result.text if result else None}
         if error is not None and error.code:
             outcome["code"] = error.code
         outcomes.append(outcome)
         if isinstance(error, (OutcomeUnknown, ConnectionLost)):
             outcomes.extend({"command": rest, "success": False, "result": None, "error": "not run: an earlier command's outcome is unknown",
-                             "code": "not_run", "text": None} for rest in runs[runs.index(item) + 1:])
+                             "code": "not_run", "text": None} for rest in runs[index + 1:])
             break
-        if error is not None and options.get("bail"):
+        if not outcome["success"] and options.get("bail"):
             break
-    text = "\n\n".join((outcome["text"] if outcome["success"] else f"✗ {outcome['error']}") or "" for outcome in outcomes)
+    if closing:
+        if len(outcomes) == len(runs) and all(outcome["success"] for outcome in outcomes):
+            batch_extras(ctx)["close_after_batch"] = True
+        else:
+            outcomes.append({"command": ["close"], "success": False, "result": None, "code": "not_run", "text": None,
+                             "error": "close not run: an earlier line failed or didn't run, so the session stays open"})
+    text = "\n\n".join((outcome["text"] if outcome["success"] or outcome.get("text") else f"✗ {outcome['error']}") or "" for outcome in outcomes)
     for outcome in outcomes:
         outcome.pop("text", None)
     result = Result({"results": outcomes}, text)
@@ -1417,6 +1733,72 @@ async def cmd_batch(ctx: Ctx, argv):
     if any(not outcome["success"] for outcome in outcomes):
         result.failed = True
     return result
+
+
+FETCHING = re.compile(r"\bfetch\s*\(|\bXMLHttpRequest\b|\bnew\s+DOMParser\b|\bwindow\.open\s*\(")
+FETCH_HINT = ("→ tip: to read other pages, `ardia browse read <url> <url>…` (or `read --links <pattern>` for this page's links) reads "
+              "them in one call, through your logins and after their scripts run; `ardia browse script` loops over pages with clicks and fills")
+PAGE_BY_PAGE_HINT = ("→ tip: reading page after page? `ardia browse read <url> <url>…` reads many in one call (`read --links <pattern>` "
+                     "takes every matching link on this page), and `ardia browse script` loops over pages that need clicks")
+PAGE_BY_PAGE = 3
+
+
+def hint_once(state, key: str, text: str):
+    hinted = state.extras.setdefault("hinted", set())
+    if key in hinted:
+        return
+    hinted.add(key)
+    state.extras["notice"] = "\n".join(part for part in (state.extras.get("notice"), text) if part)
+
+
+def reads_page(name: str, argv: list[str]) -> bool:
+    if name == "get":
+        return bool(argv) and argv[0] in ("text", "html")
+    return name == "read" and not [arg for arg in argv if not arg.startswith("-")]
+
+
+def note_reading(state, name: str, argv: list[str], result) -> None:
+    streak = state.extras.setdefault("page_reads", {"pages": 0, "arrived": False})
+    navigated = ((getattr(result, "data", None) or {}).get("changes") or {}).get("document") == "new"
+    if name in ("open", "back", "forward") and (name != "open" or [arg for arg in argv if not arg.startswith("-")]) or navigated:
+        streak["arrived"] = True
+        return
+    if reads_page(name, argv):
+        if streak["arrived"]:
+            streak["pages"] += 1
+            streak["arrived"] = False
+            if streak["pages"] >= PAGE_BY_PAGE:
+                hint_once(state, "page_by_page", PAGE_BY_PAGE_HINT)
+        return
+    if name not in ("wait", "notes", "tab", "get", "is", "screenshot", "snapshot", "eval"):
+        streak.update(pages=0, arrived=False)
+
+
+LINE_OPTIONS = {"full": "full", "max_output": "max_output", "no_changes": "no_changes", "humanize": "humanize", "show": "show",
+                "annotate": "annotate", "capture_console": "capture_console"}
+
+
+def batch_extras(ctx) -> dict:
+    extras = getattr(ctx.state, "extras", None)
+    return extras if isinstance(extras, dict) else {}
+
+
+def batch_line_options(item: list[str]) -> tuple[list[str], dict]:
+    from ardia_cli.browse import cli as browse_cli
+
+    found, rest = browse_cli.split_globals(item)
+    unusable = sorted(f"--{key.replace('_', '-')}" for key in found if key not in LINE_OPTIONS and key not in ("no_humanize", "json"))
+    if unusable:
+        raise Usage(f"{', '.join(unusable)} applies to the whole session, so it goes on the `batch` command, not a line inside it")
+    line = {LINE_OPTIONS[key]: value for key, value in found.items() if key in LINE_OPTIONS}
+    if found.get("no_humanize"):
+        line["humanize"] = False
+    if line.get("max_output") is not None:
+        try:
+            line["max_output"] = int(line["max_output"])
+        except ValueError:
+            raise Usage(f"--max-output takes a number of characters, not {line['max_output']}") from None
+    return rest, line
 
 
 def boundary(text: str) -> str:

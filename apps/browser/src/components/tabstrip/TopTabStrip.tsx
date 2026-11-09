@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { downloadsOpenIn } from "../../state/browser/current";
-import { useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { useWindowFullScreen, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../state/drag/tabDrag";
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
 import { useWindowUiOf } from "../../state/windows/hooks";
@@ -17,6 +17,7 @@ import { usePeek } from "../window/usePeek";
 import { FloatingStrip } from "./context";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { StripPage } from "./StripPage";
+import { StripHoverCard } from "./StripHoverCard";
 import {
   CONTROLS_GAP,
   DOWNLOADS_BOX,
@@ -45,7 +46,8 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   const { pages } = usePagerPages(windowId);
   const profileChip = useProfileIndicatorWidth(PROFILE_ROOM);
   const controls = (profileChip ? profileChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX;
-  const left = floating ? 8 : layout.trafficLightsWidth + LIGHTS_GAP;
+  const fullScreen = useWindowFullScreen(windowId);
+  const left = floating || fullScreen ? 8 : layout.trafficLightsWidth + LIGHTS_GAP;
   const right = Math.max(84, controls + 8 + 6);
   const pageWidth = Math.max(0, width - left - right);
   const flare = floating ? 0 : FLARE;
@@ -72,6 +74,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
         {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
         {!floating && <StripDropHighlight left={left} right={right} />}
       </StripDropArea>
+      {!floating && <StripHoverCard windowId={windowId} stripBottom={TOP_STRIP_HEIGHT} windowWidth={width} />}
     </FloatingStrip.Provider>
   );
 }
@@ -151,6 +154,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
           </View>
         </Panel>
       </Animated.View>
+      {live && <StripHoverCard windowId={windowId} stripBottom={PEEK_TOP + PEEK_HEIGHT} windowWidth={windowWidth} />}
     </>
   );
 }

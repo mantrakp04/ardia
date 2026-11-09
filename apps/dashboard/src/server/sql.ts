@@ -39,6 +39,7 @@ export const APP_EVENTS = [
   "app_updated",
   "command_bar_opened",
   "extension_installed",
+  "page_process_gone",
   "perf_journeys",
   "perf_launch",
   "perf_memory",
@@ -49,6 +50,7 @@ export const APP_EVENTS = [
   "split_view_opened",
   "suggestion_chosen",
   "sync_toggled",
+  "tab_presses",
   "translate_used",
   "usage_counts",
 ];

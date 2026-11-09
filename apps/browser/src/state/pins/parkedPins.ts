@@ -145,5 +145,6 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
   }
   const window = { ...w, tabIds: orderSections(order, tabs, groups) };
   groups = syncGroupOrder(groups, window);
-  return { ...s, tabs, live, groups, splits, windows: { ...s.windows, [windowId]: window }, parkedPins: without(s.parkedPins, [profileId]) };
+  const closedWindows = s.closedWindows.filter((c) => c.tabs.length || c.window.profileId !== profileId);
+  return { ...s, tabs, live, groups, splits, windows: { ...s.windows, [windowId]: window }, parkedPins: without(s.parkedPins, [profileId]), closedWindows };
 }

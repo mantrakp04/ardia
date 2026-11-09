@@ -104,7 +104,8 @@ new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties ar
   ~16 ms granularity.
 - **`fcp` is the page's own clock** (its time origin plus the entry's time); a page can't move it but can replace the
   observer before the script installs it: values more than 10 minutes off are dropped natively, outliers past 60 s in JS.
-- Builds before this change send `perf_launch` with `launch_ms` only, at the first window.
+- Builds before 0.2.28 send `perf_launch` with `launch_ms` only, at the first window.
+- Only the first window's root can start the launch. Before 0.2.45-nightly.1, a window opened after sharing was turned on (during onboarding, say) started it, timed from process start: those rows have no `launch_ms`, an empty `first_of_version` and minutes in the other fields. The dashboard drops them through its `first_of_version` filter; queries here require `properties['launch_ms'] != ''`.
 
 ## Queries (ClickHouse)
 
@@ -121,6 +122,7 @@ SELECT properties['$app_version'] AS version, count() AS launches,
   countIf(properties['cold'] = 'true') AS cold_launches
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC
 ```
 
@@ -136,6 +138,7 @@ SELECT properties['$app_version'] AS version, properties['first_of_version'] AS 
   round(quantile(0.5)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p50, round(quantile(0.75)(toFloat64OrNull(properties['tab_paint_ms']))) AS paint_p75
 FROM telemetry.events
 WHERE timestamp > now() - INTERVAL 30 DAY AND event = 'perf_launch' AND properties['$environment'] = 'production'
+  AND properties['launch_ms'] != ''
 GROUP BY version, first_of_version
 ORDER BY arrayMap(x -> toUInt32OrZero(x), splitByChar('.', version)) DESC, first_of_version DESC
 ```

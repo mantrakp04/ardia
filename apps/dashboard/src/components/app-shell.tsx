@@ -1,6 +1,6 @@
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
-import { Bug, Filter, Gauge, Globe, HeartPulse, Inbox, LogOut, MonitorPlay, RefreshCw, Settings2, Siren, Users } from "lucide-react";
+import { Bug, Filter, Gauge, Globe, HeartPulse, Inbox, LogOut, MessageSquareWarning, MonitorPlay, RefreshCw, Settings2, Siren, TrendingDown, UserRound, Users } from "lucide-react";
 import { GithubMark } from "@/components/github-mark";
 import type { ReactNode } from "react";
 import {
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/", label: "Needs attention", icon: Siren },
   { to: "/users", label: "Users", icon: Users },
+  { to: "/people", label: "People", icon: UserRound },
   { to: "/funnels", label: "Funnels", icon: Filter },
   { to: "/health", label: "Health", icon: HeartPulse },
   { to: "/performance", label: "Performance", icon: Gauge },
@@ -35,6 +36,8 @@ const NAV = [
   { to: "/site", label: "Site", icon: Globe },
   { to: "/replays", label: "Replays", icon: MonitorPlay },
   { to: "/errors", label: "Errors", icon: Bug },
+  { to: "/regressions", label: "Regressions", icon: TrendingDown },
+  { to: "/feedback", label: "Feedback", icon: MessageSquareWarning },
   { to: "/github", label: "GitHub", icon: GithubMark },
   { to: "/triage", label: "Triage", icon: Inbox },
 ] as const;

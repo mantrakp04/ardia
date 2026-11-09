@@ -505,6 +505,7 @@ void LogActivation(NSString *what) {
 }
 
 void InstallActivationGuardsLate() {
+  WatchFocusChanges();
   if (Background()) [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
 }
 

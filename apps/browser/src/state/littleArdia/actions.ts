@@ -130,8 +130,11 @@ export function moveLittleArdiaToProfile(windowId: string, profileId: string) {
   const url = (tabId ? s.tabs[tabId]?.url : undefined) || undefined;
   const id = store().createWindow({ kind: "small", url, profileId, frame: w.frame });
   if (!url) store().openPanel(id, "");
-  closeWindowAnimated(windowId, id, () => {
-    if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
+  closeWindowAnimated(windowId, {
+    replacedBy: id,
+    then: () => {
+      if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
+    },
   });
 }
 
@@ -159,7 +162,7 @@ export async function openLittleArdiaProfileMenu(windowId: string) {
 }
 
 export function closeLittleArdia(windowId: string) {
-  if (isSmall(store(), windowId)) closeWindowAnimated(windowId, null);
+  if (isSmall(store(), windowId)) closeWindowAnimated(windowId);
 }
 
 export function closeLittleArdiaOnEscape(tabId: string) {

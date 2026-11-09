@@ -48,4 +48,10 @@ BOOL ArdiaTrafficLightsTrailing(NSWindow *_Nullable window);
 
 @end
 
+@interface ArdiaChromeWindowHost (DevFullScreenProbe)
+
++ (NSString *)devFullScreenProbe:(nullable NSString *)argument window:(NSWindow *)window;
+
+@end
+
 NS_ASSUME_NONNULL_END

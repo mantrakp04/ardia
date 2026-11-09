@@ -78,6 +78,7 @@ export function AdvancedPane() {
             minWidth={190}
           />
         </Row>
+        <SettingToggle anchor="advanced.loadProfilesWhenOpened" />
       </Group>
 
       <KeepActiveSites sites={keepActiveSites} />

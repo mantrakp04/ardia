@@ -105,7 +105,7 @@ export const isLiquidGlass = (): boolean => GlassEffectModule.isLiquidGlass();
 
 export const GlassEffect = requireNativeViewManager<GlassEffectProps>("ArdiaGlassEffect");
 
-export const GlassGroup = requireNativeViewManager<ViewProps>("ArdiaGlassGroup");
+export const GlassGroup = requireNativeViewManager<ViewProps & { strength?: number }>("ArdiaGlassGroup");
 
 export type PopoverBubbleProps = ViewProps & {
   material?: "popover" | "menu" | "hudWindow" | "sheet" | "toolTip";
@@ -140,12 +140,15 @@ export type IconTheme = { kind: "blur" } | { kind: "template"; fill: string; str
 
 export type DockSelectionNative = {
   iconTheme(uri: string | null, emoji: string | null): Promise<IconTheme | null>;
+  iconAccent(uri: string): Promise<string | null>;
 };
 
 const DockSelectionModule = nativeModule("ArdiaDockSelection");
 
 export const iconTheme = (source: { uri: string } | { emoji: string }): Promise<IconTheme | null> =>
   DockSelectionModule.iconTheme("uri" in source ? source.uri : null, "emoji" in source ? source.emoji : null);
+
+export const iconAccent = (uri: string): Promise<string | null> => DockSelectionModule.iconAccent(uri);
 
 export type DockSelectionProps = ViewProps & {
   image?: string;
