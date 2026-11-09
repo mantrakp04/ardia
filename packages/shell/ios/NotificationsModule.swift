@@ -27,7 +27,7 @@ public class NotificationsModule: Module {
       NotificationHub.shared.requestPermission { promise.resolve($0) }
     }.runOnQueue(.main)
     AsyncFunction("postNotification") { (options: NotificationOptions, promise: Promise) in
-      NotificationHub.shared.post(options) { promise.resolve($0) }
+      NotificationHub.shared.post(options) { promise.resolve($0.payload) }
     }.runOnQueue(.main)
     AsyncFunction("removeNotifications") { (ids: [String]) in NotificationHub.shared.remove(ids) }.runOnQueue(.main)
     AsyncFunction("openNotificationSettings") {

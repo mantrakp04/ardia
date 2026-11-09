@@ -1,6 +1,29 @@
 import AppKit
 import UserNotifications
 
+struct NotificationIcon {
+  var status: String
+  var errorCode: Int?
+
+  static let absent = NotificationIcon(status: "none", errorCode: nil)
+}
+
+struct NotificationPostResult {
+  var id: String?
+  var icon: NotificationIcon
+  var errorDomain: String?
+  var errorCode: Int?
+
+  var payload: [String: Any] {
+    var out: [String: Any] = ["icon": icon.status]
+    if let id { out["id"] = id }
+    if let iconErrorCode = icon.errorCode { out["iconErrorCode"] = iconErrorCode }
+    if let errorDomain { out["errorDomain"] = errorDomain }
+    if let errorCode { out["errorCode"] = errorCode }
+    return out
+  }
+}
+
 final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
   static let shared = NotificationHub()
 
@@ -45,7 +68,7 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
     }
   }
 
-  func post(_ options: NotificationOptions, completion: @escaping (String?) -> Void) {
+  func post(_ options: NotificationOptions, completion: @escaping (NotificationPostResult) -> Void) {
     let id = options.id ?? UUID().uuidString
     let content = UNMutableNotificationContent()
     content.title = options.title
@@ -57,15 +80,19 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
     let info: [String: Any?] = ["tabId": options.tabId, "windowId": options.windowId, "origin": options.origin, "data": options.data]
     content.userInfo = info.compactMapValues { $0 }
 
-    let deliver = { [center] in
+    let deliver = { [center] (icon: NotificationIcon) in
       center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
-        DispatchQueue.main.async { completion(error == nil ? id : nil) }
+        let failure = error as NSError?
+        let result = NotificationPostResult(id: failure == nil ? id : nil, icon: icon, errorDomain: failure?.domain, errorCode: failure?.code)
+        DispatchQueue.main.async { completion(result) }
       }
     }
-    guard let icon = options.icon.flatMap(URL.init(string:)) else { return deliver() }
-    attachment(from: icon, id: id) { attachment in
+    guard let icon = options.icon.flatMap(URL.init(string:)) else {
+      return deliver(options.icon == nil ? .absent : NotificationIcon(status: "invalid_url", errorCode: nil))
+    }
+    attachment(from: icon, id: id) { attachment, outcome in
       if let attachment { content.attachments = [attachment] }
-      deliver()
+      deliver(outcome)
     }
   }
 
@@ -74,11 +101,21 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
     center.removePendingNotificationRequests(withIdentifiers: ids)
   }
 
-  private func attachment(from url: URL, id: String, completion: @escaping (UNNotificationAttachment?) -> Void) {
-    let make = { (file: URL) in completion(try? UNNotificationAttachment(identifier: "icon", url: file)) }
+  private func attachment(from url: URL, id: String, completion: @escaping (UNNotificationAttachment?, NotificationIcon) -> Void) {
+    let make = { (file: URL) in
+      do {
+        let attachment = try UNNotificationAttachment(identifier: "icon", url: file)
+        completion(attachment, NotificationIcon(status: "attached", errorCode: nil))
+      } catch {
+        completion(nil, NotificationIcon(status: "attachment_rejected", errorCode: (error as NSError).code))
+      }
+    }
     if url.isFileURL { return make(url) }
-    URLSession.shared.dataTask(with: url) { data, response, _ in
-      guard let data, !data.isEmpty else { return DispatchQueue.main.async { completion(nil) } }
+    URLSession.shared.dataTask(with: url) { data, response, error in
+      guard let data, !data.isEmpty else {
+        let outcome = NotificationIcon(status: error == nil ? "empty" : "download_failed", errorCode: (error as NSError?)?.code)
+        return DispatchQueue.main.async { completion(nil, outcome) }
+      }
       let ext = (response?.mimeType == "image/png" || url.absoluteString.hasPrefix("data:image/png")) ? "png"
         : (response?.suggestedFilename as NSString?)?.pathExtension.nonEmpty ?? "png"
       let file = FileManager.default.temporaryDirectory.appendingPathComponent("ac-notification-\(id).\(ext)")
@@ -86,7 +123,8 @@ final class NotificationHub: NSObject, UNUserNotificationCenterDelegate {
         try data.write(to: file)
         DispatchQueue.main.async { make(file) }
       } catch {
-        DispatchQueue.main.async { completion(nil) }
+        let outcome = NotificationIcon(status: "write_failed", errorCode: (error as NSError).code)
+        DispatchQueue.main.async { completion(nil, outcome) }
       }
     }.resume()
   }

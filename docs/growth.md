@@ -194,6 +194,13 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
     chips, `clicks` (the press opened the tab), `drag_clicks` (it became a drag and was rescued as a click),
     `drags`, `unanswered` (a press that got neither before the next one), `page_click_ms_p50`/`_p75`/`page_click_n`
     (from opening a tab with a press to the first press in its page, within 60 s).
+  - `usage_counts` adds `web_notifications_from_shim` (website notifications that reached the page script this
+    period; a notification that never reaches the page script doesn't count, so a gap shows up as missing counts).
+  - `web_notification_failed` (a website notification macOS refused or the app couldn't post): `title_length`,
+    `body_length` (never the text), `icon_requested`, `icon_sent`, `icon_status` (`none`, `attached`, `invalid_url`,
+    `download_failed`, `empty`, `write_failed`, `attachment_rejected`, or `unknown` when the call threw),
+    `icon_error_code`, `error_domain`, `error_code` (macOS's own), `threw`, `error_type` (when it threw), and
+    `via_shim` (always true: only notifications that came through the page script are posted by the app).
   - `settings_snapshot` adds `setting_app_icon` / `default_app_icon`.
   - The context is saved in `telemetry.json` (`context`) every 10 minutes and 3 s after launch while sharing is on
     (the last 12 samples also stay in memory), and cleared when sharing is turned off or a profile is deleted. It's
