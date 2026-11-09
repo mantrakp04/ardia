@@ -1,15 +1,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { closeTab } from "../../state/browser/actions";
-import { COMPLETION_MS, openLiveItem } from "../../state/live/engine";
+import { COMPLETION_MS, openLiveItem, returnLiveTab } from "../../state/live/engine";
 import { prBadge } from "../../state/live/github";
 import { SOURCES } from "../../state/live/sources";
 import { useLive } from "../../state/live/store";
 import type { CompletedItem, LiveItem } from "../../state/live/types";
 import { usePageProfileId } from "../../state/browser/hooks";
-import { useIsActiveIn, useLiveItemTab } from "../../state/sidebar/hooks";
+import { useIsActiveIn, useLiveItemTab, useTabAwayFromPin } from "../../state/sidebar/hooks";
 import { HoverSlot } from "../ui/HoverSlot";
-import { Badge, Button, ContextMenuArea, Dot, hairline, ink, space, Symbol, Text } from "../ui";
+import { Badge, Button, ContextMenuArea, Dot, hairline, ink, space, Symbol, Text, useHover } from "../ui";
 import { curve, springs } from "../ui/motion";
 import { layout, useTheme } from "../ui/theme";
 import { useLiveColors, type LiveColors } from "../live/tokens";
@@ -29,12 +29,14 @@ const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${ite
 export function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: string; item: LiveItem; windowId: string; inStack?: boolean }) {
   const indent = inStack ? STACK_INDENT : 0;
   const theme = useTheme();
-  const { closeTabHint: closeHint } = useSidebarRowLook();
+  const { closeTabHint: closeHint, backToPinHint } = useSidebarRowLook();
+  const backToPin = useHover();
   const colors = useLiveColors();
   const key = liveRowKey(folderId, item.id);
   const profileId = usePageProfileId();
   const tabId = useLiveItemTab(windowId, profileId, folderId, item.id);
   const active = useIsActiveIn(windowId, profileId, tabId);
+  const away = useTabAwayFromPin(tabId);
   const unread = useLive((s) => !!s.unread[folderId]?.includes(item.id));
   const completion = useLive((s) => (s.completing[folderId]?.includes(item.id) ? (s.completed[folderId]?.find((c) => c.item.id === item.id)?.state ?? "merged") : null));
   const { hovered, hoverProps } = useRowHover(windowId, completion ? null : { kind: "live", id: key });
@@ -48,6 +50,8 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
     ]).start();
   }, [completion]);
   const fill = active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear;
+  const resettable = away && !completion;
+  const resetting = resettable && backToPin.hovered;
 
   return (
     <Animated.View style={completion ? { height: fold.interpolate({ inputRange: [0, 1], outputRange: [0, layout.rowHeight] }), opacity: fold, overflow: "hidden" } : null}>
@@ -67,8 +71,29 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
             {({ pressed }) => (
               <SidebarRowSurface fill={!active && pressed ? theme.tabPressed : fill} selected={active} border={active ? 1 : 0} padLeft={TAB_ROW.contentLeft + indent}>
                 {unread ? <Dot size={5} color={theme.accent} style={{ position: "absolute", left: UNREAD_DOT_LEFT + indent }} /> : null}
-                <ItemIcon item={item} completion={completion} colors={colors} />
-                <SidebarRowLabel text={item.title} weight={unread ? "medium" : undefined} color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab} />
+                <View {...backToPin.hoverProps}>
+                  {resettable ? (
+                    <Pressable
+                      onPress={() => tabId && returnLiveTab(tabId)}
+                      tooltip={withShortcut("Back to Pinned URL", backToPinHint)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Back to Pinned URL"
+                    >
+                      {resetting ? (
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      ) : (
+                        <ItemIcon item={item} completion={completion} colors={colors} />
+                      )}
+                    </Pressable>
+                  ) : (
+                    <ItemIcon item={item} completion={completion} colors={colors} />
+                  )}
+                </View>
+                <SidebarRowLabel
+                  text={resetting ? "Back to Pinned URL" : item.title}
+                  weight={unread ? "medium" : undefined}
+                  color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab}
+                />
                 {inStack && item.pr?.stack ? <PositionChip position={item.pr.stack.position} /> : null}
                 <HoverSlot
                   hovered={hovered && !!tabId && !completion}

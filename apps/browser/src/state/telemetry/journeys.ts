@@ -174,11 +174,11 @@ function settleNavigate(p: Navigate, now: number) {
   return true;
 }
 
-const bucket = (n: number, edges: [number, string][], last: string) => edges.find(([max]) => n <= max)?.[1] ?? last;
+export const bucket = (n: number, edges: [number, string][], last: string) => edges.find(([max]) => n <= max)?.[1] ?? last;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-const ago = (ms: number) =>
+export const ago = (ms: number) =>
   bucket(ms, [[MINUTE, "<1m"], [10 * MINUTE, "<10m"], [HOUR, "<1h"], [8 * HOUR, "<8h"], [DAY, "<1d"], [7 * DAY, "<7d"]], "7d+");
 
 let launch: Launch | null = null;

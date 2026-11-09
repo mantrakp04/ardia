@@ -8,8 +8,9 @@ export function BookmarksBarSection() {
   const size = useSettings((s) => s.bookmarksBarSize);
   return (
     <>
-      <SectionHeader title="Bookmarks Bar" />
+      <SectionHeader title="Bookmarks" />
       <Group>
+        <SettingToggle anchor="appearance.showBookmarks" />
         <Row anchor="appearance.bookmarksBar">
           <PopUp
             value={mode}

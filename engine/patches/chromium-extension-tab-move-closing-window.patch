@@ -1,0 +1,65 @@
+An extension's tab move between windows (chrome.tabs.move with a windowId, chrome.windows.create with a tabId)
+fails before anything detaches when either window is closing. Into a window running its unload handlers, the
+moved tab was closed by its CloseAllTabs; into one whose delete is scheduled, still in WindowControllerList but
+gone from GlobalBrowserCollection, TabListBridge::MoveTabToWindow hit CHECK(target_window): "No window with id".
+Out of a window that is closing, a ClosePage already sent still acked into Close once the tab had moved, so the
+tab closed in the window it moved to: "Tabs can't move out of a window that is closing.", checked in
+WindowsCreateFunction::ValidateTab before windows.create makes its window.
+
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -37,6 +37,9 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
++#if !BUILDFLAG(IS_ANDROID)
++#include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
++#endif
+ #include "chrome/browser/ui/incognito_allowed_url.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+@@ -437,6 +440,20 @@
+   return set_window_bounds;
+ }
+ 
++constexpr char kTabInClosingWindowError[] =
++    "Tabs can't move out of a window that is closing.";
++
++bool IsClosingWindow(BrowserWindowInterface* browser) {
++  if (browser->IsDeleteScheduled()) {
++    return true;
++  }
++#if !BUILDFLAG(IS_ANDROID)
++  return browser->capabilities()->IsAttemptingToCloseBrowser();
++#else
++  return false;
++#endif
++}
++
+ // Moves the given tab to the `target_browser`. On success, returns the new
+ // index of the tab in the target tabstrip. On failure, returns -1. Assumes that
+ // the caller has already checked whether the target window is different from
+@@ -475,6 +492,13 @@
+     return -1;
+   }
+ 
++  if (IsClosingWindow(target_browser)) {
++    *error = ErrorUtils::FormatErrorMessage(
++        ExtensionTabUtil::kWindowNotFoundError,
++        base::NumberToString(target_browser->GetSessionID().id()));
++    return -1;
++  }
++
+   TabListInterface* target_tab_list =
+       ExtensionTabUtil::GetEditableTabList(*target_browser);
+   CHECK(target_tab_list);
+@@ -1464,6 +1488,9 @@
+     return base::unexpected(
+         ExtensionTabUtil::kCanOnlyMoveTabsWithinNormalWindowsError);
+   }
++  if (IsClosingWindow(source_window->GetBrowserWindowInterface())) {
++    return base::unexpected(kTabInClosingWindowError);
++  }
+ #if !BUILDFLAG(IS_ANDROID)
+   BrowserWindowInterface* source_browser = source_window->GetBrowser();
+   CHECK(source_browser);

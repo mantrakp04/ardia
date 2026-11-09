@@ -1,3 +1,204 @@
+diff --git a/Libraries/Network/RCTNetworkTask.h b/Libraries/Network/RCTNetworkTask.h
+index a413a2888789daa1a4230e301ec21af5ec203488..857bd369ad19670a96f80aa08423c3b46936061e 100644
+--- a/Libraries/Network/RCTNetworkTask.h
++++ b/Libraries/Network/RCTNetworkTask.h
+@@ -29,11 +29,12 @@ typedef NS_ENUM(NSInteger, RCTNetworkTaskStatus) {
+ @property (nonatomic, readonly, weak) id requestToken;
+ @property (nonatomic, readonly) NSURLResponse *response;
+ 
+-@property (nonatomic, copy) RCTURLRequestCompletionBlock completionBlock;
+-@property (nonatomic, copy) RCTURLRequestProgressBlock downloadProgressBlock;
+-@property (nonatomic, copy) RCTURLRequestIncrementalDataBlock incrementalDataBlock;
+-@property (nonatomic, copy) RCTURLRequestResponseBlock responseBlock;
+-@property (nonatomic, copy) RCTURLRequestProgressBlock uploadProgressBlock;
++// [Ardia: atomic, as a cancel on the caller's queue clears them while the handler's queue reads them Ardia]
++@property (atomic, copy) RCTURLRequestCompletionBlock completionBlock;
++@property (atomic, copy) RCTURLRequestProgressBlock downloadProgressBlock;
++@property (atomic, copy) RCTURLRequestIncrementalDataBlock incrementalDataBlock;
++@property (atomic, copy) RCTURLRequestResponseBlock responseBlock;
++@property (atomic, copy) RCTURLRequestProgressBlock uploadProgressBlock;
+ 
+ @property (atomic, readonly) RCTNetworkTaskStatus status;
+ 
+diff --git a/Libraries/Network/RCTNetworkTask.mm b/Libraries/Network/RCTNetworkTask.mm
+index a82671b7c87fae1e390cc6a292bd91611ca40584..13effa264ea260263dcf9ae7cd5e80bc99e821ae 100644
+--- a/Libraries/Network/RCTNetworkTask.mm
++++ b/Libraries/Network/RCTNetworkTask.mm
+@@ -19,6 +19,8 @@ @implementation RCTNetworkTask {
+   std::mutex _mutex;
+   std::atomic<RCTNetworkTaskStatus> _atomicStatus;
+   RCTNetworkTask *_selfReference;
++  std::mutex _selfReferenceMutex; // [Ardia]
++  std::atomic<bool> _cancelled; // [Ardia]
+ }
+ 
+ static auto currentRequestId = std::atomic<NSUInteger>(0);
+@@ -52,14 +54,29 @@ - (RCTNetworkTaskStatus)status
+ 
+ - (void)invalidate
+ {
+-  _selfReference = nil;
+-  _completionBlock = nil;
+-  _downloadProgressBlock = nil;
+-  _incrementalDataBlock = nil;
+-  _responseBlock = nil;
+-  _uploadProgressBlock = nil;
++  self.completionBlock = nil; // [Ardia: through the atomic setters, see the header Ardia]
++  self.downloadProgressBlock = nil;
++  self.incrementalDataBlock = nil;
++  self.responseBlock = nil;
++  self.uploadProgressBlock = nil;
+   _requestToken = nil;
++  // [Ardia: last, as it can be the task's last reference, and under the lock start takes it with
++  NS_VALID_UNTIL_END_OF_SCOPE RCTNetworkTask *selfReference;
++  {
++    std::lock_guard<std::mutex> lock(_selfReferenceMutex);
++    selfReference = _selfReference;
++    _selfReference = nil;
++  }
++  // Ardia]
++}
++
++// [Ardia: only the first of cancel, an error and completion finishes the task, so a cancel racing a completion never
++// invalidates it twice (releasing _selfReference twice) and a cancelled task never calls its completion block
++- (BOOL)finishOnce
++{
++  return _atomicStatus.exchange(RCTNetworkTaskFinished) != RCTNetworkTaskFinished;
+ }
++// Ardia]
+ 
+ - (void)dispatchCallback:(dispatch_block_t)callback
+ {
+@@ -72,25 +89,36 @@ - (void)dispatchCallback:(dispatch_block_t)callback
+ 
+ - (void)start
+ {
+-  if (_atomicStatus != RCTNetworkTaskPending) {
++  // [Ardia: running and retained before the handler can call back, as a fast one (data: URIs) finishes the task
++  // before sendRequest: returns, and only from pending, so a finished task never runs again; a cancel that came
++  // before the token was published couldn't cancel the request, so start does
++  BOOL started;
++  {
++    std::lock_guard<std::mutex> lock(_selfReferenceMutex);
++    RCTNetworkTaskStatus pending = RCTNetworkTaskPending;
++    started = _atomicStatus.compare_exchange_strong(pending, RCTNetworkTaskInProgress);
++    if (started) {
++      _selfReference = self;
++    }
++  }
++  if (!started) {
+     RCTLogError(@"RCTNetworkTask was already started or completed");
+     return;
+   }
+ 
+-  if (_requestToken == nil) {
+-    id token = [_handler sendRequest:_request withDelegate:self];
+-    if ([self validateRequestToken:token]) {
+-      _selfReference = self;
+-      _atomicStatus = RCTNetworkTaskInProgress;
+-    }
++  id token = [_handler sendRequest:_request withDelegate:self];
++  if ([self validateRequestToken:token] && _cancelled && [_handler respondsToSelector:@selector(cancelRequest:)]) {
++    [_handler cancelRequest:token];
+   }
++  // Ardia]
+ }
+ 
+ - (void)cancel
+ {
+-  if (_atomicStatus.exchange(RCTNetworkTaskFinished) == RCTNetworkTaskFinished) {
++  if (![self finishOnce]) { // [Ardia]
+     return;
+   }
++  _cancelled = true; // [Ardia]
+ 
+   id token = _requestToken;
+   if (token && [_handler respondsToSelector:@selector(cancelRequest:)]) {
+@@ -111,10 +139,9 @@ - (BOOL)validateRequestToken:(id)requestToken
+     valid = NO;
+   }
+ 
+-  if (!valid) {
+-    _atomicStatus = RCTNetworkTaskFinished;
+-    if (_completionBlock) {
+-      RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++  if (!valid && [self finishOnce]) { // [Ardia]
++    RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++    if (completionBlock) {
+       [self dispatchCallback:^{
+         completionBlock(self->_response, nil, RCTErrorWithMessage(@"Invalid request token."));
+       }];
+@@ -130,8 +157,8 @@ - (void)URLRequest:(id)requestToken didSendDataWithProgress:(int64_t)bytesSent
+     return;
+   }
+ 
+-  if (_uploadProgressBlock) {
+-    RCTURLRequestProgressBlock uploadProgressBlock = _uploadProgressBlock;
++  RCTURLRequestProgressBlock uploadProgressBlock = self.uploadProgressBlock; // [Ardia]
++  if (uploadProgressBlock) {
+     int64_t length = _request.HTTPBody.length;
+     [self dispatchCallback:^{
+       uploadProgressBlock(bytesSent, length);
+@@ -146,8 +173,8 @@ - (void)URLRequest:(id)requestToken didReceiveResponse:(NSURLResponse *)response
+   }
+ 
+   _response = response;
+-  if (_responseBlock) {
+-    RCTURLRequestResponseBlock responseBlock = _responseBlock;
++  RCTURLRequestResponseBlock responseBlock = self.responseBlock; // [Ardia]
++  if (responseBlock) {
+     [self dispatchCallback:^{
+       responseBlock(response);
+     }];
+@@ -172,9 +199,11 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+     @try {
+       [_data appendData:data];
+     } @catch (NSException *exception) {
+-      _atomicStatus = RCTNetworkTaskFinished;
+-      if (_completionBlock) {
+-        RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++      if (![self finishOnce]) { // [Ardia]
++        return;
++      }
++      RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++      if (completionBlock) {
+         [self dispatchCallback:^{
+           completionBlock(
+               self->_response, nil, RCTErrorWithMessage(exception.reason ?: @"Request's received data too long."));
+@@ -189,14 +218,14 @@ - (void)URLRequest:(id)requestToken didReceiveData:(NSData *)data
+ 
+   int64_t total = _response.expectedContentLength;
+ 
+-  if (_incrementalDataBlock) {
+-    RCTURLRequestIncrementalDataBlock incrementalDataBlock = _incrementalDataBlock;
++  RCTURLRequestIncrementalDataBlock incrementalDataBlock = self.incrementalDataBlock; // [Ardia]
++  if (incrementalDataBlock) {
+     [self dispatchCallback:^{
+       incrementalDataBlock(data, length, total);
+     }];
+   }
+-  if (_downloadProgressBlock) {
+-    RCTURLRequestProgressBlock downloadProgressBlock = _downloadProgressBlock;
++  RCTURLRequestProgressBlock downloadProgressBlock = self.downloadProgressBlock; // [Ardia]
++  if (downloadProgressBlock) {
+     [self dispatchCallback:^{
+       downloadProgressBlock(length, total);
+     }];
+@@ -209,9 +238,11 @@ - (void)URLRequest:(id)requestToken didCompleteWithError:(NSError *)error
+     return;
+   }
+ 
+-  _atomicStatus = RCTNetworkTaskFinished;
+-  if (_completionBlock) {
+-    RCTURLRequestCompletionBlock completionBlock = _completionBlock;
++  if (![self finishOnce]) { // [Ardia]
++    return;
++  }
++  RCTURLRequestCompletionBlock completionBlock = self.completionBlock; // [Ardia]
++  if (completionBlock) {
+     NSData *dataCopy = nil;
+     {
+       std::lock_guard<std::mutex> lock(self->_mutex);
 diff --git a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm b/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
 index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04ef8d1f51e 100644
 --- a/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm
@@ -565,10 +766,63 @@ index b85ee3dd203f88bf2daaa47e912031ea200ff910..c252cfa97deb7b7cc0533105f604fa50
  #if TARGET_OS_OSX // [macOS
      _nativeTouches[index] = touch;
 diff --git a/React/Base/macOS/RCTUIKit.m b/React/Base/macOS/RCTUIKit.m
-index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28e012c402 100644
+index a37a1c106a04752c1baeb6dd2170402ce5f34f71..4b0fa1207d50724979fdb0122a4a88eed20374cd 100644
 --- a/React/Base/macOS/RCTUIKit.m
 +++ b/React/Base/macOS/RCTUIKit.m
-@@ -284,20 +284,53 @@ - (CATransform3D)transform3D
+@@ -15,6 +15,7 @@
+ #import <React/RCTAssert.h>
+ 
+ #import <objc/runtime.h>
++#import <React/UIView+React.h> // [Ardia]
+ 
+ #import <CoreImage/CIFilter.h>
+ #import <CoreImage/CIVector.h>
+@@ -214,6 +215,44 @@ - (instancetype)initWithCoder:(NSCoder *)coder
+   return RCTUIViewCommonInit([super initWithCoder:coder]);
+ }
+ 
++// [Ardia
++static BOOL RCTUIViewLeavesAutoLayout(RCTUIView *view, NSView *superview)
++{
++  if (view.reactTag == nil || view.autoresizingMask != NSViewNotSizable) {
++    return NO;
++  }
++  if (![superview isKindOfClass:[RCTUIView class]] || superview.reactTag == nil) {
++    return NO;
++  }
++  if (!NSEqualSizes(view.intrinsicContentSize, NSMakeSize(NSViewNoIntrinsicMetric, NSViewNoIntrinsicMetric))) {
++    return NO;
++  }
++  for (NSView *subview in view.subviews) {
++    if (subview.reactTag == nil) {
++      return NO;
++    }
++  }
++  return YES;
++}
++
++- (void)viewWillMoveToSuperview:(NSView *)newSuperview
++{
++  [super viewWillMoveToSuperview:newSuperview];
++  BOOL translates = !RCTUIViewLeavesAutoLayout(self, newSuperview);
++  if (self.translatesAutoresizingMaskIntoConstraints != translates) {
++    self.translatesAutoresizingMaskIntoConstraints = translates;
++  }
++}
++
++- (void)didAddSubview:(NSView *)subview
++{
++  [super didAddSubview:subview];
++  if (subview.reactTag == nil && !self.translatesAutoresizingMaskIntoConstraints) {
++    self.translatesAutoresizingMaskIntoConstraints = YES;
++  }
++}
++// Ardia]
++
+ - (BOOL)acceptsFirstMouse:(NSEvent *)event
+ {
+   if (self.acceptsFirstMouse || [super acceptsFirstMouse:event]) {
+@@ -284,20 +323,53 @@ - (CATransform3D)transform3D
    return _transform3D;
  }
  
@@ -577,19 +831,6 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
 +// {0, 0} instead of {0.5, 0.5} as on iOS, so the transform is moved to apply from the view's center; that depends
 +// on the size, so it's worked out again each time it's applied.
 +static CATransform3D RCTUIViewLayerTransform(RCTUIView *view)
-+{
-+  CATransform3D transform = view->_transform3D;
-+  if (CGPointEqualToPoint(view.layer.anchorPoint, CGPointZero) && view->_hasCustomTransform3D) {
-+    CATransform3D originAdjust = CATransform3DMakeTranslation(view.bounds.size.width / 2, view.bounds.size.height / 2, 0);
-+    transform = CATransform3DConcat(CATransform3DConcat(CATransform3DInvert(originAdjust), transform), originAdjust);
-+  }
-+  return transform;
-+}
-+
-+// AppKit owns a layer-backed view's geometry: it puts the layer's transform back to identity whenever the frame
-+// changes (setFrameOrigin:/setFrameSize:, which don't always lead to updateLayer) and when the view joins a layer
-+// tree (before updateLayer). Each of those writes the stored transform back.
-+static void RCTUIViewApplyTransform3D(RCTUIView *view)
  {
 -  // On macOS, layer.anchorPoint defaults to {0, 0} instead of {0.5, 0.5} on iOS.
 -  // Compensate so transforms are applied from the view's center as expected.
@@ -597,12 +838,25 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
 -  if (CGPointEqualToPoint(anchorPoint, CGPointZero) && !CATransform3DEqualToTransform(transform3D, CATransform3DIdentity)) {
 -    CATransform3D originAdjust = CATransform3DTranslate(CATransform3DIdentity, self.frame.size.width / 2, self.frame.size.height / 2, 0);
 -    transform3D = CATransform3DConcat(CATransform3DConcat(CATransform3DInvert(originAdjust), transform3D), originAdjust);
++  CATransform3D transform = view->_transform3D;
++  if (CGPointEqualToPoint(view.layer.anchorPoint, CGPointZero) && view->_hasCustomTransform3D) {
++    CATransform3D originAdjust = CATransform3DMakeTranslation(view.bounds.size.width / 2, view.bounds.size.height / 2, 0);
++    transform = CATransform3DConcat(CATransform3DConcat(CATransform3DInvert(originAdjust), transform), originAdjust);
+   }
++  return transform;
++}
+ 
++// AppKit owns a layer-backed view's geometry: it puts the layer's transform back to identity whenever the frame
++// changes (setFrameOrigin:/setFrameSize:, which don't always lead to updateLayer) and when the view joins a layer
++// tree (before updateLayer). Each of those writes the stored transform back.
++static void RCTUIViewApplyTransform3D(RCTUIView *view)
++{
 +  CATransform3D transform = RCTUIViewLayerTransform(view);
 +  if (!CATransform3DEqualToTransform(view.layer.transform, transform)) {
 +    view.layer.transform = transform;
-   }
++  }
 +}
- 
++
 +- (void)setTransform3D:(CATransform3D)transform3D
 +{
    _transform3D = transform3D;
@@ -630,7 +884,7 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
  
  - (NSView *)hitTest:(NSPoint)point
  {
-@@ -308,7 +341,11 @@ - (NSView *)hitTest:(NSPoint)point
+@@ -308,7 +380,11 @@ - (NSView *)hitTest:(NSPoint)point
    if (self.layer.superlayer) {
      localPoint = [self.layer convertPoint:point fromLayer:self.layer.superlayer];
    } else {
@@ -643,7 +897,7 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
    }
    return [self hitTest:localPoint withEvent:nil];
  }
-@@ -331,8 +368,8 @@ - (void)updateLayer
+@@ -331,8 +407,8 @@ - (void)updateLayer
    // On macOS, AppKit's layer-backed view system resets layer.transform to identity
    // during its layout/display cycle because NSView has no built-in transform property
    // (unlike UIView on iOS). We must re-apply the stored transform after each cycle.
@@ -654,7 +908,7 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
    }
  
    if (_respondsToDisplayLayer) {
-@@ -822,6 +859,13 @@ - (instancetype)initWithFrame:(CGRect)frame
+@@ -822,6 +898,13 @@ - (instancetype)initWithFrame:(CGRect)frame
    return self;
  }
  

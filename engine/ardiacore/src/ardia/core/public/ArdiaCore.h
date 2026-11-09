@@ -132,6 +132,12 @@ ARDIACORE_EXPORT
        completion:(void (^)(NSData* _Nullable body))completion;
 @end
 
+typedef NS_ENUM(NSInteger, ArdiaCoreAdoption) {
+  ArdiaCoreAdoptionRefused,
+  ArdiaCoreAdoptionAdopted,
+  ArdiaCoreAdoptionBusy,
+};
+
 @protocol ArdiaCoreWindowDelegate <NSObject>
 @optional
 - (void)window:(ArdiaCoreWindow*)window
@@ -159,6 +165,7 @@ ARDIACORE_EXPORT
 - (void)window:(ArdiaCoreWindow*)window showRequestedActive:(BOOL)active;
 - (BOOL)windowShouldClose:(ArdiaCoreWindow*)window;
 - (void)windowDidCancelClose:(ArdiaCoreWindow*)window;
+- (void)windowCanTakeTabs:(ArdiaCoreWindow*)window;
 - (void)window:(ArdiaCoreWindow*)window
     confirmCloseWithDownloads:(int)count
                    completion:(void (^)(BOOL closeAnyway))completion;
@@ -192,7 +199,8 @@ ARDIACORE_EXPORT
 - (void)close;
 
 - (void)prepareProfile:(ArdiaCoreProfile*)profile;
-- (void)adoptTab:(ArdiaCoreTab*)tab;
+- (ArdiaCoreAdoption)adoptTab:(ArdiaCoreTab*)tab;
+- (ArdiaCoreAdoption)canAdoptTab:(ArdiaCoreTab*)tab;
 - (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
                           profile:(ArdiaCoreProfile*)profile
                        foreground:(BOOL)foreground;

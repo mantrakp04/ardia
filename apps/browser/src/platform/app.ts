@@ -10,6 +10,7 @@ export {
   type UpdaterState,
   type UpdateChannel,
   type AppIcon,
+  type HardwareInfo,
 } from "@ardia/shell";
 import { call } from "@ardia/ardiacore";
 import { nativeModule, type AppEvent, type AppearanceMode, type OpenURLSource, type UpdateChannel } from "@ardia/shell";
@@ -35,6 +36,8 @@ export const onOpenURLs = (listener: (urls: string[], pointer?: [number, number]
 
 export const systemInfo = () => App.systemInfo();
 export const crashReports = (since: number) => App.crashReports(since);
+export const hardwareInfo = () => App.hardwareInfo();
+export const diagnosticsSample = () => App.diagnosticsSample();
 export const openExternalURL = (url: string) => App.openExternalURL(url);
 export const appIcons = (size = 64) => App.appIcons(size);
 export const currentAppIcon = () => App.appIcon();

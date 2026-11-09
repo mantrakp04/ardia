@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New integration review - Northwind Security</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">N</span> Northwind <span class="dim">Security</span></div>
+  <nav aria-label="Main"><a href="/">Vendor reviews</a><a href="/" aria-current="page">New review</a></nav>
+  <div class="me" title="Jordan Lee (jordan@northwind.dev)">JL</div>
+</header>
+<main class="page">
+  <p class="crumb"><a href="/">Vendor reviews</a> › New integration review</p>
+  <h1>Integration review</h1>
+  <p class="lede">Security reviews every third-party API before production traffic goes to it. Answer from the vendor's current public documentation. Requests can't go live until a review is on file.</p>
+
+  <div id="summary" class="error-summary" role="alert" tabindex="-1" hidden>
+    <h2>There’s a problem with this review</h2>
+    <ul id="summary-list"></ul>
+  </div>
+
+  <form id="review" novalidate>
+    <fieldset>
+      <legend>Vendor</legend>
+      <div class="field">
+        <label for="vendor">Vendor name</label>
+        <input id="vendor" name="vendor" type="text" autocomplete="organization" maxlength="120">
+        <p class="error" id="vendor-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="api_version">API version reviewed</label>
+        <select id="api_version" name="api_version">
+          <option value="">Choose a version</option>
+          <option value="v1">v1</option>
+          <option value="v2">v2</option>
+          <option value="v3">v3</option>
+        </select>
+        <p class="error" id="api_version-error" hidden></p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Capacity</legend>
+      <div class="field">
+        <label for="team_rate_limit">API rate limit on the Team plan</label>
+        <p class="hint" id="team_rate_limit-hint">Requests per minute for one workspace.</p>
+        <div class="with-unit">
+          <input id="team_rate_limit" name="team_rate_limit" type="text" inputmode="numeric" aria-describedby="team_rate_limit-hint" maxlength="20">
+          <span class="unit">requests / minute</span>
+        </div>
+        <p class="error" id="team_rate_limit-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="webhook_payload_kb">Maximum webhook payload size</label>
+        <p class="hint" id="webhook_payload_kb-hint">The largest request body the vendor will send to our webhook endpoint, in kilobytes.</p>
+        <div class="with-unit">
+          <input id="webhook_payload_kb" name="webhook_payload_kb" type="text" inputmode="decimal" aria-describedby="webhook_payload_kb-hint" maxlength="20">
+          <span class="unit">KB</span>
+        </div>
+        <p class="error" id="webhook_payload_kb-error" hidden></p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Security</legend>
+      <div class="field" role="radiogroup" aria-labelledby="sig-label" aria-describedby="sig-hint">
+        <p class="label" id="sig-label">How are webhook requests signed?</p>
+        <p class="hint" id="sig-hint">The scheme our endpoint will verify.</p>
+        <label class="choice"><input type="radio" name="webhook_signature" value="none"> Not signed</label>
+        <label class="choice"><input type="radio" name="webhook_signature" value="hmac-sha1"> HMAC-SHA1</label>
+        <label class="choice"><input type="radio" name="webhook_signature" value="hmac-sha256"> HMAC-SHA256</label>
+        <label class="choice"><input type="radio" name="webhook_signature" value="ed25519"> Ed25519 signature</label>
+        <label class="choice"><input type="radio" name="webhook_signature" value="mtls"> Mutual TLS only</label>
+        <p class="error" id="webhook_signature-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="enterprise_audit_days">Audit log retention on the Enterprise plan</label>
+        <div class="with-unit">
+          <input id="enterprise_audit_days" name="enterprise_audit_days" type="text" inputmode="numeric" maxlength="20">
+          <span class="unit">days</span>
+        </div>
+        <p class="error" id="enterprise_audit_days-error" hidden></p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Lifecycle</legend>
+      <div class="field">
+        <label for="offsets_sunset">Sunset date of <code>GET /v2/streams/{stream_id}/offsets</code></label>
+        <p class="hint" id="offsets_sunset-hint">We still call this endpoint. The date the vendor stops serving it.</p>
+        <input id="offsets_sunset" name="offsets_sunset" type="date" aria-describedby="offsets_sunset-hint" min="2026-01-01" max="2030-12-31">
+        <p class="error" id="offsets_sunset-error" hidden></p>
+      </div>
+      <div class="field">
+        <label for="notes">Notes <span class="dim">(optional)</span></label>
+        <textarea id="notes" name="notes" rows="4" maxlength="4000"></textarea>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label class="choice"><input type="checkbox" id="confirm_sources" name="confirm_sources"> I checked these answers against the vendor’s current documentation.</label>
+      <p class="error" id="confirm_sources-error" hidden></p>
+    </div>
+
+    <div class="actions">
+      <button type="submit" id="submit" class="primary">Submit review</button>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <section id="done" class="done" hidden tabindex="-1" aria-labelledby="done-title">
+    <h2 id="done-title">Review submitted</h2>
+    <p id="done-meta"></p>
+    <dl id="done-values"></dl>
+    <button type="button" id="edit" class="secondary">Edit and resubmit</button>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

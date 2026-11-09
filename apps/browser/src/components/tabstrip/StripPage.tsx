@@ -4,6 +4,7 @@ import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
+import { dismissStripHoverIn } from "../../state/tabs/stripHover";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { DockContext, FloatingStrip } from "./context";
@@ -101,6 +102,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
               scrollEventThrottle={16}
               onLayout={(e) => void (viewport.current = e.nativeEvent.layout.width)}
               onScroll={(e) => {
+                if (Math.abs(e.nativeEvent.contentOffset.x - scrolled.current) >= 1) dismissStripHoverIn(windowId);
                 scrolled.current = e.nativeEvent.contentOffset.x;
                 setAtStart(scrolled.current < 0.5);
               }}

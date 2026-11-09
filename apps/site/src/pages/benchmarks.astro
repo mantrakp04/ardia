@@ -9,6 +9,8 @@ import { bench, BENCH_METHOD } from "../data/bench";
 import { scorecardOf } from "../data/benchScorecard";
 import { REPO } from "../data/release";
 import { breadcrumbs } from "../data/jsonLd";
+const ComputerUse =
+  import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED ? (await import("../components/ComputerUse.astro")).default : null;
 
 const home = homeUrl(Astro.site);
 const url = new URL("benchmarks/", home).href;
@@ -35,7 +37,7 @@ const jsonLd = [
           creator: organization,
           publisher: organization,
           dateModified: bench.measured,
-          temporalCoverage: bench.measured,
+          temporalCoverage: bench.span,
           isAccessibleForFree: true,
           license: "https://www.gnu.org/licenses/gpl-3.0.html",
           keywords: ["browser benchmark", "Mac browser", "Arc alternative", "Dia", "Helium", "Chromium", "memory", "launch time", "power"],
@@ -53,6 +55,7 @@ const jsonLd = [
 <Base title={`Mac browser benchmarks · ${versus}`} description={description} jsonLd={jsonLd}>
   <Header home={`${base}/`} current="benchmarks" />
   <main>
+    {ComputerUse && <ComputerUse page />}
     <Bench page />
     {
       bench && (
@@ -67,7 +70,7 @@ const jsonLd = [
               <div class="fact">
                 <dt>The Mac</dt>
                 <dd>
-                  {bench.machine}, on {bench.date}. It’s the owner’s working Mac in normal use, so the browsers take turns and share
+                  {bench.dated ? `${bench.machine}. ${bench.dated}.` : `${bench.machine}, on ${bench.date}.`} It’s the owner’s working Mac in normal use, so the browsers take turns and share
                   whatever else is going on.
                 </dd>
               </div>

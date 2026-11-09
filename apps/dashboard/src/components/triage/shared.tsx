@@ -23,6 +23,7 @@ const TABS = [
   { to: "/triage", label: "Overview" },
   { to: "/triage/requests", label: "Requests" },
   { to: "/triage/replies", label: "Reply queue" },
+  { to: "/triage/leads", label: "Leads" },
   { to: "/triage/people", label: "People" },
   { to: "/triage/releases", label: "Releases" },
   { to: "/triage/issues", label: "Issues" },
@@ -71,6 +72,7 @@ const TONE: Record<string, string> = {
   question: "bg-chart-2/12 text-chart-2",
   nightly: "bg-chart-5/14 text-chart-5",
   stable: "bg-good/12 text-good",
+  lead: "bg-[#1d9bf0]/12 text-[#1d9bf0]",
 };
 
 export function Pill({ value, className }: { value: string | null | undefined; className?: string }) {

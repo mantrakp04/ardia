@@ -17,10 +17,10 @@ HEADER_VALUE_LIMIT = 8 * 1024
 HEADERS_LIMIT = 64 * 1024
 REQUEST_BYTES = 32 * 1024 * 1024
 HIDDEN_TAB = (
-    "This tab is in the background, and Chrome doesn't deliver mouse or keyboard input to a hidden tab. "
-    "Show it first with `ardia browse tab <id> --show` (Ardia switches its window to that tab), "
-    "or open tabs shown with `open --show` or AGENT_BROWSER_SHOW_TAB=1"
+    "[{tab}] is a background tab, and this Ardia doesn't deliver mouse or keyboard input to background tabs. "
+    "use: ardia browse tab {tab} --show (or open <url> --show)"
 )
+LIVE_WAIT = 0.5
 STALE_CONTEXT = ("Cannot find context", "Execution context was destroyed", "Cannot find default execution context", "Inspected target navigated")
 
 
@@ -128,6 +128,7 @@ class Page:
         self.init_scripts: dict[str, str] = {}
         self.url = ""
         self.title = ""
+        self.drag_intercepted: asyncio.Future | None = None
 
     async def attach(self, browser):
         self.browser = browser
@@ -287,9 +288,27 @@ class Page:
         except BrowseError:
             return False
 
+    async def takes_input(self) -> bool:
+        if not await self.hidden():
+            return True
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + LIVE_WAIT
+        while loop.time() < deadline:
+            await asyncio.sleep(0.05)
+            if not await self.hidden():
+                self.state.background_live = True
+                return True
+        if self.state.background_live is None:
+            self.state.background_live = False
+        return False
+
+    def show_hint(self) -> str:
+        return HIDDEN_TAB.format(tab=self.state.tab_id(self.target_id))
+
     async def require_visible(self):
-        if await self.hidden():
-            raise BrowseError(HIDDEN_TAB, code="tab_hidden")
+        if not await self.takes_input():
+            tab = self.state.tab_id(self.target_id)
+            raise BrowseError(self.show_hint(), data={"tabId": tab, "use": f"ardia browse tab {tab} --show"}, code="tab_hidden")
 
     async def focus_element(self, element: Element):
         await self.send("DOM.focus", {"backendNodeId": element.backend_id})
@@ -347,6 +366,10 @@ class Page:
             self.dialog = None
         elif method == "Runtime.executionContextsCleared":
             pass
+        elif method == "Input.dragIntercepted":
+            waiter = self.drag_intercepted
+            if waiter is not None and not waiter.done():
+                waiter.set_result(params.get("data") or {})
         elif method == "Runtime.consoleAPICalled":
             args = params.get("args") or []
             kind = params.get("type", "log")
@@ -367,7 +390,7 @@ class Page:
                 "column": details.get("columnNumber"),
                 "timestamp": params.get("timestamp"),
             })
-        elif method.startswith("Network."):
+        elif method.startswith("Network.") and self.network_on:
             self.on_network(method, params)
         self.state.on_page_event(self, method, params)
 

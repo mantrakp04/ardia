@@ -1,0 +1,164 @@
+{
+  "id": "fixes-0245n3",
+  "segments": [
+    {
+      "scene": "n3badges",
+      "title": "Web apps show their unread count on their tab",
+      "body": "A pinned mail app, a pinned chat and an open forum whose titles pick up unread counts. nightly.2 only changed the title; now the count sits on the icon, in Top Apps, pinned rows and ordinary tabs alike.",
+      "cam": [
+        0,
+        0,
+        780,
+        494
+      ],
+      "cursor": false,
+      "lead": 0.4,
+      "tail": 4.8
+    },
+    {
+      "scene": "n3peek",
+      "title": "Links from pinned tabs open in a Peek",
+      "body": "\"Open a Peek window when clicking on links to other sites\" is on in both. A link in a pinned mail app that opens a new tab, as Gmail's do: nightly.2 opened a tab; now it opens in a Peek, and the app's tile wears the Peek's icon.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "zoom": {
+        "cam": [
+          0,
+          40,
+          520,
+          329
+        ],
+        "from": 2.9,
+        "to": 3.7
+      },
+      "lead": 1.3,
+      "tail": 3.9
+    },
+    {
+      "scene": "n3pulse",
+      "title": "The command bar pulses in the site's colour",
+      "body": "⌘T, then \"bing\" and Tab to search Bing from the command bar. Both enter the search; now the bar pulses in Bing's teal and keeps a faint tint while the search is on.",
+      "cam": [
+        450,
+        300,
+        720,
+        250
+      ],
+      "lead": 1.9,
+      "tail": 2.4
+    },
+    {
+      "scene": "n3frame",
+      "title": "The page frame goes down to edge to edge",
+      "body": "The new Page Frame setting, a slider in Settings › Appearance, stepped from 9 pt to 0. nightly.2 had no such setting and always kept the 9 pt frame; now the page can run to the window's edges.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "zoom": {
+        "cam": [
+          600,
+          0,
+          760,
+          480.6
+        ],
+        "from": 0.1,
+        "to": 0.9
+      },
+      "lead": 1.2,
+      "tail": 2.7
+    },
+    {
+      "scene": "n3copyurl",
+      "title": "Bookmarks can hide, and Copy URL takes the star's place",
+      "body": "Show bookmarks off, then a hover on the address bar and a click where the bookmark button was. nightly.2 had no such switch and kept the button; now Copy URL sits there and copies the clean link.",
+      "cam": [
+        920,
+        0,
+        440,
+        473
+      ],
+      "lead": 2.2,
+      "tail": 2.4,
+      "zoom": {
+        "cam": [
+          560,
+          0,
+          800,
+          860
+        ],
+        "from": 2.6,
+        "to": 3.4
+      }
+    },
+    {
+      "scene": "n3spaces",
+      "title": "Shared Top Apps stay put when you switch spaces",
+      "body": "Two spaces that share Top Apps, and ⌃2 to Work. nightly.2 slid the shared tiles out and back in with the space; now they hold still and only the tabs below them move.",
+      "cam": [
+        0,
+        0,
+        520,
+        329
+      ],
+      "rate": 0.25,
+      "lead": 0.3,
+      "tail": 0.9
+    },
+    {
+      "scene": "n3away",
+      "title": "A pinned tab away from its page shows \"/ title\"",
+      "body": "A pinned Notes row, then a click into one of its notes. nightly.2 showed only the new page's title; now a dimmed \"/\" before it says the pinned tab has left its address, as Arc does.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "zoom": {
+        "cam": [
+          0,
+          30,
+          520,
+          329
+        ],
+        "from": 1.8,
+        "to": 2.6
+      },
+      "lead": 1.3,
+      "tail": 3.0
+    },
+    {
+      "scene": "n3drift",
+      "title": "A click that drifts a few points still counts",
+      "body": "Two clicks on sidebar tabs where the pointer drifts 4 to 5 points before it lets go. nightly.2 read them as tiny drags and stayed on Docpad; now each one opens its tab.",
+      "cam": [
+        0,
+        0,
+        1360,
+        860
+      ],
+      "lead": 0.3,
+      "tail": 4.6
+    },
+    {
+      "scene": "n3black",
+      "title": "The selected tab stands out on a near-black profile",
+      "body": "A custom near-black profile, clicking down the tab list with the pointer moved off each time. nightly.2 drew the selected tab darker than the sidebar, so it barely showed; now it gets a lighter fill that stands out.",
+      "cam": [
+        0,
+        40,
+        520,
+        300
+      ],
+      "lead": 0.6,
+      "tail": 4.9
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { measuredLine, olderThanHeadline, type DatedBrowser } from "./benchDates";
 import { REPO } from "./release";
 type RawBrowser = {
   name: string;
@@ -7,6 +8,7 @@ type RawBrowser = {
   min?: number | null;
   max?: number | null;
   n?: number | null;
+  measured?: string | null;
 };
 type RawRow = {
   id: string;
@@ -17,9 +19,16 @@ type RawRow = {
   browsers: RawBrowser[] | Record<string, RawBrowser>;
 };
 type MeasuredBrowser = Omit<RawBrowser, "median"> & { median: number };
-type Measured = Omit<RawRow, "browsers"> & { browsers: RawBrowser[]; measured: MeasuredBrowser[] };
+type Measured = Omit<RawRow, "browsers"> & { browsers: RawBrowser[]; measured: MeasuredBrowser[]; older: string | null };
 type RawMachine = { model?: string; chip?: string; cores?: number | string; ram?: string | number; macOS?: string };
-type RawBench = { date: string; machine: string | RawMachine; method?: string; rows: RawRow[] };
+type RawHeadline = { name: string; version?: string | null; measured?: string | null };
+type RawBench = {
+  date: string;
+  machine: string | RawMachine;
+  browsers?: Record<string, RawHeadline>;
+  method?: string;
+  rows: RawRow[];
+};
 
 const SHOWN = /^(ardia|dia|helium)\b/i;
 
@@ -38,6 +47,7 @@ export type Call = {
   lost: boolean;
   kicker: string;
   figure: Figure | null;
+  word?: string;
   line: string;
   second: { figure: Figure; line: string } | null;
 };
@@ -57,6 +67,8 @@ export type Bench = {
   groups: Group[];
   date: string;
   measured: string;
+  dated: string | null;
+  span: string;
   machine: string;
   versions: string;
   rivals: string[];
@@ -68,6 +80,7 @@ const sample = import.meta.env.DEV
   : undefined;
 
 const isArdia = (name: string) => /^ardia\b/i.test(name.trim());
+const isDia = (b: { name: string }) => /^dia\b/i.test(b.name.trim());
 const decimalsFor = (v: number) => (Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 1 ? 1 : 2);
 const number = (v: number, decimals: number) =>
   v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -106,59 +119,43 @@ const isBetter = (a: number, b: number, lower: boolean) => (lower ? a < b : a > 
 
 function leadOverDia(row: Measured, entries: MeasuredBrowser[]): number {
   const ardia = entries.find((b) => isArdia(b.name))!.median;
-  const rival = (entries.find((b) => /^dia\b/i.test(b.name.trim())) ?? entries.find((b) => !isArdia(b.name)))!.median;
+  const rival = (entries.find(isDia) ?? entries.find((b) => !isArdia(b.name)))!.median;
   if (ardia <= 0 || rival <= 0) return 0;
   return Math.log(row.lowerIsBetter ? rival / ardia : ardia / rival);
 }
 
+function sideNote(ardia: MeasuredBrowser, other: MeasuredBrowser, row: Measured, kind: Kind): Call["second"] {
+  if (isBetter(ardia.median, other.median, row.lowerIsBetter)) {
+    const f = margin(ardia.median, other.median, row, kind);
+    return f ? { figure: f, line: `${kind.word} than ${other.name}` } : null;
+  }
+  const f = margin(other.median, ardia.median, row, kind);
+  return f ? { figure: f, line: `${kind.word} for ${other.name}` } : null;
+}
+
 function callFor(row: Measured, entries: MeasuredBrowser[], kind: Kind): Call {
-  const value = (b: MeasuredBrowser) => b.median;
   const ardia = entries.find((b) => isArdia(b.name))!;
   const others = entries.filter((b) => b !== ardia);
-  const ranked = [...others].sort((x, y) => (row.lowerIsBetter ? value(x) - value(y) : value(y) - value(x)));
-  const closest = ranked[0];
-  const farthest = ranked[ranked.length - 1];
-  const dia = others.find((b) => /^dia\b/i.test(b.name.trim()));
-  const headline = dia && isBetter(value(ardia), value(dia), row.lowerIsBetter) ? dia : null;
-
-  if (headline) {
-    const lead = margin(value(ardia), value(headline), row, kind);
-    const rest = ranked.filter((b) => b !== headline);
-    const beaten = rest.find((b) => isBetter(value(b), value(ardia), row.lowerIsBetter));
-    const kicker = beaten ? `${row.label} · ${beaten.name} wins this one` : row.label;
-    const near = rest[0];
-    const second = !near
-      ? null
-      : beaten
-        ? (() => {
-            const f = margin(value(beaten), value(ardia), row, kind);
-            return f ? { figure: f, line: `${kind.word} for ${beaten.name}` } : null;
-          })()
-        : (() => {
-            const f = margin(value(ardia), value(near), row, kind);
-            return f ? { figure: f, line: `${kind.word} than ${near.name}` } : null;
-          })();
-    if (!lead) return { lost: false, kicker, figure: null, line: `Dead even with ${headline.name}.`, second };
-    return { lost: false, kicker, figure: lead, line: `${kind.word} than ${headline.name}`, second };
+  const ranked = [...others].sort((x, y) => (row.lowerIsBetter ? x.median - y.median : y.median - x.median));
+  const best = ranked[0];
+  const kicker = isBetter(best.median, ardia.median, row.lowerIsBetter) ? `${row.label} · ${best.name} wins this one` : row.label;
+  const unmeasuredDia = !others.some(isDia) && row.browsers.find(isDia);
+  if (unmeasuredDia) {
+    const second = sideNote(ardia, best, row, kind);
+    return { lost: false, kicker, figure: null, word: "No-show", line: `${unmeasuredDia.name} never got there`, second };
   }
+  const rival = others.find(isDia) ?? best;
+  const near = ranked.find((b) => b !== rival);
+  const second = near ? sideNote(ardia, near, row, kind) : null;
 
-  if (isBetter(value(closest), value(ardia), row.lowerIsBetter)) {
-    const figure = margin(value(closest), value(ardia), row, kind);
-    if (!figure)
-      return { lost: true, kicker: row.label, figure: null, line: `Within a hair of ${closest.name}.`, second: null };
-    return { lost: true, kicker: `${row.label} · ${closest.name} wins this one`, figure, line: `${kind.word} than Ardia`, second: null };
+  if (isBetter(ardia.median, rival.median, row.lowerIsBetter)) {
+    const lead = margin(ardia.median, rival.median, row, kind);
+    if (!lead) return { lost: false, kicker, figure: null, line: `Dead even with ${rival.name}.`, second };
+    return { lost: false, kicker, figure: lead, line: `${kind.word} than ${rival.name}`, second };
   }
-
-  const lead = margin(value(ardia), value(farthest), row, kind);
-  if (!lead) return { lost: false, kicker: row.label, figure: null, line: `Dead even with ${farthest.name}.`, second: null };
-  const near = closest !== farthest ? margin(value(ardia), value(closest), row, kind) : null;
-  return {
-    lost: false,
-    kicker: row.label,
-    figure: lead,
-    line: `${kind.word} than ${farthest.name}`,
-    second: near ? { figure: near, line: `${kind.word} than ${closest.name}` } : null,
-  };
+  const behind = margin(rival.median, ardia.median, row, kind);
+  if (!behind) return { lost: false, kicker, figure: null, line: `Dead even with ${rival.name}.`, second };
+  return { lost: true, kicker, figure: behind, line: `${kind.word} for ${rival.name}`, second };
 }
 
 function shapeRow(row: Measured): Omit<Row, "sub"> | null {
@@ -196,7 +193,7 @@ function shapeRow(row: Measured): Omit<Row, "sub"> | null {
     id: slug(row.id),
     label: row.label,
     caption: [row.label, `in ${row.unit}`, runs?.toLowerCase(), direction.toLowerCase()].filter(Boolean).join(", "),
-    meta: [runs, direction].filter(Boolean).join(" · "),
+    meta: [runs, direction, row.older].filter(Boolean).join(" · "),
     call: callFor(row, entries, kind),
     bars,
     lead: leadOverDia(row, entries),
@@ -262,16 +259,33 @@ function machineOf(machine: string | RawMachine): string {
   return [machine.model, machine.chip, ram, machine.macOS && `macOS ${machine.macOS}`].filter(Boolean).join(", ");
 }
 
-const hasMedian = (b: RawBrowser): b is MeasuredBrowser => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0;
+const hasMedian = <B extends RawBrowser>(b: B): b is B & { median: number } => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0;
 
-function measure(row: RawRow): Measured {
-  const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers)).filter((b) => SHOWN.test(b.name.trim()));
-  return { ...row, browsers, measured: browsers.filter(hasMedian) };
+function headlinesOf(source: RawBench): DatedBrowser[] {
+  const listed = source.browsers ? Object.values(source.browsers) : [];
+  const fromRows = source.rows.flatMap((r) => (Array.isArray(r.browsers) ? r.browsers : Object.values(r.browsers)));
+  const seen = new Map<string, DatedBrowser>();
+  for (const b of [...listed, ...fromRows])
+    if (SHOWN.test(b.name.trim()) && !seen.has(b.name))
+      seen.set(b.name, { name: b.name, version: b.version, measured: b.measured ?? source.date });
+  return [...seen.values()];
+}
+
+function measure(row: RawRow, headline: Map<string, string>, date: string): Measured {
+  const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers))
+    .filter((b) => SHOWN.test(b.name.trim()))
+    .map((b) => ({ ...b, measured: b.measured ?? headline.get(b.name) ?? date }));
+  const measured = browsers.filter(hasMedian);
+  const older = olderThanHeadline(measured, headline);
+  return { ...row, browsers, measured, older };
 }
 
 function build(source: RawBench | undefined, isSample: boolean): Bench | null {
   if (!source?.rows?.length) return null;
-  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map(measure) };
+  const headlines = headlinesOf(source);
+  const headline = new Map(headlines.map((b) => [b.name, b.measured]));
+  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map((r) => measure(r, headline, source.date)) };
+  const days = headlines.map((b) => b.measured).sort();
   const groups = groupRows(raw.rows);
   if (!groups.length) return null;
   return {
@@ -279,6 +293,8 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
     groups,
     date: formatDate(raw.date),
     measured: raw.date,
+    dated: measuredLine(headlines),
+    span: days.length && days[0] !== days[days.length - 1] ? `${days[0]}/${days[days.length - 1]}` : raw.date,
     machine: raw.machine,
     versions: versionsOf(raw.rows),
     rivals: [...new Set(raw.rows.flatMap((r) => r.browsers.map((b) => b.name)))].filter((n) => !isArdia(n)),

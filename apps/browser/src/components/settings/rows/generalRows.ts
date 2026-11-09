@@ -20,7 +20,7 @@ export const generalRows = {
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
         littleArdiaOpensNewTabLinks: {
           title: "Open new-tab links inside Little Ardia",
-          description: "A link that would open a new tab loads in Little Ardia instead of behind it, in the main window. ⌘-click still opens it behind.",
+          description: "For links clicked in a Little Ardia window: a link that would open a new tab loads right there instead of in a tab of the main window. ⌘-click still opens it behind. Links in the main window follow Settings › Tabs › Open new-tab links in.",
           keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
         },
       },
@@ -122,6 +122,11 @@ export const generalRows = {
     {
       section: "Tab layout",
       rows: {
+        autoHideTabs: {
+          title: "Auto-hide tabs",
+          description: "The tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S turns it on or off from any window.",
+          keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
+        },
         sidebarSide: {
           title: "Sidebar position",
           description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
@@ -133,7 +138,7 @@ export const generalRows = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",
           keywords: ["auto hide", "compact"],
         },
-        showSidebarButton: { advanced: true, title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"], shown: inSidebar },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",
@@ -209,8 +214,13 @@ export const generalRows = {
       rows: {
         peekLinksToOtherSites: {
           title: "Open a Peek window when clicking on links to other sites",
-          description: "This only affects Top Apps and pinned tabs. Links on the same site, ⌘-clicks and links that open a new tab or download work as before.",
-          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen"],
+          description: "Only from Top Apps and pinned tabs, however the page opens the link, through a redirect such as Gmail's included. Links on the same site, ⌘-clicks, downloads and sign-in pop-ups work as before.",
+          keywords: ["peek", "preview", "external links", "other sites", "pinned", "pinned tabs", "top apps", "favorites", "glance", "arc", "zen", "gmail", "target blank"],
+        },
+        newTabLinksOpenIn: {
+          title: "Open new-tab links in",
+          description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows.",
+          keywords: ["peek", "little ardia", "new tab", "target blank", "links", "preview", "arc", "mini window", "open links"],
         },
         peekModifier: {
           advanced: true,
@@ -315,12 +325,18 @@ export const generalRows = {
       },
     },
     {
-      section: "Bookmarks Bar",
+      section: "Bookmarks",
       rows: {
+        showBookmarks: {
+          title: "Show bookmarks",
+          description: "Off hides the bookmark button, the bookmarks bar, the Bookmarks menu and every Bookmark command, and the address bar shows Copy URL instead. Your bookmarks stay, and importing still brings them in.",
+          keywords: ["hide bookmarks", "show bookmarks", "bookmark button", "star", "bookmarks menu", "copy url", "arc", "no bookmarks"],
+        },
         bookmarksBar: {
           title: "Show bookmarks bar",
           description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
+          shown: (s) => s.showBookmarks,
         },
         showClosedGroupsInBookmarksBar: {
           title: "Show closed groups in bookmarks bar",
@@ -331,6 +347,17 @@ export const generalRows = {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
           keywords: ["bookmarks bar", "bigger", "larger", "large", "small", "text size", "icon size", "readability", "favorites bar"],
+          shown: (s) => s.showBookmarks,
+        },
+      },
+    },
+    {
+      section: "Page Frame",
+      rows: {
+        pageFrame: {
+          title: "Frame around the page",
+          description: "The room between the page and the window's edges, the sidebar and split panes. At 0 the page goes edge to edge with square corners; 9 pt is the default.",
+          keywords: ["border", "borderless", "edge to edge", "margin", "inset", "padding", "rounded corners", "corner radius", "frame", "gap", "full bleed", "arc", "compact"],
         },
       },
     },

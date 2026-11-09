@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { activeTabId, inPinnedContainer, viewTabIds } from "../browser/model";
+import { activeTabId, inPinnedContainer, tabTitle, tabTooltip, viewTabIds } from "../browser/model";
 import { clickedSelection, dropping, type ClickMods, type Drop } from "../drag/drops";
 import type { Tab } from "../browser/types";
 import type { PinChoices, PinSync } from "./pinChoices";
@@ -35,6 +35,19 @@ export function selectedTabIds(s: BrowserState, windowId: string): string[] {
 }
 
 export const awayFromPin = (t: Pick<Tab, "url" | "pinnedUrl">) => !!t.pinnedUrl && !!t.url && !samePage(t.url, t.pinnedUrl);
+
+export type AwayTitle = { pinned: string | null; page: string };
+
+type TitledTab = Pick<Tab, "url" | "pinnedUrl" | "customTitle" | "title">;
+
+export const awayTitle = (t: TitledTab): AwayTitle | null => (awayFromPin(t) ? { pinned: t.customTitle || null, page: tabTitle({ ...t, customTitle: null }) } : null);
+
+export const awayTitleText = (away: AwayTitle) => (away.pinned ? `${away.pinned} / ${away.page}` : `/ ${away.page}`);
+
+export function pinAwareTooltip(t: TitledTab): string {
+  const away = awayTitle(t);
+  return away ? `${awayTitleText(away)}\n${t.url}` : tabTooltip(t);
+}
 
 export function onUrlChange(s: BrowserState, tab: Tab, url: string): Partial<Tab> {
   return inPinnedContainer(s, tab.id) ? { pinnedUrl: pinHome({ ...tab, url }, true) } : {};

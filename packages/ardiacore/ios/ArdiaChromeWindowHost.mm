@@ -102,7 +102,6 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   objc_setAssociatedObject(window, kLightsTrailingKey, trailing ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   objc_setAssociatedObject(window, kLightsCenterKey, center, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   RetileTrafficLights(window);
-  PlaceFullScreenLights(window);
 }
 
 + (void)moveTrafficLightsCenter:(NSValue *)center trailing:(BOOL)trailing inWindow:(NSWindow *)window {
@@ -123,7 +122,12 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 
 + (void)closeWindow:(NSWindow *)window {
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
-  [ArdiaWebView keepTransfersOfWindow:window];
+  if (![ArdiaWebView keepTransfersOfWindow:window]) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [ArdiaChromeWindowHost closeWindow:window];
+    });
+    return;
+  }
   if (controller) [controller.coreWindow close];
   else [window close];
 }
