@@ -1,0 +1,41 @@
+--- a/content/browser/renderer_host/browser_compositor_view_mac.mm
++++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
+@@ -200,8 +200,15 @@
+ }
+ 
+ void BrowserCompositorMac::SetRenderWidgetHostIsHidden(bool hidden) {
++  const bool was_held =
++      state_ == HasOwnCompositor && render_widget_host_is_hidden_;
+   render_widget_host_is_hidden_ = hidden;
+   UpdateState();
++  if (was_held && !hidden && state_ == HasOwnCompositor) {
++    TRACE_EVENT_INSTANT("content", "BrowserCompositorMac::ShowHeld");
++    delegated_frame_host_->WasShown(GetRendererLocalSurfaceId(), dfh_size_dip_,
++                                    {});
++  }
+   if (state_ == UseParentLayerCompositor) {
+     if (!hidden) {
+       // UpdateState might not call WasShown when showing a frame using the same
+@@ -233,6 +240,10 @@
+ 
+ void BrowserCompositorMac::SetViewVisible(bool visible) {
+   root_layer_->SetVisible(visible);
++  if (!visible && render_widget_host_is_hidden_ &&
++      state_ == HasOwnCompositor) {
++    UpdateState();
++  }
+ }
+ 
+ void BrowserCompositorMac::UpdateState() {
+@@ -248,6 +259,11 @@
+     return;
+   }
+ 
++  if (state_ == HasOwnCompositor && root_layer_->visible()) {
++    TRACE_EVENT_INSTANT("content", "BrowserCompositorMac::HoldForOcclusion");
++    return;
++  }
++
+   // Otherwise put the compositor up for recycling.
+   TransitionToState(HasNoCompositor);
+ }
