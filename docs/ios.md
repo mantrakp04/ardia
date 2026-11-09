@@ -57,8 +57,9 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
   `AfterFirstUnlockThisDeviceOnly`, so background refresh can read it). The sync state (replica, base, version
   vectors, journal) is sealed with the file key in the app's container, like the Mac's `sync-state.nns`.
 - **What the iPhone writes.** `dev:<id>` (its name), `tabs:<id>` (its 30 most recent open tabs, as the Mac does),
-  history visits as `h:<url>` (the union rule the Mac uses), and `send:` records (below). It never writes settings,
-  profiles, pins or passwords, and it keeps every record it doesn't use in its replica untouched, so its snapshots
+  history visits as `h:<url>` (the union rule the Mac uses), `send:` records (below), and a new `bm:` bookmark in
+  Other Bookmarks when you Pin to Mac (never from an Incognito tab, and never an edit or delete of an existing
+  bookmark). It never writes settings, profiles, pins or passwords, and it keeps every record it doesn't use in its replica untouched, so its snapshots
   would be as complete as a Mac's. It doesn't compact; Macs do. `companion.test.ts` holds it to that against a fake
   Mac writing every kind of record today's Macs write (settings, profiles and their themes, shared data, devices, pins
   with their rows, tile folders, homes, order and looks, bookmarks, history, passwords, extensions and their approvals,

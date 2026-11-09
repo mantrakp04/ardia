@@ -8,13 +8,15 @@ public actor Omnibox {
 
   private var loadedScript: ScriptEngine?
   private let session: URLSession
+  private let suggestionSession: URLSession
   private let bangsFile: URL?
   private var bangEtag: String?
   private var bangsLoaded = false
   private var bangsCheckedAt: Date?
 
-  public init(directory: URL? = URL.applicationSupportDirectory.appending(path: "Omnibox", directoryHint: .isDirectory), session: URLSession = .shared) {
+  public init(directory: URL? = URL.applicationSupportDirectory.appending(path: "Omnibox", directoryHint: .isDirectory), session: URLSession = .shared, suggestionSession: URLSession = URLSession(configuration: Omnibox.suggestionConfiguration)) {
     self.session = session
+    self.suggestionSession = suggestionSession
     bangsFile = directory?.appending(path: "bangs.txt")
   }
 
@@ -84,13 +86,24 @@ public actor Omnibox {
     return OmniboxResolution(kind: raw.kind, url: url, query: raw.query, engine: raw.engine)
   }
 
+  nonisolated public static var suggestionConfiguration: URLSessionConfiguration {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.httpCookieAcceptPolicy = .never
+    configuration.httpShouldSetCookies = false
+    configuration.httpCookieStorage = nil
+    configuration.urlCache = nil
+    configuration.urlCredentialStorage = nil
+    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+    return configuration
+  }
+
   public func remoteSuggestions(for text: String) async -> [String] {
     guard let json = Self.encode(text), let output = try? script.call(.core, "mobileSuggestRequest", json: [json]),
           let address = Self.decode(String?.self, output) ?? nil, let url = URL(string: address)
     else { return [] }
-    var request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 4)
+    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 4)
     request.setValue("application/json", forHTTPHeaderField: "Accept")
-    guard !Task.isCancelled, let (data, response) = try? await session.data(for: request),
+    guard !Task.isCancelled, let (data, response) = try? await suggestionSession.data(for: request),
           (response as? HTTPURLResponse)?.statusCode == 200, !Task.isCancelled
     else { return [] }
     let body = String(decoding: data, as: UTF8.self)

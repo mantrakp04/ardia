@@ -123,7 +123,7 @@ struct ToolbarSheet: View {
   }
 
   private var pinButton: some View {
-    capsuleButton("star", label: "Pin to Mac", enabled: isWebPage) {
+    capsuleButton("star", label: "Pin to Mac", enabled: isWebPage && tab?.isPrivate == false) {
       app.pinCurrentToMac()
     }
   }

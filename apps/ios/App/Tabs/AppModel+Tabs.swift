@@ -212,7 +212,7 @@ extension AppModel {
   }
 
   func pinToMac(_ tab: BrowserTab) {
-    guard let url = URL(string: tab.url) else { return }
+    guard !tab.isPrivate, let url = URL(string: tab.url) else { return }
     let title = tab.title
     let profile = tab.profileSyncId
     Task {

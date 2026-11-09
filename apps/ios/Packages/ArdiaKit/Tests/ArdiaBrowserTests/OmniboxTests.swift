@@ -105,6 +105,15 @@ import Testing
     #expect(await omnibox.remoteSuggestions(for: "cats !w").isEmpty)
   }
 
+  @Test func suggestionRequestsKeepNoCookiesOrCache() {
+    let configuration = Omnibox.suggestionConfiguration
+    #expect(configuration.httpCookieStorage == nil)
+    #expect(configuration.httpShouldSetCookies == false)
+    #expect(configuration.httpCookieAcceptPolicy == .never)
+    #expect(configuration.urlCache == nil)
+    #expect(configuration.urlCredentialStorage == nil)
+  }
+
   @Test func cleansTrackersAndFormatsTheToolbarLabel() async {
     let cleaned = await omnibox.cleanURL(URL(string: "https://example.com/a?utm_source=x&id=7&fbclid=abc")!)
     #expect(cleaned.absoluteString == "https://example.com/a?id=7")
