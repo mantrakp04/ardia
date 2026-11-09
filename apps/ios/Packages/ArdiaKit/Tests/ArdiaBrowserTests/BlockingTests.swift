@@ -145,7 +145,7 @@ google.*##.tld-entity
     #expect(block("redirect")?.trigger.resourceType == ["script"])
     #expect(block("path\\.example")?.trigger.urlFilter == #"^[^:]+://+([^:/]+\.)?path\.example/ads/.*\.js"#)
     #expect(block("cdn\\.example/ads")?.trigger.urlFilter == #"^https://cdn\.example/ads/"#)
-    #expect(block("banner")?.trigger.urlFilter == #"/banner/.*/img"#)
+    #expect(block("banner")?.trigger.urlFilter == #"/banner/.*/img([^a-zA-Z0-9_.%-].*)?$"#)
     #expect(block("ad[0-9]+")?.trigger.urlFilter == #"^https?:\/\/ad[0-9]+\.example\/"#)
     for absent in ["csp", "removeparam", "badfilter", "ad(s", "ignored"] {
       #expect(block(absent) == nil, "\(absent) should not block")
@@ -186,6 +186,24 @@ google.*##.tld-entity
     for absent in ["adsbox", "local-ad", "has-text", "selection", "broken", "procedural", "inject", "idn", "tld-entity"] {
       #expect(!all.contains(absent), "\(absent) should not be hidden")
     }
+  }
+
+  @MainActor
+  @Test func aTrailingSeparatorMeansASeparatorOrTheEndAndWebKitCompilesIt() async throws {
+    let rules = try ConvertedRule.decode(FilterListConverter.convert("/banner/*/img^"))
+    let filter = try #require(rules.first?.trigger.urlFilter)
+    let regex = try NSRegularExpression(pattern: filter)
+    let matches = { (url: String) in regex.firstMatch(in: url, range: NSRange(url.startIndex..., in: url)) != nil }
+    #expect(matches("https://shop.example/banner/product/img"))
+    #expect(matches("https://shop.example/banner/product/img?size=2"))
+    #expect(matches("https://shop.example/banner/product/img/1.png"))
+    #expect(!matches("https://shop.example/banner/product/imgallery.jpg"))
+    #expect(!matches("https://shop.example/banner/product/img.png"))
+    let directory = URL.temporaryDirectory.appending(path: "ardia-rules-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = try #require(WKContentRuleListStore(url: directory))
+    let json = String(data: try JSONSerialization.data(withJSONObject: [["trigger": ["url-filter": filter], "action": ["type": "block"]]]), encoding: .utf8)!
+    _ = try await store.compileContentRuleList(forIdentifier: "separator", encodedContentRuleList: json)
   }
 
   @Test func anExceptionWithoutAHostStillLiftsAHostBlock() throws {

@@ -493,7 +493,11 @@ public enum FilterListConverter {
       case 0x2A:
         body += ".*"
       case 0x5E:
-        if index < bytes.count - 1 || anchoredEnd { body += separatorClass }
+        if index < bytes.count - 1 || anchoredEnd {
+          body += separatorClass
+        } else {
+          body += "(\(separatorClass).*)?$"
+        }
       case 0x7C:
         return nil
       default:
