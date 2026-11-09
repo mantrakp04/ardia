@@ -127,3 +127,14 @@ test("the top-two guard counts open tabs only, and older open tabs still drop ou
   assert.deepEqual(recentTabIds(S(), w, now, 25 * HOUR), [a, c]);
   assert.deepEqual(recentTabIds(S(), w, now, 40 * HOUR), [a, c, d]);
 });
+
+test("closed pinned tiles and rows, whenever they were last used, stay out of ⌃Tab", () => {
+  const [w, a, b, c, d] = windowWith("a", "b", "c", "d");
+  S().pinTabs([b], true);
+  S().pinTabs([c], true, true);
+  S().closeTab(b);
+  S().closeTab(c);
+  assert.equal(S().tabs[b].page.kind, "asleep");
+  assert.equal(S().tabs[c].page.kind, "asleep");
+  assert.deepEqual(recentTabIds(S(), w), [a, d]);
+});
