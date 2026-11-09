@@ -67,8 +67,8 @@ export function openSidePanel(windowId: string, extensionId: string): Promise<vo
     focusOwed.set(windowId, { opened: lastOpening, page: shownPageId(useBrowser.getState(), windowId) });
   }
   wanted.set(windowId, extensionId);
-  const readyTab = shownReadyTab(windowId);
-  if (readyTab) closedTabs.get(windowId)?.delete(readyTab);
+  const tab = shownPageId(useBrowser.getState(), windowId);
+  if (tab) closedTabs.get(windowId)?.delete(tab);
   return syncSidePanel(windowId);
 }
 
