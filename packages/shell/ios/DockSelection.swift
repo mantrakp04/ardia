@@ -146,12 +146,19 @@ final class DockSelection: ExpoView {
     } else {
       ring.mask = nil
       ring.backgroundColor = nil
+      let opaque = ringStroke
       ring.borderWidth = width
-      ring.borderColor = (stroke ?? .white).cgColor
-      ring.compositingFilter = stroke == nil ? CIFilter(name: "CISoftLightBlendMode") : nil
+      ring.borderColor = opaque ?? NSColor.white.cgColor
+      ring.compositingFilter = opaque == nil ? CIFilter(name: "CISoftLightBlendMode") : nil
       ringImage.contents = nil
       ringImage.isHidden = true
     }
+  }
+
+  private var ringStroke: CGColor? {
+    if let stroke { return stroke.cgColor }
+    guard !glass, kind == "template", let fill, IconTheme.needsOpaqueRing(fill.cgColor) else { return nil }
+    return IconTheme.ringOnBlack
   }
 
   private func applyGlass(radius: CGFloat, rimWidth: CGFloat, big: CGRect) {

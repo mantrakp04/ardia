@@ -167,7 +167,20 @@ test("the sidebar's own button (address bar in the sidebar) always fits; back, f
   }
 });
 
-test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open with it shown", () => {
+test("in window full screen the sidebar's button sits at Arc's 29 pt, with no room left for traffic lights (macOS shows them in its own title bar)", () => {
+  assert.equal(dm.headerToggleX(true), 29);
+  assert.equal(dm.headerToggleX(false), dm.HEADER_TOOLS.toggleX);
+  for (let w = 150; w <= 400; w += 0.5) {
+    const { buttons, step } = dm.navButtonsFitting(w, 30, true, dm.headerToggleX(true));
+    const windowed = dm.navButtonsFitting(w).buttons.length;
+    assert.ok(buttons.length >= windowed, `${w}: full screen never fits fewer buttons`);
+    const last = w - dm.HEADER_TOOLS.edge - 15;
+    const centres = [29, ...buttons.map((_, i) => last - (buttons.length - 1 - i) * step)];
+    for (let i = 1; i < centres.length; i++) assert.ok(centres[i] - centres[i - 1] >= 30 - 1e-9, `${w}: ${centres}`);
+  }
+});
+
+test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open as the last choice left them", () => {
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
@@ -196,7 +209,7 @@ test("hidden or shown is each window's own, and survives a quit and relaunch; ne
   assert.ok(reopened, "the closed window came back");
   assert.equal(S().windows[reopened].sidebarOpen, false, "reopened as it was closed");
   const c = S().createWindow({ url: "c.com" });
-  assert.equal(S().windows[c].sidebarOpen, true);
+  assert.equal(S().windows[c].sidebarOpen, false, "the last choice was hidden");
   stop();
 });
 
@@ -234,8 +247,18 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.equal(dm.easeInOutCubic(0), 0);
   assert.equal(dm.easeInOutCubic(0.5), 0.5);
   assert.equal(dm.easeInOutCubic(1), 1);
-  const peak = Math.max(...Array.from({ length: 60 }, (_, i) => springAt(i / 120, dm.ARC_PEEK_SPRING)));
-  assert.ok(peak > 1.01 && peak < 1.03, `the panel's overshoot ${peak}`);
+  const peak = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING)));
+  const arcPeak = Math.max(...ARC_PEEK_IN.flat().map(([, x]) => x));
+  assert.ok(Math.abs(peak - arcPeak) < 0.002, `the panel's overshoot ${peak}, Arc's ${arcPeak}`);
+});
+
+test("flush with the window's edge, the peek's fill runs on past it, so the spring's overshoot moves the panel without opening a gap of page at the window's edge", async () => {
+  const { SIDEBAR_MAX_WIDTH } = await import("../sidebar/tokens.ts");
+  const overshoot = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING))) - 1;
+  const flush = dm.cardFrameOf(PAGE_FRAME.min).peek;
+  assert.equal(flush.left, 0);
+  assert.ok(dm.peekBleed(flush.left) > overshoot * (SIDEBAR_MAX_WIDTH + 12), `bleed ${dm.peekBleed(flush.left)} against ${overshoot * (SIDEBAR_MAX_WIDTH + 12)} pt`);
+  assert.equal(dm.peekBleed(DEFAULT_PEEK.left), 0, "an inset card keeps its own rounded edge and moves as Arc's does");
 });
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {

@@ -58,10 +58,12 @@ const IDLE_PAGE: PageState = {
   newTabShown: null,
 };
 
+export type PagePopover = "siteControls" | "popups" | "zoom";
+
 type Store = {
   pages: Record<string, PageState>;
   ready: Record<string, number>;
-  popover: Record<string, "siteControls" | "popups" | "zoom" | null>;
+  popover: Record<string, PagePopover | null>;
 };
 
 export const usePages = create<Store>()(() => ({ pages: {}, ready: {}, popover: {} }));

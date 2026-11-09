@@ -12,7 +12,7 @@ import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
 import { boxed, type Drop, EDGE, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
-import { setDragEscapeCapture } from "../../state/drag/dragNative";
+import { captureEscape } from "../../state/drag/dragNative";
 import { entryKey } from "../../state/sidebar/entryKey";
 import { endHeldTabPress } from "../../state/sidebar/heldTabPress";
 import { tabPlace } from "../../state/sidebar/actions";
@@ -37,7 +37,7 @@ export class DragController extends DragTargeting {
     this.token = {};
     suppressHover(true);
     session.escapable = true;
-    setDragEscapeCapture(true);
+    captureEscape("sidebarDrag", true);
     let seq = 0;
     if (tabCell(item)) {
       const single = sources.length === 1 ? (item.tabIds[0] ?? null) : null;
@@ -191,7 +191,7 @@ export class DragController extends DragTargeting {
     }
     for (const i of session?.sources ?? []) i.size.stopAnimation();
     this.session = null;
-    if (session?.escapable) setDragEscapeCapture(false);
+    if (session?.escapable) captureEscape("sidebarDrag", false);
     suppressHover(false);
     this.setSources(new Set());
     markDrag(this.marks, { dropInto: null, onto: null, pins: false, pinCount: 0, pinBefore: null, folderTarget: null, folderAway: false });

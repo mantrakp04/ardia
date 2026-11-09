@@ -25,6 +25,7 @@ import { feedNeeds, stopFeed, updateFeed } from "./automationFeed";
 import { answerDecision, dropResponder, serveHooks, stopResponders } from "./decideSocket";
 import { launchToReplay, recordLaunch, runLaunchActions } from "./lifecycleEvents";
 import { startDecideHooks } from "./decideHooks";
+import { applyMethod, workspaceMethod } from "./workspaceMethods";
 
 export const useControlSocket = create<{ status: ControlSocketStatus | null }>()(() => ({ status: null }));
 
@@ -96,7 +97,7 @@ export function handleControlRequest({ connection, generation: tagged, line }: C
   if ("error" in request) return send(connection, request.id, { error: request.error });
   const { id, method, params } = request;
   if (tagged !== generation || !controlOn()) return send(connection, id, failure("failed", "Control is off."));
-  const ticket = method === "run" ? ++nextTicket : 0;
+  const ticket = method === "run" || method === "apply" ? ++nextTicket : 0;
   const caller = callers.get(connection);
   if (ticket && caller) noteCliCaller(caller);
   if (ticket) {
@@ -159,6 +160,12 @@ function answer(connection: number, method: string, params: Record<string, unkno
       return { result: commands() };
     case "windows":
       return windowsWithTargets(automationWindows(useBrowser.getState())).then((result) => ({ result }));
+    case "workspace":
+      return workspaceMethod(params);
+    case "apply": {
+      const serving = generation;
+      return applyMethod(params, () => generation === serving && controlOn());
+    }
     case "subscribe":
       return subscribe(connection, params);
     case "answer": {

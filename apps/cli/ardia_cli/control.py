@@ -13,7 +13,7 @@ from ardia_cli.caller import current as current_caller
 SOCKET_FILE = "ArdiaControl.sock"
 SUN_PATH_MAX = 103
 MAX_LINE = 1024 * 1024
-PROTOCOL = 2
+PROTOCOL = 3
 CONNECT_TIMEOUT = 5.0
 CALL_TIMEOUT = 30.0
 ANNOUNCE_TIMEOUT = 1.0
