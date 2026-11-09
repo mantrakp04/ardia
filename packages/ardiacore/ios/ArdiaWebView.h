@@ -92,8 +92,13 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface ArdiaWebView (PageMessages)
+@property(class, nonatomic, readonly) BOOL iCloudPasswordsExtensionSupported;
+@property(class, nonatomic, readonly) BOOL applePasswordsAvailable;
 + (void)setDisplayMediaPicker:(BOOL)enabled;
 + (void)setSelectionPopoverEnabled:(BOOL)enabled NS_SWIFT_NAME(setSelectionPopoverEnabled(_:));
++ (void)setApplePasswordsEnabled:(BOOL)enabled extensionProfiles:(NSArray<NSString *> *)profiles
+    NS_SWIFT_NAME(setApplePasswordsEnabled(_:extensionProfiles:));
+- (BOOL)showAppleAutoFill:(NSString *)kind;
 - (void)resolveDisplayMedia:(NSString *)requestId sourceId:(nullable NSString *)sourceId audio:(BOOL)audio
     NS_SWIFT_NAME(resolveDisplayMedia(_:sourceId:audio:));
 @end

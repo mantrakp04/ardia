@@ -3,6 +3,7 @@ import type { PageEngine } from "../../platform/tabs";
 import { dismissPermissions } from "../site/permissions";
 import { answerExternalApp } from "../site/prompts";
 import { setPageSelection } from "../site/selection";
+import { offerSurvivesNavigation } from "../site/verificationCodes";
 import { clearEngineOffer, followSiteChoice } from "../engines/actions";
 import { revealToolbar } from "../windows/toolbarAutoHide";
 import { noteCaptureIndicatorCleared } from "../telemetry/usage";
@@ -14,7 +15,8 @@ export function leftPage(tabId: string, url: string, previousPage: string, engin
   setPopover(tabId, null);
   setPageSelection(tabId, null);
   clearEngineOffer(tabId);
-  patchPage(tabId, { popups: [], passwordPrompt: null, crashed: null, status: "" });
+  const verificationCode = offerSurvivesNavigation(pageOf(tabId).verificationCode, url);
+  patchPage(tabId, { popups: [], passwordPrompt: null, verificationCode, verificationCodesOffered: verificationCode ? [verificationCode.url] : [], crashed: null, status: "" });
   revealToolbar(tabId);
   if (!inPeek) followSiteChoice(tabId, engine, url, previousPage);
 }

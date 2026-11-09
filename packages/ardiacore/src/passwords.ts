@@ -10,3 +10,5 @@ export const savePassword = async (profile: string, origin: string, username: st
   !!(await decodeReply<{ ok: true }>(Passwords.save(profile, origin, username, password)));
 export const updatePassword = async (profile: string, origin: string, username: string, changes: { username?: string; password?: string }) =>
   !!(await decodeReply<{ ok: true }>(Passwords.update(profile, origin, username, changes.username ?? null, changes.password ?? null)));
+export const applePasswordsAvailable = () => Boolean(Passwords.applePasswordsAvailable?.());
+export const iCloudPasswordsExtensionSupported = () => Boolean(Passwords.iCloudPasswordsExtensionSupported?.());

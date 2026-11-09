@@ -14,6 +14,7 @@ import { DropTargets, SplitDividers, SplitToast } from "../split/SplitChrome";
 import { dockMoving, usePeekSpan, whenDockStill } from "../../state/windows/dockMotion";
 import { FrozenPage } from "./FrozenPage";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, watchToolbarExtensionsWidth } from "../../state/windows/layout";
+import { startPasswordManager } from "../../state/site/passwordManager";
 import { startSelectionTools } from "../../state/site/selection";
 import { startMedia } from "../../state/media/pip";
 import { urlFieldRight } from "../toolbar/Toolbar";
@@ -48,6 +49,7 @@ export function ContentCard() {
   useEffect(startChromeTabs, []);
   useEffect(startMedia, []);
   useEffect(startSelectionTools, []);
+  useEffect(startPasswordManager, []);
   useEffect(startPeeks, []);
   const peekId = usePeeks((p) => p[windowId]?.tabId);
   const peekFullscreen = !!peekId && fullscreenTab === peekId;

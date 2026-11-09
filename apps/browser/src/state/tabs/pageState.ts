@@ -10,6 +10,7 @@ import type {
 } from "../../platform/tabs";
 import type { ExternalAppRequest } from "../../platform/siteSettings";
 import type { PermissionRequest } from "../../platform/permissions";
+import type { VerificationCodeOffer } from "../site/verificationCodes";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
@@ -31,6 +32,8 @@ export type PageState = {
   passwordPrompt: PasswordPrompt | null;
   autofillPrompt: AutofillPrompt | null;
   externalApp: ExternalAppRequest | null;
+  verificationCode: VerificationCodeOffer | null;
+  verificationCodesOffered: string[];
   mediaAccess: MediaAccess | null;
   wasNewTab: boolean;
   backToNewTab: boolean;
@@ -51,6 +54,8 @@ const IDLE_PAGE: PageState = {
   passwordPrompt: null,
   autofillPrompt: null,
   externalApp: null,
+  verificationCode: null,
+  verificationCodesOffered: [],
   mediaAccess: null,
   wasNewTab: false,
   backToNewTab: false,

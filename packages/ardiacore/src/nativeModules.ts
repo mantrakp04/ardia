@@ -16,6 +16,8 @@ export type ArdiaCoreNativeModules = {
   };
   ArdiaEngine: { inputIdleSeconds(): number };
   ArdiaPasswords: {
+    applePasswordsAvailable?(): boolean;
+    iCloudPasswordsExtensionSupported?(): boolean;
     save(profile: string, origin: string, username: string, password: string): Secret;
     update(profile: string, origin: string, username: string, newUsername: string | null, newPassword: string | null): Secret;
   };

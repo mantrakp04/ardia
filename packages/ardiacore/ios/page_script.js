@@ -55,6 +55,15 @@
       }, ms);
     };
   };
+  const functionSource = Function.prototype.toString;
+  const addListener = EventTarget.prototype.addEventListener;
+  let NativeBarcodeDetector = window.BarcodeDetector;
+  const barcodeDetector = () => {
+    const found = NativeBarcodeDetector ? null : window.BarcodeDetector;
+    if (typeof found === "function" && /\{\s*\[native code\]\s*\}\s*$/.test(apply(functionSource, found, []))) NativeBarcodeDetector = found;
+    return NativeBarcodeDetector;
+  };
+  const FrameMutationObserver = window.MutationObserver;
 
   const displayRequests = new Map();
   let displaySeq = 0;
@@ -347,10 +356,41 @@
   let eyeHost = null;
   let eyeButton = null;
   const isPassword = (el) => el.type === "password" || el === revealedField;
-  const EYE =
-    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2.1"/></svg>';
-  const EYE_SLASH =
-    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 3.8A6.6 6.6 0 0 1 8 3.5c4.1 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M4.3 4.9C2.5 6.1 1.5 8 1.5 8s2.4 4.5 6.5 4.5c1.2 0 2.3-.4 3.2-.9"/><path d="M6.6 6.6a2.1 2.1 0 0 0 2.8 2.8"/><path d="M2 2l12 12"/></svg>';
+  const EYE = [
+    ["path", { d: "M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z" }],
+    ["circle", { cx: "8", cy: "8", r: "2.1" }],
+  ];
+  const EYE_SLASH = [
+    ["path", { d: "M6.2 3.8A6.6 6.6 0 0 1 8 3.5c4.1 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M4.3 4.9C2.5 6.1 1.5 8 1.5 8s2.4 4.5 6.5 4.5c1.2 0 2.3-.4 3.2-.9" }],
+    ["path", { d: "M6.6 6.6a2.1 2.1 0 0 0 2.8 2.8" }],
+    ["path", { d: "M2 2l12 12" }],
+  ];
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const ICON_ATTRIBUTES = {
+    viewBox: "0 0 16 16",
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "1.35",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+  };
+  const svgElement = (tag, attributes) => {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const name of keys(attributes)) el.setAttribute(name, attributes[name]);
+    return el;
+  };
+  const showIcon = (button, shapes, box = ICON_ATTRIBUTES) => {
+    const svg = svgElement("svg", box);
+    for (const [tag, attributes] of shapes) svg.appendChild(svgElement(tag, attributes));
+    button.replaceChildren(svg);
+  };
+  const FIELD_BUTTON_CSS =
+    "button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
+    "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}" +
+    "button.badge{border-radius:6px;opacity:.7;background:color-mix(in srgb,currentColor 9%,transparent)}button.badge:hover{opacity:.9;background:color-mix(in srgb,currentColor 14%,transparent)}button.badge:active{background:color-mix(in srgb,currentColor 20%,transparent)}";
+  let fieldButtonSheet = null;
   const hasOwnToggle = (el) => {
     for (let n = el.parentElement, depth = 0; n && depth < 3 && n.querySelectorAll("input").length === 1; n = n.parentElement, depth++)
       for (const c of n.querySelectorAll('button, [role="button"], [aria-label], [title], [class*="eye" i], [class*="toggle" i]'))
@@ -358,16 +398,46 @@
           return true;
     return false;
   };
-  const placeEye = () => {
-    if (!eyeHost || !eyeField) return;
-    const r = eyeField.getBoundingClientRect();
-    const cs = getComputedStyle(eyeField);
+  const trailingRect = (field, aspect = 1) => {
+    const r = field.getBoundingClientRect();
+    const cs = getComputedStyle(field);
     const size = Math.min(24, Math.max(18, r.height - 8));
+    const width = Math.round(size * aspect);
     const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    eyeHost.style.left = r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size + "px";
-    eyeHost.style.top = r.top + (r.height - size) / 2 + "px";
-    eyeButton.style.width = eyeButton.style.height = size + "px";
-    eyeButton.style.color = cs.color;
+    return { left: r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - width, top: r.top + (r.height - size) / 2, size, width, color: cs.color };
+  };
+  const placeTrailing = (host, button, field, aspect = 1) => {
+    const { left, top, size, width, color } = trailingRect(field, aspect);
+    host.style.left = left + "px";
+    host.style.top = top + "px";
+    button.style.width = width + "px";
+    button.style.height = size + "px";
+    button.style.color = color;
+  };
+  const placeEye = () => {
+    if (eyeHost && eyeField) placeTrailing(eyeHost, eyeButton, eyeField);
+  };
+  const fieldButton = (tag) => {
+    const host = document.createElement(tag);
+    host.style.cssText = "all:initial;position:fixed;z-index:2147483647;display:none;";
+    const root = host.attachShadow({ mode: "closed" });
+    try {
+      if (!fieldButtonSheet) {
+        fieldButtonSheet = new CSSStyleSheet();
+        fieldButtonSheet.replaceSync(FIELD_BUTTON_CSS);
+      }
+      root.adoptedStyleSheets = [fieldButtonSheet];
+    } catch {
+      const style = document.createElement("style");
+      style.textContent = FIELD_BUTTON_CSS;
+      root.appendChild(style);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.tabIndex = -1;
+    root.appendChild(button);
+    button.addEventListener("mousedown", (e) => e.preventDefault());
+    return { host, button };
   };
   const hideEye = () => {
     if (eyeHost) eyeHost.style.display = "none";
@@ -378,20 +448,12 @@
     if (!el) return;
     revealedField = null;
     if (el.type === "text") el.type = "password";
-    if (eyeButton) eyeButton.innerHTML = EYE;
+    if (eyeButton) showIcon(eyeButton, EYE);
   };
   const ensureEye = () => {
     if (eyeHost && eyeHost.isConnected) return;
-    eyeHost = document.createElement("ardia-reveal");
-    eyeHost.style.cssText = "all:initial;position:fixed;z-index:2147483647;display:none;";
-    const root = eyeHost.attachShadow({ mode: "closed" });
-    root.innerHTML =
-      "<style>button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
-      "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}</style>" +
-      '<button type="button" tabindex="-1"></button>';
-    eyeButton = root.querySelector("button");
-    eyeButton.innerHTML = EYE;
-    eyeButton.addEventListener("mousedown", (e) => e.preventDefault());
+    ({ host: eyeHost, button: eyeButton } = fieldButton("ardia-reveal"));
+    showIcon(eyeButton, EYE);
     eyeButton.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -402,7 +464,7 @@
       else {
         revealedField = el;
         el.type = "text";
-        eyeButton.innerHTML = EYE_SLASH;
+        showIcon(eyeButton, EYE_SLASH);
       }
       eyeButton.title = revealedField ? "Hide password" : "Show password";
       el.focus();
@@ -459,6 +521,176 @@
   addEventListener("scroll", () => eyeField && requestAnimationFrame(placeEye), { passive: true, capture: true });
   addEventListener("resize", () => eyeField && requestAnimationFrame(placeEye));
   addEventListener("pagehide", conceal);
+
+  const USERNAME_TOKEN = /(^|\s)(username|email|webauthn)(\s|$)/i;
+  const ONE_TIME_CODE = /(^|\s)one-time-code(\s|$)/i;
+  const USERNAME_HINT = /user|e-?mail|login|account/i;
+  const OTPAUTH = /^otpauth(-migration)?:\/\//i;
+  const nearPassword = (el, revealed) => {
+    let scope = el.form;
+    for (let n = el.parentElement, depth = 0; !scope && n && depth < 6; n = n.parentElement, depth++)
+      if (n.querySelectorAll("input").length > 1) scope = n;
+    return !!scope && (!!scope.querySelector('input[type="password"]') || (!!revealed && scope.contains(revealed)));
+  };
+  const loginFieldKind = (el, revealed) => {
+    if (!el || el.localName !== "input" || el.disabled || el.readOnly || el.hidden || el.type === "hidden") return null;
+    if (el.getBoundingClientRect().width < 80) return null;
+    const auto = el.getAttribute("autocomplete") || "";
+    if (el.type === "password" || el === revealed) return "password";
+    if (ONE_TIME_CODE.test(auto)) return "code";
+    if (el.type === "email" || USERNAME_TOKEN.test(auto)) return "username";
+    if (el.type !== "text" && el.type !== "tel") return null;
+    const hints = [el.name, el.id, auto, el.getAttribute("placeholder") || ""].join(" ");
+    return USERNAME_HINT.test(hints) && nearPassword(el, revealed) ? "username" : null;
+  };
+  const verificationSetupURL = (raw) => (typeof raw === "string" && raw.length <= 2048 && OTPAUTH.test(raw) ? raw : null);
+
+  const KEY = [
+    ["path", { d: "M5 4.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2ZM4.2 6.9a1.1 1.1 0 1 1 0 2.2a1.1 1.1 0 1 1 0-2.2Z", fill: "currentColor", stroke: "none", "fill-rule": "evenodd" }],
+    ["path", { d: "M8 7.1h5.6v1.8H8ZM10.6 8.9h1.5v1.9h-1.5ZM12.4 8.9h1.2v1.4h-1.2Z", fill: "currentColor", stroke: "none" }],
+    ["path", { d: "M16.6 7.1l1.9 1.9 1.9-1.9", "stroke-width": "1.4" }],
+  ];
+  const KEY_BOX = { ...ICON_ATTRIBUTES, viewBox: "0 0 22 16", width: "22", height: "16" };
+  const KEY_ASPECT = 1.4;
+  const KEY_REPEAT_MS = 600;
+  const QR_MIN = 64;
+  const QR_MAX = 640;
+  const QR_DETECTIONS = 12;
+  const typedLogin = new WeakSet();
+  let applePasswords = false;
+  let appleKey = false;
+  let applePasswordsListening = false;
+  let keyField = null;
+  let keyKind = null;
+  let keyHost = null;
+  let keyButton = null;
+  let keyClickedAt = -Infinity;
+  let qrObserver = null;
+  let qrDetector = null;
+  let qrDetections = 0;
+  const qrChecked = new WeakMap();
+  const qrSent = new Set();
+  const hideKey = () => {
+    if (keyHost) keyHost.style.display = "none";
+    keyField = keyKind = null;
+  };
+  const placeKey = () => {
+    if (keyHost && keyField) placeTrailing(keyHost, keyButton, keyField, KEY_ASPECT);
+  };
+  const ensureKey = () => {
+    if (keyHost && keyHost.isConnected) return;
+    ({ host: keyHost, button: keyButton } = fieldButton("ardia-passwords"));
+    showIcon(keyButton, KEY, KEY_BOX);
+    keyButton.className = "badge";
+    keyButton.title = "Passwords";
+    keyButton.setAttribute("aria-label", "Fill from Passwords");
+    apply(addListener, keyButton, [
+      "click",
+      guard((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.isTrusted || !appleKey || !keyKind || !keyField) return;
+        const box = trailingRect(keyField, KEY_ASPECT);
+        if (!(e.clientX >= box.left - 2 && e.clientX <= box.left + box.width + 2 && e.clientY >= box.top - 2 && e.clientY <= box.top + box.size + 2)) return;
+        if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
+        keyClickedAt = e.timeStamp;
+        send("applePasswords", { field: keyKind });
+      }),
+    ]);
+    document.documentElement.appendChild(keyHost);
+  };
+  const updateKey = guard(() => {
+    if (!appleKey) return hideKey();
+    const el = document.activeElement;
+    const kind = loginFieldKind(el, revealedField);
+    if (!kind) return hideKey();
+    if (el.value && (kind === "password" ? typedByUser : typedLogin).has(el)) return hideKey();
+    if (kind === "password" && keyField !== el && hasOwnToggle(el)) return hideKey();
+    ensureKey();
+    keyField = el;
+    keyKind = kind;
+    keyHost.style.display = "block";
+    placeKey();
+  });
+  const noteLoginInput = guard((e) => {
+    const el = e.target;
+    if (!el || el.localName !== "input") return;
+    if (!el.value) typedLogin.delete(el);
+    else if (e.isTrusted) typedLogin.add(el);
+    if (applePasswords) updateKey();
+  });
+  const qrCandidate = (el) => {
+    if (el.localName === "img" && !el.complete) return "later";
+    if (el.localName === "img" ? el.naturalWidth < QR_MIN : el.localName !== "canvas") return "never";
+    const r = el.getBoundingClientRect();
+    if (r.width < QR_MIN || r.height < QR_MIN || r.width > QR_MAX || r.height > QR_MAX) return "never";
+    const ratio = r.width / r.height;
+    if (ratio < 0.8 || ratio > 1.25) return "never";
+    return !el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ? "yes" : "later";
+  };
+  const noteVerificationSetup = (raw) => {
+    const url = verificationSetupURL(raw);
+    if (!url || !applePasswords || qrSent.has(url)) return;
+    qrSent.add(url);
+    send("verificationCodeSetup", { url });
+  };
+  const scanQR = guard(() => {
+    const Detector = barcodeDetector();
+    if (!applePasswords || !Detector || document.visibilityState !== "visible" || !document.querySelector("input")) return;
+    for (const el of document.querySelectorAll("img, canvas")) {
+      if (qrDetections >= QR_DETECTIONS) return;
+      const src = el.currentSrc || el.src || "";
+      if (qrChecked.get(el) === src) continue;
+      const candidate = qrCandidate(el);
+      if (candidate !== "later") qrChecked.set(el, src);
+      if (candidate !== "yes") continue;
+      qrDetections++;
+      if (!qrDetector) qrDetector = new Detector({ formats: ["qr_code"] });
+      qrDetector.detect(el).then(
+        guard((codes) => {
+          for (const code of codes) noteVerificationSetup(code.rawValue);
+        }),
+        () => {},
+      );
+    }
+  });
+  const scanQRSoon = later(scanQR, 400);
+  const listenForLogins = () => {
+    if (applePasswordsListening) return;
+    applePasswordsListening = true;
+    document.addEventListener("focusin", updateKey, true);
+    document.addEventListener(
+      "focusout",
+      guard((e) => {
+        setTimeout(() => document.activeElement !== e.target && updateKey(), 0);
+      }),
+      true,
+    );
+    document.addEventListener("input", noteLoginInput, true);
+    document.addEventListener("load", (e) => applePasswords && e.target && e.target.localName === "img" && scanQRSoon(), true);
+    document.addEventListener("visibilitychange", () => applePasswords && scanQRSoon());
+    addEventListener("scroll", () => keyField && requestAnimationFrame(placeKey), { passive: true, capture: true });
+    addEventListener("resize", () => keyField && requestAnimationFrame(placeKey));
+  };
+  handlers.applePasswords = (state) => {
+    const on = state === true || state === "codes";
+    appleKey = state === true;
+    if (on === applePasswords) return updateKey();
+    applePasswords = on;
+    if (!on) {
+      hideKey();
+      if (qrObserver) qrObserver.disconnect();
+      qrObserver = null;
+      return;
+    }
+    listenForLogins();
+    if (FrameMutationObserver && barcodeDetector()) {
+      qrObserver = new FrameMutationObserver(scanQRSoon);
+      qrObserver.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+    }
+    onReady(scanQR);
+    updateKey();
+  };
 
   let pageNotification = null;
   const installNotifications = () => {
@@ -1109,6 +1341,7 @@
     else restoreDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
+    if (config.applePasswords !== undefined) handlers.applePasswords(config.applePasswords);
   };
   send("hello", { top: isTop, url: location.href });
 

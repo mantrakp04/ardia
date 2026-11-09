@@ -24,6 +24,7 @@ import type {
   ProtectedMediaRequest,
   ScrollState,
   SecurityInfo,
+  VerificationCodeSetup,
   WebNotification,
   WebViewProps,
   ZoomState,
@@ -60,6 +61,7 @@ type NativeEvents = {
   onPagePress: object;
   onSelection: { selection: PageSelection | null };
   onScroll: { state: ScrollState };
+  onVerificationCodeSetup: VerificationCodeSetup;
   onProtectedMedia: ProtectedMediaRequest;
   onReady: object;
   onDiscarded: { url: string };
@@ -105,6 +107,7 @@ const PAGE_EVENTS = {
   onPagePress: "pagePress",
   onSelection: "selection",
   onScroll: "scroll",
+  onVerificationCodeSetup: "verificationCodeSetup",
   onProtectedMedia: "protectedMedia",
   onReady: "ready",
   onDiscarded: "discarded",
@@ -150,6 +153,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onPagePress: () => [],
   onSelection: (e) => [e.selection],
   onScroll: (e) => [e.state],
+  onVerificationCodeSetup: (e) => [e],
   onProtectedMedia: (e) => [e],
   onReady: () => [],
   onDiscarded: (e) => [toAppUrl(e.url)],

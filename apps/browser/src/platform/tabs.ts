@@ -23,6 +23,7 @@ export {
   type WebNotification,
   type PageSelection,
   type ScrollState,
+  type VerificationCodeSetup,
   type ProtectedMediaRequest,
   type AppBadge,
 } from "@ardia/ardiacore";

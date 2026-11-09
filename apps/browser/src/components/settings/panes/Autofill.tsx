@@ -20,6 +20,7 @@ import { NetworkBadge } from "../../site/Autofill";
 import { addresses as addressList, autofillEnabled, cards as cardList, setAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { useEffectivePasswordManager } from "../../../state/site/passwordManager";
 
 export function AutofillPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
@@ -28,6 +29,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
   const [addresses, reloadAddresses] = useResource(addressList, profile);
   const [cards, reloadCards] = useResource(cardList, profile);
   const [enabled] = useResource(autofillEnabled, profile);
+  const apple = useEffectivePasswordManager() === "apple";
 
   const load = () => {
     void reloadAddresses();
@@ -39,7 +41,11 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
     <View>
       <SectionHeader
         title="Autofill"
-        description="Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in your macOS Keychain."
+        description={
+          apple
+            ? "Addresses and cards you save here are offered when you fill in a form, alongside Contacts and Passwords from this Mac."
+            : "Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in your macOS Keychain."
+        }
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
@@ -49,6 +55,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
         <Row anchor="autofill.cards">
           <Toggle value={enabled?.cards ?? true} disabled={!enabled} onChange={(v) => toggle("cards", v)} />
         </Row>
+        <Row anchor="autofill.fromMac" />
       </Group>
 
       <SectionHeader

@@ -91,6 +91,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   [self markTemporary];
   [self pushPeekModifier];
   [self pushSelectionPopover];
+  [self pushApplePasswords];
   [self bindRestoreKey];
   [self takePageReports];
   [tab deliverHeldPageMessages];

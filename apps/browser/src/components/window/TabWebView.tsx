@@ -27,7 +27,7 @@ import type { Tab } from "../../state/browser/types";
 import { zoomChangedByUser } from "../../state/site/zoomBubble";
 import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
 import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
-import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
+import { popupBlocked, showAutofillPrompt, showPasswordPrompt, showVerificationCodePrompt } from "../../state/site/prompts";
 import { leftPage, pageEnded } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
 import { shareFromPage } from "../../state/site/share";
@@ -253,6 +253,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onSelection={(selection) => setPageSelection(tabId, selection)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}
+      onVerificationCodeSetup={(setup) => showVerificationCodePrompt(tabId, setup)}
       onNotificationClose={closeWebNotification}
       onDiscarded={(url) => {
         pending.current = url;

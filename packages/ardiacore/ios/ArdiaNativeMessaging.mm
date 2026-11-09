@@ -1,11 +1,27 @@
 #import "ArdiaNativeMessaging.h"
 
+#import <Security/Security.h>
+
 namespace ardia_native_messaging {
 
 namespace {
 
 NSString *const kChromeSystemDir = @"/Library/Google/Chrome/NativeMessagingHosts";
 NSString *const kManagedList = @".ardia-managed.json";
+NSString *const kPublicKeyCredentialEntitlement = @"com.apple.developer.web-browser.public-key-credential";
+
+bool HasPublicKeyCredentialEntitlement() {
+  SecCodeRef selfCode = nullptr;
+  if (SecCodeCopySelf(kSecCSDefaultFlags, &selfCode) != errSecSuccess || !selfCode) return false;
+  CFDictionaryRef info = nullptr;
+  OSStatus status = SecCodeCopySigningInformation(selfCode, kSecCSSigningInformation, &info);
+  CFRelease(selfCode);
+  if (status != errSecSuccess || !info) return false;
+  NSDictionary *entitlements = (__bridge NSDictionary *)CFDictionaryGetValue(info, kSecCodeInfoEntitlementsDict);
+  bool entitled = [entitlements isKindOfClass:NSDictionary.class] && [entitlements[kPublicKeyCredentialEntitlement] isEqual:@YES];
+  CFRelease(info);
+  return entitled;
+}
 
 NSArray<NSDictionary *> *KnownHosts() {
   return @[
@@ -86,6 +102,11 @@ NSDictionary<NSString *, NSData *> *InstalledHosts() {
   return hosts;
 }
 
+}
+
+bool ApplePasswordsHelperAllowed() {
+  static const bool allowed = HasPublicKeyCredentialEntitlement();
+  return allowed;
 }
 
 void SyncHosts(NSString *userDataDir) {

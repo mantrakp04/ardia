@@ -28,6 +28,7 @@ export type SavedCard = {
   modified: number;
 };
 export type CardInput = { id?: string; name?: string; expMonth?: number; expYear?: number };
+export type AppleAutoFillKind = "passwords" | "contact" | "creditCard";
 
 const Autofill = nativeModule("ArdiaAutofill");
 

@@ -1,5 +1,5 @@
 import { setSiteSetting } from "../../state/site/siteSettings";
-import { answerExternalApp } from "../../state/site/prompts";
+import { acceptVerificationCodePrompt, answerExternalApp } from "../../state/site/prompts";
 import {
   type AutofillPromptAnswer,
   type PasswordPromptAnswer,
@@ -17,6 +17,7 @@ import { webviews } from "../../state/tabs/webviewHandles";
 import { currentEngineProfile, currentTab } from "../../state/browser/current";
 import { Box, Button, DialogActions, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, POPOVER_WIDTH, Symbol, Text, tracking } from "../ui";
 import { answerPermission, describePermission } from "../../state/site/permissions";
+import { isVerificationCodeScheme, verificationCodeSetupCopy } from "../../state/site/verificationCodes";
 import { hostOrOrigin } from "../../lib/url";
 import { CheckRow, PromptIcon, usePromptInputGuard, Well } from "./PromptParts";
 
@@ -258,6 +259,26 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
   );
 }
 
+export function VerificationCodePrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
+  const prompt = usePage(tabId, (p) => p.verificationCode);
+  const guard = usePromptInputGuard(prompt?.url);
+  if (!prompt) return null;
+  const { title, message } = verificationCodeSetupCopy(prompt, hostOrOrigin(prompt.origin));
+  const close = guard(() => patchPage(tabId, { verificationCode: null }));
+  const setUp = guard(() => acceptVerificationCodePrompt(tabId, prompt.url));
+  return (
+    <Popover key={prompt.url} width={POPOVER_WIDTH.s} top={top} right={right} modal={false}>
+      <View>
+        <PromptBody icons={["key.fill"]} title={title} message={message}>
+          <Button variant="pill" title="Not Now" onPress={close} />
+          <Button variant="pill" title="Set Up" primary onPress={setUp} />
+        </PromptBody>
+        <PanelCloseButton onPress={close} />
+      </View>
+    </Popover>
+  );
+}
+
 export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const request = usePage(tabId, (p) => p.externalApp);
   const [always, setAlways] = useState(false);
@@ -267,13 +288,14 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
     answerExternalApp(tabId, open, open && always);
     setAlways(false);
   });
+  const verificationCode = request.app === "Passwords" && isVerificationCodeScheme(request.scheme);
   return (
     <Popover key={request.id} width={EXTERNAL_APP_WIDTH} top={top} left={left} modal={false}>
       <View>
         <PromptBody
           icons={request.icon ? [] : [request.app ? "app" : "questionmark.app.dashed"]}
           image={request.icon}
-          title={request.title}
+          title={verificationCode ? "Set up a verification code in Passwords?" : request.title}
           message={request.message}
           detail={
             request.remember ? <CheckRow value={always} onChange={guard(setAlways)} label={request.remember} /> : undefined
@@ -282,7 +304,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
           {request.app ? (
             <>
               <Button variant="pill" title="Cancel" onPress={() => answer(false)} />
-              <Button variant="pill" title="Open" primary onPress={() => answer(true)} />
+              <Button variant="pill" title={verificationCode ? "Set Up" : "Open"} primary onPress={() => answer(true)} />
             </>
           ) : (
             <Button variant="pill" title="OK" primary onPress={() => answer(false)} />

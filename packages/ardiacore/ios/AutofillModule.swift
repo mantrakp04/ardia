@@ -33,5 +33,8 @@ public class AutofillModule: Module {
     "showSuggestions": { args, reply in
       reply.ok(ArdiaHost.showAutofillSuggestions(tabId: try args.text("tabId"), passwords: try args.bool("passwords")))
     },
+    "showApple": { args, reply in
+      reply.ok(ArdiaHost.showAppleAutoFill(tabId: try args.text("tabId"), kind: try args.text("kind")))
+    },
   ])
 }

@@ -119,6 +119,7 @@ export const SETTING_SPECS = {
   loadProfilesWhenOpened: flag(true),
   keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),
+  passwordManager: oneOf(["apple", "ardia", "none"], "apple", SYNCED),
   showFullUrl: flag(false, SYNCED),
   allowJavaScriptFromAppleEvents: flag(false),
   cliControl: flag(false),
@@ -155,6 +156,7 @@ export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
 export type SearchEngineId = string;
 export type BatterySaverWhen = Settings["batterySaverWhen"];
+export type PasswordManager = Settings["passwordManager"];
 export type SelectedTabGlow = Settings["selectedTabGlow"];
 export type PeekModifier = Settings["peekModifier"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
@@ -179,6 +181,15 @@ export function parseSettings(raw: unknown): Settings {
 export function parseSettingsMeta(raw: unknown): SettingsMeta {
   const meta = isFields(raw) ? raw : {};
   return { chosen: isStringList(meta.chosen) ? meta.chosen : [], inferred: isStringList(meta.inferred) ? meta.inferred : [] };
+}
+
+export function hydrateSettings(raw: unknown, rawMeta: unknown): { settings: Settings; settingsMeta: SettingsMeta } {
+  const settingsMeta = parseSettingsMeta(rawMeta);
+  if (!isFields(raw) || !Object.keys(raw).length || "passwordManager" in raw) return { settings: parseSettings(raw), settingsMeta };
+  return {
+    settings: parseSettings({ ...raw, passwordManager: "ardia" }),
+    settingsMeta: settingsMeta.inferred.includes("passwordManager") ? settingsMeta : { ...settingsMeta, inferred: [...settingsMeta.inferred, "passwordManager"] },
+  };
 }
 
 export const validSettingValue = (key: SettingKey, value: unknown) => SETTING_SPECS[key].valid(value);

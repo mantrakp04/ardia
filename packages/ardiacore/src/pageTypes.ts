@@ -156,6 +156,7 @@ export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 
 export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
 export type ScrollState = "down" | "up" | "top";
+export type VerificationCodeSetup = { url: string; origin: string; main: boolean };
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
 
 export type WebViewProps = ViewProps & {
@@ -206,6 +207,7 @@ export type WebViewProps = ViewProps & {
   onPagePress?: () => void;
   onSelection?: (selection: PageSelection | null) => void;
   onScroll?: (state: ScrollState) => void;
+  onVerificationCodeSetup?: (setup: VerificationCodeSetup) => void;
   onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
   onDiscarded?: (url: string) => void;

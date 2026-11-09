@@ -1,4 +1,4 @@
-import type { AddressInput, SavedAddress, SavedCard } from "../autofill";
+import type { AddressInput, AppleAutoFillKind, SavedAddress, SavedCard } from "../autofill";
 import type { EngineBookmark, BookmarkOp } from "../bookmarks";
 import type { CastDialog, CastRoute, DeviceChooser } from "../media";
 import type { ContentBlockerState, ContentBlockerStats } from "../contentBlocker";
@@ -97,6 +97,9 @@ export type EngineCalls = {
   "passwords.export": [Profile, { status: PasswordExportStatus; path?: string }];
   "passwords.autofillEnabled": [Profile, boolean];
   "passwords.setAutofillEnabled": [Profile & { enabled: boolean }, null];
+  "passwords.setApplePasswords": [{ enabled: boolean; extensionProfiles?: string[] }, null];
+  "passwords.openPasswordsApp": [{}, boolean];
+  "passwords.setUpVerificationCode": [{ url: string }, boolean];
 
   "autofill.settings": [Profile, { addresses: boolean; cards: boolean }];
   "autofill.setSettings": [Profile & { addresses?: boolean; cards?: boolean }, null];
@@ -106,6 +109,7 @@ export type EngineCalls = {
   "autofill.remove": [Profile & { id: string }, { ok: true }];
   "autofill.cardNumber": [Profile & { id: string }, { number?: string | null }];
   "autofill.showSuggestions": [{ tabId: string; passwords: boolean }, boolean];
+  "autofill.showApple": [{ tabId: string; kind: AppleAutoFillKind }, boolean];
 
   "extensions.list": [Profile, { extensions: InstalledExtension[] }];
   "extensions.inspectUnpacked": [{ path: string }, ExtensionPackage];

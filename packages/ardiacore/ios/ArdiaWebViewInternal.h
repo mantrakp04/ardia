@@ -238,9 +238,11 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 @end
 
 @interface ArdiaWebView (PageMessagesInternal)
-- (void)noteScriptFrame:(NSString *)frameId main:(BOOL)main;
+- (void)noteScriptFrame:(NSString *)frameId main:(BOOL)main sameSite:(BOOL)sameSite;
 - (void)forgetScriptFrame:(NSString *)frameId;
 - (void)pushSelectionPopover;
+- (void)pushApplePasswords;
+- (BOOL)sameSiteFrame:(BOOL)main origin:(NSString *)origin;
 - (void)callFrame:(NSString *)frameId kind:(NSString *)kind json:(NSString *)json;
 - (void)resetPageMedia;
 @end

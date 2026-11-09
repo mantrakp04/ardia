@@ -1,8 +1,12 @@
+import AppKit
 import ExpoModulesCore
 
 public class PasswordsModule: Module {
   public func definition() -> ModuleDefinition {
     Name(Self.calls.moduleName)
+
+    Function("applePasswordsAvailable") { () -> Bool in ArdiaWebView.applePasswordsAvailable }
+    Function("iCloudPasswordsExtensionSupported") { () -> Bool in ArdiaWebView.iCloudPasswordsExtensionSupported }
 
     Self.calls.function
 
@@ -36,5 +40,51 @@ public class PasswordsModule: Module {
       ArdiaServices.setProfileToggle(.passwordsOffered, value: try args.bool("enabled"), profile: args.profile)
       reply.ok()
     },
+    "setApplePasswords": { args, reply in
+      let profiles = (args.values["extensionProfiles"] as? [Any])?.compactMap { $0 as? String } ?? []
+      ArdiaWebView.setApplePasswordsEnabled(try args.bool("enabled"), extensionProfiles: profiles)
+      reply.ok()
+    },
+    "openPasswordsApp": { _, reply in ApplePasswordsApp.open { reply.ok($0) } },
+    "setUpVerificationCode": { args, reply in
+      ApplePasswordsApp.setUpVerificationCode(try args.text("url")) { reply.ok($0) }
+    },
   ])
+}
+
+enum ApplePasswordsApp {
+  static let bundleIdentifier = "com.apple.Passwords"
+  static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Passwords-Settings.extension")!
+  static let maxSetupLength = 2048
+
+  static var appURL: URL? { NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) }
+
+  static func open(_ done: @escaping (Bool) -> Void) {
+    guard let app = appURL else { return done(NSWorkspace.shared.open(settingsURL)) }
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.openApplication(at: app, configuration: configuration) { opened, error in
+      DispatchQueue.main.async { done(opened != nil && error == nil) }
+    }
+  }
+
+  static func verificationSetupURL(_ text: String) -> URL? {
+    guard text.utf16.count <= maxSetupLength, let parts = URLComponents(string: text),
+      let scheme = parts.scheme?.lowercased(), let host = parts.host?.lowercased()
+    else { return nil }
+    let items = parts.queryItems ?? []
+    func has(_ name: String) -> Bool { items.contains { $0.name.lowercased() == name && !($0.value ?? "").isEmpty } }
+    let valid = (scheme == "otpauth" && (host == "totp" || host == "hotp") && has("secret"))
+      || (scheme == "otpauth-migration" && host == "offline" && has("data"))
+    return valid ? parts.url : nil
+  }
+
+  static func setUpVerificationCode(_ text: String, _ done: @escaping (Bool) -> Void) {
+    guard let url = verificationSetupURL(text), let app = appURL else { return done(false) }
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.open([url], withApplicationAt: app, configuration: configuration) { opened, error in
+      DispatchQueue.main.async { done(opened != nil && error == nil) }
+    }
+  }
 }

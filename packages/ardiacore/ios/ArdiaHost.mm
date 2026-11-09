@@ -168,6 +168,11 @@ static void (^gQuitCancelledHandler)(void);
   return [tab showAutofillSuggestions:passwords];
 }
 
++ (BOOL)showAppleAutoFill:(NSString *)tabId kind:(NSString *)kind {
+  ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+  return tab && [[ArdiaTabRegistry viewForTab:tab] showAppleAutoFill:kind];
+}
+
 + (void)deviceChooser:(int)chooserId select:(int)index {
   [ArdiaCoreEngine selectDevice:chooserId index:index];
 }

@@ -1,27 +1,39 @@
 import {
+  applePasswordsAvailable,
   deletePassword,
   exportPasswords,
   getNeverSavePasswordOrigins,
   listPasswords,
+  openPasswordsApp,
   setNeverSavePasswords,
   updatePassword,
   type PasswordExportStatus,
   type SavedPassword,
 } from "../../../state/site/passwords";
+import {
+  ICLOUD_PASSWORDS_EXTENSION_ID,
+  iCloudPasswordsExtensionOf,
+  useEffectivePasswordManager,
+} from "../../../state/site/passwordManager";
+import { addFromWebStore, setEnabled, useExtensionList } from "../../../state/extensions/actions";
+import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText, systemInfo } from "../../../state/app/system";
-import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
+import { Box, Button, DialogActions, DialogTitle, type Option, PopUp, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
+import { updateSettings } from "../../../state/settings/actions";
+import type { PasswordManager } from "../../../state/settings/settings";
+import { SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon } from "../../favicon/Favicon";
 import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
 import { settingsLayout } from "../tokens";
-import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
+import { extensionList, passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
@@ -32,6 +44,14 @@ function passwordManagerAppsNote() {
     : `${apps} For 1Password, add Ardia once: in the 1Password app, open Settings › Browser › Add Browser and choose Ardia.`;
 }
 
+function managerOptions(): Option<PasswordManager>[] {
+  return [
+    ...(applePasswordsAvailable() ? [{ value: "apple" as const, title: "Apple Passwords (iCloud Keychain)" }] : []),
+    { value: "ardia", title: "Ardia" },
+    { value: "none", title: "Another password manager" },
+  ];
+}
+
 export function PasswordsPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
   const [profileId, setProfileId] = useSettingsProfile(initial);
@@ -40,9 +60,16 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   const [query, setQuery] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [exportStatus, setExportStatus] = useState("");
+  const [showArdiaList, setShowArdiaList] = useState(false);
   const profile = currentEngineProfile(profileId);
   const unlocked = usePasswordsUnlocked(profile);
   const [autofill = true] = useResource(passwordAutofill, profile);
+  useResource(extensionList, profile);
+  const mode = useEffectivePasswordManager();
+  const extensions = useExtensionList(profile);
+  const iCloudExt = iCloudPasswordsExtensionOf(extensions);
+  const extensionState = !iCloudExt ? "notInstalled" : iCloudExt.enabled ? "enabled" : "disabled";
+  const options = managerOptions();
 
   const load = () => {
     void listPasswords(profile).catch(orWarn<SavedPassword[]>([])).then(setList);
@@ -51,6 +78,15 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   useEffect(() => {
     if (unlocked) load();
   }, [unlocked, profileId]);
+
+  const installOrEnableExtension = () => {
+    if (iCloudExt && !iCloudExt.enabled) {
+      void setEnabled(profile, iCloudExt.id, true);
+      return;
+    }
+    void addFromWebStore(SETTINGS_WINDOW_ID, ICLOUD_PASSWORDS_EXTENSION_ID, profile);
+    showSettingsSheet(<InstallDialogHost windowId={SETTINGS_WINDOW_ID} onClosed={closeSettingsSheet} />);
+  };
 
   const importCsv = async () => {
     try {
@@ -74,15 +110,26 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   };
 
   const shown = (list ?? []).filter((p) => matchesQuery(query, p.origin, p.username));
+  const loginCount = list?.length ?? 0;
+  const showSavedList = mode === "ardia" || (unlocked && showArdiaList && loginCount > 0);
 
   return (
     <View>
       <SectionHeader
         title="Passwords"
-        description="Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
+        description={
+          mode === "apple"
+            ? "Uses the macOS Passwords app and iCloud Keychain across your Apple devices."
+            : mode === "ardia"
+              ? "Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
+              : "Built-in password prompts are off so your password manager extension can handle logins."
+        }
         action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
+        <Row anchor="passwords.passwordManager">
+          <PopUp value={mode} options={options} onChange={(passwordManager) => updateSettings({ passwordManager })} minWidth={210} />
+        </Row>
         <Row anchor="passwords.offerToSave">
           <Toggle value={autofill} onChange={(v) => void setPasswordAutofillFor(profile, v)} />
         </Row>
@@ -92,51 +139,112 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         <Row anchor="passwords.exportPasswords" description={exportStatus || undefined}>
           <Button title="Export CSV…" onPress={() => void exportCsv()} />
         </Row>
+        <Row anchor="passwords.otherManager" />
         <Row anchor="passwords.managerApps" description={passwordManagerAppsNote()} />
       </Group>
 
-      {!unlocked ? (
-        <Box gap="ml" style={LOCKED}>
-          <Symbol name="lock.fill" size={26} color={theme.textTertiary} style={LOCK_ICON} />
-          <Text size="title" weight="medium">
-            Passwords are locked
-          </Text>
-          <Text size="small" tone="textSecondary">
-            Unlock with Touch ID or your login password to see them.
-          </Text>
-          <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} />
-        </Box>
-      ) : (
-        <>
-          <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
-          <Group>
-            {list && shown.length === 0 ? (
-              <Row title={query ? "No passwords match" : "No saved passwords"} />
-            ) : (
-              shown.map((p) => (
-                <Row
-                  key={`${p.origin}|${p.username}`}
-                  icon={<Favicon url={p.origin} />}
-                  title={hostLabel(p.origin)}
-                  description={p.username || "(no username)"}
-                  onPress={() => showSettingsSheet(<PasswordSheet profile={profile} saved={p} onChanged={load} />)}
-                />
-              ))
-            )}
-          </Group>
-          {never.length > 0 && (
-            <>
-              <SectionHeader title="Never saved" description="Sites where you chose “Never on This Site”." />
-              <Group>
-                {never.map((origin) => (
-                  <Row key={origin} icon={<Favicon url={origin} />} title={hostLabel(origin)}>
-                    <Button title="Remove" onPress={() => void setNeverSavePasswords(profile, origin, false).catch(orWarn(undefined)).then(load)} />
-                  </Row>
-                ))}
-              </Group>
-            </>
+      <SectionHeader
+        title="Apple Passwords"
+        description="Fill passwords, passkeys and verification codes from the macOS Passwords app."
+      />
+      <Group>
+        <Row anchor="passwords.openPasswords">
+          <Button title="Open Passwords" kind="primary" onPress={() => void openPasswordsApp()} />
+        </Row>
+        <Row
+          anchor="passwords.iCloudExtension"
+          description={
+            extensionState === "enabled"
+              ? "Paired with the macOS Passwords helper."
+              : "Optional: pair with the iCloud Passwords extension from the Chrome Web Store."
+          }
+        >
+          {extensionState !== "enabled" && (
+            <Button
+              title={extensionState === "disabled" ? "Enable Extension" : "Add Extension…"}
+              onPress={installOrEnableExtension}
+            />
           )}
+        </Row>
+        <Row anchor="passwords.fillLogin" />
+        <Row anchor="passwords.verificationCodes" />
+        <Row anchor="passwords.newLogins" />
+      </Group>
+
+      {(!unlocked || loginCount > 0) && (
+        <>
+          <SectionHeader
+            title="Saved in Ardia"
+            description={
+              unlocked
+                ? `${plural(loginCount, "password")} saved in Ardia's Keychain for this profile.`
+                : "Passwords saved in Ardia before switching remain in your Keychain."
+            }
+          />
+          <Group>
+            <Row anchor="passwords.moveFromArdia" description={exportStatus || undefined}>
+              <Box row gap="s">
+                <Button title="Export CSV…" onPress={() => void exportCsv()} />
+                <Button title="Open Passwords" onPress={() => void openPasswordsApp()} />
+              </Box>
+            </Row>
+            <Row anchor="passwords.showSavedInArdia">
+              <Button
+                title={!unlocked ? "Unlock…" : showArdiaList ? "Hide Passwords" : `Show ${plural(loginCount, "Password")}`}
+                onPress={() => {
+                  if (unlocked) setShowArdiaList(!showArdiaList);
+                  else void unlockPasswordsFor(profile).then((ok) => ok && setShowArdiaList(true));
+                }}
+              />
+            </Row>
+          </Group>
         </>
+      )}
+
+      {showSavedList && (
+        !unlocked ? (
+          <Box gap="ml" style={LOCKED}>
+            <Symbol name="lock.fill" size={26} color={theme.textTertiary} style={LOCK_ICON} />
+            <Text size="title" weight="medium">
+              Passwords are locked
+            </Text>
+            <Text size="small" tone="textSecondary">
+              Unlock with Touch ID or your login password to see them.
+            </Text>
+            <Button title="Unlock" kind="primary" onPress={() => void unlockPasswordsFor(profile)} />
+          </Box>
+        ) : (
+          <>
+            <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
+            <Group>
+              {list && shown.length === 0 ? (
+                <Row title={query ? "No passwords match" : "No saved passwords"} />
+              ) : (
+                shown.map((p) => (
+                  <Row
+                    key={`${p.origin}|${p.username}`}
+                    icon={<Favicon url={p.origin} />}
+                    title={hostLabel(p.origin)}
+                    description={p.username || "(no username)"}
+                    onPress={() => showSettingsSheet(<PasswordSheet profile={profile} saved={p} onChanged={load} />)}
+                  />
+                ))
+              )}
+            </Group>
+            {never.length > 0 && (
+              <>
+                <SectionHeader title="Never saved" description="Sites where you chose “Never on This Site”." />
+                <Group>
+                  {never.map((origin) => (
+                    <Row key={origin} icon={<Favicon url={origin} />} title={hostLabel(origin)}>
+                      <Button title="Remove" onPress={() => void setNeverSavePasswords(profile, origin, false).catch(orWarn(undefined)).then(load)} />
+                    </Row>
+                  ))}
+                </Group>
+              </>
+            )}
+          </>
+        )
       )}
     </View>
   );
