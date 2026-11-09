@@ -12,6 +12,7 @@ export const UnreadBadge = memo(function UnreadBadge({ tabId }: { tabId: string 
   const shown = useRef(new Animated.Value(unread ? 1 : 0)).current;
   const [drawn, setDrawn] = useState<Unread | null>(unread);
   useEffect(() => {
+    if (!unread && !drawn) return;
     if (unread) setDrawn(unread);
     const spring = Animated.spring(shown, { toValue: unread ? 1 : 0, ...(unread ? unreadMotion.show : unreadMotion.hide), useNativeDriver: true });
     spring.start(({ finished }) => {

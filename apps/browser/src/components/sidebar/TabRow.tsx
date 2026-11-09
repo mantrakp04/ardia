@@ -119,10 +119,10 @@ export const TabRow = memo(function TabRow({
                   )}
                 </Pressable>
               ) : (
-                <View>
+                <>
                   <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
                   <TabBadges tabId={tab.id} />
-                </View>
+                </>
               )}
             </View>
             {(playingAudio || mute) && (
