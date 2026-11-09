@@ -24,6 +24,7 @@ using namespace ardia_host;
   ArdiaLaunchSequence.shared.engineRunning = YES;
   WatchReservedShortcuts();
   ardia_host::InstallActivationGuardsLate();
+  ardia_host::InstallPageDragSession();
   if (gScratchDataDir && ardia_host::Background())
     ardia_host::InstallTestCrashGuard([gDataDirectory stringByDeletingLastPathComponent]);
   ArdiaCoreEngine *engine = ArdiaCoreEngine.sharedEngine;
