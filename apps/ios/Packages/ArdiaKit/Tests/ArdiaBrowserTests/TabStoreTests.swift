@@ -257,6 +257,21 @@ struct StoreFixture {
     #expect(byURL["https://typed.example/"] == "work")
   }
 
+  @Test func everySpaceKeepsItsOwnRecentTabsForSync() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    fixture.store.profileSyncId = "personal"
+    _ = fixture.open("https://personal.example/")
+    fixture.store.profileSyncId = "work"
+    for index in 0...TabStore.syncedTabLimit {
+      fixture.clock.advance(60)
+      _ = fixture.open("https://work.example/\(index)")
+    }
+    let synced = fixture.store.syncedTabs()
+    #expect(synced.filter { $0.profileSyncId == "work" }.count == TabStore.syncedTabLimit)
+    #expect(synced.filter { $0.profileSyncId == "personal" }.map(\.url) == ["https://personal.example/"])
+  }
+
   @Test func aLinkOpensInTheSpaceOfTheTabThatOpenedIt() throws {
     let fixture = try StoreFixture()
     defer { fixture.cleanUp() }

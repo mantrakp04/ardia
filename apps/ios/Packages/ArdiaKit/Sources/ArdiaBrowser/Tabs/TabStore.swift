@@ -365,10 +365,15 @@ public final class TabStore: LocalBrowsingSource {
   }
 
   public func syncedTabs() -> [LocalTabRecord] {
-    openTabs
+    var countBySpace: [String?: Int] = [:]
+    return openTabs
       .filter { BrowserURL.isSyncable($0.url) }
       .sorted { $0.lastActive > $1.lastActive }
-      .prefix(Self.syncedTabLimit)
+      .filter { tab in
+        let count = countBySpace[tab.profileSyncId, default: 0]
+        countBySpace[tab.profileSyncId] = count + 1
+        return count < Self.syncedTabLimit
+      }
       .map { LocalTabRecord(url: $0.url, title: $0.title, lastActive: $0.lastActive, profileSyncId: $0.profileSyncId) }
   }
 
