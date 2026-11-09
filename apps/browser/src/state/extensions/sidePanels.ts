@@ -10,6 +10,7 @@ const focusOwed = new Map<string, { opened: number; page: string | undefined }>(
 let lastOpening = 0;
 const shownTabs = new Map<string, Set<string>>();
 const closedTabs = new Map<string, Set<string>>();
+const removedTabs = new Map<string, Set<string>>();
 
 const tabsOf = (tabs: Map<string, Set<string>>, windowId: string) => {
   let set = tabs.get(windowId);
@@ -28,6 +29,8 @@ export const wantedSidePanels = () => [...wanted];
 export const panelTabOpen = (tabId?: string) => !tabId || !!useBrowser.getState().tabs[tabId];
 
 export const panelClosedOnTab = (windowId: string, tabId?: string) => !!tabId && !!closedTabs.get(windowId)?.has(tabId);
+
+export const panelDroppedOnTab = (windowId: string, tabId?: string) => panelClosedOnTab(windowId, tabId) || (!!tabId && !!removedTabs.get(windowId)?.has(tabId));
 
 const sameCard = (a: SidePanel, b: SidePanel) => a.extensionId === b.extensionId && a.pageProfile === b.pageProfile && a.url === b.url && a.opened === b.opened;
 
@@ -56,6 +59,7 @@ export function openSidePanel(windowId: string, extensionId: string): Promise<vo
   if (reopening) {
     shownTabs.delete(windowId);
     closedTabs.delete(windowId);
+    removedTabs.delete(windowId);
   }
   if (reopening || useExtensions.getState().sidePanels[windowId]?.hidden) {
     lastOpening += 1;
@@ -74,6 +78,7 @@ export function closeSidePanel(windowId: string, extensionId?: string) {
   wanted.delete(windowId);
   shownTabs.delete(windowId);
   closedTabs.delete(windowId);
+  removedTabs.delete(windowId);
   openings.delete(windowId);
   focusOwed.delete(windowId);
   nextFetch(windowId);
@@ -141,11 +146,14 @@ async function showSidePanel(windowId: string, extensionId: string): Promise<voi
         : null;
   if (fetches.get(windowId) !== ticket) return;
   if (!shownIn(windowId, extensionId)) return closeSidePanel(windowId);
-  if (!url && readyTab && shownTabs.get(windowId)?.delete(readyTab)) tabsOf(closedTabs, windowId).add(readyTab);
+  if (!url && readyTab && shownTabs.get(windowId)?.delete(readyTab)) tabsOf(removedTabs, windowId).add(readyTab);
   if (!url) return readyTab ? hideSidePanel(windowId) : closeSidePanel(windowId);
   const s = useBrowser.getState();
   const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, opened: openings.get(windowId) ?? 0, tabId: readyTab };
-  if (readyTab) tabsOf(shownTabs, windowId).add(readyTab);
+  if (readyTab) {
+    tabsOf(shownTabs, windowId).add(readyTab);
+    removedTabs.get(windowId)?.delete(readyTab);
+  }
   const now = useExtensions.getState().sidePanels[windowId];
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile && now.opened === panel.opened && now.tabId === panel.tabId && !now.hidden) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));

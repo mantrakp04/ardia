@@ -155,11 +155,18 @@ test("a tab whose panel the extension takes away drops its page", async () => {
   void panels.syncSidePanel(w);
   await answer(1, null);
   assert.equal(E().sidePanels[w].hidden, true);
-  assert.equal(panels.panelClosedOnTab(w, a), true);
+  assert.equal(panels.panelDroppedOnTab(w, a), true);
+  assert.equal(panels.panelClosedOnTab(w, a), false, "the extension removing it isn't the user closing it");
+  void panels.syncSidePanel(w);
+  await answer(2, "chrome-extension://ext/panel.html?tabId=a");
+  assert.equal(E().sidePanels[w].hidden, undefined, "the panel comes back when the extension restores it");
+  assert.equal(panels.panelDroppedOnTab(w, a), false);
+  void panels.syncSidePanel(w);
+  await answer(3, null);
   S().activate(b);
   void panels.syncSidePanel(w);
-  await answer(2, null);
-  assert.equal(panels.panelClosedOnTab(w, b), false, "a tab that never had a panel isn't marked closed");
+  await answer(4, null);
+  assert.equal(panels.panelDroppedOnTab(w, b), false, "a tab that never had a panel isn't marked");
   panels.closeSidePanel(w);
 });
 

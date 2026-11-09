@@ -10,7 +10,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, closeSidePanelOnTab, findExtension, panelClosedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanel, closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -62,7 +62,7 @@ export function ExtensionSidePanel() {
       if (!now) {
         setShown(undefined);
         setKept([]);
-      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelClosedOnTab(windowId, p.tabId)));
+      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelDroppedOnTab(windowId, p.tabId)));
     });
   }, [state]);
   useEffect(() => {
