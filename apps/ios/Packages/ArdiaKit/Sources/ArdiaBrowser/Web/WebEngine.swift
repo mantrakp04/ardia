@@ -49,7 +49,7 @@ public final class WebEngine {
     tabs.onTabsRemoved = { [weak self] removed in
       guard let self else { return }
       for tab in removed { roster.remove(tab.id) }
-      snapshots.remove(removed.compactMap(\.snapshotFileName))
+      snapshots.removeTabs(removed.map(\.id))
     }
     observeSystem()
   }

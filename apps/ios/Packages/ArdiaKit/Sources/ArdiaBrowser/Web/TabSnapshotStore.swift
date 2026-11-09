@@ -10,6 +10,7 @@ public final class TabSnapshotStore {
 
   public let directory: URL
   private let cache = NSCache<NSString, CGImage>()
+  private var deletedTabIDs = Set<UUID>()
 
   public init(directory: URL = URL.cachesDirectory.appending(path: "TabSnapshots", directoryHint: .isDirectory)) {
     self.directory = directory
@@ -23,6 +24,10 @@ public final class TabSnapshotStore {
     let url = directory.appending(path: name)
     let directory = directory
     guard let written = await Self.encode(image, to: url, in: directory) else { return nil }
+    guard !deletedTabIDs.contains(tabID) else {
+      try? FileManager.default.removeItem(at: url)
+      return nil
+    }
     cache.setObject(written, forKey: name as NSString)
     return name
   }
@@ -39,6 +44,11 @@ public final class TabSnapshotStore {
     guard let image = await Self.decode(directory.appending(path: name)) else { return nil }
     cache.setObject(image, forKey: name as NSString)
     return image
+  }
+
+  public func removeTabs(_ tabIDs: [UUID]) {
+    deletedTabIDs.formUnion(tabIDs)
+    remove(tabIDs.flatMap { [fileName(for: $0), "memory-\($0.uuidString)"] })
   }
 
   public func remove(_ names: [String]) {
