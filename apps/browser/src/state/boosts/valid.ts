@@ -44,7 +44,7 @@ export function validBoost(id: string, raw: unknown): Boost | null {
     subdomains,
     enabled,
     colors: checked,
-    font: font as string | null,
+    font,
     size: size as BoostSize,
     textCase: textCase as BoostCase,
     zaps,
