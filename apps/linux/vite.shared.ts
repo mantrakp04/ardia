@@ -104,6 +104,7 @@ export function webShellConfig(options: { plugins?: Plugin[]; aliases?: { find: 
       alias: [
         ...(options.aliases ?? []),
         { find: /^react-native\/Libraries\/Animated\/useAnimatedProps$/, replacement: `${reactNativeWeb}/dist/vendor/react-native/Animated/useAnimatedProps.js` },
+        { find: /^react-native\/Libraries\/Core\/ExceptionsManager$/, replacement: `${shims}exceptions-manager.ts` },
         { find: /^react-native(-macos)?$/, replacement: `${shims}react-native.tsx` },
         { find: /^expo-modules-core$/, replacement: `${shims}expo-modules-core.ts` },
         { find: /^@ardia\/(shell|ardiacore|shaders|sync|import)$/, replacement: `${shims}$1.tsx` },

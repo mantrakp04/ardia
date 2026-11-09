@@ -89,9 +89,16 @@ const legacyPinChoices = (session: HydrateData) =>
 const withPinChoiceStamps = (session: HydrateData) =>
   legacyPinChoices(session) ? sessionWithPinChoiceStamps(session as unknown as SavedObject) as unknown as HydrateData : session;
 
+const withAutoHideTabsSetting = (session: HydrateData): HydrateData => {
+  const windows = Object.values(session.windows ?? {});
+  const settings = session.settings;
+  if (!settings || Object.hasOwn(settings, "autoHideTabs") || !windows.length) return session;
+  return { ...session, settings: { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } };
+};
+
 export const linuxSessionShape = (saved: HydrateData): HydrateData => {
   const settled = settledSession(saved);
-  return withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled);
+  return withAutoHideTabsSetting(withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled));
 };
 
 const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-MAX_CLOSED_WINDOWS);
@@ -180,7 +187,7 @@ export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | 
   }));
   const activeTab = tabs[Math.max(0, seeds.findIndex((seed) => seed.active))]!;
   const browserWindow: BrowserWindow = {
-    id: windowId, profileId, kind: "main", tabIds: tabs.map((tab) => tab.id), activeTabIds: { [profileId]: activeTab.id }, sidebarOpen: true, frame: null, createdAt: now,
+    id: windowId, profileId, kind: "main", tabIds: tabs.map((tab) => tab.id), activeTabIds: { [profileId]: activeTab.id }, sidebarOpen: !saved?.settings?.autoHideTabs, frame: null, createdAt: now,
   };
   return {
     ...saved, profiles, profileOrder: [...new Set([...(saved?.profileOrder ?? []), profileId])],

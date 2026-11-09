@@ -134,7 +134,7 @@ int main() {
         source = (Path(__file__).resolve().parents[1] / 'src/ardia/linux/ac_linux_host.cc').read_text()
         start = source.index('ShellHostView::ShellHostView(BrowserWindowInterface* browser')
         constructor = source[start:source.index('\n}\n', start)]
-        self.assertIn('SetBackground(views::CreateSolidBackground(SK_ColorWHITE));', constructor)
+        self.assertIn('SetBackground(views::CreateSolidBackground(kColorWebContentsBackground));', constructor)
         self.assertLess(constructor.index('SetBackground('), constructor.index('AddChildView('))
 
 

@@ -10,7 +10,7 @@ const host = (windowId = "main") => ({ bootstrap: { windowId, profileId: "defaul
 
 function browserSession() {
   const saved = initialLinuxSession(host(), null);
-  saved.settings = { restoreSession: false, sidebarWidth: 256 };
+  saved.settings = { restoreSession: false, sidebarWidth: 256, autoHideTabs: false };
   const tab = Object.values(saved.tabs)[0];
   tab.url = "https://example.test/playing";
   tab.title = "Playing page";
@@ -42,6 +42,26 @@ test("sessions saved with numeric pin choices start with clock stamps", () => {
   assert.ok(Object.values(choices).every((choice) => typeof choice === "string"));
   assert.ok(choices[`place:${key}`] > choices[key]);
   assert.deepEqual(initialLinuxSession(host("settings"), saved).pinChoices, initial.pinChoices);
+});
+
+test("a session saved before auto-hide tabs existed starts it on only when every saved window hid its tabs", () => {
+  const saved = browserSession();
+  const windowIds = Object.keys(saved.windows);
+  const { autoHideTabs: _, ...olderSettings } = saved.settings;
+  const withSidebars = (open) => ({ ...saved, settings: { ...olderSettings }, windows: Object.fromEntries(windowIds.map((id) => [id, { ...saved.windows[id], sidebarOpen: open }])) });
+  assert.equal(linuxSessionShape(withSidebars(false)).settings.autoHideTabs, true);
+  assert.equal(linuxSessionShape(withSidebars(true)).settings.autoHideTabs, false);
+  const chosen = withSidebars(false);
+  chosen.settings.autoHideTabs = false;
+  assert.equal(linuxSessionShape(chosen).settings.autoHideTabs, false);
+});
+
+test("a new Linux window opens with its tabs as the auto-hide tabs setting says", () => {
+  const saved = browserSession();
+  saved.settings.autoHideTabs = true;
+  assert.equal(initialLinuxSession(host("window-2"), saved).windows["window-2"].sidebarOpen, false);
+  saved.settings.autoHideTabs = false;
+  assert.equal(initialLinuxSession(host("window-2"), saved).windows["window-2"].sidebarOpen, true);
 });
 
 test("legacy tab fields left beside current ones never override them, so a saved session settles", async () => {

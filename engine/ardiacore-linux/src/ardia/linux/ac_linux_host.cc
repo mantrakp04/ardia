@@ -127,6 +127,7 @@
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
@@ -2226,7 +2227,7 @@ ShellHostView::ShellHostView(BrowserWindowInterface* browser, BrowserView* paren
       id_(browser->GetSessionID().id()), startup_(startup),
       window_id_(Hosts().empty() ? "main" : "window-" + base::NumberToString(id_)) {
   Hosts()[id_] = this;
-  SetBackground(views::CreateSolidBackground(SK_ColorWHITE));
+  SetBackground(views::CreateSolidBackground(kColorWebContentsBackground));
   glass_ = AddChildView(std::make_unique<ShellGlassView>(
       base::BindRepeating([](base::WeakPtr<ShellHostView> host, std::string_view event, base::Value payload) {
         if (host) host->Event("ArdiaGlass", event, std::move(payload));
