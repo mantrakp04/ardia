@@ -16,6 +16,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
+import { profileSwitched } from "./profileSwap";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -89,7 +90,7 @@ function watchStore() {
         const w = s.windows[id]!;
         const before = prev.windows[id];
         if (before && !before.fullScreen && w.fullScreen) counts.fullScreens++;
-        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
+        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(id, size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
     if (s.splits !== prev.splits) {
@@ -99,11 +100,6 @@ function watchStore() {
       for (const id in s.windowUi) if (s.windowUi[id]?.panel.open && !prev.windowUi[id]?.panel.open) capture("command_bar_opened");
     }
   });
-}
-
-function profileSwitched(profiles: number, via: ReturnType<typeof switcherSwitchProperties>) {
-  const start = Date.now();
-  requestAnimationFrame(() => requestAnimationFrame(() => capture("profile_switched", { switch_ms: Date.now() - start, profiles, ...via })));
 }
 
 function watchSync() {

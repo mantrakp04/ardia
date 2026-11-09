@@ -2,6 +2,7 @@
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaWebViewInternal.h"
 
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
 using namespace ardia_window;
@@ -64,17 +65,33 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
 }
 
 + (void)showProfile:(NSString *)profile inWindow:(NSWindow *)window {
+  [self showProfile:profile inWindow:window report:nil];
+}
+
++ (void)showProfile:(NSString *)profile
+           inWindow:(NSWindow *)window
+             report:(void (^)(BOOL, double, double, BOOL))report {
   ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
   if (!controller) return;
+  const CFTimeInterval started = CACurrentMediaTime();
+  const BOOL profileLoaded = ardia_host::LoadedProfile(profile ?: @"") != nil;
   __weak ArdiaCoreWindow *coreWindow = controller.coreWindow;
   __weak ArdiaWindowController *weakController = controller;
   ardia_host::WithProfile(profile ?: @"", ^(ArdiaCoreProfile *p) {
     ArdiaWindowController *shown = weakController;
     if (!p || !coreWindow || !shown) return;
     coreWindow.activeProfile = p;
+    const double activeMs = (CACurrentMediaTime() - started) * 1000;
     ArdiaCoreTab *tab = [ArdiaTabStrip activeTabInWindow:shown profile:p];
     ArdiaWebView *view = tab ? [ArdiaTabRegistry viewForTab:tab] : nil;
     NSWindow *shownWindow = coreWindow.window;
+    if (report) {
+      void (^shownFirstFrame)(BOOL) = ^(BOOL heldTimedOut) {
+        report(profileLoaded, activeMs, (CACurrentMediaTime() - started) * 1000, heldTimedOut);
+      };
+      if (view && shownWindow && view.window == shownWindow) [view reportSwapShown:shownFirstFrame];
+      else shownFirstFrame(NO);
+    }
     if (view && shownWindow && view.window == shownWindow && [[coreWindow tabsForProfile:p] containsObject:tab])
       [view requestFocusRestoreIn:shownWindow];
   });

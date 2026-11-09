@@ -108,6 +108,8 @@ struct ArdiaPageFocusState {
   ArdiaSentReports _sent;
   ArdiaLeave _leave;
   ArdiaFrameHold _frameHold;
+  void (^_swapReport)(BOOL heldTimedOut);
+  CFTimeInterval _swapReportAt;
   ArdiaStandIn _standIn;
   ArdiaLittlePage _littlePage;
   ArdiaReveal _reveal;
@@ -203,6 +205,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 - (void)schedulePainting;
 - (void)leaveScreen;
 - (void)beginFrameHoldIfCold;
+- (void)reportSwapShown:(void (^)(BOOL heldTimedOut))report;
 - (void)finishFrameHold;
 - (void)stopHolding;
 - (void)takeFocusFromLingeringPane;
