@@ -252,6 +252,25 @@ test("of two tabs on one page, the renamed one is the tab the bar switches to", 
   }
 });
 
+test("two renamed tabs on one page are each found by their own custom title", () => {
+  const url = "https://linear.app/team/board";
+  const first = { id: "t1", url, title: "Linear – Issues", customTitle: "Work board", favicon: null };
+  const second = { id: "t2", url, title: "Linear – Issues", customTitle: "Triage", favicon: null };
+  const plain = { id: "t3", url, title: "Linear – Issues", customTitle: null, favicon: null };
+  const visited = [...history, { url, title: "Linear – Issues", favicon: null, visits: 6, lastVisit: now - 3000 }];
+  const bookmarks = [{ url, title: "Linear – Issues", favicon: null }];
+  for (const tabs of [[first, second], [second, first], [plain, first, second], [first, plain, second]]) {
+    const sources = { "no history": { tabs, history }, history: { tabs, history: visited }, bookmark: { tabs, history, bookmarks } };
+    for (const [label, source] of Object.entries(sources)) {
+      assert.deepEqual(pageRows(buildSuggestions("work board", source, { now }).items), [{ url, title: "Work board", tabId: "t1" }], `${label}: work board`);
+      assert.deepEqual(pageRows(buildSuggestions("triage", source, { now }).items), [{ url, title: "Triage", tabId: "t2" }], `${label}: triage`);
+      const byPage = pageRows(buildSuggestions("linear issues", source, { now }).items);
+      assert.equal(byPage.length, 1, `${label}: one row for the page title`);
+      assert.ok(byPage[0]!.tabId === "t1" || byPage[0]!.tabId === "t2", `${label}: the page title switches to a renamed tab`);
+    }
+  }
+});
+
 test("a typed or completed address opens, even when a tab has it open: the tab keeps a Switch to Tab row", () => {
   const tabs = [{ id: "t1", url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null }];
   const hist = [{ url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null, visits: 3, lastVisit: now - 1000 }];

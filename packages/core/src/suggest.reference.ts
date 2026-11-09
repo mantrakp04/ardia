@@ -205,20 +205,24 @@ function tabPageText(t: TabRow, listed?: PageText): PageText {
 }
 
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
+  const open: TabRow[] = [];
   const chosen = new Map<string, TabRow>();
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
+    open.push(t);
     const key = pageText(t).key;
     const kept = chosen.get(key);
     if (!kept || (t.customTitle && !kept.customTitle)) chosen.set(key, t);
   }
   const tabIds = new Map<string, string>();
+  for (const [key, t] of chosen) tabIds.set(key, t.id);
   const extra: Candidate[] = [];
   const renamed = new Set<string>();
-  for (const [key, t] of chosen) {
-    tabIds.set(key, t.id);
+  for (const t of open) {
+    const key = pageText(t).key;
     const listed = pool.byKey.get(key);
     if (!listed) {
+      if (!t.customTitle && chosen.get(key) !== t) continue;
       extra.push({ url: t.url, title: t.customTitle || t.title, pageTitle: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text: tabPageText(t) });
     } else if (t.customTitle) {
       renamed.add(key);
