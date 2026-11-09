@@ -6,7 +6,7 @@ const path = (name) => new URL(`../ios/${name}`, import.meta.url);
 const read = (name) => readFileSync(path(name), "utf8");
 const flat = (text) => text.replace(/\s+/g, " ");
 
-test("a page drag ends at mouse-up: the session AppKit starts for the page does not slide back", () => {
+test("source wiring: ArdiaPageDrag.mm turns off the slide-back on the session WebContentsViewCocoa returns (runtime: the page-drag acceptance check)", () => {
   assert.ok(existsSync(path("ArdiaPageDrag.mm")), "ArdiaPageDrag.mm is missing");
   const source = flat(read("ArdiaPageDrag.mm"));
   assert.match(source, /NSClassFromString\(@"WebContentsViewCocoa"\)/);
@@ -15,13 +15,14 @@ test("a page drag ends at mouse-up: the session AppKit starts for the page does 
   assert.match(source, /NSDraggingSession \*session = \(\(NSDraggingSession \* ?\(\*\)\([^)]*\)\)original\)\(view, begin, items, event, source\);/);
   assert.match(source, /session\.animatesToStartingPositionsOnCancelOrFail = NO;/);
   assert.match(source, /return session;/);
+  assert.match(source, /if \(!installed\) NSLog\(@"\[ardiacore\] page drag session override not installed/);
   assert.ok(
     source.indexOf("original)(view, begin") < source.indexOf("animatesToStartingPositionsOnCancelOrFail"),
     "the flag is set on the session the original returned",
   );
 });
 
-test("the page drag override is declared and installed once the engine has started", () => {
+test("source wiring: the page drag override is declared and installed from engineDidStart, before the engine-started launch step", () => {
   assert.match(read("ArdiaInternal.h"), /void InstallPageDragSession\(\);/);
   const delegate = read("ArdiaHostEngineDelegate.mm");
   const start = delegate.indexOf("- (void)engineDidStart {");

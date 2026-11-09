@@ -3684,16 +3684,17 @@ try {
       await until("a new click on the page after the drag", async () => (await clickerClicks()) > clicksBefore, 4000);
       const command = 1048576;
       const ofType = async (type) => (await events()).filter((e) => e[0] === type);
+      const clickerEvents = async () => (await ofType("click")).filter((e) => e[1] === "clicker");
       const dragendsBefore = (await ofType("dragend")).length;
-      const clicksAfterDrag = (await ofType("click")).length;
+      const clicksAfterDrag = (await clickerEvents()).length;
       const [cardX, cardY] = at(130, 70);
       await act(`mouse:down:${cardX},${cardY},1,${command}`);
       for (const step of [2, 4, 6]) {
         await act(`mouse:dragged:${cardX + step},${cardY + step},1,${command}`);
         await sleep(30);
       }
-      const releasedAt = Date.now();
       await act(`mouse:up:${cardX + 6},${cardY + 6},1,${command}`);
+      const releasedAt = Date.now();
       const [clickerX, clickerY] = at(360, 70);
       const pressedAt = [];
       for (let i = 0; i < 5; i++) {
@@ -3702,12 +3703,12 @@ try {
         pressedAt.push(Date.now());
         await act(`mouse:up:${clickerX},${clickerY},1,${command}`);
       }
-      await until("the clicks after the moved ⌘-click", async () => (await ofType("click")).length >= clicksAfterDrag + pressedAt.length, 6000);
+      await until("the clicks after the moved ⌘-click", async () => (await clickerEvents()).length >= clicksAfterDrag + pressedAt.length, 6000);
       const movedDragend = (await ofType("dragend"))[dragendsBefore];
       if (!movedDragend) throw new Error("the moved ⌘-click never started a page drag");
       const sinceRelease = movedDragend[4] - releasedAt;
       if (sinceRelease > 250) throw new Error(`the page drag ended ${sinceRelease} ms after mouse-up: AppKit's slide-back kept the session open`);
-      const burst = (await ofType("click")).slice(clicksAfterDrag).map((e) => e[4]);
+      const burst = (await clickerEvents()).slice(clicksAfterDrag).map((e) => e[4]);
       const late = burst.map((t, i) => t - pressedAt[i]);
       if (late.some((ms) => ms > 300)) throw new Error(`clicks reached the page late, ${JSON.stringify(late)} ms after each was made`);
       const gaps = burst.slice(1).map((t, i) => t - burst[i]);
