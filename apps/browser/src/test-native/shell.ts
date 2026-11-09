@@ -190,7 +190,7 @@ const notifications: Modules["ArdiaNotifications"] = {
   addListener: notificationEvents.addListener,
   notificationPermission: () => Promise.resolve("notDetermined"),
   requestNotificationPermission: () => Promise.resolve(false),
-  postNotification: () => Promise.resolve(null),
+  postNotification: (options) => Promise.resolve({ id: options.id, icon: "none" }),
   removeNotifications: () => Promise.resolve(),
   openNotificationSettings: () => Promise.resolve(),
 };

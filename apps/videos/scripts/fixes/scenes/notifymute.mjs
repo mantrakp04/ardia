@@ -4,7 +4,7 @@ const STUB = `const m = globalThis.expo.modules.ArdiaNotifications;
 m.notificationPermission = () => Promise.resolve("granted");
 m.requestNotificationPermission = () => Promise.resolve(true);
 m.removeNotifications = () => Promise.resolve();
-m.postNotification = (o) => { if (globalThis.__onPost) globalThis.__onPost(o); return Promise.resolve(o.id || null); };`;
+m.postNotification = (o) => { if (globalThis.__onPost) globalThis.__onPost(o); return Promise.resolve({ id: o.id, icon: \"none\" }); };`;
 
 const SEND_AT_MS = 3900;
 

@@ -16,6 +16,16 @@ export type NotificationOptions = {
   data?: Record<string, unknown>;
 };
 
+export type NotificationIconStatus = "none" | "attached" | "invalid_url" | "download_failed" | "empty" | "write_failed" | "attachment_rejected";
+
+export type NotificationPostResult = {
+  id?: string;
+  icon: NotificationIconStatus;
+  iconErrorCode?: number;
+  errorDomain?: string;
+  errorCode?: number;
+};
+
 export type NotificationResponse = {
   id: string;
   action: "click" | "close";
@@ -28,7 +38,7 @@ export type NotificationsNative = {
   addListener(name: "onNotificationResponse", listener: (e: NotificationResponse) => void): EventSubscription;
   notificationPermission(): Promise<NotificationPermission>;
   requestNotificationPermission(): Promise<boolean>;
-  postNotification(options: NotificationOptions): Promise<string | null>;
+  postNotification(options: NotificationOptions): Promise<NotificationPostResult>;
   removeNotifications(ids: string[]): Promise<void>;
   openNotificationSettings(): Promise<void>;
 };
