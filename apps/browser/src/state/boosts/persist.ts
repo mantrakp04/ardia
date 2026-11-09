@@ -20,10 +20,10 @@ const engineJson = (boosts: Boost[]) => JSON.stringify(fitEngineList(boosts.filt
 function push(key: string, boosts: Boost[]) {
   const engine = engineProfile(useBrowser.getState(), key);
   const json = engineJson(boosts);
-  if (json === pushed.get(engine)) return;
+  if (json === (pushed.get(engine) ?? "[]")) return;
   pushed.set(engine, json);
   setProfileBoosts(engine, json).catch((error: unknown) => {
-    pushed.delete(engine);
+    pushed.set(engine, "");
     orWarn(undefined)(error);
   });
 }
