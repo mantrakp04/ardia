@@ -146,9 +146,9 @@ public final class TabStore: LocalBrowsingSource {
     closePrivate(privateTabs.map(\.id))
   }
 
-  private func openerProfile(_ placement: TabPlacement) -> String? {
+  private func openerProfile(_ placement: TabPlacement) -> String?? {
     guard case .after(let id) = placement, let opener = tab(id), !opener.isPrivate else { return nil }
-    return opener.profileSyncId
+    return .some(opener.profileSyncId)
   }
 
   private func placementIsPrivate(_ placement: TabPlacement) -> Bool {

@@ -282,6 +282,11 @@ struct StoreFixture {
     let typed = fixture.store.open(.url(URL(string: "https://typed.example/")!))
     #expect(child.profileSyncId == "work")
     #expect(typed.profileSyncId == "personal")
+    fixture.store.profileSyncId = nil
+    let unassigned = fixture.open("https://before-sync.example/")
+    fixture.store.profileSyncId = "work"
+    let unassignedChild = fixture.store.open(.url(URL(string: "https://before-sync.example/child")!, origin: .link), placement: .after(unassigned.id))
+    #expect(unassignedChild.profileSyncId == nil)
   }
 
   @Test func visitsForChosenURLsMatchTheFullScanAndSkipPrivateTabs() throws {
