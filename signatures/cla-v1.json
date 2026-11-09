@@ -479,6 +479,14 @@
       "created_at": "2026-11-08T13:43:49Z",
       "repoId": 1274703665,
       "pullRequestNo": 1019
+    },
+    {
+      "name": "yyamandevrim",
+      "id": 59551725,
+      "comment_id": 6748926393,
+      "created_at": "2026-11-09T19:09:56Z",
+      "repoId": 1274703665,
+      "pullRequestNo": 1097
     }
   ]
 }
