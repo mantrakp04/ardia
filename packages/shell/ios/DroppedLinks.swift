@@ -5,6 +5,7 @@ import ServiceManagement
 
 enum DroppedLinks {
   static let maxItems = 50
+  static let maxSearchText = 2048
   static let linkFileExtensions: Set<String> = ["webloc", "inetloc", "url"]
   private static let maxLinkFileSize = 64 * 1024
 
@@ -53,7 +54,7 @@ enum DroppedLinks {
     (pasteboard.pasteboardItems ?? []).compactMap { $0.string(forType: .URL).flatMap(webURL) }
   }
 
-  static func items(_ pasteboard: NSPasteboard) -> [[String: String]] {
+  static func items(_ pasteboard: NSPasteboard, anyText: Bool = false) -> [[String: String]] {
     let files = fileURLs(pasteboard)
     if !files.isEmpty {
       return Array(files.prefix(maxItems).compactMap { file -> [String: String]? in
@@ -63,13 +64,22 @@ enum DroppedLinks {
     }
     let links = webURLs(pasteboard)
     if !links.isEmpty { return links.prefix(maxItems).map { ["kind": "url", "url": $0] } }
-    if let text = pasteboard.string(forType: .string), let candidate = hostLike(text) {
+    guard let text = pasteboard.string(forType: .string) else { return [] }
+    if let candidate = hostLike(text) {
       return [webURL(candidate).map { ["kind": "url", "url": $0] } ?? ["kind": "text", "text": candidate]]
     }
-    return []
+    let words = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    return anyText && !words.isEmpty ? [["kind": "text", "text": String(words.prefix(maxSearchText))]] : []
   }
 
   static func count(_ pasteboard: NSPasteboard) -> Int {
     items(pasteboard).count
+  }
+
+  static func extensionPackages(_ pasteboard: NSPasteboard) -> [[String: String]] {
+    let files = fileURLs(pasteboard)
+    guard !files.isEmpty, files.count <= maxItems,
+          files.allSatisfy({ $0.pathExtension.lowercased() == "crx" && FileManager.default.fileExists(atPath: $0.path) }) else { return [] }
+    return files.map { ["kind": "file", "url": $0.absoluteString] }
   }
 }

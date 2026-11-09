@@ -12,11 +12,12 @@ import { ContentCard } from "../window/ContentCard";
 import { DownloadsPopover } from "../downloads/Downloads";
 import { ExtensionOverlays } from "../extensions/ExtensionOverlays";
 import { ToolbarPopupAnchor } from "../extensions/ToolbarExtensions";
-import { setUrlAnchor } from "../../state/windows/layout";
+import { setUrlAnchor, usePageFrameInset } from "../../state/windows/layout";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { copyPageUrl } from "../../state/site/selection";
 import { ProfileBadge } from "../profiles/ProfileIcons";
 import { openInMainWindow, openLittleArdiaProfileMenu } from "../../state/littleArdia/actions";
+import { startLittleArdiaNewTabLinks } from "../../state/littleArdia/newTabLinks";
 import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_FIELD_GAP, SMALL_INSET, SmallBar } from "./SmallChrome";
 import { SMALL_BAR_HEIGHT, SMALL_LIGHTS_CENTER } from "../../state/windows/small";
 import { HistoryButton } from "../toolbar/NavButtons";
@@ -37,10 +38,12 @@ const alreadyFocused = () => {};
 export function LittleArdiaWindow() {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
+  const frame = usePageFrameInset();
+  useEffect(startLittleArdiaNewTabLinks, []);
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
-      <View style={{ flex: 1, flexDirection: "row", paddingTop: SMALL_BAR_HEIGHT, paddingLeft: SMALL_INSET, paddingRight: SMALL_INSET, paddingBottom: SMALL_INSET }}>
+      <View style={{ flex: 1, flexDirection: "row", paddingTop: SMALL_BAR_HEIGHT, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
         <ContentCard />
       </View>
       <View style={{ position: "absolute", left: 0, right: 0, top: 0 }}>

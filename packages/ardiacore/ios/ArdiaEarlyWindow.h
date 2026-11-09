@@ -24,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
                           frame:(NSArray<NSNumber *> *)frame
                         profile:(NSString *)profile
                        backdrop:(NSDictionary *)backdrop
+                       settings:(NSDictionary *)settings
                            like:(nullable NSString *)windowId;
 + (nullable NSWindow *)claimLittleWindowForLink:(NSString *)mark profile:(nullable NSString *)profile;
 + (void)forgetPictures;

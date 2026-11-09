@@ -118,7 +118,9 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     controller.view = view;
     controller.host = host;
     [controller roundCorners];
+    JoinFullScreenSpaces(window);
     PreventActivation(window);
+    if (fresh) [view emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(window))}];
     if (ardia_host::Background()) {
       window.alphaValue = 0;
       window.ignoresMouseEvents = YES;
@@ -176,6 +178,28 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   look();
 }
 
+void DocumentEntered(ArdiaWebView *view) {
+  __block int tries = 0;
+  __block void (^look)(void);
+  __weak ArdiaWebView *weakView = view;
+  look = ^{
+    ArdiaWebView *strongView = weakView;
+    NSWindow *found = nil;
+    for (NSWindow *window in NSApp.windows)
+      if (window.visible && IsChromeDocumentPictureInPicture(window) && IsChromeFloatingWindow(window)) found = window;
+    if (strongView && found) {
+      JoinFullScreenSpaces(found);
+      [strongView emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @YES, @"fullScreenSpaces" : @(JoinsFullScreenSpaces(found))}];
+    }
+    if (!strongView || found || ++tries >= 20) {
+      look = nil;
+      return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), look);
+  };
+  look();
+}
+
 }
 
 @implementation ArdiaWebView (PictureInPictureDev)
@@ -198,8 +222,13 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"alpha" : @(window.alphaValue),
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
+      @"subrole" : window.accessibilitySubrole ?: @"",
+      @"canHide" : @(window.canHide),
+      @"collectionBehavior" : @(window.collectionBehavior),
+      @"joinsFullScreenSpaces" : @(JoinsFullScreenSpaces(window)),
       @"styled" : @(controller != nil),
-      @"rounded" : @(content.cornerRadius == kCornerRadius && content.masksToBounds && !window.opaque),
+      @"rounded" : @(controller && content.cornerRadius == controller.cornerRadius && content.masksToBounds && !window.opaque),
+      @"cornerRadius" : @(content.cornerRadius),
       @"rim" : @(controller.overlay.layer.borderWidth),
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
@@ -228,6 +257,7 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
   else if ([action hasPrefix:@"alpha:"]) return DevShowAlpha(controller.window, [action substringFromIndex:6].floatValue);
   else if ([action hasPrefix:@"mouse:"]) [controller devMouse:[[action substringFromIndex:6] componentsSeparatedByString:@":"]];
   else if ([action isEqual:@"stash"]) [controller stashAt:ArdiaPiPEdgeRight];
+  else if ([action isEqual:@"keepOnTop"]) controller.keepOnTop = !controller.keepOnTop;
   else if ([action isEqual:@"handle"]) [controller.overlay.handle setHovered:!controller.overlay.handle.hovered];
   else if ([action hasPrefix:@"swipe:"]) [controller devSwipe:[[action substringFromIndex:6] componentsSeparatedByString:@","]];
   else if ([action hasPrefix:@"drag:"]) [controller devDrag:[[action substringFromIndex:5] componentsSeparatedByString:@","]];

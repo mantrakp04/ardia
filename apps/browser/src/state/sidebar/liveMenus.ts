@@ -4,10 +4,11 @@ import { prompt } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import { closeTab } from "../browser/actions";
 import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } from "../live/calendar";
-import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
+import { deleteLiveFolder, liveTabAway, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, returnLiveTab, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { dismissNowBadge, hideItems, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
+import { repoKey } from "../live/rows";
+import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
@@ -56,6 +57,14 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
   if (!folder) return [];
   const { canMoveUp, canMoveDown } = folderPlace(windowId, folderId);
   const pr = folder.kind === "pullRequests";
+  const hiddenRepos = new Set(folder.hiddenRepos);
+  const listed = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? []), ...(s.repoHidden[folderId] ?? [])].flatMap((it) => repoKey(it) ?? []);
+  const repos = [...new Set([...listed, ...hiddenRepos])].map((key) => {
+    const [source, name] = key.split(/:(.*)/) as [LiveSourceId, string];
+    return { key, source, name };
+  });
+  const oneSource = new Set(repos.map((r) => r.source)).size <= 1;
+  repos.sort((a, b) => a.name.localeCompare(b.name) || a.source.localeCompare(b.source));
   return sections(
     [
       { id: "status", title: statusText(folderId), enabled: false },
@@ -66,6 +75,15 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
       ? [
           { id: "filter:authored", title: "Created by Me", checked: folder.filters.authored },
           { id: "filter:reviewRequests", title: "Awaiting My Review", checked: folder.filters.reviewRequests },
+          {
+            id: "repos",
+            title: "Repositories",
+            enabled: repos.length > 0,
+            children: sections(
+              [{ id: "repos:all", title: "Show All Repositories", enabled: hiddenRepos.size > 0 }],
+              repos.map((r) => ({ id: `repo:${r.key}`, title: oneSource ? r.name : `${r.name} (${SOURCES[r.source].name})`, checked: !hiddenRepos.has(r.key) })),
+            ),
+          },
         ]
       : [],
     pr
@@ -107,7 +125,15 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
   const option = FOLDER_OPTIONS.find((key) => choice === `option:${key}`);
   if (choice === "refresh") void manualRefresh(folderId);
   else if (option) updateFolder(folderId, { [option]: !folder[option] });
-  else if (choice.startsWith("filter:")) {
+  else if (choice === "repos:all") {
+    updateFolder(folderId, { hiddenRepos: [] });
+    void refreshFolder(folderId);
+  } else if (choice.startsWith("repo:")) {
+    const repo = choice.slice(5);
+    const show = folder.hiddenRepos.includes(repo);
+    setRepoHidden(folderId, repo, !show);
+    if (show) void refreshFolder(folderId);
+  } else if (choice.startsWith("filter:")) {
     const key = choice.slice(7) as "authored" | "reviewRequests";
     updateFolder(folderId, { filters: { ...folder.filters, [key]: !folder.filters[key] } });
     void refreshFolder(folderId);
@@ -135,6 +161,7 @@ export function liveItemMenuItems(windowId: string, folderId: string, item: Live
     [
       { id: "open", title: tabId ? "Show Tab" : "Open", symbol: "arrow.up.forward.square" },
       { id: "background", title: "Open in Background", enabled: !tabId },
+      ...(tabId ? [{ id: "backToPin", title: "Back to Pinned URL", symbol: "arrow.uturn.backward", enabled: liveTabAway(tabId), ...hintWhen(shown, "returnToPinnedUrl") }] : []),
     ],
     withAlternate({ id: "copy", title: "Copy Link", symbol: "link" }, { id: "copyMd", title: "Copy Link as Markdown", symbol: "link" }, null),
     [
@@ -149,6 +176,7 @@ export async function openLiveItemMenu(windowId: string, folderId: string, item:
   const unread = !!live().unread[folderId]?.includes(item.id);
   const choice = await showMenu(liveItemMenuItems(windowId, folderId, item, tabId));
   if (choice === "open") openLiveItem(windowId, folderId, item);
+  else if (choice === "backToPin" && tabId) returnLiveTab(tabId);
   else if (choice === "background") openLiveItem(windowId, folderId, item, { background: true });
   else if (choice === "copy") copyText(cleanUrl(item.url));
   else if (choice === "copyMd") copyText(markdownLink(item.title, item.url));

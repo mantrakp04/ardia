@@ -2,9 +2,9 @@ import { useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
-import { chooseTabLayout, updateSettings } from "../../../state/settings/actions";
+import { chooseAutoHideTabs, chooseSidebarSide, chooseTabLayout, updateSettings } from "../../../state/settings/actions";
 import { splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
-import { Box, Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, TextField, type Option } from "../../ui";
+import { Box, Button, Checkbox, DialogActions, DialogTitle, PopUp, Segmented, Sheet, space, Text, TextField, Toggle, type Option, type SegmentOption } from "../../ui";
 import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/time";
 import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -25,16 +25,26 @@ const SPLIT_WITH: { value: SplitLinkModifier; title: string }[] = [
   { value: "alt", title: "⌥-click" },
 ];
 
+const NEW_TAB_LINKS: { value: Settings["newTabLinksOpenIn"]; title: string }[] = [
+  { value: "tab", title: "A new tab" },
+  { value: "peek", title: "A Peek" },
+  { value: "littleArdia", title: "Little Ardia" },
+];
+
 const withNote = (anchor: SettingId, note: string | null) => (note ? `${setting(anchor).description ?? ""} ${note}`.trim() : undefined);
 
 function LinkKeys() {
   const peekWith = useSettings((s) => s.peekModifier);
   const splitWith = useSettings(splitLinkModifierOf);
+  const newTabLinks = useSettings((s) => s.newTabLinksOpenIn);
   const peekOptions = PEEK_WITH.map((o) => (o.value === "alt" && splitWith === "alt" ? { ...o, title: "⌥-click (split view moves to ⌥⇧-click)" } : o));
   const splitOptions = SPLIT_WITH.map((o) => (o.value === "alt" && peekWith === "alt" ? { ...o, title: "⌥-click (Peek moves to ⇧-click)" } : o));
   return (
     <Group>
       <SettingToggle anchor="tabs.peekLinksToOtherSites" />
+      <Row anchor="tabs.newTabLinksOpenIn">
+        <PopUp value={newTabLinks} options={NEW_TAB_LINKS} onChange={(newTabLinksOpenIn) => updateSettings({ newTabLinksOpenIn })} />
+      </Row>
       <Row anchor="tabs.peekModifier" description={withNote("tabs.peekModifier", splitWith === "alt" ? "⌥-click opens a split now: choosing it here moves split view back to ⌥⇧-click." : null)}>
         <PopUp value={peekWith} options={peekOptions} onChange={(peekModifier) => updateSettings({ peekModifier })} />
       </Row>
@@ -62,11 +72,26 @@ const NEW_TAB_BUTTON: { value: Settings["newTabButtonPosition"]; title: string }
   { value: "top", title: "At the top" },
 ];
 
+const SIDEBAR_SIDES: SegmentOption<Settings["sidebarSide"]>[] = [
+  { value: "left", title: "Left" },
+  { value: "right", title: "Right" },
+];
+
 const DURATION_UNITS: Option<DurationUnit>[] = [
   { value: "minutes", title: "Minutes" },
   { value: "hours", title: "Hours" },
   { value: "days", title: "Days" },
 ];
+
+function AutoHideTabsRow({ top }: { top: boolean }) {
+  const on = useSettings((s) => s.autoHideTabs);
+  const edge = top ? "top edge" : "edge";
+  return (
+    <Row anchor="tabs.autoHideTabs" description={`The tabs slide out of view and come back when you move the pointer to the window's ${edge}. ⌘S turns it on or off from any window.`}>
+      <Toggle value={on} accessibilityLabel={setting("tabs.autoHideTabs").title} onChange={chooseAutoHideTabs} />
+    </Row>
+  );
+}
 
 export function TabsPane() {
   const newTabOpens = useSettings((s) => s.newTabOpens);
@@ -74,16 +99,21 @@ export function TabsPane() {
   const newTabButtonPosition = useSettings((s) => s.newTabButtonPosition);
   const cleanUpMinutes = useSettings((s) => s.cleanUpInactiveTabsAfterMinutes);
   const top = useTabLayout() === "top";
+  const sidebarSide = useSettings((s) => s.sidebarSide);
 
   return (
     <View>
       <SectionHeader anchor="tabs.layout" description={null} />
       <Box gap="xl">
         <Box row gap="xl">
-          <LayoutChoice layout="sidebar" title="Tab layout in the sidebar" selected={!top} />
+          <LayoutChoice layout="sidebar" title="Tab layout in the sidebar" selected={!top} side={sidebarSide} />
           <LayoutChoice layout="top" title="Tab layout across the top of the window" selected={top} />
         </Box>
         <Group>
+        <AutoHideTabsRow top={top} />
+        <Row anchor="tabs.sidebarSide">
+          <Segmented options={SIDEBAR_SIDES} value={sidebarSide} onChange={chooseSidebarSide} />
+        </Row>
         <SettingToggle anchor="tabs.hideToolbarWhileScrolling" />
         <SettingToggle anchor="tabs.showSidebarButton" />
         <SettingToggle anchor="tabs.showClearButton" />
@@ -128,6 +158,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.warnBeforeClosingTabGroup" />
         <SettingToggle anchor="tabs.cmdClickCreatesTabGroup" />
         <SettingToggle anchor="tabs.optShiftClickOpensInGroup" />
+        <SettingToggle anchor="tabs.dragToGroupInTopStrip" />
         <SettingToggle anchor="tabs.autoGroupMeetingTabs" />
       </Group>
 
@@ -190,7 +221,7 @@ function CustomCleanUpSheet({ minutes }: { minutes: number }) {
 const FIELDS = { marginTop: space.l, alignItems: "center" } as const;
 const ERROR = { marginTop: space.ml } as const;
 
-function LayoutChoice({ layout, title, selected }: { layout: "sidebar" | "top"; title: string; selected: boolean }) {
+function LayoutChoice({ layout, title, selected, side }: { layout: "sidebar" | "top"; title: string; selected: boolean; side?: Settings["sidebarSide"] }) {
   const theme = useTheme();
   const look = useSettingsColors();
   return (
@@ -198,6 +229,7 @@ function LayoutChoice({ layout, title, selected }: { layout: "sidebar" | "top"; 
       <MiniWindow
         size="l"
         layout={layout === "sidebar" ? "side" : "top"}
+        side={side}
         bars={layout === "sidebar" ? 4 : 3}
         accentBar={1}
         look={{ window: look.miniWindow, bar: look.miniBar, page: look.miniPage, accent: theme.formAccent }}

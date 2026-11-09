@@ -86,9 +86,24 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
 - Frame: x = sidebar width, top 6, right 7, bottom 7. Radius 10.
 - Ours: 9 pt on every side, in every layout, by the owner's choice (2026-10-27): top, right, bottom and left at the
   window's edge, between split panes and beside an extension's side panel, and in Little Ardia (below its bar). Docked
-  beside the sidebar the card starts 3 pt past it, so its rows (6 pt in) sit 9 pt from the card. The traffic lights
+  beside the sidebar the card starts at its edge and the sidebar's rows, field and tiles sit 9 pt in from both its
+  edges (owner, 2026-11-03: the sidebar's side matches the frame's thickness), so they're 9 pt from the window's edge and
+  9 pt from the card. Dia's own inset is 6 with the card at the sidebar's width. The traffic lights
   and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
+- The frame is a setting (issue #66, 2026-11-07): `pageFrame`, 0–12 pt, default `CARD_INSET` (9), so the default look
+  is the one above. Settings › Appearance › Page Frame and onboarding's "How much frame?" (`pageFrameOf` in
+  `windowLayout.ts`, `components/window/cardFrame.ts`). The inset applies at the window's edges, below the top strip's
+  sides, in Little Ardia below its bar, and to the peek panel's top, bottom and side (its side is `min(5, frame)`);
+  split panes and the extension side panel sit `max(frame, 2)` apart, so two panes still read as two edge to edge.
+  Docked beside the sidebar the card starts at the sidebar's edge for any frame up to 9 (the sidebar's rows keep their
+  9 pt), and `frame - 9` past it above that. The corner radius scales with the frame, `10 × min(1, frame / 9)` rounded
+  to half points (0 edge to edge, where the window's own corner rounds the page), and the peek's is
+  `min(12, radius + frame - its side)`, so its corners still cover the card's. The traffic lights stay 21 pt below the
+  card's top (y = frame + 21; the compact toolbar lifts them as before). Below an 8 pt frame the sidebar's peek strip
+  would lie over the page, so the native edge watch takes the 8 pt band instead and clicks there reach the page.
+  Measured in a hidden instance (2x snapshots): card at 0/5/9/12 is 0/5/9/12 pt from the window's edges (docked: x 190,
+  190, 190, 193), corner radius 0 / 5.5 / 10 / 10 pt.
 - Fill: `WindowContent/BaseTint`, #121212 at 60% (dark) or white at 80% (light), over the window
   tint. Samples: `#1B1416` at the top, `#1F1C1D` at the bottom. Web content is opaque and sits
   below the toolbar; the toolbar itself is translucent card.
@@ -166,7 +181,10 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
       image at 100%). So YouTube gets a red ring, X a black one.
     - < 0.055, one colour → `template`: the tile filled with the mean colour, the icon drawn as a
       white template, the ring white with a soft-light compositing filter. A near-white icon (WCAG
-      relative luminance > 0.88) gets a black fill and an opaque white 30% ring instead.
+      relative luminance > 0.88) gets a black fill and an opaque white 30% ring instead. Ardia also gives
+      that white 30% ring to a near-black fill (luminance < 0.01, ChatGPT's black glyph): soft light can't
+      lighten black, so Dia's ring vanishes along the edges and only the anti-aliased corners show
+      (`DockSelection.ringStroke`, classic style only, drawn at render time so cached themes get it too).
     - No theme (a non-RGB image, no opaque pixels, no favicon): fill `TabBackgroundSelectedPrimary`
       (black / white), ring `TabDockItemDefaultSelectionStroke` (white .45 dark / black .48 light).
       Ardia still draws its older look there (white 25% fill, black rim, `TabOutline` bevel).
@@ -265,9 +283,15 @@ screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edge
 - Peek (pointer at the window's left edge): a floating panel over the page, which doesn't move. Inset 5 pt from the
   window's left, top and bottom edges (ours is 5 from the left and 9 from the top and bottom, so its ends line up with the 9 pt card), 227.5 pt wide (= the docked sidebar's width), rounded,
   dark, a 0.5 pt light border; it holds the traffic lights, the sidebar button, back/forward/reload, the URL field and the
-  tabs. It slides in from past the window's edge with no fade, on a spring: response 0.185 s, damping 0.77 (three peeks,
-  rms 2.1 % of the travel): 93 % in 66 ms, a 1.5 % (3.5 pt) overshoot at ~0.12 s, at rest by ~0.22 s. It leaves the same
-  way, ease-in-out over ~150 ms (two, rms 3.7 %).
+  tabs. It slides in from past the window's edge with no fade, on a spring: response 0.18 s, damping 0.8 (three peeks,
+  rms 2.2 % of the travel; the best unconstrained fit, 0.185/0.77, overshoots 2.3 % where every trace peaks at 1.5 %):
+  93 % in 66 ms, a 1.5 % (3.5 pt) overshoot at ~0.12 s, at rest by ~0.22 s. It leaves the same way, ease-in-out over
+  ~150 ms (two, rms 3.7 %). The whole card overshoots, fill and contents together; inset 5 pt, that never shows a gap at
+  the window's edge (owner's recording 2026-11-08).
+- Ours with the page frame at 0 (the peek flush with the window's left, top and bottom): the fill runs 16 pt on past the
+  window's edge, clipped by it, so the overshoot shifts the contents 3.5 pt and the panel stays joined to the window's edge
+  (before: the panel moved off the edge by 5 pt, a strip of page between). Fill and contents are one layer, so they
+  can't land a frame apart.
 - Docking from the peek (its sidebar button): instant. The panel becomes the docked sidebar and the page is laid out
   narrower in one frame (a 2 pt settle over three frames after).
 - Hiding the docked sidebar (its button): the sidebar and the card's left edge slide out together, the page laid out at
@@ -963,6 +987,7 @@ differs in a few places:
 - A window larger than its display stays on that display.
 - A window left unreachable at the end of any gesture, throw or slide animates back onto its display.
 - The pointer is hidden and warped only in a real run; test instances leave it alone.
+- In a corner (its frame exactly 10 pt in from two sides of the visible frame) its corners are 9 pt instead of 6, so they're concentric with a zoomed browser window's content card, which sits 9 pt in with a 10 pt radius (a tester's ask). The radius bends over 0.2 s, ease-in-out, once the window lands, and back to 6 when it moves off.
 
 Measured in a hidden instance (3440 × 1410 and 1512 × 949 visible frames, 501 × 282 and 336 × 189 windows): every throw landed exactly 10 pt
 from the corner, for example (2929, 10) bottom right and (10, 1118) top left. Every frame was within 1 pt of the spring

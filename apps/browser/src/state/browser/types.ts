@@ -16,6 +16,7 @@ export type Profile = {
   dataId?: string;
   theme?: ProfileTheme | null;
   pinnedCollapsed?: boolean;
+  shareTopApps?: true;
 };
 
 type WindowBase = {
@@ -157,10 +158,13 @@ export type ClosedTab = {
 export type ClosedWindow = {
   kind: "window";
   id: string;
-  window: Pick<BrowserWindow, "profileId" | "sidebarOpen" | "frame">;
+  window: Pick<BrowserWindow, "profileId" | "sidebarOpen" | "frame" | "tabLayout">;
   tabs: (TabSnapshot & { active: boolean; tabId?: string })[];
   groups: (Omit<TabGroup, "tabIds" | "windowId"> & { tabIndexes: number[] })[];
+  splits?: Pick<SplitView, "orientation" | "slots">[];
   closedAt: number;
+  lastWindow?: true;
+  activePin?: string;
 };
 
 export type ParkedPins = {

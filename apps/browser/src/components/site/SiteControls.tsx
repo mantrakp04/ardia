@@ -22,6 +22,7 @@ import { openPageIn, togglePageEngine } from "../../state/engines/actions";
 import { Box, Divider, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { patchPage, setPopover, usePage } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { toggleCastPicker } from "../../state/media/cast";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 import { openSettings } from "../../state/settings/settingsWindows";
@@ -202,13 +203,13 @@ function SiteControlsPanel({
     ) : null,
   ].filter(Boolean);
 
-  const blockerValue = blockerLabel(pageEngine, blocker, blocked);
+  const blockerValue = blockerLabel(blocker, blocked);
   const shownPermissions = featured ? permissionList.filter((p) => featured.has(p.type)) : [];
   const otherPermissions = permissionList.filter((p) => !featured?.has(p.type));
   const value = (p: SitePermission) => (settings ? choiceTitle(p.type, permissionValue(p.type, settings, sound) ?? "ask") : "…");
 
   return (
-    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={close} fitHeight glass closing={closing} onClosed={onClosed}>
+    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)} fitHeight glass closing={closing} onClosed={onClosed}>
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 
@@ -223,9 +224,9 @@ function SiteControlsPanel({
               icon="shield.lefthalf.filled"
               title="Block Ads & Trackers"
               value={blockerValue}
-              on={pageEngine !== "webkit" && !!blocker?.enabled && !blocker.allowed}
+              on={!!blocker?.enabled && !blocker.allowed}
               onPress={
-                !blocker || pageEngine === "webkit"
+                !blocker
                   ? undefined
                   : blocker.enabled
                     ? () => void toggleBlocker(blocker.allowed)

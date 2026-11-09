@@ -18,7 +18,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import automation_cli, cli, control, endpoint, hooks, runner
+from ardia_cli import automation_cli, cli, control, endpoint, hooks
 
 SCRATCH = Path.home() / "ardia-scratch"
 COMMANDS = [
@@ -139,7 +139,10 @@ class FakeArdia:
         if method == "subscribe":
             self.subscriptions[writer] = list(params.get("events", []))
             self.subscribed.set()
-            return {"id": ident, "result": {"ok": True}}
+            hooks_served = [h["name"] for h in params.get("hooks", []) if isinstance(h, dict)]
+            if not hooks_served:
+                return {"id": ident, "result": {"ok": True}}
+            return {"id": ident, "result": {"ok": True, "served": hooks_served, "revisions": {n: f"rev-{n}" for n in hooks_served}}}
         if method == "run":
             if params.get("command") not in {c["id"] for c in COMMANDS}:
                 return {"id": ident, "error": {"code": "unknown_command", "message": f"unknown command {params.get('command')}"}}
@@ -325,6 +328,28 @@ class Methods(Base):
         self.assertEqual(runs, [{"command": "newTab"}, {"command": "selectTab", "arg": "2", "window": 1}, {"command": "selectTab", "arg": "3"}])
         self.assertEqual(server.requests[0][0], "hello")
 
+    def test_hello_names_the_caller_and_announce_tells_ardia(self):
+        from ardia_cli import caller
+
+        server = self.serve()
+        claude = caller.Caller("Claude Code")
+        terminal = caller.Caller("Terminal", "/System/Applications/Utilities/Terminal.app")
+        with mock.patch.object(caller, "_current", claude):
+            self.run_cli("run", "newTab")
+        asyncio.run(control.announce(control.socket_path(), terminal))
+        server.replies["caller"] = lambda params: {"error": {"code": "unknown_method", "message": "no"}}
+        asyncio.run(control.announce(control.socket_path(), terminal))
+        hellos = [p for m, p in server.requests if m == "hello"]
+        self.assertEqual(hellos, [{"caller": {"name": "Claude Code"}}, {"caller": terminal.wire()}, {"caller": terminal.wire()}])
+        self.assertEqual([m for m, _ in server.requests if m == "caller"], ["caller", "caller"])
+
+    def test_announce_never_fails_the_command(self):
+        from ardia_cli import caller
+
+        started = time.monotonic()
+        asyncio.run(control.announce(self.temp / "missing.sock", caller.Caller("Codex")))
+        self.assertLess(time.monotonic() - started, control.ANNOUNCE_TIMEOUT + 0.5)
+
     def test_run_unknown_suggests(self):
         self.serve()
         status, _, err = self.run_cli("run", "newTabb")
@@ -429,8 +454,11 @@ class Methods(Base):
                 self.events = [event("tab.opened"), event("tab.opened")]
                 self.drops = [3, 0]
 
-            async def subscribe(self, names):
+            async def subscribe(self, names, extra=None):
                 pass
+
+            async def next_decide(self):
+                await asyncio.Event().wait()
 
             async def next_event(self):
                 if not self.events:
@@ -552,14 +580,14 @@ class On(Base):
 
         threading.Thread(target=feed, daemon=True).start()
         with mock.patch.dict(os.environ, {"ARDIA_TITLE": "stale", "ARDIA_TAB_ID": "stale"}):
-            status, _, err = self.run_cli("on", "tab.navigated,window.focused", "--match", "https://*.youtube.com/*", "--match", "https://*.vimeo.com/*", "--", sys.executable, "-I", "-c", RECORDER, str(self.out), "--match", "$ARDIA_URL")
+            status, _, err = self.run_cli("on", "tab.navigated,window.focused", "--full-urls", "--match", "https://*.youtube.com/*", "--match", "https://*.vimeo.com/*", "--", sys.executable, "-I", "-c", RECORDER, str(self.out), "--match", "$ARDIA_URL")
         self.assertEqual(status, 130, err)
         records = self.records()
         self.assertEqual(len(records), 1)
         self.assertEqual(json.loads(records[0]["stdin"]), navigated)
         self.assertEqual(records[0]["env"], {"ARDIA_EVENT": "tab.navigated", "ARDIA_WINDOW_ID": "1", "ARDIA_TAB_ID": "7", "ARDIA_PROFILE": "default", "ARDIA_URL": "https://www.youtube.com/watch?v=1", "ARDIA_TITLE": "Video x"})
         self.assertEqual(records[0]["argv"], ["--match", "$ARDIA_URL"])
-        self.assertEqual([p for m, p in server.requests if m == "subscribe"], [{"events": ["window.focused", "tab.navigated"]}])
+        self.assertEqual([p for m, p in server.requests if m == "subscribe"], [{"events": ["window.focused", "tab.navigated"], "fullUrls": True}])
 
     def test_needs_program_and_valid_input(self):
         status, _, err = self.run_cli("on", "tab.opened")
@@ -1010,57 +1038,29 @@ class LaunchAgent(Base):
     def test_list_reports_hooks(self):
         config = self.data / "config"
         config.mkdir()
-        (config / "hooks.json").write_text(json.dumps({"hooks": [{"name": "yt", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"]}]}))
+        (config / "hooks.json").write_text(json.dumps({"hooks": [
+            {"name": "yt", "on": ["tab.navigated"], "match": ["https://*.youtube.com/*"], "run": ["~/bin/yt-hook"]},
+            {"name": "fresh", "on": "app.launched", "command": "newTab"},
+            {"name": "standup", "at": "09:55", "days": ["mon", "fri"], "command": "openSettings"},
+            {"name": "hourly", "every": "1h", "run": ["~/bin/tick"]},
+            {"name": "strip", "on": "tab.opening", "rewrite": [{"match": "https://*/*", "to": "{origin}{path}"}]},
+            {"name": "ask", "on": "link.opening", "run": ["~/bin/route"]},
+            {"name": "jira", "omnibox": {"title": "Jira", "keyword": "j"}, "run": ["~/bin/jira"]},
+        ]}))
         status, out, _ = self.run_cli("hooks", "list")
         self.assertEqual(status, 0)
-        self.assertIn("yt  on tab.navigated  match https://*.youtube.com/*  run ~/bin/yt-hook  timeout 60s", out)
+        self.assertIn("yt  [event]  on tab.navigated  match https://*.youtube.com/*  run ~/bin/yt-hook  timeout 60s", out)
+        self.assertIn("fresh  [command]  on app.launched  command newTab", out)
+        self.assertIn("standup  [scheduled]  at 09:55 on mon,fri  command openSettings", out)
+        self.assertIn("hourly  [scheduled]  every 1h  run ~/bin/tick  timeout 60s", out)
+        self.assertIn("strip  [decide]  on tab.opening  answers in Ardia (rewrite)", out)
+        self.assertIn("ask  [decide]  on link.opening  run ~/bin/route", out)
+        self.assertIn("jira  [omnibox]  omnibox Jira (keyword j)  run ~/bin/jira", out)
         self.assertIn("not installed", out)
         (config / "hooks.json").write_text('{"hooks": [{"name": "yt"}]}')
         status, _, err = self.run_cli("hooks", "list")
         self.assertEqual(status, 1)
         self.assertEqual(self.calls, [])
-
-
-class ExecHelpers(Base):
-    def namespace(self, root):
-        session = SimpleNamespace(browser=None, opened=[])
-        with mock.patch.dict(sys.modules, {}):
-            try:
-                return runner.build_namespace(session, "<test>", root)
-            except ImportError as error:
-                self.skipTest(f"pydoll isn't installed: {error}")
-
-    def test_helpers_over_the_socket(self):
-        server = self.serve()
-        namespace = self.namespace(self.data)
-
-        async def check():
-            self.assertEqual(await namespace["windows"](), WINDOWS)
-            self.assertEqual(await namespace["run"]("selectTab", "2", window=1), {"ok": True})
-            with self.assertRaises(namespace["CommandError"]):
-                await namespace["run"]("nope")
-            stream = namespace["events"]("tab.opened")
-            first = asyncio.ensure_future(stream.__anext__())
-            await asyncio.get_running_loop().run_in_executor(None, server.subscribed.wait, 5)
-            server.emit(event("tab.opened", windowId=1, tabId=3, url="https://a.test/", title="A"))
-            got = await asyncio.wait_for(first, 5)
-            await stream.aclose()
-            return got
-
-        got = asyncio.run(check())
-        self.assertEqual(got["data"]["tabId"], 3)
-        self.assertIn(("run", {"command": "selectTab", "arg": "2", "window": 1}), server.requests)
-
-    def test_need_data_dir_with_explicit_endpoint(self):
-        namespace = self.namespace(None)
-
-        async def check():
-            for call in (namespace["windows"](), namespace["run"]("newTab")):
-                with self.assertRaises(namespace["ControlUnreachable"]) as caught:
-                    await call
-                self.assertIn("needs --data-dir or $ARDIA_DATA_DIR", str(caught.exception))
-
-        asyncio.run(check())
 
 
 class Help(Base):

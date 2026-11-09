@@ -1,12 +1,13 @@
 import { findScope, offeredSiteSearch, type SearchScope } from "@ardia/core";
 import { useBrowser } from "../browser/store";
 import { searchEngines } from "../settings/settings";
+import { providerKeywords } from "./activeProviders";
 import { knownHosts } from "./knownHosts";
 
 function scopeSources(windowId: string) {
   const s = useBrowser.getState();
   const profileId = s.windows[windowId]?.profileId ?? "";
-  return { engines: searchEngines(s.settings), hosts: knownHosts(s, profileId) };
+  return { engines: searchEngines(s.settings), hosts: knownHosts(s, profileId), providers: providerKeywords(windowId) };
 }
 
 export function scopeFor(text: string, windowId: string): SearchScope | null {
@@ -22,7 +23,7 @@ export function keywordScope(text: string, windowId: string): SearchScope | null
   if (/[/?#:@]/.test(bare)) return null;
   const scope = scopeFor(text, windowId);
   if (!scope) return null;
-  if (bare.includes(".")) return scope;
+  if (scope.kind === "provider" || bare.includes(".")) return scope;
   if (scope.kind !== "engine") return null;
   const engine = searchEngines(useBrowser.getState().settings).find((e) => e.id === scope.engineId);
   return engine && engine.keyword.toLowerCase() === text.toLowerCase() ? scope : null;

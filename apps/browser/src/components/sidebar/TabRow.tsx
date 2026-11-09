@@ -9,7 +9,7 @@ import { muteTitle } from "../../state/tabs/mute";
 import { HoverSlot } from "../ui/HoverSlot";
 import { ActivitySpinner, Button, Divider, FadeLabel, font, ink, OutsidePressArea, radius, space, Symbol, useHover } from "../ui";
 import { isPinnedRow, tabTitle } from "../../state/browser/model";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayFromPin, awayTitle } from "../../state/pins/organize";
 import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
@@ -22,32 +22,46 @@ import { TabBadges } from "../media/TabBadges";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
 import { useSidebarRowLook } from "./rowLook";
 import { ROW_TITLE_FRAME, SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
+import { AwayTitleLabel } from "./AwayTitle";
 import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
 import type { RowSection } from "./dragModel";
+import { GROUP_INNER_RADIUS } from "./geometry";
 
 export const TabRowItem = memo(function TabRowItem({
   tabId,
   section,
   parentGroup,
+  lastInBox = false,
   motion = null,
 }: {
   tabId: string;
   section: RowSection;
   parentGroup?: string;
+  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const { wrapper, handle } = useDragItem(entryKey("tab", tabId), { kind: "row", tabIds: [tabId], section, parentGroup }, motion?.clip);
   const onto = useDropOnto(entryKey("tab", tabId));
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style} {...handle}>
-      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} />
+      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} lastInBox={lastInBox} />
     </Animated.View>
   );
 });
 
-export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }: { tabId: string; onto?: boolean; shift?: Animated.Value | null }) {
+export const TabRow = memo(function TabRow({
+  tabId,
+  onto = false,
+  shift = null,
+  lastInBox = false,
+}: {
+  tabId: string;
+  onto?: boolean;
+  shift?: Animated.Value | null;
+  lastInBox?: boolean;
+}) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -67,6 +81,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const resettable = (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
+  const away = resettable && !resetting ? awayTitle(tab) : null;
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : ink.clear;
   const border = active || selected ? 0.5 : 0;
 
@@ -85,11 +100,12 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
             selected={active}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
+            cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
             padLeft={TAB_ROW.contentLeft - border}
             padRight={TAB_ROW.trailing - border}
           >
-            {resettable ? (
-              <View {...backToPin.hoverProps}>
+            <View {...backToPin.hoverProps}>
+              {resettable ? (
                 <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
                   {resetting ? (
                     <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
@@ -102,13 +118,13 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                     </View>
                   )}
                 </Pressable>
-              </View>
-            ) : (
-              <View>
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                <TabBadges tabId={tab.id} />
-              </View>
-            )}
+              ) : (
+                <View>
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                  <TabBadges tabId={tab.id} />
+                </View>
+              )}
+            </View>
             {(playingAudio || mute) && (
               <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: space.s }} tooltip={muteTitle(mute)}>
                 <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
@@ -121,6 +137,8 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                 color={active ? theme.tabSelectedText : theme.textPrimary}
                 onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
               />
+            ) : away ? (
+              <AwayTitleLabel away={away} color={active ? theme.tabSelectedText : theme.textTab} fontSize={font.body.fontSize} height={TAB_ROW.titleHeight} style={AWAY_FRAME} />
             ) : (
               <SidebarRowLabel text={title} color={active ? theme.tabSelectedText : theme.textTab} />
             )}
@@ -137,6 +155,8 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
     </View>
   );
 });
+
+const AWAY_FRAME = { flex: 1, marginLeft: TAB_ROW.titleGap } as const;
 
 export function RenameField({
   initial,
@@ -191,11 +211,13 @@ export const SplitRowItem = memo(function SplitRowItem({
   splitId,
   section,
   parentGroup,
+  lastInBox = false,
   motion = null,
 }: {
   splitId: string;
   section: RowSection;
   parentGroup?: string;
+  lastInBox?: boolean;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
@@ -215,6 +237,7 @@ export const SplitRowItem = memo(function SplitRowItem({
           fill={active ? theme.tabSelected : hovered ? theme.tabHover : ink.clear}
           selected={active}
           border={splitBorder}
+          cornerRadius={lastInBox ? GROUP_INNER_RADIUS : undefined}
           padLeft={space.xs - splitBorder}
           padRight={space.xs - splitBorder}
         >

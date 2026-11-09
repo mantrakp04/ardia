@@ -12,6 +12,7 @@ import type { Tab } from "../browser/types";
 import { bookmarkTabs, copyUrls, editPinnedPage, newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { isCalendarUrl } from "../live/meetings";
 import { bookmarkTab } from "../bookmarks/actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { calendarMenuItem, dismissNowMenuItems, runCalendarMenu } from "./liveMenus";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { togglePageEngine } from "../engines/actions";
@@ -143,10 +144,12 @@ export function tabMenuItems(s: BrowserState, windowId: string, tab: Tab, f: Fac
     openItems(s, tab, f),
     calendarItems(tab),
     organiseItems(s, windowId, tab, f),
-    [
-      { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
-      { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
-    ],
+    bookmarksShown(s.settings)
+      ? [
+          { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
+          { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
+        ]
+      : [],
     withAlternate(
       { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
       { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },

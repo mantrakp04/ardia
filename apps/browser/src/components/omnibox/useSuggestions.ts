@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
-import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
+import { useBookmarkEngine, useBookmarks, useBookmarksShown } from "../../state/bookmarks/hooks";
 import { useProfileHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
@@ -21,6 +21,7 @@ import { currentBarActions } from "../../state/omnibox/barActions";
 import { useBangs } from "../../state/omnibox/bangs";
 import { useBarExtensions } from "./extensions";
 import { historyHosts } from "../../state/omnibox/knownHosts";
+import { useProviderSections } from "./useProviderSections";
 
 const NO_REMOTE: string[] = [];
 const EMPTY: SuggestionResult = { items: [], completion: "" };
@@ -28,6 +29,7 @@ const WARM_SLICE_MS = 4;
 
 type BookmarkRow = { url: string; title: string; favicon: string | null };
 const bookmarkCache = new WeakMap<Bookmarks, Map<string, BookmarkRow[]>>();
+const NO_BOOKMARKS: BookmarkRow[] = [];
 
 function engineBookmarks(b: Bookmarks, engine: string): BookmarkRow[] {
   let perEngine = bookmarkCache.get(b);
@@ -80,7 +82,8 @@ export function useSuggestions({
   const menuBar = useMenuBarRevision();
 
   const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
-  const bookmarkRows = useMemo(() => engineBookmarks(bookmarks, bookmarkEngine), [bookmarks, bookmarkEngine]);
+  const showBookmarks = useBookmarksShown();
+  const bookmarkRows = useMemo(() => (showBookmarks ? engineBookmarks(bookmarks, bookmarkEngine) : NO_BOOKMARKS), [showBookmarks, bookmarks, bookmarkEngine]);
   const source = useMemo(() => ({ tabs, history, bookmarks: bookmarkRows }), [tabs, history, bookmarkRows]);
 
   useEffect(() => {
@@ -101,13 +104,15 @@ export function useSuggestions({
   const bang = useMemo(() => (bangs ? findBang(query, bangs) : null), [bangs, query]);
   useEffect(() => {
     const q = query.replace(/^\?/, "").trim();
-    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history") {
+    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history" || scope?.kind === "provider") {
       fetcher.cancel();
       return;
     }
     fetcher.request(fromEngine, q, (list) => setRemote({ text: query, list }));
   }, [active, suggestionsOn, query, bang, fromEngine, scope, fetcher]);
   useEffect(() => () => fetcher.cancel(), [fetcher]);
+
+  const providers = useProviderSections({ text, active, scope, windowId, skip: !!bang });
 
   const remoteList = useMemo(() => {
     if (remote.text === query) return remote.list;
@@ -117,7 +122,7 @@ export function useSuggestions({
   }, [remote, query]);
 
   return useMemo(() => {
-    if (!active || !query) return EMPTY;
+    if (!active || (!query && scope?.kind !== "provider")) return EMPTY;
     return buildSuggestions(text, source, {
       engine,
       preference,
@@ -129,6 +134,7 @@ export function useSuggestions({
       scope,
       preventInline,
       bangs,
+      providers,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, providers]);
 }

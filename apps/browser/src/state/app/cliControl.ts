@@ -21,6 +21,7 @@ import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { errorText } from "../../lib/errors";
 import { focusedWindowOf } from "../windows/ui";
+import type { CliCaller } from "./cliCaller";
 
 const DOC = "ardia-cli.json";
 const DOC_VERSION = 1;
@@ -69,11 +70,26 @@ export const useCli = create<CliState>()(() => ({
   error: saved.error ?? null,
 }));
 
-export const useCliIndicator = create<{ shown: boolean }>()(() => ({ shown: false }));
+export const useCliIndicator = create<{ shown: boolean; caller: CliCaller | null }>()(() => ({ shown: false, caller: null }));
 
 let indicatorHide: ReturnType<typeof setTimeout> | null = null;
 let socketRuns = 0;
 let socketServing = false;
+let indicatorStep = 0;
+let callerStep = 0;
+let hiddenStep = 0;
+
+function showIndicator(shown: boolean) {
+  if (!shown) hiddenStep = ++indicatorStep;
+  const caller = shown && callerStep < hiddenStep ? null : useCliIndicator.getState().caller;
+  useCliIndicator.setState({ shown, caller });
+}
+
+export function noteCliCaller(caller: CliCaller) {
+  callerStep = ++indicatorStep;
+  const current = useCliIndicator.getState().caller;
+  if (current?.name !== caller.name || current.app !== caller.app) useCliIndicator.setState({ caller });
+}
 
 function updateIndicator({ server }: CliState) {
   const cdpOn = server?.state === "on";
@@ -82,13 +98,13 @@ function updateIndicator({ server }: CliState) {
   if (connected || !on) {
     if (indicatorHide) clearTimeout(indicatorHide);
     indicatorHide = null;
-    if (useCliIndicator.getState().shown !== connected) useCliIndicator.setState({ shown: connected });
+    if (useCliIndicator.getState().shown !== connected) showIndicator(connected);
     return;
   }
   if (!useCliIndicator.getState().shown || indicatorHide) return;
   indicatorHide = setTimeout(() => {
     indicatorHide = null;
-    useCliIndicator.setState({ shown: false });
+    showIndicator(false);
   }, INDICATOR_HOLD_MS);
 }
 

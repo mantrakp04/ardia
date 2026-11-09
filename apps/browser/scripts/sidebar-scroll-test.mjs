@@ -8,7 +8,7 @@ import { launch, reporter, session, sleep } from "../../../scripts/lib/instance.
 const args = process.argv.slice(2);
 const appArg = args.find((a) => !a.startsWith("--"));
 if (!appArg) {
-  console.error("usage: node sidebar-scroll-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nThe sidebar's pinned tiles stay put while the tabs scroll under them (Dia's dock), with the address field in the sidebar and without: drags onto the tiles after a scroll, selecting a tile while scrolled, and a dock too tall for the window (24 tiles in an 800 pt window).");
+  console.error("usage: node sidebar-scroll-test.mjs <Debug Ardia.app> [--port=<DevTools port>] [--keep-data]\n\nThe sidebar's pinned tiles stay put while the tabs scroll under them (Dia's dock), with the address field in the sidebar and without: drags onto the tiles after a scroll, selecting a tile while scrolled, a dock too tall for the window (24 tiles in an 800 pt window), and a click on a tab in view after a change to another profile's page.");
   process.exit(2);
 }
 const appPath = resolve(appArg);
@@ -28,9 +28,11 @@ const url = (name) => `http://127.0.0.1:${server.address().port}/${name}`;
 const tab = (id, extra = {}) => ({ id, url: url(id), title: id.toUpperCase(), ...extra });
 const PINS = ["p1", "p2", "p3"];
 const LOOSE = Array.from({ length: 40 }, (_, i) => `t${i}`);
+const WORK = Array.from({ length: 40 }, (_, i) => `w${i}`);
 const fixture = session({
-  windows: [{ id: "w1", frame: [80, 80, 1280, 800], activeTabIds: { default: "t0" } }],
-  tabs: [...PINS.map((id) => tab(id, { pinned: true, pinnedUrl: url(id) })), ...LOOSE.map((id) => tab(id))],
+  profiles: ["Personal", "Work"],
+  windows: [{ id: "w1", frame: [80, 80, 1280, 800], activeTabIds: { default: "t0", work: "w0" } }],
+  tabs: [...PINS.map((id) => tab(id, { pinned: true, pinnedUrl: url(id) })), ...LOOSE.map((id) => tab(id)), ...WORK.map((id) => tab(id, { profileId: "work" }))],
 });
 
 let app = null;
@@ -140,6 +142,21 @@ try {
     await run(`return scrollTo(120);`);
     const fixed = await run(`return frameOf("p1");`);
     assert.equal(fixed.y, back.y, "three tiles stay put again");
+  });
+
+  await rep.check("after a change to another profile's page, clicking a tab in view leaves that page's list where it is", async () => {
+    await layoutWith("sidebar");
+    await run(`return scrollTo(600);`);
+    await run(`st().switchProfile("w1", "work"); return settle(1500).then(() => scrollTo(300));`);
+    await run(`st().switchProfile("w1", "default"); return settle(1500);`);
+    const rows = await run(`return viewport().then((v) => Promise.all(${JSON.stringify(LOOSE)}.map((id) => frameOf(id).then((f) => f && { id, ...f }))).then((fs) =>
+      fs.filter((f) => f && f.y >= v.y + 30 && f.y + f.h <= v.y + v.h - 30)));`);
+    const row = rows.at(-2);
+    const x = Math.round(row.x + 40), y = Math.round(row.y + row.h / 2);
+    await run(`return ac.shell.devSetPointer("w1", { x: ${x}, y: ${y} }).then(() => act("mouse:down:${x},${y}")).then(() => settle(70)).then(() => act("mouse:up:${x},${y}")).then(() => settle(1000));`);
+    assert.equal(await run(`return st().windows.w1.activeTabIds.default;`), row.id, `${row.id} selected`);
+    assert.equal((await run(`return frameOf(${JSON.stringify(row.id)});`)).y, row.y, `${row.id} stays at ${row.y}`);
+    await run(`return ac.shell.devSetPointer("w1", null);`);
   });
 } finally {
   await app?.quit();

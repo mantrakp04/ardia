@@ -181,3 +181,37 @@ LEFT JOIN
     WHERE session_id != '' AND event != '$replay_chunk'
     GROUP BY session_id
 ) AS e USING (session_id);
+
+CREATE OR REPLACE VIEW telemetry.feedback AS
+SELECT
+    LogAttributes['feedback_id'] AS id,
+    toDateTime64(Timestamp, 6, 'UTC') AS timestamp,
+    parseDateTime64BestEffortOrNull(LogAttributes['created_at'], 3, 'UTC') AS created_at,
+    DistinctId AS distinct_id,
+    LogAttributes['install_id'] AS install_id,
+    SessionId AS session_id,
+    LogAttributes['kind'] AS kind,
+    LogAttributes['title'] AS title,
+    LogAttributes['description'] AS description,
+    LogAttributes['source'] AS source,
+    LogAttributes['app_version'] AS app_version,
+    LogAttributes['app_build'] AS app_build,
+    LogAttributes['channel'] AS channel,
+    LogAttributes['os_version'] AS os_version,
+    LogAttributes['arch'] AS arch,
+    LogAttributes['cli_version'] AS cli_version,
+    LogAttributes['contact'] AS contact,
+    LogAttributes['page_address'] AS page_address,
+    toUInt8OrZero(LogAttributes['watch_days']) AS watch_days,
+    parseDateTime64BestEffortOrNull(LogAttributes['watch_until'], 3, 'UTC') AS watch_until,
+    LogAttributes['diagnostics'] AS diagnostics,
+    LogAttributes['attachments'] AS attachments,
+    toUInt8OrZero(LogAttributes['attachment_count']) AS attachment_count,
+    LogAttributes['has_recording'] = 'true' AS has_recording,
+    LogAttributes['has_trace'] = 'true' AS has_trace,
+    toUInt32OrNull(LogAttributes['issue_number']) AS issue_number,
+    nullIf(LogAttributes['issue_url'], '') AS issue_url,
+    nullIf(LogAttributes['issue_error'], '') AS issue_error,
+    LogAttributes['ingest_key'] AS ingest_key
+FROM telemetry.otel_logs FINAL
+WHERE Event = 'feedback_submitted' AND ServiceName = 'ardia-feedback';

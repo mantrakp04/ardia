@@ -14,6 +14,7 @@ import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERN
 import { extensionMenu } from "../extensions/actions";
 import { menuBarBindings } from "./commandShortcuts";
 import { focusedWindowOf } from "../windows/ui";
+import { BOOKMARK_COMMANDS, bookmarksShown } from "../bookmarks/visibility";
 
 function menuBookmarks(b: Bookmarks, folderId: string, depth = 0): MenuBookmark[] {
   return folderChildren(b, folderId).map((n: BookmarkNode) =>
@@ -66,7 +67,7 @@ export function menuState(s: BrowserState): MenuState {
 
   const disabled: string[] = [];
   if (!tab || !splitOf(s, tab.id)) disabled.push("focusNextPane", "focusPreviousPane");
-  if (w && tabLayoutOf(s, w.id) === "top") disabled.push("toggleAddressBar");
+  if (w && tabLayoutOf(s, w.id) === "top") disabled.push("toggleAddressBar", "toggleSidebarSide");
   if (!w) disabled.push(...WINDOW_COMMANDS);
   else {
     if (!page?.url) disabled.push(...PAGE_COMMANDS);
@@ -78,11 +79,14 @@ export function menuState(s: BrowserState): MenuState {
     else if (tab) disabled.push(`moveTabToProfile:${tab.profileId}`);
     if (regularWindows.length < 2) disabled.push("mergeAllWindows");
   }
+  const showBookmarks = bookmarksShown(s.settings);
+  if (!showBookmarks) disabled.push(...BOOKMARK_COMMANDS);
   if (!s.closedTabs.length && !s.closedWindows.length && !s.closedGroups.length) disabled.push("reopenClosedTab");
   if (!s.closedWindows.length) disabled.push("reopenClosedWindow");
 
   const checked = settingChecks(s.settings);
   if (s.settings.addressBar === "sidebar") checked.push("toggleAddressBar");
+  if (s.settings.sidebarSide === "right") checked.push("toggleSidebarSide");
   if (tabLayoutOf(s, windowId) === "sidebar") checked.push("toggleTabLayout");
   if (w && !w.sidebarOpen) checked.push("toggleSidebar");
 
@@ -113,7 +117,7 @@ export function menuState(s: BrowserState): MenuState {
 
   const closed = [
     ...s.closedTabs.filter((c) => !c.tab.profileId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
-    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`, at: c.closedAt })),
+    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
   ]
     .sort((a, b) => b.at - a.at)
     .slice(0, 10)
@@ -126,6 +130,7 @@ export function menuState(s: BrowserState): MenuState {
     profiles: s.profileOrder.map((id) => ({ id, title: s.profiles[id]!.name, current: w?.profileId === id })),
     windows: w?.kind === "private" ? [] : regularWindows.filter((id) => id !== windowId).map((id) => ({ id, title: windowTitle(s, id) })),
     ...bookmarkMenus(s.bookmarks, engineProfile(s, bookmarkProfile)),
+    bookmarksShown: showBookmarks,
     recentlyClosed: closed,
     recentlyClosedGroups: sidebar.recentlyClosedGroups,
     warnBeforeQuitting: s.settings.warnBeforeQuitting,

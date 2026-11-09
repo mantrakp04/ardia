@@ -91,6 +91,7 @@ ARDIACORE_EXPORT
                      origin:(nullable NSString*)origin
                       audio:(nullable NSString*)audio;
 @property(class, readonly) NSDictionary<NSString*, NSNumber*>* desktopCaptureAudio;
+@property(class) BOOL pagesPickDisplayMedia;
 - (void)offTheRecordProfileFor:(ArdiaCoreProfile*)profile
                     completion:(void (^)(ArdiaCoreProfile* _Nullable offTheRecord,
                                          NSString* _Nullable error))completion;
@@ -132,6 +133,12 @@ ARDIACORE_EXPORT
        completion:(void (^)(NSData* _Nullable body))completion;
 @end
 
+typedef NS_ENUM(NSInteger, ArdiaCoreAdoption) {
+  ArdiaCoreAdoptionRefused,
+  ArdiaCoreAdoptionAdopted,
+  ArdiaCoreAdoptionBusy,
+};
+
 @protocol ArdiaCoreWindowDelegate <NSObject>
 @optional
 - (void)window:(ArdiaCoreWindow*)window
@@ -159,6 +166,7 @@ ARDIACORE_EXPORT
 - (void)window:(ArdiaCoreWindow*)window showRequestedActive:(BOOL)active;
 - (BOOL)windowShouldClose:(ArdiaCoreWindow*)window;
 - (void)windowDidCancelClose:(ArdiaCoreWindow*)window;
+- (void)windowCanTakeTabs:(ArdiaCoreWindow*)window;
 - (void)window:(ArdiaCoreWindow*)window
     confirmCloseWithDownloads:(int)count
                    completion:(void (^)(BOOL closeAnyway))completion;
@@ -192,7 +200,8 @@ ARDIACORE_EXPORT
 - (void)close;
 
 - (void)prepareProfile:(ArdiaCoreProfile*)profile;
-- (void)adoptTab:(ArdiaCoreTab*)tab;
+- (ArdiaCoreAdoption)adoptTab:(ArdiaCoreTab*)tab;
+- (ArdiaCoreAdoption)canAdoptTab:(ArdiaCoreTab*)tab;
 - (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
                           profile:(ArdiaCoreProfile*)profile
                        foreground:(BOOL)foreground;
@@ -313,6 +322,8 @@ ARDIACORE_EXPORT
 - (void)reloadIgnoringCache;
 - (void)loadIfNeeded;
 @property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
+@property(readonly) int committedHTTPStatus;
+@property(readonly) int committedDocumentCount;
 @end
 
 @interface ArdiaCoreTab (Page)

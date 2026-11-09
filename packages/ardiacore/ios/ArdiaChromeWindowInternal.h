@@ -38,21 +38,12 @@ void ConfigureWindow(NSWindow *window);
 extern const void *kLightsCenterKey;
 extern const void *kLightsShownKey;
 extern const void *kLightsMoveKey;
+extern const void *kLightsTrailingKey;
 NSArray<NSButton *> *TrafficLightButtons(NSWindow *window);
-NSPoint LightsCenter(NSValue *center, NSSize size);
+NSPoint LightsCenter(NSWindow *window, NSValue *center, NSSize size);
 void TranslateTrafficLights(NSWindow *window, CGFloat dx);
 void RetileTrafficLights(NSWindow *window);
 bool MoveTrafficLights(NSWindow *window, NSValue *center);
-
-void WatchFullScreenLights(NSWindow *window);
-void PlaceFullScreenLights(NSWindow *window);
-NSView *FullScreenLightsView(NSWindow *window);
-
-void SuppressFullScreenTitlebar(NSWindow *window);
-CGFloat FullScreenRevealHeight(NSWindow *window);
-void ApplyFullScreenReveal(NSWindow *window);
-void SetFullScreenRevealAmount(NSWindow *window, double amount);
-NSDictionary *FullScreenRevealState(NSWindow *window);
 
 NSMenuItem *ReservedMenuItemForEvent(NSEvent *event);
 bool IsReservedKey(NSEvent *event);

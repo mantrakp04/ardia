@@ -88,6 +88,8 @@ struct ArdiaCommits {
   __weak ArdiaCoreTab *tab;
   NSString *url;
   double at{};
+  int httpStatus{};
+  int documents{};
 };
 
 struct ArdiaPageFocusState {
@@ -135,31 +137,49 @@ struct ArdiaPageFocusState {
   BOOL _pinned;
   NSView *_devtoolsView;
   CFTimeInterval _linkDropAt;
+  NSMutableArray<NSDictionary<NSString *, id> *> *_newTabLinks;
   id _sightObserver;
 }
 - (ArdiaWindowController *)controller;
 - (void)emit:(NSString *)name payload:(NSDictionary *)payload;
 @end
 
+typedef NS_ENUM(NSInteger, ArdiaTransfer) {
+  ArdiaTransferNone,
+  ArdiaTransferTaken,
+  ArdiaTransferHeld,
+};
+
 @interface ArdiaWebView (TransferInternal)
-+ (void)keepTransfersOfWindow:(NSWindow *)window;
++ (BOOL)keepTransfersOfWindow:(NSWindow *)window;
++ (void)retryPagesInWindow:(ArdiaWindowController *)controller;
+- (void)waitForWindow;
 - (BOOL)takeLinkTab:(NSString *)adoptId;
 - (void)ensureTab;
 - (BOOL)cloneTab:(NSString *)sourceKey profile:(ArdiaCoreProfile *)profile;
 - (BOOL)canTake:(ArdiaCoreTab *)tab;
-- (BOOL)takeTransferredTab;
+- (ArdiaTransfer)takeTransferredTab;
 - (void)bindRestoreKey;
 @end
 
 @interface ArdiaWebView (TabInternal)
-- (void)adoptIntoWindow;
+- (ArdiaCoreAdoption)adoptIntoWindow;
+- (ArdiaCoreAdoption)windowTakes:(ArdiaCoreTab *)tab;
+- (void)adoptMovedPage;
+- (BOOL)holdTransferOf:(ArdiaCoreTab *)tab;
 - (void)attach:(ArdiaCoreTab *)tab;
 - (void)detach;
 - (void)stashPageReports;
 - (void)takePageReports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
-- (void)announceOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition tries:(int)tries;
+- (void)openedLinkTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)announceOpenedTab:(ArdiaCoreTab *)tab
+                  adoptId:(NSString *)adoptId
+              disposition:(NSString *)disposition
+                     link:(BOOL)link
+                    tries:(int)tries;
+- (void)noteNewTabLink:(nullable NSString *)url;
 - (void)tabRemovedFromWindow:(ArdiaCoreWindow *)window;
 - (void)tabActivatedByChrome:(BOOL)chromes;
 - (void)devToolsChanged:(NSView *)devToolsView;
@@ -296,6 +316,7 @@ BOOL PeekTracing();
 void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
+NSDictionary *_Nullable RecentClickPoint(ArdiaWebView *view);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

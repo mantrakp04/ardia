@@ -274,10 +274,14 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "---",
     "Collapse Pinned Tabs [rectangle.compress.vertical] (off)",
     "Show Tabs in Sidebar [sidebar.left] ⇧⌘S ✓",
+    "Sidebar on Right [sidebar.right]",
     "Auto-Hide Tabs ⌘S",
     "---",
     "Close All Tabs [xmark] ⇧⌘K",
   ]);
+  S().updateSettings({ sidebarSide: "right" });
+  assert.ok(top(sidebarMenuItems(S(), w)).includes("Sidebar on Right [sidebar.right] ✓"));
+  S().updateSettings({ sidebarSide: "left" });
   S().closeTabs([ids[1]]);
   assert.ok(top(sidebarMenuItems(S(), w)).includes("Reopen Closed Tab ⇧⌘T"));
 });

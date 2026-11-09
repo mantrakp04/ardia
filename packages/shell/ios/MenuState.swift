@@ -17,6 +17,7 @@ struct MenuState {
   var warnBeforeQuitting = false
   var warnBeforeClosingWindow = false
   var undoReopensClosedTab = false
+  var bookmarksShown = true
   var downloadsInProgress = 0
   var shortcuts: [String: [[String]]] = [:]
   var extensions: [MenuExtension] = []
@@ -36,6 +37,7 @@ struct MenuState {
     warnBeforeQuitting = update.warnBeforeQuitting
     warnBeforeClosingWindow = update.warnBeforeClosingWindow
     undoReopensClosedTab = update.undoReopensClosedTab
+    bookmarksShown = update.bookmarksShown
     downloadsInProgress = update.downloadsInProgress
     shortcuts = update.shortcuts
     extensions = update.extensions

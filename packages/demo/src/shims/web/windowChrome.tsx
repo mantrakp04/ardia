@@ -23,11 +23,11 @@ const ART = {
 type Light = keyof (typeof ART)["light"];
 const LIGHTS: Light[] = ["close", "minimize", "zoom"];
 
-let center: [number, number] | null = DEFAULT_CENTER;
+let center: { at: [number, number]; trailing: boolean } = { at: DEFAULT_CENTER, trailing: false };
 const watchers = new Set<() => void>();
 
-export function setTrafficLightsCenter(_windowId: string, next: [number, number] | null) {
-  center = next ?? DEFAULT_CENTER;
+export function setTrafficLightsCenter(_windowId: string, next: [number, number] | null, trailing: boolean) {
+  center = { at: next ?? DEFAULT_CENTER, trailing: !!next && trailing };
   for (const watcher of watchers) watcher();
   return Promise.resolve();
 }
@@ -56,16 +56,18 @@ function TrafficLight({ name, theme }: { name: Light; theme: keyof typeof ART })
 }
 
 export function TrafficLights() {
-  const at = useSyncExternalStore(
+  const { at, trailing } = useSyncExternalStore(
     (watch) => (watchers.add(watch), () => void watchers.delete(watch)),
     () => center,
   );
   const theme = useBrowser((s) => (s.ui.appDark ? "dark" : "light"));
-  if (!at) return null;
   return (
-    <div aria-hidden style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1000 }}>
+    <div aria-hidden style={{ position: "absolute", left: 0, right: 0, top: 0, pointerEvents: "none", zIndex: 1000 }}>
       {LIGHTS.map((name, i) => (
-        <div key={name} style={{ position: "absolute", left: at[0] + i * SPACING - DIAMETER / 2, top: at[1] - DIAMETER / 2 }}>
+        <div
+          key={name}
+          style={{ position: "absolute", top: at[1] - DIAMETER / 2, ...(trailing ? { right: at[0] - i * SPACING - DIAMETER / 2 } : { left: at[0] + i * SPACING - DIAMETER / 2 }) }}
+        >
           <TrafficLight name={name} theme={theme} />
         </div>
       ))}

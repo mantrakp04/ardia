@@ -182,10 +182,11 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
     return () => clearInterval(t);
   }, []);
 
+  const locked = status === "locked";
   const advanced = async () => {
     const choice = await showMenu([
-      { id: "kit", title: "Save Recovery Kit…", symbol: "arrow.down.doc" },
-      { id: "copy", title: "Copy Recovery Code", symbol: "doc.on.doc" },
+      { id: "kit", title: "Save Recovery Kit…", symbol: "arrow.down.doc", enabled: !locked },
+      { id: "copy", title: "Copy Recovery Code", symbol: "doc.on.doc", enabled: !locked },
       { separator: true },
       { id: "now", title: "Sync Now", symbol: "arrow.triangle.2.circlepath" },
       { id: "reveal", title: "Show Sync Folder in Finder", symbol: "folder", enabled: !!info?.exists },
@@ -199,7 +200,6 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
     else if (choice === "stop") showStopSync();
   };
 
-  const locked = status === "locked";
   return (
     <View>
       <Group>

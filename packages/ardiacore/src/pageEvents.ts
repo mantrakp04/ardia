@@ -3,6 +3,7 @@ import type { NativeSyntheticEvent } from "react-native";
 import type { ExternalAppRequest } from "./permissions";
 import type {
   ActivateRequest,
+  AppBadge,
   AutofillPrompt,
   BlockedPopup,
   ContentBlockedState,
@@ -68,6 +69,8 @@ type NativeEvents = {
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
   onZapPicked: ZapPick;
+  onTransferRefused: { from: string };
+  onAppBadge: AppBadge;
 };
 export type Handlers = keyof NativeEvents;
 export type PageEvent = { name: string; data: unknown };
@@ -112,6 +115,8 @@ const PAGE_EVENTS = {
   onExternalApp: "externalApp",
   onPreferredSize: "preferredSize",
   onZapPicked: "zapPicked",
+  onTransferRefused: "transferRefused",
+  onAppBadge: "appBadge",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
 export const pageEventOf = (handler: Handlers): PageEventName => PAGE_EVENTS[handler];
@@ -156,6 +161,8 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
   onZapPicked: (e) => [e],
+  onTransferRefused: (e) => [e.from],
+  onAppBadge: (e) => [e],
 };
 
 export const isPageEventProp = (key: string): key is Handlers => key in unwrap;

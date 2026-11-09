@@ -7,6 +7,7 @@ globalThis.__DEV__ = false;
 
 const folder = new Map();
 const downloading = new Set();
+const unreadable = new Set();
 let ids = 0;
 globalThis.acTestNativeModules = {
   ArdiaSync: {
@@ -25,8 +26,10 @@ globalThis.acTestNativeModules = {
     },
     read: async (_folder, scope, known) => {
       const here = [...folder].filter(([, f]) => f.scope === scope);
-      const files = here.filter(([id]) => !known.includes(id) && !downloading.has(id)).map(([id, f]) => ({ id, payload: f.payload }));
-      return { files, pending: here.map(([id]) => id).filter((id) => downloading.has(id)), damaged: [], present: here.map(([id]) => id) };
+      const unknown = here.map(([id]) => id).filter((id) => !known.includes(id));
+      const files = here.filter(([id]) => unknown.includes(id) && !downloading.has(id) && !unreadable.has(id)).map(([id, f]) => ({ id, payload: f.payload }));
+      const damaged = unknown.filter((id) => unreadable.has(id) && !downloading.has(id)).map((id) => ({ id, age: 0 }));
+      return { files, pending: unknown.filter((id) => downloading.has(id)), damaged, present: here.map(([id]) => id) };
     },
     remove: async (_folder, _scope, list) => list.forEach((id) => folder.delete(id)),
     sealLocal: async (text) => `sealed:${text}`,
@@ -655,4 +658,48 @@ test("a Mac that joins a folder whose other devices sync no profiles pairs on it
     assert.equal(engineB.useSync.getState().joining, false);
     assert.ok(syncIdOf(engineB, "Personal"), "Personal syncs under its own id");
   });
+});
+
+test("a Mac that joined while the other Mac's files couldn't be read for over a day lists its profiles once they can", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?unreadableA");
+  const engineB = await import("./engine.ts?unreadableB");
+  await a.with(() => {
+    S().createProfile({ name: "Work" });
+    S().createProfile({ name: "Side Project" });
+  });
+  await turnOn(a, engineA);
+  for (const [id, f] of folder) if (f.scope === "app") unreadable.add(id);
+  const realNow = Date.now;
+  try {
+    await join(b, engineB);
+    await b.with(() => assert.equal(engineB.useSync.getState().joining, true));
+    Date.now = () => realNow() + 86_400_001;
+    await b.with(async () => {
+      await engineB.syncNow();
+      await engineB.syncNow();
+      assert.equal(engineB.useSync.getState().joining, false, "a day on, B pairs on its own");
+      assert.deepEqual(engineB.useSync.getState().remoteProfiles, []);
+    });
+    await a.with(async () => {
+      await engineA.syncNow();
+      assert.deepEqual(engineA.useSync.getState().remoteProfiles.map((p) => p.name), ["Personal"], "A lists B's Personal");
+    });
+    unreadable.clear();
+    await b.with(async () => {
+      await engineB.syncNow();
+      assert.deepEqual(
+        engineB.useSync.getState().remoteProfiles.map((p) => p.name),
+        ["Personal", "Work", "Side Project"],
+        "the files given up on are read once they can be, so B lists A's profiles too",
+      );
+      for (const p of engineB.useSync.getState().remoteProfiles) if (p.name !== "Personal") assert.ok(engineB.addRemoteProfile(p.syncId));
+      assert.deepEqual(S().profileOrder.map((id) => S().profiles[id].name), ["Personal", "Work", "Side Project"]);
+    });
+  } finally {
+    Date.now = realNow;
+    unreadable.clear();
+  }
 });

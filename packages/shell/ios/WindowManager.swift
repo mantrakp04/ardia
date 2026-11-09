@@ -11,7 +11,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
-  private var lightsCenters: [String: NSPoint] = [:]
+  private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
@@ -126,7 +126,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     behind: String? = nil
   ) {
     let window = entry.window, id = entry.id
-    if let center = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(center, in: window) }
+    if let lights = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(lights.center, trailing: lights.trailing, in: window) }
     window.title = title
     if small, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
@@ -205,6 +205,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
     for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
       NotificationCenter.default.addObserver(self, selector: #selector(fullScreenChanged(_:)), name: name, object: window)
     }
+    for name in [NSWindow.willEnterFullScreenNotification, NSWindow.willExitFullScreenNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(fullScreenWillChange(_:)), name: name, object: window)
+    }
   }
 
   private func observeDelegateNotifications(_ window: NSWindow) {
@@ -216,10 +219,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
-  func setTrafficLightsCenter(id: String, center: NSPoint?) {
-    lightsCenters[id] = center
+  func setTrafficLightsCenter(id: String, center: NSPoint?, trailing: Bool) {
+    lightsCenters[id] = center.map { ($0, trailing) }
     guard let window = window(id) else { return }
-    ChromeWindows.setTrafficLightsCenter(center, in: window)
+    ChromeWindows.setTrafficLightsCenter(center, trailing: trailing, in: window)
   }
 
   private func adopt(from: NSWindow, to: NSWindow) {
@@ -417,14 +420,22 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
+  @objc func fullScreenWillChange(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, let id = id(of: window), managed[id] != nil else { return }
+    sendFullScreen(window, id: id, on: notification.name == NSWindow.willEnterFullScreenNotification)
+  }
+
   @objc func fullScreenChanged(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window), let entry = managed[id] else { return }
     let entered = notification.name == NSWindow.didEnterFullScreenNotification
     entry.isFullScreen = entered
-    if isMainWindow(window) {
-      ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": entered && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
-    }
+    sendFullScreen(window, id: id, on: entered)
     if entered { fullScreen.entered(id) }
+  }
+
+  private func sendFullScreen(_ window: NSWindow, id: String, on: Bool) {
+    guard isMainWindow(window) else { return }
+    ShellEvents.send(.window, ["type": "fullScreen", "id": id, "on": on && !ArdiaChromeWindowHost.windowFullScreenIs(forPage: window)])
   }
 
   private static let resizeReportDelay: TimeInterval = 0.25

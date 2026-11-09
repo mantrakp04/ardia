@@ -1,4 +1,4 @@
-import { Animated, type View } from "react-native";
+import { Animated, type GestureResponderEvent, type View } from "react-native";
 import { NO_DROP } from "../../state/drag/drops";
 import { dropTabs } from "../../state/pins/actions";
 import { movingTabsFrom } from "../../state/sidebar/current";
@@ -12,8 +12,10 @@ import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
 import { boxed, type Drop, EDGE, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
-import { setDragEscapeCapture } from "../../state/drag/dragNative";
+import { captureEscape } from "../../state/drag/dragNative";
 import { entryKey } from "../../state/sidebar/entryKey";
+import { endHeldTabPress } from "../../state/sidebar/heldTabPress";
+import { tabPlace } from "../../state/sidebar/actions";
 
 export class DragController extends DragTargeting {
   create(key: string): Item {
@@ -35,7 +37,7 @@ export class DragController extends DragTargeting {
     this.token = {};
     suppressHover(true);
     session.escapable = true;
-    setDragEscapeCapture(true);
+    captureEscape("sidebarDrag", true);
     let seq = 0;
     if (tabCell(item)) {
       const single = sources.length === 1 ? (item.tabIds[0] ?? null) : null;
@@ -125,10 +127,10 @@ export class DragController extends DragTargeting {
     this.retarget();
   }
 
-  end(commit: boolean) {
+  end(commit: boolean, release: GestureResponderEvent | null = null) {
     const session = this.session;
     if (session?.external) return void this.finishExternal(false);
-    if (!session?.sources.length) return;
+    if (!session?.sources.length) return endHeldTabPress([], null);
     const { sources, drop, ghost, measured, into } = session;
     const splitDrop = commit ? endTabDrag() : (cancelTabDrag(), false);
     const folded = dragMarksOf(this.marks).folded;
@@ -140,11 +142,15 @@ export class DragController extends DragTargeting {
       !splitDrop && measured && ghost && sources.length === 1 && sources[0]!.kind !== "tile" && sources[0]!.section !== "folder" && !into && drop.type !== "onto" && drop.type !== "folder"
         ? this.landingSpot(commit ? drop : { type: "none" })
         : null;
+    const dragged = sources.flatMap((i) => i.tabIds);
+    const places = dragged.map(tabPlace).join();
     if (commit && !splitDrop && measured && sources.length) {
-      dropTabs(sources.flatMap((i) => i.tabIds), drop);
+      dropTabs(dragged, drop);
       if (drop.sequence) arrangeLive(drop.sequence);
     }
     this.reset();
+    const stayed = commit && !splitDrop && !into && dragged.map(tabPlace).join() === places;
+    endHeldTabPress(dragged, stayed ? release : null);
     if (leftPanel) closeFolderPanel();
     if (!spot || !ghost) {
       this.token = null;
@@ -185,7 +191,7 @@ export class DragController extends DragTargeting {
     }
     for (const i of session?.sources ?? []) i.size.stopAnimation();
     this.session = null;
-    if (session?.escapable) setDragEscapeCapture(false);
+    if (session?.escapable) captureEscape("sidebarDrag", false);
     suppressHover(false);
     this.setSources(new Set());
     markDrag(this.marks, { dropInto: null, onto: null, pins: false, pinCount: 0, pinBefore: null, folderTarget: null, folderAway: false });

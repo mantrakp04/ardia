@@ -9,6 +9,7 @@ import { answerExternalApp } from "../site/prompts";
 import { setPageSelection } from "../site/selection";
 import { clearEngineOffer, followSiteChoice } from "../engines/actions";
 import { revealToolbar } from "../windows/toolbarAutoHide";
+import { noteCaptureIndicatorCleared } from "../telemetry/usage";
 import { patchPage, pageOf, setPopover } from "./pageState";
 
 export function leftPage(tabId: string, url: string, previousPage: string, engine: PageEngine, inPeek: boolean) {
@@ -27,4 +28,10 @@ export function openBoostLink(tabId: string, url: string) {
   if (!shareCode) return;
   showImportBoost(shareCode);
   openSettings("boosts", currentTab(tabId)?.profileId);
+}
+
+export function pageEnded(tabId: string) {
+  if (!pageOf(tabId).mediaAccess) return;
+  noteCaptureIndicatorCleared();
+  patchPage(tabId, { mediaAccess: null });
 }

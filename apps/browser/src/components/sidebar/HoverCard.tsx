@@ -1,15 +1,16 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { displayUrl } from "@ardia/core";
 import { useTheme } from "../ui/theme";
-import { useIsBookmarked, useTab } from "../../state/browser/hooks";
+import { useIsBookmarked, useSidebarSide, useTab } from "../../state/browser/hooks";
 import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
 import { useHoverOrphaned, useIsShownTab } from "../../state/sidebar/hooks";
 import { useFolderPanel } from "../../state/sidebar/tileFolderUi";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayTitle } from "../../state/pins/organize";
+import { AwayTitleLabel } from "./AwayTitle";
 import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
@@ -20,13 +21,18 @@ import { ActionTile } from "../site/SiteControlsParts";
 import { SectionLabel } from "./SectionLabel";
 import { SidebarListRow, SidebarRowLabel } from "./SidebarRow";
 import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
+import { useBookmarksShown } from "../../state/bookmarks/hooks";
 import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
-import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
+import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
+import { HOVER_CARD_HEADER, hoverCardAt, sidebarEdgeOf } from "./hoverPlacement";
+import { usePeekSpan } from "../../state/windows/dockMotion";
+import { TAB_ROW } from "./tokens";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { TabIcon } from "./TabIcon";
-import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
+import { HoverPlayer, useShowsMiniPlayer } from "../media/HoverPlayer";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 
 const WIDTH = 264;
@@ -42,13 +48,17 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const { drawn, leaving, entering, motion } = useHoverCardMotion(windowId, target);
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
-  const edge = usePlayerEdge(windowId, shown?.anchor);
-  useHoverCardPlacement(motion, shown ? hoverCardOrigin(shown.anchor, player ? edge : undefined) : null, { width, height });
+  const side = useSidebarSide(windowId);
+  const sidebarEdge = sidebarEdgeOf(side, width, useSidebarWidth(windowId), usePeekSpan(windowId));
+  const frame = useMemo(() => ({ side, windowWidth: width, sidebarEdge }), [side, width, sidebarEdge]);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, frame) : null, { width, height });
   if (!shown) return null;
   return (
-    <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
-      <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
-    </Animated.View>
+    <HoverCardFrameProvider value={frame}>
+      <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
+        <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
+      </Animated.View>
+    </HoverCardFrameProvider>
   );
 }
 
@@ -62,8 +72,9 @@ function HoverContent({ hover, windowId, player, windowHeight }: { hover: Hover;
 }
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
+  const origin = useHoverCardOrigin(anchor);
   return (
-    <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...hoverCardOrigin(anchor) }}>
+    <HoverPanel {...cardHoverProps} width={WIDTH} pad="ml" style={{ position: "absolute", ...origin }}>
       {children}
     </HoverPanel>
   );
@@ -74,16 +85,21 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const tab = useTab(tabId);
   const isActive = useIsShownTab(windowId, tabId);
   const bookmarked = useIsBookmarked(tab?.url ?? "");
+  const showBookmarks = useBookmarksShown();
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
   const sleeping = useIsSleeping(tabId);
   if (!tab) return null;
-  const away = awayFromPin(tab);
+  const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: TAB_ROW.titleGap, height: HOVER_CARD_HEADER }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        {away ? (
+          <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />
+        ) : (
+          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
+        )}
       </View>
       {tab.url ? (
         <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
@@ -105,10 +121,11 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
       ) : null}
       <View style={{ flexDirection: "row", gap: space.xs, marginTop: space.m }}>
         <ActionTile caption icon={tab.pin ? "pin.slash" : "pin"} label={tab.pin ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
-        {tab.url ? (
+        {tab.url && showBookmarks ? (
           <ActionTile caption
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
-            label={bookmarked ? "Bookmarked" : "Bookmark"}
+            active={bookmarked}
+            label="Bookmark"
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}

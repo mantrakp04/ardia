@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
-import { layout } from "../ui/theme";
+import { useCardFrame } from "../window/cardFrame";
 import { curve, duration } from "../ui/motion";
 import { useActiveTabId, useTab, useWindowId } from "../../state/browser/hooks";
 import { closeBoostEditor, useBoostEditor } from "../../state/boosts/editor";
@@ -9,6 +9,7 @@ import { BOOST_PANEL } from "./tokens";
 
 export function BoostEditorDock() {
   const windowId = useWindowId();
+  const { splitGap } = useCardFrame();
   const editor = useBoostEditor(windowId);
   const activeId = useActiveTabId();
   const tabAlive = useTab(editor?.tabId, (t) => !!t);
@@ -24,7 +25,7 @@ export function BoostEditorDock() {
     });
   }, [editor?.tabId, editor?.boostId]);
   if (!shown) return null;
-  const room = BOOST_PANEL.width + layout.cardInset;
+  const room = BOOST_PANEL.width + splitGap;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: BOOST_PANEL.width, opacity: appear }}>

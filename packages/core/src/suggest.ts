@@ -4,9 +4,10 @@ import { NO_BOOKMARKS, poolFor, tabsOver, type Candidate } from "./candidatePool
 import { extensionSuggestions } from "./extensionRows.ts";
 import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
-import { fixupUrl, hostOf } from "./omnibox.ts";
+import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
 import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
+import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 import type { SuggestionResult, SuggestionSource, SuggestOptions, Suggestion } from "./suggestion.ts";
@@ -22,6 +23,7 @@ const DAY = 86_400_000;
 export function buildSuggestions(raw: string, source: SuggestionSource, options: SuggestOptions = {}): SuggestionResult {
   const { limit = 8, now = Date.now(), engine = BUILT_IN_ENGINES[0]!, preference = "website", remote = [], actions = [], scope, preventInline = false } = options;
   const query = raw.trim();
+  if (scope?.kind === "provider") return providerScopeSuggestions(query, scope, options.providers ?? [], limit);
   if (!query) return { items: [], completion: "" };
   const bare = query[0] === "h" || query[0] === "H" ? query.replace(/^https?:\/\/(?=\S)/i, "") : query;
   const q = bare.toLowerCase();
@@ -148,9 +150,23 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));
+  const providerAt = out.items.length;
   out.push(...remoteRows((text) => searchUrl(engine, text), engine.name));
   out.push(...pageRows.slice(3));
-  return { items: out.items, completion };
+  const providerRows = options.providers?.length ? globalProviderRows(options.providers, out.items) : [];
+  if (!providerRows.length) return { items: out.items, completion };
+  return { items: [...out.items.slice(0, providerAt), ...providerRows, ...out.items.slice(providerAt)], completion };
+}
+
+function providerScopeSuggestions(query: string, scope: SearchScope, sections: readonly ProviderSection[], limit: number): SuggestionResult {
+  const id = scope.providerId ?? "";
+  const items: ProviderSuggestion[] = [];
+  const typedUrl = scope.url && query ? providerUrl(searchUrlFor(scope.url, query)) : null;
+  if (typedUrl) items.push({ kind: "provider", providerId: id, provider: scope.name, title: query, url: typedUrl, icon: null });
+  const section = sections.find((x) => x.id === id);
+  const seen = new Set(items.map((x) => x.url));
+  if (section) for (const row of safeProviderRows({ id, title: scope.name }, section.rows, limit)) if (!seen.has(row.url) && items.length < limit) items.push(row);
+  return { items, completion: "" };
 }
 
 function typedIsPage(t: PageText, q: string): boolean {

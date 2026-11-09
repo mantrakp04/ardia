@@ -23,8 +23,11 @@ import { SelectedTab } from "./SelectedTab";
 import { CELL_STEP, dragRange, leaveIndex, type DragGeometry } from "./stripGroups";
 import { CHIP_LABEL_GAP, CHIP_PAD, DROP_RING_WIDTH, GAP, ITEM_HEIGHT, ITEM_TOP, PINNED_CELL, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
+import { useStripCardHover } from "./StripHoverCard";
 import { TabPressArea } from "../sidebar/TabPressArea";
-import { tabTitle, tabTooltip } from "../../state/browser/model";
+import { tabTitle } from "../../state/browser/model";
+import { awayTitle } from "../../state/pins/organize";
+import { AwayTitleLabel } from "../sidebar/AwayTitle";
 
 export function DraggableChip({
   tabId,
@@ -44,6 +47,8 @@ export function DraggableChip({
   out?: GroupOut;
 }) {
   const active = useIsActiveTab(tabId);
+  const windowId = useWindowId();
+  const dragToGroup = useSettings((s) => s.dragToGroupInTopStrip);
   const strip = useContext(DockContext);
   const latestStrip = useRef(strip);
   latestStrip.current = strip;
@@ -66,7 +71,7 @@ export function DraggableChip({
     gap: GAP,
     range,
     cross: dock ? tabIn(() => latestStrip.current, from, width) : undefined,
-    targets: !group && from >= 0 ? strip?.targets : undefined,
+    targets: dragToGroup && !group && from >= 0 ? strip?.targets : undefined,
     drop: (dx, ids) => {
       if (!member) return false;
       const at = leaveIndex(member.top, member.slot, member.chip, member.expanded, member.left + dx, width);
@@ -75,8 +80,9 @@ export function DraggableChip({
       return true;
     },
   });
+  const card = useStripCardHover(windowId, tabId, drag.ref);
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
+    <Animated.View ref={drag.ref} {...drag.panHandlers} {...card} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
       <View style={{ opacity: drag.crossed ? 0 : 1 }}>
         <TabChip tabId={tabId} width={width} tuck={tuck} dragged={drag.dragging} />
       </View>
@@ -118,9 +124,11 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const { hovered, hoverProps } = useHover();
   if (!tab) return null;
   const title = tabTitle(tab);
+  const away = awayTitle(tab);
   const onBand = active && !floating && !!palette.background;
+  const ink = onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab;
   return (
-    <View {...hoverProps} tooltip={tabTooltip(tab)} style={{ width, height: TOP_STRIP_HEIGHT }}>
+    <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
       {active && <SelectedTab width={width} band={band} opaque={dragged} />}
       {dragged && !active && (
         <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: TAB_RADIUS, backgroundColor: theme.windowTint[0] }} />
@@ -138,12 +146,11 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
                 <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
               </Pressable>
             )}
-            <FadeLabel
-              text={title}
-              fontSize={font.small.fontSize}
-              color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
-              style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
-            />
+            {away ? (
+              <AwayTitleLabel away={away} color={ink} fontSize={font.small.fontSize} height={16} style={{ flex: 1, marginLeft: CHIP_LABEL_GAP }} />
+            ) : (
+              <FadeLabel text={title} fontSize={font.small.fontSize} color={ink} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+            )}
             <HoverSlot
               hovered={hovered}
               width={iconButton.xs.box}
@@ -185,7 +192,7 @@ export function OntoRing({ width }: { width: number | Animated.Value }) {
   );
 }
 
-export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pressed: boolean; children: React.ReactNode }) {
+export function ItemRow({ hovered, pressed, padded = true, children }: { hovered: boolean; pressed: boolean; padded?: boolean; children: React.ReactNode }) {
   const theme = useTheme();
   return (
     <View
@@ -199,8 +206,8 @@ export function ItemRow({ hovered, pressed, children }: { hovered: boolean; pres
         backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: CHIP_PAD.left,
-        paddingRight: CHIP_PAD.right,
+        paddingLeft: padded ? CHIP_PAD.left : 0,
+        paddingRight: padded ? CHIP_PAD.right : 0,
       }}
     >
       {children}

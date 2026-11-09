@@ -1,0 +1,122 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sample Sequences</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#16181d;--soft:#525866;--mute:#8d93a0;--line:#e4e6eb;--A:#22a35a;--C:#2f6fdb;--G:#e0a100;--T:#de3b3b;--acc:#0d7a8a;--bg:#fbfbfc}
+body{font-family:-apple-system,"SF Pro Text",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:12.5px;display:grid;grid-template-columns:250px 1fr;grid-template-rows:48px 1fr;min-height:100vh}
+.top{grid-column:1/3;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 16px;white-space:nowrap}
+.lg{display:flex;align-items:center;gap:8px;font:700 15px/1 Menlo,ui-monospace,monospace;letter-spacing:-.02em}
+.lg i{width:26px;height:26px;border-radius:7px;background:#16181d;display:grid;place-items:center}
+.path{margin-left:16px;color:var(--mute);font-size:12.5px}.path b{color:var(--ink);font-weight:600}
+.path span{color:#c5c9d1;margin:0 5px}
+.top .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+.list{background:#fff;border-right:1px solid var(--line);overflow:hidden}
+.list .f{padding:10px 12px;border-bottom:1px solid var(--line)}
+.list .f div{height:30px;border:1px solid var(--line);border-radius:7px;display:flex;align-items:center;gap:7px;padding:0 9px;color:var(--mute)}
+.list .grp{padding:8px 14px 4px;font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--mute);text-transform:uppercase;display:flex;justify-content:space-between}
+.sm{display:flex;align-items:center;gap:9px;padding:6px 14px;border-left:3px solid transparent}
+.sm code{font:600 12px Menlo,ui-monospace,monospace}
+.sm small{display:block;color:var(--mute);font-size:11px}
+.sm .q{margin-left:auto;width:34px;height:5px;border-radius:3px;background:#eef0f3;overflow:hidden}
+.sm .q i{display:block;height:100%;border-radius:3px}
+.sm.on{background:#eaf6f7;border-left-color:var(--acc)}
+.sm .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.main{min-width:0;padding:14px 18px 24px;overflow:hidden}
+.sh{display:flex;align-items:flex-start;gap:16px}
+.sh h1{font:700 20px Menlo,ui-monospace,monospace;letter-spacing:-.03em}
+.sh p{color:var(--soft);margin-top:4px;font-size:13px}
+.tags{display:flex;gap:6px;margin-top:8px}
+.tags span{font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;background:#f0f2f5;color:var(--soft)}
+.tags span.ok{background:#e3f5ea;color:#1b7a43}
+.st{margin-left:auto;display:flex;gap:8px}
+.st div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:92px}
+.st span{font-size:11px;color:var(--mute)}
+.st b{display:block;font-size:17px;letter-spacing:-.02em;margin-top:2px}
+.viewer{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.vh{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.vh b{font-size:12.5px}
+.vh .pos{font:12px Menlo,ui-monospace,monospace;color:var(--soft);background:#f5f6f8;border-radius:6px;padding:3px 8px}
+.vh .zm{margin-left:auto;display:flex;gap:4px}
+.vh .zm span{width:26px;height:24px;border:1px solid var(--line);border-radius:6px;display:grid;place-items:center;font-weight:700;color:var(--soft)}
+.legend{display:flex;gap:10px;font:600 11px Menlo,monospace}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.tr{display:grid;grid-template-columns:92px 1fr;border-bottom:1px solid #f0f1f4}
+.tr .lb{padding:6px 10px;font-size:11px;color:var(--mute);font-weight:600;border-right:1px solid #f0f1f4;display:flex;align-items:center}
+.tr .body{position:relative;overflow:hidden}
+.ruler{height:26px;position:relative;font:10px Menlo,monospace;color:var(--mute)}
+.ruler i{position:absolute;bottom:0;width:1px;background:#c9cdd5}
+.ruler span{position:absolute;top:3px;transform:translateX(-50%)}
+.ann{height:30px;position:relative}
+.ann div{position:absolute;top:6px;height:18px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;display:flex;align-items:center;padding:0 8px;white-space:nowrap}
+.bases{display:flex;height:30px}
+.bases span{flex:1;display:grid;place-items:center;font:700 11px Menlo,monospace;color:#fff;border-right:1px solid rgba(255,255,255,.35)}
+.bases span.sel{outline:2px solid #16181d;outline-offset:-2px;z-index:1}
+.qual{display:flex;align-items:flex-end;height:40px;gap:1px;padding-top:4px}
+.qual i{flex:1;background:#9fd3da;border-radius:1px 1px 0 0}
+.qual i.lo{background:#f2b8b8}
+.chrom{height:96px}
+.chrom svg{display:block;width:100%;height:100%}
+.sel-band{position:absolute;top:0;bottom:0;background:rgba(13,122,138,.08);border-left:1.5px solid var(--acc);border-right:1.5px solid var(--acc);pointer-events:none}
+.lower{display:grid;grid-template-columns:1fr 300px;gap:14px;margin-top:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card h3{font-size:13px;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.card h3 span{color:var(--mute);font-weight:500}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;color:var(--mute);font-weight:600;padding:7px 12px;background:#fafbfc;border-bottom:1px solid var(--line)}
+td{padding:7px 12px;border-bottom:1px solid #f2f3f6;white-space:nowrap}
+td i{color:var(--soft)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.idb{display:inline-block;width:60px;height:5px;border-radius:3px;background:#eef0f3;margin-left:8px;vertical-align:1px;overflow:hidden}
+.idb b{display:block;height:100%;background:var(--acc)}
+.fasta{font:11.5px/1.65 Menlo,ui-monospace,monospace;padding:10px 12px;color:var(--soft);word-break:break-all}
+.fasta b{color:var(--ink)}
+@media (max-width:1100px){body{grid-template-columns:210px 1fr}.st div:nth-child(4){display:none}.lower{grid-template-columns:1fr}.lower .card:last-child{display:none}}
+</style></head><body>
+<div class="top"><div class="lg"><i><svg width="16" height="14" viewBox="0 0 16 14"><rect x="0" y="1" width="3" height="12" rx="1" fill="#22a35a"/><rect x="4.3" y="4" width="3" height="9" rx="1" fill="#2f6fdb"/><rect x="8.6" y="0" width="3" height="13" rx="1" fill="#e0a100"/><rect x="12.9" y="6" width="3" height="7" rx="1" fill="#de3b3b"/></svg></i>seqline</div>
+<div class="path">Halden Lab<span>/</span>2026<span>/</span>Beech drought<span>/</span>Moderate<span>/</span>Plate 3<span>/</span><b>Sample sequences</b></div>
+<div class="r"><div class="btn">BLAST all</div><div class="btn">FASTA ↓</div><div class="btn p">Share plate</div></div></div>
+<aside class="list"><div class="f"><div><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8d93a0" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Filter 96 samples</div></div>
+<div class="grp"><span>Plate 3 · row B</span><span>12</span></div>
+<div id="sl"></div><div class="grp" style="margin-top:6px"><span>Plate 3 · row C</span><span>12</span></div><div id="sl2"></div></aside>
+<main class="main">
+<div class="sh"><div><h1>HL-ITS-0314</h1><p>Beech root tip · moderate drought · seedling 25, tip 4</p><div class="tags"><span class="ok">Passed QC</span><span>ITS1F / ITS4</span><span>Sanger · forward</span><span>Run 2026-10-29</span></div></div>
+<div class="st"><div><span>Length</span><b>612 bp</b></div><div><span>Q30</span><b>96.1%</b></div><div><span>GC</span><b>47.3%</b></div><div><span>Top match</span><b>99.2%</b></div></div></div>
+<div class="viewer">
+<div class="vh"><b>Read view</b><span class="pos">bp 241 – 300 of 612</span><span class="pos">selected: 268 · G</span><div class="legend"><span><i style="background:var(--A)"></i>A</span><span><i style="background:var(--C)"></i>C</span><span><i style="background:var(--G)"></i>G</span><span><i style="background:var(--T)"></i>T</span></div><div class="zm"><span>−</span><span>+</span><span>⤢</span></div></div>
+<div class="tr"><div class="lb">Position</div><div class="body ruler" id="ru"></div></div>
+<div class="tr"><div class="lb">Features</div><div class="body ann"><div style="left:0;width:34%;background:#7c5cc4">ITS1 ▸</div><div style="left:35%;width:24%;background:#0d7a8a">5.8S rRNA</div><div style="left:60%;width:40%;background:#c25b8a">ITS2 ▸</div></div></div>
+<div class="tr"><div class="lb">Base calls</div><div class="body"><div class="bases" id="bs"></div><div class="sel-band" id="sb"></div></div></div>
+<div class="tr"><div class="lb">Quality</div><div class="body"><div class="qual" id="ql"></div></div></div>
+<div class="tr" style="border:0"><div class="lb">Trace</div><div class="body chrom"><svg id="ch" viewBox="0 0 1000 96" preserveAspectRatio="none"></svg></div></div>
+</div>
+<div class="lower">
+<div class="card"><h3>Closest matches<span>reference database · 2026-09</span></h3>
+<table><thead><tr><th>Species</th><th class="n">Identity</th><th class="n">Coverage</th><th class="n">E-value</th></tr></thead><tbody>
+<tr><td><i>Cenococcum geophilum</i></td><td class="n">99.2%<span class="idb"><b style="width:99%"></b></span></td><td class="n">98%</td><td class="n">0.0</td></tr>
+<tr><td><i>Cenococcum</i> sp. isolate F-112</td><td class="n">98.7%<span class="idb"><b style="width:96%"></b></span></td><td class="n">98%</td><td class="n">0.0</td></tr>
+<tr><td><i>Lactarius blennius</i></td><td class="n">84.1%<span class="idb"><b style="width:62%"></b></span></td><td class="n">71%</td><td class="n">3e-112</td></tr>
+<tr><td><i>Russula ochroleuca</i></td><td class="n">81.6%<span class="idb"><b style="width:55%"></b></span></td><td class="n">68%</td><td class="n">2e-98</td></tr>
+<tr><td><i>Tomentella sublilacina</i></td><td class="n">79.9%<span class="idb"><b style="width:50%"></b></span></td><td class="n">64%</td><td class="n">6e-87</td></tr>
+<tr><td>Uncultured <i>Helotiales</i> clone R-27</td><td class="n">77.2%<span class="idb"><b style="width:44%"></b></span></td><td class="n">60%</td><td class="n">1e-74</td></tr>
+</tbody></table></div>
+<div class="card"><h3>FASTA<span>copy</span></h3><div class="fasta"><b>&gt;HL-ITS-0314 ITS1F fwd</b><br><span id="fa"></span></div></div>
+</div>
+</main>
+<script>
+let s=31;const r=()=>(s=(s*9301+49297)%233280)/233280;const B="ACGT",col={A:"var(--A)",C:"var(--C)",G:"var(--G)",T:"var(--T)"},hex={A:"#22a35a",C:"#2f6fdb",G:"#e0a100",T:"#de3b3b"};
+const N=60,seq=[];for(let i=0;i<N;i++)seq.push(B[Math.floor(r()*4)]);seq[27]="G";
+document.getElementById("bs").innerHTML=seq.map((b,i)=>`<span class="${i===27?"sel":""}" style="background:${col[b]}">${b}</span>`).join("");
+const sb=document.getElementById("sb");sb.style.left=(27/N*100)+"%";sb.style.width=(100/N)+"%";
+let q="";for(let i=0;i<N;i++){const v=i>53?20+r()*30:62+r()*38;q+=`<i class="${v<45?"lo":""}" style="height:${v.toFixed(0)}%"></i>`}document.getElementById("ql").innerHTML=q;
+let ru="";for(let i=0;i<=N;i+=1){const x=i/N*100;const big=(241+i)%10===0;ru+=`<i style="left:${x}%;height:${big?10:4}px"></i>`;if(big)ru+=`<span style="left:${x}%">${241+i}</span>`}document.getElementById("ru").innerHTML=ru;
+let ch="";const w=1000/N;for(const b of B){let d=`M0 94`;for(let i=0;i<N;i++){const cx=(i+.5)*w;const h=seq[i]===b?(60+r()*28)*(i>53?.55:1):r()*9;d+=` C${(cx-w*.45).toFixed(1)} 94 ${(cx-w*.22).toFixed(1)} ${(94-h).toFixed(1)} ${cx.toFixed(1)} ${(94-h).toFixed(1)} S${(cx+w*.45).toFixed(1)} 94 ${(cx+w*.5).toFixed(1)} 94`}ch+=`<path d="${d}" fill="none" stroke="${hex[b]}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`}
+document.getElementById("ch").innerHTML=ch;
+let fa="";for(let i=0;i<180;i++)fa+=B[Math.floor(r()*4)];document.getElementById("fa").textContent="TCCGTAGGTGAACCTGCGGAAGGATCATTA"+fa;
+const sm=[["0309","tip 1",.97,"#22a35a"],["0310","tip 2",.94,"#22a35a"],["0311","tip 3",.62,"#e0a100"],["0312","tip 1",.98,"#22a35a"],["0313","tip 3",.91,"#22a35a"],["0314","tip 4",.96,"#22a35a"],["0315","tip 1",.88,"#22a35a"],["0316","tip 2",.31,"#de3b3b"],["0317","tip 2",.95,"#22a35a"],["0318","tip 5",.93,"#22a35a"],["0319","tip 1",.79,"#e0a100"],["0320","tip 3",.97,"#22a35a"]];
+document.getElementById("sl").innerHTML=sm.map(x=>`<div class="sm ${x[0]==="0314"?"on":""}"><span class="dot" style="background:${x[3]}"></span><div><code>HL-ITS-${x[0]}</code><small>Seedling ${20+parseInt(x[0].slice(2))%9}, ${x[1]}</small></div><span class="q"><i style="width:${x[2]*100}%;background:${x[3]}"></i></span></div>`).join("");
+document.getElementById("sl2").innerHTML=[["0321",.95,"#22a35a"],["0322",.92,"#22a35a"],["0323",.58,"#e0a100"],["0324",.97,"#22a35a"]].map(x=>`<div class="sm"><span class="dot" style="background:${x[2]}"></span><div><code>HL-ITS-${x[0]}</code><small>Seedling ${20+parseInt(x[0].slice(2))%9}, tip 1</small></div><span class="q"><i style="width:${x[1]*100}%;background:${x[2]}"></i></span></div>`).join("");
+</script>
+</body></html>

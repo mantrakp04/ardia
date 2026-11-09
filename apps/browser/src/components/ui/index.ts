@@ -44,6 +44,7 @@ export {
   OutsidePressArea,
   PopoverBubble,
   PowerUp,
+  ReportVideo,
   Surface,
   SwipeArea,
   Symbol,

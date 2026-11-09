@@ -23,6 +23,7 @@ enum CommandTable {
     case reload
     case forceReload
     case toggleTabLayout
+    case toggleSidebarSide
     case toggleSidebar
     case openSplitPane
     case useSelectionForFind
@@ -88,10 +89,9 @@ enum CommandTable {
     case returnToPinnedUrl
     case tabSwitcher
     case share
-    case sendFeedback
+    case reportProblem
     case keyboardShortcuts
     case copyDiagnostics
-    case recordPerformanceIssue
     case toolTour
     case videoTour
     case releaseNotes
@@ -137,6 +137,7 @@ enum CommandTable {
     "reload": "Refresh",
     "forceReload": "Force Refresh the Page",
     "toggleTabLayout": "Show Tabs in Sidebar",
+    "toggleSidebarSide": "Sidebar on Right",
     "toggleSidebar": "Auto-Hide Tabs",
     "openSplitPane": "Open Split Pane",
     "useSelectionForFind": "Use Selection for Find",
@@ -206,10 +207,9 @@ enum CommandTable {
     "tabSwitcher:forward": "Tab Switcher (forward)",
     "tabSwitcher:backward": "Tab Switcher (backward)",
     "share": "Share…",
-    "sendFeedback": "Send Feedback…",
+    "reportProblem": "Report a Problem…",
     "keyboardShortcuts": "Keyboard Shortcuts",
     "copyDiagnostics": "Copy Diagnostics",
-    "recordPerformanceIssue": "Record Performance Issue…",
     "toolTour": "Tool Tour",
     "videoTour": "Video Tour",
     "releaseNotes": "Release Notes",
@@ -296,7 +296,7 @@ enum CommandTable {
     "tabSwitcher:forward": [("\u{9}", [.control])],
     "tabSwitcher:backward": [("\u{9}", [.control, .shift])],
     "share": [("s", [.option, .command])],
-    "sendFeedback": [("i", [.option, .shift, .command])],
+    "reportProblem": [("i", [.option, .shift, .command])],
     "openFile": [("o", [.command])],
     "emailPageLocation": [("i", [.shift, .command])],
     "printWithSystemDialog": [("p", [.option, .command])],

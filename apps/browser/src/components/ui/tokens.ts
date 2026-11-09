@@ -386,7 +386,7 @@ export const pillHeight = { prompt: 28, m: 24, l: 30, xl: 36 } as const;
 
 export const stepperSize = { width: 24, height: 20 } as const;
 
-export const sheetWidth = { xs: 320, s: 420, m: 440, l: 480 } as const;
+export const sheetWidth = { xs: 320, s: 420, m: 440, l: 480, xl: 560 } as const;
 
 export type SheetSize = keyof typeof sheetWidth;
 

@@ -5,9 +5,9 @@ const { flushPersistence, loadSession, startPersistence } = await import("../ses
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
-const tick = () => new Promise((resolve) => setTimeout(resolve, 2));
 
-test("a window's full screen survives a relaunch, stamped in the order the windows entered it", async () => {
+test("a window's full screen survives a relaunch, stamped in the order the windows entered it", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
@@ -15,7 +15,7 @@ test("a window's full screen survives a relaunch, stamped in the order the windo
   const b = S().createWindow({ url: "b.com" });
   const c = S().createWindow({ url: "c.com" });
   S().setWindowFullScreen(b, true);
-  await tick();
+  t.mock.timers.tick(1);
   S().setWindowFullScreen(a, true);
   const stamp = S().windows[b].fullScreen;
   S().setWindowFullScreen(b, true);

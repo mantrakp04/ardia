@@ -1,0 +1,61 @@
+diff --git a/components/cdm/renderer/key_system_support_update.cc b/components/cdm/renderer/key_system_support_update.cc
+--- a/components/cdm/renderer/key_system_support_update.cc
++++ b/components/cdm/renderer/key_system_support_update.cc
+@@ -33,7 +33,9 @@
+ #include "third_party/widevine/cdm/buildflags.h"
+ 
+ #if BUILDFLAG(ENABLE_WIDEVINE)
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ #include "components/cdm/renderer/widevine_key_system_info.h"
++#include "media/cdm/supported_audio_codecs.h"
+ #include "third_party/widevine/cdm/widevine_cdm_common.h"  // nogncheck
+ #endif  // BUILDFLAG(ENABLE_WIDEVINE)
+ 
+@@ -54,6 +56,8 @@
+ using media::KeySystemInfos;
+ using media::SupportedCodecs;
+ 
++bool g_ardia_widevine_without_cdm = false;
++
+ namespace cdm {
+ 
+ namespace {
+@@ -397,6 +401,24 @@
+       max_audio_robustness, max_video_robustness, persistent_state_support,
+       distinctive_identifier_support));
+ }
++
++media::KeySystemCapability WidevineCapabilityWithoutCdm() {
++  media::CdmCapability capability;
++  capability.audio_codecs = media::GetCdmSupportedAudioCodecs();
++  const media::VideoCodecInfo all_profiles;
++  capability.video_codecs.emplace(media::VideoCodec::kVP8, all_profiles);
++  capability.video_codecs.emplace(media::VideoCodec::kVP9, all_profiles);
++  capability.video_codecs.emplace(media::VideoCodec::kAV1, all_profiles);
++#if BUILDFLAG(USE_PROPRIETARY_CODECS)
++  capability.video_codecs.emplace(media::VideoCodec::kH264, all_profiles);
++#endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
++  capability.encryption_schemes = {media::EncryptionScheme::kCenc,
++                                   media::EncryptionScheme::kCbcs};
++  capability.session_types = {CdmSessionType::kTemporary};
++  media::KeySystemCapability key_system_capability;
++  key_system_capability.sw_cdm_capability_or_status = capability;
++  return key_system_capability;
++}
+ #endif  // BUILDFLAG(ENABLE_WIDEVINE)
+ 
+ void AddExternalClearKey(const media::KeySystemCapability& /*capability*/,
+@@ -548,6 +570,13 @@
+     media::GetSupportedKeySystemsCB cb,
+     content::KeySystemCapabilities key_system_capabilities) {
+   KeySystemInfos key_systems;
++#if BUILDFLAG(ENABLE_WIDEVINE)
++  if (g_ardia_widevine_without_cdm &&
++      !key_system_capabilities.contains(kWidevineKeySystem)) {
++    AddWidevine(WidevineCapabilityWithoutCdm(), can_persist_data,
++                &key_systems);
++  }
++#endif  // BUILDFLAG(ENABLE_WIDEVINE)
+   for (const auto& [key_system, capability] : key_system_capabilities) {
+ #if BUILDFLAG(ENABLE_WIDEVINE)
+     if (key_system == kWidevineKeySystem) {

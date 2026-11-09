@@ -1,0 +1,145 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lab 4: Enzymes</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--plum:#a3195b;--plum2:#fbe8f1;--ink:#1e1a22;--soft:#4f4957;--mute:#8c8693;--line:#e9e5ec;--bg:#fff;--side:#faf8fb;--warn:#b25d00;--warn2:#fff3e0;--teal:#0f7f74;--teal2:#e1f3f1}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;font-size:14px}
+header{height:56px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:12px;background:#fff}
+.logo{display:flex;align-items:center;gap:10px}
+.logo i{width:30px;height:30px;border-radius:8px;background:var(--plum);display:grid;place-items:center}
+.logo b{font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+.logo span{font-size:12.5px;color:var(--mute);margin-left:3px}
+.ver{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:12px;border:1px solid var(--line);color:var(--soft);margin-left:6px;white-space:nowrap}
+.sr{margin-left:auto;width:290px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--side);display:flex;align-items:center;gap:8px;padding:0 11px;color:var(--mute);font-size:13px;white-space:nowrap}
+.sr kbd{margin-left:auto;font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:4px;padding:1px 5px;background:#fff}
+.hl{display:flex;gap:16px;font-size:13.5px;color:var(--soft);font-weight:500;white-space:nowrap}
+.app{display:grid;grid-template-columns:226px 1fr 336px}
+.toc{background:var(--side);border-right:1px solid var(--line);padding:16px 12px;min-height:744px}
+.toc .g{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:650;padding:6px 10px}
+.toc a{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;font-size:13.5px;color:var(--soft);text-decoration:none}
+.toc a b{font-weight:600;font-size:11.5px;color:var(--mute);width:16px;font-variant-numeric:tabular-nums}
+.toc a.on{background:var(--plum2);color:var(--plum);font-weight:650}
+.toc a.on b{color:var(--plum)}
+.toc .sub{margin:2px 0 6px 34px;border-left:1.5px solid #ecd2df}
+.toc .sub a{font-size:12.5px;padding:4px 10px;border-radius:0}
+.toc .sub a.on{background:none;color:var(--plum);box-shadow:inset 2px 0 0 var(--plum);margin-left:-1.5px}
+.toc .done{margin-left:auto;width:14px;height:14px;border-radius:50%;background:var(--teal2);display:grid;place-items:center}
+main{padding:18px 28px 40px;min-width:0}
+.crumb{font-size:12.5px;color:var(--mute)}
+.crumb a{color:var(--plum)}
+h1{font-size:30px;font-weight:750;letter-spacing:-.025em;margin:8px 0 4px}
+.sub2{font-size:15.5px;color:var(--soft)}
+.chips{display:flex;gap:7px;margin:12px 0 14px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;background:var(--side);border:1px solid var(--line);font-size:12.5px;font-weight:550;color:var(--soft);white-space:nowrap}
+.chip svg{width:13px;height:13px}
+.chip.w{background:var(--warn2);border-color:#f6dcb4;color:var(--warn)}
+.obj{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+.obj h3{grid-column:span 2;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--plum);font-weight:700;margin-bottom:4px}
+.obj span{font-weight:700;color:var(--plum);font-size:13px}
+.obj p{font-size:13.5px;line-height:1.45;color:var(--soft)}
+h2{font-size:19px;font-weight:700;letter-spacing:-.01em;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+h2 small{font-size:12.5px;color:var(--mute);font-weight:500}
+h2 .r{margin-left:auto;font-size:12.5px;color:var(--plum);font-weight:600}
+.step{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.step .n{width:30px;height:30px;border-radius:50%;border:2px solid var(--plum);color:var(--plum);display:grid;place-items:center;font-weight:750;font-size:13px}
+.step.ok .n{background:var(--plum);color:#fff}
+.step.cur{background:linear-gradient(90deg,var(--plum2),rgba(251,232,241,0) 70%);margin:0 -12px;padding:10px 12px;border-radius:10px;border-top-color:transparent}
+.step h4{font-size:14.5px;font-weight:650;margin-top:4px;display:flex;align-items:center;gap:8px}
+.step h4 em{font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--teal2);color:var(--teal);display:flex;gap:4px;align-items:center}
+.step h4 em.wt{background:var(--warn2);color:var(--warn)}
+.step p{font-size:13.5px;line-height:1.5;color:var(--soft);margin-top:3px}
+.step code{font:12.5px ui-monospace,Menlo,monospace;background:var(--side);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--ink)}
+.tbl{display:grid;grid-template-columns:repeat(5,1fr);margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:12px;text-align:center;max-width:430px}
+.tbl div{padding:5px 0;border-right:1px solid var(--line);font-variant-numeric:tabular-nums}
+.tbl div:nth-child(5n){border-right:0}
+.tbl .h{background:var(--side);font-weight:650;color:var(--mute);border-bottom:1px solid var(--line)}
+aside{padding:18px 20px 40px 0}
+.fig{border:1px solid var(--line);border-radius:12px;padding:12px 14px 10px;margin-bottom:14px}
+.fig .tabs{display:flex;gap:4px;margin-bottom:6px}
+.fig .tabs span{font-size:12px;font-weight:600;padding:4px 9px;border-radius:6px;color:var(--mute)}
+.fig .tabs .on{background:var(--plum2);color:var(--plum)}
+.fig svg{display:block;width:100%;height:auto}
+.fig p{font-size:12px;line-height:1.45;color:var(--soft);margin-top:6px}
+.fig p b{color:var(--ink)}
+.box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.box h5{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);font-weight:700;margin-bottom:8px;display:flex}
+.box h5 span{margin-left:auto;text-transform:none;letter-spacing:0;color:var(--plum)}
+.ck{display:flex;align-items:center;gap:9px;font-size:13px;padding:4px 0;color:var(--soft)}
+.ck i{width:16px;height:16px;border-radius:4px;border:1.5px solid #cfc8d4;flex:none;display:grid;place-items:center}
+.ck i.y{background:var(--plum);border-color:var(--plum)}
+.ck em{margin-left:auto;font-style:normal;color:var(--mute);font-size:12px;white-space:nowrap}
+.photo{display:flex;gap:10px;align-items:center}
+.photo img{width:84px;height:64px;object-fit:cover;border-radius:8px}
+.photo p{font-size:12px;color:var(--soft);line-height:1.4}
+.photo b{display:block;color:var(--ink);font-size:12.5px}
+@media (max-width:1100px){.app{grid-template-columns:200px 1fr 300px}.hl{display:none}.sr{width:220px}}
+</style></head><body>
+<header>
+<div class="logo"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="7.5" cy="12" r="4.5"/><path d="M12 12h9M17 12v4M20.5 12v3"/></svg></i><b>BIO 210 Lab Manual</b><span>Alder State University</span></div>
+<span class="ver">Fall 2026 · v4.2</span>
+<div class="sr"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8c8693" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Search the manual<kbd>⌘K</kbd></div>
+<div class="hl"><span>Safety</span><span>Equipment</span><span>Report template</span></div>
+</header>
+<div class="app">
+<nav class="toc">
+<div class="g">Getting started</div>
+<a><b>0</b>Lab safety and conduct</a>
+<div class="g" style="margin-top:8px">Labs</div>
+<a><b>1</b>Microscopy<span class="done"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#0f7f74" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span></a>
+<a><b>2</b>Solutions and dilutions<span class="done"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#0f7f74" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span></a>
+<a><b>3</b>Spectrophotometry<span class="done"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#0f7f74" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></span></a>
+<a class="on"><b>4</b>Enzymes</a>
+<div class="sub"><a>Background</a><a>Materials</a><a class="on">Procedure</a><a>Data and graphs</a><a>Questions</a></div>
+<a><b>5</b>Yeast respiration</a>
+<a><b>6</b>Plant pigments</a>
+<a><b>7</b>DNA extraction</a>
+<a><b>8</b>Gel electrophoresis</a>
+<div class="g" style="margin-top:8px">Appendix</div>
+<a><b>A</b>Graphing your data</a>
+<a><b>B</b>Pipetting guide</a>
+</nav>
+<main>
+<div class="crumb"><a>Labs</a> › <a>Lab 4</a> › Procedure</div>
+<h1>Lab 4: Enzymes</h1>
+<p class="sub2">How temperature changes the rate of catalase, the enzyme that splits hydrogen peroxide.</p>
+<div class="chips"><span class="chip"><svg viewBox="0 0 16 16" fill="none" stroke="#4f4957" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>2 h 50 min</span><span class="chip"><svg viewBox="0 0 16 16" fill="none" stroke="#4f4957" stroke-width="1.6"><circle cx="5.5" cy="6" r="2.3"/><circle cx="11" cy="6" r="2.3"/><path d="M1.5 13.5c.6-2.4 2.2-3.5 4-3.5s3.4 1.1 4 3.5M9 10.2c.6-.2 1.3-.2 2-.2 1.8 0 3.4 1.1 4 3.5"/></svg>Pairs</span><span class="chip"><svg viewBox="0 0 16 16" fill="none" stroke="#4f4957" stroke-width="1.6"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 6h4M6 9h4"/></svg>Pre-lab due Oct 6, 9:00</span><span class="chip w"><svg viewBox="0 0 16 16" fill="#b25d00"><path d="M8 1.5l7 12.5H1z"/></svg>Goggles and gloves</span></div>
+<div class="obj"><h3>By the end of this lab you can</h3><span>1</span><p>Measure an enzyme's reaction rate from the oxygen it releases.</p><span>2</span><p>Find catalase's optimum temperature and explain why activity falls above it.</p></div>
+<h2>Procedure <small>7 steps · step 4 of 7</small><span class="r">Print steps</span></h2>
+<div class="step ok"><span class="n">✓</span><div><h4>Prepare the extract</h4><p>Blend <code>25 g</code> potato in <code>50 mL</code> cold buffer, filter through cheesecloth and keep the extract on ice.</p></div></div>
+<div class="step ok"><span class="n">✓</span><div><h4>Set up five water baths <em>10 min</em></h4><p>Bring baths to <code>4</code>, <code>22</code>, <code>37</code>, <code>55</code> and <code>70 °C</code>. Check each with a thermometer, not the dial.</p></div></div>
+<div class="step ok"><span class="n">✓</span><div><h4>Equilibrate the tubes <em>5 min</em></h4><p>Put <code>2 mL</code> extract in each labelled tube and let it sit in its bath.</p></div></div>
+<div class="step cur"><span class="n">4</span><div><h4>Start the reaction <em class="wt">Timed · 60 s</em></h4><p>Add <code>2 mL</code> of 3% H₂O₂, seal the tube with the gas syringe and start the timer. Read the O₂ volume every 10 s.</p>
+<div class="tbl"><div class="h">Time (s)</div><div class="h">10</div><div class="h">20</div><div class="h">30</div><div class="h">60</div><div>O₂ (mL)</div><div>0.4</div><div>0.9</div><div>1.3</div><div>—</div></div></div></div>
+<div class="step"><span class="n">5</span><div><h4>Repeat at each temperature</h4><p>Run three trials per bath. Rinse the syringe between runs.</p></div></div>
+</main>
+<aside>
+<div class="fig"><div class="tabs"><span class="on">Temperature</span><span>pH</span><span>Concentration</span></div>
+<svg id="g" viewBox="0 0 300 200"></svg>
+<p><b>Figure 4.2.</b> Initial rate of O₂ release by catalase, class data from Fall 2025 (mean ± SD, n = 18). Your points will appear here as you enter them.</p></div>
+<div class="box"><h5>Materials<span>9 of 11 at bench</span></h5>
+<div class="ck"><i class="y"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></i>Potato extract, on ice<em>50 mL</em></div>
+<div class="ck"><i class="y"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></i>3% hydrogen peroxide<em>40 mL</em></div>
+<div class="ck"><i class="y"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><path d="M2 5l2 2 4-4"/></svg></i>Gas syringes, 10 mL<em>×5</em></div>
+<div class="ck"><i></i>Thermometers<em>×5</em></div>
+</div>
+<div class="box photo"><img src="img/0.jpg" alt=""><p><b>Bath check</b>Keep tubes fully under the waterline, as shown. Never heat a sealed tube.</p></div>
+</aside>
+</div>
+<script>
+const W=300,H=200,L=36,R=10,T=12,B=30,X=t=>L+t/75*(W-L-R),Y=v=>T+(1-v/3)*(H-T-B);
+let s=`<g font-family="-apple-system,sans-serif" font-size="9.5" fill="#8c8693">`;
+for(let v=0;v<=3;v+=.5){s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?"#cfc8d4":"#f0ecf2"}"/><text x="${L-6}" y="${Y(v)+3}" text-anchor="end">${v.toFixed(1)}</text>`}
+for(let t=0;t<=75;t+=15)s+=`<text x="${X(t)}" y="${H-B+14}" text-anchor="middle">${t}</text>`;
+s+=`<text x="${(L+W-R)/2}" y="${H-3}" text-anchor="middle" fill="#4f4957">Temperature (°C)</text><text transform="translate(10 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle" fill="#4f4957">O₂ rate (mL/min)</text>`;
+const f=t=>t<=37?.35+2.15*Math.pow(t/37,1.6):2.5*Math.exp(-Math.pow((t-37)/17,2));
+let d="";for(let t=0;t<=72;t+=1)d+=(t?"L":"M")+X(t).toFixed(1)+" "+Y(f(t)).toFixed(1);
+s+=`<rect x="${X(30)}" y="${T}" width="${X(44)-X(30)}" height="${H-T-B}" fill="#fbe8f1" opacity=".7"/><text x="${X(37)}" y="${T+10}" text-anchor="middle" fill="#a3195b" font-weight="600">optimum</text>`;
+s+=`<path d="${d}" fill="none" stroke="#a3195b" stroke-width="2.2"/>`;
+const pts=[[4,.52,.12],[22,1.42,.2],[37,2.46,.26],[55,.86,.22],[70,.09,.06]];
+pts.forEach(([t,v,e])=>{s+=`<line x1="${X(t)}" x2="${X(t)}" y1="${Y(v+e)}" y2="${Y(v-e)}" stroke="#4f4957" stroke-width="1.2"/><line x1="${X(t)-3}" x2="${X(t)+3}" y1="${Y(v+e)}" y2="${Y(v+e)}" stroke="#4f4957"/><line x1="${X(t)-3}" x2="${X(t)+3}" y1="${Y(v-e)}" y2="${Y(v-e)}" stroke="#4f4957"/><circle cx="${X(t)}" cy="${Y(v)}" r="3.8" fill="#fff" stroke="#4f4957" stroke-width="1.5"/>`});
+[[4,.58],[22,1.3]].forEach(([t,v])=>{s+=`<rect x="${X(t)-3.5}" y="${Y(v)-3.5}" width="7" height="7" fill="#0f7f74" transform="rotate(45 ${X(t)} ${Y(v)})"/>`});
+s+=`<g transform="translate(${L+6} ${T+4})"><rect width="96" height="34" rx="6" fill="#fff" stroke="#e9e5ec"/><circle cx="10" cy="11" r="3.3" fill="#fff" stroke="#4f4957" stroke-width="1.4"/><text x="18" y="14" fill="#4f4957">Class 2025</text><rect x="6.5" y="20" width="6" height="6" fill="#0f7f74" transform="rotate(45 9.5 23)"/><text x="18" y="26" fill="#4f4957">Your bench</text></g></g>`;
+document.getElementById("g").innerHTML=s;
+</script>
+</body></html>

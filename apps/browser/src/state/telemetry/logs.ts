@@ -1,11 +1,10 @@
-import { isSharing, queueLog } from "./client";
+import { queueLog } from "./client";
 import { errorType, scrubText } from "./sanitize";
 
 const MAX_DISTINCT = 40;
 const seen = new Set<string>();
 
 export function recordLog(level: "warn" | "error", args: unknown[]) {
-  if (!isSharing()) return;
   const first = args[0];
   if (typeof first !== "string") return;
   const message = scrubText(first, 160);

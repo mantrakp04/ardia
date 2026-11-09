@@ -1,0 +1,149 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Summer Heat Map</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+:root{--ink:#1d2129;--soft:#5a606c;--mute:#8b919c;--line:#e5e7eb;--hot:#e8461e}
+body{font-family:-apple-system,"SF Pro Text","Helvetica Neue",sans-serif;color:var(--ink);background:#efede8;-webkit-font-smoothing:antialiased;font-size:13px}
+#map,#heat{position:absolute;inset:0;width:100%;height:100%;display:block}
+#heat{object-fit:cover;mix-blend-mode:multiply;opacity:.78;image-rendering:auto}
+#over{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.float{position:absolute;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(20,24,32,.08),0 8px 24px -6px rgba(20,24,32,.18)}
+.top{left:16px;top:16px;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;width:430px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#ff8a3d,#e8461e 55%,#b8202f);display:grid;place-items:center;flex:none}
+.top b{font-size:14.5px;letter-spacing:-.01em;white-space:nowrap}
+.top .q{flex:1;height:32px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;gap:7px;padding:0 10px;color:var(--mute);white-space:nowrap;overflow:hidden}
+.layers{left:16px;top:70px;padding:6px;display:flex;gap:4px}
+.layers span{height:30px;padding:0 11px;border-radius:8px;display:flex;align-items:center;gap:6px;color:var(--soft);font-weight:500;white-space:nowrap}
+.layers span.on{background:#fff1ea;color:#c2361a;font-weight:600}
+.layers i{width:10px;height:10px;border-radius:3px}
+.legend{left:16px;bottom:16px;padding:12px 14px;width:300px}
+.legend h4{font-size:11.5px;font-weight:600;color:var(--soft);display:flex;justify-content:space-between;margin-bottom:8px}
+.legend h4 span{color:var(--mute);font-weight:500}
+.ramp{height:10px;border-radius:5px;background:linear-gradient(90deg,#1a9850,#66bd63 18%,#d9ef8b 36%,#fee08b 52%,#fdae61 66%,#f46d43 80%,#d73027 92%,#a50026)}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:5px;font-variant-numeric:tabular-nums}
+.time{left:332px;bottom:16px;right:392px;padding:10px 14px;display:flex;align-items:center;gap:12px}
+.play{width:30px;height:30px;border-radius:50%;background:var(--ink);display:grid;place-items:center;flex:none}
+.time .lab{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.time .lab small{display:block;font-weight:500;color:var(--mute);font-size:11px}
+.trk{flex:1;height:26px;position:relative}
+.trk .ln{position:absolute;left:0;right:0;top:12px;height:3px;border-radius:2px;background:#e7e8eb}
+.trk .fill{position:absolute;left:0;width:62%;top:12px;height:3px;border-radius:2px;background:linear-gradient(90deg,#fdae61,#e8461e)}
+.trk .kn{position:absolute;left:62%;top:6px;width:15px;height:15px;margin-left:-7px;border-radius:50%;background:#fff;border:3px solid var(--hot)}
+.trk .hr{position:absolute;top:-1px;font-size:10px;color:var(--mute);transform:translateX(-50%)}
+.zoom{right:392px;top:16px;display:flex;flex-direction:column;overflow:hidden}
+.zoom span{width:34px;height:34px;display:grid;place-items:center;font-size:18px;color:var(--soft)}
+.zoom span+span{border-top:1px solid var(--line)}
+.loc{right:392px;top:108px;width:34px;height:34px;display:grid;place-items:center}
+.panel{right:16px;top:16px;bottom:16px;width:360px;padding:0;overflow:hidden;display:flex;flex-direction:column}
+.ph{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.ph .k{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--mute);font-weight:500}
+.ph .k i{font-style:normal;background:#fff1ea;color:#c2361a;font-weight:700;border-radius:5px;padding:2px 7px;font-size:11px}
+.ph .k .x{margin-left:auto;font-size:16px}
+.ph h2{font-size:18px;letter-spacing:-.015em;margin-top:7px}
+.ph p{color:var(--soft);margin-top:2px}
+.big{display:flex;align-items:flex-end;gap:14px;padding:14px 18px 6px}
+.big b{font-size:46px;font-weight:700;letter-spacing:-.04em;line-height:1;color:#c2361a;font-variant-numeric:tabular-nums}
+.big b sup{font-size:20px;letter-spacing:0;vertical-align:22px;margin-left:2px}
+.big div{padding-bottom:5px;color:var(--soft);line-height:1.4}
+.big div strong{color:#c2361a}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 18px 12px}
+.grid div{background:#f7f7f8;border-radius:9px;padding:9px 11px}
+.grid span{font-size:11.5px;color:var(--mute)}
+.grid b{display:block;font-size:17px;margin-top:2px;font-variant-numeric:tabular-nums}
+.grid b small{font-size:11.5px;font-weight:600;margin-left:4px}
+.up{color:#c2361a}.dn{color:#1d8a4a}
+.spark{padding:4px 18px 10px}
+.spark h4,.sens h4{font-size:11.5px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:flex;justify-content:space-between}
+.spark svg{width:100%;height:84px;display:block}
+.sens{padding:10px 18px;border-top:1px solid var(--line)}
+.sens .r{display:flex;align-items:center;gap:10px;padding:6px 0}
+.sens .r i{width:8px;height:8px;border-radius:50%;flex:none}
+.sens .r span{color:var(--mute);margin-left:auto;font-variant-numeric:tabular-nums}
+.sens .r b{font-weight:600;width:52px;text-align:right;font-variant-numeric:tabular-nums}
+.plant{margin:6px 18px 0;padding:12px;border-radius:10px;background:#f4faf5;border:1px solid #d9ecdd;display:flex;gap:11px;align-items:flex-start}.plant b{font-size:13px}.plant p{color:var(--soft);font-size:12px;line-height:1.4;margin-top:2px}
+.cta{margin:auto 18px 16px;display:flex;gap:8px}
+.cta div{flex:1;height:36px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;font-weight:600}
+.cta .p{background:var(--ink);color:#fff;border-color:var(--ink)}
+@media (max-width:1100px){.panel{width:320px}.time{display:none}.zoom,.loc{right:350px}.top{width:380px}}
+</style></head><body>
+<svg id="map" viewBox="0 0 1300 800" preserveAspectRatio="xMidYMid slice"></svg>
+<canvas id="heat" width="325" height="200"></canvas>
+<svg id="over" viewBox="0 0 1300 800" preserveAspectRatio="xMidYMid slice"></svg>
+<div class="float top"><div class="logo"><svg width="14" height="16" viewBox="0 0 14 16"><path d="M5 2a2 2 0 0 1 4 0v7.2a3.6 3.6 0 1 1-4 0z" fill="#fff"/><circle cx="7" cy="12" r="1.9" fill="#e8461e"/></svg></div><b>Isotherm</b>
+<div class="q"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#8b919c" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>Search a street or block in Port Alder</div></div>
+<div class="float layers"><span class="on"><i style="background:linear-gradient(135deg,#fdae61,#d73027)"></i>Surface temp</span><span><i style="background:#9ccf8a"></i>Canopy</span><span><i style="background:#9bbcd9"></i>Sensors</span><span>Night</span></div>
+<div class="float zoom"><span>+</span><span>−</span></div>
+<div class="float loc"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#5a606c" stroke-width="1.7"><path d="M14 2L2 7.2l5.2 1.6L8.8 14z"/></svg></div>
+<div class="float legend"><h4>Sidewalk surface temperature<span>°C · 15:00</span></h4><div class="ramp"></div><div class="ticks"><span>24</span><span>28</span><span>32</span><span>36</span><span>40</span><span>44+</span></div></div>
+<div class="float time"><div class="play"><svg width="10" height="12" viewBox="0 0 10 12"><path d="M1 1l8 5-8 5z" fill="#fff"/></svg></div><div class="lab">Jul 23, 2025 · 15:00<small>Heat wave day 3</small></div>
+<div class="trk"><div class="ln"></div><div class="fill"></div><div class="kn"></div></div></div>
+<div class="float panel">
+<div class="ph"><div class="k"><i>HOT BLOCK</i>Block 14-207 · District 3<span class="x">×</span></div><h2>Merrow Ave, 3rd to 4th St</h2><p>Mixed retail · 6% canopy · 22 street trees</p></div>
+<div class="big"><b>41.6<sup>°C</sup></b><div>sidewalk surface<br><strong>+7.4 °C</strong> vs. city median</div></div>
+<div class="grid">
+<div><span>Air temperature</span><b>33.9 °C<small class="up">▲ 2.1</small></b></div>
+<div><span>Feels like</span><b>38.2 °C<small class="up">▲ 3.0</small></b></div>
+<div><span>Under nearest tree</span><b>29.4 °C<small class="dn">▼ 12.2</small></b></div>
+<div><span>Canopy cover</span><b>6%<small class="dn">goal 30%</small></b></div>
+</div>
+<div class="spark"><h4>Today, hourly<span style="text-transform:none;letter-spacing:0;font-weight:500">surface °C</span></h4><svg viewBox="0 0 324 84" id="sp"></svg></div>
+<div class="sens"><h4>Nearby readings</h4>
+<div class="r"><i style="background:#d73027"></i>Bus shelter, 3rd St<span>14:58</span><b>43.1°</b></div>
+<div class="r"><i style="background:#f46d43"></i>Merrow Ave north curb<span>14:55</span><b>40.2°</b></div>
+<div class="r"><i style="background:#66bd63"></i>Alder Commons, west gate<span>14:57</span><b>27.8°</b></div></div>
+<div class="plant"><svg width="30" height="30" viewBox="0 0 30 30"><rect width="30" height="30" rx="8" fill="#e5f3e8"/><circle cx="15" cy="12" r="6" fill="#3f9a63"/><rect x="14" y="16" width="2" height="7" rx="1" fill="#6b4a2e"/></svg><div><b>9 open tree pits on this block</b><p>Planting all nine could cut afternoon sidewalk heat by about 4 °C.</p></div></div>
+<div class="cta"><div>Compare blocks</div><div class="p">Export readings</div></div>
+</div>
+<script>
+let s=23;const rnd=()=>(s=(s*9301+49297)%233280)/233280;
+const A=-12*Math.PI/180,cx=650,cy=400,ca=Math.cos(A),sa=Math.sin(A);
+const toScreen=(x,y)=>[cx+(x-cx)*ca-(y-cy)*sa,cy+(x-cx)*sa+(y-cy)*ca];
+const BW=78,BH=58,ST=12,OX=-260,OY=-200;
+const park={i0:9,i1:12,j0:7,j1:9};const sel={i:6,j:7};
+let g=`<rect x="-200" y="-200" width="1700" height="1200" fill="#f1eee8"/><g transform="rotate(-12 650 400)">`;
+for(let i=0;i<24;i++)for(let j=0;j<20;j++){const x=OX+i*(BW+ST),y=OY+j*(BH+ST);
+ const inPark=i>=park.i0&&i<=park.i1&&j>=park.j0&&j<=park.j1;
+ if(inPark)continue;
+ g+=`<rect x="${x}" y="${y}" width="${BW}" height="${BH}" rx="2" fill="#e9e5dd"/>`;
+ let px=x+3;while(px<x+BW-8){const w=10+rnd()*22;const ww=Math.min(w,x+BW-3-px);const h1=14+rnd()*12;g+=`<rect x="${px.toFixed(1)}" y="${(y+3).toFixed(1)}" width="${ww.toFixed(1)}" height="${h1.toFixed(1)}" fill="#ddd7cc" stroke="#d2cbbf" stroke-width=".6"/>`;const h2=14+rnd()*12;g+=`<rect x="${px.toFixed(1)}" y="${(y+BH-3-h2).toFixed(1)}" width="${ww.toFixed(1)}" height="${h2.toFixed(1)}" fill="#ddd7cc" stroke="#d2cbbf" stroke-width=".6"/>`;px+=ww+1.5}
+ if(rnd()<.55)for(let k=0;k<5;k++)g+=`<circle cx="${(x+6+k*(BW-12)/4).toFixed(1)}" cy="${(y-6).toFixed(1)}" r="${(2.4+rnd()*2.2).toFixed(1)}" fill="#a9cf96" opacity=".9"/>`;
+}
+const px0=OX+park.i0*(BW+ST)-ST/2,py0=OY+park.j0*(BH+ST)-ST/2,pw=(park.i1-park.i0+1)*(BW+ST),ph=(park.j1-park.j0+1)*(BH+ST);
+g+=`<rect x="${px0}" y="${py0}" width="${pw}" height="${ph}" rx="6" fill="#cfe3c2"/>`;
+for(let k=0;k<70;k++)g+=`<circle cx="${(px0+10+rnd()*(pw-20)).toFixed(1)}" cy="${(py0+10+rnd()*(ph-20)).toFixed(1)}" r="${(5+rnd()*9).toFixed(1)}" fill="#a6cc8f" opacity=".75"/>`;
+g+=`<path d="M${px0+8} ${py0+ph*.7} C${px0+pw*.3} ${py0+ph*.4} ${px0+pw*.6} ${py0+ph*.9} ${px0+pw-8} ${py0+ph*.35}" fill="none" stroke="#f5f1e6" stroke-width="3"/><path d="M${px0+pw*.45} ${py0+6} C${px0+pw*.4} ${py0+ph*.4} ${px0+pw*.55} ${py0+ph*.6} ${px0+pw*.5} ${py0+ph-6}" fill="none" stroke="#f5f1e6" stroke-width="3"/><ellipse cx="${px0+pw*.72}" cy="${py0+ph*.62}" rx="34" ry="20" fill="#b9d6ea"/>`;
+g+=`</g>`;
+g+=`<path d="M-100 690 C120 640 260 730 460 700 S760 600 900 640 S1200 720 1400 660" fill="none" stroke="#c4dbec" stroke-width="58"/><path d="M-100 690 C120 640 260 730 460 700 S760 600 900 640 S1200 720 1400 660" fill="none" stroke="#b5d0e5" stroke-width="2" transform="translate(0 -29)"/>`;
+g+=`<path d="M-80 220 L1400 520" stroke="#fff" stroke-width="15"/><path d="M-80 220 L1400 520" stroke="#f7d27a" stroke-width="9"/>`;
+g+=`<path d="M420 -60 L560 900" stroke="#fff" stroke-width="13"/><path d="M420 -60 L560 900" stroke="#f9e1a3" stroke-width="7.5"/>`;
+g+=`<g font-family="-apple-system,sans-serif" font-weight="600" fill="#6b6f78" font-size="12" stroke="#f1eee8" stroke-width="3" paint-order="stroke"><text x="120" y="268" transform="rotate(11.4 120 268)">Merrow Avenue</text><text x="508" y="160" transform="rotate(81 508 160)">Calder Street</text><text x="150" y="702" fill="#5d86ad" font-style="italic" font-size="13">Alder River</text><text x="640" y="668" fill="#5d86ad" font-style="italic" font-size="13" transform="rotate(-6 640 668)">Alder River</text><text x="236" y="452" font-size="10.5" transform="rotate(-12 236 452)">4th St</text><text x="74" y="130" font-size="10.5" transform="rotate(-12 74 130)">Ferry Row</text></g>`;
+document.getElementById("map").innerHTML=g;
+const pc=toScreen(px0+pw/2,py0+ph/2);const sx=OX+sel.i*(BW+ST),sy=OY+sel.j*(BH+ST);const sc=toScreen(sx+BW/2,sy+BH/2);
+let o=`<g transform="rotate(-12 650 400)"><rect x="${sx-4}" y="${sy-4}" width="${BW+8}" height="${BH+8}" rx="5" fill="none" stroke="#1d2129" stroke-width="2.5"/></g>`;
+o+=`<g font-family="-apple-system,sans-serif"><text x="${pc[0]}" y="${pc[1]-6}" text-anchor="middle" font-size="13" font-weight="700" fill="#2f6b3c" stroke="#e7f2df" stroke-width="3" paint-order="stroke">Alder Commons</text><text x="${pc[0]}" y="${pc[1]+11}" text-anchor="middle" font-size="11" font-weight="600" fill="#2f6b3c" stroke="#e7f2df" stroke-width="3" paint-order="stroke">26.8 °C</text></g>`;
+o+=`<g transform="translate(${sc[0]} ${sc[1]-46})"><path d="M0 34 L-7 22 H7Z" fill="#1d2129"/><rect x="-36" y="-2" width="72" height="26" rx="13" fill="#1d2129"/><text x="0" y="16" text-anchor="middle" font-family="-apple-system,sans-serif" font-size="13" font-weight="700" fill="#fff">41.6 °C</text></g>`;
+const pins=[[0.18,0.31,"38.9"],[0.40,0.20,"39.7"],[0.30,0.78,"31.2"],[0.12,0.55,"36.4"]];
+for(const p of pins){const x=p[0]*1300,y=p[1]*800;o+=`<g transform="translate(${x} ${y})"><circle r="6" fill="#fff"/><circle r="3.8" fill="${+p[2]>35?"#d73027":"#66bd63"}"/><text x="10" y="4" font-family="-apple-system,sans-serif" font-size="11" font-weight="700" fill="#1d2129" stroke="#fff" stroke-width="3" paint-order="stroke">${p[2]}°</text></g>`}
+document.getElementById("over").innerHTML=o;
+const stops=[[24,[26,152,80]],[27,[102,189,99]],[30,[217,239,139]],[33,[254,224,139]],[35.5,[253,174,97]],[38,[244,109,67]],[41,[215,48,39]],[44,[165,0,38]]];
+const col=t=>{if(t<=stops[0][0])return stops[0][1];for(let k=1;k<stops.length;k++)if(t<=stops[k][0]){const a=stops[k-1],b=stops[k],f=(t-a[0])/(b[0]-a[0]);return a[1].map((v,n)=>v+(b[1][n]-v)*f)}return stops[stops.length-1][1]};
+const hot=[[sc[0],sc[1],7.5,120],[300,180,5,160],[90,420,4,150],[700,260,3.5,140],[180,560,3,120],[1050,300,4,170],[960,140,3,120]];
+const c=document.getElementById("heat"),x2=c.getContext("2d"),img=x2.createImageData(325,200);
+for(let y=0;y<200;y++)for(let x=0;x<325;x++){const X=x*4,Y=y*4;let t=33+Math.sin(X/53)*.9+Math.cos(Y/41)*.8+Math.sin((X+Y)/29)*.5;
+ for(const h of hot)t+=h[2]*Math.exp(-((X-h[0])**2+(Y-h[1])**2)/(2*h[3]**2));
+ t-=9.5*Math.exp(-((X-pc[0])**2/(2*150**2)+(Y-pc[1])**2/(2*110**2)));
+ const ry=690-((X<460)?(-50*Math.sin(X/600*Math.PI)):(40*Math.sin((X-460)/440*Math.PI)));t-=5*Math.exp(-((Y-ry)**2)/(2*55**2));
+ const [r,g2,b]=col(t);const i=(y*325+x)*4;img.data[i]=r;img.data[i+1]=g2;img.data[i+2]=b;img.data[i+3]=255}
+x2.putImageData(img,0,0);
+const hrs=[27,26.4,25.9,25.5,25.3,26,28.4,31.2,34.1,36.8,38.9,40.3,41.2,41.6,41.6,41.1,39.6,37.2,34.6,32.1,30.4,29.3,28.4,27.7];
+const X=i=>6+i*(312/23),Y=v=>76-(v-24)/(44-24)*70;
+let sp=`<defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f46d43" stop-opacity=".35"/><stop offset="1" stop-color="#f46d43" stop-opacity="0"/></linearGradient></defs>`;
+sp+=`<path d="M6 ${Y(35)}H318" stroke="#e5e7eb" stroke-dasharray="3 3"/><text x="318" y="${Y(35)-3}" text-anchor="end" font-size="9" fill="#8b919c" font-family="-apple-system">35°</text>`;
+const d=hrs.map((v,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join("");
+sp+=`<path d="${d}L318 78L6 78Z" fill="url(#gf)"/><path d="${d}" fill="none" stroke="#e8461e" stroke-width="2"/><circle cx="${X(15)}" cy="${Y(41.1)}" r="4" fill="#fff" stroke="#e8461e" stroke-width="2"/>`;
+sp+=`<g font-size="9" fill="#8b919c" font-family="-apple-system"><text x="6" y="84">00</text><text x="${X(6)}" y="84" text-anchor="middle">06</text><text x="${X(12)}" y="84" text-anchor="middle">12</text><text x="${X(18)}" y="84" text-anchor="middle">18</text><text x="318" y="84" text-anchor="end">23</text></g>`;
+document.getElementById("sp").innerHTML=sp;
+</script>
+</body></html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Sign in</title></head>
+<body>
+<form id="login" onsubmit="event.preventDefault()">
+<p><label for="user">Email</label> <input id="user" type="email" autocomplete="username"></p>
+<p><label for="pw">Password</label> <input id="pw" type="password" autocomplete="current-password"></p>
+<button type="submit">Sign in</button>
+</form>
+<iframe id="sink" title="sink" width="300" height="80"></iframe>
+<pre id="report">{}</pre>
+<script>
+  const leaked = [];
+  const sink = document.getElementById("sink");
+  sink.src = "http://localhost:" + location.port + "/sink.html";
+  const report = () => {
+    document.getElementById("report").textContent = JSON.stringify({
+      leaked, user: document.getElementById("user").value, pw: document.getElementById("pw").value,
+    });
+  };
+  addEventListener("message", (event) => {
+    if (event.origin.startsWith("http://localhost:")) { leaked.push(event.data); report(); }
+  });
+  document.getElementById("pw").addEventListener("focus", () => { if (location.hash === "#steal") sink.focus(); });
+  addEventListener("input", report, true);
+  report();
+</script>
+</body>
+</html>
