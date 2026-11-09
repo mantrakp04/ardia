@@ -368,12 +368,21 @@ export function startClient(): ClientSession {
   return { previous, updatedFrom, ...last };
 }
 
+let endedSession: { lastQuitAt: number | null } | null = null;
+
 export function endSession() {
+  endedSession = { lastQuitAt: saved().lastQuitAt };
   save({ sessionOpen: false, sessionId: null, lastQuitAt: Date.now() });
   if (saved().sharing) persistQueue(true);
   try {
     flushLocalNow();
   } catch {}
+}
+
+export function reopenSession() {
+  if (!endedSession) return;
+  save({ sessionOpen: true, sessionId: sessionId(), lastQuitAt: endedSession.lastQuitAt });
+  endedSession = null;
 }
 
 export const settingsSnapshotDay = () => saved().settingsDay;

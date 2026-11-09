@@ -137,6 +137,21 @@ test("quitting clears the session id and writes the local copy synchronously", (
   assert.ok(stub.telemetryLocal.records().some((r) => r.event === "last_event"));
 });
 
+test("a cancelled quit reopens the saved session, so a later crash reads as unclean", () => {
+  const quitAtBefore = state().lastQuitAt;
+  client.endSession();
+  assert.equal(state().sessionOpen, false);
+  assert.equal(state().sessionId, null);
+  client.reopenSession();
+  assert.equal(state().sessionOpen, true);
+  assert.match(state().sessionId, UUID7);
+  assert.equal(state().lastQuitAt, quitAtBefore);
+  client.capture("after_cancelled_quit");
+  local.flushLocal();
+  const record = stub.telemetryLocal.records().find((r) => r.event === "after_cancelled_quit");
+  assert.equal(record.properties.$session_id, state().sessionId);
+});
+
 test("the hourly measurement reports size, timings, drops and posts", async () => {
   const { reportLocalStore, LOCAL_STORE_EVENT } = await import("./localStoreReport.ts");
   client.setSharing(true, "settings");

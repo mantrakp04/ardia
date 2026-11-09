@@ -5,7 +5,7 @@ import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { usePages } from "../tabs/pageState";
 import { useSync } from "../sync/engine";
-import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
+import { capture, endSession, flush, isSharing, markSettingsSnapshot, reopenSession, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
 import { startWatchChecks } from "./watch";
 import { appIconSetting, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
@@ -232,6 +232,7 @@ export function startUsage() {
       stopContextSamples();
       sessionEnding();
     } else if (e.type === "quitCancelled") {
+      reopenSession();
       startContextSamples();
       resumeScreenShares(usePages.getState().pages);
     }
