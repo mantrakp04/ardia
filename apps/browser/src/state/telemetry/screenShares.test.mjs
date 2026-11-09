@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
 
 globalThis.__DEV__ = false;
@@ -8,8 +9,11 @@ globalThis.fetch = async () => ({ status: 200 });
 
 const client = await import("./client.ts");
 client.loadChoice();
-const { endRunningScreenShares, noteDisplayAnswer, noteScreenAccess, screenSharePages } = await import("./screenShares.ts");
+const { endRunningScreenShares, noteDisplayAnswer, noteScreenAccess, resumeScreenShares, screenSharePages } = await import("./screenShares.ts");
 after(() => client.setSharing(false, "settings"));
+
+const idle = { mediaAccess: null };
+const live = { mediaAccess: { camera: false, microphone: false, screen: true } };
 
 const shareEvents = async () => {
   await client.saveQueueNow();
@@ -62,8 +66,6 @@ test("an answer is used once, and a stale one is not matched to a later share", 
 
 test("the page store drives it: a screen flag turning on starts a share, and turning off or closing the tab ends it", async () => {
   const before = (await shareEvents()).length;
-  const idle = { mediaAccess: null };
-  const live = { mediaAccess: { camera: false, microphone: false, screen: true } };
   screenSharePages({ f: live }, { f: idle }, 4_000_000);
   screenSharePages({ f: live }, { f: live }, 4_001_000);
   screenSharePages({}, { f: live }, 4_007_000);
@@ -94,6 +96,50 @@ test("quitting ends the shares still running, once each, with the seconds they l
     ["screen_share_ended", "system_picker", 2],
     ["screen_share_ended", "tab", 30],
   ]);
+  resumeScreenShares({}, 7_070_000);
+});
+
+test("a cancelled quit resumes the shares that are still on, in the way they were picked, and not the ones that stopped meanwhile", async () => {
+  const before = (await shareEvents()).length;
+  noteDisplayAnswer("tab-k", "sheet", 8_000_000);
+  noteScreenAccess("tab-k", true, 8_000_100);
+  noteScreenAccess("tab-l", true, 8_000_200);
+  endRunningScreenShares(8_010_100);
+  noteScreenAccess("tab-l", false, 8_015_000);
+  resumeScreenShares({ "tab-k": live, "tab-l": idle }, 8_020_000);
+  noteScreenAccess("tab-k", false, 8_025_000);
+  assert.deepEqual((await shareEvents()).slice(before), [
+    ["screen_share_started", "sheet", undefined],
+    ["screen_share_started", "system_picker", undefined],
+    ["screen_share_ended", "sheet", 10],
+    ["screen_share_ended", "system_picker", 10],
+    ["screen_share_started", "sheet", undefined],
+    ["screen_share_ended", "sheet", 5],
+  ]);
+});
+
+test("a share that begins while the quit is waiting is not recorded, since the app may exit before its end, and is picked up when the quit is cancelled", async () => {
+  const before = (await shareEvents()).length;
+  endRunningScreenShares(9_000_000);
+  noteScreenAccess("tab-m", true, 9_001_000);
+  assert.deepEqual((await shareEvents()).slice(before), []);
+  resumeScreenShares({ "tab-m": live }, 9_002_000);
+  noteScreenAccess("tab-m", false, 9_005_000);
+  assert.deepEqual((await shareEvents()).slice(before), [
+    ["screen_share_started", "system_picker", undefined],
+    ["screen_share_ended", "system_picker", 3],
+  ]);
+});
+
+test("a share that is already running is not started a second time when the quit is cancelled", async () => {
+  const before = (await shareEvents()).length;
+  noteScreenAccess("tab-n", true, 9_100_000);
+  resumeScreenShares({ "tab-n": live }, 9_101_000);
+  noteScreenAccess("tab-n", false, 9_104_000);
+  assert.deepEqual((await shareEvents()).slice(before), [
+    ["screen_share_started", "system_picker", undefined],
+    ["screen_share_ended", "system_picker", 4],
+  ]);
 });
 
 test("nothing is kept while sharing is off, and a share that began then is not reported when sharing comes back", async () => {
@@ -104,4 +150,11 @@ test("nothing is kept while sharing is off, and a share that began then is not r
   client.setSharing(true, "settings");
   noteScreenAccess("tab-h", false, 6_001_000);
   assert.deepEqual(await shareEvents(), []);
+});
+
+test("usage.ts ends the shares when the session ends and resumes them when the quit is cancelled", () => {
+  const usage = readFileSync(new URL("./usage.ts", import.meta.url), "utf8");
+  assert.match(usage, /e\.type === "willQuit"\) \{[^}]*sessionEnding\(\)/);
+  assert.match(usage, /function sessionEnding\(\) \{[^}]*endRunningScreenShares\(\)/);
+  assert.match(usage, /e\.type === "quitCancelled"\) \{[^}]*resumeScreenShares\(usePages\.getState\(\)\.pages\)/);
 });

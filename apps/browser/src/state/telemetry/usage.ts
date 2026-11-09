@@ -17,7 +17,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
-import { endRunningScreenShares, screenSharePages } from "./screenShares";
+import { endRunningScreenShares, resumeScreenShares, screenSharePages } from "./screenShares";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -231,7 +231,10 @@ export function startUsage() {
       clearTimeout(launchCrashRead);
       stopContextSamples();
       sessionEnding();
-    } else if (e.type === "quitCancelled") startContextSamples();
+    } else if (e.type === "quitCancelled") {
+      startContextSamples();
+      resumeScreenShares(usePages.getState().pages);
+    }
   });
 }
 
