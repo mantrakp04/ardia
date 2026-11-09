@@ -23,7 +23,7 @@ const runsText = (passes: number, runs: number) => (passes === runs ? `all ${run
         <h2 class="poster cu-heading" id="cu-title" data-reveal>CLI.</h2>
         <p class="lede">
           Your own Claude Code or Codex drives your Ardia with <code>ardia browse</code>, logins and all, and your Mac’s other apps
-          with <code>ardia computer</code>. Eight browser tasks, timed against Aside and OpenCode Browse.
+          with <code>ardia computer</code>. Tokens spent on eight browser tasks, against Aside and OpenCode Browse.
         </p>
         {!cu.complete && <p class="label status">Bench in progress · {cu.runs} of {cu.planned} runs so far</p>}
       </div>
@@ -120,8 +120,8 @@ const runsText = (passes: number, runs: number) => (passes === runs ? `all ${run
         <ul class="fine" role="list">
           <li>
             {cu.taskCount} local web apps, the same prompt for every agent, graded by a checker on each app’s own server.
-            Medians of {cu.repeats} runs{!cu.complete && ` (${cu.runs} of ${cu.planned} done)`}, {cu.dates}. Time counts passing runs, tokens count
-            every run. Lower is better.
+            Medians of {cu.repeats} runs{!cu.complete && ` (${cu.runs} of ${cu.planned} done)`}, {cu.dates}. Tokens count every run, passing or
+            not. Lower is better.
           </li>
           <li>
             {cu.passes} of {cu.runs} runs passed.{" "}

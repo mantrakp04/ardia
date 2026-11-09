@@ -18,6 +18,8 @@ Examples:
   ardia --port 9222 browse snapshot -i
   ardia browse --port 9222 snapshot -i
   ardia windows --json
+  ardia tabs --json
+  ardia groups create tab-1 tab-2 --name Work --icon 🚀
 """
 SKILLS_DESCRIPTION = """\
 Install the ardia agent skill (SKILL.md and its references) so coding agents know how to drive Ardia.
@@ -204,6 +206,10 @@ def build_parser():
 
     automation_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
 
+    from ardia_cli import workspace_cli
+
+    workspace_cli.add_parsers(commands, argparse.RawDescriptionHelpFormatter)
+
     from ardia_cli import feedback, star
 
     feedback.add_parser(commands, argparse.RawDescriptionHelpFormatter)
@@ -232,9 +238,15 @@ def main(argv: list[str] | None = None) -> int:
     if argv == ["--version"]:
         print(f"ardia {__version__}")
         return 0
-    from ardia_cli import telemetry
+    from ardia_cli import printable, telemetry
 
-    return telemetry.track(argv, lambda: run(argv))
+    try:
+        index = take_shared(argv, 0, [])
+    except UsageError:
+        index = len(argv)
+    browse_renders_its_own = index < len(argv) and argv[index] in ("browse", "notes")
+    with printable.inert_output(json_stdout=browse_renders_its_own or printable.json_requested(argv)):
+        return telemetry.track(argv, lambda: run(argv))
 
 
 def run(argv: list[str]) -> int:
@@ -296,6 +308,10 @@ def run(argv: list[str]) -> int:
         from ardia_cli import automation_cli
 
         return automation_cli.dispatch(args, parser)
+    if args.command in ("tabs", "groups", "apply"):
+        from ardia_cli import workspace_cli
+
+        return workspace_cli.run(args, parser)
     if args.command in ("config", "theme"):
         from ardia_cli import config_cli
 

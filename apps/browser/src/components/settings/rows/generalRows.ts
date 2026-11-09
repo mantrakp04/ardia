@@ -122,6 +122,11 @@ export const generalRows = {
     {
       section: "Tab layout",
       rows: {
+        autoHideTabs: {
+          title: "Auto-hide tabs",
+          description: "The tabs slide out of view and come back when you move the pointer to the window's edge. ⌘S turns it on or off from any window.",
+          keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
+        },
         sidebarSide: {
           title: "Sidebar position",
           description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
@@ -133,7 +138,7 @@ export const generalRows = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",
           keywords: ["auto hide", "compact"],
         },
-        showSidebarButton: { advanced: true, title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"], shown: inSidebar },
+        showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
           advanced: true,
           title: "Show Clear button",

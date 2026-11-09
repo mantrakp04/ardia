@@ -26,10 +26,13 @@ import { GroupPanel } from "./GroupPanel";
 import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
 import { cardHoverProps } from "./hoverController";
 import { HoverCardFrameProvider, useHoverCardMotion, useHoverCardOrigin, useHoverCardPlacement } from "./hoverMotion";
-import { hoverCardAt } from "./hoverPlacement";
+import { HOVER_CARD_HEADER, hoverCardAt, sidebarEdgeOf } from "./hoverPlacement";
+import { usePeekSpan } from "../../state/windows/dockMotion";
+import { TAB_ROW } from "./tokens";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { TabIcon } from "./TabIcon";
-import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
+import { HoverPlayer, useShowsMiniPlayer } from "../media/HoverPlayer";
 import { useMedia, usePictureInPicture } from "../../state/media/media";
 
 const WIDTH = 264;
@@ -46,9 +49,9 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
   const side = useSidebarSide(windowId);
-  const frame = useMemo(() => ({ side, windowWidth: width }), [side, width]);
-  const edge = usePlayerEdge(windowId, shown?.anchor, frame);
-  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, side, player ? edge : undefined) : null, { width, height });
+  const sidebarEdge = sidebarEdgeOf(side, width, useSidebarWidth(windowId), usePeekSpan(windowId));
+  const frame = useMemo(() => ({ side, windowWidth: width, sidebarEdge }), [side, width, sidebarEdge]);
+  useHoverCardPlacement(motion, shown ? hoverCardAt(shown.anchor, frame) : null, { width, height });
   if (!shown) return null;
   return (
     <HoverCardFrameProvider value={frame}>
@@ -90,7 +93,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const away = awayTitle(tab);
   return (
     <Card anchor={anchor}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: TAB_ROW.titleGap, height: HOVER_CARD_HEADER }}>
         <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
         {away ? (
           <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />

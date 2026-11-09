@@ -433,14 +433,6 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     },
     @"fullScreen" : ^NSString *(NSWindow *w, NSString *) { return FullScreen(w, nil); },
     @"fakeFullScreen" : ^NSString *(NSWindow *w, NSString *a) { return FullScreen(w, a); },
-    @"fullScreenReveal" : ^NSString *(NSWindow *w, NSString *amount) {
-      if (amount.length) SetFullScreenRevealAmount(w, amount.doubleValue);
-      return JSONText(FullScreenRevealState(w), @"{}");
-    },
-    @"fullScreenLightsHover" : ^NSString *(NSWindow *w, NSString *inside) {
-      SetFullScreenLightsPointerInside(w, inside.boolValue);
-      return JSONText(FullScreenRevealState(w), @"{}");
-    },
     @"snapshotFrame" : ^NSString *(NSWindow *w, NSString *path) { return SnapshotFrameView(w, path); },
     @"children" : ^NSString *(NSWindow *w, NSString *) {
       NSMutableArray *children = [NSMutableArray array];

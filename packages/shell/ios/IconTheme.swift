@@ -6,6 +6,11 @@ enum IconTheme {
   case blur
   case template(fill: CGColor, stroke: CGColor?)
 
+  static let ringOnBlack = CGColor(gray: 1, alpha: 0.3)
+  private static let softLightFloor = 0.01
+
+  static func needsOpaqueRing(_ fill: CGColor) -> Bool { luminance(fill) < softLightFloor }
+
   var json: [String: Any] {
     switch self {
     case .blur:
@@ -26,7 +31,7 @@ enum IconTheme {
     if spread >= 0.055 { return .blur }
     guard let fill = CGColor(colorSpace: space, components: [mean.x, mean.y, mean.z, 1]) else { return nil }
     if luminance(fill) > 0.88 {
-      return .template(fill: CGColor(gray: 0, alpha: 1), stroke: CGColor(gray: 1, alpha: 0.3))
+      return .template(fill: CGColor(gray: 0, alpha: 1), stroke: ringOnBlack)
     }
     return .template(fill: fill, stroke: nil)
   }
