@@ -8,20 +8,20 @@ and no "set up services" button that opened chrome://setup, which isn't built. H
 
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page.ts
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page.ts
-@@ -179,12 +179,6 @@
+@@ -167,12 +167,6 @@
      Router.getInstance().navigateTo(routes.SITE_SETTINGS);
    }
  
--  private onHeliumServicesPageClick_() {
+-  protected onHeliumServicesPageClick_() {
 -    this.interactedWithPage_();
 -
 -    Router.getInstance().navigateTo(routes.HELIUM_SERVICES);
 -  }
 -
-   private onSecurityPageClick_() {
+   protected onSecurityPageClick_() {
      this.interactedWithPage_();
      this.metricsBrowserProxy_.recordAction(
-@@ -250,10 +244,6 @@
+@@ -236,10 +230,6 @@
        map.set(routes.NOISE.path, '#noiseLinkRow');
      }
  
@@ -32,7 +32,7 @@ and no "set up services" button that opened chrome://setup, which isn't built. H
      if (routes.COOKIES) {
        map.set(routes.COOKIES.path, '#thirdPartyCookiesLinkRow');
      }
-@@ -280,9 +270,6 @@
+@@ -266,9 +256,6 @@
        case 'noise':
          triggerId = 'noiseLinkRow';
          break;
@@ -44,8 +44,8 @@ and no "set up services" button that opened chrome://setup, which isn't built. H
          triggerId = 'securityLinkRow';
 --- a/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
 +++ b/chrome/browser/resources/settings/privacy_page/privacy_page_index.html
-@@ -19,14 +19,6 @@
-     <settings-privacy-page slot="view" id="privacy" prefs="{{prefs}}"
+@@ -20,14 +20,6 @@
+     <settings-privacy-page slot="view" id="privacy"
          route-path$="[[routes_.PRIVACY.path]]">
      </settings-privacy-page>
 -  </template>
@@ -108,7 +108,7 @@ and no "set up services" button that opened chrome://setup, which isn't built. H
  
 --- a/chrome/browser/resources/settings/router.ts
 +++ b/chrome/browser/resources/settings/router.ts
-@@ -39,7 +39,6 @@ export interface SettingsRoutes {
+@@ -39,7 +39,6 @@
    GEMINI_LOGIN: Route;
    GEMINI_ENTERPRISE: Route;
    GLIC_SECTION: Route;

@@ -281,10 +281,12 @@ Check Saved(std::string origin, std::string username, Secret password) {
           if (!credential) {
             return false;
           }
-          std::string saved = base::UTF16ToUTF8(credential->password);
+          std::u16string saved16 = credential->password.value();
+          credential->password.clear();
+          std::string saved = base::UTF16ToUTF8(saved16);
+          Cleanse(saved16);
           const bool same = saved == password.value();
           Cleanse(saved);
-          Cleanse(credential->password);
           return same;
         });
       },
@@ -384,7 +386,11 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       }
                       base::DictValue result;
                       if (credential) {
-                        result.Set("password", credential->password);
+                        std::u16string password =
+                            credential->password.value();
+                        credential->password.clear();
+                        result.Set("password", password);
+                        ardia::Cleanse(password);
                       } else {
                         result.Set("password", base::Value());
                       }

@@ -25,7 +25,7 @@
      const content::MediaStreamRequest& request,
      content::MediaResponseCallback callback,
      const extensions::Extension* extension) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
 +  if (g_ardia_media_access_request &&
 +      g_ardia_media_access_request(web_contents, request, &callback)) {
 +    return;

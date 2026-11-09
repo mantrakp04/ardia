@@ -87,7 +87,6 @@ source_set("ardia") {
     "//chrome/browser/search_engines",
     "//chrome/browser/sessions",
     "//chrome/browser/task_manager",
-    "//chrome/browser/ui",
     "//chrome/browser/ui/color:color_headers",
     "//chrome/browser/ui/views/overlay",
     "//chrome/common",

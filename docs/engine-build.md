@@ -1,8 +1,8 @@
 # Building the engine from source
 
 Ardia runs on ArdiaCore: Chrome's own framework (`//chrome:chrome_framework`) built from our Chromium tree, with our
-layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 156.0.8078.79** (`CHROMIUM_VERSION` in
-`env.sh`), plus **Helium** 0.20.3 (helium-chromium) and 0.20.3.1 (helium-macos) minus a short skip list, then our
+layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 157.0.8103.38** (`CHROMIUM_VERSION` in
+`env.sh`), plus **Helium** 0.21.1 (helium-chromium) and 0.21.1.1 (helium-macos) minus a short skip list, then our
 patch series. Nothing of CEF's is checked out or built. CEF left the tree
 on 2026-10-09: its 117 patches to Chrome are gone, except a few kept as `chromium-cef-carryover.patch`
 ([below](#cefs-117-patches)), and the seams of theirs ArdiaCore used are our own hooks H1–H6
@@ -90,7 +90,7 @@ What the build adds:
 | `chromium-ungoogled-mime-util-ymp.patch` | iridium's `mime_util-force-text-x-suse-ymp-to-be-downloaded` (BSD), which Helium leaves out: YaST one-click files download instead of rendering |
 | `chromium-background-instance-no-default-handlers.patch` | A hidden test instance (`ARDIA_BACKGROUND=1`, which the app passes as `--ardia-background`; ArdiaCore sets `g_ardia_background_instance`) never sets a system default: `shell_integration`'s `SetAsDefaultBrowser`, `SetAsDefaultClientForScheme` and `SetAsDefaultHandlerForUTType` log a line and return false, so chrome://settings' Make default, the default browser prompt or a default protocol handler in a scratch copy can't change the owner's defaults. The app's own Set as Default goes through `ArdiaSystem.setAsDefaultBrowser`, which does the same |
 | `chromium-apple-passwords-host-skipped.patch` | Native messaging never starts Apple Passwords' helper (`com.apple.passwordmanager`): its launch constraint kills it at exec under any browser it doesn't know, which left a crash report at every connectNative of the iCloud Passwords extension once Helium's `scan-chrome-native-messaging-hosts` found its manifest in `/Library/Google/Chrome/NativeMessagingHosts`. `FindManifest` answers "Can't find native messaging host" for it |
-| `chromium-extension-tab-move-closing-window.patch` | An extension's tab move between windows (`chrome.tabs.move` with a `windowId`, `chrome.windows.create` with a `tabId`) fails before anything detaches when either window is closing. Into one running its unload handlers the moved tab would die in its `CloseAllTabs`; into a delete-scheduled one (still in `WindowControllerList`, gone from `GlobalBrowserCollection`) `TabListBridge::MoveTabToWindow` hit `CHECK(target_window)`: "No window with id". Out of a closing one, a `ClosePage` already sent acked into `Close` after the move and closed the tab in its new window: "Tabs can't move out of a window that is closing.", checked in `WindowsCreateFunction::ValidateTab` before `windows.create` makes its window |
+| `chromium-extension-tab-move-closing-window.patch` | An extension's tab move between windows (`chrome.tabs.move` with a `windowId`, `chrome.windows.create` with a `tabId`) fails before anything detaches when either window is closing. Into one running its unload handlers the moved tab would die in its `CloseAllTabs`; into a delete-scheduled one (still in `WindowControllerList`, gone from `GlobalBrowserCollection`) `TabListBridge::MoveTabToWindow` hit `CHECK(target_window)`: "No window with id". Out of a closing one, a `ClosePage` already sent acked into `Close` after the move and closed the tab in its new window: "Tabs can't move out of a window that is closing.", checked in `tabs_util::ValidateTabForMove` (shared by `tabs.move` and `windows.create`, so before `windows.create` makes its window) |
 | `chromium-ardia-layer.patch` | The macOS `//chrome:chrome_dll` (ArdiaCore's framework) links `//chrome/browser/ardia` and exports its `ac_*` calls |
 | `chromium-pip-overlay-window.patch` | Chrome makes our `ArdiaVideoOverlayWindow` (`chrome/browser/ardia/pip/`, a `VideoOverlayWindowViews` subclass with its own buttons, progress bar, fade and bounds memory; the hook makes six methods virtual): Dia's video Picture in Picture window (measured in `docs/dia-spec.md` › Picture in Picture): nothing but the video at rest (the origin shows only with the controls); on hover a 35 % black scrim, back to tab (top left) and close (top right) as 28 pt rounded squares with 1 pt line glyphs (the window can hand each one's frame, hover, press and fade opacity to a presenter set on the NSWindow, `presentArdiaPictureInPictureControls:` in `ac_pip_mac.mm`; the app sets none since its liquid glass was removed (2026-10-29), so Chrome paints them), the origin centred in 13 pt, a bare play/pause glyph between bare ±10 s buttons (Chrome's, restyled; ← and → seek while they show), and a 5 pt progress bar that seeks; no previous/next track, time, mute, captions or minimize controls. The idle fade (Chrome's 2.5 s timer, rebound) skips while the pointer rests on a control. Controls fade in 200 ms ease-in-out. The window shows at once and fades out in Core Animation (100 ms from the close button, 70 ms otherwise, smooth while the tab is being shown), and a new window opens where the last one was left, sized to the new video and kept on screen (`ArdiaPictureInPicture.plist` in the user data dir). Closing it, by its button or by the window going away any other way, never pauses the video, which keeps playing in its tab, as in Dia and Arc (`OnCloseButtonPressed` asks for `kCloseWindowOnly`, and the subclass's `OnNativeWidgetDestroyed` tells the controller not to pause; Chrome paused whenever the window had a play/pause button) |
 | `chromium-pip-user-agent-ignores-page-opt-out.patch` | A page's `disablepictureinpicture` stops only its own `requestPictureInPicture()`: the browser still hears the video can go into Picture in Picture (so auto PiP on a tab switch works), and a request from an isolated world (our PiP control's, `ac_content_renderer_client.cc`) or from the browser (Chrome's auto PiP) opens it. YouTube's player sets the attribute on video it doesn't mark backgroundable, YouTube TV's included (#908). The permissions policy still blocks. Adding the attribute while the video is in PiP still closes it; writing it again while it's already set (YouTube's player does on each video it loads) no longer does |
@@ -386,7 +386,7 @@ order 1, 3, 4, 2, 5 on a fresh checkout (`gn gen` once the tree is patched). Hel
 `~/chromium-build/helium` and `~/chromium-build/helium-macos` (`HELIUM_DIR`, `HELIUM_MACOS_DIR`), at the commits
 `helium-pins.ini` names.
 
-The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, and on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31.
+The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31, and on 157.0.8103.38 (Helium 0.21.1) since 2026-11-09.
 
 | Step | Script | Time (M5 Pro, shared machine) |
 |---|---|---|
@@ -394,7 +394,7 @@ The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-n
 | 2. Write `out/Release_GN_arm64/args.gn` from `gn_defines.sh`, then `gn gen` | `02-gn-args.sh` | 5 s |
 | 3. Helium, as Ardia takes it ([Helium](#helium)), in stages: `pins` (the checkouts are at the pinned commits, unmodified and made for this Chromium, and `deps.ini` downloads nothing we don't leave out), `guard`, `patches` (Helium's series, then helium-macos's, minus the skip list, with no fuzz), `fixups`, `domsub`, `namesub`, `brand-namesub`, `version`, `resources`. It runs once per tree: `.helium-stages-src`, beside the tree, records the stages that ran and refuses a second run or one that died mid-stage. Each patch's result goes to `~/chromium-build/logs/helium-patches.tsv` | `03-helium.py` | 2.5 min (2026-10-25: the patches 15 s, the substitutions and resources 2 min) |
 | 4. Our series: `apply-chromium-patches.sh` (`series.py capture-base` and `apply --phase chromium`: the patches, then the layers `engine/chromium/apply.sh` and `engine/ardiacore/apply.sh`) | `04-series.sh` | seconds once every patch applies |
-| 5. Regenerate the offline page (`game-resource.sh`), compile `chrome_framework` (ArdiaCore; the app's build stages it from `out/Release_GN_arm64`) | `05-build.sh` | first build 2.5 h (official, ThinLTO, PGO; 2026-10-18), 2 h for 156 at siso's full parallelism (2026-10-25: 1 h 51 min of compiling, then 7.5 min to the linked framework; free memory never under 59 %); incremental: the compile, then a ThinLTO relink of the framework, about 7 min (its cache, `thinlto-cache`, keeps that short) |
+| 5. Regenerate the offline page (`game-resource.sh`), compile `chrome_framework` (ArdiaCore; the app's build stages it from `out/Release_GN_arm64`) | `05-build.sh` | first build 2.5 h (official, ThinLTO, PGO; 2026-10-18), 2 h for 156 at siso's full parallelism (2026-10-25: 1 h 51 min of compiling, then 7.5 min to the linked framework; free memory never under 59 %), 2 h 24 min for 157 to its first compile errors (2026-11-09), then 11 min to the linked framework once they were fixed; incremental: the compile, then a ThinLTO relink of the framework, about 7 min (its cache, `thinlto-cache`, keeps that short) |
 
 After a build, `helium-check-build.py` (read only) checks the framework and its paks for what we leave out of
 Helium: it fails if Helium's uBlock Origin, its onboarding page or the non-free search engine data were built or
@@ -436,7 +436,7 @@ Rules for editing the tree after the first build:
      checkout first and syncing again took 3.5 minutes in all, so do that up front.
   5. Step 3's `guard` stage fails when a skipped patch has left Helium's series (check what replaced it) or an
      applied one now touches what a skip protects (Safe Storage, password saving, Sparkle, the product dir, mDNS);
-     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.20.3). A patch that no longer applies without
+     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.21.1). A patch that no longer applies without
      fuzz fails `patches`, and names any skipped patch that shares its files.
   6. Our patches and the hooks may need their context refreshed; `series.py check` and `apply.sh --check` say
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
@@ -445,7 +445,7 @@ Rules for editing the tree after the first build:
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies
-helium-chromium 0.20.3's series and then helium-macos 0.20.3.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
+helium-chromium 0.21.1's series and then helium-macos 0.21.1.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
 Helium's build-time downloads (its uBlock Origin, the onboarding page, the non-free search engine data) are never
 fetched, and the hunks of its patches that edit them are left out.
 
@@ -521,9 +521,10 @@ Helium host; `helium-check-build.py` fails a build whose binary or paks name one
 Chromium's automatic mode (ungoogled's `doh-changes` isn't applied; Helium's `dns-providers` adds providers to the
 upgrade table), WebRTC uses `default_public_interface_only` (`webrtc-default-handling-policy`), FedCM is on, and EV
 certificates show as in Chrome (ungoogled's `disable-fedcm-by-default` and `Remove-EV-certificates` aren't applied).
-Helium also adds fingerprinting noise (canvas, audio, hardware concurrency), HTTPS-First by default, reduced
-Accept-Language headers, a Global Privacy Control pref (off by default) and flags for ECH and QUIC v2, and turns
-`InfiniteTabsFreezing` on by default. Inox's prefs, Safe Browsing compiled out (`safe_browsing_mode=0`), MV2 and no
+Helium also adds fingerprinting noise (canvas, audio, hardware concurrency), reduced Accept-Language headers, a Global
+Privacy Control pref (off by default) and flags for ECH and QUIC v2, and turns `InfiniteTabsFreezing` on by default.
+HTTPS-First in its balanced mode turns itself on by default (`HttpsFirstBalancedModeAutoEnable`): Helium's
+`prefer-https-by-default` did that until Chromium 157 made it the default. Inox's prefs, Safe Browsing compiled out (`safe_browsing_mode=0`), MV2 and no
 field trials are as before.
 
 **Ungoogled patches Helium leaves out that we carry**, as `chromium-ungoogled-*` patches (BSD-3-Clause, as we
@@ -532,6 +533,63 @@ applied them before Helium): `0005-disable-default-extensions` (without its `web
 leaves out stay out, as before: `disable-download-quarantine` (Chrome quarantines every download itself, with
 `com.apple.quarantine` and its source URL in `kMDItemWhereFroms`), `prefs-always-prompt-for-download-directory`
 (Chrome's default, save to Downloads without asking, is Ardia's) and `enable-extra-locales`.
+
+### 0.20.3 → 0.21.1 (Chromium 157.0.8103.38, 2026-11-09)
+
+A new Chromium milestone, through Helium 0.21.1 and helium-macos 0.21.1.1. What changed in Helium, and what we did:
+
+- **Series.** Removed: `upstream-fixes/wasm-interpreter-fixes` (V8 157 reads the memory size with `memory_size(0)`
+  itself, and `DeclaresLocals` is gone from the scope iterator), ungoogled's `disable-tos-dialog` (it only flipped
+  Linux's `eula_required`; Chromium 157 defaults it to false outside Chrome branding, and the Mac never had a ToS
+  dialog) and `helium/core/prefer-https-by-default` (Chromium 157 turns `HttpsFirstBalancedModeAutoEnable` on
+  itself, so HTTPS-First's balanced mode stays the default). Added: `helium/core/disable-actions-for-browser-commands`,
+  which turns `kUseActionsForBrowserCommands` back off (157 turns it on). With it off, `BrowserCommandController`
+  makes the classic `CommandUpdaterImpl`, as on 156, so `chrome::ExecuteCommand` from ArdiaCore's command
+  dispatcher, context menus and tab commands takes the path it always has; on, it would build a
+  `CommandActionUpdater` over `BrowserActions`, which ArdiaCore's browsers don't drive. The rest is Helium's refresh
+  for 157 (its settings, layout and new tab page work, which only Chrome's own `BrowserView` shows) and a longer
+  domain substitution list. helium-macos only refreshed context. `flags.gn` and `flags.macos.gn` are unchanged,
+  `deps.ini` only bumps Helium's uBlock Origin (never fetched), and no patch adds a host.
+- **Skips and guards.** Every `SKIP` entry is still in the series and still a leaf, the `guard` stage finds the same
+  four reviewed hits, `domsub-keep-store.txt` keeps the same 16 store files, and both resource lists copy 56 files.
+- **Our series.** Fourteen patches no longer applied strictly. Context only: `chromium-side-panel-hook`,
+  `chromium-component-updater-security-only`, `chromium-extension-omaha-attributes`, `chromium-extension-window-hidden`,
+  `chromium-helium-ublock-off`, `chromium-video-super-resolution` (`Display`'s `visible_` is a `DisplayVisibility`
+  now), `chromium-temporary-tab-restore-hook` (`BrowserClosing` returns the new entry's id) and
+  `chromium-helium-onboarding-off`. Rewritten for 157: `chromium-helium-branding` and
+  `chromium-helium-services-page-off` (Settings' privacy page is Lit now: the services row is an `@click` binding and
+  its handler is `protected`), `chromium-media-access-hook` and `chromium-thaw-live-connections` (157's
+  `CHECK_CURRENTLY_ON` and plain `CHECK`s where 156 had `DCHECK`s and `NotFatalUntil`),
+  `chromium-hidden-window-current-window` (`GetCurrentWindowController` tolerates a controller without a
+  `BrowserWindowInterface`; the hook asks only when there is one) and `chromium-extension-tab-move-closing-window`
+  (157 moved the tab move and its validation out of `tabs_api.cc` into `tabs_util.cc`, shared by `tabs.move` and
+  `windows.create`; both checks now live in `tabs_util::MoveTabToWindow` and `ValidateTabForMove`, and
+  `tabs_util.cc` joined the series base).
+- **Hooks.** In `engine/ardiacore/apply.sh`, the Clear Browsing Data hook follows the code into 157's
+  `NotifyBrowserViewCustomEvent` helper, and the external protocol dialog hook's anchor is 157's
+  `CHECK(web_contents, …)`. `engine/chromium/apply.sh` applied unchanged.
+- **GN.** Chromium 157 deleted the `//chrome/browser/ui:ui` monolith (its sources are split into leaf targets under
+  `//chrome/browser`), so `//ardia/core` and `//chrome/browser/ardia` drop that dependency; both already depend on
+  `//chrome/browser`.
+- **What the compiler found.** `chromium-cef-carryover`'s child-modal focus hunk takes `const auto&`: 157's
+  `child_windows_` holds `raw_ptr`. `engine/ardiacore/apply.sh`'s `ChromeMainDelegate` hook: 157 moved
+  `InitializeCrashKeys()` alone into `BasicStartupComplete`, so the old gate, which ran from it to the next renderer
+  `#endif`, swallowed 157's new `command_line` there; it is now a plain `if (!g_ardia_embedder)` around that call, and
+  the old gate starts at `ChromeCrashReporterClient::Create()` in `PreSandboxStartup` and covers the same crash
+  reporter and data dir setup as on 156. ArdiaCore: `ACBrowserWindow` loses `MaybeShowProfileSwitchIPH()` and
+  `MaybeShowSupervisedUserProfileSignInIPH()`, gone from `BrowserWindow`. `//chrome/browser/ardia`:
+  `CredentialUIEntry::password` is a `PasswordString` now, so `ac_passwords.cc` copies the value out, clears the
+  field (which `chromium-password-string-erase` zeroes) and zeroes its copy; `ac_cli_token_policy_web_targets.cc`
+  asks `HasWebUIBindings` and `ProcessMap::Contains` with a `ChildProcessId`.
+- **Build.** The first build compiled for 2 h 24 min (official, ThinLTO, PGO; the Metal Toolchain was already
+  installed) and stopped on those five files; the rebuild with them fixed linked the framework in 11 min.
+  `helium-check-build.py` passes, with the same 9 resources still naming Helium as 156's framework.
+- **Checked in a hidden instance.** chrome://version and `/json/version` say 157.0.8103.38; a new tab loads a page and
+  switching tabs shows one page and hides the other; our uBlock Origin blocks an ad request and replaces Google's ad
+  script with its stand-in; Settings › Privacy has no Helium services row and its services route shows no page; no
+  first-run, onboarding or ToS page opens; Save Page reaches Chrome's save panel through `chrome::ExecuteCommand`
+  (the browser command path `disable-actions-for-browser-commands` keeps); a whole session's net log names no Helium
+  host; Quit exits cleanly.
 
 ### 0.20.1 → 0.20.3 (Chromium 156.0.8078.79, 2026-10-31)
 
