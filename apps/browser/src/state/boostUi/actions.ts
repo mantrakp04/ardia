@@ -5,6 +5,7 @@ import { boostMatchesHost } from "../boosts/match";
 import { encodeBoost, shareLink } from "../boosts/share";
 import { currentBoostsKey, loadBoosts } from "../boosts/store";
 import type { Boost } from "../boosts/types";
+import { boostableDomain } from "../boosts/valid";
 import { currentTab } from "../browser/current";
 import { isIncognitoProfile } from "../browser/model";
 import { activate } from "../tabs/actions";
@@ -15,7 +16,8 @@ export function boostTarget(tabId: string): BoostTarget | null {
   const tab = currentTab(tabId);
   if (!tab || tab.engine === "webkit" || isIncognitoProfile(tab.profileId) || !/^https?:/i.test(tab.url)) return null;
   try {
-    return { profileId: tab.profileId, host: new URL(tab.url).hostname };
+    const host = new URL(tab.url).hostname;
+    return boostableDomain(host) ? { profileId: tab.profileId, host } : null;
   } catch {
     return null;
   }

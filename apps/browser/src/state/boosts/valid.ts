@@ -64,10 +64,11 @@ export const safeSelector = (selector: string) => selector.trim().length > 0 && 
 export const importableCss = (css: string) => !FETCHING_CSS.test(css) && !WEB_URL.test(css);
 
 const HOSTNAME = /^([a-z0-9-]{1,63}\.)*[a-z0-9-]{1,63}$/;
+const IP_ADDRESS = /^[0-9.]+$/;
 const GENERIC_SECOND_LEVEL = /^(co|com|org|net|gov|edu|ac|or|ne|go)\.[a-z]{2}$/;
 export function boostableDomain(domain: string) {
   const host = domain.trim().toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
-  return HOSTNAME.test(host) && (host === "localhost" || (host.includes(".") && !GENERIC_SECOND_LEVEL.test(host)));
+  return HOSTNAME.test(host) && !IP_ADDRESS.test(host) && (host === "localhost" || (host.includes(".") && !GENERIC_SECOND_LEVEL.test(host)));
 }
 
 const MAX_ID = 128;

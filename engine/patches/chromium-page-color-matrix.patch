@@ -93,17 +93,17 @@ diff --git a/content/browser/renderer_host/browser_compositor_view_mac.mm b/cont
 index 41f8ea4..c9c8d8f 100644
 --- a/content/browser/renderer_host/browser_compositor_view_mac.mm
 +++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
-@@ -249,6 +249,9 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+@@ -273,6 +273,9 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
      root_layer_->parent()->Remove(root_layer_.get());
    }
    if (state_ == HasOwnCompositor) {
 +    if (page_color_matrix_ != SkM44()) {
 +      recyclable_compositor_->compositor()->SetDisplayColorMatrix(SkM44());
 +    }
-     recyclable_compositor_->widget()->ResetNSView();
-     recyclable_compositor_->compositor()->SetRootLayer(nullptr);
-     recyclable_compositor_.reset();
-@@ -283,6 +286,10 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     const gfx::CALayerParams* last_ca_layer_params =
+         recyclable_compositor_->widget()->GetCALayerParams();
+     const bool retire_compositor =
+@@ -324,6 +327,10 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
      recyclable_compositor_->compositor()->SetBackgroundColor(background_color_);
      recyclable_compositor_->compositor()->SetVideoSuperResolutionAllowed(
          video_super_resolution_allowed_);
@@ -114,7 +114,7 @@ index 41f8ea4..c9c8d8f 100644
      recyclable_compositor_->widget()->SetNSView(
          accelerated_widget_mac_ns_view_);
      recyclable_compositor_->Unsuspend();
-@@ -474,4 +481,11 @@ void BrowserCompositorMac::SetVideoSuperResolutionAllowed(bool allowed) {
+@@ -523,4 +530,11 @@ void BrowserCompositorMac::SetVideoSuperResolutionAllowed(bool allowed) {
    }
  }
  

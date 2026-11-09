@@ -58,7 +58,7 @@ function Panel({ windowId, tabId, profileId, stored }: { windowId: string; tabId
   const { boost, edit } = useDraft(profileId, tabId, stored);
   const [name, setName] = useState(stored.name);
   const [zapping, setZapping] = useState(false);
-  const [chips, setChips] = useState<ZapChip[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [copied, setCopied] = useState(false);
   const typed = useRef<Partial<Boost>>({});
   const zaps = useRef(stored.zaps);
@@ -83,13 +83,13 @@ function Panel({ windowId, tabId, profileId, stored }: { windowId: string; tabId
     return () => clearTimeout(timer);
   }, [copied]);
   const hasJs = !!stored.js.trim();
-  const zap = ({ selector, matches }: ZapChip) => {
+  const chips = stored.zaps.map((selector): ZapChip => ({ selector, matches: counts[selector] }));
+  const zap = ({ selector, matches }: { selector: string; matches: number }) => {
     if (!zaps.current.includes(selector)) updateBoost(profileId, stored.id, { zaps: [...zaps.current, selector] });
-    setChips((list) => [...list.filter((c) => c.selector !== selector), { selector, matches }]);
+    setCounts((known) => ({ ...known, [selector]: matches }));
   };
   const undo = (chip: ZapChip) => {
     updateBoost(profileId, stored.id, { zaps: zaps.current.filter((s) => s !== chip.selector) });
-    setChips((list) => list.filter((c) => c.selector !== chip.selector));
   };
   const share = () => setCopied(copyShareCode({ ...stored, ...typed.current }, true));
   return (

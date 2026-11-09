@@ -4,11 +4,11 @@ import { useTab } from "../../state/browser/hooks";
 import { setZapRelated, startZap, stopZap, watchZapPicks, type ZapPick } from "../../state/boostUi/zap";
 import { BOOST_PANEL } from "./tokens";
 
-export type ZapChip = { selector: string; matches: number };
+export type ZapChip = { selector: string; matches?: number };
 
 const plural = (n: number) => `${n} element${n === 1 ? "" : "s"}`;
 
-export function ZapPicker({ tabId, onZap }: { tabId: string; onZap: (chip: ZapChip) => void }) {
+export function ZapPicker({ tabId, onZap }: { tabId: string; onZap: (pick: { selector: string; matches: number }) => void }) {
   const [pick, setPick] = useState<ZapPick | null>(null);
   const [level, setLevel] = useState(0);
   const asked = useRef(false);
@@ -79,7 +79,7 @@ export function ZapChips({ chips, onUndo }: { chips: ZapChip[]; onUndo: (chip: Z
       {chips.map((chip) => (
         <Box key={chip.selector} row center gap="s" padX="l" fill="groupFill" radius="control" style={{ height: BOOST_PANEL.chipHeight }}>
           <Text size="small" lines={1} style={{ flex: 1 }}>
-            {`Hid ${plural(chip.matches)}`}
+            {chip.matches === undefined ? `Hid ${chip.selector}` : `Hid ${plural(chip.matches)}`}
           </Text>
           <Button variant="text" title="Undo" size="small" onPress={() => onUndo(chip)} />
         </Box>
