@@ -226,6 +226,25 @@ test("the X while the tab switched to is still loading closes the panel for that
   panels.closeSidePanel(w);
 });
 
+test("a panel whose tab moved to another window no longer keeps this window's panel open", async () => {
+  const { w, a, b, asked, answer } = setup();
+  const opened = panels.openSidePanel(w, "ext");
+  await answer(0, "chrome-extension://ext/panel.html?tabId=a");
+  await opened;
+  S().activate(b);
+  void panels.syncSidePanel(w);
+  await answer(1, "chrome-extension://ext/panel.html?tabId=b");
+  assert.equal(panels.panelTabOpen(w, b), true);
+  const other = S().createWindow({ url: "c.com" });
+  S().moveTabsToWindow([b], other);
+  assert.equal(panels.panelTabOpen(w, b), false);
+  S().activate(a);
+  panels.closeSidePanelOnTab(w);
+  assert.equal(E().sidePanels[w], undefined);
+  assert.equal(asked.length, 2);
+  panels.closeSidePanel(w);
+});
+
 test("the X on the only open panel closes it for the window", async () => {
   const { w, answer } = setup();
   const opened = panels.openSidePanel(w, "ext");

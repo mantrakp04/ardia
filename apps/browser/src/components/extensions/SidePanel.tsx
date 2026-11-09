@@ -10,7 +10,7 @@ import { updateSettings } from "../../state/settings/actions";
 import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
-import { closeSidePanel, closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { closeSidePanelOnTab, findExtension, panelDroppedOnTab, panelTabOpen, showExtensionMenu, shownReadyTab, takeSidePanelFocus, useExtensions, type SidePanel } from "../../state/extensions/actions";
 import { curve, duration } from "../ui/motion";
 import { GLYPH } from "../toolbar/tokens";
 
@@ -25,7 +25,7 @@ function rubberBand(width: number): number {
   return width;
 }
 const panelKey = (p: SidePanel) => `${p.extensionId}|${p.pageProfile}|${p.url}`;
-const alive = (p: SidePanel, currentKey: string) => panelTabOpen(p.tabId) || panelKey(p) === currentKey;
+const alive = (windowId: string, p: SidePanel, currentKey: string) => panelTabOpen(windowId, p.tabId) || panelKey(p) === currentKey;
 const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 
 export function ExtensionSidePanel() {
@@ -62,7 +62,7 @@ export function ExtensionSidePanel() {
       if (!now) {
         setShown(undefined);
         setKept([]);
-      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(p.tabId) && !panelDroppedOnTab(windowId, p.tabId)));
+      } else if (now.hidden) setKept((k) => k.filter((p) => panelTabOpen(windowId, p.tabId) && !panelDroppedOnTab(windowId, p.tabId)));
     });
   }, [state]);
   useEffect(() => {
@@ -72,7 +72,7 @@ export function ExtensionSidePanel() {
     if (!panel) return;
     setShown(panel);
     setKept((k) => {
-      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(p, panelKey(panel)));
+      const keep = (p: SidePanel) => panelKey(p) === panelKey(panel) || (!!p.tabId && p.tabId !== panel.tabId && alive(windowId, p, panelKey(panel)));
       const next = k.filter(keep);
       return next.some((p) => panelKey(p) === panelKey(panel)) ? next.map((p) => (panelKey(p) === panelKey(panel) ? panel : p)) : [...next, panel];
     });
@@ -82,7 +82,7 @@ export function ExtensionSidePanel() {
       useBrowser.subscribe((s, prev) => {
         if (s.tabs === prev.tabs) return;
         setKept((k) => {
-          const open = k.filter((p) => alive(p, shownKey.current));
+          const open = k.filter((p) => alive(windowId, p, shownKey.current));
           return open.length === k.length ? k : open;
         });
       }),
@@ -128,7 +128,7 @@ export function ExtensionSidePanel() {
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
         {kept.map((p) => {
           const current = (!!panel || leaving) && panelKey(p) === panelKey(shown);
-          const close = () => (current ? closeSidePanel(windowId, p.extensionId) : setKept((k) => k.filter((x) => panelKey(x) !== panelKey(p))));
+          const close = () => (current ? closeSidePanelOnTab(windowId) : setKept((k) => k.filter((x) => panelKey(x) !== panelKey(p))));
           return <PanelCard key={panelKey(p)} windowId={windowId} panel={p} current={current} onWindowClose={close} />;
         })}
         <View

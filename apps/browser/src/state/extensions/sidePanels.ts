@@ -26,7 +26,7 @@ const nextFetch = (windowId: string) => {
 
 export const wantedSidePanels = () => [...wanted];
 
-export const panelTabOpen = (tabId?: string) => !tabId || !!useBrowser.getState().tabs[tabId];
+export const panelTabOpen = (windowId: string, tabId?: string) => !tabId || useBrowser.getState().tabs[tabId]?.windowId === windowId;
 
 export const panelClosedOnTab = (windowId: string, tabId?: string) => !!tabId && !!closedTabs.get(windowId)?.has(tabId);
 
@@ -102,7 +102,7 @@ export function closeSidePanelOnTab(windowId: string) {
   if (!tabId) return closeSidePanel(windowId);
   shownTabs.get(windowId)?.delete(tabId);
   tabsOf(closedTabs, windowId).add(tabId);
-  const others = [...(shownTabs.get(windowId) ?? [])].some((id) => panelTabOpen(id));
+  const others = [...(shownTabs.get(windowId) ?? [])].some((id) => panelTabOpen(windowId, id));
   if (!others) return closeSidePanel(windowId);
   nextFetch(windowId);
   hideSidePanel(windowId);
