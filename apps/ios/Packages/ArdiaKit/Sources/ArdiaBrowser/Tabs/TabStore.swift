@@ -423,8 +423,9 @@ public final class TabStore: LocalBrowsingSource {
     try? context.save()
   }
 
-  public func receive(_ tabs: [ReceivedTab]) {
-    guard !tabs.isEmpty else { return }
+  @discardableResult
+  public func receive(_ tabs: [ReceivedTab]) -> Bool {
+    guard !tabs.isEmpty else { return true }
     let known = Set(((try? context.fetch(FetchDescriptor<BrowserTab>(predicate: #Predicate { $0.receivedKey != nil }))) ?? []).compactMap(\.receivedKey))
     var opened: [BrowserTab] = []
     for received in tabs.sorted(by: { $0.sentAt < $1.sentAt }) where !known.contains(received.key) {
@@ -432,6 +433,12 @@ public final class TabStore: LocalBrowsingSource {
       opened.append(open(.sent(received), selecting: false))
     }
     if !opened.isEmpty { lastReceived = opened }
+    do {
+      try context.save()
+      return true
+    } catch {
+      return false
+    }
   }
 
   public func clearLastReceived() {

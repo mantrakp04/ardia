@@ -28,6 +28,7 @@ final class FakeSource: LocalBrowsingSource {
   var tabs: [LocalTabRecord] = []
   var visits: [LocalVisitRecord] = []
   var received: [ReceivedTab] = []
+  var savesReceived = true
   var removed: [(urls: Set<String>, profile: String?)] = []
   var visitFetches: [Date] = []
 
@@ -44,7 +45,10 @@ final class FakeSource: LocalBrowsingSource {
     return visits.filter { urls.contains($0.url) }
   }
   func removeVisits(urls: Set<String>, profileSyncId: String?) { removed.append((urls, profileSyncId)) }
-  func receive(_ tabs: [ReceivedTab]) { received += tabs }
+  func receive(_ tabs: [ReceivedTab]) -> Bool {
+    received += tabs
+    return savesReceived
+  }
 }
 
 final class FakeMac {

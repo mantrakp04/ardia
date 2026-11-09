@@ -347,7 +347,7 @@ public protocol LocalBrowsingSource: AnyObject {
   func syncedVisits(since: Date) -> [LocalVisitRecord]
   func syncedVisits(urls: Set<String>) -> [LocalVisitRecord]
   func removeVisits(urls: Set<String>, profileSyncId: String?)
-  func receive(_ tabs: [ReceivedTab])
+  func receive(_ tabs: [ReceivedTab]) -> Bool
 }
 
 extension LocalBrowsingSource {

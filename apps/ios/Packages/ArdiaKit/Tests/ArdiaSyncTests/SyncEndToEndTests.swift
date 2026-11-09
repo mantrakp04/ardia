@@ -68,6 +68,35 @@ import Testing
     #expect(sandbox.contents(sandbox.keys).isEmpty)
   }
 
+  @Test func aSentTabThePhoneCouldNotSaveIsKeptUntilItIsSaved() async throws {
+    let sandbox = try Sandbox()
+    defer { sandbox.remove() }
+    let entropy = RecoveryPhrase.generateEntropy()
+    let mac = try seededMac(sandbox, entropy: entropy)
+    let source = FakeSource()
+    source.savesReceived = false
+    let service = service(sandbox, source: source)
+    #expect(await service.connect(phrase: RecoveryPhrase.words(for: entropy).joined(separator: " "), folder: sandbox.root) == .connected)
+    await service.syncNow()
+    let me = try #require(service.snapshot.devices.first { $0.isCurrent })
+    let key = "send:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    try mac.put(Self.scope, key, #"{"u":"https://sent.example/","t":"Sent","to":"\#(me.id)","from":"\#(mac.device)","at":\#(Int(Date.now.millisecondsSince1970))}"#)
+    try mac.sync([Self.scope])
+    await service.syncNow()
+    await service.syncNow()
+    #expect(source.received.map(\.url).contains("https://sent.example/"))
+    try mac.sync([Self.scope])
+    #expect(try mac.store(Self.scope)[key] != nil)
+
+    source.savesReceived = true
+    source.received = []
+    await service.syncNow()
+    await service.syncNow()
+    #expect(source.received.map(\.url) == ["https://sent.example/"])
+    try mac.sync([Self.scope])
+    #expect(try mac.store(Self.scope)[key] == nil)
+  }
+
   @Test func theIPhoneJoinsSeesTheMacAndTheMacSeesTheIPhone() async throws {
     let sandbox = try Sandbox()
     defer { sandbox.remove() }

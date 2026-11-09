@@ -658,8 +658,9 @@ public final class SyncService {
         try? await engine.acknowledgeRemovals(outcome.historyRemoved)
       }
       if !outcome.received.isEmpty, let source, self.engine === engine {
-        source.receive(outcome.received)
-        try? await engine.acknowledge(outcome.received)
+        if source.receive(outcome.received) {
+          try? await engine.acknowledge(outcome.received)
+        }
       }
     }
   }
