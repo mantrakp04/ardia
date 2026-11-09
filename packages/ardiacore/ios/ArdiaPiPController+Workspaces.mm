@@ -1,4 +1,5 @@
 #import "ArdiaPictureInPictureInternal.h"
+#import "ArdiaRuntime.h"
 
 #import <objc/runtime.h>
 
@@ -26,24 +27,56 @@ void AnswerSystemFloatingSubrole(Class windowClass) {
   if (!class_addMethod(windowClass, subrole, floating, method_getTypeEncoding(inherited))) method_setImplementation(inherited, floating);
 }
 
+void JoinBeforeFirstShown(NSWindow *window) {
+  if (window.visible || window.level < NSFloatingWindowLevel || !(window.collectionBehavior & NSWindowCollectionBehaviorCanJoinAllSpaces)) return;
+  JoinFullScreenSpaces(window);
+}
+
+const void *const kJoinsFullScreenSpacesKey = &kJoinsFullScreenSpacesKey;
+
+BOOL MarkedToJoinFullScreenSpaces(NSWindow *window) { return objc_getAssociatedObject(window, kJoinsFullScreenSpacesKey) != nil; }
+
+void AnswerNonactivatingPanelForMarkedWindows() {
+  ardia_runtime::ReplaceMethod(NSWindow.class, @selector(_isNonactivatingPanel), ^id(IMP original) {
+    return ^BOOL(NSWindow *window) {
+      return MarkedToJoinFullScreenSpaces(window) || ((BOOL (*)(id, SEL))original)(window, @selector(_isNonactivatingPanel));
+    };
+  });
+}
+
+void JoinWhenChromeMakesItFloat(Class windowClass) {
+  ardia_runtime::ReplaceMethod(windowClass, @selector(setCollectionBehavior:), ^id(IMP original) {
+    return ^(NSWindow *window, NSWindowCollectionBehavior behavior) {
+      ((void (*)(id, SEL, NSWindowCollectionBehavior))original)(window, @selector(setCollectionBehavior:), behavior);
+      JoinBeforeFirstShown(window);
+    };
+  });
+  ardia_runtime::ReplaceMethod(windowClass, @selector(setLevel:), ^id(IMP original) {
+    return ^(NSWindow *window, NSWindowLevel level) {
+      ((void (*)(id, SEL, NSWindowLevel))original)(window, @selector(setLevel:), level);
+      JoinBeforeFirstShown(window);
+    };
+  });
+}
+
 }
 
 namespace ardia_pip {
 
 BOOL JoinsFullScreenSpaces(NSWindow *window) {
   const NSWindowCollectionBehavior needed =
-      NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorCanJoinAllApplications | NSWindowCollectionBehaviorFullScreenAuxiliary;
-  const BOOL independent = ![window respondsToSelector:@selector(activationIndependence)] || [window activationIndependence];
-  return independent && (window.collectionBehavior & needed) == needed;
+      NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
+  const BOOL nonactivating = [window respondsToSelector:@selector(_isNonactivatingPanel)] && [window _isNonactivatingPanel];
+  return nonactivating && (window.collectionBehavior & needed) == needed;
 }
 
 void JoinFullScreenSpaces(NSWindow *window) {
   const NSWindowCollectionBehavior exclusive = NSWindowCollectionBehaviorPrimary | NSWindowCollectionBehaviorAuxiliary |
                                                NSWindowCollectionBehaviorFullScreenPrimary | NSWindowCollectionBehaviorFullScreenNone;
   const NSWindowCollectionBehavior joined = (window.collectionBehavior & ~exclusive) | NSWindowCollectionBehaviorCanJoinAllSpaces |
-                                            NSWindowCollectionBehaviorCanJoinAllApplications | NSWindowCollectionBehaviorFullScreenAuxiliary;
+                                            NSWindowCollectionBehaviorFullScreenAuxiliary;
   if (joined != window.collectionBehavior) window.collectionBehavior = joined;
-  if ([window respondsToSelector:@selector(setActivationIndependence:)] && ![window activationIndependence]) [window setActivationIndependence:YES];
+  objc_setAssociatedObject(window, kJoinsFullScreenSpacesKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 }
@@ -51,7 +84,11 @@ void JoinFullScreenSpaces(NSWindow *window) {
 @implementation ArdiaPiPController (Workspaces)
 
 + (void)load {
-  if (Class frameless = NSClassFromString(@"NativeWidgetMacFramelessNSWindow")) AnswerSystemFloatingSubrole(frameless);
+  Class frameless = NSClassFromString(@"NativeWidgetMacFramelessNSWindow");
+  if (!frameless) return;
+  AnswerSystemFloatingSubrole(frameless);
+  AnswerNonactivatingPanelForMarkedWindows();
+  JoinWhenChromeMakesItFloat(frameless);
 }
 
 @end

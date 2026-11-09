@@ -262,7 +262,6 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     if (_tab) _leftTab = _tab;
     _tab = nil;
   }
-  ApplyFullScreenReveal(_coreWindow.window);
   _telling++;
   __weak ArdiaWindowFullScreen *weakSelf = self;
   __weak ArdiaCoreTab *weakTab = tab;

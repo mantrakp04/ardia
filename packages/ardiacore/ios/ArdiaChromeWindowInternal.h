@@ -45,19 +45,6 @@ void TranslateTrafficLights(NSWindow *window, CGFloat dx);
 void RetileTrafficLights(NSWindow *window);
 bool MoveTrafficLights(NSWindow *window, NSValue *center);
 
-void WatchFullScreenLights(NSWindow *window);
-void PlaceFullScreenLights(NSWindow *window);
-NSView *FullScreenLightsView(NSWindow *window);
-void SetFullScreenLightsPointerInside(NSWindow *window, BOOL inside);
-NSDictionary *FullScreenLightsBandState(NSWindow *window);
-
-void SuppressFullScreenTitlebar(NSWindow *window);
-CGFloat FullScreenRevealHeight(NSWindow *window);
-double FullScreenRevealAmount(NSWindow *window);
-void ApplyFullScreenReveal(NSWindow *window);
-void SetFullScreenRevealAmount(NSWindow *window, double amount);
-NSDictionary *FullScreenRevealState(NSWindow *window);
-
 NSMenuItem *ReservedMenuItemForEvent(NSEvent *event);
 bool IsReservedKey(NSEvent *event);
 bool IsSecondSidebarKeyPress(NSEvent *event);
