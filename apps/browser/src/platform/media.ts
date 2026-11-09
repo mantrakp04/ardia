@@ -20,6 +20,7 @@ export const setAutoPictureInPicture = (enabled: boolean) => call("webView.setAu
 export const setVideoUpscaling = (enabled: boolean) => call("webView.setVideoUpscaling", { enabled });
 
 export const onCastDialog = (listener: (e: CastDialog) => void) => on("media.castDialog", listener);
+export const onCoveredWhileRecorded = (listener: () => void) => on("media.coveredWhileRecorded", listener);
 export const onCastRoutes = (listener: (e: { profile: string; routes: CastRoute[] }) => void) => on("media.castRoutes", listener);
 export const showCastDialog = (tabId: string) => call("media.showCastDialog", { tabId });
 export const startCasting = (dialogId: number, sinkId: string, mode: number) => call("media.startCasting", { id: dialogId, sink: sinkId, mode });

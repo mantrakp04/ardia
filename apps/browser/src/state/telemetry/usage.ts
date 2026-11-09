@@ -1,5 +1,6 @@
 import { listTasks, type EngineTask } from "../../platform/performance";
 import { onExtensionsChanged } from "../../platform/extensions";
+import { onCoveredWhileRecorded } from "../../platform/media";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
@@ -26,7 +27,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, recordedWindowsKeptDrawing: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -46,6 +47,7 @@ function emitCounts() {
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,
       tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
+      recorded_windows_kept_drawing: counts.recordedWindowsKeptDrawing,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -121,6 +123,10 @@ function watchTranslate() {
   useTranslate.subscribe((s, prev) => {
     for (const tabId in s) if (s[tabId]?.status === "translating" && prev[tabId]?.status !== "translating") capture("translate_used");
   });
+}
+
+function watchScreenRecording() {
+  onCoveredWhileRecorded(() => counts.recordedWindowsKeptDrawing++);
 }
 
 function watchExtensions() {
@@ -216,6 +222,7 @@ export function startUsage() {
   watchSync();
   watchTranslate();
   watchExtensions();
+  watchScreenRecording();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);

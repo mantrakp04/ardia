@@ -213,4 +213,5 @@ export type EngineEvents = {
   "media.deviceChooser": DeviceChooser;
   "media.castDialog": CastDialog;
   "media.castRoutes": { profile: string; routes: CastRoute[] };
+  "media.coveredWhileRecorded": Record<string, never>;
 };

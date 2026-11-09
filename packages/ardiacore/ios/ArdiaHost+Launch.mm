@@ -441,6 +441,8 @@ void StartEarlyWindow() {
     extra.push_back("--disable-backgrounding-occluded-windows");
     if (Method occluded = class_getInstanceMethod(NSWindow.class, NSSelectorFromString(@"isOccluded")))
       method_setImplementation(occluded, imp_implementationWithBlock(^BOOL(id) { return NO; }));
+  } else {
+    ardia_host::KeepRecordedWindowsDrawing();
   }
   if (background && [config instanceFlag:@"allowOcclusion"]) ReportLoweredWindowOcclusion();
   if (background && ![config instanceFlag:@"allowAudio"]) extra.push_back("--mute-audio");
