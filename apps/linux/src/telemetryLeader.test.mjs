@@ -53,6 +53,7 @@ let ids = 0;
 function window({ locks, channel, candidate = true, lead = async () => {}, handle = async (op) => `${op}-done` }) {
   const delivered = [];
   const handled = [];
+  const changes = [];
   let relay = null;
   const leadership = startTelemetryLeadership({
     candidate,
@@ -62,11 +63,12 @@ function window({ locks, channel, candidate = true, lead = async () => {}, handl
     deliver: (message) => delivered.push(message),
     handle: (op) => (handled.push(op), handle(op)),
     lead,
+    changed: () => changes.push("changed"),
     report: (error) => assert.fail(String(error)),
     newId: () => `id-${++ids}`,
   });
   const capture = (event) => relay ? relay({ kind: "capture", event, props: {}, options: {} }) : delivered.push({ kind: "capture", event, local: true });
-  return { delivered, handled, capture, leadership, channel, relaying: () => relay !== null };
+  return { delivered, handled, changes, capture, leadership, channel, relaying: () => relay !== null };
 }
 
 test("the first window leads, keeps what it captured before leading, and records later captures itself", async () => {
@@ -182,6 +184,22 @@ test("ending the session, reopening it and resetting the ID run in the leader, w
   assert.equal(await leader.leadership.request("reopen", 1000), "reopen-done");
   assert.deepEqual(leader.handled, ["reset", "end", "reopen"]);
   assert.deepEqual(settings.handled, []);
+});
+
+test("the leader's choice announcement reaches the other windows, and only a leader can announce", async () => {
+  const locks = fakeLocks();
+  const bus = fakeBus();
+  const leader = window({ locks, channel: bus() });
+  await turn();
+  const settings = window({ locks, channel: bus(), candidate: false });
+  const other = window({ locks, channel: bus(), candidate: false });
+  await turn();
+  settings.leadership.announce();
+  await turn();
+  assert.deepEqual([leader.changes, other.changes], [[], []]);
+  leader.leadership.announce();
+  await turn();
+  assert.deepEqual([leader.changes, settings.changes, other.changes], [[], ["changed"], ["changed"]]);
 });
 
 test("an event captured before the lock decision reaches the leader once", async () => {

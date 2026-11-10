@@ -9,7 +9,7 @@ import { requireSharing } from "../../browser/src/state/telemetry/required";
 import { setTelemetryRelay } from "../../browser/src/state/telemetry/relay";
 import { enforceSharing, reopenSession } from "../../browser/src/state/telemetry/sessionControl";
 import { setTelemetryHost } from "../../browser/src/state/telemetry/transport";
-import { sessionEnding } from "../../browser/src/state/telemetry/usage";
+import { emitWindowUsage, sessionEnding } from "../../browser/src/state/telemetry/usage";
 import { documentSaved } from "../../browser/src/platform/documents";
 import { withDeadline } from "../../browser/src/lib/deadline";
 import { refreshDocument } from "./shims/shellBase";
@@ -23,6 +23,7 @@ const STATE_DOC = "telemetry.json";
 const TELEMETRY_DOCUMENTS = [STATE_DOC, "telemetry-queue.json", DAILY_DOC];
 const END_TIMEOUT_MS = 2_000;
 const RESET_TIMEOUT_MS = 10_000;
+const WINDOW_USAGE_MS = 60 * 60 * 1000;
 
 const report = (error: unknown) => console.warn("[ardia linux] telemetry", error);
 
@@ -67,11 +68,13 @@ export async function handleTelemetryOp(op: TelemetryOp, arg?: string): Promise<
   if (op === "reset") {
     const installId = await resetAnonymousId();
     await documentSaved(STATE_DOC);
+    leadership?.announce();
     return installId;
   }
   if (op === "reopen") {
     if (!ends.reopens(arg)) return false;
     reopenSession();
+    sessionEnded = false;
     await documentSaved(STATE_DOC).catch(report);
     return true;
   }
@@ -122,15 +125,22 @@ export function startHostTelemetry(options: { host: ArdiaHost; candidate: boolea
       sessionEnded = continuing && !savedChoice().sessionOpen;
       enforceSharing();
       startTelemetry({ continuing });
+      await documentSaved(STATE_DOC).catch(report);
+      current.announce();
     },
+    changed: () => void refreshState(),
     report,
   });
   leadership = current;
+  setInterval(() => {
+    if (!current.leading()) emitWindowUsage();
+  }, WINDOW_USAGE_MS);
   return current;
 }
 
 export async function settleHostTelemetry(endsSession: boolean): Promise<string | null> {
   if (!leadership) return null;
+  if (!endsSession || !leadership.leading()) emitWindowUsage();
   if (endsSession) {
     const token = await leadership.request("end", END_TIMEOUT_MS).catch(report);
     return typeof token === "string" ? token : null;

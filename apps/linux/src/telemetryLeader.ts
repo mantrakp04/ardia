@@ -14,7 +14,8 @@ type Wire =
   | { kind: "ack"; id: string }
   | { kind: "request"; id: string; op: TelemetryOp; arg?: string }
   | { kind: "reply"; id: string; ok: boolean; value?: unknown }
-  | { kind: "leader" };
+  | { kind: "leader" }
+  | { kind: "choice" };
 
 export type LeaderLocks = {
   request(name: string, options: { ifAvailable: true }, callback: (lock: unknown) => Promise<void>): Promise<unknown>;
@@ -31,11 +32,12 @@ export type TelemetryLeadershipDeps = {
   deliver(message: Relayed): void;
   handle(op: TelemetryOp, arg?: string): Promise<unknown>;
   lead(): Promise<void>;
+  changed?(): void;
   report(error: unknown): void;
   newId?: () => string;
 };
 
-export type TelemetryLeadership = { leading(): boolean; request(op: TelemetryOp, timeoutMs: number, arg?: string): Promise<unknown> };
+export type TelemetryLeadership = { leading(): boolean; request(op: TelemetryOp, timeoutMs: number, arg?: string): Promise<unknown>; announce(): void };
 
 const isFields = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const OPS: readonly string[] = ["reset", "end", "reopen"];
@@ -49,7 +51,7 @@ export function isRelayed(value: unknown): value is Relayed {
 
 function isWire(value: unknown): value is Wire {
   if (!isFields(value)) return false;
-  if (value.kind === "leader") return true;
+  if (value.kind === "leader" || value.kind === "choice") return true;
   if (typeof value.id !== "string") return false;
   if (value.kind === "relay") return isRelayed(value.message);
   if (value.kind === "ack") return true;
@@ -134,6 +136,7 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
     } else if (data.kind === "ack") unacked.delete(data.id);
     else if (data.kind === "reply") settle(data.id, data.ok, data.value);
     else if (data.kind === "leader" && role === "follower") resend();
+    else if (data.kind === "choice") deps.changed?.();
   };
 
   const follow = () => {
@@ -176,6 +179,9 @@ export function startTelemetryLeadership(deps: TelemetryLeadershipDeps): Telemet
 
   return {
     leading: () => role === "leader",
+    announce: () => {
+      if (role === "leader") post({ kind: "choice" });
+    },
     request: (op, timeoutMs, arg) => {
       if (role === "leader") return withTimeout(deps.handle(op, arg), timeoutMs);
       return new Promise((resolve, reject) => {
