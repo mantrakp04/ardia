@@ -15,16 +15,19 @@ import { historyExpired } from "./adapters";
 import { settingsToReapply } from "./settingsAdapter";
 import { watchExtensionIntents } from "./extensions";
 import { appAdapters, extensionsOf, forgetScopeAdapters, profileAdapters, typeSynced } from "./scopeAdapters";
-import { APP_SCOPE, defaultTypes, emptyDoc, type DataType, type SyncDoc, type SyncUi } from "./syncDoc";
+import { APP_SCOPE, defaultTypes, emptyDoc, type DataType, type SendTarget, type SyncDoc, type SyncUi } from "./syncDoc";
 import { syncFiles } from "./syncFiles";
 import { settleThemeAdoption, themeChosenHere } from "./syncThemes";
 import { editClock, startEditClock } from "./editClock";
 import { addLinkedProfile, appScopeOf, linkedProfileId, linkProfiles, readyToPair, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
 import { profileScope } from "./records";
+import { queueSend, sendTargetsIn } from "./sentTabs";
 import { errorText } from "../../lib/errors";
 import { isQuitting, saveBeforeQuit } from "../app/quit";
 import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
+
+export { onTabsReceived } from "./sentTabs";
 
 const CYCLE_MS = 15_000;
 const AFTER_EDIT_MS = 3_000;
@@ -164,6 +167,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
         delete link.retire;
         if (!exists) {
           delete doc.scopes[scope];
+          delete doc.sends?.[scope];
           delete doc.profiles[profileId];
         }
       }
@@ -308,6 +312,17 @@ export function setProfileSynced(profileId: string, enabled: boolean) {
   save();
   publishUi();
   scheduleSync(0);
+}
+
+export function sendTargets(profileId: string): SendTarget[] {
+  return useSync.getState().status === "locked" ? [] : sendTargetsIn(doc, profileId);
+}
+
+export function sendTab(tabId: string, deviceId: string): boolean {
+  if (useSync.getState().status === "locked" || !queueSend(doc, tabId, deviceId)) return false;
+  save();
+  scheduleSync(0);
+  return true;
 }
 
 export const appScopeRecords = () => doc.scopes[APP_SCOPE]?.records ?? {};
