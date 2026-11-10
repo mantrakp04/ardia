@@ -5,7 +5,7 @@ import { closeVaultMenu, hoverVaultMenu, offerToFocusedField, restingRowOf, sear
 import { FOOTER_KINDS, type VaultRow } from "../../state/vaults/menuModel";
 import { siteLabel } from "../../state/vaults/originMatch";
 import { useVaultMenu, useVaultMenuGlass, useVaultMenuRows, useVaultProviders, useVaultTouchID } from "../../state/vaults/hooks";
-import { noteVaultTouchStatus, touchIDGlyphShown } from "../../state/vaults/touchID";
+import { isTouchRow, noteVaultTouchStatus, touchIDGlyphShown } from "../../state/vaults/touchID";
 import { useWindowInFront } from "../../state/windows/inFront";
 import { armVaultTouchID } from "../../state/vaults/touchID";
 import { vaultHighlight } from "../../state/vaults/highlight";
@@ -99,12 +99,10 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   const touchIDReady = useVaultTouchID();
   const windowId = useTab(tabId, (t) => t?.windowId);
   const inFront = useWindowInFront(windowId);
-  const providers = useVaultProviders();
+  useVaultProviders();
   const shownSelected = inFront ? menu.selected : -1;
   const selectedRow = list[shownSelected];
-  const touchable = (row: VaultRow | undefined) =>
-    row?.kind === "login" || (row?.kind === "unlock" && !!providers.find((p) => p.id === row.provider)?.touchUnlock);
-  const touchTarget = !touchIDReady || menu.hidden || !touchIDGlyphShown(menu.touch) || !touchable(selectedRow) ? -1 : shownSelected;
+  const touchTarget = !touchIDReady || menu.hidden || !touchIDGlyphShown(menu.touch) || !isTouchRow(selectedRow) ? -1 : shownSelected;
   useEffect(() => {
     if (inFront && !menu.hovered && menu.mode === "matches") selectVaultRow(tabId, restingRowOf(menu));
   }, [inFront]);
