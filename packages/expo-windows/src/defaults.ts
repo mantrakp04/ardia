@@ -1,4 +1,4 @@
-import type { LaunchConfig } from "@ardia/shell";
+import type { ConfigFileRead, LaunchConfig } from "@ardia/shell";
 import { noteMissing } from "./missing";
 
 const LAUNCH_CONFIG: LaunchConfig = {
@@ -59,6 +59,11 @@ export const moduleDefaults: Record<string, Record<string, unknown>> = {
   },
   ArdiaCalendar: { authorizationStatus: () => "notDetermined" },
   ArdiaCli: { installedVersion: () => null },
+  ArdiaConfig: {
+    readFile: (): ConfigFileRead => ({ status: "missing" }),
+    watch: async () => {},
+    writeSchemas: async () => [] as string[],
+  },
   ArdiaDocuments: {
     readDocument: (name: string) => documents.get(name) ?? null,
     writeDocument: (name: string, contents: string) => void documents.set(name, contents),
