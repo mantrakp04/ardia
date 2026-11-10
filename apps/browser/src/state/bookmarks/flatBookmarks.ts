@@ -8,6 +8,96 @@ export type Flat = { nodes: Map<string, FlatNode>; children: Map<string, string[
 const emptyFlat = (): Flat => ({ nodes: new Map(), children: new Map() });
 const cloneFlat = (f: Flat): Flat => ({ nodes: new Map(f.nodes), children: new Map([...f.children].map(([id, c]) => [id, [...c]])) });
 
+type OrderNode = { id: string; priority: number; left: OrderNode | null; right: OrderNode | null; parent: OrderNode | null; size: number };
+const nodeSize = (node: OrderNode | null) => node?.size ?? 0;
+function priorityOf(id: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
+  return hash >>> 0;
+}
+function mergeOrder(a: OrderNode | null, b: OrderNode | null): OrderNode | null {
+  if (!a) { if (b) b.parent = null; return b; }
+  if (!b) { a.parent = null; return a; }
+  if (a.priority <= b.priority) {
+    a.right = mergeOrder(a.right, b);
+    if (a.right) a.right.parent = a;
+    a.size = 1 + nodeSize(a.left) + nodeSize(a.right);
+    a.parent = null;
+    return a;
+  }
+  b.left = mergeOrder(a, b.left);
+  if (b.left) b.left.parent = b;
+  b.size = 1 + nodeSize(b.left) + nodeSize(b.right);
+  b.parent = null;
+  return b;
+}
+function splitOrder(root: OrderNode | null, count: number): [OrderNode | null, OrderNode | null] {
+  if (!root) return [null, null];
+  if (nodeSize(root.left) >= count) {
+    const [left, rest] = splitOrder(root.left, count);
+    root.left = rest;
+    if (rest) rest.parent = root;
+    root.size = 1 + nodeSize(root.left) + nodeSize(root.right);
+    root.parent = null;
+    if (left) left.parent = null;
+    return [left, root];
+  }
+  const [rest, right] = splitOrder(root.right, count - nodeSize(root.left) - 1);
+  root.right = rest;
+  if (rest) rest.parent = root;
+  root.size = 1 + nodeSize(root.left) + nodeSize(root.right);
+  root.parent = null;
+  if (right) right.parent = null;
+  return [root, right];
+}
+class OrderList {
+  #root: OrderNode | null = null;
+  #nodes = new Map<string, OrderNode>();
+  constructor(ids: string[] = []) { for (const id of ids) this.insert(this.length, id); }
+  get length() { return nodeSize(this.#root); }
+  has(id: string) { return this.#nodes.has(id); }
+  indexOf(id: string) {
+    let node = this.#nodes.get(id);
+    if (!node) return -1;
+    let index = nodeSize(node.left);
+    while (node.parent) {
+      if (node === node.parent.right) index += nodeSize(node.parent.left) + 1;
+      node = node.parent;
+    }
+    return index;
+  }
+  at(index: number) {
+    let node = this.#root;
+    while (node) {
+      const left = nodeSize(node.left);
+      if (index === left) return node.id;
+      if (index < left) node = node.left;
+      else { index -= left + 1; node = node.right; }
+    }
+    return undefined;
+  }
+  remove(id: string) {
+    const index = this.indexOf(id);
+    if (index < 0) return false;
+    const [left, tail] = splitOrder(this.#root, index);
+    const [removed, right] = splitOrder(tail, 1);
+    this.#root = mergeOrder(left, right);
+    if (removed) {
+      removed.left = null; removed.right = null; removed.parent = null; removed.size = 1;
+      this.#nodes.delete(id);
+    }
+    return !!removed;
+  }
+  insert(index: number, id: string) {
+    const existing = this.#nodes.get(id);
+    const node = existing ?? { id, priority: priorityOf(id), left: null, right: null, parent: null, size: 1 };
+    const at = Math.max(0, Math.min(index, this.length));
+    const [left, right] = splitOrder(this.#root, at);
+    this.#root = mergeOrder(mergeOrder(left, node), right);
+    this.#nodes.set(id, node);
+  }
+}
+
 export function flatFromStore(b: Bookmarks, engine: string): Flat {
   const roots = rootIdsFor(engine);
   const flat = emptyFlat();
@@ -70,12 +160,86 @@ const flatParent = (engine: string, id: string) => {
 export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] {
   const roots = rootIdsFor(engine);
   const parentOf = new Map([...from.nodes].map(([id, n]) => [id, n.parent]));
-  const kids = new Map([...from.children].map(([id, c]) => [id, [...c]]));
+  const kids = new Map([...from.children].map(([id, c]) => [id, new OrderList(c)]));
   const ops: BookmarkOp[] = [];
+
+  // Move retained children out of deleted folders before removing those folders.
+  // Their final parent might be newly created; stage those through the other root.
+  const rescued: string[] = [];
+  for (const [id, node] of to.nodes) {
+    const oldParent = parentOf.get(id);
+    if (!from.nodes.has(id) || !oldParent || to.nodes.has(oldParent)) continue;
+    rescued.push(id);
+  }
+  const rescueByParent = new Map<string, Set<string>>();
+  const rescueSet = new Set(rescued);
+  for (const id of rescued) {
+    const oldParent = parentOf.get(id)!;
+    let gone = rescueByParent.get(oldParent);
+    if (!gone) rescueByParent.set(oldParent, (gone = new Set()));
+    gone.add(id);
+  }
+  for (const [parent, gone] of rescueByParent) {
+    const children = kids.get(parent);
+    for (const id of gone) children?.remove(id);
+  }
+  for (const id of rescued) {
+    const desiredParent = to.nodes.get(id)!.parent;
+    const parent = desiredParent && kids.has(desiredParent) ? desiredParent : roots.other;
+    const current = kids.get(parent) ?? new OrderList();
+    ops.push({ op: "move", id, parent: opParent(engine, parent), index: current.length });
+    current.insert(current.length, id);
+    kids.set(parent, current);
+    parentOf.set(id, parent);
+  }
+
+  // Remove whole deleted subtrees before calculating destination indexes. Otherwise
+  // each surviving sibling after a deletion looks like a separate move.
+  const removedRoots: string[] = [];
+  const removed = new Set<string>();
+  for (const [id, node] of from.nodes) {
+    if (to.nodes.has(id) || !node.parent || !to.nodes.has(node.parent)) continue;
+    removedRoots.push(id);
+    const drop = (at: string) => {
+      if (removed.has(at)) return;
+      removed.add(at);
+      for (const child of from.children.get(at) ?? []) if (!to.nodes.has(child)) drop(child);
+    };
+    drop(id);
+  }
+  for (const id of removedRoots) ops.push({ op: "remove", id });
+  if (removed.size) {
+    for (const id of removed) {
+      const parent = parentOf.get(id);
+      if (parent && !removed.has(parent)) kids.get(parent)?.remove(id);
+    }
+    for (const id of removed) {
+      parentOf.delete(id);
+      kids.delete(id);
+    }
+  }
+
+  // Simulate cross-folder moves as removals now, then emit each move when its
+  // destination is visited. This lets source siblings retain their existing order.
+  const detached = new Set<string>();
+  const detachByParent = new Map<string, Set<string>>();
+  for (const [id, node] of from.nodes) {
+    const parent = node.parent;
+    if (!parent || removed.has(id) || rescueSet.has(id) || !to.nodes.has(id) || to.nodes.get(id)!.parent === parent) continue;
+    let moving = detachByParent.get(parent);
+    if (!moving) detachByParent.set(parent, (moving = new Set()));
+    moving.add(id);
+    detached.add(id);
+  }
+  for (const [parent, moving] of detachByParent) {
+    const children = kids.get(parent);
+    for (const id of moving) children?.remove(id);
+  }
+
   const queue = [roots.bar, roots.other];
   while (queue.length) {
     const folder = queue.shift()!;
-    if (!kids.has(folder)) kids.set(folder, []);
+    if (!kids.has(folder)) kids.set(folder, new OrderList());
     (to.children.get(folder) ?? []).forEach((id, index) => {
       const node = to.nodes.get(id)!;
       const was = from.nodes.get(id);
@@ -92,14 +256,19 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
           parent: opParent(engine, folder),
           index,
         });
-        current.splice(index, 0, id);
+        current.insert(index, id);
         parentOf.set(id, folder);
-        if (node.kind === "folder") kids.set(id, []);
+        if (node.kind === "folder") kids.set(id, new OrderList());
+      } else if (detached.has(id)) {
+        current.insert(index, id);
+        parentOf.set(id, folder);
+        detached.delete(id);
+        ops.push({ op: "move", id, parent: opParent(engine, folder), index });
       } else {
-        if (parentOf.get(id) !== folder || current.indexOf(id) !== index) {
+        if (parentOf.get(id) !== folder || current.at(index) !== id) {
           const old = kids.get(parentOf.get(id)!);
-          if (old) old.splice(old.indexOf(id), 1);
-          current.splice(index, 0, id);
+          old?.remove(id);
+          current.insert(index, id);
           parentOf.set(id, folder);
           ops.push({ op: "move", id, parent: opParent(engine, folder), index });
         }
@@ -109,12 +278,6 @@ export function bookmarkOps(from: Flat, to: Flat, engine: string): BookmarkOp[] 
       }
       if (node.kind === "folder") queue.push(id);
     });
-  }
-  for (const [id, n] of from.nodes) {
-    if (to.nodes.has(id) || n.parent === null) continue;
-    let under = false;
-    for (let at = parentOf.get(id); at; at = parentOf.get(at)) if (!to.nodes.has(at)) under = true;
-    if (!under) ops.push({ op: "remove", id });
   }
   return ops;
 }

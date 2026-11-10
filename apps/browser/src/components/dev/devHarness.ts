@@ -40,6 +40,9 @@ export function startDevHarness() {
     get bookmarks(): typeof import("../../state/bookmarks/bookmarks") {
       return require("../../state/bookmarks/bookmarks");
     },
+    get bookmarkClipboard(): typeof import("../../state/bookmarks/bookmarkClipboard") {
+      return require("../../state/bookmarks/bookmarkClipboard");
+    },
     get history(): typeof import("../../state/history/history") {
       return require("../../state/history/history");
     },
