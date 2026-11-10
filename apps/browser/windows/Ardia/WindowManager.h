@@ -200,7 +200,7 @@ struct WindowManager {
   }
 
   void BeginDrag(int64_t rootTag) noexcept {
-    ManagedWindow *entry = FindByRootTag(rootTag);
+    ManagedWindow *entry = ForRootTag(rootTag);
     if (!entry || Background()) return;
     POINT cursor{};
     GetCursorPos(&cursor);
@@ -210,7 +210,7 @@ struct WindowManager {
   }
 
   void ToggleMaximize(int64_t rootTag) noexcept {
-    ManagedWindow *entry = FindByRootTag(rootTag);
+    ManagedWindow *entry = ForRootTag(rootTag);
     if (!entry) return;
     try {
       auto presenter = entry->appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
@@ -260,6 +260,12 @@ struct WindowManager {
       }
     }
     return nullptr;
+  }
+
+  ManagedWindow *ForRootTag(int64_t rootTag) noexcept {
+    if (ManagedWindow *entry = FindByRootTag(rootTag)) return entry;
+    LaunchLog::Write(L"warning", std::wstring(L"no window has root tag ").append(std::to_wstring(rootTag)).append(L"; using the active window"));
+    return Find(m_activeId);
   }
 
   ManagedWindow *FindByHwnd(HWND hwnd) noexcept {
