@@ -117,7 +117,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
 - The engine: ArdiaCore's `Chromium Framework.framework` built in `~/chromium-build` (`scripts/agent/engine-build`;
   `docs/engine-build.md`), and `pod install` in `apps/browser/macos`. A framework built elsewhere goes in through
   `ARDIACORE_FRAMEWORK`. That skips the tree checks and ships no engine archive, unless `ARDIACORE_FRAMEWORK_ENGINE`
-  names the `engine/` git tree it was built from (`git rev-parse HEAD:engine`, checked against HEAD). Then the
+  names the `engine/` git tree it was built from (`engine/engine-key.sh`: one hash of `engine/` and the offline game it packs, checked against HEAD). Then the
   release packs that engine, and its source when it's Helium, as a build from the tree would.
 
 ## Cutting a release

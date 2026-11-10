@@ -1,3 +1,9 @@
+Infinite tab freezing (Helium turns InfiniteTabsFreezing on) never freezes a page that holds a live connection: a
+WebSocket, WebTransport or WebRTC connection, or a direct socket with a request outstanding, sticky features
+included (content::ArdiaFrameHasLiveConnection, from the frame's back/forward cache features). Chrome's freeze drops
+a page's WebSocket (DisconnectWebSocketOnBFCache acts on any freeze), so a chat or mail tab left in the background
+would lose its connection at every freeze. Every other freezing rule, and the unfreeze interval, is Chrome's.
+
 diff --git a/components/performance_manager/freezing/freezing_policy.cc b/components/performance_manager/freezing/freezing_policy.cc
 --- a/components/performance_manager/freezing/freezing_policy.cc
 +++ b/components/performance_manager/freezing/freezing_policy.cc
@@ -11,23 +17,11 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
  #include "content/public/common/url_constants.h"
  #include "services/metrics/public/cpp/metrics_utils.h"
  #include "services/metrics/public/cpp/ukm_builders.h"
-@@ -105,6 +108,37 @@
+@@ -105,6 +108,19 @@
        ->IsCapturingDisplay();
  }
  
-+const base::FeatureParam<base::TimeDelta> kArdiaUnconnectedUnfreezeInterval{
-+    &features::kInfiniteTabsFreezing, "ardia_unconnected_unfreeze_interval",
-+    base::TimeDelta()};
-+
-+bool ArdiaKeepsConnectedPagesLive() {
-+  return kArdiaUnconnectedUnfreezeInterval.Get() >
-+         features::kInfiniteTabsFreezing_UnfreezeInterval.Get();
-+}
-+
 +bool ArdiaPageHasLiveConnection(const PageNode* page_node) {
-+  if (!ArdiaKeepsConnectedPagesLive()) {
-+    return false;
-+  }
 +  base::WeakPtr<content::WebContents> contents = page_node->GetWebContents();
 +  if (!contents) {
 +    return false;
@@ -40,42 +34,10 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
 +  return live;
 +}
 +
-+base::TimeDelta ArdiaUnfreezeInterval(bool has_live_connection) {
-+  return ArdiaKeepsConnectedPagesLive() && !has_live_connection
-+             ? kArdiaUnconnectedUnfreezeInterval.Get()
-+             : features::kInfiniteTabsFreezing_UnfreezeInterval.Get();
-+}
-+
  }  // namespace
  
  struct FreezingPolicy::PageFreezingState
-@@ -131,12 +165,10 @@
-   // counted, to avoid a thundering herd of tabs being unfrozen on resume.
-   std::pair<base::LiveTicks, base::LiveTicks>
-   GetCurrentOrNextUnfreezePeriodStart(base::LiveTicks now) const {
--    const base::LiveTicks next_unfreeze_time = now.SnappedToNextTick(
--        *periodic_unfreeze_phase,
--        features::kInfiniteTabsFreezing_UnfreezeInterval.Get());
-+    const base::LiveTicks next_unfreeze_time =
-+        now.SnappedToNextTick(*periodic_unfreeze_phase, unfreeze_interval);
-     const base::LiveTicks previous_unfreeze_time =
--        next_unfreeze_time -
--        features::kInfiniteTabsFreezing_UnfreezeInterval.Get();
-+        next_unfreeze_time - unfreeze_interval;
-     CHECK_LT(previous_unfreeze_time, now);
- 
-     if ((previous_unfreeze_time +
-@@ -180,6 +212,9 @@
-   // are unfrozen at different tabs as much as possible, but also cannot learn
-   // anything about other unrelated tabs.
-   std::optional<base::LiveTicks> periodic_unfreeze_phase;
-+
-+  base::TimeDelta unfreeze_interval =
-+      features::kInfiniteTabsFreezing_UnfreezeInterval.Get();
- 
-   // Reasons not to freeze the page.
-   CannotFreezeReasonSet cannot_freeze_reasons;
-@@ -462,6 +497,7 @@
+@@ -462,6 +478,7 @@
    bool eligible_for_freezing_on_battery_saver = false;
    bool is_in_periodic_unfreeze = false;
    bool all_pages_have_freeze_vote = true;
@@ -83,19 +45,16 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
  
    const double high_cpu_proportion = features::kFreezingHighCPUProportion.Get();
  
-@@ -476,6 +512,11 @@
+@@ -476,6 +493,8 @@
        all_pages_have_freeze_vote = false;
      }
  
-+    const bool page_has_live_connection =
-+        ArdiaPageHasLiveConnection(visited_page);
-+    has_live_connection = has_live_connection || page_has_live_connection;
-+    page_freezing_state.unfreeze_interval =
-+        ArdiaUnfreezeInterval(page_has_live_connection);
++    has_live_connection =
++        has_live_connection || ArdiaPageHasLiveConnection(visited_page);
      if (is_periodic_unfreezing_active &&
          page_freezing_state.IsInUnfreezePeriod(now)) {
        is_in_periodic_unfreeze = true;
-@@ -506,7 +547,7 @@
+@@ -506,7 +525,7 @@
    } else if (is_freezing_enabled_by_user_ &&
               can_freeze_per_type_tracker.CanFreeze(
                   FreezingType::kInfiniteTabs) &&
@@ -104,15 +63,6 @@ diff --git a/components/performance_manager/freezing/freezing_policy.cc b/compon
               base::FeatureList::IsEnabled(features::kInfiniteTabsFreezing)) {
      should_be_frozen = true;
    } else if (is_freezing_enabled_by_user_ &&
-@@ -1328,6 +1369,8 @@
-   }
-   auto& state = GetFreezingState(page_node);
-   CHECK(!state.periodic_unfreeze_timer.IsRunning());
-+  state.unfreeze_interval =
-+      ArdiaUnfreezeInterval(ArdiaPageHasLiveConnection(page_node));
-   state.periodic_unfreeze_timer.Start(
-       FROM_HERE, state.GetDelayUntilNextUnfreezeStateChange(now),
-       base::BindOnce(&FreezingPolicy::OnPeriodicUnfreezeTimer,
 --- a/content/browser/BUILD.gn
 +++ b/content/browser/BUILD.gn
 @@ -1618,6 +1618,7 @@

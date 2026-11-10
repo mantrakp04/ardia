@@ -207,19 +207,15 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   return ardiacore::ShowTestBluetoothChooser(_contents, unauthorized);
 }
 
-- (BOOL)canShareThisTabInsteadFor:(ArdiaCoreTab*)capturer {
+- (BOOL)shareThisTabInsteadFor:(ArdiaCoreTab*)capturer {
   TabSharingInfoBarDelegate* sharing =
       TabSharingDelegateFor(_contents, capturer.contents);
-  return sharing &&
-         (sharing->GetButtons() & TabSharingInfoBarDelegate::kShareThisTabInstead) &&
-         sharing->IsButtonEnabled(TabSharingInfoBarDelegate::kShareThisTabInstead);
-}
-
-- (BOOL)shareThisTabInsteadFor:(ArdiaCoreTab*)capturer {
-  if (![self canShareThisTabInsteadFor:capturer]) {
+  if (!sharing ||
+      !(sharing->GetButtons() & TabSharingInfoBarDelegate::kShareThisTabInstead) ||
+      !sharing->IsButtonEnabled(TabSharingInfoBarDelegate::kShareThisTabInstead)) {
     return NO;
   }
-  TabSharingDelegateFor(_contents, capturer.contents)->ShareThisTabInstead();
+  sharing->ShareThisTabInstead();
   return YES;
 }
 

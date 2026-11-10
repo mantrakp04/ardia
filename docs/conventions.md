@@ -6,7 +6,7 @@ How Ardia's code is laid out and written. `apps/browser/src/conventions.test.mjs
 ## Backwards compatibility: migrations only
 
 The app and its engine ship together (a release bundles its engine; a dev build fetches the prebuilt engine matching
-its commit's `engine/` tree), so code never tolerates a mismatched engine.
+its commit's engine key, `engine/engine-key.sh`), so code never tolerates a mismatched engine.
 
 - No `respondsToSelector` guards for ArdiaCore's API, no optional `?.()` native calls, no always-true `isAvailable`
   checks, no metadata probes, no aliases for old names, no duplicate overloads. Keep `respondsToSelector` only for
