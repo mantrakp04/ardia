@@ -2,6 +2,7 @@ import { createElement, forwardRef, useEffect, type ComponentType } from "react"
 import type { FadeLabelProps } from "@ardia/shell";
 import { Text, View, type TextStyle } from "react-native";
 import { noteFirstWindow, noteMissing } from "./missing";
+import { WindowDragRegion } from "./windowDragRegion";
 
 type AnyProps = Record<string, unknown> & { children?: unknown };
 
@@ -16,7 +17,10 @@ const Label = forwardRef<unknown, FadeLabelProps>(function Label({ text, fontSiz
   );
 });
 
-const drawnInJs = new Map<string, ComponentType<AnyProps>>([["ArdiaFadeLabel", Label as unknown as ComponentType<AnyProps>]]);
+const drawnInJs = new Map<string, ComponentType<AnyProps>>([
+  ["ArdiaFadeLabel", Label as unknown as ComponentType<AnyProps>],
+  ["ArdiaAppWindows", WindowDragRegion as unknown as ComponentType<AnyProps>],
+]);
 
 const views = new Map<string, ComponentType<AnyProps>>();
 

@@ -2,10 +2,15 @@
 
 #include "NativeModules.h"
 
+#include "Paths.h"
+
 namespace Ardia {
 
 REACT_MODULE(WindowsHostModule, L"ArdiaWindowsHost")
 struct WindowsHostModule {
+  REACT_CONSTANT(selfCheck)
+  const bool selfCheck = Paths::HasSwitch(L"--self-check");
+
   REACT_SYNC_METHOD(secureRandomHex)
   std::string secureRandomHex(int byteCount) noexcept {
     if (byteCount < 1 || byteCount > 1024) return {};

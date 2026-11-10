@@ -54,10 +54,6 @@ export const moduleDefaults: Record<string, Record<string, unknown>> = {
     appIcon: async () => null,
     crashReports: async () => [],
   },
-  ArdiaAppWindows: {
-    windowIds: async () => [] as string[],
-    windowFrame: async () => null,
-  },
   ArdiaCalendar: { authorizationStatus: () => "notDetermined" },
   ArdiaCli: { installedVersion: () => null },
   ArdiaConfig: {

@@ -4,14 +4,16 @@
 
 #include "NativeModules.h"
 
-#include "AppModule.h"
+#include "Host.h"
 #include "LaunchLog.h"
 #include "LoggedErrors.h"
-#include "WindowsHostModule.h"
+#include "Modules.h"
+#include "WindowManager.h"
 
 struct AppPackageProvider : winrt::implements<AppPackageProvider, winrt::Microsoft::ReactNative::IReactPackageProvider> {
   void CreatePackage(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
     AddAttributedModules(packageBuilder, true);
+    Ardia::RegisterViews(packageBuilder);
   }
 };
 
@@ -42,9 +44,17 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
   GetModuleFileNameW(NULL, appDirectory, MAX_PATH);
   PathCchRemoveFileSpec(appDirectory, MAX_PATH);
 
-  auto app{winrt::Microsoft::ReactNative::ReactNativeAppBuilder().Build()};
+  Ardia::Host host;
+  Ardia::Host::Current() = &host;
+  host.queue = winrt::Microsoft::UI::Dispatching::DispatcherQueueController::CreateOnCurrentThread();
 
-  auto settings{app.ReactNativeHost().InstanceSettings()};
+  auto settings{host.reactHost.InstanceSettings()};
+  settings.Properties().Set(
+      winrt::Microsoft::ReactNative::ReactDispatcherHelper::UIDispatcherProperty(),
+      winrt::Microsoft::ReactNative::ReactDispatcherHelper::UIThreadDispatcher());
+  host.compositor = winrt::Microsoft::UI::Composition::Compositor();
+  winrt::Microsoft::ReactNative::Composition::CompositionUIService::SetCompositor(settings, host.compositor);
+
   RegisterAutolinkedNativeModulePackages(settings.PackageProviders());
   settings.PackageProviders().Append(winrt::make<AppPackageProvider>());
   settings.NativeLogger([](winrt::Microsoft::ReactNative::LogLevel level, winrt::hstring const &message) noexcept {
@@ -69,12 +79,12 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
   settings.UseDeveloperSupport(false);
 #endif
 
-  auto window{app.AppWindow()};
-  window.Title(L"Ardia");
-  window.Resize({1280, 800});
+  Ardia::WindowManager::Shared().Prewarm();
+  host.reactHost.ReloadInstance();
+  Ardia::LaunchLog::Write(L"launch", L"instance loading");
 
-  app.ReactViewOptions().ComponentName(L"main");
-
-  app.Start();
+  host.queue.DispatcherQueue().RunEventLoop();
+  host.queue.ShutdownQueue();
+  Ardia::LaunchLog::Write(L"launch", L"process ending");
   return 0;
 }

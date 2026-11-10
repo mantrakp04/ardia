@@ -19,9 +19,21 @@ struct LaunchLog {
     std::scoped_lock lock{Mutex()};
     FILE *file = File();
     if (!file) return;
-    std::string line = winrt::to_string(level) + " " + winrt::to_string(message) + "\n";
+    std::string line = winrt::to_string(level) + " " + std::to_string(ElapsedMs()) + " " + winrt::to_string(message) + "\n";
     fwrite(line.data(), 1, line.size(), file);
     fflush(file);
+  }
+
+  static uint64_t ElapsedMs() noexcept {
+    static const uint64_t started = [] {
+      FILETIME created{}, exited{}, kernel{}, user{};
+      if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) GetSystemTimeAsFileTime(&created);
+      return (static_cast<uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
+    }();
+    FILETIME now{};
+    GetSystemTimeAsFileTime(&now);
+    uint64_t current = (static_cast<uint64_t>(now.dwHighDateTime) << 32) | now.dwLowDateTime;
+    return current > started ? (current - started) / 10000 : 0;
   }
 
  private:
