@@ -108,22 +108,26 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   $width = $before.Right - $before.Left
   $height = $before.Bottom - $before.Top
 
-  Send-Click ($before.Left + [int]($width * 0.55)) ($before.Top + [int]($height * 0.42))
+  Send-Drag ($before.Left + [int]($width * 0.6)) ($before.Top + 16) 70 50
+  $after = Get-WindowRect $Process
+  if ($after) {
+    $movedX = $after.Left - $before.Left
+    $movedY = $after.Top - $before.Top
+    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the title band moved the window by $movedX, $movedY." }
+    else { $notes += "input: dragging the title band by 70, 50 moved the window by $movedX, $movedY" }
+  } else {
+    $notes += "input: the window was gone after the drag"
+    return $notes
+  }
+
+  Send-Click ($after.Left + [int]($width * 0.55)) ($after.Top + [int]($height * 0.42))
+  Start-Sleep -Milliseconds 900
   Send-Text "ardia"
   Save-Screenshot (Join-Path $Out "browser-typed.png")
 
   Send-Chord @(0x11) 0x54
   $commanded = (Test-Path $Log) -and (Select-String -Path $Log -Pattern "^command \d+ newTab" -Quiet)
   if ($commanded) { Write-Host "Input: Ctrl+T matched newTab and was sent to the UI." } else { $notes += "input: Ctrl+T matched no command" }
-
-  Send-Drag ($before.Left + [int]($width * 0.6)) ($before.Top + 16) 70 50
-  $after = Get-WindowRect $Process
-  if ($after) {
-    $movedX = $after.Left - $before.Left
-    $movedY = $after.Top - $before.Top
-    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the toolbar moved the window by $movedX, $movedY." }
-    else { $notes += "input: dragging the toolbar by 70, 50 moved the window by $movedX, $movedY" }
-  } else { $notes += "input: the window was gone after the drag" }
   Save-Screenshot (Join-Path $Out "browser-after-input.png")
   return $notes
 }
