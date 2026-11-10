@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
+import { TintInk } from "../ui/TintInk";
 import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
@@ -23,7 +24,6 @@ import { SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD } fr
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { GLOW_ROOM, ROW_PITCH, type SidebarGeometry } from "./pageLayout";
-import { SidebarInk } from "./SidebarInk";
 import { SidebarPage } from "./SidebarPage";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
@@ -108,7 +108,7 @@ export function Sidebar({ width }: { width: number }) {
               </SidebarRowLookContext.Provider>
             </View>
 
-            <SidebarInk>
+            <TintInk>
               {footer ? (
                 <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
                   <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
@@ -138,7 +138,7 @@ export function Sidebar({ width }: { width: number }) {
                   </View>
                 )}
               </View>
-            </SidebarInk>
+            </TintInk>
 
             <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (

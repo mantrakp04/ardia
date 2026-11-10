@@ -63,27 +63,34 @@ export function inkOn(rows: readonly string[], dark: boolean): string {
   return worst(own) >= MIN_INK_CONTRAST || worst(other) <= worst(own) ? own : other;
 }
 
-function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<Theme, "tabSelected" | "pinnedSelectedFill" | "rowSelectedText"> {
+function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<Theme, "tabSelected" | "pinnedSelectedFill" | "rowSelectedText" | "tabSelectedText"> {
   const tabSelected = base.dark ? arcSelectedFill.dark : visibleSelection(arcSelectedFill.light, ink.black, windowTint);
   return {
     tabSelected,
     pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, base.dark ? ink.white : ink.black, windowTint),
     rowSelectedText: inkOn(windowTint.map((tint) => over(tabSelected, tint)), base.dark),
+    tabSelectedText: inkOn(windowTint.map((tint) => over(base.card, tint)), base.dark),
   };
 }
 
-const sidebarThemes = new WeakMap<Theme, Theme>();
+const tintThemes = new WeakMap<Theme, Theme>();
+const windowThemes = new WeakMap<Theme, Theme>();
 
-export function sidebarTheme(theme: Theme): Theme {
+export function tintTheme(theme: Theme): Theme {
   if (!theme.custom) return theme;
-  let sidebar = sidebarThemes.get(theme);
-  if (!sidebar) {
+  let tint = tintThemes.get(theme);
+  if (!tint) {
     const keepsOwnInk = inkOn(theme.windowTint, theme.dark) === (theme.dark ? ink.white : ink.black);
     const other = theme.dark ? theme.palettes.light : theme.palettes.dark;
-    sidebar = keepsOwnInk ? theme : { ...theme, ...other, tabSelected: theme.tabSelected, pinnedSelectedFill: theme.pinnedSelectedFill, rowSelectedText: theme.rowSelectedText };
-    sidebarThemes.set(theme, sidebar);
+    tint = keepsOwnInk ? theme : { ...theme, ...other, tabSelected: theme.tabSelected, pinnedSelectedFill: theme.pinnedSelectedFill, rowSelectedText: theme.rowSelectedText };
+    tintThemes.set(theme, tint);
+    if (tint !== theme) windowThemes.set(tint, theme);
   }
-  return sidebar;
+  return tint;
+}
+
+export function surfaceTheme(theme: Theme): Theme {
+  return windowThemes.get(theme) ?? theme;
 }
 
 export function themeFor(key: string, palette?: BasePalette | null): Theme {

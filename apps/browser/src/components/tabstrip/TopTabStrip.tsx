@@ -10,6 +10,7 @@ import { DownloadsButton } from "../downloads/DownloadsButton";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
 import { Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
+import { TintInk } from "../ui/TintInk";
 import { radius } from "../ui/tokens";
 import { ProfileSwipeArea } from "../window/ProfileSwipe";
 import { TabDropArea, type TabDropTarget } from "../window/TabDropArea";
@@ -68,8 +69,10 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
           ))}
         </View>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
-          <ProfileIndicator room={PROFILE_ROOM} />
-          <DownloadsButton windowId={windowId} />
+          <TintInk>
+            <ProfileIndicator room={PROFILE_ROOM} />
+            <DownloadsButton windowId={windowId} />
+          </TintInk>
         </View>
         {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
         {!floating && <StripDropHighlight left={left} right={right} />}

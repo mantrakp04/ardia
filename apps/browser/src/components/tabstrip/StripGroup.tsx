@@ -158,7 +158,7 @@ export function StripGroup({
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: GROUP_CHIP_PAD.left, paddingRight: GROUP_CHIP_PAD.right }}
           >
             <StripGroupIcon icon={group.icon} tint={tint} />
-            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
+            <Text numberOfLines={1} style={{ marginLeft: GROUP_TITLE_GAP, maxWidth: GROUP_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: tint ?? (shown >= 0 ? theme.textPrimary : theme.textTab) }}>
               {group.name || `${group.tabIds.length} ${group.tabIds.length === 1 ? "Tab" : "Tabs"}`}
             </Text>
           </Pressable>

@@ -1,7 +1,7 @@
 import { Surface } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Text } from "react-native";
-import { hex, useTheme } from "./theme";
+import { hex, surfaceTheme, useTheme } from "./theme";
 import { font, hairline, shadow, TOOLTIP, weight } from "./tokens";
 import { curve, duration } from "./motion";
 
@@ -26,7 +26,7 @@ function useShownAfterDelay(active: boolean) {
 }
 
 export function TooltipAbove({ text, active, centerX, bottom }: { text: string; active: boolean; centerX: number; bottom: number }) {
-  const theme = useTheme();
+  const theme = surfaceTheme(useTheme());
   const shown = useShownAfterDelay(active && text.length > 0);
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {

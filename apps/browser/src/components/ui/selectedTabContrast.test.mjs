@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 
-const { inkOn, profileTheme, sidebarTheme, PROFILE_COLORS } = await import("./theme.ts");
+const { inkOn, profileTheme, surfaceTheme, tintTheme, PROFILE_COLORS } = await import("./theme.ts");
 const { arcSelectedFill, colorRoles } = await import("./tokens.ts");
 const { luminance, over } = await import("../../lib/color.ts");
 const { selectionLightnessDelta, visibleSelection, MIN_SELECTION_LIGHTNESS } = await import("../../lib/selectionContrast.ts");
@@ -100,7 +100,7 @@ test("a selected row's title keeps the mode's ink unless it can't be read on tha
 
 test("a light custom colour in dark mode draws its sidebar text, glyphs and hover in the light palette", () => {
   const theme = custom(solid(grey(0.88)));
-  const sidebar = sidebarTheme(theme);
+  const sidebar = tintTheme(theme);
   assert.ok(theme.dark);
   assert.equal(sidebar.dark, false);
   for (const role of SIDEBAR_INK) assert.equal(sidebar[role], colorRoles.light[role], role);
@@ -114,14 +114,14 @@ test("a light custom colour in dark mode draws its sidebar text, glyphs and hove
 test("a dark custom colour keeps its white sidebar text, the owner's mid-tone included", () => {
   for (const look of [solid(grey(0)), solid(grey(0.02)), solid(rgb(128, 92, 91))]) {
     const theme = custom(look);
-    assert.equal(sidebarTheme(theme), theme);
+    assert.equal(tintTheme(theme), theme);
   }
 });
 
 test("a black-to-white gradient keeps white sidebar text, since black reads no better on its dark end", () => {
   const theme = custom(vivid([{ x: 0, y: 0, color: grey(0) }, { x: 1, y: 1, color: grey(1) }]));
-  assert.equal(sidebarTheme(theme), theme);
-  assert.equal(sidebarTheme(theme).textTab, colorRoles.dark.textTab);
+  assert.equal(tintTheme(theme), theme);
+  assert.equal(tintTheme(theme).textTab, colorRoles.dark.textTab);
 });
 
 test("every custom colour's sidebar text reads at 3:1 on its tint, or takes the ink that reads better", () => {
@@ -131,16 +131,41 @@ test("every custom colour's sidebar text reads at 3:1 on its tint, or takes the 
   };
   const worst = (text, rows) => Math.min(...rows.map((row) => ratio(text, row)));
   for (const { label, theme } of customThemes()) {
-    const text = sidebarTheme(theme).textPrimary;
+    const text = tintTheme(theme).textPrimary;
     const other = text === "#FFFFFF" ? "#000000" : "#FFFFFF";
     assert.ok(worst(text, theme.windowTint) >= 3 || worst(text, theme.windowTint) >= worst(other, theme.windowTint), `${label}: ${text} on ${theme.windowTint}`);
   }
 });
 
-test("built-in presets keep their sidebar palette", () => {
+test("built-in presets keep their sidebar and strip palette", () => {
   for (const dark of [true, false])
     for (const color of [...Object.keys(PROFILE_COLORS), "incognito"]) {
       const theme = color === "incognito" ? profileTheme(undefined, dark) : profileTheme({ color }, dark);
-      assert.equal(sidebarTheme(theme), theme, `${color} ${dark}`);
+      assert.equal(tintTheme(theme), theme, `${color} ${dark}`);
     }
+});
+
+test("a strip's selected chip, drawn on the card, keeps the mode's ink unless the card on the tint can't hold it", () => {
+  for (const look of [solid(grey(0.88)), solid(rgb(128, 92, 91)), solid(grey(0.02))]) {
+    const theme = custom(look);
+    assert.equal(theme.tabSelectedText, "#FFFFFF", theme.windowTint.join(" "));
+    assert.ok(inkOn(theme.windowTint.map((tint) => over(theme.card, tint)), true) === theme.tabSelectedText);
+  }
+  assert.equal(profileTheme({ color: "neutral", theme: flat(0.95, 0.62, 0.78, "light") }, false).tabSelectedText, "#000000");
+  for (const dark of [true, false])
+    for (const color of Object.keys(PROFILE_COLORS)) assert.equal(profileTheme({ color }, dark).tabSelectedText, colorRoles[dark ? "dark" : "light"].tabSelectedText);
+});
+
+test("whatever is drawn on its own surface inside a flipped tint gets the window theme back", () => {
+  const theme = custom(solid(grey(0.88)));
+  const tint = tintTheme(theme);
+  assert.notEqual(tint, theme);
+  assert.equal(surfaceTheme(tint), theme);
+  assert.equal(surfaceTheme(theme), theme);
+  const plum = profileTheme({ color: "plum" }, true);
+  assert.equal(surfaceTheme(tintTheme(plum)), plum);
+});
+
+test("an emphasised title on the tint can use textPrimary: the presets draw it as tabSelectedText", () => {
+  for (const mode of ["dark", "light"]) assert.equal(colorRoles[mode].textPrimary, colorRoles[mode].tabSelectedText);
 });

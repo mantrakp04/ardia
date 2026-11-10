@@ -3,6 +3,7 @@ import { Animated, ScrollView, View, type LayoutChangeEvent, type NativeScrollEv
 import { switchOn } from "../../state/app/switches";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
+import { TintInk } from "../ui/TintInk";
 import { ThemeScope } from "../window/ThemeScope";
 import { PageProfileContext, useSettings, useWindowId } from "../../state/browser/hooks";
 import { newTab } from "../../state/tabs/actions";
@@ -22,7 +23,6 @@ import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { DOCK_SHARE, DOCKED_BOTTOM, GLOW_ROOM, pageLayout, tilesFitDock, type SidebarGeometry } from "./pageLayout";
 import { PageRows } from "./PageRows";
 import { NewTabRow } from "./NewTabRow";
-import { SidebarInk } from "./SidebarInk";
 
 const NONE: string[] = [];
 type PageGeometry = { scrollY: number; viewport: number; regions: SidebarGeometry["regions"] };
@@ -135,7 +135,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     >
       <PageProfileContext.Provider value={profileId}>
         <ThemeScope>
-          <SidebarInk>
+          <TintInk>
             <DragScope enabled={current}>
               <PageContent tilesFixed={dockFixed} tilesRoom={dockRoom}>
                 {(controller) => (
@@ -199,7 +199,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                 )}
               </PageContent>
             </DragScope>
-          </SidebarInk>
+          </TintInk>
         </ThemeScope>
       </PageProfileContext.Provider>
     </Animated.View>

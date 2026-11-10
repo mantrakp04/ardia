@@ -4,7 +4,7 @@ import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../sta
 import { useShownTabIdFor } from "../../state/tabs/topStrip";
 import { TabIcon } from "../sidebar/TabIcon";
 import { Divider, FadeLabel, Symbol, useHover } from "../ui";
-import { useTheme } from "../ui/theme";
+import { surfaceTheme, ThemeContext, useTheme } from "../ui/theme";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { font, space } from "../ui/tokens";
 import { FloatingStrip } from "./context";
@@ -18,27 +18,30 @@ import { TabPressArea } from "../sidebar/TabPressArea";
 import { tabTitle } from "../../state/browser/model";
 
 export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: string[]; width: number; geometry: DragGeometry; from: number; group: string | null }) {
-  const theme = useTheme();
+  const onTint = useTheme();
   const windowId = useWindowId();
   const profileId = usePageProfileId();
   const focusedId = useShownTabIdFor(windowId, profileId);
   const active = tabIds.includes(focusedId);
+  const theme = active ? surfaceTheme(onTint) : onTint;
   const { band, palette } = useWebsiteBand(active ? focusedId : tabIds[0]!);
   const floating = useContext(FloatingStrip);
   const ink = active && !floating && palette.background ? palette : null;
   const { hovered, hoverProps } = useHover();
   const drag = useStripDrag({ tabId: null, ids: () => tabIds, pinned: false, groupId: group, geometry, from, width, gap: GAP, axis: "x" });
   return (
-    <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
-      <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
-        {active && <SelectedTab width={width} band={band} opaque={drag.dragging} />}
-        <ItemRow hovered={hovered && !active} pressed={false} padded={false}>
-          {tabIds.map((id, i) => (
-            <SplitPart key={id} tabId={id} first={i === 0} last={i === tabIds.length - 1} ink={ink} />
-          ))}
-        </ItemRow>
-      </View>
-    </Animated.View>
+    <ThemeContext.Provider value={theme}>
+      <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
+        <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
+          {active && <SelectedTab width={width} band={band} opaque={drag.dragging} />}
+          <ItemRow hovered={hovered && !active} pressed={false} padded={false}>
+            {tabIds.map((id, i) => (
+              <SplitPart key={id} tabId={id} first={i === 0} last={i === tabIds.length - 1} ink={ink} />
+            ))}
+          </ItemRow>
+        </View>
+      </Animated.View>
+    </ThemeContext.Provider>
   );
 }
 
