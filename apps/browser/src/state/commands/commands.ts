@@ -40,6 +40,7 @@ import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } f
 import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
 import { numberedTabs } from "../sidebar/entries";
+import { noteNumberedTabSelected } from "../telemetry/usage";
 import { openExtensionFromMenu } from "../extensions/bridge";
 import { toggleCastPicker } from "../media/cast";
 import { openManageExtensions, openPinDialog, openWebStore } from "../extensions/actions";
@@ -248,7 +249,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "selectLastTab": {
       const rows = numberedTabs(s, windowId);
       const id = command === "selectLastTab" ? rows.at(-1) : rows[Number(arg) - 1];
-      return id ? s.activate(id) : undefined;
+      if (!id) return;
+      noteNumberedTabSelected();
+      return s.activate(id);
     }
     case "togglePin": {
       if (!tab) return;

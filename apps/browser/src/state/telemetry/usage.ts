@@ -26,7 +26,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, numberedTabSelections: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -52,11 +52,16 @@ function emitCounts() {
       reopened_pages_with_back: counts.reopenedPagesWithBack,
       group_tabs_kept: counts.groupTabsKept,
       group_header_hides: counts.groupHeaderHides,
+      numbered_tab_selections: counts.numberedTabSelections,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
   counts = { ...NO_COUNTS };
   countsSince = Date.now();
+}
+
+export function noteNumberedTabSelected() {
+  counts.numberedTabSelections++;
 }
 
 export function noteCaptureIndicatorCleared() {
