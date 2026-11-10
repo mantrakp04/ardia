@@ -30,7 +30,7 @@ export function viewOnWindows(name: string): ComponentType<AnyProps> {
         noteFirstWindow();
         noteMissing(`<${name}>`);
       }, []);
-      return createElement(View as ComponentType<AnyProps>, { ...props, ref });
+      return createElement(View as ComponentType<AnyProps>, { ...props, pointerEvents: props.pointerEvents ?? "box-none", ref });
     }) as ComponentType<AnyProps>);
   made.displayName = name;
   views.set(name, made);
