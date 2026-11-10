@@ -53,13 +53,6 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "bolt.fill", title: "Energy" },
 ];
 
-export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
-
-export function switcherIcons(icons: (string | null)[], shown: boolean, room: number): (string | null)[] {
-  const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon), 0) <= room;
-  return shown && fits ? icons : icons.map(() => null);
-}
-
 export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
   const { iconCell, icon: size, dot } = profileSwitcher;
   const symbol = iconSymbol(icon);

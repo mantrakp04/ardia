@@ -1,5 +1,6 @@
 import { Animated, View, type ViewStyle } from "react-native";
-import { switcherCellWidth, SwitcherMark } from "../../profiles/ProfileIcons";
+import { SwitcherMark } from "../../profiles/ProfileIcons";
+import { switcherLayout } from "../../profiles/switcherLayout";
 import { profileSwitcher } from "../../profiles/tokens";
 import { at, SIDEBAR_W, type Geo } from "./geometry";
 import type { Styles } from "./Kit";
@@ -28,12 +29,12 @@ export function MockSwitcher({
   style?: Styles;
 }) {
   const { height, band } = profileSwitcher;
-  const marks = MOCK_SPACES.map((icon) => (icons ? icon : null));
-  const width = marks.reduce((sum, icon) => sum + switcherCellWidth(icon), 0);
+  const { marks, cell } = switcherLayout(MOCK_SPACES, icons, Infinity);
+  const width = marks.length * cell;
   return (
     <Animated.View pointerEvents="none" style={[at(g, (SIDEBAR_W - width) / 2, g.H - height + (height - 3 - band) / 2, width, band), { flexDirection: "row" }, style as ViewStyle]}>
       {marks.map((icon, i) => (
-        <View key={i} style={{ width: switcherCellWidth(icon) * g.s, height: band * g.s, alignItems: "center", justifyContent: "center" }}>
+        <View key={i} style={{ width: cell * g.s, height: band * g.s, alignItems: "center", justifyContent: "center" }}>
           <Animated.View style={{ opacity: level(i, icon) }}>
             <SwitcherMark icon={icon} color={look.t.mark} scale={g.s} />
           </Animated.View>
