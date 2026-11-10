@@ -4,6 +4,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaChromeWindowHost : NSObject
 
+@property(class, nonatomic, readonly) CGFloat windowCornerRadius;
+
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile chromeWindow:(nullable NSString *)chromeWindow;
 + (nullable NSWindow *)makeWindowForProfile:(NSString *)profile

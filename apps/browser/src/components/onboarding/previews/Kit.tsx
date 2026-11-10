@@ -196,11 +196,11 @@ export function MockSurface({ g, look, radius, shadow, fill: surfaceFill, edge, 
   );
 }
 
-export function WindowFrame({ g, look, edge, style, children }: { g: Geo; look: Look; edge: string; style?: Styles; children?: ReactNode }) {
+export function WindowFrame({ g, look, edge, cornerRadius = radii.panel, style, children }: { g: Geo; look: Look; edge: string; cornerRadius?: number; style?: Styles; children?: ReactNode }) {
   return (
     <View style={style as ViewStyle}>
-      <MockSurface g={g} look={look} radius={radii.panel} shadow={mockShadow.window} fill={look.tint[1]} edge={edge} style={fill} />
-      <View style={[fill, { borderRadius: radii.panel * g.s, overflow: "hidden" }]}>{children}</View>
+      <MockSurface g={g} look={look} radius={cornerRadius} shadow={mockShadow.window} fill={look.tint[1]} edge={edge} style={fill} />
+      <View style={[fill, { borderRadius: cornerRadius * g.s, overflow: "hidden" }]}>{children}</View>
     </View>
   );
 }

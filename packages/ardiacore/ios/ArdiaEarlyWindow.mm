@@ -29,7 +29,7 @@ constexpr double kClaimedSeconds = 5;
 
 constexpr double kUntakenAfterContentSeconds = 2;
 
-constexpr double kDefaultPageFrame = 9, kMaxPageFrame = 12, kCardRadius = 10;
+constexpr double kDefaultPageFrame = 9, kMaxPageFrame = 12;
 
 double PageFrameOf(NSDictionary *settings) {
   id saved = settings[@"pageFrame"];
@@ -346,7 +346,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   NSDictionary *main = windowId.length && [gLayouts[windowId] isKindOfClass:NSDictionary.class] ? gLayouts[windowId] : @{};
   const double pageFrame = PageFrameOf(settings);
   NSNumber *cardInset = @(pageFrame);
-  const CGFloat radius = round(kCardRadius * MIN(1.0, pageFrame / kDefaultPageFrame) * 2) / 2;
+  const CGFloat radius = MAX(ArdiaChromeWindowHost.windowCornerRadius - pageFrame, 2);
   NSMutableDictionary *layout = [@{
     @"page" : @[ cardInset, @38, cardInset, cardInset ],
     @"card" : @[ cardInset, @38, cardInset, cardInset ],
