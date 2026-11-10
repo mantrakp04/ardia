@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cleanProperties, errorCode, errorMessage, errorType, nativeCrashExceptions, nativeFrames, parseStack, scrubText } from "./sanitize.ts";
-import { settingsSnapshot } from "./settingsSnapshot.ts";
+import { customColorProfiles, settingsSnapshot } from "./settingsSnapshot.ts";
 const { DEFAULT_SETTINGS, SETTING_SPECS } = await import("../settings/settings.ts");
 
 const leaks = (text, ...secrets) => secrets.filter((s) => text.includes(s));
@@ -241,6 +241,16 @@ test("every measured key survives the telemetry property cleaner unchanged", () 
   const measured = Object.keys(snap).filter((k) => k.startsWith("setting_")).length;
   assert.ok(measured > 30, `only ${measured} settings measured`);
   assert.ok(measured < Object.keys(SETTING_SPECS).length);
+});
+
+test("the snapshot says whether text adjusts to the colour, and how many profiles have a custom colour, never which", () => {
+  const snap = settingsSnapshot({ ...DEFAULT_SETTINGS, adaptTextToColor: false });
+  assert.equal(snap.setting_adaptTextToColor, "false");
+  assert.equal(snap.default_adaptTextToColor, "true");
+  const theme = { stops: [{ x: 0, y: 0, color: { r: 0.88, g: 0.88, b: 0.88, a: 1 } }], intensity: 1, mode: "dark" };
+  const counted = customColorProfiles({ a: { name: "Work", theme }, b: { name: "Home" }, c: { name: "Play", theme: null } });
+  assert.deepEqual(counted, { custom_color_profiles: "1" });
+  assert.deepEqual(cleanProperties(counted), counted);
 });
 
 test("a value the spec doesn't allow is left out rather than sent", () => {

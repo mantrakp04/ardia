@@ -283,6 +283,11 @@ export const generalRows = {
           description: "Every profile goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
           keywords: ["space", "profile theme", "arc theme", "follow system"],
         },
+        adaptTextToColor: {
+          title: "Adjust text to the colour",
+          description: "Switch sidebar and tab text between light and dark so it stays readable on your colour. Only applies to custom colours.",
+          keywords: ["contrast", "readable", "text colour", "text color", "white text", "black text", "custom colour", "theme", "arc"],
+        },
       },
     },
     {

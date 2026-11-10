@@ -23,5 +23,5 @@ export function ThemeScope({ children }: { children: ReactNode }) {
 }
 
 export function useProfileTheme(profileId: string): Theme {
-  return useProfileLook(profileId, (profile, appDark, settings, palette) => scopedTheme(isIncognitoProfile(profileId), profile, appDark, spaceLookSource(settings), palette));
+  return useProfileLook(profileId, (profile, appDark, settings, palette) => scopedTheme(isIncognitoProfile(profileId), profile, appDark, spaceLookSource(settings), palette, settings.adaptTextToColor));
 }

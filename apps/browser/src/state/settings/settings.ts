@@ -132,6 +132,7 @@ export const SETTING_SPECS = {
   pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   spacesFollowAppearance: flag(true),
+  adaptTextToColor: flag(true, SYNCED),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
