@@ -36,7 +36,7 @@ export const GITHUB_VARIABLES = {
 };
 
 export const GITHUB_STATE_QUERY = `query LiveFolderGone($ids: [ID!]!) {
-  nodes(ids: $ids) { ... on PullRequest { id state } ... on Issue { id state stateReason } }
+  nodes(ids: $ids) { ... on PullRequest { id state } ... on Issue { id issueState: state stateReason } }
 }`;
 
 export const VIEWER_QUERY = `query { viewer { login name avatarUrl(size: 64) } }`;

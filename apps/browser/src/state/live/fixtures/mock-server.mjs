@@ -110,7 +110,7 @@ createServer(async (req, res) => {
     }
     if (query.includes("LiveFolderIssueDetails")) return send(res, 200, { data: { nodes: variables.ids.map((id) => (issues.has(id) ? { ...issues.get(id), state: state[id] ?? "OPEN", stateReason: reasons[id] ?? null } : null)) } });
     if (query.includes("LiveFolderIssues")) return send(res, 200, issuesDoc);
-    if (query.includes("LiveFolderGone")) return send(res, 200, { data: { nodes: variables.ids.map((id) => ({ id, state: state[id] ?? "OPEN", stateReason: reasons[id] ?? null })) } });
+    if (query.includes("LiveFolderGone")) return send(res, 200, { data: { nodes: variables.ids.map((id) => (issues.has(id) ? { id, issueState: state[id] ?? "OPEN", stateReason: reasons[id] ?? null } : { id, state: state[id] ?? "OPEN" })) } });
     if (!query.includes("search(")) return send(res, 200, { data: { viewer: github.data.viewer } });
     return send(res, 200, github);
   }

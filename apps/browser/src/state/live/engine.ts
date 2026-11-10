@@ -53,7 +53,8 @@ async function run(folderId: string) {
     else failed.push({ source, error: r.reason });
   });
   if (!live().folders[folderId]) return;
-  if (folder.kind === "issues" && failed.length) noteLiveIssueFetchFailed();
+  let failureCounted = folder.kind === "issues" && failed.length > 0;
+  if (failureCounted) noteLiveIssueFetchFailed();
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
   const listedByFilters = (it: LiveItem) => folder.filters[SECTION_FILTER[it.section ?? "authored"]];
   const repoShown = (it: LiveItem) => {
@@ -70,7 +71,16 @@ async function run(folderId: string) {
   for (const source of new Set(missing.map((it) => it.source))) {
     const resolve = SOURCES[source].resolveGone;
     if (!resolve) continue;
-    Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
+    Object.assign(
+      gone,
+      await resolve(missing.filter((it) => it.source === source)).catch(() => {
+        if (folder.kind === "issues" && !failureCounted) {
+          failureCounted = true;
+          noteLiveIssueFetchFailed();
+        }
+        return {};
+      }),
+    );
   }
 
   const current = live();

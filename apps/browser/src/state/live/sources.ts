@@ -59,13 +59,13 @@ const github: LiveSource = {
     if (!prs.length) return {};
     const token = await secret("github");
     const ids = prs.map((it) => it.id.slice("github:".length));
-    const json = await githubGraphql<{ data?: { nodes: ({ id: string; state: string; stateReason?: string | null } | null)[] } }>(token, GITHUB_STATE_QUERY, { ids });
+    const json = await githubGraphql<{ data?: { nodes: ({ id: string; state?: string; issueState?: string; stateReason?: string | null } | null)[] } }>(token, GITHUB_STATE_QUERY, { ids });
     const out: Record<string, CompletionState> = {};
     for (const n of json.data?.nodes ?? []) {
       if (!n) continue;
       const item = prs.find((it) => it.id === `github:${n.id}`);
       if (!item) continue;
-      const issueDone = item.issue && issueCompletion(n.state, n.stateReason);
+      const issueDone = item.issue && issueCompletion(n.issueState ?? "", n.stateReason);
       if (issueDone) out[item.id] = issueDone;
       else if (item.issue) continue;
       else if (n.state === "MERGED") out[item.id] = "merged";

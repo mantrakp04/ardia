@@ -5,7 +5,7 @@ import { docs } from "../../test-native/index.ts";
 
 const oldFolder = { id: "old", profileId: "p", kind: "pullRequests", name: "PRs", icon: null, collapsed: false, sources: [], filters: { authored: false, reviewRequests: true }, createdAt: 0 };
 docs.set("live.json", JSON.stringify({ folders: { old: oldFolder }, folderOrder: ["old"] }));
-const { issueCompletion, issueDetailIds, mapIssues } = await import("./github.ts");
+const { GITHUB_STATE_QUERY, issueCompletion, issueDetailIds, mapIssues } = await import("./github.ts");
 const { refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, repoKey } = await import("./rows.ts");
@@ -193,4 +193,9 @@ test("the Pull Requests folder menu keeps its filters and stacks", () => {
   assert.deepEqual(items.filter((it) => it.id.startsWith("filter:")).map((it) => it.title), ["Created by Me", "Awaiting My Review"]);
   assert.ok(items.some((it) => it.id === "option:groupStacks"));
   assert.equal(items.find((it) => it.id === "sources").title, "Pull Requests");
+});
+
+test("the closed-state query gives an issue's state its own response name", () => {
+  assert.match(GITHUB_STATE_QUERY, /\.\.\. on Issue \{ id issueState: state stateReason \}/);
+  assert.match(GITHUB_STATE_QUERY, /\.\.\. on PullRequest \{ id state \}/);
 });
