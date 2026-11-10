@@ -238,7 +238,7 @@ struct WindowMaterialView : winrt::implements<WindowMaterialView, winrt::Windows
   winrt::event_token m_mounted{};
   winrt::event_token m_unmounted{};
   winrt::event_token m_destroying{};
-  bool m_detached{false};
+  bool m_detached{true};
   bool m_refused{false};
 };
 
