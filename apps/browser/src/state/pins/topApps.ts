@@ -4,6 +4,7 @@ import type { ParkedPins, Tab } from "../browser/types";
 import { dataGroups, dataIdOf, sharingProfiles } from "../profiles/profiles";
 import { isRegularWindow } from "../windows/small";
 import { writingFromSync } from "./syncWrites";
+import { noteTopAppsSharing } from "../telemetry/topAppsSharing";
 import { conform, pinnedGroupsOf, pinsMayDiffer, profilesOf, sectionOf, tileSig, union, type Item, type Section } from "./pinMirror";
 
 type Sharing = Pick<BrowserState, "profiles">;
@@ -150,6 +151,14 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
   const prevGroups = pinnedGroupsOf(prev);
   const hadPlace = (p: string) => shownAnywhere(prev, p);
   let next: BrowserState = kept ?? recorded;
+  let copiedProfiles = 0;
+  let copiedTiles = 0;
+  const copiedCircles = new Set<string>();
+  const copied = (circle: string[], tiles: Item[]) => {
+    copiedProfiles++;
+    copiedTiles += tiles.length;
+    copiedCircles.add(circleKey(circle));
+  };
   for (const circle of circles) {
     const turnedOn = joining.has(circleKey(circle));
     if (!turnedOn && writingFromSync()) continue;
@@ -193,11 +202,23 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
       if (tiles.map((x) => tileSig(x.tab)).join("\n") === sigs[i]) return;
       if (!w) {
         next = withParkedTiles(next, p, tiles);
+        copied(circle, tiles);
         return;
       }
       if (!next.windows[w]) return;
       const section = sectionOf(next, next.windows[w]!, p, pinnedGroupsOf(next));
       next = conform(next, w, p, { ...section, items: [...section.items.filter((x) => x.group || !isTopApp(x.tab)), ...tiles] });
+      copied(circle, tiles);
+    });
+  }
+  if (copiedProfiles) {
+    noteTopAppsSharing("top_apps_mirrored", {
+      circles: circles.length,
+      joining_circles: joining.size,
+      circles_changed: copiedCircles.size,
+      profiles_changed: copiedProfiles,
+      tiles: copiedTiles,
+      from_sync: writingFromSync(),
     });
   }
   return next === s ? null : next;
