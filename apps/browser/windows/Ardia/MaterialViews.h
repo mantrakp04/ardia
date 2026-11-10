@@ -103,12 +103,16 @@ struct WindowMaterialProps : winrt::implements<WindowMaterialProps, winrt::Micro
       material = source->material;
       fallbackColor = source->fallbackColor;
       tintColor = source->tintColor;
+      dark = source->dark;
     }
   }
 
   void SetProp(uint32_t hash, winrt::hstring propName, winrt::Microsoft::ReactNative::IJSValueReader value) noexcept {
     winrt::Microsoft::ReactNative::ReadProp(hash, propName, value, *this);
   }
+
+  REACT_FIELD(dark)
+  bool dark{false};
 
   REACT_FIELD(material)
   std::string material;
@@ -154,6 +158,7 @@ struct WindowMaterialView : winrt::implements<WindowMaterialView, winrt::Windows
     m_fallback = props ? MaterialView::Resolved(view, props->fallbackColor, MaterialView::Transparent) : MaterialView::Transparent;
     m_tint = props ? MaterialView::Resolved(view, props->tintColor, MaterialView::Transparent) : MaterialView::Transparent;
     m_type = Materials::BackdropType(props ? std::string_view{props->material} : std::string_view{});
+    m_dark = props ? props->dark : false;
     Refresh(view);
   }
 
@@ -191,12 +196,34 @@ struct WindowMaterialView : winrt::implements<WindowMaterialView, winrt::Windows
     m_hwnd = nullptr;
   }
 
+  void NoteColours(MaterialView::ComponentView const &view) noexcept {
+    if (!m_window) m_window = Materials::WindowOfView(view).hwnd;
+    wchar_t window[24]{};
+    swprintf_s(window, L"%p", static_cast<void *>(m_window));
+    std::wstring key{L"colours-"};
+    key.append(window).append(m_dark ? L"-dark" : L"-light");
+    std::wstring message{L"window backdrop colours dark="};
+    message.append(m_dark ? L"true" : L"false")
+        .append(L" tint=")
+        .append(Materials::RgbaText(m_tint))
+        .append(L" fallback=")
+        .append(Materials::RgbaText(m_fallback))
+        .append(L" showing ")
+        .append(m_hwnd ? L"tint over the system backdrop" : L"fallback");
+    Materials::NoteOnce(key, message);
+  }
+
   void Refresh(MaterialView::ComponentView const &view) noexcept {
     if (m_detached || !Materials::CoversRoot(view)) {
       LetGo();
       Recolor();
       return;
     }
+    Settle(view);
+    NoteColours(view);
+  }
+
+  void Settle(MaterialView::ComponentView const &view) noexcept {
     if (m_hwnd && m_heldType == m_type) {
       Recolor();
       return;
@@ -235,6 +262,8 @@ struct WindowMaterialView : winrt::implements<WindowMaterialView, winrt::Windows
   DWORD m_type{Materials::BackdropMicaAlt};
   DWORD m_heldType{Materials::BackdropNone};
   HWND m_hwnd{nullptr};
+  HWND m_window{nullptr};
+  bool m_dark{false};
   winrt::event_token m_mounted{};
   winrt::event_token m_unmounted{};
   winrt::event_token m_destroying{};

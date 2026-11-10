@@ -99,6 +99,12 @@ inline std::wstring Described(winrt::hresult_error const &error) noexcept {
   return HexOf(error.code()).append(L" ").append(error.message());
 }
 
+inline std::wstring RgbaText(winrt::Windows::UI::Color color) noexcept {
+  wchar_t text[48]{};
+  swprintf_s(text, L"rgba(%u,%u,%u,%.2f)", static_cast<unsigned int>(color.R), static_cast<unsigned int>(color.G), static_cast<unsigned int>(color.B), color.A / 255.0);
+  return text;
+}
+
 inline DWORD BackdropType(std::string_view material) noexcept {
   if (material == "mica") return BackdropMica;
   if (material == "acrylic") return BackdropAcrylic;

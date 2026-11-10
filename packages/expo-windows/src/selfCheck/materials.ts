@@ -1,6 +1,9 @@
 import { createElement, isValidElement, type ComponentType } from "react";
 import { requireNativeModule } from "../modules";
+import { appDarkNow } from "../views/appearance";
+import { windowBackdropColors } from "../views/backdrop";
 import { gradientColors } from "../views/Bands";
+import type { Rgba } from "../views/color";
 import { bubblePath, NativeMaterialBlur, NativeMaterialGradient, NativeWindowMaterial, type MaterialsNative } from "../views/nativeMaterials";
 import { viewOnWindows } from "../views/registry";
 import { expectEqual, expectTrue, type Check } from "./check";
@@ -27,7 +30,35 @@ function expectPath(answer: unknown, allowed: string[], what: string) {
   console.info(`[ardia windows] materials: ${what} took ${path}${reason ? ` (${reason})` : ""}`);
 }
 
+const linear = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4));
+
+function luminanceOver(color: Rgba, under: number): number {
+  const [r, g, b] = [color[0], color[1], color[2]].map((channel) => channel * color[3] + under * (1 - color[3]));
+  return 0.2126 * linear(r!) + 0.7152 * linear(g!) + 0.0722 * linear(b!);
+}
+
+const rgba = (color: Rgba) => `rgba(${color.map((channel, i) => (i < 3 ? Math.round(channel * 255) : +channel.toFixed(2))).join(",")})`;
+
 export const checks: Check[] = [
+  {
+    name: "materials: the dark window backdrop is darker than the light one",
+    run() {
+      for (const baseAlpha of [undefined, 0, 0.3, 0.8]) {
+        const dark = windowBackdropColors(true, baseAlpha);
+        const light = windowBackdropColors(false, baseAlpha);
+        const what = baseAlpha === undefined ? "default theme" : `theme base alpha ${baseAlpha}`;
+        console.info(`[ardia windows] materials: ${what} dark tint=${rgba(dark.tint)} fallback=${rgba(dark.fallback)}; light tint=${rgba(light.tint)} fallback=${rgba(light.fallback)}`);
+        expectTrue(luminanceOver(dark.fallback, 0.5) < luminanceOver(light.fallback, 0.5), `${what}: dark fallback ${rgba(dark.fallback)} is not darker than light ${rgba(light.fallback)}`);
+        for (const under of [0.2, 0.5, 0.8]) {
+          expectTrue(luminanceOver(dark.tint, under) <= luminanceOver(light.tint, under), `${what}: dark tint ${rgba(dark.tint)} is not darker than light ${rgba(light.tint)} over grey ${under}`);
+        }
+        expectTrue(dark.fallback[3] === 1 && light.fallback[3] === 1, `${what}: the flat fallback is not opaque`);
+      }
+      const defaults = { dark: windowBackdropColors(true), light: windowBackdropColors(false) };
+      expectTrue(luminanceOver(defaults.dark.tint, 0.5) < luminanceOver(defaults.light.tint, 0.5), "default theme: dark tint is not strictly darker");
+      console.info(`[ardia windows] materials: the app appearance as the views see it is ${JSON.stringify(appDarkNow())}`);
+    },
+  },
   {
     name: "materials: the module answers which paths this machine has",
     run() {

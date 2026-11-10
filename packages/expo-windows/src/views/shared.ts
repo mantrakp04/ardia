@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
-import { useColorScheme, type ViewStyle } from "react-native";
+import type { ViewStyle } from "react-native";
+import { useAppDark } from "./appearance";
 import { noteFirstWindow } from "../missing";
 import { withOpacity } from "./color";
 
@@ -11,10 +12,7 @@ export const finite = (value: unknown, fallback: number): number => (typeof valu
 
 export const colorOrUndefined = (value: unknown): string | undefined => (typeof value === "string" && value.length > 0 ? value : undefined);
 
-export function useDark(dark: unknown): boolean {
-  const scheme = useColorScheme();
-  return typeof dark === "boolean" ? dark : scheme === "dark";
-}
+export const useDark = useAppDark;
 
 export function useFirstWindow() {
   useEffect(noteFirstWindow, []);

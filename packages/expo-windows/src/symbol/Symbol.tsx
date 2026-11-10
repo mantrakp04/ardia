@@ -1,6 +1,7 @@
 import { createElement, forwardRef, useEffect, type ComponentType } from "react";
 import type { SymbolProps } from "@ardia/shell";
-import { processColor, useColorScheme, View, type ViewProps } from "react-native";
+import { processColor, View, type ViewProps } from "react-native";
+import { useAppDark } from "../views/appearance";
 import * as NativeComponentRegistry from "react-native/Libraries/NativeComponent/NativeComponentRegistry";
 import { noteMissing } from "../missing";
 import { NATIVE_DEFAULT_POINT_SIZE, vectorIcon, type VectorLayer } from "./layers";
@@ -19,7 +20,7 @@ const NativeVectorIcon = NativeComponentRegistry.get<NativeVectorIconProps>("Ard
 const LABEL_COLOR = { light: "rgba(0, 0, 0, 0.85)", dark: "rgba(255, 255, 255, 0.85)" };
 
 export const Symbol = forwardRef<unknown, SymbolProps>(function Symbol({ name, size = NATIVE_DEFAULT_POINT_SIZE, weight = "regular", color, ...props }, ref) {
-  const scheme = useColorScheme();
+  const scheme = useAppDark(undefined) ? "dark" : "light";
   const icon = vectorIcon(name, size, weight);
   useEffect(() => {
     if (!icon) noteMissing(`symbol ${name}`);

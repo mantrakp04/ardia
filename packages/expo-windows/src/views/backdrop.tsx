@@ -2,8 +2,9 @@ import { forwardRef, memo, useMemo, type ReactNode } from "react";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 import { Bands } from "./Bands";
 import { adjustingLightness, flatStops, hslToRgb, parseColor, rgbaString, type Rgba } from "./color";
+import { useAppDark } from "./appearance";
 import { NativeWindowMaterial, nativeWindowMaterial } from "./nativeMaterials";
-import { finite, useDark, useFirstWindow, type AnyProps } from "./shared";
+import { finite, useFirstWindow, type AnyProps } from "./shared";
 
 const VIBRANCY = {
   dark: { material: [68.3 / 255, 68.0 / 255, 68.4 / 255], white: 0, alpha: 0.4, gradientOpacity: 0.5 },
@@ -30,15 +31,23 @@ function tintOverMaterial(dark: boolean, baseAlpha?: number): Rgba {
   return [white, white, white, baseAlpha ?? look.alpha];
 }
 
+export type WindowBackdropColors = { fallback: Rgba; tint: Rgba; gradientOpacity: number };
+
+export function windowBackdropColors(dark: boolean, baseAlpha?: number): WindowBackdropColors {
+  return { fallback: underColor(dark, baseAlpha), tint: tintOverMaterial(dark, baseAlpha), gradientOpacity: (dark ? VIBRANCY.dark : VIBRANCY.light).gradientOpacity };
+}
+
 function MaterialBase({ dark, baseAlpha }: { dark: boolean; baseAlpha?: number }) {
-  const fallback = rgbaString(underColor(dark, baseAlpha));
+  const colors = windowBackdropColors(dark, baseAlpha);
+  const fallback = rgbaString(colors.fallback);
   if (!nativeWindowMaterial()) return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fallback }]} />;
   return (
     <NativeWindowMaterial
       pointerEvents="none"
       material={WINDOW_MATERIAL}
+      dark={dark}
       fallbackColor={fallback}
-      tintColor={rgbaString(tintOverMaterial(dark, baseAlpha))}
+      tintColor={rgbaString(colors.tint)}
       style={StyleSheet.absoluteFill}
     />
   );
@@ -82,12 +91,12 @@ export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop
   ref,
 ) {
   useFirstWindow();
-  const systemDark = useDark(undefined);
+  const appDark = useAppDark(undefined);
   const theme = useMemo(() => flatStops(themeColors), [themeColors]);
-  const dark = theme.length > 0 && themeAppearance === "dark" ? true : theme.length > 0 && themeAppearance === "light" ? false : systemDark;
+  const dark = theme.length > 0 && themeAppearance === "dark" ? true : theme.length > 0 && themeAppearance === "light" ? false : appDark;
   let layers;
   if (vibrancy === true) {
-    const look = dark ? VIBRANCY.dark : VIBRANCY.light;
+    const { gradientOpacity } = windowBackdropColors(dark);
     if (theme.length > 0) {
       layers = (
         <>
@@ -102,7 +111,7 @@ export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop
       layers = (
         <>
           <MaterialBase dark={dark} />
-          <Bands stops={[[tint[0], tint[1], tint[2], alpha], [lighter[0], lighter[1], lighter[2], alpha]]} opacity={look.gradientOpacity} count={12} />
+          <Bands stops={[[tint[0], tint[1], tint[2], alpha], [lighter[0], lighter[1], lighter[2], alpha]]} opacity={gradientOpacity} count={12} />
         </>
       );
     }

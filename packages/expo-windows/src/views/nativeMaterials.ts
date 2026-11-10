@@ -22,7 +22,7 @@ export type MaterialsNative = {
 
 export type WindowMaterialKind = "micaAlt" | "mica" | "acrylic";
 
-export type NativeWindowMaterialProps = ViewProps & { material: WindowMaterialKind; fallbackColor: string; tintColor: string };
+export type NativeWindowMaterialProps = ViewProps & { material: WindowMaterialKind; dark: boolean; fallbackColor: string; tintColor: string };
 
 export type NativeMaterialBlurProps = ViewProps & {
   fallbackColor: string;
@@ -41,7 +41,7 @@ const colorAttribute = { process: processColor as (value: never) => unknown };
 
 export const NativeWindowMaterial = NativeComponentRegistry.get<NativeWindowMaterialProps>("ArdiaWindowMaterial", () => ({
   uiViewClassName: "ArdiaWindowMaterial",
-  validAttributes: { material: true, fallbackColor: colorAttribute, tintColor: colorAttribute },
+  validAttributes: { material: true, dark: true, fallbackColor: colorAttribute, tintColor: colorAttribute },
 }));
 
 export const NativeMaterialBlur = NativeComponentRegistry.get<NativeMaterialBlurProps>("ArdiaMaterialBlur", () => ({

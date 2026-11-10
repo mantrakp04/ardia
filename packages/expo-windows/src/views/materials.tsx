@@ -2,7 +2,8 @@ import { forwardRef, useCallback, useState, type ReactNode } from "react";
 import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { parseColor, rgbaString } from "./color";
 import { bubblePath, NativeMaterialBlur, nativeBlur } from "./nativeMaterials";
-import { colorOrUndefined, dropShadow, finite, useDark, useFirstWindow, type AnyProps } from "./shared";
+import { useAppDark as useDark } from "./appearance";
+import { colorOrUndefined, dropShadow, finite, useFirstWindow, type AnyProps } from "./shared";
 
 type Tone = { light: string; dark: string };
 
