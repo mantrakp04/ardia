@@ -62,7 +62,7 @@ export const checks: Check[] = [
     name: "shell: a confirm in background mode answers its Cancel button",
     async run() {
       expectEqual(await dialogs().confirm({ title: "Self check", message: "Background confirm", suppression: "Don't ask again" }), { confirmed: false, suppressed: false }, "confirm with Cancel");
-      expectEqual(await dialogs().confirm({ title: "Self check", destructive: true, confirmTitle: "Delete", cancelTitle: "Keep" }), { confirmed: true, suppressed: false }, "confirm without a Cancel button");
+      expectEqual(await dialogs().confirm({ title: "Self check", destructive: true, confirmTitle: "Delete", cancelTitle: "Keep" }), { confirmed: false, suppressed: false }, "confirm whose cancel button has its own title");
     },
   },
   {
