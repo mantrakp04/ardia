@@ -211,10 +211,8 @@ struct WindowManager {
     }
     m_dragCursor = cursor;
     m_dragId = entry->id;
-    ReleaseCapture();
-    PostMessageW(entry->hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
     LaunchLog::Write(L"window", std::wstring(L"drag began on ").append(Paths::Wide(entry->id)));
-    After(std::chrono::milliseconds(80), [this]() noexcept { TrackDragUnlessTheSystemMoves(); });
+    TrackDrag();
   }
 
   void ToggleMaximize(int64_t rootTag) noexcept {
@@ -497,14 +495,13 @@ struct WindowManager {
     return (GetAsyncKeyState(GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON) & 0x8000) != 0;
   }
 
-  void TrackDragUnlessTheSystemMoves() noexcept {
+  void TrackDrag() noexcept {
     if (m_systemMove || m_tracking || !LeftButtonDown()) return;
     ManagedWindow *entry = Find(m_dragId);
     if (!entry) return;
     try {
       auto presenter = entry->appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
       if (presenter && presenter.State() != winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Restored) return;
-      LaunchLog::Write(L"window", L"drag is tracked by the app");
       m_tracking = true;
       auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
       timer.Interval(std::chrono::milliseconds(8));
@@ -512,7 +509,14 @@ struct WindowManager {
       auto token = std::make_shared<winrt::event_token>();
       *token = timer.Tick([this, timer, token](auto const &, auto const &) noexcept {
         ManagedWindow *moving = Find(m_dragId);
-        if (moving && LeftButtonDown() && !m_systemMove) {
+        bool cancelled = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+        if (moving && cancelled) {
+          try {
+            moving->appWindow.Move(m_dragOrigin);
+          } catch (...) {
+          }
+        }
+        if (moving && !cancelled && LeftButtonDown() && !m_systemMove) {
           POINT now{};
           GetCursorPos(&now);
           try {
@@ -533,10 +537,7 @@ struct WindowManager {
 
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR reference) noexcept {
     auto *manager = reinterpret_cast<WindowManager *>(reference);
-    if (message == WM_ENTERSIZEMOVE) {
-      manager->m_systemMove = true;
-      LaunchLog::Write(L"window", L"the system is moving or sizing a window");
-    }
+    if (message == WM_ENTERSIZEMOVE) manager->m_systemMove = true;
     if (message == WM_EXITSIZEMOVE) manager->m_systemMove = false;
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");

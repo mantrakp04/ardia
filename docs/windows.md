@@ -41,7 +41,8 @@ Logic is written once. Only code that calls the OS is written per platform.
   mounted with its id, as on the Mac. Browser windows draw into the title bar and keep the system caption buttons.
   A drag region is a view that starts a window move when the UI's own hit-testing gives it the press, so a control
   on top of it still clicks; the top 32 points of every window drag the same way where nothing else takes the
-  press. The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
+  press. The app moves the window itself while the button is down (Escape puts it back): the system's own move
+  loop never sees the content island's input, so dragging to a screen edge does not snap yet. The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
   without a reply; a no cancels the quit.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
