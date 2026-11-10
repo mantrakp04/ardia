@@ -15,6 +15,30 @@ enum VaultOwnerCheck {
     grantLock.unlock()
   }
 
+  static func passOn() {
+    grantLock.lock()
+    grantedAt = Date()
+    grantLock.unlock()
+  }
+
+  static func reset() {
+    grantLock.lock()
+    grantedAt = nil
+    confirmedAt = nil
+    grantLock.unlock()
+  }
+
+  static var lastConfirmed: Date? {
+    grantLock.lock()
+    defer { grantLock.unlock() }
+    return confirmedAt
+  }
+
+  static func confirmedRecently(_ reason: String) async -> Bool {
+    if recentlyConfirmed { return true }
+    return await confirm(reason)
+  }
+
   static var recentlyConfirmed: Bool {
     grantLock.lock()
     defer { grantLock.unlock() }
@@ -41,13 +65,13 @@ enum VaultOwnerCheck {
   }
 
   static func confirm(_ reason: String) async -> Bool {
+    if takeGrant() { return true }
     let confirmed = await ask(reason)
     if confirmed { noteConfirmed() }
     return confirmed
   }
 
   private static func ask(_ reason: String) async -> Bool {
-    if takeGrant() { return true }
     let config = LaunchConfig.shared
     if config.background {
       let granted = config.testValue("reauth") == "granted"

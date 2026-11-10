@@ -86,7 +86,7 @@ final class VaultSessionStore: @unchecked Sendable {
 
   func storedSession(_ provider: String, reason: String) async -> String? {
     guard hasStoredSession(provider) else { return nil }
-    guard VaultOwnerCheck.recentlyConfirmed || (await VaultOwnerCheck.confirm(reason)) else { return nil }
+    guard await VaultOwnerCheck.confirmedRecently(reason) else { return nil }
     return VaultKeychain.read(provider)
   }
 

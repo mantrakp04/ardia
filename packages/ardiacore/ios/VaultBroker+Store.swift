@@ -47,16 +47,24 @@ extension VaultBroker {
       guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return await missingTool(provider) }
       let result = await lane(id).run { await provider.unlock(cli, password: nil) }
       let settled = await settle(provider, result)
-      if settled.ok { VaultOwnerCheck.grant() }
+      if settled.ok { VaultOwnerCheck.passOn() }
       return settled
     }
-    VaultOwnerCheck.grant()
-    var state = current
-    state.state = .unlocked
-    state = publish(state)
-    announceItems(id)
+    VaultOwnerCheck.passOn()
+    let state = publishOpened(provider, current)
+    for other in VaultRegistry.providers where other.id != id && isReady(other.id) {
+      if let known = states[other.id], known.state == .locked { _ = publishOpened(other, known) }
+    }
     reconnectInBackground()
     return VaultSignInResult(ok: true, state: state)
+  }
+
+  func publishOpened(_ provider: any VaultProvider, _ known: VaultProviderState) -> VaultProviderState {
+    var state = known
+    state.state = .unlocked
+    let published = publish(state)
+    announceItems(provider.id)
+    return published
   }
 
   func openStore() {
@@ -65,22 +73,52 @@ extension VaultBroker {
     storeUsedAt = Date()
     guard !wasOpen else { return }
     for provider in VaultRegistry.providers { restoreFromDisk(provider.id) }
-    Task { self.pullAllFromCloud() }
+    let wanted = VaultRegistry.providers.map(\.id).filter { cloudAccepts($0) != nil }
+    let accounts = Dictionary(uniqueKeysWithValues: wanted.map { ($0, cloudAccepts($0) ?? "") })
+    Task.detached {
+      var pulled: [(String, VaultCacheSnapshot)] = []
+      for id in wanted {
+        if let snapshot = VaultCache.pullFromCloud(id, account: accounts[id] ?? "") { pulled.append((id, snapshot)) }
+      }
+      await self.adoptPulled(pulled)
+    }
   }
 
-  func pullAllFromCloud() {
+  func adoptPulled(_ pulled: [(String, VaultCacheSnapshot)]) {
     guard storeOpen else { return }
-    for provider in VaultRegistry.providers { pullFromCloud(provider.id) }
+    for (id, snapshot) in pulled {
+      let changed = cachedItems[id] != snapshot.items
+      adopt(id, snapshot)
+      if changed { announceItems(id) }
+    }
+  }
+
+  func cloudAccepts(_ id: String) -> String? {
+    if let known = states[id]?.state, known == .signedOut || known == .notInstalled { return nil }
+    if states[id]?.account != nil { return Self.normalizedAccount(cacheAccount(states[id])) }
+    return snapshotAccounts[id].map(Self.normalizedAccount) ?? ""
+  }
+
+  static func normalizedAccount(_ account: String) -> String {
+    let parts = account.lowercased().split(separator: "@", omittingEmptySubsequences: false)
+    guard parts.count >= 2 else { return account.lowercased() }
+    return parts.dropLast().joined(separator: "@")
   }
 
   func reconnectInBackground() {
     guard reconnecting == nil else { return }
+    let generation = reconnectGeneration
     reconnecting = Task {
       for provider in VaultRegistry.providers where self.isReady(provider.id) {
+        guard !Task.isCancelled, self.storeOpen, generation == self.reconnectGeneration, VaultOwnerCheck.recentlyConfirmed else { break }
         if self.sessions.session(provider.id) == nil, self.reconnectsQuietly(provider) { await self.reconnect(provider) }
+        guard self.storeOpen, generation == self.reconnectGeneration else {
+          self.sessions.forget(provider.id, keepStored: self.sessions.touchID)
+          break
+        }
         if self.sessions.session(provider.id) != nil { _ = await self.currentState(provider) }
       }
-      self.reconnecting = nil
+      if generation == self.reconnectGeneration { self.reconnecting = nil }
     }
   }
 
@@ -104,7 +142,7 @@ extension VaultBroker {
       if cachedItems[id] != nil { snapshotAccounts[id] = account }
       return
     }
-    if saved != account { forgetSnapshot(id) }
+    if Self.normalizedAccount(saved) != Self.normalizedAccount(account) { forgetSnapshot(id) }
   }
 
   func persist(_ id: String, toCloud: Bool = true) {
@@ -125,8 +163,7 @@ extension VaultBroker {
   }
 
   func pullFromCloud(_ id: String) {
-    if let known = states[id]?.state, known == .signedOut || known == .notInstalled { return }
-    guard let snapshot = VaultCache.pullFromCloud(id) else { return }
+    guard let account = cloudAccepts(id), let snapshot = VaultCache.pullFromCloud(id, account: account) else { return }
     guard storeOpen || sessions.session(id) != nil else { return }
     let changed = cachedItems[id] != snapshot.items
     adopt(id, snapshot)
