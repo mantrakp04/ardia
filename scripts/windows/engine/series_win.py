@@ -2,7 +2,8 @@
 """Our series on a Windows tree: the `chromium` lines of engine/patches/series, then those of
 scripts/windows/engine/series-win (when it exists; its patches in scripts/windows/engine/patches,
 and its `skip <patch>` lines leave a patch of engine/patches/series out), each applied strictly (git apply), else with patch's fuzz.
-A patch that fails is recorded and the rest still run. Of the layers, engine/chromium runs as is (its
+A patch that fails is recorded and the rest still run. Each patch that goes in is written to .series-win-applied beside
+the tree and never applied again: a later patch on the same lines would hide it from a reverse check. Of the layers, engine/chromium runs as is (its
 chrome/browser/ardia is only built into the Mac framework) and engine/ardiacore gives only the hook headers the
 patches include. Writes a table: patch, result, which files it touches (Mac only, Mac and shared, OS-neutral).
 
@@ -106,14 +107,34 @@ def names():
         [(n, os.path.join(WIN_PATCHES, n)) for n in chromium_lines(os.path.join(HERE, 'series-win'))]
 
 
+def state_path(tree):
+    return os.path.join(os.path.dirname(os.path.abspath(tree)), '.series-win-applied')
+
+
+def read_state(tree):
+    path = state_path(tree)
+    return set(open(path).read().split()) if os.path.isfile(path) else set()
+
+
+def record(tree, name):
+    with open(state_path(tree), 'a') as f:
+        f.write(name + '\n')
+
+
 def cmd_apply(args):
     tree = os.environ['CHROMIUM_SRC']
+    done = read_state(tree)
     rows, failed = [], 0
     for name in sorted(skipped()):
         rows.append((name, 'skipped (series-win)', classify(patch_files(os.path.join(PATCHES, name))), ''))
         print(f'{"skipped":16} {name}', flush=True)
     for name, path in names():
-        result, detail = apply_one(path, tree)
+        if name in done:
+            result, detail = 'already applied', 'recorded'
+        else:
+            result, detail = apply_one(path, tree)
+            if result != 'FAILED':
+                record(tree, name)
         failed += result == 'FAILED'
         rows.append((name, result, classify(patch_files(path)), detail))
         print(f'{result:16} {name}', flush=True)

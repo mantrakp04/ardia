@@ -5,8 +5,8 @@
 # $WIN_TOOLCHAIN_DIR/zips/<hash>.zip, and writes $WIN_TOOLCHAIN_DIR/env.sh, which scripts/windows/engine/env.sh sources:
 # DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL and GYP_MSVS_HASH_<Chromium's toolchain hash>=<ours>. Then run
 # scripts/windows/engine/01-sync.sh again (its hooks unpack the zip into depot_tools/win_toolchain/vs_files).
-# The SDK inside Visual Studio's packages has no Debuggers: the SDK's x64 DbgHelp.dll (App Certification Kit)
-# stands in for Debuggers/x64/dbghelp.dll.
+# The SDK inside Visual Studio's packages has no Debuggers: Microsoft's debugger engine package (NuGet
+# Microsoft.Debugging.Platform.DbgEng $DBGENG_VERSION) gives Debuggers/<cpu>/dbghelp.dll and dbgcore.dll.
 # Usage: scripts/windows/engine/toolchain.sh --apply | --help (under the chromium lock)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
@@ -31,9 +31,15 @@ if [[ ! -d "$WIN_TOOLCHAIN_DIR/msvc/VC/Tools/MSVC" ]]; then
     --with-devcmd no --with-llvm no --with-asan no --architecture x64 x86 arm64 --skip-patch \
     --cache "$WIN_TOOLCHAIN_DIR/cache" --dest "$WIN_TOOLCHAIN_DIR/msvc"
 fi
+if [[ ! -f "$DBGENG_DIR/content/arm64/dbghelp.dll" ]]; then
+  mkdir -p "$DBGENG_DIR"
+  curl -fsSL -o "$DBGENG_DIR.nupkg" \
+    "https://api.nuget.org/v3-flatcontainer/microsoft.debugging.platform.dbgeng/$DBGENG_VERSION/microsoft.debugging.platform.dbgeng.$DBGENG_VERSION.nupkg"
+  unzip -q -o "$DBGENG_DIR.nupkg" -d "$DBGENG_DIR"
+fi
 python3 "$(dirname "$0")/package_toolchain.py" --msvc "$WIN_TOOLCHAIN_DIR/msvc" --winver "$WIN_SDK_VERSION" \
   --vs-version "$VS_YEAR" --depot-tools "$CB/depot_tools" --out "$WIN_TOOLCHAIN_DIR/zips" --stored \
-  --dbghelp-from "$WIN_TOOLCHAIN_DIR/msvc/Windows Kits/10/App Certification Kit/DbgHelp.dll" | tee "$WIN_TOOLCHAIN_DIR/package.log"
+  --debuggers-from "$DBGENG_DIR" | tee "$WIN_TOOLCHAIN_DIR/package.log"
 ours=$(awk '/^hash /{print $2}' "$WIN_TOOLCHAIN_DIR/package.log")
 [[ -n "$ours" ]] || { echo "toolchain.sh: packaging gave no hash" >&2; exit 1; }
 cat > "$WIN_TOOLCHAIN_DIR/env.sh" <<ENV

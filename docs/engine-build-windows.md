@@ -20,11 +20,13 @@ Helium and our series apply, `gn gen` passes, and `base_unittests.exe` and `chro
 search data or Helium hosts (703,485 resources in 232 paks; 8 still say "Helium"). Not proven: that it runs. A Mac
 can't run it; the next step is a Windows machine (`mini_installer`, or the out dir copied over). The exe's product
 name is "Chromium", as the Mac framework's is (`chromium-branding.patch`). Not built yet: ArdiaCore for Windows, the
-official configuration (below).
+official configuration (below). Packaged: `ardia-chromium-win-x64.zip` ([Packaging](#packaging)). ARM64 (for Windows on
+ARM, where x64 runs emulated): `gn gen` passes and `chrome` was at 51,230 of 54,203 steps with no failures when the 2026-11-11 run ended at
+02:37 IST, left running with its packaging queued behind it ([ARM64](#arm64)).
 
 ## Steps
 
-Run them in the order 1, toolchain, 1 again (its hooks), 3, 4, 2, 5. Run each with stdin closed (`< /dev/null`): gclient and CIPD can wait on a prompt otherwise. Each needs `--apply` and the chromium lock
+Run them in the order 1, toolchain, 1 again (its hooks), 3, 4, 2, 5, 6. Run each with stdin closed (`< /dev/null`): gclient and CIPD can wait on a prompt otherwise. Each needs `--apply` and the chromium lock
 (`lockf -k $AC_LOCK_ROOT/ac-chromium.lockf <step> --apply`; on the owner's machine `scripts/agent/locked chromium`).
 
 | Step | Script | What it does | Time (M5 Pro, 2026-11-10) |
@@ -33,8 +35,9 @@ Run them in the order 1, toolchain, 1 again (its hooks), 3, 4, 2, 5. Run each wi
 | toolchain | `toolchain.sh` | Downloads Visual Studio 2026's C++ tools and Windows SDK 10.0.28000 from Microsoft, packs them as `package_from_installed.py` would, writes the two variables the hooks need | download 20 min (1.6 GB), pack under a minute |
 | 3 | `03-helium.py` | The Mac step 3 with helium-windows (below) | 2 min 51 s |
 | 4 | `04-series.sh` | Our patches (below), `engine/chromium`, ArdiaCore's hook headers, the offline game | 6 s |
-| 2 | `02-gn-args.sh` | `out/Release_GN_win_x64/args.gn` from `gn_defines.sh`, then `gn gen` | 7 s (38,372 targets) |
-| 5 | `05-build.sh` | `autoninja` on `TARGETS` (default `base_unittests`) with `JOBS` local jobs (default 8) | `base_unittests`: 3 min (7,852 steps); `chrome`: about 2 h from the first start (90,670 steps), 35 min of it lost to swap before the job count came down; the last pass at 16 jobs compiled 31,000 steps in 52 min, and `chrome.dll` links in about 25 s (not an official build: no ThinLTO) |
+| 2 | `02-gn-args.sh` | `out/Release_GN_win_$WIN_CPU/args.gn` from `gn_defines.sh` (`WIN_CPU` `x64`, the default, or `arm64`), then `gn gen` | 7 s (38,372 targets; arm64 39,189) |
+| 5 | `05-build.sh` | `autoninja` on `TARGETS` (default `base_unittests`) with `JOBS` local jobs (default 8); for `chrome`, Blink's bindings generators first at `BINDINGS_JOBS` (default 3) | `base_unittests`: 3 min (7,852 steps); `chrome`: about 2 h from the first start (90,670 steps), 35 min of it lost to swap before the job count came down; the last pass at 16 jobs compiled 31,000 steps in 52 min, and `chrome.dll` links in about 25 s (not an official build: no ThinLTO) |
+| 6 | `06-package.sh` | `ardia-chromium-win-$WIN_CPU.zip` and `SHA256SUMS` in `~/ardia-windows/out` ([Packaging](#packaging)) | under a minute |
 
 Disk: 52 GB in `~/chromium-build-win`: the checkout 42 GB with its 9.5 GB out dir, `win-toolchain/` 8.4 GB (the unpacked download 4.3 GB and the zip 4.4 GB; the toolchain unpacked in the tree's depot_tools is in the checkout's share).
 
@@ -70,10 +73,19 @@ hook (`vs_toolchain.py update --force`, then depot_tools' `get_toolchain_if_nece
    `DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL=~/chromium-build-win/win-toolchain/zips` and
    `GYP_MSVS_HASH_3bfcb536c8=5692d64547`.
 
-**One stand-in.** The SDK inside Visual Studio's packages has no "Debugging Tools for Windows", and
-`vs_toolchain.py` copies `Windows Kits/10/Debuggers/x64/dbghelp.dll` into the output (Chrome uses it to symbolize
-stacks). The SDK's own x64 `DbgHelp.dll` from its App Certification Kit stands in for it. For a shipping build, take
-the debuggers MSI from the standalone SDK (its ISO) or package on Windows.
+**Debuggers.** The SDK inside Visual Studio's packages has no "Debugging Tools for Windows", and `vs_toolchain.py`
+copies `Windows Kits/10/Debuggers/<cpu>/dbghelp.dll` into every out dir (Chrome uses it to symbolize stacks); `gn gen`
+fails without it. Microsoft also ships the debugger engine as the NuGet package `Microsoft.Debugging.Platform.DbgEng`
+(`DBGENG_VERSION` in `env.sh`, 20260319.1511.0; Windows SDK licence), with `dbghelp.dll` and `dbgcore.dll` for x64, x86
+and arm64. `toolchain.sh` now passes it to `package_toolchain.py --debuggers-from`, so a new zip has real debuggers for
+every CPU (tested: hash `c6f0639b26`).
+
+Tonight's zip, `5692d64547`, predates that: it has the SDK's own x64 `DbgHelp.dll` (from its App Certification Kit) as
+`Debuggers/x64/dbghelp.dll`, and no arm64 or x86 ones. Repacking it changes the toolchain hash, which is in every
+compile command (`/winsysroot:…/vs_files/<hash>`), so it would rebuild everything. Instead, `debuggers.sh` adds the
+package's arm64 and x86 DLLs to the unpacked toolchain. `gclient runhooks` notices the changed files and unpacks the
+zip again, which undoes that: run `debuggers.sh` after the hooks, or move to a new zip when a full rebuild is due
+anyway.
 
 macOS's file system is case-insensitive, so the SDK's mixed-case includes resolve as on Windows; Linux needs a
 `ciopfs` mount for that, a Mac doesn't.
@@ -122,7 +134,7 @@ On the Windows tree (2026-11-10): `pins` and `guard` pass, 356 patches applied w
 `04-series.sh` applies every `chromium` line of `engine/patches/series`, minus the `skip` lines of
 `scripts/windows/engine/series-win`, then that file's own `chromium` lines (patches in `scripts/windows/engine/patches/`),
 strictly with `git apply` and else with `patch`'s fuzz. It records a failure and goes on, and writes
-`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and three Windows-only patches (the table).
+`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and four Windows-only patches (the table).
 The layers:
 
 - `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) is copied in but not built:
@@ -213,9 +225,10 @@ a Windows build needs.
 | `chromium-win-rtl-unittest-domsub.patch` | applies (Windows only, `series-win`) | OS-neutral | Puts back the `base_unittests` literals Helium's domain substitution breaks |
 | `chromium-win-load-local-state-delegate.patch` | applies (Windows only, `series-win`) | OS-neutral | `chrome_main_delegate.cc` calls `LoadLocalState` with no delegate, as stock Chrome |
 | `chromium-win-ardia-layer-calls-mac-only.patch` | applies (Windows only, `series-win`) | OS-neutral | The two calls into `chrome/browser/ardia` become Mac only |
+| `chromium-win-mac-host-sdk-any-toolchain.patch` | applies (Windows only, `series-win`) | Mac only | `mac_sdk.gni` may be read from any toolchain when a Mac host builds for Windows; arm64 needs it ([ARM64](#arm64)) |
 
 Every patch that applies does so strictly (`git apply`, no fuzz). 72 of the Mac series' 73 apply; the one left out is a
-Mac-only keychain patch. Three Windows-only patches follow them (`series-win`). The file classes above come from paths, so a
+Mac-only keychain patch. Four Windows-only patches follow them (`series-win`). The file classes above come from paths, so a
 shared file can still call into Mac-only code: two did (`chrome.dll` failed to link without the guard patch).
 
 ## GN args
@@ -286,6 +299,64 @@ Kept: proprietary codecs (`ffmpeg_branding="Chrome"`), Widevine, the CDM storage
 no field-trial config, no updater, no background mode, `symbol_level=0`, not a component build, and
 `branding_file_path` (`//chrome/app/theme/ardia/BRANDING`).
 
+## Packaging
+
+`06-package.sh` packs an out dir the way Chromium's CI packs its Windows snapshots, rather than from a file list of
+ours: `chrome/tools/build/make_zip.py` with the `chrome-win.zip` archive of `infra/archive_config/win-archive-rel.json`
+(`win-arm64-archive-rel.json` for arm64). The CI archive builders upload that zip as the runnable Chromium for
+Windows. `chrome/tools/build/win/FILES.cfg` says it is obsolete for archiving and points at those configs.
+`//chrome:mini_installer` would need `setup.exe` and the installer's archive, which this build doesn't make, and a
+package that installs and registers itself is more than a throwaway test needs.
+
+The configs' paths are written for a Windows host (`locales\*.pak`, `IwaKeyDistribution\manifest.json`) and
+`make_zip.py` hands them to `glob` as they are, so on a Mac they match nothing. `06-package.sh` gives it a copy with
+forward slashes. Then `package_win.py` compares the zip with `gn desc out/Release_GN_win_<cpu> //chrome:chrome
+runtime_deps` (case-insensitively, as Windows does: the config says `D3DCompiler_47.dll`, the build writes
+`d3dcompiler_47.dll`), writes what differs to `~/chromium-build-win/package/<cpu>/missing-runtime-deps.txt`, and adds
+`chrome-win/RUN.txt`: how to unblock, unzip and start it with a throwaway profile, and that nothing in it is signed.
+
+x64 on 2026-11-11: `ardia-chromium-win-x64.zip`, 195 MB, 252 files (464 MB unpacked), SHA-256
+`8c74a1aafb818c0a4e11d424e59a9a43b82b5c7810a4e3fdfa3c6290bbb60908`. What `runtime_deps` lists and the zip leaves out,
+none of it needed to start the browser:
+
+| Left out | Files | Why |
+|---|---|---|
+| `gen/third_party/devtools-frontend/src/…` | 8,475 | DevTools' unbundled front end, for DevTools' own tests; the browser uses the copy in `resources.pak` |
+| `pyproto/google/…` | 37 | Python protobuf modules for test tooling |
+| `VkICD_mock_icd.dll`, `VkLayer_khronos_validation.dll`, `angledata/*.json` | 6 | Vulkan's mock driver and validation layer, for ANGLE's tests |
+| `dbghelp.dll`, `msdia140.dll` (and `dbgcore.dll`, not built) | 3 | Symbolizing crash stacks in-process; Windows has its own `dbghelp.dll` |
+| `resources/accessibility/reading_mode_gdocs_helper_manifest.json` | 1 | The Reading mode Google Docs helper's manifest; the CI archive leaves it out too |
+
+And what the CI archive lists that this build doesn't make: `chrome_renderer.dll` (a glob for a split-renderer
+configuration), `eventlog_provider.dll` (helium-windows' `windows-disable-event-log`), `MEIPreload/*` (the Media
+Engagement preload component, which this build doesn't download), `interactive_ui_tests.exe` and `setup.exe` (not
+built), `vk_swiftshader.dll` and its `.json` (`enable_swiftshader=false`). `snapshot_blob.bin` stands in for
+`v8_context_snapshot.bin`, as `make_zip.py` allows.
+
+Not checked: that it starts. Nobody had a Windows machine; `RUN.txt` has the command.
+
+## ARM64
+
+The toolchain has everything an arm64 target needs: MSVC's `lib/arm64`, the SDK's `um`/`ucrt` arm64 libraries, the
+`sysarm64` runtimes, and Chromium's clang has `clang_rt.*-aarch64.lib`. Chromium builds Rust's standard library from
+source, so no prebuilt arm64 Rust is needed. `WIN_CPU=arm64` selects `target_cpu = "arm64"` and
+`out/Release_GN_win_arm64`; everything else in the args is the same.
+
+Two things stopped `gn gen`:
+
+1. **`dbghelp.dll` for arm64** (`Debuggers/arm64`): see [Debuggers](#the-toolchain). Fixed by `debuggers.sh`.
+2. **`mac_sdk.gni`'s assertion.** An arm64 Windows build also has an x64 toolchain, and on a Mac host Blink's
+   `scripts.gni` imports `mac_sdk.gni` in every toolchain (`gperf` comes from Xcode). `mac_sdk.gni` asserts it is only
+   read for macOS, the default toolchain or Android. `chromium-win-mac-host-sdk-any-toolchain.patch` (`series-win`)
+   lets a Mac host building for Windows read it from any toolchain. x64 builds never hit it: their only Windows
+   toolchain is the default.
+
+While adding that patch, `04-series.sh` applied `chromium-extension-management-policy-hook.patch` a second time: once
+`chromium-win-ardia-layer-calls-mac-only.patch` had edited the same lines, the reverse check that tells an applied
+patch no longer recognised it. `chrome_extension_system.cc` was restored from the series base with its three patches
+replayed, and `series_win.py` now records every patch it applies in `.series-win-applied` beside the tree and never
+applies a recorded one again. The x64 build was linked before this and isn't affected.
+
 ## What failed and how it was fixed
 
 In the order they happened on 2026-11-10:
@@ -330,7 +401,12 @@ Helium checkouts and `out/Release_GN_win_x64`. With the scripts in a clone of th
 ```
 lock() { lockf -k "$AC_LOCK_ROOT/ac-chromium.lockf" "$@" < /dev/null; }
 TARGETS=chrome lock scripts/windows/engine/05-build.sh --apply
+WIN_CPU=x64 lock scripts/windows/engine/06-package.sh --apply
+WIN_CPU=arm64 TARGETS=chrome JOBS=16 lock scripts/windows/engine/05-build.sh --apply
+WIN_CPU=arm64 lock scripts/windows/engine/06-package.sh --apply
 ```
+
+16 jobs held on this 24 GB machine once Blink's bindings generators were done (`05-build.sh` runs those first, at 3).
 
 The build is incremental: a rerun compiles only what is left. Steps 1 to 4 never need to run again on this tree; step 3
 refuses a second run (`.helium-stages-src`), and step 4 skips what is applied. To start over on a new Chromium version,

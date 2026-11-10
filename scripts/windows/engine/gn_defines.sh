@@ -2,7 +2,7 @@ source "$AC_MAC_BUILD_DIR/gn_defines.sh"
 _win_drop=(is_official_build chrome_pgo_phase target_cpu enable_cdm_host_verification)
 _win_add=(
   'target_os="win"'
-  'target_cpu="x64"'
+  "target_cpu=\"${WIN_CPU:-x64}\""
   is_official_build=false
   chrome_pgo_phase=0
   use_thin_lto=false

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Step 2 (Windows): writes out/Release_GN_win_x64/args.gn from scripts/windows/engine/gn_defines.sh (the Mac list with the
-# Windows changes) and runs `gn gen`. Run it after step 4, and again whenever either list changes.
+# Step 2 (Windows): writes out/Release_GN_win_$WIN_CPU/args.gn (WIN_CPU x64 or arm64, default x64) from
+# scripts/windows/engine/gn_defines.sh (the Mac list with the Windows changes) and runs `gn gen`. Run it after step 4, and again whenever either list changes.
 # Usage: scripts/windows/engine/02-gn-args.sh --apply | --help (under the chromium lock)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"

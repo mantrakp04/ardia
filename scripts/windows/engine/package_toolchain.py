@@ -4,11 +4,12 @@ Chromium's cross build takes, in the layout depot_tools/win_toolchain/package_fr
 VC/Tools/MSVC/<ver>/{bin,include,lib,atlmfc,crt}, VC/redist, DIA SDK/{bin,idl,include,lib}, "Windows Kits/10" (only
 the --winver files of Include, Lib, Source and bin), sys32/sys64/sysarm64 runtimes, the SetEnv files and VS_VERSION.
 The zip is named for the hash get_toolchain_if_necessary.py computes from the unpacked files (first 10 characters).
-When the SDK has no Debuggers directory (the SDK inside Visual Studio's packages doesn't), --dbghelp-from gives the
-x64 dbghelp.dll that vs_toolchain.py copies.
+When the SDK has no Debuggers directory (the SDK inside Visual Studio's packages doesn't), --debuggers-from gives
+Microsoft's debugger engine package (NuGet Microsoft.Debugging.Platform.DbgEng, unpacked): its dbghelp.dll and
+dbgcore.dll for x64, x86 and arm64 go in Windows Kits/10/Debuggers/<cpu>, which vs_toolchain.py copies from.
 
 Usage: package_toolchain.py --msvc DIR --winver 10.0.28000.0 --vs-version 2026 --depot-tools DIR --out ZIPDIR
-         [--dbghelp-from FILE] [--stored]
+         [--debuggers-from DIR] [--stored]
 """
 import argparse
 import glob
@@ -36,7 +37,7 @@ def one(pattern):
     return found[0]
 
 
-def build_file_list(vs, winver, vc_tools, dbghelp_from):
+def build_file_list(vs, winver, vc_tools, debuggers_from):
     result = []
     for rel in ['DIA SDK/bin', 'DIA SDK/idl', 'DIA SDK/include', 'DIA SDK/lib', f'{vc_tools}/atlmfc',
                 f'{vc_tools}/crt', 'VC/redist', f'{vc_tools}/bin', f'{vc_tools}/include', f'{vc_tools}/lib']:
@@ -86,9 +87,12 @@ def build_file_list(vs, winver, vc_tools, dbghelp_from):
     for cpu, dest in (('x86', 'sys32'), ('x64', 'sys64'), ('arm64', 'sysarm64')):
         result.append((os.path.join(sdk, 'bin', winver, cpu, 'ucrt/ucrtbased.dll'), os.path.join(dest, 'ucrtbased.dll')))
     if not os.path.isdir(os.path.join(sdk, 'Debuggers')):
-        if not dbghelp_from:
-            sys.exit(f'{sdk}/Debuggers is missing: pass --dbghelp-from')
-        result.append((dbghelp_from, 'Windows Kits/10/Debuggers/x64/dbghelp.dll'))
+        if not debuggers_from:
+            sys.exit(f'{sdk}/Debuggers is missing: pass --debuggers-from')
+        for package_cpu, cpu in (('amd64', 'x64'), ('x86', 'x86'), ('arm64', 'arm64')):
+            for dll in ('dbghelp.dll', 'dbgcore.dll'):
+                result.append((os.path.join(debuggers_from, 'content', package_cpu, dll),
+                               f'Windows Kits/10/Debuggers/{cpu}/{dll}'))
 
     def skippable(f):
         low = f.lower()
@@ -130,12 +134,12 @@ def main():
     parser.add_argument('--vs-version', required=True)
     parser.add_argument('--depot-tools', required=True)
     parser.add_argument('--out', required=True)
-    parser.add_argument('--dbghelp-from')
+    parser.add_argument('--debuggers-from')
     parser.add_argument('--stored', action='store_true')
     args = parser.parse_args()
     vs = os.path.abspath(args.msvc)
     vc_tools = os.path.relpath(one(os.path.join(vs, 'VC/Tools/MSVC/14.*.*')), vs)
-    files = build_file_list(vs, args.winver, vc_tools, args.dbghelp_from)
+    files = build_file_list(vs, args.winver, vc_tools, args.debuggers_from)
     files += set_env_files(args.depot_tools, vc_tools, args.winver, args.vs_version, None)
     missing = [s for s, _ in files if not os.path.exists(s)]
     if missing:
