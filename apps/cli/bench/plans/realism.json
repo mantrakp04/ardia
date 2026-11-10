@@ -6,7 +6,7 @@
     "kanban",
     "bulk"
   ],
-  "max_lanes": 12,
+  "max_lanes": 24,
   "pace_slack": 1.0,
   "max_round_lead": 3,
   "app": "~/ardia-scratch/bench-proper/app/Ardia.app",
