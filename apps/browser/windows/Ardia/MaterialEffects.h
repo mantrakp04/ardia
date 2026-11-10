@@ -12,7 +12,10 @@
 #include <array>
 #include <cmath>
 #include <map>
+#include <string>
 #include <vector>
+
+#include "MaterialSupport.h"
 
 #pragma comment(lib, "dxguid.lib")
 
@@ -206,13 +209,21 @@ struct ColorMatrix : Effect<ColorMatrix> {
 
   IFACEMETHODIMP GetPropertyCount(UINT *count) noexcept override {
     if (!count) return E_POINTER;
-    *count = 1;
+    *count = 3;
     return S_OK;
   }
 
   IFACEMETHODIMP GetProperty(UINT index, AbiFoundation::IPropertyValue **value) noexcept override {
-    if (index != D2D1_COLORMATRIX_PROP_COLOR_MATRIX) return E_INVALIDARG;
-    return WriteProperty(value, winrt::Windows::Foundation::PropertyValue::CreateSingleArray(matrix));
+    switch (index) {
+      case D2D1_COLORMATRIX_PROP_COLOR_MATRIX:
+        return WriteProperty(value, winrt::Windows::Foundation::PropertyValue::CreateSingleArray(matrix));
+      case D2D1_COLORMATRIX_PROP_ALPHA_MODE:
+        return WriteProperty(value, winrt::Windows::Foundation::PropertyValue::CreateUInt32(static_cast<uint32_t>(D2D1_COLORMATRIX_ALPHA_MODE_PREMULTIPLIED)));
+      case D2D1_COLORMATRIX_PROP_CLAMP_OUTPUT:
+        return WriteProperty(value, winrt::Windows::Foundation::PropertyValue::CreateBoolean(false));
+      default:
+        return E_INVALIDARG;
+    }
   }
 
   std::array<NamedProperty, 1> NamedProperties() const noexcept {
@@ -224,18 +235,59 @@ inline constexpr wchar_t BackdropSource[] = L"Backdrop";
 inline constexpr wchar_t BlurAmountProperty[] = L"Blur.BlurAmount";
 inline constexpr wchar_t TintColorProperty[] = L"Tint.Color";
 
+enum class BlurStep : int {
+  Saturated = 0,
+  Tinted = 1,
+  Plain = 2,
+  Flat = 3,
+};
+
+constexpr std::array<BlurStep, 3> BlurSteps{BlurStep::Saturated, BlurStep::Tinted, BlurStep::Plain};
+
+inline const wchar_t *BlurStepName(BlurStep step) noexcept {
+  switch (step) {
+    case BlurStep::Saturated:
+      return L"blur, saturation and tint";
+    case BlurStep::Tinted:
+      return L"blur and tint";
+    case BlurStep::Plain:
+      return L"blur under a tint layer";
+    default:
+      return L"flat";
+  }
+}
+
+inline const char *BlurStepKey(BlurStep step) noexcept {
+  switch (step) {
+    case BlurStep::Saturated:
+      return "saturated";
+    case BlurStep::Tinted:
+      return "tinted";
+    case BlurStep::Plain:
+      return "plain";
+    default:
+      return "flat";
+  }
+}
+
+inline bool TintsInGraph(BlurStep step) noexcept {
+  return step == BlurStep::Saturated || step == BlurStep::Tinted;
+}
+
 inline int SaturationKey(float saturation) noexcept {
   if (!std::isfinite(saturation)) return 100;
   return static_cast<int>(std::lround(std::clamp(saturation, 0.0f, 3.0f) * 20.0f)) * 5;
 }
 
-inline winrt::Windows::Graphics::Effects::IGraphicsEffect BlurGraph(int saturationKey) {
+inline winrt::Windows::Graphics::Effects::IGraphicsEffect BlurGraph(BlurStep step, int saturationKey, std::wstring &stage) {
+  stage = L"building the Gaussian blur effect";
   auto blur = winrt::make_self<GaussianBlur>();
   blur->Name(L"Blur");
   blur->m_sources.push_back(winrt::Microsoft::UI::Composition::CompositionEffectSourceParameter(BackdropSource));
-
   EffectSource blurred = blur.as<EffectSource>();
-  if (saturationKey != 100) {
+
+  if (step == BlurStep::Saturated && saturationKey != 100) {
+    stage = L"building the colour matrix effect";
     auto saturate = winrt::make_self<ColorMatrix>();
     saturate->Name(L"Saturation");
     saturate->Saturate(static_cast<float>(saturationKey) / 100.0f);
@@ -243,9 +295,13 @@ inline winrt::Windows::Graphics::Effects::IGraphicsEffect BlurGraph(int saturati
     blurred = saturate.as<EffectSource>();
   }
 
+  if (!TintsInGraph(step)) return blurred.as<winrt::Windows::Graphics::Effects::IGraphicsEffect>();
+
+  stage = L"building the tint effect";
   auto tint = winrt::make_self<ColorSource>();
   tint->Name(L"Tint");
 
+  stage = L"building the composite effect";
   auto over = winrt::make_self<SourceOver>();
   over->Name(L"Over");
   over->m_sources.push_back(blurred);
@@ -255,7 +311,8 @@ inline winrt::Windows::Graphics::Effects::IGraphicsEffect BlurGraph(int saturati
 
 struct BlurFactories {
   winrt::Microsoft::UI::Composition::Compositor compositor{nullptr};
-  std::map<int, winrt::Microsoft::UI::Composition::CompositionEffectFactory> bySaturation;
+  std::map<int, winrt::Microsoft::UI::Composition::CompositionEffectFactory> made;
+  std::array<bool, 3> failed{false, false, false};
 };
 
 inline BlurFactories &Factories() noexcept {
@@ -263,38 +320,118 @@ inline BlurFactories &Factories() noexcept {
   return factories;
 }
 
+inline bool &StepFailed(BlurStep step) noexcept {
+  static bool flat = true;
+  if (step == BlurStep::Flat) return flat;
+  return Factories().failed[static_cast<size_t>(step)];
+}
+
+inline int FactoryKey(BlurStep step, float saturation) noexcept {
+  const int saturationKey = step == BlurStep::Saturated ? SaturationKey(saturation) : 100;
+  return static_cast<int>(step) * 1000 + saturationKey;
+}
+
 inline winrt::Microsoft::UI::Composition::CompositionEffectFactory BlurFactory(
     winrt::Microsoft::UI::Composition::Compositor const &compositor,
-    float saturation) {
+    BlurStep step,
+    float saturation,
+    std::wstring &stage) {
   auto &factories = Factories();
   if (factories.compositor != compositor) {
     factories.compositor = compositor;
-    factories.bySaturation.clear();
+    factories.made.clear();
   }
-  const int key = SaturationKey(saturation);
-  auto found = factories.bySaturation.find(key);
-  if (found != factories.bySaturation.end()) return found->second;
-  auto factory = compositor.CreateEffectFactory(
-      BlurGraph(key), std::vector<winrt::hstring>{winrt::hstring{BlurAmountProperty}, winrt::hstring{TintColorProperty}});
-  factories.bySaturation.emplace(key, factory);
+  const int key = FactoryKey(step, saturation);
+  auto found = factories.made.find(key);
+  if (found != factories.made.end()) return found->second;
+  auto graph = BlurGraph(step, key % 1000, stage);
+  std::vector<winrt::hstring> animatable{winrt::hstring{BlurAmountProperty}};
+  if (TintsInGraph(step)) animatable.emplace_back(TintColorProperty);
+  stage = L"creating the effect factory";
+  auto factory = compositor.CreateEffectFactory(graph, std::move(animatable));
+  factories.made.emplace(key, factory);
   return factory;
 }
 
 inline winrt::Microsoft::UI::Composition::CompositionEffectBrush BlurBrush(
     winrt::Microsoft::UI::Composition::Compositor const &compositor,
-    float saturation) {
-  auto brush = BlurFactory(compositor, saturation).CreateBrush();
-  brush.SetSourceParameter(BackdropSource, compositor.CreateBackdropBrush());
+    BlurStep step,
+    float saturation,
+    std::wstring &stage) {
+  auto factory = BlurFactory(compositor, step, saturation, stage);
+  stage = L"creating the effect brush";
+  auto brush = factory.CreateBrush();
+  stage = L"creating the backdrop brush";
+  auto backdrop = compositor.CreateBackdropBrush();
+  stage = L"setting the backdrop source";
+  brush.SetSourceParameter(BackdropSource, backdrop);
   return brush;
 }
 
 inline void SetBlurValues(
     winrt::Microsoft::UI::Composition::CompositionEffectBrush const &brush,
+    BlurStep step,
     float standardDeviation,
-    winrt::Windows::UI::Color tint) {
+    winrt::Windows::UI::Color tint,
+    std::wstring &stage) {
+  stage = L"setting the blur amount";
   auto properties = brush.Properties();
   properties.InsertScalar(BlurAmountProperty, std::clamp(standardDeviation, 0.0f, 250.0f));
+  if (!TintsInGraph(step)) return;
+  stage = L"setting the tint colour";
   properties.InsertColor(TintColorProperty, tint);
+}
+
+struct BlurAttempt {
+  winrt::Microsoft::UI::Composition::CompositionEffectBrush brush{nullptr};
+  std::wstring error;
+};
+
+inline BlurAttempt TryBlurStep(
+    winrt::Microsoft::UI::Composition::Compositor const &compositor,
+    BlurStep step,
+    float saturation,
+    float standardDeviation,
+    winrt::Windows::UI::Color tint) noexcept {
+  BlurAttempt attempt;
+  std::wstring stage{L"starting"};
+  try {
+    auto brush = BlurBrush(compositor, step, saturation, stage);
+    SetBlurValues(brush, step, standardDeviation, tint, stage);
+    attempt.brush = brush;
+  } catch (winrt::hresult_error const &error) {
+    attempt.error = std::wstring{L"failed while "}.append(stage).append(L": ").append(Materials::Described(error));
+  } catch (...) {
+    attempt.error = std::wstring{L"failed while "}.append(stage).append(L": unknown error");
+  }
+  return attempt;
+}
+
+struct BlurChoice {
+  winrt::Microsoft::UI::Composition::CompositionEffectBrush brush{nullptr};
+  BlurStep step{BlurStep::Flat};
+};
+
+inline BlurChoice BestBlurBrush(
+    winrt::Microsoft::UI::Composition::Compositor const &compositor,
+    float saturation,
+    float standardDeviation,
+    winrt::Windows::UI::Color tint) noexcept {
+  for (BlurStep step : BlurSteps) {
+    if (StepFailed(step)) continue;
+    if (step == BlurStep::Saturated && SaturationKey(saturation) == 100) continue;
+    BlurAttempt attempt = TryBlurStep(compositor, step, saturation, standardDeviation, tint);
+    const std::wstring key = std::wstring{L"blur-"}.append(Paths::Wide(BlurStepKey(step)));
+    if (attempt.brush) {
+      Materials::NoteOnce(key, std::wstring{L"in-window blur: "}.append(BlurStepName(step)));
+      return {attempt.brush, step};
+    }
+    StepFailed(step) = true;
+    Materials::NoteOnce(key + L"-failed", std::wstring{L"in-window blur: "}.append(BlurStepName(step)).append(L" ").append(attempt.error));
+  }
+  Materials::BlurFailed() = true;
+  Materials::NoteOnce(L"blur-flat", L"in-window blur: flat (every blur step failed)");
+  return {};
 }
 
 }

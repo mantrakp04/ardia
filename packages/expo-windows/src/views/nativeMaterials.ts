@@ -10,7 +10,7 @@ export type MaterialCapabilities = {
   background: boolean;
 };
 
-export type MaterialPath = { path: string; reason: string };
+export type MaterialPath = { path: string; reason: string; step?: string };
 
 export type MaterialsNative = {
   capabilities(): MaterialCapabilities;

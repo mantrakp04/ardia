@@ -288,10 +288,18 @@ struct MaterialBlurView : winrt::implements<MaterialBlurView, winrt::Windows::Fo
   MaterialView::Visual CreateVisual(MaterialView::ComponentView const &view) noexcept {
     try {
       m_compositor = view.as<MaterialView::CompositionComponentView>().Compositor();
-      m_sprite = m_compositor.CreateSpriteVisual();
-      m_metrics = view.LayoutMetrics();
+      m_root = m_compositor.CreateContainerVisual();
+      m_blur = m_compositor.CreateSpriteVisual();
+      m_blur.RelativeSizeAdjustment(MaterialView::float2{1.0f, 1.0f});
+      m_tintBrush = m_compositor.CreateColorBrush(m_tint);
+      m_tintLayer = m_compositor.CreateSpriteVisual();
+      m_tintLayer.RelativeSizeAdjustment(MaterialView::float2{1.0f, 1.0f});
+      m_tintLayer.Brush(m_tintBrush);
+      m_tintLayer.IsVisible(false);
+      m_root.Children().InsertAtTop(m_blur);
+      m_root.Children().InsertAtTop(m_tintLayer);
       Place();
-      return m_sprite;
+      return m_root;
     } catch (...) {
     }
     return MaterialView::PlainVisual(view);
@@ -311,65 +319,73 @@ struct MaterialBlurView : winrt::implements<MaterialBlurView, winrt::Windows::Fo
 
   void UpdateLayoutMetrics(MaterialView::ComponentView const &, MaterialView::LayoutMetrics const &metrics) noexcept {
     m_metrics = metrics;
+    m_measured = true;
     Place();
   }
 
  private:
   void Place() noexcept {
-    if (!m_sprite || !m_compositor) return;
+    if (!m_root || !m_compositor || !m_measured) return;
     const float scale = MaterialView::ScaleOf(m_metrics);
     const float width = m_metrics.Frame.Width * scale;
     const float height = m_metrics.Frame.Height * scale;
     try {
       if (!(width > 0 && height > 0)) {
-        m_sprite.Brush(nullptr);
-        m_sprite.Clip(nullptr);
+        m_blur.Brush(nullptr);
+        m_tintLayer.IsVisible(false);
+        m_root.Clip(nullptr);
         m_effect = nullptr;
         m_solid = nullptr;
         m_clipKey.clear();
         return;
       }
-      Paint(scale);
-      Clip(width, height, scale);
     } catch (...) {
+      return;
     }
+    Paint(scale);
+    Clip(width, height, scale);
   }
 
   void Paint(float scale) noexcept {
-    if (!m_effect && Materials::BlurAvailable()) {
-      try {
-        m_effect = MaterialEffects::BlurBrush(m_compositor, m_saturation);
-        Materials::NoteOnce(L"blur", L"in-window blur: backdrop brush through a Gaussian blur, saturation and tint");
-      } catch (winrt::hresult_error const &error) {
-        Fail(Materials::Described(error));
-      } catch (...) {
-        Fail(L"unknown error");
-      }
-    }
+    const float deviation = m_blurRadius * scale;
     if (m_effect) {
+      std::wstring stage;
       try {
-        MaterialEffects::SetBlurValues(m_effect, m_blurRadius * scale, m_tint);
-        m_sprite.Brush(m_effect);
-        return;
+        MaterialEffects::SetBlurValues(m_effect, m_step, deviation, m_tint, stage);
       } catch (winrt::hresult_error const &error) {
-        Fail(Materials::Described(error));
+        Abandon(stage, Materials::Described(error));
       } catch (...) {
-        Fail(L"unknown error");
+        Abandon(stage, L"unknown error");
       }
     }
-    if (!Materials::BlurFailed()) Materials::NoteOnce(L"blur-old", L"in-window blur: flat (Windows build too old for backdrop brushes)");
+    if (!m_effect && Materials::BlurAvailable()) {
+      const MaterialEffects::BlurChoice choice = MaterialEffects::BestBlurBrush(m_compositor, m_saturation, deviation, m_tint);
+      m_effect = choice.brush;
+      m_step = choice.step;
+    }
     try {
+      m_tintBrush.Color(m_tint);
+      if (m_effect) {
+        m_blur.Brush(m_effect);
+        m_tintLayer.IsVisible(!MaterialEffects::TintsInGraph(m_step));
+        return;
+      }
+      if (!Materials::BlurFailed()) Materials::NoteOnce(L"blur-old", L"in-window blur: flat (Windows build too old for backdrop brushes)");
       if (!m_solid) m_solid = m_compositor.CreateColorBrush(m_fallback);
       else m_solid.Color(m_fallback);
-      m_sprite.Brush(m_solid);
+      m_blur.Brush(m_solid);
+      m_tintLayer.IsVisible(false);
     } catch (...) {
     }
   }
 
-  void Fail(std::wstring const &reason) noexcept {
-    Materials::BlurFailed() = true;
+  void Abandon(std::wstring const &stage, std::wstring const &reason) noexcept {
+    MaterialEffects::StepFailed(m_step) = true;
+    Materials::NoteOnce(
+        std::wstring{L"blur-update-"}.append(Paths::Wide(MaterialEffects::BlurStepKey(m_step))),
+        std::wstring{L"in-window blur: "}.append(MaterialEffects::BlurStepName(m_step)).append(L" failed while ").append(stage).append(L": ").append(reason));
     m_effect = nullptr;
-    Materials::NoteOnce(L"blur-flat", std::wstring{L"in-window blur: flat ("}.append(reason).append(L")"));
+    m_step = MaterialEffects::BlurStep::Flat;
   }
 
   void Clip(float width, float height, float scale) noexcept {
@@ -390,28 +406,33 @@ struct MaterialBlurView : winrt::implements<MaterialBlurView, winrt::Windows::Fo
     }
     try {
       if (!geometry) {
-        m_sprite.Clip(nullptr);
+        m_root.Clip(nullptr);
         return;
       }
       winrt::Microsoft::UI::Composition::CompositionPath path{winrt::make<Vector::GeometrySource>(geometry.get())};
-      m_sprite.Clip(m_compositor.CreateGeometricClip(m_compositor.CreatePathGeometry(path)));
+      m_root.Clip(m_compositor.CreateGeometricClip(m_compositor.CreatePathGeometry(path)));
     } catch (...) {
       m_clipKey.clear();
     }
   }
 
   winrt::Microsoft::UI::Composition::Compositor m_compositor{nullptr};
-  winrt::Microsoft::UI::Composition::SpriteVisual m_sprite{nullptr};
+  winrt::Microsoft::UI::Composition::ContainerVisual m_root{nullptr};
+  winrt::Microsoft::UI::Composition::SpriteVisual m_blur{nullptr};
+  winrt::Microsoft::UI::Composition::SpriteVisual m_tintLayer{nullptr};
+  winrt::Microsoft::UI::Composition::CompositionColorBrush m_tintBrush{nullptr};
   winrt::Microsoft::UI::Composition::CompositionEffectBrush m_effect{nullptr};
   winrt::Microsoft::UI::Composition::CompositionColorBrush m_solid{nullptr};
   winrt::Microsoft::ReactNative::LayoutMetrics m_metrics{};
   winrt::Windows::UI::Color m_fallback{MaterialView::Transparent};
   winrt::Windows::UI::Color m_tint{MaterialView::Transparent};
+  MaterialEffects::BlurStep m_step{MaterialEffects::BlurStep::Flat};
   float m_saturation{1};
   float m_blurRadius{20};
   float m_cornerRadius{0};
   std::string m_shape;
   std::string m_clipKey;
+  bool m_measured{false};
 };
 
 REACT_STRUCT(MaterialGradientProps)
@@ -454,7 +475,6 @@ struct MaterialGradientView : winrt::implements<MaterialGradientView, winrt::Win
     try {
       m_compositor = view.as<MaterialView::CompositionComponentView>().Compositor();
       m_sprite = m_compositor.CreateSpriteVisual();
-      m_metrics = view.LayoutMetrics();
     } catch (...) {
       return MaterialView::PlainVisual(view);
     }
@@ -486,6 +506,7 @@ struct MaterialGradientView : winrt::implements<MaterialGradientView, winrt::Win
 
   void UpdateLayoutMetrics(MaterialView::ComponentView const &, MaterialView::LayoutMetrics const &metrics) noexcept {
     m_metrics = metrics;
+    m_measured = true;
     Place();
   }
 
@@ -518,7 +539,7 @@ struct MaterialGradientView : winrt::implements<MaterialGradientView, winrt::Win
   }
 
   void Place() noexcept {
-    if (!m_gradient) return;
+    if (!m_gradient || !m_measured) return;
     const float scale = MaterialView::ScaleOf(m_metrics);
     const float width = m_metrics.Frame.Width * scale;
     const float height = m_metrics.Frame.Height * scale;
@@ -539,6 +560,7 @@ struct MaterialGradientView : winrt::implements<MaterialGradientView, winrt::Win
   float m_angle{180};
   std::string m_span;
   float m_reach{1};
+  bool m_measured{false};
 };
 
 template <class TView, class TProps>

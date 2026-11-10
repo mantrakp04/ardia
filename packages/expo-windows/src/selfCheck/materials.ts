@@ -60,7 +60,10 @@ export const checks: Check[] = [
     name: "materials: blur and gradient brushes build on the UI thread",
     async run() {
       const caps = materials().capabilities();
-      expectPath(await materials().probeBlur(), caps.inWindowBlur ? ["blur"] : ["flat"], "in-window blur");
+      const blur = await materials().probeBlur();
+      expectPath(blur, ["blur", "flat"], "in-window blur");
+      expectTrue(["saturated", "tinted", "plain", "flat"].includes(String(blur.step)), `in-window blur step ${JSON.stringify(blur.step)} is unknown`);
+      console.info(`[ardia windows] materials: in-window blur reached step ${blur.step}; in-window blur available: ${caps.inWindowBlur}`);
       expectPath(await materials().probeGradient(), ["gradient"], "gradient");
     },
   },

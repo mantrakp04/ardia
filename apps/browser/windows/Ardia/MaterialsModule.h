@@ -35,6 +35,8 @@ struct MaterialPath {
   std::string path;
   REACT_FIELD(reason)
   std::string reason;
+  REACT_FIELD(step)
+  std::string step;
 };
 
 REACT_MODULE(MaterialsModule, L"ArdiaMaterials")
@@ -100,18 +102,34 @@ struct MaterialsModule {
     RunOnUI(m_context, [promise]() noexcept {
       MaterialPath answer;
       answer.path = "flat";
+      answer.step = "flat";
       try {
         auto *host = Host::Current();
         if (!host || !host->compositor) {
           answer.reason = "no compositor";
-        } else if (!Materials::BlurAvailable()) {
-          answer.reason = Materials::BlurFailed() ? "an earlier blur failed" : "Windows build too old";
+        } else if (Materials::BuildNumber() < Materials::FirstBackdropBrushBuild) {
+          answer.reason = "Windows build too old";
         } else {
-          auto brush = MaterialEffects::BlurBrush(host->compositor, 1.4f);
-          MaterialEffects::SetBlurValues(brush, 20.0f, winrt::Windows::UI::Color{128, 255, 255, 255});
-          auto sprite = host->compositor.CreateSpriteVisual();
-          sprite.Brush(brush);
-          answer.path = "blur";
+          std::wstring report;
+          for (MaterialEffects::BlurStep step : MaterialEffects::BlurSteps) {
+            MaterialEffects::BlurAttempt attempt =
+                MaterialEffects::TryBlurStep(host->compositor, step, 1.5f, 20.0f, winrt::Windows::UI::Color{128, 255, 255, 255});
+            if (!report.empty()) report.append(L"; ");
+            report.append(Paths::Wide(MaterialEffects::BlurStepKey(step))).append(L" ");
+            if (attempt.brush) {
+              report.append(L"ok");
+              auto sprite = host->compositor.CreateSpriteVisual();
+              sprite.Brush(attempt.brush);
+              if (answer.path == "flat") {
+                answer.path = "blur";
+                answer.step = MaterialEffects::BlurStepKey(step);
+              }
+            } else {
+              report.append(attempt.error);
+            }
+          }
+          answer.reason = Paths::Utf8(report);
+          Materials::NoteOnce(L"blur-probe", std::wstring{L"in-window blur probe: "}.append(report));
         }
       } catch (winrt::hresult_error const &error) {
         answer.reason = Paths::Utf8(Materials::Described(error));
