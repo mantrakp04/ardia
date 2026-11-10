@@ -244,6 +244,14 @@ export function VaultRowView({
           {busy ? <ActivitySpinner style={SPINNER} /> : null}
         </>
       ));
+    case "username":
+      return shell((ink) => (
+        <>
+          <VaultAppIcon provider="" symbol="person.crop.circle" neutral />
+          <Lines title={row.username} detail="Used before" ink={ink} />
+          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+        </>
+      ));
     case "generate": {
       const copy = GENERATOR_COPY[row.style];
       return shell((ink) => (

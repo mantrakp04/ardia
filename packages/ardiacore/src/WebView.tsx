@@ -5,7 +5,18 @@ import { findNodeHandle, type NativeSyntheticEvent } from "react-native";
 import type { FaviconImage } from "./favicons";
 import { ArdiaError, ardiaError } from "@ardia/core";
 import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
-import type { DiscardOutcome, VaultFilledField, VaultFillResult, VaultPasswordStyle, VaultSaveResult, WebViewHandle, WebViewProps } from "./pageTypes";
+import type {
+  DiscardOutcome,
+  VaultContextMenu,
+  VaultFilledField,
+  VaultFillResult,
+  VaultFillTarget,
+  VaultPasswordDraft,
+  VaultPasswordStyle,
+  VaultSaveResult,
+  WebViewHandle,
+  WebViewProps,
+} from "./pageTypes";
 import type { PageCookie } from "./webkit";
 
 type NativeHandle = Omit<
@@ -21,8 +32,10 @@ type NativeHandle = Omit<
   | "fillFromVault"
   | "fillGeneratedPassword"
   | "setVaultMenu"
+  | "setVaultContextMenu"
   | "saveToVault"
   | "discardVaultCapture"
+  | "stageVaultPassword"
 > & {
   requestPictureInPicture(clickAt: number, control: number): Promise<boolean>;
   takeControlPress(clickAt: number, control: number): Promise<boolean>;
@@ -31,11 +44,22 @@ type NativeHandle = Omit<
   loadUrl(url: string, userInitiated?: boolean): Promise<void>;
   resolvePasswordPrompt(answer: string, username: string | null, password: string | null): Promise<void>;
   discard(unload: boolean): Promise<DiscardOutcome>;
-  fillFromVault(frameId: string, origin: string, provider: string, id: string, fields: string[], userChose: boolean, submit: boolean): Promise<VaultFillResult>;
-  fillGeneratedPassword(frameId: string, origin: string, style: VaultPasswordStyle, maxLength: number | null): Promise<{ filled: VaultFilledField[] }>;
+  fillFromVault(
+    frameId: string,
+    origin: string,
+    provider: string,
+    id: string,
+    fields: string[],
+    userChose: boolean,
+    submit: boolean,
+    target: VaultFillTarget | null,
+  ): Promise<VaultFillResult>;
+  fillGeneratedPassword(frameId: string, origin: string, style: VaultPasswordStyle, maxLength: number | null, target: VaultFillTarget | null): Promise<{ filled: VaultFilledField[] }>;
+  setVaultContextMenu(frameId: string, origin: string, menu: VaultContextMenu): Promise<void>;
   setVaultMenu(frameId: string, open: boolean, highlighted: boolean): Promise<void>;
   saveToVault(provider: string, origin: string, title: string | null, username: string | null): Promise<VaultSaveResult>;
   discardVaultCapture(origin: string): Promise<void>;
+  stageVaultPassword(origin: string): Promise<VaultPasswordDraft>;
 };
 
 const NativeWebView = requireNativeViewManager<NativeProps>("ArdiaWebView");
@@ -118,16 +142,18 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       setFrozen: (frozen) => call(undefined, (n) => n.setFrozen(frozen)),
       fillFromVault: (r) =>
         call<VaultFillResult>({ filled: [], error: "failed" }, (n) =>
-          n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false, r.submit === true),
+          n.fillFromVault(r.frameId, r.origin, r.provider, r.id, r.fields, r.userChose ?? false, r.submit === true, r.target ?? null),
         ),
       fillGeneratedPassword: (r) =>
         call<{ filled: VaultFilledField[] }>({ filled: [] }, (n) =>
-          n.fillGeneratedPassword(r.frameId, r.origin, r.style ?? "strong", generatedLengthLimit(r.maxLength)),
+          n.fillGeneratedPassword(r.frameId, r.origin, r.style ?? "strong", generatedLengthLimit(r.maxLength), r.target ?? null),
         ),
+      setVaultContextMenu: (r) => call(undefined, (n) => n.setVaultContextMenu(r.frameId, r.origin, r.menu)),
       setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open, r.open && r.highlighted)),
       saveToVault: (r) =>
         call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null, r.username ?? null)),
       discardVaultCapture: (r) => call(undefined, (n) => n.discardVaultCapture(r.origin)),
+      stageVaultPassword: (r) => call<VaultPasswordDraft>({ token: "", length: 0 }, (n) => n.stageVaultPassword(r.origin)),
     };
   });
 

@@ -4,6 +4,7 @@ import { nativeModule } from "./nativeModules";
 export type VaultProviderId = "1password" | "bitwarden" | "protonpass" | (string & {});
 export type VaultState = "notInstalled" | "signedOut" | "locked" | "unlocked" | "unavailable";
 export type VaultSecretField = "username" | "password";
+export type VaultCopyError = "locked" | "notFound" | "failed" | "originMismatch" | "insecure" | "notAuthorized" | "clipboard";
 export type VaultCapabilities = { totp: boolean; save: boolean; selfHosted: boolean; masterPassword: boolean; touchID: boolean };
 export type VaultSetupKind = "desktopIntegration" | "browserSignIn" | "credentials";
 
@@ -57,6 +58,10 @@ export type VaultSignInFields = {
 };
 
 export type VaultTotp = { code: string; period: number; expiresAt: number };
+
+export type VaultGeneratedPassword = { id: string; origin: string; username: string; createdAt: number; submitted: boolean };
+
+export type VaultGeneratedSaveResult = { saved: boolean; item?: VaultItem; error?: string };
 
 export type VaultSyncResult = { ok: boolean; synced: VaultProviderId[]; failed: VaultProviderId[]; syncedAt: number | null; iCloud: boolean };
 

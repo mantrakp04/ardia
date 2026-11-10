@@ -107,14 +107,25 @@ enum PageViewDefinition {
       }.runOnQueue(.main)
 
       AsyncFunction("fillFromVault") {
-        (view: V, frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool?, submit: Bool?, promise: Promise) in
+        (view: V, frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool?, submit: Bool?, target: String?,
+         promise: Promise) in
+        if target == PageFillTarget.contextMenu {
+          return view.page.fillVaultContextField(frameId: frameId, origin: origin, provider: provider, id: id, fields: fields) { promise.resolve($0) }
+        }
         view.page.fillFromVault(
           frameId: frameId, origin: origin, provider: provider, id: id, fields: fields, userChose: userChose ?? false, submit: submit ?? false
         ) { promise.resolve($0) }
       }.runOnQueue(.main)
-      AsyncFunction("fillGeneratedPassword") { (view: V, frameId: String, origin: String, style: String?, maxLength: Double?, promise: Promise) in
+      AsyncFunction("fillGeneratedPassword") {
+        (view: V, frameId: String, origin: String, style: String?, maxLength: Double?, target: String?, promise: Promise) in
         let limit = maxLength.flatMap { $0.isFinite && $0 > 0 ? Int(min($0, 4096)) : nil }
+        if target == PageFillTarget.contextMenu {
+          return view.page.fillVaultContextGenerated(frameId: frameId, origin: origin, style: style ?? "", maxLength: limit) { promise.resolve($0) }
+        }
         view.page.fillGeneratedPassword(frameId: frameId, origin: origin, style: style ?? "", maxLength: limit) { promise.resolve($0) }
+      }.runOnQueue(.main)
+      AsyncFunction("setVaultContextMenu") { (view: V, frameId: String, origin: String, menu: [String: Any]) in
+        view.page.setVaultContextMenu(frameId: frameId, origin: origin, menu: menu)
       }.runOnQueue(.main)
       AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool, highlighted: Bool) in
         view.page.setVaultMenu(frameId: frameId, open: open, highlighted: highlighted)
@@ -124,6 +135,9 @@ enum PageViewDefinition {
       }.runOnQueue(.main)
       AsyncFunction("discardVaultCapture") { (view: V, origin: String) in
         view.page.discardVaultCapture(origin: origin)
+      }.runOnQueue(.main)
+      AsyncFunction("stageVaultPassword") { (view: V, origin: String) -> [String: Any] in
+        view.page.stageVaultPassword(origin: origin)
       }.runOnQueue(.main)
 
       AsyncFunction("resolveUnresponsive") { (view: V, terminate: Bool) in view.page.resolveUnresponsive(terminate: terminate) }

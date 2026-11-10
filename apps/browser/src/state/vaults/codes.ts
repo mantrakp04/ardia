@@ -29,3 +29,4 @@ export async function loadVaultCode(item: Pick<VaultItem, "provider" | "id">): P
 
 export const forgetVaultCode = (item: Pick<VaultItem, "provider" | "id">) => set(itemKey(item), null);
 export const clearVaultCodes = () => useVaultCodes.setState({}, true);
+export const prefetchVaultCode = (item: Pick<VaultItem, "provider" | "id">) => void loadVaultCode(item);

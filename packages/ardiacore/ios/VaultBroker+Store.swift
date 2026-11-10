@@ -59,6 +59,23 @@ extension VaultBroker {
     return VaultSignInResult(ok: true, state: state)
   }
 
+  func resumeAfterQuit() {
+    let open = Set(VaultLockPolicy.takeUnlockedAtQuit())
+    guard !open.isEmpty, sessions.touchID else { return }
+    VaultOwnerCheck.noteConfirmed()
+    openStore()
+    for provider in VaultRegistry.providers where !open.contains(provider.id) { lockedWhileOpen.insert(provider.id) }
+    for provider in VaultRegistry.providers where open.contains(provider.id) && isReady(provider.id) {
+      _ = publishOpened(provider, states[provider.id] ?? placeholder(provider))
+    }
+    mirrorOpenProviders()
+    reconnectInBackground()
+  }
+
+  func mirrorOpenProviders() {
+    VaultLockPolicy.noteOpen(storeOpen ? VaultRegistry.providers.map(\.id).filter { isReady($0) } : [])
+  }
+
   func publishOpened(_ provider: any VaultProvider, _ known: VaultProviderState) -> VaultProviderState {
     var state = known
     state.state = .unlocked
@@ -73,6 +90,7 @@ extension VaultBroker {
     storeUsedAt = Date()
     guard !wasOpen else { return }
     for provider in VaultRegistry.providers { restoreFromDisk(provider.id) }
+    mirrorOpenProviders()
     let wanted = VaultRegistry.providers.map(\.id).filter { cloudAccepts($0) != nil }
     let accounts = Dictionary(uniqueKeysWithValues: wanted.map { ($0, cloudAccepts($0) ?? "") })
     Task.detached {
@@ -152,8 +170,8 @@ extension VaultBroker {
     let snapshot = VaultCacheSnapshot(
       account: account, savedAt: (fetchedAt[id] ?? Date()).timeIntervalSince1970,
       entries: items.map { VaultCacheSnapshot.Entry(item: $0, totpPeriod: $0.totpPeriod) },
-      passwords: loadPasswordsWhenUsed ? [:] : cachedPasswords[id] ?? [:],
-      totps: loadPasswordsWhenUsed ? [:] : cachedTotps[id] ?? [:])
+      passwords: cachedPasswords[id] ?? [:],
+      totps: cachedTotps[id] ?? [:])
     VaultCache.save(id, snapshot, toCloud: toCloud)
   }
 
@@ -172,18 +190,13 @@ extension VaultBroker {
 
   func adopt(_ id: String, _ snapshot: VaultCacheSnapshot) {
     cachedItems[id] = snapshot.items
-    cachedPasswords[id] = loadPasswordsWhenUsed ? [:] : snapshot.passwords
-    cachedTotps[id] = loadPasswordsWhenUsed ? [:] : snapshot.totps ?? [:]
+    cachedPasswords[id] = snapshot.passwords
+    cachedTotps[id] = snapshot.totps ?? [:]
     fetchedAt[id] = Date(timeIntervalSince1970: snapshot.savedAt)
     snapshotAccounts[id] = snapshot.account
   }
 
   func mergeSecrets(_ id: String, _ fresh: VaultItemList) {
-    guard !loadPasswordsWhenUsed else {
-      cachedPasswords[id] = [:]
-      cachedTotps[id] = [:]
-      return
-    }
     cachedPasswords[id] = Self.merged(fresh.items, fresh.passwords, old: cachedPasswords[id] ?? [:])
     cachedTotps[id] = Self.merged(fresh.items, fresh.totps, old: cachedTotps[id] ?? [:])
   }
@@ -207,9 +220,7 @@ extension VaultBroker {
     guard cachedItems[id] != nil else { return }
     cachedItems[id]?.removeAll { $0.id == item.id }
     cachedItems[id]?.append(item)
-    if !loadPasswordsWhenUsed {
-      cachedPasswords[id, default: [:]][item.id] = VaultCacheSnapshot.Password(value: password, itemUpdatedAt: item.updatedAt)
-    }
+    cachedPasswords[id, default: [:]][item.id] = VaultCacheSnapshot.Password(value: password, itemUpdatedAt: item.updatedAt)
     persist(id)
     announceItems(id)
   }

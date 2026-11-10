@@ -23,6 +23,7 @@ public class WebViewModule: Module {
     "setSplitLinkModifier": setting { ArdiaWebView.setSplitLinkModifier(try $0.text("modifier")) },
     "setPeekOtherSiteTabs": setting { ArdiaWebView.setPeekOtherSiteTabs(try $0.strings("tabIds")) },
     "setSelectionPopover": setting { ArdiaWebView.setSelectionPopoverEnabled(try $0.bool("enabled")) },
+    "setVaultContextMenu": setting { ArdiaWebView.setVaultContextMenu(autofill: try $0.bool("autofill"), generators: try $0.dicts("generate")) },
     "setCommandScrollZoom": setting { ArdiaWebView.setCommandScrollZoomEnabled(try $0.bool("enabled")) },
     "setLittleArdiaOpensNewTabLinks": setting { ArdiaWebView.setLittleArdiaOpensNewTabLinks(try $0.bool("enabled")) },
     "setAutoPictureInPicture": setting { ArdiaWebView.setAutoPictureInPictureEnabled(try $0.bool("enabled")) },

@@ -166,6 +166,7 @@ export type VaultField = {
   formHasPassword: boolean;
   clicked?: boolean;
   maxLength?: number;
+  email?: boolean;
 };
 export type VaultKey = "ArrowDown" | "ArrowUp" | "Enter" | "Escape" | "Tab" | "Typed" | "Cleared";
 export type VaultKeyPress = { frameId: string; key: VaultKey };
@@ -191,7 +192,26 @@ export type VaultFillRequest = {
   fields: VaultFillField[];
   userChose?: boolean;
   submit?: boolean;
+  target?: VaultFillTarget;
 };
+export type VaultFillTarget = "contextMenu";
+export type VaultContextGuess = "username" | "password" | "otp";
+export type VaultContextField = {
+  frameId: string;
+  origin: string;
+  main: boolean;
+  kind: VaultFieldKind | null;
+  guess: VaultContextGuess;
+  rect: VaultFieldRect | null;
+  maxLength: number;
+};
+export type VaultContextChoice = "username" | "password" | "otp";
+export type VaultContextAction =
+  | { frameId: string; origin: string; action: "fill"; login: string; field: VaultContextChoice }
+  | { frameId: string; origin: string; action: "generate"; style: VaultPasswordStyle }
+  | { frameId: string; origin: string; action: "unlock" | "other" };
+export type VaultContextLogin = { key: string; title: string; fields: VaultContextChoice[] };
+export type VaultContextMenu = { logins: VaultContextLogin[]; unlock: boolean; other: boolean; note: string | null };
 export type VaultFillResult = { filled: VaultFilledField[]; error?: VaultFillError };
 export type VaultSavedItem = {
   provider: string;
@@ -205,6 +225,8 @@ export type VaultSavedItem = {
   updatedAt?: number;
 };
 export type VaultSaveRequest = { provider: string; origin: string; title?: string; username?: string };
+export type VaultPasswordDraft = { token: string; length: number };
+
 export type VaultSaveResult = { saved: boolean; item?: VaultSavedItem; error?: string };
 
 export type WebViewProps = ViewProps & {
@@ -265,6 +287,8 @@ export type WebViewProps = ViewProps & {
   onVaultField?: (field: VaultField) => void;
   onVaultKey?: (press: VaultKeyPress) => void;
   onVaultSubmitted?: (submission: VaultSubmission) => void;
+  onVaultContext?: (field: VaultContextField) => void;
+  onVaultContextAction?: (action: VaultContextAction) => void;
   onAutofillSuggestions?: (count: number) => void;
 };
 
@@ -315,10 +339,18 @@ export type WebViewHandle = {
   setFrozen(frozen: boolean): Promise<void>;
 
   fillFromVault(request: VaultFillRequest): Promise<VaultFillResult>;
-  fillGeneratedPassword(request: { frameId: string; origin: string; style?: VaultPasswordStyle; maxLength?: number }): Promise<{ filled: VaultFilledField[] }>;
+  fillGeneratedPassword(request: {
+    frameId: string;
+    origin: string;
+    style?: VaultPasswordStyle;
+    maxLength?: number;
+    target?: VaultFillTarget;
+  }): Promise<{ filled: VaultFilledField[] }>;
+  setVaultContextMenu(request: { frameId: string; origin: string; menu: VaultContextMenu }): Promise<void>;
   setVaultMenu(request: { frameId: string; open: boolean; highlighted: boolean }): Promise<void>;
   saveToVault(request: VaultSaveRequest): Promise<VaultSaveResult>;
   discardVaultCapture(request: { origin: string }): Promise<void>;
+  stageVaultPassword(request: { origin: string }): Promise<VaultPasswordDraft>;
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";

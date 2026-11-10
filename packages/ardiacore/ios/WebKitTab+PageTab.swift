@@ -67,6 +67,17 @@ extension WebKitTab: PageTab {
     completion(["filled": [String]()])
   }
 
+  func fillVaultContextField(frameId: String, origin: String, provider: String, id: String, fields: [String],
+                             _ completion: @escaping ([String: Any]) -> Void) {
+    completion(["filled": [String](), "error": VaultFillError.failed.rawValue])
+  }
+
+  func fillVaultContextGenerated(frameId: String, origin: String, style: String, maxLength: Int?, _ completion: @escaping ([String: Any]) -> Void) {
+    completion(["filled": [String]()])
+  }
+
+  func setVaultContextMenu(frameId: String, origin: String, menu: [String: Any]) {}
+
   func setVaultMenu(frameId: String, open: Bool, highlighted: Bool) {}
 
   func saveToVault(provider: String, origin: String, title: String?, username: String?, _ completion: @escaping ([String: Any]) -> Void) {
@@ -74,4 +85,6 @@ extension WebKitTab: PageTab {
   }
 
   func discardVaultCapture(origin: String) {}
+
+  func stageVaultPassword(origin: String) -> [String: Any] { ["token": "", "length": 0] }
 }

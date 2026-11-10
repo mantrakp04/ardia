@@ -45,7 +45,7 @@ enum VaultOwnerCheck {
     return confirmedAt.map { Date().timeIntervalSince($0) < presenceLifetime } ?? false
   }
 
-  private static func noteConfirmed() {
+  static func noteConfirmed() {
     grantLock.lock()
     confirmedAt = Date()
     grantLock.unlock()

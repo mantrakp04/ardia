@@ -106,6 +106,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)keepGeneratedVaultPassword:(NSString *)password origin:(NSString *)origin
     NS_SWIFT_NAME(keepGeneratedVaultPassword(_:origin:));
 - (nullable NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin NS_SWIFT_NAME(takeVaultLogin(origin:));
+- (nullable NSDictionary<NSString *, NSString *> *)peekVaultLogin:(NSString *)origin NS_SWIFT_NAME(peekVaultLogin(origin:));
+- (nullable NSString *)generatedVaultPasswordFor:(NSString *)origin NS_SWIFT_NAME(generatedVaultPassword(origin:));
++ (void)setGeneratedVaultSubmitHandler:(nullable void (^)(NSString *password, NSString *username, NSString *origin))handler
+    NS_SWIFT_NAME(setGeneratedVaultSubmitHandler(_:));
 - (void)discardVaultLogin:(NSString *)origin NS_SWIFT_NAME(discardVaultCapture(origin:));
 + (void)wipeVaultCaptures NS_SWIFT_NAME(wipeVaultCaptures());
 @end
@@ -121,6 +125,16 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setSearchEngineName:(NSString *)name;
 + (void)removeSharedImage:(NSURL *)file NS_SWIFT_NAME(removeSharedImage(_:));
 + (void)removeSharedImages;
+@end
+
+@interface ArdiaWebView (VaultContextMenu)
++ (void)setVaultContextAutofill:(BOOL)autofill
+                     generators:(NSArray<NSDictionary<NSString *, id> *> *)generators NS_SWIFT_NAME(setVaultContextMenu(autofill:generators:));
+- (void)applyVaultContextMenu:(NSDictionary<NSString *, id> *)menu
+                        frame:(NSString *)frameId
+                       origin:(NSString *)origin NS_SWIFT_NAME(applyVaultContextMenu(_:frame:origin:));
+- (void)armVaultContextFill;
+- (void)disarmVaultContextFill;
 @end
 
 @interface ArdiaWebView (PictureInPicture)

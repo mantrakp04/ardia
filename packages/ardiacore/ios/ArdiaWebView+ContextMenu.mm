@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaWebView+VaultContextMenu.h"
 #import "ArdiaRuntime.h"
 #import "ArdiaLaunchConfig.h"
 
@@ -266,12 +267,16 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
 
 - (NSDictionary<NSString *, id> *)tab:(ArdiaCoreTab *)tab runContextMenu:(NSDictionary<NSString *, id> *)menu {
   NSArray *items = Field<NSArray>(menu, @"items") ?: @[];
-  NoteEvent(ardia_host::BrowserId(tab), @"contextMenu", @{@"items" : items});
+  NSArray<NSMenuItem *> *vault = [self takeVaultContextMenuItems];
+  NSArray *ours = [self describeVaultContextItems:vault];
+  NSArray *shown = ours.count ? [[ours arrayByAddingObject:@{@"id" : @0, @"label" : @"", @"type" : @(kMenuSeparator)}] arrayByAddingObjectsFromArray:items]
+                              : items;
+  NoteEvent(ardia_host::BrowserId(tab), @"contextMenu", @{@"items" : shown});
   ArdiaLaunchConfig *config = ArdiaLaunchConfig.shared;
   if (![config testFlag:@"contextMenu"]) {
     if (ardia_host::Background()) {
       NSMutableArray<NSString *> *titles = [NSMutableArray array];
-      for (NSDictionary *item in items)
+      for (NSDictionary *item in shown)
         if (MenuItemType(item) != kMenuSeparator && Field<NSString>(item, @"label").length) [titles addObject:MenuTitle(item[@"label"])];
       ardia_host::LogActivation([NSString stringWithFormat:@"context menu (not shown): %@", [titles componentsJoinedByString:@" | "]]);
     }
@@ -282,13 +287,19 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
   NSDictionary *dump = @{
     @"url" : Field<NSString>(menu, @"url") ?: tab.url ?: @"",
     @"link" : Field<NSString>(menu, @"link") ?: @"",
-    @"items" : DescribeMenu(items),
+    @"items" : DescribeMenu(shown),
   };
   [JSONText(dump) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  void (^redump)(NSArray<NSDictionary *> *) = ^(NSArray<NSDictionary *> *described) {
+    NSMutableDictionary *again = [dump mutableCopy];
+    again[@"items"] = DescribeMenu([[described arrayByAddingObject:@{@"id" : @0, @"label" : @"", @"type" : @(kMenuSeparator)}] arrayByAddingObjectsFromArray:items]);
+    [JSONText(again) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  };
   NSString *pick = [NSString stringWithContentsOfFile:pickPath encoding:NSUTF8StringEncoding error:nil];
   [NSFileManager.defaultManager removeItemAtPath:pickPath error:nil];
   pick = [pick stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
   NSArray<NSString *> *parts = [pick componentsSeparatedByString:@"\t"];
+  if (vault.count && [self pickVaultContextMenu:pick.length ? parts[0] : @"" redump:redump]) return nil;
   NSDictionary *found = pick.length ? FindMenuItem(items, parts[0]) : nil;
   if (!found) return nil;
   return @{@"command" : found[@"command"], @"path" : found[@"path"], @"flags" : @(parts.count > 1 ? parts[1].intValue : 0)};

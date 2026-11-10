@@ -116,6 +116,18 @@ static NSHashTable<ArdiaVaultCapture *> *LiveCaptures() {
   return kept.length && password.length && [kept isEqualToString:password];
 }
 
+- (NSString *)generatedPasswordFor:(NSString *)origin {
+  NSString *kept = origin.length ? _generated[origin][@"password"] : nil;
+  return kept.length ? kept : nil;
+}
+
+- (NSDictionary<NSString *, NSString *> *)peekLogin:(NSString *)origin {
+  [self dropExpiredLogins];
+  NSDictionary *login = origin.length ? _logins[origin] : nil;
+  if (!login) return nil;
+  return @{@"username" : login[@"username"], @"password" : login[@"password"]};
+}
+
 - (NSString *)awaitFillInFrame:(NSString *)frameId reply:(void (^)(NSArray<NSString *> *filled))reply {
   if (_fills.count >= kMaxFills)
     for (NSString *stale in _fills.allKeys) [self finishFill:stale frame:_fills[stale][@"frame"] filled:@[]];

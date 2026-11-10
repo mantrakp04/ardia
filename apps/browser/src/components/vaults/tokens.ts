@@ -48,7 +48,7 @@ export const VAULT_TOUCH = {
   retryDisc: 22,
 } as const;
 
-export const VAULT_SAVE = { fieldGap: 6 } as const;
+export const VAULT_SAVE = { fieldGap: 6, passwordHeight: 24, usernameWidth: 260 } as const;
 
 export const VAULT_CODE = { ring: 16, stroke: 2, tick: 1000, expiringMs: 5000 } as const;
 

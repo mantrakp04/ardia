@@ -11,6 +11,8 @@ const SEARCH_KEYS_WITH_ENTER = [{ key: "Escape" }, { key: "Enter" }, { key: "Ent
 const SEARCH_KEYS_WITH_ARROWS = [{ key: "Escape" }, { key: "Enter" }, { key: "Enter", shiftKey: true }, { key: "ArrowUp" }, { key: "ArrowDown" }];
 const BARE_SEARCH = { glyph: 13, glyphBox: 16 } as const;
 const ESCAPE_KEY = [{ key: "Escape" }];
+const COMPLETION_KEYS = [{ key: "Escape" }, { key: "ArrowUp" }, { key: "ArrowDown" }];
+const COMPLETION_KEYS_WITH_TAB = [...COMPLETION_KEYS, { key: "Tab" }];
 
 export function SearchField({
   value,
@@ -106,6 +108,8 @@ export function TextField({
   onSubmit,
   onEscape,
   onBlur,
+  onArrow,
+  onTab,
   selectOnFocus,
   multiline,
   mono,
@@ -121,6 +125,8 @@ export function TextField({
   onSubmit?: () => void;
   onEscape?: () => void;
   onBlur?: () => void;
+  onArrow?: (direction: "up" | "down") => void;
+  onTab?: () => void;
   selectOnFocus?: boolean;
   multiline?: boolean;
   mono?: boolean;
@@ -158,8 +164,13 @@ export function TextField({
           spellCheck={mono ? false : undefined}
           onSubmitEditing={onSubmit}
           onBlur={onBlur}
-          keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
-          onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
+          keyDownEvents={onTab ? COMPLETION_KEYS_WITH_TAB : onArrow ? COMPLETION_KEYS : onEscape ? ESCAPE_KEY : undefined}
+          onKeyDown={(e) => {
+            const key = e.nativeEvent.key;
+            if (key === "Escape") onEscape?.();
+            else if (key === "ArrowUp" || key === "ArrowDown") onArrow?.(key === "ArrowUp" ? "up" : "down");
+            else if (key === "Tab") onTab?.();
+          }}
           style={[{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }, multiline && MULTILINE_TEXT, mono && MONO]}
         />
       </View>

@@ -18,9 +18,10 @@ actor VaultBroker {
   var versions: [String: String] = [:]
   var refreshing: Task<Void, Never>?
   var ownerNeededForPasswords = true
-  var loadPasswordsWhenUsed = false
   var cachedPasswords: [String: [String: VaultCacheSnapshot.Password]] = [:]
   var cachedTotps: [String: [String: VaultCacheSnapshot.Password]] = [:]
+  var codeFetches: [String: Task<Result<VaultTotp, VaultFillError>, Never>] = [:]
+  var recentCodes: [String: VaultTotp] = [:]
   var snapshotAccounts: [String: String] = [:]
   var storeOpen = false
   var storeUsedAt = Date.distantPast
@@ -62,6 +63,7 @@ actor VaultBroker {
 
   func lock(_ id: String) async -> VaultProviderState? {
     guard let provider = VaultRegistry.provider(id) else { return nil }
+    VaultLockPolicy.forgetUnlockedAtQuit()
     if storeOpen { lockedWhileOpen.insert(id) }
     if sessions.session(id) != nil, let cli = VaultCLI.make(for: provider, sessions: sessions) {
       await lane(id).run { await provider.lock(cli) }
@@ -73,6 +75,8 @@ actor VaultBroker {
 
   func lockAll() async {
     storeOpen = false
+    VaultLockPolicy.forgetUnlockedAtQuit()
+    mirrorOpenProviders()
     lockedWhileOpen = []
     reconnectGeneration += 1
     reconnecting?.cancel()
@@ -133,21 +137,55 @@ actor VaultBroker {
     return await currentState(provider)
   }
 
-  func copy(_ id: String, item: String, field: VaultCopyField) async -> Bool? {
-    guard let provider = VaultRegistry.provider(id) else { return false }
-    if field == .password, !(await ownerAllows("copy your password")) { return nil }
-    let outcome = await secret(provider, item: item, field: field.field)
-    guard case .success(let value) = outcome else { return false }
-    return await VaultClipboard.copy(value)
+  func copy(_ id: String, item: String, field: VaultCopyField) async -> VaultCopyResult {
+    guard let provider = VaultRegistry.provider(id) else { return .refused(.notFound) }
+    if field == .password, !(await ownerAllows("copy your password")) { return .declined }
+    switch await secret(provider, item: item, field: field.field) {
+    case .success(let value):
+      guard await VaultClipboard.copy(value) else { return .clipboardFailed }
+      storeUsedAt = Date()
+      sessions.touch(id)
+      return .copied
+    case .failure(let error):
+      NSLog("[vaults] %@ refused a %@ copy: %@", id, field.rawValue, error.rawValue)
+      return .refused(error)
+    }
   }
+
+  static let codeReuseMargin: Double = 3000
 
   func totp(_ id: String, item: String) async -> VaultTotp? {
     guard let provider = VaultRegistry.provider(id) else { return nil }
-    if let local = localTotp(id, item: item) { return local.totp() }
-    let outcome = await secret(provider, item: item, field: .totp)
+    let outcome = await totpCode(provider, item: item)
     guard case .success(let code) = outcome else { return nil }
-    let period = cachedItems[id]?.first(where: { $0.id == item })?.totpPeriod ?? VaultTotp.defaultPeriod
-    return VaultTotp.make(code: code, period: period)
+    return code
+  }
+
+  func totpCode(_ provider: any VaultProvider, item: String) async -> Result<VaultTotp, VaultFillError> {
+    let key = "\(provider.id)/\(item)"
+    if let local = localTotp(provider.id, item: item), let code = local.totp() { return .success(code) }
+    let nowMs = Date().timeIntervalSince1970 * 1000
+    if let recent = recentCodes[key], isReady(provider.id), recent.expiresAt - nowMs > Self.codeReuseMargin { return .success(recent) }
+    if let running = codeFetches[key] { return await running.value }
+    let task = Task { await self.fetchCode(provider, item: item) }
+    codeFetches[key] = task
+    let result = await task.value
+    codeFetches[key] = nil
+    return result
+  }
+
+  func fetchCode(_ provider: any VaultProvider, item: String) async -> Result<VaultTotp, VaultFillError> {
+    let outcome = await secret(provider, item: item, field: .totp)
+    if let local = localTotp(provider.id, item: item), let code = local.totp() { return .success(code) }
+    switch outcome {
+    case .success(let value):
+      let period = cachedItems[provider.id]?.first(where: { $0.id == item })?.totpPeriod ?? VaultTotp.defaultPeriod
+      guard let code = VaultTotp.make(code: value, period: period) else { return .failure(.notFound) }
+      recentCodes["\(provider.id)/\(item)"] = code
+      return .success(code)
+    case .failure(let error):
+      return .failure(error)
+    }
   }
 
   func ownerAllows(_ reason: String) async -> Bool {
@@ -155,17 +193,10 @@ actor VaultBroker {
     return await VaultOwnerCheck.confirm(reason)
   }
 
-  func setOptions(idleLockMinutes: Int, touchID: Bool, askBeforeFilling: Bool, loadPasswordsWhenUsed whenUsed: Bool, iCloudSync: Bool) {
+  func setOptions(idleLockMinutes: Int, touchID: Bool, askBeforeFilling: Bool, iCloudSync: Bool, lockOnQuit: Bool, lockOnScreenLock: Bool) {
     ownerNeededForPasswords = askBeforeFilling
-    loadPasswordsWhenUsed = whenUsed
     VaultCache.setCloudEnabled(iCloudSync)
-    if whenUsed {
-      cachedPasswords = [:]
-      cachedTotps = [:]
-      for provider in VaultRegistry.providers {
-        if cachedItems[provider.id] != nil { persist(provider.id) } else { VaultCache.stripPasswords(provider.id) }
-      }
-    }
+    VaultLockPolicy.set(lockOnQuit: lockOnQuit, lockOnScreenLock: lockOnScreenLock)
     sessions.setOptions(idleLockMinutes: idleLockMinutes, touchID: touchID)
     guard !touchID else { return }
     for provider in VaultRegistry.providers { sessions.dropStored(provider.id) }
@@ -194,8 +225,15 @@ actor VaultBroker {
         values["username"] = item.username
         continue
       }
-      if field == .totp, let local = localTotp(provider.id, item: item.id) {
-        values["otp"] = local.code()
+      if field == .totp {
+        let code = await totpCode(provider, item: item.id)
+        switch code {
+        case .success(let totp):
+          values["otp"] = totp.code
+        case .failure(let error):
+          if error == .notFound && wanted.count > 1 { continue }
+          return .failure(error)
+        }
         continue
       }
       let outcome = await secret(provider, item: item.id, field: field)
@@ -400,7 +438,7 @@ actor VaultBroker {
     let id = provider.id
     guard isReady(id) else { return .failure(.locked) }
     let listed = cachedItems[id]?.first { $0.id == item }
-    if field == .password, !loadPasswordsWhenUsed, let listed, let hit = cachedPasswords[id]?[item], hit.itemUpdatedAt == listed.updatedAt {
+    if field == .password, let listed, let hit = cachedPasswords[id]?[item], hit.itemUpdatedAt == listed.updatedAt {
       storeUsedAt = Date()
       sessions.touch(id)
       return .success(hit.value)
@@ -411,7 +449,14 @@ actor VaultBroker {
     do {
       let value = try await lane(id).run { try await provider.secret(cli, id: item, field: field) }
       sessions.touch(id)
-      if field == .password, !loadPasswordsWhenUsed, let listed {
+      if field == .totp, value.lowercased().hasPrefix("otpauth://"), let parsed = VaultTotpSecret(value) {
+        if let listed {
+          cachedTotps[id, default: [:]][item] = VaultCacheSnapshot.Password(value: value, itemUpdatedAt: listed.updatedAt)
+          persist(id)
+        }
+        return .success(parsed.code())
+      }
+      if field == .password, let listed {
         cachedPasswords[id, default: [:]][item] = VaultCacheSnapshot.Password(value: value, itemUpdatedAt: listed.updatedAt)
         persist(id)
       }
@@ -433,6 +478,8 @@ actor VaultBroker {
       sessions.signedOut(provider.id)
       forgetSnapshot(provider.id)
       _ = await currentState(provider)
+    case .notFound:
+      refetchAfterMissing(provider)
     default:
       break
     }
@@ -447,6 +494,7 @@ actor VaultBroker {
   }
 
   func publish(_ fresh: VaultProviderState) -> VaultProviderState {
+    mirrorOpenProviders()
     var state = fresh
     state.touchUnlock = state.state == .locked && (opensFromStore(state.id) || sessions.hasStoredSession(state.id))
     guard states[state.id] != state else { return state }

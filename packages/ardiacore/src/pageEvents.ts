@@ -23,6 +23,8 @@ import type {
   ProtectedMediaRequest,
   ScrollState,
   SecurityInfo,
+  VaultContextAction,
+  VaultContextField,
   VaultField,
   VaultKeyPress,
   VaultSubmission,
@@ -72,6 +74,8 @@ type NativeEvents = {
   onVaultField: VaultField;
   onVaultKey: VaultKeyPress;
   onVaultSubmitted: VaultSubmission;
+  onVaultContext: VaultContextField;
+  onVaultContextAction: VaultContextAction;
   onAutofillSuggestions: { count: number };
 };
 export type Handlers = keyof NativeEvents;
@@ -119,6 +123,8 @@ const PAGE_EVENTS = {
   onVaultField: "vaultField",
   onVaultKey: "vaultKey",
   onVaultSubmitted: "vaultSubmitted",
+  onVaultContext: "vaultContext",
+  onVaultContextAction: "vaultContextAction",
   onAutofillSuggestions: "autofillSuggestions",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
@@ -166,6 +172,8 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onVaultField: (e) => [e],
   onVaultKey: (e) => [e],
   onVaultSubmitted: (e) => [e],
+  onVaultContext: (e) => [e],
+  onVaultContextAction: (e) => [e],
   onAutofillSuggestions: (e) => [e.count],
 };
 

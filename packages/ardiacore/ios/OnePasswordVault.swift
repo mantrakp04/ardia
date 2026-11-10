@@ -72,21 +72,31 @@ struct OnePasswordVault: VaultProvider {
   func secret(_ cli: VaultCLI, id: String, field: VaultField) async throws -> String {
     guard cli.session != nil else { throw VaultError.locked }
     guard Self.isItemId(id) else { throw VaultError.notFound }
-    if field == .totp {
-      let result = await cli.run(["item", "get", id, "--otp"] + accountFlag(cli), timeout: Self.readTimeout)
-      try check(result)
-      let code = result.trimmedOutput
-      guard !code.isEmpty else { throw VaultError.notFound }
-      return code
-    }
     let result = await cli.run(["item", "get", id, "--format", "json", "--reveal"] + accountFlag(cli), timeout: Self.readTimeout)
     try check(result)
     let fields = VaultJSON.dicts(VaultJSON.dict(VaultJSON.parse(result.stdout))?["fields"])
+    if field == .totp { return try await oneTimeCode(cli, id: id, fields: fields) }
     let purpose = field == .username ? "USERNAME" : "PASSWORD"
     guard let match = fields.first(where: { VaultJSON.string($0["purpose"]) == purpose }), let value = match["value"] as? String,
       !value.isEmpty
     else { throw VaultError.notFound }
     return value
+  }
+
+  private func oneTimeCode(_ cli: VaultCLI, id: String, fields: [[String: Any]]) async throws -> String {
+    let otpFields = fields.filter { (VaultJSON.string($0["type"]) ?? "").uppercased() == "OTP" }
+    for otp in otpFields {
+      if let uri = otp["value"] as? String, uri.lowercased().hasPrefix("otpauth://"), VaultTotpSecret(uri) != nil { return uri }
+    }
+    for otp in otpFields {
+      if let code = otp["totp"] as? String, !code.isEmpty { return code }
+    }
+    guard !otpFields.isEmpty else { throw VaultError.notFound }
+    let result = await cli.run(["item", "get", id, "--otp"] + accountFlag(cli), timeout: Self.readTimeout)
+    try check(result)
+    let code = result.trimmedOutput
+    guard !code.isEmpty else { throw VaultError.notFound }
+    return code
   }
 
   func save(_ cli: VaultCLI, login: VaultNewLogin) async throws -> VaultItem {
