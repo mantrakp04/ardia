@@ -37,7 +37,7 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   `chrome://ardia/` gets nothing.
 - **CSP.** The shell's policy is `default-src 'none'`, `script-src 'self'`, `connect-src 'none'`, `frame-src 'none'`,
   `object-src 'none'`, `form-action 'none'`, and `trusted-types ardia-symbols`. The UI can't reach the network.
-  Search suggestions, live folders, favicons and import all go through native services. The one Trusted Types policy
+  Search suggestions, live folders, favicons, import and telemetry all go through native services. The one Trusted Types policy
   renders the generated icon markup (`apps/linux/src/shims/web/Symbol.tsx`).
 - **The bridge.** `window.__ardiaHost` is defined by the generated `bootstrap.js` before any Vite module runs. Its
   bootstrap reports `appBuild: "linux-host"`. A request is accepted only when `ShellHostView::Trusted()` holds:
@@ -957,6 +957,31 @@ It works as on the Mac ([cli.md](cli.md), [automation.md](automation.md)); what 
     One regular window at a time runs the shared `startUserScripts`, chosen by the `ardia-user-scripts` web lock
     (`hostUserScripts.ts`); when it closes, the next window takes the lock and applies the folder again.
 
+### Telemetry
+
+- **Always on for the alpha.** `startHostTelemetry` (`hostTelemetry.ts`) calls `requireSharing()`, so sharing can't be
+  turned off: Settings › Privacy hides the toggle, onboarding skips the crash-report question and the new tab page
+  never asks. The rest of the Privacy section (your anonymous ID, What's Sent) stays. Ending this means removing the
+  `requireSharing()` call; nothing turns it off on its own.
+- **Sending.** The shell can't fetch, so the shared client posts through `ArdiaTelemetry.post` (`ac_linux_telemetry.cc`):
+  native sends the OTLP body to the fixed `https://ardia.dev/otel/v1/logs` with the app's ingest key, over the system
+  network context with no cookies, and answers the HTTP status (0 for a network error). JS keeps its queue, batching and
+  backoff. Events carry `$os: Linux` and `os.type: linux`; the `ardia` command reports the same on Linux.
+- **One owner.** Every window runs its own copy of the UI, so one browser window holds the `ardia.linux.telemetry` lock
+  and runs the client (queue, flush, hourly usage, the daily ping) (`telemetryLeader.ts`). The others, utility windows
+  included, forward `capture` and log calls to it over a `BroadcastChannel`. The owner acknowledges each one, and a
+  window keeps what nobody acknowledged and sends it again when a new owner announces itself, so nothing is lost while
+  ownership moves. Anything that changes the telemetry state (resetting the anonymous ID, ending or reopening the
+  session) is a request the owner runs, answered once per request id. When the owner closes, the next window in line
+  takes the lock, re-reads the telemetry documents and resumes the same session; the `telemetry` launch step tells it
+  this is a takeover, not a new launch, and a session that was already ended stays ended.
+- **Session end.** When a close ends the session (quitting or the last browser window), the closing window asks the
+  owner to record `app_session_ended` and save its queue before the close is acknowledged (2 s at most); an owner
+  closing alone just saves its queue. If that close is then cancelled, the session reopens, but only if no later close
+  ended it again. A session killed without a close (logout, SIGKILL) shows up as unclean on the next launch.
+- **Test instances.** The bootstrap's `isolatedInstance` is true under `--user-data-dir` or `ARDIA_DATA_DIR`; such
+  instances send with `$environment: test` and skip the daily ping, as on macOS.
+
 ### Downloads and files
 
 - **Choosers.** File and folder choosers go through `ui::SelectFileDialog`: the XDG portal, GTK or KDE, as Chromium
@@ -1009,8 +1034,8 @@ These were open at the time of the PR.
   - video upscaling;
   - the updater;
   - crash reports;
-  - sending telemetry and problem reports (the shell CSP blocks both); the 7-day local copy (`ArdiaTelemetryLocal`
-    keeps nothing, so Settings › Privacy hides View My Data) and hardware details (`ArdiaApp.hardwareInfo`);
+  - sending problem reports (the shell CSP blocks it); the 7-day local copy (`ArdiaTelemetryLocal` keeps nothing, so
+    Settings › Privacy hides View My Data) and hardware details (`ArdiaApp.hardwareInfo`);
   - the sidebar edge's `whilePressed`: the native left-edge watcher still peeks during any pressed drag;
   - `engine.cliTabTargets`, so `windows` from the control socket has no DevTools target ids;
   - Ardia's own desktop notifications (sites' web notifications use Chromium's Linux notifications);

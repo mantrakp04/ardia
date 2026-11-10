@@ -70,6 +70,8 @@
 #include "ardia/linux/ac_linux_favicons.h"
 #include "ardia/linux/ac_linux_page_status.h"
 #include "ardia/linux/ac_linux_suggest.h"
+#include "ardia/linux/ac_linux_telemetry.h"
+#include "ardia/linux/ac_linux_telemetry_policy.h"
 #include "ardia/linux/ac_linux_typeahead_input.h"
 #include "ardia/linux/host_bootstrap.h"
 #include "base/auto_reset.h"
@@ -94,6 +96,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
+#include "base/process/process.h"
 #include "base/process/process_handle.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
@@ -147,6 +150,7 @@
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
 #include "chrome/common/chrome_paths.h"
+#include "chrome/common/chrome_switches.h"
 #include "components/search_engines/template_url.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/prefs/pref_service.h"
@@ -361,6 +365,11 @@ struct RequestedWindow {
 std::map<int, RequestedWindow>& RequestedWindows();
 
 namespace linux_window = ardia::linux_window;
+
+bool IsolatedInstance() {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kUserDataDir)) return true;
+  return !base::Environment::Create()->GetVar("ARDIA_DATA_DIR").value_or("").empty();
+}
 
 bool MayActivateNativeWindows() {
   const auto* command = base::CommandLine::ForCurrentProcess();
@@ -1589,6 +1598,8 @@ class ShellHostView : public views::View,
   bool startup_;
   std::unique_ptr<ardia::linux_suggest::SuggestionClient> suggestions_ =
       std::make_unique<ardia::linux_suggest::SuggestionClient>();
+  std::unique_ptr<ardia::linux_telemetry::TelemetryClient> telemetry_ =
+      std::make_unique<ardia::linux_telemetry::TelemetryClient>();
   std::string window_id_;
   std::string kind_;
   std::string title_;
@@ -2691,13 +2702,17 @@ base::DictValue ShellHostView::Bootstrap() const {
       .Set("memoryGB", base::SysInfo::AmountOfTotalPhysicalMemory().InBytes() /
                            (1024.0 * 1024 * 1024))
       .Set("locale", "en-US")
-      .Set("updates", false);
+      .Set("updates", false)
+      .Set("isolatedInstance", IsolatedInstance());
+  if (const base::Time started = base::Process::Current().CreationTime(); !started.is_null())
+    info.Set("processStart", std::floor(started.InMillisecondsFSinceUnixEpochIgnoringNull()));
   base::FilePath user_data_directory;
   base::PathService::Get(chrome::DIR_USER_DATA, &user_data_directory);
   base::ListValue capabilities = base::ListValue().Append("ArdiaWebView.call").Append("ArdiaShell.pickFolder").Append("ArdiaShell.pickFiles")
       .Append("ArdiaShell.windowIdentity").Append("ArdiaShell.beginDialog")
       .Append("ArdiaShell.cancelDialog").Append("ArdiaShell.beginWindowCloseDrain")
       .Append("ArdiaSearch.suggest").Append("ArdiaSearch.cancelSuggest")
+      .Append("ArdiaTelemetry.post")
       .Append("ArdiaShell.launchSteps")
       .Append("ArdiaShell.completeLaunchStep")
       .Append("ArdiaShell.typeaheadReady")
@@ -5810,6 +5825,17 @@ void ShellHostView::Invoke(
           if (!body) return std::move(done).Run(false, base::Value(base::DictValue()
               .Set("code", "ERR_SUGGEST").Set("message", "Search suggestions are unavailable")));
           std::move(done).Run(true, base::Value(base::DictValue().Set("body", std::move(*body))));
+        },
+        std::move(done)));
+  }
+  if (method == "ArdiaTelemetry.post") {
+    if (values.size() != 2 || !values[0].is_string() || !values[1].is_string() ||
+        !ardia::linux_telemetry_policy::PostAcceptable(values[0].GetString(), values[1].GetString()))
+      return std::move(done).Run(false, base::Value(base::DictValue()
+          .Set("code", "ERR_TELEMETRY_REFUSED").Set("message", "Telemetry request refused")));
+    return telemetry_->Post(values[0].GetString(), values[1].GetString(), base::BindOnce(
+        [](base::OnceCallback<void(bool, base::Value)> done, int status) {
+          std::move(done).Run(true, base::Value(base::DictValue().Set("status", status)));
         },
         std::move(done)));
   }

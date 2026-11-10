@@ -8,6 +8,7 @@ const capabilities = linuxCapabilities();
 const hiddenPanes = unavailablePanes(capabilities);
 const hiddenSettings = unavailableSettingIds(capabilities, shared.SETTINGS.map((entry) => entry.id));
 if (!hostSupports("ArdiaTelemetryLocal.exportToDownloads")) hiddenSettings.add("privacy.viewData");
+hiddenSettings.add("privacy.shareDiagnostics");
 
 export const settingUnavailable = (id: string | undefined) => !!id && hiddenSettings.has(id);
 export const sectionUnavailable = (pane: string | null | undefined, section: string | undefined) => {

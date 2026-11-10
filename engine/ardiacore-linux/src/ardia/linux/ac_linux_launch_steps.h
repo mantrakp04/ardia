@@ -10,6 +10,7 @@ namespace ardia::linux_launch {
 
 inline constexpr std::string_view kSteps[] = {
     "version", "versionUpdated", "onboarding", "releaseNotes", "defaultBrowserOffer",
+    "telemetry",
 };
 
 inline bool ValidStep(std::string_view step) {

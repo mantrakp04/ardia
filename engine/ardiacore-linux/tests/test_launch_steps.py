@@ -14,6 +14,7 @@ class LaunchStepsTests(unittest.TestCase):
         if compiler is None:
             self.skipTest('C++ compiler is unavailable')
         code = r'''#include <cassert>
+#include <iterator>
 #include <string>
 #include <vector>
 #include "ardia/linux/ac_linux_launch_steps.h"
@@ -33,6 +34,10 @@ int main() {
   assert((steps.List() == std::vector<std::string>{"onboarding", "version"}));
   for (const auto step : kSteps) assert(ValidStep(step));
   assert(!ValidStep("Version"));
+  assert((std::vector<std::string>(std::begin(kSteps), std::end(kSteps)) == std::vector<std::string>{"version", "versionUpdated", "onboarding", "releaseNotes", "defaultBrowserOffer", "telemetry"}));
+  assert(steps.Complete("telemetry"));
+  assert(!steps.Complete("telemetry"));
+  assert(steps.Done("telemetry"));
 }
 '''
         with tempfile.TemporaryDirectory(prefix='ardia-launch-steps-test-') as scratch:

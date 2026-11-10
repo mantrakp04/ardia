@@ -75,6 +75,8 @@ function harness(options = {}) {
     suspendDialogs: options.suspend,
     resumeDialogs: options.resume,
     closeUtilities: options.closeUtilities && (() => { log.push(["utilities"]); return options.closeUtilities(); }),
+    settleTelemetry: options.settleTelemetry && ((ends) => { log.push(["telemetry", ends]); return options.settleTelemetry(ends); }),
+    reopenTelemetry: options.settleTelemetry && (async (token) => { log.push(["reopen-telemetry", token]); }),
     report: (error) => log.push(["report", error.message]),
   });
   return { log, asks, coordinator };
@@ -253,4 +255,59 @@ test("a window still in the store keeps its close warning", async () => {
   const decided = await decideLinuxWindowClose(leaving, "window", async (options) => { asked.push(options.title); return { confirmed: false, suppressed: false }; });
   assert.deepEqual(decided, { decision: "cancel", suppressWarning: false });
   assert.deepEqual(asked, ["Close 2 tabs?"]);
+});
+
+test("telemetry settles after the drain, ends the session only when the close does, and reopens it if that close is cancelled", async () => {
+  const settleTelemetry = async (ends) => ends ? "token" : null;
+  const leaving = harness({ endsSession: false, settleTelemetry });
+  const left = leaving.coordinator.accept(main);
+  await tick();
+  leaving.asks[0].answer.resolve({ confirmed: true, suppressed: false });
+  await left;
+  assert.deepEqual(steps(leaving.log), ["decide", "ask", "begin", "telemetry", "quiesce", "drain", "acknowledge"]);
+  assert.deepEqual(leaving.log.find(([step]) => step === "telemetry"), ["telemetry", false]);
+  const quitting = harness({ settleTelemetry });
+  await quitting.coordinator.accept(main, { quitting: true });
+  assert.deepEqual(quitting.log.find(([step]) => step === "telemetry"), ["telemetry", true]);
+  const ack = deferred();
+  const vetoed = harness({ settleTelemetry, acknowledge: () => ack.promise });
+  const closing = vetoed.coordinator.accept(main);
+  await tick();
+  vetoed.asks[0].answer.resolve({ confirmed: true, suppressed: false });
+  await tick(); await tick(); await tick();
+  assert.deepEqual(vetoed.log.find(([step]) => step === "telemetry"), ["telemetry", true]);
+  vetoed.coordinator.cancelled(main);
+  vetoed.coordinator.cancelled(main);
+  assert.equal(steps(vetoed.log).filter((step) => step === "reopen-telemetry").length, 1);
+  ack.reject(new Error("veto"));
+  await assert.rejects(closing);
+  const utility = harness({ utility: true, settleTelemetry });
+  await utility.coordinator.accept(main);
+  assert.equal(steps(utility.log).includes("telemetry"), false);
+});
+
+test("a close cancelled while telemetry is still settling reopens the session it ended", async () => {
+  const settled = deferred();
+  const { log, asks, coordinator } = harness({ settleTelemetry: () => settled.promise });
+  const closing = coordinator.accept(main);
+  await tick();
+  asks[0].answer.resolve({ confirmed: true, suppressed: false });
+  await tick(); await tick();
+  assert.equal(steps(log).at(-1), "telemetry");
+  coordinator.cancelled(main);
+  settled.resolve("end-1");
+  await assert.rejects(closing, { code: "ERR_WINDOW_CLOSE_CANCELLED" });
+  assert.deepEqual(log.filter(([step]) => step === "reopen-telemetry"), [["reopen-telemetry", "end-1"]]);
+});
+
+test("each session end is reopened only by the token of the close that made it, so an older cancelled close can't reopen a newer end", async () => {
+  const { createEndLedger } = await import("./telemetrySettle.ts");
+  let n = 0;
+  const ledger = createEndLedger(() => `end-${++n}`);
+  const first = ledger.end();
+  const second = ledger.end();
+  assert.equal(ledger.reopens(first), false);
+  assert.equal(ledger.reopens(undefined), false);
+  assert.equal(ledger.reopens(second), true);
+  assert.equal(ledger.reopens(second), false);
 });

@@ -933,7 +933,14 @@ def browse_names() -> tuple[dict, frozenset]:
 def system() -> dict:
     import platform
 
-    return {"os_version": platform.mac_ver()[0] or platform.release(), "arch": platform.machine(), "python": platform.python_version()}
+    linux = sys.platform.startswith("linux")
+    return {
+        "os": "Linux" if linux else "macOS",
+        "os_type": "linux" if linux else "darwin",
+        "os_version": platform.mac_ver()[0] or platform.release(),
+        "arch": platform.machine(),
+        "python": platform.python_version(),
+    }
 
 
 _system: dict | None = None
@@ -951,7 +958,7 @@ def context() -> dict:
     return {
         "$lib": LIB,
         "$lib_version": "1",
-        "$os": "macOS",
+        "$os": info["os"],
         "$os_version": info["os_version"],
         "arch": info["arch"],
         "python_version": info["python"],
@@ -966,7 +973,7 @@ def resource(environment: str) -> dict:
         "service.name": SERVICE_NAME,
         "service.version": __version__,
         "deployment.environment": "production" if environment == "production" else "development",
-        "os.type": "darwin",
+        "os.type": info["os_type"],
         "os.version": info["os_version"],
         "host.arch": info["arch"],
     }

@@ -11,6 +11,7 @@ import { linuxMenuShortcuts } from "../shortcuts";
 import { useBrowser } from "../../../browser/src/state/browser/store";
 import { setManagedWindowClose } from "../../../browser/src/platform/windowClose";
 import { createWindowCloseCoordinator, type DecideClose, type DialogSuspension, type DrainReply } from "../windowCloseCoordinator";
+import { reopenTelemetry, settleTelemetry } from "../telemetrySettle";
 
 export * from "./shellBase";
 export { menuShown, showMenu, watchMenus } from "../menus";
@@ -68,6 +69,8 @@ const closeCoordinator = createWindowCloseCoordinator({
     suspendDialogs: () => linuxHostDialogs().suspend(),
     resumeDialogs: (suspension: DialogSuspension) => linuxHostDialogs().resume(suspension),
     closeUtilities: closeLinuxUtilities,
+    settleTelemetry,
+    reopenTelemetry,
   } : {}),
   report: reportHostError,
 });

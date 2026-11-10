@@ -449,7 +449,7 @@ class FlushTest(TelemetryCase):
         resource = {a["key"]: a["value"] for a in body["resourceLogs"][0]["resource"]["attributes"]}
         self.assertEqual(resource["service.name"], {"stringValue": "ardia-cli"})
         self.assertEqual(resource["deployment.environment"], {"stringValue": "development"})
-        self.assertEqual(resource["os.type"], {"stringValue": "darwin"})
+        self.assertEqual(resource["os.type"], {"stringValue": "linux" if sys.platform.startswith("linux") else "darwin"})
         self.assertIn("host.arch", resource)
         scope = body["resourceLogs"][0]["scopeLogs"][0]
         self.assertEqual(scope["scope"], {"name": "ardia.analytics"})

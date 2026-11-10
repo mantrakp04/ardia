@@ -24,6 +24,8 @@ export type WindowCloseCoordinatorHooks = {
   suspendDialogs?(request: WindowCloseRequest): DialogSuspension;
   resumeDialogs?(suspension: DialogSuspension): boolean;
   closeUtilities?(): Promise<void>;
+  settleTelemetry?(endsSession: boolean): Promise<string | null>;
+  reopenTelemetry?(token: string): Promise<void>;
   report?(error: unknown): void;
 };
 
@@ -42,6 +44,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
     dialogsResumed: boolean;
     departing: boolean;
     undecided: boolean;
+    endedTelemetry: string | null;
     rejecting?: Promise<void>;
     promise?: Promise<void>;
   };
@@ -58,6 +61,11 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
     if (!attempt.cancelled) {
       attempt.cancelled = true;
       attempt.controller.abort();
+    }
+    if (attempt.endedTelemetry) {
+      const token = attempt.endedTelemetry;
+      attempt.endedTelemetry = null;
+      void hooks.reopenTelemetry?.(token).catch((error) => hooks.report?.(error));
     }
     resumeDialogs(attempt);
   };
@@ -129,6 +137,14 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
     if (!hooks.utility && !attempt.quitting && drain?.endsSession === true)
       await hooks.closeUtilities?.().catch((error) => hooks.report?.(error));
     if (!current(attempt, key)) throw attempt.cancelled ? cancelledClose() : staleClose();
+    if (!hooks.utility && hooks.settleTelemetry) {
+      attempt.endedTelemetry = await hooks.settleTelemetry(attempt.quitting || drain?.endsSession === true).catch((error) => {
+        hooks.report?.(error);
+        return null;
+      });
+    }
+    if (attempt.cancelled) confirmCancelled(attempt);
+    if (!current(attempt, key)) throw attempt.cancelled ? cancelledClose() : staleClose();
     attempt.suspension = hooks.suspendDialogs?.(attempt.request);
     if (attempt.suspension) await attempt.suspension.settled;
     if (attempt.cancelled) {
@@ -165,6 +181,7 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
       dialogsResumed: false,
       departing: false,
       undecided: false,
+      endedTelemetry: null,
     };
     nextReason = undefined;
     attempts.set(key, attempt);
