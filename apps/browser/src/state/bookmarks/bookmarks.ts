@@ -119,14 +119,20 @@ function subtree(b: Bookmarks, ids: string[]): string[] {
 }
 
 export function removeBookmarkTree(b: Bookmarks, ids: string[]): Bookmarks {
-  const gone = new Set(subtree(b, ids));
+  return removeBookmarkNodes(b, ids).bookmarks;
+}
+
+function removeBookmarkNodes(b: Bookmarks, ids: string[]): { bookmarks: Bookmarks; nodes: BookmarkNode[] } {
+  const removedIds = subtree(b, ids);
+  const removed = removedIds.map((id) => b.nodes[id]!);
+  const gone = new Set(removedIds);
   const nodes = without(b.nodes, gone);
   for (const node of Object.values(nodes)) {
     if (node.kind === "folder" && node.children.some((c) => gone.has(c))) {
       nodes[node.id] = { ...node, children: node.children.filter((c) => !gone.has(c)) };
     }
   }
-  return { ...b, nodes };
+  return { bookmarks: { ...b, nodes }, nodes: removed };
 }
 
 const urlIndex = new WeakMap<Bookmarks, Map<string, Map<string, string[]>>>();
@@ -266,16 +272,31 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
 
   removeBookmarks(ids) {
     const b = get().bookmarks;
-    const removable = ids.filter((id) => b.nodes[id]?.parentId);
-    const tops = removable.filter((id) => !bookmarkAncestors(b, id).some((a) => removable.includes(a.id)));
+    const removable = [...new Set(ids)].filter((id) => b.nodes[id]?.parentId);
+    const selected = new Set(removable);
+    const tops = removable.filter((id) => {
+      let parentId = b.nodes[id]?.parentId ?? null;
+      for (let depth = 0; parentId && depth < MAX_DEPTH; depth++) {
+        if (selected.has(parentId)) return false;
+        parentId = b.nodes[parentId]?.parentId ?? null;
+      }
+      return true;
+    });
+    const childIndexes = new Map<string, Map<string, number>>();
     const places = tops.map((id) => {
       const parentId = b.nodes[id]!.parentId!;
       const parent = b.nodes[parentId];
-      return { id, parentId, index: parent?.kind === "folder" ? parent.children.indexOf(id) : 0 };
+      if (parent?.kind !== "folder") return { id, parentId, index: 0 };
+      let indexes = childIndexes.get(parentId);
+      if (!indexes) {
+        indexes = new Map(parent.children.map((child, index) => [child, index]));
+        childIndexes.set(parentId, indexes);
+      }
+      return { id, parentId, index: indexes.get(id) ?? 0 };
     });
-    const nodes = subtree(b, tops).map((id) => b.nodes[id]!);
-    if (tops.length) set({ bookmarks: removeBookmarkTree(b, tops) });
-    return { nodes, places };
+    const removed = tops.length ? removeBookmarkNodes(b, tops) : { bookmarks: b, nodes: [] };
+    if (tops.length) set({ bookmarks: removed.bookmarks });
+    return { nodes: removed.nodes, places };
   },
 
   restoreBookmarks({ nodes, places }) {
