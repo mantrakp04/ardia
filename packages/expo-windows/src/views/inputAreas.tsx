@@ -39,7 +39,7 @@ type MiddleClickMarker = { click(state: number): void };
 type FiberLike = { memoizedProps?: unknown; return?: FiberLike | null };
 type Markers = { ardiaContextMenu?: ContextMenuMarker; ardiaMiddleClick?: MiddleClickMarker };
 type SecondaryPress =
-  | { kind: "context"; area: ContextMenuMarker | undefined }
+  | { kind: "context"; area: ContextMenuMarker | undefined; trail: string }
   | { kind: "middle"; area: MiddleClickMarker | undefined; state: number };
 
 const pointerStates = new WeakMap<object, number>();
@@ -75,6 +75,28 @@ function markersUnder(event: PointerLike): Markers[] {
   return found;
 }
 
+const TRAIL_NAMES = 28;
+
+function nameOf(type: unknown): string {
+  if (typeof type === "string") return type;
+  if (typeof type === "function") return (type as { displayName?: string; name?: string }).displayName || type.name || "fn";
+  if (type && typeof type === "object") {
+    const shaped = type as { displayName?: string; render?: { displayName?: string; name?: string }; type?: unknown };
+    return shaped.displayName || shaped.render?.displayName || shaped.render?.name || (shaped.type ? nameOf(shaped.type) : "obj");
+  }
+  return "";
+}
+
+function trailUnder(event: PointerLike): string {
+  const names: string[] = [];
+  let fiber = (event as { _targetInst?: (FiberLike & { type?: unknown }) | null })._targetInst ?? null;
+  for (let step = 0; fiber && step < FIBER_STEPS && names.length < TRAIL_NAMES; step += 1, fiber = (fiber.return ?? null) as typeof fiber) {
+    const name = nameOf(fiber.type);
+    if (name && names[names.length - 1] !== name) names.push(name);
+  }
+  return names.join(" < ");
+}
+
 function contextMenuUnder(path: Markers[]): ContextMenuMarker | undefined {
   const areas: ContextMenuMarker[] = [];
   for (const props of path) {
@@ -99,7 +121,11 @@ function secondaryPressAt(event: PointerLike): SecondaryPress | null {
   const kind = secondaryKindOf(state);
   if (!kind) return null;
   const path = markersUnder(event);
-  return kind === "context" ? { kind, area: contextMenuUnder(path) } : { kind, area: middleClickUnder(path), state };
+  if (kind === "context") {
+    const area = contextMenuUnder(path);
+    return { kind, area, trail: area ? "" : trailUnder(event) };
+  }
+  return { kind, area: middleClickUnder(path), state };
 }
 
 function finishSecondaryPress(press: SecondaryPress) {
@@ -108,7 +134,7 @@ function finishSecondaryPress(press: SecondaryPress) {
     return;
   }
   if (!press.area) {
-    noteContextMenu("right press with no context menu area under it");
+    noteContextMenu(`right press with no context menu area under it; under the pointer: ${press.trail}`);
     return;
   }
   noteContextMenu(`right press on ${press.area.purpose}, opening its menu`);
