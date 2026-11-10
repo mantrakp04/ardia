@@ -40,7 +40,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 - Windows are the app's own (`WindowManager.h`, `ArdiaAppWindows`): one runtime, one window per window id, each
   mounted with its id, as on the Mac. Browser windows draw into the title bar and keep the system caption buttons.
   A drag region is a view that starts a window move when the UI's own hit-testing gives it the press, so a control
-  on top of it still clicks. The app quits when its last window closes, after `willQuit` and the UI's reply.
+  on top of it still clicks. The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
+  without a reply; a no cancels the quit.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
@@ -62,8 +63,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 ## Checks
 
 - `.github/workflows/windows.yml` builds the x64 app on a Windows runner and runs `scripts/windows/launch-smoke.ps1`,
-  which launches it three times and uploads the logs and screenshots: a first launch (onboarding), a launch with
-  onboarding done (the browser window), and a hidden self-check launch.
+  which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
+  onboarding done (the browser window), each with a screenshot, then a hidden self-check launch.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there.
@@ -90,7 +91,7 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 2. Chromium for Windows with the patches that apply as they are, then the first window with a real tab.
 3. ArdiaCore: split into a shared core (`.cc`) and platform files (`_mac.mm`, `_win.cc`), then write the Windows files.
 4. The Windows versions of the Mac-specific engine patches.
-5. C++ versions of the native modules and views (glass with Mica and Acrylic, shaders with Direct3D, secrets with
-   Credential Manager, import from Edge and Chrome).
+5. C++ versions of what is still drawn flat or missing: glass with Mica and Acrylic, shaders with Direct3D, import
+   from Edge and Chrome, file drops, swipe gestures, toasts.
 6. Windows behaviour: Ctrl shortcuts, window controls on the right.
 7. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.

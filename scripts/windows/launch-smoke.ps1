@@ -75,10 +75,12 @@ try {
     $browser.WaitForExit(10000) | Out-Null
   }
 }
-if ((Test-Path $browserLog) -and (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Quiet)) {
+if (-not (Test-Path $browserLog)) { $failures += "the launch with onboarding done wrote no log" }
+elseif (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Quiet) {
   Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
   $failures += "the launch with onboarding done has errors"
 }
+elseif (-not (Select-String -Path $browserLog -Pattern "\[ardia windows\] first window" -Quiet)) { $failures += "the browser window never rendered with onboarding done" }
 
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $env:ARDIA_BACKGROUND = "1"
