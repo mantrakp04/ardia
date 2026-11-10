@@ -1,0 +1,16 @@
+import { readFile } from 'node:fs/promises';
+import { createStore } from 'zustand/vanilla';
+const [mode, nArg, repo, fixture='/tmp/ardia-bookmark-bench/links-32000.json', runsArg='3', warmupsArg='1'] = process.argv.slice(2); const n=Number(nArg), runs=Number(runsArg), warmups=Number(warmupsArg);
+const {createBookmarksSlice,rootIdsFor,ensureRoots,newBookmarkId}=await import(`file://${repo}/apps/browser/src/state/bookmarks/bookmarks.ts`);
+const rows=JSON.parse(await readFile(fixture,'utf8'));
+const use=createStore((...a)=>({...createBookmarksSlice(...a)}));
+const roots=rootIdsFor('');const src=newBookmarkId(),dst=newBookmarkId();
+let b=ensureRoots({nodes:{}},'')[0];const ids=rows.map(()=>newBookmarkId());
+const nodes={...b.nodes,[roots.other]:{...b.nodes[roots.other],children:[src,dst]},[src]:{kind:'folder',id:src,parentId:roots.other,title:'Source',children:ids,addedAt:0},[dst]:{kind:'folder',id:dst,parentId:roots.other,title:'Destination',children:[],addedAt:0}};
+for(let i=0;i<rows.length;i++)nodes[ids[i]]={kind:'url',id:ids[i],parentId:src,title:rows[i].title,url:rows[i].url,favicon:null,addedAt:i};
+const base={nodes};use.setState({bookmarks:base});const selected=ids.slice(0,n),samples=[];
+const move=()=>{use.setState({bookmarks:base});const t=performance.now();if(mode==='before')selected.forEach((id,i)=>use.getState().moveBookmark(id,dst,i));else use.getState().moveBookmarks(selected,dst,0);return performance.now()-t;};
+const warmup=[];for(let r=0;r<warmups;r++)warmup.push(move());for(let r=0;r<runs;r++)samples.push(move());
+const st=use.getState().bookmarks,s=st.nodes[src].children,d=st.nodes[dst].children;
+const valid=s.length===32000-n&&d.length===n&&new Set(s.concat(d)).size===32000&&d.every((id,i)=>id===selected[i]);
+const a=[...samples].sort((x,y)=>x-y);const q=p=>a[Math.max(0,Math.ceil(a.length*p)-1)];console.log(JSON.stringify({mode,n,warmups:warmup.length,warmup,p50:q(.5),p95:q(.95),samples,valid}));
