@@ -14,8 +14,7 @@ pnpm build      # → dist/
 pnpm preview    # serve dist/
 ```
 
-`SITE_URL` sets the canonical/OG origin, `SITE_BASE` the path prefix (e.g. `SITE_BASE=/ardia` for GitHub
-Pages without a custom domain).
+`SITE_URL` sets the canonical/OG origin.
 
 ## Updating
 
@@ -34,7 +33,7 @@ Pages without a custom domain).
 - **Screenshots:** `src/assets/shots/*.webp` are real window captures of Ardia (2×, transparent outside
   the window). Every shot but the Picture in Picture set is a 0.2.35 capture (the export, re-signed to inject
   the dylib): `screencapture -l <windowID> -o` of a hidden test instance drawn as the active window by
-  `scripts/draw-active.m` (how to build and inject it is in its header), at 1440 × 900 pt (`address-*` 1360 × 860,
+  `scripts/draw-active.m` (how to build and inject it is in its header), at 1440 × 900 pt (`address-sidebar` 1360 × 860,
   `little-ardia` 900 × 640, `privacy` 820 × 640), light appearance except `split`, `extensions` and `privacy`
   (dark). The PNGs' Display P3 values go into the WebP as they are (`cwebp -q 85 -m 6 -alpha_q 100`), no colour
   conversion. The profiles are Personal (plum), Work (blue) and Side project (orange). `window.webp` is the
