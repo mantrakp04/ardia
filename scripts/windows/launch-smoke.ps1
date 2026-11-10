@@ -174,7 +174,7 @@ try {
     Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
     if (-not $NoInput) {
       $inputNotes = Test-Input $browser $browserLog
-      $inputNotes | ForEach-Object { Write-Host "::warning::$_" }
+      $inputNotes | ForEach-Object { $failures += $_ }
     }
     if ($browser.HasExited) { $failures += "the app exited while being driven (exit code $($browser.ExitCode))" }
   }

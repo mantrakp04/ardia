@@ -30,14 +30,6 @@ const TITLE_BAND_HEIGHT = 32;
 
 const windows = () => requireNativeModule<WindowDragging>("ArdiaAppWindows");
 
-let pressNoted = false;
-
-function notePress(at: [number, number]) {
-  if (pressNoted) return;
-  pressNoted = true;
-  console.info(`[ardia windows] first press on a drag area at ${Math.round(at[0])}, ${Math.round(at[1])}`);
-}
-
 function useWindowDrag(options: DragOptions) {
   const rootTag = useContext(RootTagContext) as unknown as number;
   const latest = useRef(options);
@@ -59,7 +51,6 @@ function useWindowDrag(options: DragOptions) {
         lastPressAt.current = at;
         pressedAt.current = at;
         dragging.current = false;
-        notePress(at);
         if (second) {
           pressedAt.current = null;
           latest.current.onRegionDoubleClick?.();
@@ -75,7 +66,6 @@ function useWindowDrag(options: DragOptions) {
         if (!start || dragging.current) return;
         if (Math.abs(event.nativeEvent.pageX - start[0]) < CLICK_SLOP && Math.abs(event.nativeEvent.pageY - start[1]) < CLICK_SLOP) return;
         dragging.current = true;
-        console.info(`[ardia windows] window drag from ${Math.round(start[0])}, ${Math.round(start[1])}`);
         void windows().beginWindowDrag(rootTag);
       },
       onResponderRelease: () => {
