@@ -48,9 +48,9 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
-    const asked = fragmentOf(url);
-    if (!asked || asked === fragmentOf(c.url)) return pageSuggestion(c, null);
+    if (c.url === url) return pageSuggestion(c, null);
     const saved = source.history.find((h) => h.url === url);
+    if (!saved && !fragmentOf(url)) return pageSuggestion(c, null);
     const lender = saved ?? c;
     return { kind: "page", url, title: lender.title, favicon: lender.favicon, ...(saved && saved.visits > 0 ? { visited: true } : {}) };
   };

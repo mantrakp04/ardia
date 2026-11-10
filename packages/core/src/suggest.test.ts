@@ -184,6 +184,23 @@ test("a pasted address with a #fragment is not offered for removal from history 
   assert.equal(later?.kind === "page" && later.favicon, "shared", "and its own icon");
 });
 
+test("a typed address opens the exact address that is saved, whatever other slash or #fragment forms of the page come first", () => {
+  const saved = (url: string, title: string) => ({ url, title, favicon: null, visits: 2, lastVisit: now - 1000 });
+  const first = (typed: string, history: ReturnType<typeof saved>[]) => buildSuggestions(typed, { tabs: [], history }, { now }).items[0];
+  const board = "https://example.com/board";
+  const plain = first(board, [saved(`${board}/`, "Board with slash"), saved(board, "Board")]);
+  assert.equal(plain?.kind === "page" && plain.url, board, "the address without the slash opens without it");
+  assert.equal(plain?.kind === "page" && plain.title, "Board", "and lends its own title");
+  assert.equal(plain?.kind === "page" && plain.visited, true, "and stays removable");
+  const room = first(`${board}#room`, [saved(`${board}/#room`, "Room with slash"), saved(`${board}#room`, "Room")]);
+  assert.equal(room?.kind === "page" && room.url, `${board}#room`, "the same #fragment on the other slash form still opens the typed address");
+  assert.equal(room?.kind === "page" && room.title, "Room", "and lends the exact row's title");
+  assert.equal(room?.kind === "page" && room.visited, true, "and stays removable");
+  const slashOnly = first(`${board}#room`, [saved(`${board}/#room`, "Room with slash")]);
+  assert.equal(slashOnly?.kind === "page" && slashOnly.url, `${board}#room`, "no exact row: the typed address, not the saved slash form");
+  assert.equal(slashOnly?.kind === "page" && slashOnly.visited, undefined, "and no remove button that removes nothing");
+});
+
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {
   const hist = [
     { url: "https://a.com/docs", title: "Rust docs", favicon: null, visits: 2, lastVisit: now - DAY * 60 },
