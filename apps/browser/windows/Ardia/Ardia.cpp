@@ -4,6 +4,7 @@
 
 #include "NativeModules.h"
 
+#include "CrashLog.h"
 #include "Host.h"
 #include "LaunchLog.h"
 #include "LoggedErrors.h"
@@ -41,6 +42,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
 
   Ardia::LaunchLog::OpenFromCommandLine();
   Ardia::LaunchLog::Write(L"launch", L"process started");
+  Ardia::CrashLog::Install();
 
   WCHAR appDirectory[MAX_PATH];
   GetModuleFileNameW(NULL, appDirectory, MAX_PATH);
