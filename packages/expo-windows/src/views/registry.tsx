@@ -1,6 +1,7 @@
 import { createElement, forwardRef, useEffect, type ComponentType } from "react";
 import { View } from "react-native";
 import { noteFirstWindow, noteMissing } from "../missing";
+import { Symbol } from "../symbol/Symbol";
 import { WindowDragRegion } from "../windowDragRegion";
 import { viewsDrawnInJs } from "./index";
 
@@ -9,6 +10,7 @@ type AnyProps = Record<string, unknown> & { children?: unknown };
 const known = new Map<string, ComponentType<AnyProps>>([
   ...(viewsDrawnInJs as Map<string, ComponentType<AnyProps>>),
   ["ArdiaAppWindows", WindowDragRegion as unknown as ComponentType<AnyProps>],
+  ["ArdiaSymbol", Symbol as unknown as ComponentType<AnyProps>],
 ]);
 
 const views = new Map<string, ComponentType<AnyProps>>();

@@ -9,7 +9,7 @@ namespace Ardia {
 REACT_MODULE(WindowsHostModule, L"ArdiaWindowsHost")
 struct WindowsHostModule {
   REACT_CONSTANT(selfCheck)
-  const bool selfCheck = Paths::HasSwitch(L"--self-check");
+  const bool selfCheck = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
 
   REACT_SYNC_METHOD(secureRandomHex)
   std::string secureRandomHex(int byteCount) noexcept {

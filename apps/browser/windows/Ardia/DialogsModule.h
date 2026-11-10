@@ -277,10 +277,9 @@ inline HWND Owner(std::optional<std::string> const &windowId) noexcept {
 }
 
 inline size_t EscapeButton(std::vector<std::string> const &titles) noexcept {
-  size_t pick = 0;
   for (size_t i = 0; i < titles.size(); i++)
-    if (titles[i] == "Cancel") pick = i;
-  return pick;
+    if (titles[i] == "Cancel") return i;
+  return titles.empty() ? 0 : titles.size() - 1;
 }
 
 inline std::string AnswerAlertInBackground(std::string const &title, std::string const &message, std::vector<std::string> const &titles, size_t &pick) noexcept {

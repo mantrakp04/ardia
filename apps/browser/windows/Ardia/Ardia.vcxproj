@@ -83,7 +83,7 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>shell32.lib;user32.lib;gdi32.lib;advapi32.lib;kernel32.lib;ole32.lib;oleaut32.lib;shlwapi.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shell32.lib;user32.lib;gdi32.lib;advapi32.lib;kernel32.lib;ole32.lib;oleaut32.lib;shlwapi.lib;d2d1.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
@@ -101,6 +101,15 @@
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="AppModule.h" />
+    <ClInclude Include="CommandTable.h" />
+    <ClInclude Include="MenuKeyboard.h" />
+    <ClInclude Include="MenuKeys.h" />
+    <ClInclude Include="MenuPopup.h" />
+    <ClInclude Include="MenuStore.h" />
+    <ClInclude Include="MenusModule.h" />
+    <ClInclude Include="VectorGeometry.h" />
+    <ClInclude Include="VectorIconView.h" />
+    <ClInclude Include="VectorPath.h" />
     <ClInclude Include="ConfigModule.h" />
     <ClInclude Include="DialogsModule.h" />
     <ClInclude Include="DocumentsModule.h" />

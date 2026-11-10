@@ -10,6 +10,8 @@
 #include "Modules.h"
 #include "WindowManager.h"
 
+#pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+
 struct AppPackageProvider : winrt::implements<AppPackageProvider, winrt::Microsoft::ReactNative::IReactPackageProvider> {
   void CreatePackage(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
     AddAttributedModules(packageBuilder, true);

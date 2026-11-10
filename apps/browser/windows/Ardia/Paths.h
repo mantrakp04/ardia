@@ -41,6 +41,15 @@ inline std::filesystem::path KnownFolder(REFKNOWNFOLDERID folder) noexcept {
   return found;
 }
 
+inline std::filesystem::path UserFolder(REFKNOWNFOLDERID folder, const wchar_t *variable) noexcept {
+  std::filesystem::path found = KnownFolder(folder);
+  if (!found.empty()) return found;
+  std::wstring fromEnvironment = Environment(variable);
+  if (!fromEnvironment.empty()) return fromEnvironment;
+  std::error_code ignored;
+  return std::filesystem::temp_directory_path(ignored);
+}
+
 inline std::filesystem::path Ensured(std::filesystem::path directory) noexcept {
   std::error_code ignored;
   std::filesystem::create_directories(directory, ignored);
@@ -54,7 +63,7 @@ inline bool HasCustomDataDirectory() noexcept {
 inline const std::filesystem::path &DataDirectory() noexcept {
   static const std::filesystem::path directory = [] {
     std::wstring chosen = Environment(L"ARDIA_DATA_DIR");
-    return Ensured(chosen.empty() ? KnownFolder(FOLDERID_LocalAppData) / L"Ardia" : std::filesystem::path(chosen));
+    return Ensured(chosen.empty() ? UserFolder(FOLDERID_LocalAppData, L"LOCALAPPDATA") / L"Ardia" : std::filesystem::path(chosen));
   }();
   return directory;
 }
@@ -64,7 +73,7 @@ inline const std::filesystem::path &ConfigDirectory() noexcept {
     std::wstring chosen = Environment(L"ARDIA_CONFIG_DIR");
     if (!chosen.empty()) return Ensured(std::filesystem::path(chosen));
     if (HasCustomDataDirectory()) return Ensured(DataDirectory() / L"config");
-    return Ensured(KnownFolder(FOLDERID_RoamingAppData) / L"Ardia");
+    return Ensured(UserFolder(FOLDERID_RoamingAppData, L"APPDATA") / L"Ardia");
   }();
   return directory;
 }

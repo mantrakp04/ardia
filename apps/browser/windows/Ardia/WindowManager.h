@@ -162,7 +162,12 @@ struct WindowManager {
 
   void Focus(std::string_view id) noexcept {
     ManagedWindow *entry = Find(id);
-    if (!entry || Background()) return;
+    if (!entry) return;
+    try {
+      if (!entry->appWindow.IsVisible()) entry->appWindow.Show(!Background());
+    } catch (...) {
+    }
+    if (Background()) return;
     if (IsIconic(entry->hwnd)) ShowWindow(entry->hwnd, SW_RESTORE);
     SetForegroundWindow(entry->hwnd);
   }
@@ -314,6 +319,7 @@ struct WindowManager {
           auto onLanded = [landed](double points) noexcept { return static_cast<int32_t>(points * landed + 0.5); };
           entry.appWindow.MoveAndResize({onLanded(frame[0]), onLanded(frame[1]), onLanded(frame[2]), onLanded(frame[3])});
         }
+        KeepOnADisplay(entry);
         return;
       }
       double width = 1280;
@@ -346,6 +352,22 @@ struct WindowManager {
       entry.appWindow.MoveAndResize({x, y, pixelWidth, pixelHeight});
     } catch (...) {
       LaunchLog::Write(L"warning", L"window could not be placed");
+    }
+  }
+
+  static void KeepOnADisplay(ManagedWindow &entry) noexcept {
+    try {
+      auto area = winrt::Microsoft::UI::Windowing::DisplayArea::GetFromWindowId(
+                      entry.appWindow.Id(), winrt::Microsoft::UI::Windowing::DisplayAreaFallback::Nearest)
+                      .WorkArea();
+      auto position = entry.appWindow.Position();
+      auto size = entry.appWindow.Size();
+      int32_t width = (std::min)(size.Width, area.Width);
+      int32_t height = (std::min)(size.Height, area.Height);
+      int32_t x = (std::max)(area.X, (std::min)(position.X, area.X + area.Width - width));
+      int32_t y = (std::max)(area.Y, (std::min)(position.Y, area.Y + area.Height - height));
+      if (x != position.X || y != position.Y || width != size.Width || height != size.Height) entry.appWindow.MoveAndResize({x, y, width, height});
+    } catch (...) {
     }
   }
 

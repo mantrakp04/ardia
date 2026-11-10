@@ -126,16 +126,13 @@ class SignalState {
   void Send(char const *type, double threshold, bool idle, bool withIdle) noexcept {
     winrt::Microsoft::ReactNative::ReactContext context = m_context;
     if (!context) return;
-    std::string kind{type};
-    context.JSDispatcher().Post([context, kind, threshold, idle, withIdle]() noexcept {
-      winrt::Microsoft::ReactNative::JSValueObject payload;
-      payload["type"] = winrt::Microsoft::ReactNative::JSValue{std::string{kind}};
-      if (withIdle) {
-        payload["threshold"] = winrt::Microsoft::ReactNative::JSValue{threshold};
-        payload["idle"] = winrt::Microsoft::ReactNative::JSValue{idle};
-      }
-      EmitEvent(context, ModuleName, SignalEvent, std::move(payload));
-    });
+    winrt::Microsoft::ReactNative::JSValueObject payload;
+    payload["type"] = winrt::Microsoft::ReactNative::JSValue{std::string{type}};
+    if (withIdle) {
+      payload["threshold"] = winrt::Microsoft::ReactNative::JSValue{threshold};
+      payload["idle"] = winrt::Microsoft::ReactNative::JSValue{idle};
+    }
+    EmitEvent(context, ModuleName, SignalEvent, std::move(payload));
   }
 
   std::mutex m_mutex;

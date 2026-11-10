@@ -62,6 +62,7 @@ $env:ARDIA_BACKGROUND = "1"
 $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
 try {
   if (-not $check.WaitForExit($SelfCheckSeconds * 1000)) { $failures += "the self-check did not finish within $SelfCheckSeconds s" }
+  elseif ($check.ExitCode -ne 0) { $failures += "the self-check launch exited with code $($check.ExitCode)" }
 } finally {
   if (-not $check.HasExited) {
     Save-Screenshot (Join-Path $Out "self-check-stuck.png")

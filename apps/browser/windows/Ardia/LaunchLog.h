@@ -31,7 +31,7 @@ struct LaunchLog {
       return (static_cast<uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
     }();
     FILETIME now{};
-    GetSystemTimeAsFileTime(&now);
+    GetSystemTimePreciseAsFileTime(&now);
     uint64_t current = (static_cast<uint64_t>(now.dwHighDateTime) << 32) | now.dwLowDateTime;
     return current > started ? (current - started) / 10000 : 0;
   }

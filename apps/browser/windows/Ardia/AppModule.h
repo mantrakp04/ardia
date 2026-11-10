@@ -466,7 +466,7 @@ inline winrt::Microsoft::ReactNative::JSValue Sample() noexcept {
     sample["footprintMB"] = JSValue{static_cast<int64_t>(counters.PrivateUsage / 1048576)};
   ULARGE_INTEGER available{};
   if (GetDiskFreeSpaceExW(Paths::DataDirectory().c_str(), &available, nullptr, nullptr))
-    sample["freeDiskGB"] = JSValue{static_cast<double>(available.QuadPart / 104857600ull) / 10.0};
+    sample["freeDiskGB"] = JSValue{static_cast<double>(available.QuadPart / 107374182ull) / 10.0};
   return JSValue{std::move(sample)};
 }
 

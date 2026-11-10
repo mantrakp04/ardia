@@ -144,6 +144,7 @@ export const OutsidePressArea = forwardRef<View, AnyProps>(function OutsidePress
 });
 
 export const MagnifyArea = forwardRef<View, AnyProps>(function MagnifyArea({ enabled: _enabled, onMagnify: _onMagnify, children, ...rest }, ref) {
+  useEffect(() => noteMissing("<ArdiaMagnifyArea> gestures"), []);
   return (
     <View {...rest} ref={ref}>
       {children as ReactNode}
@@ -152,6 +153,7 @@ export const MagnifyArea = forwardRef<View, AnyProps>(function MagnifyArea({ ena
 });
 
 export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyProps>(function FileDrop({ accepts: _accepts, enabled: _enabled, onDropUpdate: _onDropUpdate, children, ...rest }, ref) {
+  useEffect(() => noteMissing("<ArdiaFileDrop> drops"), []);
   const nativeRef = useRef<View | null>(null);
   useImperativeHandle(ref, () => ({ nativeRef }), []);
   return (
@@ -162,6 +164,7 @@ export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyP
 });
 
 export const WindowProfile = forwardRef<View, AnyProps>(function WindowProfile({ profile: _profile, selection: _selection, neighbours: _neighbours, style, children, ...rest }, ref) {
+  useEffect(() => noteMissing("<ArdiaWindowProfile> profile swap"), []);
   return (
     <View {...rest} ref={ref} pointerEvents="none" style={style as ViewStyle}>
       {children as ReactNode}

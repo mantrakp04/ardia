@@ -25,6 +25,7 @@ export const WindowDragRegion = forwardRef<View, DragRegionProps>(function Windo
 ) {
   const rootTag = useContext(RootTagContext) as unknown as number;
   const lastPress = useRef(0);
+  const lastPressAt = useRef<[number, number]>([0, 0]);
   const pressedAt = useRef<[number, number] | null>(null);
   const dragging = useRef(false);
   return createElement(View as ComponentType<Record<string, unknown>>, {
@@ -34,9 +35,12 @@ export const WindowDragRegion = forwardRef<View, DragRegionProps>(function Windo
     onResponderTerminationRequest: () => true,
     onResponderGrant: (event: { nativeEvent: { pageX: number; pageY: number; timestamp: number } }) => {
       const now = Date.now();
-      const second = now - lastPress.current < DOUBLE_CLICK_MS;
+      const at: [number, number] = [event.nativeEvent.pageX, event.nativeEvent.pageY];
+      const near = Math.abs(at[0] - lastPressAt.current[0]) <= CLICK_SLOP && Math.abs(at[1] - lastPressAt.current[1]) <= CLICK_SLOP;
+      const second = near && now - lastPress.current < DOUBLE_CLICK_MS;
       lastPress.current = second ? 0 : now;
-      pressedAt.current = [event.nativeEvent.pageX, event.nativeEvent.pageY];
+      lastPressAt.current = at;
+      pressedAt.current = at;
       dragging.current = false;
       if (!second) return;
       pressedAt.current = null;

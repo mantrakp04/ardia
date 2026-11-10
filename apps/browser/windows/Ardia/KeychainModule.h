@@ -12,6 +12,8 @@
 #include <wincred.h>
 
 #include "NativeModules.h"
+
+#include "DocumentsModule.h"
 #include "Paths.h"
 
 namespace Ardia {
@@ -158,10 +160,15 @@ struct KeychainModule {
   }
 
  private:
+  static SerialQueue &Queue() noexcept {
+    static SerialQueue *queue = new SerialQueue();
+    return *queue;
+  }
+
   template <class TWork, class TFallback>
   static void Run(TWork &&work, TFallback &&fallback) noexcept {
     try {
-      std::thread(std::forward<TWork>(work)).detach();
+      Queue().Async(std::forward<TWork>(work));
     } catch (...) {
       fallback();
     }

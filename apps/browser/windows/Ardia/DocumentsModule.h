@@ -303,19 +303,27 @@ class DocumentStore {
       ++State().removing[key];
     }
     std::filesystem::path path = *url;
-    Queue().Async([path, key, waiters = std::move(waiters)]() {
-      {
-        std::unique_lock<std::timed_mutex> writing(State().writing, std::chrono::seconds(10));
-        Files::RemoveFile(path);
-      }
-      {
-        std::lock_guard<std::mutex> guard(State().mutex);
-        auto pending = State().removing.find(key);
-        if (pending != State().removing.end() && --pending->second <= 0) State().removing.erase(pending);
-      }
-      for (auto const &waiter : waiters) waiter(std::nullopt);
-    });
+    Queue().Async([path, key, waiters = std::move(waiters)]() { FinishRemove(path, key, waiters, 0); });
     return true;
+  }
+
+  static void FinishRemove(std::filesystem::path const &path, std::wstring const &key, std::vector<Done> const &waiters, int attempt) noexcept {
+    static constexpr int kRemoveAttempts = 6;
+    bool removed = false;
+    {
+      std::unique_lock<std::timed_mutex> writing(State().writing, std::chrono::seconds(10));
+      if (writing.owns_lock()) removed = Files::RemoveFile(path);
+    }
+    if (!removed && attempt + 1 < kRemoveAttempts) {
+      Queue().AsyncAfter(std::chrono::milliseconds(500 * (attempt + 1)), [path, key, waiters, attempt]() { FinishRemove(path, key, waiters, attempt + 1); });
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> guard(State().mutex);
+      auto pending = State().removing.find(key);
+      if (pending != State().removing.end() && --pending->second <= 0) State().removing.erase(pending);
+    }
+    for (auto const &waiter : waiters) waiter(removed ? std::nullopt : std::optional<std::string>("The document could not be removed"));
   }
 
   static void Close() noexcept {

@@ -117,17 +117,21 @@ export const checks: Check[] = [
     async run() {
       const account = unique("self-check-account");
       const secrets = keychain();
-      expectEqual(await within(secrets.get(account), "get before set"), null, "an account with no secret");
-      expectEqual(await within(secrets.set(account, "s3cret é"), "set"), true, "set");
-      expectEqual(await within(secrets.get(account), "get"), "s3cret é", "the stored secret");
-      const long = "x".repeat(6000) + "end";
-      expectEqual(await within(secrets.set(account, long), "set a long secret"), true, "set a long secret");
-      expectEqual(await within(secrets.get(account), "get a long secret"), long, "the stored long secret");
-      expectEqual(await within(secrets.set(account, "short"), "set a short secret again"), true, "set a short secret again");
-      expectEqual(await within(secrets.get(account), "get the short secret"), "short", "the secret after shrinking");
-      expectEqual(await within(secrets.delete(account), "delete"), true, "delete");
-      expectEqual(await within(secrets.get(account), "get after delete"), null, "the deleted secret");
-      expectEqual(await within(secrets.delete(account), "delete again"), true, "deleting a missing secret");
+      try {
+        expectEqual(await within(secrets.get(account), "get before set"), null, "an account with no secret");
+        expectEqual(await within(secrets.set(account, "s3cret é"), "set"), true, "set");
+        expectEqual(await within(secrets.get(account), "get"), "s3cret é", "the stored secret");
+        const long = "x".repeat(6000) + "end";
+        expectEqual(await within(secrets.set(account, long), "set a long secret"), true, "set a long secret");
+        expectEqual(await within(secrets.get(account), "get a long secret"), long, "the stored long secret");
+        expectEqual(await within(secrets.set(account, "short"), "set a short secret again"), true, "set a short secret again");
+        expectEqual(await within(secrets.get(account), "get the short secret"), "short", "the secret after shrinking");
+        expectEqual(await within(secrets.delete(account), "delete"), true, "delete");
+        expectEqual(await within(secrets.get(account), "get after delete"), null, "the deleted secret");
+        expectEqual(await within(secrets.delete(account), "delete again"), true, "deleting a missing secret");
+      } finally {
+        await within(secrets.delete(account), "delete after the check");
+      }
     },
   },
   {

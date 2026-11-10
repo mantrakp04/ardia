@@ -37,7 +37,6 @@ export const moduleDefaults: Record<string, Record<string, unknown>> = {
   ArdiaCalendar: { authorizationStatus: () => "notDetermined" },
   ArdiaCli: { installedVersion: () => null },
   ArdiaGlassEffect: { isLiquidGlass: () => false },
-  ArdiaMenus: { menuShortcuts: async () => [] },
   ArdiaUpdater: { updaterState: async (): Promise<UpdaterState> => ({ available: false }) },
   ArdiaTranslate: { available: false, userLanguages: () => ["en"], languageName: (id: string) => id },
   ArdiaUserScripts: { watch: () => {}, read: async () => ({ state: "empty" }), readStatus: async () => null },

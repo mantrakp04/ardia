@@ -5,16 +5,20 @@
 #include "DialogsModule.h"
 #include "DocumentsModule.h"
 #include "KeychainModule.h"
+#include "MenusModule.h"
 #include "NotificationsModule.h"
 #include "ShellModule.h"
 #include "SystemModule.h"
 #include "SystemSignalsModule.h"
 #include "TelemetryLocalModule.h"
+#include "VectorIconView.h"
 #include "WindowsHostModule.h"
 #include "WindowsModule.h"
 
 namespace Ardia {
 
-inline void RegisterViews(winrt::Microsoft::ReactNative::IReactPackageBuilder const &) noexcept {}
+inline void RegisterViews(winrt::Microsoft::ReactNative::IReactPackageBuilder const &packageBuilder) noexcept {
+  RegisterVectorIconView(packageBuilder);
+}
 
 }
