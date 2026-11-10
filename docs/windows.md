@@ -51,7 +51,9 @@ Logic is written once. Only code that calls the OS is written per platform.
   address bar in the toolbar, the toolbar hidden while scrolling, one profile, no downloads in the sidebar header, no
   command panel or onboarding open); the Mac never asks. Drag areas below the band always move through the app, and
   native code detects their double clicks. The launch log says which mode each window's band is in and which path
-  each drag took. The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
+  each drag took. A hidden sidebar slides back in when the pointer reaches the window's edge, as on the Mac:
+  `watchSidebarEdge` polls the pointer every 40 ms while a window is watched and logs `sidebar edge over|away <id>`.
+  The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
   without a reply; a no cancels the quit.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
@@ -98,7 +100,8 @@ Logic is written once. Only code that calls the OS is written per platform.
   button just below it) and fails when the default layout's band is not a caption, a title band drag is not Windows'
   own move or does not move the window by the dragged distance, dragging to the top edge does not maximize it or
   dragging back down does not restore its size, a double click does not maximize or restore it, the toolbar drag is
-  not the app's own move, the shortcut matches no command, or the sidebar button does not take its click. The ARM runner's desktop is covered by Windows' own
+  not the app's own move, the shortcut matches no command, the sidebar button does not take its click, or the
+  pointer just outside the window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by Windows' own
   first-run screen, so its screenshots show that screen and it skips the input.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the

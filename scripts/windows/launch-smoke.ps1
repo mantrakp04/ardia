@@ -43,6 +43,7 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
   [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
@@ -253,6 +254,28 @@ function Test-SidebarButton([System.Diagnostics.Process]$Process, [string]$Log) 
   return @()
 }
 
+function Test-SidebarEdge([System.Diagnostics.Process]$Process, [string]$Log) {
+  $handle = $Process.MainWindowHandle
+  [ArdiaInput]::SetWindowPos($handle, [IntPtr]::Zero, 160, 60, 0, 0, 0x0015) | Out-Null
+  Start-Sleep -Milliseconds 400
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("input: the window was gone before the sidebar edge check") }
+  $y = $client.Y + [int]([Math]::Min(200 * $client.Scale, $client.Height / 2))
+  $notes = @()
+  $overs = Count-LogLines $Log "^window \d+ sidebar edge over "
+  [ArdiaInput]::SetCursorPos($client.X - [int](6 * $client.Scale), $y) | Out-Null
+  Start-Sleep -Milliseconds 700
+  Save-Screenshot (Join-Path $Out "browser-sidebar-peek.png")
+  if ((Count-LogLines $Log "^window \d+ sidebar edge over ") -gt $overs) { Write-Host "Input: the pointer just outside the window's left edge counted as over the hidden sidebar's edge." }
+  else { $notes += "input: the pointer 6 points outside the window's left edge, with the sidebar hidden, logged no 'sidebar edge over' line" }
+  $aways = Count-LogLines $Log "^window \d+ sidebar edge away "
+  [ArdiaInput]::SetCursorPos($client.X + [int]($client.Width * 0.7), $y) | Out-Null
+  Start-Sleep -Milliseconds 700
+  if ((Count-LogLines $Log "^window \d+ sidebar edge away ") -gt $aways) { Write-Host "Input: moving the pointer into the page counted as away from the sidebar's edge." }
+  else { $notes += "input: moving the pointer from the window's edge into the page logged no 'sidebar edge away' line" }
+  return $notes
+}
+
 function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   $notes = @()
   $before = Get-WindowRect $Process
@@ -299,7 +322,9 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   if ($commanded) { Write-Host "Input: Ctrl+T matched newTab and was sent to the UI." } else { $notes += "input: Ctrl+T matched no command" }
   Save-Screenshot (Join-Path $Out "browser-after-input.png")
 
-  $notes += @(Test-SidebarButton $Process $Log)
+  $sidebarNotes = @(Test-SidebarButton $Process $Log)
+  $notes += $sidebarNotes
+  if (-not $sidebarNotes.Count) { $notes += @(Test-SidebarEdge $Process $Log) }
   return $notes
 }
 

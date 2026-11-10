@@ -9,7 +9,10 @@ type WindowDragging = {
   setTitleBand(id: string, mode: "caption" | "content"): Promise<void>;
   watchSidebarEdge(id: string, on: boolean, hold: number, right: boolean, whilePressed: boolean): Promise<void>;
   debugDragRegions(id: string): Promise<Regions | null>;
+  debugSidebarEdgeWatch(): Promise<EdgeWatch | null>;
 };
+
+type EdgeWatch = { running: boolean; windows: string[] };
 
 const windows = () => requireNativeModule<WindowDragging>("ArdiaAppWindows");
 
@@ -77,6 +80,34 @@ export const checks: Check[] = [
       pressThroughTitleBand(hostPath(band), { rootTag: 1, button: 2, x: 140, y: 12 });
       expectEqual(calls, ["outer", "inner"], "the capture handlers that ran");
       expectEqual(seen && [seen["button"], seen["pageX"], seen["pageY"]], [2, 140, 12], "the forwarded press");
+    },
+  },
+  {
+    name: "window drag: the sidebar edge watcher polls only while a window is watched",
+    async run() {
+      const report = async (what: string) => {
+        const state = await windows().debugSidebarEdgeWatch();
+        expectTrue(state, "debugSidebarEdgeWatch did not answer");
+        expectEqual(state.running, state.windows.length > 0, `whether the edge timer runs ${what} (watched: ${JSON.stringify(state.windows)})`);
+        return state.windows;
+      };
+      const first = "self-check-edge-a";
+      const second = "self-check-edge-b";
+      await report("before watching");
+      try {
+        await windows().watchSidebarEdge(first, true, 0, false, false);
+        expectTrue((await report("with one watch")).includes(first), "the first watch is not listed");
+        await windows().watchSidebarEdge(second, true, 12, true, true);
+        await windows().watchSidebarEdge(first, false, 0, false, false);
+        const one = await report("after the first watch ends");
+        expectTrue(one.includes(second) && !one.includes(first), `after ending the first watch: ${JSON.stringify(one)}`);
+        await windows().watchSidebarEdge(second, false, 0, false, false);
+        const after = await report("after the last watch ends");
+        expectEqual(after.filter((id) => id === first || id === second), [], "watches left after both ended");
+      } finally {
+        await windows().watchSidebarEdge(first, false, 0, false, false);
+        await windows().watchSidebarEdge(second, false, 0, false, false);
+      }
     },
   },
 ];

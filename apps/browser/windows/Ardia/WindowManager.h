@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -244,6 +245,31 @@ struct WindowManager {
     if (ManagedWindow *entry = Find(id)) ApplyTitleBand(*entry);
   }
 
+  void WatchSidebarEdge(std::string const &id, bool on, double hold, bool right, bool whilePressed) noexcept {
+    if (!on) {
+      m_edgeWatches.erase(id);
+      if (m_edgeWatches.empty()) StopEdgeTimer();
+      return;
+    }
+    EdgeWatch &watch = m_edgeWatches[id];
+    watch.hold = std::isfinite(hold) ? (std::max)(0.0, hold) : 0.0;
+    watch.right = right;
+    watch.whilePressed = whilePressed;
+    watch.unreported = true;
+    StartEdgeTimer();
+    CheckEdges();
+  }
+
+  std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugEdgeWatch() const noexcept {
+    if (!DebugAvailable()) return std::nullopt;
+    winrt::Microsoft::ReactNative::JSValueArray ids;
+    for (auto const &[id, watch] : m_edgeWatches) ids.push_back(id);
+    winrt::Microsoft::ReactNative::JSValueObject report;
+    report["running"] = static_cast<bool>(m_edgeTimer);
+    report["windows"] = std::move(ids);
+    return report;
+  }
+
   bool DebugAvailable() const noexcept {
     static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
     return available;
@@ -283,6 +309,16 @@ struct WindowManager {
 
  private:
   static constexpr UINT_PTR kSubclassId = 0xA2D1A;
+  static constexpr int kEdgePollMs = 40;
+  static constexpr double kEdgeReach = 24.0;
+
+  struct EdgeWatch {
+    double hold{0};
+    bool right{false};
+    bool whilePressed{false};
+    bool over{false};
+    bool unreported{true};
+  };
 
   ManagedWindow *Find(std::string_view id) noexcept {
     auto found = m_windows.find(std::string(id));
@@ -503,6 +539,7 @@ struct WindowManager {
     auto closedWindow = found->second.window;
     m_windows.erase(found);
     m_titleBands.erase(id);
+    if (m_edgeWatches.erase(id) && m_edgeWatches.empty()) StopEdgeTimer();
     std::erase(m_order, id);
     if (m_activeId == id) m_activeId = m_order.empty() ? std::string{} : m_order.back();
     if (HWND next = ActiveHwnd()) {
@@ -758,6 +795,120 @@ struct WindowManager {
     }
   }
 
+  static bool AnyButtonDown() noexcept {
+    for (int key : {VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2}) {
+      if (GetAsyncKeyState(key) & 0x8000) return true;
+    }
+    return false;
+  }
+
+  static HWND TopWindowAt(POINT point) noexcept {
+    HWND under = WindowFromPoint(point);
+    return under ? GetAncestor(under, GA_ROOT) : nullptr;
+  }
+
+  bool OverAnotherOfOurs(POINT cursor, HWND window) noexcept {
+    HWND under = TopWindowAt(cursor);
+    return under && under != window && FindByHwnd(under);
+  }
+
+  bool EdgeOver(ManagedWindow const &entry, EdgeWatch const &watch, POINT cursor, bool appActive, double &pointX, double &pointY) noexcept {
+    HWND hwnd = entry.hwnd;
+    POINT origin{0, 0};
+    RECT client{};
+    if (!ClientToScreen(hwnd, &origin) || !GetClientRect(hwnd, &client)) return false;
+    double scale = Scale(hwnd);
+    double width = client.right / scale;
+    double height = client.bottom / scale;
+    pointX = (cursor.x - origin.x) / scale;
+    pointY = (cursor.y - origin.y) / scale;
+    if (!IsWindowVisible(hwnd) || IsIconic(hwnd) || entry.fullScreen || width <= 0 || height <= 0) return false;
+    double slack = watch.over ? kEdgeReach : 0.0;
+    if (pointY < -slack || pointY >= height + slack) return false;
+    double insideY = (std::min)((std::max)(pointY, 0.0), height - 1);
+    LONG probeY = origin.y + static_cast<LONG>(insideY * scale);
+    bool inBand = watch.right ? pointX < width && pointX >= width - watch.hold : pointX >= 0 && pointX < watch.hold;
+    if (inBand) {
+      if (TopWindowAt(POINT{cursor.x, probeY}) != hwnd) return false;
+      return insideY == pointY || !OverAnotherOfOurs(cursor, hwnd);
+    }
+    MONITORINFO info{};
+    info.cbSize = static_cast<DWORD>(sizeof(info));
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (!monitor || !GetMonitorInfoW(monitor, &info)) return false;
+    double screenLeft = (info.rcMonitor.left - origin.x) / scale;
+    double screenRight = (info.rcMonitor.right - origin.x) / scale;
+    bool beyond = watch.right ? pointX >= width && pointX < (std::min)(screenRight, width + kEdgeReach)
+                              : pointX < 0 && pointX >= (std::max)(screenLeft, -kEdgeReach);
+    if (!beyond) return false;
+    POINT insideEdge{watch.right ? origin.x + client.right - 1 : origin.x, probeY};
+    if (TopWindowAt(insideEdge) != hwnd || OverAnotherOfOurs(cursor, hwnd)) return false;
+    bool besideScreenEdge = (watch.right ? screenRight - width : -screenLeft) <= kEdgeReach;
+    return appActive || besideScreenEdge;
+  }
+
+  void CheckEdges() noexcept {
+    if (Background() || m_edgeWatches.empty()) return;
+    POINT cursor{};
+    if (!GetCursorPos(&cursor)) return;
+    bool pressed = AnyButtonDown();
+    HWND foreground = GetForegroundWindow();
+    bool appActive = foreground && FindByHwnd(GetAncestor(foreground, GA_ROOT));
+    for (auto it = m_edgeWatches.begin(); it != m_edgeWatches.end();) {
+      ManagedWindow *entry = Find(it->first);
+      if (!entry) {
+        it = m_edgeWatches.erase(it);
+        continue;
+      }
+      EdgeWatch &watch = it->second;
+      double pointX = 0;
+      double pointY = 0;
+      bool over = EdgeOver(*entry, watch, cursor, appActive, pointX, pointY) && (watch.whilePressed || !pressed);
+      bool fresh = watch.unreported;
+      watch.unreported = false;
+      if (fresh || over != watch.over) {
+        if (over != watch.over) LaunchLog::Write(L"window", std::wstring(over ? L"sidebar edge over " : L"sidebar edge away ").append(Paths::Wide(it->first)));
+        watch.over = over;
+        winrt::Microsoft::ReactNative::JSValueArray point;
+        point.push_back(pointX);
+        point.push_back(pointY);
+        winrt::Microsoft::ReactNative::JSValueObject event;
+        event["type"] = "sidebarEdge";
+        event["id"] = it->first;
+        event["over"] = over;
+        event["point"] = std::move(point);
+        EmitWindow(std::move(event));
+      }
+      ++it;
+    }
+    if (m_edgeWatches.empty()) StopEdgeTimer();
+  }
+
+  void StartEdgeTimer() noexcept {
+    if (m_edgeTimer) return;
+    try {
+      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
+      timer.Interval(std::chrono::milliseconds(kEdgePollMs));
+      timer.IsRepeating(true);
+      m_edgeTick = timer.Tick([this](auto const &, auto const &) noexcept { CheckEdges(); });
+      m_edgeTimer = timer;
+      timer.Start();
+    } catch (...) {
+      m_edgeTimer = nullptr;
+    }
+  }
+
+  void StopEdgeTimer() noexcept {
+    if (!m_edgeTimer) return;
+    auto timer = m_edgeTimer;
+    m_edgeTimer = nullptr;
+    try {
+      timer.Stop();
+      timer.Tick(m_edgeTick);
+    } catch (...) {
+    }
+  }
+
   static POINT ScreenPointOf(LPARAM lParam) noexcept {
     return POINT{static_cast<LONG>(static_cast<short>(LOWORD(lParam))), static_cast<LONG>(static_cast<short>(HIWORD(lParam)))};
   }
@@ -843,6 +994,9 @@ struct WindowManager {
   winrt::Microsoft::ReactNative::ReactNativeWindow m_spare{nullptr};
   std::map<std::string, ManagedWindow> m_windows;
   std::map<std::string, bool> m_titleBands;
+  std::map<std::string, EdgeWatch> m_edgeWatches;
+  winrt::Microsoft::UI::Dispatching::DispatcherQueueTimer m_edgeTimer{nullptr};
+  winrt::event_token m_edgeTick{};
   std::vector<std::string> m_order;
   std::string m_activeId;
   bool m_quitting{false};

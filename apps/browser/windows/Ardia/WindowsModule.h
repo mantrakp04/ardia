@@ -109,10 +109,20 @@ struct WindowsModule {
   }
 
   REACT_METHOD(watchSidebarEdge)
-  void watchSidebarEdge(std::string id, bool on, double, bool, bool, Promise promise) noexcept {
+  void watchSidebarEdge(std::string id, bool on, double hold, bool right, bool whilePressed, Promise promise) noexcept {
     std::wstring message = std::wstring(L"sidebar edge watch ").append(on ? L"on " : L"off ").append(Paths::Wide(id));
-    LaunchLog::Write(L"window", message.append(L"; edge events are not sent on Windows yet"));
-    promise.Resolve();
+    if (on) message.append(L", hold ").append(std::to_wstring(static_cast<int>(hold))).append(right ? L", right" : L", left").append(whilePressed ? L", while pressed" : L"");
+    LaunchLog::Write(L"window", message);
+    OnUI(promise, [id, on, hold, right, whilePressed]() noexcept { WindowManager::Shared().WatchSidebarEdge(id, on, hold, right, whilePressed); });
+  }
+
+  REACT_METHOD(debugSidebarEdgeWatch)
+  void debugSidebarEdgeWatch(winrt::Microsoft::ReactNative::ReactPromise<JSValue> promise) noexcept {
+    RunOnUI(m_context, [promise]() noexcept {
+      auto report = WindowManager::Shared().DebugEdgeWatch();
+      if (!report) return promise.Resolve(JSValue{nullptr});
+      promise.Resolve(JSValue{std::move(*report)});
+    });
   }
 
   REACT_METHOD(toggleMaximize)
