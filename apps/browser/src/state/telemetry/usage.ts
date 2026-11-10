@@ -16,6 +16,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
+import { watchPasteRefused } from "./pasteRefused";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -226,6 +227,7 @@ export function startUsage() {
       sessionEnding();
     } else if (e.type === "quitCancelled") startContextSamples();
   });
+  watchPasteRefused();
 }
 
 export function sessionEnding() {

@@ -15,7 +15,7 @@ export {
 import { call } from "@ardia/ardiacore";
 import { nativeModule, type AppEvent, type AppearanceMode, type OpenURLSource, type UpdateChannel } from "@ardia/shell";
 
-export type { OpenURLSource };
+export type { AppEvent, OpenURLSource };
 
 export { replyToTerminate } from "./windows";
 

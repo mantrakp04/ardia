@@ -56,6 +56,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups) and how many of its batches were refused or stopped",
+      "When a paste is dropped or finds no text: the reason, the names of the types the clipboard offered, the class of the focused field, your keyboard layout and whether a new tab was still taking focus. Never what is on the clipboard",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how many closed pinned tabs it left out, summed up once an hour",

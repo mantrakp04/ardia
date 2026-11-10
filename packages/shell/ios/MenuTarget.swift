@@ -48,9 +48,12 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
   }
 
   private func forwardEdit(_ action: Selector, from sender: Any?) {
-    if FocusHandoff.shared.defers(action) { return }
+    if FocusHandoff.shared.defers(action) {
+      PasteRefusal.reportMenuPaste(action, .deferred)
+      return
+    }
     FocusHandoff.shared.noteForwarded(action)
-    NSApp.sendAction(action, to: nil, from: sender)
+    if !NSApp.sendAction(action, to: nil, from: sender) { PasteRefusal.reportMenuPaste(action, .refused) }
   }
 
   private static func validateForwarded(_ menuItem: NSMenuItem, _ action: Selector) -> Bool {
@@ -103,11 +106,14 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
 
   @objc func pasteAndMatchStyle(_ sender: Any?) {
     let web = Selector(("pasteAndMatchStyle:"))
-    if FocusHandoff.shared.defers(web) { return }
-    if NSApp.target(forAction: web) != nil {
-      NSApp.sendAction(web, to: nil, from: sender)
-    } else {
-      NSApp.sendAction(#selector(NSTextView.pasteAsPlainText(_:)), to: nil, from: sender)
+    if FocusHandoff.shared.defers(web) {
+      PasteRefusal.reportMenuPaste(web, .deferred)
+      return
     }
+    let handled =
+      NSApp.target(forAction: web) != nil
+      ? NSApp.sendAction(web, to: nil, from: sender)
+      : NSApp.sendAction(#selector(NSTextView.pasteAsPlainText(_:)), to: nil, from: sender)
+    if !handled { PasteRefusal.reportMenuPaste(web, .refused) }
   }
 }
