@@ -23,17 +23,17 @@ final class VaultPasswordFieldView: ExpoView, NSTextFieldDelegate {
 
   var placeholder = "" {
     didSet {
-      hidden.placeholderString = placeholder
+      secureField.placeholderString = placeholder
       shown.placeholderString = placeholder
     }
   }
 
-  private let hidden = NSSecureTextField()
+  private let secureField = NSSecureTextField()
   private let shown = NSTextField()
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    for field in [hidden, shown] {
+    for field in [secureField, shown] {
       field.bezelStyle = .roundedBezel
       field.isBezeled = true
       field.font = .systemFont(ofSize: NSFont.systemFontSize)
@@ -48,7 +48,7 @@ final class VaultPasswordFieldView: ExpoView, NSTextFieldDelegate {
 
   override func layout() {
     super.layout()
-    hidden.frame = bounds
+    secureField.frame = bounds
     shown.frame = bounds
   }
 
@@ -58,17 +58,17 @@ final class VaultPasswordFieldView: ExpoView, NSTextFieldDelegate {
     draft = ""
   }
 
-  private var active: NSTextField { revealed ? shown : hidden }
+  private var active: NSTextField { revealed ? shown : secureField }
 
   private func load() {
     let value = VaultPasswordDrafts.value(draft) ?? ""
-    hidden.stringValue = value
+    secureField.stringValue = value
     shown.stringValue = value
     onEdit(["length": value.count])
   }
 
   private func swap() {
-    let from = revealed ? hidden : shown
+    let from = revealed ? secureField : shown
     let to = active
     let wasEditing = from.currentEditor() != nil
     to.stringValue = from.stringValue
