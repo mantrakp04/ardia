@@ -476,23 +476,33 @@ bookmark, settings, profile or group edit, and on Sync Now. A cycle:
 
 ## Tests
 
-- `pnpm --filter @ardia/sync test`:
-  - `swift test`: 5 tests. BIP39 reference vectors; tampering and truncation are detected; the
-    wrong phrase opens nothing; the folder holds no plaintext in names or contents; deleting one
-    chain leaves another.
-  - `node --test`: 28 tests. Extensions (19): install with state and approval, no echo; on/off,
-    incognito and pin both ways; a removal as a live record, never reinstalled, beaten by a reinstall; an uninstall and
-    reinstall before publishing; union on joining; a joiner takes the synced state; no grant for a newer store version
-    or other permissions; a grant for a Mac that already has the approved version; a missing or null record and an
-    ineligible extension never remove anything; nothing before Chrome is ready; a lost pending install retried; a
-    change while pending; a removal cancels a pending install; an older Mac keeps the records through its snapshots;
-    an upgraded Mac doesn't republish a copy whose removal it held; another Chrome's reading of the same version's
-    permissions is added without a loop; an install still settling isn't published; on a framework without the engine
-    calls nothing is published or applied and the records wait. The rest (9): Concurrent edits converge in any order; deletes, re-adds and
-    edit-after-delete; clock skew; late, out-of-order and half-copied files; an edit during a read;
-    an old snapshot put back after its tombstones were collected; a tombstone kept past its age
-    limit while an older log is missing, for twice the limit at most; a write that fails before or
-    after the file lands; 40 randomized three-device runs with flaky delivery, compaction and crashes.
+- `pnpm --filter @ardia/sync test` runs four things:
+  - `swift test` (`packages/sync/tests`):
+    - `SyncCoreTests`: BIP39 reference vectors; tampering and truncation are detected; the wrong phrase opens nothing;
+      the folder holds no plaintext in names or contents; deleting one chain leaves another; a missing scope reads
+      empty while an unreadable one throws; removing skips files already gone and reports the rest.
+    - `SyncCoordinationTests`: work a coordinated read or write had started when the timeout came isn't reported as
+      timed out; a shared folder whose file presenter never answers times out instead of blocking, and the next change
+      goes through.
+    - `SyncKeyStoreTests`: saving again replaces the key; a save the keychain refuses keeps the key it would have
+      replaced; a test instance's key file is never wider than 0600 and nothing is left beside it.
+    - `SharedFolderDirectoryTests`: the shared folders' reads and writes (symlinks, conflicts, size caps, permissions).
+    - `LegacyMigrationTests`, `LegacyKeychainTests`, `LegacyDockTileTests`: the Netnyahoo → Ardia migration.
+  - `node --test` (`packages/sync/src/**/*.test.ts`):
+    - `scope.test.ts`, `fileHealth.test.ts`: concurrent edits converge in any order; deletes, re-adds and
+      edit-after-delete; clock skew; late, out-of-order, half-copied and given-up files; an edit during a read; an
+      old snapshot put back after its tombstones were collected; a tombstone kept past its age limit while an older
+      log is missing, for twice the limit at most; a write that fails before or after the file lands; an apply held
+      while quitting; 40 randomized three-device runs with flaky delivery, compaction and crashes.
+    - `hlc.test.ts`: stamps stay in order when a clock held back by a peer far ahead runs past the counter's last
+      digit, and a longer counter from an older peer is still beaten by the next tick.
+    - `extensions.test.ts`: install with state and approval, no echo; on/off, incognito and pin both ways; a
+      removal as a live record, never reinstalled, beaten by a reinstall; union on joining; no grant for a newer store
+      version or other permissions; pending installs (retried, changed, cancelled by a removal); older Macs keep the
+      records through their snapshots; on a framework without the engine calls nothing is published or applied.
+    - `companion/companion.test.ts`: the iPhone's adapters and cycle.
+  - `apps/ios/scripts/bundle-shared.mjs --check`: the iPhone's bundle of this code is up to date.
+  - `scripts/legacy-migration-e2e.mjs`: the migration tool run end to end on a scratch install.
 - `pnpm --filter @ardia/browser test` runs `src/state/sync/adapters.test.mjs` (4 tests against the real
   store: delete versus add, concurrent moves that would make a cycle, parked pinned tabs, passwords
   both ways), `src/state/sync/send.test.mjs` (sent tabs: one addressed elsewhere is never touched; it opens once and
