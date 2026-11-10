@@ -2310,6 +2310,7 @@ function globalProviderRows(sections                            , shown         
 __define("packages/core/src/pageText.ts", function (exports, __require) {
   __export(exports, "displayUrl", () => displayUrl);
   __export(exports, "pageKey", () => pageKey);
+  __export(exports, "fragmentOf", () => fragmentOf);
   __export(exports, "pageTexts", () => pageTexts);
   __export(exports, "logVisits", () => logVisits);
   __export(exports, "shownWordsOf", () => shownWordsOf);
@@ -2325,6 +2326,11 @@ function displayUrl(url        )         {
 }
 
 const pageKey = (url        ) => url.replace(/#.*$/, "").replace(/\/$/, "");
+
+const fragmentOf = (url        ) => {
+  const at = url.indexOf("#");
+  return at < 0 ? "" : url.slice(at);
+};
 
                         
               
@@ -2684,7 +2690,7 @@ const { BUILT_IN_ENGINES, searchUrl } = __require("packages/core/src/engines.ts"
 const { matchActions } = __require("packages/core/src/fuzzy.ts");
 const { fixupUrl, hostOf, searchUrlFor } = __require("packages/core/src/omnibox.ts");
 const { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList } = __require("packages/core/src/pageMatch.ts");
-const { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey } = __require("packages/core/src/pageText.ts");
+const { fragmentOf, hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey } = __require("packages/core/src/pageText.ts");
 const { globalProviderRows, providerUrl, safeProviderRows } = __require("packages/core/src/providerRows.ts");
 const { matchQuickCreate } = __require("packages/core/src/quickCreate.ts");
 const { scopedSearchUrl } = __require("packages/core/src/siteSearch.ts");
@@ -2722,10 +2728,13 @@ function buildSuggestions(raw        , source                  , options        
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
   const { tabIds, extra } = tabsOver(pool, source.tabs, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
-  const known = (url        ) => {
+  const known = (url        )                         => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const asked = fragmentOf(url);
+    if (asked && asked !== fragmentOf(c.url)) return { kind: "page", url, title: c.title, favicon: c.favicon };
+    return pageSuggestion(c, null);
   };
 
   const websiteFirst = preference === "website";

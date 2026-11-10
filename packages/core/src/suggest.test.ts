@@ -150,6 +150,31 @@ test("a typed or completed address opens, even when a tab has it open: the tab k
   }
 });
 
+test("a pasted address opens with the #fragment it carries, whatever fragment the saved page has", () => {
+  const share = "https://excalidraw.com/#json=id,key";
+  const saved = (url: string) => [{ url, title: "Excalidraw", favicon: "icon", visits: 4, lastVisit: now - 1000 }];
+  for (const url of ["https://excalidraw.com/", "https://excalidraw.com", "https://excalidraw.com/#json=old,key", "https://excalidraw.com/#room=a"]) {
+    const { items } = buildSuggestions(share, { tabs: [], history: saved(url) }, { now });
+    assert.equal(items[0]?.kind === "page" && items[0].url, share, `saved ${url}: the first row opens the pasted address`);
+    assert.equal(items[0]?.kind === "page" && items[0].title, "Excalidraw", `saved ${url}: the saved page lends its title`);
+    assert.equal(items[0]?.kind === "page" && items[0].favicon, "icon", `saved ${url}: and its icon`);
+  }
+  const bookmarks = [{ url: "https://excalidraw.com/", title: "Excalidraw", favicon: null }];
+  assert.equal(rows(buildSuggestions(share, { tabs: [], history: [], bookmarks }, { now }).items)[0], share, "a bookmarked page too");
+  const tabs = [{ id: "t1", url: "https://excalidraw.com/", title: "Excalidraw", favicon: null }];
+  assert.equal(rows(buildSuggestions(share, { tabs, history: [] }, { now }).items)[0], share, "a page open in a tab too");
+});
+
+test("a pasted address with a #fragment is not offered for removal from history unless that exact address is saved", () => {
+  const share = "https://excalidraw.com/#json=id,key";
+  const page = (url: string) => [{ url, title: "Excalidraw", favicon: null, visits: 4, lastVisit: now - 1000 }];
+  const other = buildSuggestions(share, { tabs: [], history: page("https://excalidraw.com/") }, { now }).items[0];
+  assert.equal(other?.kind === "page" && other.visited, undefined, "another address: no remove button that removes nothing");
+  const same = buildSuggestions(share, { tabs: [], history: page(share) }, { now }).items[0];
+  assert.equal(same?.kind === "page" && same.visited, true, "the same address: removable");
+  assert.equal(same?.kind === "page" && same.url, share);
+});
+
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {
   const hist = [
     { url: "https://a.com/docs", title: "Rust docs", favicon: null, visits: 2, lastVisit: now - DAY * 60 },

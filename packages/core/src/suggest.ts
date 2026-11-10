@@ -6,7 +6,7 @@ import { BUILT_IN_ENGINES, searchUrl } from "./engines.ts";
 import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf, searchUrlFor } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
-import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
+import { fragmentOf, hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
 import { globalProviderRows, providerUrl, safeProviderRows, type ProviderSection, type ProviderSuggestion } from "./providerRows.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
@@ -44,10 +44,13 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
   const { tabIds, extra } = tabsOver(pool, source.tabs, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
-  const known = (url: string) => {
+  const known = (url: string): Suggestion | undefined => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const asked = fragmentOf(url);
+    if (asked && asked !== fragmentOf(c.url)) return { kind: "page", url, title: c.title, favicon: c.favicon };
+    return pageSuggestion(c, null);
   };
 
   const websiteFirst = preference === "website";

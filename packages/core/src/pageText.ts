@@ -6,6 +6,11 @@ export function displayUrl(url: string): string {
 
 export const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
 
+export const fragmentOf = (url: string) => {
+  const at = url.indexOf("#");
+  return at < 0 ? "" : url.slice(at);
+};
+
 export type PageText = {
   url: string;
   key: string;

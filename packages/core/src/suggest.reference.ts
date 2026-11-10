@@ -54,6 +54,7 @@ export function displayUrl(url: string): string {
 
 const DAY = 86_400_000;
 const pageKey = (url: string) => url.replace(/#.*$/, "").replace(/\/$/, "");
+const fragmentOf = (url: string) => (url.includes("#") ? url.slice(url.indexOf("#")) : "");
 
 type HistoryRow = SuggestionSource["history"][number];
 type BookmarkRow = NonNullable<SuggestionSource["bookmarks"]>[number];
@@ -339,10 +340,13 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
   const { tabIds, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
-  const known = (url: string) => {
+  const known = (url: string): Suggestion | undefined => {
     const key = pageKey(url);
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
-    return c && pageSuggestion(c, null);
+    if (!c) return undefined;
+    const asked = fragmentOf(url);
+    if (asked && asked !== fragmentOf(c.url)) return { kind: "page", url, title: c.title, favicon: c.favicon };
+    return pageSuggestion(c, null);
   };
 
   const websiteFirst = preference === "website";
