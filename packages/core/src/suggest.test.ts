@@ -173,6 +173,15 @@ test("a pasted address with a #fragment is not offered for removal from history 
   const same = buildSuggestions(share, { tabs: [], history: page(share) }, { now }).items[0];
   assert.equal(same?.kind === "page" && same.visited, true, "the same address: removable");
   assert.equal(same?.kind === "page" && same.url, share);
+  const twice = [
+    { url: "https://excalidraw.com/#json=old,key", title: "Old board", favicon: "old", visits: 4, lastVisit: now - 1000 },
+    { url: share, title: "Shared board", favicon: "shared", visits: 1, lastVisit: now - 2000 },
+  ];
+  const later = buildSuggestions(share, { tabs: [], history: twice }, { now }).items[0];
+  assert.equal(later?.kind === "page" && later.url, share, "saved under two fragments: opens the pasted one");
+  assert.equal(later?.kind === "page" && later.visited, true, "the exact address is saved after another fragment of the page: still removable");
+  assert.equal(later?.kind === "page" && later.title, "Shared board", "and lends its own title");
+  assert.equal(later?.kind === "page" && later.favicon, "shared", "and its own icon");
 });
 
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {

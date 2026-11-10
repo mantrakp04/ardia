@@ -2733,8 +2733,10 @@ function buildSuggestions(raw        , source                  , options        
     const c = pool.byKey.get(key) ?? extra.find((x) => x.text.key === key);
     if (!c) return undefined;
     const asked = fragmentOf(url);
-    if (asked && asked !== fragmentOf(c.url)) return { kind: "page", url, title: c.title, favicon: c.favicon };
-    return pageSuggestion(c, null);
+    if (!asked || asked === fragmentOf(c.url)) return pageSuggestion(c, null);
+    const saved = source.history.find((h) => h.url === url);
+    const lender = saved ?? c;
+    return { kind: "page", url, title: lender.title, favicon: lender.favicon, ...(saved && saved.visits > 0 ? { visited: true } : {}) };
   };
 
   const websiteFirst = preference === "website";
