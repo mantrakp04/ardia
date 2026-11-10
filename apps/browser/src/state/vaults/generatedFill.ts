@@ -39,7 +39,7 @@ export async function fillGeneratedNow(entry: Pick<VaultGeneratedPassword, "id" 
   const target = generatedFillTarget(useBrowser.getState(), useVaultMenus.getState().fields, entry.origin);
   const web = target ? webviews.get(target.tabId) : undefined;
   if (!target || !web) return "noField";
-  const request = { frameId: target.frameId, origin: target.origin, provider: GENERATED_PROVIDER, id: entry.id, fields: ["username" as const, "password" as const], userChose: false, submit: false };
+  const request = { frameId: target.frameId, origin: target.origin, provider: GENERATED_PROVIDER, id: entry.id, fields: ["username" as const, "password" as const], userChose: true, submit: false };
   const result = await web.fillFromVault(request).catch(() => null);
   if (result?.error === "notAuthorized") return "declined";
   return result?.filled.length ? "filled" : "failed";

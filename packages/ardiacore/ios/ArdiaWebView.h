@@ -129,12 +129,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaWebView (VaultContextMenu)
 + (void)setVaultContextAutofill:(BOOL)autofill
-                     generators:(NSArray<NSDictionary<NSString *, id> *> *)generators NS_SWIFT_NAME(setVaultContextMenu(autofill:generators:));
+                     generators:(NSArray<NSDictionary<NSString *, id> *> *)generators
+                       anyField:(BOOL)anyField NS_SWIFT_NAME(setVaultContextMenu(autofill:generators:anyField:));
 - (void)applyVaultContextMenu:(NSDictionary<NSString *, id> *)menu
                         frame:(NSString *)frameId
                        origin:(NSString *)origin NS_SWIFT_NAME(applyVaultContextMenu(_:frame:origin:));
 - (void)armVaultContextFill;
 - (void)disarmVaultContextFill;
+@end
+
+typedef void (^ArdiaVaultCodeAnswer)(NSDictionary<NSString *, NSString *> *_Nullable code);
+typedef void (^ArdiaVaultCodeReader)(CGImageRef _Nullable image, NSString *_Nullable text, NSString *origin, ArdiaVaultCodeAnswer answer);
+
+@interface ArdiaWebView (VaultCodeSetup)
++ (void)setVaultCodeSetup:(BOOL)enabled NS_SWIFT_NAME(setVaultCodeSetup(_:));
++ (void)setVaultCodeReader:(nullable ArdiaVaultCodeReader)reader NS_SWIFT_NAME(setVaultCodeReader(_:));
+- (void)applyVaultCodeMenu:(NSDictionary<NSString *, id> *)menu token:(NSString *)token NS_SWIFT_NAME(applyVaultCodeMenu(_:token:));
 @end
 
 @interface ArdiaWebView (PictureInPicture)

@@ -20,6 +20,7 @@ protocol VaultProvider: Sendable {
   func itemsAndPasswords(_ cli: VaultCLI) async throws -> VaultItemList
   func secret(_ cli: VaultCLI, id: String, field: VaultField) async throws -> String
   func save(_ cli: VaultCLI, login: VaultNewLogin) async throws -> VaultItem
+  func addTotp(_ cli: VaultCLI?, id: String, uri: String) async throws -> VaultItem
 }
 
 struct VaultItemList: Sendable {
@@ -37,6 +38,7 @@ extension VaultProvider {
   func lock(_ cli: VaultCLI) async {}
   func configure(_ cli: VaultCLI, server: String?) async -> String? { "\(name) has no server setting." }
   func save(_ cli: VaultCLI, login: VaultNewLogin) async throws -> VaultItem { throw VaultError.unsupported }
+  func addTotp(_ cli: VaultCLI?, id: String, uri: String) async throws -> VaultItem { throw VaultError.unsupported }
 
   func makeState(_ state: VaultState, account: String? = nil, server: String? = nil, message: String? = nil) -> VaultProviderState {
     VaultProviderState(id: id, name: name, state: state, account: account, server: server, message: message, capabilities: capabilities,

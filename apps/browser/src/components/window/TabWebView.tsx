@@ -41,7 +41,7 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
-import { noteAutofillSuggestions, noteVaultContext, noteVaultField, noteVaultKey, noteVaultSubmitted, runVaultContextAction } from "../../state/vaults/pageEvents";
+import { noteAutofillSuggestions, noteVaultCode, noteVaultContext, noteVaultField, noteVaultKey, noteVaultSubmitted, runVaultCodeAction, runVaultContextAction } from "../../state/vaults/pageEvents";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -236,6 +236,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onVaultSubmitted={(submitted) => void noteVaultSubmitted(tabId, submitted)}
       onVaultContext={(field) => noteVaultContext(tabId, field)}
       onVaultContextAction={(action) => runVaultContextAction(tabId, action)}
+      onVaultCode={(code) => noteVaultCode(tabId, code)}
+      onVaultCodeAction={(action) => runVaultCodeAction(tabId, action)}
       onAutofillSuggestions={(count) => noteAutofillSuggestions(tabId, count)}
       onScroll={(state) => noteScroll(tabId, state)}
       onProtectedMedia={(request) => offerWebKit(tabId, request)}

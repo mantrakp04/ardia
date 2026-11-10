@@ -41,7 +41,7 @@ export const VAULT_TOUCH = {
   shakeMs: 320,
   shakeSteps: [0, 5, -3.6, 2.4, -1.4, 0.6, 0],
   grantMs: 160,
-  grantFrom: 0.9,
+  grantFrom: 0.7,
   grantHoldMs: 260,
   tryAgainMs: 1600,
   crossfadeMs: 150,

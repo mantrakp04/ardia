@@ -2,11 +2,13 @@ import { useState } from "react";
 import { View } from "react-native";
 import { ago } from "../../../lib/time";
 import { confirm, showMenu } from "../../../state/app/system";
+import { useSettings } from "../../../state/browser/hooks";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { brandOf } from "../../../state/vaults/brands";
 import {
   copyGenerated,
   deleteGenerated,
+  generatedSaveMenu,
   generatedSaveTargets,
   NEEDS_USERNAME,
   saveGenerated,
@@ -18,7 +20,7 @@ import { siteLabel } from "../../../state/vaults/originMatch";
 import { useRankedUsernames } from "../../../state/vaults/usernameSuggestions";
 import { Favicon } from "../../favicon/Favicon";
 import { matchesQuery } from "../../pages/PageLayout";
-import { Box, Button, DialogActions, DialogTitle, Sheet, space, Text } from "../../ui";
+import { Box, Button, DialogActions, DialogTitle, Divider, Expand, Sheet, space, Text, useListPresence } from "../../ui";
 import { CopyButton } from "../../vaults/VaultLoginSheet";
 import { VAULT_SAVE } from "../../vaults/tokens";
 import { VaultUsernameField } from "../../vaults/VaultUsernameField";
@@ -31,7 +33,9 @@ function useManagerName() {
   return (id: string) => providers.find((p) => p.id === id)?.name ?? brandOf(id).name;
 }
 
-function SaveSheet({ entry, provider }: { entry: VaultGeneratedPassword; provider: string }) {
+type SaveProps = { entry: VaultGeneratedPassword; provider: string; profile: string };
+
+function SaveSheet({ entry, provider, profile }: SaveProps) {
   const nameOf = useManagerName();
   const ranked = useRankedUsernames(useVaultLogins(), true);
   const [username, setUsername] = useState(ranked[0] ?? "");
@@ -41,7 +45,7 @@ function SaveSheet({ entry, provider }: { entry: VaultGeneratedPassword; provide
   const save = async () => {
     if (!username.trim() || busy) return;
     setBusy(true);
-    const result = await saveGenerated(entry.id, provider, username);
+    const result = await saveGenerated(entry.id, provider, username, profile);
     setBusy(false);
     if (!result.saved) return setProblem(SAVE_FAILED);
     closeSettingsSheet();
@@ -65,11 +69,12 @@ function SaveSheet({ entry, provider }: { entry: VaultGeneratedPassword; provide
   );
 }
 
-function GeneratedRow({ entry }: { entry: VaultGeneratedPassword }) {
+function GeneratedRow({ entry, profile }: { entry: VaultGeneratedPassword; profile: string }) {
   const providers = useVaultProviders();
   const nameOf = useManagerName();
   const fillable = useGeneratedFillable(entry.origin);
-  const targets = generatedSaveTargets(providers);
+  const chosen = useSettings((s) => s.vaultSaveTarget);
+  const targets = generatedSaveTargets(providers, chosen);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const site = siteLabel(entry.origin);
@@ -83,16 +88,15 @@ function GeneratedRow({ entry }: { entry: VaultGeneratedPassword }) {
     setProblem(outcome === "filled" || outcome === "declined" ? "" : "Couldn't fill it. Click the password field on the page and try again.");
   };
   const saveTo = async (provider: string) => {
-    if (!entry.username.trim()) return showSettingsSheet(<SaveSheet entry={entry} provider={provider} />);
+    if (!entry.username.trim()) return showSettingsSheet(<SaveSheet entry={entry} provider={provider} profile={profile} />);
     setBusy(true);
-    const result = await saveGenerated(entry.id, provider, null);
+    const result = await saveGenerated(entry.id, provider, null, profile);
     setBusy(false);
-    if (result.error === NEEDS_USERNAME) return showSettingsSheet(<SaveSheet entry={entry} provider={provider} />);
+    if (result.error === NEEDS_USERNAME) return showSettingsSheet(<SaveSheet entry={entry} provider={provider} profile={profile} />);
     setProblem(result.saved ? "" : SAVE_FAILED);
   };
   const chooseTarget = async () => {
-    if (targets.length === 1) return saveTo(targets[0]!);
-    const choice = await showMenu(targets.map((id) => ({ id, title: `Save to ${nameOf(id)}` })));
+    const choice = await showMenu(generatedSaveMenu(targets, nameOf));
     if (choice) await saveTo(choice);
   };
   const remove = async () => {
@@ -104,32 +108,37 @@ function GeneratedRow({ entry }: { entry: VaultGeneratedPassword }) {
     });
     if (confirmed) await deleteGenerated(entry.id);
   };
-  const saveTitle = targets.length === 1 ? `Save to ${nameOf(targets[0]!)}` : "Save to…";
   return (
-    <Row icon={<Favicon url={entry.origin} />} title={site} description={problem || `${entry.username || "No username"} · Generated ${ago(entry.createdAt)}`}>
+    <Row icon={<Favicon url={entry.origin} />} title={site} description={problem || `${entry.username || "No Username"} · Generated ${ago(entry.createdAt)}`}>
       <Box row gap="xs" center>
         {fillable ? <Button title="Fill" onPress={() => void fill()} /> : null}
         <CopyButton label="Password" onCopy={copy} />
-        {targets.length ? <Button title={saveTitle} disabled={busy} onPress={() => void chooseTarget()} /> : null}
+        {targets.length ? <Button title="Save to…" disabled={busy} onPress={() => void chooseTarget()} /> : null}
         <Button variant="icon" icon="trash" size="m" tooltip="Delete" onPress={() => void remove()} />
       </Box>
     </Row>
   );
 }
 
-export function GeneratedPasswordsSection({ query }: { query: string }) {
+export function GeneratedPasswordsSection({ query, profile }: { query: string; profile: string }) {
   const entries = useKeptGeneratedPasswords();
-  const shown = entries.filter((e) => matchesQuery(query, e.origin, e.username));
+  const { list, drop } = useListPresence(entries, (e) => e.id);
+  const shown = list.filter((p) => matchesQuery(query, p.item.origin, p.item.username));
   if (!shown.length) return null;
   return (
-    <>
+    <Expand open={shown.some((p) => p.present)}>
       <SectionHeader title="Generated Passwords" />
       <Group>
-        {shown.map((entry) => (
-          <GeneratedRow key={entry.id} entry={entry} />
-        ))}
+        <View>
+          {shown.map((p, i) => (
+            <Expand key={p.key} open={p.present} appear={p.appear} onClosed={() => drop(p.key)}>
+              {i > 0 ? <Divider thick inset="l" /> : null}
+              <GeneratedRow entry={p.item} profile={profile} />
+            </Expand>
+          ))}
+        </View>
       </Group>
-    </>
+    </Expand>
   );
 }
 

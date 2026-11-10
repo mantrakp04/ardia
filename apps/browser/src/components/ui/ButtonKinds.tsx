@@ -1,5 +1,6 @@
 import { Surface, Symbol, VisualEffect } from "@ardia/shell";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { Crossfade } from "./Expand";
 import { useHover } from "./useHover";
 import { hex, useTheme, type Theme } from "./theme";
 import { capsule, closeOnArt, opacity, pillHeight, radius as radii, space, stepperSize, font as typeScale, weight as weights } from "./tokens";
@@ -45,7 +46,7 @@ export function StepperButtonView({ icon, onPress, width = stepperSize.width, he
 const CHIP_DIM = 0.85;
 
 export function PillButtonView(props: PillProps) {
-  const { onPress, title, primary = false, size } = props;
+  const { onPress, title, primary = false, size, reserve } = props;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   if (props.tone === "chip") {
@@ -72,7 +73,7 @@ export function PillButtonView(props: PillProps) {
                 }}
               >
                 {icon ? <Symbol name={icon} size={10.5} weight="semibold" color={ink} style={{ width: 14, height: 14 }} /> : null}
-                <Text style={{ ...typeScale.small, fontWeight: weights.medium, color: ink }}>{title}</Text>
+                <TitleSwap title={title} reserve={reserve} style={{ ...typeScale.small, fontWeight: weights.medium, color: ink }} />
               </View>
             );
           }}
@@ -88,9 +89,7 @@ export function PillButtonView(props: PillProps) {
           const look = pillLook(theme, "prompt", primary, pressed, hovered);
           return (
             <View style={{ height, paddingHorizontal: space.l, borderRadius: size ? capsule(height) : radii.tile, alignItems: "center", justifyContent: "center", backgroundColor: look.fill }}>
-              <Text numberOfLines={1} style={{ ...typeScale.body, fontWeight: weights.medium, color: look.text }}>
-                {title}
-              </Text>
+              <TitleSwap title={title} reserve={reserve} lines={1} style={{ ...typeScale.body, fontWeight: weights.medium, color: look.text }} />
             </View>
           );
         }}
@@ -150,7 +149,22 @@ const ART_CLOSE_BOX = 22;
 const HUD_PLATE = { width: HUD_CLOSE_BOX, height: HUD_CLOSE_BOX, borderRadius: capsule(HUD_CLOSE_BOX), overflow: "hidden", alignItems: "center", justifyContent: "center" } as const;
 const HUD_GLYPH = { width: HUD_CLOSE_BOX, height: HUD_CLOSE_BOX } as const;
 
-export function PushButtonView({ title, onPress, kind = "default", disabled, icon, style }: PushProps) {
+export function TitleSwap({ title, reserve, lines, style }: { title: string; reserve?: readonly string[]; lines?: number; style: StyleProp<TextStyle> }) {
+  const text = (value: string) => (
+    <Text key={value} numberOfLines={lines} style={reserve?.length ? [style, CENTERED] : style}>
+      {value}
+    </Text>
+  );
+  return (
+    <Crossfade id={title} reserve={reserve?.length ? reserve.map(text) : undefined}>
+      {text(title)}
+    </Crossfade>
+  );
+}
+
+const CENTERED = { textAlign: "center" } as const;
+
+export function PushButtonView({ title, onPress, kind = "default", disabled, icon, style, reserve }: PushProps) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const primary = kind === "primary";
@@ -169,13 +183,13 @@ export function PushButtonView({ title, onPress, kind = "default", disabled, ico
               alignItems: "center",
               justifyContent: "center",
               gap: space.xs,
-              backgroundColor: plain ? undefined : primary ? (pressed ? theme.formAccentPressed : theme.formAccent) : pressed ? theme.controlPressed : hovered ? theme.controlHover : theme.control,
+              backgroundColor: plain ? undefined : primary ? (pressed ? theme.formAccentPressed : theme.formAccent) : pressed ? theme.controlPressed : hovered && !disabled ? theme.controlHover : theme.control,
               borderWidth: plain || primary ? 0 : StyleSheet.hairlineWidth * 2,
               borderColor: theme.controlBorder,
             }}
           >
             {icon ? <Symbol name={icon} size={11} color={textColor} style={{ width: 13, height: 13 }} /> : null}
-            <Text style={{ ...typeScale.body, color: textColor, textDecorationLine: plain && hovered ? "underline" : "none" }}>{title}</Text>
+            <TitleSwap title={title} reserve={reserve} style={{ ...typeScale.body, color: textColor, textDecorationLine: plain && hovered && !disabled ? "underline" : "none" }} />
           </View>
         )}
       </Pressable>

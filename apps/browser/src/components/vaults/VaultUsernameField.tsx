@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { stepCompletion, usernameCompletions } from "../../state/vaults/usernameSuggestions";
-import { MenuRow, Text, TextField } from "../ui";
+import { Expand, MenuRow, Text, TextField } from "../ui";
 import { VAULT_SAVE } from "./tokens";
 
 export function VaultUsernameField({
@@ -31,36 +31,39 @@ export function VaultUsernameField({
   };
   const highlighted = selected >= 0 ? shown[selected] : undefined;
   return (
-    <View style={FIELD}>
-      <Text size="caption" tone="textSecondary">
-        Email or Username
-      </Text>
-      <TextField
-        value={value}
-        width={width}
-        onChangeText={(text) => {
-          setOpen(true);
-          onChange(text);
-        }}
-        autoFocus={autoFocus}
-        selectOnFocus
-        onSubmit={() => (highlighted ? accept(highlighted) : onSubmit())}
-        onEscape={() => (shown.length ? setOpen(false) : onEscape())}
-        onArrow={(direction) => {
-          if (!open) setOpen(true);
-          setSelected((s) => stepCompletion(s, shown.length, direction));
-        }}
-        onTab={shown.length ? () => accept(highlighted ?? shown[0]!) : undefined}
-      />
-      {shown.length ? (
-        <View>
+    <View>
+      <View style={FIELD}>
+        <Text size="caption" tone="textSecondary">
+          Email or Username
+        </Text>
+        <TextField
+          value={value}
+          width={width}
+          onChangeText={(text) => {
+            setOpen(true);
+            onChange(text);
+          }}
+          autoFocus={autoFocus}
+          selectOnFocus
+          onSubmit={() => (highlighted ? accept(highlighted) : onSubmit())}
+          onEscape={() => (shown.length ? setOpen(false) : onEscape())}
+          onArrow={(direction) => {
+            if (!open) setOpen(true);
+            setSelected((s) => stepCompletion(s, shown.length, direction));
+          }}
+          onTab={shown.length ? () => accept(highlighted ?? shown[0]!) : undefined}
+        />
+      </View>
+      <Expand open={shown.length > 0}>
+        <View style={COMPLETIONS}>
           {shown.map((username, i) => (
             <MenuRow key={username} icon="person.crop.circle" title={username} selected={i === selected} onPress={() => accept(username)} />
           ))}
         </View>
-      ) : null}
+      </Expand>
     </View>
   );
 }
 
 const FIELD = { gap: VAULT_SAVE.fieldGap } as const;
+const COMPLETIONS = { paddingTop: VAULT_SAVE.fieldGap } as const;

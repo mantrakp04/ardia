@@ -9,6 +9,7 @@ export function VaultSavePassword({
   origin,
   seq,
   onLength,
+  onFocusInside,
   onSubmit,
   onEscape,
 }: {
@@ -16,6 +17,7 @@ export function VaultSavePassword({
   origin: string;
   seq: number;
   onLength: (length: number) => void;
+  onFocusInside?: () => void;
   onSubmit: () => void;
   onEscape: () => void;
 }) {
@@ -40,7 +42,7 @@ export function VaultSavePassword({
         Password
       </Text>
       <Box row gap="xs" center>
-        <VaultPasswordField draft={draft.token} revealed={revealed} style={INPUT} onEdit={onLength} onSubmit={onSubmit} onEscape={onEscape} />
+        <VaultPasswordField draft={draft.token} revealed={revealed} style={INPUT} onEdit={(next) => (onFocusInside?.(), onLength(next))} onSubmit={() => (onFocusInside?.(), onSubmit())} onEscape={() => (onFocusInside?.(), onEscape())} />
         <Button variant="icon" icon={revealed ? "eye.slash" : "eye"} size="m" tooltip={revealed ? "Hide Password" : "Show Password"} onPress={() => setRevealed(!revealed)} />
       </Box>
     </View>

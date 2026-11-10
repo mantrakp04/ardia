@@ -67,6 +67,7 @@ function CommandBox({ command }: { command: string }) {
         variant="text"
         plate="hover"
         title={copied ? "Copied" : "Copy"}
+        reserve={COPY_TITLES}
         onPress={() => {
           copyInstallCommand(command);
           setCopied(true);
@@ -94,7 +95,7 @@ function InstallSheet({ provider }: { provider: VaultProviderState }) {
       <SheetError text={error} />
       <DialogActions leading={provider.install?.url ? <Button title="Download…" onPress={() => openProviderApp(provider.install.url)} /> : undefined}>
         <Button title="Cancel" onPress={closeSettingsSheet} />
-        <Button title={busy ? "Checking…" : "Check Again"} kind="primary" disabled={busy} onPress={() => void check()} />
+        <Button title={busy ? "Checking…" : "Check Again"} reserve={CHECK_TITLES} kind="primary" disabled={busy} onPress={() => void check()} />
       </DialogActions>
     </Sheet>
   );
@@ -216,12 +217,15 @@ function UnlockSheet({ provider: id }: { provider: string }) {
       <SheetError text={error} />
       <DialogActions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
-        <Button title={busy ? "Unlocking…" : "Unlock"} kind="primary" disabled={busy || !password} onPress={() => void unlock()} />
+        <Button title={busy ? "Unlocking…" : "Unlock"} reserve={UNLOCK_TITLES} kind="primary" disabled={busy || !password} onPress={() => void unlock()} />
       </DialogActions>
     </Sheet>
   );
 }
 
+const COPY_TITLES = ["Copy", "Copied"] as const;
+const CHECK_TITLES = ["Check Again", "Checking…"] as const;
+const UNLOCK_TITLES = ["Unlock", "Unlocking…"] as const;
 const BODY = { marginTop: space.l, lineHeight: proseLineHeight.small } as const;
 const GAP_TOP = { marginTop: space.l } as const;
 const WAITING = GAP_TOP;

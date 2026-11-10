@@ -4,7 +4,7 @@ struct OnePasswordVault: VaultProvider {
   let id = "1password"
   let name = "1Password"
   let binaryName = "op"
-  let capabilities = VaultCapabilities(totp: true, save: true, selfHosted: false, masterPassword: false, touchID: true)
+  let capabilities = VaultCapabilities(totp: true, save: true, selfHosted: false, masterPassword: false, touchID: true, addTotp: true)
   let install = VaultInstall(command: "brew install 1password-cli", url: "https://developer.1password.com/docs/cli/get-started/")
   let setup: VaultSetup? = VaultSetup(kind: .desktopIntegration)
 
@@ -122,6 +122,44 @@ struct OnePasswordVault: VaultProvider {
     if item.username.isEmpty { item.username = login.username }
     if item.urls.isEmpty { item.urls = [login.url] }
     return item
+  }
+
+  func addTotp(_ cli: VaultCLI?, id: String, uri: String) async throws -> VaultItem {
+    guard let cli, cli.session != nil else { throw VaultError.locked }
+    guard Self.isItemId(id), let wanted = VaultTotpSecret(uri) else { throw VaultError.notFound }
+    let current = await cli.run(["item", "get", id, "--format", "json", "--reveal"] + accountFlag(cli), timeout: Self.readTimeout)
+    try check(current)
+    guard var template = VaultJSON.dict(VaultJSON.parse(current.stdout)) else { throw VaultError.notFound }
+    var fields = VaultJSON.dicts(template["fields"])
+    let hidden = fields.compactMap { $0["value"] as? String }.filter { $0.count >= 4 } + [uri]
+    if let at = fields.firstIndex(where: { Self.isOneTimeField($0) }) {
+      fields[at]["value"] = uri
+      fields[at]["totp"] = nil
+    } else {
+      fields.append(["id": "ardia-one-time-password", "type": "OTP", "label": "one-time password", "value": uri])
+    }
+    template["fields"] = fields
+    guard let input = VaultJSON.data(template) else { throw VaultError.failed("Ardia couldn't prepare the code for 1Password.") }
+    let result = await cli.run(["item", "edit", id, "--format=json"] + accountFlag(cli), input: input, timeout: Self.readTimeout)
+    try check(result, redacting: hidden)
+    guard let edited = VaultJSON.dict(VaultJSON.parse(result.stdout)), let saved = listedItem(edited) else {
+      throw VaultError.failed("1Password saved the code but didn't return the login.")
+    }
+    guard Self.holds(VaultJSON.dicts(edited["fields"]), wanted) else {
+      throw VaultError.failed("1Password didn't take the code. Update the 1Password CLI and try again.")
+    }
+    return saved
+  }
+
+  private static func isOneTimeField(_ field: [String: Any]) -> Bool { (VaultJSON.string(field["type"]) ?? "").uppercased() == "OTP" }
+
+  private static func holds(_ fields: [[String: Any]], _ wanted: VaultTotpSecret) -> Bool {
+    let now = Date()
+    let codes = Set([-1.0, 0, 1].map { wanted.code(at: now.addingTimeInterval($0 * Double(wanted.period))) })
+    return fields.filter(isOneTimeField).contains { field in
+      if let value = field["value"] as? String, let held = VaultTotpSecret(value), held == wanted { return true }
+      return (field["totp"] as? String).map { codes.contains($0) } ?? false
+    }
   }
 
   private func accounts(_ cli: VaultCLI) async -> (accounts: [[String: Any]], problem: String?) {

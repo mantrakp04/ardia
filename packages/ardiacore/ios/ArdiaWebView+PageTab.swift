@@ -20,7 +20,8 @@ extension ArdiaWebView: PageTab {
       return completion(["filled": [String](), "error": VaultFillError.originMismatch.rawValue])
     }
     Task { @MainActor in
-      let result = await VaultBroker.shared.fillValues(provider: provider, id: id, fields: fields, origin: frameOrigin, userChose: userChose)
+      let result = await VaultBroker.shared.fillValues(provider: provider, id: id, fields: fields, origin: frameOrigin, userChose: userChose,
+                                                       profile: ArdiaHost.baseProfile(of: self.profile))
       switch result {
       case .failure(let error):
         completion(["filled": [String](), "error": error.rawValue])
@@ -54,7 +55,8 @@ extension ArdiaWebView: PageTab {
     let override = String((username ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.longestUsername))
     let chosen = override.isEmpty ? captured : override
     Task { @MainActor in
-      let result = await VaultBroker.shared.save(provider: provider, origin: origin, username: chosen, password: password, title: title)
+      let result = await VaultBroker.shared.save(provider: provider, origin: origin, username: chosen, password: password, title: title,
+                                                 profile: ArdiaHost.baseProfile(of: self.profile))
       switch result {
       case .success(let item):
         self.discardVaultCapture(origin: origin)

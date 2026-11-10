@@ -8,6 +8,7 @@ import { KEEP_GENERATED_OPTIONS } from "../../../state/vaults/generated";
 import { lockProvider, reloadProviders, signInError, signOutProvider, unlockProvider, type VaultProviderState } from "../../../state/vaults/actions";
 import { exportManagerPasswords } from "../../../state/vaults/export";
 import { useVaultProviders } from "../../../state/vaults/hooks";
+import { passwordManagersOnly } from "../../../state/vaults/ardia";
 import { connectedSavers, preferredSaveTarget } from "../../../state/vaults/saveOffer";
 import { refreshVaultSyncStatus, syncedLine, syncVaultsNow, useVaultSync } from "../../../state/vaults/sync";
 import { Box, Button, PopUp, space } from "../../ui";
@@ -16,6 +17,7 @@ import { VAULT_SETTINGS } from "../../vaults/tokens";
 import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { ArdiaPasswordsRow } from "./ArdiaPasswordsRow";
 import { showConnectSheet, showUnlockSheet } from "./PasswordManagerSheets";
+import { VaultSuggestRow } from "./VaultSuggestRow";
 
 const LOCK_TITLES: Record<(typeof VAULT_LOCK_MINUTES)[number], string> = { 5: "5 Minutes", 15: "15 Minutes", 30: "30 Minutes", 60: "1 Hour", 0: "Never" };
 const LOCK_OPTIONS = VAULT_LOCK_MINUTES.map((m) => ({ value: String(m), title: LOCK_TITLES[m] }));
@@ -60,7 +62,7 @@ function ProviderRow({ provider }: { provider: VaultProviderState }) {
       description={error || stateLine(provider)}
     >
       <Box row gap="s" center>
-        {provider.state === "locked" ? <Button title={busy ? "Unlocking…" : "Unlock"} disabled={busy} onPress={() => void unlock()} /> : null}
+        {provider.state === "locked" ? <Button title={busy ? "Unlocking…" : "Unlock"} reserve={UNLOCK_TITLES} disabled={busy} onPress={() => void unlock()} /> : null}
         {connected ? (
           <Button variant="icon" icon="ellipsis.circle" size="l" tooltip="More" onPress={() => void more()} />
         ) : (
@@ -71,7 +73,10 @@ function ProviderRow({ provider }: { provider: VaultProviderState }) {
   );
 }
 
+const UNLOCK_TITLES = ["Unlock", "Unlocking…"] as const;
 const SYNC_TITLES = { idle: "Sync Now", syncing: "Syncing…", synced: "Synced", failed: "Try Again" } as const;
+const SYNC_RESERVE = Object.values(SYNC_TITLES);
+const SYNC_FAILED = "Couldn't sync. Check your connection and try again.";
 
 function SyncRow({ providers }: { providers: VaultProviderState[] }) {
   const phase = useVaultSync((s) => s.phase);
@@ -81,10 +86,10 @@ function SyncRow({ providers }: { providers: VaultProviderState[] }) {
   const connected = providers.filter((p) => p.state === "unlocked" || p.state === "locked");
   if (!connected.length) return null;
   const names = providers.filter((p) => failed.includes(p.id)).map((p) => p.name);
-  const description = phase === "failed" && names.length ? `${names.join(", ")} didn't sync.` : syncedLine(syncedAt, Date.now());
+  const description = phase !== "failed" ? syncedLine(syncedAt, Date.now()) : names.length ? `${names.join(", ")} didn't sync. Try again in a moment.` : SYNC_FAILED;
   return (
     <Row anchor="passwords.vaultSync" description={description}>
-      <Button title={SYNC_TITLES[phase]} disabled={phase === "syncing"} onPress={() => void syncVaultsNow()} />
+      <Button title={SYNC_TITLES[phase]} reserve={SYNC_RESERVE} disabled={phase === "syncing"} onPress={() => void syncVaultsNow()} />
     </Row>
   );
 }
@@ -96,6 +101,7 @@ export function PasswordManagersSection({ profile, profilePicker, onImported }: 
   const lockAfter = useSettings((s) => s.vaultIdleLockMinutes);
   const keepGenerated = useSettings((s) => s.vaultKeepGenerated);
   useEffect(() => void reloadProviders(), []);
+  const managers = passwordManagersOnly(providers);
   const savers = connectedSavers(providers);
   const targetOptions = [...(savers.length === 1 ? [] : [{ value: ASK, title: "Ask Each Time" }]), ...savers.map((p) => ({ value: p.id, title: p.name }))];
   const target = preferredSaveTarget(providers, saveTarget) || ASK;
@@ -104,19 +110,18 @@ export function PasswordManagersSection({ profile, profilePicker, onImported }: 
       <SectionHeader anchor="passwords.managers" description={null} action={profilePicker} />
       <Group>
         <ArdiaPasswordsRow profile={profile} onImported={onImported} />
-        {providers.map((p) => (
+        {managers.map((p) => (
           <ProviderRow key={p.id} provider={p} />
         ))}
-        <SyncRow providers={providers} />
+        <SyncRow providers={managers} />
       </Group>
       <View style={GROUP_GAP}>
         <Group>
-          <SettingToggle anchor="passwords.vaultSuggestOnFocus" />
+          <VaultSuggestRow />
           <SettingToggle anchor="passwords.vaultAskBeforeFilling" />
           <SettingToggle anchor="passwords.vaultMenuGlass" />
           <SettingToggle anchor="passwords.vaultSaveOffer" />
           {saveOffer ? <SettingToggle anchor="passwords.vaultAutoSave" /> : null}
-          <SettingToggle anchor="passwords.vaultContextGenerate" />
           <Row anchor="passwords.vaultSaveTarget">
             <PopUp value={target} options={targetOptions} onChange={(v) => updateSettings({ vaultSaveTarget: v === ASK ? "" : v })} />
           </Row>

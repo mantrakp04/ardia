@@ -20,6 +20,7 @@ function settle(result: VaultSyncResult | null) {
   if (resetTimer) clearTimeout(resetTimer);
   const phase: VaultSyncPhase = result?.ok ? "synced" : "failed";
   useVaultSync.setState((s) => ({ phase, syncedAt: result?.syncedAt ?? s.syncedAt, iCloud: result?.iCloud ?? s.iCloud, failed: result?.failed ?? [] }));
+  if (phase === "failed") return;
   resetTimer = setTimeout(() => {
     resetTimer = null;
     useVaultSync.setState((s) => (s.phase === "syncing" ? s : { phase: "idle" }));

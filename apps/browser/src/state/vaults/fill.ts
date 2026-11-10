@@ -25,6 +25,7 @@ import {
 import { menuKey, type VaultRow } from "./menuModel";
 import { rememberPending } from "./pendingTotp";
 import { currentPendingTotp, loadVaultItems, setPendingTotp, vaultProviderOf } from "./store";
+import { takeCodePick } from "./totpSetupPick";
 import type { VaultFillError, VaultKeyEvent } from "./types";
 
 const managerName = (provider: string) => vaultProviderOf(provider)?.name ?? brandOf(provider).name;
@@ -132,6 +133,11 @@ async function unlockFromMenu(tabId: string, menu: VaultMenu, row: VaultRow, pro
 export function activateVaultRow(tabId: string, row: VaultRow, how: VaultFillHow = BY_HAND) {
   const menu = vaultMenuOf(tabId);
   if (!menu || menu.busy) return;
+  const pickCode = row.kind === "login" ? takeCodePick(tabId, menu.seq) : null;
+  if (pickCode && row.kind === "login") {
+    dismissVaultMenu(tabId, true);
+    return pickCode(row.item);
+  }
   switch (row.kind) {
     case "login":
       return void fillItem(tabId, menu, row, row.item, row.userChose || menu.mode === "search", how);

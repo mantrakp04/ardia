@@ -16,6 +16,7 @@ import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/s
 import { GeneratedPasswordsSection } from "./GeneratedPasswords";
 import { PasswordManagersSection } from "./PasswordManagers";
 import { useVaultLogins } from "../../../state/vaults/hooks";
+import { managerItemsOnly } from "../../../state/vaults/ardia";
 import { loadAllVaultItems } from "../../../state/vaults/store";
 import { siteLabel } from "../../../state/vaults/originMatch";
 import type { VaultItem } from "../../../state/vaults/types";
@@ -42,7 +43,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     if (unlocked) load();
   }, [unlocked, profileId]);
 
-  const vaultLogins = useVaultLogins();
+  const vaultLogins = managerItemsOnly(useVaultLogins());
   useEffect(() => {
     if (unlocked) void loadAllVaultItems();
   }, [unlocked]);
@@ -72,7 +73,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         </Box>
       ) : (
         <>
-          <GeneratedPasswordsSection query={query} />
+          <GeneratedPasswordsSection query={query} profile={profile} />
           <SectionHeader title={list ? plural(entries.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
           <Group>
             {list && shown.length === 0 ? (

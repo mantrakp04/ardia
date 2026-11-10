@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useSettings } from "../../state/browser/hooks";
 import { updateSettings } from "../../state/settings/actions";
 import type { VaultProviderState } from "../../state/vaults/actions";
-import { ActivitySpinner, Box, DialogTitle, proseLineHeight, space, Text, Toggle } from "../ui";
+import { ActivitySpinner, Box, DialogTitle, Expand, proseLineHeight, space, Text, Toggle } from "../ui";
 import { BrandBadge } from "./VaultParts";
 import { VAULT_SETTINGS } from "./tokens";
 
@@ -19,11 +19,13 @@ export function SheetText({ children }: { children: ReactNode }) {
 }
 
 export function SheetError({ text }: { text: string }) {
-  return text ? (
-    <Text size="small" tone="destructive" style={BODY}>
-      {text}
-    </Text>
-  ) : null;
+  return (
+    <Expand open={!!text}>
+      <Text size="small" tone="destructive" style={BODY}>
+        {text}
+      </Text>
+    </Expand>
+  );
 }
 
 export function Waiting({ text }: { text: string }) {

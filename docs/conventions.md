@@ -108,6 +108,8 @@ lib/                    pure helpers: url, color, time, keys
 | a `Surface` with a fill, corner radius, hairline border and shadow (cards, ghosts, HUDs) | `<Panel fill radius border shadow={level}>`; the level is a `ShadowLevel` from `tokens.ts` or the feature's `tokens.ts` |
 | a centred modal over a scrim | `<Dialog width pad onDismiss>`; anchored to a spot with `place={{ top, right }}`; `Sheet` is the settings preset; `onSubmit` adds Escape/Enter keys, `restoreFocus` runs on close, `animated` fades it in |
 | a view kept mounted until its exit fade ends | `usePresence(value, { show, hide })` from `motion.ts` |
+| a block that appears, disappears or changes height (an error line, completions, a list row) | `<Expand open>`: height and opacity on `reveal` from `motion.ts`, a fade only with Reduce Motion, nothing on first mount; `gap` cancels its parent's gap while closed; `useListPresence(items, key)` keeps removed rows until they've folded away |
+| a label or glyph that swaps (Copy → Copied, Sync Now → Syncing…) | `<Crossfade id>`; push, text and pill buttons crossfade a changed `title` themselves, and `reserve={[…titles]}` keeps them as wide as the widest |
 | reduce motion | `reduceMotion()` and `reduceMotionKnown` from `components/ui` |
 | a settings row / grouped rows | `Row` and `Group`; inside settings, `Row`, `SectionHeader` and `Anchor` from `components/settings/Form` add the search anchor |
 | a text input / search box / pop-up menu / checkbox | `TextField`, `SearchField`, `PopUp`, `Checkbox` |

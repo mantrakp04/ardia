@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, StyleSheet, View } from "react-native";
 import { activateVaultRow, stepVaultMenu } from "../../state/vaults/fill";
 import { closeVaultMenu, hoverVaultMenu, offerToFocusedField, restingRowOf, searchVaultMenu, selectVaultRow, setVaultMenuOffscreen, showVaultMatches, type VaultMenu as MenuState } from "../../state/vaults/menu";
-import { FOOTER_KINDS, type VaultRow } from "../../state/vaults/menuModel";
+import { FOOTER_KINDS, GENERATOR_STYLES, type VaultRow } from "../../state/vaults/menuModel";
 import { siteLabel } from "../../state/vaults/originMatch";
 import { useVaultMenu, useVaultMenuGlass, useVaultMenuRows, useVaultProviders, useVaultTouchID } from "../../state/vaults/hooks";
 import { isTouchRow, noteVaultTouchStatus, touchIDGlyphShown } from "../../state/vaults/touchID";
@@ -11,7 +11,7 @@ import { armVaultTouchID } from "../../state/vaults/touchID";
 import { vaultHighlight } from "../../state/vaults/highlight";
 import { over } from "../../lib/color";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
-import { Button, curve, Divider, duration, GlassFill, ink, liquidGlass, PANEL, Panel, POPOVER_MARGIN, PopoverSurface, reduceMotion, SearchField, shadow, space, Text, useTheme, VaultTouchID, withAlpha } from "../ui";
+import { anchoredOpen, Button, Divider, Expand, GlassFill, ink, liquidGlass, PANEL, Panel, POPOVER_MARGIN, PopoverSurface, reduceMotion, SearchField, selectionSlide, shadow, space, Text, useTheme, VaultTouchID, withAlpha } from "../ui";
 import { rowHeight, VaultRowView } from "./VaultRows";
 import { VAULT_MENU } from "./tokens";
 
@@ -45,7 +45,27 @@ function placement(menu: MenuState, zoom: number, area: Area, height: number) {
   const upward = height > below && above > below;
   const room = Math.max(0, upward ? above : below);
   const y = upward ? top - VAULT_MENU.gap - Math.min(height, room) : Math.max(POPOVER_MARGIN, bottom + VAULT_MENU.gap);
-  return { offscreen, width, left, upward, room, y };
+  const anchor = upward && height <= room ? { bottom: area.height - (top - VAULT_MENU.gap) } : { top: y };
+  return { offscreen, width, left, upward, room, anchor };
+}
+
+const isSpare = (row: VaultRow) => row.kind === "generate" && !!row.spare;
+
+function SelectionPlate({ index, offsets, fill }: { index: number; offsets: readonly number[]; fill: string }) {
+  const y = useRef(new Animated.Value(offsets[index] ?? 0)).current;
+  const shownAt = useRef(-1);
+  const at = offsets[index];
+  useEffect(() => {
+    if (at === undefined) return void (shownAt.current = -1);
+    const from = shownAt.current;
+    shownAt.current = index;
+    if (from < 0 || reduceMotion() === true) return y.setValue(at);
+    const run = Animated.timing(y, { toValue: at, ...selectionSlide, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [index, at]);
+  if (at === undefined) return null;
+  return <Animated.View pointerEvents="none" style={{ ...PLATE, backgroundColor: fill, transform: [{ translateY: y }] }} />;
 }
 
 function MenuSurface({ children }: { children: ReactNode }) {
@@ -77,13 +97,16 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   const place = placement(menu, zoom, area, height);
   const still = reduceMotion() === true;
   useEffect(() => {
-    if (height) Animated.timing(appear, { toValue: 1, ...VAULT_MENU_MOTION, useNativeDriver: true }).start();
+    if (height) Animated.timing(appear, { toValue: 1, duration: anchoredOpen.duration, easing: anchoredOpen.easing, useNativeDriver: true }).start();
   }, [height > 0]);
   useEffect(() => {
     setVaultMenuOffscreen(tabId, menu.seq, place.offscreen);
   }, [place.offscreen]);
   const list = rows.filter((r) => !FOOTER_KINDS.has(r.kind));
   const footer = rows.filter((r) => FOOTER_KINDS.has(r.kind));
+  const firstSpare = list.findIndex(isSpare);
+  const settled = firstSpare < 0 ? list : list.slice(0, firstSpare);
+  const suggestAt = footer.findIndex((r) => r.kind === "suggest");
   const listRoom = Math.max(VAULT_MENU.minList, Math.min(VAULT_MENU.maxList, place.room - (footer.length ? footerHeight(footer.length) : 0) - (menu.mode === "search" ? VAULT_MENU.searchHeight : 0)));
   const offsets = useMemo(() => {
     let at = 0;
@@ -113,6 +136,7 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   }, [tabId, touchArmed, menu.seq]);
   const touch = { phase: menu.touch, retries: menu.touchRetries };
   const site = siteLabel(menu.origin);
+  const unfolds = settled.reduce((sum, r) => sum + rowHeight(r), 0) + GENERATOR_STYLES.length * VAULT_MENU.row <= listRoom;
   const view = (row: VaultRow, index: number) => (
     <VaultRowView
       key={row.key}
@@ -121,6 +145,8 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
       row={row}
       site={site}
       selected={shownSelected === index}
+      plated={index < list.length}
+      reserveTrailing={touchIDReady}
       highlight={highlight}
       touch={index === touchTarget ? touch : null}
       busy={menu.busy === row.key}
@@ -128,14 +154,15 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
       onPress={() => activateVaultRow(tabId, row)}
     />
   );
-  const motion = menu.hidden ? { opacity: 0 } : still ? { opacity: height ? 1 : 0 } : { opacity: appear };
+  const scale = appear.interpolate({ inputRange: [0, 1], outputRange: [anchoredOpen.fromScale, 1] });
+  const motion = menu.hidden ? { opacity: 0 } : still ? { opacity: appear } : { opacity: appear, transform: [{ scale }] };
   return (
     <Animated.View
       pointerEvents={menu.hidden ? "none" : "auto"}
       onMouseEnter={() => hoverVaultMenu(tabId, true)}
       onMouseLeave={() => hoverVaultMenu(tabId, false)}
       onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
-      style={{ position: "absolute", left: place.left, top: place.y, width: place.width, transformOrigin: place.upward ? "left bottom" : "left top", ...motion }}
+      style={{ position: "absolute", left: place.left, ...place.anchor, width: place.width, transformOrigin: place.upward ? "left bottom" : "left top", ...motion }}
     >
       <MenuSurface>
         {menu.mode === "search" ? (
@@ -163,7 +190,11 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
             scrollEventThrottle={16}
             onScroll={(e) => (scrollTop.current = e.nativeEvent.contentOffset.y)}
           >
-            {list.map(view)}
+            <SelectionPlate index={shownSelected} offsets={offsets} fill={highlight.fill} />
+            {settled.map(view)}
+            <Expand open={firstSpare >= 0} animate={unfolds}>
+              {firstSpare >= 0 ? list.slice(firstSpare).map((row, i) => view(row, firstSpare + i)) : null}
+            </Expand>
             {touchTarget >= 0 ? (
               <View pointerEvents="none" style={{ ...TOUCH_ID_SLOT, top: VAULT_MENU.listPad + offsets[touchTarget]! + (rowHeight(list[touchTarget]!) - VAULT_MENU.touchID) / 2 }}>
                 <VaultTouchID key={menu.touchRearms} armed={touchArmed} onStatus={(status) => noteVaultTouchStatus(tabId, menu.seq, status)} style={TOUCH_ID_SIZE} />
@@ -173,19 +204,24 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
         ) : (
           <View style={EMPTY}>
             <Text size="small" tone="textSecondary" lines={1}>
-              {menu.mode === "search" ? "No matches" : `No passwords for ${site}`}
+              {menu.mode === "search" ? "No Matches" : `No Passwords for ${site}`}
             </Text>
           </View>
         )}
-        {menu.error ? (
+        <Expand open={!!menu.error}>
           <Text size="caption" tone="destructive" lines={2} style={ERROR}>
             {menu.error}
           </Text>
-        ) : null}
+        </Expand>
         {footer.length ? (
           <View style={FOOTER}>
             <Divider style={SEPARATOR} />
-            <View style={FOOTER_ROWS}>{footer.map((row, i) => view(row, list.length + i))}</View>
+            <View style={FOOTER_ROWS}>
+              <Expand open={suggestAt >= 0} animate={unfolds}>
+                {suggestAt >= 0 ? view(footer[suggestAt]!, list.length + suggestAt) : null}
+              </Expand>
+              {footer.map((row, i) => (i === suggestAt ? null : view(row, list.length + i)))}
+            </View>
           </View>
         ) : null}
       </MenuSurface>
@@ -193,7 +229,7 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   );
 }
 
-const VAULT_MENU_MOTION = { duration: duration.fast, easing: curve.enter } as const;
+const PLATE = { position: "absolute", top: VAULT_MENU.listPad, left: VAULT_MENU.rowInset, right: VAULT_MENU.rowInset, height: VAULT_MENU.row, borderRadius: VAULT_MENU.rowRadius } as const;
 const FILL = { flex: 1 } as const;
 const SEARCH_ROW = { flexDirection: "row", alignItems: "center", gap: space.xs, height: VAULT_MENU.searchHeight, paddingHorizontal: VAULT_MENU.rowInset } as const;
 const LIST = { paddingTop: VAULT_MENU.listPad, paddingBottom: VAULT_MENU.separatorGap } as const;

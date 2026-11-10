@@ -15,7 +15,8 @@ import { VAULT_KEEP_GENERATED_DAYS } from "../settings/settings";
 import { copyOutcomeOf, type VaultCopyOutcome } from "./actions";
 import { rememberVaultAccount } from "./accounts";
 import { searchItems, siteLabel } from "./originMatch";
-import { saveTargets } from "./saveOffer";
+import { ARDIA_PROVIDER, isArdiaProvider } from "./ardia";
+import { preferredSaveTarget, saveTargets } from "./saveOffer";
 import { loadVaultItems } from "./store";
 
 export type { VaultGeneratedPassword };
@@ -64,7 +65,15 @@ export function searchGenerated(list: readonly VaultGeneratedPassword[], query: 
   return query.trim() ? searchItems(items, query, limit) : items.slice(0, limit);
 }
 
-export const generatedSaveTargets = (providers: readonly VaultProviderState[]) => saveTargets(providers);
+export function generatedSaveTargets(providers: readonly VaultProviderState[], chosen = ""): string[] {
+  const targets = saveTargets(providers);
+  const wanted = preferredSaveTarget(providers, chosen);
+  const first = targets.includes(wanted) ? wanted : targets.includes(ARDIA_PROVIDER) ? ARDIA_PROVIDER : targets[0];
+  return first ? [first, ...targets.filter((id) => id !== first)] : [];
+}
+
+export const generatedSaveMenu = (targets: readonly string[], nameOf: (id: string) => string) =>
+  targets.map((id, at) => ({ id, title: `Save to ${nameOf(id)}`, checked: at === 0 }));
 
 export const useGeneratedPasswords = create<{ list: VaultGeneratedPassword[]; loaded: boolean }>()(() => ({ list: [], loaded: false }));
 
@@ -104,11 +113,12 @@ export async function deleteGenerated(id: string): Promise<boolean> {
   return !!result?.deleted;
 }
 
-export async function saveGenerated(id: string, provider: string, username: string | null): Promise<VaultGeneratedSaveResult> {
+export async function saveGenerated(id: string, provider: string, username: string | null, profile: string | null = null): Promise<VaultGeneratedSaveResult> {
   const entry = generatedPasswordOf(id);
   const typed = username?.trim() || null;
   if (!typed && !entry?.username.trim()) return { saved: false, error: NEEDS_USERNAME };
-  const result = await saveGeneratedPassword(id, provider, typed).catch((): VaultGeneratedSaveResult => ({ saved: false, error: "failed" }));
+  const into = isArdiaProvider(provider) ? (profile ?? "") : null;
+  const result = await saveGeneratedPassword(id, provider, typed, into).catch((): VaultGeneratedSaveResult => ({ saved: false, error: "failed" }));
   if (!result.saved) return result;
   forget(id);
   if (entry && result.item) rememberVaultAccount(entry.origin, result.item);

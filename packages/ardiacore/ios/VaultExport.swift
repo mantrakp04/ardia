@@ -12,7 +12,8 @@ struct VaultExportResult: Sendable {
 extension VaultBroker {
   static let exportColumns = ["name", "url", "username", "password", "otp"]
 
-  func export(_ id: String) async -> VaultExportResult {
+  func export(_ id: String, profile: String? = nil) async -> VaultExportResult {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.export(profile: profile) }
     guard let provider = VaultRegistry.provider(id), isReady(id) else { return VaultExportResult() }
     let allowed = await VaultOwnerCheck.confirm("export your passwords")
     guard allowed else { return VaultExportResult(declined: true) }

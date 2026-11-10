@@ -5,6 +5,7 @@ import { showToast } from "../app/toasts";
 import { useBrowser } from "../browser/store";
 import { patchPage, pageOf } from "../tabs/pageState";
 import { filledUsername, rememberedVaultAccount, rememberVaultAccount } from "./accounts";
+import { ARDIA_PROVIDER, isArdiaProvider, itemsForTab } from "./ardia";
 import { brandOf } from "./brands";
 import { itemKey } from "./menuModel";
 import { isSecureOrigin, loginSavedIn, sameSite, siteLabel } from "./originMatch";
@@ -41,7 +42,9 @@ export const connectedSavers = (providers: readonly VaultProviderState[]) =>
 export function preferredSaveTarget(providers: readonly VaultProviderState[], chosen: string): string {
   const connected = connectedSavers(providers).map((p) => p.id);
   if (connected.includes(chosen)) return chosen;
-  return connected.length === 1 ? connected[0]! : "";
+  const managers = connected.filter((id) => !isArdiaProvider(id));
+  if (managers.length === 1) return managers[0]!;
+  return !managers.length && connected.includes(ARDIA_PROVIDER) ? ARDIA_PROVIDER : "";
 }
 
 export const chooseSaveTarget = (targets: readonly string[], preferred: string) => (targets.includes(preferred) ? preferred : (targets[0] ?? ""));
@@ -147,7 +150,7 @@ export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEve
   if (saving.has(savingKey(event.origin, event.username)) || seenJustNow(tabId, event, Date.now())) return;
   await loadAllVaultItems();
   const settings = useBrowser.getState().settings;
-  const items = allVaultItems();
+  const items = itemsForTab(allVaultItems(), tabId);
   const page = event.username.trim();
   const fresh = event.newPassword === true || event.generated === true;
   const base = { enabled: settings.vaultSaveOffer, origin: event.origin, providers: currentVaultProviders(), items, preferred: settings.vaultSaveTarget };

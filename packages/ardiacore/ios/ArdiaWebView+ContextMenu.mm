@@ -197,6 +197,24 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
   }
   return nil;
 }
+
+NSArray *WithVaultItems(NSArray *items, NSArray *ours) {
+  if (!ours.count) return items;
+  NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithCapacity:items.count];
+  for (id item in items) {
+    NSDictionary *entry = [item isKindOfClass:NSDictionary.class] ? item : nil;
+    [titles addObject:!entry || MenuItemType(entry) == kMenuSeparator ? @"" : MenuTitle(Field<NSString>(entry, @"label") ?: @"")];
+  }
+  const NSUInteger at = ArdiaVaultContextIndex(titles);
+  NSDictionary *separator = @{@"id" : @0, @"label" : @"", @"type" : @(kMenuSeparator)};
+  NSMutableArray *block = [NSMutableArray arrayWithArray:ours];
+  if (at > 0) [block insertObject:separator atIndex:0];
+  NSDictionary *next = at < items.count && [items[at] isKindOfClass:NSDictionary.class] ? items[at] : nil;
+  if (at < items.count && (!next || MenuItemType(next) != kMenuSeparator)) [block addObject:separator];
+  NSMutableArray *shown = [NSMutableArray arrayWithArray:items];
+  [shown insertObjects:block atIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(at, block.count)]];
+  return shown;
+}
 }
 
 @implementation ArdiaWebView (ContextMenu)
@@ -269,8 +287,7 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
   NSArray *items = Field<NSArray>(menu, @"items") ?: @[];
   NSArray<NSMenuItem *> *vault = [self takeVaultContextMenuItems];
   NSArray *ours = [self describeVaultContextItems:vault];
-  NSArray *shown = ours.count ? [[ours arrayByAddingObject:@{@"id" : @0, @"label" : @"", @"type" : @(kMenuSeparator)}] arrayByAddingObjectsFromArray:items]
-                              : items;
+  NSArray *shown = WithVaultItems(items, ours);
   NoteEvent(ardia_host::BrowserId(tab), @"contextMenu", @{@"items" : shown});
   ArdiaLaunchConfig *config = ArdiaLaunchConfig.shared;
   if (![config testFlag:@"contextMenu"]) {
@@ -292,7 +309,7 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
   [JSONText(dump) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
   void (^redump)(NSArray<NSDictionary *> *) = ^(NSArray<NSDictionary *> *described) {
     NSMutableDictionary *again = [dump mutableCopy];
-    again[@"items"] = DescribeMenu([[described arrayByAddingObject:@{@"id" : @0, @"label" : @"", @"type" : @(kMenuSeparator)}] arrayByAddingObjectsFromArray:items]);
+    again[@"items"] = DescribeMenu(WithVaultItems(items, described));
     [JSONText(again) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
   };
   NSString *pick = [NSString stringWithContentsOfFile:pickPath encoding:NSUTF8StringEncoding error:nil];
