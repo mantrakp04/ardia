@@ -8,7 +8,9 @@ from ardia_cli.printable import shown
 
 DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 APPLY_TIMEOUT = 120.0
-COLORS = ("neutral", "none", "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+TINTS = ("grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange")
+COLORS = ("neutral", "none", *TINTS)
+COLOR_HELP = f"{', '.join(TINTS)}; neutral (the default: a box only under the pointer) or none (no box)"
 ICON_HELP = "an emoji from Ardia's icon picker (🚀), symbol:<SF Symbol name> (symbol:star), or none"
 EXIT_STATUS = """\
 Exit status: 0 done, 1 refused, a bad request or a target that isn't there (nothing after the failing operation
@@ -138,7 +140,7 @@ def add_parsers(commands, formatter):
 
     def looks(parser):
         parser.add_argument("--icon", metavar="ICON", help=ICON_HELP)
-        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=", ".join(COLORS))
+        parser.add_argument("--color", choices=COLORS, metavar="COLOR", help=COLOR_HELP)
 
     create = common(gverbs.add_parser("create", help="make a group", description="Make a group from the tabs given, the URLs given (opened in the background), or else one new tab.\nThe tabs move out of the groups they were in, without reloading.", formatter_class=formatter))
     create.add_argument("ids", nargs="*", metavar="TAB", help="tab ids to put in it")
