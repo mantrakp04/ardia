@@ -123,7 +123,7 @@ export function GeneratedPasswordsSection({ query }: { query: string }) {
   if (!shown.length) return null;
   return (
     <>
-      <SectionHeader title="Generated Passwords" description="Passwords Ardia made that aren't saved in a password manager yet." />
+      <SectionHeader title="Generated Passwords" />
       <Group>
         {shown.map((entry) => (
           <GeneratedRow key={entry.id} entry={entry} />
