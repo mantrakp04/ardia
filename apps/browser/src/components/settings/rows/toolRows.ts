@@ -27,13 +27,13 @@ export const toolRows = {
           keywords: ["new live folder", "hidden", "refresh"],
         },
         groupStacks: { advanced: true, title: "Group stacked pull requests", description: "Pull requests based on each other's branches sit together under one row.", keywords: ["stack", "stacked pull requests"] },
-        showCompleted: { advanced: true, title: "Show completed pull requests", description: "Merged, closed and reviewed pull requests stay listed for a day under Completed.", keywords: ["completed", "merged", "closed"] },
+        showCompleted: { advanced: true, title: "Show completed pull requests and issues", description: "Merged, closed and reviewed pull requests and closed issues stay listed for a day under Completed.", keywords: ["completed", "merged", "closed", "issues", "not planned"] },
       },
     },
     {
       section: "Pull Requests",
       rows: {
-        github: { title: "GitHub", description: "Your open pull requests and the ones waiting for your review, with checks and conflicts.", keywords: ["pull requests", "connect"] },
+        github: { title: "GitHub", description: "Your open pull requests and the ones waiting for your review, with checks and conflicts, and the issues assigned to you, created by you or mentioning you.", keywords: ["pull requests", "issues", "connect"] },
         bitbucket: { title: "Bitbucket", description: "Your open pull requests on Bitbucket Cloud, with build status.", keywords: ["pull requests", "connect"] },
       },
     },

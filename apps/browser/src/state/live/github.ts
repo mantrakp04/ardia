@@ -1,4 +1,4 @@
-import { LiveError, type CheckState, type LiveItem, type PullRequestCheck, type PullRequestInfo, type PullRequestSection } from "./types";
+import { LiveError, SECTION_FILTER, type CheckState, type IssueInfo, type IssueSection, type LiveFilters, type LiveItem, type PullRequestCheck, type PullRequestInfo, type PullRequestSection } from "./types";
 
 const PR_FIELDS = `
   ... on PullRequest {
@@ -36,7 +36,7 @@ export const GITHUB_VARIABLES = {
 };
 
 export const GITHUB_STATE_QUERY = `query LiveFolderGone($ids: [ID!]!) {
-  nodes(ids: $ids) { ... on PullRequest { id state } }
+  nodes(ids: $ids) { ... on PullRequest { id state } ... on Issue { id issueState: state stateReason } }
 }`;
 
 export const VIEWER_QUERY = `query { viewer { login name avatarUrl(size: 64) } }`;
@@ -143,16 +143,16 @@ export function detailIds(json: GithubResponse, filters: { authored: boolean; re
 }
 
 type GraphqlError = { type?: string; message: string; path?: (string | number)[] };
-export type DetailsResponse = { data?: { nodes?: (RawPR | null)[] } | null; errors?: GraphqlError[] };
+export type DetailsResponse<T = RawPR> = { data?: { nodes?: (T | null)[] } | null; errors?: GraphqlError[] };
 
-export function detailNodes(ids: string[], res: DetailsResponse): RawPR[] {
+export function detailNodes<T = RawPR>(ids: string[], res: DetailsResponse<T>): T[] {
   const errors = res.errors ?? [];
   const limited = errors.find((e) => e.type === "RATE_LIMITED");
   if (limited) throw new LiveError("rateLimited", limited.message);
   const nodes = res.data?.nodes;
   const fail = (error?: GraphqlError) => new LiveError("other", (error ?? errors[0])?.message ?? "Missing pull request details");
   if (!nodes || nodes.length !== ids.length) throw fail();
-  return nodes.filter((node, i): node is RawPR => {
+  return nodes.filter((node, i): node is T => {
     if (node) return true;
     const error = errors.find((e) => e.path?.[0] === "nodes" && e.path[1] === i);
     if (error?.type === "NOT_FOUND" || error?.type === "FORBIDDEN") return false;
@@ -245,4 +245,103 @@ export function prBadge(pr: PullRequestInfo): "conflict" | "failing" | "changesR
   if (pr.review === "approved") return "approved";
   if (summary?.tone === "success") return "passed";
   return null;
+}
+
+const ISSUE_FIELDS = `
+  ... on Issue {
+    id number title url state stateReason createdAt updatedAt
+    repository { nameWithOwner }
+    labels(first: 10) { nodes { name color } }
+    assignees(first: 10) { nodes { login avatarUrl(size: 64) } }
+    comments { totalCount }
+  }`;
+
+export const GITHUB_ISSUES_QUERY = `query LiveFolderIssues($assigned: String!, $created: String!, $mentioned: String!) {
+  assigned: search(query: $assigned, type: ISSUE, first: 50) { nodes { ... on Issue { id } } }
+  created: search(query: $created, type: ISSUE, first: 50) { nodes { ... on Issue { id } } }
+  mentioned: search(query: $mentioned, type: ISSUE, first: 50) { nodes { ... on Issue { id } } }
+}`;
+
+export const GITHUB_ISSUE_DETAILS_QUERY = `query LiveFolderIssueDetails($ids: [ID!]!) { nodes(ids: $ids) { ${ISSUE_FIELDS} } }`;
+
+export const GITHUB_ISSUE_VARIABLES: Record<IssueSection, string> = {
+  assigned: "is:issue is:open assignee:@me archived:false sort:updated-desc",
+  created: "is:issue is:open author:@me archived:false sort:updated-desc",
+  mentioned: "is:issue is:open mentions:@me archived:false sort:updated-desc",
+};
+
+export type RawIssue = {
+  id: string;
+  number: number;
+  title: string;
+  url: string;
+  state: "OPEN" | "CLOSED";
+  stateReason: "COMPLETED" | "NOT_PLANNED" | "REOPENED" | "DUPLICATE" | null;
+  createdAt: string;
+  updatedAt: string;
+  repository: { nameWithOwner: string };
+  labels: { nodes: IssueInfo["labels"] };
+  assignees: { nodes: { login: string; avatarUrl: string | null }[] };
+  comments: { totalCount: number };
+};
+
+export type IssuesResponse = {
+  data?: Record<IssueSection, { nodes: ({ id: string } | Record<string, never>)[] }>;
+  errors?: { type?: string; message: string }[];
+};
+
+const ISSUE_SECTIONS: IssueSection[] = ["assigned", "created", "mentioned"];
+
+const listedIssueSections = (filters: LiveFilters) => ISSUE_SECTIONS.filter((section) => filters[SECTION_FILTER[section]]);
+
+const nodeIds = (nodes: ({ id: string } | Record<string, never>)[]) => nodes.flatMap((n) => ("id" in n && n.id ? [n.id] : []));
+
+export function issueDetailIds(json: IssuesResponse, filters: LiveFilters): string[] {
+  const data = json.data;
+  if (!data) return [];
+  return [...new Set(listedIssueSections(filters).flatMap((section) => nodeIds(data[section].nodes)))];
+}
+
+export function issueCompletion(state: string, stateReason: string | null | undefined): "completed" | "notPlanned" | null {
+  if (state !== "CLOSED") return null;
+  return stateReason === "NOT_PLANNED" || stateReason === "DUPLICATE" ? "notPlanned" : "completed";
+}
+
+function mapIssue(raw: RawIssue, section: IssueSection): LiveItem {
+  const repo = raw.repository.nameWithOwner;
+  return {
+    id: `github:${raw.id}`,
+    source: "github",
+    url: raw.url,
+    title: raw.title,
+    subtitle: `${repo} #${raw.number}`,
+    icon: null,
+    updatedAt: Date.parse(raw.updatedAt) || 0,
+    section,
+    issue: {
+      number: raw.number,
+      repo,
+      labels: raw.labels.nodes,
+      assignees: raw.assignees.nodes.map((a) => ({ login: a.login, avatar: a.avatarUrl ?? null })),
+      comments: raw.comments.totalCount,
+      createdAt: Date.parse(raw.createdAt) || 0,
+    },
+  };
+}
+
+export function mapIssues(json: IssuesResponse, details: RawIssue[], filters: LiveFilters): LiveItem[] {
+  const data = json.data;
+  if (!data) return [];
+  const open = new Map(details.filter((d) => d.state === "OPEN").map((d) => [d.id, d]));
+  const seen = new Set<string>();
+  const out: LiveItem[] = [];
+  for (const section of listedIssueSections(filters)) {
+    for (const id of nodeIds(data[section].nodes)) {
+      const raw = open.get(id);
+      if (!raw || seen.has(id)) continue;
+      seen.add(id);
+      out.push(mapIssue(raw, section));
+    }
+  }
+  return out;
 }

@@ -4,7 +4,7 @@ import { errorText, manualRefresh, statusText } from "../../state/live/engine";
 import { folderRows, type FolderRow } from "../../state/live/rows";
 import { liveFolderIcon } from "../../state/live/sources";
 import { updateFolder, useLive } from "../../state/live/store";
-import type { LiveItem } from "../../state/live/types";
+import type { LiveFolderKind, LiveItem } from "../../state/live/types";
 import { usePageProfileId, useTab } from "../../state/browser/hooks";
 import { useLiveActiveTab, useLiveStrays } from "../../state/sidebar/hooks";
 import { openSettings } from "../../state/settings/settingsWindows";
@@ -97,8 +97,10 @@ function FolderNote({ folderId }: { folderId: string }) {
   if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return <NoteRow text="Loading…" spinner />;
   if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
   if (hidden) return <NoteRow text={`${hidden} hidden until you refresh`} onPress={() => void manualRefresh(folderId)} />;
-  return <NoteRow text={kind === "pullRequests" ? "No open pull requests" : "No recent documents"} />;
+  return <NoteRow text={EMPTY_TEXT[kind ?? "documents"]} />;
 }
+
+const EMPTY_TEXT: Record<LiveFolderKind, string> = { pullRequests: "No open pull requests", issues: "No open issues", documents: "No recent documents" };
 
 function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; windowId: string; collapsed: boolean }) {
   const theme = useTheme();

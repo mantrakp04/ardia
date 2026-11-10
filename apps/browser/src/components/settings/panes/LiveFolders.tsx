@@ -24,12 +24,13 @@ export function LiveFoldersPane() {
   useLive((s) => s.status);
   useLive((s) => s.hidden);
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
+  const firstCompletable = folders.find((f) => f.kind !== "documents")?.id;
   return (
     <View>
       <SectionHeader anchor="liveFolders.folders" />
       <Box gap="xl">
         {folders.map((f) => (
-          <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
+          <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={{ stacks: f.id === firstPullRequests, completed: f.id === firstCompletable }} />
         ))}
       </Box>
 
@@ -54,7 +55,7 @@ export function LiveFoldersPane() {
   );
 }
 
-function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; profileName: string; searchable: boolean }) {
+function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; profileName: string; searchable: { stacks: boolean; completed: boolean } }) {
   return (
     <Group>
       <Row title={folder.name} description={`${profileName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
@@ -63,12 +64,12 @@ function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; 
           <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(folder.id)} />
         </Box>
       </Row>
-      {folder.kind === "pullRequests"
-        ? [
-            <FolderOption key="stacks" id="liveFolders.groupStacks" searchable={searchable} value={folder.groupStacks} onChange={(v) => updateFolder(folder.id, { groupStacks: v })} />,
-            <FolderOption key="completed" id="liveFolders.showCompleted" searchable={searchable} value={folder.showCompleted} onChange={(v) => updateFolder(folder.id, { showCompleted: v })} />,
-          ]
-        : null}
+      {folder.kind === "pullRequests" ? (
+        <FolderOption id="liveFolders.groupStacks" searchable={searchable.stacks} value={folder.groupStacks} onChange={(v) => updateFolder(folder.id, { groupStacks: v })} />
+      ) : null}
+      {folder.kind !== "documents" ? (
+        <FolderOption id="liveFolders.showCompleted" searchable={searchable.completed} value={folder.showCompleted} onChange={(v) => updateFolder(folder.id, { showCompleted: v })} />
+      ) : null}
     </Group>
   );
 }

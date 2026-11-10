@@ -58,6 +58,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
       "How many closed tabs and windows you reopened came back with their Back history, summed up once an hour",
       "How many tabs stayed listed under a collapsed tab group after you opened or switched to them, and how many clicks on a collapsed group's name hid them again, summed up once an hour. Never which tabs or groups",
+      "How many GitHub Issues live folders you created, how many issue rows you opened, and how many refreshes of an Issues folder failed, summed up once an hour. Never which issues, repositories or accounts",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",

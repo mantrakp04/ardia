@@ -4,19 +4,20 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, viewTabIds } from "../browser/model";
 import { awayFromPin } from "../pins/organize";
 import { pinnedGroupMembers } from "../browser/structure";
+import { noteLiveIssueFetchFailed, noteLiveIssueFolderCreated, noteLiveIssueOpened } from "../telemetry/usage";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
-import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
+import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, SOURCE_GROUPS, unhide, useLive } from "./store";
+import { LiveError, SECTION_FILTER, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSection, type LiveSourceId } from "./types";
 
-const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
+const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, issues: 3 * 60_000, documents: 10 * 60_000 };
 const STALE_ON_FOCUS_MS = 60_000;
 export const COMPLETION_MS = 2600;
 
 const inflight = new Map<string, Promise<void>>();
 const fetchedSources = new Map<string, Set<LiveSourceId>>();
 
-const SECTION_ORDER: Record<PullRequestSection, number> = { authored: 0, review: 1, team: 2 };
+const SECTION_ORDER: Record<LiveSection, number> = { authored: 0, review: 1, team: 2, assigned: 0, created: 1, mentioned: 2 };
 
 function order(items: LiveItem[]): LiveItem[] {
   return [...items].sort(
@@ -52,8 +53,10 @@ async function run(folderId: string) {
     else failed.push({ source, error: r.reason });
   });
   if (!live().folders[folderId]) return;
+  let failureCounted = folder.kind === "issues" && failed.length > 0;
+  if (failureCounted) noteLiveIssueFetchFailed();
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
-  const listedByFilters = (it: LiveItem) => (it.section === "review" || it.section === "team" ? folder.filters.reviewRequests : folder.filters.authored);
+  const listedByFilters = (it: LiveItem) => folder.filters[SECTION_FILTER[it.section ?? "authored"]];
   const repoShown = (it: LiveItem) => {
     const repo = repoKey(it);
     return !repo || !live().folders[folderId]?.hiddenRepos.includes(repo);
@@ -68,7 +71,16 @@ async function run(folderId: string) {
   for (const source of new Set(missing.map((it) => it.source))) {
     const resolve = SOURCES[source].resolveGone;
     if (!resolve) continue;
-    Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
+    Object.assign(
+      gone,
+      await resolve(missing.filter((it) => it.source === source)).catch(() => {
+        if (folder.kind === "issues" && !failureCounted) {
+          failureCounted = true;
+          noteLiveIssueFetchFailed();
+        }
+        return {};
+      }),
+    );
   }
 
   const current = live();
@@ -133,15 +145,13 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
 export function newLiveFolder(windowId: string, kind: LiveFolderKind): string | null {
   const w = useBrowser.getState().windows[windowId];
   if (!w || w.kind === "private") return null;
+  if (kind === "issues") noteLiveIssueFolderCreated();
   return newProfileLiveFolder(w.profileId, kind);
 }
 
 export function newProfileLiveFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
   const s = live();
-  const connected: LiveSourceId[] =
-    kind === "pullRequests"
-      ? (["github", "bitbucket"] as const).filter((id) => s.accounts[id])
-      : (["notion", "confluence", "gdrive"] as const).filter((id) => s.accounts[id]);
+  const connected = SOURCE_GROUPS[kind].filter((id) => s.accounts[id]);
   const id = createFolder(profileId, kind, sources ?? (connected.length ? connected : undefined));
   void refreshFolder(id);
   return id;
@@ -149,6 +159,7 @@ export function newProfileLiveFolder(profileId: string, kind: LiveFolderKind, so
 
 export function openLiveItem(windowId: string, folderId: string, item: LiveItem, options: { background?: boolean } = {}) {
   const s = useBrowser.getState();
+  if (item.issue) noteLiveIssueOpened();
   markRead(folderId, [item.id]);
   const existing = viewTabIds(s, windowId).find((id) => s.tabs[id]?.liveItem?.itemId === item.id && s.tabs[id]?.liveItem?.folderId === folderId);
   const home = folderItem(folderId, item.id)?.url ?? null;

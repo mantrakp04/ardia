@@ -7,7 +7,10 @@ const load = (name) => JSON.parse(readFileSync(new URL(name, dir), "utf8"));
 
 let github;
 let prs;
+let issuesDoc;
+let issues;
 let state;
+let reasons;
 let approved;
 let detailsError;
 let bitbucketState;
@@ -15,7 +18,10 @@ const log = [];
 function reset() {
   github = load("github.json");
   prs = new Map([...github.data.authored.nodes, ...github.data.review.nodes].map((n) => [n.id, n]));
+  issuesDoc = load("github-issues.json");
+  issues = new Map(Object.values(issuesDoc.data).flatMap((s) => s.nodes).map((n) => [n.id, n]));
   state = {};
+  reasons = {};
   approved = false;
   detailsError = null;
   bitbucketState = "OPEN";
@@ -49,6 +55,13 @@ createServer(async (req, res) => {
     const id = url.searchParams.get("id");
     drop(id);
     state[id] = p === "/mock/merge" ? "MERGED" : "CLOSED";
+    return send(res, 200, { ok: true });
+  }
+  if (p === "/mock/close-issue") {
+    const id = url.searchParams.get("id");
+    for (const section of Object.values(issuesDoc.data)) section.nodes = section.nodes.filter((n) => n.id !== id);
+    state[id] = "CLOSED";
+    reasons[id] = url.searchParams.get("reason") ?? "COMPLETED";
     return send(res, 200, { ok: true });
   }
   if (p === "/mock/bitbucket-merge") return (bitbucketState = "MERGED"), send(res, 200, { ok: true });
@@ -95,7 +108,9 @@ createServer(async (req, res) => {
       const error = { type: field ? "FORBIDDEN" : detailsError.type, path, message: `Mock ${detailsError.type} for ${detailsError.id}` };
       return send(res, 200, { data: { nodes: details }, errors: [error] });
     }
-    if (query.includes("LiveFolderGone")) return send(res, 200, { data: { nodes: variables.ids.map((id) => ({ id, state: state[id] ?? "OPEN" })) } });
+    if (query.includes("LiveFolderIssueDetails")) return send(res, 200, { data: { nodes: variables.ids.map((id) => (issues.has(id) ? { ...issues.get(id), state: state[id] ?? "OPEN", stateReason: reasons[id] ?? null } : null)) } });
+    if (query.includes("LiveFolderIssues")) return send(res, 200, issuesDoc);
+    if (query.includes("LiveFolderGone")) return send(res, 200, { data: { nodes: variables.ids.map((id) => (issues.has(id) ? { id, issueState: state[id] ?? "OPEN", stateReason: reasons[id] ?? null } : { id, state: state[id] ?? "OPEN" })) } });
     if (!query.includes("search(")) return send(res, 200, { data: { viewer: github.data.viewer } });
     return send(res, 200, github);
   }

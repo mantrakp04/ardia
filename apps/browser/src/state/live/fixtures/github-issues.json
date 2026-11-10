@@ -1,0 +1,245 @@
+{
+ "data": {
+  "assigned": {
+   "nodes": [
+    {
+     "id": "I_201",
+     "number": 201,
+     "title": "Sidebar flickers when a live folder refreshes",
+     "url": "https://github.com/acme/browser/issues/201",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-18T08:00:00Z",
+     "updatedAt": "2026-09-25T10:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/browser"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "bug",
+        "color": "d73a4a"
+       },
+       {
+        "name": "sidebar",
+        "color": "0e8a16"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": [
+       {
+        "login": "octo-dev",
+        "avatarUrl": "https://avatars.githubusercontent.com/octo-dev"
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 4
+     }
+    },
+    {
+     "id": "I_202",
+     "number": 202,
+     "title": "Support issue live folders",
+     "url": "https://github.com/acme/browser/issues/202",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-10T08:00:00Z",
+     "updatedAt": "2026-09-24T12:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/browser"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "enhancement",
+        "color": "a2eeef"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": [
+       {
+        "login": "octo-dev",
+        "avatarUrl": "https://avatars.githubusercontent.com/octo-dev"
+       },
+       {
+        "login": "mona",
+        "avatarUrl": "https://avatars.githubusercontent.com/mona"
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 12
+     }
+    }
+   ]
+  },
+  "created": {
+   "nodes": [
+    {
+     "id": "I_202",
+     "number": 202,
+     "title": "Support issue live folders",
+     "url": "https://github.com/acme/browser/issues/202",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-10T08:00:00Z",
+     "updatedAt": "2026-09-24T12:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/browser"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "enhancement",
+        "color": "a2eeef"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": [
+       {
+        "login": "octo-dev",
+        "avatarUrl": "https://avatars.githubusercontent.com/octo-dev"
+       },
+       {
+        "login": "mona",
+        "avatarUrl": "https://avatars.githubusercontent.com/mona"
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 12
+     }
+    },
+    {
+     "id": "I_203",
+     "number": 203,
+     "title": "Landing page hero image is blurry on retina",
+     "url": "https://github.com/acme/site/issues/203",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-21T09:30:00Z",
+     "updatedAt": "2026-09-23T16:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/site"
+     },
+     "labels": {
+      "nodes": []
+     },
+     "assignees": {
+      "nodes": []
+     },
+     "comments": {
+      "totalCount": 1
+     }
+    },
+    {
+     "id": "I_204",
+     "number": 204,
+     "title": "Dotfiles: zsh startup is slow",
+     "url": "https://github.com/octo-dev/dotfiles/issues/204",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-22T07:00:00Z",
+     "updatedAt": "2026-09-22T07:00:00Z",
+     "repository": {
+      "nameWithOwner": "octo-dev/dotfiles"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "perf",
+        "color": "fbca04"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": []
+     },
+     "comments": {
+      "totalCount": 0
+     }
+    }
+   ]
+  },
+  "mentioned": {
+   "nodes": [
+    {
+     "id": "I_205",
+     "number": 205,
+     "title": "Crash when importing bookmarks from Safari",
+     "url": "https://github.com/acme/browser/issues/205",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-15T11:00:00Z",
+     "updatedAt": "2026-09-25T08:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/browser"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "bug",
+        "color": "d73a4a"
+       },
+       {
+        "name": "import",
+        "color": "c5def5"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": [
+       {
+        "login": "hubot",
+        "avatarUrl": "https://avatars.githubusercontent.com/hubot"
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 7
+     }
+    },
+    {
+     "id": "I_201",
+     "number": 201,
+     "title": "Sidebar flickers when a live folder refreshes",
+     "url": "https://github.com/acme/browser/issues/201",
+     "state": "OPEN",
+     "stateReason": null,
+     "createdAt": "2026-09-18T08:00:00Z",
+     "updatedAt": "2026-09-25T10:00:00Z",
+     "repository": {
+      "nameWithOwner": "acme/browser"
+     },
+     "labels": {
+      "nodes": [
+       {
+        "name": "bug",
+        "color": "d73a4a"
+       },
+       {
+        "name": "sidebar",
+        "color": "0e8a16"
+       }
+      ]
+     },
+     "assignees": {
+      "nodes": [
+       {
+        "login": "octo-dev",
+        "avatarUrl": "https://avatars.githubusercontent.com/octo-dev"
+       }
+      ]
+     },
+     "comments": {
+      "totalCount": 4
+     }
+    }
+   ]
+  }
+ }
+}

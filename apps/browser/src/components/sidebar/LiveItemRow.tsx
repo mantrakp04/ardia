@@ -123,10 +123,12 @@ function PositionChip({ position }: { position: number }) {
   );
 }
 
-export const COMPLETION_GLYPH: Record<CompletedItem["state"], { symbol: string; color: keyof LiveColors }> = {
-  merged: { symbol: "checkmark.circle.fill", color: "merged" },
-  reviewed: { symbol: "checkmark.circle.fill", color: "success" },
-  closed: { symbol: "xmark.circle.fill", color: "draft" },
+export const COMPLETION_GLYPH: Record<CompletedItem["state"], { symbol: string; color: keyof LiveColors; label: string }> = {
+  merged: { symbol: "checkmark.circle.fill", color: "merged", label: "Merged" },
+  reviewed: { symbol: "checkmark.circle.fill", color: "success", label: "Reviewed" },
+  closed: { symbol: "xmark.circle.fill", color: "draft", label: "Closed" },
+  completed: { symbol: "checkmark.circle.fill", color: "merged", label: "Completed" },
+  notPlanned: { symbol: "nosign", color: "draft", label: "Not Planned" },
 };
 
 function ItemIcon({ item, completion, colors }: { item: LiveItem; completion: CompletedItem["state"] | null; colors: LiveColors }) {
@@ -147,6 +149,7 @@ function ItemIcon({ item, completion, colors }: { item: LiveItem; completion: Co
   if (item.pr) {
     return <Symbol name="arrow.triangle.pull" size={12} weight="semibold" color={item.pr.draft ? colors.draft : colors.success} style={{ width: 16, height: 16 }} />;
   }
+  if (item.issue) return <Symbol name="record.circle" size={13} weight="semibold" color={colors.success} style={{ width: 16, height: 16 }} />;
   if (item.icon && /^https?:/.test(item.icon)) return <TabIcon url={item.url} favicon={item.icon} direct />;
   return <TabIcon url={item.source === "confluence" && !item.icon ? SOURCES.confluence.site : item.url} icon={item.icon} />;
 }
@@ -161,13 +164,21 @@ const BADGES: Record<NonNullable<ReturnType<typeof prBadge>>, { symbol: string |
 };
 
 const COMPLETION_LABEL = { marginRight: space.xs } as const;
+const ISSUE_REF = { maxWidth: 92, marginRight: space.xs } as const;
 
 function Trailing({ item, completion, colors }: { item: LiveItem; completion: CompletedItem["state"] | null; colors: LiveColors }): ReactNode {
   const theme = useTheme();
   if (completion) {
     return (
       <Text size="caption" weight="medium" color={colors[COMPLETION_GLYPH[completion].color]} style={COMPLETION_LABEL}>
-        {completion === "merged" ? "Merged" : completion === "reviewed" ? "Reviewed" : "Closed"}
+        {COMPLETION_GLYPH[completion].label}
+      </Text>
+    );
+  }
+  if (item.issue) {
+    return (
+      <Text size="caption" tone="textSecondary" lines={1} style={ISSUE_REF}>
+        {item.issue.repo.split("/").pop()}#{item.issue.number}
       </Text>
     );
   }
