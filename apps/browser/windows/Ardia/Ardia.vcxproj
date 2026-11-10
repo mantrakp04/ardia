@@ -127,6 +127,7 @@
     <ClInclude Include="Host.h" />
     <ClInclude Include="Modules.h" />
     <ClInclude Include="Paths.h" />
+    <ClInclude Include="WindowDragRegions.h" />
     <ClInclude Include="WindowManager.h" />
     <ClInclude Include="WindowsModule.h" />
     <ClInclude Include="AutolinkedNativeModules.g.h" />

@@ -41,6 +41,14 @@ public static class ArdiaInput {
   [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
+  [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool GetSystemFlag(uint action, uint unused, ref int value, uint flags);
+  [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW")] public static extern bool SetSystemFlag(uint action, uint value, IntPtr pointerValue, uint flags);
+  [DllImport("user32.dll", EntryPoint = "SendMessageW")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 }
 "@
 [ArdiaInput]::SetProcessDPIAware() | Out-Null
@@ -54,6 +62,45 @@ function Get-WindowRect([System.Diagnostics.Process]$Process) {
   return $rect
 }
 
+function Get-ClientArea([System.Diagnostics.Process]$Process) {
+  $Process.Refresh()
+  $handle = $Process.MainWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { return $null }
+  $origin = New-Object ArdiaInput+Point
+  $size = New-Object ArdiaInput+Rect
+  if (-not [ArdiaInput]::ClientToScreen($handle, [ref]$origin)) { return $null }
+  if (-not [ArdiaInput]::GetClientRect($handle, [ref]$size)) { return $null }
+  $dpi = [ArdiaInput]::GetDpiForWindow($handle)
+  return [pscustomobject]@{ X = $origin.X; Y = $origin.Y; Width = $size.Right; Height = $size.Bottom; Scale = $(if ($dpi) { $dpi / 96.0 } else { 1.0 }) }
+}
+
+function Enable-WindowSnapping {
+  $flags = @(@{ Name = "window arranging"; Read = 0x0082; Write = 0x0083 }, @{ Name = "docking at screen edges"; Read = 0x0090; Write = 0x0091 }, @{ Name = "dragging off a maximized window"; Read = 0x008C; Write = 0x008D })
+  foreach ($flag in $flags) {
+    $value = 0
+    if (-not [ArdiaInput]::GetSystemFlag($flag.Read, 0, [ref]$value, 0)) { Write-Host "Input: could not read whether $($flag.Name) is on."; continue }
+    if ($value) { continue }
+    $set = [ArdiaInput]::SetSystemFlag($flag.Write, 1, [IntPtr]1, 3)
+    Write-Host "Input: $($flag.Name) was off on this runner; turned on: $set."
+  }
+}
+
+function Count-LogLines([string]$Log, [string]$Pattern) {
+  if (-not (Test-Path $Log)) { return 0 }
+  return @(Select-String -Path $Log -Pattern $Pattern).Count
+}
+
+function Get-HitTest([IntPtr]$Handle, [int]$X, [int]$Y) {
+  $point = [IntPtr](($Y -shl 16) -bor ($X -band 0xFFFF))
+  return [ArdiaInput]::SendMessage($Handle, 0x0084, [IntPtr]::Zero, $point).ToInt64()
+}
+
+function Send-Press {
+  [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 30
+  [ArdiaInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+}
+
 function Send-Click([int]$X, [int]$Y) {
   [ArdiaInput]::SetCursorPos($X, $Y) | Out-Null
   Start-Sleep -Milliseconds 80
@@ -63,9 +110,9 @@ function Send-Click([int]$X, [int]$Y) {
   Start-Sleep -Milliseconds 250
 }
 
-function Send-Drag([int]$X, [int]$Y, [int]$ByX, [int]$ByY) {
+function Send-Drag([int]$X, [int]$Y, [int]$ByX, [int]$ByY, [int]$Hold = 150) {
   [ArdiaInput]::SetCursorPos($X, $Y) | Out-Null
-  Start-Sleep -Milliseconds 120
+  Start-Sleep -Milliseconds 250
   [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
   Start-Sleep -Milliseconds 120
   $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
@@ -75,7 +122,7 @@ function Send-Drag([int]$X, [int]$Y, [int]$ByX, [int]$ByY) {
     [ArdiaInput]::mouse_event(0x8001, [uint32]($toX * 65535 / ($screen.Width - 1)), [uint32]($toY * 65535 / ($screen.Height - 1)), 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 40
   }
-  Start-Sleep -Milliseconds 150
+  Start-Sleep -Milliseconds $Hold
   [ArdiaInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
   Start-Sleep -Milliseconds 400
 }
@@ -99,6 +146,122 @@ function Send-Text([string]$Text) {
   Start-Sleep -Milliseconds 300
 }
 
+function Test-Snap([System.Diagnostics.Process]$Process, [string]$Log) {
+  $notes = @()
+  $handle = $Process.MainWindowHandle
+  $restored = Get-WindowRect $Process
+  $client = Get-ClientArea $Process
+  if (-not $restored -or -not $client) { return @("input: the window could not be measured before the snap") }
+  $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+  $systemMoves = Count-LogLines $Log "^window \d+ system move began"
+
+  $fromX = $client.X + [int]($client.Width * 0.6)
+  $fromY = $client.Y + [int](16 * $client.Scale)
+  Send-Drag $fromX $fromY ([int]($screen.Width * 0.15) - $fromX) (0 - $fromY) 600
+  Start-Sleep -Milliseconds 700
+  Save-Screenshot (Join-Path $Out "browser-maximized.png")
+  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: dragging the title band to the top edge of the screen maximized the window." }
+  else { $notes += "input: dragging the title band to the top edge of the screen did not maximize the window" }
+
+  $client = Get-ClientArea $Process
+  if (-not $client) { return $notes + "input: the window was gone after the snap" }
+  Send-Drag ($client.X + [int]($client.Width * 0.6)) ($client.Y + [int](16 * $client.Scale)) 0 160 300
+  Start-Sleep -Milliseconds 700
+  $after = Get-WindowRect $Process
+  if ([ArdiaInput]::IsZoomed($handle)) { $notes += "input: dragging the maximized window's title band down did not restore it" }
+  elseif ($after) {
+    $width = $after.Right - $after.Left
+    $height = $after.Bottom - $after.Top
+    $wasWidth = $restored.Right - $restored.Left
+    $wasHeight = $restored.Bottom - $restored.Top
+    if ([Math]::Abs($width - $wasWidth) -le 24 -and [Math]::Abs($height - $wasHeight) -le 24) { Write-Host "Input: dragging the maximized window down restored it to $width by $height." }
+    else { $notes += "input: dragging the maximized window down restored it to $width by $height, not $wasWidth by $wasHeight" }
+  }
+
+  $systemMoved = (Count-LogLines $Log "^window \d+ system move began") - $systemMoves
+  $appMoved = Count-LogLines $Log "^window \d+ drag began on"
+  Write-Host "Input: Windows moved the window $systemMoved times; the app moved it itself $appMoved times in this launch."
+  if ($systemMoved -lt 2) { $notes += "input: the snap drags were not system moves ($systemMoved of 2), so the title band was not a caption region under the pointer" }
+  return $notes
+}
+
+function Get-LastLogLine([string]$Log, [string]$Pattern) {
+  if (-not (Test-Path $Log)) { return "" }
+  $found = Select-String -Path $Log -Pattern $Pattern | Select-Object -Last 1
+  if ($found) { return $found.Line } else { return "" }
+}
+
+function Test-DoubleClick([System.Diagnostics.Process]$Process, [string]$Log) {
+  $notes = @()
+  $handle = $Process.MainWindowHandle
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("input: the window could not be measured before the double clicks") }
+  [ArdiaInput]::SetCursorPos($client.X + [int]($client.Width * 0.6), $client.Y + [int](16 * $client.Scale)) | Out-Null
+  Start-Sleep -Milliseconds 5
+  Send-Press
+  Start-Sleep -Milliseconds 90
+  Send-Press
+  Start-Sleep -Milliseconds 900
+  $path = Get-LastLogLine $Log "^window \d+ double click on a drag area"
+  if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a quick double click on the title band right after moving there maximized the window ($path)." }
+  else { $notes += "input: a quick double click on the title band right after moving there did not maximize the window (last double click logged: '$path')" }
+
+  $client = Get-ClientArea $Process
+  if (-not $client) { return $notes + "input: the window was gone after the first double click" }
+  [ArdiaInput]::SetCursorPos($client.X + [int]($client.Width * 0.6), $client.Y + [int](16 * $client.Scale)) | Out-Null
+  Start-Sleep -Milliseconds 300
+  Send-Press
+  Start-Sleep -Milliseconds 90
+  Send-Press
+  Start-Sleep -Milliseconds 900
+  $path = Get-LastLogLine $Log "^window \d+ double click on a drag area"
+  if (-not [ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: a double click on the title band after hovering restored the window ($path)." }
+  else { $notes += "input: a double click on the title band after hovering did not restore the maximized window (last double click logged: '$path')" }
+  return $notes
+}
+
+function Test-CaptionEdge([System.Diagnostics.Process]$Process, [string]$Log) {
+  $handle = $Process.MainWindowHandle
+  $client = Get-ClientArea $Process
+  if (-not $client) { return @("input: the window could not be measured before the sidebar button click") }
+  $x = $client.X + [int](211 * $client.Scale)
+  $seen = @{}
+  $edge = $null
+  $lastCaption = $null
+  foreach ($row in [int](20 * $client.Scale)..[int](53 * $client.Scale)) {
+    $y = $client.Y + $row
+    [ArdiaInput]::SetCursorPos($x, $y) | Out-Null
+    Start-Sleep -Milliseconds 120
+    $hit = Get-HitTest $handle $x $y
+    if ($hit -ne 2) {
+      Start-Sleep -Milliseconds 200
+      $hit = Get-HitTest $handle $x $y
+    }
+    $seen["$hit"] = 1 + [int]$seen["$hit"]
+    if ($hit -eq 2) { $lastCaption = $y; continue }
+    if ($null -ne $lastCaption -and $lastCaption -eq $y - 1) { $edge = $y }
+  }
+  $hits = ($seen.GetEnumerator() | ForEach-Object { "$($_.Key) x$($_.Value)" }) -join ", "
+  if ($null -eq $edge) { return @("input: hovering down the toolbar toward the sidebar button found no caption pixel next to it (hit tests: $hits)") }
+  Write-Host "Input: the sidebar button's top edge is at client row $($edge - $client.Y); the pixel above it is a caption while hovered."
+
+  $notes = @()
+  [ArdiaInput]::SetCursorPos($x, $edge - 1) | Out-Null
+  Start-Sleep -Milliseconds 250
+  $armed = Get-HitTest $handle $x ($edge - 1)
+  if ($armed -ne 2) { $notes += "input: the pixel above the sidebar button was not a caption after hovering it (hit test $armed)" }
+  $watches = Count-LogLines $Log "^window \d+ sidebar edge watch on"
+  [ArdiaInput]::SetCursorPos($x, $edge) | Out-Null
+  $onEdge = Get-HitTest $handle $x $edge
+  Send-Press
+  if ($onEdge -eq 2) { $notes += "input: the caption armed above the sidebar button also covered the button's edge pixel" }
+  Start-Sleep -Milliseconds 1500
+  Save-Screenshot (Join-Path $Out "browser-sidebar-hidden.png")
+  if ((Count-LogLines $Log "^window \d+ sidebar edge watch on") -gt $watches) { Write-Host "Input: a click on the sidebar button's edge pixel, coming from an armed caption, hid the sidebar." }
+  else { $notes += "input: a click on the sidebar button's edge pixel, coming from an armed caption above it, did not reach the button" }
+  return $notes
+}
+
 function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   $notes = @()
   $before = Get-WindowRect $Process
@@ -120,6 +283,16 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
     return $notes
   }
 
+  Enable-WindowSnapping
+  $snapNotes = @(Test-Snap $Process $Log)
+  $notes += $snapNotes
+  $doubleNotes = @(Test-DoubleClick $Process $Log)
+  $notes += $doubleNotes
+  $after = Get-WindowRect $Process
+  if (-not $after) { return $notes + "input: the window was gone after the snap drags" }
+  $width = $after.Right - $after.Left
+  $height = $after.Bottom - $after.Top
+
   Send-Click ($after.Left + [int]($width * 0.55)) ($after.Top + [int]($height * 0.42))
   Start-Sleep -Milliseconds 900
   Send-Text "ardia"
@@ -129,6 +302,9 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   $commanded = (Test-Path $Log) -and (Select-String -Path $Log -Pattern "^command \d+ newTab" -Quiet)
   if ($commanded) { Write-Host "Input: Ctrl+T matched newTab and was sent to the UI." } else { $notes += "input: Ctrl+T matched no command" }
   Save-Screenshot (Join-Path $Out "browser-after-input.png")
+
+  $edgeNotes = @(Test-CaptionEdge $Process $Log)
+  $notes += $edgeNotes
   return $notes
 }
 

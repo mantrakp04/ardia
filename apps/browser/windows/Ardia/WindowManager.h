@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <optional>
@@ -19,6 +20,7 @@
 #include "Host.h"
 #include "LaunchLog.h"
 #include "Paths.h"
+#include "WindowDragRegions.h"
 
 #pragma comment(lib, "dwmapi.lib")
 
@@ -43,6 +45,11 @@ struct ManagedWindow {
   winrt::event_token closing{};
   winrt::event_token destroying{};
   bool fullScreen{false};
+  winrt::Microsoft::UI::Input::InputNonClientPointerSource nonClient{nullptr};
+  std::optional<winrt::Windows::Graphics::RectInt32> caption;
+  bool captionMenu{false};
+  bool captionApplied{false};
+  ULONGLONG captionArmedAt{0};
 
   bool IsBrowser() const noexcept {
     return kind == "browser" || kind == "small";
@@ -128,7 +135,8 @@ struct WindowManager {
       Place(entry, request);
       Watch(entry);
       Mount(entry);
-      PassTitleBarInputToContent(entry);
+      ConnectNonClientInput(entry);
+      ApplyInputRegions(entry);
 
       bool activate = request.focus && !Background();
       HWND hwnd = entry.hwnd;
@@ -209,31 +217,67 @@ struct WindowManager {
   }
 
   void BeginDrag(int64_t rootTag) noexcept {
+    ForgetPress();
+    ManagedWindow *entry = ForRootTag(rootTag);
+    if (!entry || Background()) return;
+    StartAppDrag(*entry);
+  }
+
+  void PressDragArea(int64_t rootTag) noexcept {
     ManagedWindow *entry = ForRootTag(rootTag);
     if (!entry || Background()) return;
     POINT cursor{};
     GetCursorPos(&cursor);
-    try {
-      m_dragOrigin = entry->appWindow.Position();
-    } catch (...) {
+    if (IsSecondPress(entry->hwnd, cursor, GetTickCount())) {
+      LaunchLog::Write(L"window", std::wstring(L"double click on a drag area of ").append(Paths::Wide(entry->id)).append(L", second press through the UI"));
+      ToggleMaximized(*entry);
       return;
     }
-    m_dragCursor = cursor;
-    m_dragId = entry->id;
-    LaunchLog::Write(L"window", std::wstring(L"drag began on ").append(Paths::Wide(entry->id)));
-    TrackDrag();
+    StartAppDrag(*entry);
   }
 
   void ToggleMaximize(int64_t rootTag) noexcept {
+    if (Background()) return;
     ManagedWindow *entry = ForRootTag(rootTag);
-    if (!entry) return;
-    try {
-      auto presenter = entry->appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
-      if (!presenter) return;
-      if (presenter.State() == winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Maximized) presenter.Restore();
-      else presenter.Maximize();
-    } catch (...) {
-    }
+    if (entry) ToggleMaximized(*entry);
+  }
+
+  void SetDragCaption(int64_t rootTag, std::optional<std::array<double, 2>> const &point, bool menu) noexcept {
+    if (Background()) return;
+    if (ManagedWindow *entry = FindByRootTag(rootTag)) ArmCaption(*entry, point, menu);
+  }
+
+  bool DebugAvailable() const noexcept {
+    static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
+    return available;
+  }
+
+  std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugArmCaption(std::string_view id, double x, double y) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!DebugAvailable() || !entry) return std::nullopt;
+    std::optional<int64_t> rootTag = RootTagOf(*entry);
+    if (!rootTag || FindByRootTag(*rootTag) != entry) return std::nullopt;
+    ArmCaption(*entry, std::array<double, 2>{x, y}, false);
+    return DebugRegions(id);
+  }
+
+  bool DebugClearCaption(std::string_view id) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!DebugAvailable() || !entry) return false;
+    ClearCaption(*entry);
+    return true;
+  }
+
+  std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugRegions(std::string_view id) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!DebugAvailable() || !entry) return std::nullopt;
+    winrt::Microsoft::ReactNative::JSValueObject report;
+    report["rootTag"] = RootTagOf(*entry).value_or(0);
+    report["scale"] = Scale(entry->hwnd);
+    report["nonClient"] = static_cast<bool>(entry->nonClient);
+    report["caption"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Caption);
+    report["passthrough"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough);
+    return report;
   }
 
   void ReplyToTerminate(bool ok) noexcept {
@@ -256,6 +300,8 @@ struct WindowManager {
 
  private:
   static constexpr UINT_PTR kSubclassId = 0xA2D1A;
+  static constexpr ULONGLONG kCaptionLifetimeMs = 600;
+  static constexpr int kCaptionCheckMs = 100;
 
   ManagedWindow *Find(std::string_view id) noexcept {
     auto found = m_windows.find(std::string(id));
@@ -420,12 +466,15 @@ struct WindowManager {
               event["id"] = id;
               event["frame"] = std::move(values);
               EmitWindow(std::move(event));
-              PassTitleBarInputToContent(*found);
+              if (args.DidSizeChange()) found->caption.reset();
+              ApplyInputRegions(*found);
             }
             if (args.DidPresenterChange()) {
               bool fullScreen = found->appWindow.Presenter().Kind() == winrt::Microsoft::UI::Windowing::AppWindowPresenterKind::FullScreen;
               if (fullScreen != found->fullScreen) {
                 found->fullScreen = fullScreen;
+                found->caption.reset();
+                ApplyInputRegions(*found);
                 winrt::Microsoft::ReactNative::JSValueObject event;
                 event["type"] = "fullScreen";
                 event["id"] = id;
@@ -515,13 +564,197 @@ struct WindowManager {
     return (GetAsyncKeyState(GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON) & 0x8000) != 0;
   }
 
+  static std::optional<int64_t> RootTagOf(ManagedWindow const &entry) noexcept {
+    try {
+      return entry.window.ReactNativeIsland().RootTag();
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+
+  void StartAppDrag(ManagedWindow &entry) noexcept {
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    try {
+      m_dragOrigin = entry.appWindow.Position();
+    } catch (...) {
+      return;
+    }
+    m_dragCursor = cursor;
+    m_dragId = entry.id;
+    LaunchLog::Write(L"window", std::wstring(L"drag began on ").append(Paths::Wide(entry.id)));
+    TrackDrag();
+  }
+
+  static void ToggleMaximized(ManagedWindow &entry) noexcept {
+    auto presenter = OverlappedOf(entry);
+    if (!presenter) return;
+    try {
+      if (presenter.State() == winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Maximized) presenter.Restore();
+      else if (presenter.IsMaximizable()) presenter.Maximize();
+    } catch (...) {
+    }
+  }
+
+  bool IsSecondPress(HWND hwnd, POINT where, DWORD at) noexcept {
+    DWORD elapsed = at >= m_lastPressAt ? at - m_lastPressAt : m_lastPressAt - at;
+    bool second = m_lastPressHwnd == hwnd && elapsed <= GetDoubleClickTime() &&
+        std::abs(where.x - m_lastPressWhere.x) * 2 <= GetSystemMetrics(SM_CXDOUBLECLK) &&
+        std::abs(where.y - m_lastPressWhere.y) * 2 <= GetSystemMetrics(SM_CYDOUBLECLK);
+    m_lastPressHwnd = second ? nullptr : hwnd;
+    m_lastPressAt = at;
+    m_lastPressWhere = where;
+    return second;
+  }
+
+  void ForgetPress() noexcept {
+    m_lastPressHwnd = nullptr;
+  }
+
+  void ArmCaption(ManagedWindow &entry, std::optional<std::array<double, 2>> const &point, bool menu) noexcept {
+    if (!entry.nonClient) return;
+    std::optional<winrt::Windows::Graphics::RectInt32> pixel;
+    if (point && !entry.fullScreen) pixel = WindowDragRegions::PixelAt((*point)[0], (*point)[1], Scale(entry.hwnd));
+    if (!pixel) return ClearCaption(entry);
+    entry.captionArmedAt = GetTickCount64();
+    bool changed = !WindowDragRegions::Same(pixel, entry.caption) || menu != entry.captionMenu;
+    entry.caption = pixel;
+    entry.captionMenu = menu;
+    if (!m_captionNoted) {
+      m_captionNoted = true;
+      LaunchLog::Write(L"window", std::wstring(L"first caption region set on ").append(Paths::Wide(entry.id)));
+    }
+    if (changed) ApplyInputRegions(entry);
+    WatchCaptions();
+  }
+
+  static void ClearCaption(ManagedWindow &entry) noexcept {
+    if (!entry.caption) return;
+    entry.caption.reset();
+    entry.captionMenu = false;
+    ApplyInputRegions(entry);
+  }
+
+  void ClearAllCaptions() noexcept {
+    for (auto &[id, entry] : m_windows) ClearCaption(entry);
+  }
+
+  static bool CursorOnCaption(ManagedWindow const &entry) noexcept {
+    if (!entry.caption) return false;
+    POINT cursor{};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(entry.hwnd, &cursor)) return false;
+    return WindowDragRegions::Contains(*entry.caption, cursor.x, cursor.y);
+  }
+
+  bool ExpireCaptions() noexcept {
+    ULONGLONG now = GetTickCount64();
+    bool armed = false;
+    for (auto &[id, entry] : m_windows) {
+      if (!entry.caption) continue;
+      if (now - entry.captionArmedAt > kCaptionLifetimeMs || !CursorOnCaption(entry)) ClearCaption(entry);
+      else armed = true;
+    }
+    return armed;
+  }
+
+  void WatchCaptions() noexcept {
+    InstallKeyboardWatch();
+    if (m_watchingCaptions) return;
+    try {
+      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
+      timer.Interval(std::chrono::milliseconds(kCaptionCheckMs));
+      timer.IsRepeating(true);
+      auto token = std::make_shared<winrt::event_token>();
+      *token = timer.Tick([this, timer, token](auto const &, auto const &) noexcept {
+        if (ExpireCaptions()) return;
+        m_watchingCaptions = false;
+        timer.Stop();
+        timer.Tick(*token);
+      });
+      m_watchingCaptions = true;
+      timer.Start();
+    } catch (...) {
+      m_watchingCaptions = false;
+    }
+  }
+
+  void InstallKeyboardWatch() noexcept {
+    if (m_keyboardHook) return;
+    m_keyboardHook = SetWindowsHookExW(WH_KEYBOARD, &WindowManager::KeyboardProc, nullptr, GetCurrentThreadId());
+    if (!m_keyboardHook) LaunchLog::Write(L"warning", L"key presses cannot clear caption regions: the keyboard hook failed");
+  }
+
+  static LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam) noexcept {
+    bool keyDown = (static_cast<ULONG_PTR>(lParam) & 0x80000000) == 0;
+    if (code == HC_ACTION && keyDown) Shared().ClearAllCaptions();
+    return CallNextHookEx(nullptr, code, wParam, lParam);
+  }
+
+  static winrt::Microsoft::ReactNative::JSValueArray InstalledRects(ManagedWindow const &entry, winrt::Microsoft::UI::Input::NonClientRegionKind kind) noexcept {
+    winrt::Microsoft::ReactNative::JSValueArray rects;
+    if (!entry.nonClient) return rects;
+    try {
+      for (auto const &rect : entry.nonClient.GetRegionRects(kind)) {
+        winrt::Microsoft::ReactNative::JSValueArray values;
+        values.push_back(rect.X);
+        values.push_back(rect.Y);
+        values.push_back(rect.Width);
+        values.push_back(rect.Height);
+        rects.push_back(std::move(values));
+      }
+    } catch (...) {
+    }
+    return rects;
+  }
+
+  static winrt::Microsoft::UI::Windowing::OverlappedPresenter OverlappedOf(ManagedWindow const &entry) noexcept {
+    try {
+      return entry.appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
+    } catch (...) {
+      return nullptr;
+    }
+  }
+
+  void RestoreUnderCursor(ManagedWindow &entry) noexcept {
+    auto presenter = OverlappedOf(entry);
+    if (!presenter) return;
+    try {
+      auto position = entry.appWindow.Position();
+      auto size = entry.appWindow.Size();
+      double across = size.Width > 0 ? (m_dragCursor.x - position.X) / static_cast<double>(size.Width) : 0.5;
+      int32_t down = m_dragCursor.y - position.Y;
+      presenter.Restore();
+      auto restored = entry.appWindow.Size();
+      int32_t grab = static_cast<int32_t>(across * restored.Width);
+      m_dragOrigin = {m_dragCursor.x - grab, m_dragCursor.y - (std::min)(down, restored.Height / 2)};
+      entry.appWindow.Move(m_dragOrigin);
+    } catch (...) {
+    }
+  }
+
+  static void MaximizeAtTopEdge(ManagedWindow &entry, POINT cursor) noexcept {
+    HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info{};
+    info.cbSize = static_cast<DWORD>(sizeof(info));
+    if (!monitor || !GetMonitorInfoW(monitor, &info) || cursor.y > info.rcMonitor.top) return;
+    auto presenter = OverlappedOf(entry);
+    if (!presenter) return;
+    try {
+      if (presenter.IsMaximizable()) presenter.Maximize();
+    } catch (...) {
+    }
+  }
+
   void TrackDrag() noexcept {
     if (m_systemMove || m_tracking || !LeftButtonDown()) return;
     ManagedWindow *entry = Find(m_dragId);
     if (!entry) return;
     try {
-      auto presenter = entry->appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
-      if (presenter && presenter.State() != winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Restored) return;
+      auto presenter = OverlappedOf(*entry);
+      bool maximized = presenter && presenter.State() == winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Maximized;
+      if (presenter && !maximized && presenter.State() != winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Restored) return;
+      m_dragFromMaximized = maximized;
+      m_dragMoved = false;
       m_tracking = true;
       auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
       timer.Interval(std::chrono::milliseconds(8));
@@ -530,21 +763,33 @@ struct WindowManager {
       *token = timer.Tick([this, timer, token](auto const &, auto const &) noexcept {
         ManagedWindow *moving = Find(m_dragId);
         bool cancelled = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
-        if (moving && cancelled) {
+        bool held = LeftButtonDown();
+        POINT now{};
+        GetCursorPos(&now);
+        if (moving && cancelled && m_dragMoved) {
           try {
-            moving->appWindow.Move(m_dragOrigin);
+            if (m_dragFromMaximized) {
+              if (auto presenter = OverlappedOf(*moving)) presenter.Maximize();
+            } else {
+              moving->appWindow.Move(m_dragOrigin);
+            }
           } catch (...) {
           }
         }
-        if (moving && !cancelled && LeftButtonDown() && !m_systemMove) {
-          POINT now{};
-          GetCursorPos(&now);
+        if (moving && !cancelled && held && !m_systemMove) {
+          bool beyondSlop = std::abs(now.x - m_dragCursor.x) >= GetSystemMetrics(SM_CXDRAG) || std::abs(now.y - m_dragCursor.y) >= GetSystemMetrics(SM_CYDRAG);
+          if (!m_dragMoved && !beyondSlop) return;
+          if (!m_dragMoved) {
+            m_dragMoved = true;
+            if (m_dragFromMaximized) RestoreUnderCursor(*moving);
+          }
           try {
             moving->appWindow.Move({m_dragOrigin.X + now.x - m_dragCursor.x, m_dragOrigin.Y + now.y - m_dragCursor.y});
           } catch (...) {
           }
           return;
         }
+        if (moving && !cancelled && !held && m_dragMoved && !m_systemMove) MaximizeAtTopEdge(*moving, now);
         m_tracking = false;
         timer.Stop();
         timer.Tick(*token);
@@ -557,26 +802,126 @@ struct WindowManager {
 
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR reference) noexcept {
     auto *manager = reinterpret_cast<WindowManager *>(reference);
-    if (message == WM_ENTERSIZEMOVE) manager->m_systemMove = true;
-    if (message == WM_EXITSIZEMOVE) manager->m_systemMove = false;
+    bool onCaption = wParam == HTCAPTION;
+    bool leftPress = message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK;
+    if (onCaption && leftPress && manager->CaptionLeftPress(hwnd, message == WM_NCLBUTTONDBLCLK, lParam)) return 0;
+    if (onCaption && message == WM_NCRBUTTONDOWN && manager->CaptionRightPress(hwnd, lParam)) return 0;
+    if (message == WM_NCRBUTTONUP && manager->m_menuPress == hwnd) {
+      manager->m_menuPress = nullptr;
+      return 0;
+    }
+    if (message == WM_ENTERSIZEMOVE) {
+      manager->m_systemMove = true;
+      manager->SystemMoveBegan(hwnd);
+    }
+    if (message == WM_EXITSIZEMOVE) {
+      manager->m_systemMove = false;
+      manager->m_captionPressed = nullptr;
+    }
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
+    if (message == WM_ACTIVATE && LOWORD(wParam) == WA_INACTIVE) manager->Deactivated(hwnd);
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");
     return DefSubclassProc(hwnd, message, wParam, lParam);
   }
 
-  static void PassTitleBarInputToContent(ManagedWindow &entry) noexcept {
-    if (!entry.IsBrowser()) return;
+  static void ConnectNonClientInput(ManagedWindow &entry) noexcept {
     try {
+      entry.nonClient = winrt::Microsoft::UI::Input::InputNonClientPointerSource::GetForWindowId(entry.appWindow.Id());
+    } catch (...) {
+      entry.nonClient = nullptr;
+    }
+    std::wstring id = Paths::Wide(entry.id);
+    if (Background()) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are off: background instance"));
+    else if (entry.nonClient) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" use the system move loop over caption regions, with the app's own move as the fallback"));
+    else LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app: the window has no non-client input source"));
+  }
+
+  static void ApplyInputRegions(ManagedWindow &entry) noexcept {
+    if (!entry.nonClient) return;
+    try {
+      if (entry.caption || entry.captionApplied) {
+        std::vector<winrt::Windows::Graphics::RectInt32> caption;
+        if (entry.caption) caption.push_back(*entry.caption);
+        entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Caption, caption);
+        entry.captionApplied = entry.caption.has_value();
+      }
+      if (!entry.IsBrowser()) return;
       auto titleBar = entry.appWindow.TitleBar();
       auto client = entry.appWindow.ClientSize();
-      int32_t width = client.Width - titleBar.RightInset();
+      int32_t left = titleBar.LeftInset();
+      int32_t right = client.Width - titleBar.RightInset();
       int32_t height = titleBar.Height();
-      if (width <= 0 || height <= 0) return;
-      std::vector<winrt::Windows::Graphics::RectInt32> rects{{titleBar.LeftInset(), 0, width - titleBar.LeftInset(), height}};
-      auto source = winrt::Microsoft::UI::Input::InputNonClientPointerSource::GetForWindowId(entry.appWindow.Id());
-      source.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough, rects);
+      if (right <= left || height <= 0) return;
+      auto passthrough = WindowDragRegions::Subtract({left, 0, right - left, height}, entry.caption);
+      entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough, passthrough);
     } catch (...) {
     }
+  }
+
+  static POINT ScreenPointOf(LPARAM lParam) noexcept {
+    return POINT{static_cast<LONG>(static_cast<short>(LOWORD(lParam))), static_cast<LONG>(static_cast<short>(HIWORD(lParam)))};
+  }
+
+  void Deactivated(HWND hwnd) noexcept {
+    if (ManagedWindow *entry = FindByHwnd(hwnd)) ClearCaption(*entry);
+  }
+
+  bool CaptionLeftPress(HWND hwnd, bool doubleClick, LPARAM lParam) noexcept {
+    ManagedWindow *entry = FindByHwnd(hwnd);
+    if (!entry) return false;
+    m_captionPressed = doubleClick ? nullptr : hwnd;
+    if (!entry->caption) {
+      ForgetPress();
+      return false;
+    }
+    POINT screen = ScreenPointOf(lParam);
+    EmitCaptionPress(*entry, 0, screen);
+    if (doubleClick) {
+      ForgetPress();
+      LaunchLog::Write(L"window", std::wstring(L"double click on a drag area of ").append(Paths::Wide(entry->id)).append(L", both presses through Windows"));
+      return false;
+    }
+    if (!IsSecondPress(hwnd, screen, static_cast<DWORD>(GetMessageTime()))) return false;
+    m_captionPressed = nullptr;
+    LaunchLog::Write(L"window", std::wstring(L"double click on a drag area of ").append(Paths::Wide(entry->id)).append(L", second press through Windows"));
+    ToggleMaximized(*entry);
+    return true;
+  }
+
+  bool CaptionRightPress(HWND hwnd, LPARAM lParam) noexcept {
+    ManagedWindow *entry = FindByHwnd(hwnd);
+    if (!entry || !entry->caption) return false;
+    ForgetPress();
+    bool menu = entry->captionMenu;
+    EmitCaptionPress(*entry, 2, ScreenPointOf(lParam));
+    if (!menu) return false;
+    m_menuPress = hwnd;
+    return true;
+  }
+
+  void EmitCaptionPress(ManagedWindow &entry, int button, POINT screen) noexcept {
+    if (!m_context) return;
+    POINT point = screen;
+    if (!ScreenToClient(entry.hwnd, &point)) return;
+    std::optional<int64_t> rootTag = RootTagOf(entry);
+    if (!rootTag) return;
+    double scale = Scale(entry.hwnd);
+    winrt::Microsoft::ReactNative::JSValueObject event;
+    event["rootTag"] = *rootTag;
+    event["button"] = button;
+    event["x"] = point.x / scale;
+    event["y"] = point.y / scale;
+    event["shiftKey"] = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    event["ctrlKey"] = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    event["altKey"] = (GetKeyState(VK_MENU) & 0x8000) != 0;
+    EmitEvent(m_context, L"ArdiaAppWindows", L"onCaptionPress", std::move(event));
+  }
+
+  void SystemMoveBegan(HWND hwnd) noexcept {
+    if (m_captionPressed != hwnd) return;
+    m_captionPressed = nullptr;
+    ManagedWindow *entry = FindByHwnd(hwnd);
+    if (entry) LaunchLog::Write(L"window", std::wstring(L"system move began on ").append(Paths::Wide(entry->id)));
   }
 
   void EmitWindow(winrt::Microsoft::ReactNative::JSValueObject &&event) noexcept {
@@ -630,6 +975,16 @@ struct WindowManager {
   bool m_dark{false};
   bool m_systemMove{false};
   bool m_tracking{false};
+  bool m_dragFromMaximized{false};
+  bool m_dragMoved{false};
+  bool m_captionNoted{false};
+  HWND m_captionPressed{nullptr};
+  HWND m_menuPress{nullptr};
+  HWND m_lastPressHwnd{nullptr};
+  DWORD m_lastPressAt{0};
+  POINT m_lastPressWhere{};
+  bool m_watchingCaptions{false};
+  HHOOK m_keyboardHook{nullptr};
   POINT m_dragCursor{};
   winrt::Windows::Graphics::PointInt32 m_dragOrigin{};
   std::string m_dragId;

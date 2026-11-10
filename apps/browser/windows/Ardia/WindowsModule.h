@@ -88,6 +88,47 @@ struct WindowsModule {
     OnUI(promise, [rootTag]() noexcept { WindowManager::Shared().BeginDrag(static_cast<int64_t>(rootTag)); });
   }
 
+  REACT_METHOD(pressDragArea)
+  void pressDragArea(double rootTag, Promise promise) noexcept {
+    OnUI(promise, [rootTag]() noexcept { WindowManager::Shared().PressDragArea(static_cast<int64_t>(rootTag)); });
+  }
+
+  REACT_METHOD(setDragCaption)
+  void setDragCaption(double rootTag, JSValue point, bool menu, Promise promise) noexcept {
+    auto at = Numbers<2>(point);
+    OnUI(promise, [rootTag, at, menu]() noexcept { WindowManager::Shared().SetDragCaption(static_cast<int64_t>(rootTag), at, menu); });
+  }
+
+  REACT_METHOD(debugArmDragCaption)
+  void debugArmDragCaption(std::string id, double x, double y, winrt::Microsoft::ReactNative::ReactPromise<JSValue> promise) noexcept {
+    RunOnUI(m_context, [id, x, y, promise]() noexcept {
+      auto report = WindowManager::Shared().DebugArmCaption(id, x, y);
+      if (!report) return promise.Resolve(JSValue{nullptr});
+      promise.Resolve(JSValue{std::move(*report)});
+    });
+  }
+
+  REACT_METHOD(debugClearDragCaption)
+  void debugClearDragCaption(std::string id, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
+    RunOnUI(m_context, [id, promise]() noexcept { promise.Resolve(WindowManager::Shared().DebugClearCaption(id)); });
+  }
+
+  REACT_METHOD(debugDragRegions)
+  void debugDragRegions(std::string id, winrt::Microsoft::ReactNative::ReactPromise<JSValue> promise) noexcept {
+    RunOnUI(m_context, [id, promise]() noexcept {
+      auto report = WindowManager::Shared().DebugRegions(id);
+      if (!report) return promise.Resolve(JSValue{nullptr});
+      promise.Resolve(JSValue{std::move(*report)});
+    });
+  }
+
+  REACT_METHOD(watchSidebarEdge)
+  void watchSidebarEdge(std::string id, bool on, double, bool, bool, Promise promise) noexcept {
+    std::wstring message = std::wstring(L"sidebar edge watch ").append(on ? L"on " : L"off ").append(Paths::Wide(id));
+    LaunchLog::Write(L"window", message.append(L"; edge events are not sent on Windows yet"));
+    promise.Resolve();
+  }
+
   REACT_METHOD(toggleMaximize)
   void toggleMaximize(double rootTag, Promise promise) noexcept {
     OnUI(promise, [rootTag]() noexcept { WindowManager::Shared().ToggleMaximize(static_cast<int64_t>(rootTag)); });
