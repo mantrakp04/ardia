@@ -32,7 +32,6 @@ public enum TabsLayout {
   public static let barCircle: CGFloat = 35
   public static let barPlus = CGSize(width: 78, height: 40)
   public static let barSideInset: CGFloat = 16
-  public static let tileSize: CGFloat = 64
   public static let tileRadius: CGFloat = 16
   public static let archiveCardRadius: CGFloat = 16
   public static let archiveCardTile: CGFloat = 28

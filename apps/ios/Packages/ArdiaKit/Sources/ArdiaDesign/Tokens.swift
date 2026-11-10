@@ -29,24 +29,11 @@ public enum Radius {
 public enum Motion {
   public static let snappy = Animation.spring(response: 0.3, dampingFraction: 0.86)
   public static let smooth = Animation.spring(response: 0.42, dampingFraction: 0.9)
-  public static let bouncy = Animation.spring(response: 0.38, dampingFraction: 0.72)
   public static let tabStack = Animation.spring(duration: 0.4, bounce: 0.2)
-  public static let tabExpand = Animation.spring(duration: 0.4, bounce: 0.1)
-  public static let searchFocus = Animation.spring(duration: 0.35, bounce: 0.05)
-  public static let searchResults = Animation.easeOut(duration: 0.22)
   public static let modeToggle = Animation.spring(duration: 0.3, bounce: 0.15)
-  public static let swipeSettle = Animation.spring(duration: 0.2, bounce: 0)
-  public static let cornerMorph = Animation.spring(response: 0.3, dampingFraction: 1)
 }
 
 public enum Layout {
-  public static let urlBarHeight: CGFloat = 52
-  public static let urlBarPill: CGFloat = 38
-  public static let toolbarButton: CGFloat = 48
-  public static let searchRow: CGFloat = 56
-  public static let compactSearchRow: CGFloat = 44
-  public static let searchFieldRadius: CGFloat = 22
-  public static let expandedCardScale: CGFloat = 0.9
   public static let swipeParallax: CGFloat = -0.33
   public static let swipeCommit: CGFloat = 75
   public static let swipeFlickCommit: CGFloat = 50

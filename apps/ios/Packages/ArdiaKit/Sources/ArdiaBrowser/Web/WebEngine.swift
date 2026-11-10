@@ -69,8 +69,6 @@ public final class WebEngine {
     roster.page(id)
   }
 
-  public var liveTabIDs: [UUID] { roster.liveIDs }
-
   public func openLink(_ url: URL, from tabID: UUID, inBackground: Bool) {
     let tab = tabs.open(.url(url, origin: .link), placement: .after(tabID), selecting: !inBackground)
     if !inBackground { _ = webTab(for: tab.id) }
