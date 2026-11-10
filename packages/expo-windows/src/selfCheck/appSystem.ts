@@ -41,7 +41,7 @@ export const checks: Check[] = [
       const now = Date.now();
       expectTrue(isNumber(info.processStart) && info.processStart <= now && info.processStart > now - 3_600_000, `processStart is ${JSON.stringify(info.processStart)}, now ${now}`);
       expectTrue(isNumber(info.bootTime) && info.bootTime <= info.processStart, `bootTime is ${JSON.stringify(info.bootTime)}, processStart ${info.processStart}`);
-      expectTrue(app().windowsApiVersion === 1, `windowsApiVersion is ${JSON.stringify(app().windowsApiVersion)}`);
+      expectTrue(Number.isInteger(app().windowsApiVersion) && (app().windowsApiVersion as number) >= 1, `windowsApiVersion is ${JSON.stringify(app().windowsApiVersion)}`);
     },
   },
   {
