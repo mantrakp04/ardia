@@ -41,7 +41,7 @@ import { closePeekOnEscape } from "../../state/peek/actions";
 import { withoutFragment } from "../../lib/url";
 import { adoptOf, loadedPage, navigationOf } from "../../state/tabs/pageSession";
 import { noteCommit } from "../../state/automation/automationEvents";
-import { noteAutofillSuggestions, noteVaultCode, noteVaultContext, noteVaultField, noteVaultKey, noteVaultSubmitted, runVaultCodeAction, runVaultContextAction } from "../../state/vaults/pageEvents";
+import { noteAutofillSuggestions, noteVaultCode, noteVaultContext, noteVaultField, noteVaultKey, noteVaultLoginOutcome, noteVaultSubmitted, runVaultCodeAction, runVaultContextAction } from "../../state/vaults/pageEvents";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -234,6 +234,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onVaultField={(field) => noteVaultField(tabId, field)}
       onVaultKey={(key) => noteVaultKey(tabId, key)}
       onVaultSubmitted={(submitted) => void noteVaultSubmitted(tabId, submitted)}
+      onVaultLoginOutcome={(outcome) => noteVaultLoginOutcome(tabId, outcome)}
       onVaultContext={(field) => noteVaultContext(tabId, field)}
       onVaultContextAction={(action) => runVaultContextAction(tabId, action)}
       onVaultCode={(code) => noteVaultCode(tabId, code)}

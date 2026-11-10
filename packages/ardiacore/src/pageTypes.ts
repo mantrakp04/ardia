@@ -179,7 +179,9 @@ export type VaultSubmission = {
   generated: boolean;
   usernameFrom: VaultUsernameSource;
   trusted: boolean;
+  reportsOutcome?: boolean;
 };
+export type VaultLoginOutcome = { frameId: string; origin: string; ok: boolean };
 export type VaultPasswordStyle = "strong" | "alphanumeric" | "easyToType" | "passphrase";
 export type VaultFillField = "username" | "password" | "totp";
 export type VaultFilledField = "username" | "password" | "newPassword" | "otp";
@@ -293,6 +295,7 @@ export type WebViewProps = ViewProps & {
   onVaultField?: (field: VaultField) => void;
   onVaultKey?: (press: VaultKeyPress) => void;
   onVaultSubmitted?: (submission: VaultSubmission) => void;
+  onVaultLoginOutcome?: (outcome: VaultLoginOutcome) => void;
   onVaultContext?: (field: VaultContextField) => void;
   onVaultContextAction?: (action: VaultContextAction) => void;
   onVaultCode?: (code: VaultCodeFound) => void;

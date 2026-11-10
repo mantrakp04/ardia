@@ -616,6 +616,32 @@ test("filling a login never copies its one-time code", async () => {
 const submitted = (over = {}) => ({ frameId: "f1", origin: "https://github.com", username: "", usernameFrom: over.username ? "form" : "", trusted: true, newPassword: false, generated: false, ...over });
 const offerOf = (tabId) => offers.useVaultSaveOffers.getState()[tabId] ?? null;
 
+test("a sign-in the page rejects gets no save offer and its capture is discarded", async () => {
+  const { tabId } = await setup();
+  const pending = offers.noteVaultSubmitted(tabId, submitted({ username: "someone-new", reportsOutcome: true }));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(offerOf(tabId), null, "nothing is offered before the page says how the sign-in went");
+  offers.noteVaultLoginOutcome(tabId, { origin: "https://github.com", ok: false });
+  await pending;
+  assert.equal(offerOf(tabId), null);
+  assert.deepEqual(calls.at(-1), ["discard", "https://github.com"]);
+});
+
+test("a sign-in that succeeds, or leaves the page, gets the save offer", async () => {
+  const { tabId } = await setup();
+  const ok = offers.noteVaultSubmitted(tabId, submitted({ username: "someone-new", reportsOutcome: true }));
+  await new Promise((r) => setTimeout(r, 0));
+  offers.noteVaultLoginOutcome(tabId, { origin: "https://github.com", ok: true });
+  await ok;
+  assert.equal(offerOf(tabId)?.captured, "someone-new");
+  offers.dismissVaultOffer(tabId);
+  const left = offers.noteVaultSubmitted(tabId, submitted({ username: "another-new", reportsOutcome: true }));
+  await new Promise((r) => setTimeout(r, 0));
+  offers.forgetVaultPageSaves(tabId);
+  await left;
+  assert.equal(offerOf(tabId)?.captured, "another-new");
+});
+
 test("a new password with a known username saves at once", async () => {
   const { tabId } = await setup();
   await offers.noteVaultSubmitted(tabId, submitted({ username: "new@example.com", newPassword: true }));

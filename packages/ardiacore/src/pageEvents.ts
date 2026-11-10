@@ -29,6 +29,7 @@ import type {
   VaultContextField,
   VaultField,
   VaultKeyPress,
+  VaultLoginOutcome,
   VaultSubmission,
   WebNotification,
   WebViewProps,
@@ -76,6 +77,7 @@ type NativeEvents = {
   onVaultField: VaultField;
   onVaultKey: VaultKeyPress;
   onVaultSubmitted: VaultSubmission;
+  onVaultLoginOutcome: VaultLoginOutcome;
   onVaultContext: VaultContextField;
   onVaultContextAction: VaultContextAction;
   onVaultCode: VaultCodeFound;
@@ -127,6 +129,7 @@ const PAGE_EVENTS = {
   onVaultField: "vaultField",
   onVaultKey: "vaultKey",
   onVaultSubmitted: "vaultSubmitted",
+  onVaultLoginOutcome: "vaultLoginOutcome",
   onVaultContext: "vaultContext",
   onVaultContextAction: "vaultContextAction",
   onVaultCode: "vaultCode",
@@ -178,6 +181,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onVaultField: (e) => [e],
   onVaultKey: (e) => [e],
   onVaultSubmitted: (e) => [e],
+  onVaultLoginOutcome: (e) => [e],
   onVaultContext: (e) => [e],
   onVaultContextAction: (e) => [e],
   onVaultCode: (e) => [e],

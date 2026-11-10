@@ -30,6 +30,7 @@ export const useVaultSaveOffers = create<Record<string, VaultSaveOffer | null>>(
 
 export const SAVE_OFFER_MS = PENDING_TOTP_MS;
 export const SAME_SUBMISSION_MS = 2000;
+export const LOGIN_OUTCOME_MS = 8000;
 
 type SaveInput = { enabled: boolean; origin: string; username: string; providers: readonly VaultProviderState[]; items: readonly VaultItem[]; preferred: string; checkSaved?: boolean };
 export type SaveDecision = { offer: false; alreadySaved: boolean } | { offer: true; targets: string[]; target: string };
@@ -87,7 +88,30 @@ let seq = 0;
 
 const pageLoadOf = (tabId: string) => pageLoads.get(tabId) ?? 0;
 
+type LoginWait = { origin: string; done: (ok: boolean) => void };
+const loginWaits = new Map<string, LoginWait>();
+
+function waitForLogin(tabId: string, origin: string): Promise<boolean> {
+  loginWaits.get(tabId)?.done(false);
+  return new Promise((resolve) => {
+    const wait: LoginWait = { origin, done: (ok) => finish(ok) };
+    const timer = setTimeout(() => finish(false), LOGIN_OUTCOME_MS);
+    function finish(ok: boolean) {
+      if (loginWaits.get(tabId) === wait) loginWaits.delete(tabId);
+      clearTimeout(timer);
+      resolve(ok);
+    }
+    loginWaits.set(tabId, wait);
+  });
+}
+
+export function noteVaultLoginOutcome(tabId: string, outcome: { origin: string; ok: boolean }) {
+  const wait = loginWaits.get(tabId);
+  if (wait && sameSite(wait.origin, outcome.origin)) wait.done(outcome.ok);
+}
+
 export function forgetVaultPageSaves(tabId: string) {
+  loginWaits.get(tabId)?.done(true);
   pageLoads.set(tabId, pageLoadOf(tabId) + 1);
   autoSavedOn.delete(tabId);
 }
@@ -148,6 +172,7 @@ function showOffer(tabId: string, origin: string, captured: string, username: st
 export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEvent) {
   const load = pageLoadOf(tabId);
   if (saving.has(savingKey(event.origin, event.username)) || seenJustNow(tabId, event, Date.now())) return;
+  const signedIn = event.reportsOutcome ? waitForLogin(tabId, event.origin) : Promise.resolve(true);
   await loadAllVaultItems();
   const settings = useBrowser.getState().settings;
   const items = itemsForTab(allVaultItems(), tabId);
@@ -160,6 +185,7 @@ export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEve
       if (decision.alreadySaved) claim(tabId, event.origin, false);
       return discard(tabId, event.origin);
     }
+    if (!(await signedIn)) return discard(tabId, event.origin);
     return showOffer(tabId, event.origin, page, page, decision);
   }
   if (usernameFromForm(event)) {
@@ -172,6 +198,7 @@ export async function noteVaultSubmitted(tabId: string, event: VaultSubmittedEve
   const guess = knownUsername(tabId, event, items);
   const decision = decideSave({ ...base, username: guess, checkSaved: false });
   if (!decision.offer) return discard(tabId, event.origin);
+  if (!(await signedIn)) return discard(tabId, event.origin);
   const auto =
     settings.vaultAutoSave &&
     mayAutoSave(event) &&

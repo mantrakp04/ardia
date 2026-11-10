@@ -294,7 +294,7 @@ function makePage({ origin = "https://example.com", path = "/login", top = true,
     }
   };
   const handlers = Object.create(null);
-  const location = { origin, hostname: new URL(origin).hostname, pathname: path };
+  const location = { origin, hostname: new URL(origin).hostname, pathname: path, href: origin + path };
   const context = {
     window: win,
     document,
@@ -1262,6 +1262,47 @@ test("an email address shown near the password step names the account, the close
   page.type(pass, "s3cret-pass");
   page.fire(form, "submit");
   assert.deepEqual(page.of("vaultSubmit"), [{ username: "me@gmail.com", password: "s3cret-pass", newPassword: false, usernameFrom: "nearby", trusted: false }]);
+});
+
+test("a login whose form is still there after five seconds reports a failed sign-in", () => {
+  const page = makePage();
+  const { user, pass, form } = loginForm(page);
+  page.type(user, "me@example.com");
+  page.type(pass, "wrong-pass");
+  page.fire(form, "submit");
+  page.advance(4000);
+  assert.deepEqual(page.of("vaultLoginOutcome"), []);
+  page.advance(1500);
+  assert.deepEqual(page.of("vaultLoginOutcome"), [{ ok: false }]);
+});
+
+test("a login reports success when its password field goes, the URL changes or the page unloads", () => {
+  const gone = makePage();
+  const one = loginForm(gone);
+  gone.type(one.user, "me@example.com");
+  gone.type(one.pass, "right-pass");
+  gone.fire(one.form, "submit");
+  one.form.remove();
+  gone.advance(300);
+  assert.deepEqual(gone.of("vaultLoginOutcome"), [{ ok: true }]);
+
+  const routed = makePage();
+  const two = loginForm(routed);
+  routed.type(two.user, "me@example.com");
+  routed.type(two.pass, "right-pass");
+  routed.fire(two.form, "submit");
+  routed.location.href = `${routed.location.origin}/home`;
+  routed.advance(300);
+  assert.deepEqual(routed.of("vaultLoginOutcome"), [{ ok: true }]);
+
+  const left = makePage();
+  const three = loginForm(left);
+  left.type(three.user, "me@example.com");
+  left.type(three.pass, "right-pass");
+  left.fire(three.form, "submit");
+  left.fire(left.body, "pagehide");
+  left.advance(6000);
+  assert.deepEqual(left.of("vaultLoginOutcome"), [{ ok: true }]);
 });
 
 test("a submit is trusted only after a real click or Enter within a second, never when the page submits on its own", () => {

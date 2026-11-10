@@ -287,6 +287,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self noteVaultCodeTarget:dict frame:frameId main:main origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultSubmit"] && dict) {
     [self captureVaultSubmit:dict tab:tab frame:frameId origin:VerifiedOrigin(verifiedOrigin)];
+  } else if ([kind isEqualToString:@"vaultLoginOutcome"] && dict) {
+    NSString *origin = VerifiedOrigin(verifiedOrigin);
+    if (VaultWebOrigin(origin))
+      [self emit:@"vaultLoginOutcome" payload:@{@"frameId" : frameId, @"origin" : origin, @"ok" : @(Flag(dict, @"ok"))}];
   } else if ([kind isEqualToString:@"vaultFilled"] && dict) {
     NSMutableArray<NSString *> *filled = [NSMutableArray array];
     for (id name in Field<NSArray>(dict, @"filled") ?: @[])
@@ -337,7 +341,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
         @"newPassword" : @(Flag(dict, @"newPassword")),
         @"generated" : @(generated),
         @"usernameFrom" : VaultUsernameSource(dict),
-        @"trusted" : @(Flag(dict, @"trusted"))
+        @"trusted" : @(Flag(dict, @"trusted")),
+        @"reportsOutcome" : @YES
       }];
 }
 

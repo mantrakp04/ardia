@@ -878,6 +878,27 @@
       if (last && last.username === username && last.length === password.length && now - last.at < 1000 && (last.trusted || !isTrusted)) return;
       vaultLastSubmit = { username, length: password.length, at: now, trusted: isTrusted };
       send("vaultSubmit", { username, password, newPassword: chosen.kind === "newPassword", usernameFrom, trusted: isTrusted });
+      vaultWatchLogin(chosen.el);
+    };
+    const VAULT_OUTCOME_STEP = 250;
+    const VAULT_OUTCOME_WAIT = 5000;
+    let vaultLogin = null;
+    const vaultLoginLeft = (login) => !login.field.isConnected || !vaultUsable(login.field) || location.href !== login.href;
+    const vaultReportLogin = (login, ok) => {
+      if (vaultLogin !== login) return;
+      vaultLogin = null;
+      send("vaultLoginOutcome", { ok });
+    };
+    const vaultCheckLogin = (login) => {
+      if (vaultLogin !== login) return;
+      if (vaultLoginLeft(login)) return vaultReportLogin(login, true);
+      if (vaultNow() - login.at >= VAULT_OUTCOME_WAIT) return vaultReportLogin(login, false);
+      vaultLater(() => vaultCheckLogin(login), VAULT_OUTCOME_STEP);
+    };
+    const vaultWatchLogin = (field) => {
+      const login = { field, href: location.href, at: vaultNow() };
+      vaultLogin = login;
+      vaultLater(() => vaultCheckLogin(login), VAULT_OUTCOME_STEP);
     };
     const VAULT_SUBMIT_TEXT = /log.?in|sign.?in|sign.?up|continue|next|submit|register|create|save|enter|\bgo\b|\bok\b|weiter|anmelden|connexion|iniciar|entrar|accedi/;
     const VAULT_NOT_SUBMIT = /forgot|reset|google|apple|facebook|microsoft|github|twitter|passkey|\bsso\b|cancel|\bback\b|show|hide|reveal|another|different|help/;
@@ -1086,6 +1107,7 @@
     apply(vaultListen, window, ["scroll", vaultQueueRect, { capture: true, passive: true }]);
     apply(vaultListen, window, ["resize", vaultQueueRect]);
     apply(vaultListen, window, ["pagehide", guard(vaultBlur)]);
+    apply(vaultListen, window, ["pagehide", guard(() => vaultLogin && vaultReportLogin(vaultLogin, true))]);
     apply(vaultListen, window, [
       "pageshow",
       guard((e) => {
