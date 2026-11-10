@@ -27,7 +27,12 @@ All of them are in `apps/browser/scripts/perf/`.
 | `micro-bench.mjs` | Node | Store-side work that grows with a profile (sidebar entries, group names, omnibox) in Node. No app needed. Its `counts` and `instr` cases feed the ratchet. |
 | `suggest-instr.mjs`, `suggest-hermes.mjs`, `bar-actions.json` | Node, Hermes | One command-bar keystroke on the seed profile (typing `github.com/net` and `react native perf`: site check, the bar's 46 actions, suggestions). `micro-bench.mjs suggest-keys` prints ops and time per key (`SUGGEST_BEFORE=1` runs the code as it was before the J2 hill-climb: the frozen spec `packages/core/src/suggest.reference.ts`); `suggest-instr.mjs` the instructions retired per round; `suggest-hermes.mjs` the same keys in the app's Hermes (the app's babel transform, the `hermes` CLI from Pods), per key, run under the perflab lock. `packages/core/src/suggest.property.test.ts` and `fuzzy.property.test.ts` hold the live code to the frozen spec on random profiles and typing sequences. |
 | `ratchet.mjs`, `ratchet.json` | ratchet | Ceilings on counts that can only go down, and the commands that check, lower and rebuild them. |
-| `ratchet-app.js`, `ops.mjs`, `ratchet-proof.mjs` | ratchet | The `launch` scenario the ratchet adds to js-bench, the builtin-call counter micro-bench uses, and the before/after proof that counts track wall-clock. |
+| `ratchet-app.js`, `ops.mjs` | ratchet | The `launch` scenario the ratchet adds to js-bench, and the builtin-call counter micro-bench uses. |
+
+Every bench that runs a copy of the app (js-bench, render-bench, census, native-bench, tab-actions) makes it with
+`prepareApp` in `scripts/lib/app-copy.mjs`: an APFS clone with the bundle swapped in, re-signed with the original's identity
+and entitlements only when something changed (the bundle, or the dyld and library-validation entitlements the injected
+`.m` tools need), and never from `/Applications`.
 
 The app side of the JS benches is `apps/browser/src/state/app/perfProbe.ts`. It only turns on in an isolated instance
 whose data folder holds a `perf-probe` file.
@@ -247,8 +252,9 @@ and `xctrace` counters need root or Instruments and weren't tried.
 
 ### Do the counts track wall-clock?
 
-`ratchet-proof.mjs` runs one workload on two revisions of the source, exported with `git archive` (nothing is checked
-out), and prints the exact builtin calls and the median wall-clock side by side. The pair is `f3417151^` and `f3417151`,
+`ratchet-proof.mjs` (deleted 2026-11-09; `git show 3737e1b79:apps/browser/scripts/perf/ratchet-proof.mjs`) ran one workload
+on two revisions of the source, exported with `git archive` (nothing is checked out), and printed the exact builtin calls
+and the median wall-clock side by side. The pair is `f3417151^` and `f3417151`,
 the commit "Strip and sidebar entries look tabs' groups and splits up by index", which stopped `sidebarEntries` from
 searching every split for every tab on a title change:
 
@@ -262,8 +268,7 @@ the 3.1 → 0.16 ms line is one run on a calmer machine. The calls are the same 
 
 Both fall, by more on the bigger window, as a quadratic-to-linear fix predicts, and the time falls further than the
 calls because a call isn't weighted by what it costs (the old code's calls were array scans). **Proven:** builtin calls
-for Node store work: a fix that cut the work cut the count by 68% to 92% and the time by 62% to 99% in every run, and
-`ratchet-proof.mjs` repeats it. **Not proven:** the app-side counts (commits, renders, host updates) against
+for Node store work: a fix that cut the work cut the count by 68% to 92% and the time by 62% to 99% in every run. **Not proven:** the app-side counts (commits, renders, host updates) against
 milliseconds. They are the same kind of count and `render-bench.mjs` times each component's renders, but no fix since the
 probe existed has been timed by the native bench with the machine quiet enough to see it; the first one should be added
 here with its before and after. Until then a drop in a React count is a drop in work, and a rise is a regression only in
@@ -382,7 +387,6 @@ What it does not see: the render server and the GPU. A frame the main thread del
 offscreen pass for a shadow or blur) is not counted; the layout and mount counters and the code are where those are
 looked for. Over-budget counts are noisy; the layout, mount and React counts repeat to the digit, which is why
 `frames-ratchet.json` holds ceilings for those only (`node apps/browser/scripts/perf/frames-phase.mjs check <results.json>`).
-Results and the fix list: [frames.md](frames.md).
 
 **cpu-cap.** `scripts/agent/cpu-cap` puts our processes on background QoS (efficiency cores) and pauses the busiest while
 the Mac is over its cap. Timings from a run it touched are not a user's: the table has a row that counts the runs under

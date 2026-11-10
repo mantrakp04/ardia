@@ -240,13 +240,20 @@ the engine if `engine/` changed (below).
   the app's bundle id, executable and version must be `com.ardia.browser`, `Ardia` and the input version.
   `release.sh --phase sign` reads it from there (`RELEASE_BUILD_INPUT`) into a `dist` it creates fresh, and the export
   takes the expected bundle id as an argument instead of reading it from the build. It takes Sparkle's tools from Sparkle's own 2.9.6 release (SHA-256 pinned; `SPARKLE_BIN`), sets up
-  signing (`.github/release/signing.sh`: a temporary keychain with the Developer ID identity, the provisioning profile,
-  the notary and Sparkle key files), and runs `release.sh … --phase sign`: export, sign, verify, notarize and staple the
+  signing (`.github/release/signing.sh setup`: a temporary keychain with the Developer ID identity, the provisioning
+  profile, the notary and Sparkle key files in `$RUNNER_TEMP/release-signing`; it reads `MACOS_CERTIFICATE_P12`,
+  `MACOS_CERTIFICATE_PASSWORD`, `MACOS_PROVISIONING_PROFILE`, `SPARKLE_ED_PRIVATE_KEY` and, when all three are set,
+  `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER`, and exports only the files' paths to `$GITHUB_ENV`:
+  `RELEASE_PROVISIONING_PROFILE`, `SPARKLE_KEY_FILE`, `NOTARY_KEY`; the signing step passes `NOTARY_KEY_ID` and
+  `NOTARY_ISSUER` itself. Without the notary key it exports `ALLOW_UNNOTARIZED=1` when the workflow sets
+  `ALLOW_MISSING_NOTARY=1` (a dry run) and fails otherwise. It removes nothing: the workflow's own `always()` step
+  does), and runs `release.sh … --phase sign`: export, sign, verify, notarize and staple the
   app, the zip and DMG (the DMG signed, notarized and stapled too), the notes and the appcast. Then a step written in
   the workflow itself (so nothing in the job can rewrite it) deletes the keychain and every key file, a check fails the
   run if the checkout changed, and only then it runs the launch check (`--phase check`, the final app opened hidden, uBO
   must be ready, the signature must survive), checks the zip's EdDSA signature against the app's `SUPublicEDKey`
-  (`.github/release/check-sparkle.sh`) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
+  (`.github/release/check-sparkle.sh <dist> <version>`, so a `SPARKLE_ED_PRIVATE_KEY` that doesn't match the app
+  fails here instead of on every update) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
   fails the run, so nothing publishes.
   Every `actions/*` step is pinned by commit SHA.
 - **publish** tags the commit and runs `publish.sh`. Before creating anything, `publish.sh` refuses a build that isn't

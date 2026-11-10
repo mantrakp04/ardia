@@ -152,8 +152,11 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
   `git checkout -- <file>`, `git restore`, `git stash` or `git reset --hard` in this checkout: they wipe other
   agents' uncommitted work in the same file. Undo your own hunks by editing.
 - **Commit your own work to `main`** (`git add -p` or explicit paths, only your hunks). Never commit another
-  agent's work in progress. The index is shared, so a plain `git commit` sweeps in what others staged: commit
-  with `git commit --only -- <paths>` (or check `git diff --cached --stat` lists only your files).
+  agent's work in progress. The index and the working tree are shared, and `git commit -- <paths>` (`--only`) takes
+  the whole working-tree file, other agents' hunks included: check `git diff --cached --stat` lists only your
+  files, then commit the index with a bare `git commit -m …`. For a file that also holds someone else's uncommitted
+  hunks, stage a blob (HEAD's copy plus your edits, `git hash-object -w`, `git update-index --cacheinfo
+  100644,<blob>,<path>`) and check `git diff --cached`.
 - **Never steal focus from the user.** They are working in other apps.
   - Launch the app only with `open -g` (never plain `open`, never `activate`) **and** with
     `ARDIA_BACKGROUND=1`: `open -g` alone does not stop LaunchServices from making the app
@@ -230,7 +233,7 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
     (`components/dev/devHarness.ts`); Expo modules are on `globalThis.expo.modules`. `ac.runCommand` takes an object:
     `ac.runCommand({ command: "importBrowserData", arg: null, windowId: null })`; the utility windows' ids are
     `"settings"` and `"import"`.
-  - The ArdiaCore acceptance run (`docs/ardiacore-parity.md` › "How to build and check it"): `node
+  - The ArdiaCore acceptance run (`docs/testing.md` › "ArdiaCore acceptance"): `node
     packages/ardiacore/scripts/acceptance.mjs <Debug app> <scratch dir> --keep [check…]` once, then `--attach <scratch
     dir> [check…]` for each try (no boot: seconds). `--list` names every check and what it needs; each check prints
     one line, the details go to `<scratch dir>/data/acceptance.log`.
