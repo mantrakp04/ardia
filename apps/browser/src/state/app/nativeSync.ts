@@ -26,6 +26,7 @@ import { useExtensions } from "../extensions/actions";
 import { answerQuitAfterSaves, isQuitting, setQuitting } from "./quit";
 import { menuInputsChanged, trackedMenuState, type MenuReads } from "../commands/menuState";
 import { usePages } from "../tabs/pageState";
+import { startTitleBandSync } from "../windows/titleBands";
 
 const QUIT_SAVES_WAIT_MS = 3_000;
 
@@ -126,4 +127,5 @@ export function startNativeSync() {
     if (e.lists !== prev.lists) menuTimer ??= setTimeout(syncMenu, 120);
   });
   void windows.sweep();
+  startTitleBandSync();
 }

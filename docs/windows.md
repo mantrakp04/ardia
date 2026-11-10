@@ -41,17 +41,17 @@ Logic is written once. Only code that calls the OS is written per platform.
   mounted with its id, as on the Mac. Browser windows draw into the title bar and keep the system caption buttons.
   A drag region is a view that moves the window when the UI's own hit-testing gives it the press, so a control
   on top of it still clicks; the top 32 points of every window drag the same way where nothing else takes the
-  press. While the pointer hovers, the UI checks what a press there would reach, and over a drag area it marks the
-  one pixel under the pointer as a caption region (`setDragCaption`), so the press goes to Windows' own move loop:
-  edge snapping, snap layouts and dragging off a maximized window work as in any app. The mark is dropped as soon
-  as the pointer leaves that pixel, on any key press, when the window loses focus or changes size, and 600 ms after
-  the last hover move, so a parked pointer is never armed. Every press on a mark still reaches the UI (popovers and
-  the command panel close); right clicks open the UI's context menu when it has one, otherwise the system menu.
-  Double clicks on these areas are detected natively from both kinds of press, so a double click maximizes whichever
-  way each press went. Areas with their own click or double-click (`clickable`, `onRegionDoubleClick`, no title bar
-  double-click) keep the UI's press, and a press that found no mark falls back to the app moving the window itself
-  while the button is down (Escape puts it back): it restores a maximized window and maximizes at the top edge,
-  without side snapping. The launch log says which path each drag and double click took. The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
+  press. The top 32 points of a browser window are either `content` (a pass-through region over the band, so the UI
+  gets every press and the app moves the window while the button is down; Escape puts it back, a maximized window
+  restores under the pointer and a release at the top edge maximizes) or `caption` (no pass-through, so Windows' own
+  title bar region takes the band: its move snaps, drags off a maximized window, double clicks to maximize and right
+  clicks for the system menu, and each press still reaches the UI so popovers and the command panel close). The shared
+  UI picks the mode per window (`titleBandFree` in `state/windows/layout.ts`, sent through `platform/titleBand.windows.ts`):
+  `caption` only when it can prove the band holds no control, which is the default layout (tabs in the sidebar,
+  address bar in the toolbar, the toolbar hidden while scrolling, one profile, no downloads in the sidebar header, no
+  command panel or onboarding open); the Mac never asks. Drag areas below the band always move through the app, and
+  native code detects their double clicks. The launch log says which mode each window's band is in and which path
+  each drag took. The caption buttons' size lives in `apps/browser/src/lib/platformChrome.windows.ts` (138 by 32). The app quits when its last window closes: it sends `willQuit`, then quits on the UI's yes or after 3 seconds
   without a reply; a no cancels the quit.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
@@ -82,10 +82,11 @@ Logic is written once. Only code that calls the OS is written per platform.
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
   self-check launch.
 - With the browser window open, the x64 run also drives the app with real input (a click and typing in the search
-  box, Ctrl+T, drags and double clicks of the title band, a click that crosses from an armed caption onto the
-  sidebar button's edge) and fails when the shortcut matches no command, the window does not move by the dragged
-  distance, dragging to the top edge does not maximize it through a system move, dragging it back down does not
-  restore its size, a double click does not maximize or restore it, or the sidebar button does not take its click. The ARM runner's desktop is covered by Windows' own
+  box, Ctrl+T, drags and double clicks of the title band, a drag of the toolbar below it, a click on the sidebar
+  button just below it) and fails when the default layout's band is not a caption, a title band drag is not Windows'
+  own move or does not move the window by the dragged distance, dragging to the top edge does not maximize it or
+  dragging back down does not restore its size, a double click does not maximize or restore it, the toolbar drag is
+  not the app's own move, the shortcut matches no command, or the sidebar button does not take its click. The ARM runner's desktop is covered by Windows' own
   first-run screen, so its screenshots show that screen and it skips the input.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the

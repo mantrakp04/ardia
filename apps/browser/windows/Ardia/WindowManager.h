@@ -20,7 +20,6 @@
 #include "Host.h"
 #include "LaunchLog.h"
 #include "Paths.h"
-#include "WindowDragRegions.h"
 
 #pragma comment(lib, "dwmapi.lib")
 
@@ -46,10 +45,7 @@ struct ManagedWindow {
   winrt::event_token destroying{};
   bool fullScreen{false};
   winrt::Microsoft::UI::Input::InputNonClientPointerSource nonClient{nullptr};
-  std::optional<winrt::Windows::Graphics::RectInt32> caption;
-  bool captionMenu{false};
-  bool captionApplied{false};
-  ULONGLONG captionArmedAt{0};
+  bool captionBand{false};
 
   bool IsBrowser() const noexcept {
     return kind == "browser" || kind == "small";
@@ -136,6 +132,7 @@ struct WindowManager {
       Watch(entry);
       Mount(entry);
       ConnectNonClientInput(entry);
+      ApplyTitleBand(entry);
       ApplyInputRegions(entry);
 
       bool activate = request.focus && !Background();
@@ -242,30 +239,14 @@ struct WindowManager {
     if (entry) ToggleMaximized(*entry);
   }
 
-  void SetDragCaption(int64_t rootTag, std::optional<std::array<double, 2>> const &point, bool menu) noexcept {
-    if (Background()) return;
-    if (ManagedWindow *entry = FindByRootTag(rootTag)) ArmCaption(*entry, point, menu);
+  void SetTitleBand(std::string const &id, bool caption) noexcept {
+    m_titleBands[id] = caption;
+    if (ManagedWindow *entry = Find(id)) ApplyTitleBand(*entry);
   }
 
   bool DebugAvailable() const noexcept {
     static const bool available = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
     return available;
-  }
-
-  std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugArmCaption(std::string_view id, double x, double y) noexcept {
-    ManagedWindow *entry = Find(id);
-    if (!DebugAvailable() || !entry) return std::nullopt;
-    std::optional<int64_t> rootTag = RootTagOf(*entry);
-    if (!rootTag || FindByRootTag(*rootTag) != entry) return std::nullopt;
-    ArmCaption(*entry, std::array<double, 2>{x, y}, false);
-    return DebugRegions(id);
-  }
-
-  bool DebugClearCaption(std::string_view id) noexcept {
-    ManagedWindow *entry = Find(id);
-    if (!DebugAvailable() || !entry) return false;
-    ClearCaption(*entry);
-    return true;
   }
 
   std::optional<winrt::Microsoft::ReactNative::JSValueObject> DebugRegions(std::string_view id) noexcept {
@@ -275,6 +256,8 @@ struct WindowManager {
     report["rootTag"] = RootTagOf(*entry).value_or(0);
     report["scale"] = Scale(entry->hwnd);
     report["nonClient"] = static_cast<bool>(entry->nonClient);
+    report["kind"] = entry->kind;
+    report["titleBand"] = entry->captionBand ? "caption" : "content";
     report["caption"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Caption);
     report["passthrough"] = InstalledRects(*entry, winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough);
     return report;
@@ -300,8 +283,6 @@ struct WindowManager {
 
  private:
   static constexpr UINT_PTR kSubclassId = 0xA2D1A;
-  static constexpr ULONGLONG kCaptionLifetimeMs = 600;
-  static constexpr int kCaptionCheckMs = 100;
 
   ManagedWindow *Find(std::string_view id) noexcept {
     auto found = m_windows.find(std::string(id));
@@ -466,15 +447,13 @@ struct WindowManager {
               event["id"] = id;
               event["frame"] = std::move(values);
               EmitWindow(std::move(event));
-              if (args.DidSizeChange()) found->caption.reset();
               ApplyInputRegions(*found);
             }
             if (args.DidPresenterChange()) {
               bool fullScreen = found->appWindow.Presenter().Kind() == winrt::Microsoft::UI::Windowing::AppWindowPresenterKind::FullScreen;
               if (fullScreen != found->fullScreen) {
                 found->fullScreen = fullScreen;
-                found->caption.reset();
-                ApplyInputRegions(*found);
+                ApplyTitleBand(*found);
                 winrt::Microsoft::ReactNative::JSValueObject event;
                 event["type"] = "fullScreen";
                 event["id"] = id;
@@ -523,6 +502,7 @@ struct WindowManager {
     RemoveWindowSubclass(found->second.hwnd, &WindowManager::WindowProc, kSubclassId);
     auto closedWindow = found->second.window;
     m_windows.erase(found);
+    m_titleBands.erase(id);
     std::erase(m_order, id);
     if (m_activeId == id) m_activeId = m_order.empty() ? std::string{} : m_order.back();
     if (HWND next = ActiveHwnd()) {
@@ -611,83 +591,13 @@ struct WindowManager {
     m_lastPressHwnd = nullptr;
   }
 
-  void ArmCaption(ManagedWindow &entry, std::optional<std::array<double, 2>> const &point, bool menu) noexcept {
-    if (!entry.nonClient) return;
-    std::optional<winrt::Windows::Graphics::RectInt32> pixel;
-    if (point && !entry.fullScreen) pixel = WindowDragRegions::PixelAt((*point)[0], (*point)[1], Scale(entry.hwnd));
-    if (!pixel) return ClearCaption(entry);
-    entry.captionArmedAt = GetTickCount64();
-    bool changed = !WindowDragRegions::Same(pixel, entry.caption) || menu != entry.captionMenu;
-    entry.caption = pixel;
-    entry.captionMenu = menu;
-    if (!m_captionNoted) {
-      m_captionNoted = true;
-      LaunchLog::Write(L"window", std::wstring(L"first caption region set on ").append(Paths::Wide(entry.id)));
-    }
-    if (changed) ApplyInputRegions(entry);
-    WatchCaptions();
-  }
-
-  static void ClearCaption(ManagedWindow &entry) noexcept {
-    if (!entry.caption) return;
-    entry.caption.reset();
-    entry.captionMenu = false;
+  void ApplyTitleBand(ManagedWindow &entry) noexcept {
+    auto wanted = m_titleBands.find(entry.id);
+    bool caption = wanted != m_titleBands.end() && wanted->second && entry.IsBrowser() && entry.kind != "small" && !entry.fullScreen && entry.nonClient;
+    if (caption == entry.captionBand) return;
+    entry.captionBand = caption;
+    LaunchLog::Write(L"window", std::wstring(L"title band of ").append(Paths::Wide(entry.id)).append(caption ? L" is caption" : L" is content"));
     ApplyInputRegions(entry);
-  }
-
-  void ClearAllCaptions() noexcept {
-    for (auto &[id, entry] : m_windows) ClearCaption(entry);
-  }
-
-  static bool CursorOnCaption(ManagedWindow const &entry) noexcept {
-    if (!entry.caption) return false;
-    POINT cursor{};
-    if (!GetCursorPos(&cursor) || !ScreenToClient(entry.hwnd, &cursor)) return false;
-    return WindowDragRegions::Contains(*entry.caption, cursor.x, cursor.y);
-  }
-
-  bool ExpireCaptions() noexcept {
-    ULONGLONG now = GetTickCount64();
-    bool armed = false;
-    for (auto &[id, entry] : m_windows) {
-      if (!entry.caption) continue;
-      if (now - entry.captionArmedAt > kCaptionLifetimeMs || !CursorOnCaption(entry)) ClearCaption(entry);
-      else armed = true;
-    }
-    return armed;
-  }
-
-  void WatchCaptions() noexcept {
-    InstallKeyboardWatch();
-    if (m_watchingCaptions) return;
-    try {
-      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
-      timer.Interval(std::chrono::milliseconds(kCaptionCheckMs));
-      timer.IsRepeating(true);
-      auto token = std::make_shared<winrt::event_token>();
-      *token = timer.Tick([this, timer, token](auto const &, auto const &) noexcept {
-        if (ExpireCaptions()) return;
-        m_watchingCaptions = false;
-        timer.Stop();
-        timer.Tick(*token);
-      });
-      m_watchingCaptions = true;
-      timer.Start();
-    } catch (...) {
-      m_watchingCaptions = false;
-    }
-  }
-
-  void InstallKeyboardWatch() noexcept {
-    if (m_keyboardHook) return;
-    m_keyboardHook = SetWindowsHookExW(WH_KEYBOARD, &WindowManager::KeyboardProc, nullptr, GetCurrentThreadId());
-    if (!m_keyboardHook) LaunchLog::Write(L"warning", L"key presses cannot clear caption regions: the keyboard hook failed");
-  }
-
-  static LRESULT CALLBACK KeyboardProc(int code, WPARAM wParam, LPARAM lParam) noexcept {
-    bool keyDown = (static_cast<ULONG_PTR>(lParam) & 0x80000000) == 0;
-    if (code == HC_ACTION && keyDown) Shared().ClearAllCaptions();
-    return CallNextHookEx(nullptr, code, wParam, lParam);
   }
 
   static winrt::Microsoft::ReactNative::JSValueArray InstalledRects(ManagedWindow const &entry, winrt::Microsoft::UI::Input::NonClientRegionKind kind) noexcept {
@@ -803,13 +713,9 @@ struct WindowManager {
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR reference) noexcept {
     auto *manager = reinterpret_cast<WindowManager *>(reference);
     bool onCaption = wParam == HTCAPTION;
-    bool leftPress = message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK;
-    if (onCaption && leftPress && manager->CaptionLeftPress(hwnd, message == WM_NCLBUTTONDBLCLK, lParam)) return 0;
-    if (onCaption && message == WM_NCRBUTTONDOWN && manager->CaptionRightPress(hwnd, lParam)) return 0;
-    if (message == WM_NCRBUTTONUP && manager->m_menuPress == hwnd) {
-      manager->m_menuPress = nullptr;
-      return 0;
-    }
+    if (onCaption && message == WM_NCLBUTTONDOWN) manager->TitleBandPressed(hwnd, 0, false, lParam);
+    if (onCaption && message == WM_NCLBUTTONDBLCLK) manager->TitleBandPressed(hwnd, 0, true, lParam);
+    if (onCaption && message == WM_NCRBUTTONDOWN) manager->TitleBandPressed(hwnd, 2, false, lParam);
     if (message == WM_ENTERSIZEMOVE) {
       manager->m_systemMove = true;
       manager->SystemMoveBegan(hwnd);
@@ -819,7 +725,6 @@ struct WindowManager {
       manager->m_captionPressed = nullptr;
     }
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
-    if (message == WM_ACTIVATE && LOWORD(wParam) == WA_INACTIVE) manager->Deactivated(hwnd);
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");
     return DefSubclassProc(hwnd, message, wParam, lParam);
   }
@@ -831,28 +736,23 @@ struct WindowManager {
       entry.nonClient = nullptr;
     }
     std::wstring id = Paths::Wide(entry.id);
-    if (Background()) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are off: background instance"));
-    else if (entry.nonClient) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" use the system move loop over caption regions, with the app's own move as the fallback"));
+    if (entry.nonClient) LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app, and by Windows in the title band when it is a caption"));
     else LaunchLog::Write(L"window", std::wstring(L"drags of ").append(id).append(L" are moved by the app: the window has no non-client input source"));
   }
 
   static void ApplyInputRegions(ManagedWindow &entry) noexcept {
-    if (!entry.nonClient) return;
+    if (!entry.nonClient || !entry.IsBrowser()) return;
     try {
-      if (entry.caption || entry.captionApplied) {
-        std::vector<winrt::Windows::Graphics::RectInt32> caption;
-        if (entry.caption) caption.push_back(*entry.caption);
-        entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Caption, caption);
-        entry.captionApplied = entry.caption.has_value();
+      std::vector<winrt::Windows::Graphics::RectInt32> passthrough;
+      if (!entry.captionBand) {
+        auto titleBar = entry.appWindow.TitleBar();
+        auto client = entry.appWindow.ClientSize();
+        int32_t left = titleBar.LeftInset();
+        int32_t right = client.Width - titleBar.RightInset();
+        int32_t height = titleBar.Height();
+        if (right <= left || height <= 0) return;
+        passthrough.push_back({left, 0, right - left, height});
       }
-      if (!entry.IsBrowser()) return;
-      auto titleBar = entry.appWindow.TitleBar();
-      auto client = entry.appWindow.ClientSize();
-      int32_t left = titleBar.LeftInset();
-      int32_t right = client.Width - titleBar.RightInset();
-      int32_t height = titleBar.Height();
-      if (right <= left || height <= 0) return;
-      auto passthrough = WindowDragRegions::Subtract({left, 0, right - left, height}, entry.caption);
       entry.nonClient.SetRegionRects(winrt::Microsoft::UI::Input::NonClientRegionKind::Passthrough, passthrough);
     } catch (...) {
     }
@@ -862,41 +762,14 @@ struct WindowManager {
     return POINT{static_cast<LONG>(static_cast<short>(LOWORD(lParam))), static_cast<LONG>(static_cast<short>(HIWORD(lParam)))};
   }
 
-  void Deactivated(HWND hwnd) noexcept {
-    if (ManagedWindow *entry = FindByHwnd(hwnd)) ClearCaption(*entry);
-  }
-
-  bool CaptionLeftPress(HWND hwnd, bool doubleClick, LPARAM lParam) noexcept {
+  void TitleBandPressed(HWND hwnd, int button, bool doubleClick, LPARAM lParam) noexcept {
     ManagedWindow *entry = FindByHwnd(hwnd);
-    if (!entry) return false;
-    m_captionPressed = doubleClick ? nullptr : hwnd;
-    if (!entry->caption) {
-      ForgetPress();
-      return false;
-    }
-    POINT screen = ScreenPointOf(lParam);
-    EmitCaptionPress(*entry, 0, screen);
-    if (doubleClick) {
-      ForgetPress();
-      LaunchLog::Write(L"window", std::wstring(L"double click on a drag area of ").append(Paths::Wide(entry->id)).append(L", both presses through Windows"));
-      return false;
-    }
-    if (!IsSecondPress(hwnd, screen, static_cast<DWORD>(GetMessageTime()))) return false;
-    m_captionPressed = nullptr;
-    LaunchLog::Write(L"window", std::wstring(L"double click on a drag area of ").append(Paths::Wide(entry->id)).append(L", second press through Windows"));
-    ToggleMaximized(*entry);
-    return true;
-  }
-
-  bool CaptionRightPress(HWND hwnd, LPARAM lParam) noexcept {
-    ManagedWindow *entry = FindByHwnd(hwnd);
-    if (!entry || !entry->caption) return false;
+    if (!entry) return;
     ForgetPress();
-    bool menu = entry->captionMenu;
-    EmitCaptionPress(*entry, 2, ScreenPointOf(lParam));
-    if (!menu) return false;
-    m_menuPress = hwnd;
-    return true;
+    if (button == 0) m_captionPressed = doubleClick ? nullptr : hwnd;
+    if (!entry->captionBand) return;
+    if (doubleClick) LaunchLog::Write(L"window", std::wstring(L"double click on the title band of ").append(Paths::Wide(entry->id)).append(L", through Windows"));
+    EmitCaptionPress(*entry, button, ScreenPointOf(lParam));
   }
 
   void EmitCaptionPress(ManagedWindow &entry, int button, POINT screen) noexcept {
@@ -969,6 +842,7 @@ struct WindowManager {
   winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};
   winrt::Microsoft::ReactNative::ReactNativeWindow m_spare{nullptr};
   std::map<std::string, ManagedWindow> m_windows;
+  std::map<std::string, bool> m_titleBands;
   std::vector<std::string> m_order;
   std::string m_activeId;
   bool m_quitting{false};
@@ -977,14 +851,10 @@ struct WindowManager {
   bool m_tracking{false};
   bool m_dragFromMaximized{false};
   bool m_dragMoved{false};
-  bool m_captionNoted{false};
   HWND m_captionPressed{nullptr};
-  HWND m_menuPress{nullptr};
   HWND m_lastPressHwnd{nullptr};
   DWORD m_lastPressAt{0};
   POINT m_lastPressWhere{};
-  bool m_watchingCaptions{false};
-  HHOOK m_keyboardHook{nullptr};
   POINT m_dragCursor{};
   winrt::Windows::Graphics::PointInt32 m_dragOrigin{};
   std::string m_dragId;

@@ -93,24 +93,10 @@ struct WindowsModule {
     OnUI(promise, [rootTag]() noexcept { WindowManager::Shared().PressDragArea(static_cast<int64_t>(rootTag)); });
   }
 
-  REACT_METHOD(setDragCaption)
-  void setDragCaption(double rootTag, JSValue point, bool menu, Promise promise) noexcept {
-    auto at = Numbers<2>(point);
-    OnUI(promise, [rootTag, at, menu]() noexcept { WindowManager::Shared().SetDragCaption(static_cast<int64_t>(rootTag), at, menu); });
-  }
-
-  REACT_METHOD(debugArmDragCaption)
-  void debugArmDragCaption(std::string id, double x, double y, winrt::Microsoft::ReactNative::ReactPromise<JSValue> promise) noexcept {
-    RunOnUI(m_context, [id, x, y, promise]() noexcept {
-      auto report = WindowManager::Shared().DebugArmCaption(id, x, y);
-      if (!report) return promise.Resolve(JSValue{nullptr});
-      promise.Resolve(JSValue{std::move(*report)});
-    });
-  }
-
-  REACT_METHOD(debugClearDragCaption)
-  void debugClearDragCaption(std::string id, winrt::Microsoft::ReactNative::ReactPromise<bool> promise) noexcept {
-    RunOnUI(m_context, [id, promise]() noexcept { promise.Resolve(WindowManager::Shared().DebugClearCaption(id)); });
+  REACT_METHOD(setTitleBand)
+  void setTitleBand(std::string id, std::string mode, Promise promise) noexcept {
+    bool caption = mode == "caption";
+    OnUI(promise, [id, caption]() noexcept { WindowManager::Shared().SetTitleBand(id, caption); });
   }
 
   REACT_METHOD(debugDragRegions)

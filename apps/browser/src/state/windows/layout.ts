@@ -9,6 +9,7 @@ import { useWindowId } from "../browser/hooks";
 import { useSettingValue } from "../tabs/tabWatch";
 import { captionClearTop, captionRoom, WINDOW_CHROME, type WindowChrome } from "../../lib/windowChrome";
 import { toolbarRowOf } from "../../lib/toolbarRow";
+import { downloadsIn } from "../downloads/downloadsSlice";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
@@ -70,6 +71,21 @@ export function sidebarCaptionRoom(s: BrowserState, windowId: string, chrome: Wi
   const w = s.windows[windowId];
   if (!chrome.trailingWidth || !w || w.fullScreen || sidebarSideOf(s, windowId) !== "right") return 0;
   return captionRoom(0, 0, chrome);
+}
+
+function sidebarHeaderEmpty(s: BrowserState, windowId: string): boolean {
+  const w = s.windows[windowId]!;
+  return w.kind !== "private" && s.profileOrder.length < 2 && downloadsIn(s, windowId).length === 0;
+}
+
+export function titleBandFree(s: BrowserState, windowId: string, overlaid = false, chrome: WindowChrome = WINDOW_CHROME): boolean {
+  const w = s.windows[windowId];
+  if (!chrome.titleBarHeight || !w || overlaid || w.fullScreen || w.kind === "small") return false;
+  if (tabLayoutOf(s, windowId) !== "sidebar" || s.settings.addressBar !== "toolbar") return false;
+  if (cardTopInset(s, windowId, s.settings.pageFrame, chrome) < chrome.titleBarHeight) return false;
+  const ui = s.windowUi[windowId];
+  if (ui?.panel.open || ui?.downloadsOpen) return false;
+  return sidebarHeaderEmpty(s, windowId);
 }
 
 export function useSidebarCaptionRoom(): number {

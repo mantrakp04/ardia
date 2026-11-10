@@ -1,16 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom } = await import("./layout.ts");
+const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, titleBandFree } = await import("./layout.ts");
 const { SMALL_BAR_HEIGHT, SMALL_WINDOW_BAR_HEIGHT } = await import("./small.ts");
 const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
 
 const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false };
-function state(settings = {}, window = {}) {
+function state(settings = {}, window = {}, extra = {}) {
   return {
-    windows: { w: { id: "w", kind: "main", sidebarOpen: true, fullScreen: false, ...window } },
+    windows: { w: { id: "w", kind: "main", profileId: "p", sidebarOpen: true, fullScreen: false, ...window } },
     windowOrder: ["w"],
     ui: { focusOrder: ["w"] },
-    settings: { ...SETTINGS, ...settings },
+    profiles: { p: { id: "p", name: "Personal" } },
+    profileOrder: ["p"],
+    downloads: [],
+    windowUi: {},
+    ...extra,
+    settings: { pageFrame: 9, ...SETTINGS, ...settings },
   };
 }
 
@@ -63,4 +68,41 @@ test("on Windows a sidebar on the right keeps its header out from under the capt
   assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }), "w", windows), 138);
   assert.equal(sidebarCaptionRoom(state({}), "w", windows), 0);
   assert.equal(sidebarCaptionRoom(state({ sidebarSide: "right" }, { fullScreen: true }), "w", windows), 0);
+});
+
+test("the Mac never asks for a caption title band", () => {
+  for (const [settings, window] of LAYOUTS) {
+    assert.equal(titleBandFree(state(settings, window), "w"), false);
+    assert.equal(titleBandFree(state({ ...settings, hideToolbarWhileScrolling: true }, window), "w"), false);
+  }
+});
+
+const DEFAULT_LAYOUT = { hideToolbarWhileScrolling: true };
+const bandFree = (settings = {}, window = {}, extra = {}, overlaid = false) =>
+  titleBandFree(state({ ...DEFAULT_LAYOUT, ...settings }, window, extra), "w", overlaid, windows);
+
+test("on Windows the default layout leaves the title band free for Windows' own caption", () => {
+  assert.equal(bandFree(), true);
+  assert.equal(bandFree({ compactToolbar: true }), true);
+  assert.equal(bandFree({ pageFrame: 0 }), true);
+  assert.equal(bandFree({}, { sidebarOpen: false }), true);
+  assert.equal(bandFree({ sidebarSide: "right" }, { sidebarOpen: false }), true);
+});
+
+test("on Windows any layout that puts a control in the title band keeps the band for the UI", () => {
+  assert.equal(bandFree({ hideToolbarWhileScrolling: false }), false, "the toolbar starts inside the band");
+  assert.equal(bandFree({ tabLayout: "top" }), false, "the top tab strip fills the band");
+  assert.equal(bandFree({ tabLayout: "top" }, { sidebarOpen: false }), false, "the top strip's peek and toolbar reach the band");
+  assert.equal(bandFree({}, { tabLayout: "top" }), false, "a window with its own top tab layout");
+  assert.equal(bandFree({ sidebarSide: "right" }), false, "a sidebar on the right puts the card's toolbar in the band");
+  assert.equal(bandFree({ addressBar: "sidebar" }), false, "the sidebar's address row and header tools sit in the band");
+  assert.equal(bandFree({}, { kind: "small" }), false, "Little Ardia's bar is the band");
+  assert.equal(bandFree({}, { fullScreen: true }), false, "full screen has no title band");
+  assert.equal(bandFree({}, { kind: "private" }), false, "the incognito indicator sits in the sidebar header");
+  assert.equal(bandFree({}, {}, { profiles: { p: { id: "p" }, q: { id: "q" } }, profileOrder: ["p", "q"] }), false, "the profile indicator sits in the sidebar header");
+  assert.equal(bandFree({}, {}, { downloads: [{ id: "d", profile: "p", state: "complete" }] }), false, "the downloads button sits in the sidebar header");
+  assert.equal(bandFree({}, {}, { windowUi: { w: { panel: { open: true, initialText: "" }, downloadsOpen: false } } }), false, "the command panel can rise into the band");
+  assert.equal(bandFree({}, {}, { windowUi: { w: { panel: { open: false, initialText: "" }, downloadsOpen: true } } }), false, "the downloads popover");
+  assert.equal(bandFree({}, {}, {}, true), false, "an overlay such as onboarding covers the band");
+  assert.equal(titleBandFree(state(DEFAULT_LAYOUT), "missing", false, windows), false, "a window that does not exist");
 });
