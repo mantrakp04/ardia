@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ardia_cli import automation_cli, browsing, browsing_cli, cli, endpoint
+from ardia_cli import automation_cli, browsing, cli, endpoint
 
 SCRATCH = Path.home() / "ardia-scratch"
 ENV_NAMES = ("ARDIA_PORT", "ARDIA_WS", "ARDIA_CDP_URL", "ARDIA_DATA_DIR", "AGENT_BROWSER_CDP")

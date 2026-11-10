@@ -115,10 +115,6 @@ def normalize_url(url: str) -> str:
     return "https://" + url
 
 
-async def text_of(page, expression: str):
-    return await page.call(f"() => ({expression})", frame=page.main_frame, read=True)
-
-
 async def page_title(page) -> str:
     try:
         return await page.call("() => document.title", frame=page.main_frame, read=True) or ""

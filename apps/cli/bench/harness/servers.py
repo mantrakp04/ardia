@@ -69,10 +69,10 @@ def start_locked(task):
         if busy:
             raise SystemExit(f"{key_of(task)}: port {port} is used by pid {busy}, not by a server this harness started")
     LOGS.mkdir(parents=True, exist_ok=True)
-    log = open(LOGS / f"server-{key_of(task)}.log", "ab")
     env = dict(os.environ, BENCH_PORT_OFFSET=str(offset))
-    proc = subprocess.Popen(task["server"]["command"], cwd=registry.BENCH_DIR, stdin=subprocess.DEVNULL,
-                            stdout=log, stderr=log, start_new_session=True, env=env)
+    with open(LOGS / f"server-{key_of(task)}.log", "ab") as log:
+        proc = subprocess.Popen(task["server"]["command"], cwd=registry.BENCH_DIR, stdin=subprocess.DEVNULL,
+                                stdout=log, stderr=log, start_new_session=True, env=env)
     base_ports = [p - offset for p in task["server"]["ports"]]
 
     def ready():

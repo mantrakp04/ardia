@@ -230,11 +230,6 @@ class Base(unittest.TestCase):
                 status = exit.code
         return status, out.getvalue(), err.getvalue()
 
-    def interrupt_after(self, seconds):
-        timer = threading.Timer(seconds, os.kill, (os.getpid(), signal.SIGINT))
-        timer.start()
-        self.addCleanup(timer.cancel)
-
 
 class Discovery(Base):
     def test_missing_socket(self):

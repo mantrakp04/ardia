@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ardia_cli import config_files as files
 from ardia_cli.config_files import ConfigError, Places
-from ardia_cli.schema_check import Problem, describe, did_you_mean, format_path, show, validate
+from ardia_cli.schema_check import Problem, describe, did_you_mean, show, validate
 
 CONFIG_DESCRIPTION = """\
 Set Ardia up from ~/.config/ardia/config.json, dotfiles style. Ardia reads the file at launch and whenever it
