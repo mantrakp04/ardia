@@ -14,7 +14,7 @@ variables) is in `docs/conventions.md`, enforced by `apps/browser/src/convention
   inline styles.
 - Native code lives in Expo modules under `packages/*/ios` (Swift / Objective-C++):
   - `packages/ardiacore`: the web engine, **ArdiaCore**: Chrome's own framework (`Chromium Framework.framework`,
-    Chromium 156.0.8078.79 + Helium 0.20.3 + our patch series, `docs/engine-build.md`) with our layer linked
+    Chromium 157.0.8103.38 + Helium 0.21.1 + our patch series, `docs/engine-build.md`) with our layer linked
     in, and the Expo modules and JS API the app uses (`docs/ardiacore-spike.md`, `docs/ardiacore-parity.md`).
     - **Chromium runs the process.** `main.swift` calls `ArdiaHost.run`: `ChromeMain` starts with our
       `ACMainDelegate`, `NSApp` is Chrome's `BrowserCrApplication`, and the React Native host (`AppDelegate`) starts
@@ -50,7 +50,8 @@ variables) is in `docs/conventions.md`, enforced by `apps/browser/src/convention
   edit there, then `scripts/agent/locked pod -- pnpm patch-commit <scratch dir>`, and read the new `.patch`:
   pnpm can add bogus `deleted file` entries (drop them and run `pnpm install` again under the same lock).
   Mark edits `[Ardia: … Ardia]`. Current patches: `react-native-macos` (a view's `transform` survives
-  AppKit layout and applies from its centre; RCTTiming's display link, c7ebd600; a view in a scroll view observes its bounds once, not once per re-add; focus() on a text field being edited keeps its edit, caret and selection; a placeholder change on an empty field being edited isn't a blur; a placeholder colour change on a field being edited reaches its field editor, so it shows once the field is emptied, and its text keeps the field's own colour; a single-line field with pastedTypes pastes only those as plain text, line breaks folded as in Chrome's omnibox, a088913e; a container whose children change leaves the ones already in place alone instead of re-adding every one, 6d7277fd; a mouse touch matches its own down on the same button and is never recorded twice, so JS never gets a null touch, 8bd086c8; mounts go through one queue in layout order, and a live-resize layout, which React Native mounts on the main thread at once, first mounts every older one still queued, so a zoomed window never keeps an older layout and its views track the window during the animation, 2f4aa603) and `expo-modules-core` (the JS
+  AppKit layout and applies from its centre; RCTTiming's display link, c7ebd600; a view in a scroll view observes its bounds once, not once per re-add; focus() on a text field being edited keeps its edit, caret and selection; a placeholder change on an empty field being edited isn't a blur; a placeholder colour change on a field being edited reaches its field editor, so it shows once the field is emptied, and its text keeps the field's own colour; a single-line field with pastedTypes pastes only those as plain text, line breaks folded as in Chrome's omnibox, a088913e; a container whose children change leaves the ones already in place alone instead of re-adding every one, 6d7277fd; a mouse touch matches its own down on the same button and is never recorded twice, so JS never gets a null touch, 8bd086c8; mounts go through one queue in layout order, and a live-resize layout, which React Native mounts on the main thread at once, first mounts every older one still queued, so a zoomed window never keeps an older layout and its views track the window during the animation, 2f4aa603; a network task's callback blocks are atomic and only one of
+  cancel, error and completion finishes it, so a cancel racing a completion never frees the block being called, #955; a React view whose parent and children are all React views leaves Auto Layout, which every macOS 26+ window engages and whose memory exploded with thousands of sidebar rows, #952) and `expo-modules-core` (the JS
   runtime is prepared on the JS thread only, 364f5f7e).
 
 ## The engine
@@ -299,7 +300,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `syncFolder=<dir>` | The sync folder (`packages/sync/scripts/e2e.mjs`) |
 | | `sharedFolders=<dir>` | Where Share Folder… creates shared folders and where Add Shared Folder… starts (`iCloud Drive › Ardia Shared` otherwise; a scratch data dir uses `<data dir>/Ardia Shared`), `docs/shared-folders.md` |
 | | `importSourceDir=<dir>` · `importSafariHome=<dir>` | Where import looks for other browsers and Safari's home, so a scratch instance never sees the owner's profiles |
-| `ARDIA_SWITCHES` | `name=on\|off,…` | Kill switches (`platform/killSwitches.ts` `SWITCHES`, at most 8, on by default) and experiments (`EXPERIMENTS`: `beginFrameBridge`, `serverWindowDrag`, `serverWindowDragAllOpen`, `webkitSignIn`, off by default). Honoured in every build (`docs/kill-switches.md`) |
+| `ARDIA_SWITCHES` | `name=on\|off,…` | Kill switches (`platform/killSwitches.ts` `SWITCHES`, at most 8, on by default) and experiments (`EXPERIMENTS`: `beginFrameBridge`, `serverWindowDragAllOpen`, `webkitSignIn`, off by default). Honoured in every build (`docs/kill-switches.md`) |
 | `ARDIA_TRACE` | `visibility` | Occlusion and each WebView attach/detach, `[ardiacore-vis]` in the system log |
 | | `pip` · `pipZoom` | PiP windows to `/tmp/ac-pip-trace.log` · PiP zoom gestures, `[pip-zoom]` |
 | | `trafficLights` | Every traffic-light change to `<data dir>/traffic-lights.log` |
@@ -320,7 +321,9 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `cliInstallScript=<path>` | Another `ardia` installer script |
 | | `legacySource=<home>` · `legacyCrashAfter=<step>` | The Netnyahoo → Ardia migration from a scratch home |
 | | `bangsUrl` · `onboarding` · `whatsNew` · `telemetry` · `liveMock=<url>` · `calendarFixture` | Debug builds only: bang list, run onboarding, show What's New, send telemetry, live folders from a mock, the calendar fixture |
+| | `cdpTabsVisible` | A tab that a DevTools-port client (`ARDIA_REMOTE_DEBUGGING_PORT`) attaches to stays visible to its renderer until that session detaches, as on the `ardia` command's token path (`ac_cli_visible_tabs.cc`; `docs/cli.md` › Input) |
 | | `loginsDelay=<profile\|account>:<ms>`, `loginsReleaseAfter=<profile\|account>`, `loginsTimeout=<s>` | Sync's password read (`ac_passwords_logins`): hold one store's answer, drop the read as a profile shutdown does once that store has answered, and the bridge's deadline (30 s otherwise) |
+| `ARDIA_FEEDBACK_URL` | URL | Report a Problem's endpoint, e.g. `http://127.0.0.1:4319/api/feedback` for `node infra/feedback/server.mjs --local <dir>` |
 | `ARDIA_PREWARM` | set | Not a setting: an older running app sets it on the staged update it prewarms, which then exits at once |
 
 `ARDIA_TEST` and `ARDIA_TRACE` count only in a test instance: a build that isn't signed for distribution (Debug and

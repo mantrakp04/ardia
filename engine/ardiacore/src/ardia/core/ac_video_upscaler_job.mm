@@ -44,6 +44,16 @@ id<MTLTexture> PlaneTexture(id<MTLDevice> device,
   return [device newTextureWithDescriptor:descriptor iosurface:surface plane:plane];
 }
 
+bool SameRowStrides(IOSurfaceRef surface, IOSurfaceRef reference) {
+  for (size_t plane = 0; plane < 2; ++plane) {
+    if (IOSurfaceGetBytesPerRowOfPlane(surface, plane) !=
+        IOSurfaceGetBytesPerRowOfPlane(reference, plane)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 base::apple::ScopedCFTypeRef<IOSurfaceRef> CreateOutputSurface(const gfx::Size& size) {
   const size_t bytes_per_row =
       IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, size.width() * 4);
@@ -60,6 +70,38 @@ base::apple::ScopedCFTypeRef<IOSurfaceRef> CreateOutputSurface(const gfx::Size& 
       IOSurfaceCreate((__bridge CFDictionaryRef)properties));
 }
 
+API_AVAILABLE(macos(26.0))
+bool EncodeSuperResolution(VTFrameProcessor* processor,
+                           id<MTLCommandBuffer> buffer,
+                           VTLowLatencySuperResolutionScalerParameters* parameters) {
+  @try {
+    [processor processWithCommandBuffer:buffer parameters:parameters];
+    return true;
+  } @catch (id exception) {
+    return false;
+  }
+}
+
+}
+
+void Upscaler::AbandonVideoToolbox(const Plan& plan) {
+  TRACE_EVENT_INSTANT0("gpu", "ArdiaVSR.VideoToolboxRefused", TRACE_EVENT_SCOPE_THREAD);
+  vt_failed_ = plan.vt_input;
+  ArdiaVideoUpscalerKit* kit = kit_;
+  kit_ = nil;
+  kit_plan_.reset();
+  if (kit) {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      (void)kit;
+    });
+  }
+  task_runner_->PostTask(FROM_HERE, base::BindOnce(
+                                        [](base::WeakPtr<Upscaler> upscaler) {
+                                          if (upscaler) {
+                                            upscaler->on_upscaled_.Run();
+                                          }
+                                        },
+                                        weak_factory_.GetWeakPtr()));
 }
 
 base::apple::ScopedCFTypeRef<IOSurfaceRef> Upscaler::TakeOutputSurface(const gfx::Size& size) {
@@ -94,6 +136,9 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
       plan.key.format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
 
   id<MTLCommandBuffer> buffer = [kit.queue commandBuffer];
+  if (!buffer) {
+    return;
+  }
   id<MTLTexture> output_texture =
       PlaneTexture(kit.device, output.get(), 0, MTLPixelFormatBGRA8Unorm,
                    MTLTextureUsageShaderWrite | MTLTextureUsageRenderTarget |
@@ -102,9 +147,9 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
 
   IOSurfaceRef detail_source = nullptr;
   if (plan.vt_factor > 0) {
+    IOSurfaceRef padded = CVPixelBufferGetIOSurface(kit.paddedInput);
     CVPixelBufferRef vt_input = nullptr;
-    if (plan.vt_needs_pad) {
-      IOSurfaceRef padded = CVPixelBufferGetIOSurface(kit.paddedInput);
+    if (plan.vt_needs_pad || !SameRowStrides(source, padded)) {
       id<MTLComputeCommandEncoder> encoder = [buffer computeCommandEncoder];
       [encoder setComputePipelineState:kit.pad];
       for (size_t plane = 0; plane < 2; ++plane) {
@@ -145,7 +190,11 @@ void Upscaler::Start(const VideoUpscaleCandidate& candidate, const Plan& plan) {
     VTLowLatencySuperResolutionScalerParameters* parameters =
         [[VTLowLatencySuperResolutionScalerParameters alloc] initWithSourceFrame:in_frame
                                                                 destinationFrame:out_frame];
-    [kit.processor processWithCommandBuffer:buffer parameters:parameters];
+    if (!kit.processor || !parameters ||
+        !EncodeSuperResolution(kit.processor, buffer, parameters)) {
+      AbandonVideoToolbox(plan);
+      return;
+    }
     detail_source = CVPixelBufferGetIOSurface(kit.vtOutput);
   }
 

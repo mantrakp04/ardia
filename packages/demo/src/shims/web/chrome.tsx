@@ -213,7 +213,7 @@ export function GlassEffect({ cornerRadius = 0, tint, glassStyle = "regular", da
   );
 }
 
-export function GlassGroup(props: ViewProps) {
+export function GlassGroup({ strength: _strength, ...props }: ViewProps & { strength?: number }) {
   return <View {...props} />;
 }
 

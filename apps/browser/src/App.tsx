@@ -1,6 +1,6 @@
 import { WindowBackdrop } from "./components/ui";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 import { CommandPanel } from "./components/omnibox/CommandPanel";
 import { ContentCard } from "./components/window/ContentCard";
 import { BookmarkDialog } from "./components/bookmarks/BookmarkDialog";
@@ -8,6 +8,7 @@ import { EditBookmarkDialog } from "./components/bookmarks/EditBookmarkDialog";
 import { FolderMenus } from "./components/bookmarks/FolderMenus";
 import { ExtensionOverlays } from "./components/extensions/ExtensionOverlays";
 import { ExtensionSidePanel } from "./components/extensions/SidePanel";
+import { CrxDropArea } from "./components/extensions/CrxDropArea";
 import { DownloadMagnet, DownloadsPopover } from "./components/downloads/Downloads";
 import { UtilityWindow } from "./components/settings/UtilityWindow";
 import { isUtilityWindowId } from "./state/settings/settingsWindows";
@@ -15,12 +16,13 @@ import { OnboardingOverlay } from "./components/onboarding";
 import { CreateProfileHost } from "./components/profiles/CreateProfile";
 import { useFullscreenTab } from "./state/tabs/pageState";
 import { TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstrip/TopTabStrip";
-import { useTabLayout } from "./state/windows/layout";
+import { usePageFrameInset, useTabLayout } from "./state/windows/layout";
 import { WindowProfile } from "./components/window/WindowProfile";
 import { DockedLayout } from "./components/window/SidebarDock";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
-import { layout, profileAccent, profileTheme, useTheme } from "./components/ui/theme";
+import { ReportSheetHost } from "./components/report/ReportSheet";
+import { profileAccent, profileTheme, useTheme } from "./components/ui/theme";
 import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
 import { useWindowId, WindowContext } from "./state/browser/hooks";
@@ -57,6 +59,7 @@ function BrowserWindow() {
   const windowId = useWindowId();
   const topTabs = useTabLayout() === "top";
   const fullscreen = !!useFullscreenTab(windowId);
+  const frame = usePageFrameInset();
   const [width, setWidth] = useState(0);
   const card = (
     <>
@@ -66,13 +69,13 @@ function BrowserWindow() {
   );
 
   return (
-    <View style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <CrxDropArea style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
       <WindowProfile />
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
-        inset={{ top: topTabs ? TOP_STRIP_HEIGHT : layout.cardInset, right: layout.cardInset, bottom: layout.cardInset, left: layout.cardInset }}
+        inset={{ top: topTabs ? TOP_STRIP_HEIGHT : frame, right: frame, bottom: frame, left: frame }}
         windowWidth={width}
         topStrip={
           topTabs
@@ -92,6 +95,7 @@ function BrowserWindow() {
       <CreateProfileHost />
       <SidebarOverlays windowWidth={width} />
       <OnboardingOverlay />
-    </View>
+      <ReportSheetHost />
+    </CrxDropArea>
   );
 }

@@ -4,6 +4,7 @@ import { attention } from "./attention";
 import { errorsExceptions, errorsLogs } from "./errors";
 import { funnelsInstalls, funnelsRetention, funnelsSite } from "./funnels";
 import { healthVersions } from "./health";
+import { healthCli } from "./health-cli";
 import { performanceAll } from "./performance";
 import { settingsOverview, settingsTint } from "./settings";
 import { siteBreakdowns, siteClicks, siteExperiment, siteFriction, siteTraffic, siteVitals } from "./site";
@@ -19,6 +20,7 @@ export const sections = {
   "funnels.installs": funnelsInstalls,
   "funnels.retention": funnelsRetention,
   health: healthVersions,
+  "health.cli": healthCli,
   performance: performanceAll,
   settings: settingsOverview,
   "settings.tint": settingsTint,

@@ -12,6 +12,7 @@ import type { Tab } from "../browser/types";
 import { bookmarkTabs, copyUrls, editPinnedPage, newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { isCalendarUrl } from "../live/meetings";
 import { bookmarkTab } from "../bookmarks/actions";
+import { bookmarksShown } from "../bookmarks/visibility";
 import { calendarMenuItem, dismissNowMenuItems, runCalendarMenu } from "./liveMenus";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { togglePageEngine } from "../engines/actions";
@@ -19,6 +20,7 @@ import { canSwitchEngine, ENGINE_NAMES, otherEngine, tabEngine } from "../engine
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
 import { openMultiMenu } from "./multiTabMenu";
 import { tileFolderOf } from "../pins/tileFolders";
+import { sendTabFromMenu, sendTabMenuItem } from "../sync/menu";
 
 const store = () => useBrowser.getState();
 
@@ -136,22 +138,32 @@ function closeItems(f: Facts): MenuItem[] {
   ];
 }
 
+function sendItems(tab: Tab, f: Facts): MenuItem[] {
+  const send = f.incognito ? null : sendTabMenuItem(tab);
+  return send ? [send] : [];
+}
+
 export function tabMenuItems(s: BrowserState, windowId: string, tab: Tab, f: Facts = tabMenuFacts(s, windowId, tab)): TabMenuItem[] {
   return sections<TabMenuItem>(
     pinItems(s, tab, f),
     openItems(s, tab, f),
     calendarItems(tab),
     organiseItems(s, windowId, tab, f),
+    bookmarksShown(s.settings)
+      ? [
+          { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
+          { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
+        ]
+      : [],
     [
-      { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hintWhen(f.active, "bookmarkPage", s) },
-      { id: "bookmarkTo", title: "Add Bookmark to Folder", enabled: !!tab.url, children: bookmarkFolderItems(s, windowId) },
+      ...withAlternate(
+        { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
+        { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
+        f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
+        s,
+      ),
+      ...sendItems(tab, f),
     ],
-    withAlternate(
-      { id: "copy", title: "Copy Link", symbol: "link", enabled: !!tab.url },
-      { id: "copyMd", title: "Copy Link as Markdown", symbol: "link", enabled: !!tab.url },
-      f.active ? ["copyUrl", "copyUrlAsMarkdown"] : null,
-      s,
-    ),
     [
       { id: "rename", title: "Rename…", symbol: "pencil" },
       ...(tab.customTitle ? [{ id: "resetName", title: "Reset Name" }] : []),
@@ -193,7 +205,7 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   if (typeof choice !== "string") return sendTab(windowId, tab.id, choice);
   const s = store();
   const t = { kind: "tab" as const, id: tab.id };
-  if (runCalendarMenu(choice)) return;
+  if (runCalendarMenu(choice) || sendTabFromMenu(choice, tab)) return;
   if (choice === "backToPin") s.returnToPinnedUrl(tab.id);
   else if (choice === "replacePin") s.setPinnedUrl(tab.id);
   else if (choice === "editPin") void editPinnedPage(windowId, tab.id);

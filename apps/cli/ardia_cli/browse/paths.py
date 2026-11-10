@@ -16,6 +16,7 @@ SOL_LOCAL = 0
 LOCAL_PEERCRED = 1
 XUCRED_SIZE = 76
 MAX_META = 64 * 1024
+CREATE_RETRIES = 4
 
 
 class PathError(Exception):
@@ -103,8 +104,19 @@ def inside(dir_fd: int):
         os.close(here)
 
 
+def open_at(name: str, dir_fd: int, flags: int, mode: int) -> int:
+    retries = CREATE_RETRIES if flags & os.O_CREAT else 0
+    while True:
+        try:
+            return os.open(name, flags, mode, dir_fd=dir_fd)
+        except FileNotFoundError:
+            if retries == 0:
+                raise
+            retries -= 1
+
+
 def open_private_file(name: str, dir_fd: int, flags: int = os.O_RDWR | os.O_CREAT, mode: int = 0o600) -> int:
-    fd = os.open(name, flags | os.O_NOFOLLOW | os.O_CLOEXEC, mode, dir_fd=dir_fd)
+    fd = open_at(name, dir_fd, flags | os.O_NOFOLLOW | os.O_CLOEXEC, mode)
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
@@ -178,16 +190,21 @@ def write_private_json(name: str, dir_fd: int, value) -> None:
     os.rename(temp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
 
 
-def read_private_json(name: str, dir_fd: int, default=None):
+def read_private_json(name: str, dir_fd: int, default=None, limit: int = MAX_META):
     try:
         fd = open_private_file(name, dir_fd, os.O_RDONLY)
     except FileNotFoundError:
         return default
     try:
-        raw = os.read(fd, MAX_META + 1)
+        raw = b""
+        while len(raw) <= limit:
+            chunk = os.read(fd, limit + 1 - len(raw))
+            if not chunk:
+                break
+            raw += chunk
     finally:
         os.close(fd)
-    if len(raw) > MAX_META:
+    if len(raw) > limit:
         raise PathError(f"{name} is too large")
     try:
         return json.loads(raw)

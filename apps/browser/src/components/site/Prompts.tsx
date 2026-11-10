@@ -8,6 +8,7 @@ import {
   setPopover,
   usePage,
 } from "../../state/tabs/pageState";
+import { dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { useState } from "react";
 import { Image, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -96,7 +97,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
   };
   const profile = () => currentEngineProfile(currentTab(tabId)?.profileId ?? "");
   return (
-    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
+    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={() => dismissPopoverByPress(tabId)}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}

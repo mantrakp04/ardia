@@ -256,6 +256,9 @@ async def network_route(ctx, argv):
     options, args = parse(argv, {"--abort": "bool", "--body": "value", "--resource-type": "value", "--status": "value", "--content-type": "value"})
     need(args, 1, "network route <url> [--abort | --body <json>] [--resource-type <csv>]")
     page = await ctx.state.page()
+    from ardia_cli.browse.commands import refuse_on_borrowed
+
+    refuse_on_borrowed(ctx, page, "reroute the requests of")
     routes = ctx.state.extras.setdefault("routes", [])
     route = {"pattern": args[0], "abort": bool(options.get("abort")), "body": options.get("body"),
              "types": {value.strip().lower() for value in options["resource_type"].split(",")} if options.get("resource_type") else None,
@@ -487,11 +490,13 @@ async def cmd_record(ctx, argv):
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise BrowseError("record needs ffmpeg on PATH to encode WebM (brew install ffmpeg)")
-    page = await ctx.state.page()
     if len(args) > 2:
-        from ardia_cli.browse.commands import navigate
+        from ardia_cli.browse.commands import current_or_new, navigate
 
+        page = await current_or_new(ctx)
         await navigate(ctx, page, normalize_url(args[2]))
+    else:
+        page = await ctx.state.page()
     await page.require_visible()
     cast = Screencast(page)
 

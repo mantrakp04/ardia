@@ -22,6 +22,7 @@ static const NSEventModifierFlags kPeekKeyMask = NSEventModifierFlagOption | NSE
 static NSEventModifierFlags gPeekUpKeys = 0;
 static CFTimeInterval gPeekUpAt = -1;
 static __weak ArdiaWebView *gPeekUpView;
+static NSPoint gPeekUpPoint;
 static NSUInteger gPeekUpSeq = 0;
 static NSUInteger gPeekUsedSeq = 0;
 static BOOL gPeekPressedSinceUp = NO;
@@ -65,6 +66,7 @@ void InstallPeekMonitor() {
                                                     gPeekUpKeys = event.modifierFlags & kPeekKeyMask;
                                                     gPeekUpAt = CACurrentMediaTime();
                                                     gPeekUpView = PageViewUnder(event);
+                                                    gPeekUpPoint = event.locationInWindow;
                                                     gPeekPressedSinceUp = NO;
                                                     gPeekUpSeq++;
                                                     return event;
@@ -92,6 +94,12 @@ void PeekTrace(NSDictionary *entry) {
 
 NSString *SplitLinkModifier() {
   return [gSplitLinkModifier isEqualToString:@"alt"] && ![gPeekModifier isEqualToString:@"alt"] ? @"alt" : @"altShift";
+}
+
+NSDictionary *RecentClickPoint(ArdiaWebView *view) {
+  NSWindow *window = view.window;
+  if (!window || gPeekUpView != view || gPeekUpAt < 0 || CACurrentMediaTime() - gPeekUpAt > kPeekGestureLifetime) return nil;
+  return @{@"x" : @(gPeekUpPoint.x), @"y" : @(window.contentView.frame.size.height - gPeekUpPoint.y)};
 }
 
 NSString *PeekConfigJSON(ArdiaWebView *view) {
@@ -269,7 +277,7 @@ static NSString *LinkKeyAction(NSString *key) {
   const NSPoint inWindow = [self convertPoint:point toView:nil];
   const CGFloat top = window.contentView.frame.size.height - inWindow.y;
   [self emit:@"openWindow"
-      payload:@{@"url" : url, @"disposition" : @"peek", @"userGesture" : @YES, @"point" : @{@"x" : @(inWindow.x), @"y" : @(top)}}];
+      payload:@{@"url" : url, @"disposition" : @"peek", @"userGesture" : @YES, @"site" : @(otherSite), @"point" : @{@"x" : @(inWindow.x), @"y" : @(top)}}];
 }
 
 @end

@@ -35,5 +35,6 @@ public class WebKitModule: Module {
     },
     "devTouchStore": { args, reply in WebKitHub.shared.touchStore(args.profile) { reply.ok($0) } },
     "devParkedTransfers": { _, reply in reply.ok(WebKitHub.shared.transfers.parkedKeys) },
+    "devContentBlocker": { _, reply in reply.ok(WebKitContentBlocker.shared.state) },
   ]
 }

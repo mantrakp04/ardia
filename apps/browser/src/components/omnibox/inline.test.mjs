@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSuggestions } from "@ardia/core";
-import { acceptsCompletion, completionToWrite, fieldChange, withoutFirst } from "./inline.ts";
+import { acceptsCompletion, completionToWrite, fieldChange, previewFieldChange, withoutFirst } from "./inline.ts";
 
 const now = Date.UTC(2026, 8, 25);
 const history = [
@@ -261,4 +261,13 @@ test("the caret reaching the end of the text with the completion accepts it", ()
   assert.equal(acceptsCompletion("git", "", sel(3), []), false);
   assert.equal(acceptsCompletion("git", "hub.com", sel(10), [{ typed: "git", completion: "hub.com" }]), false);
   assert.equal(edit("github.com", "", "github.co", sel(10), sel(9)), true);
+});
+
+test("previewFieldChange: a completion echo that lands after arrowing to a row is still an echo, typing edits the row's text", () => {
+  const pending = [{ typed: "gi", completion: "thub.com" }];
+  const echo = previewFieldChange("gi", "", "gitlab.com", "github.com", pending);
+  assert.equal(echo.echo, true);
+  const typedOnPreview = previewFieldChange("gi", "thub.com", "gitlab.com", "gitlab.com/", []);
+  assert.deepEqual(typedOnPreview, { echo: false, typed: "gitlab.com/", suppress: false });
+  assert.deepEqual(previewFieldChange("gi", "", null, "git", []), fieldChange("gi", "", "git", []));
 });

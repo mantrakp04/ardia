@@ -27,7 +27,7 @@ background QoS: full speed.
 import argparse, os, re, signal, subprocess, sys, time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MARKERS = (REPO + "/", REPO + " ", "/private/tmp/claude-", "/tmp/ac-")
+MARKERS = (REPO + "/", REPO + " ", "/private/tmp/claude-", "/tmp/ac-", os.path.expanduser("~/ardia-scratch/"))
 NEVER = ("/Applications/Ardia.app/", "/Applications/Claude.app/", "/Applications/League of Legends.app/",
          "/System/", "/usr/libexec/", "/sbin/launchd")
 COORD = {"SWBBuildService", "ibtoold", "xcodebuild", "XCBBuildService", "lockf", "siso", "ninja", "autoninja", "gn"}

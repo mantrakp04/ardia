@@ -33,7 +33,7 @@ const latency: number[] = [];
 let keystrokes = 0;
 
 export function sampleOmniboxLatency(ms: number) {
-  if (!isSharing() || ++keystrokes % SAMPLE_EVERY) return;
+  if (++keystrokes % SAMPLE_EVERY) return;
   if (ms >= 0 && ms < 10_000 && latency.length < MAX_SAMPLES) latency.push(ms);
 }
 

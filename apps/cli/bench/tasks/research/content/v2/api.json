@@ -1,0 +1,44 @@
+[
+ {"group": "Streams", "endpoints": [
+  {"slug": "reference/list-streams", "method": "GET", "path": "/v2/streams", "summary": "Lists streams. Uses page-number pagination (`page`, `per_page`).",
+   "query": [["page", "integer", false, "Page number, starting at 1."], ["per_page", "integer", false, "1 to 50. Defaults to 20."]],
+   "response": {"streams": [{"id": "str_8Kq2vX", "name": "orders", "partitions": 12}], "page": 1, "total_pages": 1},
+   "errors": []},
+  {"slug": "reference/create-stream", "method": "POST", "path": "/v2/streams", "summary": "Creates a stream.",
+   "body": [["name", "string", true, "3 to 64 characters."], ["partitions", "integer", false, "1 to 64. Defaults to 4."], ["retention_hours", "integer", false, "1 to 720."]],
+   "response": {"id": "str_8Kq2vX", "name": "orders", "partitions": 12, "retention_hours": 168},
+   "errors": [[409, "stream_exists", "A stream with this name already exists."]]}
+ ]},
+ {"group": "Events", "endpoints": [
+  {"slug": "reference/publish-event", "method": "POST", "path": "/v2/streams/{stream_id}/events", "summary": "Publishes one event. Events may be at most 256 KB in v2.",
+   "path_params": [["stream_id", "string", true, "The target stream."]],
+   "body": [["type", "string", true, "Event type."], ["key", "string", false, "Partition key."], ["data", "object", true, "Event payload."]],
+   "response": {"id": "evt_01JB9X4T2Q", "partition": 3, "offset": 88213},
+   "errors": [[413, "event_too_large", "The event is larger than 256 KB."]]},
+  {"slug": "reference/read-events", "method": "GET", "path": "/v2/streams/{stream_id}/events", "summary": "Reads events for a consumer group named in the `group` query parameter.",
+   "path_params": [["stream_id", "string", true, "The stream."]],
+   "query": [["group", "string", true, "Consumer group name."], ["max", "integer", false, "1 to 500."]],
+   "response": {"events": [{"id": "evt_01JB9X4T2Q", "type": "order.created", "offset": 88213}]},
+   "errors": []}
+ ]},
+ {"group": "Offsets", "endpoints": [
+  {"slug": "reference/get-offsets", "method": "GET", "path": "/v2/streams/{stream_id}/offsets", "summary": "Returns the committed offsets of a consumer group, per partition.",
+   "notice": "**Deprecated.** This endpoint will be sunset on April 30, 2027. After that date it returns `410 Gone`. Use [Retrieve committed offsets](/v3/reference/get-offsets) in v3 instead.",
+   "path_params": [["stream_id", "string", true, "The stream."]],
+   "query": [["group", "string", true, "Consumer group name."]],
+   "response": {"group": "billing-worker", "offsets": {"0": 41220, "1": 39871}},
+   "errors": [[404, "group_not_found", "No consumer group with this name exists on the stream."]]},
+  {"slug": "reference/commit-offsets", "method": "POST", "path": "/v2/streams/{stream_id}/offsets", "summary": "Commits offsets for a consumer group.",
+   "notice": "**Deprecated.** This endpoint will be sunset on January 31, 2027. After that date it returns `410 Gone`. Use [Commit offsets](/v3/reference/commit-offsets) in v3 instead.",
+   "path_params": [["stream_id", "string", true, "The stream."]],
+   "body": [["group", "string", true, "Consumer group name."], ["offsets", "object", true, "Map of partition number to offset."]],
+   "response": {"ok": true},
+   "errors": []}
+ ]},
+ {"group": "Webhooks", "endpoints": [
+  {"slug": "reference/create-webhook", "method": "POST", "path": "/v2/webhooks", "summary": "Registers a webhook URL.",
+   "body": [["url", "string", true, "HTTP or HTTPS URL."], ["stream_id", "string", true, "Source stream."]],
+   "response": {"id": "wh_77Ka", "url": "https://hooks.example.com/halyard", "secret": "8f1e0c9b2a"},
+   "errors": []}
+ ]}
+]

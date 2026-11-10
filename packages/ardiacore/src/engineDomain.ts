@@ -8,6 +8,7 @@ export type EngineInfo = {
   liveBrowsers: number;
   popupWindows: number;
   chromeWindows: number;
+  focus?: string;
 };
 
 export type EngineComponent = {
@@ -56,6 +57,8 @@ export type MemorySaverState = { state: "on" | "off"; aggressiveness: MemorySave
 export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSeconds();
 
 type CliServer = { connections: number; generation: number; file: string; reason?: string };
+
+export type CliTabTarget = { targetId: string | null; pageGeneration: number };
 
 export type CliControlStatus =
   | { state: "external" }

@@ -316,16 +316,16 @@ test("a leftover adoption flag on a theme that's already applied is cleared at s
   });
 });
 
-test("a Mac joining sync takes a paired profile's choice to keep its own Top Apps instead of publishing over it", async () => {
+test("a Mac joining sync takes a paired profile's choice to share its Top Apps instead of publishing over it", async () => {
   folder.clear();
   downloading.clear();
   damaged.clear();
   const a = new Mac("A");
   const c = new Mac("C");
-  const engineA = await import("./engine.ts?ownTopAppsA");
-  const engineC = await import("./engine.ts?ownTopAppsC");
+  const engineA = await import("./engine.ts?shareTopAppsA");
+  const engineC = await import("./engine.ts?shareTopAppsC");
   await a.with(async () => {
-    S().updateProfile("default", { ownTopApps: true });
+    S().updateProfile("default", { shareTopApps: true });
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
@@ -336,14 +336,14 @@ test("a Mac joining sync takes a paired profile's choice to keep its own Top App
     assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
     await engineC.syncNow();
     await engineC.syncNow();
-    assert.equal(S().profiles.default.ownTopApps, true, "the paired profile takes the synced choice");
+    assert.equal(S().profiles.default.shareTopApps, true, "the paired profile takes the synced choice");
   });
   for (let i = 0; i < 2; i++) {
     await a.with(() => engineA.syncNow());
     await c.with(() => engineC.syncNow());
   }
-  await a.with(() => assert.equal(S().profiles.default.ownTopApps, true, "the first Mac keeps its choice"));
-  await c.with(() => assert.equal(S().profiles.default.ownTopApps, true));
-  const records = published("prof:").map((op) => op.v).filter(Boolean);
-  assert.ok(records.length && records.every((v) => v.o === true), `the choice is never published away: ${JSON.stringify(records)}`);
+  await a.with(() => assert.equal(S().profiles.default.shareTopApps, true, "the first Mac keeps its choice"));
+  await c.with(() => assert.equal(S().profiles.default.shareTopApps, true));
+  const records = published("pta:").map((op) => op.v).filter(Boolean);
+  assert.ok(records.length && records.every((v) => v.on === true), `the choice is never published away: ${JSON.stringify(records)}`);
 });

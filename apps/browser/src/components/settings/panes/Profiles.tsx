@@ -86,7 +86,7 @@ export function ProfilesPane() {
 }
 
 function useTopAppsDescription(profileId: string): string {
-  const own = useProfile(profileId, (p) => !!p?.ownTopApps);
+  const own = useProfile(profileId, (p) => !p?.shareTopApps);
   const sharing = useTopAppSiblingNames(profileId);
   const shared = useSharedWith(profileId);
   const others = useProfileRecords(useShallow((profiles) => shared.filter((id) => id !== profileId).map((id) => profiles[id]?.name ?? "")));
@@ -100,7 +100,7 @@ function ShareTopAppsRow({ profileId }: { profileId: string }) {
   if (!profile) return null;
   return (
     <Row icon={<ProfileBadge profile={profile} size={20} />} title={profile.name} description={description}>
-      <Toggle value={!profile.ownTopApps} accessibilityLabel={`Share Top Apps in ${profile.name}`} onChange={(share) => setShareTopApps(profileId, share)} />
+      <Toggle value={!!profile.shareTopApps} accessibilityLabel={`Share Top Apps in ${profile.name}`} onChange={(share) => setShareTopApps(profileId, share)} />
     </Row>
   );
 }
@@ -341,7 +341,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
             title="Share Top Apps"
             description={topAppsDescription}
           >
-            <Toggle value={!profile.ownTopApps} accessibilityLabel="Share Top Apps" onChange={(share) => setShareTopApps(profileId, share)} />
+            <Toggle value={!!profile.shareTopApps} accessibilityLabel="Share Top Apps" onChange={(share) => setShareTopApps(profileId, share)} />
           </Row>
         ) : null}
         <Row title="Make Default Profile" description={isDefault ? "New windows already open with this profile." : "Open new windows with this profile."}>

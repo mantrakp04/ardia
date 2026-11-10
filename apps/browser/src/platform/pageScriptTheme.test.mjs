@@ -11,8 +11,10 @@ const themeBlock = script.slice(start, end);
 
 const CLEAR = "rgba(0, 0, 0, 0)";
 
+const CHROMIUM_COMPUTED = { "lch(94.44% 0.5 282 / 1)": "lch(94.44 0.5 282)" };
+
 const rgbOf = (value) => {
-  if (!value || value.startsWith("rgb")) return value ?? "";
+  if (!value || !value.startsWith("#")) return CHROMIUM_COMPUTED[value] ?? value ?? "";
   const h = value.length === 4 ? value.replace(/[0-9a-f]/gi, (d) => d + d) : value;
   return `rgb(${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)})`;
 };
@@ -140,6 +142,51 @@ test("a light theme-color that matches a light fixed header over a dark page is 
 
 test("a mid-tone brand theme-color over a dark page is kept", () => {
   assert.deepEqual(page({ meta: "#1a73e8", body: "rgb(0, 0, 0)" }).last(), { color: "#1A73E8", source: "meta" });
+});
+
+test("a light theme-color over a page painted in color(srgb …) is kept, as on Perplexity (#884)", () => {
+  const nearWhite = "color(srgb 0.984314 0.984314 0.984314)";
+  assert.deepEqual(page({ meta: "#FCFCF9", body: nearWhite, top: nearWhite }).last(), { color: "#FCFCF9", source: "meta" });
+});
+
+test("an lch() theme-color is read as the light gray it is, as on Linear (#884)", () => {
+  assert.deepEqual(page({ meta: "lch(94.44% 0.5 282 / 1)", html: "lch(94.44 0.5 282)" }).last(), { color: "#EFEFF0", source: "meta" });
+});
+
+test("theme-colors in newer CSS color formats land within a step of what Chromium paints", () => {
+  const paintedByChromium = {
+    "oklch(0.3 0.1 260)": [11, 44, 95],
+    "lab(20 10 -30)": [40, 45, 93],
+    "lch(50 60 30)": [202, 73, 72],
+    "oklab(0.5 0.05 -0.1)": [106, 84, 155],
+    "color(display-p3 0.2 0.4 0.8)": [26, 104, 211],
+    "color(display-p3 1 0 0)": [255, 1, 0],
+    "color(display-p3 -1 0.5 0.5)": [0, 141, 134],
+    "color(display-p3 0.9 -0.2 0.4)": [252, 0, 102],
+    "lch(50 0 none)": [120, 119, 119],
+    "oklch(0.6 none 120)": [128, 128, 128],
+    "color(srgb-linear 0.5 0.2 0.1)": [188, 124, 89],
+    "lab(98 0 0)": [249, 249, 249],
+  };
+  for (const [meta, painted] of Object.entries(paintedByChromium)) {
+    const { color, source } = page({ meta }).last();
+    assert.equal(source, "meta", meta);
+    assert.match(color, /^#[0-9A-F]{6}$/, meta);
+    const read = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+    assert.ok(
+      read.every((n, i) => Math.abs(n - painted[i]) <= 1),
+      `${meta} read as ${color}, Chromium paints rgb(${painted})`,
+    );
+  }
+});
+
+test("a theme-color in a colour space the script can't convert is skipped for the page", () => {
+  assert.deepEqual(page({ meta: "color(rec2020 0.5 0.5 0.5)", body: "rgb(31, 31, 31)" }).last(), { color: "#1F1F1F", source: "background" });
+});
+
+test("a translucent color(srgb …) header is blended over the page", () => {
+  const p = page({ body: "rgb(255, 255, 255)", top: "color(srgb 0 0 0 / 0.5)", topPosition: "fixed" });
+  assert.deepEqual(p.last(), { color: "#808080", source: "header" });
 });
 
 test("a page that hasn't painted yet keeps its light theme-color", () => {

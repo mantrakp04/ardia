@@ -14,14 +14,16 @@ type FrameProps = {
   scope: SearchScope | null;
   field: ReactNode;
   list: ReactNode;
+  pulse: ReactNode;
 };
 
 const ICON_SLOT = { width: BAR.iconSlot, alignItems: "center" } as const;
 
-export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, onSiteControls }: FrameProps & { onSiteControls: (() => void) | null }) {
+export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, pulse, onSiteControls }: FrameProps & { onSiteControls: (() => void) | null }) {
   const theme = useTheme();
   return (
     <View ref={rootRef}>
+      {pulse}
       <ContextMenuArea captureDescendants onContextMenu={onContextMenu}>
         <View style={{ flexDirection: "row", alignItems: "center", height: BAR.dropdown.height, paddingLeft: BAR.dropdown.left, paddingRight: BAR.dropdown.right, gap: BAR.dropdown.gap }}>
           <View style={ICON_SLOT}>{leadingIcon}</View>
@@ -45,9 +47,10 @@ export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, fiel
   );
 }
 
-export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, hero, rowHeight, bottom }: FrameProps & { hero: boolean; rowHeight: number; bottom: ReactNode }) {
+export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, pulse, hero, rowHeight, bottom }: FrameProps & { hero: boolean; rowHeight: number; bottom: ReactNode }) {
   return (
     <View ref={rootRef}>
+      {pulse}
       <ContextMenuArea captureDescendants onContextMenu={onContextMenu}>
         <View
           style={{

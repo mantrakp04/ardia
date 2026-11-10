@@ -9,7 +9,7 @@ import { muteTitle } from "../../state/tabs/mute";
 import { HoverSlot } from "../ui/HoverSlot";
 import { ActivitySpinner, Button, Divider, FadeLabel, font, ink, OutsidePressArea, radius, space, Symbol, useHover } from "../ui";
 import { isPinnedRow, tabTitle } from "../../state/browser/model";
-import { awayFromPin } from "../../state/pins/organize";
+import { awayFromPin, awayTitle } from "../../state/pins/organize";
 import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
@@ -22,6 +22,7 @@ import { TabBadges } from "../media/TabBadges";
 import { TAB_ROW, useSidebarTokens } from "./tokens";
 import { useSidebarRowLook } from "./rowLook";
 import { ROW_TITLE_FRAME, SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
+import { AwayTitleLabel } from "./AwayTitle";
 import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabPressArea } from "./TabPressArea";
 import { entryKey } from "../../state/sidebar/entryKey";
@@ -80,6 +81,7 @@ export const TabRow = memo(function TabRow({
   const resettable = (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
+  const away = resettable && !resetting ? awayTitle(tab) : null;
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : ink.clear;
   const border = active || selected ? 0.5 : 0;
 
@@ -102,12 +104,12 @@ export const TabRow = memo(function TabRow({
             padLeft={TAB_ROW.contentLeft - border}
             padRight={TAB_ROW.trailing - border}
           >
-            {resettable ? (
-              <View {...backToPin.hoverProps}>
+            <View {...backToPin.hoverProps}>
+              {resettable ? (
                 <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
                   {resetting ? (
                     <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
                     </View>
                   ) : (
                     <View>
@@ -116,13 +118,13 @@ export const TabRow = memo(function TabRow({
                     </View>
                   )}
                 </Pressable>
-              </View>
-            ) : (
-              <View>
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
-                <TabBadges tabId={tab.id} />
-              </View>
-            )}
+              ) : (
+                <>
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                  <TabBadges tabId={tab.id} />
+                </>
+              )}
+            </View>
             {(playingAudio || mute) && (
               <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: space.s }} tooltip={muteTitle(mute)}>
                 <Symbol name={mute ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
@@ -132,11 +134,13 @@ export const TabRow = memo(function TabRow({
               <RenameField
                 initial={tab.customTitle ?? tab.title}
                 placeholder={tab.title || "Tab name"}
-                color={active ? theme.tabSelectedText : theme.textPrimary}
+                color={active ? theme.rowSelectedText : theme.textPrimary}
                 onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
               />
+            ) : away ? (
+              <AwayTitleLabel away={away} color={active ? theme.rowSelectedText : theme.textTab} fontSize={font.body.fontSize} height={TAB_ROW.titleHeight} style={AWAY_FRAME} />
             ) : (
-              <SidebarRowLabel text={title} color={active ? theme.tabSelectedText : theme.textTab} />
+              <SidebarRowLabel text={title} color={active ? theme.rowSelectedText : theme.textTab} />
             )}
             <HoverSlot
               hovered={hovered && !renaming}
@@ -151,6 +155,8 @@ export const TabRow = memo(function TabRow({
     </View>
   );
 });
+
+const AWAY_FRAME = { flex: 1, marginLeft: TAB_ROW.titleGap } as const;
 
 export function RenameField({
   initial,
@@ -271,7 +277,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
             }}
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
-            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
           </View>
         )}
       </TabPressArea>

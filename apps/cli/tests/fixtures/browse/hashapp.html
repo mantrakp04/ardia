@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>People | Hash App</title></head>
+<body>
+<header><a href="#top">Skip to top</a> <a href="#/">Directory</a></header>
+<main id="view"></main>
+<script>
+const people = [1, 2, 3, 4, 5, 6].map((n) => ({ id: n, name: `Person ${n}`, role: `Engineer ${n * 11}` }));
+const view = document.getElementById("view");
+function route() {
+  const hash = location.hash;
+  view.innerHTML = '<p class="loading">Loading…</p>';
+  setTimeout(() => {
+    const match = /^#\/people\/(\d+)$/.exec(hash);
+    if (match) {
+      const person = people.find((p) => p.id === Number(match[1]));
+      document.title = `${person.name} | Hash App`;
+      view.innerHTML = `<h1>${person.name}</h1><table><tr><th>Role</th><td>${person.role}</td></tr></table><p><a href="#/">Back to the directory</a></p>`;
+    } else {
+      document.title = "People | Hash App";
+      view.innerHTML = "<h1>Directory</h1><ul>" + people.map((p) => `<li><a href="#/people/${p.id}">${p.name}</a></li>`).join("") +
+        '<li><a href="#!/legacy/7">Legacy profile</a></li></ul><p id="notes"><a href="#notes">Notes</a></p>';
+    }
+  }, 400);
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body></html>

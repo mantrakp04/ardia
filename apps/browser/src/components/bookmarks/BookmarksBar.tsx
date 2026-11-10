@@ -1,10 +1,11 @@
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
 import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkProfileId, useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { dropLinksAt, linkDragAt, linkDragLeft, registerDropZone, useBarDrag } from "../../state/bookmarks/barDrag";
 import { roomOffsets, zoneHitAt } from "../../state/bookmarks/barDrop";
+import { barFit } from "../../state/bookmarks/barFit";
 import { openFolderMenu, toggleFolderMenu, useFolderMenus, type MenuRect } from "../../state/bookmarks/folderMenus";
 import type { Settings } from "../../state/settings/settings";
 import { ContextMenuArea, FileDropArea, space, Text, useTheme, type DropUpdate } from "../ui";
@@ -46,6 +47,10 @@ export type BookmarksBarMode = Settings["bookmarksBar"];
 
 type Frames = Record<string, LayoutRectangle>;
 
+const itemWidths = new Map<string, number>();
+const barRooms = new Map<string, number>();
+const widthKey = (size: BarSize, id: string) => `${size.item}:${id}`;
+
 function Bar({ windowId }: { windowId: string }) {
   const theme = useTheme();
   const size = useBarSize();
@@ -72,20 +77,37 @@ function Bar({ windowId }: { windowId: string }) {
   const otherButton = useRef<View | null>(null);
   const overflowButton = useRef<View | null>(null);
   const [width, setWidth] = useState(0);
-  const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 });
-  const [frames, setFrames] = useState<Frames>({});
+  const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: barRooms.get(windowId) ?? 0, height: 0 });
   const [otherX, setOtherX] = useState<number | null>(null);
+  const [, remeasured] = useReducer((n: number) => n + 1, 0);
+  const remeasure = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (remeasure.current && clearTimeout(remeasure.current)), []);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const onItemWidth = useCallback((id: string, w: number) => {
+    const key = widthKey(sizeRef.current, id);
+    if (itemWidths.get(key) === w) return;
+    itemWidths.set(key, w);
+    remeasure.current ??= setTimeout(() => {
+      remeasure.current = null;
+      remeasured();
+    }, 0);
+  }, []);
 
-  const reserved = hasOther ? bookmarksBar.otherReserve : 0;
-  const available = width - reserved;
-  const lastFrame = frames[children.at(-1) ?? ""];
-  const overflowing = !!lastFrame && lastFrame.x + lastFrame.width > available;
-  const fits = (id: string) => {
-    const f = frames[id];
-    return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
-  };
-  const visible = children.filter(fits);
-  const hiddenFrom = visible.length;
+  const room = itemsFrame.width;
+  const fit = barFit({
+    ids: children,
+    widthOf: (id) => itemWidths.get(widthKey(size, id)),
+    room,
+    chevron: bookmarksBar.overflowWidth,
+    gap: size.itemGap,
+    minWidth: Math.min(size.favicon, size.iconBox),
+  });
+  const mounted = children.slice(0, fit.mounted);
+  const visible = mounted.slice(0, fit.shown);
+  const hiddenFrom = fit.shown;
+  const frames: Frames = {};
+  mounted.forEach((id, i) => (frames[id] = { x: fit.starts[i]!, y: 0, width: itemWidths.get(widthKey(size, id)) ?? 0, height: size.item }));
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
   const slotHere = spot && "slot" in spot && spot.zone === zone ? spot.slot : null;
@@ -154,37 +176,48 @@ function Bar({ windowId }: { windowId: string }) {
       style={{ height: size.height, flexDirection: "row", alignItems: "center", paddingHorizontal: space.m }}
     >
       <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, profileId, null)} style={StyleSheet.absoluteFill} />
-      <View onLayout={(e) => setItemsFrame(e.nativeEvent.layout)} style={{ flex: 1, height: size.item, flexDirection: "row", alignItems: "center", overflow: "hidden" }}>
-        {children.length === 0 && !hideImport ? (
-          <ImportButton />
-        ) : children.length === 0 ? (
-          <Text size="small" tone="textTertiary" style={HINT}>
-            For quick access, place your bookmarks here on the bookmarks bar.
-          </Text>
-        ) : (
-          children.map((id) => (
-            <BarItem
-              key={id}
-              id={id}
-              windowId={windowId}
-              profileId={profileId}
-              hidden={!fits(id)}
-              offset={offsets[visible.indexOf(id)] ?? 0}
-              onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
-            />
-          ))
+      <View
+        onLayout={(e) => {
+          const frame = e.nativeEvent.layout;
+          barRooms.set(windowId, frame.width);
+          setItemsFrame((prev) => (sameRect(prev, frame) ? prev : frame));
+        }}
+        style={{ flex: 1, height: size.item, flexDirection: "row", alignItems: "center" }}
+      >
+        <View style={{ flex: 1, height: size.item, flexDirection: "row", alignItems: "center", overflow: "hidden" }}>
+          {children.length === 0 && !hideImport ? (
+            <ImportButton />
+          ) : children.length === 0 ? (
+            <Text size="small" tone="textTertiary" style={HINT}>
+              For quick access, place your bookmarks here on the bookmarks bar.
+            </Text>
+          ) : (
+            <View style={[ITEMS, { height: size.item }]}>
+              {mounted.map((id, i) => (
+                <BarItem
+                  key={id}
+                  id={id}
+                  windowId={windowId}
+                  profileId={profileId}
+                  hidden={i >= fit.shown}
+                  offset={offsets[i] ?? 0}
+                  onWidth={onItemWidth}
+                />
+              ))}
+            </View>
+          )}
+          <DropLine x={lineX} size={size} color={theme.accent} />
+        </View>
+        {room > 0 && hiddenFrom < children.length && barId && (
+          <BarButton
+            ref={overflowButton}
+            icon="chevron.right.2"
+            tooltip="More bookmarks"
+            onPress={() => void openFrom(windowId, overflowButton.current, barId, hiddenFrom, true)}
+            width={bookmarksBar.overflowWidth}
+          />
         )}
-        <DropLine x={lineX} size={size} color={theme.accent} />
       </View>
-      {hiddenFrom < children.length && barId && (
-        <BarButton
-          ref={overflowButton}
-          icon="chevron.right.2"
-          tooltip="More bookmarks"
-          onPress={() => void openFrom(windowId, overflowButton.current, barId, hiddenFrom, true)}
-          width={bookmarksBar.overflowWidth}
-        />
-      )}
       {hasOther && otherId && (
         <View style={OTHER} onLayout={(e) => setOtherX(e.nativeEvent.layout.x)}>
           <View style={[DIVIDER, { backgroundColor: theme.divider }]} />
@@ -250,4 +283,5 @@ const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && 
 
 const HINT = { marginLeft: space.xs } as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;
+const ITEMS = { position: "absolute", left: 0, top: 0, flexDirection: "row", alignItems: "center" } as const;
 const DIVIDER = { width: StyleSheet.hairlineWidth * 2, height: bookmarksBar.dividerHeight, marginHorizontal: space.s } as const;

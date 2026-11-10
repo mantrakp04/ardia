@@ -2,7 +2,8 @@ import { breadcrumb } from "@ardia/core";
 import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnown, type MagnifyUpdate } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
+import { useCardFrame } from "../window/cardFrame";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
@@ -61,6 +62,7 @@ function PeekCard({
   page: (tabId: string, sourceId: string, width: number) => ReactNode;
 }) {
   const theme = useTheme();
+  const card = useCardFrame();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const frame = peekFrame(width, height);
   const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
@@ -153,7 +155,7 @@ function PeekCard({
         <Pressable
           accessibilityLabel="Close Peek"
           onPress={() => dismissPeek(windowId)}
-          style={{ flex: 1, borderRadius: layout.cardRadius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
+          style={{ flex: 1, borderRadius: card.radius, backgroundColor: theme.dark ? PEEK_SCRIM.dark : PEEK_SCRIM.light }}
         />
       </Animated.View>
       <Animated.View
@@ -179,10 +181,10 @@ function PeekCard({
               style={
                 fullscreen
                   ? { flex: 1 }
-                  : { flex: 1, marginLeft: SMALL_INSET, marginRight: SMALL_INSET, marginBottom: SMALL_INSET, borderRadius: layout.cardRadius, overflow: "hidden", backgroundColor: theme.card }
+                  : { flex: 1, marginLeft: card.inset, marginRight: card.inset, marginBottom: card.inset, borderRadius: card.radius, overflow: "hidden", backgroundColor: theme.card }
               }
             >
-              {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * SMALL_INSET)}
+              {page(peek.tabId, peek.sourceId, fullscreen ? width : frame.width - 2 * card.inset)}
             </View>
           </View>
         </MagnifyArea>

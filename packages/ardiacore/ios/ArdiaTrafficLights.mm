@@ -401,8 +401,6 @@ void ConfigureWindow(NSWindow *window) {
   window.releasedWhenClosed = NO;
   window.tabbingMode = NSWindowTabbingModeDisallowed;
   InsetTrafficLights(window);
-  WatchFullScreenLights(window);
-  SuppressFullScreenTitlebar(window);
 }
 
 }

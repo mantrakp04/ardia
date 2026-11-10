@@ -18,6 +18,7 @@ import {
   useSync,
 } from "../../../state/sync/engine";
 import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
+import { deviceSymbol } from "../../../state/sync/devices";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
@@ -182,10 +183,11 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
     return () => clearInterval(t);
   }, []);
 
+  const locked = status === "locked";
   const advanced = async () => {
     const choice = await showMenu([
-      { id: "kit", title: "Save Recovery Kit…", symbol: "arrow.down.doc" },
-      { id: "copy", title: "Copy Recovery Code", symbol: "doc.on.doc" },
+      { id: "kit", title: "Save Recovery Kit…", symbol: "arrow.down.doc", enabled: !locked },
+      { id: "copy", title: "Copy Recovery Code", symbol: "doc.on.doc", enabled: !locked },
       { separator: true },
       { id: "now", title: "Sync Now", symbol: "arrow.triangle.2.circlepath" },
       { id: "reveal", title: "Show Sync Folder in Finder", symbol: "folder", enabled: !!info?.exists },
@@ -199,7 +201,6 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
     else if (choice === "stop") showStopSync();
   };
 
-  const locked = status === "locked";
   return (
     <View>
       <Group>
@@ -268,7 +269,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
           devices.map((d) => (
             <Row
               key={d.id}
-              icon={<Symbol name="laptopcomputer" size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
+              icon={<Symbol name={deviceSymbol(d.kind, d.name)} size={15} color={theme.icon} style={{ width: 24, height: 20 }} />}
               title={d.current ? `${d.name} (This Mac)` : d.name}
               description={d.current ? statusLine(status, lastSyncedAt, 0) : d.lastSeen ? `last synced ${ago(d.lastSeen)}` : "hasn’t synced yet"}
             />

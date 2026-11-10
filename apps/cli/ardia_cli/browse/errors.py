@@ -31,7 +31,8 @@ class OutcomeUnknown(BrowseError):
 
 class StaleRef(BrowseError):
     def __init__(self, ref: str, why: str):
-        super().__init__(f"Stale ref @{ref}: {why}. Run `ardia browse snapshot` again and use the new refs", code="stale_ref")
+        fix = "use that ref" if "is now @" in why else "Run `ardia browse snapshot -i` again and use the new refs"
+        super().__init__(f"Stale ref @{ref}: {why}. {fix[0].upper() + fix[1:]}", code="stale_ref")
 
 
 class Gated(BrowseError):

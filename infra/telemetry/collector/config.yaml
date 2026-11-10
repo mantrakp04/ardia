@@ -16,10 +16,13 @@ processors:
     limit_percentage: 75
     spike_limit_percentage: 20
 
-  attributes/client-ip:
+  attributes/request:
     actions:
       - key: client.address
         from_context: metadata.x-real-ip
+        action: upsert
+      - key: ingest_key
+        from_context: metadata.x-ardia-ingest
         action: upsert
 
   transform/geoip-opt-out:
@@ -82,5 +85,5 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, attributes/client-ip, transform/geoip-opt-out, geoip, transform/clean, batch]
+      processors: [memory_limiter, attributes/request, transform/geoip-opt-out, geoip, transform/clean, batch]
       exporters: [clickhouse]

@@ -14,6 +14,8 @@ import { change, Page, useQuestion } from "./LayoutSteps";
 import { OptionCard } from "./OptionCard";
 import { OptionRow } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
+import { Text } from "../ui";
+import { PAGE_FRAME } from "../../lib/windowLayout";
 
 const LOOK_KEYS = keysOf("look");
 
@@ -40,6 +42,13 @@ const BOOKMARKS_BAR: { value: Settings["bookmarksBar"]; title: string }[] = [
   { value: "never", title: "Never" },
 ];
 const APPEARANCE_LABEL = { auto: "automatic", light: "always light", dark: "always dark" } as const;
+const FRAME_CHOICES: { value: number; title: string; subtitle: string }[] = [
+  { value: PAGE_FRAME.default, title: "Framed", subtitle: "Rounded corners with a little room around the page" },
+  { value: 4, title: "Thin", subtitle: "A slim frame and softer corners" },
+  { value: 0, title: "Edge to edge", subtitle: "No frame: the page meets the window and the sidebar" },
+];
+const FRAME_VALUE_WIDTH = 40;
+const framePicked = (frame: number) => (frame === PAGE_FRAME.default ? [] : frame === 0 ? ["Edge-to-edge page"] : [`Page frame ${frame} pt`]);
 
 export function LookStep() {
   const { id, focus } = useQuestion("look");
@@ -96,6 +105,30 @@ export function LookStep() {
             ) : null}
           </View>
         ) : null}
+      </Page>
+    );
+  if (id === "frame")
+    return (
+      <Page
+        id={id}
+        title="How much frame?"
+        subtitle="The room between the page and the window. Change it any time in Settings › Appearance."
+        patch={{ pageFrame: values.pageFrame }}
+        picked={framePicked(values.pageFrame)}
+        preview={preview}
+      >
+        <View style={{ gap: space.ml }}>
+          {FRAME_CHOICES.map((c) => (
+            <OptionCard key={c.value} control="radio" title={c.title} subtitle={c.subtitle} selected={values.pageFrame === c.value} onPress={() => change({ pageFrame: c.value }, true)} />
+          ))}
+          <View style={{ marginTop: space.m }}>
+            <Slider stacked label="Thickness" value={values.pageFrame / PAGE_FRAME.max} onChange={(v) => change({ pageFrame: Math.round(v * PAGE_FRAME.max) }, true)}>
+              <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
+                {`${values.pageFrame} pt`}
+              </Text>
+            </Slider>
+          </View>
+        </View>
       </Page>
     );
   if (id === "switcher")

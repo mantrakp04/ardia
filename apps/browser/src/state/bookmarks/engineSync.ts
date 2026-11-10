@@ -7,6 +7,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 import { engineProfiles } from "../profiles/engineProfiles";
+import { onProfilesOpened, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "bookmarks.json";
@@ -32,8 +33,18 @@ const stateOf = (engine: string) => {
   return state;
 };
 let legacyMoved = false;
+let adopting = false;
 
 function adopt(engine: string, flat: Flat, { ready = legacyMoved } = {}) {
+  adopting = true;
+  try {
+    adoptNow(engine, flat, ready);
+  } finally {
+    adopting = false;
+  }
+}
+
+function adoptNow(engine: string, flat: Flat, ready: boolean) {
   useBrowser.setState((s) => {
     const roots = rootIdsFor(engine);
     const old = flatFromStore(s.bookmarks, engine);
@@ -190,7 +201,7 @@ function saveCache() {
   const s = store();
   const trees: CacheDoc["trees"] = {};
   for (const [engine, state] of engines) {
-    if (!state.shadow || !engineProfiles(s).includes(engine)) continue;
+    if (!(state.shadow || state.shown) || !engineProfiles(s).includes(engine)) continue;
     trees[engine] = [...flatFromStore(s.bookmarks, engine).nodes.keys()].map((id) => s.bookmarks.nodes[id]!);
   }
   try {
@@ -247,13 +258,17 @@ export function startBookmarks() {
   let stopped = false;
   void migrateBookmarksFile().then((result) => {
     legacyMoved = result !== "kept";
-    if (!stopped) for (const engine of engineProfiles(store())) read(engine);
+    if (!stopped) for (const engine of openedEngineProfiles(store())) read(engine);
+  });
+  const opened = onProfilesOpened((now) => {
+    for (const engine of now) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
   });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.profiles !== prev.profiles) {
-      for (const engine of engineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
+      for (const engine of openedEngineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
     }
     if (s.bookmarks !== prev.bookmarks) {
+      if (!adopting) for (const engine of editedUnopened(prev.bookmarks, s)) openProfile(engine);
       push(s);
       if ([...engines.values()].some((e) => e.shadow)) cacheTimer ??= setTimeout(saveCache, CACHE_SAVE_MS);
     }
@@ -264,13 +279,43 @@ export function startBookmarks() {
     if (cacheTimer) saveCache();
     cacheTimer = undefined;
     changes.remove();
+    opened();
     stop();
     engines.clear();
     legacyMoved = false;
   };
 }
 
+export function editedUnopened(before: Bookmarks, s: Pick<BrowserState, "bookmarks" | "profiles">): string[] {
+  const unopened = engineProfiles(s).filter((engine) => !profileOpened(engine));
+  if (!unopened.length || before.nodes === s.bookmarks.nodes) return [];
+  const byRoot = new Map<string, string>();
+  for (const engine of unopened) {
+    const roots = rootIdsFor(engine);
+    byRoot.set(roots.bar, engine);
+    byRoot.set(roots.other, engine);
+  }
+  const rootOf = (nodes: Bookmarks["nodes"], id: string) => {
+    for (let at: string | null | undefined = id, hops = 0; at && hops < 256; hops++) {
+      if (byRoot.has(at)) return byRoot.get(at);
+      at = nodes[at]?.parentId;
+    }
+    return undefined;
+  };
+  const edited = new Set<string>();
+  const now = s.bookmarks.nodes;
+  for (const id in now) if (now[id] !== before.nodes[id] && (before.nodes[id] || !byRoot.has(id))) for (const nodes of [now, before.nodes]) {
+    const engine = rootOf(nodes, id);
+    if (engine !== undefined) edited.add(engine);
+  }
+  for (const id in before.nodes) if (!(id in now)) {
+    const engine = rootOf(before.nodes, id);
+    if (engine !== undefined) edited.add(engine);
+  }
+  return [...edited];
+}
+
 export async function reloadBookmarks() {
-  for (const engine of engineProfiles(store())) read(engine);
+  for (const engine of openedEngineProfiles(store())) read(engine);
   for (let i = 0; i < 200 && [...engines.values()].some((e) => e.busy); i++) await new Promise((r) => setTimeout(r, 5));
 }

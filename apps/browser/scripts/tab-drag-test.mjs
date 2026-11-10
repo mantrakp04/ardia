@@ -117,6 +117,54 @@ try {
     const iv = setInterval(() => preview().then((p) => seen.push(p)), 30);
     return act("${w}", "drag:${path}").then(() => settle(${ms})).then(() => { clearInterval(iv); return seen; });`);
 
+  await check("a click whose pointer drifts up to 9 pt opens the tab, and a 14 pt press doesn't", async () => {
+    const before = await order("w1");
+    const shownAfter = (path) => run(`return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(1500)).then(() => st().windows.w1.activeTabIds.default);`);
+    assert.equal(await shownAfter([[mid(4), 21], [mid(4) + 6, 23]]), "t3");
+    assert.equal(await shownAfter([[mid(3), 21], [mid(3) - 9, 21]]), "t2");
+    assert.equal(await shownAfter([[mid(5), 21], [mid(5) + 14, 21]]), "t2", "a 14 pt press is a drag");
+    assert.deepEqual(await order("w1"), before);
+    await run(`st().activate("t1"); return settle(600);`);
+  });
+
+  await check("a tab's hover card sits under the strip, lets clicks through and follows the pointer to the next tab at once", async () => {
+    const shots = [join(data, "card-none.png"), join(data, "card-shown.png")];
+    const result = await run(`
+      const H = ac.stripHover;
+      const seen = [];
+      const t0 = performance.now();
+      const stop = H.useStripHover.subscribe((v) => seen.push([performance.now() - t0, v.hover && v.hover.tabId]));
+      const at = (x) => ac.shell.devSetPointer("w1", { x, y: 21 });
+      const hits = () => Promise.all([[${strip[4][0] + 20}, 60], [${strip[5][0] + 10}, 80], [${strip[4][1] - 10}, 110]].map(([x, y]) => act("w1", "hit:" + x + "," + y)));
+      const out = {};
+      return ac.shell.devSetPointer("w1", { x: 640, y: 400 }).then(() => settle(400)).then(hits).then((h) => (out.hitsBefore = h))
+        .then(() => ac.shell.devSnapshotWindow("w1", ${JSON.stringify(shots[0])}))
+        .then(() => { out.enter = performance.now() - t0; return at(${mid(4)}); }).then(() => settle(800))
+        .then(() => ac.shell.devSnapshotWindow("w1", ${JSON.stringify(shots[1])}))
+        .then(hits).then((h) => (out.hitsShown = h))
+        .then(() => { out.next = performance.now() - t0; return at(${mid(3)}); }).then(() => settle(120))
+        .then(() => at(${mid(5)})).then(() => settle(30))
+        .then(() => act("w1", "mouse:down:${mid(5)},21")).then(() => settle(70)).then(() => act("w1", "mouse:up:${mid(5)},21")).then(() => settle(500))
+        .then(() => { out.shown = st().windows.w1.activeTabIds.default; stop(); out.seen = seen; return ac.shell.devSetPointer("w1", null); })
+        .then(() => { st().activate("t1"); return settle(600); }).then(() => out);`);
+    const first = result.seen.find(([, id]) => id === "t3");
+    const next = result.seen.find(([, id]) => id === "t2");
+    assert.ok(first && first[0] - result.enter >= 450 && first[0] - result.enter < 800, `the card shows about 0.5 s after the pointer arrives: ${JSON.stringify(result)}`);
+    assert.ok(next && next[0] - result.next < 60, `the card moves to the next tab at once: ${JSON.stringify(result.seen)}`);
+    assert.deepEqual(result.hitsShown, result.hitsBefore, "the card takes no presses");
+    assert.equal(result.shown, "t4", "a click on the neighbouring tab while the card is up opens it");
+    const windowWidth = await run(`return st().windows.w1.frame[2];`);
+    const [none, shown] = shots.map(readPng);
+    const scale = Math.round(none.width / windowWidth);
+    let changed = 0;
+    for (let y = 0; y < 42 * scale; y++)
+      for (let x = strip[5][0] * scale; x < (strip[5][1] + 60) * scale; x++) {
+        const i = (y * none.width + x) * none.channels;
+        if (Math.abs(none.data[i] - shown.data[i]) + Math.abs(none.data[i + 1] - shown.data[i + 1]) + Math.abs(none.data[i + 2] - shown.data[i + 2]) > 6) changed++;
+      }
+    assert.equal(changed, 0, "nothing in the strip right of the hovered tab changes when its card shows");
+  });
+
   await check("a tab dragged along the strip reorders and doesn't move the window", async () => {
     const frame = await run(`return st().windows.w1.frame;`);
     const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 75, 21]]);
@@ -367,6 +415,12 @@ try {
     assert.deepEqual(await order("w1"), ["p2", "p1", fresh, "t1", "t3"]);
     const moved = await run(`return items("w1");`);
     const pane = Math.round(moved[3][0] + (moved[3][1] - moved[3][0]) * 0.75);
+    const left = Math.round(moved[3][0] + (moved[3][1] - moved[3][0]) * 0.25);
+    for (const [x, dy, id] of [[left, 8, "t1"], [pane, -7, "t3"], [left, 9, "t1"]]) {
+      await run(`st().activate(${JSON.stringify(fresh)}); return settle(500);`);
+      await run(`return act("w1", "drag:${x},${y};${x},${y + dy}").then(() => settle(1500));`);
+      assert.equal(await run(`return st().windows.w1.activeTabIds.default;`), id, `a split pane click drifting ${dy} pt opens ${id}`);
+    }
     await drag("w1", [[pane, y], [pane, -40], [pane + 40, -90]]);
     const state = await run(`return { windows: Object.keys(st().windows).map(loose), splits: Object.values(st().splits).map((v) => v.slots.flatMap((x) => x.stack ?? [x.tabId])) };`);
     assert.ok(state.windows.some((w) => w.length === 1 && w[0] === "t3"), JSON.stringify(state));

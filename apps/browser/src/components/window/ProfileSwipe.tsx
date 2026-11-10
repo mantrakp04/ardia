@@ -7,7 +7,6 @@ import { useProfileNeighbours } from "../../state/windows/hooks";
 import { useWindowId } from "../../state/browser/hooks";
 import { pagerFor, usePagerNativeConfig, usePagerSurface } from "../../state/windows/profilePager";
 
-
 export function ProfileSwipe({ children }: { children: ReactNode }) {
   return (
     <View style={{ height: "100%" }}>

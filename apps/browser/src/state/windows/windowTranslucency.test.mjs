@@ -39,14 +39,17 @@ test("window translucency defaults on, persists false, and stays device-local", 
 test("disabling window translucency preserves cached preset and custom colours and blur amounts", () => {
   const original = JSON.stringify(custom);
   for (const dark of [false, true]) {
-    for (const profile of [preset, custom, { ...custom, theme: { ...custom.theme, translucency: 0 } }]) {
-      const normal = scopedTheme(false, profile, dark, "own");
-      const opaque = scopedTheme(false, profile, dark, "own", null, false);
-      assert.equal(opaque.backdrop.backgroundBlurEnabled, false);
-      assert.deepEqual(opaque, { ...normal, backdrop: { ...normal.backdrop, backgroundBlurEnabled: false } });
-      assert.equal(scopedTheme(false, profile, dark, "own", null, false), opaque);
-      assert.equal(scopedTheme(false, profile, dark, "own", null, true), normal);
-      assert.equal(normal.backdrop.backgroundBlurEnabled, profile.theme ? profile.theme.translucency > 0 : true);
+    for (const adaptTextToColor of [false, true]) {
+      for (const profile of [preset, custom, { ...custom, theme: { ...custom.theme, translucency: 0 } }]) {
+        const normal = scopedTheme(false, profile, dark, "own", null, adaptTextToColor);
+        const opaque = scopedTheme(false, profile, dark, "own", null, adaptTextToColor, false);
+        assert.equal(opaque.backdrop.backgroundBlurEnabled, false);
+        assert.deepEqual(opaque, { ...normal, backdrop: { ...normal.backdrop, backgroundBlurEnabled: false } });
+        assert.equal(scopedTheme(false, profile, dark, "own", null, adaptTextToColor, false), opaque);
+        assert.equal(scopedTheme(false, profile, dark, "own", null, adaptTextToColor, true), normal);
+        assert.equal(normal.adaptiveInk, Boolean(profile.theme) && adaptTextToColor);
+        assert.equal(normal.backdrop.backgroundBlurEnabled, profile.theme ? profile.theme.translucency > 0 : true);
+      }
     }
   }
   assert.equal(JSON.stringify(custom), original);
@@ -55,8 +58,8 @@ test("disabling window translucency preserves cached preset and custom colours a
 test("restoring translucency respects the independently resolved light and dark custom looks", () => {
   const profile = { ...custom, theme: { ...custom.theme, translucency: 0, dark: { ...custom.theme, translucency: 1 } } };
   for (const dark of [false, true]) {
-    assert.equal(scopedTheme(false, profile, dark, "own", null, false).backdrop.backgroundBlurEnabled, false);
-    assert.equal(scopedTheme(false, profile, dark, "own", null, true).backdrop.backgroundBlurEnabled, dark);
+    assert.equal(scopedTheme(false, profile, dark, "own", null, true, false).backdrop.backgroundBlurEnabled, false);
+    assert.equal(scopedTheme(false, profile, dark, "own", null, true, true).backdrop.backgroundBlurEnabled, dark);
   }
 });
 

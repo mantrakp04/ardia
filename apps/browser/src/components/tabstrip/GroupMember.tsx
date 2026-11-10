@@ -103,7 +103,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   if (!group) return null;
   const tint = groupTint(group.color);
   const bare = group.color === "none";
-  const ink = tint ?? (holding ? theme.tabSelectedText : theme.textTab);
+  const ink = tint ?? (holding ? theme.textPrimary : theme.textTab);
   return (
     <View
       {...hoverProps}

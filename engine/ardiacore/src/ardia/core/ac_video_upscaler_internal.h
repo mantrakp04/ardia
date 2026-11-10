@@ -127,6 +127,7 @@ class Upscaler : public VideoUpscaler {
   base::apple::ScopedCFTypeRef<IOSurfaceRef> TakeOutputSurface(const gfx::Size& size);
   API_AVAILABLE(macos(26.0))
   void Start(const VideoUpscaleCandidate& candidate, const Plan& plan);
+  void AbandonVideoToolbox(const Plan& plan);
   void JobDone(uint64_t operation,
                uint64_t generation,
                std::shared_ptr<Job> job,

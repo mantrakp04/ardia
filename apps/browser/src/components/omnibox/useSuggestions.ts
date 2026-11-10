@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
-import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
+import { useBookmarkEngine, useBookmarks, useBookmarksShown } from "../../state/bookmarks/hooks";
 import { useProfileHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
@@ -29,6 +29,7 @@ const WARM_SLICE_MS = 4;
 
 type BookmarkRow = { url: string; title: string; favicon: string | null };
 const bookmarkCache = new WeakMap<Bookmarks, Map<string, BookmarkRow[]>>();
+const NO_BOOKMARKS: BookmarkRow[] = [];
 
 function engineBookmarks(b: Bookmarks, engine: string): BookmarkRow[] {
   let perEngine = bookmarkCache.get(b);
@@ -81,7 +82,8 @@ export function useSuggestions({
   const menuBar = useMenuBarRevision();
 
   const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
-  const bookmarkRows = useMemo(() => engineBookmarks(bookmarks, bookmarkEngine), [bookmarks, bookmarkEngine]);
+  const showBookmarks = useBookmarksShown();
+  const bookmarkRows = useMemo(() => (showBookmarks ? engineBookmarks(bookmarks, bookmarkEngine) : NO_BOOKMARKS), [showBookmarks, bookmarks, bookmarkEngine]);
   const source = useMemo(() => ({ tabs, history, bookmarks: bookmarkRows }), [tabs, history, bookmarkRows]);
 
   useEffect(() => {

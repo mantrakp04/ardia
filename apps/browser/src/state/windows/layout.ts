@@ -6,6 +6,7 @@ import type { LightsPlace } from "../../platform/windows";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
+import { useSettingValue } from "../tabs/tabWatch";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
@@ -37,11 +38,15 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   const open = w.sidebarOpen ?? true;
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
-  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar);
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
-export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar));
+const pageFrameSetting = (settings: BrowserState["settings"]) => settings.pageFrame;
+
+export const usePageFrameInset = (): number => useSettingValue(pageFrameSetting);
+
+export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
 
 type UrlAnchor = { left: number; top: number; width: number; sidebar?: { height: number } };
 

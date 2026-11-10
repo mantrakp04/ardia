@@ -9,6 +9,7 @@ import { engineProfile, isIncognitoProfile } from "../browser/model";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { webviews } from "../../platform/webviews";
 import { changedPages, pagesWrittenSince, withPages, type PagesPair } from "./pagesWritten";
+import { onProfilesOpened, profileOpened } from "../profiles/profileLoading";
 
 type Icons = {
   pages: Record<string, string | null>;
@@ -190,7 +191,7 @@ const failedFetches = new Set<string>();
 
 function fetchMissing(profileId: string, url: string, src: string) {
   const key = cacheKey(profileId);
-  if (isIncognitoProfile(profileId) || !/^https?:/i.test(src)) return;
+  if (isIncognitoProfile(profileId) || !/^https?:/i.test(src) || !profileOpened(key)) return;
   const id = `${key}|${src}`;
   if (inflight.has(id) || failedFetches.has(id)) return;
   const pending = fetchFavicon(src, key)
@@ -248,8 +249,10 @@ export const useAppearanceDark = () => useBrowser((s) => s.ui.appDark);
 function answered(url: string, profileId?: string): boolean {
   const { profiles } = useFavicons.getState();
   const page = withoutFragment(url);
-  return lookupOrder(profileId).every((id) => isIncognitoProfile(id) || profiles[cacheKey(id)]?.pages[page] !== undefined);
+  return lookupOrder(profileId).every((id) => !askable(id) || profiles[cacheKey(id)]?.pages[page] !== undefined);
 }
+
+const askable = (id: string) => !isIncognitoProfile(id) && profileOpened(cacheKey(id));
 
 type Watcher = { url: string; src?: string | null; profileId?: string; known?: boolean };
 const watchers = new Map<string, Set<Watcher>>();
@@ -258,8 +261,9 @@ function check(w: Watcher) {
   const known = answered(w.url, w.profileId);
   if (known === w.known) return;
   w.known = known;
-  if (!known) for (const id of lookupOrder(w.profileId)) ask(cacheKey(id), withoutFragment(w.url));
-  else if (w.src && w.profileId && !resolveFavicon(w.url, w.src, w.profileId)) fetchMissing(w.profileId, w.url, w.src);
+  if (!known) {
+    for (const id of lookupOrder(w.profileId)) if (askable(id)) ask(cacheKey(id), withoutFragment(w.url));
+  } else if (w.src && w.profileId && !resolveFavicon(w.url, w.src, w.profileId)) fetchMissing(w.profileId, w.url, w.src);
 }
 
 function onFavicons(f: Favicons, prev: Favicons) {
@@ -366,6 +370,13 @@ export function startFavicons() {
       return { ...icons, pages: Object.fromEntries(Object.entries(icons.pages).filter(([page]) => !gone.has(page))) };
     });
   });
+  const opened = onProfilesOpened(() => {
+    for (const set of [...watchers.values()])
+      for (const w of [...set]) {
+        w.known = undefined;
+        check(w);
+      }
+  });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.ui.appDark !== prev.ui.appDark) appearanceChangedAt = Date.now();
     if (s.windows !== prev.windows && (changes.length || Object.keys(useFavicons.getState().profiles).some(isIncognitoProfile))) {
@@ -379,6 +390,7 @@ export function startFavicons() {
   });
   return () => {
     history.remove();
+    opened();
     stop();
   };
 }

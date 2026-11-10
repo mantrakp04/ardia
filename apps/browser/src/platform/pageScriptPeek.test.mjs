@@ -16,6 +16,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const opened = [];
   const clicked = [];
   const listeners = {};
+  const bubbling = {};
   const timers = [];
   let clock = 1000;
   class Node {
@@ -94,6 +95,9 @@ function environment({ top = true, page = "https://page.example", selection = nu
     stopImmediatePropagation() {
       this.stopped = true;
     }
+    stopPropagation() {
+      this.propagationStopped = true;
+    }
   }
   class MouseEvent extends Event {
     constructor(type, init = {}) {
@@ -154,6 +158,20 @@ function environment({ top = true, page = "https://page.example", selection = nu
   }
   const document = new Document();
   const window = { open: (...args) => opened.push(args), setTimeout: (fn) => timers.push(fn) };
+  class UserActivation {
+    get isActive() {
+      return activation.active;
+    }
+  }
+  const activation = { active: false };
+  class Navigator {
+    get userActivation() {
+      return new UserActivation();
+    }
+  }
+  const navigator = new Navigator();
+  window.Navigator = Navigator;
+  window.UserActivation = UserActivation;
   Object.defineProperty(window, "devicePixelRatio", { get: () => 2 });
   const handlers = Object.create(null);
   const env = {
@@ -168,6 +186,12 @@ function environment({ top = true, page = "https://page.example", selection = nu
     window,
     document,
     addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
+    listen: (type, fn, options) => (bubbling[type] ??= []).push({ fn, once: !!options?.once }),
+    unlisten: (type, fn) => (bubbling[type] = (bubbling[type] ?? []).filter((l) => l.fn !== fn)),
+    asNative: (native, call) => (...args) => call(native, window, args),
+    Navigator,
+    UserActivation,
+    navigator,
     MouseEvent,
     Node,
     Element,
@@ -183,16 +207,21 @@ function environment({ top = true, page = "https://page.example", selection = nu
     location: { origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
   };
   new Function(...Object.keys(env), source)(...Object.values(env));
-  const fire = (type, path, init = {}) => {
+  const fire = (type, path, init = {}, page) => {
     const e = new MouseEvent(type, { path: [...path, document, window], ...init });
     for (const fn of listeners[type] ?? []) fn(e);
+    page?.(e);
+    if (e.propagationStopped) return e;
+    const after = bubbling[type] ?? [];
+    bubbling[type] = after.filter((l) => !l.once);
+    for (const l of after) l.fn(e);
     return e;
   };
-  const gesture = (path, keys, { move = 0, release = path, between } = {}) => {
+  const gesture = (path, keys, { move = 0, release = path, between, page } = {}) => {
     fire("mousedown", path, keys);
     between?.();
     fire("mouseup", release, { ...keys, x: 10 + move });
-    return fire("click", release, { ...keys, x: 10 + move });
+    return fire("click", release, { ...keys, x: 10 + move }, page);
   };
   const transition = (type, init) => {
     for (const fn of listeners[type] ?? []) fn(new PageTransitionEvent(type, init));
@@ -200,6 +229,9 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const flush = () => timers.splice(0).forEach((fn) => fn());
   return {
     document,
+    window,
+    activation,
+    bubbling,
     selected,
     transition,
     flush,
@@ -417,9 +449,38 @@ test("with links to other sites on, a plain click on another site's link peeks a
   env.handlers.peekConfig(siteConfig());
   const click = env.gesture([env.link("https://other.example/story")], {});
   assert.deepEqual(peeks(env).map((p) => [p.url, p.key]), [["https://other.example/story", "site"]]);
-  assert.ok(click.defaultPrevented && click.stopped);
+  assert.ok(click.defaultPrevented);
   env.gesture([env.link("https://sub.page.example/x")], {});
   assert.deepEqual(peeks(env).map((p) => p.url).at(-1), "https://sub.page.example/x");
+});
+
+test("an other-site link the page's own click handler takes (a menu button, #867) never peeks", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  const a = env.link("https://other.example/products", { role: "button" });
+  const handled = env.gesture([a], {}, { page: (e) => e.preventDefault() });
+  assert.equal(peeks(env).length, 0);
+  assert.ok(handled.defaultPrevented);
+  const opened = env.gesture([a], {}, { page: () => a.setAttribute("target", "_blank") });
+  assert.equal(peeks(env).length, 0);
+  assert.equal(opened.defaultPrevented, false);
+  a.setAttribute("target", "_self");
+  env.gesture([a], {}, { page: () => a.setAttribute("href", "https://elsewhere.example/") });
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
+  env.fire("mousedown", [a], {});
+  env.fire("mouseup", [a], {});
+  assert.equal(peeks(env).length, 1, "nothing is decided before the click");
+});
+
+test("a same-host link carrying another address (www.google.com/url?q=, youtube.com/redirect) goes to the wrapper-aware decision", () => {
+  const env = environment({ page: "https://www.google.com" });
+  env.handlers.peekConfig(siteConfig());
+  const wrapped = env.gesture([env.link("https://www.google.com/url?q=https%3A%2F%2Fother.example%2F&sa=D")], {});
+  const raw = env.gesture([env.link("https://www.google.com/redirect?q=https://other.example/")], {});
+  const plain = env.gesture([env.link("https://www.google.com/search?q=cats")], {});
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://www.google.com/url?q=https%3A%2F%2Fother.example%2F&sa=D", "https://www.google.com/redirect?q=https://other.example/"]);
+  assert.ok(wrapped.defaultPrevented && raw.defaultPrevented);
+  assert.equal(plain.defaultPrevented, false);
 });
 
 test("links on the same host navigate: relative links, the www. twin, another port", () => {
@@ -535,12 +596,39 @@ test("when native refuses an other-site peek, the page follows the link it swall
 
 const newTabLinks = (env) => env.sent.filter((m) => m.kind === "newTabLink").map((m) => m.url);
 
-test("a plain click on a link that opens a new tab notes it once the click is done", () => {
+test("a plain click on a link that opens a new tab notes it at the end of the click's dispatch, before Chrome opens the tab", () => {
   const env = environment();
   env.gesture([env.link("https://other.example/x", { target: "_blank" })], {});
-  assert.deepEqual(newTabLinks(env), [], "nothing before dispatch ends");
-  env.flush();
   assert.deepEqual(newTabLinks(env), ["https://other.example/x"]);
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/x"], "noted once");
+  env.gesture([env.link("https://other.example/y", { target: "_blank" })], {}, { page: (e) => e.stopPropagation() });
+  assert.deepEqual(newTabLinks(env), ["https://other.example/x"], "a stopped click is noted once dispatch is over");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/x", "https://other.example/y"]);
+});
+
+test("a hundred clicks the page stops leave no listener behind", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  for (let i = 0; i < 100; i++) env.gesture([env.link("#stop")], {}, { page: (e) => e.stopPropagation() });
+  env.flush();
+  assert.equal((env.bubbling.click ?? []).length, 0);
+  for (let i = 0; i < 100; i++) env.gesture([env.link("https://other.example/", { target: "_blank" })], {});
+  env.flush();
+  assert.equal((env.bubbling.click ?? []).length, 0);
+});
+
+test("window.open is noted only while the page has a user activation, with the address resolved", () => {
+  const env = environment();
+  env.window.open("https://other.example/timer");
+  env.activation.active = true;
+  env.window.open("/relative", "_blank");
+  env.window.open("javascript:void 0");
+  env.window.open("");
+  env.window.open();
+  assert.deepEqual(newTabLinks(env), ["https://page.example/relative"]);
+  assert.equal(env.opened.length, 5, "every call still reaches the browser's own window.open");
 });
 
 test("a named target or the page's <base target> counts; _self, _top, _parent and no target don't", () => {
@@ -563,8 +651,7 @@ test("a modified, cancelled, untrusted or non-primary click isn't noted", () => 
   for (const keys of [{ meta: true }, { shift: true }, { alt: true }, { ctrl: true }, { meta: true, shift: true }]) env.gesture([blank("/mod")], keys);
   env.fire("click", [blank("/untrusted")], { trusted: false });
   env.fire("click", [blank("/middle")], { button: 1 });
-  const cancelled = env.gesture([blank("/cancelled")], {});
-  cancelled.preventDefault();
+  env.gesture([blank("/cancelled")], {}, { page: (e) => e.preventDefault() });
   env.flush();
   assert.deepEqual(newTabLinks(env), []);
 });
@@ -583,13 +670,11 @@ test("downloads, non-http(s) links and links in editable content aren't noted", 
 test("a link its click handler rewrites is noted with the address the browser opens", () => {
   const env = environment();
   const a = env.link("/tracked", { target: "_blank" });
-  env.gesture([a], {});
-  a.setAttribute("href", "https://other.example/landing");
+  env.gesture([a], {}, { page: () => a.setAttribute("href", "https://other.example/landing") });
   env.flush();
   assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
   const b = env.link("/to-script", { target: "_blank" });
-  env.gesture([b], {});
-  b.setAttribute("href", "javascript:void 0");
+  env.gesture([b], {}, { page: () => b.setAttribute("href", "javascript:void 0") });
   env.flush();
   assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
 });
@@ -597,11 +682,9 @@ test("a link its click handler rewrites is noted with the address the browser op
 test("the target is read once click handlers have run: one they add counts, one they clear doesn't", () => {
   const env = environment();
   const plain = env.link("/made-blank");
-  env.gesture([plain], {});
-  plain.setAttribute("target", "_blank");
+  env.gesture([plain], {}, { page: () => plain.setAttribute("target", "_blank") });
   const blank = env.link("/made-self", { target: "_blank" });
-  env.gesture([blank], {});
-  blank.setAttribute("target", "_self");
+  env.gesture([blank], {}, { page: () => blank.setAttribute("target", "_self") });
   env.flush();
   assert.deepEqual(newTabLinks(env), ["https://page.example/made-blank"]);
 });

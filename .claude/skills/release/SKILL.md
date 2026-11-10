@@ -9,7 +9,7 @@ A release is: notes → version bump → `scripts/release.sh` → smoke test →
 The build and the publishing run in GitHub Actions: the **Release** workflow (`.github/workflows/release.yml`,
 `docs/releasing.md` › CI releases) runs `release.sh`, signs, notarizes and publishes.
 Locally you write the notes, bump the version, publish the engine when `engine/` changed, smoke-test, run the
-stable perf gate, and update the site.
+stable perf gate and the site's Ardia-only benchmarks, and update the site.
 Users get it through Sparkle (Ardia › Check for Updates…), and the first launch of the new version
 opens `https://ardia.dev/release-notes#<version>`. So the release isn't done until the site is
 deployed with the new entry — otherwise that tab opens on a page that doesn't mention the update.
@@ -19,8 +19,8 @@ There are two channels (`docs/releasing.md` › Channels):
 - **Nightly** (`0.2.37-nightly.1`): fast iteration, one fix at a time. Only the focused checks for what changed run;
   no perf ratchet, no perf gate, no landing-page refresh. It's a GitHub prerelease, so the site's download,
   the README and fetch-engine (all on `releases/latest`) keep pointing at stable.
-- **Stable** (`0.2.37`): everything below, about 1.5 h with the smoke test, the update test, the ratchet and the
-  perf gate. Its perf is compared with the previous **stable** release, never a nightly.
+- **Stable** (`0.2.37`): everything below, about 2 h with the smoke test, the update test, the ratchet, the
+  perf gate and the site's benchmarks. Its perf is compared with the previous **stable** release, never a nightly.
 
 When the owner asks for a nightly, or a fix is ready and nobody said stable, run the nightly loop.
 
@@ -125,7 +125,12 @@ update themselves from the network, as uBO's do everywhere):
 ```bash
 scripts/update-ubo.sh     # "uBO <x> is the latest release", or "uBO <old> -> <new> (sha256 …)"
 git add packages/ardiacore/scripts/ubo.sh && git commit -m "Content blocker: uBlock Origin <new>"   # only if it moved
+scripts/update-ubol.sh    # WebKit pages: uBlock Origin Lite's Safari rulesets, converted to WebKit content rules
+git add packages/ardiacore/scripts/ubol.sh && git commit -m "WebKit content blocker: uBlock Origin Lite <new>"   # only if it moved
 ```
+
+WebKit pages block with uBlock Origin Lite's rulesets (its Safari build), which, like uBOL everywhere, change only
+with a new uBOL release, so they are as fresh as the last Ardia release that moved `UBOL_VERSION`.
 
 It checks the zip against GitHub's SHA-256 digest and the manifest's version, rewrites the pin in
 `packages/ardiacore/scripts/ubo.sh` and installs it into `packages/ardiacore/vendor/ubo`. Verify after release.sh
@@ -264,6 +269,36 @@ The notes get a `## Faster` section only when the release is measurably faster: 
 moved (old, new, change) and one sentence naming the biggest win. A release that's the same within noise has no
 Faster section. (0.2.28 and 0.2.29 were also timed against 0.2.17, the last CEF release, with
 `scripts/release-compare-0.2.17.sh`, now in git history: `docs/perf/README.md`.)
+
+### 4d. The site's benchmarks: Ardia again, rivals kept (stable only)
+
+After the perf gate passes, measure the same build against the stored Dia and Helium rows, so ardia.dev's Benchmarks
+section and `/benchmarks` show this release. Only Ardia runs; the rivals' figures, versions and dates come from
+`apps/site/src/data/bench.json` (`docs/perf/vs-browsers.md` › Running it). It's a timing run, so it goes after the perf
+gate, never beside it, and xbench takes the perflab lock itself. Nightlies skip it, as they skip the perf gate.
+
+```bash
+V=<version>; X=$HOME/ardia-scratch/xbench-$V
+mkdir -p $X/apps/ardia && cp -Rc dist/$V-rc/export/Ardia.app $X/apps/ardia/   # dist/$V/export without an rc
+codesign --force --deep --sign - $X/apps/ardia/Ardia.app   # ad hoc, as the stored rows' Ardia and Helium ran
+node apps/browser/scripts/perf/xbench.mjs run --out $X/out --apps $X/apps --browsers ardia --rounds 3 --launches 2 \
+  --gate off --deadline 60   # run_in_background, about 35 min; exit 75 means items are left: run it again
+node apps/browser/scripts/perf/xbench.mjs report --out $X/out --apps $X/apps --browsers ardia \
+  --rivals-from apps/site/src/data/bench.json --json apps/site/src/data/bench.json --md $X/table.md
+node apps/browser/scripts/perf/xbench.mjs clean --out $X/out --apps $X/apps --browsers ardia && rm -rf $X
+```
+
+- **Refused** (exit 65, bench.json untouched): this Mac's model or chip, or xbench's harness revision, differ from the
+  stored file. Leave the site's numbers as they are and tell the owner a full rerun is needed; don't `--force` it.
+- **`full rerun due: …`** in the report's output: a stored rival is over 60 days old, or Dia or Helium in
+  `/Applications` is a new major or minor version (1.53 → 1.54, 0.19 → 0.20). Put the line in the release report so
+  the owner can schedule the full rerun (`docs/perf/vs-browsers.md` › Every browser: it needs Dia's sign-in). It
+  never blocks the release.
+- Check `git diff apps/site/src/data/bench.json`: Ardia's figures, `date`, `machine` and `best` change; no rival's
+  figure, version or `measured` date does (the first merge also stamps `measured` on every entry). Read `$X/table.md` against the perf gate's numbers; a row that moved by more than the ranges deserves a look before
+  it goes on the site.
+- Commit it as "Site bench: <version> against the stored rivals", and step 6's `pnpm -C apps/site run deploy` ships it
+  with the rest of the site.
 
 ## 5. Publish
 
@@ -461,4 +496,5 @@ until the film is on the site: without it the film can't be rendered again.
 
 Tell the user, briefly: the version and headline, what's in it (from the notes), any landing-page claims changed, the smoke result
 (N/N), that it's live (release URL, appcast, site), how to get it (Check for Updates…), anything not
-verified (real trackpad/mouse input, notarization), and what they need to try by hand.
+verified (real trackpad/mouse input, notarization), and what they need to try by hand. For a stable, also whether the
+site's benchmarks were refreshed, and any `full rerun due` line from step 4d.
