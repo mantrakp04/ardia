@@ -312,7 +312,7 @@ a special case, cache or deferral that saves under 0.5 ms an action isn't worth 
 | `a3c9eff4` mounted set | +4 −1 | ~n²/2 string compares per switch | keep (simpler than before) |
 | `33e88e6f` page progress out of the store | +84 −13 (incl. preload hunks swept in) | 2 fewer store updates per load | keep |
 | `099fc058`, `cbfeb1ab`, `9b7eab76` narrower reads, memo leaves | +71 −51 | renders 414 → 134 per page load; 45 → 25 per key | keep (unproven family) |
-| `7184f7e8`, `e261559a` deferred sidebar rows | +146 −90 | first commit mounts 2757 → 1150 | keep; `scripts/layout-shift-test.mjs` holds the no-shift rule |
+| `7184f7e8`, `e261559a` deferred sidebar rows | +146 −90 | first commit mounts 2757 → 1150 | keep; `apps/browser/scripts/layout-shift-test.mjs` holds the no-shift rule |
 | `d7e6372a`, `bdee6047` legacy-file launch work | +69 −10 | 400 ms of bundle evaluation, but only on a launch with an old history.json / bookmarks.json | see below |
 | `be2ca8f7` update prewarm | +94 | 130–190 ms on an update's first launch | keep |
 | `9947002f` field timing listener only when sharing | +9 −2 | µs per store update | keep (also correct: off means off) |

@@ -87,8 +87,8 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
 | Windows, tab ownership | `ac_browser.h` (`WindowHost` in `ac_window_host*.mm`, `ACWebContentsDelegate` in `ac_web_contents_delegate.mm`, `TabBridge` in `ac_tab_bridge*.mm`), `ac_browser_window*.mm` | `ArdiaWindowController.mm`, `ArdiaChromeWindowHost.mm`, `ArdiaTabStrip.mm` | `state/tabs/chromeTabs.ts`, `state/tabs/liveTabs.ts` |
 | Tab activation | `ardiacore_window.mm` `-activateTab:`, `ac_window_host_tabs.mm` `ActiveTabChanged` | `ArdiaWebView+Tab.mm` `-tabActivatedByChrome:`, `ArdiaTabStrip.mm` | same |
 | Focus guard (test instances) | `ac_window_host.mm` (`WindowHost` activation) | `ArdiaActivation.mm` (`activation.log`), `ArdiaWindowFullScreen.mm` (acted-out occlusion), `ArdiaWebView+Focus.mm` | `packages/shell/ios/WindowManager.swift` |
-| Fullscreen | `ac_browser_window_exclusive_access.mm` (`ExclusiveAccessContext`), `ac_window_host_tabs.mm` `FullscreenChanged` | `ArdiaWindowFullScreen.mm` (acted out in test instances), `ArdiaFullScreenLights.mm`, `ArdiaPageCover.mm` | `components/window/ContentCard.tsx`, `state/tabs/pageState.ts` |
-| Picture in Picture | `ac_picture_in_picture.mm`; Dia's window and controls in `engine/chromium/…/ardia/pip/`; the auto-PiP hook in `engine/ardiacore/apply.sh` | `ArdiaPictureInPicture.mm` (monitors, `ardia_pip`), `ArdiaPiPController.mm` (+`Swipe`, +`SelfTest`), `ArdiaPiPZoom.mm`, `ArdiaWebView+PictureInPicture.mm` | `components/media/pip.ts` |
+| Fullscreen | `ac_browser_window_exclusive_access.mm` (`ExclusiveAccessContext`), `ac_window_host_tabs.mm` `FullscreenChanged` | `ArdiaWindowFullScreen.mm` (acted out in test instances), `ArdiaPageCover.mm` | `components/window/ContentCard.tsx`, `state/tabs/pageState.ts` |
+| Picture in Picture | `ac_picture_in_picture.mm`; Dia's window and controls in `engine/chromium/…/ardia/pip/`; the auto-PiP hook in `engine/ardiacore/apply.sh` | `ArdiaPictureInPicture.mm` (monitors, `ardia_pip`), `ArdiaPiPController.mm` (+`Swipe`, +`SelfTest`), `ArdiaPiPZoom.mm`, `ArdiaWebView+PictureInPicture.mm` | `state/media/pip.ts` |
 | Password and autofill bubbles | `ac_password_prompt.mm`, `ac_browser_window.h` (`ACAutofillBubbleHandler`), `ac_autofill_trigger.mm` (dropdown) | `ArdiaWindowController.mm` (`window:passwordPrompt:forTab:`) → `ArdiaWebView` event | `components/site/Prompts.tsx`, `site/Autofill.tsx` |
 | Share tab, screen share | `ardiacore_tab_media.mm` (`TabSharingDelegateFor`), `ac_desktop_capture.mm` | `ArdiaHost.mm` `shareTabInstead`, `MediaModule.swift` | `components/media/ShareBar.tsx`, `SharePicker.tsx` |
 | Restore, discard | `engine/chromium/…/ac_tab_restore.cc` (closed tabs), `ac_tab_restore_history.cc` (each tab's history) | `ArdiaWebView+Tab.mm` (`discard:`), `ArdiaWebView+Transfer.mm` (`transferKey`), `ArdiaTabParking.mm` | `state/tabs/tabLifecycle.ts`, `state/windows/windows.ts` |
@@ -287,7 +287,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 
 | Variable | Key / value | What it does |
 | --- | --- | --- |
-| `ARDIA_DATA_DIR` | path | Scratch data dir: Chrome's data in `<dir>/Chromium`, the app's documents, defaults, keychain items and Sparkle state (`ArdiaIsolation.h`); Chrome gets `--use-mock-keychain`. A Debug build refuses to start without one |
+| `ARDIA_DATA_DIR` | path | Scratch data dir: Chrome's data in `<dir>/Chromium`, the app's documents, defaults, keychain items and Sparkle state (`packages/shell/ios/ArdiaIsolation.m`); Chrome gets `--use-mock-keychain`. A Debug build refuses to start without one |
 | `ARDIA_BACKGROUND` | `1` (anything but empty or `0`) | Hidden test instance (Rules › never steal focus; `docs/testing.md`) |
 | `ARDIA_REMOTE_DEBUGGING_PORT` | port | CDP on that port, only on the mock keychain |
 | `ARDIA_INSTANCE` | `jsLocation=host:port` | This launch's Metro (Debug builds) |

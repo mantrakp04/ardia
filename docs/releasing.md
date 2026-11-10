@@ -112,8 +112,8 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
   keychain profile below, which notarytool keeps in the data-protection keychain: that reads as
   missing while the screen is locked. Otherwise, a notarytool profile named `ardia`:
   `xcrun notarytool store-credentials ardia --apple-id <id> --team-id U5L5T3NGVV` (it asks for an
-  app-specific password). Without it, the script still builds and signs, but the release is unnotarized and
-  Gatekeeper blocks the first launch.
+  app-specific password). Without either, release.sh stops before building unless `ALLOW_UNNOTARIZED=1` is set; then
+  it builds and signs, but the release is unnotarized and Gatekeeper blocks the first launch.
 - The engine: ArdiaCore's `Chromium Framework.framework` built in `~/chromium-build` (`scripts/agent/engine-build`;
   `docs/engine-build.md`), and `pod install` in `apps/browser/macos`. A framework built elsewhere goes in through
   `ARDIACORE_FRAMEWORK`. That skips the tree checks and ships no engine archive, unless `ARDIACORE_FRAMEWORK_ENGINE`
@@ -131,7 +131,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
 3. Commit both ("Release <version>" or "Nightly <version>"), push, and dispatch the Release workflow ("CI releases"
    below), which runs the rest. Or run it here: `scripts/release.sh <version>` (a `-nightly.<n>`
    version is a nightly). It stops right away if the notes file is missing or lacks its `date` and
-   `headline`, if the tree under `apps/browser`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
+   `headline`, if the tree under `apps/browser`, `apps/cli`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
    framework is older than the tree's ArdiaCore sources or the Chromium tree differs from `engine/ardiacore`
    (`apply.sh --check`), if the version doesn't fit the channel or the notes' `channel`, if it can't read the published
    appcast, if the build number isn't above every build in it, or (outside `--rc`) if `prebuilt-engines.tsv` lists no
@@ -197,7 +197,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    `update-tap.sh <version>` points the Homebrew tap's `ardia` or `ardia@nightly` cask
    (https://github.com/mantrakp04/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's
    digest of the published DMG and pushes the tap (`PUBLISH_TAP=0` skips it).
-5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry) (the updated app opens it on its first launch):
+5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
    (`infra/site/hexclave.deploy.ts`). For a stable, run `.claude/skills/release/scripts/site-version.mjs <version>`
    first so the download buttons and the README point at the new DMG. The owner has authorized releases to go all the way

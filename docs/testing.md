@@ -133,7 +133,7 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   that log a line (`ArdiaSystem`, `chromium-background-instance-no-default-handlers.patch`).
 
 A scratch `ARDIA_DATA_DIR` holds Chrome's user data and the app's documents, its defaults, keychain items and
-Sparkle state (`ArdiaIsolation.h`); Chrome gets `--use-mock-keychain`; update checks are off without
+Sparkle state (`packages/shell/ios/ArdiaIsolation.m`); Chrome gets `--use-mock-keychain`; update checks are off without
 `updateFeed`; a Release build's telemetry is tagged `test`, and the release-notes page stays closed
 unless `releaseNotes`.
 
