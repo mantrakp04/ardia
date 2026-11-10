@@ -15,6 +15,7 @@ namespace Ardia {
 struct CrashLog {
   static void Install() noexcept {
     SetUnhandledExceptionFilter(&CrashLog::OnCrash);
+    AddVectoredExceptionHandler(1, &CrashLog::OnFirstChance);
     std::set_terminate(&CrashLog::OnTerminate);
   }
 
@@ -33,9 +34,25 @@ struct CrashLog {
     TerminateProcess(process, 3);
   }
 
+  static bool IsHardFault(DWORD code) noexcept {
+    return code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
+           code == EXCEPTION_IN_PAGE_ERROR || code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
+           code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
+  }
+
+  static LONG WINAPI OnFirstChance(EXCEPTION_POINTERS *info) noexcept {
+    if (info && info->ExceptionRecord && IsHardFault(info->ExceptionRecord->ExceptionCode)) Report(info);
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
   static LONG WINAPI OnCrash(EXCEPTION_POINTERS *info) noexcept {
+    Report(info);
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
+  static void Report(EXCEPTION_POINTERS *info) noexcept {
     static std::atomic<bool> entered{false};
-    if (entered.exchange(true) || !info || !info->ExceptionRecord || !info->ContextRecord) return EXCEPTION_CONTINUE_SEARCH;
+    if (!info || !info->ExceptionRecord || !info->ContextRecord || entered.exchange(true)) return;
     HANDLE process = GetCurrentProcess();
     SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
     SymInitializeW(process, nullptr, TRUE);
@@ -77,7 +94,6 @@ struct CrashLog {
       if (!frame.AddrPC.Offset) break;
       LaunchLog::Write(L"fatal", std::wstring(L"  ").append(Describe(process, frame.AddrPC.Offset)));
     }
-    return EXCEPTION_CONTINUE_SEARCH;
   }
 
   static std::wstring Describe(HANDLE process, DWORD64 address) noexcept {
