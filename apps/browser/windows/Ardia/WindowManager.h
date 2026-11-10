@@ -204,9 +204,17 @@ struct WindowManager {
     if (!entry || Background()) return;
     POINT cursor{};
     GetCursorPos(&cursor);
+    try {
+      m_dragOrigin = entry->appWindow.Position();
+    } catch (...) {
+      return;
+    }
+    m_dragCursor = cursor;
+    m_dragId = entry->id;
     ReleaseCapture();
-    PostMessageW(entry->hwnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
+    PostMessageW(entry->hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
     LaunchLog::Write(L"window", std::wstring(L"drag began on ").append(Paths::Wide(entry->id)));
+    After(std::chrono::milliseconds(80), [this]() noexcept { TrackDragUnlessTheSystemMoves(); });
   }
 
   void ToggleMaximize(int64_t rootTag) noexcept {
@@ -485,8 +493,51 @@ struct WindowManager {
     EmitWindow(std::move(event));
   }
 
+  static bool LeftButtonDown() noexcept {
+    return (GetAsyncKeyState(GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON) & 0x8000) != 0;
+  }
+
+  void TrackDragUnlessTheSystemMoves() noexcept {
+    if (m_systemMove || m_tracking || !LeftButtonDown()) return;
+    ManagedWindow *entry = Find(m_dragId);
+    if (!entry) return;
+    try {
+      auto presenter = entry->appWindow.Presenter().try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
+      if (presenter && presenter.State() != winrt::Microsoft::UI::Windowing::OverlappedPresenterState::Restored) return;
+      LaunchLog::Write(L"window", L"drag is tracked by the app");
+      m_tracking = true;
+      auto timer = Host::Current()->queue.DispatcherQueue().CreateTimer();
+      timer.Interval(std::chrono::milliseconds(8));
+      timer.IsRepeating(true);
+      auto token = std::make_shared<winrt::event_token>();
+      *token = timer.Tick([this, timer, token](auto const &, auto const &) noexcept {
+        ManagedWindow *moving = Find(m_dragId);
+        if (moving && LeftButtonDown() && !m_systemMove) {
+          POINT now{};
+          GetCursorPos(&now);
+          try {
+            moving->appWindow.Move({m_dragOrigin.X + now.x - m_dragCursor.x, m_dragOrigin.Y + now.y - m_dragCursor.y});
+          } catch (...) {
+          }
+          return;
+        }
+        m_tracking = false;
+        timer.Stop();
+        timer.Tick(*token);
+      });
+      timer.Start();
+    } catch (...) {
+      m_tracking = false;
+    }
+  }
+
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR reference) noexcept {
     auto *manager = reinterpret_cast<WindowManager *>(reference);
+    if (message == WM_ENTERSIZEMOVE) {
+      manager->m_systemMove = true;
+      LaunchLog::Write(L"window", L"the system is moving or sizing a window");
+    }
+    if (message == WM_EXITSIZEMOVE) manager->m_systemMove = false;
     if (message == WM_ACTIVATE && LOWORD(wParam) != WA_INACTIVE) manager->Activated(hwnd);
     if (message == WM_ACTIVATEAPP && wParam == FALSE) manager->EmitApp("resignActive");
     return DefSubclassProc(hwnd, message, wParam, lParam);
@@ -555,6 +606,11 @@ struct WindowManager {
   std::vector<std::string> m_order;
   std::string m_activeId;
   bool m_quitting{false};
+  bool m_systemMove{false};
+  bool m_tracking{false};
+  POINT m_dragCursor{};
+  winrt::Windows::Graphics::PointInt32 m_dragOrigin{};
+  std::string m_dragId;
   int m_quitGeneration{0};
   bool m_finished{false};
 };
