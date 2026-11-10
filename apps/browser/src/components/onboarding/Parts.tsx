@@ -7,7 +7,7 @@ import { Checkbox, Dot, Text, useHover } from "../ui";
 import { activeSteps, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
 import { useQuestions } from "../../state/onboarding/questions";
 import { curve } from "../ui/motion";
-import { capsule, concentric, radius, space, tracking } from "../ui/tokens";
+import { capsule, concentric, ink, radius, space, tracking } from "../ui/tokens";
 import { onboardingColorsOf, onboardingMotion, onboardingType, TILE_WIDTH } from "./tokens";
 import { CARD_BORDER, ChoiceCard, SELECTED_BORDER } from "./ChoiceCard";
 
@@ -157,7 +157,7 @@ function Segment({ title, image, selected, onPress }: { title: string; image?: s
             radius={concentric(radius.tile, space.xxs)}
             raised
             plain={!selected}
-            fill={selected ? colors.card : hovered ? colors.outlinedHover : "transparent"}
+            fill={selected ? colors.card : hovered ? colors.outlinedHover : ink.clear}
             border={selected ? colors.rowBorder : null}
             style={{
               height: image ? SEGMENT.imageBox : SEGMENT.height,
@@ -221,7 +221,7 @@ export function SelectTile({
             radius={radius.panel}
             selected={selected}
             hovered={hovered}
-            border={ringed ? "transparent" : undefined}
+            border={ringed ? ink.clear : undefined}
             style={{ width, height, alignItems: "center", justifyContent: "center", gap: space.s, transform: [{ scale: pressed ? 0.96 : 1 }] }}
           >
             {ringed ? (

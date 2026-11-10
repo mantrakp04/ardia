@@ -219,7 +219,7 @@ export const toolRows = {
     {
       section: "Source and licenses",
       rows: {
-        source: { advanced: true, title: "Source code", description: "Ardia is open source under the Apache License 2.0.", keywords: ["github", "open source"] },
+        source: { advanced: true, title: "Source code", description: "Ardia is free software under the GNU General Public License v3, with no warranty.", keywords: ["github", "open source", "gpl", "license"] },
         licenses: { advanced: true, title: "Licenses", description: "Every open-source part of the engine, with its copyright and license.", keywords: ["credits", "legal"] },
       },
     },

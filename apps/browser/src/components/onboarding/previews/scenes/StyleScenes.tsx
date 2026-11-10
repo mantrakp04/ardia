@@ -71,7 +71,7 @@ export function interfaceStyle(glass: boolean): Scene {
         >
           <MockSurface g={g} look={look} radius={LENS.radius} shadow={mockShadow.lens} fill={look.tint[0]} style={fill} />
           <View style={[fill, { borderRadius: LENS.radius * s, overflow: "hidden" }]}>
-            <Backdrop g={g} look={look} />
+            <Backdrop look={look} />
             <Tile g={g} look={look} glass={glass} i={0} state="active" />
             <Tile g={g} look={look} glass={glass} i={1} state="rest" lit={t.in(HOVER_AT, 160)} />
             <Tile g={g} look={look} glass={glass} i={2} state="rest" />

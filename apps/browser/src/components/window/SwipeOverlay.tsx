@@ -68,7 +68,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     selected: 0,
     idle: undefined as ReturnType<typeof setTimeout> | undefined,
   }).current;
-  const v = useRef({
+  const [v] = useState(() => ({
     x: new Animated.Value(-SIZE),
     w: new Animated.Value(SIZE),
     h: new Animated.Value(SIZE),
@@ -81,7 +81,7 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
     pill: new Animated.Value(0),
     fade: new Animated.Value(1),
     scale: new Animated.Value(1),
-  }).current;
+  }));
 
   const resetValues = (direction: "back" | "forward") => {
     for (const value of Object.values(v)) value.stopAnimation();
