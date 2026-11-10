@@ -309,6 +309,11 @@ struct WindowManager {
       if (request.frame && (*request.frame)[2] > 0 && (*request.frame)[3] > 0) {
         auto const &frame = *request.frame;
         entry.appWindow.MoveAndResize({pixels(frame[0]), pixels(frame[1]), pixels(frame[2]), pixels(frame[3])});
+        double landed = Scale(entry.hwnd);
+        if (landed != scale) {
+          auto onLanded = [landed](double points) noexcept { return static_cast<int32_t>(points * landed + 0.5); };
+          entry.appWindow.MoveAndResize({onLanded(frame[0]), onLanded(frame[1]), onLanded(frame[2]), onLanded(frame[3])});
+        }
         return;
       }
       double width = 1280;

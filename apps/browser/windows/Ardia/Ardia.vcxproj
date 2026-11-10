@@ -83,7 +83,7 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>shell32.lib;user32.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependenices)</AdditionalDependencies>
+      <AdditionalDependencies>shell32.lib;user32.lib;advapi32.lib;kernel32.lib;ole32.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
@@ -101,6 +101,15 @@
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
     <ClInclude Include="AppModule.h" />
+    <ClInclude Include="ConfigModule.h" />
+    <ClInclude Include="DialogsModule.h" />
+    <ClInclude Include="DocumentsModule.h" />
+    <ClInclude Include="KeychainModule.h" />
+    <ClInclude Include="NotificationsModule.h" />
+    <ClInclude Include="ShellModule.h" />
+    <ClInclude Include="SystemModule.h" />
+    <ClInclude Include="SystemSignalsModule.h" />
+    <ClInclude Include="TelemetryLocalModule.h" />
     <ClInclude Include="Events.h" />
     <ClInclude Include="Host.h" />
     <ClInclude Include="Modules.h" />

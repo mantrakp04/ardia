@@ -1,13 +1,8 @@
+import type { WindowsNative } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { expectTrue, type Check } from "./check";
 
-type Windows = {
-  windowIds(): Promise<string[]>;
-  windowFrame(id: string): Promise<[number, number, number, number] | null>;
-  setWindowTitle(id: string, title: string): Promise<void>;
-  openWindow(id: string, options: { kind: string; title: string; focus: boolean }): Promise<void>;
-  closeWindow(id: string): Promise<void>;
-};
+type Windows = Pick<WindowsNative, "windowIds" | "windowFrame" | "setWindowTitle" | "openWindow" | "closeWindow">;
 
 const windows = () => requireNativeModule<Windows>("ArdiaAppWindows");
 const settled = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

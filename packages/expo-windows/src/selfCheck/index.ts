@@ -1,7 +1,10 @@
 import type { Check } from "./check";
+import { checks as appSystemChecks } from "./appSystem";
+import { checks as shellChecks } from "./shell";
+import { checks as storageChecks } from "./storage";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

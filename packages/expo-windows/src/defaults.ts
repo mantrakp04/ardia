@@ -1,19 +1,5 @@
-import type { ConfigFileRead, LaunchConfig, UpdaterState } from "@ardia/shell";
+import type { UpdaterState } from "@ardia/shell";
 import { noteMissing } from "./missing";
-
-const LAUNCH_CONFIG: LaunchConfig = {
-  dataDirectory: null,
-  configDirectory: "",
-  background: false,
-  isolated: false,
-  testInstance: false,
-  instance: {},
-  switches: {},
-  trace: [],
-  test: {},
-};
-
-const documents = new Map<string, string>();
 
 const ENGINE_ONLY: Record<string, string[]> = {
   ArdiaHistory: ["query", "add", "import", "deleteUrls", "watch"],
@@ -47,35 +33,11 @@ const engineDomains = Object.fromEntries(
 
 export const moduleDefaults: Record<string, Record<string, unknown>> = {
   ...engineDomains,
-  ArdiaApp: {
-    launchEnvironment: () => null,
-    launchConfig: () => LAUNCH_CONFIG,
-    appIcons: async () => [],
-    appIcon: async () => null,
-    crashReports: async () => [],
-  },
+  ArdiaApp: { launchEnvironment: () => null },
   ArdiaCalendar: { authorizationStatus: () => "notDetermined" },
   ArdiaCli: { installedVersion: () => null },
-  ArdiaConfig: {
-    readFile: (): ConfigFileRead => ({ status: "missing" }),
-    watch: async () => {},
-    writeSchemas: async () => [] as string[],
-  },
-  ArdiaDocuments: {
-    readDocument: (name: string) => documents.get(name) ?? null,
-    writeDocument: (name: string, contents: string) => void documents.set(name, contents),
-    saveDocument: async (name: string, contents: string) => void documents.set(name, contents),
-    removeDocument: (name: string) => void documents.delete(name),
-  },
   ArdiaGlassEffect: { isLiquidGlass: () => false },
   ArdiaMenus: { menuShortcuts: async () => [] },
-  ArdiaShell: {
-    fetchBangList: async () => ({ status: 304, etag: null, contentType: null, body: null, bytes: 0 }),
-    copyText: () => {},
-    isDarkAppearance: async () => false,
-    setAppearance: async () => {},
-  },
-  ArdiaSystem: { fileExists: () => false, hapticTick: () => {} },
   ArdiaUpdater: { updaterState: async (): Promise<UpdaterState> => ({ available: false }) },
   ArdiaTranslate: { available: false, userLanguages: () => ["en"], languageName: (id: string) => id },
   ArdiaUserScripts: { watch: () => {}, read: async () => ({ state: "empty" }), readStatus: async () => null },
