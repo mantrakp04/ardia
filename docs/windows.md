@@ -29,7 +29,9 @@ Logic is written once. Only code that calls the OS is written per platform.
     a time: a method it lacks falls through;
   - a method with no C++ version answers from `src/defaults.ts`, or with `null`, and logs its name once;
   - a view is either native (`ArdiaVectorIcon`, registered in `Modules.h`), drawn in TypeScript
-    (`src/views`, `src/symbol`, `src/windowDragRegion.tsx`), or a plain view that logs its name once.
+    (`src/views`, `src/symbol`, `src/windowDragRegion.tsx`), or a plain view that logs its name once and lets
+    presses through to what is under or inside it (several Mac views are empty layers over other content, and a
+    stand-in that took presses made the sidebar's tabs unclickable).
 
   The log, and `ardiaWindowsMissing()` in the JS console, list what the app has reached so far that has no Windows
   version, not everything left to port.
@@ -71,6 +73,10 @@ Logic is written once. Only code that calls the OS is written per platform.
   Windows has no permission prompt: the system setting for the app is the answer. A background instance registers
   but logs toasts instead of showing them. Windows reports no dismissals, so there is no `close` response. If
   registration fails, notifications answer as not set up and the launch log says why once.
+- A press reaches the UI as a touch with no button: pointer events never arrive, and the app's pointer input does not
+  pass through the UI thread's message queue. So the window root (`OutsidePressRoot` in `src/views/inputAreas.tsx`)
+  asks native which button is down when a touch starts (`ArdiaWindowsHost.pointerState`), and for a right or middle
+  press it takes the press, finds the context menu or middle click area under the real target, and acts on release.
 - Shortcuts are the Mac's with Command as Ctrl and Option as Alt, except where Windows has its own convention;
   `CommandTable.h` holds both columns. The JS command catalog still shows the Mac keys in Settings.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
