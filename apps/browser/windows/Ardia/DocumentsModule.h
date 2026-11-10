@@ -228,6 +228,7 @@ class DocumentStore {
       std::lock_guard<std::mutex> guard(State().mutex);
       auto found = State().staged.find(key);
       if (found != State().staged.end()) return found->second.contents;
+      if (State().removing.contains(key)) return std::nullopt;
     }
     auto contents = Files::ReadAll(*url);
     if (!contents || !Files::IsValidUtf8(*contents)) return std::nullopt;
@@ -299,12 +300,18 @@ class DocumentStore {
         waiters = std::move(found->second.waiters);
         State().staged.erase(found);
       }
+      ++State().removing[key];
     }
     std::filesystem::path path = *url;
-    Queue().Async([path, waiters = std::move(waiters)]() {
+    Queue().Async([path, key, waiters = std::move(waiters)]() {
       {
         std::unique_lock<std::timed_mutex> writing(State().writing, std::chrono::seconds(10));
         Files::RemoveFile(path);
+      }
+      {
+        std::lock_guard<std::mutex> guard(State().mutex);
+        auto pending = State().removing.find(key);
+        if (pending != State().removing.end() && --pending->second <= 0) State().removing.erase(pending);
       }
       for (auto const &waiter : waiters) waiter(std::nullopt);
     });
@@ -349,6 +356,7 @@ class DocumentStore {
     std::mutex mutex;
     std::timed_mutex writing;
     std::map<std::wstring, Staged> staged;
+    std::map<std::wstring, int> removing;
     uint64_t generation = 0;
     bool closed = false;
   };

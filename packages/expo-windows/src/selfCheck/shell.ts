@@ -1,31 +1,12 @@
+import type { ShellNativeModules } from "@ardia/shell";
 import { TurboModuleRegistry } from "react-native";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type Subscription = { remove(): void };
 type AppEvent = { type: string; dark?: boolean };
-
-type Shell = {
-  addListener(name: "onAppEvent", listener: (event: AppEvent) => void): Subscription;
-  setAppearance(mode: "auto" | "light" | "dark"): Promise<void>;
-  isDarkAppearance(): Promise<boolean>;
-  copyText(text: string): void;
-  readText(): Promise<string>;
-};
-
-type Dialogs = {
-  confirm(options: { title: string; message?: string; confirmTitle?: string; cancelTitle?: string; destructive?: boolean; suppression?: string }): Promise<{ confirmed: boolean; suppressed: boolean }>;
-  prompt(options: { title: string; message?: string; value?: string; placeholder?: string; confirmTitle?: string }): Promise<string | null>;
-  pickFiles(): Promise<string[]>;
-  pickFolder(current: string | null, prompt: string | null): Promise<string | null>;
-};
-
-type Notifications = {
-  notificationPermission(): Promise<string>;
-  requestNotificationPermission(): Promise<boolean>;
-  postNotification(options: { title: string; body?: string }): Promise<string | null>;
-  removeNotifications(ids: string[]): Promise<void>;
-};
+type Shell = ShellNativeModules["ArdiaShell"];
+type Dialogs = ShellNativeModules["ArdiaDialogs"];
+type Notifications = ShellNativeModules["ArdiaNotifications"];
 
 const shell = () => requireNativeModule<Shell>("ArdiaShell");
 const dialogs = () => requireNativeModule<Dialogs>("ArdiaDialogs");

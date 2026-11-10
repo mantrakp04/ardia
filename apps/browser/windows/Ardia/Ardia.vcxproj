@@ -83,7 +83,7 @@
       </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>shell32.lib;user32.lib;advapi32.lib;kernel32.lib;ole32.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shell32.lib;user32.lib;gdi32.lib;advapi32.lib;kernel32.lib;ole32.lib;oleaut32.lib;shlwapi.lib;bcrypt.lib;comctl32.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>

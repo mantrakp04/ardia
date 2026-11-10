@@ -1,7 +1,8 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
-import { viewOnWindows } from "./views";
+import { installOutsidePressRoot } from "./views/index";
+import { viewOnWindows } from "./views/registry";
 import type { ComponentType } from "react";
 
 export type { EventSubscription } from "./events";
@@ -16,6 +17,8 @@ export function requireNativeViewManager<Props = object>(name: string): Componen
 type WindowsHost = TurboModule & { secureRandomHex(byteCount: number): string };
 
 const SELF_CHECK_AFTER_MS = 4000;
+
+installOutsidePressRoot();
 
 const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");
 const secureHex = (byteCount: number) => windowsHost().secureRandomHex(byteCount);
