@@ -164,7 +164,21 @@ LIBRARY = r"""
       const lines = [];
       const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "SVG", "HEAD", "IFRAME"]);
       const BLOCK = /^(P|DIV|SECTION|ARTICLE|MAIN|HEADER|FOOTER|NAV|ASIDE|FORM|FIELDSET|UL|OL|TABLE|TR|BLOCKQUOTE|PRE|FIGURE|DETAILS|DL|DT|DD|ADDRESS|HR|BR|LABEL|SELECT|TEXTAREA|BUTTON)$/;
+      const CELL_ROLES = new Set(["gridcell", "cell", "columnheader", "rowheader"]);
+      const GRID_ROLES = new Set(["grid", "treegrid", "table"]);
+      const roleOf = (el) => (el.getAttribute("role") || "").trim().toLowerCase();
+      const LAYOUT_INSIDE = "table, [role=grid], [role=table], h1, h2, h3, h4, h5, h6, ul, ol, pre, blockquote";
+      const isRow = (el) => (el.tagName === "TR" || roleOf(el) === "row") && !el.querySelector(LAYOUT_INSIDE) && (el.innerText || "").length <= 500;
+      const isCell = (el) => el.tagName === "TD" || el.tagName === "TH" || CELL_ROLES.has(roleOf(el));
+      const rowsRendered = (grid) => Array.from(grid.querySelectorAll("tr, [role=row]")).filter((row) => row.closest("table, [role=grid], [role=treegrid], [role=table]") === grid).length;
+      const virtualNote = (grid) => {
+        const total = Number(grid.getAttribute("aria-rowcount"));
+        const shown = rowsRendered(grid);
+        if (!Number.isFinite(total) || total <= shown) return "";
+        return `(${shown} of ${total} rows rendered; the grid is virtualized: sort, filter or scroll it to see others, or read -s <grid> --scroll)`;
+      };
       let buffer = "";
+      let row = null;
       const flush = () => { const t = norm(buffer); if (t) lines.push(t); buffer = ""; };
       const walk = (node) => {
         if (node.nodeType === 3) { buffer += node.nodeValue; return; }
@@ -173,17 +187,44 @@ LIBRARY = r"""
         const style = getComputedStyle(node);
         if (style.display === "none" || style.visibility === "hidden") return;
         const tag = node.tagName;
+        if (row) {
+          if (isCell(node)) {
+            if (row.cells++) buffer += " | ";
+          } else if (tag === "INPUT" || tag === "IMG") {
+            if (tag === "IMG" && node.alt) buffer += " " + node.alt + " ";
+            return;
+          } else if (BLOCK.test(tag) || style.display !== "inline") buffer += " ";
+          for (const child of node.childNodes) walk(child);
+          if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) walk(child);
+          return;
+        }
+        if (isRow(node)) {
+          flush();
+          row = { cells: 0 };
+          try {
+            for (const child of node.childNodes) walk(child);
+            if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) walk(child);
+          } finally {
+            row = null;
+          }
+          flush();
+          return;
+        }
         const h = /^H([1-6])$/.exec(tag);
         if (h) { flush(); const t = norm(node.innerText); if (t) { lines.push(""); lines.push("#".repeat(Number(h[1])) + " " + t); lines.push(""); } return; }
         if (tag === "LI") { flush(); const t = norm(node.innerText); if (t) lines.push("- " + t); return; }
         if (tag === "PRE") { flush(); lines.push("```"); lines.push(node.innerText.replace(/\n+$/, "")); lines.push("```"); return; }
         if (tag === "INPUT" || tag === "IMG") { if (tag === "IMG" && node.alt) buffer += " " + node.alt + " "; return; }
-        if ((tag === "TD" || tag === "TH") && node.previousElementSibling) buffer += " | ";
+        if (isCell(node) && node.previousElementSibling) buffer += " | ";
         const block = BLOCK.test(tag) || style.display === "block" || style.display === "flex" || style.display === "grid";
         if (block) flush();
         for (const child of node.childNodes) walk(child);
         if (node.shadowRoot) for (const child of node.shadowRoot.childNodes) walk(child);
         if (block) flush();
+        if (tag === "TABLE" || GRID_ROLES.has(roleOf(node))) {
+          const note = virtualNote(node);
+          if (note) { flush(); lines.push(note); }
+        }
       };
       walk(root);
       flush();

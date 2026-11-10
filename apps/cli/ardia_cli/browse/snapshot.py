@@ -2,6 +2,7 @@ import asyncio
 from collections import Counter
 from dataclasses import dataclass, field
 
+from ardia_cli import command_metrics
 from ardia_cli.browse.errors import BrowseError
 from ardia_cli.browse.state import Ref
 
@@ -13,6 +14,9 @@ REF_ROLES = INTERACTIVE | {"heading"}
 SKIPPED = {"none", "InlineTextBox", "LineBreak", "ListMarker"}
 LIFTED = {"generic", "GenericContainer", "group", "Section", "div", "presentation", "RootWebArea", "WebArea", "Ignored", "IgnoredRole"}
 MAX_NAME = 200
+SHOWN_NAME = 100
+DISABLED_RUN = {"option": 6, "link": 6, "menuitem": 6, "treeitem": 6, "button": 12, "radio": 12, "checkbox": 12, "switch": 12, "tab": 12}
+MIN_DISABLED = 3
 VALUE_FIELDS = {"Date": "date", "DateTime": "datetime-local", "InputTime": "time", "ColorWell": "color"}
 ROLE_NAMES = {"DisclosureTriangle": "button"}
 MAX_SCOPES = 20
@@ -135,10 +139,17 @@ def _quote(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
+def shown_name(name: str) -> str:
+    if len(name) <= SHOWN_NAME:
+        return name
+    command_metrics.flag("names_clipped", True)
+    return name[: SHOWN_NAME - 1].rstrip() + "…"
+
+
 def _line(node: Node, depth: int, urls: bool) -> str:
     parts = ["  " * depth + "- " + node.role]
     if node.name:
-        parts.append(" " + _quote(node.name))
+        parts.append(" " + _quote(node.name if node.role == "StaticText" else shown_name(node.name)))
     attrs = _attrs(node, urls)
     if attrs:
         parts.append(" [" + ", ".join(attrs) + "]")
@@ -164,9 +175,58 @@ def interactive_rows(nodes: list[Node]) -> list[tuple[int, Node]]:
     return rows
 
 
+def disabled(node: Node) -> bool:
+    return bool(node.props.get("disabled"))
+
+
+def span_label(node: Node) -> str:
+    text = " ".join((node.name or node.value).split())
+    return text if len(text) <= 40 else text[:39] + "…"
+
+
+def run_span(nodes: list[Node]) -> str:
+    return f"{span_label(nodes[0])} … {span_label(nodes[-1])}" if len(nodes) > 1 else span_label(nodes[0])
+
+
+def interactive_lines(rows: list[tuple[int, Node]], urls: bool) -> list[str]:
+    lines = []
+    index = 0
+    while index < len(rows):
+        level, node = rows[index]
+        members = [(index, node)]
+        end = index + 1
+        while end < len(rows) and rows[end][0] >= level:
+            if rows[end][0] == level:
+                if rows[end][1].role != node.role:
+                    break
+                members.append((end, rows[end][1]))
+            end += 1
+        off = [member for _, member in members if disabled(member)]
+        if len(members) < DISABLED_RUN.get(node.role, len(members) + 1) or len(off) < MIN_DISABLED:
+            lines.append(_line(node, level, urls))
+            index += 1
+            continue
+        noted = False
+        hiding = False
+        for position in range(index, end):
+            row_level, row = rows[position]
+            if hiding and row_level > level:
+                continue
+            hiding = row_level == level and disabled(row)
+            if hiding:
+                command_metrics.flag("snapshot_disabled_folded", True)
+                if not noted:
+                    lines.append("  " * level + f"- {len(off)} disabled {row.role}{'s' if len(off) > 1 else ''} ({run_span(off)})")
+                    noted = True
+                continue
+            lines.append(_line(row, row_level, urls))
+        index = end
+    return lines
+
+
 def render(nodes: list[Node], interactive: bool = False, compact: bool = False, depth: int | None = None, urls: bool = False) -> str:
     if interactive:
-        return "\n".join(_line(node, level, urls) for level, node in interactive_rows(nodes) if depth is None or level <= depth)
+        return "\n".join(interactive_lines([(level, node) for level, node in interactive_rows(nodes) if depth is None or level <= depth], urls))
     lines = []
 
     def keep_compact(node: Node) -> bool:

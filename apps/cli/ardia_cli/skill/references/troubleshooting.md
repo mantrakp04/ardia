@@ -39,18 +39,23 @@ unique on the page, inside the same named dialog, row or form; otherwise the err
 keeps its number across snapshots of the same page, and a number never moves to another element. Long runs of one role fold into one line in change reports
 (`+ 48 options in combobox "Start time" (…; e8…e55)`); the refs in it work.
 
+In a `batch`, a line can carry its own flags (`--no-changes`), and a last line `close` closes your tabs once every
+line succeeded. On `stale_ref`, the answer has the new refs.
+
 ## Custom inputs, covered elements, drag
 
 - `covered by <…>`: act on the covering element first (close the banner or editor), then retry.
 - A field that ignores `fill`: `focus @e1`, then `keyboard inserttext "text"` (or `keyboard type` for keystrokes).
-- A typeahead or chip input: `select`, not `fill`. When `select` lists two or no suggestions, pick an exact one.
+- A typeahead or chip input: `select`, not `fill`; it types each value and clicks the match
+  (`select @e5 "Priya Raman" alex@example.com`). When it lists two or no suggestions, pick an exact one.
 - `find role` with several matches clicks nothing and lists them with refs; use the ref you mean.
 - When `select` says no list is linked to the field, click the option: `find role option click --name "…"`.
 - Selectors take CSS, `@e3`, `text=Save`, `role=button[name="Save"]` and `li:has-text("Ana")`; `[role=main]` also
   matches `<main>`.
-- `drag` from a `draggable` source does HTML5 drag and drop (the answer says `HTML5 drag and drop`, `the target
-  didn't accept the drop`, or `plain mouse drag`). A reordered list often shows `changes: none`; check with
-  `read -s <list>` or `get text`.
+- `drag @src @dst` drops on the target's far half, so the source takes its place; `--before` or `--after` picks the
+  side. In a sortable list the answer names the new position (`moved to 5 of 5`). From a `draggable` source it does
+  HTML5 drag and drop (the answer says `HTML5 drag and drop`, `the target didn't accept the drop`, or `plain mouse
+  drag`). When the answer has no position, check with `read -s <list>`.
 
 ## Refused commands
 

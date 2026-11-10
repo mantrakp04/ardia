@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Virtual lists</title>
+<style>
+  body { margin: 0; font: 14px system-ui; overflow: hidden; }
+  .pane { display: flex; gap: 16px; padding: 8px; }
+  #mail { position: relative; height: 300px; width: 420px; overflow-y: auto; }
+  #mail .row { position: absolute; left: 0; right: 0; height: 40px; }
+  #mail .row span { display: block; }
+  #grid { position: relative; height: 300px; width: 520px; overflow: auto; }
+  #grid .head { position: sticky; top: 0; background: white; z-index: 1; }
+  #grid .r { display: grid; grid-template-columns: 60px 120px 200px 80px; height: 30px; }
+  #grid .body { position: relative; }
+  #grid .body .r { position: absolute; left: 0; right: 0; }
+  #grid .c { display: block; }
+</style>
+</head>
+<body>
+<div class="pane">
+  <div id="mail" role="listbox" aria-label="Inbox"><div id="spacer"></div></div>
+  <div id="grid" role="grid" aria-label="Stock" aria-rowcount="501">
+    <div class="head" role="rowgroup">
+      <div class="r" role="row" aria-rowindex="1">
+        <div class="c" role="columnheader">Row</div><div class="c" role="columnheader">SKU</div>
+        <div class="c" role="columnheader">Item</div><div class="c" role="columnheader">Qty</div>
+      </div>
+    </div>
+    <div class="body" role="rowgroup" id="gridbody"></div>
+  </div>
+</div>
+<script>
+  const TOTAL = 120, PAGE = 25, ROW = 40;
+  const mail = document.getElementById("mail");
+  const spacer = document.getElementById("spacer");
+  const items = [];
+  const live = new Map();
+  let loading = false;
+  const subject = (i) => i % 37 === 0 ? `Receipt from Staples #${i}` : i === 50 || i === 57 ? "Weekly digest" : `Message ${i}`;
+  function load() {
+    if (loading || items.length >= TOTAL) return;
+    loading = true;
+    const loader = document.createElement("div");
+    loader.className = "loading-row";
+    loader.textContent = "Loading…";
+    mail.append(loader);
+    setTimeout(() => {
+      const start = items.length;
+      for (let i = start; i < Math.min(TOTAL, start + PAGE); i++) items.push({ from: `Sender ${i % 7}`, subject: subject(i + 1) });
+      loader.remove();
+      loading = false;
+      render();
+    }, 150);
+  }
+  function render() {
+    spacer.style.height = `${items.length * ROW + (items.length < TOTAL ? 40 : 0)}px`;
+    const first = Math.max(0, Math.floor(mail.scrollTop / ROW) - 2);
+    const last = Math.min(items.length, Math.ceil((mail.scrollTop + mail.clientHeight) / ROW) + 2);
+    const keep = new Set();
+    for (let i = first; i < last; i++) {
+      keep.add(i);
+      let el = live.get(i);
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "row";
+        el.setAttribute("role", "option");
+        el.innerHTML = `<span></span><span></span>`;
+        mail.append(el);
+        live.set(i, el);
+      }
+      el.setAttribute("aria-posinset", String(i + 1));
+      el.style.top = `${i * ROW}px`;
+      el.children[0].textContent = items[i].from;
+      el.children[1].textContent = items[i].subject;
+    }
+    for (const [i, el] of live) if (!keep.has(i)) { el.remove(); live.delete(i); }
+    if (last >= items.length - 2) load();
+  }
+  mail.addEventListener("scroll", render);
+  load();
+
+  const GRID_TOTAL = 500, GRID_ROW = 30;
+  const grid = document.getElementById("grid");
+  const body = document.getElementById("gridbody");
+  body.style.height = `${GRID_TOTAL * GRID_ROW}px`;
+  const gridLive = new Map();
+  function renderGrid() {
+    const first = Math.max(0, Math.floor(grid.scrollTop / GRID_ROW) - 3);
+    const last = Math.min(GRID_TOTAL, Math.ceil((grid.scrollTop + grid.clientHeight) / GRID_ROW) + 3);
+    const keep = new Set();
+    for (let i = first; i < last; i++) {
+      keep.add(i);
+      let el = gridLive.get(i);
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "r";
+        el.setAttribute("role", "row");
+        el.setAttribute("aria-rowindex", String(i + 2));
+        el.innerHTML = `<div class="c" role="gridcell">${i + 1}</div><div class="c" role="gridcell">SKU-${1000 + i}</div><div class="c" role="gridcell">${i === 321 ? "Hex bolt" : "Washer"}</div><div class="c" role="gridcell">${i * 3}</div>`;
+        el.style.top = `${i * GRID_ROW}px`;
+        body.append(el);
+        gridLive.set(i, el);
+      }
+    }
+    for (const [i, el] of gridLive) if (!keep.has(i)) { el.remove(); gridLive.delete(i); }
+  }
+  grid.addEventListener("scroll", renderGrid);
+  renderGrid();
+</script>
+</body>
+</html>

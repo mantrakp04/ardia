@@ -4,6 +4,7 @@ import json
 import random
 import re
 
+from ardia_cli import command_metrics
 from ardia_cli.browse import fields
 from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 
@@ -26,6 +27,131 @@ SUGGESTION_SETTLE = 0.35
 EXACT = 3
 MAX_SUGGESTIONS = 8
 EMAIL = re.compile(r"[^\s@<>()\[\],;:\"']+@[^\s@<>()\[\],;:\"']+\.[A-Za-z]{2,}")
+ENABLE_WAIT = 1.5
+EDITOR_WAIT = 1.0
+COMMIT_WAIT = 0.5
+POLL = 0.05
+INSERTED_INPUT_TYPES = frozenset({"text", "search", "email", "url", "tel", "number"})
+DRAG_FAR_SHARE = 0.75
+DISABLED_STATE = """(el) => ({
+  native: el.matches(":disabled") || !!(el.closest && el.closest("button:disabled, fieldset:disabled")),
+  aria: el.getAttribute("aria-disabled") === "true",
+})"""
+CELL_OF = "(el) => el.closest('[role=gridcell], [role=cell], td')"
+CELL_START = """(cell) => {
+  globalThis.ardiaCellFocusBefore = document.activeElement;
+  const editable = (n) => !n.disabled && (n.tagName === "SELECT" || n.isContentEditable
+    || ((n.tagName === "INPUT" || n.tagName === "TEXTAREA") && !n.readOnly && n.type !== "hidden"));
+  const grid = cell.closest("[role=grid], [role=treegrid], [role=table], table");
+  const row = cell.closest("[role=row], tr");
+  const rows = grid ? Array.from(grid.querySelectorAll("[role=row], tr")) : [];
+  globalThis.ardiaCellSpot = {
+    cell, grid, id: cell.id || null,
+    row: row && row.getAttribute("aria-rowindex"), column: cell.getAttribute("aria-colindex"),
+    rowIndex: row ? rows.indexOf(row) : -1, cellIndex: row ? Array.from(row.children).indexOf(cell) : -1,
+  };
+  const was = (cell.innerText || cell.textContent || "").trim();
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) active = active.shadowRoot.activeElement;
+  const box = cell.getBoundingClientRect();
+  const hit = box.width && box.height ? document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) : null;
+  if (active && editable(active) && (cell.contains(active) || hit && (hit === active || active.contains(hit)))) {
+    globalThis.ardiaCellInner = active;
+    return { was, inner: true, open: true };
+  }
+  const inner = Array.from(cell.querySelectorAll("input, textarea, select, [contenteditable=true], [role=combobox], [role=textbox]"))
+    .find((n) => editable(n) || n.getAttribute("role") === "combobox");
+  globalThis.ardiaCellInner = inner || null;
+  return { was, inner: !!inner, open: false };
+}"""
+CELL_INNER = "() => globalThis.ardiaCellInner || null"
+CELL_EDITOR = """(cell) => {
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) active = active.shadowRoot.activeElement;
+  if (!active || active === document.body || active === document.documentElement) return null;
+  const editable = !active.disabled && (active.tagName === "SELECT" || active.isContentEditable
+    || ((active.tagName === "INPUT" || active.tagName === "TEXTAREA") && !active.readOnly));
+  if (!editable) return null;
+  return cell.contains(active) || active !== globalThis.ardiaCellFocusBefore ? active : null;
+}"""
+CELL_EDITOR_STATE = """(editor) => {
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) active = active.shadowRoot.activeElement;
+  const open = editor.isConnected && active === editor;
+  if (!open) return { open: false };
+  const ids = (editor.getAttribute("aria-errormessage") || "") + " " + (editor.getAttribute("aria-describedby") || "");
+  const said = ids.split(/\\s+/).filter(Boolean).map((id) => document.getElementById(id)).filter(Boolean)
+    .map((n) => (n.innerText || n.textContent || "").trim()).filter(Boolean);
+  const message = said.join(" ") || editor.validationMessage || "";
+  return { open: true, invalid: editor.getAttribute("aria-invalid") === "true" || !!editor.validationMessage, message };
+}"""
+CELL_FIND = """() => {
+  const spot = globalThis.ardiaCellSpot;
+  if (!spot) return null;
+  if (spot.cell.isConnected) return spot.cell;
+  if (spot.id && document.getElementById(spot.id)) return document.getElementById(spot.id);
+  if (!spot.grid || !spot.grid.isConnected) return null;
+  const rows = Array.from(spot.grid.querySelectorAll("[role=row], tr"));
+  if (spot.row && spot.column) {
+    const row = rows.find((r) => r.getAttribute("aria-rowindex") === spot.row);
+    const cell = row && row.querySelector('[aria-colindex="' + spot.column + '"]');
+    if (cell) return cell;
+  }
+  const row = spot.rowIndex >= 0 ? rows[spot.rowIndex] : null;
+  return row && spot.cellIndex >= 0 ? row.children[spot.cellIndex] || null : null;
+}"""
+CELL_NOW = "() => { const cell = (" + CELL_FIND + ")(); return cell ? (cell.innerText || cell.textContent || '').trim() : null; }"
+SETTLED_FRAMES = "() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))"
+CELL_REVEAL = """() => {
+  const cell = (""" + CELL_FIND + """)();
+  if (!cell) return false;
+  const margin = 16;
+  const box = cell.getBoundingClientRect();
+  let scroller = cell.parentElement;
+  while (scroller && scroller !== document.body && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowX + getComputedStyle(scroller).overflowY)) {
+    scroller = scroller.parentElement;
+  }
+  let area = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+  if (scroller && scroller !== document.body) {
+    const outer = scroller.getBoundingClientRect();
+    const left = outer.left + scroller.clientLeft, top = outer.top + scroller.clientTop;
+    area = { left: Math.max(0, left), top: Math.max(0, top), right: Math.min(innerWidth, left + scroller.clientWidth),
+             bottom: Math.min(innerHeight, top + scroller.clientHeight) };
+  }
+  const inside = box.left >= area.left && box.top >= area.top && box.right <= area.right - margin && box.bottom <= area.bottom - margin;
+  const hit = inside && document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+  if (!hit || !cell.contains(hit)) cell.scrollIntoView({ block: "center", inline: "center" });
+  return true;
+}"""
+LIST_BEFORE = """(source, target) => {
+  let item = source;
+  while (item.parentElement && !item.parentElement.contains(target)) item = item.parentElement;
+  const list = item.parentElement;
+  if (!list || item.contains(target)) return null;
+  const like = (n) => n.tagName === item.tagName;
+  const items = Array.from(list.children).filter(like);
+  const onto = Array.from(list.children).find((n) => n.contains(target));
+  if (!onto || !like(onto) || items.length < 2) return null;
+  const role = (item.getAttribute("role") || "").toLowerCase();
+  const carrier = source.closest("[draggable=true]") || source;
+  const sortable = /^(LI|TR|OPTION|DT)$/.test(item.tagName) || ["listitem", "row", "option", "treeitem"].includes(role)
+    || carrier === item || !!source.closest("[aria-roledescription*=sortable i]");
+  if (!sortable) return null;
+  const key = (n) => (n.textContent || "").replace(/\\s+/g, " ").trim();
+  const text = key(item);
+  if (!text || items.filter((n) => key(n) === text).length !== 1) return null;
+  globalThis.ardiaDragList = { list, tag: item.tagName, text };
+  return { from: items.indexOf(item) + 1, count: items.length };
+}"""
+LIST_AFTER = """() => {
+  const spot = globalThis.ardiaDragList;
+  globalThis.ardiaDragList = null;
+  if (!spot || !spot.list.isConnected) return null;
+  const key = (n) => (n.textContent || "").replace(/\\s+/g, " ").trim();
+  const items = Array.from(spot.list.children).filter((n) => n.tagName === spot.tag);
+  const hits = items.filter((n) => key(n) === spot.text);
+  return hits.length === 1 ? { to: items.indexOf(hits[0]) + 1, count: items.length } : null;
+}"""
 
 
 async def input_counts(page, frame):
@@ -250,16 +376,10 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
         raise BrowseError(f"Element {element.label} was removed from the page")
     await laid_out(page)
     await scroll_into_view(page, element, humanize)
-    quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
-    best = None
-    for quad in quads:
-        xs, ys = quad[0::2], quad[1::2]
-        area = (max(xs) - min(xs)) * (max(ys) - min(ys))
-        if area > 1 and (best is None or area > best[0]):
-            best = (area, min(xs), min(ys), max(xs), max(ys))
-    if best is None:
+    box = await element_box(page, element)
+    if box is None:
         raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
-    _, left, top, right, bottom = best
+    left, top, right, bottom = box
     cx, cy = (left + right) / 2, (top + bottom) / 2
     if humanize:
         cx += random.uniform(-0.2, 0.2) * (right - left)
@@ -286,7 +406,33 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
     return cx, cy, info
 
 
+async def disabled_state(page, element) -> dict:
+    state = await page.call(DISABLED_STATE, element, frame=element.frame, read=True)
+    return state if isinstance(state, dict) else {}
+
+
+async def wait_enabled(page, element, strict: bool = True):
+    state = await disabled_state(page, element)
+    if not (state.get("native") or state.get("aria")):
+        return
+    command_metrics.flag("waited_for_enabled", True)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + ENABLE_WAIT
+    while loop.time() < deadline:
+        await asyncio.sleep(POLL)
+        state = await disabled_state(page, element)
+        if not (state.get("native") or state.get("aria")):
+            return
+    if state.get("native") or strict:
+        raise BrowseError(
+            f"Element {element.label} is disabled, and it stayed disabled for {ENABLE_WAIT:g} s. Do what enables it first "
+            "(it usually depends on another field: To after From); in a batch, put that line before this one",
+            code="disabled",
+        )
+
+
 async def click(page, element, humanize: bool, count: int = 1, button: str = "left"):
+    await wait_enabled(page, element, strict=False)
     x, y, _ = await target_point(page, element, humanize)
     mouse = page.input.mouse
     which = mouse_button(button)
@@ -369,9 +515,15 @@ async def clear_field(page, element, humanize: bool):
 
 async def fill(page, element, text: str, humanize: bool, guard=None):
     info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
-    if info.get("tag") == "select":
-        raise BrowseError(f"{element.label} is a <select>; use `ardia browse select {element.label} <value>`")
+    if info.get("disabled"):
+        await wait_enabled(page, element)
+        info = await page.call("(el) => ardiaBrowse.info(el)", element, frame=element.frame)
+    if info.get("tag") == "select" and guard is None:
+        return False, await pick_option(page, element, text)
     if not info.get("editable") or info.get("disabled"):
+        cell = await cell_of(page, element) if guard is None else None
+        if cell is not None:
+            return False, await fill_cell(page, element, cell, text, humanize)
         raise BrowseError(f"Element {element.label} isn't an editable field", code="not_editable")
     if info.get("tag") == "input" and info.get("type") in fields.SET_DIRECTLY:
         return False, await set_value(page, element, info["type"], text)
@@ -379,7 +531,7 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
     await focus_field(page, element, info, humanize, tolerate_detach=True)
     element, retargeted = await settle_focus(page, element, loader)
     await clear_field(page, element, humanize)
-    if text and inserts_at_once(info, humanize, guard):
+    if text and inserts_at_once(info, humanize, guard) and await plain_input(page, element, info):
         await insert_text(page, element, text)
     elif text:
         await type_into(page, element, text, humanize, guard)
@@ -387,10 +539,142 @@ async def fill(page, element, text: str, humanize: bool, guard=None):
 
 
 def inserts_at_once(info: dict, humanize: bool, guard) -> bool:
-    return not humanize and guard is None and (info.get("tag") == "textarea" or info.get("tag") not in ("input",) and bool(info.get("editable")))
+    if humanize or guard is not None:
+        return False
+    if info.get("tag") == "input":
+        return (info.get("type") or "text") in INSERTED_INPUT_TYPES
+    return info.get("tag") == "textarea" or bool(info.get("editable"))
+
+
+async def plain_input(page, element, info: dict) -> bool:
+    if info.get("tag") != "input":
+        return True
+    return await combo_kind(page, element) is None
+
+
+async def pick_option(page, element, text: str) -> str:
+    options = await page.call(
+        "(el) => Array.from(el.options).filter((o) => !o.disabled).map((o) => ({ text: (o.label || o.textContent || '').trim(), exact: [o.value] }))",
+        element, frame=element.frame, read=True,
+    )
+    try:
+        index = pick_suggestion(text, options or [], element.label)
+    except BrowseError as error:
+        raise BrowseError(error.message.replace("suggestion", "option"), data=error.data, code=error.code) from None
+    await select(page, element, [options[index]["exact"][0]])
+    command_metrics.flag("fill_picked_option", True)
+    return options[index]["text"]
+
+
+async def cell_of(page, element):
+    remote = await page.call(CELL_OF, element, frame=element.frame, by_value=False, read=True)
+    return await page.element_from(remote, element.frame, f"the cell of {element.label}") if isinstance(remote, dict) else None
+
+
+async def press_key(page, frame, key: str, humanize: bool):
+    await expect_input(page, frame, lambda: page.input.gesture("press", lambda: page.input.press_combo(key, humanize)), {"keydown": 1}, "The key press")
+
+
+async def poll(check, timeout: float):
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        found = await check()
+        if found or loop.time() >= deadline:
+            return found
+        await asyncio.sleep(POLL)
+
+
+async def cell_editor(page, cell, humanize: bool):
+    started = await page.call(CELL_START, cell, frame=cell.frame)
+    if started.get("inner"):
+        inner = await page.call(CELL_INNER, frame=cell.frame, by_value=False)
+        field = await page.element_from(inner, cell.frame, f"the field in {cell.label}")
+        if field is not None:
+            return started["was"], field, bool(started.get("open"))
+
+    await scroll_into_view(page, cell, humanize)
+    await page.call(SETTLED_FRAMES, frame=cell.frame, read=True)
+    await page.call(CELL_REVEAL, frame=cell.frame)
+    await page.call(SETTLED_FRAMES, frame=cell.frame, read=True)
+    found = await page.call(CELL_FIND, frame=cell.frame, by_value=False, read=True)
+    shown = await page.element_from(found, cell.frame, cell.label) if isinstance(found, dict) else None
+    if shown is None:
+        raise BrowseError(f"The grid redrew {cell.label} when it scrolled into view, and the cell couldn't be found again; snapshot and retry",
+                          code="element_replaced")
+
+    async def focused():
+        remote = await page.call(CELL_EDITOR, shown, frame=shown.frame, by_value=False, read=True)
+        return await page.element_from(remote, shown.frame, f"the editor of {cell.label}") if isinstance(remote, dict) else None
+
+    await click(page, shown, humanize, 2)
+    editor = await poll(focused, EDITOR_WAIT)
+    if editor is None:
+        await press_key(page, cell.frame, "Enter", humanize)
+        editor = await poll(focused, EDITOR_WAIT)
+    if editor is None:
+        raise BrowseError(
+            f"Double-clicking {cell.label} and pressing Enter opened no editor, so nothing was typed. Snapshot to see what it "
+            "opened, or focus the cell and use `keyboard type <text>` then `press Enter`",
+            code="not_editable",
+        )
+    return started["was"], editor, True
+
+
+async def set_editor(page, editor, text: str, humanize: bool):
+    kind = await combo_kind(page, editor)
+    if kind == "select":
+        await pick_option(page, editor, text)
+    elif kind == "datalist":
+        known = await page.call("(el) => ardiaBrowse.datalistValues(el)", editor, frame=editor.frame, read=True) or []
+        items = [{"text": item, "pieces": []} for item in known]
+        levels = [match_level(text, item) for item in items]
+        best = max(levels, default=0)
+        await fill(page, editor, known[levels.index(best)] if best and levels.count(best) == 1 else text, humanize)
+    elif kind in ("typeahead", "button"):
+        await choose(page, editor, [text], humanize, editor.label)
+    else:
+        await fill(page, editor, text, humanize)
+
+
+async def commit_cell(page, editor, humanize: bool):
+    state = await page.call(CELL_EDITOR_STATE, editor, frame=editor.frame, read=True)
+    if not state.get("open"):
+        return
+    await press_key(page, editor.frame, "Enter", humanize)
+
+    async def closed():
+        now = await page.call(CELL_EDITOR_STATE, editor, frame=editor.frame, read=True)
+        return None if now.get("open") else True
+
+    if await poll(closed, COMMIT_WAIT):
+        return
+    state = await page.call(CELL_EDITOR_STATE, editor, frame=editor.frame, read=True)
+    with contextlib.suppress(BrowseError):
+        await press_key(page, editor.frame, "Escape", humanize)
+    said = f": {state['message'].rstrip('.')}" if state.get("message") else ""
+    raise BrowseError(
+        f"The cell's editor stayed open after Enter{said}. The edit was cancelled (Escape), so the cell keeps its old value",
+        data={"message": state.get("message") or None}, code="rejected",
+    )
+
+
+async def fill_cell(page, element, cell, text: str, humanize: bool) -> dict | None:
+    cell.label = element.label
+    was, editor, opened = await cell_editor(page, cell, humanize)
+    names = await page.call("(el) => ardiaBrowse.labelText(el)", editor, frame=editor.frame, read=True) or []
+    name = next((" ".join(str(item).split()) for item in names if str(item).strip()), "")
+    await set_editor(page, editor, text, humanize)
+    command_metrics.add("cell_edits")
+    if not opened:
+        return None
+    await commit_cell(page, editor, humanize)
+    now = await page.call(CELL_NOW, frame=cell.frame, read=True)
+    return {"cell": name or element.label, "value": now, "was": was}
 
 
 async def insert_text(page, element, text: str):
+    command_metrics.flag("fill_inserted_text", True)
     await expect_input(page, element.frame, lambda: page.input.gesture("fill", lambda: page.send("Input.insertText", {"text": text}, input_event=True)),
                        {"beforeinput|input": 1}, "The text insert")
 
@@ -422,7 +706,7 @@ async def set_checked(page, element, wanted: bool, humanize: bool):
     if info.get("checked") == wanted:
         return
     if info.get("disabled"):
-        raise BrowseError(f"Element {element.label} is disabled")
+        await wait_enabled(page, element)
     target = element
     try:
         await target_point(page, element, humanize, check_cover=False)
@@ -441,6 +725,7 @@ async def set_checked(page, element, wanted: bool, humanize: bool):
 
 
 async def select(page, element, values: list[str]):
+    await wait_enabled(page, element)
     await page.focus_element(element)
     return await page.call("(el, values) => ardiaBrowse.selectOptions(el, values)", element, values, frame=element.frame)
 
@@ -567,6 +852,8 @@ async def stale_refusal(page, element, value: str, items: list[dict], where: str
 
 async def choose(page, element, values: list[str], humanize: bool, where: str, timeout: float = SUGGESTION_TIMEOUT) -> list[dict]:
     kind = await combo_kind(page, element)
+    if kind is not None:
+        await wait_enabled(page, element)
     if kind is None:
         raise BrowseError(f"{element.label} isn't a <select> or a combobox, so there's nothing to pick from; use fill or click", code="not_selectable")
     picked = []
@@ -731,7 +1018,48 @@ def interrupted_drag(error: BrowseError) -> BrowseError:
     return OutcomeUnknown("drag", f"the drag was interrupted ({error.message}); any held button was released at the last position")
 
 
-async def drag(page, source, target, humanize: bool) -> dict:
+def drop_point(box: tuple, source: tuple, side: str | None) -> tuple[float, float]:
+    left, top, right, bottom = box
+    cx, cy = (left + right) / 2, (top + bottom) / 2
+    vertical = abs(cy - source[1]) >= abs(cx - source[0])
+    forward = cy > source[1] if vertical else cx > source[0]
+    after = forward if side is None else side == "after"
+    share = DRAG_FAR_SHARE if after else 1 - DRAG_FAR_SHARE
+    if vertical:
+        return cx, top + (bottom - top) * share
+    return left + (right - left) * share, cy
+
+
+async def element_box(page, element) -> tuple | None:
+    quads = (await page.send("DOM.getContentQuads", {"backendNodeId": element.backend_id})).get("quads") or []
+    best = None
+    for quad in quads:
+        xs, ys = quad[0::2], quad[1::2]
+        area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+        if area > 1 and (best is None or area > best[0]):
+            best = (area, min(xs), min(ys), max(xs), max(ys))
+    return best[1:] if best else None
+
+
+async def list_before(page, source, target) -> dict | None:
+    if source.frame != target.frame:
+        return None
+    found = await page.call(LIST_BEFORE, source, target, frame=source.frame)
+    return found if isinstance(found, dict) else None
+
+
+async def list_after(page, frame: str, before: dict) -> dict | None:
+    try:
+        found = await page.call(LIST_AFTER, frame=frame, read=True)
+    except BrowseError:
+        return None
+    if not isinstance(found, dict):
+        return None
+    command_metrics.flag("drag_list_position", True)
+    return {"from": before["from"], "to": found["to"], "count": found["count"]}
+
+
+async def drag(page, source, target, humanize: bool, side: str | None = None) -> dict:
     interception = DragInterception(page, source.frame, target.frame) if await draggable(page, source) else None
     if interception is not None:
         await interception.start()
@@ -739,6 +1067,9 @@ async def drag(page, source, target, humanize: bool) -> dict:
     try:
         x1, y1, _ = await target_point(page, source, humanize)
         x2, y2, _ = await target_point(page, target, humanize, check_cover=False)
+        box = await element_box(page, target)
+        if box is not None:
+            x2, y2 = drop_point(box, (x1, y1), side)
 
         async def run():
             try:
