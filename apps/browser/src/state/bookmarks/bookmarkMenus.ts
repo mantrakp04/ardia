@@ -10,6 +10,7 @@ import { useBrowser } from "../browser/store";
 import type { BookmarkNode, Bookmarks } from "../browser/types";
 import { openImport } from "../settings/settingsWindows";
 import { exportBookmarksFromWindow } from "./exportHtml";
+import { copyBookmarkNodes, cutBookmarkNodes, hasBookmarkClipboard, pasteBookmarkNodes } from "./bookmarkClipboard";
 
 export async function openOrganizeMenu(windowId: string, profileId: string, folderId: string | null) {
   const choice = await showMenu([
@@ -35,10 +36,11 @@ const showInFolder = (showPath: boolean) => showPath && { id: "show", title: "Sh
 
 export function bookmarkRowMenuItems(target: RowMenuTarget): MenuItem[] {
   if (target.kind === "url")
-    return menuSections([...openLinkItems(), showInFolder(target.showPath)], copyLinkItems(), [{ id: "edit", title: "Edit…", symbol: "pencil" }], [{ id: "delete", title: "Delete", symbol: "trash" }]);
+    return menuSections([...openLinkItems(), showInFolder(target.showPath)], copyLinkItems(), bookmarkClipboardMenuItems(), [{ id: "edit", title: "Edit…", symbol: "pencil" }], [{ id: "delete", title: "Delete", symbol: "trash" }]);
   if (target.kind === "folder")
     return menuSections(
       [...openAllItems(target.links), showInFolder(target.showPath)],
+      bookmarkClipboardMenuItems(),
       [
         { id: "addGroup", title: "Add to Sidebar as Group", symbol: "sidebar.left", enabled: target.makesGroup },
         target.restoresArc && { id: "restoreArc", title: "Restore Arc Folders as Groups" },
@@ -49,9 +51,18 @@ export function bookmarkRowMenuItems(target: RowMenuTarget): MenuItem[] {
       ],
       [{ id: "delete", title: "Delete Folder", symbol: "trash" }],
     );
-  return menuSections(openAllItems(target.links, target.links), copyLinkItems(target.links), [
+  return menuSections(openAllItems(target.links, target.links), copyLinkItems(target.links), bookmarkClipboardMenuItems(), [
     { id: "delete", title: `Delete ${target.items} ${target.noun}`, symbol: "trash" },
   ]);
+}
+
+
+function bookmarkClipboardMenuItems() {
+  return [
+    { id: "bookmarkCut", title: "Cut", key: "x", modifiers: ["command" as const] },
+    { id: "bookmarkCopy", title: "Copy", key: "c", modifiers: ["command" as const] },
+    { id: "bookmarkPaste", title: "Paste", key: "v", modifiers: ["command" as const], enabled: hasBookmarkClipboard() },
+  ];
 }
 
 function linksOf(b: Bookmarks, nodes: BookmarkNode[]): Link[] {
@@ -87,6 +98,13 @@ export async function openBookmarkRowMenu(
   const choice = await showMenu(bookmarkRowMenuItems(target));
   if (!choice) return;
   if (runLinkChoice(choice, linksOf(currentBookmarks(), nodes), windowId, target.kind === "folder" ? FOLDER_MANY : undefined)) return;
+  if (choice === "bookmarkCopy") copyBookmarkNodes(nodes.map((n) => n.id));
+  if (choice === "bookmarkCut") cutBookmarkNodes(nodes.map((n) => n.id));
+  if (choice === "bookmarkPaste") {
+    const parentId = node.kind === "folder" ? node.id : node.parentId ?? undefined;
+    const index = node.kind === "url" && node.parentId ? folderChildren(currentBookmarks(), node.parentId).findIndex((n) => n.id === node.id) + 1 : undefined;
+    pasteBookmarkNodes(profileId, parentId, index);
+  }
   if (choice === "edit") editBookmark(node.id, windowId, { profileId });
   if (choice === "newFolder") {
     const parentId = node.parentId ?? undefined;

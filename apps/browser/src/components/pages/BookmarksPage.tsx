@@ -10,6 +10,7 @@ import { moveBookmark, openFolder, removeBookmarks, restoreBookmarks } from "../
 import { FolderTree } from "../bookmarks/FolderTree";
 import { Box, Button, radius, space, Symbol, Text, useTheme } from "../ui";
 import { openOrganizeMenu } from "../../state/bookmarks/bookmarkMenus";
+import { copyBookmarkNodes, cutBookmarkNodes, pasteBookmarkNodes } from "../../state/bookmarks/bookmarkClipboard";
 import { BookmarkRow } from "./BookmarkRow";
 import { DropTargets } from "./dropTargets";
 import { EmptyState, matchesQuery, PageHeader } from "./PageLayout";
@@ -163,11 +164,20 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
             <ScrollView
               focusable
               enableFocusRing={false}
-              keyDownEvents={[{ key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true }]}
+              keyDownEvents={[
+                { key: "Backspace" }, { key: "Delete" }, { key: "a", metaKey: true },
+                { key: "x", metaKey: true }, { key: "c", metaKey: true }, { key: "v", metaKey: true },
+              ]}
               onKeyDown={(e) => {
                 const key = e.nativeEvent.key;
                 if (key === "Backspace" || key === "Delete") remove(selected);
                 if (key === "a") setSelected(ids);
+                if (key === "c" && selected.length) copyBookmarkNodes(selected);
+                if (key === "x" && selected.length) {
+                  cutBookmarkNodes(selected);
+                  setSelected([]);
+                }
+                if (key === "v") pasteBookmarkNodes(profileId, folderId ?? undefined);
               }}
               contentContainerStyle={LIST_CONTENT}
             >

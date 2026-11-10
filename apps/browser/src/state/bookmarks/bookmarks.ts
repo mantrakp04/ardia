@@ -15,11 +15,12 @@ export type BookmarksSlice = {
   removeBookmark(id: string): void;
   toggleBookmark(profileId: string, page: { url: string; title: string; favicon: string | null }): boolean;
   addBookmarkTree(profileId: string, drafts: BookmarkDraft[], parentId?: string, index?: number): string[];
+  insertBookmarkNodes(profileId: string, nodes: BookmarkNode[], places: RemovedBookmarks["places"], parentId?: string, index?: number): void;
   removeBookmarks(ids: string[]): RemovedBookmarks;
   restoreBookmarks(removed: RemovedBookmarks): void;
 };
 
-export type BookmarkDraft = { title: string; url?: string; addedAt?: number; children?: BookmarkDraft[] };
+export type BookmarkDraft = { title: string; url?: string; favicon?: string | null; addedAt?: number; children?: BookmarkDraft[] };
 
 export type RemovedBookmarks = { nodes: BookmarkNode[]; places: { id: string; parentId: string; index: number }[] };
 
@@ -232,7 +233,7 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
       const id = newBookmarkId();
       const addedAt = d.addedAt ?? Date.now();
       if (d.url !== undefined && !d.children) {
-        nodes[id] = { kind: "url", id, parentId: parent, title: d.title, url: d.url, favicon: null, addedAt };
+        nodes[id] = { kind: "url", id, parentId: parent, title: d.title, url: d.url, favicon: d.favicon ?? null, addedAt };
       } else {
         nodes[id] = { kind: "folder", id, parentId: parent, title: d.title, children: [], addedAt };
         (nodes[id] as BookmarkFolder).children = (d.children ?? []).map((c) => build(c, id));
@@ -247,6 +248,20 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
     nodes[target] = { ...parent, children };
     set({ bookmarks: { ...b, nodes } });
     return ids;
+  },
+
+  insertBookmarkNodes(profileId, restored, places, parentId, index) {
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
+    const target = parentId && b.nodes[parentId]?.kind === "folder" ? parentId : roots.bar;
+    if (!places.length || restored.some((node) => b.nodes[node.id])) return;
+    const nodes = { ...b.nodes };
+    const topIds = new Set(places.map((place) => place.id));
+    for (const node of restored) nodes[node.id] = topIds.has(node.id) ? { ...node, parentId: target } as BookmarkNode : node;
+    const parent = nodes[target] as BookmarkFolder;
+    const children = [...parent.children];
+    children.splice(Math.max(0, Math.min(index ?? children.length, children.length)), 0, ...places.map((place) => place.id));
+    nodes[target] = { ...parent, children };
+    set({ bookmarks: { ...b, nodes } });
   },
 
   removeBookmarks(ids) {
