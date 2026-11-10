@@ -15,7 +15,7 @@ public final class PageRequest: Identifiable {
     case confirm(message: String)
     case prompt(message: String, defaultText: String)
     case openExternal(URL, app: ExternalApp)
-    case httpAuthentication(realm: String?, isProxy: Bool, failedBefore: Bool)
+    case httpAuthentication(realm: String?, isProxy: Bool, failedBefore: Bool, isSecure: Bool)
     case mediaCapture(MediaCaptureKind)
     case location
   }
@@ -45,7 +45,7 @@ public final class PageRequest: Identifiable {
       host.isEmpty ? String(localized: "This Page Says") : host
     case .openExternal(_, let app):
       String(localized: "Open in “\(app.name)”?")
-    case .httpAuthentication(_, let isProxy, _):
+    case .httpAuthentication(_, let isProxy, _, _):
       isProxy ? String(localized: "Proxy Sign In") : String(localized: "Sign In to “\(host)”")
     case .mediaCapture(.camera):
       String(localized: "“\(host)” Would Like to Access the Camera")
@@ -64,8 +64,14 @@ public final class PageRequest: Identifiable {
       message
     case .openExternal(let url, _):
       url.scheme == "tel" || url.scheme == "telprompt" ? url.absoluteString.replacingOccurrences(of: "telprompt:", with: "").replacingOccurrences(of: "tel:", with: "") : nil
-    case .httpAuthentication(let realm, _, let failedBefore):
-      failedBefore ? String(localized: "The user name or password you entered isn’t correct. Try again.") : realm.map { String(localized: "Your login information will be sent securely to “\($0)”.") }
+    case .httpAuthentication(let realm, _, let failedBefore, let isSecure):
+      if failedBefore {
+        String(localized: "The user name or password you entered isn’t correct. Try again.")
+      } else if !isSecure {
+        String(localized: "Your password will be sent unencrypted.")
+      } else {
+        realm.map { String(localized: "Your login information will be sent securely to “\($0)”.") }
+      }
     case .mediaCapture, .location:
       nil
     }

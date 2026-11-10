@@ -478,19 +478,6 @@ public final class SyncService {
     return true
   }
 
-  @discardableResult
-  public func removeBookmark(key: String, profileSyncId: String? = nil) async -> Bool {
-    guard !isDemo else { return true }
-    guard let engine, let profile = profileSyncId ?? selectedProfile?.syncId else { return false }
-    do {
-      try await engine.removeBookmark(key: key, profileSyncId: profile)
-    } catch {
-      return false
-    }
-    Task { await runCycle() }
-    return true
-  }
-
   public static func registerBackgroundRefresh() {
     #if os(iOS)
     BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: .main) { task in

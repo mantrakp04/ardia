@@ -209,12 +209,6 @@ public actor SyncEngine {
     return key
   }
 
-  public func removeBookmark(key: String, profileSyncId: String) throws {
-    try checkLive()
-    try load()
-    try mutate("companionRemoveBookmark", RemoveBookmarkInput(profile: profileSyncId, key: key))
-  }
-
   @discardableResult
   public func stop(_ local: LocalBrowsing) throws -> Bool {
     try checkLive()
@@ -421,11 +415,6 @@ private struct RemovalsInput: Encodable {
   }
 
   var items: [Item]
-}
-
-private struct RemoveBookmarkInput: Encodable {
-  var profile: String
-  var key: String
 }
 
 extension Date {

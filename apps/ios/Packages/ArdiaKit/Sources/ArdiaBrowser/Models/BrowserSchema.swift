@@ -23,7 +23,7 @@ public enum BrowserSchemaV1: VersionedSchema {
   public static let versionIdentifier = Schema.Version(1, 0, 0)
 
   public static var models: [any PersistentModel.Type] {
-    [BrowserTab.self, Visit.self, BrowseResult.self]
+    [BrowserTab.self, Visit.self]
   }
 
   @Model
@@ -44,7 +44,6 @@ public enum BrowserSchemaV1: VersionedSchema {
     public var themeColorHex: String?
     public var snapshotFileName: String?
     public var originRawValue: String
-    public var browseResultID: UUID?
     public var receivedKey: String?
     public var receivedFromDevice: String?
     @Transient public var isPrivate = false
@@ -80,7 +79,6 @@ public enum BrowserSchemaV1: VersionedSchema {
       self.themeColorHex = nil
       self.snapshotFileName = nil
       self.originRawValue = origin.rawValue
-      self.browseResultID = nil
       self.receivedKey = receivedKey
       self.receivedFromDevice = receivedFromDevice
     }
@@ -108,31 +106,10 @@ public enum BrowserSchemaV1: VersionedSchema {
       self.transitionRawValue = transition.rawValue
     }
   }
-
-  @Model
-  public final class BrowseResult {
-    #Unique<BrowseResult>([\.id])
-    #Index<BrowseResult>([\.created])
-
-    public var id: UUID
-    public var query: String
-    public var created: Date
-    @Attribute(.externalStorage) public var payload: Data
-    public var payloadVersion: Int
-
-    public init(id: UUID = UUID(), query: String, created: Date, payload: Data, payloadVersion: Int) {
-      self.id = id
-      self.query = query
-      self.created = created
-      self.payload = payload
-      self.payloadVersion = payloadVersion
-    }
-  }
 }
 
 public typealias BrowserTab = BrowserSchemaV1.BrowserTab
 public typealias Visit = BrowserSchemaV1.Visit
-public typealias BrowseResult = BrowserSchemaV1.BrowseResult
 
 public enum BrowserMigrationPlan: SchemaMigrationPlan {
   public static var schemas: [any VersionedSchema.Type] { [BrowserSchemaV1.self] }

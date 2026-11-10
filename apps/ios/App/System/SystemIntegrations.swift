@@ -58,7 +58,7 @@ struct SystemIntegrationsModifier: ViewModifier {
         updateQuickActions()
         exporter.export(snapshot, from: app)
       }
-      .onChange(of: spotlightKey) { _, _ in spotlight.update(from: app) }
+      .onChange(of: app.tabs.listingRevision) { _, _ in spotlight.update(from: app) }
       .task { await runDebugHooks() }
   }
 
@@ -85,17 +85,6 @@ struct SystemIntegrationsModifier: ViewModifier {
 
   private var widgetSnapshot: SystemSnapshot {
     WidgetExporter.snapshot(for: app)
-  }
-
-  private var spotlightKey: Int {
-    var hasher = Hasher()
-    for tab in app.tabs.openTabs {
-      hasher.combine(tab.id)
-      hasher.combine(tab.title)
-      hasher.combine(tab.url)
-    }
-    hasher.combine(app.tabs.archive.reduce(0) { $0 + $1.tabs.count })
-    return hasher.finalize()
   }
 
   private func updateQuickActions() {

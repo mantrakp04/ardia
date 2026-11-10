@@ -73,6 +73,7 @@ public final class BrowsingPreferences {
 
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored var onNightShadeChange: (@MainActor () -> Void)?
+  @ObservationIgnored var onSwipeNavigationChange: (@MainActor () -> Void)?
 
   public var nightShade: NightShadeMode {
     didSet {
@@ -82,7 +83,10 @@ public final class BrowsingPreferences {
   }
 
   public var swipeNavigation: SwipeNavigationMode {
-    didSet { defaults.set(swipeNavigation.rawValue, forKey: Self.keys.swipe) }
+    didSet {
+      defaults.set(swipeNavigation.rawValue, forKey: Self.keys.swipe)
+      if swipeNavigation != oldValue { onSwipeNavigationChange?() }
+    }
   }
 
   public var appLinks: AppLinkPreference {

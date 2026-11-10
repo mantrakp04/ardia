@@ -8,6 +8,7 @@ extension AppModel {
   func connectServices() {
     sync.source = tabs
     web.omnibox = omnibox
+    web.downloads.onOutcome = { [weak self] outcome in self?.announceDownload(outcome) }
     tabs.onLocalChange = { [weak self] in self?.sync.localDidChange() }
     web.openExternalURL = { url in UIApplication.shared.open(url) }
     web.openUniversalLink = { url in
@@ -54,7 +55,6 @@ extension AppModel {
   func sceneWillResignActive() {
     sync.appWillResignActive()
     tabs.appWillResignActive()
-    web.saveAll()
   }
 
   func sceneEnteredBackground() {
