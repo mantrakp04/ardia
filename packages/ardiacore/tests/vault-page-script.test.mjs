@@ -464,6 +464,21 @@ test("a click on the focused field says so, so a dismissed menu can come back", 
   assert.deepEqual(page.of("vaultField").map((r) => r.clicked), [false, true]);
 });
 
+test("the first click into a field reports clicked, not just the second", () => {
+  const page = makePage();
+  const { user, pass } = loginForm(page);
+  page.fire(user, "mousedown");
+  page.fire(user, "focusin");
+  page.fire(user, "focusout");
+  page.advance(600);
+  page.fire(pass, "focusin");
+  page.fire(pass, "focusout");
+  page.fire(user, "mousedown");
+  page.advance(600);
+  page.fire(pass, "focusin");
+  assert.deepEqual(page.of("vaultField").filter((r) => r.focused).map((r) => r.clicked), [true, false, false]);
+});
+
 test("tabbing into a field counts as a click, but a focus long after Tab or from the page does not", () => {
   const page = makePage();
   const { user, pass } = loginForm(page);

@@ -11,21 +11,35 @@ import { armVaultTouchID } from "../../state/vaults/touchID";
 import { vaultHighlight } from "../../state/vaults/highlight";
 import { over } from "../../lib/color";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
-import { anchoredOpen, Button, Divider, Expand, GlassFill, ink, liquidGlass, PANEL, Panel, POPOVER_MARGIN, PopoverSurface, reduceMotion, SearchField, selectionSlide, shadow, space, Text, useTheme, VaultTouchID, withAlpha } from "../ui";
+import { anchoredClose, anchoredOpen, Button, Divider, Expand, GlassFill, ink, liquidGlass, PANEL, Panel, POPOVER_MARGIN, PopoverSurface, reduceMotion, SearchField, selectionSlide, shadow, space, Text, useTheme, VaultTouchID, withAlpha } from "../ui";
 import { rowHeight, VaultRowView } from "./VaultRows";
 import { VAULT_MENU } from "./tokens";
 
 type Area = { width: number; height: number };
 
+function useLeavingMenu(menu: MenuState | null) {
+  const last = useRef<MenuState | null>(menu);
+  const [leaving, setLeaving] = useState<MenuState | null>(null);
+  const gone = last.current;
+  if (gone && gone.seq !== menu?.seq) {
+    last.current = menu;
+    if (!gone.hidden) setLeaving(gone);
+  } else last.current = menu;
+  const done = (menuSeq: number) => setLeaving((l) => (l?.seq === menuSeq ? null : l));
+  return { leaving: leaving && leaving.seq !== menu?.seq ? leaving : null, done };
+}
+
 export function VaultMenuHost({ tabId, zoom }: { tabId: string; zoom: number }) {
   const menu = useVaultMenu(tabId);
   const [area, setArea] = useState<Area>({ width: 0, height: 0 });
+  const { leaving, done } = useLeavingMenu(menu);
   useEffect(() => {
     offerToFocusedField(tabId);
     return () => closeVaultMenu(tabId);
   }, [tabId]);
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={(e) => setArea(e.nativeEvent.layout)}>
+      {leaving && area.width > 0 ? <MenuPanel key={leaving.seq} tabId={tabId} menu={leaving} zoom={zoom} area={area} onGone={() => done(leaving.seq)} /> : null}
       {menu && area.width > 0 ? <MenuPanel key={menu.seq} tabId={tabId} menu={menu} zoom={zoom} area={area} /> : null}
     </View>
   );
@@ -82,7 +96,8 @@ function MenuSurface({ children }: { children: ReactNode }) {
   );
 }
 
-function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState; zoom: number; area: Area }) {
+function MenuPanel({ tabId, menu, zoom, area, onGone }: { tabId: string; menu: MenuState; zoom: number; area: Area; onGone?: () => void }) {
+  const leaving = !!onGone;
   const rows = useVaultMenuRows(menu);
   const theme = useTheme();
   const websiteColor = useTabLive(tabId, (l) => l.themeColor);
@@ -97,10 +112,18 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   const place = placement(menu, zoom, area, height);
   const still = reduceMotion() === true;
   useEffect(() => {
+    if (leaving) return;
     if (height) Animated.timing(appear, { toValue: 1, duration: anchoredOpen.duration, easing: anchoredOpen.easing, useNativeDriver: true }).start();
   }, [height > 0]);
   useEffect(() => {
-    setVaultMenuOffscreen(tabId, menu.seq, place.offscreen);
+    if (!onGone) return;
+    if (still) return void onGone();
+    const run = Animated.timing(appear, { toValue: 0, ...anchoredClose, useNativeDriver: true });
+    run.start(() => onGone());
+    return () => run.stop();
+  }, [leaving]);
+  useEffect(() => {
+    if (!leaving) setVaultMenuOffscreen(tabId, menu.seq, place.offscreen);
   }, [place.offscreen]);
   const list = rows.filter((r) => !FOOTER_KINDS.has(r.kind));
   const footer = rows.filter((r) => FOOTER_KINDS.has(r.kind));
@@ -125,9 +148,9 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   useVaultProviders();
   const shownSelected = inFront ? menu.selected : -1;
   const selectedRow = list[shownSelected];
-  const touchTarget = !touchIDReady || menu.hidden || !touchIDGlyphShown(menu.touch) || !isTouchRow(selectedRow) ? -1 : shownSelected;
+  const touchTarget = leaving || !touchIDReady || menu.hidden || !touchIDGlyphShown(menu.touch) || !isTouchRow(selectedRow) ? -1 : shownSelected;
   useEffect(() => {
-    if (inFront && !menu.hovered && menu.mode === "matches") selectVaultRow(tabId, restingRowOf(menu));
+    if (!leaving && inFront && !menu.hovered && menu.mode === "matches") selectVaultRow(tabId, restingRowOf(menu));
   }, [inFront]);
   const touchArmed = touchTarget >= 0 && !menu.busy;
   useEffect(() => {
@@ -158,9 +181,9 @@ function MenuPanel({ tabId, menu, zoom, area }: { tabId: string; menu: MenuState
   const motion = menu.hidden ? { opacity: 0 } : still ? { opacity: appear } : { opacity: appear, transform: [{ scale }] };
   return (
     <Animated.View
-      pointerEvents={menu.hidden ? "none" : "auto"}
-      onMouseEnter={() => hoverVaultMenu(tabId, true)}
-      onMouseLeave={() => hoverVaultMenu(tabId, false)}
+      pointerEvents={menu.hidden || leaving ? "none" : "auto"}
+      onMouseEnter={leaving ? undefined : () => hoverVaultMenu(tabId, true)}
+      onMouseLeave={leaving ? undefined : () => hoverVaultMenu(tabId, false)}
       onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
       style={{ position: "absolute", left: place.left, ...place.anchor, width: place.width, transformOrigin: place.upward ? "left bottom" : "left top", ...motion }}
     >

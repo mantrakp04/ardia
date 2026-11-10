@@ -33,6 +33,8 @@ export const crossfade = { duration: duration.base, easing: curve.fade } as cons
 
 export const anchoredOpen = { duration: 160, easing: curve.enter, fromScale: 0.97 } as const;
 
+export const anchoredClose = { duration: 120, easing: curve.exit } as const;
+
 export const selectionSlide = { duration: 90, easing: curve.enter } as const;
 
 export type Fade = { duration: number; easing: EasingFunction; delay?: number };

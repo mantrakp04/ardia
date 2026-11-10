@@ -761,7 +761,7 @@
       vaultFocused = el;
       vaultFocusedInfo = info;
       vaultClearedSent = false;
-      vaultReport(el, info, true, vaultTabbedIn());
+      vaultReport(el, info, true, vaultChoseField(el));
     };
     const vaultResend = () => {
       vaultRectQueued = false;
@@ -845,9 +845,17 @@
       vaultGestureAt = vaultNow();
     };
     const vaultRecentGesture = () => vaultNow() - vaultGestureAt <= VAULT_GESTURE_WINDOW;
-    const VAULT_TAB_WINDOW = 500;
+    const VAULT_FOCUS_WINDOW = 500;
     let vaultTabAt = -Infinity;
-    const vaultTabbedIn = () => vaultNow() - vaultTabAt <= VAULT_TAB_WINDOW;
+    let vaultPressed = null;
+    let vaultPressedAt = -Infinity;
+    const vaultPressedOn = (el) => {
+      if (!vaultPressed || vaultNow() - vaultPressedAt > VAULT_FOCUS_WINDOW) return false;
+      if (vaultPressed === el) return true;
+      const label = vaultPressed.nodeType === 1 ? apply(vaultClosest, vaultPressed, ["label"]) : null;
+      return !!label && label.control === el;
+    };
+    const vaultChoseField = (el) => vaultNow() - vaultTabAt <= VAULT_FOCUS_WINDOW || vaultPressedOn(el);
     const vaultSubmitFrom = (scope, trusted) => {
       if (!scope) return;
       const { inputs, fields } = vaultFieldsIn(scope);
@@ -998,6 +1006,8 @@
       guard((e) => {
         if (!e.isTrusted) return;
         const el = vaultTargetOf(e);
+        vaultPressed = el;
+        vaultPressedAt = vaultNow();
         if (!vaultFocused && vaultIsInput(el) && vaultStillFocused(el)) vaultFocus(el);
         if (vaultFocused && el === vaultFocused) vaultReport(vaultFocused, vaultFocusedInfo, true, true);
       }),
