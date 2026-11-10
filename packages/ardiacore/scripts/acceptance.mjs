@@ -1662,7 +1662,7 @@ try {
     const backReachesA = async (tabId, tag) => {
       await evalApp(`ac.actions.switchToTab("${tabId}"); return true`);
       await until(`the reopened B?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page B" && !s.live["${tabId}"]?.isLoading && !!ac.webviews.get("${tabId}")`)) || null, 15000);
-      const canGoBack = await s(`!!s.live["${tabId}"]?.canGoBack`);
+      const canGoBack = await until(`Back on the reopened B?${tag}`, async () => (await s(`!!s.live["${tabId}"]?.canGoBack`)) || null, 5000).catch(() => false);
       if (!canGoBack) return { canGoBack };
       await evalApp(`return ac.webviews.get("${tabId}").goBack()`);
       const a = await until(`Back to A?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page A" && s.tabs["${tabId}"]?.url`)) || null, 10000).catch(() => null);
