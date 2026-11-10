@@ -55,7 +55,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
-      "How many tab and group changes the ardia command made (counts only, never which tabs or groups) and how many of its batches were refused or stopped",
+      "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how many closed pinned tabs it left out, summed up once an hour",

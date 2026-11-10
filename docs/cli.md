@@ -6,8 +6,10 @@ run hooks and userscripts, edit its config and read its browsing data. It's a se
 bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding or in Settings ("Let the ardia
 command control Ardia").
 
-While it's connected, a pill floats over the bottom centre of the page ("Claude Code is controlling Ardia · Stop"; Stop
-turns the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after
+While it drives a page, a pill floats over the bottom centre of the page ("Claude Code is controlling Ardia · Stop", or
+"The ardia command is controlling Ardia" when it can't tell who runs it; Stop turns the setting off). It shows for a
+DevTools connection (`browse`, `scripts test`) and for `ardia run`, which presses Ardia's own commands; reading and
+organizing (`tabs`, `groups`, `apply`, `windows`, `commands`, `events`, `pinned`, `history`, `config`) never shows it. It overlays the page and never resizes it. It shows at the first connection and stays 3 s after
 the last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
 window: the focused pane of a split, the full screen page, or the Peek while one is open
 (`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`).
@@ -26,7 +28,7 @@ the client, tells the app over a short socket connection (`hello`, then `caller`
 whenever a request comes from someone else. `scripts test` does the same as it connects. The name is display only:
 it never changes what a connection may do, and both ends strip control and invisible characters and keep 40
 characters (the app keeps `app` only when it's an absolute, outermost `.app` path). When several run at once the pill
-names the most recent one; a pill that hid and shows again without a new name says "ardia".
+names the most recent one; a pill that hid and shows again without a new name says "The ardia command".
 
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13

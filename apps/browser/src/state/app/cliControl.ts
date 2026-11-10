@@ -21,6 +21,7 @@ import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { errorText } from "../../lib/errors";
 import { focusedWindowOf } from "../windows/ui";
+import { noteCliPillShown } from "../telemetry/usage";
 import type { CliCaller } from "./cliCaller";
 
 const DOC = "ardia-cli.json";
@@ -81,6 +82,7 @@ let hiddenStep = 0;
 
 function showIndicator(shown: boolean) {
   if (!shown) hiddenStep = ++indicatorStep;
+  else noteCliPillShown();
   const caller = shown && callerStep < hiddenStep ? null : useCliIndicator.getState().caller;
   useCliIndicator.setState({ shown, caller });
 }
