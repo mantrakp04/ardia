@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { evaluate, launch, quit, startServer } from "./js-bench.mjs";
 import { buildSeed } from "./seed.mjs";
 
@@ -56,14 +57,6 @@ function writeSession(dir, origin, version, count, probe) {
   for (const [name, value] of Object.entries(files)) writeFileSync(join(dir, name), typeof value === "string" ? value : JSON.stringify(value));
 }
 
-function resign(app, clone) {
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const entitlements = `${clone}.entitlements.plist`;
-  writeFileSync(entitlements, execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" }));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, clone], { stdio: "inherit" });
-}
-
 const SCENARIOS = ["cenStartup", "wake", "cenNewTab", "cenTypeHero", "cenPanel", "cenEnter", "cenSwitch", "cenHover", "cenBgLoad"];
 
 async function run() {
@@ -71,12 +64,7 @@ async function run() {
   const debugPort = Number(flags["debug-port"] ?? 9640);
   if (!app || !jsbundle || !label) throw new Error("run needs --app, --bundle and --label");
   const scenarios = flags.only ? ["cenStartup", "wake", ...flags.only.split(",")] : SCENARIOS;
-  const clone = join(out, "apps", label, "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  cpSync(jsbundle, join(clone, "Contents/Resources/main.jsbundle"));
-  resign(app, clone);
+  const clone = prepareApp(app, join(out, "apps", label), { bundle: jsbundle });
   const version = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", join(clone, "Contents/Info.plist")], { encoding: "utf8" }).trim();
   const origin = `http://127.0.0.1:${port}`;
   const server = await startServer(Number(port));

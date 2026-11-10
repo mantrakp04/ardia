@@ -1,9 +1,9 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { launch, quit } from "./perf/js-bench.mjs";
+import { prepareApp } from "../../../scripts/lib/app-copy.mjs";
+import { launch, sleep } from "../../../scripts/lib/instance.mjs";
 import { writeSeed } from "./perf/seed.mjs";
 
 const { values: flags, positionals } = parseArgs({ allowPositionals: true, options: { bundle: { type: "string" }, runs: { type: "string" }, out: { type: "string" } } });
@@ -14,20 +14,7 @@ if (!appArg) {
 }
 const out = resolve(flags.out ?? join(tmpdir(), "ac-layout-shift"));
 mkdirSync(out, { recursive: true });
-let app = resolve(appArg);
-if (flags.bundle) {
-  const clone = join(out, "app", "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  cpSync(resolve(flags.bundle), join(clone, "Contents/Resources/main.jsbundle"));
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const entitlements = `${clone}.entitlements.plist`;
-  writeFileSync(entitlements, execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" }));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, clone], { stdio: "inherit" });
-  app = clone;
-}
+const app = flags.bundle ? prepareApp(appArg, join(out, "app"), { bundle: resolve(flags.bundle) }) : resolve(appArg);
 
 let failed = 0;
 const runs = Number(flags.runs ?? 3);
@@ -37,12 +24,12 @@ for (let r = 0; r <= runs; r++) {
   rmSync(data, { recursive: true, force: true });
   writeSeed(data, "http://127.0.0.1:9", "");
   writeFileSync(join(data, "perf-probe"), editing ? "layout layoutEdit" : "layout");
-  const { pid } = await launch(app, data, 9790 + (r % 10));
+  const instance = await launch(app, { data, ready: false });
   const file = join(data, "layout-watch.json");
   try {
-    for (let i = 0; i < 300 && !existsSync(file); i++) await new Promise((res) => setTimeout(res, 200));
+    for (const end = Date.now() + 60_000; !existsSync(file) && Date.now() < end && !instance.exited; await sleep(200));
   } finally {
-    await quit(pid);
+    await instance.quit();
   }
   if (!existsSync(file)) {
     console.log(`run ${r}: no layout-watch.json (the probe's layout option never ran)`);
