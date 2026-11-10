@@ -62,6 +62,21 @@ jobs:
       - name: Launch it
         shell: pwsh
         run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/x64/Release/Ardia.exe -Out "${{ runner.temp }}/launch"
+      - name: Tour
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          scripts/windows/tour.ps1 -App apps/browser/windows/x64/Release/Ardia.exe -Out "${{ runner.temp }}/tour"
+          if (Test-Path "${{ runner.temp }}/tour/tour.md") { Get-Content "${{ runner.temp }}/tour/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tour
+          path: ${{ runner.temp }}/tour
+          if-no-files-found: ignore
+          retention-days: 14
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
