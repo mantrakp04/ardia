@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstdint>
 #include <cstdio>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -196,6 +198,29 @@ inline std::optional<std::string> TestPick(std::vector<PopupItem> const &items) 
   }
 }
 
+inline std::deque<std::string> &RecentMenuLog() noexcept {
+  static std::deque<std::string> *lines = new std::deque<std::string>();
+  return *lines;
+}
+
+inline void MenuLog(std::string const &line) noexcept {
+  try {
+    LaunchLog::Write(L"menu", Paths::Wide(line));
+    std::deque<std::string> &lines = RecentMenuLog();
+    lines.push_back(line);
+    while (lines.size() > 40) lines.pop_front();
+  } catch (...) {
+  }
+}
+
+inline size_t VisibleItemCount(std::vector<PopupItem> const &items) noexcept {
+  size_t count = 0;
+  for (auto const &item : items) {
+    if (!item.separator) count++;
+  }
+  return count;
+}
+
 inline std::string LogTimestamp() noexcept {
   SYSTEMTIME now{};
   GetSystemTime(&now);
@@ -238,6 +263,7 @@ inline void ReportItems(std::vector<PopupItem> const &items, std::string const &
 
 inline void ReportUnshownMenu(std::vector<PopupItem> const &items) noexcept {
   try {
+    MenuLog("pop-up menu not shown in a background instance: " + JoinedTitles(items, false));
     LogActivation("pop-up menu (not shown): " + JoinedTitles(items, false));
     ReportItems(items, "pop-up menu");
   } catch (...) {
@@ -289,19 +315,49 @@ inline HMENU BuildPopup(std::vector<PopupItem> const &items, std::vector<std::st
   return menu;
 }
 
+inline std::string HandleText(HWND hwnd) {
+  char text[32];
+  snprintf(text, sizeof(text), "0x%llx", static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(hwnd)));
+  return text;
+}
+
 inline std::optional<std::string> TrackPopup(std::vector<PopupItem> const &items, HWND owner) noexcept {
-  if (!owner) return std::nullopt;
-  std::vector<std::string> choices;
-  HMENU menu = BuildPopup(items, choices);
-  if (!menu) return std::nullopt;
-  POINT point{};
-  GetCursorPos(&point);
-  UINT align = GetSystemMetrics(SM_MENUDROPALIGNMENT) ? TPM_RIGHTALIGN : TPM_LEFTALIGN;
-  UINT flags = TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_TOPALIGN | align;
-  BOOL chosen = TrackPopupMenuEx(menu, flags, point.x, point.y, owner, nullptr);
-  DestroyMenu(menu);
-  if (chosen <= 0 || static_cast<size_t>(chosen) > choices.size()) return std::nullopt;
-  return choices[static_cast<size_t>(chosen) - 1];
+  try {
+    if (!owner || !IsWindow(owner)) {
+      MenuLog("pop-up menu not shown: no Ardia window to own it");
+      return std::nullopt;
+    }
+    std::vector<std::string> choices;
+    HMENU menu = BuildPopup(items, choices);
+    if (!menu) {
+      MenuLog("pop-up menu not shown: CreatePopupMenu failed with error " + std::to_string(GetLastError()));
+      return std::nullopt;
+    }
+    POINT point{};
+    GetCursorPos(&point);
+    bool rightButtonDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+    bool wasForeground = GetForegroundWindow() == owner;
+    BOOL madeForeground = SetForegroundWindow(owner);
+    MenuLog("pop-up menu shown at " + std::to_string(point.x) + "," + std::to_string(point.y) + " with " + std::to_string(choices.size()) +
+            " choices, owner " + HandleText(owner) + (wasForeground ? " (foreground)" : madeForeground ? " (brought to the foreground)" : " (not foreground)") +
+            (rightButtonDown ? ", right button still down" : ""));
+    UINT align = GetSystemMetrics(SM_MENUDROPALIGNMENT) ? TPM_RIGHTALIGN : TPM_LEFTALIGN;
+    UINT flags = TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_TOPALIGN | align;
+    SetLastError(0);
+    BOOL chosen = TrackPopupMenuEx(menu, flags, point.x, point.y, owner, nullptr);
+    DWORD error = GetLastError();
+    PostMessageW(owner, WM_NULL, 0, 0);
+    DestroyMenu(menu);
+    if (chosen <= 0 || static_cast<size_t>(chosen) > choices.size()) {
+      MenuLog(error ? "pop-up menu failed with error " + std::to_string(error) : std::string{"pop-up menu dismissed"});
+      return std::nullopt;
+    }
+    std::string choice = choices[static_cast<size_t>(chosen) - 1];
+    MenuLog("pop-up menu chose " + choice);
+    return choice;
+  } catch (...) {
+    return std::nullopt;
+  }
 }
 
 }

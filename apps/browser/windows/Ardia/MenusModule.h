@@ -32,6 +32,7 @@ struct MenusModule {
     auto parsed = std::make_shared<std::vector<Menus::PopupItem>>(Menus::PopupItemsOf(items));
     RunOnUI(m_context, [parsed, promise]() noexcept {
       try {
+        Menus::MenuLog("showMenu asked: " + std::to_string(Menus::VisibleItemCount(*parsed)) + " items");
         if (Menus::TestFlag(L"appMenu")) {
           std::optional<std::string> pick = Menus::TestPick(*parsed);
           promise.Resolve(pick ? JSValue{std::string{*pick}} : JSValue{nullptr});
@@ -75,6 +76,15 @@ struct MenusModule {
   REACT_METHOD(menuShortcuts)
   void menuShortcuts(Promise promise) noexcept {
     RunOnUI(m_context, [promise]() noexcept { promise.Resolve(Menus::MenuStore::Shared().ShortcutList()); });
+  }
+
+  REACT_METHOD(recentMenuLog)
+  void recentMenuLog(Promise promise) noexcept {
+    RunOnUI(m_context, [promise]() noexcept {
+      winrt::Microsoft::ReactNative::JSValueArray lines;
+      for (std::string const &line : Menus::RecentMenuLog()) lines.push_back(JSValue{std::string{line}});
+      promise.Resolve(JSValue{std::move(lines)});
+    });
   }
 
   REACT_METHOD(activeShortcuts)

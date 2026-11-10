@@ -19,39 +19,109 @@ const windowsEvents = (handlers: Record<string, (event: never) => void>): object
 const contextMenuClaims = new WeakSet<object>();
 const middleClickClaims = new WeakSet<object>();
 
-export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea({ onContextMenu, captureDescendants, onPointerDown, onPointerDownCapture, onKeyDown, children, ...rest }, ref) {
-  const open = useCallback(
+const contextMenuPurpose = (props: Record<string, unknown>): string => {
+  for (const key of ["testID", "nativeID", "accessibilityLabel", "aria-label"]) {
+    const value = props[key];
+    if (typeof value === "string" && value.length > 0) return `"${value}"`;
+  }
+  return "an unlabelled area";
+};
+
+const noteContextMenu = (line: string) => console.info(`[ardia windows] context menu area: ${line}`);
+
+export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea(
+  { onContextMenu, captureDescendants, onPointerDown, onPointerDownCapture, onPointerUp, onPointerUpCapture, onPointerCancel, onAuxClick, onKeyDown, children, ...rest },
+  ref,
+) {
+  const armed = useRef(false);
+  const purpose = contextMenuPurpose(rest);
+  const press = useCallback(
     (event: PointerLike) => {
       if (event.nativeEvent?.button !== SECONDARY_BUTTON || typeof onContextMenu !== "function") return;
-      if (claimOnce(contextMenuClaims, event.nativeEvent)) call(onContextMenu, { nativeEvent: {} });
+      if (!claimOnce(contextMenuClaims, event.nativeEvent)) return;
+      armed.current = true;
+      noteContextMenu(`right press on ${purpose}`);
     },
-    [onContextMenu],
+    [onContextMenu, purpose],
   );
-  const bubble = useCallback(
+  const release = useCallback(
+    (event: PointerLike) => {
+      if (!armed.current || event.nativeEvent?.button !== SECONDARY_BUTTON) return;
+      armed.current = false;
+      noteContextMenu(`right release on ${purpose}, opening its menu`);
+      call(onContextMenu, { nativeEvent: {} });
+    },
+    [onContextMenu, purpose],
+  );
+  const downBubble = useCallback(
     (event: PointerLike) => {
       call(onPointerDown, event);
-      if (captureDescendants !== true) open(event);
+      if (captureDescendants !== true) press(event);
     },
-    [onPointerDown, captureDescendants, open],
+    [onPointerDown, captureDescendants, press],
   );
-  const capture = useCallback(
+  const downCapture = useCallback(
     (event: PointerLike) => {
       call(onPointerDownCapture, event);
-      if (captureDescendants === true) open(event);
+      if (captureDescendants === true) press(event);
     },
-    [onPointerDownCapture, captureDescendants, open],
+    [onPointerDownCapture, captureDescendants, press],
+  );
+  const upBubble = useCallback(
+    (event: PointerLike) => {
+      call(onPointerUp, event);
+      release(event);
+    },
+    [onPointerUp, release],
+  );
+  const upCapture = useCallback(
+    (event: PointerLike) => {
+      call(onPointerUpCapture, event);
+      if (captureDescendants === true) release(event);
+    },
+    [onPointerUpCapture, captureDescendants, release],
+  );
+  const auxClick = useCallback(
+    (event: PointerLike) => {
+      call(onAuxClick, event);
+      release(event);
+    },
+    [onAuxClick, release],
+  );
+  const cancel = useCallback(
+    (event: PointerLike) => {
+      call(onPointerCancel, event);
+      if (!armed.current) return;
+      armed.current = false;
+      noteContextMenu(`right press on ${purpose} was cancelled before its release`);
+    },
+    [onPointerCancel, purpose],
   );
   const key = useCallback(
     (event: KeyLike) => {
       call(onKeyDown, event);
       const pressed = event.nativeEvent?.key;
       const menuKey = pressed === "ContextMenu" || (pressed === "F10" && event.nativeEvent?.shiftKey === true);
-      if (menuKey && typeof onContextMenu === "function" && claimOnce(contextMenuClaims, event.nativeEvent)) call(onContextMenu, { nativeEvent: {} });
+      if (!menuKey || typeof onContextMenu !== "function" || !claimOnce(contextMenuClaims, event.nativeEvent)) return;
+      noteContextMenu(`menu key on ${purpose}, opening its menu`);
+      call(onContextMenu, { nativeEvent: {} });
     },
-    [onKeyDown, onContextMenu],
+    [onKeyDown, onContextMenu, purpose],
   );
   return (
-    <View {...rest} ref={ref} {...windowsEvents({ onPointerDown: bubble, onPointerDownCapture: capture, onKeyDown: key })}>
+    <View
+      {...rest}
+      ref={ref}
+      {...windowsEvents({
+        onPointerDown: downBubble,
+        onPointerDownCapture: downCapture,
+        onPointerUp: upBubble,
+        onPointerUpCapture: upCapture,
+        onPointerCancel: cancel,
+        onAuxClick: auxClick,
+        onKeyDown: key,
+      })}
+    >
       {children as ReactNode}
     </View>
   );

@@ -2,7 +2,7 @@ import type { MenuShortcut, MenusNative, MenuState } from "@ardia/shell";
 import { requireNativeModule } from "../modules";
 import { expectEqual, expectTrue, type Check } from "./check";
 
-type MenusOnWindows = MenusNative & { activeShortcuts(): Promise<Record<string, string[][]>> };
+type MenusOnWindows = MenusNative & { activeShortcuts(): Promise<Record<string, string[][]>>; recentMenuLog(): Promise<string[]> };
 type SentState = Omit<MenuState, "bookmarkFolders" | "recentBookmarks" | "bookmarksBar" | "otherBookmarks">;
 
 const menus = () => requireNativeModule<MenusOnWindows>("ArdiaMenus");
@@ -99,6 +99,18 @@ export const checks: Check[] = [
         ]),
       );
       expectEqual(choice, null, "background showMenu answer");
+    },
+  },
+  {
+    name: "menus: a background instance logs each showMenu request and never pops a menu up",
+    async run() {
+      const before = (await withinSeconds(5, "recentMenuLog", menus().recentMenuLog())).length;
+      await withinSeconds(5, "showMenu", menus().showMenu([{ id: "log-alpha", title: "Log Alpha" }, { separator: true }, { id: "log-beta", title: "Log Beta" }]));
+      const lines = await withinSeconds(5, "recentMenuLog", menus().recentMenuLog());
+      const added = lines.slice(Math.max(0, Math.min(before, lines.length - 2)));
+      expectTrue(added.includes("showMenu asked: 2 items"), `no "showMenu asked: 2 items" line in ${JSON.stringify(added)}`);
+      expectTrue(added.includes("pop-up menu not shown in a background instance: Log Alpha | Log Beta"), `no background line in ${JSON.stringify(added)}`);
+      expectTrue(!added.some((line) => line.startsWith("pop-up menu shown at")), `a background instance popped a menu up: ${JSON.stringify(added)}`);
     },
   },
   {
