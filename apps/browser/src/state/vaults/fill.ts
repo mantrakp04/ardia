@@ -86,14 +86,19 @@ async function fillGenerated(tabId: string, menu: VaultMenu, row: VaultRow, styl
   finishFill(tabId, menu);
 }
 
-async function unlockFromMenu(tabId: string, menu: VaultMenu, row: VaultRow, provider: string) {
+async function unlockFromMenu(tabId: string, menu: VaultMenu, row: VaultRow, provider: string, how: VaultFillHow) {
   patchVaultMenu(tabId, { busy: row.key, error: null }, menu.seq);
   const result = await unlockProvider(provider, null);
   if (vaultMenuOf(tabId)?.seq !== menu.seq) return;
   if (result.ok) {
     await loadVaultItems(provider, true);
     const now = vaultMenuOf(tabId);
-    return patchVaultMenu(tabId, { busy: null, touch: "off", selected: now ? restingRowOf(now) : -1 }, menu.seq);
+    const selected = now ? restingRowOf(now) : -1;
+    patchVaultMenu(tabId, { busy: null, touch: how.touchID ? "granted" : "off", selected }, menu.seq);
+    const next = now && selected >= 0 ? rowsOfMenu(vaultMenuOf(tabId) ?? now)[selected] : undefined;
+    if (next && (next.kind === "login" || next.kind === "otp")) activateVaultRow(tabId, next, how);
+    else if (how.touchID) patchVaultMenu(tabId, { touch: "off" }, menu.seq);
+    return;
   }
   if (result.needs === "password") {
     dismissVaultMenu(tabId);
@@ -115,7 +120,7 @@ export function activateVaultRow(tabId: string, row: VaultRow, how: VaultFillHow
     case "suggest":
       return void fillGenerated(tabId, menu, row, SUGGEST_STYLE);
     case "unlock":
-      return void unlockFromMenu(tabId, menu, row, row.provider);
+      return void unlockFromMenu(tabId, menu, row, row.provider, how);
     case "allPasswords":
       return showAllPasswords(tabId);
     case "openPasswords":

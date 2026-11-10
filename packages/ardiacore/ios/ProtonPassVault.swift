@@ -74,9 +74,11 @@ struct ProtonPassVault: VaultProvider {
     _ = await cli.run(["logout"], timeout: 30)
   }
 
-  func items(_ cli: VaultCLI) async throws -> [VaultItem] {
+  func items(_ cli: VaultCLI) async throws -> [VaultItem] { try await itemsAndPasswords(cli).items }
+
+  func itemsAndPasswords(_ cli: VaultCLI) async throws -> VaultItemList {
     guard cli.session != nil else { throw VaultError.locked }
-    var items: [VaultItem] = []
+    var listing = VaultItemList(items: [])
     for vault in try await vaults(cli) {
       guard let share = VaultJSON.string(vault["share_id"]), Self.isIdentifier(share) else { continue }
       let arguments = [
@@ -86,9 +88,15 @@ struct ProtonPassVault: VaultProvider {
       try check(result)
       let listed = VaultJSON.dicts(VaultJSON.dict(VaultJSON.parse(result.stdout))?["items"])
       let vaultName = VaultJSON.string(vault["name"])
-      items += listed.compactMap { loginItem($0, share: share, vault: vaultName) }
+      for entry in listed {
+        guard let item = loginItem(entry, share: share, vault: vaultName) else { continue }
+        listing.items.append(item)
+        let login = Self.login(in: entry)
+        if let password = login.flatMap({ $0["password"] as? String }), !password.isEmpty { listing.passwords[item.id] = password }
+        if let totp = Self.totpURI(in: entry), VaultTotpSecret(totp) != nil { listing.totps[item.id] = totp }
+      }
     }
-    return items
+    return listing
   }
 
   func secret(_ cli: VaultCLI, id: String, field: VaultField) async throws -> String {
@@ -200,17 +208,22 @@ struct ProtonPassVault: VaultProvider {
     for autofill in VaultJSON.dicts(login["autofill_urls"]) where VaultJSON.string(autofill["mode"]) != "Never" {
       if let url = VaultJSON.string(autofill["url"]), !urls.contains(url) { urls.append(url) }
     }
-    let extraTotp = VaultJSON.dicts(content["extra_fields"]).compactMap { field -> String? in
-      guard let kind = VaultJSON.dict(field["content"]) else { return nil }
-      return VaultJSON.string(kind["Totp"])
-    }.first
-    let totp = VaultJSON.string(login["totp_uri"]) ?? extraTotp
+    let totp = Self.totpURI(in: entry)
     var item = VaultItem(
       provider: id, id: "\(share)/\(itemId)", title: VaultJSON.string(content["title"]) ?? "",
       username: VaultJSON.string(login["username"]) ?? VaultJSON.string(login["email"]) ?? "", urls: urls, hasTotp: totp != nil,
       vault: vault, updatedAt: VaultJSON.milliseconds(entry["modify_time"]))
     item.totpPeriod = totp.flatMap { VaultTotp.period(fromURI: $0) }
     return item
+  }
+
+  private static func totpURI(in item: [String: Any]) -> String? {
+    guard let content = VaultJSON.dict(item["content"]) else { return nil }
+    if let uri = login(in: item).flatMap({ VaultJSON.string($0["totp_uri"]) }), !uri.isEmpty { return uri }
+    return VaultJSON.dicts(content["extra_fields"]).compactMap { field -> String? in
+      guard let kind = VaultJSON.dict(field["content"]) else { return nil }
+      return VaultJSON.string(kind["Totp"])
+    }.first
   }
 
   private static func login(in item: [String: Any]?) -> [String: Any]? {

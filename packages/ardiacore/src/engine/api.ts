@@ -20,7 +20,7 @@ import type { ClearSiteDataResult, SiteSettings, SiteSettingType, SiteSettingVal
 import type { LinkRoute, TabStripCommand, TabStripTransaction } from "../tabs";
 import type { PageCookie, PageEngine, PasskeyAccess } from "../webkit";
 import type { DisplayMediaSource, VaultPasswordStyle } from "../pageTypes";
-import type { VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultTotp } from "../vaults";
+import type { VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultSyncResult, VaultTotp } from "../vaults";
 
 type Profile = { profile: string };
 type Done = Record<string, never> | null;
@@ -199,7 +199,12 @@ export type EngineCalls = {
   "vaults.copy": [{ provider: VaultProviderId; id: string; field: VaultSecretField }, { copied: boolean; declined?: boolean; clearsAfter: number }];
   "vaults.totp": [{ provider: VaultProviderId; id: string }, VaultTotp | null];
   "vaults.generate": [{ style?: VaultPasswordStyle; maxLength?: number }, { length: number }];
-  "vaults.setOptions": [{ idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean }, Record<string, never>];
+  "vaults.setOptions": [
+    { idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean; iCloudSync: boolean },
+    Record<string, never>,
+  ];
+  "vaults.sync": [{}, VaultSyncResult];
+  "vaults.syncStatus": [{}, VaultSyncResult];
   "vaults.biometrics": [{}, { available: boolean }];
 };
 

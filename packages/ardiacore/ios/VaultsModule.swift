@@ -98,6 +98,8 @@ public class VaultsModule: Module {
       VaultsModule.answer(reply) { await VaultBroker.shared.totp(id, item: item)?.jsonObject() }
     },
     "biometrics": { _, reply in reply.ok(["available": VaultOwnerCheck.biometricsAvailable]) },
+    "sync": { _, reply in VaultsModule.answer(reply) { await VaultBroker.shared.sync().jsonObject() } },
+    "syncStatus": { _, reply in VaultsModule.answer(reply) { await VaultBroker.shared.syncStatus().jsonObject() } },
     "generate": { args, reply in
       let style = VaultPasswordStyle(named: try args.optionalText("style"))
       let maxLength = try args.optionalDouble("maxLength").flatMap { $0.isFinite ? Int(min(max($0, 0), 4096)) : nil }
@@ -108,9 +110,12 @@ public class VaultsModule: Module {
       let touchID = try args.bool("touchID")
       let askBeforeFilling = try args.optionalBool("askBeforeFilling") ?? true
       let loadPasswordsWhenUsed = try args.optionalBool("loadPasswordsWhenUsed") ?? false
+      let iCloudSync = try args.optionalBool("iCloudSync") ?? true
       let idle = minutes.isFinite ? Int(min(max(minutes, 0), 10_080)) : 30
       VaultsModule.answer(reply) {
-        await VaultBroker.shared.setOptions(idleLockMinutes: idle, touchID: touchID, askBeforeFilling: askBeforeFilling, loadPasswordsWhenUsed: loadPasswordsWhenUsed)
+        await VaultBroker.shared.setOptions(
+          idleLockMinutes: idle, touchID: touchID, askBeforeFilling: askBeforeFilling, loadPasswordsWhenUsed: loadPasswordsWhenUsed,
+          iCloudSync: iCloudSync)
         return [String: Any]()
       }
     },

@@ -15,8 +15,11 @@ const NATIVE_SETTINGS: Mirror[] = [
   mirror("autoPictureInPicture", setAutoPictureInPicture),
   mirror("videoUpscaling", setVideoUpscaling),
   mirror("commandScrollZoom", setCommandScrollZoom),
-  ...(["vaultIdleLockMinutes", "vaultTouchID", "vaultAskBeforeFilling", "vaultLoadPasswordsWhenUsed"] as const).map(
-    (key): Mirror => ({ key, send: (s) => setVaultOptions(s.vaultIdleLockMinutes, s.vaultTouchID, s.vaultAskBeforeFilling, s.vaultLoadPasswordsWhenUsed) }),
+  ...(["vaultIdleLockMinutes", "vaultTouchID", "vaultAskBeforeFilling", "vaultLoadPasswordsWhenUsed", "vaultICloudSync"] as const).map(
+    (key): Mirror => ({
+      key,
+      send: (s) => setVaultOptions(s.vaultIdleLockMinutes, s.vaultTouchID, s.vaultAskBeforeFilling, s.vaultLoadPasswordsWhenUsed, s.vaultICloudSync),
+    }),
   ),
 ];
 

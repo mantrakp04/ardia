@@ -144,8 +144,12 @@ struct BitwardenVault: VaultProvider {
     for case let entry as [String: Any] in list {
       guard let item = loginItem(entry) else { continue }
       listed.items.append(item)
-      if let password = VaultJSON.dict(entry["login"]).flatMap({ VaultJSON.string($0["password"]) }), !password.isEmpty {
+      let login = VaultJSON.dict(entry["login"])
+      if let password = login.flatMap({ VaultJSON.string($0["password"]) }), !password.isEmpty {
         listed.passwords[item.id] = password
+      }
+      if let totp = login.flatMap({ VaultJSON.string($0["totp"]) }), VaultTotpSecret(totp) != nil {
+        listed.totps[item.id] = totp
       }
     }
     return listed

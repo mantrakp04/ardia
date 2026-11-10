@@ -1,6 +1,18 @@
-import { call, on, signInToVault, unlockVault as unlockNativeVault, type VaultItem, type VaultProviderState, type VaultSecretField, type VaultSignInFields, type VaultSignInResult, type VaultTotp } from "@ardia/ardiacore";
+import {
+  call,
+  on,
+  signInToVault,
+  unlockVault as unlockNativeVault,
+  type VaultItem,
+  type VaultProviderState,
+  type VaultSecretField,
+  type VaultSignInFields,
+  type VaultSignInResult,
+  type VaultSyncResult,
+  type VaultTotp,
+} from "@ardia/ardiacore";
 
-export type { VaultItem, VaultProviderState, VaultSignInFields, VaultSignInResult, VaultTotp };
+export type { VaultItem, VaultProviderState, VaultSignInFields, VaultSignInResult, VaultSyncResult, VaultTotp };
 
 export type VaultCopyField = VaultSecretField;
 
@@ -13,8 +25,10 @@ export const configureVault = (provider: string, server: string | null) => call(
 export const copyFromVault = (provider: string, id: string, field: VaultCopyField) => call("vaults.copy", { provider, id, field });
 export const vaultTotp = (provider: string, id: string) => call("vaults.totp", { provider, id });
 export const cancelVaultSignIn = (provider: string) => call("vaults.cancelSignIn", { provider });
-export const setVaultOptions = (idleLockMinutes: number, touchID: boolean, askBeforeFilling: boolean, loadPasswordsWhenUsed: boolean) =>
-  call("vaults.setOptions", { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed });
+export const setVaultOptions = (idleLockMinutes: number, touchID: boolean, askBeforeFilling: boolean, loadPasswordsWhenUsed: boolean, iCloudSync: boolean) =>
+  call("vaults.setOptions", { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed, iCloudSync });
+export const syncVaults = () => call("vaults.sync", {});
+export const vaultSyncStatus = () => call("vaults.syncStatus", {});
 export const vaultBiometrics = () => call("vaults.biometrics", {}).then((r) => r.available);
 
 export const signInVault = (provider: string, fields: VaultSignInFields) => signInToVault(provider, fields);

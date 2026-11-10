@@ -68,6 +68,12 @@ final class VaultSessionStore: @unchecked Sendable {
     lock.unlock()
   }
 
+  func isIdle(since lastUse: Date, now: Date = Date()) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return idleMinutes > 0 && now.timeIntervalSince(lastUse) >= TimeInterval(idleMinutes * 60)
+  }
+
   func idleProviders(now: Date = Date()) -> [String] {
     lock.lock()
     defer { lock.unlock() }
@@ -79,7 +85,8 @@ final class VaultSessionStore: @unchecked Sendable {
   func hasStoredSession(_ provider: String) -> Bool { touchID && VaultKeychain.contains(provider) }
 
   func storedSession(_ provider: String, reason: String) async -> String? {
-    guard hasStoredSession(provider), await VaultOwnerCheck.confirm(reason) else { return nil }
+    guard hasStoredSession(provider) else { return nil }
+    guard VaultOwnerCheck.recentlyConfirmed || (await VaultOwnerCheck.confirm(reason)) else { return nil }
     return VaultKeychain.read(provider)
   }
 
