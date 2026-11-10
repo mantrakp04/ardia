@@ -29,6 +29,23 @@ const contextMenuPurpose = (props: Record<string, unknown>): string => {
 
 const noteContextMenu = (line: string) => console.info(`[ardia windows] context menu area: ${line}`);
 
+const POINTER_SAMPLES = 6;
+let pointerSamples = 0;
+
+function notePointerSample(kind: string, event: PointerLike) {
+  if (pointerSamples >= POINTER_SAMPLES) return;
+  pointerSamples += 1;
+  const native = event.nativeEvent ?? {};
+  noteContextMenu(`${kind} reached an area with button=${String(native.button)} buttons=${String(native.buttons)} pointerType=${String(native.pointerType)} fields=${Object.keys(native).sort().join(",")}`);
+}
+
+const isSecondary = (event: PointerLike) => {
+  const native = event.nativeEvent;
+  if (!native) return false;
+  if (native.button === SECONDARY_BUTTON) return true;
+  return typeof native.buttons === "number" && (native.buttons & SECONDARY_BUTTON) !== 0 && native.button !== 0;
+};
+
 export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea(
   { onContextMenu, captureDescendants, onPointerDown, onPointerDownCapture, onPointerUp, onPointerUpCapture, onPointerCancel, onAuxClick, onKeyDown, children, ...rest },
   ref,
@@ -37,7 +54,8 @@ export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuAr
   const purpose = contextMenuPurpose(rest);
   const press = useCallback(
     (event: PointerLike) => {
-      if (event.nativeEvent?.button !== SECONDARY_BUTTON || typeof onContextMenu !== "function") return;
+      notePointerSample("a pointer down", event);
+      if (!isSecondary(event) || typeof onContextMenu !== "function") return;
       if (!claimOnce(contextMenuClaims, event.nativeEvent)) return;
       armed.current = true;
       noteContextMenu(`right press on ${purpose}`);
@@ -46,7 +64,7 @@ export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuAr
   );
   const release = useCallback(
     (event: PointerLike) => {
-      if (!armed.current || event.nativeEvent?.button !== SECONDARY_BUTTON) return;
+      if (!armed.current || !isSecondary(event)) return;
       armed.current = false;
       noteContextMenu(`right release on ${purpose}, opening its menu`);
       call(onContextMenu, { nativeEvent: {} });
@@ -84,6 +102,8 @@ export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuAr
   const auxClick = useCallback(
     (event: PointerLike) => {
       call(onAuxClick, event);
+      notePointerSample("an aux click", event);
+      if (!armed.current && event.nativeEvent?.button === SECONDARY_BUTTON && typeof onContextMenu === "function") armed.current = claimOnce(contextMenuClaims, event.nativeEvent);
       release(event);
     },
     [onAuxClick, release],
