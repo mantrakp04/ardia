@@ -3,14 +3,16 @@ import Foundation
 extension VaultsModule {
   static let longestUsername = 1024
 
-  static func saveGenerated(id: String, provider: String, username: String?) async -> [String: Any] {
+  static func saveGenerated(id: String, provider: String, username: String?, profile: String) async -> [String: Any] {
     guard let entry = await VaultGenerated.entry(id) else { return ["saved": false, "error": VaultFillError.notFound.rawValue] }
     let typed = String((username ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(longestUsername))
     let chosen = typed.isEmpty ? entry.username : typed
     guard !chosen.isEmpty else { return ["saved": false, "error": "needsUsername"] }
     let host = VaultOriginMatch.host(of: entry.origin) ?? entry.origin
     let title = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-    let result = await VaultBroker.shared.save(provider: provider, origin: entry.origin, username: chosen, password: entry.password, title: title)
+    let base = await ArdiaVaultStore.baseProfile(profile)
+    let result = await VaultBroker.shared.save(provider: provider, origin: entry.origin, username: chosen, password: entry.password, title: title,
+                                               profile: base)
     switch result {
     case .success(let item):
       VaultGenerated.saved(password: entry.password, origin: entry.origin)
@@ -34,7 +36,8 @@ extension VaultsModule {
       let id = try args.text("id")
       let provider = try VaultsModule.provider(args)
       let username = try args.optionalText("username")
-      VaultsModule.answer(reply) { await VaultsModule.saveGenerated(id: id, provider: provider, username: username) }
+      let profile = args.profile
+      VaultsModule.answer(reply) { await VaultsModule.saveGenerated(id: id, provider: provider, username: username, profile: profile) }
     },
     "deleteGenerated": { args, reply in
       let id = try args.text("id")

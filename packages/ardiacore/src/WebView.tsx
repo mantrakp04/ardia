@@ -7,6 +7,7 @@ import { ArdiaError, ardiaError } from "@ardia/core";
 import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
 import type {
   DiscardOutcome,
+  VaultCodeMenu,
   VaultContextMenu,
   VaultFilledField,
   VaultFillResult,
@@ -33,6 +34,7 @@ type NativeHandle = Omit<
   | "fillGeneratedPassword"
   | "setVaultMenu"
   | "setVaultContextMenu"
+  | "setVaultCodeMenu"
   | "saveToVault"
   | "discardVaultCapture"
   | "stageVaultPassword"
@@ -56,6 +58,7 @@ type NativeHandle = Omit<
   ): Promise<VaultFillResult>;
   fillGeneratedPassword(frameId: string, origin: string, style: VaultPasswordStyle, maxLength: number | null, target: VaultFillTarget | null): Promise<{ filled: VaultFilledField[] }>;
   setVaultContextMenu(frameId: string, origin: string, menu: VaultContextMenu): Promise<void>;
+  setVaultCodeMenu(token: string, menu: VaultCodeMenu): Promise<void>;
   setVaultMenu(frameId: string, open: boolean, highlighted: boolean): Promise<void>;
   saveToVault(provider: string, origin: string, title: string | null, username: string | null): Promise<VaultSaveResult>;
   discardVaultCapture(origin: string): Promise<void>;
@@ -149,6 +152,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
           n.fillGeneratedPassword(r.frameId, r.origin, r.style ?? "strong", generatedLengthLimit(r.maxLength), r.target ?? null),
         ),
       setVaultContextMenu: (r) => call(undefined, (n) => n.setVaultContextMenu(r.frameId, r.origin, r.menu)),
+      setVaultCodeMenu: (r) => call(undefined, (n) => n.setVaultCodeMenu(r.token, r.menu)),
       setVaultMenu: (r) => call(undefined, (n) => n.setVaultMenu(r.frameId, r.open, r.open && r.highlighted)),
       saveToVault: (r) =>
         call<VaultSaveResult>({ saved: false, error: "failed" }, (n) => n.saveToVault(r.provider, r.origin, r.title ?? null, r.username ?? null)),

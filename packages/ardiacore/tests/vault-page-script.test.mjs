@@ -264,6 +264,8 @@ function makePage({ origin = "https://example.com", path = "/login", top = true,
     opacity: el.style.opacity ?? "1",
     colorScheme: el.style.colorScheme || scheme,
   });
+  const selection = { text: "" };
+  win.getSelection = () => ({ toString: () => selection.text });
   win.requestAnimationFrame = (fn) => frames.push(fn);
   win.matchMedia = (query) => ({ matches: !!media[query] });
   win.setTimeout = (fn, ms) => {
@@ -337,7 +339,7 @@ function makePage({ origin = "https://example.com", path = "/login", top = true,
     fire(field, "input", extra);
   };
   const of = (kind) => sent.filter((m) => m.kind === kind).map((m) => m.data);
-  return { ...exports, sent, of, frames, runFrames, advance, clock, location, focused, document, html, body, input, el, fire, type, handlers, FakeButton, FakeEvent, win };
+  return { ...exports, sent, of, frames, runFrames, advance, clock, location, focused, document, html, body, input, el, fire, type, handlers, FakeButton, FakeEvent, win, selection };
 }
 
 const loginForm = (page, extra = {}) => {
@@ -1395,4 +1397,75 @@ test("a context fill with a whole login fills the form around the right-clicked 
   assert.deepEqual(page.of("vaultFilled"), [{ id: "w", filled: ["username", "password"] }]);
   assert.deepEqual(page.of("vaultSubmit"), [], "a right-click fill never submits");
   assert.equal(page.of("vaultContext").length, 1);
+});
+
+const codeTargets = (page) => page.of("vaultCodeTarget");
+
+test("right-clicking an image reports its rect and the viewport so native can read a QR code there", () => {
+  const page = makePage({ path: "/settings/2fa" });
+  Object.assign(page.win, { innerWidth: 1280, innerHeight: 800 });
+  const qr = page.el("img", { src: "data:image/png;base64,AAAA" });
+  qr.rect = { left: 400, top: 300, width: 180, height: 180 };
+  page.body.append(page.el("div", {}, qr));
+  page.fire(qr, "contextmenu");
+  assert.deepEqual(codeTargets(page), [{ image: true, rect: { x: 400, y: 300, width: 180, height: 180 }, viewport: { width: 1280, height: 800 } }]);
+});
+
+test("a canvas, an svg drawn from parts and an element painted with a background image count as images", () => {
+  const page = makePage();
+  Object.assign(page.win, { innerWidth: 1000, innerHeight: 700 });
+  const canvas = page.el("canvas", {});
+  const path = page.el("path", {});
+  const svg = page.el("svg", {}, page.el("g", {}, path));
+  svg.rect = { left: 50, top: 60, width: 120, height: 120 };
+  const painted = page.el("div", {});
+  painted.style.backgroundImage = "url(\"/qr.png\")";
+  page.body.append(canvas, svg, painted);
+  page.fire(canvas, "contextmenu");
+  page.fire(path, "contextmenu");
+  assert.deepEqual(codeTargets(page)[0].rect, { x: 10, y: 20, width: 200, height: 30 });
+  assert.deepEqual(codeTargets(page)[1].rect, { x: 50, y: 60, width: 120, height: 120 }, "a click on a path reports the whole svg");
+  page.fire(painted, "contextmenu");
+  assert.equal(codeTargets(page).length, 3);
+});
+
+test("an image in a frame reports no rect, so native reads the whole page picture", () => {
+  const page = makePage({ top: false });
+  const qr = page.el("img", {});
+  page.body.append(qr);
+  page.fire(qr, "contextmenu");
+  assert.deepEqual(codeTargets(page), [{ image: true, rect: null, viewport: null }]);
+});
+
+test("an otpauth link, a selected setup key and a read-only key field report the text, and other text reports nothing", () => {
+  const page = makePage();
+  const link = page.el("a", { href: "otpauth://totp/GitHub:octo?secret=JBSWY3DPEHPK3PXP&issuer=GitHub" }, page.el("span", { text: "Open in app" }));
+  const words = page.el("p", { text: "Scan this code with your app" });
+  const key = page.input({ type: "text", readonly: "", value: "JBSW Y3DP EHPK 3PXP" });
+  page.body.append(link, words, key);
+  page.fire(link.children[0], "contextmenu");
+  assert.deepEqual(codeTargets(page).at(-1), { text: "otpauth://totp/GitHub:octo?secret=JBSWY3DPEHPK3PXP&issuer=GitHub", rect: { x: 10, y: 20, width: 200, height: 30 } });
+  page.selection.text = "  jbsw y3dp ehpk 3pxp ";
+  page.fire(words, "contextmenu");
+  assert.equal(codeTargets(page).at(-1).text, "jbsw y3dp ehpk 3pxp");
+  page.selection.text = "";
+  page.fire(key, "contextmenu");
+  assert.equal(codeTargets(page).at(-1).text, "JBSW Y3DP EHPK 3PXP");
+  page.selection.text = "please scan this code with your app";
+  page.fire(words, "contextmenu");
+  assert.deepEqual(codeTargets(page).at(-1), {}, "plain words aren't a key");
+  page.selection.text = "internationalization";
+  page.fire(words, "contextmenu");
+  assert.deepEqual(codeTargets(page).at(-1), {}, "one long lowercase word without digits isn't a key");
+  page.selection.text = "";
+  page.fire(words, "contextmenu");
+  assert.deepEqual(codeTargets(page).at(-1), {});
+});
+
+test("an untrusted contextmenu reports nothing", () => {
+  const page = makePage();
+  const qr = page.el("img", {});
+  page.body.append(qr);
+  page.fire(qr, "contextmenu", { isTrusted: false });
+  assert.deepEqual(codeTargets(page), []);
 });

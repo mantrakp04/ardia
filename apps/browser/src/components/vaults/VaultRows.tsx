@@ -7,9 +7,9 @@ import { forgetVaultCode, loadVaultCode } from "../../state/vaults/codes";
 import { noteCodeUnavailable } from "../../state/vaults/fill";
 import { noteVaultMenuPress, type VaultTouchPhase } from "../../state/vaults/menu";
 import { useVaultCode } from "../../state/vaults/hooks";
-import { ActivitySpinner, capsule, curve, ink, reduceMotion, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
+import { ActivitySpinner, capsule, curve, ink, reduceMotion, springs, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
 import { CountdownRing, formatCode, VaultAppIcon } from "./VaultParts";
-import { VAULT_MENU, VAULT_TOUCH } from "./tokens";
+import { VAULT_CODE, VAULT_MENU, VAULT_TOUCH } from "./tokens";
 import type { VaultPasswordStyle } from "../../state/vaults/types";
 
 export const rowHeight = (row: VaultRow) => (FOOTER_KINDS.has(row.kind) ? VAULT_MENU.compactRow : VAULT_MENU.row);
@@ -23,6 +23,8 @@ const TOUCH_ID = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID } as co
 const LAYER = { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" } as const;
 const DISC = { position: "absolute", width: VAULT_TOUCH.retryDisc, height: VAULT_TOUCH.retryDisc, borderRadius: capsule(VAULT_TOUCH.retryDisc) } as const;
 const TRAILING = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID, alignItems: "center", justifyContent: "center" } as const;
+const BUSY_SLOT = { position: "absolute", top: 0, bottom: 0, width: VAULT_MENU.touchID, alignItems: "center", justifyContent: "center" } as const;
+const CODE_SLOT = { width: VAULT_CODE.ring, height: VAULT_CODE.ring, alignItems: "center", justifyContent: "center" } as const;
 
 export const TRY_AGAIN = "Try Again";
 
@@ -44,7 +46,7 @@ function useInk(highlight: VaultHighlight | null): Ink {
   return { title: on, detail: on, icon: on };
 }
 
-function RowShell({ height, compact, selected, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink, lit: boolean) => ReactNode }) {
+function RowShell({ height, compact, selected, plated, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; plated: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink, lit: boolean) => ReactNode }) {
   const lit = useInk(highlight);
   const plain = useInk(null);
   return (
@@ -60,7 +62,7 @@ function RowShell({ height, compact, selected, highlight, onHover, onPress, chil
               flexDirection: "row",
               alignItems: "center",
               gap: VAULT_MENU.iconGap,
-              backgroundColor: selected || pressed ? highlight.fill : undefined,
+              backgroundColor: (selected && !plated) || (pressed && !selected) ? highlight.fill : undefined,
             }}
           >
             {children(selected || pressed ? lit : plain, selected || pressed)}
@@ -133,15 +135,23 @@ function TouchGlyph({ touch, ink, fill }: { touch: VaultTouchState; ink: Ink; fi
   useEffect(() => {
     if (still || touch.retries === first.current) return;
     shake.setValue(0);
-    const run = Animated.timing(shake, { toValue: 1, duration: VAULT_TOUCH.shakeMs, easing: curve.enter, useNativeDriver: true });
+    const run = Animated.timing(shake, { toValue: 1, duration: VAULT_TOUCH.shakeMs, easing: curve.linear, useNativeDriver: true });
     run.start();
     return () => run.stop();
   }, [touch.retries]);
+  const pop = useRef(new Animated.Value(granted ? 1 : 0)).current;
+  useEffect(() => {
+    if (!granted || still) return pop.setValue(granted ? 1 : 0);
+    pop.setValue(0);
+    const run = Animated.spring(pop, { toValue: 1, ...springs.bouncy, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [granted]);
   const retry = touch.phase === "retry";
   const red = touchRetryInk(fill, theme.destructive);
   const steps = VAULT_TOUCH.shakeSteps;
   const translateX = shake.interpolate({ inputRange: steps.map((_, i) => i / (steps.length - 1)), outputRange: [...steps] });
-  const checkScale = check.interpolate({ inputRange: [0, 1], outputRange: [VAULT_TOUCH.grantFrom, 1] });
+  const checkScale = pop.interpolate({ inputRange: [0, 1], outputRange: [VAULT_TOUCH.grantFrom, 1] });
   return (
     <Animated.View style={{ ...TRAILING, transform: still ? [] : [{ translateX }] }}>
       <Animated.View style={{ ...LAYER, opacity: check.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
@@ -161,17 +171,34 @@ function GrantedThenSpinner({ touch, ink, fill }: { touch: VaultTouchState; ink:
     const timer = setTimeout(() => setWaited(true), VAULT_TOUCH.grantMs + VAULT_TOUCH.grantHoldMs);
     return () => clearTimeout(timer);
   }, []);
-  if (waited) return <ActivitySpinner style={SPINNER} />;
+  if (waited) return <Spinner />;
   return <TouchGlyph touch={touch} ink={ink} fill={fill} />;
 }
 
-function Trailing({ busy, touch, ink, fill }: { busy: boolean; touch: VaultTouchState | null; ink: Ink; fill: string | null }) {
-  if (busy && touch?.phase === "granted") return <GrantedThenSpinner touch={touch} ink={ink} fill={fill} />;
-  if (busy) return <ActivitySpinner style={SPINNER} />;
-  return touch ? <TouchGlyph touch={touch} ink={ink} fill={fill} /> : null;
+function Spinner() {
+  return (
+    <View style={TRAILING}>
+      <ActivitySpinner style={SPINNER} />
+    </View>
+  );
 }
 
-function CodeLine({ tabId, seq, row, ink }: { tabId: string; seq: number; row: Extract<VaultRow, { kind: "otp" }>; ink: Ink }) {
+function BusyOverlay({ busy, compact = false }: { busy: boolean; compact?: boolean }) {
+  return busy ? (
+    <View pointerEvents="none" style={{ ...BUSY_SLOT, right: compact ? VAULT_MENU.footerPadding : VAULT_MENU.rowPadding }}>
+      <ActivitySpinner style={SPINNER} />
+    </View>
+  ) : null;
+}
+
+function Trailing({ busy, touch, ink, fill, reserve }: { busy: boolean; touch: VaultTouchState | null; ink: Ink; fill: string | null; reserve: boolean }) {
+  if (busy && touch?.phase === "granted") return <GrantedThenSpinner touch={touch} ink={ink} fill={fill} />;
+  if (busy) return <Spinner />;
+  if (touch) return <TouchGlyph touch={touch} ink={ink} fill={fill} />;
+  return reserve ? <View style={TRAILING} /> : null;
+}
+
+function CodeLine({ tabId, seq, row, ink, busy }: { tabId: string; seq: number; row: Extract<VaultRow, { kind: "otp" }>; ink: Ink; busy: boolean }) {
   const key = itemKey(row.item);
   const code = useVaultCode(key);
   useEffect(() => {
@@ -189,7 +216,7 @@ function CodeLine({ tabId, seq, row, ink }: { tabId: string; seq: number; row: E
     <>
       <VaultAppIcon provider={row.item.provider} />
       <Lines title={live ? formatCode(live.code) : "••• •••"} detail={row.item.username || row.item.title || itemSite(row.item.urls)} ink={ink} mono />
-      {live ? <CountdownRing key={live.expiresAt} expiresAt={live.expiresAt} period={live.period} /> : <ActivitySpinner style={SPINNER} />}
+      <View style={CODE_SLOT}>{live && !busy ? <CountdownRing key={live.expiresAt} expiresAt={live.expiresAt} period={live.period} /> : <ActivitySpinner style={SPINNER} />}</View>
     </>
   );
 }
@@ -199,6 +226,8 @@ export function VaultRowView({
   seq,
   row,
   selected,
+  plated = false,
+  reserveTrailing = false,
   highlight,
   touch,
   busy,
@@ -210,6 +239,8 @@ export function VaultRowView({
   seq: number;
   row: VaultRow;
   selected: boolean;
+  plated?: boolean;
+  reserveTrailing?: boolean;
   highlight: VaultHighlight;
   touch: VaultTouchState | null;
   busy: boolean;
@@ -219,11 +250,11 @@ export function VaultRowView({
 }) {
   const tryAgain = useTryAgain(touch?.retries ?? 0) && !!touch && !busy;
   const shell = (children: (ink: Ink, lit: boolean) => ReactNode) => (
-    <RowShell height={rowHeight(row)} compact={FOOTER_KINDS.has(row.kind)} selected={selected} highlight={highlight} onHover={onHover} onPress={onPress}>
+    <RowShell height={rowHeight(row)} compact={FOOTER_KINDS.has(row.kind)} selected={selected} plated={plated} highlight={highlight} onHover={onHover} onPress={onPress}>
       {children}
     </RowShell>
   );
-  const trailing = (ink: Ink, lit: boolean) => <Trailing busy={busy} touch={touch} ink={ink} fill={lit ? highlight.fill : null} />;
+  const trailing = (ink: Ink, lit: boolean) => <Trailing busy={busy} touch={touch} ink={ink} fill={lit ? highlight.fill : null} reserve={reserveTrailing} />;
   switch (row.kind) {
     case "login": {
       const where = itemSite(row.item.urls) || site;
@@ -240,16 +271,15 @@ export function VaultRowView({
     case "otp":
       return shell((ink) => (
         <>
-          <CodeLine tabId={tabId} seq={seq} row={row} ink={ink} />
-          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+          <CodeLine tabId={tabId} seq={seq} row={row} ink={ink} busy={busy} />
         </>
       ));
     case "username":
       return shell((ink) => (
         <>
           <VaultAppIcon provider="" symbol="person.crop.circle" neutral />
-          <Lines title={row.username} detail="Used before" ink={ink} />
-          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+          <Lines title={row.username} detail="Used Before" ink={ink} />
+          <BusyOverlay busy={busy} />
         </>
       ));
     case "generate": {
@@ -258,7 +288,7 @@ export function VaultRowView({
         <>
           <VaultAppIcon provider="" symbol="key.fill" neutral />
           <Lines title={copy.title} detail={copy.detail} ink={ink} strong />
-          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+          <BusyOverlay busy={busy} />
         </>
       ));
     }
@@ -276,7 +306,7 @@ export function VaultRowView({
       return shell((ink) => (
         <>
           <Lines title="Suggest New Password" ink={ink} />
-          {busy ? <ActivitySpinner style={SPINNER} /> : null}
+          <BusyOverlay busy={busy} compact />
         </>
       ));
     case "openPasswords":

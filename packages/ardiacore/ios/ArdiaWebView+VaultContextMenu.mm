@@ -1,4 +1,5 @@
 #import "ArdiaWebView+VaultContextMenu.h"
+#import "ArdiaWebView+VaultCodeSetup.h"
 #import "ArdiaWebViewInternal.h"
 #import "ArdiaRuntime.h"
 
@@ -21,8 +22,10 @@ NSString *const kUnlockTitle = @"Unlock Passwords…";
 NSString *const kOtherTitle = @"Other Passwords…";
 NSString *const kLoadingTitle = @"Loading…";
 NSString *const kPathSeparator = @" › ";
+NSString *const kSelectAllTitle = @"Select All";
 
 BOOL gContextAutofill = NO;
+BOOL gContextGenerateAnyField = NO;
 NSArray<NSDictionary<NSString *, NSString *> *> *gContextGenerators = nil;
 char kVaultContextKey;
 char kVaultContextFillKey;
@@ -104,6 +107,8 @@ NSMenuItem *FindTitle(NSArray<NSMenuItem *> *items, NSString *title) {
 @property(nonatomic, copy) NSString *origin;
 @property(nonatomic) CFTimeInterval at;
 @property(nonatomic) BOOL shown;
+@property(nonatomic) BOOL secure;
+@property(nonatomic) BOOL passwordField;
 @property(nonatomic, copy) NSDictionary *model;
 @property(nonatomic, weak) ArdiaWebView *view;
 @property(nonatomic, strong) NSHashTable<NSMenu *> *autofillMenus;
@@ -172,7 +177,7 @@ NSMenuItem *FindTitle(NSArray<NSMenuItem *> *items, NSString *title) {
     autofill.submenu = menu;
     [items addObject:autofill];
   }
-  if (gContextGenerators.count) {
+  if (gContextGenerators.count && self.secure && (self.passwordField || gContextGenerateAnyField)) {
     NSMenuItem *generate = [[NSMenuItem alloc] initWithTitle:kGenerateTitle action:nil keyEquivalent:@""];
     NSMenu *menu = [self submenuTitled:kGenerateTitle];
     for (NSDictionary<NSString *, NSString *> *style in gContextGenerators)
@@ -206,7 +211,7 @@ NSMenuItem *FindTitle(NSArray<NSMenuItem *> *items, NSString *title) {
 - (void)adoptModel:(NSDictionary *)model {
   self.model = model;
   for (NSMenu *menu in self.autofillMenus.allObjects) [self fillAutofillMenu:menu];
-  if (self.redump) self.redump([self.view describeVaultContextItems:self.topItems]);
+  if (self.redump) self.redump([self.view describeVaultContextItems:self.view.shownVaultContextItems]);
   NSArray<NSString *> *pending = self.pendingPick;
   self.pendingPick = nil;
   if (pending) [self pick:pending];
@@ -225,19 +230,42 @@ ArdiaWebView *WebViewAbove(NSView *view) {
 void AddVaultContextItems(NSMenu *menu, NSView *view) {
   NSArray<NSMenuItem *> *items = [WebViewAbove(view) takeVaultContextMenuItems];
   if (!items.count) return;
-  NSInteger at = 0;
+  NSMutableArray<NSString *> *titles = [NSMutableArray arrayWithCapacity:menu.numberOfItems];
+  for (NSMenuItem *item in menu.itemArray) [titles addObject:item.isSeparatorItem ? @"" : item.title];
+  NSInteger at = (NSInteger)ArdiaVaultContextIndex(titles);
+  if (at > 0) [menu insertItem:NSMenuItem.separatorItem atIndex:at++];
   for (NSMenuItem *item in items) [menu insertItem:item atIndex:at++];
   if (menu.numberOfItems > at && ![menu itemAtIndex:at].isSeparatorItem) [menu insertItem:NSMenuItem.separatorItem atIndex:at];
+}
+
+BOOL gPoppingUpContextMenu = NO;
+
+void PopUpWithVaultItems(NSMenu *menu, NSView *view, void (^popUp)(void)) {
+  if (gPoppingUpContextMenu) return popUp();
+  gPoppingUpContextMenu = YES;
+  AddVaultContextItems(menu, view);
+  popUp();
+  gPoppingUpContextMenu = NO;
 }
 
 void InstallVaultContextMenuHook() {
   static dispatch_once_t once;
   dispatch_once(&once, ^{
+    Class menuClass = object_getClass(NSMenu.class);
     SEL selector = @selector(popUpContextMenu:withEvent:forView:);
-    ardia_runtime::ReplaceMethod(object_getClass(NSMenu.class), selector, ^id(IMP original) {
-      return ^(id menuClass, NSMenu *menu, NSEvent *event, NSView *view) {
-        AddVaultContextItems(menu, view);
-        ((void (*)(id, SEL, NSMenu *, NSEvent *, NSView *))original)(menuClass, selector, menu, event, view);
+    ardia_runtime::ReplaceMethod(menuClass, selector, ^id(IMP original) {
+      return ^(id menus, NSMenu *menu, NSEvent *event, NSView *view) {
+        PopUpWithVaultItems(menu, view, ^{
+          ((void (*)(id, SEL, NSMenu *, NSEvent *, NSView *))original)(menus, selector, menu, event, view);
+        });
+      };
+    });
+    SEL withFont = @selector(popUpContextMenu:withEvent:forView:withFont:);
+    ardia_runtime::ReplaceMethod(menuClass, withFont, ^id(IMP original) {
+      return ^(id menus, NSMenu *menu, NSEvent *event, NSView *view, NSFont *font) {
+        PopUpWithVaultItems(menu, view, ^{
+          ((void (*)(id, SEL, NSMenu *, NSEvent *, NSView *, NSFont *))original)(menus, withFont, menu, event, view, font);
+        });
       };
     });
   });
@@ -245,9 +273,14 @@ void InstallVaultContextMenuHook() {
 
 }
 
+NSUInteger ArdiaVaultContextIndex(NSArray<NSString *> *titles) {
+  const NSUInteger selectAll = [titles indexOfObject:kSelectAllTitle];
+  return selectAll == NSNotFound ? 0 : selectAll + 1;
+}
+
 @implementation ArdiaWebView (VaultContextMenu)
 
-+ (void)setVaultContextAutofill:(BOOL)autofill generators:(NSArray<NSDictionary<NSString *, id> *> *)generators {
++ (void)setVaultContextAutofill:(BOOL)autofill generators:(NSArray<NSDictionary<NSString *, id> *> *)generators anyField:(BOOL)anyField {
   NSMutableArray<NSDictionary<NSString *, NSString *> *> *kept = [NSMutableArray array];
   for (NSDictionary *generator in generators) {
     NSString *style = Text(generator, @"style", 32);
@@ -256,7 +289,12 @@ void InstallVaultContextMenuHook() {
   }
   gContextAutofill = autofill;
   gContextGenerators = kept;
+  gContextGenerateAnyField = anyField;
   if (autofill || kept.count) InstallVaultContextMenuHook();
+}
+
++ (void)ensureVaultContextMenuHook {
+  InstallVaultContextMenuHook();
 }
 
 - (ArdiaVaultContext *)vaultContext {
@@ -265,7 +303,7 @@ void InstallVaultContextMenuHook() {
 
 - (void)noteVaultContext:(NSDictionary *)dict frame:(NSString *)frameId main:(BOOL)main origin:(NSString *)origin {
   const BOOL offered = gContextAutofill || gContextGenerators.count;
-  if (!Flag(dict, @"field") || !offered || !frameId.length || !ContextSecureOrigin(origin ?: @"")) {
+  if (!Flag(dict, @"field") || !offered || !frameId.length || !origin.length) {
     objc_setAssociatedObject(self, &kVaultContextKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     return;
   }
@@ -274,9 +312,12 @@ void InstallVaultContextMenuHook() {
   context.origin = origin;
   context.at = CACurrentMediaTime();
   context.view = self;
-  objc_setAssociatedObject(self, &kVaultContextKey, context, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  context.secure = ContextSecureOrigin(origin);
   NSString *kind = Text(dict, @"kind", 16);
   NSString *guess = Text(dict, @"guess", 16);
+  if (![ContextChoices() containsObject:guess ?: @""]) guess = @"username";
+  context.passwordField = [guess isEqualToString:@"password"];
+  objc_setAssociatedObject(self, &kVaultContextKey, context, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   NSDictionary *rect = Field<NSDictionary>(dict, @"rect");
   double x, y, width, height, length;
   id box = NSNull.null;
@@ -289,13 +330,19 @@ void InstallVaultContextMenuHook() {
         @"origin" : origin,
         @"main" : @(main),
         @"kind" : [ContextFieldKinds() containsObject:kind ?: @""] ? kind : NSNull.null,
-        @"guess" : [ContextChoices() containsObject:guess ?: @""] ? guess : @"username",
+        @"guess" : guess,
         @"rect" : box,
         @"maxLength" : @(maxLength),
       }];
 }
 
 - (NSArray<NSMenuItem *> *)takeVaultContextMenuItems {
+  NSArray<NSMenuItem *> *items = [[self takeVaultFillMenuItems] arrayByAddingObjectsFromArray:[self takeVaultCodeMenuItems]];
+  [self noteShownVaultContextItems:items];
+  return items;
+}
+
+- (NSArray<NSMenuItem *> *)takeVaultFillMenuItems {
   ArdiaVaultContext *context = self.vaultContext;
   if (!context || context.shown || CACurrentMediaTime() - context.at > kContextFieldFreshSeconds) return @[];
   context.shown = YES;
@@ -323,6 +370,7 @@ void InstallVaultContextMenuHook() {
 }
 
 - (BOOL)pickVaultContextMenu:(NSString *)pick redump:(void (^)(NSArray<NSDictionary *> *described))redump {
+  if ([self pickVaultCodeMenu:pick redump:redump]) return YES;
   ArdiaVaultContext *context = self.vaultContext;
   if (!context.topItems.count) return NO;
   context.redump = redump;

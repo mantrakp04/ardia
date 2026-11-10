@@ -16,6 +16,7 @@ import { openExternalURL } from "../../platform/app";
 import { copyText } from "../../platform/clipboard";
 import { openSettings, openUrlFromSettings } from "../settings/settingsWindows";
 import { applyProviderState, clearVaultIndex, currentVaultProviders, loadVaultProviders, vaultProviderOf } from "./store";
+import { passwordManagersOnly } from "./ardia";
 import { brandOf } from "./brands";
 
 export type { VaultCopyField, VaultProviderState, VaultSignInFields, VaultSignInResult };
@@ -56,7 +57,7 @@ export const configureProvider = (provider: string, server: string | null) => wi
 export const cancelProviderSignIn = (provider: string) => withState(() => cancelVaultSignIn(provider));
 
 export async function lockAllProviders() {
-  const unlocked = currentVaultProviders().filter((p) => p.state === "unlocked");
+  const unlocked = passwordManagersOnly(currentVaultProviders()).filter((p) => p.state === "unlocked");
   clearVaultIndex();
   await Promise.all(unlocked.map((p) => lockProvider(p.id)));
 }

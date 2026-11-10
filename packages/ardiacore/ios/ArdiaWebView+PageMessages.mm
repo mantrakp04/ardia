@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaWebView+VaultCodeSetup.h"
 #import "ArdiaWebView+VaultContextMenu.h"
 #import "ArdiaRuntime.h"
 #import "ArdiaEarlyWindow.h"
@@ -282,6 +283,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     NSString *origin = VerifiedOrigin(verifiedOrigin);
     if (Flag(dict, @"field") && VaultWebOrigin(origin)) [VaultCaptureOf(tab) noteFieldInFrame:frameId origin:origin];
     [self noteVaultContext:dict frame:frameId main:main origin:origin];
+  } else if ([kind isEqualToString:@"vaultCodeTarget"] && dict) {
+    [self noteVaultCodeTarget:dict frame:frameId main:main origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultSubmit"] && dict) {
     [self captureVaultSubmit:dict tab:tab frame:frameId origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultFilled"] && dict) {

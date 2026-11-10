@@ -4,7 +4,7 @@ import { Image, Pressable, Text, View, type GestureResponderEvent, type StylePro
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { useToolbarRowContext } from "./toolbarRowContext";
 import { useHover } from "./useHover";
-import { CloseButtonView, PillButtonView, PushButtonView, StepperButtonView } from "./ButtonKinds";
+import { CloseButtonView, PillButtonView, PushButtonView, StepperButtonView, TitleSwap } from "./ButtonKinds";
 import { useTheme } from "./theme";
 import { capsule, iconButton, opacity, radius as radii, space, font as typeScale, weight as weights, type ColorRole, type IconButtonSize, type Space, type TypeSize, type Weight } from "./tokens";
 
@@ -55,11 +55,12 @@ type TextProps = {
   tone?: ColorRole;
   hoverTone?: ColorRole;
   label?: string;
+  reserve?: readonly string[];
 };
 
 export type PillSize = "m" | "l" | "xl";
 
-export type PillProps = { variant: "pill"; onPress: () => void; title: string; primary?: boolean; size?: PillSize } & ({ tone?: "prompt" } | { tone: "chip"; icon?: string; height?: number });
+export type PillProps = { variant: "pill"; onPress: () => void; title: string; primary?: boolean; size?: PillSize; reserve?: readonly string[] } & ({ tone?: "prompt" } | { tone: "chip"; icon?: string; height?: number });
 
 export type StepperProps = { variant: "stepper"; icon: string; onPress: () => void; width?: number; height?: number; tooltip: string; disabled?: boolean };
 
@@ -76,6 +77,7 @@ export type PushProps = {
   disabled?: boolean;
   icon?: string;
   style?: StyleProp<ViewStyle>;
+  reserve?: readonly string[];
 };
 
 export type ButtonProps = IconProps | TextProps | PillProps | StepperProps | CloseProps | PushProps;
@@ -183,7 +185,7 @@ const TEXT_LOOKS: Record<TextLook, { plate: "toolbar" | "hover" | "none"; height
 const UNDERLINE = { textDecorationLine: "underline" } as const;
 
 function TextButtonView(props: TextProps) {
-  const { title, onPress, disabled, look, hoverTone, padY, label } = props;
+  const { title, onPress, disabled, look, hoverTone, padY, label, reserve } = props;
   const base = look ? TEXT_LOOKS[look] : null;
   const plate = props.plate ?? base?.plate ?? "toolbar";
   const height = props.height ?? base?.height;
@@ -199,7 +201,7 @@ function TextButtonView(props: TextProps) {
     return (
       <View {...hoverProps}>
         <Pressable onPress={onPress} disabled={disabled} {...a11y}>
-          <Text style={[textStyle(hovered && hoverTone ? theme[hoverTone] : theme[tone]), { paddingVertical: padY ? space[padY] : undefined }, look === "link" && hovered ? UNDERLINE : null]}>{title}</Text>
+          <TitleSwap title={title} reserve={reserve} style={[textStyle(!disabled && hovered && hoverTone ? theme[hoverTone] : theme[tone]), { paddingVertical: padY ? space[padY] : undefined }, look === "link" && !disabled && hovered ? UNDERLINE : null]} />
         </Pressable>
       </View>
     );
@@ -210,7 +212,7 @@ function TextButtonView(props: TextProps) {
       <Pressable onPress={onPress} disabled={disabled} {...a11y}>
         {({ pressed }) => (
           <View style={{ height, paddingHorizontal: space[pad], borderRadius: radii.control, justifyContent: "center", backgroundColor: fill(pressed) }}>
-            <Text style={textStyle(disabled ? theme.iconDisabled : hovered && hoverTone ? theme[hoverTone] : theme[tone])}>{title}</Text>
+            <TitleSwap title={title} reserve={reserve} style={textStyle(disabled ? theme.iconDisabled : hovered && hoverTone ? theme[hoverTone] : theme[tone])} />
           </View>
         )}
       </Pressable>

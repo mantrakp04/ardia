@@ -212,6 +212,12 @@ export type VaultContextAction =
   | { frameId: string; origin: string; action: "unlock" | "other" };
 export type VaultContextLogin = { key: string; title: string; fields: VaultContextChoice[] };
 export type VaultContextMenu = { logins: VaultContextLogin[]; unlock: boolean; other: boolean; note: string | null };
+export type VaultCodeFound = { frameId: string; origin: string; main: boolean; rect: VaultFieldRect | null; token: string; issuer: string; account: string };
+export type VaultCodeAction =
+  | { frameId: string; origin: string; token: string; action: "save"; login: string }
+  | { frameId: string; origin: string; token: string; action: "unlock" | "other" };
+export type VaultCodeLogin = { key: string; title: string };
+export type VaultCodeMenu = { logins: VaultCodeLogin[]; unlock: boolean; other: boolean; note: string | null };
 export type VaultFillResult = { filled: VaultFilledField[]; error?: VaultFillError };
 export type VaultSavedItem = {
   provider: string;
@@ -289,6 +295,8 @@ export type WebViewProps = ViewProps & {
   onVaultSubmitted?: (submission: VaultSubmission) => void;
   onVaultContext?: (field: VaultContextField) => void;
   onVaultContextAction?: (action: VaultContextAction) => void;
+  onVaultCode?: (code: VaultCodeFound) => void;
+  onVaultCodeAction?: (action: VaultCodeAction) => void;
   onAutofillSuggestions?: (count: number) => void;
 };
 
@@ -347,6 +355,7 @@ export type WebViewHandle = {
     target?: VaultFillTarget;
   }): Promise<{ filled: VaultFilledField[] }>;
   setVaultContextMenu(request: { frameId: string; origin: string; menu: VaultContextMenu }): Promise<void>;
+  setVaultCodeMenu(request: { token: string; menu: VaultCodeMenu }): Promise<void>;
   setVaultMenu(request: { frameId: string; open: boolean; highlighted: boolean }): Promise<void>;
   saveToVault(request: VaultSaveRequest): Promise<VaultSaveResult>;
   discardVaultCapture(request: { origin: string }): Promise<void>;

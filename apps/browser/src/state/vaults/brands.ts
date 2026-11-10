@@ -3,6 +3,7 @@ import { BRAND_ACCENTS, NEUTRAL_BRAND_ACCENT } from "./tokens";
 export type VaultBrand = { id: string; name: string; symbol: string; install: string };
 
 export const VAULT_BRANDS: readonly VaultBrand[] = [
+  { id: "ardia", name: "Ardia", symbol: "key.fill", install: "" },
   { id: "1password", name: "1Password", symbol: "key.horizontal.fill", install: "brew install --cask 1password-cli" },
   { id: "bitwarden", name: "Bitwarden", symbol: "shield.lefthalf.filled", install: "brew install bitwarden-cli" },
   { id: "protonpass", name: "Proton Pass", symbol: "lock.shield.fill", install: "brew install protonpass/tap/pass-cli" },

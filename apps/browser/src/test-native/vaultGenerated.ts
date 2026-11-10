@@ -29,8 +29,8 @@ export const generatedVaultHandlers = {
     generatedFakes.copies.push(id);
     return { copied: true, clearsAfter: 90 };
   },
-  saveGenerated: ({ id, provider, username }: CallArgs<"vaults.saveGenerated">) => {
-    generatedFakes.saves.push(username === undefined ? { id, provider } : { id, provider, username });
+  saveGenerated: ({ id, provider, username, profile }: CallArgs<"vaults.saveGenerated">) => {
+    generatedFakes.saves.push({ id, provider, ...(username === undefined ? {} : { username }), ...(provider === "ardia" ? { profile } : {}) });
     const entry = generatedFakes.entries.find((e) => e.id === id);
     if (!entry) return { saved: false, error: "notFound" };
     const name = username?.trim() || entry.username;

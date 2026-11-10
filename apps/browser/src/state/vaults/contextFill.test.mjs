@@ -119,3 +119,23 @@ test("with the managers locked the list offers Unlock Passwords, which unlocks a
   assert.equal(menu.vaultMenuOf(tabId)?.mode, "matches");
   assert.ok(rowsOfMenu(menu.vaultMenuOf(tabId)).some((r) => r.kind === "login"));
 });
+
+test("with every manager signed out a right-click still gets the Autofill list, saying No Saved Logins", async () => {
+  const { tabId } = await setup("signedOut");
+  context.noteVaultContext(tabId, plain());
+  await settle();
+  assert.deepEqual(calls.filter(([kind]) => kind === "contextMenu").at(-1)[1].menu, { logins: [], unlock: false, other: false, note: "No Saved Logins" });
+});
+
+test("the Suggest checkboxes shape the right-click list: no codes, then codes only", async () => {
+  const { tabId } = await setup();
+  S().updateSettings({ vaultSuggestCodes: false });
+  context.noteVaultContext(tabId, plain());
+  await settle();
+  assert.deepEqual(calls.filter(([kind]) => kind === "contextMenu").at(-1)[1].menu.logins[0].fields, ["username", "password"]);
+  S().updateSettings({ vaultSuggestCodes: true, vaultSuggestLogins: false });
+  context.noteVaultContext(tabId, plain({ frameId: "f4" }));
+  await settle();
+  assert.deepEqual(calls.filter(([kind]) => kind === "contextMenu").at(-1)[1].menu.logins[0].fields, ["otp"]);
+  S().updateSettings({ vaultSuggestLogins: true });
+});

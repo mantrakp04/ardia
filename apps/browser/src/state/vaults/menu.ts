@@ -12,7 +12,9 @@ import { currentGeneratedPasswords, searchGenerated } from "./generated";
 import { hasFillRow, hasMatchRow, MAX_SEARCH_ROWS, menuRows, restingRow, type MenuMode, type VaultRow } from "./menuModel";
 import { isSecureOrigin } from "./originMatch";
 import { pendingFor } from "./pendingTotp";
+import { itemsForProfile, passwordProfileOfTab } from "./ardia";
 import { allVaultItems, anyVaultConnected, currentPendingTotp, currentVaultProviders, loadAllVaultItems, useVaults } from "./store";
+import { suggestOf } from "./suggest";
 import type { VaultFieldEvent, VaultFieldKind, VaultRect } from "./types";
 
 export type FrameId = VaultFieldEvent["frameId"];
@@ -41,6 +43,7 @@ export type VaultMenu = {
   touch: VaultTouchPhase;
   touchRetries: number;
   touchRearms: number;
+  profile: string | null;
 };
 
 type FieldSeen = VaultFieldEvent & { at: number };
@@ -120,15 +123,18 @@ export function rowsOfMenu(menu: VaultMenu): VaultRow[] {
     origin: menu.origin,
     query: menu.query,
     providers: currentVaultProviders(),
-    items: allVaultItems(),
+    items: itemsForProfile(allVaultItems(), menu.profile),
     pending: pendingFor(currentPendingTotp(), menu.origin, Date.now()),
     noTotp: new Set(menu.noTotp),
     remembered: menu.remembered,
     email: menu.email,
     generated: menu.mode === "search" ? searchGenerated(currentGeneratedPasswords(), menu.query, MAX_SEARCH_ROWS) : [],
     suggestOpen: menu.suggestOpen,
+    suggest: currentVaultSuggest(),
   });
 }
+
+export const currentVaultSuggest = () => suggestOf(useBrowser.getState().settings);
 
 export const restingRowOf = (menu: VaultMenu) => restingRow(rowsOfMenu(menu), menu.remembered);
 
@@ -146,7 +152,7 @@ export function dismissVaultMenu(tabId: string, refocus = false) {
   closeVaultMenu(tabId, refocus);
 }
 
-const blankMenu = (field: FieldSeen, onDemand: boolean): VaultMenu => ({
+const blankMenu = (field: FieldSeen, onDemand: boolean, profile: string | null = null): VaultMenu => ({
   seq: 0,
   frameId: field.frameId,
   origin: field.origin,
@@ -168,12 +174,13 @@ const blankMenu = (field: FieldSeen, onDemand: boolean): VaultMenu => ({
   touch: "off",
   touchRetries: 0,
   touchRearms: 0,
+  profile,
 });
 
 function openMenu(tabId: string, field: FieldSeen, onDemand: boolean) {
   const old = vaultMenuOf(tabId);
   if (old && old.frameId !== field.frameId) tellPage(tabId, old.frameId, false);
-  const menu: VaultMenu = { ...blankMenu(field, onDemand), seq: ++seq };
+  const menu: VaultMenu = { ...blankMenu(field, onDemand, passwordProfileOfTab(tabId)), seq: ++seq };
   const resting = restingRowOf(menu);
   const opened = { ...menu, selected: resting };
   setMenu(tabId, opened);
@@ -196,7 +203,7 @@ async function offerOnFocus(tabId: string, field: FieldSeen) {
   const now = lastVaultField(tabId);
   if (!canOffer(now) || now.at !== field.at || vaultMenuOf(tabId) || declinedNow(tabId, now) || !now.main || !suggestOnFocus()) return;
   if (isQuiet(tabId, now)) return;
-  if (hasMatchRow(rowsOfMenu(blankMenu(now, false)))) openMenu(tabId, now, false);
+  if (hasMatchRow(rowsOfMenu(blankMenu(now, false, passwordProfileOfTab(tabId))))) openMenu(tabId, now, false);
 }
 
 function openOnDemand(tabId: string, field: FieldSeen) {

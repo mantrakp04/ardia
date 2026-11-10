@@ -20,7 +20,7 @@ import type { ClearSiteDataResult, SiteSettings, SiteSettingType, SiteSettingVal
 import type { LinkRoute, TabStripCommand, TabStripTransaction } from "../tabs";
 import type { PageCookie, PageEngine, PasskeyAccess } from "../webkit";
 import type { DisplayMediaSource, VaultPasswordStyle } from "../pageTypes";
-import type { VaultCopyError, VaultGeneratedPassword, VaultGeneratedSaveResult, VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultSyncResult, VaultTotp } from "../vaults";
+import type { VaultAddTotpResult, VaultCopyError, VaultGeneratedPassword, VaultGeneratedSaveResult, VaultItem, VaultProviderId, VaultProviderState, VaultSecretField, VaultSyncResult, VaultTotp } from "../vaults";
 
 type Profile = { profile: string };
 type Done = Record<string, never> | null;
@@ -170,7 +170,8 @@ export type EngineCalls = {
   "webView.setSplitLinkModifier": [{ modifier: "alt" | "altShift" }, null];
   "webView.setPeekOtherSiteTabs": [{ tabIds: string[] }, null];
   "webView.setSelectionPopover": [{ enabled: boolean }, null];
-  "webView.setVaultContextMenu": [{ autofill: boolean; generate: { style: string; title: string }[] }, null];
+  "webView.setVaultContextMenu": [{ autofill: boolean; generate: { style: string; title: string }[]; generateAnyField?: boolean }, null];
+  "webView.setVaultCodeSetup": [{ enabled: boolean }, null];
   "webView.setCommandScrollZoom": [{ enabled: boolean }, null];
   "webView.setLittleArdiaOpensNewTabLinks": [{ enabled: boolean }, null];
   "webView.setAutoPictureInPicture": [{ enabled: boolean }, null];
@@ -204,15 +205,16 @@ export type EngineCalls = {
     { idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; iCloudSync: boolean; lockOnQuit: boolean; lockOnScreenLock: boolean },
     Record<string, never>,
   ];
-  "vaults.export": [{ provider: VaultProviderId }, { saved: boolean; count: number; declined?: boolean }];
+  "vaults.export": [{ provider: VaultProviderId; profile?: string }, { saved: boolean; count: number; declined?: boolean }];
   "vaults.sync": [{}, VaultSyncResult];
   "vaults.syncStatus": [{}, VaultSyncResult];
   "vaults.biometrics": [{}, { available: boolean }];
   "vaults.listGenerated": [{}, VaultGeneratedPassword[]];
   "vaults.copyGenerated": [{ id: string }, { copied: boolean; declined?: boolean; error?: VaultCopyError; clearsAfter: number }];
-  "vaults.saveGenerated": [{ id: string; provider: VaultProviderId; username?: string }, VaultGeneratedSaveResult];
+  "vaults.saveGenerated": [{ id: string; provider: VaultProviderId; username?: string; profile?: string }, VaultGeneratedSaveResult];
   "vaults.deleteGenerated": [{ id: string }, { deleted: boolean }];
   "vaults.setGeneratedRetention": [{ days: number }, Record<string, never>];
+  "vaults.addTotp": [{ provider: VaultProviderId; id: string; token: string }, VaultAddTotpResult];
 };
 
 export type EngineEvents = {

@@ -42,7 +42,7 @@ public class VaultsModule: Module {
 
   static func provider(_ args: CallArgs) throws -> String {
     let id = try args.text("provider")
-    guard VaultRegistry.provider(id) != nil else { throw BadCallArgs(message: "\(id) isn't a password manager Ardia knows") }
+    guard VaultRegistry.provider(id) != nil || id == ArdiaVault.id else { throw BadCallArgs(message: "\(id) isn't a password manager Ardia knows") }
     return id
   }
 
@@ -55,7 +55,7 @@ public class VaultsModule: Module {
     Task { reply.ok(await work()) }
   }
 
-  static let calls = CallTable(domain: "vaults", handlers: generatedCalls.handlers.merging([
+  static let calls = CallTable(domain: "vaults", handlers: generatedCalls.handlers.merging(totpSetupCalls.handlers) { _, listed in listed }.merging([
     "providers": { _, reply in VaultsModule.answer(reply) { await VaultBroker.shared.providerStates().map { $0.jsonObject() } } },
     "refresh": { args, reply in
       let id = try VaultsModule.provider(args)
@@ -103,7 +103,8 @@ public class VaultsModule: Module {
     },
     "export": { args, reply in
       let id = try VaultsModule.provider(args)
-      VaultsModule.answer(reply) { await VaultBroker.shared.export(id).jsonObject() }
+      let profile = args.profile
+      VaultsModule.answer(reply) { await VaultBroker.shared.export(id, profile: profile).jsonObject() }
     },
     "setOptions": { args, reply in
       let minutes = try args.double("idleLockMinutes")

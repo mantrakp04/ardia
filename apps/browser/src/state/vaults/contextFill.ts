@@ -5,10 +5,11 @@ import { showToast } from "../app/toasts";
 import { useBrowser } from "../browser/store";
 import { noteFilledUsername, rememberedVaultAccount, rememberVaultAccount } from "./accounts";
 import { openPasswordSettings, unlockProvider } from "./actions";
+import { itemsForTab } from "./ardia";
 import { contextLoginKey, contextMenuModel, contextMenuOptions, fillFieldOf, menuFieldOf, pickedFillFields } from "./contextMenuModel";
 import { CONTEXT_TARGET, forgetContextPick, markContextPick } from "./contextTarget";
 import { fillErrorText } from "./fill";
-import { noteVaultField, showAllPasswords, vaultMenuOf } from "./menu";
+import { currentVaultSuggest, noteVaultField, showAllPasswords, vaultMenuOf } from "./menu";
 import { allVaultItems, anyVaultConnected, currentVaultProviders, loadAllVaultItems, loadVaultItems, useVaults } from "./store";
 
 const contexts = new Map<string, VaultContextField>();
@@ -27,23 +28,24 @@ function sendMenu(tabId: string, field: VaultContextField) {
   const menu = contextMenuModel({
     origin: field.origin,
     providers: currentVaultProviders(),
-    items: allVaultItems(),
+    items: itemsForTab(allVaultItems(), tabId),
     remembered: rememberedVaultAccount(field.origin),
+    suggest: currentVaultSuggest(),
   });
   void webviews.get(tabId)?.setVaultContextMenu({ frameId: field.frameId, origin: field.origin, menu })?.catch(() => undefined);
 }
 
 export function noteVaultContext(tabId: string, field: VaultContextField) {
   contexts.set(tabId, field);
-  if (!anyVaultConnected()) return;
   sendMenu(tabId, field);
+  if (!anyVaultConnected()) return;
   void loadAllVaultItems().then(() => isCurrent(tabId, field) && sendMenu(tabId, field));
 }
 
-const itemOf = (key: string): VaultItem | undefined => allVaultItems().find((item) => contextLoginKey(item) === key);
+const itemOf = (tabId: string, key: string): VaultItem | undefined => itemsForTab(allVaultItems(), tabId).find((item) => contextLoginKey(item) === key);
 
 async function fillChoice(tabId: string, field: VaultContextField, action: Extract<VaultContextAction, { action: "fill" }>) {
-  const item = itemOf(action.login);
+  const item = itemOf(tabId, action.login);
   const web = webviews.get(tabId);
   if (!item || !web) return toast(tabId, "This login is no longer in your password manager.", true);
   const request = {
@@ -129,7 +131,7 @@ export function runVaultContextAction(tabId: string, action: VaultContextAction)
 export function startVaultContextMenu() {
   let sent = "";
   const push = () => {
-    const options = contextMenuOptions(anyVaultConnected(), useBrowser.getState().settings.vaultContextGenerate === true);
+    const options = contextMenuOptions(currentVaultSuggest(), useBrowser.getState().settings.vaultContextGenerate);
     const key = JSON.stringify(options);
     if (key === sent) return;
     sent = key;

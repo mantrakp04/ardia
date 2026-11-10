@@ -127,6 +127,9 @@ enum PageViewDefinition {
       AsyncFunction("setVaultContextMenu") { (view: V, frameId: String, origin: String, menu: [String: Any]) in
         view.page.setVaultContextMenu(frameId: frameId, origin: origin, menu: menu)
       }.runOnQueue(.main)
+      AsyncFunction("setVaultCodeMenu") { (view: V, token: String, menu: [String: Any]) in
+        view.page.setVaultCodeMenu(token: token, menu: menu)
+      }.runOnQueue(.main)
       AsyncFunction("setVaultMenu") { (view: V, frameId: String, open: Bool, highlighted: Bool) in
         view.page.setVaultMenu(frameId: frameId, open: open, highlighted: highlighted)
       }.runOnQueue(.main)

@@ -33,10 +33,11 @@ actor VaultBroker {
     if refreshing == nil {
       refreshing = Task { await self.refreshAll() }
     }
-    return VaultRegistry.providers.map { states[$0.id] ?? placeholder($0) }
+    return VaultRegistry.providers.map { states[$0.id] ?? placeholder($0) } + [ArdiaVaultIndex.knownState]
   }
 
   func refresh(_ id: String, explicit: Bool = false) async -> VaultProviderState? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.refreshState(explicit: explicit) }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     if explicit {
       sessions.clearScratch(id)
@@ -46,6 +47,8 @@ actor VaultBroker {
   }
 
   func items(_ id: String?) async -> [VaultItem] {
+    var ardia: [VaultItem] = []
+    if id == nil || id == ArdiaVault.id { ardia = await ArdiaVaultIndex.shared.items() }
     let providers = VaultRegistry.providers.filter { id == nil || $0.id == id }
     let lists = await withTaskGroup(of: (String, [VaultItem]).self, returning: [String: [VaultItem]].self) { group in
       for provider in providers {
@@ -58,10 +61,11 @@ actor VaultBroker {
       for await (providerId, list) in group { collected[providerId] = list }
       return collected
     }
-    return providers.flatMap { lists[$0.id] ?? [] }
+    return ardia + providers.flatMap { lists[$0.id] ?? [] }
   }
 
   func lock(_ id: String) async -> VaultProviderState? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.refreshState() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     VaultLockPolicy.forgetUnlockedAtQuit()
     if storeOpen { lockedWhileOpen.insert(id) }
@@ -82,6 +86,7 @@ actor VaultBroker {
     reconnecting?.cancel()
     reconnecting = nil
     VaultOwnerCheck.reset()
+    VaultTotpSetup.forgetAll()
     let open = Set(sessions.unlockedProviders).union(states.values.filter { $0.state == .unlocked }.map(\.id))
     for provider in VaultRegistry.providers where !open.contains(provider.id) { dropItems(provider.id, announce: true) }
     for id in open { _ = await lock(id) }
@@ -94,6 +99,7 @@ actor VaultBroker {
   }
 
   func signOut(_ id: String) async -> VaultProviderState? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.refreshState() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     sessions.cancelRunning(id)
     if let cli = VaultCLI.make(for: provider, sessions: sessions) {
@@ -105,6 +111,7 @@ actor VaultBroker {
   }
 
   func configure(_ id: String, server: String?) async -> VaultProviderState? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.refreshState() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return await currentState(provider) }
     let problem = await lane(id).run { await provider.configure(cli, server: server) }
@@ -114,6 +121,7 @@ actor VaultBroker {
   }
 
   func signIn(_ id: String, fields: VaultSignInFields) async -> VaultSignInResult? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.signInResult() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return await missingTool(provider) }
     let result = await lane(id).run { await provider.signIn(cli, fields: fields) }
@@ -121,6 +129,7 @@ actor VaultBroker {
   }
 
   func unlock(_ id: String, password: String?) async -> VaultSignInResult? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.signInResult() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     if password == nil, opensFromStore(id) { return await unlockFromStore(provider) }
     guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return await missingTool(provider) }
@@ -132,12 +141,14 @@ actor VaultBroker {
   }
 
   func cancelSignIn(_ id: String) async -> VaultProviderState? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.refreshState() }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     sessions.cancelRunning(id)
     return await currentState(provider)
   }
 
   func copy(_ id: String, item: String, field: VaultCopyField) async -> VaultCopyResult {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.copy(id: item, field: field) }
     guard let provider = VaultRegistry.provider(id) else { return .refused(.notFound) }
     if field == .password, !(await ownerAllows("copy your password")) { return .declined }
     switch await secret(provider, item: item, field: field.field) {
@@ -155,6 +166,7 @@ actor VaultBroker {
   static let codeReuseMargin: Double = 3000
 
   func totp(_ id: String, item: String) async -> VaultTotp? {
+    if id == ArdiaVault.id { return await ArdiaVaultIndex.shared.totp(id: item) }
     guard let provider = VaultRegistry.provider(id) else { return nil }
     let outcome = await totpCode(provider, item: item)
     guard case .success(let code) = outcome else { return nil }
@@ -202,9 +214,12 @@ actor VaultBroker {
     for provider in VaultRegistry.providers { sessions.dropStored(provider.id) }
   }
 
-  func fillValues(provider providerId: String, id itemId: String, fields: [String], origin: String, userChose: Bool) async
+  func fillValues(provider providerId: String, id itemId: String, fields: [String], origin: String, userChose: Bool, profile: String? = nil) async
     -> Result<VaultFillValues, VaultFillError>
   {
+    if providerId == ArdiaVault.id {
+      return await ArdiaVaultIndex.shared.fillValues(id: itemId, fields: fields, origin: origin, userChose: userChose, profile: profile)
+    }
     guard let provider = VaultRegistry.provider(providerId) else { return .failure(.notFound) }
     guard VaultOriginMatch.isSecure(origin) else { return .failure(.insecure) }
     guard isReady(provider.id) else { return .failure(.locked) }
@@ -248,9 +263,12 @@ actor VaultBroker {
     return values.isEmpty ? .failure(.notFound) : .success(VaultFillValues(values: values, touched: touched))
   }
 
-  func save(provider providerId: String, origin: String, username: String, password: String, title: String?) async
+  func save(provider providerId: String, origin: String, username: String, password: String, title: String?, profile: String? = nil) async
     -> Result<VaultItem, VaultFillError>
   {
+    if providerId == ArdiaVault.id {
+      return await ArdiaVaultIndex.shared.save(origin: origin, username: username, password: password, profile: profile)
+    }
     guard let provider = VaultRegistry.provider(providerId) else { return .failure(.notFound) }
     guard provider.capabilities.save, !password.isEmpty else { return .failure(.failed) }
     guard VaultOriginMatch.isSecure(origin) else { return .failure(.insecure) }
@@ -277,6 +295,7 @@ actor VaultBroker {
       for provider in VaultRegistry.providers {
         group.addTask { _ = await self.refresh(provider.id) }
       }
+      group.addTask { _ = await ArdiaVaultIndex.shared.refreshState() }
     }
     refreshing = nil
   }

@@ -1,6 +1,7 @@
 import type { VaultItem, VaultPasswordStyle, VaultProviderState } from "../../platform/vaults";
 import { fillsWithoutChoice, rankItems, searchItems, TIER } from "./originMatch";
 import type { PendingTotp } from "./pendingTotp";
+import { SUGGEST_EVERYTHING, type VaultSuggest } from "./suggest";
 import { previousUsernames } from "./usernames";
 import type { VaultFieldKind } from "./types";
 
@@ -30,6 +31,7 @@ export type MenuInput = {
   email?: boolean;
   suggestOpen?: boolean;
   generated?: readonly VaultItem[];
+  suggest?: VaultSuggest;
 };
 
 export const MAX_CODE_ROWS = 4;
@@ -82,23 +84,33 @@ function unlockRows(input: MenuInput): VaultRow[] {
     .map((p): VaultRow => ({ key: `unlock:${p.id}`, kind: "unlock", provider: p.id, name: p.name }));
 }
 
+function savedRows(input: MenuInput, items: readonly VaultItem[], suggest: VaultSuggest): VaultRow[] {
+  const ranked = rankItems(items, input.origin, input.remembered ?? null);
+  if (input.field === "otp") return suggest.codes ? codeRows(input, ranked) : [];
+  const rows = suggest.logins ? ranked.map((r) => loginRow(r.item, input.origin)) : [];
+  if (input.field === "username" && suggest.usernames) rows.push(...usernameRows(input, items, rows));
+  return rows;
+}
+
+const wantsSaved = (field: VaultFieldKind, suggest: VaultSuggest) =>
+  field === "otp" ? suggest.codes : field === "username" ? suggest.logins || suggest.usernames : suggest.logins;
+
 export function menuRows(input: MenuInput): VaultRow[] {
+  const suggest = input.suggest ?? SUGGEST_EVERYTHING;
   const unlocked = new Set(input.providers.filter((p) => p.state === "unlocked").map((p) => p.id));
   const items = input.items.filter((i) => unlocked.has(i.provider));
   if (input.mode === "search") {
-    const kept = (input.generated ?? []).map((item): VaultRow => ({ key: `login:${itemKey(item)}`, kind: "login", item, userChose: true }));
+    const kept = suggest.generated ? (input.generated ?? []).map((item): VaultRow => ({ key: `login:${itemKey(item)}`, kind: "login", item, userChose: true })) : [];
     return [...kept, ...searchItems(items, input.query, MAX_SEARCH_ROWS).map((item) => loginRow(item, input.origin))];
   }
   if (input.field === "newPassword") {
-    const generators = unlocked.size ? GENERATOR_STYLES.map(generateRow) : [];
-    return [...generators, ...unlockRows(input), OPEN_PASSWORDS];
+    if (!suggest.newPasswords) return [OPEN_PASSWORDS];
+    return [...(unlocked.size ? GENERATOR_STYLES.map(generateRow) : []), ...unlockRows(input), OPEN_PASSWORDS];
   }
-  const ranked = rankItems(items, input.origin, input.remembered ?? null);
-  const rows: VaultRow[] = input.field === "otp" ? codeRows(input, ranked) : ranked.map((r) => loginRow(r.item, input.origin));
-  if (input.field === "username") rows.push(...usernameRows(input, items, rows));
-  rows.push(...unlockRows(input));
+  const rows = savedRows(input, items, suggest);
+  if (wantsSaved(input.field, suggest)) rows.push(...unlockRows(input));
   const matched = hasMatchRow(rows);
-  if (input.field === "password" && unlocked.size) rows.push(...(input.suggestOpen ? GENERATOR_STYLES.map(spareGenerateRow) : [SUGGEST]));
+  if (input.field === "password" && unlocked.size && suggest.newPasswords) rows.push(...(input.suggestOpen ? GENERATOR_STYLES.map(spareGenerateRow) : [SUGGEST]));
   return matched ? [...rows, OTHER_PASSWORDS] : [...rows, OTHER_PASSWORDS, SETTINGS];
 }
 

@@ -158,3 +158,48 @@ test("username fields add usernames used before after the matching logins, email
   assert.equal(restingRow(signUp), 0);
   assert.ok(!kinds(menuRows({ ...base, items })).includes("username"), "password fields don't list usernames");
 });
+
+const ALL = { logins: true, codes: true, usernames: true, newPasswords: true, generated: true };
+
+test("Saved Logins off hides login rows and their unlock rows, but keeps usernames used before and Other Passwords", () => {
+  const providers = [provider("bitwarden"), provider("protonpass", "locked")];
+  const items = [item("a", ["example.com"], { username: "me@example.com" }), item("b", ["b.test"], { username: "handle" })];
+  const suggest = { ...ALL, logins: false };
+  assert.deepEqual(kinds(menuRows({ ...base, providers, items, suggest })), ["suggest", "allPasswords", "settings"]);
+  assert.deepEqual(kinds(menuRows({ ...base, field: "username", providers, items, suggest })), ["username", "username", "unlock:protonpass", "allPasswords"]);
+  assert.deepEqual(kinds(menuRows({ ...base, mode: "search", items, suggest })), ["login:a", "login:b"], "searching is still the person's own pick");
+});
+
+test("Verification Codes off empties a code field's menu, so it never opens on focus", () => {
+  const items = [item("a", ["example.com"], { hasTotp: true })];
+  const rows = menuRows({ ...base, field: "otp", items, providers: [provider("bitwarden"), provider("protonpass", "locked")], suggest: { ...ALL, codes: false } });
+  assert.deepEqual(kinds(rows), ["allPasswords", "settings"]);
+  assert.equal(hasMatchRow(rows), false);
+});
+
+test("Previous Usernames off keeps only the site's logins on a username field", () => {
+  const items = [item("site", ["example.com"]), item("x", ["x.test"], { username: "handle" })];
+  assert.deepEqual(kinds(menuRows({ ...base, field: "username", items, suggest: { ...ALL, usernames: false } })), ["login:site", "allPasswords"]);
+});
+
+test("New Passwords off drops the generators and Suggest New Password everywhere", () => {
+  const suggest = { ...ALL, newPasswords: false };
+  assert.deepEqual(kinds(menuRows({ ...base, field: "newPassword", providers: [provider("bitwarden"), provider("protonpass", "locked")], suggest })), ["openPasswords"]);
+  assert.deepEqual(kinds(menuRows({ ...base, items: [item("a", ["example.com"])], suggest, suggestOpen: true })), ["login:a", "allPasswords"]);
+});
+
+test("Generated Passwords off leaves the kept ones out of Other Passwords", () => {
+  const generated = [{ provider: "generated", id: "g1", title: "example.com", username: "", urls: ["https://example.com"] }];
+  const items = [item("a", ["example.com"])];
+  assert.deepEqual(kinds(menuRows({ ...base, mode: "search", items, generated })), ["login:g1", "login:a"]);
+  assert.deepEqual(kinds(menuRows({ ...base, mode: "search", items, generated, suggest: { ...ALL, generated: false } })), ["login:a"]);
+});
+
+test("every Suggest checkbox starts on, and each maps to its own kind", async () => {
+  const { DEFAULT_SETTINGS } = await import("../settings/settings.ts");
+  const { suggestOf } = await import("./suggest.ts");
+  assert.deepEqual(suggestOf(DEFAULT_SETTINGS), ALL);
+  assert.equal(DEFAULT_SETTINGS.vaultContextGenerate, false, "generating into any text field stays off");
+  assert.equal(DEFAULT_SETTINGS.vaultSuggestOnFocus, true);
+  assert.deepEqual(suggestOf({ ...DEFAULT_SETTINGS, vaultSuggestCodes: false, vaultSuggestGenerated: false }), { ...ALL, codes: false, generated: false });
+});

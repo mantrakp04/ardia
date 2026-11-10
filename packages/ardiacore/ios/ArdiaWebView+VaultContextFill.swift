@@ -11,7 +11,8 @@ extension ArdiaWebView {
       return completion(["filled": [String](), "error": VaultFillError.originMismatch.rawValue])
     }
     Task { @MainActor in
-      let result = await VaultBroker.shared.fillValues(provider: provider, id: id, fields: fields, origin: frameOrigin, userChose: true)
+      let result = await VaultBroker.shared.fillValues(provider: provider, id: id, fields: fields, origin: frameOrigin, userChose: true,
+                                                       profile: ArdiaHost.baseProfile(of: self.profile))
       switch result {
       case .failure(let error):
         completion(["filled": [String](), "error": error.rawValue])

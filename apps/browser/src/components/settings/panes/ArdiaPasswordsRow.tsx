@@ -7,6 +7,7 @@ import { passwordAutofill, setPasswordAutofillFor } from "../../../state/setting
 import { useResource } from "../../../state/settings/resources";
 import { exportPasswords, type PasswordExportStatus } from "../../../state/site/passwords";
 import { importPasswordsCsv } from "../../../state/site/savedPasswords";
+import { refreshArdiaManager } from "../../../state/vaults/ardiaManager";
 import { EXPORT_FAILED, exportQuestion } from "../../../state/vaults/export";
 import { Box, Button, Toggle } from "../../ui";
 import { BrandBadge } from "../../vaults/VaultParts";
@@ -27,6 +28,7 @@ export function ArdiaPasswordsRow({ profile, onImported }: { profile: string; on
       const skipped = result.skipped ? ` ${plural(result.skipped, "login")} couldn't be saved.` : "";
       setStatus(`Imported ${plural(result.saved, "password")}.${skipped}`);
       onImported();
+      void refreshArdiaManager();
     } catch (e) {
       setStatus(`Couldn't import that file: ${(e as Error).message}`);
     }
@@ -60,7 +62,7 @@ export function ArdiaPasswordsRow({ profile, onImported }: { profile: string; on
     >
       <Box row gap="s" center>
         <Button variant="icon" icon="ellipsis.circle" size="l" tooltip="More" onPress={() => void more()} />
-        <Toggle value={autofill} onChange={(v) => void setPasswordAutofillFor(profile, v)} />
+        <Toggle value={autofill} onChange={(v) => void setPasswordAutofillFor(profile, v).then(refreshArdiaManager)} />
       </Box>
     </Row>
   );

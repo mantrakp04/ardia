@@ -77,12 +77,35 @@ test("a pick from the list fills the classified field's whole login, or only the
   assert.equal(fillFieldOf("username"), "username");
 });
 
-test("Autofill shows once a manager is connected; Generate Password needs the setting too, with the fill menu's four styles", () => {
-  assert.deepEqual(contextMenuOptions(false, true), { autofill: false, generate: [] });
-  assert.deepEqual(contextMenuOptions(true, false), { autofill: true, generate: [] });
+const ALL = { logins: true, codes: true, usernames: true, newPasswords: true, generated: true };
+
+test("Autofill is offered with or without a connected manager; Generate Password follows New Passwords, any field only when asked", () => {
+  assert.deepEqual(contextMenuOptions(ALL, false).autofill, true);
   assert.deepEqual(
-    contextMenuOptions(true, true).generate.map((g) => g.style),
+    contextMenuOptions(ALL, false).generate.map((g) => g.style),
     ["strong", "alphanumeric", "easyToType", "passphrase"],
   );
-  assert.ok(contextMenuOptions(true, true).generate.every((g) => g.title.length > 0));
+  assert.ok(contextMenuOptions(ALL, false).generate.every((g) => g.title.length > 0));
+  assert.equal(contextMenuOptions(ALL, false).generateAnyField, false);
+  assert.equal(contextMenuOptions(ALL, true).generateAnyField, true);
+  assert.deepEqual(contextMenuOptions({ ...ALL, newPasswords: false }, true), { autofill: true, generate: [], generateAnyField: false });
+  assert.equal(contextMenuOptions({ ...ALL, logins: false }, false).autofill, true, "codes alone keep Autofill");
+  assert.equal(contextMenuOptions({ ...ALL, logins: false, codes: false }, false).autofill, false);
+});
+
+test("with no manager connected the Autofill submenu says No Saved Logins, so the item is still there", () => {
+  assert.deepEqual(contextMenuModel({ ...base, providers: [] }), { logins: [], unlock: false, other: false, note: CONTEXT_NOTES.noManager });
+  const signedOut = contextMenuModel({ ...base, providers: [provider("bitwarden", "signedOut"), provider("protonpass", "notInstalled")] });
+  assert.equal(signedOut.note, CONTEXT_NOTES.noManager);
+});
+
+test("Saved Logins off leaves only the logins with a code, offering just Verification Code", () => {
+  const items = [item("gh", ["github.com"], { hasTotp: true }), item("plain", ["github.com"], { username: "other" })];
+  const menu = contextMenuModel({ ...base, items, suggest: { ...ALL, logins: false } });
+  assert.deepEqual(menu.logins, [{ key: "bitwarden/gh", title: "octo · github.com", fields: ["otp"] }]);
+});
+
+test("Verification Codes off drops the code choice and keeps username and password", () => {
+  const menu = contextMenuModel({ ...base, items: [item("gh", ["github.com"], { hasTotp: true })], suggest: { ...ALL, codes: false } });
+  assert.deepEqual(menu.logins[0].fields, ["username", "password"]);
 });

@@ -78,6 +78,8 @@ extension WebKitTab: PageTab {
 
   func setVaultContextMenu(frameId: String, origin: String, menu: [String: Any]) {}
 
+  func setVaultCodeMenu(token: String, menu: [String: Any]) {}
+
   func setVaultMenu(frameId: String, open: Bool, highlighted: Bool) {}
 
   func saveToVault(provider: String, origin: String, title: String?, username: String?, _ completion: @escaping ([String: Any]) -> Void) {

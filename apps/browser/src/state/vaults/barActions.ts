@@ -5,6 +5,7 @@ import type { BrowserState } from "../browser/store";
 import { activeTab } from "../browser/model";
 import { filledUsername, rememberedVaultAccount } from "./accounts";
 import { copyFailureMessage, copyFromManager, lockAllProviders } from "./actions";
+import { itemsForTab, passwordManagersOnly } from "./ardia";
 import { openVaultMenuOnDemand } from "./menu";
 import { bestItem, isSecureOrigin, rankItems, sameUsername, siteLabel, TIER } from "./originMatch";
 import { allVaultItems, anyVaultConnected, currentVaultProviders } from "./store";
@@ -30,10 +31,11 @@ function shownIds(s: BrowserState, windowId: string): VaultActionId[] {
   if (!anyVaultConnected()) return [];
   const ids: VaultActionId[] = [];
   const origin = pageOrigin(activeTab(s, windowId)?.url);
-  const best = origin ? bestItem(allVaultItems(), origin) : null;
+  const tab = activeTab(s, windowId);
+  const best = origin && tab ? bestItem(itemsForTab(allVaultItems(), tab.id), origin) : null;
   if (origin) ids.push("vault:fill");
   if (best) ids.push("vault:copyPassword", "vault:copyUsername");
-  if (currentVaultProviders().some((p) => p.state === "unlocked")) ids.push("vault:lock");
+  if (passwordManagersOnly(currentVaultProviders()).some((p) => p.state === "unlocked")) ids.push("vault:lock");
   return ids;
 }
 
@@ -56,7 +58,7 @@ export function copyChoice(items: readonly VaultItem[], origin: string, filled =
 }
 
 async function copyBest(windowId: string, tabId: string, origin: string, field: VaultCopyField) {
-  const item = copyChoice(allVaultItems(), origin, filledUsername(tabId, origin), rememberedVaultAccount(origin));
+  const item = copyChoice(itemsForTab(allVaultItems(), tabId), origin, filledUsername(tabId, origin), rememberedVaultAccount(origin));
   if (!item) return;
   const outcome = await copyFromManager(item.provider, item.id, field);
   if (outcome === "copied") return showToast(windowId, COPIED[field], undefined, { icon: "doc.on.doc", key: "vaultCopy" });

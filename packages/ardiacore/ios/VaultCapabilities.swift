@@ -4,4 +4,5 @@ struct VaultCapabilities: Codable, Equatable, Sendable {
   var selfHosted: Bool
   var masterPassword: Bool
   var touchID: Bool
+  var addTotp: Bool = false
 }

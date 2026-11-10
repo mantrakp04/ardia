@@ -4,7 +4,7 @@ struct BitwardenVault: VaultProvider {
   let id = "bitwarden"
   let name = "Bitwarden"
   let binaryName = "bw"
-  let capabilities = VaultCapabilities(totp: true, save: true, selfHosted: true, masterPassword: true, touchID: true)
+  let capabilities = VaultCapabilities(totp: true, save: true, selfHosted: true, masterPassword: true, touchID: true, addTotp: true)
   let install = VaultInstall(command: "brew install bitwarden-cli", url: "https://bitwarden.com/help/cli/")
   let setup: VaultSetup? = VaultSetup(kind: .credentials)
 
@@ -183,6 +183,28 @@ struct BitwardenVault: VaultProvider {
     try check(result, redacting: [login.password])
     guard let created = VaultJSON.dict(VaultJSON.parse(result.stdout)), let saved = loginItem(created) else {
       throw VaultError.failed("Bitwarden saved the login but didn't return it.")
+    }
+    return saved
+  }
+
+  func addTotp(_ cli: VaultCLI?, id: String, uri: String) async throws -> VaultItem {
+    guard let cli, let session = cli.session else { throw VaultError.locked }
+    guard Self.isGuid(id) else { throw VaultError.notFound }
+    let environment = ["BW_SESSION": session]
+    let current = await cli.run(["get", "item", id, "--nointeraction"], environment: environment, timeout: 30)
+    try check(current)
+    guard var entry = VaultJSON.dict(VaultJSON.parse(current.stdout)), var login = VaultJSON.dict(entry["login"]) else {
+      throw VaultError.notFound
+    }
+    let hidden = [VaultJSON.string(login["password"]), VaultJSON.string(login["totp"]), uri].compactMap { $0 }.filter { !$0.isEmpty }
+    login["totp"] = uri
+    entry["login"] = login
+    guard let json = VaultJSON.data(entry) else { throw VaultError.failed("Ardia couldn't prepare the code for Bitwarden.") }
+    let input = Data(json.base64EncodedString().utf8)
+    let result = await cli.run(["edit", "item", id, "--nointeraction"], input: input, environment: environment, timeout: 60)
+    try check(result, redacting: hidden)
+    guard let edited = VaultJSON.dict(VaultJSON.parse(result.stdout)), let saved = loginItem(edited) else {
+      throw VaultError.failed("Bitwarden saved the code but didn't return the login.")
     }
     return saved
   }

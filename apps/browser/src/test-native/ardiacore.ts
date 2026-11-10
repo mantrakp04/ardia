@@ -311,6 +311,8 @@ export const vaultFakes = {
   signIns: [] as { provider: string; fields: Record<string, unknown> }[],
   unlocks: [] as { provider: string; withPassword: boolean }[],
   nextSignIn: null as Record<string, unknown> | null,
+  addedTotps: [] as CallArgs<"vaults.addTotp">[],
+  nextAddTotp: null as CallResult<"vaults.addTotp"> | null,
 };
 const vaultState = (provider: string) => vaultFakes.providers.find((p) => p.id === provider)!;
 function setVaultState(provider: string, state: FakeVaultProvider["state"]) {
@@ -517,6 +519,7 @@ const fakeModules = {
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
     setVaultContextMenu: () => null,
+    setVaultCodeSetup: () => null,
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,
@@ -559,6 +562,15 @@ const fakeModules = {
       syncStatus: () => ({ ok: true, synced: [], failed: [], syncedAt: vaultFakes.syncedAt, iCloud: true }),
       biometrics: () => ({ available: vaultFakes.biometrics }),
       cancelSignIn: ({ provider }) => vaultState(provider),
+      addTotp: (args) => {
+        vaultFakes.addedTotps.push({ ...args });
+        const next = vaultFakes.nextAddTotp;
+        vaultFakes.nextAddTotp = null;
+        if (next) return next;
+        vaultFakes.items = vaultFakes.items.map((i) => (i.provider === args.provider && i.id === args.id ? { ...i, hasTotp: true } : i));
+        const item = vaultFakes.items.find((i) => i.provider === args.provider && i.id === args.id);
+        return item ? { added: true, item } : { added: false, error: "notFound" };
+      },
     },
     {
       signIn: async (provider: string, fieldsJSON: string) => {

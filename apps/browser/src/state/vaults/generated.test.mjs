@@ -157,7 +157,7 @@ test("Fill is offered only when the active tab's last login field is on the same
   assert.deepEqual(target, { tabId, frameId: "f1", origin: "https://login.example.com" });
   assert.equal(generatedFillTarget(S(), useVaultMenus.getState().fields, "https://elsewhere.test"), null);
   assert.equal(await fillGeneratedNow({ id: "g1", origin: "https://signup.example.com" }), "filled");
-  assert.deepEqual(fills, [{ frameId: "f1", origin: "https://login.example.com", provider: "generated", id: "g1", fields: ["username", "password"], userChose: false, submit: false }]);
+  assert.deepEqual(fills, [{ frameId: "f1", origin: "https://login.example.com", provider: "generated", id: "g1", fields: ["username", "password"], userChose: true, submit: false }]);
   useVaultMenus.setState((s) => ({ ...s, fields: {} }));
   webviews.delete(tabId);
 });

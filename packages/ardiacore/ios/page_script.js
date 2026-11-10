@@ -1315,6 +1315,74 @@
       fill.touched.push(el);
       return fill;
     };
+
+    const vaultSelectionOf = window.getSelection;
+    const vaultUpper = String.prototype.toUpperCase;
+    const VAULT_CODE_URI = /otpauth:\/\//i;
+    const VAULT_CODE_KEY = /^[a-z2-7]{2,32}(?:[ -][a-z2-7]{2,32})*$/i;
+    const VAULT_CODE_LONGEST_TEXT = 2048;
+    const VAULT_CODE_PARENTS = 3;
+    const vaultCodeKeyOf = (text) => {
+      const trimmed = apply(vaultTrim, String(text || ""), []);
+      if (trimmed.length < 16 || trimmed.length > VAULT_CODE_LONGEST_TEXT) return "";
+      if (vaultHas(VAULT_CODE_URI, trimmed)) return trimmed;
+      if (trimmed.length > 160 || !vaultHas(VAULT_CODE_KEY, trimmed)) return "";
+      const groups = apply(vaultSplit, trimmed, [/[ -]/]);
+      let compact = "";
+      for (let i = 0; i < groups.length; i++) {
+        if (i < groups.length - 1 && groups[i].length !== groups[0].length) return "";
+        if (i === groups.length - 1 && groups.length > 1 && groups[i].length > groups[0].length) return "";
+        compact += groups[i];
+      }
+      if (compact.length < 16 || compact.length > 128) return "";
+      const shouted = compact === apply(vaultUpper, compact, []);
+      return shouted || vaultHas(/[2-7]/, compact) ? trimmed : "";
+    };
+    const vaultCodeSelection = (el) => {
+      if (vaultIsInput(el)) {
+        const value = vaultValueOf(el);
+        const from = el.selectionStart, to = el.selectionEnd;
+        if (typeof from === "number" && typeof to === "number" && to > from) return value.slice(from, to);
+        return el.readOnly ? value : "";
+      }
+      if (typeof vaultSelectionOf !== "function") return "";
+      const selection = apply(vaultSelectionOf, window, []);
+      return selection ? String(selection) : "";
+    };
+    const vaultCodeImageOf = (el) => {
+      const svg = apply(vaultClosest, el, ["svg"]);
+      if (svg) return svg;
+      for (let n = el, depth = 0; n && n.nodeType === 1 && depth <= VAULT_CODE_PARENTS; n = n.parentNode, depth++) {
+        const tag = apply(vaultUpper, String(n.tagName || ""), []);
+        if (tag === "IMG" || tag === "CANVAS" || tag === "PICTURE" || tag === "OBJECT" || tag === "EMBED") return n;
+        const style = apply(vaultStyleOf, window, [n]);
+        const background = style && style.backgroundImage;
+        if (typeof background === "string" && vaultHas(/url\(/i, background)) return n;
+      }
+      return null;
+    };
+    const vaultCodeLinkOf = (el) => {
+      const link = apply(vaultClosest, el, ["a[href]"]);
+      const href = link ? vaultAttr(link, "href") : "";
+      return vaultHas(/^\s*otpauth:\/\//i, href) ? href : "";
+    };
+    apply(vaultListen, window, [
+      "contextmenu",
+      guard((e) => {
+        if (!e.isTrusted) return;
+        let el = vaultTargetOf(e);
+        if (el && el.nodeType !== 1) el = el.parentElement;
+        if (!el || el.nodeType !== 1) return send("vaultCodeTarget", {});
+        const text = vaultCodeKeyOf(vaultCodeSelection(el)) || vaultCodeKeyOf(vaultCodeLinkOf(el));
+        if (text) return send("vaultCodeTarget", { text, rect: vaultRect(el) });
+        const image = vaultIsInput(el) ? null : vaultCodeImageOf(el);
+        if (!image) return send("vaultCodeTarget", {});
+        const rect = vaultRect(image);
+        const viewport = rect ? { width: window.innerWidth, height: window.innerHeight } : null;
+        send("vaultCodeTarget", { image: true, rect, viewport });
+      }),
+      vaultOptions,
+    ]);
   } catch (e) {}
 
   let pageNotification = null;
