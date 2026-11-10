@@ -12,6 +12,7 @@
     "@ardia/shell": "workspace:*"
   },
   "peerDependencies": {
+    "expo": "*",
     "react": "*",
     "react-native": "*"
   }
