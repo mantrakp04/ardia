@@ -109,7 +109,7 @@ export const TabRow = memo(function TabRow({
                 <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
                   {resetting ? (
                     <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.rowSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
                     </View>
                   ) : (
                     <View>
@@ -119,10 +119,10 @@ export const TabRow = memo(function TabRow({
                   )}
                 </Pressable>
               ) : (
-                <View>
+                <>
                   <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
                   <TabBadges tabId={tab.id} />
-                </View>
+                </>
               )}
             </View>
             {(playingAudio || mute) && (
@@ -134,13 +134,13 @@ export const TabRow = memo(function TabRow({
               <RenameField
                 initial={tab.customTitle ?? tab.title}
                 placeholder={tab.title || "Tab name"}
-                color={active ? theme.tabSelectedText : theme.textPrimary}
+                color={active ? theme.rowSelectedText : theme.textPrimary}
                 onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
               />
             ) : away ? (
-              <AwayTitleLabel away={away} color={active ? theme.tabSelectedText : theme.textTab} fontSize={font.body.fontSize} height={TAB_ROW.titleHeight} style={AWAY_FRAME} />
+              <AwayTitleLabel away={away} color={active ? theme.rowSelectedText : theme.textTab} fontSize={font.body.fontSize} height={TAB_ROW.titleHeight} style={AWAY_FRAME} />
             ) : (
-              <SidebarRowLabel text={title} color={active ? theme.tabSelectedText : theme.textTab} />
+              <SidebarRowLabel text={title} color={active ? theme.rowSelectedText : theme.textTab} />
             )}
             <HoverSlot
               hovered={hovered && !renaming}
@@ -277,7 +277,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
             }}
           >
             <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact />
-            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
+            <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={active ? theme.rowSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: space.xs }} />
           </View>
         )}
       </TabPressArea>

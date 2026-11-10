@@ -131,16 +131,13 @@ useBrowser.subscribe((s, prev) => {
   };
   const pageIds = Object.keys(pages);
   const readyIds = Object.keys(ready);
-  if (!stale(pageIds, (id) => id) && !stale(readyIds, (id) => id)) return;
-  const gone = pageIds.filter((id) => !s.tabs[id]);
-  const goneReady = readyIds.filter((id) => !s.tabs[id]);
+  const popoverIds = Object.keys(popover);
+  if (!stale(pageIds, (id) => id) && !stale(readyIds, (id) => id) && !stale(popoverIds, (id) => id)) return;
   const nextPages = { ...pages };
+  for (const id of pageIds) if (!s.tabs[id]) delete nextPages[id];
   const nextPopover = { ...popover };
-  for (const id of gone) {
-    delete nextPages[id];
-    delete nextPopover[id];
-  }
+  for (const id of popoverIds) if (!s.tabs[id]) delete nextPopover[id];
   const nextReady = { ...ready };
-  for (const id of goneReady) delete nextReady[id];
+  for (const id of readyIds) if (!s.tabs[id]) delete nextReady[id];
   usePages.setState({ pages: nextPages, ready: nextReady, popover: nextPopover });
 });

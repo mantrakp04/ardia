@@ -1,6 +1,6 @@
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
-@@ -388,6 +388,8 @@
+@@ -396,6 +396,8 @@
      "menu_manager_factory.h",
      "navigation_extension_enabler.cc",
      "navigation_extension_enabler.h",
@@ -40,7 +40,7 @@
        force_installed_tracker_(registry_, profile_),
        force_installed_metrics_(registry_, profile_, &force_installed_tracker_),
        corrupted_extension_reinstaller_(
-@@ -506,6 +510,17 @@
+@@ -508,6 +512,17 @@
  }
  #endif
  
@@ -57,7 +57,7 @@
 +
  void ExtensionService::PerformActionBasedOnExtensionTelemetryServiceVerdicts(
      const Blocklist::BlocklistStateMap& blocklist_state_map) {
-   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   CHECK_CURRENTLY_ON(BrowserThread::UI, base::NotFatalUntil::M161);
 --- a/chrome/browser/extensions/extension_service.h
 +++ b/chrome/browser/extensions/extension_service.h
 @@ -24,6 +24,7 @@

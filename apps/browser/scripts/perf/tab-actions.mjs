@@ -32,11 +32,12 @@
 // Counts per action (perf probe): React commits, renders (host wrappers included), store updates; with
 // --side-env <label>:AC_BENCH_COUNT_ADDS=1, the subviews added again (already in place) and added new (reAdds, newAdds).
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { INJECTION_ENTITLEMENTS, prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { launch } from "../../../../scripts/lib/instance.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,22 +69,6 @@ function toolLibrary(out) {
     writeFileSync(lib + ".src", readFileSync(src, "utf8"));
   }
   return lib;
-}
-
-function prepare(app, bundle, dir) {
-  const copy = join(dir, "Ardia.app");
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-  execFileSync("cp", ["-Rc", app, copy]);
-  cpSync(bundle, join(copy, "Contents/Resources/main.jsbundle"));
-  const identity = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const granted = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" });
-  const extra = ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]
-    .filter((key) => !granted.includes(`<key>${key}</key>`)).map((key) => `<key>${key}</key><true/>`).join("");
-  const entitlements = join(dir, "entitlements.plist");
-  writeFileSync(entitlements, granted.replace(/<\/dict>\s*<\/plist>\s*$/, `${extra}</dict></plist>`));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "ignore" });
-  return copy;
 }
 
 const VIS = `<script>window.__ac={vis:[]};document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible")return;const v=performance.timeOrigin+performance.now();requestAnimationFrame(()=>requestAnimationFrame(()=>__ac.vis.push({v,f:performance.timeOrigin+performance.now()})))});</script>`;
@@ -484,7 +469,7 @@ async function run() {
     const [label, bundle] = s.split("=");
     const env = Object.fromEntries(flags["side-env"].filter((e) => e.startsWith(`${label}:`)).map((e) => e.slice(label.length + 1).split("=")));
     const own = flags["side-app"].find((e) => e.startsWith(`${label}=`))?.slice(label.length + 1);
-    return { label, bundle: resolve(bundle), env, app: prepare(own ? resolve(own) : app, resolve(bundle), join(out, "apps", label)) };
+    return { label, bundle: resolve(bundle), env, app: prepareApp(own ? resolve(own) : app, join(out, "apps", label), { bundle: resolve(bundle), entitlements: INJECTION_ENTITLEMENTS }) };
   });
   const server = await serve(+(flags["page-port"] ?? 47917));
   const launches = +(flags.launches ?? 4);

@@ -126,7 +126,7 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   OTLP logs (no traces or metrics).
 - **Format:** each event is an OTLP log record. The body and the `event` attribute are the event name, plus
   `uuid`, `distinct_id`, `$session_id` (site) and every property, under PostHog's names. Senders:
-  `apps/site/src/scripts/telemetry/` and `apps/browser/src/telemetry/`. The collector
+  `apps/site/src/scripts/telemetry/` and `apps/browser/src/state/telemetry/`. The collector
   (`infra/telemetry/collector/config.yaml`) turns the visitor's address into `$geoip_country_code`/`_name` and
   `$geoip_continent_code` with DB-IP's IP to City Lite database (CC BY 4.0, a pinned monthly file checked by
   hash; `collector/fetch-geoip.mjs` falls back to the byte-identical npm mirror `dbip-city-lite` once DB-IP drops

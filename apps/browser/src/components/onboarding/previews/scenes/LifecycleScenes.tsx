@@ -1,4 +1,4 @@
-import { Animated, View } from "react-native";
+import { Animated } from "react-native";
 import { fill, type Rect, ROW, rowY, sideCard, TOOLBAR_H } from "../geometry";
 import { BLANK, tab, TRIP } from "../content";
 import { linear, tracker } from "../timeline";
@@ -55,7 +55,7 @@ export function quit(fresh: boolean): Scene {
     const quiet = { ...opts };
     return (
       <>
-        <Backdrop g={g} look={look} />
+        <Backdrop look={look} />
         <Animated.View style={[fill, fresh ? away : both]}>
           <Std g={g} look={look} opts={quiet} n={5} sel={0} />
         </Animated.View>
@@ -69,7 +69,7 @@ export function quit(fresh: boolean): Scene {
             </Card>
           </Animated.View>
         ) : null}
-        <KeyPress g={g} look={look} t={t} label="⌘Q" />
+        <KeyPress g={g} t={t} label="⌘Q" />
       </>
     );
   };
@@ -94,7 +94,7 @@ export function windows(shared: boolean): Scene {
     };
     return (
       <>
-        <Desktop g={g} look={look} />
+        <Desktop look={look} />
         <MiniArdia
           g={g}
           look={look}

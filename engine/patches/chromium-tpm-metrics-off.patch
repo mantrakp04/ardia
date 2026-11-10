@@ -1,0 +1,38 @@
+--- a/chrome/browser/metrics/chrome_browser_main_extra_parts_metrics.cc
++++ b/chrome/browser/metrics/chrome_browser_main_extra_parts_metrics.cc
+@@ -1011,7 +1011,7 @@
+ }
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++#if BUILDFLAG(IS_WIN)
+ // The startup TPM benchmark performs synchronous hardware crypto operations
+ // that are invariant for a given machine. Subsample heavily on Stable, while
+ // leaving pre-Stable channels unsampled for faster regression detection.
+@@ -1032,7 +1032,7 @@
+   }
+   NOTREACHED();
+ }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++#endif  // BUILDFLAG(IS_WIN)
+ 
+ ChromeBrowserMainExtraPartsMetrics::ChromeBrowserMainExtraPartsMetrics()
+     : display_count_(0) {}
+@@ -1173,7 +1173,7 @@
+   }
+ #endif  // BUILDFLAG(IS_WIN)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++#if BUILDFLAG(IS_WIN)
+   // Deliberately delayed and sampled to avoid contending with early crypto and
+   // DBSC operations right after startup. The measurement runs slow TPM
+   // operations, which must not block shutdown.
+@@ -1187,7 +1187,7 @@
+                        unexportable_keys::GetDefaultConfig()),
+         base::Seconds(45));
+   }
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
++#endif  // BUILDFLAG(IS_WIN)
+ 
+ #if defined(ARCH_CPU_X86_FAMILY) && \
+     (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))

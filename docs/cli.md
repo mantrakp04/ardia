@@ -6,8 +6,10 @@ run hooks and userscripts, edit its config and read its browsing data. It's a se
 bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding or in Settings ("Let the ardia
 command control Ardia").
 
-While it's connected, a pill floats over the bottom centre of the page ("Claude Code is controlling Ardia · Stop"; Stop
-turns the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after
+While it drives a page, a pill floats over the bottom centre of the page ("Claude Code is controlling Ardia · Stop", or
+"The ardia command is controlling Ardia" when it can't tell who runs it; Stop turns the setting off). It shows for a
+DevTools connection (`browse`, `scripts test`) and for `ardia run`, which presses Ardia's own commands; reading and
+organizing (`tabs`, `groups`, `apply`, `windows`, `commands`, `events`, `pinned`, `history`, `config`) never shows it. It overlays the page and never resizes it. It shows at the first connection and stays 3 s after
 the last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
 window: the focused pane of a split, the full screen page, or the Peek while one is open
 (`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`).
@@ -26,7 +28,7 @@ the client, tells the app over a short socket connection (`hello`, then `caller`
 whenever a request comes from someone else. `scripts test` does the same as it connects. The name is display only:
 it never changes what a connection may do, and both ends strip control and invisible characters and keep 40
 characters (the app keeps `app` only when it's an absolute, outermost `.app` path). When several run at once the pill
-names the most recent one; a pill that hid and shows again without a new name says "ardia".
+names the most recent one; a pill that hid and shows again without a new name says "The ardia command".
 
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13
@@ -45,8 +47,7 @@ the pins into `pyproject.toml`).
   couldn't be read or ran out of time, 2 Ardia can't be reached.
 - `ardia notes [get|set|append|list|rm] [SITE] [TEXT|-]` keeps plain-text notes per site for the user's own agent
   (see Site notes). It hands its arguments to `ardia_cli/notes.py` (`main(argv)`), which runs them as
-  `ardia browse notes …`, with the shared options given before `notes` put first. When the module isn't there it
-  prints one line and exits 1; nothing else depends on it.
+  `ardia browse notes …`, with the shared options given before `notes` put first.
 - `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
   agent skill (`ardia_cli/skill`: a `SKILL.md` of about 5K characters with the fast paths (read, batch, select,
   script, notes), plus `references/troubleshooting.md`, `script.md`, `userscripts.md`, `config.md`, `automation.md`
@@ -845,7 +846,8 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `batch_steps` (also the operations an `ardia apply`, `tabs …`
+  `output_chars` and `output_truncated`, `humanize`, `daemon_answer_timed_out` (the client gave up waiting for the
+  daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
   (`command_metrics.py`).

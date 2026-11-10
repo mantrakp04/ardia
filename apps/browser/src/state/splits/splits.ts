@@ -195,7 +195,14 @@ function withPane(existing: SplitView | undefined, anchorId: string, tabId: stri
     slots.splice(before ? k : k + 1, 0, { size: 0, tabId });
     return { ...existing, slots: evened(slots) };
   }
-  slots[k] = { size: slots[k]!.size, stack: before ? [tabId, anchorId] : [anchorId, tabId], stackSizes: [0.5, 0.5] };
+  const slot = slots[k]!;
+  if ("stack" in slot) {
+    if (slots.length > 1) return null;
+    const ids = [...slot.stack];
+    ids.splice(ids.indexOf(anchorId) + (before ? 0 : 1), 0, tabId);
+    return { ...existing, orientation: horizontal ? "horizontal" : "vertical", slots: evenSlots(ids) };
+  }
+  slots[k] = { size: slot.size, stack: before ? [tabId, anchorId] : [anchorId, tabId], stackSizes: [0.5, 0.5] };
   return { ...existing, slots };
 }
 

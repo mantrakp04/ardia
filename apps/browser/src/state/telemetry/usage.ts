@@ -7,7 +7,7 @@ import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
 import { startWatchChecks } from "./watch";
-import { appIconSetting, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
+import { appIconSetting, customColorProfiles, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
 import { utcDay } from "./daily";
 import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
@@ -26,7 +26,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -42,10 +42,14 @@ function emitCounts() {
       cli_tab_edits: counts.cliTabEdits,
       cli_group_edits: counts.cliGroupEdits,
       cli_edit_failures: counts.cliEditFailures,
+      cli_pill_shows: counts.cliPillShows,
       popover_press_closes: counts.popoverPressCloses,
       popover_escape_closes: counts.popoverEscapeCloses,
       tab_switcher_opens: counts.tabSwitcherOpens,
       tab_switcher_closed_left_out: counts.tabSwitcherClosedLeftOut,
+      approval_notices_deferred: counts.approvalNoticesDeferred,
+      reopened_pages: counts.reopenedPages,
+      reopened_pages_with_back: counts.reopenedPagesWithBack,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -63,6 +67,10 @@ export function noteCliEdits(tabEdits: number, groupEdits: number, failures: num
   counts.cliEditFailures += failures;
 }
 
+export function noteCliPillShown() {
+  counts.cliPillShows++;
+}
+
 export function notePopoverClosed(by: "press" | "escape") {
   if (by === "press") counts.popoverPressCloses++;
   else counts.popoverEscapeCloses++;
@@ -73,6 +81,15 @@ export function noteTabSwitcherOpened(closedLeftOut: number) {
   counts.tabSwitcherClosedLeftOut += closedLeftOut;
 }
 
+export function noteApprovalNoticeDeferred() {
+  counts.approvalNoticesDeferred++;
+}
+
+export function noteReopenedPage(canGoBack: boolean) {
+  counts.reopenedPages++;
+  if (canGoBack) counts.reopenedPagesWithBack++;
+}
+
 export function noteSidebarPeek(bounce: boolean) {
   counts.sidebarPeeks++;
   if (bounce) counts.sidebarPeekBounces++;
@@ -81,10 +98,18 @@ export function noteSidebarPeek(bounce: boolean) {
 const size = (o: object) => Object.keys(o).length;
 
 function watchStore() {
+  let tabCount = size(useBrowser.getState().tabs);
+  let windowCount = size(useBrowser.getState().windows);
   useBrowser.subscribe((s, prev) => {
-    if (s.tabs !== prev.tabs) counts.tabs += Math.max(0, size(s.tabs) - size(prev.tabs));
+    if (s.tabs !== prev.tabs) {
+      const now = size(s.tabs);
+      counts.tabs += Math.max(0, now - tabCount);
+      tabCount = now;
+    }
     if (s.windows !== prev.windows) {
-      counts.windows += Math.max(0, size(s.windows) - size(prev.windows));
+      const now = size(s.windows);
+      counts.windows += Math.max(0, now - windowCount);
+      windowCount = now;
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
@@ -171,7 +196,8 @@ function snapshotSettings() {
   const today = utcDay(Date.now());
   if (settingsSnapshotDay() === today) return;
   markSettingsSnapshot(today);
-  const settings = settingsSnapshot(useBrowser.getState().settings);
+  const state = useBrowser.getState();
+  const settings = { ...settingsSnapshot(state.settings), ...customColorProfiles(state.profiles) };
   void currentAppIcon()
     .catch(() => null)
     .then((icon) => capture(SETTINGS_SNAPSHOT_EVENT, { ...settings, ...appIconSetting(icon) }));

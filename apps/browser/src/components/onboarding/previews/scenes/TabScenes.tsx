@@ -16,7 +16,7 @@ export const TabsSidebar: Scene = ({ g, look, p, opts }) => {
   const field = opts.addressInSidebar;
   return (
     <>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} y={field ? LIGHTS_Y.field : LIGHTS_Y.toolbar} />
       {field ? (
         <>
@@ -70,7 +70,7 @@ export const TabsTop: Scene = ({ g, look, p }) => {
   const step = CHIP.w + CHIP.gap;
   return (
     <>
-      <Backdrop g={g} look={look} />
+      <Backdrop look={look} />
       <Lights g={g} y={LIGHTS_Y.strip} x={20.75} />
       <Card g={g} look={look} rect={c}>
         <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} icons={[21, 56, 92]} />
@@ -101,7 +101,7 @@ export function addressMove(toSidebar: boolean): Scene {
     const dy = bar.y - FIELD.y;
     return (
       <>
-        <Backdrop g={g} look={look} />
+        <Backdrop look={look} />
         <Lights g={g} style={{ transform: [{ translateY: lerp(0, (LIGHTS_Y.field - LIGHTS_Y.toolbar) * g.s) }] }} />
         <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} style={{ opacity: lerp(0, 1) }} />
         <Animated.View style={[fill, { transform: [{ translateY: lerp(0, (ROW.topWithField - ROW.top) * g.s) }] }]}>

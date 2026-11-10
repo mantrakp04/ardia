@@ -144,7 +144,6 @@ export const TabPane = memo(function TabPane({
                 width={frame.width}
                 geometry={geometry}
                 toolbar={toolbar}
-                fullscreen={fullscreen}
                 newTabShown={newTabShown}
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}

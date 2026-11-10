@@ -1,9 +1,9 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { evaluate, launch, quit } from "./perf/js-bench.mjs";
+import { prepareApp } from "../../../scripts/lib/app-copy.mjs";
+import { launch, session } from "../../../scripts/lib/instance.mjs";
 
 const { values: flags, positionals } = parseArgs({ allowPositionals: true, options: { bundle: { type: "string" }, out: { type: "string" }, port: { type: "string" } } });
 if (!positionals[0]) {
@@ -12,57 +12,29 @@ if (!positionals[0]) {
 }
 const out = resolve(flags.out ?? join(tmpdir(), "ac-hidden-pane"));
 mkdirSync(out, { recursive: true });
-let app = resolve(positionals[0]);
-if (flags.bundle) {
-  const clone = join(out, "app", "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  cpSync(resolve(flags.bundle), join(clone, "Contents/Resources/main.jsbundle"));
-  const identity = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  writeFileSync(`${clone}.entitlements.plist`, execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" }));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", `${clone}.entitlements.plist`, clone], { stdio: "inherit" });
-  app = clone;
-}
+const app = flags.bundle ? prepareApp(positionals[0], join(out, "app"), { bundle: resolve(flags.bundle) }) : resolve(positionals[0]);
 
-const data = join(out, "data");
-rmSync(data, { recursive: true, force: true });
-mkdirSync(data, { recursive: true });
 const page = (name) => `data:text/html,<title>${name}</title><p>${name}-findme</p>`;
-const tab = (id, url) => ({ id, url, title: id, favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, navigation: null, openerId: null, createdAt: Date.now(), lastActiveAt: Date.now() });
-const ids = ["a", "b", "c", "d"];
-writeFileSync(
-  join(data, "session.json"),
-  JSON.stringify({
-    version: 2,
-    profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } },
-    profileOrder: ["default"],
-    orphanedProfileData: [],
+const instance = await launch(app, {
+  data: join(out, "data"),
+  fresh: true,
+  port: flags.port,
+  onboarded: true,
+  probe: true,
+  session: session({
+    windows: [{ id: "w1", frame: [100, 100, 1200, 800] }],
+    tabs: ["a", "b", "c", "d"].map((id) => ({ id, url: page(`Tab-${id}`), title: id })),
     settings: { searchSuggestions: false, warnBeforeClosingLastTab: false, warnBeforeClosingWindow: false },
-    windows: [{ id: "w1", profileId: "default", incognito: false, tabIds: ids, activeTabIds: { default: "a" }, sidebarOpen: true, frame: [100, 100, 1200, 800], createdAt: 0 }],
-    windowOrder: ["w1"],
-    focusedWindowId: "w1",
-    tabs: ids.map((id) => ({ ...tab(id, page(`Tab-${id}`)), windowId: "w1", profileId: "default" })),
-    groups: [],
-    splits: [],
-    closedTabs: [],
-    closedWindows: [],
   }),
-);
-writeFileSync(join(data, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
-writeFileSync(join(data, "perf-probe"), "");
-
-const { pid } = await launch(app, data, Number(flags.port ?? 9795));
-const ac = (body, ms) => evaluate(data, pid, body, ms);
+  ready: { timeout: 120_000, test: "return !!ac.store.getState().windows.w1;" },
+});
+const ac = (body, ms = 120_000) => instance.eval(body, { timeout: ms });
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push(ok);
   console.log(`${ok ? "ok  " : "FAIL"} ${name}${detail ? `  (${detail})` : ""}`);
 };
 try {
-  let ready = false;
-  for (let i = 0; i < 60 && !ready; i++) ready = await ac("return !!ac.store.getState().windows.w1;", 2000).then((v) => v, () => false);
-  if (!ready) throw new Error("the dev harness never answered");
   await ac(`
     globalThis.audit = {
       frames: (n) => new Promise((r) => { let k = n || 2; const step = () => (k-- > 0 ? requestAnimationFrame(step) : r()); step(); }),
@@ -122,6 +94,6 @@ try {
       .then(() => steps);`, 60_000);
   for (const [step, want, have] of panes) check(`mounted panes after ${step}`, want === have, `want ${want} have ${have}`);
 } finally {
-  await quit(pid);
+  await instance.quit();
 }
 process.exit(results.every(Boolean) ? 0 : 1);

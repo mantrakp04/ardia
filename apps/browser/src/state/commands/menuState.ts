@@ -140,3 +140,21 @@ export function menuState(s: BrowserState): MenuState {
     shortcuts: menuBarBindings(s),
     extensions: extensionMenu(s, windowId) };
 }
+
+export type MenuReads = ReadonlySet<keyof BrowserState>;
+
+export function trackedMenuState(s: BrowserState): { state: MenuState; reads: MenuReads } {
+  const reads = new Set<keyof BrowserState>();
+  const tracked = new Proxy(s, {
+    get(target, key, receiver) {
+      if (typeof key === "string") reads.add(key as keyof BrowserState);
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  return { state: menuState(tracked), reads };
+}
+
+export function menuInputsChanged(reads: MenuReads, s: BrowserState, prev: BrowserState): boolean {
+  for (const key of reads) if (s[key] !== prev[key]) return true;
+  return false;
+}

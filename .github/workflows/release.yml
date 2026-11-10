@@ -49,7 +49,7 @@ jobs:
           [ "$project" = "$VERSION" ] || check "MARKETING_VERSION is $project: commit the bump to $VERSION first"
           [ -f "docs/release-notes/$VERSION.md" ] || check "no docs/release-notes/$VERSION.md: write and commit the notes first"
           if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then check "v$VERSION is already published"; fi
-          tree=$(git rev-parse HEAD:engine)
+          tree=$(engine/engine-key.sh)
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           {
             echo "### Ardia $VERSION ($channel)"

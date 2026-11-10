@@ -29,7 +29,6 @@ export function PageOverlays({
   width,
   geometry,
   toolbar,
-  fullscreen,
   newTabShown,
   statusStyle,
   popovers = true,
@@ -40,7 +39,6 @@ export function PageOverlays({
   width: number;
   geometry: ToolbarGeometry;
   toolbar: boolean;
-  fullscreen: boolean;
   newTabShown: boolean;
   statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
   popovers?: boolean;
@@ -88,11 +86,11 @@ export function BesidePeekPopovers({ tabId, windowId, left, top, room }: { tabId
   );
 }
 
-export function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: string; sourceId: string; windowId: string; width: number; fullscreen: boolean }) {
+export function PeekPage({ tabId, sourceId, windowId, width }: { tabId: string; sourceId: string; windowId: string; width: number }) {
   return (
     <>
       <TabWebView tabId={tabId} visible warm={false} peekOf={sourceId} />
-      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} fullscreen={fullscreen} newTabShown={false} cliPill />
+      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} newTabShown={false} cliPill />
     </>
   );
 }

@@ -97,7 +97,7 @@ export function handleControlRequest({ connection, generation: tagged, line }: C
   if ("error" in request) return send(connection, request.id, { error: request.error });
   const { id, method, params } = request;
   if (tagged !== generation || !controlOn()) return send(connection, id, failure("failed", "Control is off."));
-  const ticket = method === "run" || method === "apply" ? ++nextTicket : 0;
+  const ticket = method === "run" ? ++nextTicket : 0;
   const caller = callers.get(connection);
   if (ticket && caller) noteCliCaller(caller);
   if (ticket) {

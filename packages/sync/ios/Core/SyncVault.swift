@@ -6,6 +6,7 @@ public final class SyncVault {
   public let folder: URL
   let keys: SyncKeys
   let fileManager = FileManager.default
+  public var coordination: SyncCoordination?
 
   public init(folder: URL, keys: SyncKeys) {
     self.folder = folder
@@ -87,6 +88,7 @@ public final class SyncVault {
     public var pending: [String] = []
     public var damaged: [(id: String, age: TimeInterval)] = []
     public var present: [String] = []
+    public var timedOut = false
   }
 
   public func read(scope: String, skipping known: Set<String>) throws -> Listing {
@@ -101,10 +103,12 @@ public final class SyncVault {
     }
     let suffix = ".\(Self.fileExtension)"
     let scopeTag = keys.scopeTag(scope)
+    var present = Set<String>()
     for name in names.sorted() {
       if name.hasPrefix("."), name.hasSuffix("\(suffix).icloud") {
         let id = String(name.dropFirst().dropLast(suffix.count + ".icloud".count))
-        guard Base32.isTag(id), !listing.present.contains(id) else { continue }
+        guard Base32.isTag(id), !present.contains(id) else { continue }
+        present.insert(id)
         listing.present.append(id)
         if !known.contains(id) {
           listing.pending.append(id)
@@ -115,7 +119,7 @@ public final class SyncVault {
       guard name.hasSuffix(suffix) else { continue }
       let id = String(name.dropLast(suffix.count))
       guard Base32.isTag(id) else { continue }
-      if !listing.present.contains(id) { listing.present.append(id) }
+      if present.insert(id).inserted { listing.present.append(id) }
       if known.contains(id) { continue }
       let url = directory.appendingPathComponent(name)
       let values = try? url.resourceValues(forKeys: Set(keysToRead))
@@ -127,6 +131,9 @@ public final class SyncVault {
       do {
         let data = try coordinate(reading: url) { try Data(contentsOf: $0) }
         listing.files.append(File(id: id, payload: try keys.open(data, scopeTag: scopeTag, fileId: id)))
+      } catch is SyncCoordination.TimedOut {
+        listing.timedOut = true
+        return listing
       } catch {
         let modified = values?.contentModificationDate ?? Date()
         listing.damaged.append((id, max(0, Date().timeIntervalSince(modified))))
@@ -136,25 +143,127 @@ public final class SyncVault {
   }
 
   private func coordinate(writing url: URL, options: NSFileCoordinator.WritingOptions, _ body: (URL) throws -> Void) throws {
-    var coordinationError: NSError?
-    var bodyError: Error?
-    NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: url, options: options, error: &coordinationError) { url in
-      do { try body(url) } catch { bodyError = error }
-    }
-    if let error = coordinationError ?? bodyError { throw error }
+    try SyncCoordination.write(coordination, url, options: options, body)
   }
 
   private func coordinate<T>(reading url: URL, _ body: (URL) throws -> T) throws -> T {
+    try SyncCoordination.read(coordination, url, options: [.withoutChanges], body)
+  }
+}
+
+public final class SyncCoordination: @unchecked Sendable {
+  public struct TimedOut: Error {
+    public init() {}
+  }
+
+  public let timeout: TimeInterval
+  private let lock = NSLock()
+  private var active: [ObjectIdentifier: NSFileCoordinator] = [:]
+  private var cancelled = false
+
+  public init(timeout: TimeInterval) {
+    self.timeout = timeout
+  }
+
+  public func cancelAll() {
+    let running = lock.withLock {
+      cancelled = true
+      return Array(active.values)
+    }
+    for coordinator in running { coordinator.cancel() }
+  }
+
+  public func resume() {
+    lock.withLock { cancelled = false }
+  }
+
+  public func read<T>(_ url: URL, options: NSFileCoordinator.ReadingOptions = [], _ body: (URL) throws -> T) throws -> T {
+    try Self.read(self, url, options: options, body)
+  }
+
+  static func read<T>(_ coordination: SyncCoordination?, _ url: URL, options: NSFileCoordinator.ReadingOptions, _ body: (URL) throws -> T) throws -> T {
     var coordinationError: NSError?
     var result: Result<T, Error> = .failure(CocoaError(.fileReadUnknown))
-    NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [.withoutChanges], error: &coordinationError) { url in
-      result = Result { try body(url) }
+    try run(coordination) { coordinator, begin in
+      coordinator.coordinate(readingItemAt: url, options: options, error: &coordinationError) { url in
+        guard begin() else { return }
+        result = Result { try body(url) }
+      }
     }
     if let coordinationError { throw coordinationError }
     return try result.get()
   }
+
+  static func write(_ coordination: SyncCoordination?, _ url: URL, options: NSFileCoordinator.WritingOptions, _ body: (URL) throws -> Void) throws {
+    var coordinationError: NSError?
+    var bodyError: Error?
+    try run(coordination) { coordinator, begin in
+      coordinator.coordinate(writingItemAt: url, options: options, error: &coordinationError) { url in
+        guard begin() else { return }
+        do { try body(url) } catch { bodyError = error }
+      }
+    }
+    if let error = coordinationError ?? bodyError { throw error }
+  }
+
+  static func move(_ coordination: SyncCoordination?, _ from: URL, to: URL, _ body: (URL, URL) throws -> Void) throws {
+    var coordinationError: NSError?
+    var bodyError: Error?
+    try run(coordination) { coordinator, begin in
+      coordinator.coordinate(writingItemAt: from, options: .forMoving, writingItemAt: to, options: .forReplacing, error: &coordinationError) { source, destination in
+        guard begin() else { return }
+        do { try body(source, destination) } catch { bodyError = error }
+      }
+    }
+    if let error = coordinationError ?? bodyError { throw error }
+  }
+
+  static func run(_ coordination: SyncCoordination?, _ body: (NSFileCoordinator, _ begin: @escaping () -> Bool) -> Void) throws {
+    let coordinator = NSFileCoordinator(filePresenter: nil)
+    guard let coordination else { return body(coordinator) { true } }
+    try coordination.run(coordinator, body)
+  }
+
+  private final class Attempt {
+    var started = false
+    var expired = false
+  }
+
+  private func run(_ coordinator: NSFileCoordinator, _ body: (NSFileCoordinator, _ begin: @escaping () -> Bool) -> Void) throws {
+    let key = ObjectIdentifier(coordinator)
+    let refused = lock.withLock { () -> Bool in
+      if cancelled { return true }
+      active[key] = coordinator
+      return false
+    }
+    if refused { throw TimedOut() }
+    let attempt = Attempt()
+    let timer = DispatchWorkItem { [lock] in
+      let expire = lock.withLock { () -> Bool in
+        guard !attempt.started else { return false }
+        attempt.expired = true
+        return true
+      }
+      if expire { coordinator.cancel() }
+    }
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: timer)
+    body(coordinator) { [lock] in
+      lock.withLock { () -> Bool in
+        guard !attempt.expired, !self.cancelled else { return false }
+        attempt.started = true
+        return true
+      }
+    }
+    timer.cancel()
+    let gaveUp = lock.withLock { () -> Bool in
+      active[key] = nil
+      return !attempt.started && (attempt.expired || cancelled)
+    }
+    if gaveUp { throw TimedOut() }
+  }
 }
 
+#if os(macOS)
 public enum SyncFolder {
   public static var iCloudDrive: URL {
     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
@@ -174,3 +283,4 @@ public enum SyncFolder {
     return names.contains { Base32.isTag($0) }
   }
 }
+#endif

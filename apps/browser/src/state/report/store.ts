@@ -30,6 +30,7 @@ export type ReportSheetState = {
   sent: SentReport | null;
   preview: boolean;
   attachedOpen: boolean;
+  showProblems: boolean;
 };
 
 export const initialReportState = (): ReportSheetState => ({
@@ -46,6 +47,7 @@ export const initialReportState = (): ReportSheetState => ({
   sent: null,
   preview: false,
   attachedOpen: false,
+  showProblems: false,
 });
 
 export const useReportSheet = create<ReportSheetState>()(() => initialReportState());

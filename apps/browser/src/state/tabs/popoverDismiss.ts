@@ -54,8 +54,17 @@ export function startPopoverEscape() {
     capturing = want;
     captureEscape("popover", want);
   };
-  usePages.subscribe((s, prev) => s.popover !== prev.popover && sync());
-  useBrowser.subscribe((s, prev) => (s.ui !== prev.ui || s.tabs !== prev.tabs) && sync());
+  let stopWatchingFocus: (() => void) | null = null;
+  usePages.subscribe((s, prev) => {
+    if (s.popover === prev.popover) return;
+    const anyOpen = Object.values(s.popover).some(Boolean);
+    if (anyOpen && !stopWatchingFocus) stopWatchingFocus = useBrowser.subscribe((b, before) => (b.ui !== before.ui || b.tabs !== before.tabs) && sync());
+    if (!anyOpen && stopWatchingFocus) {
+      stopWatchingFocus();
+      stopWatchingFocus = null;
+    }
+    sync();
+  });
   onAppEvent((e) => {
     if (e.type !== "dragEscape") return;
     const open = popoverTabsInFocusedWindow();

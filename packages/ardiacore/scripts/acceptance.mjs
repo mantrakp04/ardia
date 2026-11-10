@@ -558,7 +558,7 @@ const engineOrError = (name, args = {}, ms) =>
 const secret = (module, fn, ...args) =>
   evalApp(`return globalThis.expo.modules.${module}.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}).then(JSON.parse).catch((e) => ({ error: e.message }))`);
 const extPath = join(scratch, "fixture-ext");
-cpSync(resolve(new URL(".", import.meta.url).pathname, "../../../spikes/ardiacore-host/fixtures/ext"), extPath, { recursive: true });
+cpSync(resolve(new URL(".", import.meta.url).pathname, "../tests/fixtures/ext"), extPath, { recursive: true });
 const extPopupPath = join(scratch, "fixture-ext-popup");
 function writePopupExtension({ welcome = false } = {}) {
   rmSync(extPopupPath, { recursive: true, force: true });
@@ -1662,7 +1662,7 @@ try {
     const backReachesA = async (tabId, tag) => {
       await evalApp(`ac.actions.switchToTab("${tabId}"); return true`);
       await until(`the reopened B?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page B" && !s.live["${tabId}"]?.isLoading && !!ac.webviews.get("${tabId}")`)) || null, 15000);
-      const canGoBack = await s(`!!s.live["${tabId}"]?.canGoBack`);
+      const canGoBack = await until(`Back on the reopened B?${tag}`, async () => (await s(`!!s.live["${tabId}"]?.canGoBack`)) || null, 5000).catch(() => false);
       if (!canGoBack) return { canGoBack };
       await evalApp(`return ac.webviews.get("${tabId}").goBack()`);
       const a = await until(`Back to A?${tag}`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page A" && s.tabs["${tabId}"]?.url`)) || null, 10000).catch(() => null);

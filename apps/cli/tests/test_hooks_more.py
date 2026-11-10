@@ -9,7 +9,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ardia_cli import control, hooks
+from ardia_cli import hooks
 from ardia_cli.hook_decide import Decider, parse_answer
 from ardia_cli.hook_schedule import Scheduler, next_at
 from test_automation import Base, event, wait_for

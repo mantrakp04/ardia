@@ -70,7 +70,10 @@ const SESSION_FIELDS = {
   settings: field(["settings"], (s) => s.settings),
   settingsMeta: field(["settingsMeta"], (s) => s.settingsMeta),
   windows: field(["windows"], savedWindows),
-  windowOrder: field(["windows", "windowOrder"], (s) => s.windowOrder.filter((id) => savedWindowIds(s).has(id))),
+  windowOrder: field(["windows", "windowOrder"], (s) => {
+    const kept = savedWindowIds(s);
+    return s.windowOrder.filter((id) => kept.has(id));
+  }),
   focusedWindowId: field(["windows", "ui"], savedFocus),
   lastProfileId: field(["ui"], (s) => s.ui.lastProfileId),
   launchTab: field(["windows", "tabs", "settings", "profiles", "ui"], (s) => (earlyLaunchTabOn() ? launchTab(s, savedFocus(s)) : null)),
@@ -80,8 +83,14 @@ const SESSION_FIELDS = {
     const kept = savedWindowIds(s);
     return Object.values(s.tabs).filter((t) => kept.has(t.windowId) && !isPeekTab(s, t.id)).map(persistedTab);
   }),
-  groups: field(["windows", "groups"], (s) => Object.values(s.groups).filter((g) => savedWindowIds(s).has(g.windowId))),
-  splits: field(["windows", "splits"], (s) => Object.values(s.splits).filter((v) => savedWindowIds(s).has(v.windowId))),
+  groups: field(["windows", "groups"], (s) => {
+    const kept = savedWindowIds(s);
+    return Object.values(s.groups).filter((g) => kept.has(g.windowId));
+  }),
+  splits: field(["windows", "splits"], (s) => {
+    const kept = savedWindowIds(s);
+    return Object.values(s.splits).filter((v) => kept.has(v.windowId));
+  }),
   closedTabs: field(["closedTabs"], (s) => s.closedTabs.filter((c) => publicTab(c.tab))),
   closedWindows: field(["closedWindows"], (s) => s.closedWindows.filter((c) => c.tabs.every(publicTab))),
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),

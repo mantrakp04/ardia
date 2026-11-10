@@ -193,7 +193,6 @@ try {
       const unsubscribe = ac.store.subscribe((s, p) => { if (s.windows !== p.windows) log.windows.push(performance.now() - t0); });
       const begin = ac.shell.dragPreview.begin;
       ac.shell.dragPreview.begin = (...a) => { log.picture.push(performance.now() - t0); return begin(...a); };
-      // The drag's own store says when it starts and ends (the drop's store update comes right after, in the same task).
       const stop = globalThis.acTabDrag.subscribe((d, was) => { if ((d.phase === "idle") !== (was.phase === "idle")) log.drag.push([d.phase !== "idle", performance.now() - t0]); });
       return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(${path.length * 12 * 16 + 1200})).then(() => {
         stop(); unsubscribe(); tabs.call = send; ac.shell.dragPreview.begin = begin;

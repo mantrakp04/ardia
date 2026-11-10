@@ -112,18 +112,28 @@ const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveStat
 
 export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
+const SAVE_DELAY_MS = 800;
 let timer: ReturnType<typeof setTimeout> | undefined;
+
+function save() {
+  clearTimeout(timer);
+  timer = undefined;
+  const s = live();
+  try {
+    writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
+  } catch (error) {
+    console.warn("Couldn't save live folders", error);
+  }
+}
+
+export function flushLive() {
+  if (timer !== undefined) save();
+}
+
 useLive.subscribe((s, prev) => {
   if (PERSISTED.every((k) => s[k] === prev[k])) return;
   clearTimeout(timer);
-  timer = setTimeout(() => {
-    const s = live();
-    try {
-      writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
-    } catch (error) {
-      console.warn("Couldn't save live folders", error);
-    }
-  }, 800);
+  timer = setTimeout(save, SAVE_DELAY_MS);
 });
 
 let counter = 0;

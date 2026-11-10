@@ -13,6 +13,8 @@ export const curve = {
   cssEaseOut: Easing.bezier(0, 0, 0.58, 1),
 } as const;
 
+export const currentValue = (value: Animated.Value): number => (value as unknown as { __getValue(): number }).__getValue();
+
 export const duration = {
   fast: 100,
   base: 150,

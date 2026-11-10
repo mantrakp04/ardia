@@ -16,7 +16,6 @@ const GLASS_STYLE = { control: "clear", panel: "regular" } as const;
 const STATE_GAIN = { rest: 1, lit: 2, pressed: 3, active: 6 } as const;
 const HOSTED_CONTENT = { alignItems: "center", justifyContent: "center" } as const;
 
-export type GlassKind = keyof typeof GLASS_STYLE;
 export type GlassState = keyof typeof STATE_GAIN;
 export type GlassLook = { controls: boolean; panes: boolean; tint: number };
 
