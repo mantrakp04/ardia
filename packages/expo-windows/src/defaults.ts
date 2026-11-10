@@ -1,4 +1,4 @@
-import type { ConfigFileRead, LaunchConfig } from "@ardia/shell";
+import type { ConfigFileRead, LaunchConfig, UpdaterState } from "@ardia/shell";
 import { noteMissing } from "./missing";
 
 const LAUNCH_CONFIG: LaunchConfig = {
@@ -52,6 +52,7 @@ export const moduleDefaults: Record<string, Record<string, unknown>> = {
     launchConfig: () => LAUNCH_CONFIG,
     appIcons: async () => [],
     appIcon: async () => null,
+    crashReports: async () => [],
   },
   ArdiaAppWindows: {
     windowIds: async () => [] as string[],
@@ -79,6 +80,7 @@ export const moduleDefaults: Record<string, Record<string, unknown>> = {
     setAppearance: async () => {},
   },
   ArdiaSystem: { fileExists: () => false, hapticTick: () => {} },
+  ArdiaUpdater: { updaterState: async (): Promise<UpdaterState> => ({ available: false }) },
   ArdiaTranslate: { available: false, userLanguages: () => ["en"], languageName: (id: string) => id },
   ArdiaUserScripts: { watch: () => {}, read: async () => ({ state: "empty" }), readStatus: async () => null },
 };
