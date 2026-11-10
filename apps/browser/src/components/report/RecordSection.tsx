@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Image, View } from "react-native";
-import { setIncludePages, setTrace } from "../../state/report/actions";
+import { setAttachedOpen, setIncludePages, setTrace } from "../../state/report/actions";
 import { formatBytes, formatDuration, TRACE_MAX_SECONDS } from "../../state/report/form";
 import { useReport, useReportShallow } from "../../state/report/hooks";
 import { discardRecording, startRecording } from "../../state/report/recording";
@@ -14,6 +14,11 @@ export function RecordSection() {
   const recording = useReport((s) => s.recording);
   const { includePages, kind, trace } = useReportShallow((s) => ({ includePages: s.draft.includePages, kind: s.draft.kind, trace: s.draft.trace }));
   const [watching, setWatching] = useState(false);
+  const attachedOpen = useReport((s) => s.attachedOpen);
+  const watch = (on: boolean) => {
+    if (on) setAttachedOpen(false);
+    setWatching(on);
+  };
   const recorded = recording.phase === "ready";
   return (
     <Box fill="groupFill" border="groupBorder" radius="panel" pad="l" gap="ml">
@@ -24,8 +29,8 @@ export function RecordSection() {
           seconds={recording.seconds}
           bytes={recording.bytes}
           pages={recording.includePages}
-          watching={watching}
-          onWatch={setWatching}
+          watching={watching && !attachedOpen}
+          onWatch={watch}
         />
       ) : recording.phase === "saving" ? (
         <Box row gap="m" style={CENTER_ROW}>

@@ -101,8 +101,11 @@ Record Performance Issue; Copy Diagnostics stays.
 
 - Kind · Title (live counter, 67 max) · What happened? (required) · Record the problem (with "Include web
   pages", unticked, chosen before recording) · Slow adds a 30-second capped trace · Attached (one summary
-  row, expands with checkboxes and a preview) · the 14-day watch (sharing off only) · Contact (optional).
-- Fits the default window without scrolling. Send needs a title and a description.
+  row, expands in place below itself with checkboxes and a preview, never over the recording options; watching the recording folds it) · the 14-day watch (sharing off only) · Contact (optional).
+- Fits the default window without scrolling. Send needs a title and a description (the service requires both). Send
+  stays enabled while the draft is incomplete: pressing it outlines each missing field in red with its hint ("Add a
+  title to send", "Say what happened to send"), which clears as the field is filled, and counts `report_send_blocked`
+  (`reason`: the first problem, `problems`, `kind`).
 - Recording: Ardia's windows only, 60 s max, web page areas blacked out in every frame unless included,
   watched before sending.
 - Sent screen: the reference, the GitHub issue link, "You appear to us as <name>", and the watch end date.

@@ -11,10 +11,10 @@ import { appInfo } from "../telemetry/transport";
 import { pageAddressOf, reportDiagnostics, systemLine, updateChannel } from "./details";
 import {
   buildPayload,
-  canSend,
   clampContact,
   clampDescription,
   clampTitle,
+  draftProblems,
   LOCAL_EVENTS_DAYS,
   watchDays,
   watchEndDate,
@@ -24,7 +24,7 @@ import {
   type ReportKind,
 } from "./form";
 import { discardRecording, discardTrace, lastRecordingStats, startRecording, stopRecording } from "./recording";
-import { currentReport, initialReportState, patchDraft, patchReport, useReportSheet } from "./store";
+import { currentReport, initialReportState, patchDraft, patchReport, useReportSheet, type ReportSheetState } from "./store";
 import { isBusy, sendReport, type UploadDeps, type UploadState } from "./upload";
 
 export const FEEDBACK_URL = "https://ardia.dev/api/feedback";
@@ -158,9 +158,18 @@ async function payloadContext(draft: ReportDraft, installId: string) {
   };
 }
 
+export const mayStartSending = (s: ReportSheetState) =>
+  !isBusy(s.upload) && s.recording.phase !== "recording" && s.recording.phase !== "saving" && s.trace.phase !== "tracing" && s.trace.phase !== "saving";
+
 export async function sendCurrentReport() {
   const s = currentReport();
-  if (!canSend(s.draft) || isBusy(s.upload) || s.recording.phase === "recording" || s.recording.phase === "saving" || s.trace.phase === "tracing" || s.trace.phase === "saving") return;
+  if (!mayStartSending(s)) return;
+  const problems = draftProblems(s.draft);
+  if (problems.length) {
+    patchReport({ showProblems: true });
+    capture("report_send_blocked", { reason: problems[0], problems: problems.length, kind: s.draft.kind });
+    return;
+  }
   cancelled = false;
   const resume = s.upload.phase === "failed" ? s.upload.created : null;
   const sharing = isSharing();
