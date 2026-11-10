@@ -53,6 +53,15 @@ function pointerStateAt(event: PointerLike): number {
   return state;
 }
 
+const PRESS_STATE_SAMPLES = 8;
+let pressStateSamples = 0;
+
+function notePressState(state: number) {
+  if (pressStateSamples >= PRESS_STATE_SAMPLES) return;
+  pressStateSamples += 1;
+  noteContextMenu(`a press began with pointer state ${state}`);
+}
+
 function contextMenuUnder(event: PointerLike): ContextMenuMarker | undefined {
   const found: ContextMenuMarker[] = [];
   let fiber = (event as { _targetInst?: FiberLike | null })._targetInst ?? null;
@@ -77,6 +86,7 @@ export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuAr
   const claim = useCallback(
     (event: PointerLike) => {
       const state = pointerStateAt(event);
+      notePressState(state);
       if ((state & RIGHT_DOWN) === 0 || (state & LEFT_DOWN) !== 0) return false;
       const chosen = contextMenuUnder(event) ?? marker;
       if (!chosen) return false;

@@ -9,6 +9,7 @@
 #include "LaunchLog.h"
 #include "LoggedErrors.h"
 #include "Modules.h"
+#include "PointerLatch.h"
 #include "WindowManager.h"
 
 #pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -43,6 +44,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
   Ardia::LaunchLog::OpenFromCommandLine();
   Ardia::LaunchLog::Write(L"launch", L"process started");
   Ardia::CrashLog::Install();
+  Ardia::PointerLatch::Install();
 
   WCHAR appDirectory[MAX_PATH];
   GetModuleFileNameW(NULL, appDirectory, MAX_PATH);
