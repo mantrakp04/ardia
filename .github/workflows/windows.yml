@@ -86,3 +86,53 @@ jobs:
           path: apps/browser/windows/x64/Release
           if-no-files-found: ignore
           retention-days: 7
+
+  arm64:
+    runs-on: windows-11-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Toolchain
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property catalog_productDisplayVersion
+          node --version
+          node -p "process.arch"
+      - name: Build the app
+        working-directory: apps/browser
+        run: npx react-native run-windows --release --arch ARM64 --no-launch --no-deploy --no-packager --no-telemetry --logging
+      - name: Launch it
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-arm64
+          path: ${{ runner.temp }}/launch
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: build-logs-arm64
+          path: |
+            apps/browser/windows/**/*.binlog
+            apps/browser/windows/**/*.err
+            apps/browser/windows/**/*.wrn
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-arm64
+          path: apps/browser/windows/ARM64/Release
+          if-no-files-found: ignore
+          retention-days: 7
