@@ -38,6 +38,8 @@ chromium chromium-extension-management-policy-hook.patch
 chromium chromium-extension-sync-installer-hook.patch
 chromium chromium-unpacked-load-path-hook.patch
 chromium chromium-extension-window-hidden.patch
+chromium chromium-active-web-contents-without-active-tab.patch
+chromium chromium-tpm-metrics-off.patch
 chromium chromium-component-extension-restricted-urls.patch
 chromium chromium-component-extension-disk-messages.patch
 chromium chromium-helium-ublock-off.patch
