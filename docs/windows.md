@@ -52,8 +52,12 @@ Logic is written once. Only code that calls the OS is written per platform.
   `CommandTable.h` holds both columns. The JS command catalog still shows the Mac keys in Settings.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
   Direct2D geometry in Composition shapes.
-- Without blur or gradients in Fabric on Windows, glass, materials and gradients are flat approximations until they
-  get native views (Mica and Acrylic).
+- Materials are native views (`MaterialViews.h`, the `ArdiaMaterials` module in `MaterialsModule.h`), each with the old
+  flat drawing as its fallback. A window backdrop that covers its whole window asks the system for Mica Alt behind the
+  window on Windows 11 22H2 (build 22621) and later and draws the Mac's tint over it. Visual effects, glass and popover
+  bubbles blur what is under them inside the window with a Composition backdrop brush (Gaussian blur, saturation and a
+  tint). Window and theme gradients are Composition linear gradients at their real angle. Windows 10, a background
+  instance and any failure keep the flat colours; the launch log says once which path each one took.
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
   `windowsApiVersion` in `AppModule.h`. Bump both when the Windows native surface changes. A Mac bump doesn't
   touch it.
@@ -98,7 +102,7 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 2. Chromium for Windows with the patches that apply as they are, then the first window with a real tab.
 3. ArdiaCore: split into a shared core (`.cc`) and platform files (`_mac.mm`, `_win.cc`), then write the Windows files.
 4. The Windows versions of the Mac-specific engine patches.
-5. C++ versions of what is still drawn flat or missing: glass with Mica and Acrylic, shaders with Direct3D, import
+5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
    from Edge and Chrome, file drops, swipe gestures, Windows notification toasts.
 6. Windows behaviour: Ctrl shortcuts, window controls on the right.
 7. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.

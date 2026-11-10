@@ -107,6 +107,10 @@
     <ClInclude Include="MenuPopup.h" />
     <ClInclude Include="MenuStore.h" />
     <ClInclude Include="MenusModule.h" />
+    <ClInclude Include="MaterialEffects.h" />
+    <ClInclude Include="MaterialSupport.h" />
+    <ClInclude Include="MaterialViews.h" />
+    <ClInclude Include="MaterialsModule.h" />
     <ClInclude Include="VectorGeometry.h" />
     <ClInclude Include="VectorIconView.h" />
     <ClInclude Include="VectorPath.h" />

@@ -2,6 +2,7 @@ import { forwardRef, memo, useMemo, type ReactNode } from "react";
 import { StyleSheet, View, type ViewStyle } from "react-native";
 import { Bands } from "./Bands";
 import { adjustingLightness, flatStops, hslToRgb, parseColor, rgbaString, type Rgba } from "./color";
+import { NativeWindowMaterial, nativeWindowMaterial } from "./nativeMaterials";
 import { finite, useDark, useFirstWindow, type AnyProps } from "./shared";
 
 const VIBRANCY = {
@@ -12,6 +13,8 @@ const DEFAULT_TINT: Rgba = [0.5, 0.5, 0.5, 1];
 const DEFAULT_THEME_ANGLE = 135;
 const OVERLAY_TURN = 45;
 const PAD_CELLS = 16;
+const THEME_REACH = 0.75;
+const WINDOW_MATERIAL = "micaAlt";
 
 function underColor(dark: boolean, baseAlpha?: number): Rgba {
   const look = dark ? VIBRANCY.dark : VIBRANCY.light;
@@ -21,14 +24,34 @@ function underColor(dark: boolean, baseAlpha?: number): Rgba {
   return [r, g, b, 1];
 }
 
+function tintOverMaterial(dark: boolean, baseAlpha?: number): Rgba {
+  const look = dark ? VIBRANCY.dark : VIBRANCY.light;
+  const white = dark ? 0 : 1;
+  return [white, white, white, baseAlpha ?? look.alpha];
+}
+
+function MaterialBase({ dark, baseAlpha }: { dark: boolean; baseAlpha?: number }) {
+  const fallback = rgbaString(underColor(dark, baseAlpha));
+  if (!nativeWindowMaterial()) return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fallback }]} />;
+  return (
+    <NativeWindowMaterial
+      pointerEvents="none"
+      material={WINDOW_MATERIAL}
+      fallbackColor={fallback}
+      tintColor={rgbaString(tintOverMaterial(dark, baseAlpha))}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
 function ThemeLayers({ stops, angle, opacity }: { stops: Rgba[]; angle: number; opacity?: number }) {
   if (stops.length === 0) return null;
   const base = stops.slice(0, 2);
   const overlay = stops[2];
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
-      <Bands stops={base} angle={angle} />
-      {overlay ? <Bands stops={[[overlay[0], overlay[1], overlay[2], 0], overlay]} angle={angle + OVERLAY_TURN} /> : null}
+      <Bands stops={base} angle={angle} span="base" reach={THEME_REACH} />
+      {overlay ? <Bands stops={[[overlay[0], overlay[1], overlay[2], 0], overlay]} angle={angle + OVERLAY_TURN} span="corner" count={8} /> : null}
     </View>
   );
 }
@@ -68,7 +91,7 @@ export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop
     if (theme.length > 0) {
       layers = (
         <>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: rgbaString(underColor(dark, Math.min(1, Math.max(0, finite(themeBaseAlpha, 0))))) }]} />
+          <MaterialBase dark={dark} baseAlpha={Math.min(1, Math.max(0, finite(themeBaseAlpha, 0)))} />
           <ThemeLayers stops={theme} angle={finite(themeAngle, DEFAULT_THEME_ANGLE)} opacity={Math.min(1, Math.max(0, finite(themeOpacity, 1)))} />
         </>
       );
@@ -78,7 +101,7 @@ export const WindowBackdrop = forwardRef<View, AnyProps>(function WindowBackdrop
       const lighter = adjustingLightness(tint, finite(tintLightness, 0.25));
       layers = (
         <>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: rgbaString(underColor(dark)) }]} />
+          <MaterialBase dark={dark} />
           <Bands stops={[[tint[0], tint[1], tint[2], alpha], [lighter[0], lighter[1], lighter[2], alpha]]} opacity={look.gradientOpacity} count={12} />
         </>
       );
