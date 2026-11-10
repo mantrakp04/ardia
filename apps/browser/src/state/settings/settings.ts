@@ -75,6 +75,7 @@ export const SETTING_SPECS = {
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
   sidebarSide: oneOf(["left", "right"], "left", SYNCED),
+  autoHideTabs: flag(false, SYNCED),
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),
@@ -131,6 +132,7 @@ export const SETTING_SPECS = {
   pageFrame: shaped<number>(PAGE_FRAME.default, validPageFrame, { type: "integer", minimum: PAGE_FRAME.min, maximum: PAGE_FRAME.max }, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   spacesFollowAppearance: flag(true),
+  adaptTextToColor: flag(true, SYNCED),
   defaultProfileId: text(DEFAULT_PROFILE_ID),
   profileSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST), SYNCED),
@@ -152,9 +154,7 @@ export type Settings = { -readonly [K in SettingKey]: Specs[K]["default"] };
 export type SettingsMeta = { chosen: string[]; inferred: string[] };
 export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
-export type SearchEngineId = string;
 export type BatterySaverWhen = Settings["batterySaverWhen"];
-export type SelectedTabGlow = Settings["selectedTabGlow"];
 export type PeekModifier = Settings["peekModifier"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 

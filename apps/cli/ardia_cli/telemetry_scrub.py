@@ -104,27 +104,70 @@ def exception_key(properties: dict) -> str:
     return f"{entry['type']}|{entry['value']}|{last[0].get('module', '')}|{last[0].get('function', '')}"
 
 
-URL = re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.-]{1,15}://)([^\s/?#<>\"'`]*@)?([^\s/?#<>\"'`]*)([^\s?#<>\"'`]*)([?#][^\s<>\"'`]*)?")
+URL = re.compile(r"\b([a-zA-Z][a-zA-Z0-9+.-]{1,15}://)([^\s/?#<>\"'`@]*@)?([^\s/?#<>\"'`]*)([^\s?#<>\"'`]*)([?#][^\s<>\"'`]*)?")
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+PRIVATE_KEY_BLOCK = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)")
 KNOWN_SECRET = re.compile(
-    r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|xox[abposr]-[A-Za-z0-9-]{10,}"
-    r"|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
+    r"(?<![A-Za-z0-9_-])(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{10,}"
+    r"|[pr]k_(?:live|test)_[A-Za-z0-9]{10,}|xox[abposre]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{16,}|npm_[A-Za-z0-9]{30,}"
+    r"|(?:AKIA|ASIA)[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|ya29\.[0-9A-Za-z_-]{20,}|hf_[A-Za-z0-9]{30,}"
+    r"|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})"
 )
-SENSITIVE_KEYWORD = re.compile(
-    r"(?i)password|passwd|pwd|secret|token|api[ _-]?key|apikey|authorization|bearer|basic|digest|cookie|session|credential"
-    r"|private[ _-]?key|auth"
+QUOTED_VALUE = (
+    r'r?"""[\s\S]*?(?:"""|\Z)|r?\'\'\'[\s\S]*?(?:\'\'\'|\Z)|\\"(?:[^\\]|\\(?!"))*(?:\\"|\Z)'
+    r'|"(?:[^"\\]|\\[\s\S]?)*(?:"|\Z)|\'(?:[^\'\\]|\\[\s\S]?)*(?:\'|\Z)|`[^`]*(?:`|\Z)'
+)
+AUTH_SCHEME = r"(?:bearer|basic|token|negotiate|ntlm|hoba|mutual|aws4-hmac-sha256)"
+DIGEST = re.compile(r"(?i)\bdigest(\s+)(?:[a-z][a-z0-9-]*\s*=\s*(?:" + QUOTED_VALUE + r"|[^,\s]+)(?:\s*,\s*)?)+")
+HEADER = re.compile(
+    r"(?i)(?<![A-Za-z0-9-])((?:proxy-)?authorization|(?:set-)?cookie|x-[a-z0-9-]*(?:token|key|secret|auth|session|password)[a-z0-9-]*"
+    r"|api-key|private-token)([\"'`]?\s*:[ \t]*)((?:" + AUTH_SCHEME + r"[ \t]+)?(?:" + QUOTED_VALUE + r"|(?:[^\r\n'\"`]|\"[^\"\r\n]*\")+))"
+)
+CREDENTIAL = r"(?=[A-Za-z0-9._~+/=-]*[0-9._~+/=-]|[A-Za-z]{20})[A-Za-z0-9._~+/=-]+"
+SCHEME_VALUE = re.compile(r"(?i)(?<![A-Za-z0-9])(bearer|basic)([ \t]+)(" + QUOTED_VALUE + r"|" + CREDENTIAL + r")")
+SECRET_KEY = (
+    r"[A-Za-z0-9_.-]*(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key"
+    r"|credentials?|session[_-]?(?:id|key|token|secret)|sessionid|auth[_-]?(?:token|key|code)|cookie|signature|otp)[A-Za-z0-9_-]*"
+)
+KEY_VALUE = re.compile(
+    r"(?i)(?<![A-Za-z0-9_.-])(\\?[\"'`]?" + SECRET_KEY + r"\\?[\"'`]?\]?)(\s*(?:=>|:=|=|:)\s*)((?:" + AUTH_SCHEME + r"\s+)?(?:"
+    + QUOTED_VALUE + r"|[^\s,;&'\"`<>(){}\[\]]+))"
+)
+SECRET_FLAG = re.compile(r"(?i)(?<![A-Za-z0-9_-])(--?" + SECRET_KEY + r")([ \t]+)(" + QUOTED_VALUE + r"|[^\s'\"`]+)")
+USER_FLAG = re.compile(r"(?<!\S)(-u|--user|--proxy-user)([ \t]+|=)(" + QUOTED_VALUE + r"|[^\s'\"`]+)")
+COOKIE_PAIR = re.compile(
+    r"(?i)(?<![A-Za-z0-9_.-])((?:session|sess|sid|connect\.sid|phpsessid|jsessionid|asp\.net_sessionid|csrftoken|xsrf-token"
+    r"|_[a-z0-9_]*session[a-z0-9_]*))(=)([^\s;,&'\"`]+)"
 )
 REDACTED = "<redacted>"
+PLACEHOLDER = re.compile(r"<(?:redacted|secret|email|number|user)>")
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_+/=-])(?=[A-Za-z0-9_+/=-]*\d)(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9_+/=-])")
-CARD_NUMBER = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
-HOME_PATH = re.compile(r"(/Users/|/home/)[^/\s]+")
+CARD_NUMBER = re.compile(r"(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])")
+HOME_PATH = re.compile(r"(/Users/|/home/)(?!<user>)[^/\s'\"`]+")
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
-SCRUB_WINDOW = 2
+SCRUB_WINDOW = 4
 
 
 def scrub_url(match: re.Match) -> str:
     scheme, _, host, path, rest = match.groups()
-    return f"{scheme}{host}{path}{'?<redacted>' if rest else ''}"
+    return f"{scheme}{host}{path}{'?' + REDACTED if rest else ''}"
+
+
+def luhn_valid(digits: str) -> bool:
+    total = 0
+    for index, char in enumerate(reversed(digits)):
+        value = int(char) * (2 if index % 2 else 1)
+        total += value - 9 if value > 9 else value
+    return total % 10 == 0
+
+
+def scrub_card(match: re.Match) -> str:
+    digits = re.sub(r"\D", "", match.group(0))
+    return "<number>" if luhn_valid(digits) else match.group(0)
+
+
+def keep_name(match: re.Match) -> str:
+    return f"{match.group(1)}{match.group(2)}{REDACTED}"
 
 
 def whole_words(text: str, limit: int) -> str:
@@ -135,19 +178,29 @@ def whole_words(text: str, limit: int) -> str:
     return cut[:space] if space > 0 else ""
 
 
-def redact_from_keyword(text: str) -> str:
-    found = SENSITIVE_KEYWORD.search(text)
-    return text if found is None else text[:found.start()] + REDACTED
+def scrub(text: str) -> str:
+    text = CONTROL.sub(" ", text)
+    text = PRIVATE_KEY_BLOCK.sub(REDACTED, text)
+    text = DIGEST.sub(lambda match: f"Digest{match.group(1)}{REDACTED}", text)
+    text = HEADER.sub(keep_name, text)
+    text = URL.sub(scrub_url, text)
+    text = KEY_VALUE.sub(keep_name, text)
+    text = SECRET_FLAG.sub(keep_name, text)
+    text = USER_FLAG.sub(keep_name, text)
+    text = COOKIE_PAIR.sub(keep_name, text)
+    text = SCHEME_VALUE.sub(lambda match: match.group(0) if PLACEHOLDER.fullmatch(match.group(3)) else keep_name(match), text)
+    text = KNOWN_SECRET.sub("<secret>", text)
+    text = EMAIL.sub("<email>", text)
+    text = LONG_TOKEN.sub("<secret>", text)
+    text = CARD_NUMBER.sub(scrub_card, text)
+    return HOME_PATH.sub(lambda match: f"{match.group(1)}<user>", text).strip()
+
+
+def only_placeholders(text: str) -> bool:
+    return not re.search(r"[^\W_]", PLACEHOLDER.sub(" ", text))
 
 
 def free_text(text: str, limit: int) -> tuple[str, bool]:
     clipped = len(text) > limit * SCRUB_WINDOW
-    text = whole_words(CONTROL.sub(" ", text), limit * SCRUB_WINDOW)
-    text = redact_from_keyword(text)
-    text = URL.sub(scrub_url, text)
-    text = KNOWN_SECRET.sub("<secret>", text)
-    text = EMAIL.sub("<email>", text)
-    text = LONG_TOKEN.sub("<secret>", text)
-    text = CARD_NUMBER.sub("<number>", text)
-    text = HOME_PATH.sub(lambda match: f"{match.group(1)}<user>", text).strip()
+    text = scrub(whole_words(text, limit * SCRUB_WINDOW))
     return (whole_words(text, limit).rstrip() or text[:limit], True) if len(text) > limit else (text, clipped)

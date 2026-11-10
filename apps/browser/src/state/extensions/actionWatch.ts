@@ -9,32 +9,14 @@ import { refreshExtensionsAfterChange } from "./actions";
 import { refreshActionStates } from "./actionStates";
 import { focusedWindowOf } from "../windows/ui";
 
-const ACTION_POLL_MS = 1500;
 const ACTION_EVENT_COALESCE_MS = 150;
-
-function refreshActionsAndPanels() {
-  void refreshActionStates();
-  for (const [windowId] of wantedSidePanels()) void syncSidePanel(windowId);
-}
-
-let actionPoll: ReturnType<typeof setInterval> | null = null;
-function pollActionStates() {
-  actionPoll ??= setInterval(() => {
-    if (AppState.currentState === "active") refreshActionsAndPanels();
-  }, ACTION_POLL_MS);
-}
 
 const loadedProfiles = new Set<string>();
 
 export function watchActionsOf(profile: string): boolean {
   if (loadedProfiles.has(profile)) return false;
   loadedProfiles.add(profile);
-  void watchExtensionActions(profile)
-    .then(
-      () => true,
-      () => false,
-    )
-    .then((watching) => watching || pollActionStates());
+  watchExtensionActions(profile).catch((error: unknown) => console.warn(`[extensions] couldn't watch the toolbar actions of ${profile}`, error));
   return true;
 }
 

@@ -1,23 +1,9 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, PERSONAL, TITLES, WORK, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  lexicon: "meadow | Lexicon dictionary",
-  dailyledger: "The Daily Ledger",
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  tunes: "Tunes · Late Night Drive",
-  watch: "Watch",
-};
-const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES[new URL(url).hostname.split(".")[0]], ...extra });
+const TITLES_HERE = { ...TITLES, tunes: "Tunes · Late Night Drive", watch: "Watch" };
+const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES_HERE[new URL(url).hostname.split(".")[0]], ...extra });
 const tile = (id, url, extra = {}) => T(id, url, { pinned: true, pinnedUrl: url, favicon: `${url}favicon.ico`, ...extra });
-const profiles = [
-  { id: "default", name: "Personal", color: "plum", icon: "🪐" },
-  { id: "work", name: "Work", color: "blue", icon: "🔥" },
-];
+const profiles = [PERSONAL, WORK];
 const base = [
   tile("p1", "http://lexicon.example/"),
   tile("p2", "http://dailyledger.example/"),
@@ -30,13 +16,7 @@ const base = [
 ];
 
 function build(file, { tabs = base, active = "t1", windows, settings = {} } = {}) {
-  const s = session({
-    profiles,
-    windows: windows ?? [{ id: "w1", frame: [80, 60, 1360, 860], profileId: "default", activeTabIds: { default: active, work: "w1" } }],
-    tabs,
-  });
-  s.settings = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+  writeSession(file, { profiles, tabs, windows, activeTabIds: { default: active, work: "w1" }, settings: { ...DARK, ...settings } });
 }
 
 build("session-0243n8-arc.json", { settings: { addressBar: "sidebar" } });

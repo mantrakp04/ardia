@@ -5,13 +5,17 @@ import html
 import json
 import random
 import re
+import secrets
 import sys
 import threading
 import time
 from datetime import datetime, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from benchhttp import Handler, serve_forever
+from realism import Guard
 
 HOST = "127.0.0.1"
 MAIL_PORT, EXPENSES_PORT, VIEWER_PORT = 8792, 8793, 8794
@@ -34,6 +38,9 @@ DRAFT_START = [
     {"id": "ln_2c91", "merchant": "Delta Air Lines", "date": "2026-10-03", "category": "Travel", "amount_cents": 41260},
 ]
 CATEGORIES = ["Travel", "Meals", "Software", "Office", "Other"]
+MAIL_GUARD = Guard("mail")
+EXPENSES_GUARD = Guard("expenses")
+GUARDS = {"expenses": EXPENSES_GUARD, "mail": MAIL_GUARD}
 
 
 def shifted(text):
@@ -460,9 +467,15 @@ class State:
         self.read = {m["id"] for m in MAILBOX if not m["initially_unread"]}
         self.submissions = []
         self.rejected_submits = []
-        self.counts = {"line_adds": 0, "line_edits": 0, "line_saves": 0, "line_deletes": 0, "reorders": 0}
+        self.counts = {"line_adds": 0, "line_edits": 0, "line_saves": 0, "line_deletes": 0, "reorders": 0, "intents": 0}
+        self.intents = {}
+        self.revision = 0
         self.reset_at = time.time()
         self.next_id = 0
+
+    def changed(self, count):
+        self.counts[count] += 1
+        self.revision += 1
 
     def new_id(self):
         self.next_id += 1
@@ -486,27 +499,48 @@ def cents_of(line):
         return None
 
 
+def line_key(line):
+    return (line.get("id"), line.get("merchant"), line.get("date"), line.get("category"), line.get("amount_cents"))
+
+
+def method_summary():
+    apps = {name: g.summary() for name, g in GUARDS.items()}
+    labels = {a["label"] for a in apps.values() if a["accepted"]}
+    label = "none" if not labels else (labels.pop() if len(labels) == 1 else "mixed")
+    return {"label": label, "accepted": sum(a["accepted"] for a in apps.values()),
+            "rejected": sum(a["rejected"] for a in apps.values()), "apps": apps}
+
+
 def check():
     with STATE.lock:
         subs = list(STATE.submissions)
         rejected = list(STATE.rejected_submits)
         counts = dict(STATE.counts)
         reset_at = STATE.reset_at
-    mismatches = []
-    submitted = subs[0]["lines"] if subs else []
+    sub = subs[0] if subs else None
+    invariants = {
+        "submitted_matches_draft": bool(sub and sub["draft_match"]),
+        "submitted_via_confirmation": bool(sub and sub["intent"] == "ok"),
+    }
+    failed = [name for name, ok in invariants.items() if not ok]
+    method = method_summary()
     if not subs:
         return {"pass": False, "matched": 0, "total": len(EXPECTED), "extra": 0, "completed_at_ms": None,
-                "reset_at_ms": round(reset_at * 1000),
-                "details": {"mismatches": [{"type": "no_submission"}], "submissions": 0, "rejected_submits": len(rejected),
-                            "submitted_lines": [], "submitted_at_ms": None, "submitted_ms_after_reset": None, "counts": counts}}
+                "reset_at_ms": round(reset_at * 1000), "invariants": invariants, "method": method,
+                "details": {"mismatches": [{"type": "no_submission"}], "failed_invariants": failed, "submit_intent": None,
+                            "submissions": 0, "rejected_submits": len(rejected), "submitted_lines": [],
+                            "submitted_at_ms": None, "submitted_ms_after_reset": None, "counts": counts}}
+    mismatches = []
+    submitted = sub["lines"]
     if len(subs) > 1:
         mismatches.append({"type": "multiple_submissions", "count": len(subs)})
     claimed = set()
     matched = 0
+    missing = 0
     for i, e in enumerate(EXPECTED):
         j = next((k for k, l in enumerate(submitted) if k not in claimed and e["match"] in norm_merchant(l.get("merchant", ""))), None)
         if j is None:
-            mismatches.append({"type": "missing", "merchant": e["merchant"], "expected_position": i + 1})
+            missing += 1
             continue
         claimed.add(j)
         line = submitted[j]
@@ -516,16 +550,18 @@ def check():
                                  ("amount_cents", e["amount_cents"], cents_of(line))):
             if (got.lower() if field == "category" else got) != (want.lower() if field == "category" else want):
                 ok = False
-                mismatches.append({"type": "wrong_field", "merchant": e["merchant"], "field": field, "got": got})
+                mismatches.append({"type": "wrong_field", "position": j + 1, "field": field, "got": got})
         if j != i:
             ok = False
-            mismatches.append({"type": "wrong_order", "merchant": e["merchant"], "expected_position": i + 1, "got_position": j + 1})
+            mismatches.append({"type": "wrong_order", "position": j + 1})
         matched += ok
+    if missing:
+        mismatches.append({"type": "missing", "count": missing})
     extra = [dict(l, position=k + 1) for k, l in enumerate(submitted) if k not in claimed]
     for x in extra:
         mismatches.append({"type": "extra", "line": x})
-    passed = len(subs) == 1 and not mismatches and len(submitted) == len(EXPECTED)
-    sub = subs[0] if subs else None
+    outcome = len(subs) == 1 and not mismatches and len(submitted) == len(EXPECTED)
+    passed = outcome and not failed
     return {
         "pass": passed,
         "matched": matched,
@@ -533,13 +569,17 @@ def check():
         "extra": len(extra),
         "completed_at_ms": sub["at_ms"] if passed else None,
         "reset_at_ms": round(reset_at * 1000),
+        "invariants": invariants,
+        "method": method,
         "details": {
             "mismatches": mismatches,
+            "failed_invariants": failed,
+            "submit_intent": sub["intent"],
             "submissions": len(subs),
             "rejected_submits": len(rejected),
             "submitted_lines": submitted,
-            "submitted_at_ms": sub["at_ms"] if sub else None,
-            "submitted_ms_after_reset": round(sub["at_ms"] - reset_at * 1000) if sub else None,
+            "submitted_at_ms": sub["at_ms"],
+            "submitted_ms_after_reset": round(sub["at_ms"] - reset_at * 1000),
             "counts": counts,
         },
     }
@@ -559,48 +599,31 @@ def valid_line(d):
     return {"merchant": merchant, "date": date, "category": category, "amount_cents": cents}
 
 
-class Base(BaseHTTPRequestHandler):
+class Base(Handler):
     server_version = "hardserver/1"
-    root = None
+    guard = None
 
-    def log_message(self, fmt, *args):
-        if self.server.verbose:
-            sys.stderr.write(f"[{self.server.server_port}] {fmt % args}\n")
+    def page(self):
+        if self.path_only not in ("/", "/index.html"):
+            return False
+        self.guard.render_page(self, (Path(self.root) / "index.html").read_text())
+        return True
 
-    def send(self, code, body, ctype="application/json", headers=None):
-        data = body if isinstance(body, bytes) else (json.dumps(body).encode() if ctype == "application/json" else body.encode())
-        self.send_response(code)
-        self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text/", "application/j")) else ""))
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        for k, v in (headers or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        if self.command != "HEAD":
-            self.wfile.write(data)
-
-    def body_json(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        if n > 1_000_000:
-            return None
+    def verified(self):
+        raw = self.body_bytes()
+        record = self.guard.verify_write(self, raw)
+        if record["kind"] == "rejected":
+            self.guard.reject(self, record)
+            return False, None
         try:
-            return json.loads(self.rfile.read(n) or b"null")
+            return True, json.loads(raw or b"null")
         except ValueError:
-            return None
-
-    def static(self, path):
-        types = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png"}
-        rel = "index.html" if path in ("", "/") else path.lstrip("/")
-        target = (self.root / rel).resolve()
-        if self.root.resolve() not in target.parents or not target.is_file() or target.suffix not in types:
-            return self.send(404, {"error": "not found"})
-        self.send(200, target.read_bytes(), types[target.suffix])
-
-    def do_HEAD(self):
-        self.do_GET()
+            return True, None
 
 
 class MailHandler(Base):
+    guard = MAIL_GUARD
+
     def do_GET(self):
         u = urlparse(self.path)
         if u.path == "/api/messages":
@@ -625,18 +648,25 @@ class MailHandler(Base):
                 return self.send(404, {"error": "no such message"})
             time.sleep(0.08)
             return self.send(200, {k: v for k, v in msg.items() if k not in ("search", "initially_unread")})
-        return self.static(u.path)
+        if not self.page():
+            self.static(u.path)
 
     def do_POST(self):
-        m = re.fullmatch(r"/api/messages/([0-9a-f]{12})/read", urlparse(self.path).path)
-        if m and m.group(1) in MAIL_BY_ID:
-            with STATE.lock:
-                STATE.read.add(m.group(1))
-            return self.send(200, {"ok": True})
-        self.send(404, {"error": "not found"})
+        m = re.fullmatch(r"/api/messages/([0-9a-f]{12})/read", self.path_only)
+        if not m or m.group(1) not in MAIL_BY_ID:
+            return self.send(404, {"error": "not found"})
+        ok, _ = self.verified()
+        if not ok:
+            return
+        with STATE.lock:
+            STATE.read.add(m.group(1))
+        self.send(200, {"ok": True})
 
 
 class ExpensesHandler(Base):
+    guard = EXPENSES_GUARD
+    POSTS = ("/api/lines", "/api/lines/order", "/api/submit/intent", "/api/submit")
+
     def report(self):
         with STATE.lock:
             sub = STATE.submissions[0] if STATE.submissions else None
@@ -645,12 +675,13 @@ class ExpensesHandler(Base):
                     "lines": [dict(l) for l in STATE.lines], "categories": CATEGORIES, "today": NOW.strftime("%Y-%m-%d")}
 
     def do_GET(self):
-        u = urlparse(self.path)
-        if u.path == "/api/report":
+        path = self.path_only
+        if path == "/api/report":
             return self.send(200, self.report())
-        if u.path == "/api/check":
+        if path == "/api/check":
             return self.send(200, check())
-        return self.static(u.path)
+        if not self.page():
+            self.static(path)
 
     def locked_draft(self):
         if STATE.submissions:
@@ -659,12 +690,18 @@ class ExpensesHandler(Base):
         return False
 
     def do_POST(self):
-        path = urlparse(self.path).path
+        path = self.path_only
         if path == "/api/reset":
             with STATE.lock:
                 STATE.reset()
+            for g in GUARDS.values():
+                g.reset()
             return self.send(200, {"ok": True})
-        body = self.body_json()
+        if path not in self.POSTS:
+            return self.send(404, {"error": "not found"})
+        ok, body = self.verified()
+        if not ok:
+            return
         if path == "/api/lines":
             line = valid_line(body)
             if not line:
@@ -675,7 +712,7 @@ class ExpensesHandler(Base):
                 line["id"] = STATE.new_id()
                 STATE.lines.append(line)
                 STATE.counts["line_adds"] += 1
-                STATE.counts["line_saves"] += 1
+                STATE.changed("line_saves")
             return self.send(201, line)
         if path == "/api/lines/order":
             ids = body.get("ids") if isinstance(body, dict) else None
@@ -683,40 +720,66 @@ class ExpensesHandler(Base):
                 if self.locked_draft():
                     return
                 current = [l["id"] for l in STATE.lines]
-                if not isinstance(ids, list) or sorted(ids) != sorted(current):
+                if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids) or sorted(ids) != sorted(current):
                     return self.send(409, {"error": "Lines changed, reload the report"})
                 by_id = {l["id"]: l for l in STATE.lines}
                 STATE.lines = [by_id[i] for i in ids]
-                STATE.counts["reorders"] += 1
+                STATE.changed("reorders")
             return self.send(200, {"ok": True})
-        if path == "/api/submit":
-            lines = body.get("lines") if isinstance(body, dict) else None
-            at_ms = round(time.time() * 1000)
+        if path == "/api/submit/intent":
             with STATE.lock:
-                if STATE.submissions:
-                    STATE.rejected_submits.append({"at_ms": at_ms})
-                    return self.send(409, {"error": "This report was already submitted."})
-                if not isinstance(lines, list) or not lines or len(lines) > 100:
-                    STATE.rejected_submits.append({"at_ms": at_ms, "reason": "no lines"})
-                    return self.send(422, {"error": "Add at least one line before submitting."})
-                clean = []
-                for l in lines:
-                    v = valid_line(l)
-                    if not v:
-                        STATE.rejected_submits.append({"at_ms": at_ms, "reason": "invalid line"})
-                        return self.send(422, {"error": "A line is incomplete."})
-                    v["amount"] = "%d.%02d" % divmod(v["amount_cents"], 100)
-                    clean.append(v)
-                ref = "EXP-2026-10-%04d" % (4400 + len(clean) * 3)
-                STATE.submissions.append({"at_ms": at_ms, "lines": clean, "reference": ref})
-            return self.send(200, {"ok": True, "reference": ref})
-        self.send(404, {"error": "not found"})
+                if self.locked_draft():
+                    return
+                token = secrets.token_urlsafe(18)
+                STATE.intents[token] = {"revision": STATE.revision, "used": False}
+                STATE.counts["intents"] += 1
+            return self.send(200, {"intent": token})
+        lines = body.get("lines") if isinstance(body, dict) else None
+        token = body.get("intent") if isinstance(body, dict) else None
+        at_ms = round(time.time() * 1000)
+        with STATE.lock:
+            if STATE.submissions:
+                STATE.rejected_submits.append({"at_ms": at_ms})
+                return self.send(409, {"error": "This report was already submitted."})
+            if not isinstance(lines, list) or not lines or len(lines) > 100:
+                STATE.rejected_submits.append({"at_ms": at_ms, "reason": "no lines"})
+                return self.send(422, {"error": "Add at least one line before submitting."})
+            clean = []
+            for l in lines:
+                v = valid_line(l)
+                if not v:
+                    STATE.rejected_submits.append({"at_ms": at_ms, "reason": "invalid line"})
+                    return self.send(422, {"error": "A line is incomplete."})
+                v["id"] = l["id"] if isinstance(l.get("id"), str) else None
+                v["amount"] = "%d.%02d" % divmod(v["amount_cents"], 100)
+                clean.append(v)
+            intent = STATE.intents.get(token) if isinstance(token, str) else None
+            if not isinstance(token, str):
+                intent_state = "missing"
+            elif intent is None:
+                intent_state = "unknown"
+            elif intent["used"]:
+                intent_state = "reused"
+            elif intent["revision"] != STATE.revision:
+                intent_state = "stale"
+            else:
+                intent_state = "ok"
+            if intent:
+                intent["used"] = True
+            draft_match = [line_key(l) for l in clean] == [line_key(l) for l in STATE.lines]
+            ref = "EXP-2026-10-%04d" % (4400 + len(clean) * 3)
+            STATE.submissions.append({"at_ms": at_ms, "lines": clean, "reference": ref, "intent": intent_state,
+                                      "draft_match": draft_match})
+        return self.send(200, {"ok": True, "reference": ref})
 
     def do_PUT(self):
-        m = re.fullmatch(r"/api/lines/(ln_[0-9a-z]+)", urlparse(self.path).path)
-        line = valid_line(self.body_json())
+        m = re.fullmatch(r"/api/lines/(ln_[0-9a-z]+)", self.path_only)
         if not m:
             return self.send(404, {"error": "not found"})
+        ok, body = self.verified()
+        if not ok:
+            return
+        line = valid_line(body)
         if not line:
             return self.send(422, {"error": "Invalid line"})
         with STATE.lock:
@@ -726,39 +789,34 @@ class ExpensesHandler(Base):
                 if l["id"] == m.group(1):
                     l.update(line)
                     STATE.counts["line_edits"] += 1
-                    STATE.counts["line_saves"] += 1
+                    STATE.changed("line_saves")
                     return self.send(200, dict(l))
         self.send(404, {"error": "no such line"})
 
     def do_DELETE(self):
-        m = re.fullmatch(r"/api/lines/(ln_[0-9a-z]+)", urlparse(self.path).path)
+        m = re.fullmatch(r"/api/lines/(ln_[0-9a-z]+)", self.path_only)
+        if not m:
+            return self.send(404, {"error": "not found"})
+        ok, _ = self.verified()
+        if not ok:
+            return
         with STATE.lock:
             if self.locked_draft():
                 return
             before = len(STATE.lines)
-            STATE.lines = [l for l in STATE.lines if not m or l["id"] != m.group(1)]
+            STATE.lines = [l for l in STATE.lines if l["id"] != m.group(1)]
             if len(STATE.lines) == before:
                 return self.send(404, {"error": "no such line"})
-            STATE.counts["line_deletes"] += 1
+            STATE.changed("line_deletes")
         self.send(200, {"ok": True})
 
 
 class ViewerHandler(Base):
     def do_GET(self):
-        u = urlparse(self.path)
-        if u.path == "/view/folio-88231904":
-            return self.send(200, FOLIO_HTML, "text/html",
+        if self.path_only == "/view/folio-88231904":
+            return self.send(200, FOLIO_HTML, "text/html; charset=utf-8",
                              {"Content-Security-Policy": f"frame-ancestors {MAIL_ORIGIN}", "Cross-Origin-Resource-Policy": "same-site"})
-        self.send(404, "not found", "text/plain")
-
-
-def serve(port, handler, root, verbose):
-    cls = type(handler.__name__, (handler,), {"root": root})
-    srv = ThreadingHTTPServer((HOST, port), cls)
-    srv.daemon_threads = True
-    srv.verbose = verbose
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    return srv
+        self.send(404, "not found", "text/plain; charset=utf-8")
 
 
 def main():
@@ -768,20 +826,9 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
     fx = Path(a.fixture)
-    servers = [serve(MAIL_PORT, MailHandler, fx / "mail", a.verbose),
-               serve(EXPENSES_PORT, ExpensesHandler, fx / "expenses", a.verbose),
-               serve(VIEWER_PORT, ViewerHandler, fx / "viewer", a.verbose)]
-    print(f"mail {MAIL_ORIGIN}/  expenses {EXPENSES_ORIGIN}/  viewer {VIEWER_ORIGIN}/  ({len(MAILBOX)} emails)", flush=True)
-    stop = threading.Event()
-    try:
-        import signal
-        signal.signal(signal.SIGTERM, lambda *_: stop.set())
-        while not stop.wait(1):
-            pass
-    except KeyboardInterrupt:
-        pass
-    for s in servers:
-        s.shutdown()
+    serve_forever([(MAIL_PORT, MailHandler, fx / "mail"), (EXPENSES_PORT, ExpensesHandler, fx / "expenses"),
+                   (VIEWER_PORT, ViewerHandler, fx / "viewer")],
+                  f"mail {MAIL_ORIGIN}/  expenses {EXPENSES_ORIGIN}/  viewer {VIEWER_ORIGIN}/  ({len(MAILBOX)} emails)", a.verbose)
 
 
 if __name__ == "__main__":

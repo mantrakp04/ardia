@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 
+from ardia_cli import command_metrics
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, OutcomeUnknown, Usage
 
 DEFAULT_TIMEOUT = 90.0
@@ -136,6 +137,9 @@ const flags = (options, table) => {
   }
   return out;
 };
+const evaluateAs = (via) => (fn, arg) => request("call", {
+  argv: ["eval", typeof fn === "function" ? "(" + fn + ")(" + (arg === undefined ? "" : JSON.stringify(arg)) + ")" : String(fn)], via,
+}).then(data("result"));
 const read = async (what, options) => {
   options = options || {};
   let argv = ["read"];
@@ -151,9 +155,11 @@ const page = {
   reload: () => browse("reload").then(data("url")),
   click: (selector, options) => browse("click", selector, flags(options, { newTab: "--new-tab", button: "--button" })).then(text),
   dblclick: (selector) => browse("dblclick", selector).then(text),
+  focus: (selector) => browse("focus", selector).then(text),
   fill: (selector, value) => browse("fill", selector, String(value)).then(text),
   type: (selector, value) => browse("type", selector, String(value)).then(text),
   press: (key) => browse("press", key).then(text),
+  keyboard: (value) => browse("keyboard", "type", String(value)).then(text),
   select: (selector, ...values) => browse("select", selector, ...values.flat()).then(text),
   check: (selector) => browse("check", selector).then(text),
   uncheck: (selector) => browse("uncheck", selector).then(text),
@@ -175,7 +181,8 @@ const page = {
     if (what && typeof what === "object") { options = what; what = undefined; }
     return browse("wait", ...words(what), ...flags(options, { text: "--text", url: "--url", load: "--load", fn: "--fn", state: "--state", timeout: "--timeout" })).then(text);
   },
-  evaluate: (fn, arg) => browse("eval", typeof fn === "function" ? "(" + fn + ")(" + (arg === undefined ? "" : JSON.stringify(arg)) + ")" : String(fn)).then(data("result")),
+  evaluate: evaluateAs("page.evaluate"),
+  eval: evaluateAs("page.eval"),
 };
 const sleep = (ms) => request("sleep", { ms: Number(ms) || 0 }).then(() => undefined);
 const clean = (value) => {
@@ -254,6 +261,24 @@ def tail(lines: list[str], limit: int = 3000) -> str:
     if len(text) <= limit:
         return text
     return f"… [{len(text) - limit:,} earlier characters]\n" + text[-limit:]
+
+
+PAGE_GLOBAL = re.compile(r"\b(document|window|localStorage|sessionStorage|getComputedStyle) is not defined")
+PAGE_MISSING = re.compile(r"ReferenceError: (\w+) is not defined")
+
+
+def page_world_hint(text: str, command) -> str | None:
+    if command:
+        missing = PAGE_MISSING.search(text) if command[0] == "eval" else None
+        if missing and not PAGE_GLOBAL.search(text):
+            name = missing.group(1)
+            return (f"page.evaluate(fn) runs fn inside the page, where the script's own variables don't exist: "
+                    f"pass {name} as its argument, page.evaluate(({name}) => …, {name})")
+        return None
+    if PAGE_GLOBAL.search(text):
+        return ("the script runs outside the page, so it has no document or window: put page code in "
+                "page.evaluate(() => …), or use `ardia browse eval`")
+    return None
 
 
 def failure(message: str, logs: list[str], data: dict, code: str | None = None) -> BrowseError:
@@ -342,6 +367,8 @@ async def drive(ctx, page, handle: str, source: str, current: dict):
             await asyncio.sleep(max(float(message.get("ms") or 0), 0) / 1000)
             answer = {"ok": True, "text": "", "data": {}}
         else:
+            if message.get("via") == "page.eval":
+                command_metrics.flag("script_eval_alias", True)
             answer = await answer_call(ctx, message.get("argv"))
         current.clear()
         await control(page, handle, "function (id, answer) { return this.reply(id, answer); }", message["id"], answer)
@@ -401,7 +428,11 @@ async def run(ctx, source: str, seconds: float):
             text = f"{message['name']}: {text}"
         where = f"line {line}: " if line else ""
         command = f" (in `{show_argv(message['command'])}`)" if message.get("command") else ""
-        raise failure(f"{where}{text}{command}", logs + notes, {"line": line, "command": message.get("command")}, message.get("code"))
+        hint = page_world_hint(text, message.get("command"))
+        if hint:
+            command_metrics.flag("script_page_world_hint", True)
+        hint = f"\n{hint}" if hint else ""
+        raise failure(f"{where}{text}{command}{hint}", logs + notes, {"line": line, "command": message.get("command")}, message.get("code"))
     value = render_value(message)
     parts = logs + ([value] if value is not None else []) + notes
     return Result({"value": None if message.get("undefined") else message.get("value"), "logs": logs},

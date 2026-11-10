@@ -12,7 +12,7 @@ import { NEUTRAL_GROUP_SWATCH } from "../../state/groups/tokens";
 import { ContextMenuArea, Symbol, useHover } from "../ui";
 import { curve } from "../ui/motion";
 import { useTheme } from "../ui/theme";
-import { capsule, font, radius, space, weight, withAlpha } from "../ui/tokens";
+import { capsule, font, ink, radius, space, weight, withAlpha } from "../ui/tokens";
 import { folderKey, type GroupOut } from "./model";
 import type { StripMember } from "../../state/tabs/topStrip";
 import { TabIcon } from "../sidebar/TabIcon";
@@ -103,7 +103,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   if (!group) return null;
   const tint = groupTint(group.color);
   const bare = group.color === "none";
-  const ink = tint ?? (holding ? theme.tabSelectedText : theme.textTab);
+  const titleInk = tint ?? (holding ? theme.textPrimary : theme.textTab);
   return (
     <View
       {...hoverProps}
@@ -124,15 +124,15 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
                 paddingRight: FOLDER_PAD.right,
                 borderRadius: FOLDER_RADIUS,
                 borderWidth: CHIP_HAIRLINE,
-                borderColor: bare ? "transparent" : theme.pinnedRestingStroke,
-                backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : bare ? "transparent" : tokens.groupFill,
+                borderColor: bare ? ink.clear : theme.pinnedRestingStroke,
+                backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : bare ? ink.clear : tokens.groupFill,
               }}
             >
               <StripGroupIcon icon={group.icon} tint={tint} />
-              <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: ink }}>
+              <Text numberOfLines={1} style={{ marginLeft: FOLDER_TITLE_GAP, maxWidth: FOLDER_TITLE_MAX, fontSize: font.small.fontSize, fontWeight: weight.semibold, color: titleInk }}>
                 {label}
               </Text>
-              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(ink, 0.6)} style={{ marginLeft: space.xs, width: 9, height: 9 }} />
+              <Symbol name="chevron.down" size={8} weight="semibold" color={withAlpha(titleInk, 0.6)} style={{ marginLeft: space.xs, width: 9, height: 9 }} />
             </View>
           )}
         </Pressable>

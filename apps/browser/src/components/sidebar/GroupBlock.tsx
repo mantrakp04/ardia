@@ -25,7 +25,7 @@ import { openGroupMenu } from "../../state/sidebar/menus";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowSurface } from "./SidebarRow";
 import { curve } from "../ui/motion";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
@@ -102,7 +102,7 @@ export const GroupBlock = memo(function GroupBlock({
   const box = useGroupHover(windowId, groupId);
   const dropInto = useDropInto() === groupId;
   const nested = useInnermostHover(groupId, box.hovered);
-  const boxOpacity = useBoxOpacity(nested.innermost || dropInto);
+  const boxOpacity = useBoxOpacity(nested.innermost || dropInto || groupBoxAtRest(color));
 
   const { fill, stroke } = groupSurface(color, tokens);
   const lastEntry = collapsed ? keptEntries[keptEntries.length - 1] : entries[entries.length - 1];

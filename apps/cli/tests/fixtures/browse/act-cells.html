@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cells</title>
+<style>
+td, [role=gridcell] { border: 1px solid #999; padding: 6px 10px; min-width: 90px; height: 22px; }
+#grid { position: relative; display: grid; grid-template-columns: 140px 140px; }
+#grid .editor { position: absolute; width: 130px; }
+li { padding: 8px; border: 1px solid #ccc; margin: 2px; list-style: none; user-select: none; width: 200px; }
+</style>
+</head><body>
+<table id="t"><tr><th>Name</th><th>Size</th><th>Qty</th></tr>
+<tr><td id="name1">Widget</td><td id="size1">Small</td><td id="qty1"><input id="qtyin1" value="3" aria-label="Qty 1"></td></tr></table>
+<div id="grid" role="grid" tabindex="0" aria-label="Stock">
+  <div role="row" aria-rowindex="1"><div role="gridcell" id="g-item" aria-colindex="1">Bolt</div><div role="gridcell" id="g-count" aria-colindex="2">5</div></div>
+</div>
+<p><select id="from"><option value="">Pick</option><option value="a">Alpha</option><option value="b">Beta</option></select>
+<select id="to" disabled><option value="">Pick from first</option><option value="x">Xray</option><option value="y">Yankee</option></select>
+<button id="later" disabled>Later</button> <span id="out"></span> <button id="never" disabled>Never</button></p>
+<ul id="mouse"><li>one</li><li>two</li><li>three</li><li>four</li><li>five</li></ul>
+<ul id="html5"><li draggable="true">red</li><li draggable="true">green</li><li draggable="true">blue</li></ul>
+<script>
+const editIn = (td, make) => td.addEventListener("dblclick", () => {
+  const field = make(td.textContent); td.textContent = ""; td.append(field); field.focus();
+  field.addEventListener("keydown", (k) => { if (k.key === "Enter") td.textContent = field.value; });
+});
+editIn(document.getElementById("name1"), (was) => {
+  const input = document.createElement("input"); input.value = was; input.setAttribute("aria-label", "Name, Widget"); return input;
+});
+editIn(document.getElementById("size1"), (was) => {
+  const select = document.createElement("select"); select.setAttribute("aria-label", "Size, Widget");
+  for (const v of ["Small", "Medium", "Large"]) select.append(new Option(v, v));
+  select.value = was; return select;
+});
+const grid = document.getElementById("grid");
+grid.addEventListener("dblclick", (e) => {
+  const cell = e.target.closest("[role=gridcell]"); if (!cell) return;
+  const editor = document.createElement("input"); editor.className = "editor"; editor.value = cell.textContent;
+  editor.setAttribute("aria-label", cell.id === "g-count" ? "Count, Bolt" : "Item, Bolt");
+  editor.style.left = cell.offsetLeft + "px"; editor.style.top = cell.offsetTop + "px";
+  grid.append(editor); editor.focus(); editor.select();
+  editor.addEventListener("keydown", (k) => {
+    if (k.key === "Escape") { editor.remove(); grid.focus(); return; }
+    if (k.key !== "Enter") return;
+    if (cell.id === "g-count" && !/^\d+$/.test(editor.value)) {
+      editor.setAttribute("aria-invalid", "true"); editor.setAttribute("aria-describedby", "grid-error");
+      document.getElementById("grid-error").textContent = "Count must be a whole number."; return;
+    }
+    const fresh = cell.cloneNode(false); fresh.textContent = editor.value; cell.replaceWith(fresh); editor.remove(); grid.focus();
+  });
+});
+document.getElementById("from").addEventListener("change", (e) => {
+  setTimeout(() => { document.getElementById("to").disabled = !e.target.value; }, 400);
+  setTimeout(() => { document.getElementById("later").disabled = false; }, 700);
+});
+document.getElementById("later").addEventListener("click", () => { document.getElementById("out").textContent = "later clicked"; });
+const list = document.getElementById("mouse"); let held = null;
+list.addEventListener("mousedown", (e) => { held = e.target.closest("li"); });
+document.addEventListener("mouseup", (e) => {
+  if (!held) return; const over = document.elementFromPoint(e.clientX, e.clientY)?.closest("#mouse li");
+  if (over && over !== held) { const r = over.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
+    over.parentNode.insertBefore(held, after ? over.nextSibling : over); }
+  held = null;
+});
+const html5 = document.getElementById("html5"); let dragged = null;
+html5.addEventListener("dragstart", (e) => { dragged = e.target.closest("li"); e.dataTransfer.setData("text/plain", dragged.textContent); });
+html5.addEventListener("dragover", (e) => e.preventDefault());
+html5.addEventListener("drop", (e) => {
+  e.preventDefault(); const over = e.target.closest("li"); if (!over || !dragged || over === dragged) return;
+  const r = over.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
+  html5.replaceChildren(...[...html5.children].filter((n) => n !== dragged).flatMap((n) => n === over ? (after ? [n, dragged] : [dragged, n]) : [n])
+    .map((n) => { const copy = n.cloneNode(true); return copy; }));
+});
+</script>
+<p id="grid-error" role="alert"></p>
+</body></html>

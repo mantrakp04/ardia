@@ -79,8 +79,6 @@ const CHECKIN = [192, 46] as const;
 const POSTCARD = [975, 8] as const;
 const PERSONALIZE = [896, 444] as const;
 const PIP = [0, 0] as const;
-const DIA_DARK = "#282121";
-const DIA_LIGHT = "#FCF8F9";
 
 const SCENES: Scene[] = [
   {

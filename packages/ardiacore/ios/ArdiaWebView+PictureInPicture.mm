@@ -203,6 +203,7 @@ BOOL TracingPictureInPicture() {
   }
   _reports.inPictureInPicture = [state[@"active"] boolValue];
   [self emit:@"pictureInPicture" payload:@{@"kind" : @"document", @"active" : @([state[@"active"] boolValue])}];
+  if (_reports.inPictureInPicture) ardia_pip::DocumentEntered(self);
 }
 
 - (void)tab:(ArdiaCoreTab *)tab requestsActivation:(NSString *)reason {

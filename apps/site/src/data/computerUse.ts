@@ -3,149 +3,77 @@ import { REPO } from "./release";
 
 type RawCell = (typeof raw.cells)[number];
 type RawContender = (typeof raw.contenders)[number];
+type Side = "ardia" | "aside" | "opencode";
 
-export type Mark = "pass" | "fail" | "mixed";
-export type Entry = {
-  contender: string;
-  pair: string;
-  isArdia: boolean;
-  runs: number;
-  passes: number;
-  mark: Mark | null;
-  result: string;
-  time: string | null;
-  tokens: string | null;
-  won: boolean;
-};
-export type TaskRow = { id: string; name: string; sub: string | null; note: string | null; entries: Entry[] };
-export type Ratio = { ardiaWins: boolean; even: boolean; figure: string };
-export type Pairing = {
-  id: string;
-  model: string;
-  ardia: { id: string; name: string; passes: number; runs: number };
-  aside: { id: string; name: string; passes: number; runs: number };
-  compared: number;
-  faster: number;
-  speed: Ratio | null;
-  tokens: Ratio | null;
-};
+export type Bar = { task: string; value: number; text: string; passes: number; runs: number; partial: boolean };
+export type Series = { side: Side; name: string; total: string; bars: (Bar | null)[] };
+export type Chart = { id: string; title: string; agent: string; ticks: { value: number; text: string; at: number }[]; max: number; series: Series[] };
 
 const SHORT: Record<string, string> = {
   calendar: "Calendar",
-  expenses: "Expense report",
-  research: "Docs research",
-  booking: "Flight booking",
-  shop: "Shop checkout",
-  grid: "Inventory grid",
-  kanban: "Sprint board",
-  multitab: "Kickoff, 3 tabs",
+  expenses: "Expenses",
+  research: "Research",
+  booking: "Booking",
+  shop: "Shop",
+  grid: "Grid",
+  kanban: "Kanban",
+  multitab: "Multi-tab",
 };
-const SUB: Record<string, string> = {
-  calendar: "Five events",
-  expenses: "From receipts in a 200-email inbox",
-  research: "Vendor review from versioned docs",
-  booking: "Two seats together",
-  shop: "Cheapest docks, with a promo code",
-  grid: "Reorder levels and a new row",
-  kanban: "Moves, labels, archive",
-  multitab: "Inbox, directory and calendar",
-};
-const NOTES: Record<string, string> = {
-  research: "Shell agents can read the docs with curl; Aside’s agent can’t.",
-};
+const SIDES: { side: Side; name: string }[] = [
+  { side: "ardia", name: "Ardia" },
+  { side: "aside", name: "Aside" },
+  { side: "opencode", name: "OpenCode" },
+];
+const MODELS = ["GPT-6.1 Sol", "Opus 5.5"];
 
 const contenders = raw.contenders as RawContender[];
 const cells = raw.cells as RawCell[];
 const cellOf = (task: string, contender: string) => cells.find((c) => c.task === task && c.contender === contender && c.runs > 0);
-const nameOf = (c: RawContender) => (c.side === "ardia" ? `Ardia + ${c.agent}` : c.agent);
+const contenderOf = (side: Side, model: string) => contenders.find((c) => c.side === side && c.model === model);
+const agentOf = (model: string) => contenders.find((c) => c.side === "ardia" && c.model === model)?.agent ?? "";
 
-const pairs = contenders
-  .filter((c) => c.side === "ardia")
-  .flatMap((ardia) => {
-    const aside = contenders.find((c) => c.side === "aside" && c.model === ardia.model);
-    return aside ? [{ id: ardia.model.toLowerCase().replace(/[^a-z0-9]+/g, "-"), model: ardia.model, ardia, aside }] : [];
+const millions = (t: number) => `${(t / 1e6).toFixed(2)}M`;
+const tokenTick = (t: number) => (t === 0 ? "0" : t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1000)}K`);
+
+function niceStep(rough: number) {
+  const power = 10 ** Math.floor(Math.log10(rough));
+  return [1, 2, 5, 10].map((f) => f * power).find((s) => s >= rough) ?? 10 * power;
+}
+
+function chartOf(model: string): Chart {
+  const series = SIDES.flatMap(({ side, name }) => {
+    const contender = contenderOf(side, model);
+    if (!contender) return [];
+    const bars = raw.tasks.map((t) => {
+      const cell = cellOf(t.id, contender.id);
+      const value = cell?.tokens ?? null;
+      if (!cell || value == null) return null;
+      return {
+        task: SHORT[t.id] ?? t.title,
+        value,
+        text: millions(value),
+        passes: cell.passes,
+        runs: cell.runs,
+        partial: cell.passes < cell.runs,
+      };
+    });
+    const sum = bars.reduce((n, b) => n + (b?.value ?? 0), 0);
+    return [{ side, name, total: millions(sum), bars }];
   });
-
-const seconds = (s: number) => `${s.toFixed(1)} s`;
-const tokenText = (t: number) => (t >= 1e6 ? `${(t / 1e6).toFixed(2)}M` : `${Math.round(t / 1000)}K`);
-const passRate = (c: RawCell) => c.passes / c.runs;
-
-function markOf(c: RawCell): Mark {
-  return c.passes === c.runs ? "pass" : c.passes === 0 ? "fail" : "mixed";
-}
-
-function beats(a: RawCell | undefined, b: RawCell | undefined): boolean {
-  if (!a || a.time == null) return false;
-  if (!b || b.time == null) return false;
-  if (passRate(a) !== passRate(b)) return passRate(a) > passRate(b);
-  return a.time < b.time;
-}
-
-function geomean(ratios: number[]): number | null {
-  const ok = ratios.filter((r) => Number.isFinite(r) && r > 0);
-  return ok.length ? Math.exp(ok.reduce((s, r) => s + Math.log(r), 0) / ok.length) : null;
-}
-
-function ratioOf(g: number | null, kind: "speed" | "tokens"): Ratio | null {
-  if (g == null) return null;
-  const ardiaWins = g >= 1;
-  const r = ardiaWins ? g : 1 / g;
-  if (r >= 1.5) {
-    const value = Math.floor(r * 10 + 1e-9) / 10;
-    return { ardiaWins, even: false, figure: `${value}×` };
-  }
-  const pct = Math.floor((kind === "speed" ? r - 1 : 1 - 1 / r) * 100 + 1e-9);
-  if (pct < 1) return { ardiaWins, even: true, figure: "Even" };
-  return { ardiaWins, even: false, figure: `${pct}%` };
-}
-
-function pairingOf(p: (typeof pairs)[number]): Pairing {
-  const tally = (id: string) =>
-    cells.filter((c) => c.contender === id).reduce((t, c) => ({ passes: t.passes + c.passes, runs: t.runs + c.runs }), { passes: 0, runs: 0 });
-  const both = raw.tasks.flatMap((t) => {
-    const a = cellOf(t.id, p.ardia.id);
-    const b = cellOf(t.id, p.aside.id);
-    return a && b ? [{ a, b }] : [];
+  const top = Math.max(...series.flatMap((s) => s.bars.map((b) => b?.value ?? 0)));
+  const step = niceStep(top / 4);
+  const max = step * Math.ceil(top / step);
+  const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => {
+    const value = step * i;
+    return { value, text: tokenTick(value), at: (value / max) * 100 };
   });
-  const timed = both.filter(({ a, b }) => a.time != null && b.time != null);
-  const tokened = both.filter(({ a, b }) => a.tokens != null && b.tokens != null);
   return {
-    id: p.id,
-    model: p.model,
-    ardia: { id: p.ardia.id, name: nameOf(p.ardia), ...tally(p.ardia.id) },
-    aside: { id: p.aside.id, name: nameOf(p.aside), ...tally(p.aside.id) },
-    compared: timed.length,
-    faster: timed.filter(({ a, b }) => a.time! < b.time!).length,
-    speed: ratioOf(geomean(timed.map(({ a, b }) => b.time! / a.time!)), "speed"),
-    tokens: ratioOf(geomean(tokened.map(({ a, b }) => b.tokens! / a.tokens!)), "tokens"),
-  };
-}
-
-function rowOf(task: { id: string; title: string }): TaskRow {
-  const [head, tail] = task.title.split(/:\s+/, 2);
-  return {
-    id: task.id,
-    name: SHORT[task.id] ?? head,
-    sub: SUB[task.id] ?? tail ?? null,
-    note: NOTES[task.id] ?? null,
-    entries: pairs.flatMap((p) =>
-      [p.ardia, p.aside].map((c) => {
-        const cell = cellOf(task.id, c.id);
-        const rival = cellOf(task.id, c === p.ardia ? p.aside.id : p.ardia.id);
-        return {
-          contender: c.id,
-          pair: p.id,
-          isArdia: c.side === "ardia",
-          runs: cell?.runs ?? 0,
-          passes: cell?.passes ?? 0,
-          mark: cell ? markOf(cell) : null,
-          result: cell ? `${cell.passes}/${cell.runs}` : "–",
-          time: cell?.time != null ? seconds(cell.time) : null,
-          tokens: cell?.tokens != null ? tokenText(cell.tokens) : null,
-          won: beats(cell, rival),
-        };
-      }),
-    ),
+    id: `${model.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-tokens`,
+    title: "Tokens",
+    agent: `${agentOf(model)} · ${model}`,
+    ticks,
+    max,
+    series,
   };
 }
 
@@ -155,23 +83,25 @@ function formatDay(date: string | null) {
     : "";
 }
 
-const asideCells = cells.filter((c) => contenders.find((k) => k.id === c.contender)?.side === "aside");
+const partialCells = cells.filter((c) => c.passes < c.runs);
 
 export const computerUse = {
   dates: raw.from === raw.to ? formatDay(raw.from) : `${formatDay(raw.from)} to ${formatDay(raw.to)}`,
   asideVersion: raw.asideVersion,
+  opencodeVersion: raw.opencodeVersion,
   repeats: raw.repeats,
   planned: raw.planned,
   runs: raw.runs,
+  passes: cells.reduce((n, c) => n + c.passes, 0),
   complete: raw.runs >= raw.planned,
   taskCount: raw.tasks.length,
-  contenderCount: contenders.length,
-  asideRuns: asideCells.reduce((n, c) => n + c.runs, 0),
-  asideFront: asideCells.reduce((n, c) => n + c.frontmost, 0),
-  pairings: pairs.map(pairingOf),
-  columns: pairs.flatMap((p) => [p.ardia, p.aside].map((c) => ({ id: c.id, pair: p.id, name: nameOf(c), isArdia: c.side === "ardia" }))),
-  rows: raw.tasks.map(rowOf),
+  tasks: raw.tasks.map((t) => SHORT[t.id] ?? t.title),
+  sides: SIDES,
+  partial: partialCells.map((c) => {
+    const k = contenders.find((x) => x.id === c.contender);
+    const side = SIDES.find((s) => s.side === k?.side)?.name ?? "";
+    return `${side} + ${k?.model} on ${(SHORT[c.task] ?? c.task).toLowerCase()} passed ${c.passes} of ${c.runs}`;
+  }),
+  charts: MODELS.map(chartOf),
   source: `${REPO}/tree/main/apps/cli/bench`,
 };
-
-export const showComputerUse: boolean = import.meta.env.DEV || import.meta.env.COMPUTER_USE_PUBLISHED;

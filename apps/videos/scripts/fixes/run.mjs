@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = process.env.ARDIA_REPO ?? join(process.env.HOME, "Documents/netnyahoo");
+const repo = process.env.ARDIA_REPO ?? join(here, "../../../..");
 const { appEnv, attach, binaryOf, binaryPids, launch, launchVariables, mergeLaunchEnv, processInfo, sleep } = await import(join(repo, "scripts/lib/instance.mjs"));
 
 const scratch = process.env.FIXES_SCRATCH ?? join(process.env.HOME, "ardia-scratch/video-fixes");

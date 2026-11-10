@@ -1,10 +1,9 @@
 import json
-import sys
 
 from ardia_cli import browsing
-from ardia_cli.endpoint import data_root
+from ardia_cli.endpoint import DATA_DIR_HELP, data_root
+from ardia_cli.printable import complain, say, shown
 
-DATA_DIR_HELP = "the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)"
 READS = """\
 Reads <data dir>/session.json and Chromium's History files, never cookies, passwords, Login Data or Web Data.
 Needs Ardia running with "Let the ardia command control Ardia" on. Incognito, guest and system profiles are skipped.
@@ -43,17 +42,6 @@ def add_parsers(commands, formatter):
     history.add_argument("--data-dir", metavar="DIR", help=DATA_DIR_HELP)
 
 
-def say(text: str) -> None:
-    sys.stdout.write(text + "\n")
-    sys.stdout.flush()
-
-
-def complain(text: str) -> None:
-    sys.stdout.flush()
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
-
-
 def run(args) -> int:
     root = data_root(args.data_dir)
     try:
@@ -90,13 +78,13 @@ def describe_pin(row: dict) -> str:
     if row.get("folder"):
         parts.append(f"(folder {row['folder']})")
     parts.append(f"[{row['profile']}]" + (" parked" if row.get("parked") else ""))
-    return "  ".join(parts)
+    return "  ".join(shown(part) for part in parts)
 
 
 def describe_visit(row: dict) -> str:
-    return "  ".join([row["last_visit"], f"{row['visits']:>4}", row["title"] or "-", row["url"], f"[{row['profile']}]"])
+    return "  ".join(shown(part) for part in [row["last_visit"], f"{row['visits']:>4}", row["title"] or "-", row["url"], f"[{row['profile']}]"])
 
 
 def describe_domain(row: dict) -> str:
     pages = f"{row['pages']} page{'s' if row['pages'] != 1 else ''}"
-    return "  ".join([f"{row['visits']:>5}", row["domain"], pages, row["top_title"] or "-", f"[{row['profile']}]"])
+    return "  ".join(shown(part) for part in [f"{row['visits']:>5}", row["domain"], pages, row["top_title"] or "-", f"[{row['profile']}]"])

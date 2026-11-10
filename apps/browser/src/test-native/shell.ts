@@ -14,6 +14,8 @@ import type {
   WindowEvent,
 } from "@ardia/shell";
 import { nativeEvents, unfaked } from "./events";
+import { reportModule } from "./report";
+import { telemetryLocalModule } from "./telemetryLocal";
 
 type Modules = ShellNativeModules;
 
@@ -392,4 +394,6 @@ export const shellNativeModules: Modules = {
   ArdiaConfig: config,
   ArdiaAutomation: automation,
   ArdiaSystemSignals: systemSignalsModule,
+  ArdiaTelemetryLocal: telemetryLocalModule,
+  ArdiaReport: reportModule,
 };

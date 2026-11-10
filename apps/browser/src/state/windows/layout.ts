@@ -6,6 +6,7 @@ import type { LightsPlace } from "../../platform/windows";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
+import { useSettingValue } from "../tabs/tabWatch";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
@@ -41,7 +42,9 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
-export const usePageFrameInset = (): number => useBrowser((s) => s.settings.pageFrame);
+const pageFrameSetting = (settings: BrowserState["settings"]) => settings.pageFrame;
+
+export const usePageFrameInset = (): number => useSettingValue(pageFrameSetting);
 
 export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
 

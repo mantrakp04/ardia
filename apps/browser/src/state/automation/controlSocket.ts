@@ -25,6 +25,7 @@ import { feedNeeds, stopFeed, updateFeed } from "./automationFeed";
 import { answerDecision, dropResponder, serveHooks, stopResponders } from "./decideSocket";
 import { launchToReplay, recordLaunch, runLaunchActions } from "./lifecycleEvents";
 import { startDecideHooks } from "./decideHooks";
+import { applyMethod, workspaceMethod } from "./workspaceMethods";
 
 export const useControlSocket = create<{ status: ControlSocketStatus | null }>()(() => ({ status: null }));
 
@@ -159,6 +160,12 @@ function answer(connection: number, method: string, params: Record<string, unkno
       return { result: commands() };
     case "windows":
       return windowsWithTargets(automationWindows(useBrowser.getState())).then((result) => ({ result }));
+    case "workspace":
+      return workspaceMethod(params);
+    case "apply": {
+      const serving = generation;
+      return applyMethod(params, () => generation === serving && controlOn());
+    }
     case "subscribe":
       return subscribe(connection, params);
     case "answer": {

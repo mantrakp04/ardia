@@ -215,8 +215,9 @@ def companion_line(folder: Path) -> tuple[str, int]:
 
 
 def record_path() -> Path:
-    cli_home = os.environ.get("ARDIA_CLI_HOME") or str(Path.home() / "Library" / "Application Support" / "Ardia" / "CLI")
-    return Path(cli_home).expanduser() / "skills.json"
+    from ardia_cli import usage
+
+    return usage.cli_home() / "skills.json"
 
 
 def recorded_folders() -> list[Path]:

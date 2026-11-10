@@ -1,6 +1,6 @@
 import { useTheme, type Theme } from "../ui/theme";
 import { duration, period, springs } from "../ui/motion";
-import { font, ink, proseLineHeight, weight } from "../ui/tokens";
+import { font, proseLineHeight, weight } from "../ui/tokens";
 
 const DARK = {
   pending: "#D29922",
@@ -34,8 +34,6 @@ export function useLiveColors(): LiveColors {
   if (!colors) liveColors.set(theme, (colors = { ...(theme.dark ? DARK : LIGHT), success: theme.success, failure: theme.destructive, now: theme.destructive }));
   return colors;
 }
-
-export const LIVE_NOW_TEXT = ink.white;
 
 export const liveMotion = {
   badgeSpring: springs.bouncy,

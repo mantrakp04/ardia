@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Keep the Mac's total CPU under a cap by throttling only the agents' own work.
 
-  scripts/agent/cpu-cap [--cap 70] [--resume 55] [--every 3]
+  scripts/agent/cpu-cap [--cap 70] [--resume 60] [--every 3]
 
 "Ours" is every process whose command line mentions this checkout or the agents' scratch folders (/private/tmp/claude-*)
 plus all their descendants: builds (xcodebuild, clang, swift, ld, hermesc), benches, Metro, hidden test instances,
@@ -27,7 +27,7 @@ background QoS: full speed.
 import argparse, os, re, signal, subprocess, sys, time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MARKERS = (REPO + "/", REPO + " ", "/private/tmp/claude-", "/tmp/ac-")
+MARKERS = (REPO + "/", REPO + " ", "/private/tmp/claude-", "/tmp/ac-", os.path.expanduser("~/ardia-scratch/"))
 NEVER = ("/Applications/Ardia.app/", "/Applications/Claude.app/", "/Applications/League of Legends.app/",
          "/System/", "/usr/libexec/", "/sbin/launchd")
 COORD = {"SWBBuildService", "ibtoold", "xcodebuild", "XCBBuildService", "lockf", "siso", "ninja", "autoninja", "gn"}

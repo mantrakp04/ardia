@@ -36,7 +36,8 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
          count(), countIf(${since(w.start)}), uniq(distinct_id), uniqIf(distinct_id, ${since(w.start)}),
          min(toUnixTimestamp64Milli(timestamp)), max(toUnixTimestamp64Milli(timestamp)),
          any(properties['crash_signal']), any(${VALUE}),
-         any(arraySlice(arrayMap(${FRAME_FULL}, ${FRAMES}), 1, 6)), any(arraySlice(arrayMap(${FRAME_FULL}, ${OWN_FRAMES}), 1, 6))
+         any(arraySlice(arrayMap(${FRAME_FULL}, ${FRAMES}), 1, 6)), any(arraySlice(arrayMap(${FRAME_FULL}, ${OWN_FRAMES}), 1, 6)),
+         groupUniqArrayIf(12)(distinct_id, ${since(w.start)})
        FROM telemetry.events
        WHERE event = '$exception' AND ${APP_SOURCE} AND ${since(DATA_START_MS)} AND ${MECHANISM} != 'helper_crash'
        GROUP BY v, native, type, signature`,
@@ -60,6 +61,7 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
     message: str(r[11]),
     crashFrames: (r[12] as string[]) ?? [],
     ownFrames: (r[13] as string[]) ?? [],
+    who: ((r[14] as string[]) ?? []).map(str),
   }));
 
   const key = (g: { native: boolean; type: string; signature: string }) => `${g.native ? "n" : "j"}|${g.type}|${g.signature}`;
@@ -70,7 +72,7 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
     if (!seen || compareVersions(g.version, seen) < 0) earliest.set(k, g.version);
   }
 
-  const signatures = new Map<string, { key: string; native: boolean; type: string; signature: string; signal: string; message: string; count: number; people: number; total: number; firstSeen: number; lastSeen: number; firstVersion: string; versions: { version: string; count: number }[]; crashFrames: string[]; ownFrames: string[] }>();
+  const signatures = new Map<string, { key: string; native: boolean; type: string; signature: string; signal: string; message: string; count: number; people: number; total: number; firstSeen: number; lastSeen: number; firstVersion: string; versions: { version: string; count: number }[]; crashFrames: string[]; ownFrames: string[]; who: string[] }>();
   for (const g of groups) {
     if (g.count === 0) continue;
     const k = key(g);
@@ -90,10 +92,12 @@ export async function healthVersions(range: RangeKey, signal?: AbortSignal) {
       versions: [],
       crashFrames: g.crashFrames,
       ownFrames: g.ownFrames,
+      who: [],
     };
     s.count += g.count;
     s.people += g.people;
     s.versions.push({ version: g.version, count: g.count });
+    for (const id of g.who) if (s.who.length < 12 && !s.who.includes(id)) s.who.push(id);
     s.lastSeen = Math.max(s.lastSeen, g.lastSeen);
     signatures.set(k, s);
   }

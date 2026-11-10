@@ -214,9 +214,6 @@ export function startLiveEngine() {
 
   useBrowser.subscribe((s, prev) => {
     if (s.groups !== prev.groups) syncLiveHomes();
-  });
-
-  useBrowser.subscribe((s, prev) => {
     if (s.profiles === prev.profiles) return;
     for (const f of Object.values(live().folders)) if (!s.profiles[f.profileId]) removeFolder(f.id);
   });

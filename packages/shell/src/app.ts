@@ -10,6 +10,7 @@ export type LaunchConfig = {
   switches: Record<string, boolean>;
   trace: string[];
   test: Record<string, string>;
+  feedbackURL?: string | null;
 };
 
 export type SystemInfo = {

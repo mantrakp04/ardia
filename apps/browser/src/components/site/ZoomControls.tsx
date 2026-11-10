@@ -4,7 +4,8 @@ import { webviews } from "../../state/tabs/webviewHandles";
 import { useTab } from "../../state/browser/hooks";
 import { Box, Button, PANEL, Popover, space, Text, usePopoverPresence } from "../ui";
 import { usePages } from "../../state/tabs/pageState";
-import { dismissZoomPopover, hoverZoomPopover, toggleZoomPopover, useIsZoomBubble } from "../../state/site/zoomBubble";
+import { hoverZoomPopover, toggleZoomPopover, useIsZoomBubble } from "../../state/site/zoomBubble";
+import { closedByThisPress, dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { markHoverProps } from "../../lib/hoverMarks";
 import { type ToolbarPalette } from "../ui/toolbarColors";
 
@@ -19,7 +20,7 @@ export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette,
       icon={actualSize ? "magnifyingglass" : zoom > 1 ? "plus.magnifyingglass" : "minus.magnifyingglass"}
       onPress={() => {
         onFocus();
-        toggleZoomPopover(tabId);
+        if (!closedByThisPress(tabId, "zoom")) toggleZoomPopover(tabId);
       }}
       active={open}
       tooltip={`Zoom: ${Math.round(zoom * 100)}%`}
@@ -42,7 +43,7 @@ function ZoomPanel({ tabId, right, left, top, closing, onClosed }: ZoomPopoverPl
   const [hoverProps] = useState(() => markHoverProps({ onMouseEnter: () => hoverZoomPopover(tabId, true), onMouseLeave: () => hoverZoomPopover(tabId, false) }));
   useEffect(() => () => hoverZoomPopover(tabId, false), [tabId]);
   return (
-    <Popover width={ZOOM_POPOVER_WIDTH} top={top} right={right} left={left} modal={!bubble} onDismiss={() => dismissZoomPopover(tabId)} closing={closing} onClosed={onClosed}>
+    <Popover width={ZOOM_POPOVER_WIDTH} top={top} right={right} left={left} modal={!bubble} onDismiss={() => dismissPopoverByPress(tabId)} closing={closing} onClosed={onClosed}>
       <View {...hoverProps} style={{ flexDirection: "row", alignItems: "center", height: ZOOM_BAR, paddingLeft: PANEL.inset, paddingRight: (ZOOM_BAR - 28) / 2, gap: space.m }}>
         <Text style={TABULAR_FILL}>{`Zoom: ${Math.round(zoom * 100)}%`}</Text>
         <ZoomStepper tabId={tabId} zoom={zoom} percent={false} />

@@ -13,7 +13,6 @@ from ardia_cli.caller import current as current_caller
 SOCKET_FILE = "ArdiaControl.sock"
 SUN_PATH_MAX = 103
 MAX_LINE = 1024 * 1024
-PROTOCOL = 2
 CONNECT_TIMEOUT = 5.0
 CALL_TIMEOUT = 30.0
 ANNOUNCE_TIMEOUT = 1.0
@@ -307,6 +306,18 @@ async def connect(path: Path, timeout: float = CONNECT_TIMEOUT, caller: Caller |
         raise
     connection.info = info
     return connection
+
+
+async def with_connection(data_dir: str | None, work):
+    connection = await connect(socket_path(data_dir))
+    try:
+        return await work(connection)
+    finally:
+        await connection.close()
+
+
+def call(data_dir: str | None, method: str, params=None, timeout: float | None = CALL_TIMEOUT):
+    return asyncio.run(with_connection(data_dir, lambda connection: connection.call(method, params, timeout)))
 
 
 async def announce(path: Path, caller: Caller) -> None:

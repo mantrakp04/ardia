@@ -1,6 +1,6 @@
-import { isWebDemo } from "../../platform/webDemo";
+import { isWebDemo, requestAppDownload } from "../../platform/webDemo";
 
-export { isWebDemo };
+export { isWebDemo, requestAppDownload };
 
 const MAC_ONLY_STEPS: readonly string[] = ["searchPrivacy", "home"];
 

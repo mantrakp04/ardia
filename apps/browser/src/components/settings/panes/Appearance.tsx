@@ -25,6 +25,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 export function AppearancePane() {
   const appearance = useSettings((s) => s.appearance);
   const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
+  const adaptText = useSettings((s) => s.adaptTextToColor);
   const choose = (mode: Settings["appearance"]) => updateSettings({ appearance: mode });
   return (
     <View>
@@ -38,6 +39,9 @@ export function AppearancePane() {
         <Group>
           <Row anchor="appearance.spacesFollowAppearance">
             <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
+          </Row>
+          <Row anchor="appearance.adaptTextToColor">
+            <Toggle value={adaptText} onChange={(v) => updateSettings({ adaptTextToColor: v })} />
           </Row>
         </Group>
       </Box>

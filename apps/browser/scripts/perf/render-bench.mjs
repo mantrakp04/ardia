@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareApp } from "../../../../scripts/lib/app-copy.mjs";
 import { evaluate, launch, quit, startServer } from "./js-bench.mjs";
 import { buildSeed } from "./seed.mjs";
 
@@ -113,11 +114,7 @@ async function run() {
   if (!app || !jsbundle || !label) throw new Error("run needs --app, --bundle and --label");
   const only = flags.only ? new Set(flags.only.split(",")) : null;
   const want = (name) => !only || only.has(name);
-  const clone = join(out, "apps", label, "Ardia.app");
-  rmSync(dirname(clone), { recursive: true, force: true });
-  mkdirSync(dirname(clone), { recursive: true });
-  execFileSync("cp", ["-cR", app, clone]);
-  cpSync(jsbundle, join(clone, "Contents/Resources/main.jsbundle"));
+  const clone = prepareApp(app, join(out, "apps", label), { bundle: jsbundle });
   const version = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", join(clone, "Contents/Info.plist")], { encoding: "utf8" }).trim();
   const origin = `http://127.0.0.1:${port}`;
   const server = await startServer(Number(port));

@@ -193,3 +193,10 @@ def take_feedback_slot(home: Path, digest: str, limit: int, window_s: float, now
         return "ok"
 
     return locked(home, change) or "busy"
+
+
+def release_feedback_slot(home: Path, digest: str) -> None:
+    def change(state: dict) -> None:
+        state["feedback"] = [entry for entry in state.get("feedback") or [] if isinstance(entry, dict) and entry.get("digest") != digest]
+
+    locked(home, change)

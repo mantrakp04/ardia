@@ -418,8 +418,7 @@ app (listed in `apps/site/README.md` › Screenshots):
 | Asset | Shows |
 |---|---|
 | `src/assets/shots/window.webp` | the whole window: sidebar, pinned tiles, tabs, a page (Fig. 2, `Showcase.astro`) |
-| `shots/address-{toolbar,sidebar}.webp` | the address bar feature's before and after |
-| `shots/profile-*.webp` | the profiles feature, one window per profile |
+| `shots/address-sidebar.webp` | the address bar in the sidebar |
 | `shots/split.webp`, `extensions.webp`, `privacy.webp` | split view, the Web Store, Settings › Privacy & Security |
 | `src/assets/app-icon.png` | the header, the favicon source |
 | `src/assets/game/crowd.webp` | the offline game; its hotspot is in `Game.astro` |
@@ -467,8 +466,21 @@ part of a release; for site changes outside a release, ask first.
 ### 6b. The before-and-after film (every release, nightlies included)
 
 Each release gets a Remotion film of its fixes: the same clicks on the previous release and on this one, side by side
-(`apps/videos/src/videos/fixes-<id>`, like `fixes-0243n1`; footage in `apps/videos/public/footage/<id>`, filmed in
-hidden instances, captured by pid). Once the release is published:
+(composition `fixes-<id>`, like `fixes-0245n3`; footage in `apps/videos/public/footage/fixes-<id>`, filmed in hidden
+instances, captured by pid). A film is data, never a copied folder. In `apps/videos/scripts/fixes`:
+
+1. `sessions-<id>.mjs` writes the sessions the scenes start from, with `writeSession` and the shared tabs, profiles and
+   titles from `sessions-lib.mjs`.
+2. `fixes-<id>.json` lists the segments (scene, title, body, cam, lead, tail; `dropEvents` for recorded event kinds the
+   film shouldn't draw). Scenes are `scenes/<name>.mjs`; `run.mjs <scene>…` films them on both builds.
+3. `python3 gen.py fixes-<id>` writes `src/videos/fixes-<id>/segments.json`. A film that needs more than the shared
+   overlays adds `hooks/fixes-<id>.py` with `clip(seg, side, clip, video_id)`.
+4. `src/videos/fixes-<id>/index.tsx` is six lines: `fixesFilm({ id, release, before, channel, segments })` from
+   `src/lib/fixes-film/Film.tsx`, which draws the intro, cards, panels, pointer, keycaps, dialogs, notes, banners,
+   menus, overlays and outro from the segment data (`fixes-0245n3/index.tsx` is the model). New drawing goes in
+   `src/lib/fixes-film`, driven by a segment field, so every film can use it.
+
+Once the release is published:
 
 ```bash
 pnpm -C apps/videos render fixes-<id>

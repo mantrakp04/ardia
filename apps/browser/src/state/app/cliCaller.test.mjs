@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { callerLabel, parseCliCaller } = await import("./cliCaller.ts");
+const { controlLine, controlLineText, parseCliCaller } = await import("./cliCaller.ts");
 
 test("a caller's name is display text: invisible and control characters go, spaces fold, 40 characters at most", () => {
   assert.deepEqual(parseCliCaller({ name: "  T3\u0000 Code\u200b\n(Nightly)\u202e ", app: "/Applications/T3 Code (Nightly).app" }), {
@@ -26,7 +26,10 @@ test("only an absolute, outermost .app bundle path is kept for the icon", () => 
   assert.equal(app(undefined), null);
 });
 
-test("no caller reads as the ardia command", () => {
-  assert.equal(callerLabel(null), "ardia");
-  assert.equal(callerLabel({ name: "Codex", app: null }), "Codex");
+test("no caller reads as the ardia command, never as \"ardia is controlling Ardia\"", () => {
+  assert.deepEqual(controlLine(null), { lead: "The ", name: "ardia", rest: " command is controlling Ardia" });
+  assert.equal(controlLineText(controlLine(null)), "The ardia command is controlling Ardia");
+  assert.equal(controlLineText(controlLine({ name: "ardia", app: null })), "The ardia command is controlling Ardia");
+  assert.equal(controlLineText(controlLine({ name: "Ardia", app: null })), "The ardia command is controlling Ardia");
+  assert.deepEqual(controlLine({ name: "Codex", app: null }), { lead: "", name: "Codex", rest: " is controlling Ardia" });
 });

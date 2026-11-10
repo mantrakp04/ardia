@@ -28,7 +28,7 @@ import { zoomChangedByUser } from "../../state/site/zoomBubble";
 import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
 import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
-import { leftPage } from "../../state/tabs/pageEvents";
+import { leftPage, pageEnded } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
 import { shareFromPage } from "../../state/site/share";
 import { useAutoPictureInPicture } from "../../state/media/pip";
@@ -44,6 +44,8 @@ import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { notePagePress } from "../../state/telemetry/tabPresses";
+import { noteReopenedPage } from "../../state/telemetry/usage";
+import { isAdoptKind } from "../../state/tabs/adoptIds";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -68,6 +70,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
 
   const lastPage = useRef<string | null>(null);
   const restore = useRef<string | null>(null);
+  const reopening = useRef(engine === "chromium" && isAdoptKind(adoptId, "restore"));
   const pending = useRef<string | null>(navigation?.url ?? (adoptId ? (tab()?.url ?? null) : null));
 
   const seq = navigation?.seq;
@@ -109,7 +112,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       const t = tab();
       const sameEngine = currentTabEngine(tabId) === engine;
       if (wantsPage(t) && sameEngine && currentEngineProfile(t.profileId) === currentEngineProfile(mountedProfile.current) && !isQuitting()) handOff(tabId, currentEngineProfile(t.profileId), engine);
-      else setPageProgress(tabId, 0);
+      else {
+        setPageProgress(tabId, 0);
+        if (!isQuitting()) pageEnded(tabId);
+      }
     },
     [],
   );
@@ -147,6 +153,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
+        if (reopening.current && reported && !isBlank(reported)) {
+          reopening.current = false;
+          noteReopenedPage(canGoBack);
+        }
         noteUnreadLoading(tabId, isLoading);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;
@@ -216,6 +226,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onStatus={(status) => patchPage(tabId, { status })}
       onCrashed={(crashed) => {
         if (!isQuitting()) {
+          pageEnded(tabId);
           patchPage(tabId, { crashed, unresponsive: false, fullscreen: false, status: "" });
           trackPageProcessGone(crashed, visible);
         }
@@ -253,6 +264,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onDiscarded={(url) => {
         pending.current = url;
         fromNewTab.current = false;
+        pageEnded(tabId);
         patchPage(tabId, { backToNewTab: false, status: "" });
         updateLive(tabId, { isLoading: false, canGoBack: false, canGoForward: false, playingAudio: false });
         setPageProgress(tabId, 0);

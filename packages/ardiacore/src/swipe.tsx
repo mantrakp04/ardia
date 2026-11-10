@@ -89,7 +89,6 @@ export const stepPager = (key: string, delta: -1 | 1, wrap = false, order?: read
 export const selectPager = (key: string, profileId: string, order: readonly string[]): Promise<boolean> =>
   Module.selectPager(key, profileId, order);
 export const pagerState = (key: string): PagerSnapshot | null => Module.pagerState(key);
-export const devPagerState = (key: string): Promise<unknown> => Module.devPagerState(key);
 
 export const SwipeArea = forwardRef<SwipeAreaHandle, SwipeAreaProps>(function SwipeArea({ onSwipe, onPagerState, ...props }, ref) {
   const handle = useRef<NativeHandle>(null);

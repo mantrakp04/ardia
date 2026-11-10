@@ -1,6 +1,6 @@
 # Contributing to Ardia
 
-Ardia is a macOS browser with Dia's polish and Arc's sidebar, running on Chrome's own framework (Chromium 154). One
+Ardia is a macOS browser with Dia's polish and Arc's sidebar, running on Chrome's own framework (Chromium 157). One
 person runs it, with a lot of help from coding agents, and ships nightlies most days. Pull requests are welcome. This
 page is what the owner keeps asking for, written down so you don't have to learn it from a review.
 

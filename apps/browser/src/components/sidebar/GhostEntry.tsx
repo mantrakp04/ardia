@@ -15,7 +15,7 @@ import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
 import { TabIcon } from "./TabIcon";
 import { iconSymbol } from "../../lib/customIcon";
-import { groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { groupBoxAtRest, groupSurface, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
@@ -139,7 +139,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
   const { fill, stroke } = groupSurface(shot.color, tokens);
   return (
     <View style={{ paddingVertical: GROUP_BORDER }}>
-      {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
+      {shot.hovered || groupBoxAtRest(shot.color) ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: TAB_ROW.contentLeft, paddingRight: TAB_ROW.trailing }}>
         {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
         <View style={{ flexShrink: 1, height: TAB_ROW.titleHeight, marginLeft: TAB_ROW.titleGap, paddingRight: space.m, justifyContent: "center" }}>

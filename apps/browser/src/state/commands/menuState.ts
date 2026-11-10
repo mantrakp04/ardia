@@ -117,7 +117,7 @@ export function menuState(s: BrowserState): MenuState {
 
   const closed = [
     ...s.closedTabs.filter((c) => !c.tab.profileId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
-    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`, at: c.closedAt })),
+    ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length ? (c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`) : "Window (Pinned Tabs)", at: c.closedAt })),
   ]
     .sort((a, b) => b.at - a.at)
     .slice(0, 10)
@@ -139,4 +139,22 @@ export function menuState(s: BrowserState): MenuState {
     downloadsInProgress: s.downloads.filter((d) => d.state === "downloading").length,
     shortcuts: menuBarBindings(s),
     extensions: extensionMenu(s, windowId) };
+}
+
+export type MenuReads = ReadonlySet<keyof BrowserState>;
+
+export function trackedMenuState(s: BrowserState): { state: MenuState; reads: MenuReads } {
+  const reads = new Set<keyof BrowserState>();
+  const tracked = new Proxy(s, {
+    get(target, key, receiver) {
+      if (typeof key === "string") reads.add(key as keyof BrowserState);
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  return { state: menuState(tracked), reads };
+}
+
+export function menuInputsChanged(reads: MenuReads, s: BrowserState, prev: BrowserState): boolean {
+  for (const key of reads) if (s[key] !== prev[key]) return true;
+  return false;
 }

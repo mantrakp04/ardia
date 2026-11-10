@@ -31,8 +31,6 @@ export const SWIPE_CONFIRMED_WASH = "rgba(255,255,255,0.4)";
 
 export const DEV_ERROR = { background: "#1b1416", text: "#ff8a8a", ...font.body, fontFamily: "Menlo" } as const;
 
-export const SAD_TAB_TITLE_SIZE = font.large.fontSize;
-
 export const NATIVE_SKEW_PAD_TOP = 48;
 
 export const SHADOWS = {
@@ -61,7 +59,7 @@ export const SWIPE_PILL_SPRING = { response: 0.27, damping: 0.9 } as const;
 
 export const DOCK_SPRING = { response: 0.215, damping: 0.79 } as const;
 
-export const ARC_PEEK_SPRING = { response: 0.185, damping: 0.77 } as const;
+export const ARC_PEEK_SPRING = { response: 0.18, damping: 0.8 } as const;
 export const ARC_PEEK_OUT_MS = 150;
 export const ARC_HIDE_MS = duration.fast;
 

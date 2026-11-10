@@ -1,12 +1,12 @@
 {
-  "plan": "browser-agents-2026-11",
-  "generated": "2026-11-07T16:50:21-08:00",
+  "generated": "2026-11-08T08:21:07.418Z",
   "from": "2026-11-07",
   "to": "2026-11-07",
   "asideVersion": "1.26.1107",
+  "opencodeVersion": "0.0.10",
   "repeats": 3,
-  "planned": 96,
-  "runs": 96,
+  "planned": 144,
+  "runs": 144,
   "tasks": [
     {
       "id": "calendar",
@@ -65,6 +65,18 @@
       "side": "aside",
       "agent": "Aside",
       "model": "GPT-6.1 Sol"
+    },
+    {
+      "id": "opencode-claude",
+      "side": "opencode",
+      "agent": "Claude Code",
+      "model": "Opus 5.5"
+    },
+    {
+      "id": "opencode-codex",
+      "side": "opencode",
+      "agent": "Codex",
+      "model": "GPT-6.1 Sol"
     }
   ],
   "cells": [
@@ -73,8 +85,9 @@
       "contender": "ardia-claude",
       "runs": 3,
       "passes": 3,
-      "time": 27,
-      "tokens": 144437,
+      "time": 32.8,
+      "timePassing": 32.8,
+      "tokens": 171778,
       "frontmost": 0
     },
     {
@@ -82,8 +95,149 @@
       "contender": "ardia-codex",
       "runs": 3,
       "passes": 3,
-      "time": 25.1,
-      "tokens": 99712,
+      "time": 36.3,
+      "timePassing": 36.3,
+      "tokens": 121464,
+      "frontmost": 0
+    },
+    {
+      "task": "expenses",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 201.6,
+      "timePassing": 201.6,
+      "tokens": 2064550,
+      "frontmost": 0
+    },
+    {
+      "task": "expenses",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 172.1,
+      "timePassing": 172.1,
+      "tokens": 1200024,
+      "frontmost": 0
+    },
+    {
+      "task": "research",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 47.7,
+      "timePassing": 47.7,
+      "tokens": 250420,
+      "frontmost": 0
+    },
+    {
+      "task": "research",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 56.2,
+      "timePassing": 56.2,
+      "tokens": 293817,
+      "frontmost": 0
+    },
+    {
+      "task": "booking",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 72.8,
+      "timePassing": 72.8,
+      "tokens": 536105,
+      "frontmost": 0
+    },
+    {
+      "task": "booking",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 45.6,
+      "timePassing": 45.6,
+      "tokens": 307398,
+      "frontmost": 0
+    },
+    {
+      "task": "shop",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 73.7,
+      "timePassing": 73.7,
+      "tokens": 610270,
+      "frontmost": 0
+    },
+    {
+      "task": "shop",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 54.5,
+      "timePassing": 54.5,
+      "tokens": 437369,
+      "frontmost": 0
+    },
+    {
+      "task": "grid",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 92.9,
+      "timePassing": 92.9,
+      "tokens": 601482,
+      "frontmost": 0
+    },
+    {
+      "task": "grid",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 79.3,
+      "timePassing": 79.3,
+      "tokens": 447421,
+      "frontmost": 0
+    },
+    {
+      "task": "kanban",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 45.3,
+      "timePassing": 45.3,
+      "tokens": 331757,
+      "frontmost": 0
+    },
+    {
+      "task": "kanban",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 42.1,
+      "timePassing": 42.1,
+      "tokens": 261309,
+      "frontmost": 0
+    },
+    {
+      "task": "multitab",
+      "contender": "ardia-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 66.9,
+      "timePassing": 66.9,
+      "tokens": 436576,
+      "frontmost": 0
+    },
+    {
+      "task": "multitab",
+      "contender": "ardia-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 76.8,
+      "timePassing": 76.8,
+      "tokens": 590366,
       "frontmost": 0
     },
     {
@@ -92,6 +246,7 @@
       "runs": 3,
       "passes": 3,
       "time": 42.3,
+      "timePassing": 42.3,
       "tokens": 275871,
       "frontmost": 0
     },
@@ -101,25 +256,8 @@
       "runs": 3,
       "passes": 3,
       "time": 61.4,
+      "timePassing": 61.4,
       "tokens": 170760,
-      "frontmost": 0
-    },
-    {
-      "task": "expenses",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 166.1,
-      "tokens": 1498598,
-      "frontmost": 0
-    },
-    {
-      "task": "expenses",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 139.3,
-      "tokens": 1404484,
       "frontmost": 0
     },
     {
@@ -128,6 +266,7 @@
       "runs": 3,
       "passes": 3,
       "time": 132.2,
+      "timePassing": 132.2,
       "tokens": 2068684,
       "frontmost": 0
     },
@@ -137,26 +276,9 @@
       "runs": 3,
       "passes": 1,
       "time": 222.7,
+      "timePassing": 246.2,
       "tokens": 1347556,
       "frontmost": 2
-    },
-    {
-      "task": "research",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 47.4,
-      "tokens": 277199,
-      "frontmost": 0
-    },
-    {
-      "task": "research",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 54,
-      "tokens": 383068,
-      "frontmost": 0
     },
     {
       "task": "research",
@@ -164,6 +286,7 @@
       "runs": 3,
       "passes": 3,
       "time": 40.6,
+      "timePassing": 40.6,
       "tokens": 344963,
       "frontmost": 2
     },
@@ -173,26 +296,9 @@
       "runs": 3,
       "passes": 3,
       "time": 75.7,
+      "timePassing": 75.7,
       "tokens": 348592,
       "frontmost": 1
-    },
-    {
-      "task": "booking",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 64,
-      "tokens": 554798,
-      "frontmost": 0
-    },
-    {
-      "task": "booking",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 51.3,
-      "tokens": 504673,
-      "frontmost": 0
     },
     {
       "task": "booking",
@@ -200,6 +306,7 @@
       "runs": 3,
       "passes": 3,
       "time": 44,
+      "timePassing": 44,
       "tokens": 446296,
       "frontmost": 1
     },
@@ -209,26 +316,9 @@
       "runs": 3,
       "passes": 3,
       "time": 102.7,
+      "timePassing": 102.7,
       "tokens": 444195,
       "frontmost": 1
-    },
-    {
-      "task": "shop",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 97.7,
-      "tokens": 883999,
-      "frontmost": 0
-    },
-    {
-      "task": "shop",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 102.3,
-      "tokens": 1446388,
-      "frontmost": 0
     },
     {
       "task": "shop",
@@ -236,6 +326,7 @@
       "runs": 3,
       "passes": 3,
       "time": 70.2,
+      "timePassing": 70.2,
       "tokens": 913492,
       "frontmost": 1
     },
@@ -245,26 +336,9 @@
       "runs": 3,
       "passes": 3,
       "time": 109.2,
+      "timePassing": 109.2,
       "tokens": 710185,
       "frontmost": 1
-    },
-    {
-      "task": "grid",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 106.7,
-      "tokens": 848512,
-      "frontmost": 0
-    },
-    {
-      "task": "grid",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 72.5,
-      "tokens": 497919,
-      "frontmost": 0
     },
     {
       "task": "grid",
@@ -272,6 +346,7 @@
       "runs": 3,
       "passes": 3,
       "time": 69.3,
+      "timePassing": 69.3,
       "tokens": 635855,
       "frontmost": 1
     },
@@ -281,26 +356,9 @@
       "runs": 3,
       "passes": 3,
       "time": 137.6,
+      "timePassing": 137.6,
       "tokens": 763367,
       "frontmost": 1
-    },
-    {
-      "task": "kanban",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 47.3,
-      "tokens": 369482,
-      "frontmost": 0
-    },
-    {
-      "task": "kanban",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 42.5,
-      "tokens": 269411,
-      "frontmost": 0
     },
     {
       "task": "kanban",
@@ -308,6 +366,7 @@
       "runs": 3,
       "passes": 3,
       "time": 51.8,
+      "timePassing": 51.8,
       "tokens": 710979,
       "frontmost": 0
     },
@@ -317,26 +376,9 @@
       "runs": 3,
       "passes": 3,
       "time": 83.2,
+      "timePassing": 83.2,
       "tokens": 611405,
       "frontmost": 1
-    },
-    {
-      "task": "multitab",
-      "contender": "ardia-claude",
-      "runs": 3,
-      "passes": 3,
-      "time": 95.3,
-      "tokens": 839067,
-      "frontmost": 0
-    },
-    {
-      "task": "multitab",
-      "contender": "ardia-codex",
-      "runs": 3,
-      "passes": 3,
-      "time": 118.4,
-      "tokens": 1044633,
-      "frontmost": 0
     },
     {
       "task": "multitab",
@@ -344,6 +386,7 @@
       "runs": 3,
       "passes": 3,
       "time": 88,
+      "timePassing": 88,
       "tokens": 610236,
       "frontmost": 1
     },
@@ -353,7 +396,168 @@
       "runs": 3,
       "passes": 3,
       "time": 126.8,
+      "timePassing": 126.8,
       "tokens": 537967,
+      "frontmost": 0
+    },
+    {
+      "task": "calendar",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 42,
+      "timePassing": 42,
+      "tokens": 395644,
+      "frontmost": 0
+    },
+    {
+      "task": "calendar",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 70.8,
+      "timePassing": 70.8,
+      "tokens": 522326,
+      "frontmost": 0
+    },
+    {
+      "task": "expenses",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 268.5,
+      "timePassing": 268.5,
+      "tokens": 3254214,
+      "frontmost": 0
+    },
+    {
+      "task": "expenses",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 236.6,
+      "timePassing": 236.6,
+      "tokens": 2001433,
+      "frontmost": 0
+    },
+    {
+      "task": "research",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 39.8,
+      "timePassing": 39.8,
+      "tokens": 235384,
+      "frontmost": 0
+    },
+    {
+      "task": "research",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 59.1,
+      "timePassing": 59.1,
+      "tokens": 346405,
+      "frontmost": 0
+    },
+    {
+      "task": "booking",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 107,
+      "timePassing": 107,
+      "tokens": 825191,
+      "frontmost": 0
+    },
+    {
+      "task": "booking",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 69.6,
+      "timePassing": 69.6,
+      "tokens": 626317,
+      "frontmost": 0
+    },
+    {
+      "task": "shop",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 110.7,
+      "timePassing": 110.7,
+      "tokens": 1044494,
+      "frontmost": 0
+    },
+    {
+      "task": "shop",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 121,
+      "timePassing": 121,
+      "tokens": 926248,
+      "frontmost": 0
+    },
+    {
+      "task": "grid",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 88.9,
+      "timePassing": 88.9,
+      "tokens": 883065,
+      "frontmost": 0
+    },
+    {
+      "task": "grid",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 93.4,
+      "timePassing": 93.4,
+      "tokens": 809160,
+      "frontmost": 0
+    },
+    {
+      "task": "kanban",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 150.5,
+      "timePassing": 150.5,
+      "tokens": 1168253,
+      "frontmost": 0
+    },
+    {
+      "task": "kanban",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 245.6,
+      "timePassing": 245.6,
+      "tokens": 1048260,
+      "frontmost": 0
+    },
+    {
+      "task": "multitab",
+      "contender": "opencode-claude",
+      "runs": 3,
+      "passes": 3,
+      "time": 118.1,
+      "timePassing": 118.1,
+      "tokens": 662198,
+      "frontmost": 0
+    },
+    {
+      "task": "multitab",
+      "contender": "opencode-codex",
+      "runs": 3,
+      "passes": 3,
+      "time": 193.8,
+      "timePassing": 193.8,
+      "tokens": 1311672,
       "frontmost": 0
     }
   ]

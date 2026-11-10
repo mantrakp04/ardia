@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import grading
 import registry
 import servers
 from procs import (front_pid, http, kill_group, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
@@ -346,7 +347,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
         raise SystemExit("agent must be claude or codex")
     opts = options(overrides)
     data, _, codex_home = lane_paths(opts)
-    task = registry.task(task_id)
+    task = registry.task(task_id, int(opts.get("port_offset") or 0))
     model, effort = opts.get("model") or MODELS[agent][0], opts.get("effort") or MODELS[agent][1]
     deadline = int(opts.get("deadline_s") or task["deadline_s"])
     results_dir = Path(results_dir)
@@ -406,20 +407,20 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
         check = http(task["check"]["method"], task["check"]["url"])
     except Exception as e:
         check = {"pass": False, "error": str(e)}
-    reset_by_agent = check.get("reset_at_ms") is not None and check.get("reset_at_ms") != baseline.get("reset_at_ms")
-    passed = bool(check.get("pass")) and not reset_by_agent
+    passed, reset_by_agent = grading.grade(check, timed_out, baseline_reset_at_ms=baseline.get("reset_at_ms"))
     completed = check.get("completed_at_ms")
     parsed = (parse_claude if agent == "claude" else parse_codex)(read_jsonl(events))
     record = {
         "run_id": run_id, "side": "ardia", "contender": contender or f"ardia-{agent}", "agent": agent,
         "task": task_id, "started_at": started_at.isoformat(timespec="milliseconds"),
         "model": model, "effort": effort, "cli": cli, "humanize": opts["humanize"], "notes_kept": opts["keep_notes"],
-        "notes_after": notes_snapshot(data), "lane": opts.get("lane"),
+        "notes_after": notes_snapshot(data), "lane": opts.get("lane"), "port_offset": task["port_offset"],
         "wall_s": round(wall, 3), "timed_out": timed_out, "deadline_s": deadline, "exit_code": code,
         "pass": passed, "reset_by_agent": reset_by_agent,
         "time_to_correct_s": round(completed / 1000 - start_epoch, 3) if passed and completed else None,
         "commands": sum(1 for t in parsed["tools"] if t["name"] in SHELL_TOOLS),
         "matched": check.get("matched"), "total": check.get("total"), "extra": check.get("extra"),
+        "method": check.get("method"), "invariants": check.get("invariants"),
         "check": check, "check_details": check.get("details"), **parsed,
         "prompt": prompt, "command": cmd, "workdir": str(workdir),
         "instance": {"pid": state["pid"], "port": opts["port"], "app": state["app"], "ardia_test": opts["ardia_test"],

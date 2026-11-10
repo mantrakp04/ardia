@@ -46,7 +46,7 @@ function token(): Promise<string | undefined> {
   return devToken;
 }
 
-async function gh(path: string, accept = "application/vnd.github+json") {
+export async function gh(path: string, accept = "application/vnd.github+json") {
   const auth = await token();
   const res = await fetch(`https://api.github.com/${path}`, {
     headers: {

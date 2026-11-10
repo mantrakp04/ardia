@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Security
 
@@ -135,3 +136,4 @@ struct IsolatedSecretStores: SecretStore {
     }
   }
 }
+#endif

@@ -68,11 +68,6 @@ export const SWITCHES = {
 } as const satisfies Record<string, SwitchDef>;
 
 export const EXPERIMENTS = {
-  beginFrameBridge: {
-    about: "While a shown tab waits for the display link's first callback, the GPU process sends up to 4 warm-up BeginFrames on the display's last vsync grid (engine, chromium-begin-frame-warm-up.patch).",
-    owner: "tab switch",
-    removeBy: "2026-12-15",
-  },
   serverWindowDragAllOpen: {
     about: "With serverWindowDrag, every view in the titlebar band is also left open to window moves (a probe for the geometry work).",
     owner: "window",

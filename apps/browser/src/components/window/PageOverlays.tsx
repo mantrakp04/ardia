@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Animated, StyleSheet, type ViewStyle } from "react-native";
 import { ENGINE_OFFER_WIDTH, EngineOfferPrompt } from "../site/EnginePrompt";
 import { useTabValue } from "../../state/tabs/tabWatch";
@@ -6,6 +7,7 @@ import { FindBar } from "../find/FindBar";
 import { POPOVER_MARGIN } from "../ui";
 import { NO_TOOLBAR, type ToolbarGeometry } from "./geometry";
 import { usePages } from "../../state/tabs/pageState";
+import { startPopoverEscape } from "../../state/tabs/popoverDismiss";
 import { SadTab, StatusBubble } from "./PaneOverlays";
 import { AutofillPrompt, BLOCKED_POPUPS_WIDTH, BlockedPopupsPrompt, EXTERNAL_APP_WIDTH, ExternalAppPrompt, PasswordPrompt, PERMISSION_PROMPT_WIDTH, PermissionPrompt } from "../site/Prompts";
 import { SiteControls } from "../site/SiteControls";
@@ -27,7 +29,6 @@ export function PageOverlays({
   width,
   geometry,
   toolbar,
-  fullscreen,
   newTabShown,
   statusStyle,
   popovers = true,
@@ -38,7 +39,6 @@ export function PageOverlays({
   width: number;
   geometry: ToolbarGeometry;
   toolbar: boolean;
-  fullscreen: boolean;
   newTabShown: boolean;
   statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
   popovers?: boolean;
@@ -47,6 +47,7 @@ export function PageOverlays({
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
   const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
+  useEffect(startPopoverEscape, []);
   return (
     <>
       <FindBar tabId={tabId} />
@@ -85,11 +86,11 @@ export function BesidePeekPopovers({ tabId, windowId, left, top, room }: { tabId
   );
 }
 
-export function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: string; sourceId: string; windowId: string; width: number; fullscreen: boolean }) {
+export function PeekPage({ tabId, sourceId, windowId, width }: { tabId: string; sourceId: string; windowId: string; width: number }) {
   return (
     <>
       <TabWebView tabId={tabId} visible warm={false} peekOf={sourceId} />
-      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} fullscreen={fullscreen} newTabShown={false} cliPill />
+      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} newTabShown={false} cliPill />
     </>
   );
 }

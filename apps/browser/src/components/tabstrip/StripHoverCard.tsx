@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Animated, View } from "react-native";
-import { displayUrl } from "@ardia/core";
 import { useTab } from "../../state/browser/hooks";
-import { tabTitle } from "../../state/browser/model";
-import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { awayTitle } from "../../state/pins/organize";
 import { stripChipEntered, stripChipGone, stripChipLeft, stripChipPressed, useStripHover } from "../../state/tabs/stripHover";
 import { markHoverProps } from "../../lib/hoverMarks";
-import { FadeLabel, font, HoverCard as HoverPanel, space, Symbol, Text } from "../ui";
-import { lineHeight } from "../ui/tokens";
-import { useTheme } from "../ui/theme";
-import { TabIcon } from "../sidebar/TabIcon";
-import { AwayTitleLabel } from "../sidebar/AwayTitle";
+import { HoverCard as HoverPanel } from "../ui";
+import { TabCardSummary } from "../sidebar/TabCardSummary";
 import { useHoverCardMotion, useHoverCardPlacement } from "../sidebar/hoverMotion";
 import { STRIP_CARD_GAP, STRIP_CARD_MARGIN, STRIP_CARD_WIDTH } from "./tokens";
 
@@ -57,36 +50,11 @@ export function StripHoverCard({ windowId, stripBottom, windowWidth }: { windowI
 }
 
 function StripCardContent({ tabId }: { tabId: string }) {
-  const theme = useTheme();
   const tab = useTab(tabId);
-  const sleeping = useIsSleeping(tabId);
   if (!tab) return null;
-  const away = awayTitle(tab);
   return (
     <HoverPanel width={STRIP_CARD_WIDTH} pad="ml">
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
-        <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        {away ? (
-          <AwayTitleLabel away={away} color={theme.textPrimary} fontSize={font.body.fontSize} weight="medium" height={18} style={{ flex: 1 }} />
-        ) : (
-          <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
-        )}
-      </View>
-      {tab.url ? (
-        <Text lines={2} size="caption" tone="textSecondary" style={URL_LINE}>
-          {displayUrl(tab.url)}
-        </Text>
-      ) : null}
-      {sleeping ? (
-        <View accessible accessibilityLabel="Web content has been discarded" style={{ flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.xs }}>
-          <Symbol name="moon.zzz" size={10} color={theme.textTertiary} style={{ width: 14, height: 14 }} />
-          <Text size="caption" tone="textTertiary">
-            This tab needs to reload
-          </Text>
-        </View>
-      ) : null}
+      <TabCardSummary tab={tab} />
     </HoverPanel>
   );
 }
-
-const URL_LINE = { marginTop: space.xs, lineHeight: lineHeight.caption } as const;

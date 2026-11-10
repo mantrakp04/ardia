@@ -39,17 +39,16 @@ const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
         </div>
       </Plate>
       <div class="demo-controls" data-demo-controls hidden>
-        <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
-          <span data-demo-customize-label>Customize it</span>
-        </button>
-        <div class="demo-code" data-demo-code hidden>
-          <p class="label demo-code-label">Your setup code</p>
-          <div class="demo-code-row">
-            <code class="demo-code-value" data-demo-code-value></code>
-            <button type="button" class="demo-copy" data-demo-copy data-track="demo_setup_code_copied">Copy</button>
-          </div>
-          <p class="demo-code-line">Paste it into Ardia after you download it, on its first screen or in Settings › General. It sets itself up just like this.</p>
+        <div class="demo-actions">
+          <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
+            <span data-demo-customize-label>Customize it</span>
+          </button>
+          <span class="demo-code" data-demo-code hidden>
+            <DownloadButton location="demo-code" label="Download & copy code" meta="" class="demo-get" />
+          </span>
         </div>
+        <code class="demo-code-value" data-demo-code-value hidden></code>
+        <p class="demo-code-line" data-demo-code-line hidden>Your setup code goes to your clipboard as the download starts. Paste it on Ardia’s first screen and it sets itself up just like this.</p>
       </div>
     </figure>
     <aside class="band" aria-label="Download" data-download-band hidden>
@@ -80,6 +79,7 @@ const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
 <style>
   .showcase {
     padding-top: clamp(24px, 4vw, 64px);
+    padding-bottom: calc(var(--edge) + clamp(32px, 4vw, 64px));
   }
   .showcase-figure {
     margin: 0 auto;
@@ -204,8 +204,15 @@ const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
     margin-top: clamp(18px, 2.2vw, 28px);
+    text-align: center;
+  }
+  .demo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
   }
   .demo-controls[hidden] {
     display: none;
@@ -231,62 +238,37 @@ const demoSrc = `${base}/demo/?embed${fullPage ? "&warm" : ""}`;
   .demo-customize:disabled::before {
     transform: translateX(-104%) skewX(-12deg);
   }
-  .demo-customize:focus-visible,
-  .demo-copy:focus-visible {
+  .demo-customize:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   .demo-code {
-    display: grid;
-    justify-items: center;
-    gap: 10px;
-    max-width: 640px;
-    text-align: center;
+    display: flex;
   }
-  .demo-code[hidden] {
+  .demo-code[hidden],
+  .demo-code-value[hidden],
+  .demo-code-line[hidden] {
     display: none;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .demo-code {
+    .demo-code,
+    .demo-code-line {
       animation: band-in 600ms var(--ease-out) both;
     }
   }
-  .demo-code-label {
-    color: var(--ink-3);
-  }
-  .demo-code-row {
-    display: flex;
-    align-items: stretch;
-    max-width: 100%;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--rule-strong);
+  .demo-code :global(.demo-get) {
+    --h: 46px;
   }
   .demo-code-value {
-    min-width: 0;
+    max-width: 100%;
     padding: 11px 14px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--rule-strong);
     font-family: var(--mono);
     font-size: clamp(0.72rem, 0.66rem + 0.3vw, 0.86rem);
     letter-spacing: 0.01em;
     overflow-wrap: anywhere;
     user-select: all;
-  }
-  .demo-copy {
-    flex: none;
-    padding: 0 16px;
-    border: 0;
-    border-left: 1px solid var(--rule-strong);
-    border-radius: 0 4px 4px 0;
-    background: var(--ink);
-    color: var(--paper);
-    font: inherit;
-    font-size: var(--t-small);
-    font-weight: 600;
-    cursor: pointer;
-    touch-action: manipulation;
-    transition: background-color 160ms var(--ease-out);
-  }
-  .demo-copy:hover {
-    background: var(--accent);
   }
   .demo-code-line {
     max-width: 46ch;

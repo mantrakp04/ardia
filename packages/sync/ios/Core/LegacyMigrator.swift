@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Security
 
@@ -531,3 +532,4 @@ extension LegacyMigrator.Context {
     return (try? decoder.decode(LegacyMigrator.Journal.self, from: data))?.isDone == true
   }
 }
+#endif

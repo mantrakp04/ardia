@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · Harbor &amp; Pine · Storefront admin</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="logo" aria-hidden="true">H</span><span class="store-name">Harbor &amp; Pine</span></a>
+  <div class="top-search" aria-hidden="true"><span>⌕</span><span>Search the admin</span><kbd>⌘K</kbd></div>
+  <div class="me"><span class="avatar" aria-hidden="true">DW</span> Dana Whitfield</div>
+</header>
+<div class="shell">
+  <nav class="side" aria-label="Admin">
+    <a href="/"><span class="ico" aria-hidden="true">▤</span>Orders</a>
+    <a href="/settings" aria-current="page"><span class="ico" aria-hidden="true">⚙</span>Settings</a>
+    <div class="side-foot">
+      <a href="/developers"><span class="ico" aria-hidden="true">{ }</span>Developers</a>
+    </div>
+  </nav>
+  <main class="main">
+    <div class="page">
+      <div class="page-head"><h1>Settings</h1></div>
+      <div class="settings-grid">
+        <nav class="card settings-nav" aria-label="Settings">
+          <a href="/settings/general" data-section="general">General</a>
+          <a href="/settings/developer" data-section="developer">Developer</a>
+        </nav>
+        <div>
+          <section class="section card card-pad" id="general" aria-labelledby="general-title">
+            <h2 id="general-title">Store details</h2>
+            <p class="lede">How your store appears to customers and in your admin.</p>
+            <dl class="kv">
+              <dt>Store name</dt><dd>Harbor &amp; Pine</dd>
+              <dt>Store email</dt><dd>hello@harborandpine.example</dd>
+              <dt>Currency</dt><dd>US dollar (USD)</dd>
+              <dt>Time zone</dt><dd>(GMT-05:00) Eastern Time (US &amp; Canada)</dd>
+              <dt>Order numbers</dt><dd>Start at #1001</dd>
+            </dl>
+            <hr class="divider">
+            <h2>Sales channels</h2>
+            <p class="lede">Where your orders come from.</p>
+            <dl class="kv">
+              <dt>Online store</dt><dd>Active since Oct 6, 2026</dd>
+              <dt>Legacy store</dt><dd>Read-only. New orders stopped on Oct 6, 2026.</dd>
+              <dt>Point of Sale</dt><dd>Active, 1 location</dd>
+              <dt>Wholesale</dt><dd>Active</dd>
+            </dl>
+          </section>
+          <section class="section card card-pad" id="developer" aria-labelledby="developer-title">
+            <h2 id="developer-title">Admin API access</h2>
+            <p class="lede">Use a personal access token to work with your store's data from scripts and other tools.</p>
+            <label class="field-label" for="token">Personal access token</label>
+            <div class="token-row">
+              <input class="token" id="token" type="text" readonly value="sfa_live_••••••••••••••••••••••••••••••••" aria-describedby="token-help">
+              <button class="btn" type="button" id="reveal">Reveal</button>
+              <button class="btn" type="button" id="copy" hidden>Copy</button>
+            </div>
+            <p class="field-help" id="token-help">Scopes: orders:read, orders:write. Created Oct 6, 2026 by Dana Whitfield. Keep it secret: it has the same access as your account.</p>
+            <hr class="divider">
+            <dl class="kv">
+              <dt>API base URL</dt><dd><code>http://127.0.0.1:8861/v1</code></dd>
+              <dt>Rate limit</dt><dd>10 requests per second</dd>
+            </dl>
+            <div class="callout"><span aria-hidden="true">ⓘ</span><span>See the <a href="/developers">Admin API reference</a> for endpoints, filters and examples.</span></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="/settings.js"></script>
+</body>
+</html>

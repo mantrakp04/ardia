@@ -1,4 +1,6 @@
+#if os(macOS)
 import AppKit
+#endif
 import Foundation
 import Security
 
@@ -12,6 +14,7 @@ public enum LegacyName {
   public static let syncFolderName = "Netnyahoo Sync"
 }
 
+#if os(macOS)
 enum Renamed {
   struct KeychainItem {
     let oldService: String
@@ -296,3 +299,4 @@ extension LegacyMigration {
     return (try? JSONSerialization.data(withJSONObject: names, options: [.sortedKeys, .prettyPrinted])) ?? Data()
   }
 }
+#endif

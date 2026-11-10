@@ -47,10 +47,11 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
     setShareAudio(AUDIO_SHARED_BY_DEFAULT);
     let live = true;
     const t = setInterval(() => void getDisplayMediaSources().then((next) => live && setSources(next)), REFRESH_MS);
-    setTimeout(() => (list.current as unknown as { focus?: () => void } | null)?.focus?.(), 50);
+    const focusList = setTimeout(() => (list.current as unknown as { focus?: () => void } | null)?.focus?.(), 50);
     return () => {
       live = false;
       clearInterval(t);
+      clearTimeout(focusList);
     };
   }, [request?.id]);
 

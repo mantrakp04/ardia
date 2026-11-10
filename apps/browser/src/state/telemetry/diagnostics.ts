@@ -134,7 +134,6 @@ export async function hardwareProperties(): Promise<Record<string, unknown>> {
 const GONE_REASONS = new Set(["abnormal", "killed", "crashed", "oom", "launchFailed", "integrity", "unknown"]);
 
 export function trackPageProcessGone(info: { reason: string; code: number }, visible: boolean) {
-  if (!isSharing()) return;
   pageProcessesGone++;
   if (pageProcessEvents >= MAX_PAGE_PROCESS_EVENTS) return;
   pageProcessEvents++;
