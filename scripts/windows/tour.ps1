@@ -774,24 +774,124 @@ function Invoke-OnboardingTour {
   Stop-Ardia $session
 }
 
-function Invoke-ContextMenuStop($Session, [string]$Slug, [string]$Title, [string]$Where, [scriptblock]$Point) {
+function Invoke-ContextMenuStop($Session, [string]$Slug, [string]$Title, [string]$Where, [scriptblock]$Point, [switch]$NoArea) {
   Invoke-Stop $Session $Slug $Title {
     param($stop)
     Focus-Window $Session $Session.Main $stop | Out-Null
     Close-Menus $Session
     $target = & $Point
     $stop.Did = "Right-clicked $Where at $($target.X), $($target.Y) ($($target.How))."
-    $stop.Expected = "a pop-up menu window (#32768) of ours."
-    $before = @(Get-TopWindows $Session)
+    if ($NoArea) {
+      $stop.Expected = "one 'context menu area: right press' line and no showMenu, since nothing there has a menu without the engine."
+    } else {
+      $stop.Expected = "the log lines 'context menu area: right press on ... opening its menu', 'menu showMenu asked' and 'menu pop-up menu shown'."
+    }
+    $mark = Get-LogCount $Session
     Send-Click $target.X $target.Y -Right
-    $opened = Wait-Until $Session { @(Get-MenuWindows $Session).Count -gt 0 } 2500
-    Start-Sleep -Milliseconds 300
+    $shown = Wait-Until $Session { (Get-LinesSince $Session $mark '^menu \d+ pop-up menu (shown|not shown)').Count -gt 0 } 2500
+    Start-Sleep -Milliseconds 400
     Save-Shot $stop $Session.Main | Out-Null
-    $new = @(Get-NewWindows $Session $before)
-    Set-Seen $stop $opened
-    $stop.Facts.Add("new windows: $(Format-Windows $new)")
+    $area = @(Get-LinesSince $Session $mark 'context menu area: right press')
+    $asked = @(Get-LinesSince $Session $mark '^menu \d+ showMenu asked')
+    $popped = @(Get-LinesSince $Session $mark '^menu \d+ pop-up menu shown')
+    if ($NoArea) {
+      Set-Seen $stop ($area.Count -gt 0 -and $asked.Count -eq 0)
+    } else {
+      Set-Seen $stop ($shown -and $area.Count -gt 0 -and $asked.Count -gt 0 -and $popped.Count -gt 0)
+    }
+    $stop.Facts.Add("area line: $(if ($area.Count) { $area[0] } else { 'none' })")
+    $stop.Facts.Add("showMenu asked: $(if ($asked.Count) { $asked[0] } else { 'none' })")
+    $stop.Facts.Add("pop-up shown: $(if ($popped.Count) { $popped[0] } else { 'none' })")
+    if ($popped.Count) {
+      Send-Escape
+      $closed = Wait-Until $Session { (Get-LinesSince $Session $mark '^menu \d+ pop-up menu (dismissed|chose|failed)').Count -gt 0 } 2000
+      $result = @(Get-LinesSince $Session $mark '^menu \d+ pop-up menu (dismissed|chose|failed)')
+      $stop.Facts.Add("after Escape: $(if ($closed -and $result.Count) { $result[0] } else { 'no result line' })")
+    }
     Close-Menus $Session
-    $stop.Facts.Add("menu closed by Escape: $(-not @(Get-MenuWindows $Session).Count)")
+  } | Out-Null
+}
+
+function Get-RegionBrightness([int]$Left, [int]$Top, [int]$Width, [int]$Height) {
+  if ($Width -le 0 -or $Height -le 0) { return $null }
+  try {
+    $bitmap = New-Object System.Drawing.Bitmap $Width, $Height
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+      $graphics.CopyFromScreen($Left, $Top, 0, 0, $bitmap.Size)
+      $sum = 0.0
+      $count = 0
+      for ($y = 0; $y -lt $Height; $y += 2) {
+        for ($x = 0; $x -lt $Width; $x += 2) {
+          $pixel = $bitmap.GetPixel($x, $y)
+          $sum += 0.299 * $pixel.R + 0.587 * $pixel.G + 0.114 * $pixel.B
+          $count++
+        }
+      }
+      if ($count -eq 0) { return $null }
+      return [Math]::Round($sum / $count, 1)
+    } finally {
+      $graphics.Dispose()
+      $bitmap.Dispose()
+    }
+  } catch {
+    return $null
+  }
+}
+
+function Get-SidebarTabRows($Session) {
+  $client = Get-Client $Session.Main
+  if (-not $client) { return @() }
+  $sidebarRight = $client.X + [int](190 * $client.Scale)
+  $hits = @(Find-Named $Session.Main "New Tab" | Where-Object { $_.X -lt $sidebarRight -and $_.Y -gt $client.Y + [int](40 * $client.Scale) } | Sort-Object Y)
+  $rows = @()
+  foreach ($hit in $hits) {
+    $rows += [pscustomobject]@{
+      X = $hit.X
+      Y = $hit.Y
+      Left = $client.X + [int](20 * $client.Scale)
+      Top = $hit.Y - [int](12 * $client.Scale)
+      Width = [int](140 * $client.Scale)
+      Height = [int](24 * $client.Scale)
+    }
+  }
+  return @($rows)
+}
+
+function Invoke-TabClickStop($Session) {
+  Invoke-Stop $Session "tab-left-click" "Left click on an unselected sidebar tab" {
+    param($stop)
+    Focus-Window $Session $Session.Main $stop | Out-Null
+    Close-Menus $Session
+    $rows = @(Get-SidebarTabRows $Session)
+    $stop.Expected = "the clicked row turns into the selected card (brighter) and the row that was selected loses it (darker); no context menu line."
+    if ($rows.Count -lt 2) {
+      $stop.Did = "Looked for at least two 'New Tab' rows in the sidebar with UI Automation."
+      $stop.Seen = "no"
+      $stop.Facts.Add("found $($rows.Count) rows")
+      return
+    }
+    $brightness = @($rows | ForEach-Object { Get-RegionBrightness $_.Left $_.Top $_.Width $_.Height })
+    $selected = 0
+    for ($i = 1; $i -lt $rows.Count; $i++) { if ($brightness[$i] -gt $brightness[$selected]) { $selected = $i } }
+    $pick = 0
+    if ($selected -eq 0) { $pick = 1 }
+    $target = $rows[$pick]
+    $stop.Did = "Left-clicked sidebar row $($pick + 1) of $($rows.Count) at $($target.X), $($target.Y); row $($selected + 1) looked selected."
+    $mark = Get-LogCount $Session
+    Send-Click $target.X $target.Y
+    Start-Sleep -Milliseconds 900
+    Save-Shot $stop $Session.Main | Out-Null
+    $pickAfter = Get-RegionBrightness $target.Left $target.Top $target.Width $target.Height
+    $was = $rows[$selected]
+    $wasAfter = Get-RegionBrightness $was.Left $was.Top $was.Width $was.Height
+    $menuLines = @(Get-LinesSince $Session $mark 'context menu area: right press')
+    $stop.Facts.Add("row brightness before: $($brightness -join ', ')")
+    $stop.Facts.Add("clicked row $($brightness[$pick]) -> $pickAfter, previously selected row $($brightness[$selected]) -> $wasAfter")
+    if ($menuLines.Count) { $stop.Facts.Add("a left click was read as a right press: $($menuLines[0])") }
+    $became = $null -ne $pickAfter -and $null -ne $brightness[$pick] -and $pickAfter -gt $brightness[$pick] + 6
+    $lost = $null -ne $wasAfter -and $null -ne $brightness[$selected] -and $wasAfter -lt $brightness[$selected] - 6
+    Set-Seen $stop ($became -and $lost -and -not $menuLines.Count)
   } | Out-Null
 }
 
@@ -973,7 +1073,9 @@ function Invoke-MainTour {
     $client = Get-Client $session.Main
     $sidebar = [int](190 * $client.Scale)
     return [pscustomobject]@{ X = $client.X + $sidebar + [int](($client.Width - $sidebar) / 2); Y = $client.Y + [int]($client.Height * 0.68); How = "position" }
-  }
+  } -NoArea
+
+  Invoke-TabClickStop $session
 
   Invoke-Stop $session "sidebar-hidden" "Sidebar hidden" {
     param($stop)

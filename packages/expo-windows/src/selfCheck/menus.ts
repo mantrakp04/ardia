@@ -114,6 +114,17 @@ export const checks: Check[] = [
     },
   },
   {
+    name: "menus: the pointer state behind right and middle clicks reads live with no button held",
+    run() {
+      const host = requireNativeModule<{ pointerState(): number }>("ArdiaWindowsHost");
+      const first = host.pointerState();
+      const second = host.pointerState();
+      expectTrue(Number.isInteger(first) && first >= 0 && first < 64, `pointerState returned ${JSON.stringify(first)}`);
+      expectEqual(first & 7, 0, "mouse buttons held in a hidden instance");
+      expectEqual(second & 7, 0, "mouse buttons held on a second read");
+    },
+  },
+  {
     name: "menus: recording a shortcut can be cancelled",
     async run() {
       const recorded = menus().recordShortcut();
