@@ -303,12 +303,6 @@ def tree_differs(cmp):
     return any(tree_differs(sub) for sub in cmp.subdirs.values())
 
 
-def holds_lock_for(path):
-    if pathguard.reaches(path):
-        return pathguard.real_lock_held()
-    return pathguard.chromium_lock_held()
-
-
 def real_chromium_build():
     return pathguard.real_chromium_build()
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Keep the Mac's total CPU under a cap by throttling only the agents' own work.
 
-  scripts/agent/cpu-cap [--cap 70] [--resume 55] [--every 3]
+  scripts/agent/cpu-cap [--cap 70] [--resume 60] [--every 3]
 
 "Ours" is every process whose command line mentions this checkout or the agents' scratch folders (/private/tmp/claude-*)
 plus all their descendants: builds (xcodebuild, clang, swift, ld, hermesc), benches, Metro, hidden test instances,
