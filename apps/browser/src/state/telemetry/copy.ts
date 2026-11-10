@@ -55,6 +55,8 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "At launch: the chip and graphics chip names, how much memory the Mac has, how many displays and their scale, and whether the Mac decodes AV1, VP9, HEVC and H.264 video in hardware",
       "How many tab presses opened a tab, became a drag or got no answer, and how soon after opening a tab its page was clicked, summed up once an hour. Never where you clicked",
       "How many tabs and windows you open (a count, not which), how often a window goes full screen, how many camera, microphone or screen sharing dots went away because a tab went to sleep or its page stopped, and how often the hidden sidebar peeks out and how many of those came back while it was still sliding away",
+      "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
+      "How many closed tabs and windows you reopened came back with their Back history, summed up once an hour",
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
@@ -80,7 +82,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     title: "The ardia command",
     items: [
       "Each command's name (like history or browse snapshot), its exit and error codes, and the names of the options it was given, never their values",
-      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short or the input humanized. Times, counts and yes or no only",
+      "How long it took, step by step (starting up, starting its helper, connecting to Ardia, finding the tab, the command itself, waiting for the page to settle), plus counts and sizes: browser calls, steps in a batch, the length of a page snapshot and of the output, how many requests an action sent, and whether the output was cut short, the input humanized or it gave up waiting for its helper. Times, counts and yes or no only",
       "Its version, macOS version, chip and Python version, with this Mac's install ID",
       "After a crash: the error's type (with its message only when it's one of Python's fixed ones, like “division by zero”), and the module, function and line number of each step in the stack trace",
       "Nothing from commands pointed at a test browser (--port, --ws), and nothing at all with DO_NOT_TRACK=1 or ARDIA_TELEMETRY=0 set",

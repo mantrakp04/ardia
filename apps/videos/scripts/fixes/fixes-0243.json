@@ -1,5 +1,6 @@
 {
   "id": "fixes-0243",
+  "dropEvents": ["state"],
   "segments": [
     {
       "scene": "flash0243",

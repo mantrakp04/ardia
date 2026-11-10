@@ -141,8 +141,7 @@ import SwiftUI
     }
 
     private var host: String? {
-      guard let pageURL, let host = BrowserURL.host(of: pageURL) else { return nil }
-      return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+      pageURL.flatMap(BrowserURL.host(of:))
     }
 
     private var letter: String? {
@@ -158,8 +157,8 @@ import SwiftUI
     }
   }
 
-  actor FaviconCache {
-    static let shared = FaviconCache()
+  public actor FaviconCache {
+    public static let shared = FaviconCache()
 
     final class Entry: Sendable {
       let image: UIImage
@@ -188,6 +187,10 @@ import SwiftUI
 
     init() {
       cache.countLimit = 300
+    }
+
+    public func image(for url: URL) async -> UIImage? {
+      await entry(for: url)?.image
     }
 
     func entry(for url: URL) async -> Entry? {

@@ -6,9 +6,9 @@ Helium's uBlock Origin component (blockjmkbacgjkknlgpkjjiijinjdanf) is neither b
 uBlock Origin (fajbdaomknpkicfjcpipdmcpoamdmilh, packages/ardiacore/scripts/ubo.sh), loaded per profile with the
 navigation hold, which keeps every user's filters and settings; with both, two engines would filter every request.
 The build doesn't fetch Helium's uBO, so nothing depends on //third_party/ublock or its grit headers any more:
-ComponentLoader has no AddUBlock, and the component allowlist and the resource manager no longer list its
-resources. Its id is no longer pinned by default either, so no profile pins (and syncs) an extension it doesn't have.
-(The branding patch drops its pak.)
+ComponentLoader has no AddUBlock, chrome_paks.gni packs no ublock_resources.pak, and the component allowlist and the
+resource manager no longer list its resources. Its id is no longer pinned by default either, so no profile pins (and
+syncs) an extension it doesn't have.
 
 --- a/chrome/browser/extensions/BUILD.gn
 +++ b/chrome/browser/extensions/BUILD.gn
@@ -109,7 +109,15 @@ resources. Its id is no longer pinned by default either, so no profile pins (and
  #if BUILDFLAG(IS_CHROMEOS)
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -184,7 +184,6 @@
+@@ -147,7 +147,6 @@
+       "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
+       "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
+       "$root_gen_dir/third_party/blink/public/strings/permission_element_generated_strings.pak",
+-      "$root_gen_dir/third_party/ublock/resources/ublock_resources.pak",
+       "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
+       "$root_gen_dir/ui/webui/resources/webui_resources.pak",
+     ]
+@@ -185,7 +184,6 @@
        "//third_party/blink/public:devtools_inspector_resources",
        "//third_party/blink/public:resources",
        "//third_party/blink/public/strings:permission_element_generated_strings",

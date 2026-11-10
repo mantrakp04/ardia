@@ -35,8 +35,6 @@ source_set("ardia") {
     "ac_external_apps.mm",
     "ac_favicons.cc",
     "ac_history.cc",
-    "ac_input_frame_rate.h",
-    "ac_input_frame_rate.mm",
     "ac_memory.cc",
     "ac_memory_saver.cc",
     "ac_passwords.cc",

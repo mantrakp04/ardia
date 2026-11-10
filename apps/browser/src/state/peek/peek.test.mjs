@@ -344,3 +344,16 @@ test("a peek from a pinned tab becomes a tab only when its first settled page pa
   assert.equal(peekTabId(S(), w), undefined, "a redirector landing on the pinned site becomes a tab");
   assert.ok(S().windows[w].tabIds.includes(id));
 });
+
+test("Open as Tab keeps a pinned row that sits after a pinned group where it was", () => {
+  const { w, a, b, c } = windowWithTabs();
+  const group = S().groupTabs([b], { pinned: true, name: "Work" });
+  const member = S().groups[group].tabIds[0];
+  S().placeTabs([c], { pinned: true, row: true, beforeId: a });
+  const pinnedBefore = order(w).filter((id) => id === member || id === c);
+  assert.deepEqual(pinnedBefore, [member, c]);
+  const id = S().openPeek(a, "https://peek.example/");
+  S().peekToTab(w);
+  assert.ok(order(w).includes(id));
+  assert.deepEqual(order(w).filter((t) => t === member || t === c), pinnedBefore);
+});

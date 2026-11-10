@@ -585,7 +585,7 @@ final class WebTabCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, UIS
     }
     let space = challenge.protectionSpace
     let answer: PageRequest.Answer = await withCheckedContinuation { continuation in
-      tab.handle(PageRequest(kind: .httpAuthentication(realm: space.realm, isProxy: space.isProxy(), failedBefore: challenge.previousFailureCount > 0), host: space.host) { answer in
+      tab.handle(PageRequest(kind: .httpAuthentication(realm: space.realm, isProxy: space.isProxy(), failedBefore: challenge.previousFailureCount > 0, isSecure: space.receivesCredentialSecurely), host: space.host) { answer in
         continuation.resume(returning: answer)
       })
     }

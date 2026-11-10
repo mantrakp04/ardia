@@ -21,7 +21,7 @@ if (flags.help || (!positionals[0] && !flags.attach)) {
   process.exit(flags.help ? 0 : 2);
 }
 
-const PANES = (flags.panes ?? "general,profiles,sync,tabs,appearance,privacy,passwords,autofill,extensions,search,shortcuts,liveFolders,calendar,advanced").split(",");
+const PANES = (flags.panes ?? "general,profiles,sync,tabs,appearance,privacy,passwords,autofill,extensions,search,engines,shortcuts,liveFolders,calendar,advanced").split(",");
 const SETTLE_MS = 1200;
 
 const scratch = flags.attach ? null : mkdtempSync(join(tmpdir(), "ac-settings-shift-"));

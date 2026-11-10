@@ -1,3 +1,4 @@
+import ArdiaBrowser
 import ArdiaDesign
 import UIKit
 import SwiftUI
@@ -7,7 +8,7 @@ struct VoiceSearchView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var dictation = VoiceDictation()
+  @State private var dictation = DictationSession.live()
   @State private var levels: [Double] = Array(repeating: 0, count: 24)
 
   var body: some View {

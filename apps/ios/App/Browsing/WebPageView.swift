@@ -377,10 +377,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     page = nil
   }
 
-  func prepareForSnapshot(_ hidden: Bool) {
-    refreshControl.isHidden = hidden
-  }
-
   func endRefreshing() {
     if refreshControl.isRefreshing { refreshControl.endRefreshing() }
   }

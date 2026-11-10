@@ -1,11 +1,11 @@
 import asyncio
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from ardia_cli import command_metrics, control
 from ardia_cli.caller import Caller
 from ardia_cli.browse.connection import Browser
-from ardia_cli.browse.errors import BrowseError, CdpError, ConnectionLost, StaleRef, Unreachable
+from ardia_cli.browse.errors import BrowseError, ConnectionLost, StaleRef
 from ardia_cli.browse.page import Page
 from ardia_cli.browse.tabs import Registry
 
@@ -519,9 +519,6 @@ class State:
     def refs_json(self) -> dict:
         return {ref.id: {"name": ref.name, "role": ref.role} for ref in self.snapshot_refs()}
 
-    def ref_records(self) -> list[dict]:
-        return [asdict(ref) for ref in self.refs.values()]
-
 
 def parse_ref(selector: str) -> str | None:
     if selector.startswith("@") and selector[1:2] == "e" and selector[2:].isdigit():
@@ -541,11 +538,3 @@ async def wait_until(check, timeout: float, interval: float = 0.1, what: str = "
         if loop.time() >= deadline:
             raise BrowseError(f"Timed out after {timeout * 1000:g}ms waiting for {what}", code="timeout")
         await asyncio.sleep(interval)
-
-
-def unreachable(error: Exception) -> Unreachable:
-    return Unreachable(str(error))
-
-
-def is_policy(error: Exception) -> bool:
-    return isinstance(error, CdpError) and "isn't allowed for the ardia command" in error.cdp_message

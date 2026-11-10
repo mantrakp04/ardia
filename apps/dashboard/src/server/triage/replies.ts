@@ -3,9 +3,6 @@ import { count, sqlString, text, time, triageDatabase, triageExec, triageRows } 
 export const REPLY_STATUSES = ["drafted", "sent", "skipped"] as const;
 export type ReplyStatus = (typeof REPLY_STATUSES)[number];
 export const RECHECK_ACTION = "recheck";
-// Snooze hides a drafted reply from the default queue for SNOOZE_HOURS, then it comes back on its own.
-// Both are rows in ardia_reply_actions (append-only, never truncated by ch_sync.py), so a sync can't clobber them;
-// ch_sync.py also folds them into SQLite replies.snoozed_until, which it mirrors back as ardia_replies.snoozed_until.
 export const SNOOZE_ACTION = "snooze";
 export const UNSNOOZE_ACTION = "unsnooze";
 export const SNOOZE_HOURS = 24;

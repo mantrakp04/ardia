@@ -44,6 +44,8 @@ import { noteCommit } from "../../state/automation/automationEvents";
 import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading, noteUnreadPageEnded } from "../../state/tabs/unread";
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { notePagePress } from "../../state/telemetry/tabPresses";
+import { noteReopenedPage } from "../../state/telemetry/usage";
+import { isAdoptKind } from "../../state/tabs/adoptIds";
 
 const webViewTab = (t: Tab | undefined) => ({ navigation: navigationOf(t), adoptId: adoptOf(t), profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
@@ -68,6 +70,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
 
   const lastPage = useRef<string | null>(null);
   const restore = useRef<string | null>(null);
+  const reopening = useRef(engine === "chromium" && isAdoptKind(adoptId, "restore"));
   const pending = useRef<string | null>(navigation?.url ?? (adoptId ? (tab()?.url ?? null) : null));
 
   const seq = navigation?.seq;
@@ -150,6 +153,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial, committedUrl, committedAt, httpStatus }) => {
         noteCommit(tabId, committedUrl, committedAt, httpStatus);
+        if (reopening.current && reported && !isBlank(reported)) {
+          reopening.current = false;
+          noteReopenedPage(canGoBack);
+        }
         noteUnreadLoading(tabId, isLoading);
         adoptIconPage(tabId);
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;

@@ -102,7 +102,6 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
           <ClearDivider
             windowId={windowId}
             profileId={profileId}
-            spaced={pinnedSection}
             lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
             clear={clearable}
             tidy={tidy}

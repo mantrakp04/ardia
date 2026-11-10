@@ -56,6 +56,7 @@ __define("packages/sync/src/hlc.ts", function (exports, __require) {
 
 const WALL_DIGITS = 9;
 const COUNTER_DIGITS = 4;
+const COUNTER_MAX = 36 ** COUNTER_DIGITS - 1;
 
 const formatHLC = (wall        , counter        , device        )      =>
   `${Math.max(0, Math.floor(wall)).toString(36).padStart(WALL_DIGITS, "0")}.${counter.toString(36).padStart(COUNTER_DIGITS, "0")}.${device}`;
@@ -83,6 +84,9 @@ class Clock {
     const t = this.now();
     if (t > this.wall) {
       this.wall = t;
+      this.counter = 0;
+    } else if (this.counter >= COUNTER_MAX) {
+      this.wall++;
       this.counter = 0;
     } else {
       this.counter++;

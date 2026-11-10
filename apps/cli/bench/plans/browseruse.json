@@ -1,0 +1,24 @@
+{
+  "name": "browser-use-1.0.0-2026-11-09",
+  "repeats": 3,
+  "tasks": "all",
+  "results": "~/ardia-scratch/bench-proper/results/browseruse-1",
+  "contenders": [
+    {
+      "id": "browseruse-claude",
+      "label": "Browser Use 1.0 CLI + Claude Code (Opus 5.5)",
+      "kind": "browseruse",
+      "agent": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high"
+    },
+    {
+      "id": "browseruse-codex",
+      "label": "Browser Use 1.0 CLI + Codex (GPT-6.1 Sol)",
+      "kind": "browseruse",
+      "agent": "codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high"
+    }
+  ]
+}

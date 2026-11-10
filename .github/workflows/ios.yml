@@ -5,12 +5,14 @@ on:
     paths:
       - "apps/ios/**"
       - "packages/sync/**"
+      - "packages/core/**"
       - ".github/workflows/ios.yml"
   push:
     branches: [main]
     paths:
       - "apps/ios/**"
       - "packages/sync/**"
+      - "packages/core/**"
       - ".github/workflows/ios.yml"
 
 permissions:

@@ -1,5 +1,4 @@
 import ArdiaBrowser
-import ArdiaSync
 import SwiftUI
 
 struct ReceivedTabsAnnouncer: ViewModifier {
@@ -16,7 +15,7 @@ struct ReceivedTabsAnnouncer: ViewModifier {
     let received = app.tabs.lastReceived
     guard !received.isEmpty, !app.settings.isShowingOnboarding else { return }
     app.tabs.clearLastReceived()
-    let sender = ReceivedTabsSender.name(devices: app.sync.snapshot.devices)
+    let sender = ReceivedTabsSender.name(senders: received.map(\.receivedFromDevice))
     let ids = received.map(\.id)
     center.show(.tabReceived(from: sender, count: ids.count) { [app] in
       if ids.count == 1, let id = ids.first {
@@ -29,9 +28,9 @@ struct ReceivedTabsAnnouncer: ViewModifier {
 }
 
 enum ReceivedTabsSender {
-  static func name(devices: [SyncedDevice]) -> String {
-    let others = devices.filter { !$0.isCurrent }
-    let recent = others.max { ($0.lastSeen ?? .distantPast) < ($1.lastSeen ?? .distantPast) }
-    return recent?.name ?? String(localized: "Your Mac")
+  static func name(senders: [String?]) -> String {
+    let names = Set(senders.compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+    if names.count == 1, let only = names.first { return only }
+    return String(localized: "Your Mac")
   }
 }

@@ -120,7 +120,7 @@ test("an exception without a name or reason still says what it was", () => {
 test("native frames keep their image offset and drop a stripped image's nearest export", () => {
   const frames = nativeFrames([
     { image: "Chromium Framework", symbol: "ArdiaCoreMain", symbolOffset: 66417332, offset: 0x41a36e8 },
-    { image: "Chromium Framework", symbol: "ac_engine_abi_version", offset: 0x2139600 },
+    { image: "Chromium Framework", symbol: "ac_engine_set_event_sink", offset: 0x2139600 },
     { image: "Chromium Framework", symbol: "ArdiaCoreMain", symbolOffset: 760, offset: 0x442c72c },
     { image: "Chromium Framework", offset: 0x2ef170 },
     { image: "Ardia", offset: 0x3fd9f0 },

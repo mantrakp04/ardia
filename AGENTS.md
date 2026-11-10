@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Ardia is a macOS browser: Dia's polish and Arc's sidebar, built on Chrome's own framework (Chromium 154) through ArdiaCore, our thin layer,
+Ardia is a macOS browser: Dia's polish and Arc's sidebar, built on Chrome's own framework (Chromium 157 on Helium) through ArdiaCore, our thin layer,
 with no account. This file is how the owner works; follow it.
 For the architecture and the test tooling, read `docs/agent-brief.md`.
 
@@ -29,8 +29,11 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Commit straight to `main`.** Stage only your own hunks (`git add -p` or explicit paths), never
   someone else's work in progress. Never stage with `git apply --unidiff-zero`: it drops hunks into the wrong
   place (it once committed an `ACClient.mm` that didn't compile). Check `git diff --cached` reads as you meant.
-  The index is shared with every other session, so commit with your paths named (`git commit -m … -- <paths>`):
-  a bare `git commit` takes whatever another agent staged.
+  The index and the working tree are shared with every other session, so commit the index, never with paths:
+  `git commit -m … -- <paths>` takes the whole working-tree file, other agents' hunks included. Check
+  `git diff --cached --stat` lists only your files, then run a bare `git commit -m …`. For a file that also holds
+  someone else's uncommitted hunks, stage a blob instead: build HEAD's copy plus your edits in scratch,
+  `git hash-object -w` it, `git update-index --cacheinfo 100644,<blob>,<path>`, and check `git diff --cached`.
 - **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
   fails without one. A PR that arrives without an issue gets one opened for it, then linked.
 - **Vouch gates outside PRs.** A PR from someone who isn't a collaborator, a bot or in `.github/VOUCHED.td` is
@@ -125,17 +128,18 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Two channels: nightly and stable.** One app; Settings › General picks the channel, and nightly users get
   stable releases too.
   - **Nightly** is for fast iteration. Each fix is reproduced, fixed and verified, its adjacent tests run, then it
-    is built and released as a nightly (`scripts/release.sh <version>` with a `-nightly.<n>` version). Run only the focused
+    is built and released as a nightly (a `-nightly.<n>` version through the Release workflow). Run only the focused
     checks for what changed: no full suite, no perf gate, no landing-page refresh. A nightly is a GitHub
     prerelease and never reaches stable users.
   - **Stable** gets the full run (about 1.5 h): smoke, update test, perf ratchet and perf gate. Its perf is
     compared against the previous stable release, never against a nightly.
 - **Use the `release` skill** (`.claude/skills/release/SKILL.md`). The stable flow is:
   - write the notes in `docs/release-notes/<version>.md` (style guide in that folder);
-  - bump the version;
-  - run `scripts/release.sh`, which signs and notarizes;
-  - run the smoke test;
-  - publish the GitHub release and the appcast;
+  - bump the version, commit and push;
+  - dispatch the Release workflow (`.github/workflows/release.yml`) as a dry run: CI builds with
+    `scripts/release.sh`, signs and notarizes a release candidate;
+  - run the smoke test on that build (and, for a stable, the perf gate);
+  - dispatch it again with `dry_run=false`, which publishes the GitHub release and the appcast;
   - point the site at it (`.claude/skills/release/scripts/site-version.mjs <version>`);
   - deploy the site with `pnpm -C apps/site run deploy`.
 
@@ -162,5 +166,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 
 ## Repo map
 `apps/browser` is the React Native macOS app; `apps/browser/windows` and `packages/expo-windows` are the start of the Windows app (`docs/windows.md`). The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer,
-and `packages/core` holds the omnibox logic and its tests. `apps/site` is ardia.dev and
-`apps/videos` holds the Remotion videos. The license is Apache-2.0.
+and `packages/core` holds the omnibox logic and its tests. `packages/demo` is the app on the web (the site's demo).
+`apps/cli` is the `ardia` command, `apps/ios` the iPhone app and `apps/dashboard` the telemetry and triage dashboard.
+`apps/site` is ardia.dev and `apps/videos` holds the Remotion videos. `infra/` holds each service's deploy setup and
+`extras/` the add-ons (the Raycast extension). Ardia's own source files are Apache-2.0; the app as distributed is
+GPL-3.0, because its engine carries Helium's patches (`NOTICE`).

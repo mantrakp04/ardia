@@ -2,8 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Animated } from "react-native";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { dockMoving, sidebarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
-
-const valueOf = (v: Animated.Value) => (v as unknown as { __getValue(): number }).__getValue();
+import { currentValue } from "../ui/motion";
 
 export function useTopStripLights(windowId: string, dock: Animated.Value, on: boolean, travel: number, open: boolean) {
   useEffect(() => {
@@ -13,7 +12,7 @@ export function useTopStripLights(windowId: string, dock: Animated.Value, on: bo
       const up = Math.round(travel * (1 - value) * 2) / 2;
       void setTrafficLightsCenter(windowId, [TOP_STRIP_LIGHTS_CENTER[0], TOP_STRIP_LIGHTS_CENTER[1] - up]);
     };
-    place(valueOf(dock));
+    place(currentValue(dock));
     const sub = dock.addListener(({ value }) => place(value));
     return () => dock.removeListener(sub);
   }, [windowId, dock, on, travel, open]);
@@ -33,7 +32,7 @@ export function useSidebarLights(windowId: string, dock: Animated.Value, slide: 
     void setTrafficLightsCenter(windowId, center);
   };
   useEffect(() => {
-    values.current.dock = valueOf(dock);
+    values.current.dock = currentValue(dock);
     const a = dock.addListener(({ value }) => {
       values.current.dock = value;
       apply.current();

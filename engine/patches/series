@@ -1,6 +1,6 @@
 # The order Ardia's changes go into the Chromium tree (docs/engine-build.md › "The patch series").
 # The tree is Chromium with Helium's series (minus 03-helium.py's skip list), its domain and name substitution and our
-# branding; CEF's own patches are gone, but for the few ArdiaCore relies on (chromium-cef-carryover.patch).
+# branding. Nothing of CEF's is left but chromium-cef-carryover.patch, the few CEF patches ArdiaCore relies on.
 #
 #   chromium <patch>  a patch to chromium/src, after Helium's series and substitutions (step 4)
 #   layer <dir>       our own files, copied in by <dir>/apply.sh (engine/<layer>/src mirrors chromium/src)
@@ -8,8 +8,8 @@
 # Lines run top to bottom; a patch is made against the tree as every line above it leaves it.
 # One concern per patch, named for it; a new patch goes where it belongs, not where its name sorts.
 
-# CEF's patches to Chrome whose behaviour ArdiaCore relies on (each hunk's origin is in the patch's header).
 chromium chromium-helium-branding.patch
+# CEF's patches to Chrome whose behaviour ArdiaCore relies on (each hunk's origin is in the patch's header).
 chromium chromium-cef-carryover.patch
 chromium chromium-autofill-address-bubble-window.patch
 chromium chromium-device-chooser-hook.patch
@@ -69,17 +69,13 @@ chromium chromium-tab-sharing-capturer.patch
 chromium chromium-desktop-capture-window-audio.patch
 chromium chromium-video-super-resolution.patch
 chromium chromium-keep-old-frame-on-swap.patch
-chromium chromium-begin-frame-warm-up.patch
-chromium chromium-main-frame-throttle-after-show.patch
-chromium chromium-main-frame-full-rate-on-input.patch
-chromium chromium-thaw-live-connections.patch
+chromium chromium-freeze-spares-live-connections.patch
 chromium chromium-temporary-tab-restore-hook.patch
 chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch
 chromium chromium-media-session-main-frame-handler.patch
 chromium chromium-pip-user-agent-ignores-page-opt-out.patch
 chromium chromium-widevine-without-cdm.patch
-chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch
 chromium chromium-ungoogled-disable-missing-key-warning.patch

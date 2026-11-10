@@ -14,6 +14,7 @@ apps/ios/
   App/                         the app target (a synchronized folder: new files need no project change)
   Widgets/                     the widget extension
   Share/                       the share extension
+  Action/                      the Open in Ardia action extension (target ArdiaOpen)
   Packages/ArdiaKit/           the app's logic, a Swift package testable on the Mac host (`swift test`)
     Sources/ArdiaShared        JavaScriptCore runtime for the TypeScript shared with the Mac
     Sources/ArdiaSync          the sync device: folder access, keys, the cycle, the synced snapshot
@@ -119,7 +120,7 @@ previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit
 - The app's own states are checked in the simulator (see the agent notes below).
 - CI (`.github/workflows/ios.yml`, on GitHub's `xcode-27` runner with Xcode 27.1) builds the `Ardia` scheme for the
   simulator without signing and runs the ArdiaKit and `packages/sync` Swift tests and the bundle check, on pull
-  requests and pushes to `main` that touch `apps/ios`, `packages/sync` or the workflow.
+  requests and pushes to `main` that touch `apps/ios`, `packages/sync`, `packages/core` or the workflow.
 
 ## Left for a person
 

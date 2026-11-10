@@ -18,6 +18,15 @@ extension AppModel {
     return true
   }
 
+  func announceDownload(_ outcome: DownloadOutcome) {
+    switch outcome {
+    case .finished(let file):
+      toasts.show(.downloaded(file.lastPathComponent) { [weak self] in self?.web.shareRequest = file })
+    case .failed(let fileName):
+      toasts.show(.downloadFailed(fileName))
+    }
+  }
+
   func shareCurrentPage() {
     guard let tab = tabs.selectedTab, let url = URL(string: tab.url), BrowserURL.isSyncable(tab.url) else { return }
     web.share(url)

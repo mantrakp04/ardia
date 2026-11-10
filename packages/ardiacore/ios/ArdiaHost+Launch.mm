@@ -424,8 +424,7 @@ void StartEarlyWindow() {
       "--disable-stack-profiler",
       "--disable-features=MacAppCodeSignClone,DevToolsAcceptDebuggingConnections,AutofillAiWalletPrivatePasses",
       "--enable-features=WebContentsDiscard,BrowserInitiatedAutomaticPictureInPicture,ImprovedStartupBestEffortDelay:StartupDelayStopOnLoadingTimedOut/true,"
-      "CPUMeasurementInFreezingPolicy:freezing_visible_protection_time/0s,InfiniteTabsFreezing:ardia_unconnected_unfreeze_interval/600s,"
-      "ThrottleMainFrameTo60Hz,UrgentMainFrameForInput",
+      "CPUMeasurementInFreezingPolicy:freezing_visible_protection_time/0s",
       "--profile-directory=Default",
       "--js-flags=--no-memory-reducer",
   };

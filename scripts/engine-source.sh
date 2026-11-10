@@ -29,15 +29,6 @@ fetch() {
 }
 fetch helium-chromium "$helium"
 fetch helium-macos "$helium_macos"
-helium_top="$(tar -tzf "$src/helium-chromium-$helium.tar.gz" | awk 'NR == 1')"
-deps="$(tar -xzOf "$src/helium-chromium-$helium.tar.gz" "${helium_top%%/*}/deps.ini")" \
-  || die "helium-chromium $helium has no deps.ini"
-dep_version() { awk -v s="[$1]" '$0 == s { on = 1; next } /^\[/ { on = 0 } on && $1 == "version" { print $3; exit }' <<<"$deps"; }
-onboarding="$(dep_version onboarding)"
-ublock="$(dep_version ublock_origin)"
-[ -n "$onboarding" ] && [ -n "$ublock" ] || die "helium-chromium $helium's deps.ini pins no onboarding or ublock_origin version"
-fetch helium-onboarding "$onboarding"
-fetch uBlock "$ublock"
 
 cat >"$src/README.txt" <<EOF
 The source of $shipped, besides Ardia's own repository.
@@ -53,8 +44,8 @@ Chromium $chromium (BSD-3-Clause and others):
 Helium (GPL-3.0), copies of github.com/imputnet's tags:
   helium-chromium-$helium.tar.gz   its patches, domain substitution and build utilities
   helium-macos-$helium_macos.tar.gz   its macOS patches
-  helium-onboarding-$onboarding.tar.gz   pinned in its deps.ini
-  uBlock-$ublock.tar.gz   Helium's uBlock Origin, pinned in its deps.ini
+Helium's downloads (its onboarding page, its uBlock Origin, the search engine data in its deps.ini) aren't
+built into Ardia, so they aren't here.
 EOF
 
 tar --no-mac-metadata -cJf "$out" -C "$work" "$name"

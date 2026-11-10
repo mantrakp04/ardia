@@ -115,7 +115,7 @@ packages/
 
 ## Run it
 
-Requires Xcode 26+, CocoaPods, Node 22.13+ (pinned in `.nvmrc`), pnpm 11.
+Requires Xcode 26+, CocoaPods, Node 24 (pinned in `.nvmrc`), pnpm 11.
 
 ```bash
 pnpm install
@@ -152,8 +152,10 @@ pnpm macos
 ```
 
 Other tasks: `pnpm typecheck`, `pnpm test`, `pnpm shaders:check` (compiles the embedded Metal offline),
-`pnpm build` (Release `.app` with a Hermes bytecode bundle in `apps/browser/build/`).
-Signed releases (DMG, Sparkle zip and appcast): `scripts/release.sh <version>`, see `docs/releasing.md`.
+`scripts/agent/build-app --config Release` (a Release `.app` with a Hermes bytecode bundle in
+`apps/browser/build-<name>`, under the shared build locks; `--help`).
+Signed releases (DMG, Sparkle zip and appcast) are built by the Release workflow with `scripts/release.sh`, see
+`docs/releasing.md`.
 
 Shortcuts: ⌘T new tab, ⌘L command bar, ⌘W close, ⇧⌘T reopen, ⌘S sidebar, ⌘[ / ⌘] back/forward,
 ⌘R reload, ⌘1–⌘9 select tab, ⌃Tab cycle.

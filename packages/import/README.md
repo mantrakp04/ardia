@@ -48,12 +48,12 @@ Shared code: `Model.swift` (`ImportKind`, `ImportResult` and the other result ty
    engine with `ArdiaEngineBridge.callWithSecret` as `ac_cookies_import` and `ac_autofill_import`, in batches of 500
    (`engine/chromium/src/chrome/browser/ardia/ac_cookies.cc`, `ac_autofill.cc`).
 5. `apps/browser/src/components/import/ImportWindow.tsx` is the wizard: choose, then profiles, then unlock, then
-   progress, then done. `apply.ts` writes the JS-side kinds into the store (bookmarks, history, tabs, Arc spaces,
+   progress, then done. `apps/browser/src/state/import/apply.ts` writes the JS-side kinds into the store (bookmarks, history, tabs, Arc spaces,
    Dia profiles) and saves passwords with `savePassword` (`@ardia/ardiacore`). For cookies and autofill it calls
    `importNative`, which calls `writeImported`. Before any tab is made, the result's `favicons` for the pages that
    profile gets go to `adoptFavicons` (`apps/browser/src/state/favicons/favicons.ts`): into the sidebar's icon cache at once, and
    into the profile's Chrome favicon database with `ac_favicons_set`, so they survive a relaunch without a page load.
-   `module.ts` loads the package lazily.
+   `apps/browser/src/platform/importModule.ts` loads the package lazily.
 
 ## Secrets and the Keychain
 
@@ -122,7 +122,8 @@ sqlite3 CLI: it checkpoints the WAL the tests depend on.
    and throw `ImportError`. Then add its `(kind, family)` case in `Importer.importData`.
 4. Add a fixture: a `build_*` function in `fixtures/generate.py`, or a branch of an existing one. Run
    `pnpm --filter @ardia/import fixtures` and write a test in `tests/`.
-5. Apply it in the app. Add the kind to `KINDS` (and `ENCRYPTED` if it's encrypted) in `ImportWindow.tsx`, and write
-   it in `apply.ts`. A secret kind goes through `ImportWriter` and a new engine call instead.
+5. Apply it in the app. Add the kind to `IMPORT_KINDS` (and `ENCRYPTED_KINDS` if it's encrypted) in
+   `apps/browser/src/state/import/flow.ts`, its title and icon to `KIND_LOOK` in `components/import/model.ts`, and write
+   it in `state/import/apply.ts`. A secret kind goes through `ImportWriter` and a new engine call instead.
 6. Run `test`, `typecheck` and `pnpm -w typecheck`. For anything that reaches the engine, also run `scripts/e2e.mjs`
    against a fresh Debug build.

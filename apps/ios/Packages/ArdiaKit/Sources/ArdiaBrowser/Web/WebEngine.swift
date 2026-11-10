@@ -37,6 +37,7 @@ public final class WebEngine {
     self.downloads = downloads
     self.snapshots = snapshots
     preferences.onNightShadeChange = { [weak self] in self?.broadcastNightShade() }
+    preferences.onSwipeNavigationChange = { [weak self] in self?.applySwipeNavigationPreference() }
     tabs.onTabsArchived = { [weak self] ids in
       for id in ids { self?.roster.remove(id) }
     }
@@ -69,8 +70,6 @@ public final class WebEngine {
     roster.page(id)
   }
 
-  public var liveTabIDs: [UUID] { roster.liveIDs }
-
   public func openLink(_ url: URL, from tabID: UUID, inBackground: Bool) {
     let tab = tabs.open(.url(url, origin: .link), placement: .after(tabID), selecting: !inBackground)
     if !inBackground { _ = webTab(for: tab.id) }
@@ -96,7 +95,7 @@ public final class WebEngine {
     }
   }
 
-  public func applySwipeNavigationPreference() {
+  private func applySwipeNavigationPreference() {
     for id in roster.liveIDs { roster.page(id)?.applySwipeNavigation(preferences.swipeNavigation) }
   }
 
@@ -165,11 +164,6 @@ public final class WebEngine {
     notificationTasks.append(Task { [weak self] in
       for await _ in center.notifications(named: UIApplication.didReceiveMemoryWarningNotification).map({ _ in () }) {
         self?.discardBackgroundTabs()
-      }
-    })
-    notificationTasks.append(Task { [weak self] in
-      for await _ in center.notifications(named: UIApplication.didEnterBackgroundNotification).map({ _ in () }) {
-        self?.saveAll()
       }
     })
   }

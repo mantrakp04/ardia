@@ -1,3 +1,4 @@
+import ArdiaBrowser
 import ArdiaSync
 import Foundation
 
@@ -10,11 +11,9 @@ public enum SystemLink: Equatable, Sendable {
   case macTabs
   case inbox
 
-  public static let scheme = "ardia"
-
   public var url: URL {
     var components = URLComponents()
-    components.scheme = Self.scheme
+    components.scheme = BrowserURL.browseScheme
     switch self {
     case .search(let query):
       components.host = "search"
@@ -34,11 +33,11 @@ public enum SystemLink: Equatable, Sendable {
     case .inbox:
       components.host = "inbox"
     }
-    return components.url ?? URL(string: "ardia://search")!
+    return components.url ?? URL(string: "\(BrowserURL.browseScheme)://search")!
   }
 
   public init?(_ url: URL) {
-    guard url.scheme?.lowercased() == Self.scheme,
+    guard url.scheme?.lowercased() == BrowserURL.browseScheme,
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
       let host = components.host?.lowercased()
     else { return nil }
@@ -171,7 +170,6 @@ public struct SystemInboxItem: Codable, Equatable, Identifiable, Sendable {
 }
 
 public struct SystemStore: Sendable {
-  public static let appGroupIdentifier = "group.com.ardia.ios"
   public static let inboxLifetime: TimeInterval = 7 * 24 * 3600
 
   public let directory: URL
@@ -181,7 +179,7 @@ public struct SystemStore: Sendable {
   }
 
   public static var shared: SystemStore? {
-    guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else { return nil }
+    guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: BrowserStore.appGroupIdentifier) else { return nil }
     return SystemStore(directory: container.appending(path: "System", directoryHint: .isDirectory))
   }
 

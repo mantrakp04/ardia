@@ -141,15 +141,15 @@ function AutoBadge({ g, look }: { g: Geo; look: Look }) {
   );
 }
 
-function AccentBackdrop({ g, look, accent, custom }: { g: Geo; look: Look; accent: string; custom: ProfileTheme | null }) {
+function AccentBackdrop({ look, accent, custom }: { look: Look; accent: string; custom: ProfileTheme | null }) {
   const { layers, fade } = useFadeBetween(accent);
   const palette = useBasePaletteValue();
   const customShown = useTo(custom ? 1 : 0, true, mockMotion.fade);
   return (
     <View style={fill} pointerEvents="none">
-      {layers.below !== null ? <Backdrop g={g} look={lookFor(look.dark, layers.below, palette)} /> : null}
+      {layers.below !== null ? <Backdrop look={lookFor(look.dark, layers.below, palette)} /> : null}
       <Animated.View style={[fill, { opacity: layers.below !== null ? fade : 1 }]}>
-        <Backdrop g={g} look={lookFor(look.dark, layers.above, palette)} />
+        <Backdrop look={lookFor(look.dark, layers.above, palette)} />
       </Animated.View>
       {custom ? (
         <Animated.View style={[fill, { opacity: customShown }]}>
@@ -182,7 +182,7 @@ const WindowState = memo(function WindowState({ g, look, accent, custom, lay, ad
   );
   return (
     <View style={fill}>
-      <AccentBackdrop g={g} look={look} accent={accent} custom={custom} />
+      <AccentBackdrop look={look} accent={accent} custom={custom} />
       <Animated.View style={{ position: "absolute", left: 0, top: 0, width: 80 * s, height: 50 * s, transform: [{ translateX: lerp(lay, 0, 20.75 - 25) }, { translateY: Animated.add(lerp(lay, lightsY - LIGHTS_Y.toolbar, LIGHTS_Y.strip - LIGHTS_Y.toolbar), lerp(addr, 0, LIGHTS_Y.field - lightsY)) }] }}>
         <Lights g={g} />
       </Animated.View>

@@ -4,8 +4,8 @@ The Helium Authors).
 
 Helium's onboarding page (chrome://setup, helium-onboarding) isn't built: the build doesn't fetch helium-onboarding,
 and Ardia has its own onboarding and always starts Chrome with --no-first-run, so Helium's services consent the page
-would set stays off. Its WebUI target, resources, strings, chrome://chrome-urls entry and first-run opener are gone (the branding patch drops its
-pak and its WebUI registration). chrome://credits keeps Helium's GPL-3.0 entry, with its licence text now in
+would set stays off. Its WebUI target, resources, pak, strings, chrome://chrome-urls entry and first-run opener are gone (the branding
+patch drops its WebUI registration). chrome://credits keeps Helium's GPL-3.0 entry, with its licence text now in
 third_party/helium/LICENSE (it pointed into helium-onboarding), and leaves out Instrument Sans, the onboarding page's
 font, which isn't shipped.
 
@@ -122,14 +122,19 @@ font, which isn't shipped.
  #include "chrome/browser/ui/webui/regional_capabilities_internals/regional_capabilities_internals_ui.h"
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -486,7 +486,6 @@
+@@ -481,12 +481,10 @@
+       sources += [
+         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
+         "$root_gen_dir/chrome/profile_picker_resources.pak",
+-        "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
+       ]
+       deps += [
          "//chrome/browser/resources/default_browser/default_browser_modal:resources",
          "//chrome/browser/resources/intro:resources",
          "//chrome/browser/resources/signin/profile_picker:resources",
 -        "//components/helium_onboarding:generated_resources",
        ]
      }
- 
 --- a/chrome/common/webui_url_constants.cc
 +++ b/chrome/common/webui_url_constants.cc
 @@ -173,7 +173,6 @@

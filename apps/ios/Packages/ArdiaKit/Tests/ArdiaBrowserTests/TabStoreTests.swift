@@ -308,4 +308,42 @@ struct StoreFixture {
     #expect(direct.last?.profileSyncId == "work")
     #expect(fixture.store.syncedVisits(urls: []).isEmpty)
   }
+
+  @Test func listingRevisionMovesOnlyWhenWhatSpotlightShowsChanges() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    let store = fixture.store
+    var last = store.listingRevision
+    func moved() -> Bool {
+      defer { last = store.listingRevision }
+      return store.listingRevision != last
+    }
+    let first = fixture.open("https://example.com/a")
+    #expect(moved())
+    let second = fixture.open("https://example.com/b")
+    #expect(moved())
+    store.select(first.id)
+    #expect(!moved())
+    store.update(first.id, faviconURL: "https://example.com/icon.png", themeColorHex: "#FFFFFF")
+    #expect(!moved())
+    store.update(first.id, title: "A")
+    #expect(moved())
+    store.update(first.id, title: "A")
+    #expect(!moved())
+    store.recordVisit(url: "https://example.com/a", title: "A", transition: .link)
+    #expect(!moved())
+    store.close(second.id)
+    #expect(moved())
+    store.reopenLastClosed()
+    #expect(moved())
+    store.clearArchive()
+    store.close(first.id)
+    #expect(moved())
+    store.clearArchive()
+    #expect(moved())
+    let incognito = store.open(.url(URL(string: "https://example.com/private")!), isPrivate: true)
+    #expect(!moved())
+    store.update(incognito.id, title: "Private")
+    #expect(!moved())
+  }
 }

@@ -151,14 +151,9 @@ def run_browse(hoisted: list[str], rest: list[str]) -> int:
 def run_notes(hoisted: list[str], rest: list[str]) -> int:
     import importlib
 
-    try:
-        notes = importlib.import_module("ardia_cli.notes")
-    except ModuleNotFoundError as error:
-        if error.name != "ardia_cli.notes":
-            raise
-        sys.stderr.write("ardia notes isn't in this build of the ardia command\n")
-        return 1
     from ardia_cli import telemetry
+
+    notes = importlib.import_module("ardia_cli.notes")
 
     telemetry.note_browse(hoisted + rest, command="notes")
     return notes.main(hoisted + rest)

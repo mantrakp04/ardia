@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { Symbol, Text, useHover, type SymbolProps } from "../ui";
-import { space } from "../ui/tokens";
+import { ink, space } from "../ui/tokens";
 import { useOnboardingColors } from "./Parts";
 import { onboardingButton } from "./tokens";
 
@@ -59,7 +59,7 @@ export function SecondaryButton({ title, onPress, filled }: { title: string; onP
             paddingHorizontal: onboardingButton.secondaryPad,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: filled ? (hovered ? colors.buttonHover : colors.button) : hovered ? colors.outlinedHover : "transparent",
+            backgroundColor: filled ? (hovered ? colors.buttonHover : colors.button) : hovered ? colors.outlinedHover : ink.clear,
             borderWidth: filled ? 0 : 1,
             borderColor: colors.noThanksBorder,
           }}
@@ -101,7 +101,7 @@ export function CircleButton({
             borderRadius: onboardingButton.height / 2,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: hovered ? colors.outlinedHover : "transparent",
+            backgroundColor: hovered ? colors.outlinedHover : ink.clear,
             borderWidth: 1,
             borderColor: colors.noThanksBorder,
           }}

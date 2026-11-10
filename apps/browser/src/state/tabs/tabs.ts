@@ -63,17 +63,18 @@ export function closingTabs(s: BrowserState, ids: string[], { lastClosesWindow =
   const asked = ids.filter((id) => next.tabs[id]);
   next = unloadPinnedTabs(next, asked);
   const gone = asked.filter((id) => !inPinnedContainer(next, id));
-  const closedWindows: string[] = [];
+  const goneIds = new Set(gone);
+  const closedWindows = new Set<string>();
   for (const w of Object.values(next.windows)) {
     const view = viewTabIds(next, w.id);
-    const shown = view.filter((id) => gone.includes(id));
-    if (!shown.length || !view.every((id) => gone.includes(id) || isAsleep(next.tabs[id]))) continue;
+    const shown = view.filter((id) => goneIds.has(id));
+    if (!shown.length || !view.every((id) => goneIds.has(id) || isAsleep(next.tabs[id]))) continue;
     const keepsWindow = !lastClosesWindow || leavesEmptyWindow(shown.length > 1 ? removeTabs(next, shown.slice(1), false) : next, shown[0]!);
     if (keepsWindow) next = withNewTab(next, w.id)[0];
-    else closedWindows.push(w.id);
+    else closedWindows.add(w.id);
   }
-  const removed = gone.filter((id) => !closedWindows.includes(next.tabs[id]!.windowId));
-  return [removeTabs(next, removed, true), closedWindows];
+  const removed = gone.filter((id) => !closedWindows.has(next.tabs[id]!.windowId));
+  return [removeTabs(next, removed, true), [...closedWindows]];
 }
 
 function pinnedInsertionIndex(s: BrowserState, w: BrowserWindow): number {

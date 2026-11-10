@@ -1,5 +1,5 @@
 import { Animated, View } from "react-native";
-import { at, CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
+import { CRUMB_X, FIELD, fill, type Geo, type Rect, ROW, rowY, sideCard } from "../geometry";
 import { BLANK, type Suggestion, tab } from "../content";
 import type { Look } from "../look";
 import { linear, tracker, type Tracker } from "../timeline";
@@ -27,7 +27,7 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
           <Divider g={g} look={look} />
           <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
         </Panel>
-        <KeyPress g={g} look={look} t={t} label="⌘L" />
+        <KeyPress g={g} t={t} label="⌘L" />
       </>
     );
   }
@@ -43,7 +43,7 @@ export const CmdlField: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label="⌘L" />
     </>
   );
 };
@@ -60,7 +60,7 @@ export const CmdlCentred: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘L" />
+      <KeyPress g={g} t={t} label="⌘L" />
     </>
   );
 };
@@ -81,7 +81,7 @@ export const NewTabOpensPage: Scene = ({ g, look, p, opts }) => {
           <Rows g={g} look={look} n={4} top={top} newTab={false} />
           <TabRow g={g} look={look} t={BLANK} y={rowY(4, top)} selected style={{ opacity: t.in(300, 240), transform: [{ translateX: t([[300, -12 * g.s], [600, 0]]) }] }} />
           <NewTabButton g={g} look={look} y={rowY(4, top)} style={{ transform: [{ translateY: t([[300, 0], [600, ROW.pitch * g.s]]) }] }} />
-          <KeyPress g={g} look={look} t={t} label="⌘T" />
+          <KeyPress g={g} t={t} label="⌘T" />
         </>
       }
       card={
@@ -125,7 +125,7 @@ export const NewTabOpensBar: Scene = ({ g, look, p, opts }) => {
         <Divider g={g} look={look} />
         <SuggestionList g={g} look={look} t={t} rows={FRESH} ms={400} />
       </Panel>
-      <KeyPress g={g} look={look} t={t} label="⌘T" />
+      <KeyPress g={g} t={t} label="⌘T" />
     </>
   );
 };

@@ -70,5 +70,3 @@ export const setHoldIncomingLinks = (hold: boolean, hooksStamp: string | null): 
 export const setApprovedDownloadFolders = (folders: string[]): void => Signals().setApprovedDownloadFolders(folders);
 
 export const moveCompletedDownload = (path: string, folder: string): Promise<MovedDownload> => Signals().moveCompletedDownload(path, folder);
-
-export const devPostSystemSignal = (name: "willSleep" | "didWake"): Promise<boolean> => Signals().devPost(name);

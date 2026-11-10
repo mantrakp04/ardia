@@ -61,4 +61,14 @@ extension Toast {
   static func sentTab(to deviceName: String) -> Toast {
     Toast(String(localized: "Sent to \(deviceName)"), symbol: "paperplane.fill")
   }
+
+  static func downloaded(_ fileName: String, onOpen: @escaping @MainActor () -> Void) -> Toast {
+    Toast(String(localized: "Downloaded \(fileName)"), symbol: "arrow.down.circle.fill", duration: .seconds(3.2), onTap: onOpen)
+  }
+
+  static func downloadFailed(_ fileName: String) -> Toast {
+    fileName.isEmpty
+      ? Toast(String(localized: "Couldn’t Download File"), symbol: "exclamationmark.triangle.fill")
+      : Toast(String(localized: "Couldn’t Download \(fileName)"), symbol: "exclamationmark.triangle.fill")
+  }
 }

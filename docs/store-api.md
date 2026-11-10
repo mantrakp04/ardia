@@ -234,7 +234,7 @@ ordered transaction that names its cause. There are no echo windows, timers or "
   strip's window is never inferred from its tabs.
 - Tests: `src/state/tabs/liveTabs.test.mjs` runs the real wiring against a fake engine that keeps this contract.
 
-## Sync (apps/browser/src/sync, packages/sync)
+## Sync (apps/browser/src/state/sync, packages/sync)
 - End-to-end-encrypted sync through a folder the user picks; design in `docs/sync.md`. `state/sync/engine.ts` owns the
   state (`useSync`: status, devices, other devices' tabs), the setup flows and the cycle; `state/sync/adapters.ts` maps the
   store to synced records (bookmarks, history, open tabs, pinned tabs and pinned groups, settings, passwords).

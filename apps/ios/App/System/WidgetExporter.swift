@@ -91,27 +91,16 @@ final class WidgetExporter {
 }
 
 nonisolated enum FaviconFetcher {
-  static let session: URLSession = {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.timeoutIntervalForRequest = 8
-    configuration.httpAdditionalHeaders = ["Accept": "image/*"]
-    return URLSession(configuration: configuration)
-  }()
-
+  @concurrent
   static func png(forHost host: String, side: CGFloat) async -> Data? {
     for path in ["/apple-touch-icon.png", "/favicon.ico"] {
-      guard let url = URL(string: "https://\(host)\(path)") else { continue }
-      guard let (data, response) = try? await session.data(from: url),
-        (response as? HTTPURLResponse)?.statusCode == 200, data.count < 2_000_000,
-        let image = UIImage(data: data), image.size.width >= 16
-      else { continue }
-      return await render(image, side: side)
+      guard let url = URL(string: "https://\(host)\(path)"), let image = await FaviconCache.shared.image(for: url) else { continue }
+      return render(image, side: side)
     }
     return nil
   }
 
-  @concurrent
-  static func render(_ image: UIImage, side: CGFloat) async -> Data? {
+  static func render(_ image: UIImage, side: CGFloat) -> Data? {
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
     format.opaque = false

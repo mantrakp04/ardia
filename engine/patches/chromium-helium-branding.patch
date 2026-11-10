@@ -20,8 +20,8 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
   vector icons and logos ardia_resources.txt copies in;
 - Helium's indigo palette is undone (helium-color-scheme.patch reversed): chrome:// pages and dialogs use
   Chromium's colours, as Ardia does today;
-- the onboarding page and Helium's uBlock Origin aren't packed or registered (Ardia has its own onboarding and its
-  own uBlock Origin);
+- the onboarding page and Helium's uBlock Origin aren't registered (Ardia has its own onboarding and its own uBlock
+  Origin; chromium-helium-onboarding-off.patch and chromium-helium-ublock-off.patch leave out their paks);
 - chrome/app/theme/chromium/BRANDING is Chromium's again (Ardia builds with chrome/app/theme/ardia/BRANDING).
 
 --- a/chrome/app/chrome_crash_reporter_client.cc
@@ -361,24 +361,6 @@ icons already replaced from ardia_resources.txt); it covers what those can't rea
 -                   true /* foreground */);
 -}
 +    WindowOpenDisposition disposition) {}
---- a/chrome/chrome_paks.gni
-+++ b/chrome/chrome_paks.gni
-@@ -147,7 +147,6 @@
-       "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
-       "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
-       "$root_gen_dir/third_party/blink/public/strings/permission_element_generated_strings.pak",
--      "$root_gen_dir/third_party/ublock/resources/ublock_resources.pak",
-       "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
-       "$root_gen_dir/ui/webui/resources/webui_resources.pak",
-     ]
-@@ -483,7 +482,6 @@
-       sources += [
-         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
-         "$root_gen_dir/chrome/profile_picker_resources.pak",
--        "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
-       ]
-       deps += [
-         "//chrome/browser/resources/default_browser/default_browser_modal:resources",
 --- a/components/crash/core/app/crash_reporter_client.cc
 +++ b/components/crash/core/app/crash_reporter_client.cc
 @@ -26,10 +26,6 @@

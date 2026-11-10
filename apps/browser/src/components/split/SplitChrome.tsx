@@ -174,7 +174,7 @@ const ZONE_SPRING = { ...SPLIT_MOTION.zoneSpring, useNativeDriver: false } as co
 function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect; side: "left" | "right"; shown: boolean; stage: ZoneStage; pointerX: number; onHidden(): void }) {
   const theme = useTheme();
   const rect = zoneRect(pane, side, stage, pointerX);
-  const anim = useRef({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }).current;
+  const [anim] = useState(() => ({ x: new Animated.Value(rect.x), y: new Animated.Value(rect.y), w: new Animated.Value(rect.width), h: new Animated.Value(rect.height) }));
   const glow = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(0)).current;
   const active = stage === "active";

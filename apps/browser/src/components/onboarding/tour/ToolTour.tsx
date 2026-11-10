@@ -7,7 +7,7 @@ import { Button, Panel, Surface, Text, usePresence } from "../../ui";
 import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
 import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
-import { curve, springs } from "../../ui/motion";
+import { currentValue, curve, springs } from "../../ui/motion";
 import { proseLineHeight, radius, shadow, space } from "../../ui/tokens";
 import { onboardingMotion, onboardingType, tourRing } from "../tokens";
 
@@ -123,11 +123,9 @@ function Tour({ windowId }: { windowId: string }) {
   );
 }
 
-const valueOf = (v: Animated.Value) => (v as unknown as { __getValue(): number }).__getValue();
-
 function Ring({ hole }: { hole: { x: Animated.Value; y: Animated.Value; w: Animated.Value; h: Animated.Value; r: Animated.Value } }) {
   const pulse = useRef(new Animated.Value(0)).current;
-  const [r, setR] = useState(() => valueOf(hole.r));
+  const [r, setR] = useState(() => currentValue(hole.r));
   useEffect(() => {
     const id = hole.r.addListener(({ value }) => setR(Math.max(0, value)));
     const loop = Animated.loop(

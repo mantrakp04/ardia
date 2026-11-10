@@ -345,12 +345,17 @@ export function startSync() {
   publishUi({ status: doc.enabled ? "starting" : "off" });
   watchExtensions();
   if (doc.enabled && doc.deviceId) {
-    void SyncNative.unlock(doc.deviceId).then(async (ok) => {
-      if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
-      await loadSavedState();
-      publishUi();
-      scheduleSync(500);
-    });
+    void SyncNative.unlock(doc.deviceId)
+      .then(async (ok) => {
+        if (!ok) return publishUi({ status: "locked", error: "Enter your recovery phrase to keep syncing on this Mac." });
+        await loadSavedState();
+        publishUi();
+        scheduleSync(500);
+      })
+      .catch((error: unknown) => {
+        console.warn("[sync] unlocking at launch failed", error);
+        publishUi({ status: "stalled", error: errorText(error) });
+      });
   }
   saveBeforeQuit(checkpoint);
   onProfilesOpened(() => {

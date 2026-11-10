@@ -21,6 +21,7 @@ public final class TabStore: LocalBrowsingSource {
   public private(set) var archive: [ArchivedDay] = []
   public private(set) var lastReceived: [BrowserTab] = []
   public private(set) var historyRevision = 0
+  public private(set) var listingRevision = 0
 
   public var autoArchiveInterval: AutoArchiveInterval {
     didSet {
@@ -120,6 +121,7 @@ public final class TabStore: LocalBrowsingSource {
     context.insert(tab)
     insertSorted(tab)
     if selecting { select(tab.id) }
+    listingRevision &+= 1
     persist(changedTabs: true)
     return tab
   }
@@ -196,6 +198,7 @@ public final class TabStore: LocalBrowsingSource {
     }
     if let target = selection ?? reopened.last?.id { select(target) }
     refreshArchiveIfLoaded()
+    listingRevision &+= 1
     persist(changedTabs: true)
     return reopened
   }
@@ -208,6 +211,7 @@ public final class TabStore: LocalBrowsingSource {
     insertSorted(tab)
     select(id)
     refreshArchiveIfLoaded()
+    listingRevision &+= 1
     persist(changedTabs: true)
   }
 
@@ -242,6 +246,7 @@ public final class TabStore: LocalBrowsingSource {
     onTabsRemoved?(tabs)
     for tab in tabs { context.delete(tab) }
     refreshArchiveIfLoaded()
+    listingRevision &+= 1
     persist(changedTabs: true)
   }
 
@@ -288,6 +293,7 @@ public final class TabStore: LocalBrowsingSource {
     if let faviconURL, faviconURL != tab.faviconURL { tab.faviconURL = faviconURL }
     if let themeColorHex, themeColorHex != tab.themeColorHex { tab.themeColorHex = themeColorHex }
     if let snapshotFileName, snapshotFileName != tab.snapshotFileName { tab.snapshotFileName = snapshotFileName }
+    if syncVisible { listingRevision &+= 1 }
     persist(changedTabs: syncVisible)
   }
 
@@ -465,6 +471,7 @@ public final class TabStore: LocalBrowsingSource {
     }
     onTabsArchived?(tabs.map(\.id))
     refreshArchiveIfLoaded()
+    listingRevision &+= 1
     persist(changedTabs: true)
   }
 
