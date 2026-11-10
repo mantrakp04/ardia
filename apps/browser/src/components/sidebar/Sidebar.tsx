@@ -23,6 +23,7 @@ import { SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD } fr
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { GLOW_ROOM, ROW_PITCH, type SidebarGeometry } from "./pageLayout";
+import { SidebarInk } from "./SidebarInk";
 import { SidebarPage } from "./SidebarPage";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
 import { useRevealTabs } from "./useRevealTabs";
@@ -107,35 +108,37 @@ export function Sidebar({ width }: { width: number }) {
               </SidebarRowLookContext.Provider>
             </View>
 
-            {footer ? (
-              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-                <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
-                {footerDownloads ? (
-                  <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
-                    <DownloadsButton windowId={windowId} />
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            <View style={{ height: header }}>
-              <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
-                <WindowDragRegion style={StyleSheet.absoluteFill} />
-              </ContextMenuArea>
-              {addressBar ? (
-                <>
-                  <SidebarHeaderTools width={width} />
-                  <SidebarAddressRow width={width} />
-                </>
-              ) : (
-                <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
-                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? 34 + 2 : 0)} />
-                  <View pointerEvents="none" style={{ flex: 1 }} />
-                  {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+            <SidebarInk>
+              {footer ? (
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
+                  <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
+                  {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                  {footerDownloads ? (
+                    <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                      <DownloadsButton windowId={windowId} />
+                    </View>
+                  ) : null}
                 </View>
-              )}
-            </View>
+              ) : null}
+
+              <View style={{ height: header }}>
+                <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)}>
+                  <WindowDragRegion style={StyleSheet.absoluteFill} />
+                </ContextMenuArea>
+                {addressBar ? (
+                  <>
+                    <SidebarHeaderTools width={width} />
+                    <SidebarAddressRow width={width} />
+                  </>
+                ) : (
+                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
+                    <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? 34 + 2 : 0)} />
+                    <View pointerEvents="none" style={{ flex: 1 }} />
+                    {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+                  </View>
+                )}
+              </View>
+            </SidebarInk>
 
             <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (

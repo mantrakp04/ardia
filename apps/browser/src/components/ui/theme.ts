@@ -50,13 +50,17 @@ export function profileNameColor(profile: ProfileLookFields, dark: boolean): str
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
 }
 
-function readableOn(rows: readonly string[]): string {
-  const contrast = (text: string, row: string) => {
-    const [a, b] = [luminance(text), luminance(row)];
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-  };
+const MIN_INK_CONTRAST = 3;
+
+function contrast(text: string, row: string): number {
+  const [a, b] = [luminance(text), luminance(row)];
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+export function inkOn(rows: readonly string[], dark: boolean): string {
   const worst = (text: string) => Math.min(...rows.map((row) => contrast(text, row)));
-  return worst(ink.white) >= worst(ink.black) ? ink.white : ink.black;
+  const [own, other] = dark ? [ink.white, ink.black] : [ink.black, ink.white];
+  return worst(own) >= MIN_INK_CONTRAST || worst(other) <= worst(own) ? own : other;
 }
 
 function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pick<Theme, "tabSelected" | "pinnedSelectedFill" | "rowSelectedText"> {
@@ -64,8 +68,22 @@ function arcSelectionRoles(base: ColorRoles, windowTint: readonly string[]): Pic
   return {
     tabSelected,
     pinnedSelectedFill: visibleSelection(base.pinnedSelectedFill, base.dark ? ink.white : ink.black, windowTint),
-    rowSelectedText: readableOn(windowTint.map((tint) => over(tabSelected, tint))),
+    rowSelectedText: inkOn(windowTint.map((tint) => over(tabSelected, tint)), base.dark),
   };
+}
+
+const sidebarThemes = new WeakMap<Theme, Theme>();
+
+export function sidebarTheme(theme: Theme): Theme {
+  if (!theme.custom) return theme;
+  let sidebar = sidebarThemes.get(theme);
+  if (!sidebar) {
+    const keepsOwnInk = inkOn(theme.windowTint, theme.dark) === (theme.dark ? ink.white : ink.black);
+    const other = theme.dark ? theme.palettes.light : theme.palettes.dark;
+    sidebar = keepsOwnInk ? theme : { ...theme, ...other, tabSelected: theme.tabSelected, pinnedSelectedFill: theme.pinnedSelectedFill, rowSelectedText: theme.rowSelectedText };
+    sidebarThemes.set(theme, sidebar);
+  }
+  return sidebar;
 }
 
 export function themeFor(key: string, palette?: BasePalette | null): Theme {

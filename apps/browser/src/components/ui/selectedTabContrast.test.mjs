@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 
-const { profileTheme, PROFILE_COLORS } = await import("./theme.ts");
+const { inkOn, profileTheme, sidebarTheme, PROFILE_COLORS } = await import("./theme.ts");
 const { arcSelectedFill, colorRoles } = await import("./tokens.ts");
 const { luminance, over } = await import("../../lib/color.ts");
 const { selectionLightnessDelta, visibleSelection, MIN_SELECTION_LIGHTNESS } = await import("../../lib/selectionContrast.ts");
@@ -73,11 +73,74 @@ test("a fill that already shows is returned as is", () => {
   assert.equal(visibleSelection(arcSelectedFill.dark, "#000000", ["#342123"]), arcSelectedFill.dark);
 });
 
-test("a selected row's title takes the ink that reads best on that row, as Arc darkens it on a light row", () => {
-  const vivid = (v) => ({ stops: [{ x: 0.2, y: 0.2, color: { r: v, g: v, b: v, a: 1 } }, { x: 0.8, y: 0.8, color: { r: v, g: v, b: v, a: 1 } }], intensity: 1, mode: "dark", grain: 0, texture: "grain", translucency: 1 });
-  assert.equal(profileTheme({ color: "neutral", theme: vivid(0) }, true).rowSelectedText, "#FFFFFF");
-  assert.equal(profileTheme({ color: "neutral", theme: vivid(0.88) }, true).rowSelectedText, "#000000");
+const vivid = (stops, mode = "dark") => ({ stops, intensity: 1, mode, grain: 0, texture: "grain", translucency: 1 });
+const grey = (v) => ({ r: v, g: v, b: v, a: 1 });
+const rgb = (r, g, b) => ({ r: r / 255, g: g / 255, b: b / 255, a: 1 });
+const solid = (color, mode) => vivid([{ x: 0.2, y: 0.2, color }, { x: 0.8, y: 0.8, color }], mode);
+const custom = (look) => profileTheme({ color: "neutral", theme: look }, look.mode === "dark");
+const SIDEBAR_INK = ["textPrimary", "textTab", "textSecondary", "textTertiary", "icon", "iconDisabled", "mark", "placeholder", "tabHover", "tabPressed", "pinnedResting", "divider"];
+
+test("an ink keeps the mode's own colour until it drops below 3:1, as Arc keeps white on a dark theme's mid-tone row", () => {
+  assert.equal(inkOn(["#9B837E"], true), "#FFFFFF");
+  assert.equal(inkOn(["#805C5B"], true), "#FFFFFF");
+  assert.equal(inkOn(["#C4C4C4"], true), "#000000");
+  assert.equal(inkOn(["#080808"], true), "#FFFFFF");
+  assert.equal(inkOn(["#EEEEEE"], false), "#000000");
+  assert.equal(inkOn(["#4A4A4A"], false), "#FFFFFF");
+});
+
+test("a selected row's title keeps the mode's ink unless it can't be read on that row", () => {
+  assert.equal(custom(solid(grey(0))).rowSelectedText, "#FFFFFF");
+  assert.equal(custom(solid(grey(0.88))).rowSelectedText, "#000000");
+  assert.equal(custom(solid(rgb(128, 92, 91))).rowSelectedText, "#FFFFFF");
   assert.equal(profileTheme({ color: "neutral", theme: flat(0.95, 0.62, 0.78, "light") }, false).rowSelectedText, "#000000");
   for (const dark of [true, false])
     for (const color of Object.keys(PROFILE_COLORS)) assert.equal(profileTheme({ color }, dark).rowSelectedText, colorRoles[dark ? "dark" : "light"].tabSelectedText);
+});
+
+test("a light custom colour in dark mode draws its sidebar text, glyphs and hover in the light palette", () => {
+  const theme = custom(solid(grey(0.88)));
+  const sidebar = sidebarTheme(theme);
+  assert.ok(theme.dark);
+  assert.equal(sidebar.dark, false);
+  for (const role of SIDEBAR_INK) assert.equal(sidebar[role], colorRoles.light[role], role);
+  assert.equal(sidebar.tabSelected, theme.tabSelected);
+  assert.equal(sidebar.pinnedSelectedFill, theme.pinnedSelectedFill);
+  assert.equal(sidebar.rowSelectedText, "#000000");
+  assert.equal(sidebar.windowTint, theme.windowTint);
+  assert.equal(theme.textTab, colorRoles.dark.textTab);
+});
+
+test("a dark custom colour keeps its white sidebar text, the owner's mid-tone included", () => {
+  for (const look of [solid(grey(0)), solid(grey(0.02)), solid(rgb(128, 92, 91))]) {
+    const theme = custom(look);
+    assert.equal(sidebarTheme(theme), theme);
+  }
+});
+
+test("a black-to-white gradient keeps white sidebar text, since black reads no better on its dark end", () => {
+  const theme = custom(vivid([{ x: 0, y: 0, color: grey(0) }, { x: 1, y: 1, color: grey(1) }]));
+  assert.equal(sidebarTheme(theme), theme);
+  assert.equal(sidebarTheme(theme).textTab, colorRoles.dark.textTab);
+});
+
+test("every custom colour's sidebar text reads at 3:1 on its tint, or takes the ink that reads better", () => {
+  const ratio = (text, row) => {
+    const [a, b] = [luminance(text), luminance(row)];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  const worst = (text, rows) => Math.min(...rows.map((row) => ratio(text, row)));
+  for (const { label, theme } of customThemes()) {
+    const text = sidebarTheme(theme).textPrimary;
+    const other = text === "#FFFFFF" ? "#000000" : "#FFFFFF";
+    assert.ok(worst(text, theme.windowTint) >= 3 || worst(text, theme.windowTint) >= worst(other, theme.windowTint), `${label}: ${text} on ${theme.windowTint}`);
+  }
+});
+
+test("built-in presets keep their sidebar palette", () => {
+  for (const dark of [true, false])
+    for (const color of [...Object.keys(PROFILE_COLORS), "incognito"]) {
+      const theme = color === "incognito" ? profileTheme(undefined, dark) : profileTheme({ color }, dark);
+      assert.equal(sidebarTheme(theme), theme, `${color} ${dark}`);
+    }
 });
