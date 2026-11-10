@@ -149,9 +149,9 @@ function Lines(props: LinesProps) {
   if (!fade) return <View style={TEXT}><LinesIn {...props} /></View>;
   return (
     <View style={TEXT_SLOT}>
-      <Animated.View style={{ ...TEXT_LAYER, opacity: fade.glow.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+      <View style={TEXT_LAYER}>
         <LinesIn {...props} ink={fade.plain} />
-      </Animated.View>
+      </View>
       <Animated.View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, ...TEXT_LAYER, opacity: fade.glow }}>
         <LinesIn {...props} ink={fade.lit} />
       </Animated.View>
