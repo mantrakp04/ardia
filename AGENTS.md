@@ -161,6 +161,6 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - Write simple, concise English. Pinned attention items are goals: show progress and the next step, not the original issue again.
 
 ## Repo map
-`apps/browser` is the React Native macOS app. The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer,
+`apps/browser` is the React Native macOS app; `apps/browser/windows` and `packages/expo-windows` are the start of the Windows app (`docs/windows.md`). The native Expo modules are in `packages/{ardiacore,shell,shaders,import,sync}`; `engine/chromium` is our Chrome-services code (the `ac_*` C calls) and `engine/ardiacore` ArdiaCore's window and tab layer,
 and `packages/core` holds the omnibox logic and its tests. `apps/site` is ardia.dev and
 `apps/videos` holds the Remotion videos. The license is Apache-2.0.

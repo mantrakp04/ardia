@@ -11,6 +11,13 @@ test("the JS bundle and the native build declare the same API version", () => {
   assert.equal(js, native);
 });
 
+test("the JS bundle and the Windows build declare the same API version", () => {
+  const js = read("./nativeApi.ts").match(/export const WINDOWS_NATIVE_API_VERSION = (\d+);/)?.[1];
+  const native = read("../../windows/Ardia/AppModule.h").match(/const int windowsApiVersion = (\d+);/)?.[1];
+  assert.ok(js && native, "both declarations found");
+  assert.equal(js, native);
+});
+
 const packagesDir = new URL("../../../../packages/", import.meta.url);
 const nativePackages = readdirSync(packagesDir).filter((name) => existsSync(new URL(`${name}/expo-module.config.json`, packagesDir)));
 
