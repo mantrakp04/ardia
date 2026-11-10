@@ -28,8 +28,19 @@ test("with the setting off, or no icons at all, the row stays dots in dot cells"
   }
 });
 
-test("a row that doesn't fit at one icon cell per profile falls back to dots, mixed or not", () => {
-  const fits = Math.floor(ROOM / profileSwitcher.iconCell);
-  assert.equal(switcherLayout([...Array(fits - 1).fill(HOUSE), null], true, ROOM).icons, true);
-  assert.equal(switcherLayout([...Array(fits).fill(HOUSE), null], true, ROOM).icons, false);
+test("a mixed row that fits with its dot cells but not at 26 pt each shrinks every cell to one whole point that fits", () => {
+  const icons = [...Array(6).fill(HOUSE), null];
+  const row = switcherLayout(icons, true, ROOM);
+  assert.equal(row.icons, true);
+  assert.equal(row.cell, Math.floor(ROOM / 7));
+  assert.ok(row.cell * icons.length <= ROOM);
+});
+
+test("a row where every profile has an icon never shrinks: it keeps 26 pt cells or falls back to dots", () => {
+  assert.equal(switcherLayout(Array(6).fill(HOUSE), true, ROOM).cell, profileSwitcher.iconCell);
+  assert.equal(switcherLayout(Array(7).fill(HOUSE), true, ROOM).icons, false);
+});
+
+test("a mixed row that doesn't fit even with dot cells falls back to dots, as before", () => {
+  assert.equal(switcherLayout([...Array(6).fill(HOUSE), null, null], true, ROOM).icons, false);
 });
