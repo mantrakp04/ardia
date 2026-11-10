@@ -1,5 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { rejoinGroups } from "../groups/groups";
+import { withShownTab } from "../groups/shownTabs";
 import { findLast, IDLE_LIVE, inPinnedContainer, isIncognitoProfile, makeTab, newId, pinKeyOf, resolveWindowId } from "../browser/model";
 import { restoreId } from "../tabs/adoptIds";
 import { adoptedPage, hasPage } from "../tabs/pageSession";
@@ -99,7 +100,7 @@ export function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string
     adoptId: entry.tabId && entry.tab.url ? restoreId(entry.restoreFrom ?? entry.tabId) : undefined,
   });
   next = withTab;
-  if (entry.group) next = { ...next, groups: rejoinGroups(next.groups, [entry.group, ...(entry.parents ?? [])], [tabId], windowId, profileId) };
+  if (entry.group) next = { ...next, groups: withShownTab(rejoinGroups(next.groups, [entry.group, ...(entry.parents ?? [])], [tabId], windowId, profileId), tabId) };
   return next;
 }
 

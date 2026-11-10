@@ -1,5 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { leaveGroups } from "../groups/groups";
+import { withShownTab } from "../groups/shownTabs";
 import { IDLE_LIVE, inPinnedContainer, makeTab, navigationTo, TILE_PIN, viewTabIds, without } from "../browser/model";
 import { forgetOpeners, insertionIndex, openerSuccessor } from "./openers";
 import { onUrlChange, pruneSelection } from "../pins/organize";
@@ -98,9 +99,11 @@ export function activated(s: BrowserState, id: string, shareLivePins = true): Pa
     activeTabIds: { ...w.activeTabIds, [tab.profileId]: id },
   };
   const ui = s.windowUi[w.id];
+  const groups = withShownTab(s.groups, id);
   return {
     tabs: { ...s.tabs, [id]: nextTab },
     windows: { ...s.windows, [w.id]: window },
+    ...(groups === s.groups ? {} : { groups }),
     ...(ui?.panel.open ? { windowUi: { ...s.windowUi, [w.id]: { ...ui, panel: { open: false, initialText: "" } } } } : {}),
   };
 }
