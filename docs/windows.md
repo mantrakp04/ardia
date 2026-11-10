@@ -67,6 +67,9 @@ Logic is written once. Only code that calls the OS is written per platform.
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
   onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
   self-check launch.
+- With the browser window open, the x64 run also drives the app with real input (a click and typing in the search
+  box, Ctrl+T, a drag of the title band) and reports each. The ARM runner's desktop is covered by Windows' own
+  first-run screen, so its screenshots show that screen and it skips the input.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there.

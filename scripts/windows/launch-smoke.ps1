@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)][string]$App,
   [Parameter(Mandatory = $true)][string]$Out,
   [int]$Seconds = 25,
-  [int]$SelfCheckSeconds = 120
+  [int]$SelfCheckSeconds = 120,
+  [switch]$NoInput
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +44,7 @@ public static class ArdiaInput {
 }
 "@
 [ArdiaInput]::SetProcessDPIAware() | Out-Null
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 
 function Get-WindowRect([System.Diagnostics.Process]$Process) {
   $Process.Refresh()
@@ -66,8 +68,11 @@ function Send-Drag([int]$X, [int]$Y, [int]$ByX, [int]$ByY) {
   Start-Sleep -Milliseconds 120
   [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
   Start-Sleep -Milliseconds 120
+  $screen = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
   foreach ($step in 1..12) {
-    [ArdiaInput]::SetCursorPos($X + [int]($ByX * $step / 12), $Y + [int]($ByY * $step / 12)) | Out-Null
+    $toX = $X + [int]($ByX * $step / 12)
+    $toY = $Y + [int]($ByY * $step / 12)
+    [ArdiaInput]::mouse_event(0x8001, [uint32]($toX * 65535 / ($screen.Width - 1)), [uint32]($toY * 65535 / ($screen.Height - 1)), 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 40
   }
   Start-Sleep -Milliseconds 150
@@ -167,8 +172,10 @@ try {
     $working = [Math]::Round((Get-Process -Id $browser.Id).WorkingSet64 / 1MB)
     $private = [Math]::Round((Get-Process -Id $browser.Id).PrivateMemorySize64 / 1MB)
     Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
-    $inputNotes = Test-Input $browser $browserLog
-    $inputNotes | ForEach-Object { Write-Host "::warning::$_" }
+    if (-not $NoInput) {
+      $inputNotes = Test-Input $browser $browserLog
+      $inputNotes | ForEach-Object { Write-Host "::warning::$_" }
+    }
     if ($browser.HasExited) { $failures += "the app exited while being driven (exit code $($browser.ExitCode))" }
   }
 } finally {

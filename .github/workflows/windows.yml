@@ -111,7 +111,7 @@ jobs:
         run: npx react-native run-windows --release --arch ARM64 --no-launch --no-deploy --no-packager --no-telemetry --logging
       - name: Launch it
         shell: pwsh
-        run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch"
+        run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch" -NoInput
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

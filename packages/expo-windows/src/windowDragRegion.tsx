@@ -60,10 +60,15 @@ function useWindowDrag(options: DragOptions) {
         pressedAt.current = at;
         dragging.current = false;
         notePress(at);
-        if (!second) return;
-        pressedAt.current = null;
-        latest.current.onRegionDoubleClick?.();
-        if (latest.current.titleBarDoubleClick) void windows().toggleMaximize(rootTag);
+        if (second) {
+          pressedAt.current = null;
+          latest.current.onRegionDoubleClick?.();
+          if (latest.current.titleBarDoubleClick) void windows().toggleMaximize(rootTag);
+          return;
+        }
+        if (latest.current.clickable) return;
+        dragging.current = true;
+        void windows().beginWindowDrag(rootTag);
       },
       onResponderMove: (event: Press) => {
         const start = pressedAt.current;
