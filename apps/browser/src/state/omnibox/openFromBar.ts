@@ -20,8 +20,14 @@ export function openFromBar(url: string, tabId: string, disposition: Disposition
   if (!url || !tab) return;
   const w = s.windows[tab.windowId];
   if (disposition === "current") return s.navigate(tabId, url);
+  if (disposition === "split") {
+    if (!openSplitPane(tab.windowId, { anchorTabId: tabId, url, side: "right" })) {
+      s.newTab(tab.windowId, { url, profileId: tab.profileId, background: true });
+    }
+    s.closePanel(tab.windowId);
+    return;
+  }
   s.closePanel(tab.windowId);
-  if (disposition === "split") return void openSplitPane(tab.windowId, { anchorTabId: tabId, url, side: "right" });
   if (disposition === "newTab") return void s.newTab(tab.windowId, { url, profileId: tab.profileId, openerId: tab.url ? tabId : undefined });
   openWindow(w?.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
 }
