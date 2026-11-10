@@ -32,8 +32,11 @@ function moduleOnWindows(name: string): object {
         if (typeof key !== "string" || key === "then" || key === "$$typeof") return undefined;
         const fromNative = native?.[key];
         if (fromNative !== undefined) return fromNative;
-        if (key in constants) return constants[key];
-        if (key in defaults) return defaults[key];
+        if (Object.hasOwn(constants, key)) return constants[key];
+        if (Object.hasOwn(defaults, key)) {
+          noteMissing(`${name}.${key}`);
+          return defaults[key];
+        }
         if (key === "addListener") return (event: string, listener: Listener): EventSubscription => addNativeListener(name, event, listener);
         if (key === "removeListeners" || key === "removeAllListeners") return () => {};
         return inert(name, key);
@@ -63,6 +66,7 @@ const secureHex = (byteCount: number) => TurboModuleRegistry.getEnforcing<Window
 export const uuid = {
   v4() {
     const hex = secureHex(16);
+    if (!/^[0-9a-f]{32}$/.test(hex)) throw new Error("Windows gave no random bytes");
     const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
   },

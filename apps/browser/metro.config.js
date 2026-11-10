@@ -4,7 +4,8 @@ const { getDefaultConfig, mergeConfig } = require("@react-native/metro-config");
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "../..");
 const expoModulesOnWindows = path.resolve(workspaceRoot, "packages/expo-windows/src/index.ts");
-const windowsProject = path.resolve(projectRoot, "windows").replace(/[/\\]/g, "[/\\\\]");
+const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const windowsProject = path.resolve(projectRoot, "windows").split(path.sep).map(literal).join("[/\\\\]");
 const windowsBuildOutput = new RegExp(`^${windowsProject}[/\\\\].*`);
 
 const config = mergeConfig(getDefaultConfig(projectRoot), {

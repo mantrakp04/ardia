@@ -25,11 +25,12 @@ Logic is written once. Only code that calls the OS is written per platform.
 - `packages/expo-windows` is the API our native packages call (`requireNativeModule`, `requireNativeViewManager`,
   `uuid`), on Windows:
   - a module that has a C++ version answers from it (a React Native turbo module of the same name);
-  - a module without one answers from `src/defaults.ts`, or with `null`, and logs its name once;
+  - a module without one answers from `src/defaults.ts`, or with `null`, and logs each call's name once. Its
+    documents live in memory, so nothing is saved between launches yet;
   - a view without one renders as a plain view (`FadeLabel` as text), and logs its name once.
 
-  So each module and view gets its Windows version on its own, and the log is the list of what is left
-  (`ardiaWindowsMissing()` in the JS console).
+  So each module and view gets its Windows version on its own. The log, and `ardiaWindowsMissing()` in the JS
+  console, list what the app has reached so far that has no Windows version, not everything left to port.
 - Native modules are C++ in `apps/browser/windows/Ardia`, one per header, named as on the Mac (`ArdiaApp` in
   `AppModule.h`). Events reach JS as the device event `<Module>:<event>`.
 - The Windows native API has its own version: `WINDOWS_NATIVE_API_VERSION` in `platform/nativeApi.ts` and
@@ -47,13 +48,14 @@ Logic is written once. Only code that calls the OS is written per platform.
 
 ## Speed targets
 
-The Mac's numbers from `docs/perf` are the targets for Windows, measured from the first engine build on:
+The Mac's numbers are the targets for Windows, measured from the first engine build on. These are 0.2.45's, from
+`docs/perf/0.2.44-to-0.2.45.md`; use the latest release's when measuring.
 
 | Measure | Mac |
 | --- | --- |
-| Launch to window shown | 418 ms |
-| Tab switch to shown | 35 ms |
-| New tab to first paint | 105 ms |
+| Launch to window shown | 451 ms |
+| Tab switch to shown | 9 ms |
+| New tab to first paint | 78 ms |
 
 ## Order of work
 

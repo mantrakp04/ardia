@@ -76,4 +76,5 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
   app.ReactViewOptions().ComponentName(L"main");
 
   app.Start();
+  return 0;
 }

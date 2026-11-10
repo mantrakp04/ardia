@@ -28,6 +28,8 @@ struct SystemInfo {
   double memoryGB;
   REACT_FIELD(locale)
   std::string locale;
+  REACT_FIELD(isolatedInstance)
+  bool isolatedInstance;
 };
 
 REACT_MODULE(AppModule, L"ArdiaApp")
@@ -72,6 +74,7 @@ struct AppModule {
     info.model = "PC";
     info.memoryGB = static_cast<double>((memory.ullTotalPhys + (1ull << 29)) >> 30);
     info.locale = winrt::to_string(localeName);
+    info.isolatedInstance = false;
     return info;
   }
 };

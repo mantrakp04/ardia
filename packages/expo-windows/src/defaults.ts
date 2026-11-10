@@ -1,4 +1,5 @@
 import type { LaunchConfig } from "@ardia/shell";
+import { noteMissing } from "./missing";
 
 const LAUNCH_CONFIG: LaunchConfig = {
   dataDirectory: null,
@@ -36,7 +37,9 @@ const engineDomains = Object.fromEntries(
     {
       call: async (name: string) => {
         if (ENGINE_ONLY[module]?.includes(name)) throw Object.assign(new Error(`${name} needs the engine, which Windows doesn't have yet`), { code: "ERR_ENGINE" });
-        return JSON.stringify(ENGINE_ANSWERS[module]?.[name] ?? null);
+        const answer = ENGINE_ANSWERS[module]?.[name];
+        if (answer === undefined) noteMissing(`${module}.call ${name}`);
+        return JSON.stringify(answer ?? null);
       },
     },
   ]),

@@ -1,13 +1,13 @@
 import { createElement, forwardRef, useEffect, type ComponentType } from "react";
-import { Text, View, type TextStyle, type ViewProps } from "react-native";
+import type { FadeLabelProps } from "@ardia/shell";
+import { Text, View, type TextStyle } from "react-native";
 import { noteFirstWindow, noteMissing } from "./missing";
 
 type AnyProps = Record<string, unknown> & { children?: unknown };
-type LabelProps = ViewProps & { text?: string; fontSize?: number; weight?: keyof typeof FONT_WEIGHT; color?: string };
 
-const FONT_WEIGHT = { light: "300", regular: "400", medium: "500", semibold: "600", bold: "700" } as const satisfies Record<string, TextStyle["fontWeight"]>;
+const FONT_WEIGHT: Record<NonNullable<FadeLabelProps["weight"]>, TextStyle["fontWeight"]> = { light: "300", regular: "400", medium: "500", semibold: "600", bold: "700" };
 
-const Label = forwardRef<unknown, LabelProps>(function Label({ text, fontSize, weight, color, style, ...rest }, ref) {
+const Label = forwardRef<unknown, FadeLabelProps>(function Label({ text, fontSize, weight, color, fadeWidth: _fadeWidth, style, ...rest }, ref) {
   useEffect(noteFirstWindow, []);
   return createElement(
     View as ComponentType<AnyProps>,
@@ -16,9 +16,7 @@ const Label = forwardRef<unknown, LabelProps>(function Label({ text, fontSize, w
   );
 });
 
-const drawnInJs: Record<string, ComponentType<AnyProps>> = {
-  ArdiaFadeLabel: Label as unknown as ComponentType<AnyProps>,
-};
+const drawnInJs = new Map<string, ComponentType<AnyProps>>([["ArdiaFadeLabel", Label as unknown as ComponentType<AnyProps>]]);
 
 const views = new Map<string, ComponentType<AnyProps>>();
 
@@ -26,7 +24,7 @@ export function viewOnWindows(name: string): ComponentType<AnyProps> {
   const cached = views.get(name);
   if (cached) return cached;
   const made =
-    drawnInJs[name] ??
+    drawnInJs.get(name) ??
     (forwardRef<unknown, AnyProps>(function Placeholder(props, ref) {
       useEffect(() => {
         noteFirstWindow();
