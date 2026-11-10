@@ -263,7 +263,7 @@ function SidebarDock({
   };
 
   const strip = useRef(false);
-  if (!open) strip.current = true;
+  if (!open || peeking) strip.current = true;
   const fade = peeking && !arc;
   const panelOn = useRef(new Animated.Value(0)).current;
   useLayoutEffect(() => panelOn.setValue(peeking ? 1 : 0), [panelOn, peeking]);
