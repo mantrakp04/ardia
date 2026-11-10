@@ -64,7 +64,8 @@ Logic is written once. Only code that calls the OS is written per platform.
 
 - `.github/workflows/windows.yml` builds the x64 app on a Windows runner and runs `scripts/windows/launch-smoke.ps1`,
   which launches it three times and uploads each launch's log: a first launch (onboarding) and a launch with
-  onboarding done (the browser window), each with a screenshot, then a hidden self-check launch.
+  onboarding done (the browser window), each with a screenshot when the runner allows a capture, then a hidden
+  self-check launch.
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there.
@@ -92,6 +93,6 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 3. ArdiaCore: split into a shared core (`.cc`) and platform files (`_mac.mm`, `_win.cc`), then write the Windows files.
 4. The Windows versions of the Mac-specific engine patches.
 5. C++ versions of what is still drawn flat or missing: glass with Mica and Acrylic, shaders with Direct3D, import
-   from Edge and Chrome, file drops, swipe gestures, toasts.
+   from Edge and Chrome, file drops, swipe gestures, Windows notification toasts.
 6. Windows behaviour: Ctrl shortcuts, window controls on the right.
 7. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.
