@@ -3,12 +3,27 @@ import LocalAuthentication
 
 enum VaultOwnerCheck {
   private static let grantLifetime: TimeInterval = 10
+  private static let presenceLifetime: TimeInterval = 30
   private static let grantLock = NSLock()
   nonisolated(unsafe) private static var grantedAt: Date?
+  nonisolated(unsafe) private static var confirmedAt: Date?
 
   static func grant() {
     grantLock.lock()
     grantedAt = Date()
+    confirmedAt = grantedAt
+    grantLock.unlock()
+  }
+
+  static var recentlyConfirmed: Bool {
+    grantLock.lock()
+    defer { grantLock.unlock() }
+    return confirmedAt.map { Date().timeIntervalSince($0) < presenceLifetime } ?? false
+  }
+
+  private static func noteConfirmed() {
+    grantLock.lock()
+    confirmedAt = Date()
     grantLock.unlock()
   }
 
@@ -26,6 +41,12 @@ enum VaultOwnerCheck {
   }
 
   static func confirm(_ reason: String) async -> Bool {
+    let confirmed = await ask(reason)
+    if confirmed { noteConfirmed() }
+    return confirmed
+  }
+
+  private static func ask(_ reason: String) async -> Bool {
     if takeGrant() { return true }
     let config = LaunchConfig.shared
     if config.background {

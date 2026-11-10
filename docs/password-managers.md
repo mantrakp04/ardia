@@ -47,22 +47,39 @@ own gate on top of the CLI: a manager is unlocked only while the session store h
 Lock forgets the session; sign out also tells the CLI to log out. When a CLI reports that the vault is locked or signed
 out, the broker drops the session and the cached items and publishes the new state.
 
-### The local copy
+### The local store
 
-`VaultCache.swift` keeps one AES-GCM sealed file per manager in `<data dir>/Password Managers/Cache/<id>.vault` (0600,
-excluded from backups), with a random 256-bit key in the login keychain (`vault-cache-key`; the test sandbox's file in
-a hidden instance). Each file is bound to the manager's account and server and is read only while that manager is
-unlocked, so it never fills anything a locked or signed-out manager wouldn't. It holds the item list and, unless
-Load Passwords When Used is on, passwords:
+`VaultCache.swift` is Ardia's own encrypted password store: one AES-GCM sealed file per manager in
+`<data dir>/Password Managers/Cache/<id>.vault` (0600, excluded from backups). It holds the item list and, unless Load
+Passwords When Used is on, each login's password and one-time-code secret (Bitwarden's `login.totp`, Proton's
+`totp_uri`). Everything a fill, a copy or a code needs is read from it in memory, so none of them waits for a CLI.
 
-- After an unlock the list comes from the file at once; a list older than 60 s is refreshed in the background
-  (stale while revalidate) and the file rewritten. Only a manager with no copy at all waits for its CLI.
-- Bitwarden's `list items` already carries each password, so every password is cached with no extra call. Other
-  managers cache a password the first time it is fetched.
-- A cached password is used only while its item's `updatedAt` is unchanged; a changed or deleted item drops it.
-- Sign out (or the CLI reporting signed out) deletes the file; lock keeps it. Load Passwords When Used
-  (`vaultLoadPasswordsWhenUsed`, off by default) strips every stored password and fetches each one from the CLI when it
-  is used.
+- **One unlock for all of it.** While a file exists, a locked manager's Unlock (and the menu's Unlock row) asks for
+  Touch ID or the Mac password once (`VaultOwnerCheck`) and opens every manager's file. The manager then reads as
+  `unlocked` even with no CLI session; the CLI sessions come back in the background from the stored Bitwarden key or
+  Proton's marker, without a second prompt (`VaultOwnerCheck.recentlyConfirmed`, 30 s). 1Password reconnects only when
+  something needs its CLI (a 1Password code, a save, Sync), since that asks its own app. A manager unlocked through
+  its CLI (master password, 1Password's app) opens the store too.
+- **Codes are made on the Mac.** `VaultTotpSecret` reads an `otpauth://` URI or a bare base32 secret (SHA-1, SHA-256
+  or SHA-512, 6 to 8 digits, any period) and computes the RFC 6238 code; it is checked against RFC 6238's vectors.
+  Steam and other non-TOTP schemes, and 1Password, still ask the CLI.
+- **Freshness.** A list older than 60 s is refreshed in the background from the CLI when a session exists, and the file
+  rewritten. A cached password or code secret is used only while its item's `updatedAt` is unchanged.
+- **Locking.** Lock After, the screen locking and sleep close the store and drop everything in memory; Lock on one
+  manager hides that manager while the others stay open. Sign Out deletes its file here and in iCloud; a CLI
+  reporting signed out, or a different account, deletes only this Mac's file.
+- **The key.** A random 256-bit key in the data-protection keychain under the app's `…​.passwords` access group,
+  synchronizable, so iCloud Keychain carries it to the owner's other Macs. Builds without that entitlement (and the
+  older cache key, `vault-cache-key` in the login keychain, which is migrated) keep a local key; a hidden test instance
+  uses its sandbox file.
+- **iCloud.** With Sync with iCloud on (`vaultICloudSync`, on by default) and a synced key, each sealed file is also
+  written to `iCloud Drive/Ardia/Password Managers/<id>.vault` when its contents change. When the store opens, and on
+  Sync, a copy there newer than this Mac's replaces it; a copy iCloud hasn't downloaded yet is left for next time, so an
+  unlock never waits on iCloud. Turning the setting off removes Ardia's files from iCloud Drive. A hidden instance syncs
+  only to a folder given as the `vaultCloudDirectory` test value.
+- **Sync.** Settings › Passwords › Password Managers › Sync Now (`vaults.sync`) unlocks first if everything is locked,
+  pulls iCloud, forces each connected manager's CLI to sync (Bitwarden's 5-minute `bw sync` throttle is skipped) and
+  pushes the result to iCloud. The row shows when the store last synced.
 
 `vaults.providers` answers at once from the cached states (or a placeholder: `notInstalled` when no binary is found,
 otherwise `locked`) and starts one background refresh, which emits `vaults.changed` for each state that differs.
@@ -115,7 +132,11 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    embedded Touch ID view (`VaultTouchIDView`, `LAAuthenticationView`) on the selected login, or the first one: a
    touch on the sensor grants the broker one owner check for 10 s (`grantOwner`) and emits `vaults.touchID`; JS fills
    the row that was armed at the moment of the match (`state/vaults/touchID.ts`), with no dialog, and asks the page to
-   submit the form (`submit: true`); a click or Return never submits. The view reports `onStatus` (`ready` while the
+   submit the form (`submit: true`); a click or Return never submits. It is one touch per step: on a username-only
+   page the touch fills the username and continues, on the password page the password, and on the code page the code
+   (code rows are touch rows too). A touch on a locked manager's Unlock row opens the store and fills the login that
+   then rests selected with the same touch (the broker grants again after the unlock); a click on Unlock does the same
+   without submitting. The view reports `onStatus` (`ready` while the
    sensor listens, `retry` after a finger that didn't match, `granted`, and the terminal `unavailable` and
    `lockout`), which the row shows as the glyph, a red shake with Try Again, and a check. It listens only while the
    app is active and its window is key, re-arms after a system cancel (backing off to 2 s after five in 3 s), and

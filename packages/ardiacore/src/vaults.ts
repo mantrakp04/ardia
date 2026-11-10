@@ -58,6 +58,8 @@ export type VaultSignInFields = {
 
 export type VaultTotp = { code: string; period: number; expiresAt: number };
 
+export type VaultSyncResult = { ok: boolean; synced: VaultProviderId[]; failed: VaultProviderId[]; syncedAt: number | null; iCloud: boolean };
+
 const Vaults = nativeModule("ArdiaVaults");
 
 export const signInToVault = (provider: VaultProviderId, fields: VaultSignInFields) =>

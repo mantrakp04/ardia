@@ -96,7 +96,7 @@ struct VaultCLI: Sendable {
   func setValue(_ key: String, _ value: String?) { sessions.setValue(provider, key, value) }
   func preference(_ key: String) -> String? { sessions.preference(provider, key) }
   func setPreference(_ key: String, _ value: String?) { sessions.setPreference(provider, key, value) }
-  func confirmOwner(_ reason: String) async -> Bool { await VaultOwnerCheck.confirm(reason) }
+  func confirmOwner(_ reason: String) async -> Bool { VaultOwnerCheck.recentlyConfirmed || (await VaultOwnerCheck.confirm(reason)) }
 
   func announceChange() {
     let provider = self.provider

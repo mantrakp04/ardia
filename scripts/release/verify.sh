@@ -36,7 +36,7 @@ designated="$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')"
 [[ "$designated" == *'identifier "com.ardia.browser"'* && "$designated" == *"subject.OU] = U5L5T3NGVV"* ]] \
   || die "designated requirement: $designated"
 app_ents="$(entitlements "$app")"
-for group in webauthn unexportable-keys secure-payment-confirmation; do
+for group in webauthn unexportable-keys secure-payment-confirmation passwords; do
   [[ "$app_ents" == *"U5L5T3NGVV.com.ardia.browser.$group"* ]] || die "the app lacks the keychain group …$group"
 done
 if grants_browser_passkeys "$app/Contents/embedded.provisionprofile"; then

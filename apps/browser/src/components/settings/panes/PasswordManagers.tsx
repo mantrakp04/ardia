@@ -4,8 +4,9 @@ import { confirm, showMenu } from "../../../state/app/system";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { VAULT_LOCK_MINUTES } from "../../../state/settings/settings";
-import { lockProvider, refreshProvider, reloadProviders, signInError, signOutProvider, unlockProvider, type VaultProviderState } from "../../../state/vaults/actions";
+import { lockProvider, reloadProviders, signInError, signOutProvider, unlockProvider, type VaultProviderState } from "../../../state/vaults/actions";
 import { useVaultProviders, useVaultsLoaded } from "../../../state/vaults/hooks";
+import { refreshVaultSyncStatus, syncedLine, syncVaultsNow, useVaultSync } from "../../../state/vaults/sync";
 import { Box, Button, PopUp, space } from "../../ui";
 import { BrandBadge } from "../../vaults/VaultParts";
 import { VAULT_SETTINGS } from "../../vaults/tokens";
@@ -36,12 +37,10 @@ function ProviderRow({ provider }: { provider: VaultProviderState }) {
   const more = async () => {
     const choice = await showMenu([
       ...(provider.state === "unlocked" ? [{ id: "lock", title: "Lock", symbol: "lock" }] : []),
-      { id: "refresh", title: "Refresh", symbol: "arrow.clockwise" },
       { separator: true },
       { id: "signOut", title: "Sign Out…", symbol: "rectangle.portrait.and.arrow.right" },
     ]);
     if (choice === "lock") await lockProvider(provider.id);
-    if (choice === "refresh") await refreshProvider(provider.id);
     if (choice !== "signOut") return;
     const { confirmed } = await confirm({ title: `Sign out of ${provider.name}?`, message: "Ardia stops filling from it until you connect again.", confirmTitle: "Sign Out" });
     if (confirmed) await signOutProvider(provider.id);
@@ -65,6 +64,24 @@ function ProviderRow({ provider }: { provider: VaultProviderState }) {
   );
 }
 
+const SYNC_TITLES = { idle: "Sync Now", syncing: "Syncing…", synced: "Synced", failed: "Try Again" } as const;
+
+function SyncRow({ providers }: { providers: VaultProviderState[] }) {
+  const phase = useVaultSync((s) => s.phase);
+  const syncedAt = useVaultSync((s) => s.syncedAt);
+  const failed = useVaultSync((s) => s.failed);
+  useEffect(() => void refreshVaultSyncStatus(), []);
+  const connected = providers.filter((p) => p.state === "unlocked" || p.state === "locked");
+  if (!connected.length) return null;
+  const names = providers.filter((p) => failed.includes(p.id)).map((p) => p.name);
+  const description = phase === "failed" && names.length ? `${names.join(", ")} didn't sync.` : syncedLine(syncedAt, Date.now());
+  return (
+    <Row anchor="passwords.vaultSync" description={description}>
+      <Button title={SYNC_TITLES[phase]} disabled={phase === "syncing"} onPress={() => void syncVaultsNow()} />
+    </Row>
+  );
+}
+
 export function PasswordManagersSection() {
   const providers = useVaultProviders();
   const loaded = useVaultsLoaded();
@@ -83,6 +100,7 @@ export function PasswordManagersSection() {
         {providers.map((p) => (
           <ProviderRow key={p.id} provider={p} />
         ))}
+        <SyncRow providers={providers} />
       </Group>
       <View style={GROUP_GAP}>
         <Group>
@@ -98,6 +116,7 @@ export function PasswordManagersSection() {
           <Row anchor="passwords.vaultIdleLockMinutes">
             <PopUp value={String(lockAfter)} options={LOCK_OPTIONS} onChange={(v) => updateSettings({ vaultIdleLockMinutes: Number(v) })} />
           </Row>
+          <SettingToggle anchor="passwords.vaultICloudSync" />
         </Group>
       </View>
     </View>

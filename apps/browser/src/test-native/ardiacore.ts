@@ -301,7 +301,9 @@ export const vaultFakes = {
   providers: [] as FakeVaultProvider[],
   items: [] as FakeVaultItem[],
   copied: [] as { provider: string; id: string; field: string }[],
-  options: null as { idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean } | null,
+  options: null as { idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean; iCloudSync: boolean } | null,
+  syncs: 0,
+  syncedAt: null as number | null,
   biometrics: true,
   signIns: [] as { provider: string; fields: Record<string, unknown> }[],
   unlocks: [] as { provider: string; withPassword: boolean }[],
@@ -541,7 +543,15 @@ const fakeModules = {
       copy: ({ provider, id, field }) => (vaultFakes.copied.push({ provider, id, field }), { copied: true, clearsAfter: 90 }),
       totp: () => ({ code: "123456", period: 30, expiresAt: Date.now() + 30_000 }),
       generate: () => ({ length: 20 }),
-      setOptions: ({ idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed }) => ((vaultFakes.options = { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed }), {}),
+      setOptions: ({ idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed, iCloudSync }) =>
+        ((vaultFakes.options = { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed, iCloudSync }), {}),
+      sync: () => {
+        vaultFakes.syncs += 1;
+        vaultFakes.syncedAt = Date.now();
+        const synced = vaultFakes.providers.filter((p) => p.state === "unlocked").map((p) => p.id);
+        return { ok: true, synced, failed: [], syncedAt: vaultFakes.syncedAt, iCloud: true };
+      },
+      syncStatus: () => ({ ok: true, synced: [], failed: [], syncedAt: vaultFakes.syncedAt, iCloud: true }),
       biometrics: () => ({ available: vaultFakes.biometrics }),
       cancelSignIn: ({ provider }) => vaultState(provider),
     },

@@ -21,6 +21,7 @@
 		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER).webauthn</string>
 		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER).unexportable-keys</string>
 		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER).secure-payment-confirmation</string>
+		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER).passwords</string>
 		<string>$(AppIdentifierPrefix)com.netnyahoo.browser.webauthn</string>
 		<string>$(AppIdentifierPrefix)com.netnyahoo.browser.unexportable-keys</string>
 		<string>$(AppIdentifierPrefix)com.netnyahoo.browser.secure-payment-confirmation</string>

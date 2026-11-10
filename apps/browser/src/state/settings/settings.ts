@@ -150,6 +150,7 @@ export const SETTING_SPECS = {
   vaultSaveTarget: text(""),
   vaultIdleLockMinutes: shaped<number>(30, (v) => (VAULT_LOCK_MINUTES as readonly unknown[]).includes(v), { type: "number", enum: VAULT_LOCK_MINUTES }),
   vaultTouchID: flag(true),
+  vaultICloudSync: flag(true),
 };
 
 type Specs = typeof SETTING_SPECS;

@@ -74,6 +74,8 @@ export const privacyRows = {
         vaultAutoSave: { title: "Save New Passwords Automatically", keywords: ["auto save", "new password", "sign up", "generated password", "strong password"] },
         vaultSaveTarget: { title: "Save New Logins To", keywords: ["default manager", "save to", "destination"] },
         vaultIdleLockMinutes: { title: "Lock After", keywords: ["auto lock", "timeout", "idle", "touch id"] },
+        vaultSync: { title: "Sync", keywords: ["refresh", "update", "reload", "pull", "fetch", "password manager"] },
+        vaultICloudSync: { title: "Sync with iCloud", keywords: ["icloud", "keychain", "other macs", "devices", "encrypted", "backup"] },
       },
     },
   ],

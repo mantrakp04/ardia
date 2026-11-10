@@ -774,3 +774,61 @@ test("a grant with nothing left to fill re-arms the sensor", async () => {
   assert.deepEqual(fills(), []);
   assert.equal(menu.vaultMenuOf(tabId).touchRearms, 1);
 });
+
+test("one touch on a locked manager unlocks it and fills the login, then submits", async () => {
+  const { tabId } = await setup("locked");
+  native.vaultFakes.providers = [{ ...provider("locked"), touchUnlock: true }];
+  await store.loadVaultProviders();
+  const opened = await openMenuNow(tabId);
+  assert.equal(menu.rowsOfMenu(opened)[opened.selected].kind, "unlock");
+  touch.armVaultTouchID(tabId, opened.seq);
+  touch.noteVaultTouchStatus(tabId, opened.seq, "granted");
+  for (let i = 0; i < 5 && !fills().length; i++) await settle();
+  assert.equal(native.vaultFakes.unlocks.at(-1).withPassword, false);
+  assert.equal(fills().length, 1, "the same touch fills, with no second one");
+  assert.equal(fills()[0].id, "gh");
+  assert.deepEqual(fills()[0].fields, ["username", "password"]);
+  assert.equal(fills()[0].submit, true);
+});
+
+test("clicking the unlock row unlocks and fills without submitting", async () => {
+  const { tabId } = await setup("locked");
+  native.vaultFakes.providers = [{ ...provider("locked"), touchUnlock: true }];
+  await store.loadVaultProviders();
+  const opened = await openMenuNow(tabId);
+  fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened)[opened.selected]);
+  for (let i = 0; i < 5 && !fills().length; i++) await settle();
+  assert.equal(fills().length, 1);
+  assert.equal(fills()[0].submit, false);
+});
+
+test("a touch on the code step fills the code and submits", async () => {
+  const { tabId } = await setup();
+  store.setPendingTotp([{ origin: "https://github.com", provider: "bitwarden", id: "gh", at: Date.now() }]);
+  const opened = await openMenuNow(tabId, { kind: "otp", formHasPassword: false });
+  const row = menu.rowsOfMenu(opened)[opened.selected];
+  assert.equal(row.kind, "otp");
+  assert.equal(touch.isTouchRow(row), true);
+  touch.armVaultTouchID(tabId, opened.seq);
+  touch.noteVaultTouchStatus(tabId, opened.seq, "granted");
+  await settle();
+  assert.deepEqual(fills()[0].fields, ["totp"]);
+  assert.equal(fills()[0].submit, true);
+});
+
+test("sync unlocks a locked manager first, then reports when it finished", async () => {
+  const sync = await import("./sync.ts");
+  await setup("locked");
+  native.vaultFakes.providers = [{ ...provider("locked"), touchUnlock: true }];
+  await store.loadVaultProviders();
+  const before = native.vaultFakes.syncs;
+  const running = sync.syncVaultsNow();
+  assert.equal(sync.useVaultSync.getState().phase, "syncing");
+  assert.equal(await sync.syncVaultsNow(), null, "a second press while syncing does nothing");
+  const result = await running;
+  assert.equal(native.vaultFakes.syncs, before + 1);
+  assert.deepEqual(result.synced, ["bitwarden"]);
+  assert.equal(sync.useVaultSync.getState().phase, "synced");
+  assert.equal(sync.syncedLine(result.syncedAt, result.syncedAt + 5 * 60_000), "Synced 5 min ago");
+  assert.equal(sync.syncedLine(null, Date.now()), undefined);
+});

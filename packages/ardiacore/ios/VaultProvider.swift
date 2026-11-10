@@ -25,6 +25,7 @@ protocol VaultProvider: Sendable {
 struct VaultItemList: Sendable {
   var items: [VaultItem]
   var passwords: [String: String] = [:]
+  var totps: [String: String] = [:]
 }
 
 extension VaultProvider {
