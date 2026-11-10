@@ -1,4 +1,4 @@
-import { LiveError, SECTION_FILTER, type CheckState, type IssueSection, type LiveFilters, type LiveItem, type PullRequestCheck, type PullRequestInfo, type PullRequestSection } from "./types";
+import { LiveError, SECTION_FILTER, type CheckState, type IssueInfo, type IssueSection, type LiveFilters, type LiveItem, type PullRequestCheck, type PullRequestInfo, type PullRequestSection } from "./types";
 
 const PR_FIELDS = `
   ... on PullRequest {
@@ -280,7 +280,7 @@ export type RawIssue = {
   createdAt: string;
   updatedAt: string;
   repository: { nameWithOwner: string };
-  labels: { nodes: { name: string; color: string }[] };
+  labels: { nodes: IssueInfo["labels"] };
   assignees: { nodes: { login: string; avatarUrl: string | null }[] };
   comments: { totalCount: number };
 };
@@ -321,7 +321,7 @@ function mapIssue(raw: RawIssue, section: IssueSection): LiveItem {
     issue: {
       number: raw.number,
       repo,
-      labels: raw.labels.nodes.map((l) => ({ name: l.name, color: l.color })),
+      labels: raw.labels.nodes,
       assignees: raw.assignees.nodes.map((a) => ({ login: a.login, avatar: a.avatarUrl ?? null })),
       comments: raw.comments.totalCount,
       createdAt: Date.parse(raw.createdAt) || 0,
