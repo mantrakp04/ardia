@@ -1,4 +1,4 @@
-import type { CalendarAuthorization, CalendarParticipant, SystemCalendar, SystemCalendarEvent } from "../../../packages/shell/src/live";
+import type { CalendarAuthorization, CalendarNative, CalendarParticipant, SystemCalendar, SystemCalendarEvent } from "../../../packages/shell/src/live";
 import { ardiaHost, hostSupports, invokeHost, type ArdiaHost } from "./host.ts";
 import {
   events as veventsOf,
@@ -32,12 +32,8 @@ type CalendarObjects = { status: string; message: string; objects?: unknown[]; t
 export type CalendarRefreshReport = { truncatedCalendars: string[]; truncatedEvents: string[]; skippedObjects: number; failedCalendars: string[] };
 type KnownCalendar = SystemCalendar & { emails: string[] };
 
-export type LinuxCalendar = {
-  authorizationStatus(): CalendarAuthorization;
+export type LinuxCalendar = Pick<CalendarNative, "authorizationStatus" | "requestAccess" | "calendars" | "events"> & {
   message(): string;
-  requestAccess(): Promise<boolean>;
-  calendars(): Promise<SystemCalendar[]>;
-  events(start: number, end: number, calendarIds: string[]): Promise<SystemCalendarEvent[]>;
   lastRefresh(): CalendarRefreshReport;
 };
 

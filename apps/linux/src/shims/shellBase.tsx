@@ -1,4 +1,4 @@
-import type { AppEvent, CommandEvent, ConfirmOptions, InlineWrite, PromptOptions, SystemInfo, WindowEvent } from "@ardia-real/shell";
+import type { AppEvent, CommandEvent, ConfirmOptions, DialogsNative, InlineWrite, PromptOptions, SystemInfo, WindowEvent } from "@ardia-real/shell";
 export * from "@ardia-real/shell";
 import { unstable_batchedUpdates } from "react-dom";
 import { emitNativeEvent, provideNativeModule, provideNativeModuleProvider } from "./expo-modules-core";
@@ -64,7 +64,7 @@ export function copyText(text: string) {
   void navigator.clipboard?.writeText(text).catch(() => {});
 }
 
-export const confirm = async (options: ConfirmOptions): Promise<{ confirmed: boolean; suppressed: boolean }> => ardiaHost ? hostModuleMethod("ArdiaShell", "confirm")(options) as Promise<{ confirmed: boolean; suppressed: boolean }> : ({
+export const confirm: DialogsNative["confirm"] = async (options: ConfirmOptions) => ardiaHost ? hostModuleMethod("ArdiaShell", "confirm")(options) as ReturnType<DialogsNative["confirm"]> : ({
   confirmed: window.confirm([options.title, options.message].filter(Boolean).join("\n\n")),
   suppressed: false,
 });

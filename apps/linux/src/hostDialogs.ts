@@ -1,7 +1,7 @@
-import type { ConfirmOptions, PromptOptions } from "../../../packages/shell/src/dialogs";
+import type { ConfirmOptions, DialogsNative, PromptOptions } from "../../../packages/shell/src/dialogs";
 import { ardiaHost, hostModuleMethod, invokeHost, type ArdiaHost } from "./host";
 
-type Confirmation = { confirmed: boolean; suppressed: boolean };
+type Confirmation = Awaited<ReturnType<DialogsNative["confirm"]>>;
 type DialogResult = Confirmation | string | null;
 type PendingDialog = {
   kind: "confirm" | "prompt";
