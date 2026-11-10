@@ -50,6 +50,20 @@ export function rememberedVaultAccount(origin: string): string | null {
   return (site && loaded().get(site)?.key) || null;
 }
 
+export const JUST_REMEMBERED_MS = 60_000;
+
+export function forgetMissingVaultAccounts(provider: string, listed: ReadonlySet<string>, now = Date.now()) {
+  const map = loaded();
+  const prefix = `${provider}/`;
+  let changed = false;
+  for (const [site, entry] of map) {
+    if (!entry.key.startsWith(prefix) || listed.has(entry.key.slice(prefix.length)) || now - entry.at < JUST_REMEMBERED_MS) continue;
+    map.delete(site);
+    changed = true;
+  }
+  if (changed) save(map);
+}
+
 export function reloadVaultAccounts() {
   accounts = null;
 }

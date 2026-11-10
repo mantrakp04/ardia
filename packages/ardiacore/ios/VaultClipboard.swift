@@ -1,5 +1,21 @@
 import AppKit
 
+enum VaultCopyResult: Sendable, Equatable {
+  case copied
+  case declined
+  case refused(VaultFillError)
+  case clipboardFailed
+
+  func jsonObject() -> [String: Any] {
+    switch self {
+    case .copied: return ["copied": true, "clearsAfter": VaultClipboard.clearDelay]
+    case .declined: return ["copied": false, "declined": true, "clearsAfter": 0]
+    case .refused(let error): return ["copied": false, "error": error.rawValue, "clearsAfter": 0]
+    case .clipboardFailed: return ["copied": false, "error": "clipboard", "clearsAfter": 0]
+    }
+  }
+}
+
 enum VaultClipboard {
   static let clearDelay = 90
 
@@ -19,12 +35,16 @@ enum VaultClipboard {
 
   private static func place(_ text: String) -> Bool {
     guard !text.isEmpty else { return false }
+    let item = NSPasteboardItem()
+    guard item.setString(text, forType: .string) else { return false }
+    item.setData(Data(), forType: concealed)
+    item.setData(Data(), forType: transient)
     let pasteboard = board()
     pasteboard.clearContents()
-    pasteboard.declareTypes([.string, concealed, transient], owner: nil)
-    guard pasteboard.setString(text, forType: .string) else { return false }
-    pasteboard.setString("", forType: concealed)
-    pasteboard.setString("", forType: transient)
+    guard pasteboard.writeObjects([item]), pasteboard.string(forType: .string) == text else {
+      NSLog("[vaults] the clipboard didn't keep the copy (%@)", pasteboard.name.rawValue)
+      return false
+    }
     let placed = pasteboard.changeCount
     DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(clearDelay)) {
       let current = Self.board()

@@ -17,3 +17,6 @@ export function pendingFor(list: readonly PendingTotp[], origin: string, now: nu
 }
 
 export const forgetPending = (list: readonly PendingTotp[], provider?: string) => (provider ? list.filter((p) => p.provider !== provider) : []);
+
+export const keepListedPending = (list: readonly PendingTotp[], provider: string, listed: ReadonlySet<string>): PendingTotp[] =>
+  list.filter((p) => p.provider !== provider || listed.has(p.id));

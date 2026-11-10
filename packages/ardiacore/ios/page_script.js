@@ -699,6 +699,7 @@
         formHasPassword: inputs.some(vaultIsPassword),
         autocomplete: vaultAttr(el, "autocomplete").slice(0, 64),
         maxLength: typeof maxLength === "number" && maxLength > 0 ? maxLength : 0,
+        email: kind === "username" && (vaultTypeOf(el) === "email" || vaultTokens(vaultAttr(el, "autocomplete")) === "email" || vaultHas(VAULT_EMAIL, vaultWords(vaultHintsOf(el)))),
       };
     };
 
@@ -736,6 +737,7 @@
         formHasPassword: info.formHasPassword,
         autocomplete: info.autocomplete,
         maxLength: info.maxLength,
+        email: info.email,
         clicked: !!clicked,
       });
     };
@@ -1011,14 +1013,16 @@
         if (!e.isTrusted) return;
         vaultUntint(el);
         if (el !== vaultFocused) return;
+        if (empty) {
+          if (!vaultClearedSent) send("vaultKey", { key: "Cleared" });
+          vaultClearedSent = true;
+          return;
+        }
+        vaultClearedSent = false;
         if (vaultMenuOpen) {
           vaultMenuOpen = vaultMenuHighlighted = false;
           send("vaultKey", { key: "Typed" });
-        } else if (empty && !vaultClearedSent) {
-          vaultClearedSent = true;
-          send("vaultKey", { key: "Cleared" });
         }
-        if (!empty) vaultClearedSent = false;
       }),
       vaultOptions,
     ]);
@@ -1116,27 +1120,52 @@
       }
       if (text(message.newPassword)) {
         const fresh = ofKind("newPassword");
-        const targets = fresh.length ? fresh : passwords.length === 1 ? passwords : [];
+        const fromAnchor = anchorKind === "password" && !fresh.includes(anchor);
+        const after = fresh.filter((el) => inputs.indexOf(el) > inputs.indexOf(anchor));
+        const targets = fromAnchor ? [anchor, ...after] : fresh.length ? fresh : passwords.length === 1 ? passwords : [];
         for (const el of targets) put(el, message.newPassword, "newPassword");
       }
+      const steps = [];
       if (text(message.otp)) {
-        const run = anchorKind === "otp" ? vaultSplitRunOf(anchor) : null;
+        const codeAnchor = anchorKind === "otp" || (!anchorKind && !!vaultLastInfo && vaultLastInfo.kind === "otp");
+        const run = codeAnchor ? vaultSplitRunOf(anchor) : null;
         if (run && message.otp.length <= run.length) {
-          for (let i = 0; i < message.otp.length; i++) put(run[i], message.otp[i], "otp");
+          for (let i = 0; i < message.otp.length; i++) {
+            steps.push({ el: run[i], value: message.otp[i] });
+            if (!touched.includes(run[i])) touched.push(run[i]);
+          }
+          if (!filled.includes("otp")) filled.push("otp");
         } else {
-          const target = anchorKind === "otp" ? anchor : ofKind("otp")[0];
+          const target = codeAnchor ? anchor : ofKind("otp")[0];
           if (target) put(target, message.otp, "otp");
         }
       }
       touched.sort((a, b) => inputs.indexOf(a) - inputs.indexOf(b));
-      if (touched.length) {
-        const last = inputs.indexOf(touched[touched.length - 1]);
-        const next = inputs.slice(last + 1).find((el) => VAULT_TEXT_TYPES.includes(vaultTypeOf(el)) && !vaultValueOf(el));
-        const submit = next ? null : Array.from(apply(vaultQuery, scope, ['button, input[type="submit"]'])).find((b) => vaultLowered(b.type) === "submit" && !vaultHidden(b));
-        const focusTarget = next || submit;
-        if (focusTarget) apply(vaultFocusOn, focusTarget, []);
+      return { filled, touched, scope, anchor, inputs, steps, origin: message.origin };
+    };
+    const vaultFocusAfter = (fill) => {
+      const { touched, inputs, scope } = fill;
+      if (!touched.length) return;
+      const last = inputs.indexOf(touched[touched.length - 1]);
+      const next = inputs.slice(last + 1).find((el) => VAULT_TEXT_TYPES.includes(vaultTypeOf(el)) && !vaultValueOf(el));
+      const submit = next ? null : Array.from(apply(vaultQuery, scope, ['button, input[type="submit"]'])).find((b) => vaultLowered(b.type) === "submit" && !vaultHidden(b));
+      const focusTarget = next || submit;
+      if (focusTarget) apply(vaultFocusOn, focusTarget, []);
+    };
+    const vaultRunSteps = (fill, done) => {
+      const step = fill.steps.shift();
+      if (!step) return done();
+      if (vaultOrigin() !== fill.origin || !step.el.isConnected) {
+        fill.steps.length = 0;
+        fill.filled = [];
+        fill.touched = [];
+        return done();
       }
-      return { filled, touched, scope, anchor, origin: message.origin };
+      apply(vaultFocusOn, step.el, []);
+      vaultLater(() => {
+        vaultPut(step.el, step.value);
+        vaultRunSteps(fill, done);
+      }, 0);
     };
 
     const VAULT_SUBMIT_DELAY = 60;
@@ -1198,16 +1227,23 @@
       if (vaultSubmittedFills.size > 32) vaultSubmittedFills.delete(vaultSubmittedFills.values().next().value);
       vaultLater(() => vaultAutoSubmit(fill), VAULT_SUBMIT_DELAY);
     };
-    handlers.vaultFill = (message) => {
-      let fill = null;
+    const vaultFinishFill = (message, id, fill) => {
       try {
-        fill = vaultFill(message);
+        if (fill) vaultFocusAfter(fill);
       } catch (e) {}
-      const id = message && typeof message.id === "string" ? message.id : "";
       send("vaultFilled", { id, filled: fill ? fill.filled : [] });
       if (!fill || !fill.touched.length) return;
       for (const el of fill.touched) guard(vaultTint)(el);
       if (message.submit === true && id) vaultQueueSubmit(id, fill);
+    };
+    handlers.vaultFill = (message) => {
+      let fill = null;
+      try {
+        fill = message && message.context === true ? vaultFillContext(message) : vaultFill(message);
+      } catch (e) {}
+      const id = message && typeof message.id === "string" ? message.id : "";
+      if (fill && fill.steps.length) return vaultRunSteps(fill, () => vaultFinishFill(message, id, fill));
+      vaultFinishFill(message, id, fill);
     };
     handlers.vaultMenu = (message) => {
       const open = !!(message && message.open === true);
@@ -1216,6 +1252,68 @@
       vaultMenuHighlighted = vaultMenuOpen && message.highlighted === true;
       if (open && !vaultMenuOpen && vaultLastField && vaultLastInfo) vaultReport(vaultLastField, vaultLastInfo, false);
       vaultStartWatch();
+    };
+
+    const VAULT_CONTEXT_TYPES = ["text", "email", "tel", "url", "number", "password", "search", ""];
+    const VAULT_CONTEXT_VALUES = ["username", "password", "newPassword", "otp"];
+    let vaultContextField = null;
+    const vaultContextUsable = (el) => vaultUsable(el) && VAULT_CONTEXT_TYPES.includes(vaultTypeOf(el));
+    const vaultContextGuess = (el, info) => {
+      if (info) return info.kind === "newPassword" ? "password" : info.kind;
+      if (vaultIsPassword(el)) return "password";
+      return vaultTokens(vaultAttr(el, "autocomplete")) === "one-time-code" ? "otp" : "username";
+    };
+    apply(vaultListen, window, [
+      "contextmenu",
+      guard((e) => {
+        if (!e.isTrusted) return;
+        const el = vaultTargetOf(e);
+        if (!vaultIsInput(el) || !vaultContextUsable(el)) {
+          vaultContextField = null;
+          return send("vaultContext", { field: false });
+        }
+        const info = vaultKindOf(el);
+        const maxLength = apply(vaultMaxLengthOf, el, []);
+        vaultContextField = el;
+        vaultLastField = el;
+        vaultLastInfo = info;
+        send("vaultContext", {
+          field: true,
+          kind: info ? info.kind : null,
+          guess: vaultContextGuess(el, info),
+          rect: vaultRect(el),
+          maxLength: typeof maxLength === "number" && maxLength > 0 ? maxLength : 0,
+        });
+      }),
+      vaultOptions,
+    ]);
+    const vaultFillContext = (message) => {
+      const el = vaultContextField;
+      if (!message || typeof message.origin !== "string" || message.origin !== vaultOrigin()) return null;
+      message.submit = false;
+      if (!el || !el.isConnected || !vaultContextUsable(el)) return null;
+      const names = VAULT_CONTEXT_VALUES.filter((name) => typeof message[name] === "string" && message[name].length > 0 && message[name].length <= 4096);
+      if (names.length > 1) {
+        vaultLastField = el;
+        vaultLastInfo = vaultKindOf(el);
+        return vaultFill(message);
+      }
+      if (!names.length) return null;
+      const name = names[0];
+      const value = message[name];
+      const fill = { filled: [name], touched: [], scope: el, anchor: el, inputs: [el], steps: [], origin: message.origin };
+      const run = name === "otp" ? vaultSplitRunOf(el) : null;
+      if (run && value.length <= run.length) {
+        fill.inputs = run;
+        for (let i = 0; i < value.length; i++) {
+          fill.steps.push({ el: run[i], value: value[i] });
+          fill.touched.push(run[i]);
+        }
+        return fill;
+      }
+      vaultPut(el, value);
+      fill.touched.push(el);
+      return fill;
     };
   } catch (e) {}
 

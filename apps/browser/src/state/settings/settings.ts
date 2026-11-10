@@ -59,6 +59,7 @@ const oneOf = <const V extends readonly string[]>(values: V, d: V[number], synce
 const shaped = <T,>(d: T, valid: (v: unknown) => boolean, schema: JsonSchema, synced = false): SettingSpec<T> => ({ default: d, valid, synced, schema });
 
 export const VAULT_LOCK_MINUTES = [5, 15, 30, 60, 0] as const;
+export const VAULT_KEEP_GENERATED_DAYS = [1, 7, 30, -1, 0] as const;
 
 export const SETTING_SPECS = {
   warnBeforeQuitting: flag(false, SYNCED),
@@ -144,13 +145,16 @@ export const SETTING_SPECS = {
   vaultSuggestOnFocus: flag(true, SYNCED),
   vaultMenuGlass: flag(true, SYNCED),
   vaultAskBeforeFilling: flag(true),
-  vaultLoadPasswordsWhenUsed: flag(false),
   vaultSaveOffer: flag(true, SYNCED),
   vaultAutoSave: flag(true, SYNCED),
+  vaultContextGenerate: flag(false, SYNCED),
   vaultSaveTarget: text(""),
   vaultIdleLockMinutes: shaped<number>(30, (v) => (VAULT_LOCK_MINUTES as readonly unknown[]).includes(v), { type: "number", enum: VAULT_LOCK_MINUTES }),
   vaultTouchID: flag(true),
   vaultICloudSync: flag(true),
+  vaultLockOnQuit: flag(true),
+  vaultLockOnScreenLock: flag(true),
+  vaultKeepGenerated: shaped<number>(7, (v) => (VAULT_KEEP_GENERATED_DAYS as readonly unknown[]).includes(v), { type: "number", enum: VAULT_KEEP_GENERATED_DAYS }),
 };
 
 type Specs = typeof SETTING_SPECS;

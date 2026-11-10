@@ -1,7 +1,7 @@
 import { setAppearance, setThinScrollBars } from "../../platform/app";
 import { setAutoPictureInPicture, setVideoUpscaling } from "../../platform/media";
 import { setCommandScrollZoom } from "../../platform/siteSettings";
-import { setVaultOptions } from "../../platform/vaults";
+import { setGeneratedRetention, setVaultOptions } from "../../platform/vaults";
 import { useBrowser } from "../browser/store";
 import type { Settings } from "./settings";
 
@@ -15,10 +15,19 @@ const NATIVE_SETTINGS: Mirror[] = [
   mirror("autoPictureInPicture", setAutoPictureInPicture),
   mirror("videoUpscaling", setVideoUpscaling),
   mirror("commandScrollZoom", setCommandScrollZoom),
-  ...(["vaultIdleLockMinutes", "vaultTouchID", "vaultAskBeforeFilling", "vaultLoadPasswordsWhenUsed", "vaultICloudSync"] as const).map(
+  mirror("vaultKeepGenerated", setGeneratedRetention),
+  ...(["vaultIdleLockMinutes", "vaultTouchID", "vaultAskBeforeFilling", "vaultICloudSync", "vaultLockOnQuit", "vaultLockOnScreenLock"] as const).map(
     (key): Mirror => ({
       key,
-      send: (s) => setVaultOptions(s.vaultIdleLockMinutes, s.vaultTouchID, s.vaultAskBeforeFilling, s.vaultLoadPasswordsWhenUsed, s.vaultICloudSync),
+      send: (s) =>
+        setVaultOptions({
+          idleLockMinutes: s.vaultIdleLockMinutes,
+          touchID: s.vaultTouchID,
+          askBeforeFilling: s.vaultAskBeforeFilling,
+          iCloudSync: s.vaultICloudSync,
+          lockOnQuit: s.vaultLockOnQuit,
+          lockOnScreenLock: s.vaultLockOnScreenLock,
+        }),
     }),
   ),
 ];

@@ -1,4 +1,5 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaWebView+VaultContextMenu.h"
 #import "ArdiaRuntime.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaFieldTiming.h"
@@ -33,6 +34,7 @@ BOOL gDisplayMediaPicker = YES;
 static BOOL gSelectionPopover = YES;
 static char kScriptFramesKey;
 static char kVaultCaptureKey;
+static void (^gGeneratedVaultSubmitHandler)(NSString *password, NSString *username, NSString *origin);
 
 static ArdiaVaultCapture *VaultCaptureOf(ArdiaCoreTab *tab) {
   if (!tab) return nil;
@@ -276,6 +278,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     NSString *key = Text(dict, @"key", 16);
     if (VaultWebOrigin(VerifiedOrigin(verifiedOrigin)) && [VaultKeys() containsObject:key ?: @""])
       [self emit:@"vaultKey" payload:@{@"frameId" : frameId, @"key" : key}];
+  } else if ([kind isEqualToString:@"vaultContext"] && dict) {
+    NSString *origin = VerifiedOrigin(verifiedOrigin);
+    if (Flag(dict, @"field") && VaultWebOrigin(origin)) [VaultCaptureOf(tab) noteFieldInFrame:frameId origin:origin];
+    [self noteVaultContext:dict frame:frameId main:main origin:origin];
   } else if ([kind isEqualToString:@"vaultSubmit"] && dict) {
     [self captureVaultSubmit:dict tab:tab frame:frameId origin:VerifiedOrigin(verifiedOrigin)];
   } else if ([kind isEqualToString:@"vaultFilled"] && dict) {
@@ -307,6 +313,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
         @"rect" : box,
         @"formHasPassword" : @(Flag(dict, @"formHasPassword")),
         @"clicked" : @(Flag(dict, @"clicked")),
+        @"email" : @(Flag(dict, @"email")),
         @"maxLength" : @(VaultMaxLength(dict))
       }];
 }
@@ -317,13 +324,15 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   if (!VaultWebOrigin(origin) || !password.length || password.length > 4096) return;
   ArdiaVaultCapture *capture = VaultCaptureOf(tab);
   if (![capture keepLogin:username password:password origin:origin]) return;
+  const BOOL generated = [capture isGeneratedPassword:password origin:origin];
+  if (generated && gGeneratedVaultSubmitHandler) gGeneratedVaultSubmitHandler(password, username, origin);
   [self emit:@"vaultSubmitted"
       payload:@{
         @"frameId" : frameId,
         @"origin" : origin,
         @"username" : username,
         @"newPassword" : @(Flag(dict, @"newPassword")),
-        @"generated" : @([capture isGeneratedPassword:password origin:origin]),
+        @"generated" : @(generated),
         @"usernameFrom" : VaultUsernameSource(dict),
         @"trusted" : @(Flag(dict, @"trusted"))
       }];
@@ -338,6 +347,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
                 values:(NSDictionary<NSString *, NSString *> *)values
                 submit:(BOOL)submit
             completion:(void (^)(NSArray<NSString *> *filled))completion {
+  const BOOL context = [self takeVaultContextFill];
   ArdiaVaultCapture *capture = VaultCaptureOf(_tab);
   if (!capture || !VaultWebOrigin(origin) || ![[capture originOfFrame:frameId] isEqualToString:origin]) return completion(@[]);
   NSMutableDictionary *message = [NSMutableDictionary dictionary];
@@ -347,7 +357,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   }
   if (!message.count) return completion(@[]);
   message[@"origin"] = origin;
-  if (submit) message[@"submit"] = @YES;
+  if (context) message[@"context"] = @YES;
+  else if (submit) message[@"submit"] = @YES;
   message[@"id"] = [capture awaitFillInFrame:frameId reply:completion];
   [self callFrame:frameId kind:@"vaultFill" json:JSONText(message)];
 }
@@ -370,6 +381,18 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (NSDictionary<NSString *, NSString *> *)takeVaultLogin:(NSString *)origin {
   return [VaultCaptureOf(_tab) takeLogin:origin];
+}
+
+- (NSDictionary<NSString *, NSString *> *)peekVaultLogin:(NSString *)origin {
+  return [VaultCaptureOf(_tab) peekLogin:origin];
+}
+
+- (NSString *)generatedVaultPasswordFor:(NSString *)origin {
+  return [VaultCaptureOf(_tab) generatedPasswordFor:origin];
+}
+
++ (void)setGeneratedVaultSubmitHandler:(void (^)(NSString *, NSString *, NSString *))handler {
+  gGeneratedVaultSubmitHandler = [handler copy];
 }
 
 - (void)discardVaultLogin:(NSString *)origin {

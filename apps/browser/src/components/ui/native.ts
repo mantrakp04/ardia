@@ -20,6 +20,6 @@ export {
   type SymbolProps,
 } from "@ardia/shell";
 
-export { SwipeArea, VaultTouchID, WebView, type SwipeAreaHandle, type SwipeEvent, type VaultTouchIDStatus, type WebViewHandle } from "@ardia/ardiacore";
+export { SwipeArea, VaultPasswordField, VaultTouchID, WebView, type SwipeAreaHandle, type SwipeEvent, type VaultTouchIDStatus, type WebViewHandle } from "@ardia/ardiacore";
 
 export { DIA_SPECTRUM, Meadow, meadowTextStyle, PowerUp, ThemeSwatch, WindowBackdrop, type MeadowTone } from "@ardia/shaders";

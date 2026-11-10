@@ -410,8 +410,8 @@ test("focusing a login field reports it with a top-frame rect, and blur reports 
   page.fire(user, "focusin");
   page.fire(user, "focusout");
   assert.deepEqual(page.of("vaultField"), [
-    { kind: "username", focused: true, rect: { x: 10, y: 20, width: 200, height: 30 }, formHasPassword: true, autocomplete: "username", maxLength: 0, clicked: false },
-    { kind: "username", focused: false, rect: null, formHasPassword: true, autocomplete: "username", maxLength: 0, clicked: false },
+    { kind: "username", focused: true, rect: { x: 10, y: 20, width: 200, height: 30 }, formHasPassword: true, autocomplete: "username", maxLength: 0, email: true, clicked: false },
+    { kind: "username", focused: false, rect: null, formHasPassword: true, autocomplete: "username", maxLength: 0, email: true, clicked: false },
   ]);
 });
 
@@ -420,7 +420,7 @@ test("subframes send no rect, and a first-step username field says the form has 
   const user = page.input({ type: "email", name: "identifier", id: "identifierId" });
   page.body.append(page.el("form", {}, user, new page.FakeButton({ type: "button", text: "Next" })));
   page.fire(user, "focusin");
-  assert.deepEqual(page.of("vaultField"), [{ kind: "username", focused: true, rect: null, formHasPassword: false, autocomplete: "", maxLength: 0, clicked: false }]);
+  assert.deepEqual(page.of("vaultField"), [{ kind: "username", focused: true, rect: null, formHasPassword: false, autocomplete: "", maxLength: 0, email: true, clicked: false }]);
 });
 
 test("hidden, disabled, readonly, tiny, aria-hidden and search fields are ignored", () => {
@@ -556,11 +556,91 @@ test("a one-time code spreads over a run of single-character inputs", () => {
   page.fire(boxes[2], "focusin");
   assert.equal(page.of("vaultField")[0].kind, "otp");
   page.handlers.vaultFill({ id: "o", origin: "https://example.com", otp: "482913" });
+  assert.deepEqual(page.of("vaultFilled"), [], "the reply waits until every box has its digit");
+  page.advance(10);
   assert.deepEqual(
     boxes.map((b) => b.value),
     ["4", "8", "2", "9", "1", "3"],
   );
   assert.deepEqual(page.of("vaultFilled"), [{ id: "o", filled: ["otp"] }]);
+});
+
+const fillCode = (page, field, code = "482913") => {
+  page.fire(field, "focusin");
+  const reported = page.of("vaultField").at(-1);
+  page.handlers.vaultFill({ id: "c", origin: page.location.origin, otp: code });
+  page.advance(10);
+  return { kind: reported && reported.kind, filled: page.of("vaultFilled").at(-1) };
+};
+
+test("realistic code pages take the code: one-time-code, a labelled numeric field, and a code page on its own subdomain", () => {
+  const plain = makePage({ origin: "https://auth.example.com", path: "/mfa" });
+  const code = plain.input({ type: "text", name: "code", autocomplete: "one-time-code", inputmode: "numeric", maxlength: "6" });
+  plain.body.append(plain.el("form", { action: "/mfa/verify" }, code, plain.input({ type: "checkbox", name: "remember" }), new plain.FakeButton({ text: "Verify" })));
+  assert.deepEqual(fillCode(plain, code), { kind: "otp", filled: { id: "c", filled: ["otp"] } });
+  assert.equal(code.value, "482913");
+  const labelled = makePage({ origin: "https://secure.example.org", path: "/two-step" });
+  const field = labelled.input({ type: "text", inputmode: "numeric", maxlength: "6", "aria-label": "Verification code" });
+  labelled.body.append(labelled.el("div", {}, labelled.el("div", {}, field), new labelled.FakeButton({ text: "Continue" })));
+  assert.deepEqual(fillCode(labelled, field), { kind: "otp", filled: { id: "c", filled: ["otp"] } });
+  assert.equal(field.value, "482913");
+});
+
+test("a code field whose placeholder goes away on focus still takes the code it was offered for", () => {
+  const page = makePage({ path: "/account" });
+  const field = page.input({ type: "text", inputmode: "numeric", maxlength: "6", placeholder: "Enter code" });
+  page.body.append(page.el("form", {}, field, new page.FakeButton({ text: "Next" })));
+  page.fire(field, "focusin");
+  assert.equal(page.of("vaultField")[0].kind, "otp");
+  delete field.attrs.placeholder;
+  page.handlers.vaultFill({ id: "c", origin: "https://example.com", otp: "482913" });
+  assert.equal(field.value, "482913");
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "c", filled: ["otp"] }]);
+});
+
+test("a six-box code that writes each keystroke into the focused box gets every digit in its own box", () => {
+  const page = makePage({ path: "/verify" });
+  const boxes = Array.from({ length: 6 }, (_, i) => page.input({ type: "tel", maxlength: "1", inputmode: "numeric", "aria-label": `Digit ${i + 1}` }));
+  page.body.append(page.el("form", {}, page.el("div", { class: "otp" }, ...boxes.map((b) => page.el("div", {}, b))), new page.FakeButton({ text: "Verify" })));
+  const digits = ["", "", "", "", "", ""];
+  page.document.addEventListener("input", (e) => {
+    const active = boxes.indexOf(page.focused.at(-1));
+    if (!boxes.includes(e.target) || active < 0) return;
+    digits[active] = e.target.value.slice(-1);
+    boxes.forEach((b, i) => (b.value = digits[i]));
+  });
+  page.fire(boxes[2], "focusin");
+  page.focused.push(boxes[2]);
+  page.handlers.vaultFill({ id: "s", origin: "https://example.com", otp: "482913" });
+  page.advance(10);
+  assert.deepEqual(digits, ["4", "8", "2", "9", "1", "3"]);
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "s", filled: ["otp"] }]);
+  assert.equal(page.focused.at(-1).textContent, "Verify", "focus ends on the submit button");
+});
+
+test("a split code stops if the page navigates away midway, and says nothing was filled", () => {
+  const page = makePage({ path: "/verify" });
+  const boxes = Array.from({ length: 6 }, () => page.input({ type: "text", maxlength: "1", inputmode: "numeric" }));
+  page.body.append(page.el("form", {}, page.el("div", {}, ...boxes)));
+  page.fire(boxes[0], "focusin");
+  page.handlers.vaultFill({ id: "x", origin: "https://example.com", otp: "482913" });
+  page.location.origin = "https://elsewhere.example";
+  page.advance(10);
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "x", filled: [] }]);
+  assert.ok(boxes.slice(1).every((b) => b.value === ""));
+});
+
+test("a generator chosen on a password field the page didn't mark as new fills that field and the confirmation after it", () => {
+  const page = makePage({ path: "/account/password" });
+  const email = page.input({ type: "email", name: "email" });
+  const fresh = page.input({ type: "password", name: "password" });
+  const confirm = page.input({ type: "password", name: "new_pw" });
+  page.body.append(page.el("form", {}, email, fresh, confirm, new page.FakeButton({ text: "Save" })));
+  page.fire(fresh, "focusin");
+  assert.equal(page.of("vaultField")[0].kind, "password");
+  page.handlers.vaultFill({ id: "g", origin: "https://example.com", newPassword: "abcde-fghij-klmno-pqrs1" });
+  assert.deepEqual([email.value, fresh.value, confirm.value], ["", "abcde-fghij-klmno-pqrs1", "abcde-fghij-klmno-pqrs1"]);
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "g", filled: ["newPassword"] }]);
 });
 
 test("menu keys are taken only while the menu is open on the focused field, Enter only with a highlight, Tab passes, Escape closes", () => {
@@ -944,7 +1024,7 @@ test("a background the page sets during the tint is left alone", () => {
   assert.deepEqual(styleOf(user.style), { values: { backgroundColor: "red" }, priorities: {} });
 });
 
-test("emptying the focused field by hand says Cleared once per emptying, only with the menu closed", () => {
+test("emptying the focused field by hand says Cleared once per emptying, with the menu open or closed", () => {
   const page = makePage();
   const { user, pass } = loginForm(page);
   page.fire(pass, "focusin");
@@ -963,7 +1043,27 @@ test("emptying the focused field by hand says Cleared once per emptying, only wi
   page.type(user, "c");
   page.handlers.vaultMenu({ open: true });
   page.type(user, "");
-  assert.deepEqual(page.of("vaultKey"), [{ key: "Cleared" }, { key: "Cleared" }, { key: "Typed" }]);
+  page.type(user, "d");
+  assert.deepEqual(page.of("vaultKey"), [{ key: "Cleared" }, { key: "Cleared" }, { key: "Cleared" }, { key: "Typed" }]);
+});
+
+test("deleting a generated password, even with the menu open again, says Cleared and keeps the menu's keys", () => {
+  const page = makePage({ path: "/signup" });
+  const email = page.input({ type: "email", name: "email", value: "me@example.com" });
+  const first = page.input({ type: "password", name: "password", autocomplete: "new-password" });
+  const button = new page.FakeButton({ text: "Create account" });
+  page.body.append(page.el("form", { id: "signup" }, email, first, button));
+  page.fire(first, "focusin");
+  page.handlers.vaultFill({ id: "g", origin: "https://example.com", newPassword: "abcde-fghij-klmno-pqrs1" });
+  assert.equal(first.value, "abcde-fghij-klmno-pqrs1");
+  page.fire(first, "focusout");
+  page.fire(first, "focusin");
+  page.handlers.vaultMenu({ open: true, highlighted: true });
+  page.type(first, "");
+  assert.deepEqual(page.of("vaultKey"), [{ key: "Cleared" }]);
+  const enter = page.fire(first, "keydown", { key: "Enter" });
+  assert.equal(enter.defaultPrevented, true, "the reopened menu still takes Return");
+  assert.deepEqual(page.of("vaultKey").at(-1), { key: "Enter" });
 });
 
 test("ArrowDown in the focused field with the menu closed asks for the menu and stays with the page", () => {
@@ -1016,6 +1116,16 @@ test("a repeated focusin, a click on an untracked focused field and a back-forwa
   assert.deepEqual(page.of("vaultField").slice(-2).map((f) => f.focused), [false, true]);
   const down = page.fire(user, "keydown", { key: "ArrowDown" });
   assert.equal(down.defaultPrevented, false, "a restored page starts with the menu closed");
+});
+
+test("a username field says whether it takes an email, other fields never do", () => {
+  const page = makePage({ path: "/signup" });
+  const email = page.input({ type: "email", name: "email" });
+  const handle = page.input({ type: "text", name: "username", autocomplete: "username" });
+  const pass = page.input({ type: "password", name: "password", autocomplete: "new-password" });
+  page.body.append(page.el("form", {}, email, handle, pass));
+  for (const el of [email, handle, pass]) page.fire(el, "focusin");
+  assert.deepEqual(page.of("vaultField").filter((f) => f.focused).map((f) => [f.kind, f.email]), [["username", true], ["username", false], ["newPassword", false]]);
 });
 
 test("every field report carries maxLength, 0 when the field has none", () => {
@@ -1193,4 +1303,96 @@ test("a login fill clicks Sign in over a Create account submit next to it, and a
 test("the vault block never writes into the DOM or logs", () => {
   assert.doesNotMatch(vaultBlock, /innerHTML|insertAdjacent|appendChild|textContent\s*=(?!=)|console\./);
   assert.doesNotMatch(vaultBlock, /\.style\.[a-zA-Z]+\s*=(?!=)|\.cssText/, "inline styles change only through the captured CSSStyleDeclaration methods");
+});
+
+test("right-clicking a plain input that isn't a login field reports it and a context fill writes one value into that input only", () => {
+  const page = makePage({ path: "/profile" });
+  const nickname = page.input({ type: "text", name: "nickname" });
+  const city = page.input({ type: "text", name: "city" });
+  page.body.append(page.el("form", { id: "profile" }, nickname, city, new page.FakeButton({ text: "Save" })));
+  page.fire(nickname, "contextmenu");
+  assert.deepEqual(page.of("vaultContext"), [{ field: true, kind: null, guess: "username", rect: { x: 10, y: 20, width: 200, height: 30 }, maxLength: 0 }]);
+  assert.deepEqual(page.of("vaultField"), []);
+  page.handlers.vaultFill({ id: "c1", origin: "https://example.com", username: "octo", context: true });
+  assert.equal(nickname.value, "octo");
+  assert.equal(city.value, "");
+  assert.deepEqual(nickname.dispatched, ["input", "change"]);
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "c1", filled: ["username"] }]);
+  assert.deepEqual(page.focused, [], "a context fill leaves focus where it is");
+  page.handlers.vaultFill({ id: "c2", origin: "https://example.com", password: "secret", context: true });
+  assert.equal(nickname.value, "secret", "the password goes into the right-clicked field too");
+  assert.equal(city.value, "");
+});
+
+test("a context fill refuses another origin, a right-click off any input, and a field that left the page", () => {
+  const page = makePage();
+  const plain = page.input({ type: "text", name: "note" });
+  const label = page.el("div", { text: "Note" });
+  page.body.append(page.el("form", {}, label, plain));
+  page.fire(plain, "contextmenu");
+  page.handlers.vaultFill({ id: "x1", origin: "https://evil.example", username: "octo", context: true });
+  assert.equal(plain.value, "");
+  page.fire(label, "contextmenu");
+  assert.deepEqual(page.of("vaultContext").at(-1), { field: false });
+  page.handlers.vaultFill({ id: "x2", origin: "https://example.com", username: "octo", context: true });
+  assert.equal(plain.value, "");
+  page.fire(plain, "contextmenu");
+  plain.remove();
+  page.handlers.vaultFill({ id: "x3", origin: "https://example.com", username: "octo", context: true });
+  assert.deepEqual(page.of("vaultFilled"), [
+    { id: "x1", filled: [] },
+    { id: "x2", filled: [] },
+    { id: "x3", filled: [] },
+  ]);
+});
+
+test("a context code fill spreads over the split boxes from the first box, whichever box was right-clicked", () => {
+  const page = makePage({ path: "/verify" });
+  const boxes = Array.from({ length: 6 }, (_, i) => page.input({ type: "text", maxlength: "1", name: `d${i}` }));
+  page.body.append(page.el("form", {}, page.el("div", {}, ...boxes)));
+  page.fire(boxes[3], "contextmenu");
+  assert.equal(page.of("vaultContext")[0].field, true);
+  page.handlers.vaultFill({ id: "o", origin: "https://example.com", otp: "482913", context: true });
+  page.advance(10);
+  assert.deepEqual(
+    boxes.map((b) => b.value),
+    ["4", "8", "2", "9", "1", "3"],
+  );
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "o", filled: ["otp"] }]);
+});
+
+test("a context fill never submits, and a generated password goes into the right-clicked password field only", () => {
+  const page = makePage({ path: "/signup" });
+  const email = page.input({ type: "email", name: "email" });
+  const first = page.input({ type: "password", name: "password" });
+  const confirm = page.input({ type: "password", name: "password_confirmation" });
+  const button = new page.FakeButton({ text: "Create account" });
+  const form = page.el("form", { id: "signup" }, email, first, confirm, button);
+  page.body.append(form);
+  page.fire(confirm, "contextmenu");
+  assert.equal(page.of("vaultContext")[0].guess, "password");
+  page.handlers.vaultFill({ id: "g", origin: "https://example.com", newPassword: "abcde-fghij-klmno-pqrs1", context: true, submit: true });
+  page.advance(100);
+  assert.equal(confirm.value, "abcde-fghij-klmno-pqrs1");
+  assert.equal(first.value, "");
+  assert.equal(button.clicks ?? 0, 0);
+  assert.equal(form.requested, 0);
+  assert.deepEqual(page.of("vaultSubmit"), []);
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "g", filled: ["newPassword"] }]);
+});
+
+test("a context fill with a whole login fills the form around the right-clicked field", () => {
+  const page = makePage();
+  const other = loginForm(page, { id: "other" });
+  const { user, pass } = loginForm(page);
+  page.fire(user, "contextmenu");
+  assert.equal(page.of("vaultContext")[0].kind, "username");
+  page.handlers.vaultFill({ id: "w", origin: "https://example.com", username: "me@example.com", password: "secret", context: true, submit: true });
+  page.advance(100);
+  assert.equal(user.value, "me@example.com");
+  assert.equal(pass.value, "secret");
+  assert.equal(other.user.value, "");
+  assert.deepEqual(page.of("vaultFilled"), [{ id: "w", filled: ["username", "password"] }]);
+  assert.deepEqual(page.of("vaultSubmit"), [], "a right-click fill never submits");
+  assert.equal(page.of("vaultContext").length, 1);
 });

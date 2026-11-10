@@ -52,6 +52,7 @@ export {
   WebView,
   WindowBackdrop,
   WindowDragRegion,
+  VaultPasswordField,
   VaultTouchID,
   WindowProfile,
   type DroppedItem,

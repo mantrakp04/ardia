@@ -7,10 +7,16 @@ const item = (id, urls, extra = {}) => ({ provider: "bitwarden", id, title: id, 
 const base = { field: "password", mode: "matches", origin: "https://example.com", query: "", providers: [provider("bitwarden")], items: [], pending: null, noTotp: new Set() };
 const kinds = (rows) => rows.map((r) => (r.kind === "login" || r.kind === "otp" ? `${r.kind}:${r.item.id}` : r.kind === "unlock" ? `unlock:${r.provider}` : r.kind));
 
-test("no matches leaves only the footer, which never counts as a match", () => {
-  const rows = menuRows(base);
-  assert.deepEqual(kinds(rows), ["allPasswords", "suggest", "settings"]);
+const GENERATORS = ["generate", "generate", "generate", "generate"];
+
+test("no matches leaves Suggest New Password and the footer, which never count as a match, even opened", () => {
+  assert.deepEqual(kinds(menuRows(base)), ["suggest", "allPasswords", "settings"]);
+  assert.equal(hasMatchRow(menuRows(base)), false);
+  const rows = menuRows({ ...base, suggestOpen: true });
+  assert.deepEqual(kinds(rows), [...GENERATORS, "allPasswords", "settings"]);
   assert.equal(hasMatchRow(rows), false);
+  assert.equal(hasFillRow(rows), false);
+  assert.equal(restingRow(rows), -1, "nothing is ready for Return or Touch ID");
 });
 
 test("items of a locked manager never show, its unlock row does", () => {
@@ -26,7 +32,7 @@ test("signed out and missing managers add nothing", () => {
 
 test("login fields list matches best first; a sibling is marked as the person's own choice", () => {
   const rows = menuRows({ ...base, origin: "https://app.example.com", items: [item("sib", ["login.example.com"]), item("own", ["app.example.com"])] });
-  assert.deepEqual(kinds(rows), ["login:own", "login:sib", "allPasswords", "suggest"]);
+  assert.deepEqual(kinds(rows), ["login:own", "login:sib", "suggest", "allPasswords"]);
   assert.deepEqual(rows.slice(0, 2).map((r) => r.userChose), [false, true]);
 });
 
@@ -44,10 +50,18 @@ test("new password fields keep unlock rows between the generators and the footer
   assert.deepEqual(kinds(locked), ["unlock:bitwarden", "openPasswords"], "nothing to generate into until a manager unlocks");
 });
 
-test("sign-in password fields suggest a new password last, only with a manager unlocked", () => {
-  assert.ok(!kinds(menuRows({ ...base, field: "username" })).includes("suggest"));
+test("any password field suggests a new password after logins and unlock rows, opening into the four generators", () => {
+  for (const field of ["username", "otp"]) {
+    const rows = kinds(menuRows({ ...base, field, suggestOpen: true }));
+    assert.ok(!rows.includes("generate") && !rows.includes("suggest"), field);
+  }
   assert.ok(!kinds(menuRows({ ...base, providers: [provider("bitwarden", "locked")] })).includes("suggest"));
-  assert.deepEqual(kinds(menuRows({ ...base, items: [item("a", ["example.com"])] })), ["login:a", "allPasswords", "suggest"]);
+  const providers = [provider("bitwarden"), provider("protonpass", "locked")];
+  assert.deepEqual(kinds(menuRows({ ...base, providers, items: [item("a", ["example.com"])] })), ["login:a", "unlock:protonpass", "suggest", "allPasswords"]);
+  const rows = menuRows({ ...base, providers, items: [item("a", ["example.com"])], suggestOpen: true });
+  assert.deepEqual(kinds(rows), ["login:a", "unlock:protonpass", ...GENERATORS, "allPasswords"]);
+  assert.deepEqual(rows.slice(2, 6).map((r) => [r.style, r.spare]), [["strong", true], ["alphanumeric", true], ["easyToType", true], ["passphrase", true]]);
+  assert.equal(restingRow(rows), 0, "the login stays the resting row");
 });
 
 test("the remembered login is first among equals and the resting row", () => {
@@ -73,6 +87,7 @@ test("one-time code fields put the pending item first and skip items without cod
   const rows = menuRows({ ...base, field: "otp", items, pending });
   assert.deepEqual(kinds(rows), ["otp:p", "otp:a", "otp:unknown", "allPasswords"]);
   assert.equal(rows[0].pending, true);
+  assert.deepEqual(rows.slice(0, 3).map((r) => r.userChose), [true, false, false], "the login just filled fills its code wherever the code step lives");
   const failed = menuRows({ ...base, field: "otp", items, pending, noTotp: new Set(["bitwarden/unknown"]) });
   assert.ok(!kinds(failed).includes("otp:unknown"));
 });
@@ -114,4 +129,32 @@ test("escape and tab close, other keys change nothing", () => {
   assert.equal(menuKey(1, 3, "Escape").action, "close");
   assert.equal(menuKey(1, 3, "Tab").action, "close");
   assert.deepEqual(menuKey(1, 3, "KeyA"), { selected: 1, action: "none" });
+});
+
+test("a pending code from a sibling subdomain is the person's choice, so native skips the URL match", () => {
+  const items = [item("acct", ["https://accounts.example.com"], { hasTotp: true })];
+  const pending = { origin: "https://accounts.example.com", provider: "bitwarden", id: "acct", at: 0 };
+  const rows = menuRows({ ...base, origin: "https://verify.example.com", field: "otp", items, pending });
+  assert.deepEqual(kinds(rows), ["otp:acct", "allPasswords"]);
+  assert.equal(rows[0].userChose, true);
+});
+
+test("username fields add usernames used before after the matching logins, emails first on an email field", () => {
+  const items = [
+    item("site", ["example.com"], { username: "me@example.com" }),
+    item("x", ["x.test"], { username: "Me@Example.com" }),
+    item("y", ["y.test"], { username: "handle", updatedAt: 9 }),
+    item("z", ["z.test"], { username: "handle", updatedAt: 3 }),
+    item("w", ["w.test"], { username: "work@corp.test", updatedAt: 5 }),
+  ];
+  const rows = menuRows({ ...base, field: "username", items });
+  assert.deepEqual(kinds(rows), ["login:site", "username", "username", "allPasswords"]);
+  assert.deepEqual(rows.slice(1, 3).map((r) => [r.username, r.item.id]), [["handle", "y"], ["work@corp.test", "w"]], "the login's own username isn't repeated");
+  const email = menuRows({ ...base, field: "username", items, email: true });
+  assert.deepEqual(email.slice(1, 3).map((r) => r.username), ["work@corp.test", "handle"]);
+  const signUp = menuRows({ ...base, field: "username", origin: "https://new.test", items });
+  assert.deepEqual(kinds(signUp).slice(0, 3), ["username", "username", "username"]);
+  assert.equal(hasMatchRow(signUp), true, "a sign-up form gets the menu");
+  assert.equal(restingRow(signUp), 0);
+  assert.ok(!kinds(menuRows({ ...base, items })).includes("username"), "password fields don't list usernames");
 });

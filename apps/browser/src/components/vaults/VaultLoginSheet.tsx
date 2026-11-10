@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import type { VaultItem } from "../../state/vaults/types";
-import { copyFromManager, type VaultCopyOutcome } from "../../state/vaults/actions";
+import { copyFailureMessage, copyFromManager, type VaultCopyField, type VaultCopyOutcome } from "../../state/vaults/actions";
 import { brandOf } from "../../state/vaults/brands";
 import { useVaultProvider } from "../../state/vaults/hooks";
 import { closeSettingsSheet } from "../../state/settings/sheet";
-import { copyText } from "../../state/app/system";
 import { Box, Button, DialogActions, DialogTitle, Sheet, space, Text } from "../ui";
 import { Favicon } from "../favicon/Favicon";
 import { Group, Row } from "../settings/Form";
@@ -17,7 +16,7 @@ export const vaultItemUrl = (item: Pick<VaultItem, "urls">) => {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(url) || !url ? url : `https://${url}`;
 };
 
-function CopyButton({ label, onCopy }: { label: string; onCopy: () => Promise<VaultCopyOutcome> }) {
+export function CopyButton({ label, onCopy }: { label: string; onCopy: () => Promise<VaultCopyOutcome> }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,10 +46,10 @@ export function VaultLoginSheet({ item, site }: { item: VaultItem; site: string 
   const provider = useVaultProvider(item.provider);
   const name = provider?.name ?? brandOf(item.provider).name;
   const url = vaultItemUrl(item);
-  const [failed, setFailed] = useState(false);
-  const copyPassword = async () => {
-    const outcome = await copyFromManager(item.provider, item.id, "password");
-    setFailed(outcome === "failed");
+  const [problem, setProblem] = useState("");
+  const copy = (field: VaultCopyField) => async () => {
+    const outcome = await copyFromManager(item.provider, item.id, field);
+    setProblem(copyFailureMessage(outcome, field, item.provider));
     return outcome;
   };
   return (
@@ -62,22 +61,22 @@ export function VaultLoginSheet({ item, site }: { item: VaultItem; site: string 
           <Row title="Username">
             <Box row gap="xs" style={CENTER}>
               <Text selectable>{item.username || "No username"}</Text>
-              {item.username ? <CopyButton label="Username" onCopy={async () => (copyText(item.username), "copied")} /> : null}
+              {item.username ? <CopyButton label="Username" onCopy={copy("username")} /> : null}
             </Box>
           </Row>
           <Row title="Password">
             <Box row gap="xs" style={CENTER}>
               <Text>••••••••</Text>
-              <CopyButton label="Password" onCopy={copyPassword} />
+              <CopyButton label="Password" onCopy={copy("password")} />
             </Box>
           </Row>
           <Row title="Saved In" icon={<BrandBadge provider={item.provider} />}>
             <Text tone="textSecondary">{name}</Text>
           </Row>
         </Group>
-        {failed ? (
+        {problem ? (
           <Text size="caption" tone="destructive" style={ERROR}>
-            {`Couldn't copy the password from ${name}. Try again.`}
+            {problem}
           </Text>
         ) : null}
       </View>

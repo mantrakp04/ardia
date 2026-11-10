@@ -8,6 +8,7 @@ public class VaultsModule: Module {
 
     OnCreate {
       VaultAutoLock.shared.start()
+      Task { await VaultBroker.shared.resumeAfterQuit() }
     }
 
     Self.calls.function
@@ -54,12 +55,7 @@ public class VaultsModule: Module {
     Task { reply.ok(await work()) }
   }
 
-  static func copied(_ copied: Bool?) -> [String: Any] {
-    guard let copied else { return ["copied": false, "declined": true, "clearsAfter": 0] }
-    return ["copied": copied, "clearsAfter": copied ? VaultClipboard.clearDelay : 0]
-  }
-
-  static let calls = CallTable(domain: "vaults", handlers: [
+  static let calls = CallTable(domain: "vaults", handlers: generatedCalls.handlers.merging([
     "providers": { _, reply in VaultsModule.answer(reply) { await VaultBroker.shared.providerStates().map { $0.jsonObject() } } },
     "refresh": { args, reply in
       let id = try VaultsModule.provider(args)
@@ -89,8 +85,8 @@ public class VaultsModule: Module {
     "copy": { args, reply in
       let id = try VaultsModule.provider(args)
       let item = try args.text("id")
-      guard let field = VaultCopyField(rawValue: try args.text("field")) else { return reply.ok(VaultsModule.copied(false)) }
-      VaultsModule.answer(reply) { VaultsModule.copied(await VaultBroker.shared.copy(id, item: item, field: field)) }
+      guard let field = VaultCopyField(rawValue: try args.text("field")) else { return reply.ok(VaultCopyResult.refused(.notFound).jsonObject()) }
+      VaultsModule.answer(reply) { await VaultBroker.shared.copy(id, item: item, field: field).jsonObject() }
     },
     "totp": { args, reply in
       let id = try VaultsModule.provider(args)
@@ -105,19 +101,24 @@ public class VaultsModule: Module {
       let maxLength = try args.optionalDouble("maxLength").flatMap { $0.isFinite ? Int(min(max($0, 0), 4096)) : nil }
       reply.ok(["length": VaultPasswordGenerator.generate(style: style, maxLength: maxLength).count])
     },
+    "export": { args, reply in
+      let id = try VaultsModule.provider(args)
+      VaultsModule.answer(reply) { await VaultBroker.shared.export(id).jsonObject() }
+    },
     "setOptions": { args, reply in
       let minutes = try args.double("idleLockMinutes")
       let touchID = try args.bool("touchID")
       let askBeforeFilling = try args.optionalBool("askBeforeFilling") ?? true
-      let loadPasswordsWhenUsed = try args.optionalBool("loadPasswordsWhenUsed") ?? false
       let iCloudSync = try args.optionalBool("iCloudSync") ?? true
+      let lockOnQuit = try args.optionalBool("lockOnQuit") ?? true
+      let lockOnScreenLock = try args.optionalBool("lockOnScreenLock") ?? true
       let idle = minutes.isFinite ? Int(min(max(minutes, 0), 10_080)) : 30
       VaultsModule.answer(reply) {
         await VaultBroker.shared.setOptions(
-          idleLockMinutes: idle, touchID: touchID, askBeforeFilling: askBeforeFilling, loadPasswordsWhenUsed: loadPasswordsWhenUsed,
-          iCloudSync: iCloudSync)
+          idleLockMinutes: idle, touchID: touchID, askBeforeFilling: askBeforeFilling, iCloudSync: iCloudSync,
+          lockOnQuit: lockOnQuit, lockOnScreenLock: lockOnScreenLock)
         return [String: Any]()
       }
     },
-  ])
+  ]) { _, listed in listed })
 }

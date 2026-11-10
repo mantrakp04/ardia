@@ -29,9 +29,13 @@ ArdiaWebView+PageTab ── fillValues / save ───────────�
 | `VaultCommand.swift`, `VaultCommandResult.swift` | The hardened process runner. |
 | `VaultBinaryLocator.swift` | Where binaries may live, and the ownership and permission check. |
 | `VaultSessionStore.swift`, `VaultKeychain.swift`, `VaultOwnerCheck.swift` | Sessions in memory, the optional Touch ID copy, the idle clock, scratch values and preferences per provider, and the running long command (Proton's browser sign-in). |
-| `VaultAutoLock.swift` | Locks every manager on sleep, screen lock and fast user switch, and checks the idle timeout every minute. |
+| `VaultAutoLock.swift` | Locks every manager on sleep, screen lock and fast user switch (unless Lock When Screen Locks is off), checks the idle timeout every minute, and records the quit for `VaultLockPolicy`. |
+| `VaultLockPolicy.swift` | The two lock options, the managers open right now, and the unlocked-at-quit marker. |
+| `VaultExport.swift` | Export Passwords: a CSV written natively from the store, after an owner check. |
 | `VaultOriginMatch.swift` | Pure origin matching (no state, Foundation only). |
 | `VaultClipboard.swift`, `VaultPasswordGenerator.swift`, `VaultTotp.swift` | Concealed clipboard copy, strong passwords, one-time code timing. |
+| `VaultGenerated.swift`, `VaultsGeneratedModule.swift`, `ArdiaWebView+VaultGenerated.swift` | Generated passwords that aren't saved in a manager yet: the sealed `Generated.vault`, its calls, the fill from it and the save popover's password drafts. |
+| `VaultPasswordFieldView.swift` | The save popover's password field (`ArdiaVaultPasswordField`), editing a native draft of the captured password. |
 | `VaultJSON.swift`, `VaultMessages.swift` | Defensive JSON reading and error text cleanup shared by every provider. |
 | `Vault*.swift` value types | `VaultProviderState`, `VaultItem`, `VaultSignInResult` and friends: Codable mirrors of the TS types in `packages/ardiacore/src/vaults.ts`. |
 
@@ -50,8 +54,8 @@ out, the broker drops the session and the cached items and publishes the new sta
 ### The local store
 
 `VaultCache.swift` is Ardia's own encrypted password store: one AES-GCM sealed file per manager in
-`<data dir>/Password Managers/Cache/<id>.vault` (0600, excluded from backups). It holds the item list and, unless Load
-Passwords When Used is on, each login's password and one-time-code secret (Bitwarden's `login.totp`, Proton's
+`<data dir>/Password Managers/Cache/<id>.vault` (0600, excluded from backups). It holds the item list and each login's
+password and one-time-code secret (Bitwarden's `login.totp`, Proton's
 `totp_uri`). Everything a fill, a copy or a code needs is read from it in memory, so none of them waits for a CLI.
 
 - **One unlock for all of it.** While a file exists, a locked manager's Unlock (and the menu's Unlock row) asks for
@@ -62,11 +66,24 @@ Passwords When Used is on, each login's password and one-time-code secret (Bitwa
   its CLI (master password, 1Password's app) opens the store too.
 - **Codes are made on the Mac.** `VaultTotpSecret` reads an `otpauth://` URI or a bare base32 secret (SHA-1, SHA-256
   or SHA-512, 6 to 8 digits, any period) and computes the RFC 6238 code; it is checked against RFC 6238's vectors.
-  Steam and other non-TOTP schemes, and 1Password, still ask the CLI.
+  1Password's list has no secrets, so its first code reads the item once (`op item get --format json`), keeps the OTP
+  field's `otpauth://` URI in the store and makes every later code here. Steam and other non-TOTP schemes still ask the
+  CLI; one fetch per item runs at a time, and a code just fetched is reused for a fill while more than 3 s remain.
+  The fill menu fetches codes as soon as it opens on a code field, and right after a login with a known code fills.
+  A code row for the login just filled on the site counts as the person's choice, so a code step on a sibling
+  subdomain fills; a split code (one box per digit) is typed box by box, focusing each one first.
 - **Freshness.** A list older than 60 s is refreshed in the background from the CLI when a session exists, and the file
   rewritten. A cached password or code secret is used only while its item's `updatedAt` is unchanged.
 - **Locking.** Lock After, the screen locking and sleep close the store and drop everything in memory; Lock on one
-  manager hides that manager while the others stay open. Sign Out deletes its file here and in iCloud; a CLI
+  manager hides that manager while the others stay open. Lock When Screen Locks (`vaultLockOnScreenLock`, default on)
+  off keeps the store open through sleep, screen lock and fast user switch; Lock After still applies.
+- **Quitting.** The store always starts closed, unless Lock When Ardia Quits (`vaultLockOnQuit`, default on) is off.
+  Then, when Ardia quits with the store open and Touch ID allowed, `VaultLockPolicy.recordQuit` writes an
+  `unlocked-at-quit` marker through `VaultKeychain` (data-protection keychain, this device only) naming the open
+  managers and the Mac's boot time. At launch `VaultsModule`'s `OnCreate` runs `VaultBroker.resumeAfterQuit`, which
+  reads and deletes the marker, and only on the same boot opens the store, publishes those managers as unlocked and
+  restores their CLI sessions from the stored keychain sessions without a prompt, before the first menu. A restart,
+  turning the option back on, Lock, Lock All and the idle lock delete the marker. Sign Out deletes its file here and in iCloud; a CLI
   reporting signed out, or a different account, deletes only this Mac's file.
 - **The key.** A random 256-bit key in the data-protection keychain under the app's `…​.passwords` access group,
   synchronizable, so iCloud Keychain carries it to the owner's other Macs. Builds without that entitlement (and the
@@ -122,15 +139,16 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    before use. Any keychain failure degrades to memory only. This path needs no entitlement, so it works in ad-hoc
    and development signed builds. Turning the option off deletes every stored copy, and lock then also runs `bw lock`.
 8. **Auto-lock.** After the idle timeout (default 30 minutes without a list, fill, copy, code or save), and on sleep,
-   screen lock or fast user switch, every manager locks and `vaults.changed` is emitted. Sleep, screen lock and fast
-   user switch also wipe every tab's captured logins (`ArdiaVaultCapture wipeAll`).
+   screen lock or fast user switch (while Lock When Screen Locks is on), every manager locks and `vaults.changed` is
+   emitted. Sleep, screen lock and fast user switch also wipe every tab's captured logins
+   (`ArdiaVaultCapture wipeAll`) when they lock.
 9. **Owner check before passwords.** With Ask Before Filling on (the default, `vaultAskBeforeFilling`, sent as
    `askBeforeFilling` in `vaults.setOptions`), `VaultBroker.fillValues` refuses any fill that includes a password, and
    `copy` refuses a password copy, until the Mac owner confirms with Touch ID or the login password
    (`VaultOwnerCheck`). A refused fill answers `notAuthorized` and the menu stays open with no error; a refused copy
    answers `declined` and shows no toast. Usernames and one-time codes don't ask. The fill menu also shows Apple's
    embedded Touch ID view (`VaultTouchIDView`, `LAAuthenticationView`) on the selected login, or the first one: a
-   touch on the sensor grants the broker one owner check for 10 s (`grantOwner`) and emits `vaults.touchID`; JS fills
+   touch on the sensor grants the broker one owner check for 10 s (`VaultOwnerCheck.grant`) and reports `granted` through the view's `onStatus`; JS fills
    the row that was armed at the moment of the match (`state/vaults/touchID.ts`), with no dialog, and asks the page to
    submit the form (`submit: true`); a click or Return never submits. It is one touch per step: on a username-only
    page the touch fills the username and continues, on the password page the password, and on the code page the code
@@ -144,7 +162,11 @@ otherwise `locked`) and starts one background refresh, which emits `vaults.chang
    the `touchid` symbol in its own text colour instead. Without Touch ID, or after a lockout, Return or a click asks through the system prompt instead.
    `vaults.biometrics` says whether Touch ID can be used.
 10. **Clipboard.** Only usernames and passwords are ever copied; one-time codes are filled, never copied. Copies are marked `org.nspasteboard.ConcealedType` and `org.nspasteboard.TransientType`, and the
-   pasteboard is cleared after 90 s if nothing else was copied since.
+   pasteboard is cleared after 90 s if nothing else was copied since. Every copy (the command bar's Copy Username and
+   Copy Password, and both buttons in Settings › Passwords' login sheet) goes through `vaults.copy`, which answers
+   `copied` only once the pasteboard reads the value back; otherwise `declined` (the owner check was refused) or
+   `error` (`locked`, `notFound`, `clipboard`, ...), shown as a toast or under the sheet. The command bar copies the
+   login filled in that tab, else the one used last on the site, else the best match.
 11. **Test instances.** In a hidden test instance (`ARDIA_BACKGROUND=1` with `ARDIA_DATA_DIR`, `VaultSandbox`), binaries are looked up only in `<data dir>/Password Managers/bin`,
     each CLI gets its own state folder under `<data dir>/Password Managers/<id>` (`OP_CONFIG_DIR`,
     `BITWARDENCLI_APPDATA_DIR`, `PROTON_PASS_SESSION_DIR` with the file key provider), and the keychain copy goes to
@@ -178,7 +200,12 @@ Calls (`call("vaults.<name>", args)`, typed in `packages/ardiacore/src/engine/ap
 | `copy` | `{provider, id, field: "username" \| "password"}` | `{copied, clearsAfter}` |
 | `totp` | `{provider, id}` | `{code, period, expiresAt} \| null` |
 | `generate` | `{style?, maxLength?}` | `{length}` |
-| `setOptions` | `{idleLockMinutes, touchID}` | `{}` |
+| `setOptions` | `{idleLockMinutes, touchID, askBeforeFilling, iCloudSync, lockOnQuit, lockOnScreenLock}` | `{}` |
+| `listGenerated` | `{}` | `{id, origin, username, createdAt, submitted}[]`, newest first, never the password |
+| `copyGenerated`, `deleteGenerated` | `{id}` | like `copy`; `{deleted}` |
+| `saveGenerated` | `{id, provider, username?}` | `{saved, item?, error?}` (`error: "needsUsername"` when neither the entry nor the call has one) |
+| `setGeneratedRetention` | `{days}` | `{}` (`-1` Until Deleted, `0` Never) |
+| `export` | `{provider}` | `{saved, count, declined}`: the CSV (`name,url,username,password,otp`, RFC 4180) goes straight to the file picked in a save panel (0600); passwords never reach JS. A hidden test instance writes `<data dir>/<Manager> Passwords.csv` and logs the path |
 
 Secret functions (`packages/ardiacore/src/vaults.ts`): `signInToVault(provider, fields)` and
 `unlockVault(provider, password | null)`, both resolving to a `VaultSignInResult`. Sign-in fields per manager:
@@ -194,7 +221,7 @@ Secret functions (`packages/ardiacore/src/vaults.ts`): `signInToVault(provider, 
 `unlockVault(provider, null)` means Touch ID: the Bitwarden keychain copy, 1Password's app, or the Mac owner check
 for Proton Pass.
 
-Events: `vaults.changed` `{provider: VaultProviderState}` and `vaults.itemsChanged` `{provider}`.
+Events: `vaults.changed` `{provider: VaultProviderState}`, `vaults.itemsChanged` `{provider}` and `vaults.generatedChanged` `{}`.
 
 ## Adding a password manager
 
@@ -306,16 +333,66 @@ when the CLI reports locked or signed out.
   not). With Save New Passwords Automatically on (`vaultAutoSave`, default on) a password saves at once to the
   default manager only when it was generated, or is a new password from a trusted submit with a username from the
   form or an earlier step, that username isn't saved for the site yet, one manager is the target, and nothing was
-  saved automatically on this page load. Every other new password gets the save popover, prefilled with the best
+  saved automatically on this page load. The target is Save New Logins To (`vaultSaveTarget`), which lists only
+  connected managers (unlocked or locked) that can save; with exactly one connected, that one is the default and
+  saves go to it. Ardia's own passwords aren't a target: Chrome's save prompt handles those. Every other new password gets the save popover, prefilled with the best
   guess (the page's username, then the login last used on the site, then the last username filled in the tab) and
   asking for an email or username when there is none; it sends the `username` override. Identical submissions while
   a save runs are ignored.
+- **The save popover.** When it asks for an email or username, the field suggests usernames used before
+  (`previousUsernames`, emails first; ↑↓ pick, Return or Tab accept, a click too) and starts with the best one. Below it
+  is the password, editable in a native field with a show/hide eye: `stageVaultPassword({origin})` on the tab copies
+  the captured login into a draft and returns `{token, length}`; the `ArdiaVaultPasswordField` view takes the token,
+  shows the draft in an `NSSecureTextField` (an `NSTextField` while shown) and writes each edit back into the tab's
+  captured login (and into a kept generated password), so Save sends the edited password through the usual
+  `saveToVault`. JS only learns the length, which keeps Save off while the field is empty.
+- **Generated passwords that aren't saved.** Every password Ardia generates into a field is kept in
+  `<data dir>/Password Managers/Generated.vault` (AES-GCM with the local store's key, 0600, excluded from backups,
+  never in iCloud; a hidden instance keeps it in its data dir) until it's confirmed saved in a manager: a
+  `saveToVault` or `saveGenerated` that succeeds with that password for that site removes it. Anything else keeps it:
+  no submit, a submit that saved nothing, no username, a failed, declined or dismissed save, no manager unlocked that
+  can save, an auto-save that didn't happen. Generating again on the same site before submitting replaces the unused
+  one; a submit marks it `submitted` and records the username. Keep Generated Passwords (`vaultKeepGenerated`: 1, 7
+  (default) or 30 days, Until Deleted, Never) sets how long; expired ones are purged when the setting arrives at launch,
+  on every read and hourly, and Never keeps none. The fill menu's Other Passwords… lists them first; filling one asks
+  the owner check like any password and fills both the current and new password fields.
 - **Auto-submit only after Touch ID.** Native honours `submit` only when that fill used a fresh Touch ID grant.
+- **Right-click Autofill.** Right-clicking any text input (`contextmenu`, captured per frame by the page script, which
+  keeps that element as the frame's context field and posts `vaultContext`) adds Autofill ▸ to the top of the page's
+  context menu: one submenu per matching login (the fill menu's ranking, at most 8, titled with the account and the site, and the manager when two share a title) with Username,
+  Password and Verification Code (only when `hasTotp` is true), then Unlock Passwords… while a manager is locked and
+  Other Passwords… while one is unlocked. Generate Password ▸ with the four generator styles is added too when
+  Generate Passwords in Right-Click Menu (`vaultContextGenerate`, off by default) is on. The page message travels on
+  the frame's channel-associated `ACPageHost`, so it reaches the browser before Chrome's `ShowContextMenu`; native
+  (`ArdiaWebView+VaultContextMenu.mm`) adds the items in its `+[NSMenu popUpContextMenu:withEvent:forView:]` hook
+  (and in `tab:runContextMenu:` for hidden instances, where `context-menu.json` gets them and a pick such as
+  `Autofill › <login title> › Password` runs once JS has sent the list). JS (`state/vaults/contextFill.ts`)
+  answers `vaultContext` with the list (`setVaultContextMenu`, metadata only), and a choice comes back as
+  `vaultContextAction`. A fill is the usual `fillFromVault` with `target: "contextMenu"`: native always treats it as
+  `userChose` (the URL match is skipped, never the https rule), never submits, still asks the owner check for a
+  password, and marks the page message `context: true`, so the page script writes one value into the right-clicked
+  input only (a code spreads over split boxes from the first box) or, for a whole login, fills the form around it.
+  Unlock Passwords… unlocks once and Other Passwords… opens the search, both as the fill menu under that field (top
+  frame only, since only it has a rect); a pick there fills the classified field's login, or only the guessed value
+  into a plain input. Generate fills through `fillGeneratedPassword` with the same target, so the generated password
+  is still kept for saving.
 - **Remembered logins.** The login last filled or saved per site (registrable domain) is kept as its item key in
   `vault-accounts.json` (at most 500, least recently used dropped) and is ranked first and selected when the menu opens.
+
+## The Ardia row
+
+Settings › Passwords › Password Managers starts with Ardia, Chrome's own password store for the chosen profile. Its
+switch is Chrome's offer to save and fill passwords (`setPasswordAutofill`, on unless the person turned it off), and
+its ⋯ menu has Import Passwords… (CSV) and, with advanced settings shown, Export Passwords… (Chrome's export, after a
+confirm). Every connected manager's ⋯ menu also has Export Passwords… with advanced settings shown (`vaults.export`).
 
 ## Saved Passwords
 
 Settings › Passwords lists Ardia's own saved passwords and the logins of every unlocked manager in one list, sorted by
 site and searched together; a manager's login carries its badge. Its sheet copies the username, and copies the
 password through the broker (owner check first); a manager's password never reaches JS, so it isn't shown.
+
+Above it, Generated Passwords lists the kept generated passwords, newest first, with the site, the username if one was
+captured, and when it was generated. Each row has Fill (when the focused window's active tab last focused a login
+field on that site), Copy Password (owner check, concealed clipboard), Save to <manager> (a menu when several unlocked
+managers can save; without a username a sheet asks for one with the same suggestions), and Delete.

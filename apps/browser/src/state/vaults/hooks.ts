@@ -5,6 +5,7 @@ import { useVaultSaveOffers } from "./saveOffer";
 import { useVaults } from "./store";
 import { useBrowser } from "../browser/store";
 import { useVaultBiometrics } from "./biometrics";
+export { useGeneratedFillable, useKeptGeneratedPasswords } from "./generatedFill";
 
 export const useVaultProviders = () => useVaults((s) => s.providers);
 export const useVaultProvider = (id: string) => useVaults((s) => s.providers.find((p) => p.id === id));

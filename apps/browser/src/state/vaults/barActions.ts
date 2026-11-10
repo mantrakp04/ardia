@@ -1,12 +1,14 @@
 import type { CommandAction } from "@ardia/core";
-import { copyFromVault, type VaultCopyField } from "../../platform/vaults";
+import type { VaultCopyField } from "../../platform/vaults";
 import { showToast } from "../app/toasts";
 import type { BrowserState } from "../browser/store";
 import { activeTab } from "../browser/model";
-import { lockAllProviders } from "./actions";
+import { filledUsername, rememberedVaultAccount } from "./accounts";
+import { copyFailureMessage, copyFromManager, lockAllProviders } from "./actions";
 import { openVaultMenuOnDemand } from "./menu";
-import { bestItem, isSecureOrigin, siteLabel } from "./originMatch";
+import { bestItem, isSecureOrigin, rankItems, sameUsername, siteLabel, TIER } from "./originMatch";
 import { allVaultItems, anyVaultConnected, currentVaultProviders } from "./store";
+import type { VaultItem } from "./types";
 
 const ACTIONS = {
   "vault:fill": { title: "Fill Password", icon: "key.fill", keywords: ["autofill", "password manager", "login", "sign in"] },
@@ -48,12 +50,18 @@ export function vaultBarActions(s: BrowserState, windowId: string): CommandActio
 const COPIED: Record<VaultCopyField, string> = { password: "Copied Password", username: "Copied Username" };
 const COPY_FIELD: Partial<Record<VaultActionId, VaultCopyField>> = { "vault:copyPassword": "password", "vault:copyUsername": "username" };
 
-async function copyBest(windowId: string, origin: string, field: VaultCopyField) {
-  const item = bestItem(allVaultItems(), origin);
+export function copyChoice(items: readonly VaultItem[], origin: string, filled = "", remembered: string | null = null): VaultItem | null {
+  const matches = rankItems(items, origin, remembered).filter((r) => r.tier >= TIER.subdomain).map((r) => r.item);
+  return (filled && matches.find((item) => sameUsername(item.username, filled))) || matches[0] || null;
+}
+
+async function copyBest(windowId: string, tabId: string, origin: string, field: VaultCopyField) {
+  const item = copyChoice(allVaultItems(), origin, filledUsername(tabId, origin), rememberedVaultAccount(origin));
   if (!item) return;
-  const done = await copyFromVault(item.provider, item.id, field).catch(() => null);
-  if (done?.copied) showToast(windowId, COPIED[field], undefined, { icon: "doc.on.doc", key: "vaultCopy" });
-  else if (!done?.declined) showToast(windowId, "Couldn't copy from your password manager", undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
+  const outcome = await copyFromManager(item.provider, item.id, field);
+  if (outcome === "copied") return showToast(windowId, COPIED[field], undefined, { icon: "doc.on.doc", key: "vaultCopy" });
+  const problem = copyFailureMessage(outcome, field, item.provider);
+  if (problem) showToast(windowId, problem, undefined, { icon: "exclamationmark.circle", key: "vaultCopy" });
 }
 
 export function runVaultAction(id: VaultActionId, s: BrowserState, windowId: string) {
@@ -62,6 +70,6 @@ export function runVaultAction(id: VaultActionId, s: BrowserState, windowId: str
   if (id === "vault:lock") return void lockAllProviders();
   if (!tab || !origin) return;
   const field = COPY_FIELD[id];
-  if (field) return void copyBest(windowId, origin, field);
+  if (field) return void copyBest(windowId, tab.id, origin, field);
   if (!openVaultMenuOnDemand(tab.id)) showToast(windowId, "No login field selected. Click one and try again.", undefined, { icon: "key", key: "vaultCopy" });
 }

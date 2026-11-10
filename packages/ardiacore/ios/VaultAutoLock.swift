@@ -17,6 +17,10 @@ final class VaultAutoLock {
     timer = Timer.scheduledTimer(withTimeInterval: Self.idleCheckInterval, repeats: true) { _ in
       Task { await VaultBroker.shared.lockIdle() }
     }
+    observers.append(
+      NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in
+        VaultLockPolicy.recordQuit()
+      })
     guard !LaunchConfig.shared.background else { return }
     let workspace = NSWorkspace.shared.notificationCenter
     for name in [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
@@ -29,6 +33,7 @@ final class VaultAutoLock {
   }
 
   private static func lockEverything() {
+    guard VaultLockPolicy.locksOnScreenLock else { return }
     ArdiaWebView.wipeVaultCaptures()
     Task { await VaultBroker.shared.lockAll() }
   }

@@ -3,7 +3,8 @@ import { onAppEvent } from "../../platform/app";
 import { onVaultChanged, onVaultItemsChanged, vaultItems, vaultProviders, type VaultItem, type VaultProviderState } from "../../platform/vaults";
 import { byBrandOrder } from "./brands";
 import { clearVaultCodes } from "./codes";
-import { forgetPending, type PendingTotp } from "./pendingTotp";
+import { forgetMissingVaultAccounts } from "./accounts";
+import { forgetPending, keepListedPending, type PendingTotp } from "./pendingTotp";
 
 type VaultsState = {
   providers: VaultProviderState[];
@@ -71,7 +72,11 @@ async function fetchItems(provider: string) {
     const items = await vaultItems(provider);
     if (vaultProviderOf(provider)?.state !== "unlocked") return;
     fetchedAt.set(provider, Date.now());
-    change((s) => ({ items: { ...s.items, [provider]: items.filter((i) => i.provider === provider) } }));
+    const listed = items.filter((i) => i.provider === provider);
+    const ids = new Set(listed.map((i) => i.id));
+    const prune = listed.length > 0;
+    change((s) => ({ items: { ...s.items, [provider]: listed }, pending: prune ? keepListedPending(s.pending, provider, ids) : s.pending }));
+    if (prune) forgetMissingVaultAccounts(provider, ids);
   } catch {
     fetchedAt.delete(provider);
   }

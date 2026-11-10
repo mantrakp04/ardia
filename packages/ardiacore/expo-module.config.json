@@ -21,7 +21,8 @@
       "FaviconsModule",
       "SwipeModule",
       "WebKitModule",
-      "VaultsModule"
+      "VaultsModule",
+      "VaultPasswordFieldModule"
     ]
   }
 }

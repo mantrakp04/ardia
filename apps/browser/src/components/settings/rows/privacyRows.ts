@@ -48,32 +48,27 @@ export const privacyRows = {
   ],
   passwords: [
     {
-      section: "Passwords",
-      rows: {
-        offerToSave: {
-          title: "Offer to save and fill passwords",
-          description: "Offers to save a login after you sign in, and suggests saved ones when you click a login field.",
-          keywords: ["password manager", "logins", "credentials", "keychain"],
-        },
-        importPasswords: { title: "Import passwords", description: "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…", keywords: ["csv", "logins"] },
-        exportPasswords: { advanced: true, title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
-      },
-    },
-    {
       section: "Password Managers",
       rows: {
         managers: {
           title: "Password Managers",
           keywords: ["1password", "bitwarden", "proton pass", "vaultwarden", "self-hosted", "vault", "connect", "one-time codes", "totp", "2fa"],
         },
+        ardia: {
+          title: "Ardia",
+          keywords: ["offer to save and fill passwords", "import passwords", "export passwords", "csv", "built-in", "saved passwords", "logins", "credentials", "keychain", "chrome"],
+        },
         vaultSuggestOnFocus: { title: "Suggest on Focus", keywords: ["autofill", "fill menu", "suggestions", "login field"] },
         vaultAskBeforeFilling: { title: "Ask Before Filling", keywords: ["touch id", "fingerprint", "password", "screen lock", "authenticate", "biometrics"] },
-        vaultLoadPasswordsWhenUsed: { title: "Load Passwords When Used", keywords: ["cache", "offline", "local copy", "faster", "encrypted", "fetch"] },
         vaultMenuGlass: { title: "Glass Menu", keywords: ["fill menu", "liquid glass", "translucent", "look"] },
         vaultSaveOffer: { title: "Offer to Save", keywords: ["save login", "new password", "save prompt"] },
         vaultAutoSave: { title: "Save New Passwords Automatically", keywords: ["auto save", "new password", "sign up", "generated password", "strong password"] },
+        vaultContextGenerate: { title: "Generate Passwords in Right-Click Menu", keywords: ["context menu", "right click", "generate password", "strong password", "new password"] },
         vaultSaveTarget: { title: "Save New Logins To", keywords: ["default manager", "save to", "destination"] },
         vaultIdleLockMinutes: { title: "Lock After", keywords: ["auto lock", "timeout", "idle", "touch id"] },
+        vaultLockOnQuit: { title: "Lock When Ardia Quits", keywords: ["auto lock", "quit", "relaunch", "restart", "touch id", "stay unlocked"] },
+        vaultLockOnScreenLock: { title: "Lock When Screen Locks", keywords: ["auto lock", "sleep", "screen saver", "lock screen", "touch id", "stay unlocked"] },
+        vaultKeepGenerated: { title: "Keep Generated Passwords", keywords: ["generated passwords", "unsaved", "sign up", "new account", "forgot to save", "retention"] },
         vaultSync: { title: "Sync", keywords: ["refresh", "update", "reload", "pull", "fetch", "password manager"] },
         vaultICloudSync: { title: "Sync with iCloud", keywords: ["icloud", "keychain", "other macs", "devices", "encrypted", "backup"] },
       },

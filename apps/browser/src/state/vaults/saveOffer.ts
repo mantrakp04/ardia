@@ -35,6 +35,15 @@ export type SaveDecision = { offer: false; alreadySaved: boolean } | { offer: tr
 
 export const saveTargets = (providers: readonly VaultProviderState[]) => providers.filter((p) => p.state === "unlocked" && p.capabilities.save).map((p) => p.id);
 
+export const connectedSavers = (providers: readonly VaultProviderState[]) =>
+  providers.filter((p) => (p.state === "unlocked" || p.state === "locked") && p.capabilities.save);
+
+export function preferredSaveTarget(providers: readonly VaultProviderState[], chosen: string): string {
+  const connected = connectedSavers(providers).map((p) => p.id);
+  if (connected.includes(chosen)) return chosen;
+  return connected.length === 1 ? connected[0]! : "";
+}
+
 export const chooseSaveTarget = (targets: readonly string[], preferred: string) => (targets.includes(preferred) ? preferred : (targets[0] ?? ""));
 
 export function decideSave({ enabled, origin, username, providers, items, preferred, checkSaved = true }: SaveInput): SaveDecision {
@@ -42,8 +51,9 @@ export function decideSave({ enabled, origin, username, providers, items, prefer
   if (checkSaved && loginSavedIn(items.filter((i) => unlocked.has(i.provider)), origin, username)) return { offer: false, alreadySaved: true };
   const targets = saveTargets(providers);
   if (!enabled || !isSecureOrigin(origin) || !targets.length) return { offer: false, alreadySaved: false };
-  const target = chooseSaveTarget(targets, preferred);
-  return { offer: true, targets: target === preferred ? [target] : targets, target };
+  const wanted = preferredSaveTarget(providers, preferred);
+  const target = chooseSaveTarget(targets, wanted);
+  return { offer: true, targets: target === wanted ? [target] : targets, target };
 }
 
 export const FORM_USERNAME_SOURCES: ReadonlySet<string> = new Set(["form", "step"]);

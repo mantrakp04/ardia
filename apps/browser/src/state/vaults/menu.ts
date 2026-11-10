@@ -6,8 +6,10 @@ import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 import { rememberedVaultAccount } from "./accounts";
 import { refreshVaultBiometrics } from "./biometrics";
+import { prefetchVaultCode } from "./codes";
 import { forgetVaultPageSaves } from "./saveOffer";
-import { hasFillRow, hasMatchRow, menuRows, restingRow, type MenuMode, type VaultRow } from "./menuModel";
+import { currentGeneratedPasswords, searchGenerated } from "./generated";
+import { hasFillRow, hasMatchRow, MAX_SEARCH_ROWS, menuRows, restingRow, type MenuMode, type VaultRow } from "./menuModel";
 import { isSecureOrigin } from "./originMatch";
 import { pendingFor } from "./pendingTotp";
 import { allVaultItems, anyVaultConnected, currentPendingTotp, currentVaultProviders, loadAllVaultItems, useVaults } from "./store";
@@ -34,6 +36,8 @@ export type VaultMenu = {
   hidden: boolean;
   noTotp: string[];
   remembered: string | null;
+  email: boolean;
+  suggestOpen: boolean;
   touch: VaultTouchPhase;
   touchRetries: number;
   touchRearms: number;
@@ -120,6 +124,9 @@ export function rowsOfMenu(menu: VaultMenu): VaultRow[] {
     pending: pendingFor(currentPendingTotp(), menu.origin, Date.now()),
     noTotp: new Set(menu.noTotp),
     remembered: menu.remembered,
+    email: menu.email,
+    generated: menu.mode === "search" ? searchGenerated(currentGeneratedPasswords(), menu.query, MAX_SEARCH_ROWS) : [],
+    suggestOpen: menu.suggestOpen,
   });
 }
 
@@ -156,6 +163,8 @@ const blankMenu = (field: FieldSeen, onDemand: boolean): VaultMenu => ({
   hidden: false,
   noTotp: [],
   remembered: rememberedVaultAccount(field.origin),
+  email: !!field.email,
+  suggestOpen: false,
   touch: "off",
   touchRetries: 0,
   touchRearms: 0,
@@ -170,6 +179,12 @@ function openMenu(tabId: string, field: FieldSeen, onDemand: boolean) {
   setMenu(tabId, opened);
   tellPageOfMenu(tabId, opened);
   refreshVaultBiometrics();
+  prefetchCodesOf(opened);
+}
+
+export function prefetchCodesOf(menu: VaultMenu) {
+  if (menu.field !== "otp") return;
+  for (const row of rowsOfMenu(menu)) if (row.kind === "otp") prefetchVaultCode(row.item);
 }
 
 const suggestOnFocus = () => useBrowser.getState().settings.vaultSuggestOnFocus;
@@ -238,6 +253,24 @@ export function reopenVaultMenuFromKey(tabId: string, frameId: FrameId): boolean
   return openOnDemand(tabId, field);
 }
 
+type GeneratedFill = { frameId: FrameId; origin: string; kind: VaultFieldKind };
+const generatedFills = new Map<string, GeneratedFill>();
+
+export const noteGeneratedFill = (tabId: string, frameId: FrameId, origin: string, kind: VaultFieldKind) => void generatedFills.set(tabId, { frameId, origin, kind });
+
+export function noteVaultFieldCleared(tabId: string, frameId: FrameId) {
+  const generated = generatedFills.get(tabId);
+  const abandoned = !!generated && generated.frameId === frameId && lastVaultField(tabId)?.kind === generated.kind;
+  if (generated && abandoned) {
+    generatedFills.delete(tabId);
+    void webviews.get(tabId)?.discardVaultCapture({ origin: generated.origin })?.catch(() => {});
+  }
+  const menu = vaultMenuOf(tabId);
+  if (menu && menu.frameId === frameId) return;
+  if (abandoned) return void reopenVaultMenuFromKey(tabId, frameId);
+  offerVaultMenuAgain(tabId, frameId);
+}
+
 export function offerVaultMenuAgain(tabId: string, frameId: FrameId) {
   const field = lastVaultField(tabId);
   if (!field || field.frameId !== frameId || vaultMenuOf(tabId)) return;
@@ -259,6 +292,13 @@ export function hoverVaultMenu(tabId: string, hovered: boolean) {
   patchVaultMenu(tabId, { hovered });
 }
 export const searchVaultMenu = (tabId: string, query: string) => patchVaultMenu(tabId, { query, selected: query ? 0 : -1 });
+export function setVaultSuggestOpen(tabId: string, open: boolean) {
+  const menu = vaultMenuOf(tabId);
+  if (!menu || menu.mode !== "matches") return;
+  const rows = rowsOfMenu({ ...menu, suggestOpen: open });
+  const selected = open ? rows.findIndex((r) => r.kind === "generate") : rows.findIndex((r) => r.kind === "suggest");
+  patchVaultMenu(tabId, { suggestOpen: open, selected, error: null });
+}
 export const showAllPasswords = (tabId: string) => patchVaultMenu(tabId, { mode: "search", query: "", selected: -1, error: null });
 export function showVaultMatches(tabId: string) {
   const menu = vaultMenuOf(tabId);
@@ -277,6 +317,7 @@ export function noteAutofillSuggestions(tabId: string, count: number) {
 export function forgetVaultPage(tabId: string) {
   closeVaultMenu(tabId);
   forgetVaultPageSaves(tabId);
+  generatedFills.delete(tabId);
   quiet.delete(tabId);
   declined.delete(tabId);
   told.delete(tabId);

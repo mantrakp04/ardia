@@ -93,9 +93,9 @@ test("declining Touch ID or the Mac password keeps the menu open with no error a
   try {
     menu.noteVaultField(tabId, field());
     await settle();
-    noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
     noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
     await settle();
+    assert.equal(calls.filter((c) => c[0] === "fill").length, 1, "Return went to the login");
     const open = menu.vaultMenuOf(tabId);
     assert.ok(open, "the menu stays up to try again");
     assert.equal(open.error, null);
@@ -358,7 +358,7 @@ test("a click on a field with no saved login still opens the menu", async () => 
   await openMenuNow(tabId, { origin: "https://example.com" });
   assert.equal(menu.vaultMenuOf(tabId), null);
   menu.noteVaultField(tabId, field({ origin: "https://example.com", clicked: true }));
-  assert.deepEqual(menu.rowsOfMenu(menu.vaultMenuOf(tabId)).map((r) => r.kind), ["allPasswords", "suggest", "settings"]);
+  assert.deepEqual(menu.rowsOfMenu(menu.vaultMenuOf(tabId)).map((r) => r.kind), ["suggest", "allPasswords", "settings"]);
 });
 
 test("ArrowDown with the menu closed opens it and lifts Escape's quiet", async () => {
@@ -575,15 +575,33 @@ test("new password fields offer four generators and pass the field's length limi
   assert.equal(menu.vaultMenuOf(tabId), null);
 });
 
-test("Suggest New Password uses the strong style and leaves out a missing length limit", async () => {
+test("Suggest New Password opens into the four styles with the first selected, Escape folds it back, and Return picks", async () => {
   const { tabId } = await setup();
   let request = null;
   await withHandle({ fillGeneratedPassword: async (r) => ((request = r), { filled: ["newPassword"] }) }, async () => {
     const opened = await openMenuNow(tabId, { maxLength: 0 });
-    fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened).find((r) => r.kind === "suggest"));
+    const suggestAt = menu.rowsOfMenu(opened).findIndex((r) => r.kind === "suggest");
+    menu.selectVaultRow(tabId, suggestAt);
+    noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
     await settle();
+    assert.equal(request, null, "nothing is filled until a style is picked");
+    const open = menu.vaultMenuOf(tabId);
+    const rows = menu.rowsOfMenu(open);
+    assert.deepEqual(rows.filter((r) => r.kind === "generate").map((r) => r.style), ["strong", "alphanumeric", "easyToType", "passphrase"]);
+    assert.equal(rows[open.selected].style, "strong");
+    assert.deepEqual(calls.at(-1), ["menu", true, true], "the page keeps routing keys to the menu");
+    noteVaultKey(tabId, { frameId: "f1", key: "Escape" });
+    const folded = menu.vaultMenuOf(tabId);
+    assert.ok(folded, "Escape folds the styles, the menu stays");
+    assert.equal(menu.rowsOfMenu(folded)[folded.selected].kind, "suggest");
+    fillModule.activateVaultRow(tabId, menu.rowsOfMenu(folded)[folded.selected]);
+    const again = menu.vaultMenuOf(tabId);
+    noteVaultKey(tabId, { frameId: "f1", key: "ArrowDown" });
+    noteVaultKey(tabId, { frameId: "f1", key: "Enter" });
+    await settle();
+    assert.equal(menu.rowsOfMenu(again)[again.selected].style, "strong");
   });
-  assert.deepEqual({ ...request }, { frameId: "f1", origin: "https://github.com", style: "strong" });
+  assert.deepEqual({ ...request }, { frameId: "f1", origin: "https://github.com", style: "alphanumeric" });
 });
 
 test("filling a login never copies its one-time code", async () => {
@@ -831,4 +849,114 @@ test("sync unlocks a locked manager first, then reports when it finished", async
   assert.equal(sync.useVaultSync.getState().phase, "synced");
   assert.equal(sync.syncedLine(result.syncedAt, result.syncedAt + 5 * 60_000), "Synced 5 min ago");
   assert.equal(sync.syncedLine(null, Date.now()), undefined);
+});
+
+const codes = await import("./codes.ts");
+
+test("a code row for the login just filled on a sibling subdomain fills as the person's choice", async () => {
+  const { tabId } = await setup();
+  native.vaultFakes.items = [{ ...login, urls: ["https://accounts.github.com"] }];
+  await store.loadAllVaultItems(true);
+  store.setPendingTotp([{ origin: "https://accounts.github.com", provider: "bitwarden", id: "gh", at: Date.now() }]);
+  const opened = await openMenuNow(tabId, { kind: "otp", formHasPassword: false, origin: "https://verify.github.com" });
+  const row = menu.rowsOfMenu(opened)[opened.selected];
+  assert.equal(row.kind, "otp");
+  fillModule.activateVaultRow(tabId, row);
+  await settle();
+  assert.deepEqual({ ...fills()[0] }, { frameId: "f1", origin: "https://verify.github.com", provider: "bitwarden", id: "gh", fields: ["totp"], userChose: true, submit: false });
+});
+
+test("opening a code menu fetches its codes at once, and a login fill fetches the code it queues", async () => {
+  const { tabId } = await setup();
+  codes.clearVaultCodes();
+  store.setPendingTotp([{ origin: "https://github.com", provider: "bitwarden", id: "gh", at: Date.now() }]);
+  await openMenuNow(tabId, { kind: "otp", formHasPassword: false });
+  assert.ok(codes.useVaultCodes.getState()["bitwarden/gh"], "asked before any row renders");
+  await settle();
+  assert.equal(codes.useVaultCodes.getState()["bitwarden/gh"].code, "123456");
+  menu.closeVaultMenu(tabId);
+  codes.clearVaultCodes();
+  store.setPendingTotp([]);
+  await openMenuNow(tabId, { frameId: "f2" });
+  noteVaultKey(tabId, { frameId: "f2", key: "Enter" });
+  await settle();
+  await settle();
+  assert.equal(codes.useVaultCodes.getState()["bitwarden/gh"].code, "123456", "ready before the code step shows");
+});
+
+test("a fill the page couldn't place keeps the menu open and says so, instead of closing silently", async () => {
+  const { tabId } = await setup();
+  await withHandle({ fillFromVault: async (r) => (calls.push(["fill", r]), { filled: [] }) }, async () => {
+    store.setPendingTotp([{ origin: "https://github.com", provider: "bitwarden", id: "gh", at: Date.now() }]);
+    const opened = await openMenuNow(tabId, { kind: "otp", formHasPassword: false });
+    fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened)[opened.selected]);
+    await settle();
+  });
+  const open = menu.vaultMenuOf(tabId);
+  assert.ok(open);
+  assert.equal(open.error, fillModule.NOTHING_FILLED);
+  assert.equal(open.busy, null);
+});
+
+test("a code the manager doesn't have says so on a code field", async () => {
+  const { tabId } = await setup();
+  await withHandle({ fillFromVault: async () => ({ filled: [], error: "notFound" }) }, async () => {
+    store.setPendingTotp([{ origin: "https://github.com", provider: "bitwarden", id: "gh", at: Date.now() }]);
+    const opened = await openMenuNow(tabId, { kind: "otp", formHasPassword: false });
+    fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened)[opened.selected]);
+    await settle();
+  });
+  assert.equal(menu.vaultMenuOf(tabId)?.error, fillModule.NO_CODE);
+});
+
+test("deleting a generated password brings the menu back on that field and drops the captured password", async () => {
+  const { tabId } = await setup();
+  S().updateSettings({ vaultSuggestOnFocus: false });
+  const newField = { kind: "newPassword", formHasPassword: true, clicked: true };
+  const opened = await openMenuNow(tabId, newField);
+  fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened)[0]);
+  await settle();
+  assert.equal(menu.vaultMenuOf(tabId), null);
+  menu.noteVaultField(tabId, field({ kind: "newPassword", focused: false, rect: null }));
+  menu.noteVaultField(tabId, field({ kind: "newPassword" }));
+  await settle();
+  assert.equal(menu.vaultMenuOf(tabId), null, "a plain focus right after the fill stays quiet");
+  calls.length = 0;
+  noteVaultKey(tabId, { frameId: "f1", key: "Cleared" });
+  await settle();
+  assert.equal(menu.vaultMenuOf(tabId)?.field, "newPassword", "back, even with Suggest on Focus off");
+  assert.deepEqual(calls.filter((c) => c[0] === "discard"), [["discard", "https://github.com"]]);
+  noteVaultKey(tabId, { frameId: "f1", key: "Cleared" });
+  assert.equal(calls.filter((c) => c[0] === "discard").length, 1, "dropped once");
+  S().updateSettings({ vaultSuggestOnFocus: true });
+});
+
+test("a generated password emptied while the menu is open again keeps the menu and drops the capture", async () => {
+  const { tabId } = await setup();
+  const opened = await openMenuNow(tabId, { kind: "newPassword", clicked: true });
+  fillModule.activateVaultRow(tabId, menu.rowsOfMenu(opened)[0]);
+  await settle();
+  menu.noteVaultField(tabId, field({ kind: "newPassword", clicked: true }));
+  const reopened = menu.vaultMenuOf(tabId);
+  assert.ok(reopened);
+  calls.length = 0;
+  noteVaultKey(tabId, { frameId: "f1", key: "Cleared" });
+  assert.equal(menu.vaultMenuOf(tabId)?.seq, reopened.seq);
+  assert.deepEqual(calls.filter((c) => c[0] === "discard"), [["discard", "https://github.com"]]);
+});
+
+test("a username used before fills only that username, as the person's choice and without submitting", async () => {
+  const { tabId } = await setup();
+  native.vaultFakes.items = [login, { provider: "bitwarden", id: "mail", title: "Mail", username: "octo@mail.test", urls: ["https://mail.test"], updatedAt: 5 }];
+  await store.loadAllVaultItems(true);
+  const opened = await openMenuNow(tabId, { kind: "username", origin: "https://signup.example", email: true, clicked: true });
+  const rows = menu.rowsOfMenu(opened);
+  assert.deepEqual(rows.filter((r) => r.kind === "username").map((r) => r.username), ["octo@mail.test", "octo"]);
+  assert.equal(opened.selected, 0);
+  await withHandle({ fillFromVault: async (r) => (calls.push(["fill", r]), { filled: ["username"] }) }, async () => {
+    fillModule.activateVaultRow(tabId, rows[0]);
+    await settle();
+  });
+  assert.deepEqual({ ...fills()[0] }, { frameId: "f1", origin: "https://signup.example", provider: "bitwarden", id: "mail", fields: ["username"], userChose: true, submit: false });
+  assert.equal(menu.vaultMenuOf(tabId), null);
 });

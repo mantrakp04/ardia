@@ -13,6 +13,9 @@ extension ArdiaWebView: PageTab {
 
   func fillFromVault(frameId: String, origin: String, provider: String, id: String, fields: [String], userChose: Bool, submit: Bool,
                      _ completion: @escaping ([String: Any]) -> Void) {
+    if provider == VaultGenerated.provider {
+      return fillKeptGenerated(frameId: frameId, origin: origin, id: id, fields: fields, userChose: userChose, submit: submit, completion)
+    }
     guard let frameOrigin = vaultOrigin(ofFrame: frameId), frameOrigin == origin else {
       return completion(["filled": [String](), "error": VaultFillError.originMismatch.rawValue])
     }
@@ -33,8 +36,12 @@ extension ArdiaWebView: PageTab {
       return completion(["filled": [String]()])
     }
     let password = VaultPasswordGenerator.generate(style: VaultPasswordStyle(named: style), maxLength: maxLength)
+    let previous = generatedVaultPassword(origin: frameOrigin)
     fillVault(frame: frameId, origin: frameOrigin, values: ["newPassword": password], submit: false) { filled in
-      if filled.contains("newPassword") { self.keepGeneratedVaultPassword(password, origin: frameOrigin) }
+      if filled.contains("newPassword") {
+        self.keepGeneratedVaultPassword(password, origin: frameOrigin)
+        self.keepGeneratedForLater(password, origin: frameOrigin, replacing: previous)
+      }
       completion(["filled": filled])
     }
   }
@@ -51,6 +58,7 @@ extension ArdiaWebView: PageTab {
       switch result {
       case .success(let item):
         self.discardVaultCapture(origin: origin)
+        VaultGenerated.saved(password: password, origin: origin)
         completion(["saved": true, "item": item.jsonObject()])
       case .failure(let error):
         self.keepVaultLogin(username: captured, password: password, origin: origin)

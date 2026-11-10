@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { chooseSaveTarget, decideSave, saveTargets, vaultClaimsPasswordPrompt } = await import("./saveOffer.ts");
+const { chooseSaveTarget, connectedSavers, decideSave, preferredSaveTarget, saveTargets, vaultClaimsPasswordPrompt } = await import("./saveOffer.ts");
 
 const caps = (save) => ({ totp: true, save, selfHosted: false, masterPassword: false, touchID: false });
 const provider = (id, state = "unlocked", save = true) => ({ id, name: id, state, capabilities: caps(save), install: { command: "", url: "" } });
@@ -38,6 +38,26 @@ test("a chosen manager takes every offer; otherwise the person picks, starting w
   assert.deepEqual(decideSave(input({ providers })), { offer: true, targets: ["1password", "bitwarden"], target: "1password" });
   assert.equal(decideSave(input({ providers, preferred: "protonpass" })).target, "1password");
   assert.equal(chooseSaveTarget([], "x"), "");
+});
+
+test("the picker lists connected managers that can save, and a lone one is the default", () => {
+  const providers = [provider("1password", "locked"), provider("bitwarden", "signedOut"), provider("protonpass", "notInstalled"), provider("enpass", "unlocked", false)];
+  assert.deepEqual(connectedSavers(providers).map((p) => p.id), ["1password"]);
+  assert.equal(preferredSaveTarget(providers, ""), "1password");
+  assert.equal(preferredSaveTarget(providers, "bitwarden"), "1password");
+  const two = [provider("1password", "locked"), provider("bitwarden")];
+  assert.equal(preferredSaveTarget(two, ""), "");
+  assert.equal(preferredSaveTarget(two, "1password"), "1password");
+  assert.equal(preferredSaveTarget(two, "protonpass"), "");
+  assert.equal(preferredSaveTarget([], ""), "");
+});
+
+test("saving uses the lone connected manager without asking, like the picker shows", () => {
+  const providers = [provider("bitwarden"), provider("protonpass", "signedOut")];
+  assert.deepEqual(decideSave(input({ providers })), { offer: true, targets: ["bitwarden"], target: "bitwarden" });
+  assert.deepEqual(decideSave(input({ providers, preferred: "protonpass" })), { offer: true, targets: ["bitwarden"], target: "bitwarden" });
+  const lockedChoice = [provider("1password", "locked"), provider("bitwarden")];
+  assert.deepEqual(decideSave(input({ providers: lockedChoice, preferred: "1password" })), { offer: true, targets: ["bitwarden"], target: "bitwarden" });
 });
 
 test("Chrome's prompt stays for tabs and sites the managers didn't claim", () => {

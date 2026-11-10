@@ -18,7 +18,7 @@ import { openSettings, openUrlFromSettings } from "../settings/settingsWindows";
 import { applyProviderState, clearVaultIndex, currentVaultProviders, loadVaultProviders, vaultProviderOf } from "./store";
 import { brandOf } from "./brands";
 
-export type { VaultProviderState, VaultSignInFields, VaultSignInResult };
+export type { VaultCopyField, VaultProviderState, VaultSignInFields, VaultSignInResult };
 
 const FAILED = "failed";
 
@@ -75,9 +75,28 @@ export function signInError(result: VaultSignInResult, name: string): string {
   return `${name} didn't respond. Try again.`;
 }
 
-export type VaultCopyOutcome = "copied" | "declined" | "failed";
+export type VaultCopyOutcome = "copied" | "declined" | "locked" | "notFound" | "failed";
+
+type VaultCopyReply = { copied?: boolean; declined?: boolean; error?: string } | null | undefined;
+
+export function copyOutcomeOf(reply: VaultCopyReply): VaultCopyOutcome {
+  if (reply?.copied) return "copied";
+  if (reply?.declined) return "declined";
+  if (reply?.error === "locked" || reply?.error === "notFound") return reply.error;
+  return "failed";
+}
 
 export async function copyFromManager(provider: string, id: string, field: VaultCopyField): Promise<VaultCopyOutcome> {
-  const done = await copyFromVault(provider, id, field).catch(() => null);
-  return done?.copied ? "copied" : done?.declined ? "declined" : "failed";
+  return copyOutcomeOf(await copyFromVault(provider, id, field).catch(() => null));
+}
+
+const FIELD_NOUN: Record<VaultCopyField, string> = { username: "username", password: "password" };
+
+export function copyFailureMessage(outcome: VaultCopyOutcome, field: VaultCopyField, provider: string): string {
+  const name = vaultProviderOf(provider)?.name ?? brandOf(provider).name;
+  const noun = FIELD_NOUN[field];
+  if (outcome === "copied" || outcome === "declined") return "";
+  if (outcome === "locked") return `Unlock ${name} to copy the ${noun}.`;
+  if (outcome === "notFound") return `${name} has no ${noun} for this login.`;
+  return `Couldn't copy the ${noun} from ${name}. Try again.`;
 }

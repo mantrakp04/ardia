@@ -17,6 +17,7 @@ import type {
 } from "@ardia/ardiacore";
 import type { EventSubscription } from "expo-modules-core";
 import { nativeEvents, unfaked } from "./events";
+import { generatedVaultHandlers } from "./vaultGenerated";
 
 
 type TabStripHost = {
@@ -301,7 +302,9 @@ export const vaultFakes = {
   providers: [] as FakeVaultProvider[],
   items: [] as FakeVaultItem[],
   copied: [] as { provider: string; id: string; field: string }[],
-  options: null as { idleLockMinutes: number; touchID: boolean; askBeforeFilling: boolean; loadPasswordsWhenUsed: boolean; iCloudSync: boolean } | null,
+  options: null as CallArgs<"vaults.setOptions"> | null,
+  exports: [] as string[],
+  nextExport: { saved: true, count: 0 } as CallResult<"vaults.export">,
   syncs: 0,
   syncedAt: null as number | null,
   biometrics: true,
@@ -513,6 +516,7 @@ const fakeModules = {
     setSplitLinkModifier: () => null,
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
+    setVaultContextMenu: () => null,
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,
@@ -531,6 +535,7 @@ const fakeModules = {
   ArdiaVaults: domain(
     "vaults",
     {
+      ...generatedVaultHandlers,
       providers: () => vaultFakes.providers,
       refresh: ({ provider }) => vaultState(provider),
       items: ({ provider }) => vaultFakes.items.filter((i) => (!provider || i.provider === provider) && vaultUnlocked(i.provider)),
@@ -543,8 +548,8 @@ const fakeModules = {
       copy: ({ provider, id, field }) => (vaultFakes.copied.push({ provider, id, field }), { copied: true, clearsAfter: 90 }),
       totp: () => ({ code: "123456", period: 30, expiresAt: Date.now() + 30_000 }),
       generate: () => ({ length: 20 }),
-      setOptions: ({ idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed, iCloudSync }) =>
-        ((vaultFakes.options = { idleLockMinutes, touchID, askBeforeFilling, loadPasswordsWhenUsed, iCloudSync }), {}),
+      setOptions: (options) => ((vaultFakes.options = { ...options }), {}),
+      export: ({ provider }) => (vaultFakes.exports.push(provider), vaultFakes.nextExport),
       sync: () => {
         vaultFakes.syncs += 1;
         vaultFakes.syncedAt = Date.now();

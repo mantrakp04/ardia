@@ -1,16 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { confirm, showMenu } from "../../../state/app/system";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { VAULT_LOCK_MINUTES } from "../../../state/settings/settings";
+import { KEEP_GENERATED_OPTIONS } from "../../../state/vaults/generated";
 import { lockProvider, reloadProviders, signInError, signOutProvider, unlockProvider, type VaultProviderState } from "../../../state/vaults/actions";
-import { useVaultProviders, useVaultsLoaded } from "../../../state/vaults/hooks";
+import { exportManagerPasswords } from "../../../state/vaults/export";
+import { useVaultProviders } from "../../../state/vaults/hooks";
+import { connectedSavers, preferredSaveTarget } from "../../../state/vaults/saveOffer";
 import { refreshVaultSyncStatus, syncedLine, syncVaultsNow, useVaultSync } from "../../../state/vaults/sync";
 import { Box, Button, PopUp, space } from "../../ui";
 import { BrandBadge } from "../../vaults/VaultParts";
 import { VAULT_SETTINGS } from "../../vaults/tokens";
 import { Group, Row, SectionHeader, SettingToggle } from "../Form";
+import { ArdiaPasswordsRow } from "./ArdiaPasswordsRow";
 import { showConnectSheet, showUnlockSheet } from "./PasswordManagerSheets";
 
 const LOCK_TITLES: Record<(typeof VAULT_LOCK_MINUTES)[number], string> = { 5: "5 Minutes", 15: "15 Minutes", 30: "30 Minutes", 60: "1 Hour", 0: "Never" };
@@ -26,6 +30,7 @@ function stateLine(p: VaultProviderState): string | undefined {
 function ProviderRow({ provider }: { provider: VaultProviderState }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const advanced = useSettings((s) => s.showAdvancedSettings);
   const unlock = async () => {
     setBusy(true);
     setError("");
@@ -37,10 +42,12 @@ function ProviderRow({ provider }: { provider: VaultProviderState }) {
   const more = async () => {
     const choice = await showMenu([
       ...(provider.state === "unlocked" ? [{ id: "lock", title: "Lock", symbol: "lock" }] : []),
+      ...(provider.state === "unlocked" && advanced ? [{ id: "export", title: "Export Passwords…", symbol: "square.and.arrow.up" }] : []),
       { separator: true },
       { id: "signOut", title: "Sign Out…", symbol: "rectangle.portrait.and.arrow.right" },
     ]);
     if (choice === "lock") await lockProvider(provider.id);
+    if (choice === "export") setError(await exportManagerPasswords(provider.id));
     if (choice !== "signOut") return;
     const { confirmed } = await confirm({ title: `Sign out of ${provider.name}?`, message: "Ardia stops filling from it until you connect again.", confirmTitle: "Sign Out" });
     if (confirmed) await signOutProvider(provider.id);
@@ -82,21 +89,21 @@ function SyncRow({ providers }: { providers: VaultProviderState[] }) {
   );
 }
 
-export function PasswordManagersSection() {
+export function PasswordManagersSection({ profile, profilePicker, onImported }: { profile: string; profilePicker: ReactNode; onImported: () => void }) {
   const providers = useVaultProviders();
-  const loaded = useVaultsLoaded();
   const saveTarget = useSettings((s) => s.vaultSaveTarget);
   const saveOffer = useSettings((s) => s.vaultSaveOffer);
   const lockAfter = useSettings((s) => s.vaultIdleLockMinutes);
+  const keepGenerated = useSettings((s) => s.vaultKeepGenerated);
   useEffect(() => void reloadProviders(), []);
-  const savers = providers.filter((p) => p.capabilities.save);
-  const targetOptions = [{ value: ASK, title: "Ask Each Time" }, ...savers.map((p) => ({ value: p.id, title: p.name }))];
-  const target = savers.some((p) => p.id === saveTarget) ? saveTarget : ASK;
+  const savers = connectedSavers(providers);
+  const targetOptions = [...(savers.length === 1 ? [] : [{ value: ASK, title: "Ask Each Time" }]), ...savers.map((p) => ({ value: p.id, title: p.name }))];
+  const target = preferredSaveTarget(providers, saveTarget) || ASK;
   return (
     <View>
-      <SectionHeader anchor="passwords.managers" description={null} />
+      <SectionHeader anchor="passwords.managers" description={null} action={profilePicker} />
       <Group>
-        {providers.length ? null : <Row title={loaded ? "No password managers" : "…"} />}
+        <ArdiaPasswordsRow profile={profile} onImported={onImported} />
         {providers.map((p) => (
           <ProviderRow key={p.id} provider={p} />
         ))}
@@ -106,15 +113,20 @@ export function PasswordManagersSection() {
         <Group>
           <SettingToggle anchor="passwords.vaultSuggestOnFocus" />
           <SettingToggle anchor="passwords.vaultAskBeforeFilling" />
-          <SettingToggle anchor="passwords.vaultLoadPasswordsWhenUsed" />
           <SettingToggle anchor="passwords.vaultMenuGlass" />
           <SettingToggle anchor="passwords.vaultSaveOffer" />
           {saveOffer ? <SettingToggle anchor="passwords.vaultAutoSave" /> : null}
+          <SettingToggle anchor="passwords.vaultContextGenerate" />
           <Row anchor="passwords.vaultSaveTarget">
             <PopUp value={target} options={targetOptions} onChange={(v) => updateSettings({ vaultSaveTarget: v === ASK ? "" : v })} />
           </Row>
           <Row anchor="passwords.vaultIdleLockMinutes">
             <PopUp value={String(lockAfter)} options={LOCK_OPTIONS} onChange={(v) => updateSettings({ vaultIdleLockMinutes: Number(v) })} />
+          </Row>
+          <SettingToggle anchor="passwords.vaultLockOnScreenLock" />
+          <SettingToggle anchor="passwords.vaultLockOnQuit" />
+          <Row anchor="passwords.vaultKeepGenerated">
+            <PopUp value={String(keepGenerated)} options={KEEP_GENERATED_OPTIONS} onChange={(v) => updateSettings({ vaultKeepGenerated: Number(v) })} />
           </Row>
           <SettingToggle anchor="passwords.vaultICloudSync" />
         </Group>

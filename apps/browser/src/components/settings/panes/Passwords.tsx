@@ -1,29 +1,19 @@
-import {
-  deletePassword,
-  exportPasswords,
-  getNeverSavePasswordOrigins,
-  listPasswords,
-  setNeverSavePasswords,
-  updatePassword,
-  type PasswordExportStatus,
-  type SavedPassword,
-} from "../../../state/site/passwords";
+import { deletePassword, getNeverSavePasswordOrigins, listPasswords, setNeverSavePasswords, updatePassword, type SavedPassword } from "../../../state/site/passwords";
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText } from "../../../state/app/system";
-import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
+import { Box, Button, DialogActions, DialogTitle, SearchField, Sheet, space, Symbol, Text, TextField } from "../../ui";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
-import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
+import { revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon } from "../../favicon/Favicon";
 import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
 import { settingsLayout } from "../tokens";
-import { passwordAutofill, setPasswordAutofillFor } from "../../../state/settings/paneData";
-import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { GeneratedPasswordsSection } from "./GeneratedPasswords";
 import { PasswordManagersSection } from "./PasswordManagers";
 import { useVaultLogins } from "../../../state/vaults/hooks";
 import { loadAllVaultItems } from "../../../state/vaults/store";
@@ -41,11 +31,8 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   const [list, setList] = useState<SavedPassword[] | null>(null);
   const [never, setNever] = useState<string[]>([]);
   const [query, setQuery] = useState("");
-  const [importStatus, setImportStatus] = useState("");
-  const [exportStatus, setExportStatus] = useState("");
   const profile = currentEngineProfile(profileId);
   const unlocked = usePasswordsUnlocked(profile);
-  const [autofill = true] = useResource(passwordAutofill, profile);
 
   const load = () => {
     void listPasswords(profile).catch(orWarn<SavedPassword[]>([])).then(setList);
@@ -54,27 +41,6 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   useEffect(() => {
     if (unlocked) load();
   }, [unlocked, profileId]);
-
-  const importCsv = async () => {
-    try {
-      const result = await importPasswordsCsv(profile);
-      if (result === "cancelled") return;
-      const skipped = result.skipped ? ` ${plural(result.skipped, "login")} couldn't be saved.` : "";
-      setImportStatus(`Imported ${plural(result.saved, "password")}.${skipped}`);
-      load();
-    } catch (e) {
-      setImportStatus(`Couldn't import that file: ${(e as Error).message}`);
-    }
-  };
-
-  const exportCsv = async () => {
-    const { status, path } = await exportPasswords(profile).catch(orWarn<{ status: PasswordExportStatus; path?: string }>({ status: "writeFailed" }));
-    const folder = path ? path.split("/").slice(-2, -1)[0] : "";
-    if (status === "succeeded") setExportStatus(`Saved to “${folder}”. Delete the file once you're done with it.`);
-    else if (status === "writeFailed") setExportStatus("Couldn't write the file. Try another folder.");
-    else if (status === "inProgress") setExportStatus("An export is already running.");
-    else setExportStatus("");
-  };
 
   const vaultLogins = useVaultLogins();
   useEffect(() => {
@@ -91,23 +57,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 
   return (
     <View>
-      <SectionHeader
-        title="Passwords"
-        description="Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
-        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
-      />
-      <Group>
-        <Row anchor="passwords.offerToSave">
-          <Toggle value={autofill} onChange={(v) => void setPasswordAutofillFor(profile, v)} />
-        </Row>
-        <Row anchor="passwords.importPasswords" description={importStatus || undefined}>
-          <Button title="Import CSV…" onPress={() => void importCsv()} />
-        </Row>
-        <Row anchor="passwords.exportPasswords" description={exportStatus || undefined}>
-          <Button title="Export CSV…" onPress={() => void exportCsv()} />
-        </Row>
-      </Group>
-      <PasswordManagersSection />
+      <PasswordManagersSection profile={profile} profilePicker={<ProfilePicker value={profileId} onChange={setProfileId} />} onImported={load} />
 
       {!unlocked ? (
         <Box gap="ml" style={LOCKED}>
@@ -122,6 +72,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
         </Box>
       ) : (
         <>
+          <GeneratedPasswordsSection query={query} />
           <SectionHeader title={list ? plural(entries.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
           <Group>
             {list && shown.length === 0 ? (
