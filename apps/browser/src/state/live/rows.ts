@@ -1,4 +1,4 @@
-import type { LiveFolder, LiveItem, PullRequestSection } from "./types";
+import type { LiveFolder, LiveItem, LiveSection } from "./types";
 import { showAllKey } from "./store";
 
 export type FolderRow =
@@ -7,31 +7,41 @@ export type FolderRow =
   | { kind: "header"; key: string; title: string }
   | { kind: "more"; key: string; section: string; count: number };
 
-export const SECTION_TITLES: Record<PullRequestSection, string | null> = {
+export const SECTION_TITLES: Record<LiveSection, string | null> = {
   authored: null,
   review: "Review Requests",
   team: "Team Review Requests",
+  assigned: "Assigned to Me",
+  created: "Created by Me",
+  mentioned: "Mentioned",
+};
+
+const FOLDER_SECTIONS: Record<LiveFolder["kind"], LiveSection[] | null> = {
+  pullRequests: ["authored", "review", "team"],
+  issues: ["assigned", "created", "mentioned"],
+  documents: null,
 };
 
 export const PAGE_SIZE = 8;
 
 export type LiveTabPlace = "row" | "stray" | "hidden";
 
-export const repoKey = (it: LiveItem) => (it.pr ? `${it.source}:${it.pr.repo}` : null);
+export const repoKey = (it: LiveItem) => {
+  const repo = it.pr?.repo ?? it.issue?.repo;
+  return repo ? `${it.source}:${repo}` : null;
+};
 
 export function liveTabPlace(itemId: string, shown: Set<string>, hidden: Set<string>): LiveTabPlace {
   return shown.has(itemId) ? "row" : hidden.has(itemId) ? "hidden" : "stray";
 }
 
 export function folderRows(folder: Pick<LiveFolder, "id" | "kind" | "groupStacks">, items: LiveItem[], showAll: Record<string, boolean>, page = PAGE_SIZE): FolderRow[] {
-  const sections: [string, LiveItem[]][] =
-    folder.kind === "pullRequests"
-      ? (["authored", "review", "team"] as const).map((s) => [s, items.filter((it) => (it.section ?? "authored") === s)])
-      : [["documents", items]];
+  const kinds = FOLDER_SECTIONS[folder.kind];
+  const sections: [string, LiveItem[]][] = kinds ? kinds.map((s) => [s, items.filter((it) => (it.section ?? "authored") === s)]) : [["documents", items]];
   const rows: FolderRow[] = [];
   for (const [section, members] of sections) {
     if (!members.length) continue;
-    const title = SECTION_TITLES[section as PullRequestSection];
+    const title = SECTION_TITLES[section as LiveSection];
     if (title) rows.push({ kind: "header", key: `h:${section}`, title });
     const entries: FolderRow[] = [];
     const stacked = new Set<string>();

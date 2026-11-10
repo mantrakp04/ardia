@@ -7,7 +7,7 @@ import { ago } from "../../state/live/meetings";
 import { useLive } from "../../state/live/store";
 import type { LiveItem, PullRequestCheck } from "../../state/live/types";
 import { newTab } from "../../state/tabs/actions";
-import { Badge, Box, Button, capsule, curve, Divider, font, HoverCard, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
+import { Badge, Box, Button, capsule, curve, Divider, Dot, font, HoverCard, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
 import { dismissHover } from "../../state/sidebar/hover";
 import { cardHoverProps } from "../sidebar/hoverController";
 import { useHoverCardOrigin } from "../sidebar/hoverMotion";
@@ -38,7 +38,7 @@ export function LiveItemCard({ id, windowId, anchor }: { id: string; windowId: s
   if (!item) return null;
   return (
     <HoverSurface anchor={anchor} width={item.pr ? 300 : 280}>
-      {item.pr ? <PullRequestPreview item={item} folderId={folderId} windowId={windowId} /> : <DocumentPreview item={item} />}
+      {item.pr ? <PullRequestPreview item={item} folderId={folderId} windowId={windowId} /> : item.issue ? <IssuePreview item={item} /> : <DocumentPreview item={item} />}
     </HoverSurface>
   );
 }
@@ -235,3 +235,61 @@ function DocumentPreview({ item }: { item: LiveItem }) {
     </Box>
   );
 }
+
+function IssuePreview({ item }: { item: LiveItem }) {
+  const theme = useTheme();
+  const colors = useLiveColors();
+  const issue = item.issue!;
+  const now = Date.now();
+  return (
+    <View style={PREVIEW}>
+      <Box row gap="s" style={CENTER}>
+        <Symbol name="record.circle" size={11} weight="semibold" color={colors.success} style={GLYPH_14} />
+        <Text lines={1} size="small" tone="textSecondary" style={FILL}>
+          {issue.repo} #{issue.number}
+        </Text>
+      </Box>
+      <Text lines={3} style={liveType.heading}>
+        {item.title}
+      </Text>
+      {issue.labels.length ? (
+        <Box row gap="m" style={WRAP}>
+          {issue.labels.map((l) => (
+            <Box key={l.name} row gap="xs" style={CENTER}>
+              <Dot size={8} color={`#${l.color}`} />
+              <Text lines={1} size="caption" tone="textSecondary">
+                {l.name}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      ) : null}
+      {issue.assignees.length ? (
+        <Box row gap="s" style={CENTER}>
+          {issue.assignees.slice(0, 5).map((a) => (
+            <Avatar key={a.login} uri={a.avatar} name={a.login} />
+          ))}
+          <Text lines={1} size="small" tone="textSecondary" style={FILL}>
+            {issue.assignees.map((a) => a.login).join(", ")}
+          </Text>
+        </Box>
+      ) : null}
+      <Divider />
+      <Box row gap="ml" style={FOOTER}>
+        <Box row gap="xs" style={CENTER}>
+          <Symbol name="bubble.left" size={10.5} color={theme.textSecondary} style={GLYPH_14} />
+          <Text size="caption" tone="textSecondary">
+            {issue.comments === 1 ? "1 comment" : `${issue.comments} comments`}
+          </Text>
+        </Box>
+        {issue.createdAt ? (
+          <Text size="caption" tone="textSecondary">
+            Opened {ago(issue.createdAt, now)}
+          </Text>
+        ) : null}
+      </Box>
+    </View>
+  );
+}
+
+const WRAP = { flexWrap: "wrap", alignItems: "center", rowGap: space.xs } as const;

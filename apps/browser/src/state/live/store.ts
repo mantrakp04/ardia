@@ -1,7 +1,7 @@
 import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import { repoKey } from "./rows";
-import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
+import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFilters, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
@@ -83,8 +83,10 @@ const saved = load();
 
 const FOLDER_OPTION_DEFAULTS = { groupStacks: true, showCompleted: true, hiddenRepos: [] as string[] } satisfies Partial<LiveFolder>;
 
+const FILTER_DEFAULTS: LiveFilters = { authored: true, reviewRequests: true, assigned: true, mentioned: false };
+
 const withOptionDefaults = (folders: Record<string, LiveFolder> = {}) =>
-  Object.fromEntries(Object.entries(folders).map(([id, f]) => [id, { ...FOLDER_OPTION_DEFAULTS, ...f }]));
+  Object.fromEntries(Object.entries(folders).map(([id, f]) => [id, { ...FOLDER_OPTION_DEFAULTS, ...f, filters: { ...FILTER_DEFAULTS, ...f.filters } }]));
 
 export const useLive = create<LiveState>()(() => ({
   folders: withOptionDefaults(saved.folders),
@@ -141,7 +143,14 @@ const newId = () => `lf-${Date.now().toString(36)}-${(++counter).toString(36)}`;
 
 export const FOLDER_DEFAULTS: Record<LiveFolderKind, { name: string; sources: LiveSourceId[] }> = {
   pullRequests: { name: "Pull Requests", sources: ["github"] },
+  issues: { name: "Issues", sources: ["github"] },
   documents: { name: "Documents", sources: ["notion"] },
+};
+
+export const SOURCE_GROUPS: Record<LiveFolderKind, LiveSourceId[]> = {
+  pullRequests: ["github", "bitbucket"],
+  issues: ["github"],
+  documents: ["notion", "confluence", "gdrive"],
 };
 
 export function createFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
@@ -154,7 +163,7 @@ export function createFolder(profileId: string, kind: LiveFolderKind, sources?: 
     icon: null,
     collapsed: false,
     sources: sources ?? FOLDER_DEFAULTS[kind].sources,
-    filters: { authored: true, reviewRequests: true },
+    filters: FILTER_DEFAULTS,
     ...FOLDER_OPTION_DEFAULTS,
     createdAt: Date.now(),
   };
@@ -235,7 +244,7 @@ const MAX_COMPLETED = 20;
 export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set()) {
   setLive((s) => {
     if (!s.folders[folderId]) return {};
-    const closed = (id: string) => gone[id] === "merged" || gone[id] === "closed";
+    const closed = (id: string) => !!gone[id] && gone[id] !== "reviewed";
     const fetchedById = new Map(fetched.map((it) => [it.id, it]));
     const wasHidden = s.hidden[folderId] ?? [];
     const stillHidden = wasHidden.filter((it) => !closed(it.id)).map((it) => fetchedById.get(it.id) ?? it);

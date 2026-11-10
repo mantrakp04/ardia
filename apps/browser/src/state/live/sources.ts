@@ -1,5 +1,5 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
-import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
+import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_ISSUE_DETAILS_QUERY, GITHUB_ISSUE_VARIABLES, GITHUB_ISSUES_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, issueCompletion, issueDetailIds, mapGithub, mapIssues, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse, type IssuesResponse, type RawIssue, type RawPR } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
@@ -31,6 +31,14 @@ async function githubGraphql<T>(token: string, query: string, variables: Record<
   return json;
 }
 
+async function githubDetails<T = RawPR>(token: string, query: string, ids: string[]): Promise<T[]> {
+  const pages = Array.from({ length: Math.ceil(ids.length / DETAILS_PAGE) }, (_, i) => ids.slice(i * DETAILS_PAGE, (i + 1) * DETAILS_PAGE));
+  const page = async (ids: string[]) => detailNodes<T>(ids, await githubGraphql<DetailsResponse<T>>(token, query, { ids }));
+  const retry = (ids: string[]) => (error: unknown) =>
+    error instanceof LiveError && (error.kind === "other" || error.kind === "network") ? page(ids) : Promise.reject(error);
+  return (await Promise.all(pages.map((ids) => page(ids).catch(retry(ids))))).flat();
+}
+
 const github: LiveSource = {
   id: "github",
   name: "GitHub",
@@ -38,27 +46,29 @@ const github: LiveSource = {
   site: "https://github.com",
   async fetch(folder) {
     const token = await secret("github");
+    if (folder.kind === "issues") {
+      const json = await githubGraphql<IssuesResponse>(token, GITHUB_ISSUES_QUERY, GITHUB_ISSUE_VARIABLES);
+      return mapIssues(json, await githubDetails<RawIssue>(token, GITHUB_ISSUE_DETAILS_QUERY, issueDetailIds(json, folder.filters)), folder.filters);
+    }
     const json = await githubGraphql<GithubResponse>(token, GITHUB_QUERY, GITHUB_VARIABLES);
-    const ids = detailIds(json, folder.filters);
-    const pages = Array.from({ length: Math.ceil(ids.length / DETAILS_PAGE) }, (_, i) => ids.slice(i * DETAILS_PAGE, (i + 1) * DETAILS_PAGE));
-    const page = async (ids: string[]) => detailNodes(ids, await githubGraphql<DetailsResponse>(token, GITHUB_DETAILS_QUERY, { ids }));
-    const retry = (ids: string[]) => (error: unknown) =>
-      error instanceof LiveError && (error.kind === "other" || error.kind === "network") ? page(ids) : Promise.reject(error);
-    const details = await Promise.all(pages.map((ids) => page(ids).catch(retry(ids))));
-    return mapGithub(withDetails(json, details.flat()), folder.filters);
+    const details = await githubDetails(token, GITHUB_DETAILS_QUERY, detailIds(json, folder.filters));
+    return mapGithub(withDetails(json, details), folder.filters);
   },
   async resolveGone(items) {
     const prs = items.filter((it) => it.source === "github");
     if (!prs.length) return {};
     const token = await secret("github");
     const ids = prs.map((it) => it.id.slice("github:".length));
-    const json = await githubGraphql<{ data?: { nodes: ({ id: string; state: string } | null)[] } }>(token, GITHUB_STATE_QUERY, { ids });
+    const json = await githubGraphql<{ data?: { nodes: ({ id: string; state: string; stateReason?: string | null } | null)[] } }>(token, GITHUB_STATE_QUERY, { ids });
     const out: Record<string, CompletionState> = {};
     for (const n of json.data?.nodes ?? []) {
       if (!n) continue;
       const item = prs.find((it) => it.id === `github:${n.id}`);
       if (!item) continue;
-      if (n.state === "MERGED") out[item.id] = "merged";
+      const issueDone = item.issue && issueCompletion(n.state, n.stateReason);
+      if (issueDone) out[item.id] = issueDone;
+      else if (item.issue) continue;
+      else if (n.state === "MERGED") out[item.id] = "merged";
       else if (n.state === "CLOSED") out[item.id] = "closed";
       else if (item.section === "review" || item.section === "team") out[item.id] = "reviewed";
     }

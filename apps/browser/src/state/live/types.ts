@@ -1,5 +1,7 @@
 export type LiveSourceId = "github" | "bitbucket" | "notion" | "confluence" | "gdrive";
-export type LiveFolderKind = "pullRequests" | "documents";
+export type LiveFolderKind = "pullRequests" | "issues" | "documents";
+
+export type LiveFilters = { authored: boolean; reviewRequests: boolean; assigned: boolean; mentioned: boolean };
 
 export type LiveFolder = {
   id: string;
@@ -9,7 +11,7 @@ export type LiveFolder = {
   icon: string | null;
   collapsed: boolean;
   sources: LiveSourceId[];
-  filters: { authored: boolean; reviewRequests: boolean };
+  filters: LiveFilters;
   groupStacks: boolean;
   showCompleted: boolean;
   hiddenRepos: string[];
@@ -18,6 +20,19 @@ export type LiveFolder = {
 };
 
 export type PullRequestSection = "authored" | "review" | "team";
+
+export type IssueSection = "assigned" | "created" | "mentioned";
+
+export type LiveSection = PullRequestSection | IssueSection;
+
+export const SECTION_FILTER: Record<LiveSection, keyof LiveFilters> = {
+  authored: "authored",
+  review: "reviewRequests",
+  team: "reviewRequests",
+  assigned: "assigned",
+  created: "authored",
+  mentioned: "mentioned",
+};
 
 export type CheckState = "success" | "failure" | "pending" | "queued" | "neutral";
 
@@ -42,6 +57,15 @@ export type PullRequestInfo = {
   stack?: { id: string; position: number; size: number };
 };
 
+export type IssueInfo = {
+  number: number;
+  repo: string;
+  labels: { name: string; color: string }[];
+  assignees: { login: string; avatar: string | null }[];
+  comments: number;
+  createdAt: number;
+};
+
 export type DocumentInfo = {
   kind: string;
   editedBy: string | null;
@@ -56,14 +80,15 @@ export type LiveItem = {
   subtitle: string;
   icon: string | null;
   updatedAt: number;
-  section?: PullRequestSection;
+  section?: LiveSection;
   pr?: PullRequestInfo;
+  issue?: IssueInfo;
   doc?: DocumentInfo;
 };
 
 export type CompletedItem = { item: LiveItem; state: CompletionState; at: number };
 
-export type CompletionState = "merged" | "closed" | "reviewed";
+export type CompletionState = "merged" | "closed" | "reviewed" | "completed" | "notPlanned";
 
 export type LiveErrorKind = "signedOut" | "sso" | "rateLimited" | "network" | "notConfigured" | "other";
 

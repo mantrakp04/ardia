@@ -8,8 +8,8 @@ import { deleteLiveFolder, liveTabAway, manualRefresh, newLiveFolder, openLiveIt
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
 import { repoKey } from "../live/rows";
-import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, updateCalendarSettings, updateFolder } from "../live/store";
-import type { LiveItem, LiveSourceId } from "../live/types";
+import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, SOURCE_GROUPS, updateCalendarSettings, updateFolder } from "../live/store";
+import type { LiveFilters, LiveFolderKind, LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
 import { openIconPicker } from "./actions";
@@ -23,24 +23,36 @@ export function newLiveFolderMenuItem(): MenuItem {
     id: "live",
     title: "New Live Folder",
     children: [
-      { id: "live:pullRequests", title: "Pull Requests", symbol: "arrow.triangle.pull" },
-      { id: "live:documents", title: "Documents", symbol: "doc.text" },
+      { id: "live:pullRequests", title: "Pull Requests", symbol: KIND_SYMBOL.pullRequests },
+      { id: "live:issues", title: "Issues", symbol: KIND_SYMBOL.issues },
+      { id: "live:documents", title: "Documents", symbol: KIND_SYMBOL.documents },
     ],
   };
 }
 
+const KIND_SYMBOL: Record<LiveFolderKind, string> = { pullRequests: "arrow.triangle.pull", issues: "record.circle", documents: "doc.text" };
+
+const KIND_TITLE: Record<LiveFolderKind, string> = { pullRequests: "Pull Requests", issues: "Issues", documents: "Documents" };
+
 export function runNewLiveFolder(windowId: string, choice: string): boolean {
-  if (choice === "live:pullRequests") newLiveFolder(windowId, "pullRequests");
-  else if (choice === "live:documents") newLiveFolder(windowId, "documents");
-  else return false;
+  const kind = choice.slice(5) as LiveFolderKind;
+  if (!choice.startsWith("live:") || !Object.hasOwn(KIND_TITLE, kind)) return false;
+  newLiveFolder(windowId, kind);
   return true;
 }
 
 const FOLDER_OPTIONS = ["groupStacks", "showCompleted"] as const;
 
-const SOURCE_GROUPS: Record<"pullRequests" | "documents", LiveSourceId[]> = {
-  pullRequests: ["github", "bitbucket"],
-  documents: ["notion", "confluence", "gdrive"],
+const FILTER_TITLES: Partial<Record<LiveFolderKind, [keyof LiveFilters, string][]>> = {
+  pullRequests: [
+    ["authored", "Created by Me"],
+    ["reviewRequests", "Awaiting My Review"],
+  ],
+  issues: [
+    ["assigned", "Assigned to Me"],
+    ["authored", "Created by Me"],
+    ["mentioned", "Mentioned"],
+  ],
 };
 
 function folderPlace(windowId: string, folderId: string) {
@@ -57,6 +69,7 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
   if (!folder) return [];
   const { canMoveUp, canMoveDown } = folderPlace(windowId, folderId);
   const pr = folder.kind === "pullRequests";
+  const filters = FILTER_TITLES[folder.kind];
   const hiddenRepos = new Set(folder.hiddenRepos);
   const listed = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? []), ...(s.repoHidden[folderId] ?? [])].flatMap((it) => repoKey(it) ?? []);
   const repos = [...new Set([...listed, ...hiddenRepos])].map((key) => {
@@ -71,10 +84,9 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
       { id: "refresh", title: "Refresh", symbol: "arrow.clockwise", enabled: s.status[folderId]?.state !== "updating" },
       { id: "read", title: "Mark All as Read", enabled: (s.unread[folderId]?.length ?? 0) > 0 },
     ],
-    pr
+    filters
       ? [
-          { id: "filter:authored", title: "Created by Me", checked: folder.filters.authored },
-          { id: "filter:reviewRequests", title: "Awaiting My Review", checked: folder.filters.reviewRequests },
+          ...filters.map(([key, title]) => ({ id: `filter:${key}`, title, checked: folder.filters[key] })),
           {
             id: "repos",
             title: "Repositories",
@@ -86,17 +98,17 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
           },
         ]
       : [],
-    pr
+    filters
       ? [
-          { id: "option:groupStacks", title: "Group Stacked Pull Requests", checked: folder.groupStacks },
+          ...(pr ? [{ id: "option:groupStacks", title: "Group Stacked Pull Requests", checked: folder.groupStacks }] : []),
           { id: "option:showCompleted", title: "Show Completed", checked: folder.showCompleted },
         ]
       : [],
     [
       {
         id: "sources",
-        title: pr ? "Pull Requests" : "Documents",
-        symbol: pr ? "arrow.triangle.pull" : "doc.text",
+        title: KIND_TITLE[folder.kind],
+        symbol: KIND_SYMBOL[folder.kind],
         children: SOURCE_GROUPS[folder.kind].map((id) => ({
           id: `source:${id}`,
           title: s.accounts[id] ? SOURCES[id].name : `${SOURCES[id].name} (Not Connected)`,
@@ -134,7 +146,7 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
     setRepoHidden(folderId, repo, !show);
     if (show) void refreshFolder(folderId);
   } else if (choice.startsWith("filter:")) {
-    const key = choice.slice(7) as "authored" | "reviewRequests";
+    const key = choice.slice(7) as keyof LiveFilters;
     updateFolder(folderId, { filters: { ...folder.filters, [key]: !folder.filters[key] } });
     void refreshFolder(folderId);
   } else if (choice.startsWith("source:")) {
@@ -166,7 +178,7 @@ export function liveItemMenuItems(windowId: string, folderId: string, item: Live
     withAlternate({ id: "copy", title: "Copy Link", symbol: "link" }, { id: "copyMd", title: "Copy Link as Markdown", symbol: "link" }, null),
     [
       { id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" },
-      ...(item.pr ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
+      ...(item.pr || item.issue ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
     ],
     tabId ? [{ id: "close", title: "Close", symbol: "xmark", ...hintWhen(shown, "closeTab") }] : [],
   );
