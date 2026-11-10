@@ -761,7 +761,7 @@
       vaultFocused = el;
       vaultFocusedInfo = info;
       vaultClearedSent = false;
-      vaultReport(el, info, true);
+      vaultReport(el, info, true, vaultTabbedIn());
     };
     const vaultResend = () => {
       vaultRectQueued = false;
@@ -845,6 +845,9 @@
       vaultGestureAt = vaultNow();
     };
     const vaultRecentGesture = () => vaultNow() - vaultGestureAt <= VAULT_GESTURE_WINDOW;
+    const VAULT_TAB_WINDOW = 500;
+    let vaultTabAt = -Infinity;
+    const vaultTabbedIn = () => vaultNow() - vaultTabAt <= VAULT_TAB_WINDOW;
     const vaultSubmitFrom = (scope, trusted) => {
       if (!scope) return;
       const { inputs, fields } = vaultFieldsIn(scope);
@@ -1051,6 +1054,7 @@
         const el = vaultTargetOf(e);
         const key = e.key;
         if (key === "Enter") vaultNoteGesture();
+        if (key === "Tab" && !e.altKey && !e.ctrlKey && !e.metaKey) vaultTabAt = vaultNow();
         if (vaultMenuOpen && vaultFocused && el === vaultFocused && ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(key)) {
           const passesToPage = key === "Tab" || (key === "Enter" && !vaultMenuHighlighted);
           if (!passesToPage) {

@@ -464,6 +464,24 @@ test("a click on the focused field says so, so a dismissed menu can come back", 
   assert.deepEqual(page.of("vaultField").map((r) => r.clicked), [false, true]);
 });
 
+test("tabbing into a field counts as a click, but a focus long after Tab or from the page does not", () => {
+  const page = makePage();
+  const { user, pass } = loginForm(page);
+  page.fire(page.body, "keydown", { key: "Tab" });
+  page.fire(user, "focusin");
+  page.fire(user, "focusout");
+  page.advance(600);
+  page.fire(page.body, "keydown", { key: "Tab", isTrusted: false });
+  page.fire(pass, "focusin");
+  page.fire(pass, "focusout");
+  page.fire(page.body, "keydown", { key: "Tab", shiftKey: true });
+  page.fire(user, "focusin");
+  page.fire(user, "focusout");
+  page.advance(600);
+  page.fire(pass, "focusin");
+  assert.deepEqual(page.of("vaultField").filter((r) => r.focused).map((r) => r.clicked), [true, false, true, false]);
+});
+
 test("a readonly field that the page unlocks on focus is picked up a frame later", () => {
   const page = makePage();
   const user = page.input({ type: "email", name: "email", autocomplete: "username", readonly: "" });

@@ -7,7 +7,7 @@ import { forgetVaultCode, loadVaultCode } from "../../state/vaults/codes";
 import { noteCodeUnavailable } from "../../state/vaults/fill";
 import { noteVaultMenuPress, type VaultTouchPhase } from "../../state/vaults/menu";
 import { useVaultCode } from "../../state/vaults/hooks";
-import { ActivitySpinner, capsule, curve, ink, reduceMotion, springs, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
+import { ActivitySpinner, capsule, curve, ink, reduceMotion, selectionSlide, springs, Symbol, tabularNums, Text, useTheme, withAlpha } from "../ui";
 import { CountdownRing, formatCode, VaultAppIcon } from "./VaultParts";
 import { VAULT_CODE, VAULT_MENU, VAULT_TOUCH } from "./tokens";
 import type { VaultPasswordStyle } from "../../state/vaults/types";
@@ -18,6 +18,8 @@ const withScheme = (url: string) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url 
 const itemSite = (urls: readonly string[]) => (urls[0] ? siteLabel(withScheme(urls[0])) : "");
 
 const TEXT = { flex: 1, minWidth: 0, gap: VAULT_MENU.textGap } as const;
+const TEXT_SLOT = { flex: 1, minWidth: 0 } as const;
+const TEXT_LAYER = { gap: VAULT_MENU.textGap, justifyContent: "center" } as const;
 const SPINNER = { width: VAULT_MENU.spinner, height: VAULT_MENU.spinner } as const;
 const TOUCH_ID = { width: VAULT_MENU.touchID, height: VAULT_MENU.touchID } as const;
 const LAYER = { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" } as const;
@@ -35,7 +37,8 @@ export const GENERATOR_COPY: Record<VaultPasswordStyle, { title: string; detail?
   passphrase: { title: "New Memorable Password", detail: "Five Words" },
 };
 
-type Ink = { title: string; detail: string; icon: string };
+type InkFade = { plain: Ink; lit: Ink; glow: Animated.Value };
+type Ink = { title: string; detail: string; icon: string; fade?: InkFade };
 
 export type VaultTouchState = { phase: VaultTouchPhase; retries: number };
 
@@ -46,9 +49,23 @@ function useInk(highlight: VaultHighlight | null): Ink {
   return { title: on, detail: on, icon: on };
 }
 
+function useGlow(on: boolean, follow: boolean) {
+  const glow = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    if (!follow || reduceMotion() === true) return glow.setValue(on ? 1 : 0);
+    const run = Animated.timing(glow, { toValue: on ? 1 : 0, ...selectionSlide, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [on]);
+  return glow;
+}
+
 function RowShell({ height, compact, selected, plated, highlight, onHover, onPress, children }: { height: number; compact: boolean; selected: boolean; plated: boolean; highlight: VaultHighlight; onHover: () => void; onPress: () => void; children: (ink: Ink, lit: boolean) => ReactNode }) {
   const lit = useInk(highlight);
   const plain = useInk(null);
+  const glow = useGlow(selected, plated);
+  const fade = plated ? { plain, lit, glow } : undefined;
+  const inkOf = (pressed: boolean): Ink => (pressed && !selected ? lit : { ...(selected ? lit : plain), fade });
   return (
     <View onMouseEnter={onHover}>
       <Pressable onPressIn={noteVaultMenuPress} onPress={onPress}>
@@ -65,7 +82,7 @@ function RowShell({ height, compact, selected, plated, highlight, onHover, onPre
               backgroundColor: (selected && !plated) || (pressed && !selected) ? highlight.fill : undefined,
             }}
           >
-            {children(selected || pressed ? lit : plain, selected || pressed)}
+            {children(inkOf(pressed), selected || pressed)}
           </View>
         )}
       </Pressable>
@@ -114,13 +131,30 @@ function Swap({ from, to, showTo, color, size, weight, mono }: { from: string; t
   );
 }
 
-function Lines({ title, detail, ink, mono, strong, tryAgain }: { title: string; detail?: string; ink: Ink; mono?: boolean; strong?: boolean; tryAgain?: boolean }) {
+type LinesProps = { title: string; detail?: string; ink: Ink; mono?: boolean; strong?: boolean; tryAgain?: boolean };
+
+function LinesIn({ title, detail, ink, mono, strong, tryAgain }: LinesProps) {
   const weight = strong || detail ? "medium" : undefined;
   const swapTitle = !!tryAgain && !detail;
   return (
-    <View style={TEXT}>
+    <>
       <Swap from={title} to={swapTitle ? TRY_AGAIN : title} showTo={swapTitle} color={ink.title} weight={weight} mono={mono} />
       {detail ? <Swap from={detail} to={tryAgain ? TRY_AGAIN : detail} showTo={!!tryAgain} color={ink.detail} size="caption" /> : null}
+    </>
+  );
+}
+
+function Lines(props: LinesProps) {
+  const fade = props.ink.fade;
+  if (!fade) return <View style={TEXT}><LinesIn {...props} /></View>;
+  return (
+    <View style={TEXT_SLOT}>
+      <Animated.View style={{ ...TEXT_LAYER, opacity: fade.glow.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+        <LinesIn {...props} ink={fade.plain} />
+      </Animated.View>
+      <Animated.View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, ...TEXT_LAYER, opacity: fade.glow }}>
+        <LinesIn {...props} ink={fade.lit} />
+      </Animated.View>
     </View>
   );
 }
