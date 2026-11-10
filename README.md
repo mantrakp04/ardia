@@ -10,11 +10,11 @@
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.44/Ardia-0.2.44.dmg">Download Ardia 0.2.44 for Mac</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.45/Ardia-0.2.45.dmg">Download Ardia 0.2.45 for Mac</a>
 </h3>
 
 <p align="center">
-  121 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
+  128 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
   Like your paint wet? <a href="https://ardia.dev/nightly">The nightly</a> has every fix the day it’s made, smudges and all.<br>
   Homebrew: <code>brew install mantrakp04/tap/ardia</code><br>
   <a href="https://ardia.dev">ardia.dev</a> · <a href="https://ardia.dev/release-notes">What’s new</a> · <a href="https://github.com/mantrakp04/ardia/releases">All releases</a> · <a href="https://discord.gg/TdhuXrbcA6">Discord</a>
@@ -74,7 +74,7 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 
 | Part | Details | Status |
 | --- | --- | --- |
-| Engine | Chromium 156, on Chrome’s own framework. | ✓ Yes |
+| Engine | Chromium 157, on Chrome’s own framework. | ✓ Yes |
 | De-Googled | Google’s background services stripped out. | ✓ Yes |
 | H.264 and AAC | The codecs Chromium leaves out. | ✓ Yes |
 | DevTools | Docked, with device mode. Like Chrome. | ✓ Yes |
@@ -85,11 +85,11 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 | Intel Macs | Apple Silicon only. | ✗ No |
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.44/Ardia-0.2.44.dmg">Download Ardia 0.2.44</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/download/v0.2.45/Ardia-0.2.45.dmg">Download Ardia 0.2.45</a>
 </h3>
 
 <p align="center">
-  It’s 121 MB and one drag into Applications.<br>
+  It’s 128 MB and one drag into Applications.<br>
   Not on a Mac? Watch › Custom › Releases up top and GitHub tells you when it is.
 </p>
 
@@ -105,7 +105,7 @@ reconstructed from Dia's own New Tab effects.
 apps/
   browser/            Expo + react-native-macos app (UI in src/, Xcode project in macos/)
 packages/
-  ardiacore/             The engine: Chromium 156's framework with our layer (Chrome tabs hosted in our views), JS API in src/
+  ardiacore/             The engine: Chromium 157's framework with our layer (Chrome tabs hosted in our views), JS API in src/
   shell/              Native menu bar + shortcuts → JS, windows, SF Symbols, native primitives
   shaders/            Metal: New Tab effects + grained OKLab window backdrop
   import/             Import from other browsers (bookmarks, history, passwords, Arc spaces)
