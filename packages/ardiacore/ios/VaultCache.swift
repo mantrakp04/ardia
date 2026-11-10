@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Security
 
 struct VaultCacheSnapshot: Codable, Sendable {
   struct Entry: Codable, Sendable {
@@ -30,7 +31,10 @@ struct VaultCacheSnapshot: Codable, Sendable {
 
 enum VaultCache {
   private static let lock = NSLock()
-  nonisolated(unsafe) private static var cloudEnabled = true
+  private static let cloudQueue = DispatchQueue(label: "ardia.vaults.icloud", qos: .utility)
+  nonisolated(unsafe) private static var cloudChoice: Bool?
+
+  private static var cloudEnabled: Bool { cloudChoice ?? false }
 
   private static var localDirectory: URL? {
     let base: URL
@@ -63,11 +67,11 @@ enum VaultCache {
 
   static func setCloudEnabled(_ enabled: Bool) {
     lock.lock()
-    let was = cloudEnabled
+    let turnedOff = cloudChoice == true && !enabled
     let directory = cloudDirectory
-    cloudEnabled = enabled
+    cloudChoice = enabled
     lock.unlock()
-    if was && !enabled, let directory { removeOurFiles(in: directory) }
+    if turnedOff, let directory { cloudQueue.async { removeOurFiles(in: directory) } }
   }
 
   private static func file(_ provider: String, in directory: URL?) -> URL? {
@@ -83,11 +87,7 @@ enum VaultCache {
     lock.lock()
     defer { lock.unlock() }
     guard let url = file(provider, in: localDirectory), let sealed = try? Data(contentsOf: url) else { return nil }
-    guard let snapshot = open(sealed) else {
-      try? FileManager.default.removeItem(at: url)
-      return nil
-    }
-    return snapshot
+    return open(sealed)
   }
 
   @discardableResult
@@ -95,15 +95,20 @@ enum VaultCache {
     lock.lock()
     defer { lock.unlock() }
     guard let sealed = seal(snapshot), write(sealed, provider: provider, in: localDirectory) else { return false }
-    if toCloud, let cloud = cloudDirectory { coordinatedWrite(sealed, provider: provider, in: cloud) }
+    if toCloud, let cloud = cloudDirectory { pushLater(sealed, savedAt: snapshot.savedAt, provider: provider, in: cloud) }
     return true
   }
 
-  static func pullFromCloud(_ provider: String) -> VaultCacheSnapshot? {
+  static func pullFromCloud(_ provider: String, account: String) -> VaultCacheSnapshot? {
+    lock.lock()
+    let cloud = cloudDirectory
+    lock.unlock()
+    guard let cloud, let url = file(provider, in: cloud), isDownloaded(url), let sealed = coordinatedRead(url),
+      let remote = open(sealed)
+    else { return nil }
+    guard account.isEmpty || VaultBroker.normalizedAccount(remote.account) == account else { return nil }
     lock.lock()
     defer { lock.unlock() }
-    guard let cloud = cloudDirectory, let url = file(provider, in: cloud), isDownloaded(url) else { return nil }
-    guard let sealed = coordinatedRead(url), let remote = open(sealed) else { return nil }
     let local = file(provider, in: localDirectory).flatMap { try? Data(contentsOf: $0) }.flatMap(open)
     guard remote.savedAt > (local?.savedAt ?? 0) else { return nil }
     guard let resealed = seal(remote), write(resealed, provider: provider, in: localDirectory) else { return nil }
@@ -125,7 +130,22 @@ enum VaultCache {
     guard let cloud = cloudDirectory, let url = file(provider, in: localDirectory), let sealed = try? Data(contentsOf: url),
       let snapshot = open(sealed), let resealed = seal(snapshot)
     else { return }
-    coordinatedWrite(resealed, provider: provider, in: cloud)
+    pushLater(resealed, savedAt: snapshot.savedAt, provider: provider, in: cloud)
+  }
+
+  private static func pushLater(_ sealed: Data, savedAt: Double, provider: String, in cloud: URL) {
+    cloudQueue.async {
+      guard let url = file(provider, in: cloud) else { return }
+      if FileManager.default.fileExists(atPath: url.path) || FileManager.default.fileExists(atPath: placeholder(url).path) {
+        guard isDownloaded(url) else { return }
+        if let remote = coordinatedRead(url).flatMap(open), remote.savedAt >= savedAt { return }
+      }
+      coordinatedWrite(sealed, provider: provider, in: cloud)
+    }
+  }
+
+  private static func placeholder(_ url: URL) -> URL {
+    url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
   }
 
   static func stripPasswords(_ provider: String) {
@@ -139,7 +159,7 @@ enum VaultCache {
     lock.lock()
     defer { lock.unlock() }
     if let url = file(provider, in: localDirectory) { try? FileManager.default.removeItem(at: url) }
-    if fromCloud, let url = file(provider, in: cloudDirectory) { coordinatedDelete(url) }
+    if fromCloud, let url = file(provider, in: cloudDirectory) { cloudQueue.async { coordinatedDelete(url) } }
   }
 
   private static func seal(_ snapshot: VaultCacheSnapshot) -> Data? {
@@ -233,18 +253,26 @@ enum VaultStoreKey {
   static func current(creating: Bool) -> SymmetricKey? {
     lock.lock()
     defer { lock.unlock() }
-    if let synced = readSynced() {
-      remember(synced)
-      return synced
+    let synced = readSynced()
+    if case .found(let key) = synced {
+      remember(key)
+      return key
     }
-    if let legacy = readLegacy() {
-      remember(legacy)
-      if writeSynced(legacy) { VaultKeychain.delete(legacyAccount) }
-      return legacy
+    let legacy = readLegacy()
+    if let legacy { remember(legacy, first: false) }
+    if case .failed = synced { return legacy ?? remembered.first }
+    if let legacy {
+      if accessGroup != nil, let adopted = addSynced(legacy) { remember(adopted) }
+      return remembered.first
     }
-    guard creating else { return nil }
+    guard creating else { return remembered.first }
     let fresh = SymmetricKey(size: .bits256)
-    guard writeSynced(fresh) || VaultKeychain.write(legacyAccount, encode(fresh)) else { return nil }
+    if accessGroup != nil {
+      guard let stored = addSynced(fresh) else { return nil }
+      remember(stored)
+      return stored
+    }
+    guard VaultKeychain.write(legacyAccount, encode(fresh)) else { return nil }
     remember(fresh)
     return fresh
   }
@@ -281,24 +309,37 @@ enum VaultStoreKey {
     ]
   }
 
-  private static func readSynced() -> SymmetricKey? {
-    guard let group = accessGroup else { return nil }
+  private enum SyncedRead {
+    case found(SymmetricKey)
+    case missing
+    case failed
+  }
+
+  private static func readSynced() -> SyncedRead {
+    guard let group = accessGroup else { return .missing }
     var query = syncedQuery(group)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var item: CFTypeRef?
-    guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-    return decode(String(data: data, encoding: .utf8))
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound { return .missing }
+    guard status == errSecSuccess, let data = item as? Data, let key = decode(String(data: data, encoding: .utf8)) else { return .failed }
+    return .found(key)
   }
 
-  private static func writeSynced(_ key: SymmetricKey) -> Bool {
-    guard let group = accessGroup else { return false }
-    SecItemDelete(syncedQuery(group) as CFDictionary)
+  private static func addSynced(_ key: SymmetricKey) -> SymmetricKey? {
+    guard let group = accessGroup else { return nil }
     var add = syncedQuery(group)
     add[kSecAttrSynchronizable as String] = true
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
     add[kSecAttrLabel as String] = "Ardia password store"
     add[kSecValueData as String] = Data(encode(key).utf8)
-    return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    switch SecItemAdd(add as CFDictionary, nil) {
+    case errSecSuccess: return key
+    case errSecDuplicateItem:
+      if case .found(let existing) = readSynced() { return existing }
+      return nil
+    default: return nil
+    }
   }
 }

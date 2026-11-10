@@ -26,6 +26,7 @@ actor VaultBroker {
   var storeUsedAt = Date.distantPast
   var lockedWhileOpen: Set<String> = []
   var reconnecting: Task<Void, Never>?
+  var reconnectGeneration = 0
 
   func providerStates() -> [VaultProviderState] {
     if refreshing == nil {
@@ -73,9 +74,12 @@ actor VaultBroker {
   func lockAll() async {
     storeOpen = false
     lockedWhileOpen = []
+    reconnectGeneration += 1
     reconnecting?.cancel()
     reconnecting = nil
+    VaultOwnerCheck.reset()
     let open = Set(sessions.unlockedProviders).union(states.values.filter { $0.state == .unlocked }.map(\.id))
+    for provider in VaultRegistry.providers where !open.contains(provider.id) { dropItems(provider.id, announce: true) }
     for id in open { _ = await lock(id) }
     lockedWhileOpen = []
   }
@@ -116,9 +120,10 @@ actor VaultBroker {
     guard let provider = VaultRegistry.provider(id) else { return nil }
     if password == nil, opensFromStore(id) { return await unlockFromStore(provider) }
     guard let cli = VaultCLI.make(for: provider, sessions: sessions) else { return await missingTool(provider) }
+    let confirmedBefore = VaultOwnerCheck.lastConfirmed
     let result = await lane(id).run { await provider.unlock(cli, password: password) }
     let settled = await settle(provider, result)
-    if settled.ok, password == nil, VaultOwnerCheck.recentlyConfirmed { VaultOwnerCheck.grant() }
+    if settled.ok, password == nil, VaultOwnerCheck.lastConfirmed != confirmedBefore { VaultOwnerCheck.passOn() }
     return settled
   }
 
@@ -333,8 +338,6 @@ actor VaultBroker {
     guard isReady(id) || (sessions.session(id) == nil && storeOpen && !lockedWhileOpen.contains(id)) else { return [] }
     restoreFromDisk(id)
     if let cached = cachedItems[id] {
-      storeUsedAt = Date()
-      sessions.touch(id)
       let stale = Date().timeIntervalSince(fetchedAt[id] ?? .distantPast) >= Self.itemsLifetime
       if stale, sessions.session(id) != nil, loading[id] == nil {
         Task { _ = await self.fetchItems(provider) }
