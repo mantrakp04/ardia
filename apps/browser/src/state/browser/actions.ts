@@ -20,6 +20,7 @@ import { profileAccentOf } from "../profiles/looks";
 import { isSiteMuted } from "../tabs/mute";
 import { groupCloseAllowed } from "../groups/closeGuard";
 import { focusedWindowOf } from "../windows/ui";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 const store = () => useBrowser.getState();
 
@@ -118,7 +119,7 @@ async function keptExtensionsNote(): Promise<string> {
     () => null,
   );
   if (names && !names.length) return "";
-  return names ? ` Its extensions (${profileNames(names)}) stay installed on this Mac, turned off.` : " Its extensions stay installed on this Mac, turned off.";
+  return names ? ` Its extensions (${profileNames(names)}) stay installed on this ${PLATFORM_TERMS.computer}, turned off.` : ` Its extensions stay installed on this ${PLATFORM_TERMS.computer}, turned off.`;
 }
 
 type ProfileMove = { windowId: string; fromProfileId: string; title: (profileName: string) => string; confirmTitle: string };

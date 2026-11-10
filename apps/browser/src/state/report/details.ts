@@ -4,6 +4,7 @@ import { activeTab } from "../browser/model";
 import { diagnosticsSnapshot } from "../telemetry/diagnosticsSnapshot";
 import { settingsSnapshot } from "../telemetry/settingsSnapshot";
 import type { ReportDraft } from "./form";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export type SystemDetails = Record<string, string | number | null>;
 
@@ -34,7 +35,7 @@ const flat = (fields: Record<string, unknown>): SystemDetails =>
 
 export function systemLine(): string {
   const app = systemInfo();
-  return [`${app.appName} ${app.appVersion}`, `macOS ${app.osVersion}`, app.model, `${Math.round(app.memoryGB)} GB`].filter(Boolean).join(" · ");
+  return [`${app.appName} ${app.appVersion}`, `${PLATFORM_TERMS.os} ${app.osVersion}`, app.model, `${Math.round(app.memoryGB)} GB`].filter(Boolean).join(" · ");
 }
 
 export async function updateChannel(): Promise<string | null> {

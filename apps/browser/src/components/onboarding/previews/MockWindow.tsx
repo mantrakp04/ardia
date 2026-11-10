@@ -20,6 +20,7 @@ import type { SceneOpts } from "./scene";
 import { tracker, useDemo } from "./timeline";
 import { MockSwitcher } from "./Switcher";
 import { mockInk, mockMotion, sceneMs } from "./tokens";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
 
 const INSET = { x: 8, top: 5, bottom: 13 };
 
@@ -135,7 +136,7 @@ function AutoBadge({ g, look }: { g: Geo; look: Look }) {
         <Glyph g={g} name={look.dark ? "moon.fill" : "sun.max.fill"} size={14} color={look.dark ? mockInk.moon : mockInk.sun} weight="medium" box={18} />
       </Animated.View>
       <Label g={g} size={font.body.fontSize} color={look.t.textPrimary} weight="500">
-        {`Auto · ${look.dark ? "Dark" : "Light"} like your Mac`}
+        {`Auto · ${look.dark ? "Dark" : "Light"} like your ${PLATFORM_TERMS.computer}`}
       </Label>
     </Pill>
   );

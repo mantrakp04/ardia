@@ -7,6 +7,7 @@ import { SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
 import { StepActions, StepLayout } from "./StepLayout";
 import { onboardingType } from "./tokens";
+import { keyText } from "../../state/commands/keyText";
 
 export function OutroStep() {
   const colors = useOnboardingColors();
@@ -27,9 +28,9 @@ export function OutroStep() {
       <View style={{ gap: space.ml }}>
         {(
           [
-            ["⌘T", "Open a new tab"],
-            ["⌘L", "Go anywhere from the command bar"],
-            ["⌘S", "Hide the sidebar for more room"],
+            [keyText("⌘T"), "Open a new tab"],
+            [keyText("⌘L"), "Go anywhere from the command bar"],
+            [keyText("⌘S"), "Hide the sidebar for more room"],
           ] as const
         ).map(([keys, label]) => (
           <View key={keys} style={{ flexDirection: "row", alignItems: "center", gap: space.l }}>

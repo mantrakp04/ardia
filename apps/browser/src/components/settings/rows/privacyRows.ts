@@ -1,5 +1,7 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
+import { PLATFORM_TERMS } from "../../../lib/platformTerms";
+import { keyText } from "../../../state/commands/keyText";
 
 export const privacyRows = {
   privacy: [
@@ -32,8 +34,8 @@ export const privacyRows = {
       section: "Zoom",
       rows: {
         commandScrollZoom: {
-          title: "Zoom with ⌘ and the mouse wheel",
-          description: "Sites that use ⌘-scroll themselves, like maps, still get it. ⌘+, ⌘− and ⌘0 zoom either way.",
+          title: `Zoom with ${keyText("⌘")} and the mouse wheel`,
+          description: `Sites that use ${keyText("⌘")}-scroll themselves, like maps, still get it. ${keyText("⌘+")}, ${keyText("⌘−")} and ${keyText("⌘0")} zoom either way.`,
           keywords: ["scroll wheel", "command scroll", "cmd scroll", "mouse zoom", "accidental zoom", "page zoom"],
         },
       },
@@ -42,7 +44,7 @@ export const privacyRows = {
       section: "Crash reports and usage",
       rows: {
         shareDiagnostics: { title: "Share anonymous crash reports and usage stats", keywords: ["telemetry", "analytics", "diagnostics", "crash"] },
-        whatsSent: { title: "What's Sent", description: "Every field, and what never leaves this Mac.", keywords: ["telemetry", "data collection", "ardia command", "cli"] },
+        whatsSent: { title: "What's Sent", description: `Every field, and what never leaves this ${PLATFORM_TERMS.computer}.`, keywords: ["telemetry", "data collection", "ardia command", "cli"] },
         anonymousId: {
           title: "Your anonymous ID",
           description: "The name and colours you appear to us as, and resetting the ID.",
@@ -51,7 +53,7 @@ export const privacyRows = {
       },
     },
     {
-      section: "Kept on this Mac",
+      section: `Kept on this ${PLATFORM_TERMS.computer}`,
       rows: {
         viewData: {
           title: "The last 7 days",

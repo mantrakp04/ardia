@@ -11,6 +11,7 @@ import { PEEK_MOTION, PEEK_SCRIM } from "./tokens";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "../../state/peek/actions";
 import { pinchFollow, pinchOutcome } from "./pinch";
+import { keyText } from "../../state/commands/keyText";
 
 const INSET_FRACTION = 0.055;
 const MIN_INSET = 16;
@@ -220,7 +221,7 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
       buttons={[
         { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-        { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+        { icon: "arrow.up.left.and.arrow.down.right", tooltip: `Open as Tab (${keyText("⌘O")})`, onPress: () => openPeekAsTab(windowId) },
         { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
       ]}
     />

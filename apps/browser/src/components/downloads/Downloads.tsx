@@ -45,6 +45,7 @@ import { useDownloadView } from "./useDownloadView";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
 import { DOWNLOADS_LIST as L, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
+import { PLATFORM_TERMS } from "../../lib/platformTerms";
 
 const rowFill = (theme: Theme, hovered: boolean, pressed: boolean) => (hovered || pressed ? menuRowFill(theme, pressed) : undefined);
 
@@ -252,7 +253,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     hovered={hovered}
                     width={L.rowButton}
                     style={{ marginRight: -L.rowButtonBearing }}
-                    hover={<RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip="Show in Finder" />}
+                    hover={<RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip={`Show in ${PLATFORM_TERMS.fileManager}`} />}
                   />
                 ) : null}
               </View>

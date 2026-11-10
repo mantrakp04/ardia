@@ -16,7 +16,6 @@ import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 
 export const SMALL_INSET = CARD_INSET;
 export { SMALL_BAR_BUTTON, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS } from "./tokens";
-const MID = SMALL_BAR_HEIGHT / 2;
 const FIELD_HEIGHT = 28;
 export const SMALL_BAR_GAP = 2;
 export const SMALL_FIELD_GAP = 6;
@@ -32,8 +31,12 @@ export function SmallBar({
   field,
   buttons,
   trailing,
+  height = SMALL_BAR_HEIGHT,
+  trailingRoom = 0,
   children,
 }: {
+  height?: number;
+  trailingRoom?: number;
   fieldLeft: number;
   fieldMaxWidth?: number;
   field: ReactNode;
@@ -43,12 +46,14 @@ export function SmallBar({
 }) {
   const count = buttons.length + (trailing ? 1 : 0);
   const buttonsWidth = count * SMALL_BAR_BUTTON + Math.max(0, count - 1) * SMALL_BAR_GAP;
+  const mid = height / 2;
+  const right = SMALL_INSET + trailingRoom;
   return (
     <ToolbarRowContext.Provider value={SMALL_BAR_ROW}>
-      <View style={{ height: SMALL_BAR_HEIGHT }}>
+      <View style={{ height }}>
         {children}
-        <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + SMALL_FIELD_GAP, maxWidth: fieldMaxWidth, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
-        <View style={{ position: "absolute", right: SMALL_INSET, top: MID - SMALL_BAR_BUTTON / 2, flexDirection: "row", gap: SMALL_BAR_GAP }}>
+        <View style={{ position: "absolute", left: fieldLeft, right: right + buttonsWidth + SMALL_FIELD_GAP, maxWidth: fieldMaxWidth, top: mid - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
+        <View style={{ position: "absolute", right, top: mid - SMALL_BAR_BUTTON / 2, flexDirection: "row", gap: SMALL_BAR_GAP }}>
           {buttons.map((b) => (
             <Button variant="icon" key={b.tooltip} icon={b.icon} look="row" disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
           ))}

@@ -1,0 +1,3 @@
+import type { PlatformTerms } from "./platformTerms";
+
+export const PLATFORM_TERMS: PlatformTerms = { computer: "PC", os: "Windows", fileManager: "File Explorer", trash: "Recycle Bin", dock: "taskbar" };

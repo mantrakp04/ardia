@@ -6,12 +6,14 @@ import { setMeasuredWidth, useMeasuredWidth } from "../../state/windows/measured
 import { ContextMenuArea, radius, Symbol, Text, useHover } from "../ui";
 import { openProfileItemMenu } from "./profileMenu";
 import { openProfileMenu } from "../../state/browser/actions";
+import { WINDOW_CHROME } from "../../lib/windowChrome";
+import { CARD_INSET } from "../../lib/windowLayout";
 
 const PAD = 9;
 const HEIGHT = 34;
 const MIN_CUT_NAME = 52;
 const ICON_WIDTH = 32;
-export const PROFILE_INDICATOR_X = 84;
+export const PROFILE_INDICATOR_X = Math.max(WINDOW_CHROME.leadingWidth + 6, CARD_INSET);
 
 function useIndicator(room: number) {
   const theme = useTheme();
