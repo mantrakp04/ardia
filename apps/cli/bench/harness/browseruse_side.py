@@ -7,9 +7,10 @@ from pathlib import Path
 
 import ardia_side
 import opencode_side
+import grading
 import registry
 import servers
-from procs import front_pid, http, kill_group, listener_pids, proc_info, read_json, read_jsonl, sh, terminate, wait_until, write_json
+from procs import front_pid, http, kill_group, kill_on_failure, listener_pids, proc_info, read_json, read_jsonl, sh, terminate, write_json
 
 ROOT = Path(os.environ.get("BENCH_BROWSERUSE_HOME", Path.home() / "ardia-scratch/browser-use"))
 DEFAULTS = {
@@ -128,11 +129,8 @@ def launch_chrome(opts, home, logs):
             f"--remote-debugging-port={opts['cdp_port']}", "--no-first-run", "--no-default-browser-check",
             "--use-mock-keychain", "--password-store=basic", f"--window-size={opts['window_size']}", "about:blank"]
     proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=logs, stderr=logs, start_new_session=True)
-    rec = opencode_side.record_of(proc)
-    wait_until(lambda: proc.pid in listener_pids(opts["cdp_port"]), 30, "Chrome DevTools port", pid=proc.pid)
-    version = wait_until(lambda: http("GET", f"http://127.0.0.1:{opts['cdp_port']}/json/version"), 20,
-                                    "Chrome /json/version", pid=proc.pid)
-    return dict(rec, browser=version.get("Browser"), user_agent=version.get("User-Agent"), args=args)
+    version = kill_on_failure(proc, lambda: opencode_side.chrome_ready(proc, opts))
+    return dict(opencode_side.record_of(proc), browser=version.get("Browser"), user_agent=version.get("User-Agent"), args=args)
 
 
 def versions(opts):
@@ -238,8 +236,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
         daemon = daemon_record(home, opts["lane"])
     finally:
         stopped = stop_lane(opts)
-    reset_by_agent = check.get("reset_at_ms") is not None and check.get("reset_at_ms") != baseline.get("reset_at_ms")
-    passed = bool(check.get("pass")) and not reset_by_agent
+    passed, reset_by_agent = grading.grade(check, timed_out, baseline_reset_at_ms=baseline.get("reset_at_ms"))
     completed = check.get("completed_at_ms")
     lines = read_jsonl(events)
     parsed = (ardia_side.parse_claude if agent == "claude" else ardia_side.parse_codex)(lines)

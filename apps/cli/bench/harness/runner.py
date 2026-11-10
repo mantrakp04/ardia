@@ -11,6 +11,7 @@ from pathlib import Path
 
 import ardia_side
 import browseruse_side
+import grading
 import opencode_side
 import registry
 import servers
@@ -45,13 +46,15 @@ def schedule(plan):
 def normalize_aside(raw, task_id, contender, run_id):
     check = raw.get("check") or {}
     tokens = raw.get("tokens") or {}
+    timed_out = raw.get("status") == "timeout"
+    passed, reset_by_agent = grading.grade(check, timed_out, sent_at_ms=grading.epoch_ms(raw.get("sent_at")))
     return {
         "run_id": run_id, "side": "aside", "contender": contender["id"], "task": task_id,
         "started_at": raw.get("started_at"), "model": raw.get("model_used") or contender.get("model"),
         "effort": raw.get("effort_used") or contender.get("effort"),
         "wall_s": raw.get("duration_s") if raw.get("duration_s") is not None else raw.get("wall_s"),
-        "timed_out": raw.get("status") == "timeout", "status": raw.get("status"), "error": raw.get("error"),
-        "pass": bool(check.get("pass")) and raw.get("status") == "done",
+        "timed_out": timed_out, "status": raw.get("status"), "error": raw.get("error"),
+        "pass": passed, "reset_by_agent": reset_by_agent,
         "time_to_correct_s": raw.get("time_to_correct_s"),
         "commands": raw.get("steps"),
         "tokens": {"total": tokens.get("totalTokens"), **{k: v for k, v in tokens.items() if k != "totalTokens"}}

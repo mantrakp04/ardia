@@ -198,14 +198,6 @@ class Notes(unittest.TestCase):
         self.assertEqual(status, 7)
         self.assertEqual(seen["argv"], ["--data-dir", "/d", "add", "--json", "hi"])
 
-    def test_missing_module_leaves_the_rest_working(self):
-        with clean_env(), mock.patch.dict(sys.modules, {"ardia_cli.notes": None}):
-            status, _, err = run_cli("notes", "list")
-            self.assertEqual(status, 1)
-            self.assertIn("ardia notes isn't in this build", err)
-            self.assertEqual(run_cli("--help")[0], 0)
-
-    @unittest.skipUnless(importlib.util.find_spec("ardia_cli.notes"), "ardia_cli/notes.py isn't there yet")
     def test_real_module_answers_help(self):
         with clean_env():
             status, _, _ = run_cli("notes", "--help")

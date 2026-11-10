@@ -6,7 +6,6 @@ from http.cookies import SimpleCookie
 from benchhttp import now_ms
 
 UI_EVENT_MAX_AGE_MS = 2000
-WRITE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 
 
 def sha256_hex(data):

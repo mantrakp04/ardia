@@ -1,7 +1,7 @@
 # Browser-agent bench
 
 Claude Code and Codex driving Ardia through `ardia browse` against Aside's built-in agent. Every contender gets the
-same eight local web apps and the same prompt. A checker on the app's own server grades each run.
+same nine local web apps and the same prompt. A checker on the app's own server grades each run.
 
 ```
 tasks.json          the registry both harnesses read
@@ -23,6 +23,7 @@ plans/*.json        plans: tasks x contenders x repeats
 | `grid` | Virtualized inventory sheet: filter, sort, inline edits with validation, add a row, save | 8831 | 480 s |
 | `kanban` | Sprint board: HTML5 drag and drop (with a keyboard alternative), labels, due date, archive | 8841 | 480 s |
 | `multitab` | Inbox, team directory and room scheduler on three origins: book the meeting | 8851-8853 | 600 s |
+| `bulk` | Storefront admin: tag the legacy orders and archive the delivered ones, nothing else | 8861 | 600 s |
 
 Each server is Python stdlib only, run from this folder as `python3 -I tasks/<id>/server.py`, on fixed ports, and
 stops on SIGTERM. With `BENCH_PORT_OFFSET=N` in its environment, `benchhttp.serve_forever` binds each port + N, and
@@ -39,7 +40,11 @@ any copy, and no `server.py` handles the offset itself. A server that binds its 
   - `completed_at_ms` is when the user action that made the state pass happened, so a run's time to correct is
     `completed_at_ms` minus the agent's start.
   - `details` says what's wrong and what the user entered, never the expected values.
-  - A run where `reset_at_ms` moved (someone reset during the run) doesn't count as a pass.
+  - Every side grades a run the same way (`harness/grading.py`): it passes only when the check passes, the run
+    finished before its deadline and nobody reset the task during it (`reset_at_ms` moved from the baseline taken
+    after the harness's reset, or, for Aside, past the moment the prompt went out). Results recorded before
+    2026-11-09 counted runs that hit the deadline (all sides but Aside) or were reset (Aside) as passes, so they
+    aren't comparable for those runs.
 
 Neither endpoint is linked from the apps. `python3 -I tasks/<id>/selftest.py` (with the server running) checks
 three things:
@@ -130,17 +135,19 @@ python3 -I harness/bench.py stop
     `<results>/memory.jsonl` samples memory and the active runs every 3 s.
   - `--dry-run` prints the simulated timeline. It uses durations from the results dir if there are any, and a
     modeled memory curve.
-  - `python3 -I harness/test_scheduler.py` tests the scheduler.
+  - `python3 -I harness/test_scheduler.py` tests the scheduler, and `python3 -I harness/test_grading.py` the pass rule
+    and the cleanup of a Chrome or relay that never came up.
   - Aside contenders shell out to `node ~/ardia-scratch/aside-bench/bin/aside_run.mjs <run_id> --task <id>
     --registry tasks.json --out <results>/aside-raw --model <name> --visibility covered` (`BENCH_ASIDE_DRIVER`
     overrides the path). Their record is normalized into `runs/<run_id>.json`.
   - A plan resumes: finished runs are skipped, and runs that hit a harness error are retried.
-- **A plan file** has `name`, `repeats`, `tasks` (`"all"` or a list of ids), `contenders`, `results`, and optionally
+- **A plan file** has `name`, `repeats`, `tasks` (`"all"` or a list of ids; `"all"` is every task in the registry, so
+  `full.json`, `opencode.json` and `browseruse.json` now include `bulk`), `contenders`, `results`, and optionally
   `max_lanes`, `pace_slack`, `max_round_lead` and the Ardia keys (`app`, `port`, `cli`, `ardia_test`). A task the
   registry doesn't have stops the plan, dry run included, with the list of known ids.
   - `plans/realism.json` re-runs `expenses`, `kanban` and `bulk` three times for all eight contenders (Ardia, OpenCode
-    Browse and Browser Use with Claude Code and Codex, and the two Aside agents) on up to 12 lanes, into
-    `results/realism-1`.
+    Browse and Browser Use with Claude Code and Codex, and the two Aside agents) on up to 24 lanes (memory gating still
+    caps them), into `results/realism-1`.
 - **`summary.json`** is rewritten after every run, in a shape the site renders directly:
   - `tasks` and `contenders` list what was run.
   - `cells[]` has one entry per task and contender: `pass_rate`, `median_time_s`, `median_time_to_correct_s`,

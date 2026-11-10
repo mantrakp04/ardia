@@ -47,8 +47,7 @@ the pins into `pyproject.toml`).
   couldn't be read or ran out of time, 2 Ardia can't be reached.
 - `ardia notes [get|set|append|list|rm] [SITE] [TEXT|-]` keeps plain-text notes per site for the user's own agent
   (see Site notes). It hands its arguments to `ardia_cli/notes.py` (`main(argv)`), which runs them as
-  `ardia browse notes …`, with the shared options given before `notes` put first. When the module isn't there it
-  prints one line and exits 1; nothing else depends on it.
+  `ardia browse notes …`, with the shared options given before `notes` put first.
 - `ardia skills install --target general|codex|claude-code|cursor|opencode [--target …] [--project]` installs the
   agent skill (`ardia_cli/skill`: a `SKILL.md` of about 5K characters with the fast paths (read, batch, select,
   script, notes), plus `references/troubleshooting.md`, `script.md`, `userscripts.md`, `config.md`, `automation.md`
@@ -847,7 +846,8 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `batch_steps` (also the operations an `ardia apply`, `tabs …`
+  `output_chars` and `output_truncated`, `humanize`, `daemon_answer_timed_out` (the client gave up waiting for the
+  daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer
   (`command_metrics.py`).

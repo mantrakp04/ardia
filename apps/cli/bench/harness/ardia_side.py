@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import grading
 import registry
 import servers
 from procs import (front_pid, http, kill_group, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
@@ -406,8 +407,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
         check = http(task["check"]["method"], task["check"]["url"])
     except Exception as e:
         check = {"pass": False, "error": str(e)}
-    reset_by_agent = check.get("reset_at_ms") is not None and check.get("reset_at_ms") != baseline.get("reset_at_ms")
-    passed = bool(check.get("pass")) and not reset_by_agent
+    passed, reset_by_agent = grading.grade(check, timed_out, baseline_reset_at_ms=baseline.get("reset_at_ms"))
     completed = check.get("completed_at_ms")
     parsed = (parse_claude if agent == "claude" else parse_codex)(read_jsonl(events))
     record = {

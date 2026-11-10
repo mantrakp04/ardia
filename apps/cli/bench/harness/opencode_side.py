@@ -9,9 +9,10 @@ import time
 from pathlib import Path
 
 import ardia_side
+import grading
 import registry
 import servers
-from procs import (front_pid, http, kill_group, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
+from procs import (front_pid, http, kill_group, kill_on_failure, listener_pids, proc_info, read_json, read_jsonl, same_process, sh,
                    terminate, wait_until, write_json)
 
 ROOT = Path(os.environ.get("BENCH_OPENCODE_HOME", Path.home() / "ardia-scratch/opencode-browse"))
@@ -149,19 +150,22 @@ def launch_chrome(opts, home, logs):
             "--enable-unsafe-extension-debugging", "--no-first-run", "--no-default-browser-check",
             "--use-mock-keychain", "--password-store=basic", f"--window-size={opts['window_size']}", "about:blank"]
     proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=logs, stderr=logs, start_new_session=True)
-    rec = record_of(proc)
+    version = kill_on_failure(proc, lambda: chrome_ready(proc, opts))
+    return dict(record_of(proc), browser=version.get("Browser"), user_agent=version.get("User-Agent"), args=args)
+
+
+def chrome_ready(proc, opts):
     wait_until(lambda: proc.pid in listener_pids(opts["cdp_port"]), 30, "Chrome DevTools port", pid=proc.pid)
-    version = wait_until(lambda: http("GET", f"http://127.0.0.1:{opts['cdp_port']}/json/version"), 20,
-                         "Chrome /json/version", pid=proc.pid)
-    return dict(rec, browser=version.get("Browser"), user_agent=version.get("User-Agent"), args=args)
+    return wait_until(lambda: http("GET", f"http://127.0.0.1:{opts['cdp_port']}/json/version"), 20,
+                      "Chrome /json/version", pid=proc.pid)
 
 
 def start_relay(opts, home, logs):
     proc = subprocess.Popen([node_bin(), opts["browse_entry"], "serve"], cwd=home, env=relay_env(opts, home),
                             stdin=subprocess.DEVNULL, stdout=logs, stderr=logs, start_new_session=True)
-    rec = record_of(proc)
-    wait_until(lambda: proc.pid in listener_pids(opts["relay_port"]), 30, "browse relay port", pid=proc.pid)
-    return rec
+    kill_on_failure(proc, lambda: wait_until(lambda: proc.pid in listener_pids(opts["relay_port"]), 30, "browse relay port",
+                                             pid=proc.pid))
+    return record_of(proc)
 
 
 def pair(opts, home):
@@ -396,8 +400,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
             status_after = {"error": str(e)}
     finally:
         stopped = stop_lane(opts)
-    reset_by_agent = check.get("reset_at_ms") is not None and check.get("reset_at_ms") != baseline.get("reset_at_ms")
-    passed = bool(check.get("pass")) and not reset_by_agent
+    passed, reset_by_agent = grading.grade(check, timed_out, baseline_reset_at_ms=baseline.get("reset_at_ms"))
     completed = check.get("completed_at_ms")
     lines = read_jsonl(events)
     parsed = (ardia_side.parse_claude if agent == "claude" else ardia_side.parse_codex)(lines)
