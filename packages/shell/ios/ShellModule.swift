@@ -20,6 +20,7 @@ public class ShellModule: Module {
       _ = installSubmenuAction
       _ = installInputSourceKeys
       _ = installScrollViewInsetFix
+      _ = installHorizontalWheelScroll
       _ = installOutsidePressMonitor
       _ = installWindowMoveFallback
       self.lifetime.begin(self) {
@@ -77,6 +78,10 @@ public class ShellModule: Module {
       }
     }
     AsyncFunction("readText") { () -> String in NSPasteboard.general.string(forType: .string) ?? "" }.runOnQueue(.main)
+    Function("takeStripWheelCounts") { () -> [String: Int] in
+      let taken = WheelTally.strip.take()
+      return ["ticks": taken.ticks, "moved": taken.moved]
+    }
   }
 
   private func observeForSidebar() {

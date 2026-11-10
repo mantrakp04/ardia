@@ -63,8 +63,16 @@ export const emitCommand = (event: CommandEvent) => shellEvents.emit("onCommand"
 export const emitOpenURLs = (urls: string[], pointer?: [number, number], source?: { bundleId: string | null; appName: string | null }) =>
   shellEvents.emit("onOpenURLs", { urls, pointer, source });
 
+export const stripWheel = { ticks: 0, moved: 0 };
+
 const shell: Modules["ArdiaShell"] = {
   addListener: shellEvents.addListener,
+  takeStripWheelCounts: () => {
+    const taken = { ticks: stripWheel.ticks, moved: stripWheel.moved };
+    stripWheel.ticks = 0;
+    stripWheel.moved = 0;
+    return taken;
+  },
   copyText: () => {},
   readText: () => Promise.resolve(""),
   startDictation: () => {},

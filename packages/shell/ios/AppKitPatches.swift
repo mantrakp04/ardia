@@ -58,6 +58,47 @@ let installInputSourceKeys: Void = {
   if !class_addMethod(NSTextView.self, keyDown, imp, method_getTypeEncoding(method)) { method_setImplementation(method, imp) }
 }()
 
+private func sidewaysWheelOffset(of view: NSScrollView, for event: NSEvent) -> Double? {
+  guard view.responds(to: NSSelectorFromString("isScrollEnabled")),
+        (view.value(forKey: "scrollEnabled") as? Bool) == true,
+        let document = view.documentView else { return nil }
+  let insets = view.contentInsets
+  let visible = view.contentView.bounds.size
+  let content = document.frame.size
+  let left = Double(-insets.left)
+  let top = Double(-insets.top)
+  let horizontal = ScrollRange(lowest: left, highest: max(left, Double(content.width - visible.width + insets.right)))
+  let vertical = ScrollRange(lowest: top, highest: max(top, Double(content.height - visible.height + insets.bottom)))
+  let tick = WheelTick(
+    deltaX: Double(event.scrollingDeltaX),
+    deltaY: Double(event.scrollingDeltaY),
+    precise: event.hasPreciseScrollingDeltas,
+    phased: !event.phase.isEmpty || !event.momentumPhase.isEmpty
+  )
+  return WheelAxis.sidewaysOffset(for: tick, at: Double(view.documentVisibleRect.origin.x), horizontal: horizontal, vertical: vertical)
+}
+
+let installHorizontalWheelScroll: Void = {
+  let scrollWheel = #selector(NSResponder.scrollWheel(with:))
+  guard let cls = NSClassFromString("RCTCustomScrollView"),
+        let method = class_getInstanceMethod(cls, scrollWheel) else { return }
+  typealias ScrollWheel = @convention(c) (AnyObject, Selector, NSEvent) -> Void
+  let original = unsafeBitCast(method_getImplementation(method), to: ScrollWheel.self)
+  let block: @convention(block) (NSScrollView, NSEvent) -> Void = { view, event in
+    guard let x = sidewaysWheelOffset(of: view, for: event), let document = view.documentView else {
+      original(view, scrollWheel, event)
+      return
+    }
+    let origin = view.documentVisibleRect.origin
+    document.scroll(NSPoint(x: x, y: origin.y))
+    WheelTally.strip.note(from: Double(origin.x), to: Double(view.documentVisibleRect.origin.x))
+  }
+  let imp = imp_implementationWithBlock(block)
+  if !class_addMethod(cls, scrollWheel, imp, method_getTypeEncoding(method)) {
+    method_setImplementation(method, imp)
+  }
+}()
+
 let installScrollViewInsetFix: Void = {
   guard let cls = NSClassFromString("RCTCustomScrollView"),
         let method = class_getInstanceMethod(cls, #selector(NSView.init(frame:))) else { return }
