@@ -109,7 +109,7 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
 
   Send-Chord @(0x11) 0x54
   $commanded = (Test-Path $Log) -and (Select-String -Path $Log -Pattern "^command \d+ newTab" -Quiet)
-  if ($commanded) { Write-Host "Input: Ctrl+T reached the UI as newTab." } else { $notes += "input: Ctrl+T did not reach the UI as a command" }
+  if ($commanded) { Write-Host "Input: Ctrl+T matched newTab and was sent to the UI." } else { $notes += "input: Ctrl+T matched no command" }
 
   Send-Drag ($before.Left + [int]($width * 0.6)) ($before.Top + 24) 70 50
   $after = Get-WindowRect $Process

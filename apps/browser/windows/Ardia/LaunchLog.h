@@ -1,5 +1,7 @@
 #pragma once
 
+#include <share.h>
+
 namespace Ardia {
 
 struct LaunchLog {
@@ -40,7 +42,7 @@ struct LaunchLog {
   static void Open(const std::wstring &path) noexcept {
     std::scoped_lock lock{Mutex()};
     if (File()) return;
-    _wfopen_s(&File(), path.c_str(), L"ab");
+    File() = _wfsopen(path.c_str(), L"ab", _SH_DENYNO);
   }
 
   static FILE *&File() noexcept {
