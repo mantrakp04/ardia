@@ -56,7 +56,19 @@ Logic is written once. Only code that calls the OS is written per platform.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
-  context menus, and icons.
+  context menus, icons, file and link drops, and notifications.
+- File and link drops: each browser window's top-level window and its child windows take OLE drops (`FileDropTarget.h`).
+  Every `FileDropArea` reports its frame in the window to native as it mounts, lays out and changes, and again when a
+  drag enters the window; native picks the innermost enabled area under the pointer, so the cursor shows copy or no
+  drop at once, and reads files (`CF_HDROP`), links (`UniformResourceLocatorW`) and text (`CF_UNICODETEXT`) with the
+  Mac's rules for each accept mode (`FileDropItems.h`), `.url` and `.webloc` files included. The area gets the Mac's
+  enter, move, exit and drop updates. Dragging a file out of the app is not built yet, so `devLastFileDrag` is empty.
+- Notifications are Windows App SDK app notifications (`NotificationCenter.h`): the app registers at startup, before
+  the first window, which also registers its toast activator for this unpackaged app, so a click on a toast reaches
+  the running app or launches it. Clicks are held until a window is open, then sent as `onNotificationResponse`.
+  Windows has no permission prompt: the system setting for the app is the answer. A background instance registers
+  but logs toasts instead of showing them. Windows reports no dismissals, so there is no `close` response. If
+  registration fails, notifications answer as not set up and the launch log says why once.
 - Shortcuts are the Mac's with Command as Ctrl and Option as Alt, except where Windows has its own convention;
   `CommandTable.h` holds both columns. The JS command catalog still shows the Mac keys in Settings.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
@@ -115,6 +127,6 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 3. ArdiaCore: split into a shared core (`.cc`) and platform files (`_mac.mm`, `_win.cc`), then write the Windows files.
 4. The Windows versions of the Mac-specific engine patches.
 5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
-   from Edge and Chrome, file drops, swipe gestures, Windows notification toasts.
+   from Edge and Chrome, dragging files out of the app, swipe gestures.
 6. Windows behaviour: Ctrl shortcuts, window controls on the right.
 7. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.

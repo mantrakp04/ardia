@@ -1,5 +1,6 @@
 import type { Check } from "./check";
 import { checks as appSystemChecks } from "./appSystem";
+import { checks as fileDropChecks } from "./fileDrop";
 import { checks as materialChecks } from "./materials";
 import { checks as menuChecks } from "./menus";
 import { checks as shellChecks } from "./shell";
@@ -9,7 +10,7 @@ import { checks as viewChecks } from "./views";
 import { checks as windowDragChecks } from "./windowDrag";
 import { checks as windowChecks } from "./windows";
 
-const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, materialChecks, windowDragChecks];
+const areas: Check[][] = [windowChecks, appSystemChecks, shellChecks, storageChecks, viewChecks, menuChecks, symbolChecks, materialChecks, windowDragChecks, fileDropChecks];
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 

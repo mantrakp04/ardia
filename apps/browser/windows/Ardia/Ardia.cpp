@@ -51,6 +51,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE, HINSTANCE, PSTR, int) {
   Ardia::Host host;
   Ardia::Host::Current() = &host;
   host.queue = winrt::Microsoft::UI::Dispatching::DispatcherQueueController::CreateOnCurrentThread();
+  Ardia::NotificationParts::NotificationHub::Shared().Install();
 
   auto settings{host.reactHost.InstanceSettings()};
   settings.Properties().Set(

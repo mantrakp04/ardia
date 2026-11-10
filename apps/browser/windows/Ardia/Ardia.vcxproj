@@ -118,6 +118,11 @@
     <ClInclude Include="DialogsModule.h" />
     <ClInclude Include="DocumentsModule.h" />
     <ClInclude Include="KeychainModule.h" />
+    <ClInclude Include="FileDropItems.h" />
+    <ClInclude Include="FileDropModule.h" />
+    <ClInclude Include="FileDropTarget.h" />
+    <ClInclude Include="NotificationCenter.h" />
+    <ClInclude Include="NotificationJson.h" />
     <ClInclude Include="NotificationsModule.h" />
     <ClInclude Include="ShellModule.h" />
     <ClInclude Include="SystemModule.h" />

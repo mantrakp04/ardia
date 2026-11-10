@@ -1,6 +1,7 @@
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
-import { View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import { RootTagContext, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { noteMissing } from "../missing";
+import { acceptsOf, useFileDropArea, type DropUpdate } from "./fileDropAreas";
 import { claimOnce, type AnyProps } from "./shared";
 
 type PointerLike = { nativeEvent?: Record<string, unknown> };
@@ -144,14 +145,28 @@ export const MagnifyArea = forwardRef<View, AnyProps>(function MagnifyArea({ ena
   );
 });
 
-export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyProps>(function FileDrop({ accepts: _accepts, enabled: _enabled, onDropUpdate: _onDropUpdate, children, ...rest }, ref) {
-  useEffect(() => noteMissing("<ArdiaFileDrop> drops"), []);
+const FileDropDepth = createContext(0);
+
+export const FileDrop = forwardRef<{ nativeRef: { current: View | null } }, AnyProps>(function FileDrop({ accepts, enabled, onDropUpdate, onLayout, children, ...rest }, ref) {
+  const depth = useContext(FileDropDepth) + 1;
+  const rootTag = useContext(RootTagContext) as unknown as number;
   const nativeRef = useRef<View | null>(null);
   useImperativeHandle(ref, () => ({ nativeRef }), []);
+  const deliver = useCallback((update: DropUpdate) => call(onDropUpdate, { nativeEvent: update }), [onDropUpdate]);
+  const measure = useFileDropArea(nativeRef, rootTag, depth, acceptsOf(accepts), enabled !== false, deliver);
+  const layout = useCallback(
+    (event: unknown) => {
+      call(onLayout, event);
+      measure();
+    },
+    [onLayout, measure],
+  );
   return (
-    <View {...rest} ref={nativeRef}>
-      {children as ReactNode}
-    </View>
+    <FileDropDepth.Provider value={depth}>
+      <View {...rest} ref={nativeRef} collapsable={false} onLayout={layout}>
+        {children as ReactNode}
+      </View>
+    </FileDropDepth.Provider>
   );
 });
 

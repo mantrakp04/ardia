@@ -6,7 +6,7 @@ import { expectEqual, expectTrue, type Check } from "./check";
 type AppEvent = { type: string; dark?: boolean };
 type Shell = ShellNativeModules["ArdiaShell"];
 type Dialogs = ShellNativeModules["ArdiaDialogs"];
-type Notifications = ShellNativeModules["ArdiaNotifications"];
+type Notifications = ShellNativeModules["ArdiaNotifications"] & { notificationCenterPath(): string };
 
 const shell = () => requireNativeModule<Shell>("ArdiaShell");
 const dialogs = () => requireNativeModule<Dialogs>("ArdiaDialogs");
@@ -74,12 +74,24 @@ export const checks: Check[] = [
     },
   },
   {
-    name: "shell: notifications answer as not set up yet",
+    name: "shell: notifications answer from Windows App SDK when it registered, and as not set up when it did not",
     async run() {
-      expectEqual(await notifications().notificationPermission(), "notDetermined", "notificationPermission");
-      expectEqual(await notifications().requestNotificationPermission(), false, "requestNotificationPermission");
-      expectEqual(await notifications().postNotification({ title: "Self check", body: "not shown" }), null, "postNotification");
-      await notifications().removeNotifications(["self-check"]);
+      const path = notifications().notificationCenterPath();
+      if (path !== "appNotifications") {
+        expectTrue(path.startsWith("unregistered: "), `notificationCenterPath: ${path}`);
+        expectEqual(await notifications().notificationPermission(), "notDetermined", "notificationPermission");
+        expectEqual(await notifications().requestNotificationPermission(), false, "requestNotificationPermission");
+        expectEqual(await notifications().postNotification({ title: "Self check", body: "not shown" }), null, "postNotification");
+        await notifications().removeNotifications(["self-check"]);
+        return;
+      }
+      const permission = await notifications().notificationPermission();
+      expectTrue(permission === "granted" || permission === "denied", `notificationPermission: ${permission}`);
+      expectEqual(await notifications().requestNotificationPermission(), permission === "granted", "requestNotificationPermission");
+      expectEqual(await notifications().postNotification({ id: "self-check", title: "Self check", body: "not shown", data: { n: 1 } }), "self-check", "postNotification with an id");
+      const generated = await notifications().postNotification({ title: "Self check", body: "not shown" });
+      expectTrue(typeof generated === "string" && generated.length > 0, `postNotification without an id: ${String(generated)}`);
+      await notifications().removeNotifications(["self-check", generated]);
     },
   },
 ];
