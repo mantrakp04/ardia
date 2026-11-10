@@ -4,7 +4,7 @@ import { activeTab } from "../browser/model";
 import { diagnosticsSnapshot } from "../telemetry/diagnosticsSnapshot";
 import { settingsSnapshot } from "../telemetry/settingsSnapshot";
 import type { ReportDraft } from "./form";
-import { PLATFORM_TERMS } from "../../lib/platformTerms";
+import { PLATFORM_IDS, PLATFORM_TERMS } from "../../lib/platformTerms";
 
 export type SystemDetails = Record<string, string | number | null>;
 
@@ -17,7 +17,7 @@ export async function systemDetails(): Promise<SystemDetails> {
     app: `${app.appName} ${app.appVersion} (${app.appBuild})`,
     configuration: app.configuration,
     engine: engine ? `Chromium ${engine.chromiumVersion}` : null,
-    macos: `${app.osVersion} (${app.osBuild})`,
+    [PLATFORM_IDS.report]: `${app.osVersion} (${app.osBuild})`,
     arch: app.arch,
     model: app.model,
     memory_gb: Math.round(app.memoryGB),

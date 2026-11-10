@@ -3,22 +3,22 @@ import { FIRST_FUNCTION_KEY, ordered } from "./modifiers";
 import { GLYPH_KEYS, parseMacShortcut } from "./macGlyphs";
 import type { Shortcut } from "./shortcuts";
 
-export const WINDOWS_KEYS: Readonly<Record<string, readonly string[]>> = {
+export const WINDOWS_KEYS: Readonly<Record<string, readonly (string | null)[]>> = {
   openSettings: ["Ctrl+,"],
   newTab: ["Ctrl+T"],
-  newTabInGroup: ["Ctrl+Alt+T"],
+  newTabInGroup: ["Ctrl+Alt+T", null],
   newWindow: ["Ctrl+N"],
   newIncognitoWindow: ["Ctrl+Shift+N"],
   newLittleArdia: ["Ctrl+Alt+N"],
   reopenClosedTab: ["Ctrl+Shift+T"],
   openFile: ["Ctrl+O"],
-  focusCommandBar: ["Ctrl+L", "Alt+D"],
+  focusCommandBar: ["Ctrl+L", null, "Alt+D"],
   "std:closeWindow:": ["Ctrl+Shift+W"],
   closeTab: ["Ctrl+W", "Ctrl+F4"],
   closeAllTabs: ["Ctrl+Shift+K"],
   cleanUpTabs: ["Ctrl+Alt+K"],
   share: ["Ctrl+Alt+S"],
-  emailPageLocation: [],
+  emailPageLocation: [null],
   print: ["Ctrl+P"],
   printWithSystemDialog: ["Ctrl+Shift+P"],
   copyUrl: ["Ctrl+Shift+C"],
@@ -28,20 +28,20 @@ export const WINDOWS_KEYS: Readonly<Record<string, readonly string[]>> = {
   findNext: ["Ctrl+G", "F3"],
   findPrevious: ["Ctrl+Shift+G", "Shift+F3"],
   useSelectionForFind: ["Ctrl+E"],
-  jumpToSelection: [],
+  jumpToSelection: [null],
   stop: ["Ctrl+."],
   reload: ["Ctrl+R", "F5"],
   forceReload: ["Ctrl+Shift+R", "Ctrl+F5", "Shift+F5"],
   toggleTabLayout: ["Ctrl+Shift+S"],
   toggleSidebar: ["Ctrl+S", "Ctrl+Shift+L", "Ctrl+Shift+F"],
-  openSplitPane: ["Ctrl+\\"],
-  focusNextPane: ["Alt+Shift+]"],
-  focusPreviousPane: ["Alt+Shift+["],
+  openSplitPane: ["Ctrl+\\", null],
+  focusNextPane: ["Alt+Shift+]", null],
+  focusPreviousPane: ["Alt+Shift+[", null],
   toggleBookmarksBar: ["Ctrl+Shift+B"],
   zoomReset: ["Ctrl+0"],
   zoomIn: ["Ctrl+Plus", "Ctrl+="],
   zoomOut: ["Ctrl+-"],
-  "std:toggleFullScreen:": ["F11"],
+  "std:toggleFullScreen:": [null, null, "F11"],
   viewSource: ["Ctrl+U"],
   devTools: ["Ctrl+Shift+I"],
   inspectElements: ["Ctrl+Alt+C"],
@@ -50,8 +50,8 @@ export const WINDOWS_KEYS: Readonly<Record<string, readonly string[]>> = {
   caretBrowsing: ["F7"],
   back: ["Ctrl+[", "Alt+Left"],
   forward: ["Ctrl+]", "Alt+Right"],
-  nextTab: ["Ctrl+Shift+]", "Ctrl+}", "Ctrl+PgDn"],
-  previousTab: ["Ctrl+Shift+[", "Ctrl+{", "Ctrl+PgUp"],
+  nextTab: ["Ctrl+Shift+]", "Ctrl+}", null, "Ctrl+PgDn", null],
+  previousTab: ["Ctrl+Shift+[", "Ctrl+{", null, "Ctrl+PgUp", null],
   moveTabDown: ["Ctrl+Shift+PgDn"],
   moveTabUp: ["Ctrl+Shift+PgUp"],
   searchTabs: ["Ctrl+Shift+A"],
@@ -68,16 +68,16 @@ export const WINDOWS_KEYS: Readonly<Record<string, readonly string[]>> = {
   "selectTab:8": ["Ctrl+8"],
   selectLastTab: ["Ctrl+9"],
   togglePinnedRow: ["Ctrl+Alt+Shift+D"],
-  newGroupWithTabs: ["Ctrl+Alt+G"],
+  newGroupWithTabs: ["Ctrl+Alt+G", null],
   closeTabGroup: ["Ctrl+Alt+W"],
   bookmarkPage: ["Ctrl+D"],
   bookmarkAllTabs: ["Ctrl+Shift+D"],
   manageBookmarks: ["Ctrl+Shift+O"],
   showHistory: ["Ctrl+H"],
   clearBrowsingData: ["Ctrl+Shift+Del"],
-  "std:performMiniaturize:": [],
-  "std:miniaturizeAll:": [],
-  downloads: ["Ctrl+J"],
+  "std:performMiniaturize:": [null],
+  "std:miniaturizeAll:": [null],
+  downloads: ["Ctrl+J", null],
   taskManager: ["Shift+Esc"],
   openProfileMenu: ["Ctrl+Shift+M"],
   reportProblem: ["Ctrl+Alt+Shift+I"],
@@ -85,7 +85,9 @@ export const WINDOWS_KEYS: Readonly<Record<string, readonly string[]>> = {
 
 export const WINDOWS_ALTERNATE_MODIFIER: Extract<ShortcutModifier, "command" | "control"> = "control";
 
-export const windowsDefaultKeys = (id: string, _macKeys?: readonly string[]): readonly string[] => (Object.hasOwn(WINDOWS_KEYS, id) ? WINDOWS_KEYS[id]! : []);
+export const windowsKeysPaired = (id: string): readonly (string | null)[] => (Object.hasOwn(WINDOWS_KEYS, id) ? WINDOWS_KEYS[id]! : []);
+
+export const windowsDefaultKeys = (id: string, _macKeys?: readonly string[]): readonly string[] => windowsKeysPaired(id).filter((key): key is string => key !== null);
 
 export const windowsProfileSwitchKey = (n: number): string => `Alt+${n}`;
 
@@ -153,7 +155,8 @@ export const windowsModifiers = (modifiers: Iterable<ShortcutModifier>): Shortcu
 export function windowsKeyName(key: string): string {
   const code = key.charCodeAt(0);
   if (code >= FIRST_FUNCTION_KEY && code <= LAST_WINDOWS_FUNCTION_KEY) return `F${code - FIRST_FUNCTION_KEY + 1}`;
-  return KEY_NAMES[key] ?? (key.length > 1 ? key[0]!.toUpperCase() + key.slice(1) : key.toUpperCase());
+  if (Object.hasOwn(KEY_NAMES, key)) return KEY_NAMES[key]!;
+  return key.length > 1 ? key[0]!.toUpperCase() + key.slice(1) : key.toUpperCase();
 }
 
 export function formatWindowsShortcut({ key, modifiers }: Shortcut): string {
@@ -173,7 +176,7 @@ function windowsKey(name: string): string | undefined {
 export function parseWindowsShortcut(text: string): Shortcut {
   const parts = text.endsWith("++") ? [...text.slice(0, -2).split("+"), "+"] : text.split("+");
   const name = parts.pop() ?? "";
-  const modifiers = parts.map((part) => MODIFIER_WORDS[part.toLowerCase()]);
+  const modifiers = parts.map((part) => (Object.hasOwn(MODIFIER_WORDS, part.toLowerCase()) ? MODIFIER_WORDS[part.toLowerCase()] : undefined));
   const key = name ? windowsKey(name) : undefined;
   if (key !== undefined && modifiers.every((m) => m !== undefined)) return { key, modifiers: ordered(modifiers as ShortcutModifier[]) };
   const glyphs = parseMacShortcut(text);

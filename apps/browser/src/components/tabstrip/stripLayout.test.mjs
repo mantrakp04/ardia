@@ -79,3 +79,13 @@ test("a held chip width keeps every tab where it was after a close, whatever roo
   assert.deepEqual(held.spanOf("c"), [156.5 + 4, 156.5]);
   assert.equal(layoutStrip(six.slice(1), "b", 1000, measured(), null).chip, 173);
 });
+
+test("the strip's controls clear the caption buttons on Windows, docked or in the peek panel, and never on the Mac", async () => {
+  const { stripCaptionRoom } = await import("./stripGroups.ts");
+  const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
+  for (const floating of [false, true]) for (const fullScreen of [false, true]) assert.equal(stripCaptionRoom(floating, fullScreen), 0);
+  assert.equal(stripCaptionRoom(false, false, windows), 138);
+  assert.equal(stripCaptionRoom(true, false, windows), 131.5);
+  assert.equal(stripCaptionRoom(false, true, windows), 0);
+  assert.equal(stripCaptionRoom(true, true, windows), 0);
+});

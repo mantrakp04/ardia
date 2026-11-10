@@ -39,6 +39,7 @@ import {
 } from "./tokens";
 import { WindowDropGlow } from "./WindowDropGlow";
 import { captionRoom } from "../../lib/windowChrome";
+import { stripCaptionRoom } from "./stripGroups";
 
 export { TOP_STRIP_HEIGHT } from "./tokens";
 
@@ -50,7 +51,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
   const controls = (profileChip ? profileChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX;
   const fullScreen = useWindowFullScreen(windowId);
   const left = floating || fullScreen ? 8 : layout.trafficLightsWidth + LIGHTS_GAP;
-  const room = floating || fullScreen ? 0 : captionRoom(0);
+  const room = stripCaptionRoom(floating, fullScreen);
   const right = Math.max(84, controls + 8 + 6) + room;
   const pageWidth = Math.max(0, width - left - right);
   const flare = floating ? 0 : FLARE;

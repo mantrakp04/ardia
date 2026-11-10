@@ -7,7 +7,7 @@ import { ContextMenuArea, FileDrop, MagnifyArea, MouseArea, OutsidePressArea, Wi
 import { GlassEffect, GlassGroup, PopoverBubble, VisualEffect } from "./materials";
 import { Surface } from "./Surface";
 
-export { installOutsidePressRoot, OutsidePressRoot } from "./inputAreas";
+export { OutsidePressRoot } from "./inputAreas";
 
 export const viewsDrawnInJs = new Map<string, ComponentType<any>>([
   ["ArdiaSurface", Surface],

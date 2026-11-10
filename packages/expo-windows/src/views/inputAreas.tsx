@@ -1,5 +1,5 @@
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
-import { AppRegistry, View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import { View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { noteMissing } from "../missing";
 import { claimOnce, type AnyProps } from "./shared";
 
@@ -105,14 +105,6 @@ export function OutsidePressRoot({ children }: { children?: ReactNode }) {
       </View>
     </OutsidePressContext.Provider>
   );
-}
-
-let rootInstalled = false;
-
-export function installOutsidePressRoot() {
-  if (rootInstalled) return;
-  rootInstalled = true;
-  AppRegistry.setWrapperComponentProvider(() => OutsidePressRoot);
 }
 
 export const OutsidePressArea = forwardRef<View, AnyProps>(function OutsidePressArea({ onOutsidePress, onTouchStartCapture, children, ...rest }, ref) {

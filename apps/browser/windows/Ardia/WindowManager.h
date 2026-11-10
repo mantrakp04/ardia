@@ -289,7 +289,7 @@ struct WindowManager {
       if (entry.IsBrowser()) {
         auto titleBar = entry.appWindow.TitleBar();
         titleBar.ExtendsContentIntoTitleBar(true);
-        titleBar.PreferredHeightOption(winrt::Microsoft::UI::Windowing::TitleBarHeightOption::Tall);
+        titleBar.PreferredHeightOption(winrt::Microsoft::UI::Windowing::TitleBarHeightOption::Standard);
         titleBar.ButtonBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
         titleBar.ButtonInactiveBackgroundColor(winrt::Windows::UI::Color{0, 0, 0, 0});
         if (presenter) {

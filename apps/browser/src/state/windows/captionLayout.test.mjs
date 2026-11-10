@@ -40,7 +40,8 @@ test("on Windows the card's top row makes room for the caption buttons wherever 
   const room = (settings, window, frame = 9) => cardCaptionRoom(state(settings, window), "w", frame, 42, windows);
   assert.equal(room({}, {}), 129);
   assert.equal(room({}, {}, 0), 138);
-  assert.equal(room({ tabLayout: "top" }, {}), 129);
+  assert.equal(room({ tabLayout: "top" }, {}), 0);
+  assert.equal(room({ tabLayout: "top" }, { sidebarOpen: false }), 129);
   assert.equal(room({ sidebarSide: "right" }, {}), 0);
   assert.equal(room({ sidebarSide: "right" }, { sidebarOpen: false }), 129);
   assert.equal(room({}, { fullScreen: true }), 0);
@@ -50,9 +51,9 @@ test("on Windows the card's top row makes room for the caption buttons wherever 
 test("on Windows a card without a tall enough toolbar starts below the caption buttons", () => {
   const top = (settings, window) => cardTopInset(state(settings, window), "w", 9, windows);
   assert.equal(top({}, {}), 9);
-  assert.equal(top({ compactToolbar: true }, {}), 20);
-  assert.equal(top({ addressBar: "sidebar" }, {}), 48);
-  assert.equal(top({ hideToolbarWhileScrolling: true }, {}), 48);
+  assert.equal(top({ compactToolbar: true }, {}), 9);
+  assert.equal(top({ addressBar: "sidebar" }, {}), 32);
+  assert.equal(top({ hideToolbarWhileScrolling: true }, {}), 32);
   assert.equal(top({ addressBar: "sidebar", sidebarSide: "right" }, {}), 9);
   assert.equal(top({ tabLayout: "top" }, {}), 9);
   assert.equal(top({ addressBar: "sidebar" }, { fullScreen: true }), 9);

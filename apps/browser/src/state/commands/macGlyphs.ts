@@ -42,7 +42,7 @@ export const GLYPH_KEYS: Record<string, string> = {
 export function formatMacShortcut({ key, modifiers }: Shortcut): string {
   if (!key) return "";
   const code = key.charCodeAt(0);
-  const name = KEY_GLYPHS[key] ?? (code >= FIRST_FUNCTION_KEY && code <= LAST_FUNCTION_KEY ? `F${code - FIRST_FUNCTION_KEY + 1}` : key.toUpperCase());
+  const name = (Object.hasOwn(KEY_GLYPHS, key) ? KEY_GLYPHS[key] : undefined) ?? (code >= FIRST_FUNCTION_KEY && code <= LAST_FUNCTION_KEY ? `F${code - FIRST_FUNCTION_KEY + 1}` : key.toUpperCase());
   return ordered(modifiers).map((m) => MODIFIER_GLYPHS[m]).join("") + name;
 }
 
@@ -57,6 +57,6 @@ export function parseMacShortcut(text: string): Shortcut {
   }
   const name = glyphs.slice(i).join("");
   const functionKey = /^F(\d{1,2})$/.exec(name);
-  const key = GLYPH_KEYS[name] ?? (functionKey ? String.fromCharCode(FIRST_FUNCTION_KEY + Number(functionKey[1]) - 1) : name.toLowerCase());
+  const key = (Object.hasOwn(GLYPH_KEYS, name) ? GLYPH_KEYS[name] : undefined) ?? (functionKey ? String.fromCharCode(FIRST_FUNCTION_KEY + Number(functionKey[1]) - 1) : name.toLowerCase());
   return { key, modifiers: ordered(modifiers) };
 }

@@ -1,11 +1,12 @@
-import { COMMANDS, STANDARD_ITEMS } from "./commandCatalog";
+import { COMMANDS, STANDARD_ITEMS, type CommandSpec } from "./commandCatalog";
 import { MODIFIER_GLYPHS, parseMacShortcut } from "./macGlyphs";
 import { comboKey, type Shortcut } from "./shortcuts";
-import { formatWindowsShortcut, parseWindowsShortcut, windowsDefaultKeys, windowsModifiers, windowsProfileSwitchKey } from "./windowsKeys";
+import { formatWindowsShortcut, parseWindowsShortcut, windowsKeysPaired, windowsModifiers, windowsProfileSwitchKey } from "./windowsKeys";
 
-type Keyed = { keys?: readonly string[]; variants?: Readonly<Record<string, { keys?: readonly string[] }>> };
+type Keyed = Pick<CommandSpec, "keys" | "variants">;
 
 const KEYS_WITHOUT_A_COMMAND: Readonly<Record<string, string>> = { "⌘Q": "Alt+F4" };
+const UNICODE_MINUS = "\u2212";
 const MODIFIER_NAMES = { control: "Ctrl", option: "Alt", shift: "Shift" } as const;
 const GLYPH_MODIFIERS = new Map(Object.entries(MODIFIER_GLYPHS).map(([modifier, glyph]) => [glyph, modifier as keyof typeof MODIFIER_GLYPHS]));
 
@@ -15,11 +16,12 @@ function windowsCombos(): Map<string, Shortcut | null> {
   if (byMacCombo) return byMacCombo;
   byMacCombo = new Map();
   const add = (id: string, keys: readonly string[] | undefined) => {
-    const first = windowsDefaultKeys(id)[0];
-    for (const key of keys ?? []) {
+    const paired = windowsKeysPaired(id);
+    (keys ?? []).forEach((key, i) => {
       const combo = comboKey(parseMacShortcut(key));
-      if (!byMacCombo!.has(combo)) byMacCombo!.set(combo, first ? parseWindowsShortcut(first) : null);
-    }
+      const windows = paired[i];
+      if (!byMacCombo!.has(combo)) byMacCombo!.set(combo, windows ? parseWindowsShortcut(windows) : null);
+    });
   };
   for (const [command, spec] of Object.entries(COMMANDS as Readonly<Record<string, Keyed>>)) {
     add(command, spec.keys);
@@ -36,6 +38,6 @@ export function windowsKeyText(mac: string): string {
   if (glyphs.length && glyphs.every((g) => GLYPH_MODIFIERS.has(g))) {
     return windowsModifiers(glyphs.map((g) => GLYPH_MODIFIERS.get(g)!)).map((m) => MODIFIER_NAMES[m as keyof typeof MODIFIER_NAMES]).join("+");
   }
-  const shortcut = parseMacShortcut(mac);
+  const shortcut = parseMacShortcut(mac.replaceAll(UNICODE_MINUS, "-"));
   return formatWindowsShortcut(windowsCombos().get(comboKey(shortcut)) ?? shortcut);
 }

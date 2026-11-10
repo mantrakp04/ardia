@@ -1,6 +1,6 @@
 import type { ShortcutModifier } from "../../platform/commands";
 
-export const MODIFIER_ORDER: ShortcutModifier[] = ["control", "option", "shift", "command", "function"];
+export const MODIFIER_ORDER: readonly ShortcutModifier[] = ["control", "option", "shift", "command", "function"];
 export const FIRST_FUNCTION_KEY = 0xf704;
 export const LAST_FUNCTION_KEY = 0xf717;
 

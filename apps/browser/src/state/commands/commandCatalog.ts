@@ -9,7 +9,7 @@ type InLittleArdia = "page" | "off";
 type Variant = { title?: string; barTitle?: string; symbol?: string; keys?: Keys };
 type BooleanSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 type ChoiceSetting = { [K in keyof Settings]: Settings[K] extends string ? K : never }[keyof Settings];
-type CommandSpec = Variant & {
+export type CommandSpec = Variant & {
   scope?: Scope;
   onInternalPages?: true;
   app?: true;

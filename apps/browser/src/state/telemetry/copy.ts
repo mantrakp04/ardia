@@ -1,5 +1,11 @@
 import { PLATFORM_TERMS } from "../../lib/platformTerms";
 import { keyText } from "../commands/keyText";
+import { PLATFORM_FEATURES } from "../../lib/platformFeatures";
+
+export function periodicNote(computer: string, memoryPressure: boolean): string {
+  const noted = ["its tab, window and profile counts", "its memory use", "rough free disk space", ...(memoryPressure ? [`the ${computer}'s memory pressure`] : []), "how long it has been open"];
+  return `Every 10 minutes Ardia notes on this ${computer} ${noted.slice(0, -1).join(", ")} and ${noted.at(-1)}. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${computer} restarted since. Turning sharing off or deleting a profile erases it`;
+}
 
 export const SHARING_COPY = {
   toggle: "Share anonymous crash reports and usage stats",
@@ -47,7 +53,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "After a crash: the exception type and name (never its message), and the function names where it was thrown and on the crashing thread, from this app's crash report",
       "The same for crashes of Ardia's page, graphics and helper processes, plus the version that crashed, how long the process had run, the total size of its writable memory regions, and how the system ended it (its termination reason, like a signal or a code-signing kill)",
       "When a page's process stops (crashed, killed, out of memory or failed to start): why, its exit code, whether the tab was on screen, and how many tabs, windows and profiles were open",
-      `Every 10 minutes Ardia notes on this ${PLATFORM_TERMS.computer} its tab, window and profile counts, its memory use, rough free disk space, the ${PLATFORM_TERMS.computer}'s memory pressure and how long it has been open. That note is sent only with a crash report, or at the next launch after Ardia didn't quit cleanly, with whether the ${PLATFORM_TERMS.computer} restarted since. Turning sharing off or deleting a profile erases it`,
+      periodicNote(PLATFORM_TERMS.computer, PLATFORM_FEATURES.memoryPressure),
       "Warning and error log lines, cleaned the same way",
     ],
   },

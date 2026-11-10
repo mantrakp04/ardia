@@ -8,6 +8,7 @@ const { keyText } = await import("./keyText.ts");
 const { windowsKeyText } = await import("./windowsKeyText.ts");
 const { comboKey } = await import("./shortcuts.ts");
 const { COMMANDS, staticShortcutSources } = await import("./commandCatalog.ts");
+const windowsShortcuts = await import("./shortcuts.ts");
 
 const { WINDOWS_KEYS, formatWindowsShortcut, parseWindowsShortcut, windowsDefaultKeys } = windowsKeys;
 
@@ -19,6 +20,12 @@ function nativeRows() {
     .filter((m) => m[1])
     .map((m) => ({ id: m[1], mac: unescape(m[2]), windows: unescape(m[3]) }));
 }
+const NATIVE_MODIFIERS = { cmd: "command", option: "option", ctrl: "control", shift: "shift", fn: "function" };
+const macFromNative = (part) => {
+  const parts = part.split("+");
+  const key = parts.pop();
+  return { key: parseWindowsShortcut(key).key, modifiers: parts.map((p) => NATIVE_MODIFIERS[p]) };
+};
 const nativeCombos = (list) => list.split("|").filter((part) => part && part !== "none").map((part) => comboKey(parseWindowsShortcut(part)));
 
 test("the Windows defaults are exactly the Windows column of CommandTable.h", () => {
@@ -26,6 +33,8 @@ test("the Windows defaults are exactly the Windows column of CommandTable.h", ()
   assert.ok(rows.length > 100);
   const native = new Map(rows.map((row) => [row.id, nativeCombos(row.windows)]));
   for (const [id, combos] of native) assert.deepEqual(windowsDefaultKeys(id).map((k) => comboKey(parseWindowsShortcut(k))), combos, id);
+  const positions = new Map(rows.map((row) => [row.id, row.windows.split("|").filter(Boolean).map((part) => (part === "none" ? null : comboKey(parseWindowsShortcut(part))))]));
+  for (const [id, keys] of Object.entries(WINDOWS_KEYS)) assert.deepEqual(keys.map((k) => (k === null ? null : comboKey(parseWindowsShortcut(k)))), positions.get(id), id);
   for (const id of Object.keys(WINDOWS_KEYS)) assert.ok(native.has(id), `${id} is not a CommandTable.h row`);
 });
 
@@ -38,7 +47,7 @@ test("every command with a Mac key that Windows lists has a Windows entry", () =
 test("no two commands share a Windows default", () => {
   const holders = new Map();
   for (const [id, keys] of Object.entries(WINDOWS_KEYS)) {
-    for (const key of keys) holders.set(comboKey(parseWindowsShortcut(key)), [...(holders.get(comboKey(parseWindowsShortcut(key))) ?? []), id]);
+    for (const key of keys.filter((k) => k !== null)) holders.set(comboKey(parseWindowsShortcut(key)), [...(holders.get(comboKey(parseWindowsShortcut(key))) ?? []), id]);
   }
   for (let n = 1; n <= 9; n++) {
     const key = comboKey(parseWindowsShortcut(windowsKeys.windowsProfileSwitchKey(n)));
@@ -48,7 +57,7 @@ test("no two commands share a Windows default", () => {
 });
 
 test("Windows shortcuts read and print the way the native menus print them", () => {
-  for (const keys of Object.values(WINDOWS_KEYS)) for (const key of keys) assert.equal(formatWindowsShortcut(parseWindowsShortcut(key)), key);
+  for (const keys of Object.values(WINDOWS_KEYS)) for (const key of keys) if (key !== null) assert.equal(formatWindowsShortcut(parseWindowsShortcut(key)), key);
   assert.deepEqual(parseWindowsShortcut("Ctrl+Shift+T"), { key: "t", modifiers: ["control", "shift"] });
   assert.deepEqual(parseWindowsShortcut("ctrl+alt+shift+c"), { key: "c", modifiers: ["control", "option", "shift"] });
   assert.deepEqual(parseWindowsShortcut("Ctrl++"), { key: "+", modifiers: ["control"] });
@@ -111,4 +120,62 @@ test("Windows prose names each Mac shortcut by the Windows key of the same comma
     "⌥⌘": "Ctrl+Alt",
   };
   for (const [mac, windows] of Object.entries(cases)) assert.equal(windowsKeyText(mac), windows, mac);
+});
+
+test("on Windows a synced Mac override with Command reads as Ctrl, so it takes Ctrl+T from New Tab", () => {
+  const { resolveShortcuts } = windowsShortcuts;
+  const sources = [
+    { id: "newTab", keys: [parseWindowsShortcut("Ctrl+T")] },
+    { id: "closeTab", keys: [parseWindowsShortcut("Ctrl+W")] },
+  ];
+  const resolved = resolveShortcuts(sources, { closeTab: ["t", "command"] }, windowsNotation.storedModifiers);
+  assert.deepEqual(resolved.bindings.get("closeTab"), [{ key: "t", modifiers: ["control"] }]);
+  assert.deepEqual(resolved.bindings.get("newTab"), []);
+  assert.deepEqual(windowsNotation.storedModifiers(["command", "function", "shift"]), ["control", "shift"]);
+});
+
+test("the Mac keeps a stored override's modifiers as they are", () => {
+  assert.deepEqual(macNotation.storedModifiers(["command", "function", "control"]), ["command", "function", "control"]);
+  const sources = [
+    { id: "newTab", keys: [macNotation.parseShortcut("⌘T")] },
+    { id: "closeTab", keys: [macNotation.parseShortcut("⌘W")] },
+  ];
+  const resolved = windowsShortcuts.resolveShortcuts(sources, { closeTab: ["t", "command", "function"] });
+  assert.deepEqual(resolved.bindings.get("closeTab"), [{ key: "t", modifiers: ["command", "function"] }]);
+  assert.deepEqual(resolved.bindings.get("newTab"), [{ key: "t", modifiers: ["command"] }]);
+});
+
+test("Windows prose pairs each Mac alias with the Windows key at the same place in the native table", () => {
+  const cases = {
+    "⇧⌘L": "Ctrl+Shift+L",
+    "⇧⌘F": "Ctrl+Shift+F",
+    "⌘[": "Ctrl+[",
+    "⌘←": "Alt+Left",
+    "⌘}": "Ctrl+}",
+    "⌘=": "Ctrl+=",
+    "⌥⌘L": "Ctrl+Alt+L",
+    "⌥⌘↓": "Ctrl+Alt+Down",
+  };
+  for (const [mac, windows] of Object.entries(cases)) assert.equal(windowsKeyText(mac), windows, mac);
+});
+
+test("Windows prose reads a Unicode minus as the zoom-out hyphen", () => {
+  assert.equal(windowsKeyText("⌘−"), "Ctrl+-");
+  assert.equal(keyText("⌘−"), "⌘−");
+});
+
+test("the native table's Mac column lists each command's Mac keys in the catalog's order", () => {
+  const macKeys = new Map(staticShortcutSources().map((s) => [s.id, s.keys.map(comboKey)]));
+  for (const row of nativeRows()) {
+    const native = row.mac.split("|").filter(Boolean).map((part) => comboKey(macFromNative(part)));
+    if (macKeys.has(row.id) && native.length) assert.deepEqual(native, macKeys.get(row.id), row.id);
+  }
+});
+
+test("names that Object.prototype carries are never read as keys or modifiers", () => {
+  for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"]) {
+    assert.equal(typeof parseWindowsShortcut(`${name}+t`).key, "string", name);
+    assert.ok(parseWindowsShortcut(`${name}+t`).modifiers.every((m) => typeof m === "string"), name);
+    assert.equal(typeof windowsKeys.windowsKeyName(name), "string", name);
+  }
 });
