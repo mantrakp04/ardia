@@ -60,6 +60,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many tab and group changes the ardia command made (counts only, never which tabs or groups), how many of its batches were refused or stopped, and how many times its control pill appeared",
       "Opening split view, switching profiles and opening the command bar",
       "Opening Picture in Picture: video or page, and whether its window can show over full-screen apps",
+      "When a page starts and stops sharing your screen, a window or a tab: how the share was picked (Ardia's sheet, a tab, or the system's picker) and how many seconds it lasted. Never which window, screen or site",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how often the ⌃Tab switcher opens and how many closed pinned tabs it left out, summed up once an hour",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",

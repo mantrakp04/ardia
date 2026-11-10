@@ -3,8 +3,9 @@ import { onExtensionsChanged } from "../../platform/extensions";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
+import { usePages } from "../tabs/pageState";
 import { useSync } from "../sync/engine";
-import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
+import { capture, endSession, flush, isSharing, markSettingsSnapshot, reopenSession, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
 import { startWatchChecks } from "./watch";
 import { appIconSetting, customColorProfiles, SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
@@ -16,6 +17,7 @@ import { takeOmniboxLatency } from "./track";
 import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
+import { endRunningScreenShares, resumeScreenShares, screenSharePages } from "./screenShares";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
 
@@ -148,6 +150,10 @@ function watchTranslate() {
   });
 }
 
+function watchScreenShares() {
+  usePages.subscribe((s, prev) => screenSharePages(s.pages, prev.pages));
+}
+
 function watchExtensions() {
   onExtensionsChanged((e) => {
     if (e.event === "installed" && Date.now() - startedAt > EXTENSION_SETTLE_MS) capture("extension_installed");
@@ -241,6 +247,7 @@ export function startUsage() {
   watchStore();
   watchSync();
   watchTranslate();
+  watchScreenShares();
   watchExtensions();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
@@ -250,7 +257,11 @@ export function startUsage() {
       clearTimeout(launchCrashRead);
       stopContextSamples();
       sessionEnding();
-    } else if (e.type === "quitCancelled") startContextSamples();
+    } else if (e.type === "quitCancelled") {
+      reopenSession();
+      startContextSamples();
+      resumeScreenShares(usePages.getState().pages);
+    }
   });
 }
 
@@ -258,6 +269,7 @@ export function sessionEnding() {
   emitCounts();
   emitOmniboxLatency();
   emitTabPresses();
+  endRunningScreenShares();
   journeysEnding();
   capture("app_session_ended", { duration_minutes: Math.round((Date.now() - startedAt) / 60_000) });
   endSession();

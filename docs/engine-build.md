@@ -704,6 +704,18 @@ In the app:
 - Desktop getUserMedia without a picked source is refused outright, with no prompt (as in Chrome, where
   only `getDisplayMedia` and its picker capture the screen). Only camera and microphone get a permission
   prompt.
+- A `getDisplayMedia` that goes on to Chromium's own picker (`AnswerNativeDisplayCapture` returns false for a
+  frame with a click) uses macOS's system picker: `BasicStartupComplete` turns on `media::kUseSCContentSharingPicker`
+  for the browser process, so the system builds the `SCContentFilter`. With Chromium's own filter, a share of one
+  of the app's own windows delivered black frames (#847). The feature is named by its symbol, so a Chromium bump
+  that renames it fails to compile. Chromium honours it on macOS 15 and later only (`ShouldUseSCContentSharingPicker`
+  checks `@available(macOS 15.0, *)`), and ArdiaCore can't change that gate. `kScreenCaptureKitStreamPickerSonoma`
+  and `kScreenCaptureKitPickerScreen` are file-local to `thumbnail_capturer_mac.mm`, already on by default and only
+  for the picker's thumbnails, so they don't move macOS 14 off Chromium's own filter. The Mac capture check of an
+  Ardia window is still to run, and only it can confirm the fix: share an Ardia window from a page in a hidden
+  instance and grab a frame from the stream. `screen_share_started` and `screen_share_ended` (properties `via` and
+  `seconds`, in `telemetry.events`) are activity counts. A share with black frames and a healthy one produce the
+  same events, so they can neither confirm the fix nor show that the black frames came back.
 
 Verified in the app: a "Tab" track at 1558×1080 delivering frames, plus a "Tab Audio" track.
 
