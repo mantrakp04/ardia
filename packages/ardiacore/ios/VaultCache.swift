@@ -237,22 +237,24 @@ enum VaultStoreKey {
   private static let legacyAccount = "vault-cache-key"
   private static let syncedService = "Ardia Password Store"
   private static let syncedAccount = "local-store-key"
-  private static let groupSuffix = ".passwords"
   private static let lock = NSLock()
   nonisolated(unsafe) private static var remembered: [SymmetricKey] = []
+  nonisolated(unsafe) private static var resolved: SymmetricKey?
+  nonisolated(unsafe) private static var legacyLoaded = false
 
-  private static let accessGroup: String? = {
-    guard VaultSandbox.directory == nil, !LaunchConfig.shared.background, let task = SecTaskCreateFromSelf(nil),
-      let groups = SecTaskCopyValueForEntitlement(task, "keychain-access-groups" as CFString, nil) as? [String]
-    else { return nil }
-    return groups.first { $0.hasSuffix(groupSuffix) }
-  }()
+  private static var accessGroup: String? { VaultKeychain.passwordsGroup }
 
   static var syncs: Bool { accessGroup != nil }
 
   static func current(creating: Bool) -> SymmetricKey? {
     lock.lock()
     defer { lock.unlock() }
+    if let resolved { return resolved }
+    resolved = resolve(creating: creating)
+    return resolved
+  }
+
+  private static func resolve(creating: Bool) -> SymmetricKey? {
     let synced = readSynced()
     if case .found(let key) = synced {
       remember(key)
@@ -281,7 +283,8 @@ enum VaultStoreKey {
     _ = current(creating: false)
     lock.lock()
     defer { lock.unlock() }
-    if let legacy = readLegacy() { remember(legacy, first: false) }
+    if !legacyLoaded, let legacy = readLegacy() { remember(legacy, first: false) }
+    legacyLoaded = true
     return remembered
   }
 
@@ -299,7 +302,10 @@ enum VaultStoreKey {
     return SymmetricKey(data: data)
   }
 
-  private static func readLegacy() -> SymmetricKey? { decode(VaultKeychain.read(legacyAccount)) }
+  private static func readLegacy() -> SymmetricKey? {
+    legacyLoaded = true
+    return decode(VaultKeychain.read(legacyAccount))
+  }
 
   private static func syncedQuery(_ group: String) -> [String: Any] {
     [
