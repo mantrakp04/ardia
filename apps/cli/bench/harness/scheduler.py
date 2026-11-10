@@ -7,7 +7,7 @@ RESUME_BELOW = 75.0
 SETTLE_S = 20.0
 RETRY_AFTER_S = 120.0
 IDLE_QUIT_S = 120.0
-MAX_TASK_CONCURRENCY = 8
+LANE_PORT_STRIDE = 1000
 
 
 @dataclass
@@ -39,6 +39,7 @@ class Scheduler:
     blocked: bool = False
     last_growth: float = float("-inf")
     growth_in_flight: int = 0
+    pinned_tasks: set = field(default_factory=set)
 
     def __post_init__(self):
         self.order = {it["run_id"]: n for n, it in enumerate(self.items)}
@@ -56,8 +57,13 @@ class Scheduler:
     def cap(self, group):
         return 1 if group == "aside" else self.caps.get(group, self.max_lanes)
 
-    def tasks_in_use(self):
-        return {it["task"] for it, _ in self.running.values()}
+    def port_offset(self, lane, task):
+        if lane.kind == "aside" or task in self.pinned_tasks:
+            return 0
+        return LANE_PORT_STRIDE * (lane.index + 1)
+
+    def slots_in_use(self):
+        return {(it["task"], it["port_offset"]) for it, _ in self.running.values()}
 
     def min_round(self):
         rounds = [it["round"] for it in self.pending] + [it["round"] for it, _ in self.running.values()]
@@ -103,17 +109,17 @@ class Scheduler:
         self.update_flags(used)
         starts = []
         grown = False
-        while len(self.running) < min(self.max_lanes, MAX_TASK_CONCURRENCY):
-            busy_tasks = self.tasks_in_use()
+        while len(self.running) < self.max_lanes:
+            busy_slots = self.slots_in_use()
             limit = self.min_round() + self.lead
             chosen = None
             for it in self.pending:
-                if it["task"] in busy_tasks or it["round"] > limit or self.not_before.get(it["run_id"], 0) > now:
+                if it["round"] > limit or self.not_before.get(it["run_id"], 0) > now:
                     continue
                 if not self.pace_ok(it):
                     continue
                 lane, warm = self.lane_for(self.group_of(it))
-                if lane is None:
+                if lane is None or (it["task"], self.port_offset(lane, it["task"])) in busy_slots:
                     continue
                 if warm and self.credits > 0 and not self.blocked:
                     chosen = (it, lane, "reuse")
@@ -133,6 +139,7 @@ class Scheduler:
             if lane not in self.lanes:
                 self.lanes.append(lane)
             lane.busy = True
+            it["port_offset"] = self.port_offset(lane, it["task"])
             self.started_count[it["contender"]["id"]] += 1
             self.pending.remove(it)
             self.running[it["run_id"]] = (it, lane)

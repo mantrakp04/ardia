@@ -334,7 +334,7 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
     if agent not in ardia_side.MODELS:
         raise SystemExit("agent must be claude or codex")
     opts = options(overrides)
-    task = registry.task(task_id)
+    task = registry.task(task_id, int(opts.get("port_offset") or 0))
     model = opts.get("model") or ardia_side.MODELS[agent][0]
     effort = opts.get("effort") or ardia_side.MODELS[agent][1]
     deadline = int(opts.get("deadline_s") or task["deadline_s"])
@@ -408,13 +408,14 @@ def run(task_id, agent, run_id, results_dir, overrides=None, contender=None, on_
     record = {
         "run_id": run_id, "side": "opencode", "contender": contender or f"opencode-{agent}", "agent": agent,
         "task": task_id, "started_at": started_at.isoformat(timespec="milliseconds"),
-        "model": model, "effort": effort, "lane": opts["lane"],
+        "model": model, "effort": effort, "lane": opts["lane"], "port_offset": task["port_offset"],
         "wall_s": round(wall, 3), "timed_out": timed_out, "deadline_s": deadline, "exit_code": code,
         "pass": passed, "reset_by_agent": reset_by_agent,
         "time_to_correct_s": round(completed / 1000 - start_epoch, 3) if passed and completed else None,
         "commands": len(calls) + len(shell), "mcp_calls": len(calls), "shell_commands": len(shell),
         "browse_calls_by_tool": by_tool, "browse_calls": calls, "shell": shell, "other_tools": other,
         "matched": check.get("matched"), "total": check.get("total"), "extra": check.get("extra"),
+        "method": check.get("method"), "invariants": check.get("invariants"),
         "check": check, "check_details": check.get("details"), **parsed,
         "agent_saw": tools_seen_claude(lines) if agent == "claude" else None,
         "prompt": prompt, "command": cmd, "workdir": str(workdir), "mcp_server": server,

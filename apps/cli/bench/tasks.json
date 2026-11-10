@@ -228,6 +228,33 @@
       },
       "deadline_s": 600,
       "prompt": "Priya emailed me asking to set up the Kontor kickoff. Read her email in my inbox (this tab) and create the meeting exactly as she asked in our calendar at http://127.0.0.1:8853/. Our company directory is at http://127.0.0.1:8852/."
+    },
+    {
+      "id": "bulk",
+      "title": "Storefront admin: tag and archive legacy orders",
+      "server": {
+        "command": [
+          "python3",
+          "-I",
+          "tasks/bulk/server.py"
+        ],
+        "ports": [
+          8861
+        ]
+      },
+      "start_url": "http://127.0.0.1:8861/",
+      "extra_urls": [],
+      "preopen_extra": false,
+      "reset": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8861/api/reset"
+      },
+      "check": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8861/api/check"
+      },
+      "deadline_s": 600,
+      "prompt": "The migration off our old storefront is done. In Storefront admin (this tab), tag every order that came from the legacy store with `migrated`, and archive the legacy orders that were delivered before October 1, 2026. Don't change any other orders."
     }
   ]
 }
