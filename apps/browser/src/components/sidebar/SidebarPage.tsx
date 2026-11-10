@@ -161,7 +161,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                           showsVerticalScrollIndicator={false}
                           scrollEventThrottle={16}
                           onScroll={onScroll}
-                          contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD }}
+                          contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD, paddingBottom: docked ? GLOW_ROOM : 0 }}
                         >
                           <PageRows
                             windowId={windowId}

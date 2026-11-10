@@ -114,7 +114,7 @@ export function Sidebar({ width }: { width: number }) {
                   <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
                   {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
                   {footerDownloads ? (
-                    <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                    <View style={{ position: "absolute", left: SIDEBAR_FOOTER_DOWNLOADS.left, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                       <DownloadsButton windowId={windowId} />
                     </View>
                   ) : null}

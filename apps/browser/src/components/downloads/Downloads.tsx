@@ -286,7 +286,7 @@ export function DownloadMagnet() {
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
   const sidebarLeft = right ? size.width - sidebarWidth : 0;
-  const footer = { x: sidebarLeft + layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const footer = { x: sidebarLeft + SIDEBAR_FOOTER_DOWNLOADS.left + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
   const target = topStrip
     ? { x: size.width - MAGNET.topStripTarget.right, y: MAGNET.topStripTarget.y }
     : addressBar
