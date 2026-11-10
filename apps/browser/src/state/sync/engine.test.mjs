@@ -210,3 +210,27 @@ test("a tab sent to this Mac opens once, behind the current tab of the window sh
   const device = mine.filter(({ scope: s }) => s === "app").flatMap(({ file }) => file.ops).find((op) => op.k === `dev:${me}`);
   assert.deepEqual(device.v, { n: "Test Mac", k: "mac", f: ["send"] });
 });
+
+test("a Keychain unlock that fails outright reads as stalled with its error instead of staying on starting", async () => {
+  reset();
+  shell.docs.clear();
+  const first = await import("./engine.ts?unlock-setup");
+  first.startSync();
+  assert.ok("ok" in (await first.turnOnSync("/sync")));
+  await first.syncNow();
+  const native = globalThis.acTestNativeModules.ArdiaSync;
+  const unlock = native.unlock;
+  native.unlock = async () => {
+    throw new Error("The Keychain couldn't be read");
+  };
+  try {
+    const relaunched = await import("./engine.ts?unlock-fails");
+    relaunched.startSync();
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
+    const { status, error } = relaunched.useSync.getState();
+    assert.equal(status, "stalled");
+    assert.match(error ?? "", /Keychain couldn't be read/);
+  } finally {
+    native.unlock = unlock;
+  }
+});
