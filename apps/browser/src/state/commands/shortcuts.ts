@@ -15,7 +15,7 @@ export type ResolvedShortcuts = {
   holdersOf(shortcut: Shortcut): string[];
 };
 
-type ModifierReading = (modifiers: readonly ShortcutModifier[]) => ShortcutModifier[];
+type ModifierReading = typeof storedModifiers;
 
 export function storedShortcut(stored: readonly string[], read: ModifierReading = storedModifiers): Shortcut {
   const key = stored[0] ?? "";

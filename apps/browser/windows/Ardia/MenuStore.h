@@ -245,51 +245,18 @@ struct MenuStore {
   }
 
   void ApplyShortcuts() noexcept {
-    std::vector<std::pair<std::string, Combo>> chosen;
-    std::vector<std::pair<std::string, Combo>> held;
     for (auto &entry : entries) {
       auto found = shortcuts.find(entry.id);
       if (found == shortcuts.end()) {
         entry.active = entry.defaults;
         continue;
       }
-      std::vector<Combo> active;
-      bool onlyDefaults = !found->second.empty();
-      for (auto const &stored : found->second) {
-        Combo combo = StoredCombo(stored);
-        if (combo.Empty()) {
-          onlyDefaults = false;
-          continue;
-        }
-        auto pair = std::find_if(entry.pairs.begin(), entry.pairs.end(), [&](auto const &candidate) { return candidate.first == combo; });
-        if (pair != entry.pairs.end()) {
-          if (!pair->second.Empty()) {
-            active.push_back(pair->second);
-            held.emplace_back(entry.id, pair->second);
-          }
-          continue;
-        }
-        onlyDefaults = false;
-        Combo literal = WindowsComboFromStored(combo);
-        if (!literal.Empty()) {
-          active.push_back(literal);
-          chosen.emplace_back(entry.id, literal);
-          held.emplace_back(entry.id, literal);
-        }
-      }
-      if (onlyDefaults) active.insert(active.end(), entry.extras.begin(), entry.extras.end());
       std::vector<Combo> unique;
-      for (Combo const &combo : active) {
-        if (std::find(unique.begin(), unique.end(), combo) == unique.end()) unique.push_back(combo);
+      for (auto const &stored : found->second) {
+        Combo literal = WindowsComboFromStored(StoredCombo(stored));
+        if (!literal.Empty() && std::find(unique.begin(), unique.end(), literal) == unique.end()) unique.push_back(literal);
       }
       entry.active = std::move(unique);
-    }
-    for (auto const &[owner, combo] : chosen) {
-      for (auto &entry : entries) {
-        if (entry.id == owner) continue;
-        bool alsoHeld = std::any_of(held.begin(), held.end(), [&](auto const &other) { return other.first == entry.id && other.second == combo; });
-        if (!alsoHeld) std::erase(entry.active, combo);
-      }
     }
   }
 
