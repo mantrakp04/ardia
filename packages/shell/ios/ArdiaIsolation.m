@@ -39,7 +39,7 @@ static void IsolatePasteboard(NSString *dataDirectory) {
   NSString *dataDirectory = ArdiaLaunchConfig.shared.dataDirectory;
   if (!dataDirectory) return;
 #if DEBUG
-  IsolatePasteboard(dataDirectory);
+  if (ArdiaLaunchConfig.shared.background) IsolatePasteboard(dataDirectory);
 #endif
   NSString *domain = NSBundle.mainBundle.bundleIdentifier ?: @"com.ardia.browser";
   gDefaults = [[NSUserDefaults alloc]
