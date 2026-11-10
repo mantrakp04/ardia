@@ -9,31 +9,48 @@ const source = script.match(/const scrollDirection = (\(\) => \{[\s\S]*?\n {2}\}
 assert.ok(source, "page_script.js defines scrollDirection");
 const scrollDirection = new Function(`return ${source}`)();
 
+const wiring = script.match(/const direction = scrollDirection\(\);[\s\S]*?(?=\n {2}const measureScroll)/)?.[0];
+assert.ok(wiring, "page_script.js wires scrollDirection to the page's input events");
+
+function wire(document = { scrollingElement: { scrollTop: 0 } }) {
+  const listeners = {};
+  const clock = { now: 1000 };
+  const build = new Function("scrollDirection", "addEventListener", "performance", "document", `${wiring}\nreturn direction;`);
+  const direction = build(
+    scrollDirection,
+    (type, listener) => {
+      listeners[type] = listener;
+    },
+    { now: () => clock.now },
+    document,
+  );
+  return { direction, listeners, clock };
+}
+
 function page({ range = 2000, height = 800 } = {}) {
-  const d = scrollDirection();
+  const { direction: d, listeners, clock } = wire({});
   d.rebase(0);
   const sent = [];
-  let now = 1000;
   return {
     sent,
     d,
     to(y, { dt = 16, viewport = height, max = range, user = true } = {}) {
-      now += dt;
-      const state = d.scrolled(y, max, viewport, now, user);
+      clock.now += dt;
+      const state = d.scrolled(y, max, viewport, clock.now, user);
       if (state) sent.push(state);
       return state;
     },
     wheel(deltaY, { pinch = false } = {}) {
-      d.wheeled(deltaY, pinch);
+      listeners.wheel({ deltaY, ctrlKey: pinch });
     },
     key() {
-      d.undirected();
+      listeners.keydown({});
     },
     pause(ms = 500) {
-      now += ms;
+      clock.now += ms;
     },
     resize(viewport) {
-      d.resized(viewport, now);
+      d.resized(viewport, clock.now);
     },
   };
 }
@@ -179,21 +196,8 @@ test("input without a vertical wheel direction clears the last wheel's, so the n
   }
 });
 
-const wiring = script.match(/const direction = scrollDirection\(\);[\s\S]*?(?=\n {2}const measureScroll)/)?.[0];
-assert.ok(wiring, "page_script.js wires scrollDirection to the page's input events");
-
 function wired() {
-  const listeners = {};
-  const clock = { now: 1000 };
-  const build = new Function("scrollDirection", "addEventListener", "performance", "document", `${wiring}\nreturn direction;`);
-  const direction = build(
-    scrollDirection,
-    (type, listener) => {
-      listeners[type] = listener;
-    },
-    { now: () => clock.now },
-    { scrollingElement: { scrollTop: 0 } },
-  );
+  const { direction, listeners, clock } = wire();
   return {
     listeners,
     scroll(y) {
