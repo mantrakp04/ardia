@@ -3,6 +3,7 @@ import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
+import { noteGroupHeaderHide } from "../../state/telemetry/usage";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
@@ -198,7 +199,9 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
           onPress={() => {
             dismissHover();
             if (renaming) return;
-            updateGroup(groupId, collapsed && showsExtra ? { shownTabIds: [] } : { collapsed: !collapsed });
+            if (!collapsed || !showsExtra) return updateGroup(groupId, { collapsed: !collapsed });
+            noteGroupHeaderHide();
+            updateGroup(groupId, { shownTabIds: [] });
           }}
         >
           {({ pressed }) => (

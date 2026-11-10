@@ -224,3 +224,36 @@ test("a closed window's snapshot of a collapsed group carries no reveal state", 
   assert.equal(closed.groups.length, 1);
   assert.equal("shownTabIds" in closed.groups[0], false);
 });
+
+test("telemetry counts each tab newly kept under a collapsed header once, however many groups list it", async () => {
+  const { keptTabsAdded } = await import("../telemetry/usage.ts");
+  hydrate({ nested: ["t3", "t4"] });
+  const before = S().groups;
+  S().activate("t3");
+  S().activate("t5");
+  assert.equal(keptTabsAdded(S().groups, before), 2);
+  assert.equal(keptTabsAdded(S().groups, S().groups), 0);
+});
+
+test("expanding and collapsing the outer group starts the group inside it over too", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  S().activate("t4");
+  S().activate("t5");
+  S().activate("t0");
+  assert.deepEqual(kept("n"), ["t:t4", "t:t5"]);
+  S().updateGroup("g", { collapsed: false });
+  S().updateGroup("g", { collapsed: true });
+  assert.deepEqual(kept("n"), []);
+  assert.deepEqual(kept(), []);
+});
+
+test("a tab of a collapsed group reopened after closing stays under its header", () => {
+  hydrate();
+  S().activate("t3");
+  S().closeTabs(["t3"]);
+  S().reopenClosedTab("w");
+  const reopened = S().windows.w.activeTabIds.default;
+  assert.ok(S().groups.g.tabIds.includes(reopened));
+  S().activate("t0");
+  assert.ok(kept().includes(`t:${reopened}`));
+});

@@ -166,7 +166,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!g) return {};
       const hides = patch.shownTabIds?.length === 0;
       const startsOver = patch.collapsed !== undefined && patch.collapsed !== g.collapsed;
-      const reset = hides ? [id, ...descendantIds(s.groups, id)] : startsOver ? [id] : [];
+      const reset = hides || startsOver ? [id, ...descendantIds(s.groups, id)] : [];
       const groups = withoutShownTabs({ ...s.groups, [id]: { ...g, ...patch } }, reset);
       const w = s.windows[g.windowId];
       if (patch.pinned === undefined || patch.pinned === g.pinned || !w) return { groups };
