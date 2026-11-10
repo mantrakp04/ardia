@@ -48,8 +48,10 @@ test("⌘W dismisses the command bar before closing a multi-selection", () => {
   S().setSelection(w, [b, c]);
   S().openPanel(w, "https://search.example/");
   assert.equal(S().windowUi[w].panel.open, true);
+  assert.equal(menuState(S()).titles.closeTab, undefined, "menu stays Close Tab while ⌘W only dismisses the bar");
   runCommand({ command: "closeTab", arg: null, windowId: w });
   assert.equal(S().windowUi[w].panel.open, false);
+  assert.equal(menuState(S()).titles.closeTab, "Close 2 Tabs");
   assert.ok(S().tabs[b]);
   assert.ok(S().tabs[c]);
 });

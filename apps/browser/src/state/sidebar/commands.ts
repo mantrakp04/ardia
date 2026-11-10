@@ -68,7 +68,8 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
     const forGroup = selected.filter((id) => pinSection(s.tabs[id]) !== "tile");
     if (!forGroup.length) disabled.push("newGroupWithTabs");
     if (forGroup.length > 1) titles.newGroupWithTabs = `New Group with ${plural(forGroup.length, "Tab")}`;
-    if (selected.length > 1) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
+    const bar = s.windowUi[windowId]?.panel;
+    if (selected.length > 1 && !bar?.open && !bar?.newTab) titles.closeTab = `Close ${plural(selected.length, "Tab")}`;
   }
   const recentlyClosedGroups: MenuEntry[] = [...s.closedGroups]
     .reverse()
