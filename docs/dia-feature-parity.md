@@ -737,7 +737,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Window Fill / Center / Previous Size, cycle windows | 🌐⌃F / 🌐⌃C / 🌐⌃R, ⌘` | same | AppKit's | — | ✅ |
 | Rename tab | double-click | — | double-click | — | ✅ |
 
-**Command bar** (like Chrome's address bar): ↩ this tab, ⌘↩ / ⌥↩ new tab, ⇧↩ new window, ⇧⌘↩ search what was
+**Command bar** (like Chrome's address bar): ↩ this tab, ⌘↩ new tab, ⌥↩ split to the right (Arc; issue #1076), ⇧↩ new window, ⇧⌘↩ search what was
 typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in a new window (new), Tab / ⇧Tab, ↑↓, ⌃N / ⌃P, Esc.
 
 **In a page** (the page's own, unchanged): Esc stops loading, Space / ⇧Space and ⌘↑ / ⌘↓ scroll, Tab / ⇧Tab move
