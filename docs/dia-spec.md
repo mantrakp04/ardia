@@ -312,7 +312,9 @@ Clear Tabs; Clear Today"); a toast confirms the clear and offers Undo. Measured 
 pitch, about 6.3 px/pt): the line is 1 pt at about white 0.08 and starts at the favicons' left edge; it ends 7.5 pt before
 the arrow; the arrow is 7 pt wide and 8 pt tall, 3 pt from the text; "Clear" is semibold with a cap height 0.75 of the
 tab titles' (10 pt beside our 13 pt titles) and ends where the titles do; the line's centre is 25 pt above the first
-row's centre. Ours: `components/sidebar/ClearDivider.tsx`, a 16 pt row with Dia's `divider` colour and secondary text.
+row's centre. Ours: `components/sidebar/ClearDivider.tsx`, a 14 pt row with Dia's `divider` colour and secondary text.
+Dia's divider under its Pinned section (owner's 2× capture, 2026-11-09): a 1 pt line 6.5 pt under the last pinned row and
+6.5 pt above what follows (a group's box or a row), 14 pt edge to edge; ours draws the same band with no extra margins.
 What it closes (issue #149): the unselected unpinned tabs (`clearOthers`), keeping the selected tab and, per Arc's 2022
 release notes, tabs playing media. Dia's Close All in the sidebar does the same with the selected tab (the issue's
 recording: of three unpinned tabs, the two unselected close and the selected one stays selected).
