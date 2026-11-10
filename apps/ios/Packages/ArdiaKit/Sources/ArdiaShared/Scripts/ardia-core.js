@@ -2734,9 +2734,17 @@ function buildSuggestions(raw        , source                  , options        
     if (!c) return undefined;
     if (c.url === url) return pageSuggestion(c, null);
     const saved = source.history.find((h) => h.url === url);
-    if (!saved && !fragmentOf(url)) return pageSuggestion(c, null);
-    const lender = saved ?? c;
-    return { kind: "page", url, title: lender.title, favicon: lender.favicon, ...(saved && saved.visits > 0 ? { visited: true } : {}) };
+    const exact = saved ?? source.bookmarks?.find((b) => b.url === url);
+    if (!exact && !fragmentOf(url)) return pageSuggestion(c, null);
+    const lender = exact ?? c;
+    return {
+      kind: "page",
+      url,
+      title: lender.title,
+      favicon: lender.favicon,
+      ...(exact && c.bookmarked ? { bookmarked: true } : {}),
+      ...(saved && saved.visits > 0 ? { visited: true } : {}),
+    };
   };
 
   const websiteFirst = preference === "website";

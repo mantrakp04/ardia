@@ -201,6 +201,35 @@ test("a typed address opens the exact address that is saved, whatever other slas
   assert.equal(slashOnly?.kind === "page" && slashOnly.visited, undefined, "and no remove button that removes nothing");
 });
 
+test("a typed address that is bookmarked as typed opens as typed with that bookmark's title, icon and flag", () => {
+  const board = "https://example.com/board";
+  const history = (url: string, title: string) => ({ url, title, favicon: null, visits: 2, lastVisit: now - 1000 });
+  const bookmark = (url: string, title: string) => ({ url, title, favicon: "bookmark-icon" });
+  const first = (typed: string, source: Parameters<typeof buildSuggestions>[1]) => buildSuggestions(typed, source, { now }).items[0];
+
+  const slash = first(`${board}#room`, {
+    tabs: [],
+    history: [history(`${board}/#room`, "Room with slash"), history(`${board}#room`, "Room")],
+    bookmarks: [bookmark(`${board}#room`, "Room bookmark")],
+  });
+  assert.equal(slash?.kind === "page" && slash.url, `${board}#room`, "the exact bookmarked address opens as typed");
+  assert.equal(slash?.kind === "page" && slash.bookmarked, true, "and keeps its bookmark flag after another slash form in history");
+  assert.equal(slash?.kind === "page" && slash.visited, true, "and stays removable");
+  assert.equal(slash?.kind === "page" && slash.title, "Room", "and lends the exact history row's title");
+
+  const bookmarkOnly = first(`${board}#new`, { tabs: [], history: [history(`${board}#old`, "Old board")], bookmarks: [bookmark(`${board}#new`, "New board")] });
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.url, `${board}#new`, "pasting the bookmarked address opens it, not the history row under another fragment");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.title, "New board", "and lends the exact bookmark's title");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.favicon, "bookmark-icon", "and its icon");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.bookmarked, true, "and is classed as a bookmark");
+  assert.equal(bookmarkOnly?.kind === "page" && bookmarkOnly.visited, undefined, "and no remove button, since no history row has that address");
+
+  const unsaved = first(`${board}#fresh`, { tabs: [], history: [history(`${board}#old`, "Old board")], bookmarks: [bookmark(`${board}#new`, "New board")] });
+  assert.equal(unsaved?.kind === "page" && unsaved.url, `${board}#fresh`, "an address saved under no fragment like it opens as typed");
+  assert.equal(unsaved?.kind === "page" && unsaved.bookmarked, undefined, "and is not classed as a bookmark");
+  assert.equal(unsaved?.kind === "page" && unsaved.visited, undefined, "nor as history");
+});
+
 test("frecency: frequent + recent beats old, and multi-word queries match words", () => {
   const hist = [
     { url: "https://a.com/docs", title: "Rust docs", favicon: null, visits: 2, lastVisit: now - DAY * 60 },
