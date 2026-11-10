@@ -213,20 +213,5 @@ export function TitleBandDrag({ children }: { children?: ReactNode }) {
       if (bands.get(rootTag) === host) bands.delete(rootTag);
     };
   }, [rootTag]);
-  return createElement(
-    View as ComponentType<Record<string, unknown>>,
-    { style: { flex: 1 }, collapsable: false, ref: host, ...handlers, onPointerDownCapture: noteRootPointerDown },
-    children,
-  );
-}
-
-const ROOT_POINTER_SAMPLES = 4;
-let rootPointerSamples = 0;
-
-function noteRootPointerDown(event: { nativeEvent?: Record<string, unknown> }) {
-  const native = event.nativeEvent ?? {};
-  if (rootPointerSamples >= ROOT_POINTER_SAMPLES && native.button !== 2) return;
-  if (rootPointerSamples >= ROOT_POINTER_SAMPLES * 3) return;
-  rootPointerSamples += 1;
-  console.info(`[ardia windows] window root: a pointer down with button=${String(native.button)} buttons=${String(native.buttons)} pointerType=${String(native.pointerType)}`);
+  return createElement(View as ComponentType<Record<string, unknown>>, { style: { flex: 1 }, collapsable: false, ref: host, ...handlers }, children);
 }

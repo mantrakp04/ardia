@@ -1,14 +1,11 @@
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, type ReactNode } from "react";
-import { RootTagContext, View, type GestureResponderEvent, type ViewStyle } from "react-native";
+import { RootTagContext, TurboModuleRegistry, View, type GestureResponderEvent, type TurboModule, type ViewStyle } from "react-native";
 import { noteMissing } from "../missing";
 import { acceptsOf, useFileDropArea, type DropUpdate } from "./fileDropAreas";
 import { claimOnce, type AnyProps } from "./shared";
 
 type PointerLike = { nativeEvent?: Record<string, unknown> };
 type KeyLike = { nativeEvent?: { key?: unknown; shiftKey?: unknown } };
-
-const SECONDARY_BUTTON = 2;
-const MIDDLE_BUTTON = 1;
 
 const call = (handler: unknown, event: unknown) => {
   if (typeof handler === "function") (handler as (event: unknown) => void)(event);
@@ -17,7 +14,6 @@ const call = (handler: unknown, event: unknown) => {
 const windowsEvents = (handlers: Record<string, (event: never) => void>): object => handlers;
 
 const contextMenuClaims = new WeakSet<object>();
-const middleClickClaims = new WeakSet<object>();
 
 const contextMenuPurpose = (props: Record<string, unknown>): string => {
   for (const key of ["testID", "nativeID", "accessibilityLabel", "aria-label"]) {
@@ -29,94 +25,78 @@ const contextMenuPurpose = (props: Record<string, unknown>): string => {
 
 const noteContextMenu = (line: string) => console.info(`[ardia windows] context menu area: ${line}`);
 
-const POINTER_SAMPLES = 6;
-let pointerSamples = 0;
+const LEFT_DOWN = 1;
+const RIGHT_DOWN = 2;
+const MIDDLE_DOWN = 4;
+const SHIFT_DOWN = 8;
+const CONTROL_DOWN = 16;
+const ALT_DOWN = 32;
+const FIBER_STEPS = 400;
 
-function notePointerSample(kind: string, event: PointerLike) {
-  if (pointerSamples >= POINTER_SAMPLES) return;
-  pointerSamples += 1;
-  const native = event.nativeEvent ?? {};
-  noteContextMenu(`${kind} reached an area with button=${String(native.button)} buttons=${String(native.buttons)} pointerType=${String(native.pointerType)} fields=${Object.keys(native).sort().join(",")}`);
+type PointerHost = TurboModule & { pointerState?(): number };
+type ContextMenuMarker = { open(): void; capture: boolean; purpose: string };
+type FiberLike = { memoizedProps?: unknown; return?: FiberLike | null };
+
+const pointerStates = new WeakMap<object, number>();
+
+function pointerStateAt(event: PointerLike): number {
+  const token = event.nativeEvent;
+  const known = token ? pointerStates.get(token) : undefined;
+  if (known !== undefined) return known;
+  let state = 0;
+  try {
+    state = TurboModuleRegistry.get<PointerHost>("ArdiaWindowsHost")?.pointerState?.() ?? 0;
+  } catch {
+    state = 0;
+  }
+  if (token) pointerStates.set(token, state);
+  return state;
 }
 
-const isSecondary = (event: PointerLike) => {
-  const native = event.nativeEvent;
-  if (!native) return false;
-  if (native.button === SECONDARY_BUTTON) return true;
-  return typeof native.buttons === "number" && (native.buttons & SECONDARY_BUTTON) !== 0 && native.button !== 0;
-};
+function contextMenuUnder(event: PointerLike): ContextMenuMarker | undefined {
+  const found: ContextMenuMarker[] = [];
+  let fiber = (event as { _targetInst?: FiberLike | null })._targetInst ?? null;
+  for (let step = 0; fiber && step < FIBER_STEPS; step += 1, fiber = fiber.return ?? null) {
+    const props = fiber.memoizedProps;
+    const marker = props && typeof props === "object" ? (props as { ardiaContextMenu?: ContextMenuMarker }).ardiaContextMenu : undefined;
+    if (marker && typeof marker.open === "function" && !found.includes(marker)) found.push(marker);
+  }
+  for (let index = found.length - 1; index >= 0; index -= 1) if (found[index]!.capture) return found[index];
+  return found[0];
+}
 
-export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea(
-  { onContextMenu, captureDescendants, onPointerDown, onPointerDownCapture, onPointerUp, onPointerUpCapture, onPointerCancel, onAuxClick, onKeyDown, children, ...rest },
-  ref,
-) {
-  const armed = useRef(false);
+export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuArea({ onContextMenu, captureDescendants, onKeyDown, children, ...rest }, ref) {
   const purpose = contextMenuPurpose(rest);
-  const press = useCallback(
-    (event: PointerLike) => {
-      notePointerSample("a pointer down", event);
-      if (!isSecondary(event) || typeof onContextMenu !== "function") return;
-      if (!claimOnce(contextMenuClaims, event.nativeEvent)) return;
-      armed.current = true;
-      noteContextMenu(`right press on ${purpose}`);
-    },
-    [onContextMenu, purpose],
+  const latest = useRef(onContextMenu);
+  latest.current = onContextMenu;
+  const pending = useRef<ContextMenuMarker | null>(null);
+  const marker = useMemo<ContextMenuMarker | undefined>(
+    () => (typeof onContextMenu === "function" ? { open: () => call(latest.current, { nativeEvent: {} }), capture: captureDescendants === true, purpose } : undefined),
+    [typeof onContextMenu === "function", captureDescendants, purpose],
   );
-  const release = useCallback(
+  const claim = useCallback(
     (event: PointerLike) => {
-      if (!armed.current || !isSecondary(event)) return;
-      armed.current = false;
-      noteContextMenu(`right release on ${purpose}, opening its menu`);
-      call(onContextMenu, { nativeEvent: {} });
+      const state = pointerStateAt(event);
+      if ((state & RIGHT_DOWN) === 0 || (state & LEFT_DOWN) !== 0) return false;
+      const chosen = contextMenuUnder(event) ?? marker;
+      if (!chosen) return false;
+      pending.current = chosen;
+      noteContextMenu(`right press on ${chosen.purpose}`);
+      return true;
     },
-    [onContextMenu, purpose],
+    [marker],
   );
-  const downBubble = useCallback(
-    (event: PointerLike) => {
-      call(onPointerDown, event);
-      if (captureDescendants !== true) press(event);
-    },
-    [onPointerDown, captureDescendants, press],
-  );
-  const downCapture = useCallback(
-    (event: PointerLike) => {
-      call(onPointerDownCapture, event);
-      if (captureDescendants === true) press(event);
-    },
-    [onPointerDownCapture, captureDescendants, press],
-  );
-  const upBubble = useCallback(
-    (event: PointerLike) => {
-      call(onPointerUp, event);
-      release(event);
-    },
-    [onPointerUp, release],
-  );
-  const upCapture = useCallback(
-    (event: PointerLike) => {
-      call(onPointerUpCapture, event);
-      if (captureDescendants === true) release(event);
-    },
-    [onPointerUpCapture, captureDescendants, release],
-  );
-  const auxClick = useCallback(
-    (event: PointerLike) => {
-      call(onAuxClick, event);
-      notePointerSample("an aux click", event);
-      if (!armed.current && event.nativeEvent?.button === SECONDARY_BUTTON && typeof onContextMenu === "function") armed.current = claimOnce(contextMenuClaims, event.nativeEvent);
-      release(event);
-    },
-    [onAuxClick, release],
-  );
-  const cancel = useCallback(
-    (event: PointerLike) => {
-      call(onPointerCancel, event);
-      if (!armed.current) return;
-      armed.current = false;
-      noteContextMenu(`right press on ${purpose} was cancelled before its release`);
-    },
-    [onPointerCancel, purpose],
-  );
+  const release = useCallback(() => {
+    const chosen = pending.current;
+    pending.current = null;
+    if (!chosen) return;
+    noteContextMenu(`right release on ${chosen.purpose}, opening its menu`);
+    chosen.open();
+  }, []);
+  const terminate = useCallback(() => {
+    if (pending.current) noteContextMenu(`right press on ${pending.current.purpose} was cancelled before its release`);
+    pending.current = null;
+  }, []);
   const key = useCallback(
     (event: KeyLike) => {
       call(onKeyDown, event);
@@ -133,32 +113,46 @@ export const ContextMenuArea = forwardRef<View, AnyProps>(function ContextMenuAr
       {...rest}
       ref={ref}
       {...windowsEvents({
-        onPointerDown: downBubble,
-        onPointerDownCapture: downCapture,
-        onPointerUp: upBubble,
-        onPointerUpCapture: upCapture,
-        onPointerCancel: cancel,
-        onAuxClick: auxClick,
+        onStartShouldSetResponderCapture: claim,
+        onResponderRelease: release,
+        onResponderTerminate: terminate,
+        onResponderTerminationRequest: () => false,
         onKeyDown: key,
       })}
+      {...({ ardiaContextMenu: marker } as object)}
     >
       {children as ReactNode}
     </View>
   );
 });
 
-export const MouseArea = forwardRef<View, AnyProps>(function MouseArea({ path: _path, onMiddleClick, onAuxClick, children, ...rest }, ref) {
-  const aux = useCallback(
+export const MouseArea = forwardRef<View, AnyProps>(function MouseArea({ path: _path, onMiddleClick, children, ...rest }, ref) {
+  const held = useRef<number | null>(null);
+  const claim = useCallback(
     (event: PointerLike) => {
-      call(onAuxClick, event);
-      const native = event.nativeEvent;
-      if (native?.button !== MIDDLE_BUTTON || typeof onMiddleClick !== "function" || !claimOnce(middleClickClaims, native)) return;
-      call(onMiddleClick, { nativeEvent: { shiftKey: native.shiftKey === true, altKey: native.altKey === true, metaKey: native.ctrlKey === true || native.metaKey === true } });
+      if (typeof onMiddleClick !== "function") return false;
+      const state = pointerStateAt(event);
+      if ((state & MIDDLE_DOWN) === 0 || (state & (LEFT_DOWN | RIGHT_DOWN)) !== 0) return false;
+      held.current = state;
+      return true;
     },
-    [onAuxClick, onMiddleClick],
+    [onMiddleClick],
   );
+  const release = useCallback(() => {
+    const state = held.current;
+    held.current = null;
+    if (state === null) return;
+    call(onMiddleClick, { nativeEvent: { shiftKey: (state & SHIFT_DOWN) !== 0, altKey: (state & ALT_DOWN) !== 0, metaKey: (state & CONTROL_DOWN) !== 0 } });
+  }, [onMiddleClick]);
+  const terminate = useCallback(() => {
+    held.current = null;
+  }, []);
   return (
-    <View {...rest} ref={ref} {...windowsEvents({ onAuxClick: aux })}>
+    <View
+      {...rest}
+      ref={ref}
+      {...windowsEvents({ onStartShouldSetResponderCapture: claim, onResponderRelease: release, onResponderTerminate: terminate, onResponderTerminationRequest: () => false })}
+    >
       {children as ReactNode}
     </View>
   );

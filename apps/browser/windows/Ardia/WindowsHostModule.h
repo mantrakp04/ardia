@@ -11,6 +11,20 @@ struct WindowsHostModule {
   REACT_CONSTANT(selfCheck)
   const bool selfCheck = Paths::HasSwitch(L"--self-check") && Paths::HasCustomDataDirectory();
 
+  REACT_SYNC_METHOD(pointerState)
+  int pointerState() noexcept {
+    const bool swapped = GetSystemMetrics(SM_SWAPBUTTON) != 0;
+    auto down = [](int key) noexcept { return (GetAsyncKeyState(key) & 0x8000) != 0; };
+    int state = 0;
+    if (down(swapped ? VK_RBUTTON : VK_LBUTTON)) state |= 1;
+    if (down(swapped ? VK_LBUTTON : VK_RBUTTON)) state |= 2;
+    if (down(VK_MBUTTON)) state |= 4;
+    if (down(VK_SHIFT)) state |= 8;
+    if (down(VK_CONTROL)) state |= 16;
+    if (down(VK_MENU)) state |= 32;
+    return state;
+  }
+
   REACT_SYNC_METHOD(secureRandomHex)
   std::string secureRandomHex(int byteCount) noexcept {
     if (byteCount < 1 || byteCount > 1024) return {};
