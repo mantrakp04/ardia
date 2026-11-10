@@ -1,6 +1,7 @@
+import type { EventSubscription } from "expo-modules-core";
 import { DeviceEventEmitter } from "react-native";
 
-export type EventSubscription = { remove(): void };
+export type { EventSubscription };
 
 export const nativeEventName = (module: string, event: string) => `${module}:${event}`;
 
