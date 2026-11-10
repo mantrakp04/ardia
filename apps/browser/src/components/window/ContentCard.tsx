@@ -108,8 +108,9 @@ export function ContentCard() {
   );
 
   const peek = usePeekSpan(windowId);
-  const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peek !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const overCardId = fullscreenTab ?? activeId;
+  const activeRect = overCardId ? panes[overCardId] : undefined;
+  const popoversOverCard = peek !== undefined && addressInSidebar && !small && origin && activeRect ? overCardId : undefined;
 
   return (
     <View
