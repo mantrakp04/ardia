@@ -12,8 +12,6 @@ import {
 } from "../../../site/src/data/telemetry.ts";
 import type { Step, Window } from "../lib/range";
 
-const TYPED_COLUMNS_LIVE = true;
-
 const TYPED_COLUMNS: Record<string, string> = {
   $lib: "lib",
   $host: "host",
@@ -27,7 +25,7 @@ const TYPED_COLUMNS: Record<string, string> = {
   $geoip_country_code: "country",
 };
 
-export const prop = (key: string) => (TYPED_COLUMNS_LIVE && TYPED_COLUMNS[key] ? TYPED_COLUMNS[key] : `properties['${key}']`);
+export const prop = (key: string) => TYPED_COLUMNS[key] ?? `properties['${key}']`;
 
 const sqlList = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
 

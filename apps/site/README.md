@@ -1,6 +1,7 @@
 # Ardia site
 
-The landing page. Astro, built to static files (`dist/`), deployable to GitHub Pages or Cloudflare Pages.
+The landing page. Astro, built to static files (`dist/`) and served by nginx on Hexclave (`infra/site`,
+`pnpm run deploy`).
 
 It's a standalone package: the repo's pnpm workspace excludes it (the root hoists `node_modules` for React
 Native), so install it on its own.
@@ -40,9 +41,7 @@ Pages without a custom domain).
   showcase: the Liquid Glass pinned tiles and Wikipedia's article on The Hay Wain. `tab-group.webp` is a tab
   dropped on a tab (0.2.34) and `little-ardia.webp` a Little Ardia window. `pip.webp` is 0.2.13 (a hidden
   instance's PiP window never draws): the window on Wikipedia with the Picture in Picture window where Chrome
-  opened it, its real shadow from `screencapture -l`; `pip-loop.{mp4,webm}` is that rectangle over 7 s of SCK
-  captures of the PiP window, laid over the still by `Shot.astro` (its `loop` prop;
-  `scripts/loops.ts` plays it, never with reduced motion or Save-Data). `game/crowd.webp` is the offline game's
+  opened it, its real shadow from `screencapture -l`. `game/crowd.webp` is the offline game's
   canvas; its hotspot is in `Game.astro`. Replace a file with a new capture of the same name; Astro makes the
   AVIF/WebP sizes. On phones a shot shows only its `focus` region (see `Shot.astro`), so
   check the crop after replacing one. Each shot sits on a painted `Plate.astro` (sky, hills, sun and grass in its

@@ -2,31 +2,19 @@
 import type { ImageMetadata } from "astro";
 import { Picture, getImage } from "astro:assets";
 
-export interface Loop {
-  mp4: string;
-  webm: string;
-  poster: ImageMetadata;
-  rect: { x: number; y: number; w: number; h: number };
-}
 interface Props {
   src: ImageMetadata | ImageMetadata[];
   alt: string;
   sizes: string;
   panel?: boolean;
   eager?: boolean;
-  loop?: Loop;
 }
-const { src, alt, sizes, panel = false, eager = false, loop } = Astro.props;
+const { src, alt, sizes, panel = false, eager = false } = Astro.props;
 const shots = Array.isArray(src) ? src : [src];
 const first = shots[0];
 const fan = shots.length > 1;
 const full = await Promise.all(shots.map((s) => getImage({ src: s, format: "webp", width: Math.min(s.width, 2880) })));
 const name = first.src.split("/").pop()?.split(".")[0]?.split("_")[0] ?? "shot";
-const pct = (n: number, of: number) => `${((n / of) * 100).toFixed(3)}%`;
-const loopBox =
-  loop && !fan
-    ? `left: ${pct(loop.rect.x, first.width)}; top: ${pct(loop.rect.y, first.height)}; width: ${pct(loop.rect.w, first.width)}; height: ${pct(loop.rect.h, first.height)}`
-    : undefined;
 const widths = (s: ImageMetadata) => [640, 960, 1280, 1600, 1920, 2200, s.width].filter((w, i, a) => w <= s.width && a.indexOf(w) === i);
 ---
 
@@ -51,14 +39,6 @@ const widths = (s: ImageMetadata) => [640, 960, 1280, 1600, 1920, 2200, s.width]
       />
     ))
   }
-  {
-    loop && loopBox && (
-      <video class="loop" style={loopBox} data-poster={loop.poster.src} muted playsinline loop preload="none" disablepictureinpicture aria-hidden="true" data-loop>
-        <source data-src={loop.webm} type="video/webm" />
-        <source data-src={loop.mp4} type="video/mp4" />
-      </video>
-    )
-  }
   <button
     class="zoom-hit"
     type="button"
@@ -70,18 +50,7 @@ const widths = (s: ImageMetadata) => [640, 960, 1280, 1600, 1920, 2200, s.width]
   ></button>
 </div>
 
-<script>
-  import "../scripts/loops";
-</script>
-
 <style>
-  .loop {
-    position: absolute;
-    z-index: 1;
-    display: block;
-    object-fit: cover;
-    pointer-events: none;
-  }
   .zoom-hit {
     position: absolute;
     inset: 0;
