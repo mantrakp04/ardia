@@ -1,0 +1,1 @@
+apps/browser/windows/Ardia/Ardia.ico chrome/app/theme/chromium/win/chromium.ico
