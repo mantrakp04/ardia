@@ -558,7 +558,7 @@ const engineOrError = (name, args = {}, ms) =>
 const secret = (module, fn, ...args) =>
   evalApp(`return globalThis.expo.modules.${module}.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}).then(JSON.parse).catch((e) => ({ error: e.message }))`);
 const extPath = join(scratch, "fixture-ext");
-cpSync(resolve(new URL(".", import.meta.url).pathname, "../../../spikes/ardiacore-host/fixtures/ext"), extPath, { recursive: true });
+cpSync(resolve(new URL(".", import.meta.url).pathname, "../tests/fixtures/ext"), extPath, { recursive: true });
 const extPopupPath = join(scratch, "fixture-ext-popup");
 function writePopupExtension({ welcome = false } = {}) {
   rmSync(extPopupPath, { recursive: true, force: true });
