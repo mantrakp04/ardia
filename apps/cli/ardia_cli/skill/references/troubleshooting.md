@@ -33,8 +33,10 @@ live, so input works without switching the user's view. On one that doesn't, `op
 ## Refs
 
 A ref belongs to its document. After a navigation, a new document or an Ardia restart it's reported as stale
-(`Stale ref @e4: … Run snapshot again`), never guessed. An element keeps its number across snapshots of the same
-page, and a number never moves to another element. Long runs of one role fold into one line in change reports
+(`Stale ref @e4: … Run snapshot again`). When the page redraws an element in place, the ref follows the new one
+(`→ @e4 was redrawn, so this used the same button "Save", now @e19`) only if its role and name were and still are
+unique on the page, inside the same named dialog, row or form; otherwise the error names the new ref. An element
+keeps its number across snapshots of the same page, and a number never moves to another element. Long runs of one role fold into one line in change reports
 (`+ 48 options in combobox "Start time" (…; e8…e55)`); the refs in it work.
 
 ## Custom inputs, covered elements, drag

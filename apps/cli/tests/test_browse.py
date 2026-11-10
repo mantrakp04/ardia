@@ -700,6 +700,64 @@ class RefsTest(unittest.TestCase):
         with self.assertRaisesRegex(BrowseError, "Unknown ref"):
             asyncio.run(state.resolve_ref("e9"))
 
+    def follow(self, old: Ref, nodes):
+        state = self.state_with({"F": {"loader": "L"}})
+        page = asyncio.run(state.page())
+        replacement = object()
+        page.loader = lambda frame: "L"
+
+        async def resolve_backend(backend, frame, label):
+            return replacement if backend == 9 else None
+
+        async def call(*args, **kwargs):
+            return True
+
+        async def collect(*args, **kwargs):
+            return nodes
+
+        page.resolve_backend = resolve_backend
+        page.call = call
+        state.refs = {old.id: old}
+        with mock.patch.object(snapshot, "collect", collect):
+            found = asyncio.run(state.resolve_ref(old.id))
+        return state, found[1], replacement
+
+    def dialog(self, title, *buttons):
+        return [snapshot.Node("dialog", title, children=[snapshot.Node("button", "Save", backend=backend, ref=ref, frame="F")
+                                                       for backend, ref in buttons])]
+
+    def saved(self, unique=True, title="Edit order #1"):
+        return Ref("e1", "1:1:/devtools/browser/x", "T", "F", "L", 1, 5, "button", "Save", unique, (("dialog", title),))
+
+    def test_a_redrawn_unique_element_is_followed_with_a_notice(self):
+        state, element, replacement = self.follow(self.saved(), self.dialog("Edit order #1", (9, "e2")))
+        self.assertIs(element, replacement)
+        self.assertEqual(state.extras["notice"], '→ @e1 was redrawn, so this used the same button "Save", now @e2')
+
+    def test_a_redrawn_element_is_only_named_when_it_had_twins_moved_or_has_twins(self):
+        cases = {
+            "had twins": (self.saved(unique=False), self.dialog("Edit order #1", (9, "e2")), "is now @e2"),
+            "another dialog": (self.saved(), self.dialog("Edit order #2", (9, "e2")), "is now @e2"),
+            "has twins": (self.saved(), self.dialog("Edit order #1", (9, "e2"), (10, "e3")), "no longer in the page. Run"),
+        }
+        for label, (old, nodes, message) in cases.items():
+            with self.subTest(label), self.assertRaisesRegex(StaleRef, message):
+                self.follow(old, nodes)
+
+    def test_refs_know_whether_their_role_and_name_are_unique_in_their_context(self):
+        state = self.state_with({"F": {"loader": "L"}})
+        page = asyncio.run(state.page())
+        page.loader = lambda frame: "L"
+        nodes = [snapshot.Node("RootWebArea", "Title", children=[*self.dialog("Edit", (9, "e2"), (10, "e3")),
+                                                                  snapshot.Node("button", "Close", backend=11, ref="e4", frame="F")])]
+        refs = {ref.id: ref for ref in snapshot.refs_of(state, page, nodes)}
+        self.assertEqual([refs[ref].unique for ref in ("e2", "e3", "e4")], [False, False, True])
+        self.assertEqual(refs["e2"].context, (("dialog", "Edit"),))
+        self.assertEqual(refs["e4"].context, ())
+        state.refs = refs
+        scoped = {ref.id: ref for ref in snapshot.refs_of(state, page, nodes[0].children[:1], whole_page=False)}
+        self.assertEqual((scoped["e2"].unique, scoped["e2"].context), (False, (("dialog", "Edit"),)))
+
     def test_restarted_browser_is_refused(self):
         class Endpoint:
             instance = "2:1:/devtools/browser/y"

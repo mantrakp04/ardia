@@ -9,7 +9,8 @@ DURATIONS = frozenset({
     "settle_ms", "cdp_ms_total",
 })
 COUNTS = frozenset({"cdp_calls", "snapshot_nodes", "snapshot_chars", "output_chars", "network_writes_count", "batch_steps"})
-FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out"})
+FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out",
+                   "followed_redrawn_ref"})
 MAIN_PHASE = {"snapshot": "snapshot_build_ms", "eval": "eval_ms"}
 OUTPUT_MARKERS = ("\n[output capped at ", "\n[truncated ")
 

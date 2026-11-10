@@ -145,7 +145,8 @@ COMMANDS = {
                 "-u include link URLs, --diff only what changed since this session's last snapshot\n"
                 "of the document. Date and time inputs show as one textbox with their value. Site notes, when there\n"
                 "are any, come first. Refs belong to this snapshot's document: a navigation, a new document or an\n"
-                "Ardia restart makes them stale, and a stale ref is reported, never guessed.",
+                "Ardia restart makes them stale. When the page redraws an element, its ref follows the new one only if\n"
+                "it was the only one with its role and name, and still is, inside the same named dialog, row or form.",
     "click": "ardia browse click <sel> [--new-tab] [--button left|right|middle] [--humanize] [--no-changes]\n\n"
              "Clicks the element (with --humanize along a curved mouse path with human timing) and prints what\n"
              "changed: nodes added, changed or removed with their refs, URL and title, and non-GET requests it\n"

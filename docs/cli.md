@@ -239,15 +239,20 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
 Refs keep agent-browser's `@eN` form with stable numbers: a node (same browser instance, target, frame, document
 and backend node id) keeps its number across snapshots and `find`, so repeat snapshots of an unchanged page give
 identical refs. A node seen for the first time takes the next unused number, and a number never moves to another
-node, so a delayed `click @e1` can't land on a different element; once its node or document is gone it fails as
-stale. Numbers keep rising across documents (a new page's nodes are new nodes), and refs of documents a tab has left
-are forgotten. Each ref keeps the browser instance, target id, frame id,
+node, so a delayed `click @e1` can't land on a different element, short of the strict redraw follow below; once its
+node or document is gone it fails as stale. Numbers keep rising across documents (a new page's nodes are new
+nodes), and refs of documents a tab has left are forgotten. Each ref keeps the browser instance, target id, frame id,
 the frame's loader id, the snapshot generation and the backend DOM node id (with role and name for display). A ref
 resolves only within that lifetime: the instance must match, the frame must still have the same loader
 (`Page.getFrameTree`), and `DOM.resolveNode` must find the node, connected, in the isolated world. Anything else is
-`Stale ref @eN: <why>. Run snapshot again` (`code: "stale_ref"`); there's no fallback by role or name. Refs survive
-the idle disconnect (backend node ids outlive CDP sessions). `find` gives its element the next ref. A stale ref whose
-node the page redrew (same role and name, one match) names the new ref in its error.
+`Stale ref @eN: <why>. Run snapshot again` (`code: "stale_ref"`). Refs survive the idle disconnect (backend node ids
+outlive CDP sessions). `find` gives its element the next ref. When a ref's node is gone but its document isn't, a fresh
+collection looks for the same role and name. The ref follows that node, with a `→ @eN was redrawn…` notice on stderr
+and `followed_redrawn_ref` in telemetry, only when all of this holds: the old ref was the only node with that role
+and name in the last whole-page collection that saw it (a scoped `snapshot -s` keeps what the ref had); the new node
+is the only one now; both sit in the same frame; and both have the same chain of named ancestors (`walk_in_context`
+in `snapshot.py`: dialog, row, form, region names, the page title left out). So a row's "Delete" that had siblings,
+or a dialog reopened for another item, never resolves to the wrong element. Otherwise the error names the new ref.
 
 Selectors are CSS, `@eN`, `xpath=…` (or `//…`), `text=Save` (substring, case-insensitive; `text="Save"` exact),
 `role=button[name="Save"]`, and `:has-text("…")` anywhere in a CSS selector (`[role=row]:has-text("FAS-1") td`).
@@ -846,7 +851,7 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `daemon_answer_timed_out` (the client gave up waiting for the
+  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `daemon_answer_timed_out` (the client gave up waiting for the
   daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer

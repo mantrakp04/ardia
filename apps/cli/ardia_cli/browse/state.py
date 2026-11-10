@@ -30,6 +30,8 @@ class Ref:
     backend: int
     role: str
     name: str
+    unique: bool = False
+    context: tuple = ()
 
 
 class RestartedBrowser(BrowseError):
@@ -397,11 +399,12 @@ class State:
         ref_id = self.ref_for_node(page, element.frame, element.backend_id)
         known = self.refs.get(ref_id)
         ref = Ref(ref_id, self.instance, page.target_id, element.frame, page.loader(element.frame) or "",
-                  self.generation, element.backend_id, role or (known.role if known else ""), name or (known.name if known else ""))
+                  self.generation, element.backend_id, role or (known.role if known else ""), name or (known.name if known else ""),
+                  bool(known and known.unique), known.context if known else ())
         self.refs[ref.id] = ref
         return ref.id
 
-    async def resolve_ref(self, ref_id: str):
+    async def resolve_ref(self, ref_id: str, follow: bool = True):
         ref = self.refs.get(ref_id)
         if ref is None:
             if ref_id[1:].isdigit() and int(ref_id[1:]) <= self.issued_refs:
@@ -425,28 +428,36 @@ class State:
             raise StaleRef(ref_id, "the page navigated since that snapshot")
         element = await page.resolve_backend(ref.backend, ref.frame, f"@{ref_id}")
         if element is None:
-            raise StaleRef(ref_id, "the element is no longer in the page" + await self.redrawn_as(page, ref))
-        connected = await page.call("(el) => el.isConnected", element, frame=ref.frame)
-        if not connected:
-            raise StaleRef(ref_id, "the element was removed from the page" + await self.redrawn_as(page, ref))
-        return page, element
+            gone = "the element is no longer in the page"
+        elif not await page.call("(el) => el.isConnected", element, frame=ref.frame):
+            gone = "the element was removed from the page"
+        else:
+            return page, element
+        successor = await self.redrawn(page, ref)
+        if successor is None:
+            raise StaleRef(ref_id, gone)
+        if follow and ref.unique and successor.unique and successor.frame == ref.frame and successor.context == ref.context:
+            found_page, found = await self.resolve_ref(successor.id, follow=False)
+            command_metrics.flag("followed_redrawn_ref", True)
+            notice = f'→ @{ref_id} was redrawn, so this used the same {ref.role} "{ref.name}", now @{successor.id}'
+            self.extras["notice"] = "\n".join(part for part in (self.extras.get("notice"), notice) if part)
+            return found_page, found
+        raise StaleRef(ref_id, f'{gone}; the page redrew it, and the same {ref.role} "{ref.name}" is now @{successor.id}')
 
-    async def redrawn_as(self, page: Page, ref: Ref) -> str:
+    async def redrawn(self, page: Page, ref: Ref) -> Ref | None:
         from ardia_cli.browse import snapshot
 
         if not ref.role or not ref.name:
-            return ""
+            return None
         try:
             nodes = await snapshot.collect(self, page)
             self.set_refs(snapshot.refs_of(self, page, nodes), None, page)
         except ConnectionLost:
             raise
         except Exception:
-            return ""
+            return None
         same = [node.ref for node in snapshot.walk(nodes) if node.ref and node.role == ref.role and node.name == ref.name]
-        if len(same) != 1:
-            return ""
-        return f'; the page redrew it, and the same {ref.role} "{ref.name}" is now @{same[0]}'
+        return self.refs.get(same[0]) if len(same) == 1 else None
 
     async def locate(self, selector: str, page: Page | None = None):
         ref = parse_ref(selector)

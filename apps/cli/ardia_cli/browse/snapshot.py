@@ -1,4 +1,5 @@
 import asyncio
+from collections import Counter
 from dataclasses import dataclass, field
 
 from ardia_cli.browse.errors import BrowseError
@@ -322,12 +323,29 @@ async def collect(state, page, selector=None, cursor=True) -> list[Node]:
     return nodes
 
 
-def refs_of(state, page, nodes: list[Node]) -> list[Ref]:
-    return [
-        Ref(node.ref, state.instance, page.target_id, node.frame, page.loader(node.frame) or "", 0, node.backend, node.role, node.name)
-        for node in walk(nodes)
-        if node.ref and node.backend is not None
-    ]
+UNNAMED_CONTEXTS = frozenset({"RootWebArea", "WebArea"})
+
+
+def walk_in_context(nodes, context: tuple = ()):
+    for node in nodes:
+        yield node, context
+        inner = context + ((node.role, node.name),) if node.name and node.role not in UNNAMED_CONTEXTS else context
+        yield from walk_in_context(node.children, inner)
+
+
+def refs_of(state, page, nodes: list[Node], whole_page: bool = True) -> list[Ref]:
+    placed = [(node, context) for node, context in walk_in_context(nodes) if node.ref and node.backend is not None]
+    counts = Counter((node.role, node.name) for node, _ in placed)
+    refs = []
+    for node, context in placed:
+        if whole_page:
+            unique = counts[(node.role, node.name)] == 1
+        else:
+            known = state.refs.get(node.ref)
+            unique, context = (known.unique, known.context) if known else (False, ())
+        refs.append(Ref(node.ref, state.instance, page.target_id, node.frame, page.loader(node.frame) or "", 0, node.backend,
+                        node.role, node.name, unique, context))
+    return refs
 
 
 async def take(state, page, interactive=False, compact=False, depth=None, selector=None, urls=False, cursor=True):
@@ -336,7 +354,7 @@ async def take(state, page, interactive=False, compact=False, depth=None, select
         for used in {node.frame for node in walk(nodes)}:
             await link_urls(page, [node for node in walk(nodes) if node.frame == used], used)
     text = render(nodes, interactive, compact, depth, urls)
-    refs = refs_of(state, page, nodes)
+    refs = refs_of(state, page, nodes, whole_page=not selector)
     whole = not (depth is not None or selector)
     full_text = text if whole and not (interactive or compact) else None
     state.set_refs(refs, text, page)
