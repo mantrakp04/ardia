@@ -72,6 +72,7 @@ struct MenuKeyboard {
     payload["windowId"] = windowId.empty() ? JSValue{nullptr} : JSValue{std::string{windowId}};
     payload["focusGeneration"] = JSValue{nullptr};
     EmitEvent(context, L"ArdiaMenus", L"onCommand", std::move(payload));
+    LaunchLog::Write(L"command", Paths::Wide(command));
   }
 
   void EmitSwitcherReleased() noexcept {

@@ -29,6 +29,100 @@ function Save-Screenshot([string]$Path) {
   }
 }
 
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class ArdiaInput {
+  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+}
+"@
+[ArdiaInput]::SetProcessDPIAware() | Out-Null
+
+function Get-WindowRect([System.Diagnostics.Process]$Process) {
+  $Process.Refresh()
+  $rect = New-Object ArdiaInput+Rect
+  if ($Process.MainWindowHandle -eq [IntPtr]::Zero) { return $null }
+  if (-not [ArdiaInput]::GetWindowRect($Process.MainWindowHandle, [ref]$rect)) { return $null }
+  return $rect
+}
+
+function Send-Click([int]$X, [int]$Y) {
+  [ArdiaInput]::SetCursorPos($X, $Y) | Out-Null
+  Start-Sleep -Milliseconds 80
+  [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 60
+  [ArdiaInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 250
+}
+
+function Send-Drag([int]$X, [int]$Y, [int]$ByX, [int]$ByY) {
+  [ArdiaInput]::SetCursorPos($X, $Y) | Out-Null
+  Start-Sleep -Milliseconds 120
+  [ArdiaInput]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 120
+  foreach ($step in 1..12) {
+    [ArdiaInput]::SetCursorPos($X + [int]($ByX * $step / 12), $Y + [int]($ByY * $step / 12)) | Out-Null
+    Start-Sleep -Milliseconds 40
+  }
+  Start-Sleep -Milliseconds 150
+  [ArdiaInput]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 400
+}
+
+function Send-Chord([byte[]]$Modifiers, [byte]$Key) {
+  foreach ($modifier in $Modifiers) { [ArdiaInput]::keybd_event($modifier, 0, 0, [UIntPtr]::Zero) }
+  Start-Sleep -Milliseconds 40
+  [ArdiaInput]::keybd_event($Key, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 40
+  [ArdiaInput]::keybd_event($Key, 0, 2, [UIntPtr]::Zero)
+  foreach ($modifier in $Modifiers) { [ArdiaInput]::keybd_event($modifier, 0, 2, [UIntPtr]::Zero) }
+  Start-Sleep -Milliseconds 400
+}
+
+function Send-Text([string]$Text) {
+  foreach ($character in $Text.ToUpperInvariant().ToCharArray()) {
+    [ArdiaInput]::keybd_event([byte][char]$character, 0, 0, [UIntPtr]::Zero)
+    [ArdiaInput]::keybd_event([byte][char]$character, 0, 2, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 40
+  }
+  Start-Sleep -Milliseconds 300
+}
+
+function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
+  $notes = @()
+  $before = Get-WindowRect $Process
+  if (-not $before) { return @("input: the app has no main window to drive") }
+  [ArdiaInput]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+  Start-Sleep -Milliseconds 300
+  $width = $before.Right - $before.Left
+  $height = $before.Bottom - $before.Top
+
+  Send-Click ($before.Left + [int]($width * 0.55)) ($before.Top + [int]($height * 0.42))
+  Send-Text "ardia"
+  Save-Screenshot (Join-Path $Out "browser-typed.png")
+
+  Send-Chord @(0x11) 0x54
+  $commanded = (Test-Path $Log) -and (Select-String -Path $Log -Pattern "^command \d+ newTab" -Quiet)
+  if ($commanded) { Write-Host "Input: Ctrl+T reached the UI as newTab." } else { $notes += "input: Ctrl+T did not reach the UI as a command" }
+
+  Send-Drag ($before.Left + [int]($width * 0.6)) ($before.Top + 24) 70 50
+  $after = Get-WindowRect $Process
+  if ($after) {
+    $movedX = $after.Left - $before.Left
+    $movedY = $after.Top - $before.Top
+    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the toolbar moved the window by $movedX, $movedY." }
+    else { $notes += "input: dragging the toolbar by 70, 50 moved the window by $movedX, $movedY" }
+  } else { $notes += "input: the window was gone after the drag" }
+  Save-Screenshot (Join-Path $Out "browser-after-input.png")
+  return $notes
+}
+
 function New-DataDirectory([string]$Name) {
   $directory = Join-Path $Out $Name
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $directory
@@ -69,6 +163,14 @@ try {
   Start-Sleep -Seconds 12
   Save-Screenshot (Join-Path $Out "browser.png")
   if ($browser.HasExited) { $failures += "the app exited on its own with onboarding done (exit code $($browser.ExitCode))" }
+  else {
+    $working = [Math]::Round((Get-Process -Id $browser.Id).WorkingSet64 / 1MB)
+    $private = [Math]::Round((Get-Process -Id $browser.Id).PrivateMemorySize64 / 1MB)
+    Write-Host "Memory with the browser window open: $working MB working set, $private MB private."
+    $inputNotes = Test-Input $browser $browserLog
+    $inputNotes | ForEach-Object { Write-Host "::warning::$_" }
+    if ($browser.HasExited) { $failures += "the app exited while being driven (exit code $($browser.ExitCode))" }
+  }
 } finally {
   if (-not $browser.HasExited) {
     Stop-Process -Id $browser.Id -Force

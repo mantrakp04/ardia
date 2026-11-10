@@ -206,6 +206,7 @@ struct WindowManager {
     GetCursorPos(&cursor);
     ReleaseCapture();
     PostMessageW(entry->hwnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
+    LaunchLog::Write(L"window", std::wstring(L"drag began on ").append(Paths::Wide(entry->id)));
   }
 
   void ToggleMaximize(int64_t rootTag) noexcept {
