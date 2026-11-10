@@ -1,37 +1,17 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, PERSONAL, TITLES, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  lexicon: "meadow | Lexicon dictionary",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  dailyledger: "The Daily Ledger",
-  tunes: "Tunes",
-  cinema: "Cinema",
-  watch: "Watch",
-};
+const TITLES_HERE = { ...TITLES, tunes: "Tunes", cinema: "Cinema", watch: "Watch" };
 const HOSTS = ["moodwall", "docpad", "lexicon", "crumbs", "dailyledger", "tunes", "cinema"];
-const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES[new URL(url).hostname.split(".")[0]], ...extra });
+const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: TITLES_HERE[new URL(url).hostname.split(".")[0]], ...extra });
 const tile = (id, url, extra = {}) => T(id, url, { pinned: true, pinnedUrl: url, favicon: `${url}favicon.ico`, ...extra });
 const PROFILES = [
-  { id: "default", name: "Personal", color: "plum", icon: "🪐" },
+  PERSONAL,
   { id: "work", name: "Work", color: "blue", icon: "🔥", dataId: "default" },
   { id: "school", name: "School", color: "green", icon: "📚", dataId: "default" },
 ];
 
-function build(file, { tabs, active, frame = [80, 60, 1360, 860], settings = {}, groups = [], profiles = PROFILES.slice(0, 1), tabLayout, extra = {} }) {
-  const s = session({
-    profiles,
-    windows: [{ id: "w1", frame, profileId: "default", ...(tabLayout ? { tabLayout } : {}), activeTabIds: { default: active } }],
-    tabs,
-    groups,
-  });
-  Object.assign(s, extra);
-  s.settings = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260, ...(tabLayout ? { tabLayout } : {}), ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+function build(file, { tabs, active, frame, settings = {}, groups = [], profiles = PROFILES.slice(0, 1), tabLayout, extra = {} }) {
+  writeSession(file, { profiles, tabs, groups, active, frame, windowExtra: tabLayout ? { tabLayout } : {}, extra, settings: { ...DARK, ...(tabLayout ? { tabLayout } : {}), ...settings } });
 }
 
 const TILES = [tile("p1", "http://lexicon.example/"), tile("p2", "http://dailyledger.example/"), tile("p3", "http://crumbs.example/")];

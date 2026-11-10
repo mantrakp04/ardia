@@ -1,5 +1,6 @@
 {
   "id": "fixes-0244n2",
+  "dropEvents": ["state", "mark", "notify"],
   "segments": [
     {
       "scene": "groupbox",

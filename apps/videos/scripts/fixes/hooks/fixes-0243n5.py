@@ -2,16 +2,10 @@ import json
 import os
 import re
 import subprocess
-import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
 import segments as seg_lib
 
-VIDEOS = os.path.normpath(os.path.join(HERE, "..", ".."))
 SCRATCH = seg_lib.SCRATCH
-SPEC = os.path.join(HERE, "fixes-0243n5.json")
-PUBLIC = os.path.join(VIDEOS, "public")
 ALERT_TOP = 40
 
 
@@ -60,27 +54,6 @@ def close_window_overlays(scene, clip, side):
     clip["events"] = [e for e in events if "asked" not in e and "gone" not in e]
 
 
-def main():
-    os.environ.setdefault("FIXES_CFR", "60")
-    with open(SPEC) as f:
-        spec = json.load(f)
-    video_id = spec["id"]
-    out = []
-    for seg in spec["segments"]:
-        entry = {k: v for k, v in seg.items() if k not in ("lead", "tail", "sync")}
-        entry["length"] = round(seg["lead"] + seg["tail"], 3)
-        for side in ("before", "after"):
-            entry[side] = seg_lib.side_clip(seg["scene"], side, seg["lead"], seg["tail"], PUBLIC, video_id, seg.get("sync", "go"))
-            if seg["scene"] == "lasttab":
-                close_window_overlays(seg["scene"], entry[side], side)
-            else:
-                entry[side]["events"] = [e for e in entry[side]["events"] if "asked" not in e and "gone" not in e]
-        out.append(entry)
-    dest = os.path.join(VIDEOS, "src", "videos", video_id, "segments.json")
-    with open(dest, "w") as f:
-        json.dump(out, f, separators=(",", ":"))
-    print(f"{len(out)} segments, {sum(s['length'] for s in out):.1f} s -> {dest}")
-
-
-if __name__ == "__main__":
-    main()
+def clip(seg, side, clip, video_id):
+    if seg["scene"] == "lasttab":
+        close_window_overlays(seg["scene"], clip, side)

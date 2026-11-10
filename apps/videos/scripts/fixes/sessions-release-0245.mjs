@@ -1,42 +1,13 @@
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { session } from "../../../../scripts/lib/instance.mjs";
+import { DARK, FRAME, PERSONAL, TITLES, writeSession } from "./sessions-lib.mjs";
 
-const out = process.argv[2];
-const TITLES = {
-  moodwall: "moodwall — ideas for everything",
-  docpad: "Trip plan — Docpad",
-  lexicon: "meadow | Lexicon dictionary",
-  crumbs: "Crumbs — Brown butter oat cookies",
-  dailyledger: "The Daily Ledger",
-  tunes: "Tunes",
-  cinema: "Cinema",
-  watch: "Watch · How the hills got their colour",
-  trails: "Trails",
-  eats: "Eats",
-  ferry: "Ferry times",
-  hostel: "Hostel",
-  canopy: "Canopy",
-  library: "Library",
-};
-const titleOf = (url) => (url ? TITLES[new URL(url).hostname.split(".")[0]] ?? new URL(url).hostname : "");
+const TITLES_HERE = { ...TITLES, tunes: "Tunes", cinema: "Cinema", watch: "Watch · How the hills got their colour", trails: "Trails", eats: "Eats", ferry: "Ferry times", hostel: "Hostel", canopy: "Canopy", library: "Library" };
+const titleOf = (url) => (url ? TITLES_HERE[new URL(url).hostname.split(".")[0]] ?? new URL(url).hostname : "");
 const T = (id, url, extra = {}) => ({ id, profileId: "default", url, title: titleOf(url), ...extra });
 const tile = (id, url, extra = {}) => T(id, url, { pinned: true, pinnedUrl: url, ...extra });
-const PERSONAL = { id: "default", name: "Personal", color: "plum", icon: "🪐" };
 const PROFILES = [PERSONAL, { id: "work", name: "Work", color: "blue", icon: "🔥", dataId: "default" }];
-const BASE = { appearance: "dark", searchSuggestions: false, warnBeforeQuitting: false, sidebarWidth: 260 };
-const FRAME = [80, 60, 1360, 860];
 
-function build(file, { tabs, active, frame = FRAME, settings = {}, groups = [], profiles = [PERSONAL], extra = {}, windowExtra = {} }) {
-  const s = session({
-    profiles,
-    windows: [{ id: "w1", frame, profileId: "default", activeTabIds: { default: active }, ...windowExtra }],
-    tabs,
-    groups,
-  });
-  Object.assign(s, extra);
-  s.settings = { ...BASE, ...settings };
-  writeFileSync(join(out, file), JSON.stringify(s, null, 2));
+function build(file, { tabs, active, frame, settings = {}, groups = [], profiles = [PERSONAL], extra = {}, windowExtra = {} }) {
+  writeSession(file, { profiles, tabs, groups, active, frame, windowExtra, extra, settings: { ...DARK, ...settings } });
 }
 
 const TABS = [T("t1", "http://moodwall.example/"), T("t2", "http://docpad.example/"), T("t3", "http://lexicon.example/"), T("t4", "http://crumbs.example/")];
