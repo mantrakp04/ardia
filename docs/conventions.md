@@ -92,7 +92,7 @@ lib/                    pure helpers: url, color, time, keys
 | Hand-built today | Use |
 | --- | --- |
 | `theme.dark ? "rgba(…)" : "rgba(…)"` | a role on the theme (`theme.popoverBorder`, `theme.scrim`, …), added to both palettes in `tokens.ts` |
-| `useFormColors().accent` and friends | the theme role: `formAccent`, `groupFill`, `control`, `field`, `destructive`, `searchFlash`, … (`useFormColors` stays only until its callers move) |
+| `useFormColors().accent` and friends | the theme role: `formAccent`, `groupFill`, `control`, `field`, `destructive`, `searchFlash`, … |
 | `Easing.out(Easing.quad)`, `Easing.bezier(…)` | `curve.enter`, `curve.exit`, `curve.move`, `curve.pulse`, … from `motion.ts` |
 | a numeric `duration:` | `duration.fast`, `duration.base`, `duration.slow`, `duration.long`; a loop's period is `period.spinner` / `period.pulse` |
 | `stiffness: (2π/response)²` written by hand | `springs.snappy` / `smooth` / `bouncy`, or `spring({ response, damping })` for a measured spring |
@@ -177,7 +177,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
   depends on: a version says which shape to expect, not that the data is valid.
 - The field is `version`, except in `sync.json` (`v`) and `ardia-cli.json` (`schemaVersion`; its `version` is the
   installed CLI's version).
-- Covered: `session.json` (9), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
+- Covered: `session.json` (10), `downloads.json` (3), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
   `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `shared-folders.json`, `ardia-cli.json`,
   `bangs-state.json` and `Scripts/status.json` (all 1).

@@ -1,4 +1,4 @@
-import { Animated, View } from "react-native";
+import { Animated } from "react-native";
 import { fill, type Rect, ROW, rowY, sideCard, TOOLBAR_H } from "../geometry";
 import { BLANK, tab, TRIP } from "../content";
 import { linear, tracker } from "../timeline";

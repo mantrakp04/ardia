@@ -31,8 +31,6 @@ export const SWIPE_CONFIRMED_WASH = "rgba(255,255,255,0.4)";
 
 export const DEV_ERROR = { background: "#1b1416", text: "#ff8a8a", ...font.body, fontFamily: "Menlo" } as const;
 
-export const SAD_TAB_TITLE_SIZE = font.large.fontSize;
-
 export const NATIVE_SKEW_PAD_TOP = 48;
 
 export const SHADOWS = {

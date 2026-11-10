@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CAP_LOG = process.env.AC_CPU_CAP_LOG ?? "/private/tmp/claude-501/-Users-barreloflube-Documents-ardia/a6e87140-35e6-4a65-85e0-018a5c019c75/scratchpad/cpu-cap.log";
+const CAP_LOG = process.env.AC_CPU_CAP_LOG;
 const capRunning = () => spawnSync("pgrep", ["-f", "scripts/agent/cpu-cap"]).status === 0;
 const capSize = () => {
   try {

@@ -268,8 +268,6 @@ const footprint = (snap) => {
 
 const PAGE_SCRIPT = `
 window.__ac = { vis: [[Date.now(), document.visibilityState]], shown: [], fcp: null, frame: null, ticks: 0, raf: 0, fast: 0 };
-// The page's first frame (its first animation frame starts): the same event in every build. First contentful paint
-// isn't: CEF (0.2.21) stamps it with that frame's start, Chrome (ArdiaCore) with the frame on screen, ~a frame later.
 requestAnimationFrame(() => (__ac.frame = Date.now()));
 new PerformanceObserver((list) => {
   for (const e of list.getEntries()) if (e.name === "first-contentful-paint") __ac.fcp = performance.timeOrigin + e.startTime;

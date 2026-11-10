@@ -154,9 +154,7 @@ export type Settings = { -readonly [K in SettingKey]: Specs[K]["default"] };
 export type SettingsMeta = { chosen: string[]; inferred: string[] };
 export const NO_SETTINGS_META: SettingsMeta = { chosen: [], inferred: [] };
 
-export type SearchEngineId = string;
 export type BatterySaverWhen = Settings["batterySaverWhen"];
-export type SelectedTabGlow = Settings["selectedTabGlow"];
 export type PeekModifier = Settings["peekModifier"];
 export type SplitLinkModifier = Settings["splitLinkModifier"];
 
