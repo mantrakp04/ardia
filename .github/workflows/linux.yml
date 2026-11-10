@@ -50,8 +50,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - id: tree
-        run: echo "tree=$(git rev-parse HEAD:engine)" >> "$GITHUB_OUTPUT"
+      - id: engine-key
+        run: echo "key=$(engine/engine-key.sh)" >> "$GITHUB_OUTPUT"
       - name: Version
         run: |
           set -euo pipefail
@@ -71,8 +71,8 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/browser/build-ardiacore/prebuilt-linux-x86_64
-          key: engine-linux-x64-v1-${{ steps.tree.outputs.tree }}-${{ hashFiles('packages/ardiacore/prebuilt-engines-linux.tsv') }}
-          restore-keys: engine-linux-x64-v1-
+          key: engine-linux-x64-v2-${{ steps.engine-key.outputs.key }}-${{ hashFiles('packages/ardiacore/prebuilt-engines-linux.tsv') }}
+          restore-keys: engine-linux-x64-v2-
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.cache/ardia-cli-build
@@ -83,24 +83,24 @@ jobs:
           key: ubo-linux-${{ hashFiles('packages/ardiacore/scripts/ubo.sh') }}
       - name: Engine
         env:
-          TREE: ${{ steps.tree.outputs.tree }}
+          ENGINE_KEY: ${{ steps.engine-key.outputs.key }}
         run: |
           set -euo pipefail
           args=(--arch linux-x86_64)
           [ "$ENGINE_MODE" = exact ] || args+=(--nearest)
           if ! engine=$(packages/ardiacore/scripts/fetch-engine.sh "${args[@]}"); then
-            echo "::error::no Linux engine for ${TREE:0:12}: build it on the Linux builder, publish it with scripts/linux/publish-engine.sh --upload and commit prebuilt-engines-linux.tsv"
+            echo "::error::no Linux engine for engine key ${ENGINE_KEY:0:12}: build it on the Linux builder, publish it with scripts/linux/publish-engine.sh --upload and commit prebuilt-engines-linux.tsv"
             exit 1
           fi
-          selected=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["engine_tree"])' "$engine/manifest.json")
-          if [ "$selected" = "$TREE" ]; then
+          selected=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["engine_key"])' "$engine/manifest.json")
+          if [ "$selected" = "$ENGINE_KEY" ]; then
             label="${GITHUB_SHA:0:12}"
             echo "ENGINE_EXACT=1" >> "$GITHUB_ENV"
-            echo "### Linux engine ${TREE:0:12} (exact)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Linux engine ${ENGINE_KEY:0:12} (exact)" >> "$GITHUB_STEP_SUMMARY"
           else
             label="${GITHUB_SHA:0:12}-engine-${selected:0:12}"
-            echo "::warning::built against an older engine, ${selected:0:12}, not this commit's ${TREE:0:12}"
-            echo "### Linux engine ${selected:0:12} (older than this commit's ${TREE:0:12})" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::built against an older engine, ${selected:0:12}, not this commit's ${ENGINE_KEY:0:12}"
+            echo "### Linux engine ${selected:0:12} (older than this commit's ${ENGINE_KEY:0:12})" >> "$GITHUB_STEP_SUMMARY"
           fi
           { echo "ENGINE=$engine"; echo "PACKAGE_NAME=Ardia-linux-x64-$label"; } >> "$GITHUB_ENV"
       - run: pnpm --filter @ardia/linux build

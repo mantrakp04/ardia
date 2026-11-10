@@ -4,15 +4,17 @@ usage='usage: scripts/linux/fetch-engine.sh [--nearest]
        packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64 [--nearest]
 
 Downloads, verifies and caches the prebuilt Linux x64 ArdiaCore engine whose
-engine/ git tree matches this checkout (scripts/linux/publish-engine.sh makes
-them), and prints the engine directory (the one holding chrome and
-manifest.json) for scripts/linux/package.py --out.
+engine key (engine/engine-key.sh: engine/ and the offline game it packs)
+matches this checkout (scripts/linux/publish-engine.sh makes them), and prints
+the engine directory (the one holding chrome and manifest.json) for
+scripts/linux/package.py --out.
 
-  --nearest   when this engine/ tree has no published engine, use the one of
-              the nearest earlier commit that changed engine/, with a warning
+  --nearest   when this engine key has no published engine, use the one of
+              the nearest earlier commit that changed a path the key covers,
+              with a warning
 
 Rows come from packages/ardiacore/prebuilt-engines-linux.tsv
-(tree<TAB>tag<TAB>sha256), then from the published table.
+(key<TAB>tag<TAB>sha256), then from the published table.
 Environment:
   ARDIACORE_PREBUILT_REPO          GitHub repo (default mckamyk/ardia)
   ARDIACORE_PREBUILT_ASSETS        asset base URL (default
@@ -43,11 +45,18 @@ die() { echo "fetch-engine.sh: $*" >&2; exit 1; }
 for tool in git curl sha256sum python3; do
   command -v "$tool" >/dev/null || die "$tool is required"
 done
+key_script=$root/engine/engine-key.sh
 git -C "$root" rev-parse --git-dir >/dev/null 2>&1 \
-  || die "$root isn't a git checkout: a prebuilt engine is matched to engine/'s git tree"
-[ -z "$(git -C "$root" status --porcelain -- engine)" ] \
-  || die "engine/ has uncommitted changes, and no prebuilt engine has them: build the engine (docs/linux-port.md)"
-tree=$(git -C "$root" rev-parse HEAD:engine)
+  || die "$root isn't a git checkout: a prebuilt engine is matched to its engine key (engine/engine-key.sh)"
+mapfile -t key_paths < <("$key_script" --paths)
+[ "${#key_paths[@]}" -gt 0 ] || die "engine/engine-key.sh --paths listed nothing"
+dirty_paths=()
+for path in "${key_paths[@]}"; do
+  [ -z "$(git -C "$root" status --porcelain -- "$path")" ] || dirty_paths+=("$path")
+done
+[ "${#dirty_paths[@]}" = 0 ] \
+  || die "$(printf '%s, ' "${dirty_paths[@]}" | sed 's/, $//') (in the engine key, engine/engine-key.sh) has uncommitted changes, and no prebuilt engine has them: build the engine (docs/linux-port.md)"
+key=$("$key_script") || die "couldn't compute this checkout's engine key (engine/engine-key.sh)"
 
 remote_rows="" remote_loaded=0
 row_in() { awk -F'\t' -v t="$1" '$1 == t { print; exit }'; }
@@ -58,10 +67,10 @@ load_remote() {
   remote_rows=$(curl -fsSL --retry 2 "$table_url" 2>/dev/null) \
     || { echo "warning: couldn't read the published engine table at $table_url" >&2; remote_rows=""; }
 }
-cached_tree() {
+cached_key() {
   local dir=$store/${1:0:12}
   [ -f "$dir/.complete" ] && [ -f "$dir/manifest.json" ] || return 1
-  [ "$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("engine_tree", ""))' "$dir/manifest.json" 2>/dev/null)" = "$1" ]
+  [ "$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("engine_key", ""))' "$dir/manifest.json" 2>/dev/null)" = "$1" ]
 }
 row=""
 resolve() {
@@ -69,29 +78,29 @@ resolve() {
   [ -n "$1" ] || return 1
   [ ! -f "$table" ] || row=$(row_in "$1" <"$table")
   [ -z "$row" ] || return 0
-  if cached_tree "$1"; then row="$1"; return 0; fi
+  if cached_key "$1"; then row="$1"; return 0; fi
   load_remote
   row=$(row_in "$1" <<<"$remote_rows")
   [ -n "$row" ]
 }
 
 found="" distance=0
-if resolve "$tree"; then
+if resolve "$key"; then
   found=$row
 else
   index=0
   while read -r commit; do
-    candidate=$(git -C "$root" rev-parse "$commit:engine" 2>/dev/null || true)
-    if [ "$candidate" != "$tree" ] && resolve "$candidate"; then found=$row distance=$index; break; fi
+    candidate=$("$key_script" "$commit" 2>/dev/null || true)
+    if [ "$candidate" != "$key" ] && resolve "$candidate"; then found=$row distance=$index; break; fi
     index=$((index + 1))
-  done < <(git -C "$root" rev-list --max-count=200 HEAD -- engine)
+  done < <(git -C "$root" rev-list --max-count=200 HEAD -- "${key_paths[@]}")
   if [ -z "$found" ]; then
-    die "no prebuilt Linux engine for engine/ tree ${tree:0:12} or any of the 200 commits before it that changed engine/: build ${tree:0:12} on the Linux builder (scripts/linux/build.sh --apply), publish it with scripts/linux/publish-engine.sh --upload and commit packages/ardiacore/prebuilt-engines-linux.tsv"
+    die "no prebuilt Linux engine for engine key ${key:0:12} or any of the 200 commits before it that changed a path the key covers: build this commit's engine on the Linux builder (scripts/linux/build.sh --apply), publish it with scripts/linux/publish-engine.sh --upload and commit packages/ardiacore/prebuilt-engines-linux.tsv"
   fi
   if [ "$nearest" = 0 ]; then
-    die "no prebuilt Linux engine for engine/ tree ${tree:0:12}: build ${tree:0:12} on the Linux builder (scripts/linux/build.sh --apply), publish it with scripts/linux/publish-engine.sh --upload and commit packages/ardiacore/prebuilt-engines-linux.tsv, or pass --nearest to use ${found:0:12}, $distance engine commits older"
+    die "no prebuilt Linux engine for engine key ${key:0:12}: build this commit's engine on the Linux builder (scripts/linux/build.sh --apply), publish it with scripts/linux/publish-engine.sh --upload and commit packages/ardiacore/prebuilt-engines-linux.tsv, or pass --nearest to use ${found:0:12}, $distance engine commits older"
   fi
-  echo "warning: no prebuilt Linux engine for engine/ tree ${tree:0:12}; using ${found:0:12}, $distance engine commits older, and the app may not match it" >&2
+  echo "warning: no prebuilt Linux engine for engine key ${key:0:12}; using ${found:0:12}, $distance engine commits older, and the app may not match it" >&2
 fi
 
 IFS=$'\t' read -r selected tag sha <<<"$found"
@@ -111,7 +120,7 @@ if [ -z "${tag:-}" ] && [ -z "${sha:-}" ] && [ -f "$dest/.complete" ]; then
 fi
 [[ "${tag:-}" =~ ^[A-Za-z0-9._-]+$ ]] || die "bad release tag in the engine table row: $found"
 [[ "${sha:-}" =~ ^[0-9a-f]{64}$ ]] || die "bad SHA-256 in the engine table row: $found"
-if [ -f "$dest/.complete" ] && [ "$(cat "$dest/.complete")" = "$sha" ] && cached_tree "$selected"; then
+if [ -f "$dest/.complete" ] && [ "$(cat "$dest/.complete")" = "$sha" ] && cached_key "$selected"; then
   echo "using the cached Linux engine $short" >&2
   touch "$dest/.complete"
   echo "$dest"
@@ -129,7 +138,7 @@ echo "downloading the Linux engine $short ($url)" >&2
 curl -fsSL --retry 3 -o "$tmp/$file" "$url" || die "couldn't download $url"
 actual=$(sha256sum "$tmp/$file" | awk '{ print $1 }')
 [ "$actual" = "$sha" ] || die "$file has SHA-256 $actual, not $sha from the engine table"
-python3 -I "$here/runtime_files.py" unpack --archive "$tmp/$file" --into "$tmp/unpacked" --tree "$selected" >/dev/null \
+python3 -I "$here/runtime_files.py" unpack --archive "$tmp/$file" --into "$tmp/unpacked" --key "$selected" >/dev/null \
   || die "$file isn't a valid Linux engine for $short"
 rm -f "$tmp/$file"
 rm -rf "$dest"

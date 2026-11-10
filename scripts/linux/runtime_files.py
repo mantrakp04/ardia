@@ -15,17 +15,17 @@ OPTIONAL = ('snapshot_blob.bin', 'libEGL.so', 'libGLESv2.so', 'libvk_swiftshader
 NEVER_STRIPPED = ('chrome_sandbox',)
 LOCALE_BUILD_FILES = ('*.info',)
 ARCHIVE_ROOT = 'ardiacore-linux-x64'
-MANIFEST_FORMAT = 1
+MANIFEST_FORMAT = 2
 TARGET_OS = 'linux'
 TARGET_CPU = 'x64'
 
 
-def archive_name(tree):
-    return f'ArdiaCore-{tree[:12]}-linux-{TARGET_CPU}.tar.xz'
+def archive_name(key):
+    return f'ArdiaCore-{key[:12]}-linux-{TARGET_CPU}.tar.xz'
 
 
-def release_tag(tree):
-    return f'engine-{tree[:12]}'
+def release_tag(key):
+    return f'engine-{key[:12]}'
 
 
 def missing(directory):
@@ -66,12 +66,12 @@ def strippable(directory):
     return [directory / name for name in REQUIRED + OPTIONAL if name not in NEVER_STRIPPED and is_elf(directory / name)]
 
 
-def check_manifest(directory, tree):
+def check_manifest(directory, key):
     path = directory / 'manifest.json'
     if not path.is_file():
         raise ValueError('the engine archive holds no manifest.json')
     manifest = json.loads(path.read_text())
-    expected = {'format': MANIFEST_FORMAT, 'engine_tree': tree, 'target_os': TARGET_OS, 'target_cpu': TARGET_CPU}
+    expected = {'format': MANIFEST_FORMAT, 'engine_key': key, 'target_os': TARGET_OS, 'target_cpu': TARGET_CPU}
     wrong = [f'{key} is {manifest.get(key)!r}, not {value!r}' for key, value in expected.items() if manifest.get(key) != value]
     if wrong:
         raise ValueError('the engine manifest does not match: ' + '; '.join(wrong))
@@ -97,7 +97,7 @@ def check_member(member, root):
     raise ValueError(f'archive entry {name!r} is not a file, directory or link')
 
 
-def unpack(archive, into, tree):
+def unpack(archive, into, key):
     into.mkdir(parents=True, exist_ok=False)
     extract_filter = getattr(tarfile, 'data_filter', None)
     with tarfile.open(archive, 'r|xz') as packed:
@@ -111,7 +111,7 @@ def unpack(archive, into, tree):
     engine = into / ARCHIVE_ROOT
     if not engine.is_dir():
         raise ValueError(f'the engine archive holds no {ARCHIVE_ROOT}/ directory')
-    check_manifest(engine, tree)
+    check_manifest(engine, key)
     select(engine)
     return engine
 
@@ -127,7 +127,7 @@ def main():
     unpacking = commands.add_parser('unpack', help='safely unpack and check an engine archive')
     unpacking.add_argument('--archive', type=pathlib.Path, required=True)
     unpacking.add_argument('--into', type=pathlib.Path, required=True)
-    unpacking.add_argument('--tree', required=True)
+    unpacking.add_argument('--key', required=True)
     args = parser.parse_args()
     try:
         if args.command == 'list':
@@ -135,7 +135,7 @@ def main():
         elif args.command == 'copy':
             copy(args.source, args.destination)
         else:
-            print(unpack(args.archive, args.into, args.tree))
+            print(unpack(args.archive, args.into, args.key))
     except (ValueError, OSError, tarfile.TarError, lzma.LZMAError, EOFError, json.JSONDecodeError) as error:
         print(f'runtime_files.py: {error}', file=sys.stderr)
         sys.exit(1)

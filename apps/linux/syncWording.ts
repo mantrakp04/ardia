@@ -79,7 +79,7 @@ export const SYNC_WORDING: readonly Wording[] = [
         `On your other device, open Ardia › Settings › Sync and choose the same sync folder.`,
       ],
       [
-        "Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.",
+        "On your iPhone, open Ardia, tap Sync With Mac, and scan this code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.",
         "Or scan this code with your phone’s camera to copy the words, then type or paste them on your other device.",
       ],
       [

@@ -228,8 +228,8 @@ release commit, run `scripts/linux/release.sh <version>`, then the `gh release u
 
 The script refuses what `release.sh` refuses: a missing notes file or one whose frontmatter doesn't read, a
 `MARKETING_VERSION` other than `<version>`, and uncommitted changes (here under `apps/browser`, `apps/linux`,
-`apps/cli`, `packages`, `engine` or `scripts/linux`). It uses the exact Linux engine for HEAD's `engine/` tree, so
-publish that first. A nightly and a stable go the same way.
+`apps/cli`, `packages`, `engine` or `scripts/linux`). It uses the exact Linux engine for HEAD's engine key
+(`engine/engine-key.sh`), so publish that first. A nightly and a stable go the same way.
 See [linux-ci.md](linux-ci.md) › Linux releases.
 
 ## CI releases

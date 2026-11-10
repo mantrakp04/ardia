@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
   const std::string_view unregistered_switch = "unknownDefaultOn";
   const std::string_view unregistered_experiment = "unknownDefaultOff";
   assert(ardiacore::SwitchOn(unregistered_switch));
-  assert(!ardiacore::ExperimentOn(unregistered_experiment));
+  assert(!ardiacore::SwitchOverride(unregistered_experiment).value_or(false));
   auto config = ardiacore::LinuxLaunchConfig(base::FilePath(argv[2]), base::FilePath(argv[3]));
   assert(config.values.size() == 9);
   assert(config.At("dataDirectory").text == argv[2]);
@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
     assert(config.At("background").boolean);
     assert(config.At("instance").dict->At("downloadsDir").text == "/tmp/downloads");
     assert(config.At("instance").dict->values.size() == 1);
-    assert(ardiacore::ExperimentOn(example_experiment));
+    assert(ardiacore::SwitchOverride(example_experiment).value_or(false));
     assert(config.At("isolated").boolean);
   } else if (scenario == "hyprland") {
     assert(ardiacore::InstanceValue("hyprland-runtime-dir") == "/run/user/1000");
@@ -214,30 +214,20 @@ int main(int argc, char** argv) {
     assert(!ardiacore::InstanceValue("hyprland-runtime-dir"));
     assert(!ardiacore::InstanceValue("hyprland-instance"));
   } else if (scenario == "precedence") {
-    assert(!ardiacore::ExperimentOn(example_experiment));
+    assert(!ardiacore::SwitchOverride(example_experiment).value_or(false));
     assert(!ardiacore::SwitchOverride("malformed"));
     assert(ardiacore::InstanceValue("downloads-dir") == "/tmp/cli");
     assert(config.At("instance").dict->At("downloadsDir").text == "/tmp/cli");
     assert(!config.At("isolated").boolean);
-    base::CommandLine gpu;
-    gpu.AppendSwitchASCII("type", "gpu-process");
-    ardiacore::PassSwitchesToGpuProcess(&gpu);
-    assert(gpu.GetSwitchValueASCII("ardia-switches") == command->GetSwitchValueASCII("ardia-switches"));
-    assert(!gpu.HasSwitch("ardia-test"));
-    assert(!gpu.HasSwitch("ardia-trace"));
-    base::CommandLine renderer;
-    renderer.AppendSwitchASCII("type", "renderer");
-    ardiacore::PassSwitchesToGpuProcess(&renderer);
-    assert(!renderer.HasSwitch("ardia-switches"));
   } else if (scenario == "approval") {
     assert(command->GetSwitchValueASCII("disable-features") == "Example,DevToolsAcceptDebuggingConnections");
   } else if (scenario == "child") {
     assert(!command->HasSwitch("disable-features"));
     assert(!ardiacore::BackgroundInstance());
-    assert(!ardiacore::ExperimentOn(example_experiment));
+    assert(!ardiacore::SwitchOverride(example_experiment).value_or(false));
     assert(config.At("instance").dict->values.empty());
   } else if (scenario == "empty-cli") {
-    assert(!ardiacore::ExperimentOn(example_experiment));
+    assert(!ardiacore::SwitchOverride(example_experiment).value_or(false));
     assert(config.At("instance").dict->values.empty());
   } else if (scenario == "commas") {
     assert(ardiacore::InstanceValue("downloads-dir") == "/tmp/N05 downloads,review,part=two,, last");

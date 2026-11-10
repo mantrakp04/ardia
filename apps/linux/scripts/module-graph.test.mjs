@@ -36,7 +36,7 @@ const only = (ids, id) => ids.filter((candidate) => candidate.split("?")[0] === 
 test("production graph uses current Linux adapters and one canonical shared state and native module graph", { timeout: 120000 }, async () => {
   const { graph, ids, chunks } = await productionGraph();
   assert.ok(graph?.size > 1000);
-  assert.deepEqual(ids.filter((id) => id.includes("/apps/demo/")), []);
+  assert.deepEqual(ids.filter((id) => id.includes("/packages/demo/")), []);
   assert.deepEqual(ids.filter((id) => /\/apps\/browser\/src\/(store\/|lib\/(native|tabPages|preload|theme)\.)/.test(id)), []);
 
   const singletons = [

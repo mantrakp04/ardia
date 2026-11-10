@@ -9,12 +9,12 @@ Ardia-<version>-linux-x64.tar.xz with lib/ardia/VERSION and the CLI, writes
 the .sha256 files and provenance.txt, and runs the smoke gate. It never
 publishes: it prints the gh release upload command for the assets.
 
-  --engine exact     the published engine of this commit'"'"'s engine/ tree (default;
+  --engine exact     the published engine of this commit'"'"'s engine key (default;
                      a release must match its source)
   --engine nearest   the nearest earlier published engine: a test build
   --engine DIR       an engine dir (chrome and manifest.json) or a Chromium out
                      dir, read only: a test build unless its manifest names
-                     this commit'"'"'s engine/ tree
+                     this commit'"'"'s engine key (engine/engine-key.sh)
   --out DIR          where the assets go (default dist/<version>/linux); an
                      existing DIR must be empty or an earlier output of this script
   --allow-dirty      build with uncommitted changes under apps/browser,
@@ -102,34 +102,34 @@ cli_name="ardia-cli-$version-linux-x64.tar.gz"
 
 echo "==> Engine ($engine_mode)"
 case "$engine_mode" in
-  exact) engine=$(packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64) || die "no published Linux engine for this engine/ tree: publish it with scripts/linux/publish-engine.sh --upload (docs/linux-ci.md)" ;;
-  nearest) engine=$(packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64 --nearest) || die "no published Linux engine near this engine/ tree" ;;
+  exact) engine=$(packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64) || die "no published Linux engine for this commit's engine key: publish it with scripts/linux/publish-engine.sh --upload (docs/linux-ci.md)" ;;
+  nearest) engine=$(packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64 --nearest) || die "no published Linux engine near this commit's engine key" ;;
   "") die "--engine needs exact, nearest or a directory" ;;
   *) [ -d "$engine_mode" ] || die "--engine $engine_mode is neither exact, nearest nor a directory"; engine=$(cd "$engine_mode" && pwd -P) ;;
 esac
-head_tree=$(git rev-parse HEAD:engine)
+head_key=$(engine/engine-key.sh) || die "couldn't compute this commit's engine key (engine/engine-key.sh)"
 manifest_field() {
   python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]) or "")' "$engine/manifest.json" "$1" 2>/dev/null || true
 }
-engine_tree=""
+engine_key=""
 chromium_version=""
 engine_commit=""
 if [ -f "$engine/manifest.json" ]; then
-  engine_tree=$(manifest_field engine_tree)
+  engine_key=$(manifest_field engine_key)
   chromium_version=$(manifest_field chromium_version)
   engine_commit=$(manifest_field source_commit)
 elif [ -f "$engine/../../chrome/VERSION" ]; then
   chromium_version=$(awk -F= '{ v[$1] = $2 } END { print v["MAJOR"] "." v["MINOR"] "." v["BUILD"] "." v["PATCH"] }' "$engine/../../chrome/VERSION")
 fi
 exact=0
-[ "$engine_tree" = "$head_tree" ] && exact=1
-engine_label=${engine_tree:0:12}
+[ "$engine_key" = "$head_key" ] && exact=1
+engine_label=${engine_key:0:12}
 engine_label=${engine_label:-"without a manifest"}
 if [ "$exact" = 1 ]; then
   echo "    engine $engine_label (exact), Chromium ${chromium_version:-unknown}: $engine"
 else
-  [ "$engine_mode" = exact ] && die "the fetched engine names tree '${engine_tree:-none}', not this commit's $head_tree"
-  warn "the engine ($engine_label, Chromium ${chromium_version:-unknown}) isn't this commit's ${head_tree:0:12}: a test build, not a release"
+  [ "$engine_mode" = exact ] && die "the fetched engine names engine key '${engine_key:-none}', not this commit's $head_key"
+  warn "the engine ($engine_label, Chromium ${chromium_version:-unknown}) isn't this commit's ${head_key:0:12}: a test build, not a release"
 fi
 
 echo "==> UI (apps/linux/dist)"
@@ -153,7 +153,7 @@ python3 scripts/linux/package.py --out "$engine" --ui apps/linux/dist --content-
 {
   echo "version $version, $channel, linux-x64"
   echo "commit $(git rev-parse HEAD)${dirty:+ + uncommitted changes}"
-  echo "engine ${engine_tree:-unknown} ($([ "$exact" = 1 ] && echo exact || echo "not this commit's $head_tree")), from $engine"
+  echo "engine key ${engine_key:-unknown} ($([ "$exact" = 1 ] && echo exact || echo "not this commit's $head_key")), from $engine"
   echo "engine source commit ${engine_commit:-unknown}"
   echo "chromium ${chromium_version:-unknown}"
   echo "package $(cut -d' ' -f1 "$out/$package_name.sha256")  $package_name"
@@ -166,7 +166,7 @@ smoke_args=(--package "$out/$package_name" --results "$out/smoke" --timeout-ms 6
 node scripts/linux/smoke.mjs "${smoke_args[@]}" || die "the smoke gate failed ($out/smoke/results.json)"
 
 echo
-[ "$exact" = 1 ] || echo "NOT a release: built against engine $engine_label, not this commit's ${head_tree:0:12}."
+[ "$exact" = 1 ] || echo "NOT a release: built against engine $engine_label, not this commit's ${head_key:0:12}."
 [ -z "$dirty" ] || echo "NOT a release: built with uncommitted changes."
 du -sh "$out/$package_name" "$out/$cli_name"
 echo

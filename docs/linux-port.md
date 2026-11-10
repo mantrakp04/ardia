@@ -1,7 +1,7 @@
 # Ardia on Linux
 
-The Linux port runs the same browser UI as the Mac app on the same Chromium (156.0.8078.79) and Helium (0.20.3, with
-helium-linux 0.20.3.1) pins. It targets x86-64 Linux on Wayland, with Hyprland and Omarchy as the main desktop; X11
+The Linux port runs the same browser UI as the Mac app on the same Chromium (157.0.8103.38) and Helium (0.21.1, with
+helium-linux 0.21.1.1) pins. It targets x86-64 Linux on Wayland, with Hyprland and Omarchy as the main desktop; X11
 works, and arm64 builds are configured but untested. It answers upstream issue #1, "Linux Support".
 
 On the Mac, ArdiaCore is a framework that the React Native app hosts. On Linux there is no React Native: Chromium's own
@@ -22,7 +22,7 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 | `scripts/linux` | Build, package, install, engine publish and fetch, smoke gate, CI checks, the polkit policy and the Arch `PKGBUILD`. |
 | `.github/workflows/linux.yml` | The Linux workflow ([linux-ci.md](linux-ci.md)). |
 
-`apps/demo` (the ardia.dev web demo) has no Linux code and nothing under `apps/linux` imports it.
+`packages/demo` (the ardia.dev web demo) has no Linux code and nothing under `apps/linux` imports it.
 
 ## Architecture
 
@@ -316,7 +316,7 @@ build (`SignedForDistribution()` is true and `TestInstance()` false).
 - **Engine fetch.** `packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64` dispatches to
   `scripts/linux/fetch-engine.sh`; without `--arch` the Mac path is unchanged.
 - **Proof.** `pnpm --filter @ardia/linux test:graph` asserts that the Linux production module graph loads nothing
-  from `apps/demo` and only the Linux adapters it means to.
+  from `packages/demo` and only the Linux adapters it means to.
 
 ## Building on Linux
 
@@ -334,8 +334,9 @@ export PYTHONDONTWRITEBYTECODE=1
 mkdir -p "$AC_CHROMIUM_BUILD"
 
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$AC_CHROMIUM_BUILD/depot_tools"
-git clone --depth 1 --branch 0.20.3 https://github.com/imputnet/helium-chromium.git "$AC_CHROMIUM_BUILD/helium"
-git clone --depth 1 --branch 0.20.3.1 https://github.com/imputnet/helium-linux.git "$AC_CHROMIUM_BUILD/helium-linux"
+git clone --depth 1 --branch 0.21.1 https://github.com/imputnet/helium-chromium.git "$AC_CHROMIUM_BUILD/helium"
+git clone --depth 1 --branch 0.21.1.1 https://github.com/imputnet/helium-linux.git "$AC_CHROMIUM_BUILD/helium-linux"
+git -C "$AC_CHROMIUM_BUILD/helium" fetch --depth 1 origin "$(sed -n 's/^helium_chromium_commit = //p' engine/patches/build/helium-pins.ini)"
 
 source engine/patches/build/env.sh
 scripts/agent/locked chromium -- engine/patches/build/01-sync.sh --apply
@@ -343,7 +344,10 @@ scripts/agent/locked chromium -- python3 engine/patches/build/03-helium.py --pla
 scripts/linux/build.sh --apply --generate
 ```
 
-- **Pins.** The tags must match `engine/patches/build/helium-pins.ini`.
+- **Pins.** The tags must match `engine/patches/build/helium-pins.ini`. helium-linux's `helium-chromium` submodule
+  may sit a few commits past the shared Helium tag; `03-helium.py` accepts that only when the two commits agree on
+  everything the build reads (the patches, version files, lists and utils), which is why the `fetch` line brings in
+  that commit.
 - **Linux preparation.** It bootstraps `depot_tools`'s Python and replaces the Debian sysroot's hard-linked driver
   libraries with private copies (`normalize-sysroot.py`).
 - **Build settings.** The build keeps the official configuration: phase-2 PGO, ThinLTO, CFI and the sandbox. The

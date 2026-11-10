@@ -288,20 +288,6 @@ bool SwitchOn(std::string_view name) {
   return SwitchOverride(name).value_or(true);
 }
 
-bool ExperimentOn(std::string_view name) {
-  return SwitchOverride(name).value_or(false);
-}
-
-void PassSwitchesToGpuProcess(base::CommandLine* gpu_command_line) {
-  if (gpu_command_line->GetSwitchValueASCII(switches::kProcessType) !=
-          switches::kGpuProcess ||
-      !CommandLine().HasSwitch(kSwitchesSwitch)) {
-    return;
-  }
-  gpu_command_line->AppendSwitchASCII(
-      kSwitchesSwitch, CommandLine().GetSwitchValueASCII(kSwitchesSwitch));
-}
-
 void DecideTestGateAtStartup() {
   if (!CommandLine().HasSwitch(switches::kProcessType) &&
       (CommandLine().HasSwitch(kTestSwitch) ||

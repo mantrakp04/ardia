@@ -18,6 +18,8 @@ export const REMOTE_METHODS = [
   "addRemoteProfile",
   "adoptProfileTheme",
   "useFolder",
+  "sendTargets",
+  "sendTab",
 ] as const;
 
 export type RemoteMethod = (typeof REMOTE_METHODS)[number];

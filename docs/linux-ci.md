@@ -12,7 +12,7 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
 | [`.github/actions/linux-setup`](../.github/actions/linux-setup/action.yml) | Ubuntu packages for the fixtures (clang, dbus, NSS tools, gnome-keyring, PyGObject), Node 24, pnpm and `pnpm install --frozen-lockfile` |
 | [`scripts/linux/ci-checks.sh`](../scripts/linux/ci-checks.sh) | The engine-free checks; the `engine/ardiacore-linux/tests` modules run in parallel because the suite takes well over five minutes serially |
 | [`scripts/linux/publish-engine.sh`](../scripts/linux/publish-engine.sh) | Builder side: stages, strips and archives an engine from a Chromium out dir; `--upload` publishes it and adds its table row |
-| [`packages/ardiacore/prebuilt-engines-linux.tsv`](../packages/ardiacore/prebuilt-engines-linux.tsv) | `tree<TAB>tag<TAB>sha256` for each published Linux engine |
+| [`packages/ardiacore/prebuilt-engines-linux.tsv`](../packages/ardiacore/prebuilt-engines-linux.tsv) | `key<TAB>tag<TAB>sha256` for each published Linux engine (rows from before the engine key are keyed by `engine/`'s old tree id and no longer match) |
 | `packages/ardiacore/scripts/fetch-engine.sh --arch linux-x86_64` | Dispatches to [`scripts/linux/fetch-engine.sh`](../scripts/linux/fetch-engine.sh); the Mac path is unchanged |
 | [`scripts/linux/runtime_files.py`](../scripts/linux/runtime_files.py) | The one runtime allowlist used by publishing, fetching and packaging, and the safe archive unpacker |
 | [`scripts/linux/smoke.mjs`](../scripts/linux/smoke.mjs) | Strict smoke gate for a packaged tarball |
@@ -20,19 +20,23 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
 
 ## Engine archives
 
-- **Key.** The engine is keyed by `git rev-parse HEAD:engine`, as on the Mac.
-- **Archive.** `ArdiaCore-<tree12>-linux-x64.tar.xz` holds one directory, `ardiacore-linux-x64/`. It contains the
-  allowlisted runtime files and a `manifest.json`: engine tree, source commit, Chromium version, `args.gn` hash,
+- **Key.** The engine is keyed by `engine/engine-key.sh`, as on the Mac: one hash of `engine/`,
+  `apps/browser/assets/offline-game` and `apps/browser/assets/offline-game-pipeline`, because the Linux build packs
+  the offline game too (`game-resource.sh`). Uncommitted changes in any of those paths stop the fetcher and the
+  publisher.
+- **Archive.** `ArdiaCore-<key12>-linux-x64.tar.xz` holds one directory, `ardiacore-linux-x64/`. It contains the
+  allowlisted runtime files and a `manifest.json` (format 2): engine key, source commit, Chromium version, `args.gn` hash,
   chrome hash and build ID, and build and packaging times.
-- **Where it's published.** It is attached to an `engine-<tree12>` prerelease in `$ARDIACORE_PREBUILT_REPO`, with a
+- **Where it's published.** It is attached to an `engine-<key12>` prerelease in `$ARDIACORE_PREBUILT_REPO`, with a
   `.sha256` beside it. The scripts and the workflow default to `mckamyk/ardia`, where the Linux engines are published.
   Set the `ARDIACORE_PREBUILT_REPO` repository variable to use another repository.
 - **What it ships.** The allowlist ships only what Chromium loads at runtime. It leaves out `.so.TOC` files, the mock
   Vulkan driver, the Vulkan validation layer and `locales/*.pak.info`.
 - **Stripping.** The publisher strips a staging copy; `symbol_level=0` builds have no debug symbols to keep. `chrome`
   shrinks from about 535 MB to about 300 MB, and the archive is about 110 MB.
-- **Source commit.** The publisher doesn't trust `repo.commit` alone. It computes the git tree of the source copy's
-  `engine/` and records `source_commit` only when that commit's `engine/` tree matches.
+- **Source commit.** The publisher doesn't trust `repo.commit` alone. It computes the engine key of the source copy the
+  way `engine/engine-key.sh` does (one tree per key path, then one hash) and records `source_commit` only when that
+  commit's key matches.
 - **Out dir.** The publisher copies from the out dir while holding the chromium lock and never writes there.
 
 Publishing an engine for the current build:
@@ -51,8 +55,8 @@ The fetcher checks an archive in this order:
 
 1. it verifies the SHA-256 before unpacking;
 2. it rejects entries outside `ardiacore-linux-x64/`, links pointing outside it, and special files;
-3. it checks the manifest's tree and platform;
-4. it moves the engine into `apps/browser/build-ardiacore/prebuilt-linux-x86_64/<tree12>/`, and marks it complete
+3. it checks the manifest's engine key and platform;
+4. it moves the engine into `apps/browser/build-ardiacore/prebuilt-linux-x86_64/<key12>/`, and marks it complete
    last.
 
 It reads the local table first, then the cache, then the published table on the `linux` branch, so CI on an older
@@ -60,15 +64,15 @@ commit still finds engines published later.
 
 ## Nearest engine for CI, exact engine for releases
 
-`engine/` changes in many commits, and many of those changes are Mac-only. Requiring an exact engine would leave the
+The key's paths change in many commits, and many of those changes are Mac-only. Requiring an exact engine would leave the
 package job red after almost every merge.
 
 - **Nearest.** The workflow defaults to `--nearest`, the same option the Mac fetcher has. It uses the engine of the nearest
-  earlier commit that changed `engine/`, within the last 200 such commits. The job warns, the summary names both
-  trees, and the artifact is named `Ardia-linux-x64-<commit12>-engine-<engine12>`.
+  earlier commit that changed the key's paths, within the last 200 such commits. The job warns, the summary names
+  both keys, and the artifact is named `Ardia-linux-x64-<commit12>-engine-<engine12>`.
 - **Exact.** Choose `exact` when a package must match its source. A Linux release requires it, and
   `scripts/linux/release.sh` defaults to it.
-- **Keeping nearest close.** Publishing after each `engine/` change on the builder keeps nearest builds close.
+- **Keeping nearest close.** Publishing after each change to the key's paths on the builder keeps nearest builds close.
 
 ## Jobs
 
@@ -81,7 +85,7 @@ package job red after almost every merge.
   On failure it uploads every check's log.
 - **`package`.** In order, it:
   1. reads the version from `MARKETING_VERSION` in the Xcode project, as `scripts/release.sh` does;
-  2. fetches the engine (cached per tree and table);
+  2. fetches the engine (cached per engine key and table);
   3. builds `apps/linux/dist`;
   4. installs uv and builds the CLI with `apps/cli/scripts/build.sh <version> <dist> --platform linux-x64`; its Python
      and esbuild downloads are cached;
@@ -152,13 +156,13 @@ it:
 2. fetches the exact engine (`--engine nearest`, an engine dir or a Chromium out dir make test builds);
 3. builds `apps/linux/dist`, the CLI and uBlock Origin;
 4. packages `Ardia-<version>-linux-x64.tar.xz` with `--version` and `--cli`;
-5. writes the `.sha256` files and `provenance.txt` (version, channel, commit, engine tree, Chromium version and both
+5. writes the `.sha256` files and `provenance.txt` (version, channel, commit, engine key, Chromium version and both
    digests);
 6. runs the smoke gate.
 
 Everything goes to `dist/<version>/linux/`, or to `--out`. It never uploads. It prints the `gh release upload` command
 for the package, the CLI tarball and their `.sha256` files. `--allow-dirty` builds from a dirty tree for testing.
-`engine/` must still be clean for a fetched engine, so pass an engine dir then.
+The key's paths must still be clean for a fetched engine, so pass an engine dir then.
 
 ## Sandbox on Ubuntu
 

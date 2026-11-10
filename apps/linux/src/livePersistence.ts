@@ -15,5 +15,6 @@ export function createLivePersistence(): LivePersistenceBinding {
     newFolderId: () => `lf-${crypto.randomUUID()}`,
     completionFence: client.completionFence,
     beginRefresh: client.beginRefresh,
+    flush: () => { void client.flush(); },
   };
 }

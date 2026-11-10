@@ -59,38 +59,69 @@ def is_git_checkout(source):
     return result.returncode == 0 and pathlib.Path(result.stdout.strip()).resolve() == source
 
 
-def contents_tree(source):
-    with tempfile.TemporaryDirectory(prefix='ardia-engine-tree-') as scratch:
+def key_script(checkout):
+    return checkout / 'engine/engine-key.sh'
+
+
+def key_paths(source):
+    script = key_script(source)
+    if not script.is_file():
+        raise PublishError(f'{source} has no engine/engine-key.sh')
+    result = subprocess.run([str(script), '--paths'], text=True, capture_output=True)
+    paths = result.stdout.split()
+    if result.returncode != 0 or not paths:
+        raise PublishError(f'{script} --paths failed: {result.stderr.strip()}')
+    return paths
+
+
+def commit_key(checkout, commit):
+    result = subprocess.run([str(key_script(checkout)), commit], cwd=checkout, text=True, capture_output=True)
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+
+def contents_key(source, paths):
+    absent = [path for path in paths if not (source / path).is_dir()]
+    if absent:
+        raise PublishError(f'{source} has no ' + ', '.join(absent))
+    with tempfile.TemporaryDirectory(prefix='ardia-engine-key-') as scratch:
         repo = pathlib.Path(scratch) / 'objects.git'
         git('init', '-q', '--bare', str(repo))
         env = dict(os.environ, GIT_INDEX_FILE=str(pathlib.Path(scratch) / 'index'))
-        git(f'--git-dir={repo}', f'--work-tree={source}', 'add', '-A', '--', 'engine', cwd=source, env=env)
-        return git(f'--git-dir={repo}', 'write-tree', '--prefix=engine/', cwd=source, env=env).stdout.strip()
+        git(f'--git-dir={repo}', f'--work-tree={source}', 'add', '-A', '--', *paths, cwd=source, env=env)
+        listing = ''
+        for path in paths:
+            tree = git(f'--git-dir={repo}', 'write-tree', f'--prefix={path}/', cwd=source, env=env).stdout.strip()
+            listing += f'{path} {tree}\n'
+        hashed = subprocess.run(['git', f'--git-dir={repo}', 'hash-object', '--stdin'], cwd=source, env=env, input=listing, text=True, capture_output=True)
+        if hashed.returncode != 0:
+            raise PublishError(f'git hash-object failed: {hashed.stderr.strip()}')
+        return hashed.stdout.strip()
 
 
 def engine_identity(source):
-    if not (source / 'engine').is_dir():
-        raise PublishError(f'{source} has no engine/ directory')
+    paths = key_paths(source)
     if is_git_checkout(source):
-        if git('status', '--porcelain', '--', 'engine', cwd=source).stdout.strip():
-            raise PublishError(f'{source}/engine has uncommitted changes: commit them, rebuild, then publish')
-        tree = git('rev-parse', 'HEAD:engine', cwd=source).stdout.strip()
-        return tree, git('rev-parse', 'HEAD', cwd=source).stdout.strip()
-    tree = contents_tree(source)
+        if git('status', '--porcelain', '--', *paths, cwd=source).stdout.strip():
+            raise PublishError(f'{", ".join(paths)} in {source} have uncommitted changes: commit them, rebuild, then publish')
+        key = commit_key(source, 'HEAD')
+        if not key:
+            raise PublishError(f'engine/engine-key.sh found no engine key for {source}')
+        return key, git('rev-parse', 'HEAD', cwd=source).stdout.strip()
+    key = contents_key(source, paths)
     marker = source.parent / (source.name + '.commit')
     if not marker.is_file():
         say(f'warning: {source} is not a git checkout and has no {marker.name}; source_commit is null')
-        return tree, None
+        return key, None
     commit = marker.read_text().strip()
     known = git('rev-parse', '--verify', '--quiet', f'{commit}^{{commit}}', check=False)
     if known.returncode != 0:
         say(f'warning: {marker} names {commit}, which this checkout does not have; source_commit is null')
-        return tree, None
-    recorded = git('rev-parse', f'{commit}:engine', check=False).stdout.strip()
-    if recorded != tree:
-        say(f'warning: {marker} names {commit[:12]}, whose engine/ is {recorded[:12] or "missing"}, not the copied {tree[:12]}; source_commit is null')
-        return tree, None
-    return tree, known.stdout.strip()
+        return key, None
+    recorded = commit_key(CHECKOUT, known.stdout.strip())
+    if recorded != key:
+        say(f'warning: {marker} names {commit[:12]}, whose engine key is {recorded[:12] or "missing"}, not the copy\'s {key[:12]}; source_commit is null')
+        return key, None
+    return key, known.stdout.strip()
 
 
 def chromium_version(out, source):
@@ -168,13 +199,13 @@ def gh(*args, check=True):
     return result
 
 
-def upload(repo, tree, source_commit, archive, checksum, row):
-    tag = runtime_files.release_tag(tree)
+def upload(repo, key, source_commit, archive, checksum, row):
+    tag = runtime_files.release_tag(key)
     view = gh('release', 'view', tag, '-R', repo, '--json', 'assets', check=False)
     if view.returncode != 0:
-        notes = f'Prebuilt Linux x64 ArdiaCore engine for engine/ tree {tree}, built from {source_commit or "an unrecorded commit"}.'
+        notes = f'Prebuilt Linux x64 ArdiaCore engine for engine key {key} (engine/engine-key.sh), built from {source_commit or "an unrecorded commit"}.'
         say(f'creating the prerelease {tag} in {repo}')
-        gh('release', 'create', tag, '-R', repo, '--prerelease', '--title', f'Linux engine {tree[:12]}', '--notes', notes)
+        gh('release', 'create', tag, '-R', repo, '--prerelease', '--title', f'Linux engine {key[:12]}', '--notes', notes)
         assets = set()
     else:
         assets = {asset['name'] for asset in json.loads(view.stdout).get('assets', [])}
@@ -196,29 +227,29 @@ def upload(repo, tree, source_commit, archive, checksum, row):
         gh('release', 'upload', tag, '-R', repo, *pending)
     lines = TABLE.read_text().splitlines() if TABLE.is_file() else []
     rows = [line.split('\t') for line in lines if line.strip()]
-    existing = [fields for fields in rows if fields[0] == tree]
+    existing = [fields for fields in rows if fields[0] == key]
     if existing and existing[0] != row.split('\t'):
-        raise PublishError(f'{TABLE.name} already lists {tree[:12]} differently: {chr(9).join(existing[0])}')
+        raise PublishError(f'{TABLE.name} already lists {key[:12]} differently: {chr(9).join(existing[0])}')
     if not existing:
         with TABLE.open('a') as handle:
             handle.write(row + '\n')
-        say(f'added {tree[:12]} to {TABLE.relative_to(CHECKOUT)}: commit it')
+        say(f'added {key[:12]} to {TABLE.relative_to(CHECKOUT)}: commit it')
 
 
 def publish(out, source, dest, repo, do_upload):
     runtime_files.select(out)
-    tree, source_commit = engine_identity(source)
-    if not HEX40.match(tree):
-        raise PublishError(f'unexpected engine tree {tree!r}')
+    key, source_commit = engine_identity(source)
+    if not HEX40.match(key):
+        raise PublishError(f'unexpected engine key {key!r}')
     if dest is None:
         dest = pathlib.Path(tempfile.mkdtemp(prefix='ardia-linux-engine-'))
     dest.mkdir(parents=True, exist_ok=True)
-    archive = dest / runtime_files.archive_name(tree)
+    archive = dest / runtime_files.archive_name(key)
     checksum = dest / (archive.name + '.sha256')
     for path in (archive, checksum):
         if path.exists():
             raise PublishError(f'refusing to overwrite {path}')
-    say(f'engine/ tree {tree} from {source_commit or "an unrecorded commit"}')
+    say(f'engine key {key} from {source_commit or "an unrecorded commit"}')
     with tempfile.TemporaryDirectory(prefix='ardia-engine-stage-') as scratch:
         stage = pathlib.Path(scratch)
         facts = stage_locked(out, source, stage)
@@ -228,7 +259,7 @@ def publish(out, source, dest, repo, do_upload):
         chrome = engine / 'chrome'
         manifest = {
             'format': runtime_files.MANIFEST_FORMAT,
-            'engine_tree': tree,
+            'engine_key': key,
             'source_commit': source_commit,
             'target_os': runtime_files.TARGET_OS,
             'target_cpu': runtime_files.TARGET_CPU,
@@ -244,10 +275,10 @@ def publish(out, source, dest, repo, do_upload):
         write_archive(stage, archive)
     digest = sha256(archive)
     checksum.write_text(f'{digest}  {archive.name}\n')
-    row = f'{tree}\t{runtime_files.release_tag(tree)}\t{digest}'
+    row = f'{key}\t{runtime_files.release_tag(key)}\t{digest}'
     say(f'{archive.name}: {archive.stat().st_size} bytes')
     if do_upload:
-        upload(repo, tree, source_commit, archive, checksum, row)
+        upload(repo, key, source_commit, archive, checksum, row)
     print(archive)
     print(row)
 

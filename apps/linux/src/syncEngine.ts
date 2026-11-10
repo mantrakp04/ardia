@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import * as engine from "../../browser/src/state/sync/engine";
-import type { DataType, SyncUi } from "../../browser/src/state/sync/syncDoc";
+import type { DataType, SendTarget, SyncUi } from "../../browser/src/state/sync/syncDoc";
 import type { FolderInfo, PhraseResult } from "../../browser/src/platform/sync";
 import { SyncNative } from "../../browser/src/platform/sync";
 import { ardiaHost, type ArdiaHost } from "./host";
@@ -144,6 +144,8 @@ function remoteFor(host: ArdiaHost): SyncRemote {
     addRemoteProfile: (syncId: string) => engine.addRemoteProfile(syncId),
     adoptProfileTheme: (profileId: string) => engine.adoptProfileTheme(profileId),
     useFolder: (path: string) => withChosenSyncFolder(path, () => engine.chooseSyncFolder()),
+    sendTargets: (profileIds: string[]) => Object.fromEntries(profileIds.map((profileId) => [profileId, engine.sendTargets(profileId)])),
+    sendTab: (tabId: string, deviceId: string) => engine.sendTab(tabId, deviceId),
   };
 }
 
@@ -191,9 +193,11 @@ export function startLinuxSync(options: { host?: ArdiaHost; candidate: boolean; 
     present: (state) => presentSyncState(state, keyStore),
   });
   authority = started;
+  const stopTargets = useSync.subscribe(refreshSendTargets);
   if (typeof addEventListener === "function")
     addEventListener("pagehide", () => {
       stopKeyringWatch();
+      stopTargets();
       started.stop();
     }, { once: true });
   return started;
@@ -277,6 +281,30 @@ export function addRemoteProfile(syncId: string): string | null {
   if (leading()) return engine.addRemoteProfile(syncId);
   quietly(forward("addRemoteProfile", [syncId]));
   return null;
+}
+
+let relayedTargets: Record<string, SendTarget[]> = {};
+
+function refreshSendTargets() {
+  if (!authority || leading()) return;
+  forward<Record<string, SendTarget[]>>("sendTargets", [Object.keys(useBrowser.getState().profiles)]).then(
+    (targets) => { relayedTargets = targets; },
+    () => { relayedTargets = {}; },
+  );
+}
+
+export const onTabsReceived = engine.onTabsReceived;
+
+export function sendTargets(profileId: string): SendTarget[] {
+  return leading() ? engine.sendTargets(profileId) : relayedTargets[profileId] ?? [];
+}
+
+export function sendTab(tabId: string, deviceId: string): boolean {
+  if (leading()) return engine.sendTab(tabId, deviceId);
+  const profileId = useBrowser.getState().tabs[tabId]?.profileId;
+  if (!profileId || !sendTargets(profileId).some((target) => target.id === deviceId)) return false;
+  quietly(forward("sendTab", [tabId, deviceId]));
+  return true;
 }
 
 export function adoptProfileTheme(profileId: string) {
