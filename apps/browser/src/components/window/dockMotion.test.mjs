@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 const dm = { ...(await import("./dockMotion.ts")), ...(await import("./tokens.ts")), ...(await import("../../state/windows/dockMotion.ts")), ...(await import("./cardFrame.ts")) };
-const { PAGE_FRAME } = await import("../../lib/windowLayout.ts");
+const { PAGE_FRAME, pageFrameOf } = await import("../../lib/windowLayout.ts");
 const DEFAULT_PEEK = dm.cardFrameOf(PAGE_FRAME.default).peek;
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
@@ -98,11 +98,12 @@ test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card 
   assert.equal(dm.cardInsetAt(0.5, 190, 9), 99.5);
 });
 
-test("the frame's corners shrink with it: Dia's 10 pt at the default, square edge to edge, and the toolbar's lights stay 21 pt into the card", () => {
+test("the card radius follows the native window radius minus the frame, and the toolbar's lights stay 21 pt into the card", () => {
   assert.equal(dm.cardFrameOf(9).radius, 10);
-  assert.equal(dm.cardFrameOf(0).radius, 0);
-  assert.equal(dm.cardFrameOf(12).radius, 10);
-  assert.ok(dm.cardFrameOf(4).radius > 0 && dm.cardFrameOf(4).radius < 10);
+  assert.equal(dm.cardFrameOf(0).radius, 19);
+  assert.equal(dm.cardFrameOf(12).radius, 7);
+  assert.equal(dm.cardFrameOf(4).radius, 15);
+  assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);
   assert.ok(dm.cardFrameOf(0).splitGap > 0, "split panes keep a hairline gap edge to edge, so they still read as two pages");
   assert.deepEqual(dm.toolbarLightsCenter(false, 0), [25, 21]);
   assert.deepEqual(dm.toolbarLightsCenter(false), [...dm.LIGHTS_CENTER]);

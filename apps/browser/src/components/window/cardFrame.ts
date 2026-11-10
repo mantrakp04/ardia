@@ -1,6 +1,5 @@
 import { pageFrameOf, type PageFrame } from "../../lib/windowLayout";
-import { windowCornerRadius } from "../../platform/windows";
-import { usePageFrameInset } from "../../state/windows/layout";
+import { usePageFrameInset, windowCornerRadius } from "../../state/windows/layout";
 import { PEEK_RADIUS } from "./tokens";
 import { sidebarCardGap } from "./dockMotion";
 

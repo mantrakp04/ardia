@@ -11,7 +11,7 @@ import { DEMOS } from "./demos";
 import { Pill } from "./Floating";
 import { CHIP, CRUMB_X, FIELD, fill, geo, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
 import { CARD_INSET, pageFrameOf } from "../../../lib/windowLayout";
-import { windowCornerRadius } from "../../../platform/windows";
+import { windowCornerRadius } from "../../../state/windows/layout";
 import { font, radius as radii } from "../../ui/tokens";
 import { Backdrop, Card, Crumb, FieldPlate, Glyph, Label, Lights, NavIcons, Rows, TabRow, ToolbarBand, TopTabPlate, WindowFrame } from "./Kit";
 import { lookFor, type Look } from "./look";

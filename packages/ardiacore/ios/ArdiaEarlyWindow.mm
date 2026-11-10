@@ -86,7 +86,7 @@ NSString *gLaunchURL;
 
 namespace {
 
-NSDictionary *gLittleLayout;
+NSMutableDictionary *gLittleLayout;
 
 NSString *const kLittleWindow = @"ardia.early.little-ardia";
 
@@ -240,6 +240,10 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   if (!window || !host) {
     if (window) [ArdiaChromeWindowHost closeWindow:window];
     return NO;
+  }
+  if (gLittleLayout) {
+    NSArray<NSNumber *> *cardInsets = layout[@"card"];
+    gLittleLayout[@"radius"] = @(MAX(ArdiaChromeWindowHost.windowCornerRadius - cardInsets.firstObject.doubleValue, 2));
   }
   controller.appWindowId = windowId;
   [window setFrame:rect display:NO];
