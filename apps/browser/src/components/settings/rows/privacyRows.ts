@@ -69,7 +69,7 @@ export const privacyRows = {
         vaultSuggestOnFocus: { title: "Suggest on Focus", keywords: ["autofill", "fill menu", "suggestions", "login field"] },
         vaultAskBeforeFilling: { title: "Ask Before Filling", keywords: ["touch id", "fingerprint", "password", "screen lock", "authenticate", "biometrics"] },
         vaultLoadPasswordsWhenUsed: { title: "Load Passwords When Used", keywords: ["cache", "offline", "local copy", "faster", "encrypted", "fetch"] },
-        vaultMenuGlass: { title: "Glass Menu", keywords: ["fill menu", "liquid glass", "translucent", "apple passwords", "look"] },
+        vaultMenuGlass: { title: "Glass Menu", keywords: ["fill menu", "liquid glass", "translucent", "look"] },
         vaultSaveOffer: { title: "Offer to Save", keywords: ["save login", "new password", "save prompt"] },
         vaultAutoSave: { title: "Save New Passwords Automatically", keywords: ["auto save", "new password", "sign up", "generated password", "strong password"] },
         vaultSaveTarget: { title: "Save New Logins To", keywords: ["default manager", "save to", "destination"] },
