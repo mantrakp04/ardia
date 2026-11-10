@@ -117,6 +117,7 @@ export const addBookmark = storeAction("addBookmark");
 export const addBookmarkFolder = storeAction("addBookmarkFolder");
 export const updateBookmark = storeAction("updateBookmark");
 export const moveBookmark = storeAction("moveBookmark");
+export const moveBookmarks = storeAction("moveBookmarks");
 export const removeBookmark = storeAction("removeBookmark");
 export const toggleBookmark = storeAction("toggleBookmark");
 export const addBookmarkTree = storeAction("addBookmarkTree");

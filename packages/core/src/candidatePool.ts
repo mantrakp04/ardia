@@ -19,7 +19,7 @@ export type Candidate = {
 };
 
 type Lookup = { get(key: string): Candidate | undefined; has(key: string): boolean };
-export type Pool = { list: Candidate[]; byKey: Lookup };
+export type Pool = { list: Candidate[]; byKey: Lookup; initials: Map<string, Candidate[]> | null };
 
 type BookmarkBase = { list: Candidate[]; byKey: Map<string, Candidate>; keys: Set<string>; cursor: number; done: boolean };
 type Builder = {
@@ -85,6 +85,7 @@ function advance(b: Builder, bookmarks: readonly BookmarkRow[], deadline: number
   b.pool = {
     list: b.list,
     byKey: { get: (key) => history.get(key) ?? base.byKey.get(key), has: (key) => history.has(key) || base.byKey.has(key) },
+    initials: null,
   };
   return true;
 }
@@ -100,7 +101,31 @@ function builderFor(history: readonly HistoryRow[], bookmarks: readonly Bookmark
 export function poolFor(history: readonly HistoryRow[], bookmarks: readonly BookmarkRow[]): Pool {
   const b = builderFor(history, bookmarks);
   advance(b, bookmarks, Infinity);
+  indexInitials(b.pool!);
   return b.pool!;
+}
+
+function indexInitials(pool: Pool): Map<string, Candidate[]> {
+  if (pool.initials) return pool.initials;
+  const initials = new Map<string, Candidate[]>();
+  for (const candidate of pool.list) {
+    const shown = candidate.text.shownLower;
+    const title = candidate.text.titleLower;
+    const chars = new Set<string>();
+    if (/^[a-z0-9]/.test(shown)) chars.add(shown[0]!);
+    if (/^[a-z0-9]/.test(title)) chars.add(title[0]!);
+    for (let i = 1; i < shown.length; i++) {
+      if (shown[i - 1] === "." || shown[i - 1] === "/") chars.add(shown[i]!);
+    }
+    for (const word of candidate.text.titleWords.split(" ")) if (word) chars.add(word[0]!);
+    for (const char of chars) {
+      const rows = initials.get(char);
+      if (rows) rows.push(candidate);
+      else initials.set(char, [candidate]);
+    }
+  }
+  pool.initials = initials;
+  return initials;
 }
 
 export function prepareSuggestions(source: SuggestionSource, deadline: number): boolean {
@@ -115,7 +140,9 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
       if (++n % SLICE_CHECK === 0 && Date.now() > deadline) return false;
     }
   }
-  return advance(b, bookmarks, deadline);
+  const ready = advance(b, bookmarks, deadline);
+  if (ready) indexInitials(b.pool!);
+  return ready;
 }
 
 type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };

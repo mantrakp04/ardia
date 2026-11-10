@@ -170,6 +170,25 @@ test("undo puts deleted rows back between the rows that stayed, in every folder 
   assert.deepEqual(S().bookmarks.nodes[roots.other].children, [x, y, z]);
 });
 
+test("moving selected bookmarks updates the store once and preserves their order", () => {
+  S().hydrate({});
+  const source = S().addBookmarkFolder({ profileId: "default", title: "Source" });
+  const target = S().addBookmarkFolder({ profileId: "default", title: "Target" });
+  const ids = ["A", "B", "C", "D", "E"].map((title) => S().addBookmark({ profileId: "default", title, url: `https://${title.toLowerCase()}.example/`, parentId: source }));
+  let changes = 0;
+  const unsubscribe = useBrowser.subscribe(() => changes++);
+  S().moveBookmarks([ids[1], ids[3]], target);
+  assert.equal(changes, 1);
+  assert.deepEqual(S().bookmarks.nodes[source].children, [ids[0], ids[2], ids[4]]);
+  assert.deepEqual(S().bookmarks.nodes[target].children, [ids[1], ids[3]]);
+  changes = 0;
+  S().moveBookmarks([ids[2], ids[0]], target, 0);
+  assert.equal(changes, 1);
+  assert.deepEqual(S().bookmarks.nodes[source].children, [ids[4]]);
+  assert.deepEqual(S().bookmarks.nodes[target].children, [ids[2], ids[0], ids[1], ids[3]]);
+  unsubscribe();
+});
+
 test("an edit made at launch, before Chrome's tree is read, reaches Chrome and stays", async () => {
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});

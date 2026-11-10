@@ -55,7 +55,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const noInline = preventInline || (oneWord && raw.length !== query.length && /\s$/.test(raw));
   const completes = websiteFirst && !scope && oneWord && !noInline;
   const from = narrowing(pool, q, tokens);
-  const pages = from ? from.pages : pool.list;
+  const pages = from ? from.pages : /^[a-z0-9]$/.test(q) ? pool.initials?.get(q) ?? [] : pool.list;
   const again = from !== null && from.q === q;
   const parsed = parseQuery(q, tokens);
   const matched: Candidate[] = again ? from.pages : [];

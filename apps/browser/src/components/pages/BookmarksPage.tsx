@@ -6,7 +6,7 @@ import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { plural } from "../../state/browser/model";
 import type { BookmarkNode, Bookmarks } from "../../state/browser/types";
-import { moveBookmark, openFolder, removeBookmarks, restoreBookmarks } from "../../state/bookmarks/actions";
+import { moveBookmarks, openFolder, removeBookmarks, restoreBookmarks } from "../../state/bookmarks/actions";
 import { clickSelection, NO_SELECTION, rowWindow, selectAll, selectedInOrder, type ListSelection } from "../../state/bookmarks/bookmarkList";
 import { FolderTree } from "../bookmarks/FolderTree";
 import { Box, Button, Divider, EmptyState, radius, space, Text, Toast, useTheme } from "../ui";
@@ -108,13 +108,13 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
     setDrop(null);
     if (!target) return;
     const moving = dragging.current;
-    if ("into" in target) return moving.forEach((id) => moveBookmark(id, target.into));
+    if ("into" in target) return moveBookmarks(moving, target.into);
     let index = target.index;
     for (const id of moving) {
       const from = ids.indexOf(id);
       if (from >= 0 && from < target.index) index--;
     }
-    moving.forEach((id, i) => moveBookmark(id, target.parentId, index + i));
+    moveBookmarks(moving, target.parentId, index);
   };
 
   const actions =
