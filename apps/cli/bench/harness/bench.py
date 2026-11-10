@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ardia_side
+import browseruse_side
 import opencode_side
 import registry
 import runner
@@ -20,12 +21,13 @@ Commands:
   freeze-cli [--src DIR]        snapshot apps/cli into a venv the runs use (BENCH_HOME/cli, linked from devbin/ardia)
   servers start|stop [TASK...]  start or stop task servers (all tasks when none named)
   run TASK claude|codex RUN_ID  one cold run against the hidden Ardia instance, record in --results/runs/RUN_ID.json;
-                                --side opencode drives a fresh headless Chrome for Testing through OpenCode Browse's MCP
+                                --side opencode drives a fresh headless Chrome for Testing through OpenCode Browse's MCP;
+                                --side browseruse drives one through Browser Use's `browser-use` CLI and skill
   plan PLAN.json [--max-lanes N] [--dry-run]
                                 run tasks x contenders x repeats in parallel lanes gated on memory (default 6;
                                 1 is serial), never two runs on one task; --dry-run prints the simulated timeline
   summarize RESULTS_DIR         rewrite RESULTS_DIR/summary.json from its run records
-  stop                          quit the hidden Ardia instance, OpenCode Browse lanes and every task server this harness
+  stop                          quit the hidden Ardia instance, OpenCode Browse and Browser Use lanes and every task server this harness
                                 started
 
 Scratch lives in BENCH_HOME (default ~/ardia-scratch/bench-proper): app/Ardia.app (a copy of a build, never run in
@@ -55,7 +57,7 @@ def main():
     rn.add_argument("--deadline-s", type=int)
     rn.add_argument("--humanize", action="store_true", default=None)
     rn.add_argument("--keep-notes", action="store_true", default=None)
-    rn.add_argument("--side", choices=["ardia", "opencode"], default="ardia")
+    rn.add_argument("--side", choices=["ardia", "opencode", "browseruse"], default="ardia")
     pl = sub.add_parser("plan")
     pl.add_argument("plan")
     pl.add_argument("--results")
@@ -85,6 +87,9 @@ def main():
         if a.side == "opencode":
             rec = opencode_side.run(a.task, a.agent, a.run_id, a.results,
                                     {"model": a.model, "effort": a.effort, "deadline_s": a.deadline_s})
+        elif a.side == "browseruse":
+            rec = browseruse_side.run(a.task, a.agent, a.run_id, a.results,
+                                      {"model": a.model, "effort": a.effort, "deadline_s": a.deadline_s})
         else:
             rec = ardia_side.run(a.task, a.agent, a.run_id, a.results, overrides)
         print(json.dumps({k: rec[k] for k in ("run_id", "task", "pass", "wall_s", "time_to_correct_s", "commands",
@@ -100,6 +105,7 @@ def main():
     elif a.cmd == "stop":
         ardia_side.quit_instance()
         print(f"opencode stopped: {opencode_side.stop_all() or 'none'}")
+        print(f"browseruse stopped: {browseruse_side.stop_all() or 'none'}")
         print(f"servers stopped: {servers.stop() or 'none'}")
 
 

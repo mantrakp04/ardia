@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import ardia_side
+import browseruse_side
 import opencode_side
 import registry
 import servers
@@ -145,7 +146,7 @@ def rate_limit_reason(rec):
     if rec.get("pass"):
         return None
     texts = [str(rec.get("harness_error") or ""), str(rec.get("error") or ""), str(rec.get("status") or "")]
-    if rec.get("side") in ("ardia", "opencode"):
+    if rec.get("side") in ("ardia", "opencode", "browseruse"):
         failed_cli = rec.get("cli_is_error") or rec.get("errors") or rec.get("exit_code") not in (0, None) or not rec.get("tokens")
         if not failed_cli:
             return None
@@ -163,6 +164,11 @@ def opencode_overrides(plan, contender, lane):
     return dict({k: contender.get(k) for k in keys}, lane=f"lane{lane.index}", lane_index=lane.index)
 
 
+def browseruse_overrides(plan, contender, lane):
+    keys = ("model", "effort", "venv", "chrome", "cdp_port", "reach_line")
+    return dict({k: contender.get(k) for k in keys}, lane=f"lane{lane.index}", lane_index=lane.index)
+
+
 def run_item(item, lane, results_dir, plan, on_start):
     c = item["contender"]
     if c["kind"] == "aside":
@@ -170,6 +176,9 @@ def run_item(item, lane, results_dir, plan, on_start):
     if c["kind"] == "opencode":
         return opencode_side.run(item["task"], c["agent"], item["run_id"], results_dir,
                                  opencode_overrides(plan, c, lane), contender=c["id"], on_agent_start=on_start)
+    if c["kind"] == "browseruse":
+        return browseruse_side.run(item["task"], c["agent"], item["run_id"], results_dir,
+                                   browseruse_overrides(plan, c, lane), contender=c["id"], on_agent_start=on_start)
     return ardia_side.run(item["task"], c["agent"], item["run_id"], results_dir, lane_overrides(plan, c, lane),
                           contender=c["id"], on_agent_start=on_start)
 
@@ -292,6 +301,8 @@ class Executor:
                 restore_aside_memory()
             if any(c["kind"] == "opencode" for c in self.plan["contenders"]):
                 opencode_side.stop_all()
+            if any(c["kind"] == "browseruse" for c in self.plan["contenders"]):
+                browseruse_side.stop_all()
             if self.plan.get("stop_after", True):
                 for lane_id in list(self.lanes_used):
                     ardia_side.quit_instance(self.lanes_used.pop(lane_id))
