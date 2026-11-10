@@ -257,3 +257,16 @@ test("a tab of a collapsed group reopened after closing stays under its header",
   S().activate("t0");
   assert.ok(kept().includes(`t:${reopened}`));
 });
+
+test("an outer group expanded and collapsed by the Chrome-side sync starts the group inside it over too", () => {
+  hydrate({ nested: ["t4", "t5"] });
+  S().activate("t4");
+  S().activate("t5");
+  S().activate("t0");
+  assert.deepEqual(kept("n"), ["t:t4", "t:t5"]);
+  const set = (collapsed) => useBrowser.setState((s) => ({ groups: { ...s.groups, g: { ...s.groups.g, collapsed } } }));
+  set(false);
+  set(true);
+  assert.deepEqual(kept("n"), []);
+  assert.deepEqual(kept(), []);
+});

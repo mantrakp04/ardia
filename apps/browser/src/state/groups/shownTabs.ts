@@ -2,7 +2,7 @@ import { activeTabId, inPinnedContainer } from "../browser/model";
 import type { BrowserState } from "../browser/store";
 import type { TabGroup } from "../browser/types";
 import { isAsleep } from "../tabs/pageSession";
-import { ancestorIds, innermostGroupOf } from "./groupNesting";
+import { ancestorIds, descendantIds, innermostGroupOf } from "./groupNesting";
 
 function withShown(g: TabGroup, ids: string[]): TabGroup {
   const { shownTabIds: _, ...rest } = g;
@@ -38,8 +38,9 @@ export function settleShownTabs(s: BrowserState, prev: BrowserState): Pick<Brows
     const was = innermostGroupOf(prev.groups, id);
     return !!was && was.id !== innermostGroupOf(s.groups, id)?.id && !shownThrough(s.groups, id, outerId);
   };
-  let groups = s.groups;
-  for (const g of Object.values(s.groups)) {
+  const toggled = Object.values(s.groups).filter((g) => prev.groups[g.id] && prev.groups[g.id]!.collapsed !== g.collapsed);
+  let groups = toggled.reduce((next, g) => withoutShownTabs(next, descendantIds(s.groups, g.id)), s.groups);
+  for (const g of Object.values(groups)) {
     if (!g.shownTabIds) continue;
     if (!g.collapsed) {
       groups = withoutShownTabs(groups, [g.id]);
