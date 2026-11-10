@@ -44,7 +44,10 @@ try {
   Save-Screenshot $shot
   if ($process.HasExited) { $failures += "the app exited on its own within $Seconds s (exit code $($process.ExitCode))" }
 } finally {
-  if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+  if (-not $process.HasExited) {
+    Stop-Process -Id $process.Id -Force
+    $process.WaitForExit(10000) | Out-Null
+  }
 }
 
 if (Test-Path $log) { Get-Content $log } else { Write-Host "no launch log was written" }
@@ -57,6 +60,26 @@ else {
   if ($first) { Write-Host "First window rendered $($first.Matches[0].Groups[1].Value) ms after the process started." }
 }
 
+$browserLog = Join-Path $Out "browser.log"
+Remove-Item -Force -ErrorAction SilentlyContinue $browserLog
+$env:ARDIA_DATA_DIR = New-DataDirectory "browser-data"
+Set-Content -Path (Join-Path $env:ARDIA_DATA_DIR "onboarding.json") -Value '{"completedAt":1700000000000,"version":1}' -Encoding utf8NoBOM
+$browser = Start-Process -FilePath $App -ArgumentList "--log-file=`"$browserLog`"" -PassThru
+try {
+  Start-Sleep -Seconds 12
+  Save-Screenshot (Join-Path $Out "browser.png")
+  if ($browser.HasExited) { $failures += "the app exited on its own with onboarding done (exit code $($browser.ExitCode))" }
+} finally {
+  if (-not $browser.HasExited) {
+    Stop-Process -Id $browser.Id -Force
+    $browser.WaitForExit(10000) | Out-Null
+  }
+}
+if ((Test-Path $browserLog) -and (Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " -Quiet)) {
+  Select-String -Path $browserLog -Pattern "^(js-error|fatal|error) " | ForEach-Object { Write-Host $_.Line }
+  $failures += "the launch with onboarding done has errors"
+}
+
 $env:ARDIA_DATA_DIR = New-DataDirectory "self-check-data"
 $env:ARDIA_BACKGROUND = "1"
 $check = Start-Process -FilePath $App -ArgumentList "--self-check", "--log-file=`"$checkLog`"" -PassThru
@@ -67,6 +90,7 @@ try {
   if (-not $check.HasExited) {
     Save-Screenshot (Join-Path $Out "self-check-stuck.png")
     Stop-Process -Id $check.Id -Force
+    $check.WaitForExit(10000) | Out-Null
   }
 }
 

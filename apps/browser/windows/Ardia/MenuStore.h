@@ -245,6 +245,7 @@ struct MenuStore {
   }
 
   void ApplyShortcuts() noexcept {
+    std::vector<std::pair<std::string, Combo>> chosen;
     for (auto &entry : entries) {
       auto found = shortcuts.find(entry.id);
       if (found == shortcuts.end()) {
@@ -266,7 +267,10 @@ struct MenuStore {
         }
         onlyDefaults = false;
         Combo literal = WindowsComboFromStored(combo);
-        if (!literal.Empty()) active.push_back(literal);
+        if (!literal.Empty()) {
+          active.push_back(literal);
+          chosen.emplace_back(entry.id, literal);
+        }
       }
       if (onlyDefaults) active.insert(active.end(), entry.extras.begin(), entry.extras.end());
       std::vector<Combo> unique;
@@ -274,6 +278,13 @@ struct MenuStore {
         if (std::find(unique.begin(), unique.end(), combo) == unique.end()) unique.push_back(combo);
       }
       entry.active = std::move(unique);
+    }
+    for (auto const &[owner, combo] : chosen) {
+      for (auto &entry : entries) {
+        if (entry.id == owner) continue;
+        bool alsoChosen = std::any_of(chosen.begin(), chosen.end(), [&](auto const &other) { return other.first == entry.id && other.second == combo; });
+        if (!alsoChosen) std::erase(entry.active, combo);
+      }
     }
   }
 

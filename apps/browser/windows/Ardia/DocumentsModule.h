@@ -251,6 +251,7 @@ class DocumentStore {
       closed = State().closed;
       if (!closed) {
         Staged &slot = State().staged[key];
+        State().removing.erase(key);
         mine = ++State().generation;
         slot.path = *url;
         slot.generation = mine;
@@ -310,11 +311,16 @@ class DocumentStore {
   static void FinishRemove(std::filesystem::path const &path, std::wstring const &key, std::vector<Done> const &waiters, int attempt) noexcept {
     static constexpr int kRemoveAttempts = 6;
     bool removed = false;
-    {
+    bool superseded = false;
+    if (attempt > 0) {
+      std::lock_guard<std::mutex> guard(State().mutex);
+      superseded = !State().removing.contains(key);
+    }
+    if (!superseded) {
       std::unique_lock<std::timed_mutex> writing(State().writing, std::chrono::seconds(10));
       if (writing.owns_lock()) removed = Files::RemoveFile(path);
     }
-    if (!removed && attempt + 1 < kRemoveAttempts) {
+    if (!removed && !superseded && attempt + 1 < kRemoveAttempts) {
       Queue().AsyncAfter(std::chrono::milliseconds(500 * (attempt + 1)), [path, key, waiters, attempt]() { FinishRemove(path, key, waiters, attempt + 1); });
       return;
     }
@@ -323,7 +329,14 @@ class DocumentStore {
       auto pending = State().removing.find(key);
       if (pending != State().removing.end() && --pending->second <= 0) State().removing.erase(pending);
     }
-    for (auto const &waiter : waiters) waiter(removed ? std::nullopt : std::optional<std::string>("The document could not be removed"));
+    bool settled = removed || superseded;
+    if (!settled) OutputDebugStringW((std::wstring(L"Ardia: a document could not be removed: ") + path.filename().wstring() + L"\n").c_str());
+    for (auto const &waiter : waiters) {
+      try {
+        waiter(settled ? std::nullopt : std::optional<std::string>("The document could not be removed"));
+      } catch (...) {
+      }
+    }
   }
 
   static void Close() noexcept {
