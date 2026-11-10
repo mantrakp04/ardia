@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <commctrl.h>
+#include <dwmapi.h>
 #include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.UI.h>
@@ -18,6 +19,8 @@
 #include "Host.h"
 #include "LaunchLog.h"
 #include "Paths.h"
+
+#pragma comment(lib, "dwmapi.lib")
 
 namespace Ardia {
 
@@ -121,6 +124,7 @@ struct WindowManager {
       entry.window.ResizePolicy(winrt::Microsoft::ReactNative::ContentSizePolicy::ResizeContentToParentWindow);
 
       Configure(entry, request);
+      ApplyTheme(entry, m_dark);
       Place(entry, request);
       Watch(entry);
       Mount(entry);
@@ -197,6 +201,11 @@ struct WindowManager {
       }
     }
     if (focus) Focus(*focus);
+  }
+
+  void SetDark(bool dark) noexcept {
+    m_dark = dark;
+    for (auto &[id, entry] : m_windows) ApplyTheme(entry, dark);
   }
 
   void BeginDrag(int64_t rootTag) noexcept {
@@ -365,6 +374,17 @@ struct WindowManager {
       entry.appWindow.MoveAndResize({x, y, pixelWidth, pixelHeight});
     } catch (...) {
       LaunchLog::Write(L"warning", L"window could not be placed");
+    }
+  }
+
+  static void ApplyTheme(ManagedWindow &entry, bool dark) noexcept {
+    static constexpr DWORD kUseImmersiveDarkMode = 20;
+    BOOL useDark = dark ? TRUE : FALSE;
+    DwmSetWindowAttribute(entry.hwnd, kUseImmersiveDarkMode, &useDark, sizeof(useDark));
+    try {
+      entry.appWindow.TitleBar().PreferredTheme(
+          dark ? winrt::Microsoft::UI::Windowing::TitleBarTheme::Dark : winrt::Microsoft::UI::Windowing::TitleBarTheme::Light);
+    } catch (...) {
     }
   }
 
@@ -607,6 +627,7 @@ struct WindowManager {
   std::vector<std::string> m_order;
   std::string m_activeId;
   bool m_quitting{false};
+  bool m_dark{false};
   bool m_systemMove{false};
   bool m_tracking{false};
   POINT m_dragCursor{};

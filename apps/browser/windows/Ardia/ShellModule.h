@@ -90,6 +90,7 @@ struct ShellState {
       if (dark == lastDark) return;
       lastDark = dark;
     }
+    if (context) RunOnUI(context, [dark]() noexcept { WindowManager::Shared().SetDark(dark); });
     EmitAppEvent(winrt::Microsoft::ReactNative::JSValueObject{{"type", "appearance"}, {"dark", dark}});
   }
 
@@ -390,6 +391,7 @@ struct ShellModule {
     m_state->lastDark = ShellParts::EffectiveDark();
     std::shared_ptr<ShellParts::ShellState> state = m_state;
     RunOnUI(context, [state]() noexcept {
+      WindowManager::Shared().SetDark(ShellParts::EffectiveDark());
       if (!state->alive.load() || state->watcher) return;
       state->watcher = ShellParts::CreateWatcher(state);
       if (!state->watcher) {
