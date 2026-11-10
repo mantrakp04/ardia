@@ -1,5 +1,6 @@
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
+import { withLegacyAuth } from "./legacyAuth";
 import { repoKey, stackMembers } from "./rows";
 import type { CompletedItem, CompletionState, FolderStatus, LegacyAccount, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId, ProfileAccounts } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
@@ -71,15 +72,6 @@ const DOC = "live.json";
 const DOC_VERSION = 2;
 const DOC_MIGRATIONS: Migrations = { 0: unchanged, 1: (doc) => ({ ...doc, accounts: {}, legacyAccounts: withLegacyAuth(doc.accounts, doc.config) }) };
 
-function withLegacyAuth(accounts: unknown, config: unknown): ProfileAccounts {
-  const flat = (accounts ?? {}) as ProfileAccounts;
-  const saved = { ...DEFAULT_CONFIG, ...(config as Partial<LiveConfig> | undefined) };
-  const auth: ProfileAccounts = { ...flat };
-  if (flat.bitbucket) auth.bitbucket = { ...flat.bitbucket, user: saved.bitbucketUser };
-  if (flat.confluence) auth.confluence = { ...flat.confluence, user: saved.confluenceEmail, site: saved.confluenceSite };
-  if (flat.gdrive) auth.gdrive = { ...flat.gdrive, clientId: saved.googleClientId };
-  return auth;
-}
 const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "repoHidden", "completed", "expandedStacks", "accounts", "legacyAccounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
@@ -381,14 +373,8 @@ export function unhide(folderId: string) {
 
 export const accountOf = (profileId: string, source: LiveSourceId): LiveAccount | undefined => live().accounts[profileId]?.[source];
 
-export function setAccount(profileId: string, source: LiveSourceId, account: LiveAccount | null) {
-  setLive((s) => {
-    const profile = { ...s.accounts[profileId] };
-    if (account) profile[source] = account;
-    else delete profile[source];
-    return { accounts: { ...s.accounts, [profileId]: profile } };
-  });
-}
+export const setAccount = (profileId: string, source: LiveSourceId, account: LiveAccount | null) =>
+  setLive((s) => ({ accounts: { ...s.accounts, [profileId]: account ? { ...s.accounts[profileId], [source]: account } : without({ ...s.accounts[profileId] }, source) } }));
 
 export const setLegacyAccount = (source: LiveSourceId, account: LegacyAccount | null) =>
   setLive((s) => ({ legacyAccounts: account ? { ...s.legacyAccounts, [source]: account } : without(s.legacyAccounts, source) }));
