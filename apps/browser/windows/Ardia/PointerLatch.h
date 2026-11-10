@@ -14,11 +14,12 @@ struct PointerLatch {
   static constexpr int kControl = 16;
   static constexpr int kAlt = 32;
   static constexpr ULONGLONG kFreshMs = 3000;
+  static constexpr int kSamples = 24;
 
   static void Install() noexcept {
     if (Hook()) return;
     Hook() = SetWindowsHookExW(WH_GETMESSAGE, &PointerLatch::OnMessage, nullptr, GetCurrentThreadId());
-    if (!Hook()) LaunchLog::Write(L"warning", L"pointer: presses cannot be watched, so right and middle clicks are read late");
+    LaunchLog::Write(Hook() ? L"pointer" : L"warning", Hook() ? L"presses are watched on the UI thread" : L"pointer: presses cannot be watched, so right and middle clicks are read late");
   }
 
   static int State() noexcept {
@@ -97,9 +98,25 @@ struct PointerLatch {
     }
   }
 
+  static bool IsButtonMessage(UINT message) noexcept {
+    return (message >= WM_LBUTTONDOWN && message <= WM_XBUTTONDBLCLK && message != WM_MOUSEWHEEL) || (message >= WM_NCLBUTTONDOWN && message <= WM_NCXBUTTONDBLCLK) ||
+           message == WM_POINTERDOWN || message == WM_POINTERUP || message == WM_NCPOINTERDOWN || message == WM_NCPOINTERUP || message == WM_CONTEXTMENU;
+  }
+
+  static void Sample(const MSG *message) noexcept {
+    static std::atomic<int> sampled{0};
+    if (!IsButtonMessage(message->message) || sampled.fetch_add(1) >= kSamples) return;
+    wchar_t className[64]{};
+    GetClassNameW(message->hwnd, className, 64);
+    wchar_t line[160]{};
+    swprintf_s(line, L"button message 0x%04X wParam 0x%llX for a %s window", message->message, static_cast<unsigned long long>(message->wParam), className);
+    LaunchLog::Write(L"pointer", line);
+  }
+
   static LRESULT CALLBACK OnMessage(int code, WPARAM wParam, LPARAM lParam) noexcept {
     if (code == HC_ACTION && wParam == PM_REMOVE && lParam != 0) {
       const MSG *message = reinterpret_cast<const MSG *>(lParam);
+      Sample(message);
       Note(message->message, message->wParam);
     }
     return CallNextHookEx(nullptr, code, wParam, lParam);

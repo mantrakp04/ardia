@@ -179,10 +179,20 @@ const pressTimestamp = (event: GestureResponderEvent) => {
   return typeof stamp === "number" ? stamp : Date.now();
 };
 
+const ROOT_TOUCH_SAMPLES = 12;
+let rootTouchSamples = 0;
+
+function noteRootTouch(event: PointerLike) {
+  if (rootTouchSamples >= ROOT_TOUCH_SAMPLES) return;
+  rootTouchSamples += 1;
+  console.info(`[ardia windows] window root: a touch began with pointer state ${pointerStateAt(event)}`);
+}
+
 export function OutsidePressRoot({ children }: { children?: ReactNode }) {
   const registry = useMemo<OutsideRegistry>(() => ({ areas: new Set(), pending: new WeakMap() }), []);
   const press = useCallback(
     (event: GestureResponderEvent) => {
+      noteRootTouch(event as unknown as PointerLike);
       const native = event.nativeEvent as unknown as object | undefined;
       if (!native || registry.pending.has(native)) return;
       const pending: PendingPress = { inside: new Set(), timestamp: pressTimestamp(event) };
