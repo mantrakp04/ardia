@@ -742,6 +742,13 @@ typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in a new window (new)
 **In a page** (the page's own, unchanged): Esc stops loading, Space / ⇧Space and ⌘↑ / ⌘↓ scroll, Tab / ⇧Tab move
 between links, and in text fields ⌥← / ⌥→, ⌥⌫, ⌘← / ⌘→ and ⌘A / ⌘C / ⌘V / ⌘X / ⌘Z stay the field's.
 
+**英数 / かな in a WebKit tab** (#775): the keys hand the event to the system's input-source key bindings before
+WebKit sees it (`InputSourceKeys`, ArdiaCore, the same helper Ardia's own text views use), so they switch the input
+source in a field and with none focused, and the page doesn't scroll as it does for Space. Chromium tabs already
+did this. Source-level test only (`packages/ardiacore/tests/webkit-input-source-keys.test.mjs`); not yet run on a
+Mac with a Japanese input source: needs a tester's run in a built app (View › Open Page in WebKit; press each key in a
+field and with none focused, read the input source, and check `scrollY` stays put).
+
 **Mouse** (checked with CDP clicks on a link): ⌘-click → background tab, ⇧⌘-click → foreground tab, ⇧-click →
 Peek for http(s) links without a `download` attribute (Settings › Tabs › "Peek a link with"; with ⌥-click chosen there, or Off, ⇧-click opens a new window, a private one from a
 private window), middle-click → background tab, ⌥-click → download (Peek, or split, when chosen in Settings › Tabs › Links; one at a time), ⌥⌘-click (Chrome's) and ⌥⇧-click → split

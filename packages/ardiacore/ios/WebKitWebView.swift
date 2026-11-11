@@ -44,6 +44,11 @@ final class WebKitWebView: WKWebView {
     return became
   }
 
+  override func keyDown(with event: NSEvent) {
+    if InputSourceKeys.consume(event) { return }
+    super.keyDown(with: event)
+  }
+
   override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
     super.willOpenMenu(menu, with: event)
     if LaunchConfig.shared.background {
