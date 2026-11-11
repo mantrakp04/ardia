@@ -249,8 +249,22 @@ index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04e
    // enter/return
    if ((commandSelector == @selector(insertNewline:) || commandSelector == @selector(insertNewlineIgnoringFieldEditor:))) {
      if ([textInputDelegate textInputShouldSubmitOnReturn]) {
+diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.h b/Libraries/Text/TextInput/RCTBaseTextInputView.h
+index bcaa6add683bab6a3b4e86cc091c9cadb9f22970..c295eff3cbde856de41c67064d684894db00017e 100644
+--- a/Libraries/Text/TextInput/RCTBaseTextInputView.h
++++ b/Libraries/Text/TextInput/RCTBaseTextInputView.h
+@@ -62,6 +62,9 @@ NS_ASSUME_NONNULL_BEGIN
+ @property (nonatomic, strong, nullable) NSNumber *maxLength;
+ @property (nonatomic, copy, nullable) NSAttributedString *attributedText;
+ @property (nonatomic, copy) NSString *predictedText; // [macOS]
++#if TARGET_OS_OSX // [Ardia
++- (void)replaceMarkedTextWithText:(NSString *)text;
++#endif // Ardia]
+ @property (nonatomic, copy) NSString *inputAccessoryViewID;
+ #if !TARGET_OS_OSX // [macOS]
+ @property (nonatomic, strong) NSString *inputAccessoryViewButtonLabel;
 diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.mm b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba683152651b646c6 100644
+index cac171e70c9fa225cdec45b205086342a0d50f06..a0d75d7f127c1da4758dcfcdd119513deb65fcc6 100644
 --- a/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 +++ b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 @@ -47,6 +47,16 @@ @implementation RCTBaseTextInputView {
@@ -262,9 +276,9 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
 +  BOOL _clickFocused;
 +#endif // Ardia]
 +  __weak NSUndoManager *_undoManagerWithActions; // [Ardia: where its text undos are, so they go when it does Ardia]
-+#if TARGET_OS_OSX // [Ardia: the text JS last heard in onChange or set, so its echo can't end an input method's composition, whether an undo is restoring text, and whether text from JS is replacing marked text
++#if TARGET_OS_OSX // [Ardia: the text JS last heard in onChange or set, so its echo can't end an input method's composition, whether text is coming from an undo or a JS command rather than a re-render, and whether text from JS is replacing marked text
 +  NSString *_textKnownToJS;
-+  BOOL _restoringUndoText;
++  BOOL _bypassingEchoCheck;
 +  BOOL _replacingMarkedText;
 +#endif // Ardia]
  }
@@ -286,8 +300,8 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
  
    textNeedsUpdate = ([self textOf:attributedTextCopy equals:backedTextInputViewTextCopy] == NO);
  
-+#if TARGET_OS_OSX // [Ardia: while an input method holds marked text, JS restating the text it already knows is an echo and is dropped: Korean commits a syllable and marks the next consonant in one keystroke, JS only heard the committed syllable, and setting that unmarked the consonant and reset the composition (3-set typing came out as loose letters, #863). Any other text from JS (a clear, a reset, an undo) still replaces the field, and AppKit ends the composition as it does
-+  if (textNeedsUpdate && !_restoringUndoText && [self.backedTextInputView hasMarkedText] &&
++#if TARGET_OS_OSX // [Ardia: while an input method holds marked text, a re-render restating the text JS already knows is an echo and is dropped: Korean commits a syllable and marks the next consonant in one keystroke, JS only heard the committed syllable, and setting that unmarked the consonant and reset the composition (3-set typing came out as loose letters, #863). Other text from a re-render, and any text from a JS command (clear(), a controlled value JS changed) or an undo, replaces the field, and AppKit ends the composition as it does
++  if (textNeedsUpdate && !_bypassingEchoCheck && [self.backedTextInputView hasMarkedText] &&
 +      [attributedTextCopy.string isEqualToString:_textKnownToJS ?: @""]) {
 +    return;
 +  }
@@ -311,11 +325,11 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
 +      // Ardia]
 +      [undoManager registerUndoWithTarget:self handler:^(RCTBaseTextInputView *strongSelf) {
 +#if TARGET_OS_OSX // [Ardia
-+        strongSelf->_restoringUndoText = YES;
++        strongSelf->_bypassingEchoCheck = YES;
 +#endif // Ardia]
          strongSelf.attributedText = oldAttributedTextWithoutGhostText;
 +#if TARGET_OS_OSX // [Ardia
-+        strongSelf->_restoringUndoText = NO;
++        strongSelf->_bypassingEchoCheck = NO;
 +#endif // Ardia]
          [strongSelf textInputDidChange];
        }];
@@ -332,7 +346,23 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
  
  #if !TARGET_OS_OSX // [macOS]
      if (selection.empty) {
-@@ -342,6 +385,9 @@ - (void)setSelectionStart:(NSInteger)start selectionEnd:(NSInteger)end
+@@ -330,6 +373,15 @@ - (void)setSelection:(RCTTextSelection *)selection
+   }
+ }
+ 
++#if TARGET_OS_OSX // [Ardia: a JS command's text is meant, so it replaces marked text even when it restates what JS knew (clear() while composing in an empty field)
++- (void)replaceMarkedTextWithText:(NSString *)text
++{
++  _bypassingEchoCheck = YES;
++  self.attributedText = [[NSAttributedString alloc] initWithString:text attributes:self.textAttributes.effectiveTextAttributes ?: @{}];
++  _bypassingEchoCheck = NO;
++}
++#endif // Ardia]
++
+ - (void)setSelectionStart:(NSInteger)start selectionEnd:(NSInteger)end
+ {
+ #if !TARGET_OS_OSX // [macOS]
+@@ -342,6 +394,9 @@ - (void)setSelectionStart:(NSInteger)start selectionEnd:(NSInteger)end
      [self.backedTextInputView setSelectedTextRange:range notifyDelegate:NO];
    }
  #else // [macOS
@@ -342,7 +372,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
    NSInteger startPosition = MIN(start, end);
    NSInteger endPosition = MAX(start, end);
    [self.backedTextInputView setSelectedTextRange:NSMakeRange(startPosition, endPosition - startPosition) notifyDelegate:NO];
-@@ -521,6 +567,11 @@ - (void)textInputDidBeginEditing
+@@ -521,6 +576,11 @@ - (void)textInputDidBeginEditing
      return;
    }
    _isCurrentlyEditing = YES;
@@ -354,7 +384,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
  #endif // macOS]
    
    [_eventDispatcher sendTextEventWithType:RCTTextEventTypeFocus
-@@ -729,6 +780,11 @@ - (NSString *)textInputShouldChangeText:(NSString *)text inRange:(NSRange)range
+@@ -729,6 +789,11 @@ - (NSString *)textInputShouldChangeText:(NSString *)text inRange:(NSRange)range
  
  - (void)textInputDidChange
  {
@@ -366,7 +396,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
    [self updateLocalData];
  
    id<RCTBackedTextInputViewProtocol> backedTextInputView = self.backedTextInputView;
-@@ -750,6 +806,9 @@ - (void)textInputDidChange
+@@ -750,6 +815,9 @@ - (void)textInputDidChange
    if (!self.backedTextInputView.ghostTextChanging) { // [macOS]
      _nativeEventCount++;
  
@@ -376,7 +406,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
      if (_onChange) {
        _onChange(@{
          @"text" : [self.attributedText.string copy],
-@@ -894,8 +953,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
+@@ -894,8 +962,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
  
  #pragma mark - Focus Control
  
@@ -426,7 +456,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
    [self.backedTextInputView reactFocus];
  
    if (_clearTextOnFocus) {
-@@ -909,6 +1009,9 @@ - (void)reactFocus
+@@ -909,6 +1018,9 @@ - (void)reactFocus
      [self.backedTextInputView setSelectedTextRange:NSMakeRange(NSNotFound, 0) notifyDelegate:NO];
  #endif // macOS]
    }
@@ -436,6 +466,22 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..38642af80fe8bb4bfc5f962ba6831526
  }
  
  - (void)reactBlur
+diff --git a/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm b/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
+index fac5699dedeaaa35bb22b8f8d5d96a3817ca92b1..692ea640ba83db5b0bfe3fc1a24fda68c0568ef9 100644
+--- a/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
++++ b/Libraries/Text/TextInput/RCTBaseTextInputViewManager.mm
+@@ -161,6 +161,11 @@ - (void)setBridge:(RCTBridge *)bridge
+     if (eventLag != 0) {
+       return;
+     }
++#if TARGET_OS_OSX // [Ardia: before the selection below, which would commit an input method's marked text, and before the shadow view's echo rule sees this text
++    if (value && [view.backedTextInputView hasMarkedText]) {
++      [view replaceMarkedTextWithText:value];
++    }
++#endif // Ardia]
+     RCTExecuteOnUIManagerQueue(^{
+       RCTBaseTextInputShadowView *shadowView =
+           (RCTBaseTextInputShadowView *)[self.bridge.uiManager shadowViewForReactTag:viewTag];
 diff --git a/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm b/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm
 index 386405335b411e70a82909033febc7dd5b4adabe..2b8d3d5576b83c20e6387c189943e1722cfad5ce 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTSinglelineTextInputViewManager.mm
