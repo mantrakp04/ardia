@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -77,6 +77,52 @@ jobs:
           $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
           Copy-Item apps/browser/windows/x64/Release/Ardia.exe $copy
           scripts/windows/host-manifest.ps1 -From apps/browser/windows/x64/Release/ArdiaApp.dll -To $copy
+      - name: Fetch the engine
+        id: engine
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/windows/fetch-engine.ps1 -Cpu x64 -Out "${{ runner.temp }}/engine"
+      - name: Assemble with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/x64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia"
+      - name: Launch it with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/launch-engine"
+      - name: Tour the pages
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          scripts/windows/tour.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/tour-engine" -Only pages
+          if (Test-Path "${{ runner.temp }}/tour-engine/tour.md") { Get-Content "${{ runner.temp }}/tour-engine/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-engine
+          path: ${{ runner.temp }}/launch-engine
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tour-engine
+          path: |
+            ${{ runner.temp }}/tour-engine
+            !${{ runner.temp }}/tour-engine/data
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-x64
+          path: ${{ runner.temp }}/Ardia
+          if-no-files-found: ignore
+          retention-days: 14
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -104,7 +150,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: Ardia-windows-x64
+          name: Ardia-windows-x64-app
           path: apps/browser/windows/x64/Release
           if-no-files-found: ignore
           retention-days: 7
@@ -141,6 +187,35 @@ jobs:
           $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
           Copy-Item apps/browser/windows/ARM64/Release/Ardia.exe $copy
           scripts/windows/host-manifest.ps1 -From apps/browser/windows/ARM64/Release/ArdiaApp.dll -To $copy
+      - name: Fetch the engine
+        id: engine
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/windows/fetch-engine.ps1 -Cpu arm64 -Out "${{ runner.temp }}/engine"
+      - name: Assemble with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/assemble.ps1 -App apps/browser/windows/ARM64/Release -Engine "${{ runner.temp }}/engine" -Out "${{ runner.temp }}/Ardia"
+      - name: Launch it with the engine
+        if: ${{ !cancelled() && steps.engine.outcome == 'success' }}
+        shell: pwsh
+        run: scripts/windows/launch-smoke.ps1 -App "${{ runner.temp }}/Ardia/Ardia.exe" -Out "${{ runner.temp }}/launch-engine" -NoInput
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: launch-engine-arm64
+          path: ${{ runner.temp }}/launch-engine
+          if-no-files-found: ignore
+          retention-days: 14
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Ardia-windows-arm64
+          path: ${{ runner.temp }}/Ardia
+          if-no-files-found: ignore
+          retention-days: 14
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -161,7 +236,7 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: Ardia-windows-arm64
+          name: Ardia-windows-arm64-app
           path: apps/browser/windows/ARM64/Release
           if-no-files-found: ignore
           retention-days: 7

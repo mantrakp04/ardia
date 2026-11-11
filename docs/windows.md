@@ -138,6 +138,57 @@ Logic is written once. Only code that calls the OS is written per platform.
 - A background instance (`ARDIA_BACKGROUND=1`) shows its windows without taking focus and answers dialogs and menus
   without showing them, as on the Mac.
 
+## The engine in the app
+
+The engine is Chromium's own browser, built for Windows with our patches (`docs/engine-build-windows.md`). The product
+is one folder: Chromium's launcher as `Ardia.exe`, `chrome.dll`, and the app's library and files beside them
+(`scripts/windows/assemble.ps1` puts an engine and the app's build output together and gives the launcher the app's
+manifest entries). With `ArdiaApp.dll` beside the launcher the browser process runs the app; without it the same build
+is plain Chromium.
+
+- `//ardia/win` (`scripts/windows/engine/src/ardia/win`, copied into the tree by `series_win.py`) is the engine's side.
+  It starts Chromium with no window of its own, turns the launch variables into switches as the Mac's launcher does
+  (`ARDIA_DATA_DIR` keeps Chromium's data in `<dir>\Chromium`; `ARDIA_REMOTE_DEBUGGING_PORT` only works with it; a
+  remote debugging switch on the command line is dropped), loads the app's library once the browser has started, and
+  hands it the API in `EngineApi.h`: `hostCall(verb, json, window)`, `engineCall(name, profile, json)` and one event
+  sink. Chromium's message loop offers each message to the app first, except messages for Chromium's own windows.
+- Every normal browser window Chromium has is hosted: page only, with no frame, tab strip, toolbar, rounded page frame
+  or shortcuts of its own (the `chromium-win-hosted-*` patches). The app keeps one per app window and profile. Each is
+  a borderless top-level window owned by the app's window, placed over the page's view: it stays above its owner, hides
+  and minimizes with it, and follows it when it moves. It cannot be a child window: with the Windows App SDK in a
+  window, no mouse message for a child of it reaches the UI thread (`ARDIA_INPUT_TRACE=<file>` logs what does). A window
+  Chromium opens by itself (a link opened in a new window) stays off screen until the app adopts its tabs.
+- The verbs: `tab.create` (a key, a profile, a URL or a tab to adopt; the same key again moves the tab to the window
+  that asks), `tab.show` (visible, and where in the window, in the UI's points; a corner radius and holes),
+  `tab.close`, `tab.call` (load, back, forward, reload, stop, find, zoom, scripts, DevTools, print, site info and the
+  rest of the Mac tab's methods, `tab_calls.cc`), `tab.discard`, `tabs.list`, `host.info`, `app.quit`. Events come as
+  the topic `tab` with a key, a name and data (navigation, progress, favicon, find, zoom, security, media, pagePress,
+  windowClose and more), and `tab.opened` for a tab Chromium made itself, with who opened it.
+- The `ac_*` calls of `engine/chromium` build on Windows from the same sources: `series_win.py` makes the Windows
+  build file from the Mac one, applies `ardia-layer-win.patch` (paths from UTF-8, a Mac-only string) and swaps in
+  Windows stand-ins for the two POSIX-only files (the `ardia` command's control file and the user scripts policy, both
+  off). `engineCall` loads the profile the app names and calls the export by name. `engine/` is not touched.
+- In the app (`packages/expo-windows/src/engine`): `ArdiaWebView` is a view in TypeScript. It opens its tab on mount,
+  measures itself and shows the page there, turns the engine's events into page events and parks or closes the tab on
+  unmount as `ArdiaTabs` asks. The domain modules (`domains/`) answer `call` as the Mac's Swift tables do, on top of
+  `engineCall`; `windowsEngineCalls.test.mjs` fails when a forwarded verb differs from the Mac's.
+- The page is a window above the UI, so the UI cannot draw over it. Every shadowed surface (the command bar, popovers,
+  the find bar, dialogs, toasts, the downloads bubble) reports its rectangle (`usePageCover`), and the page window gets
+  a hole there, with the surface's corners. A translucent surface shows the card behind it in the hole, not the page.
+  The page window has no system backdrop: Chromium asks for Mica on its top-level windows, and Windows paints that
+  into the holes. A press in the page counts
+  as a press outside every popover of its window.
+- Chromium's own UI still shows where the app has none on Windows yet: the page's right-click menu, JavaScript
+  dialogs, the status bubble for a hovered link, and popup windows a page opens.
+- CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each
+  CPU's zip with its SHA-256, `fetch-engine.ps1` downloads and checks it, and the Windows workflow assembles the app
+  with it, launches it with the self-check (which then loads a page through the engine) and runs the tour's pages
+  part. The release is a draft, so only the repository's own runs can fetch it; a fork's pull request skips those
+  steps. A new engine build is a new release and a new `prebuilt.json`.
+- `//ardia/win:probe` is a library that stands in for the app: a plain window that opens two tabs, switches, navigates
+  and asks the engine for history, bookmarks and the downloads folder, logging every reply and event. It proves an
+  engine build with no app.
+
 ## Checks
 
 - `.github/workflows/windows.yml` builds the x64 app on a Windows runner and runs `scripts/windows/launch-smoke.ps1`,
@@ -181,10 +232,11 @@ The Mac's numbers are the targets for Windows, measured from the first engine bu
 
 1. The app shell: the UI in native windows, with the app-side native modules and views. Done in #1112, except what
    the log still lists.
-2. Chromium for Windows with the patches that apply as they are, then the first window with a real tab.
-3. ArdiaCore: split into a shared core (`.cc`) and platform files (`_mac.mm`, `_win.cc`), then write the Windows files.
+2. Chromium for Windows with our patches, hosted in the app: pages load in tabs. Done (The engine in the app).
+3. What the Mac's native layer does that Windows still leaves to Chromium's own UI or lacks: the page's context menu,
+   permission, password and autofill prompts drawn by the app, popup windows in the app's own frame, picture in
+   picture, the page script, full screen video inside the app's window, session restore of a tab's history.
 4. The Windows versions of the Mac-specific engine patches.
 5. C++ versions of what is still drawn flat or missing: shaders with Direct3D, import
    from Edge and Chrome, dragging files out of the app, swipe gestures.
-6. Windows behaviour: Ctrl shortcuts, window controls on the right.
-7. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.
+6. A signed installer and updates with WinSparkle on the existing appcast, as a nightly first.
