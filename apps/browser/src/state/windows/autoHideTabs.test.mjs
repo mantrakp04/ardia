@@ -7,6 +7,7 @@ const { sidebarMenuItems } = await import("../sidebar/sidebarMenu.ts");
 const { flushPersistence, loadSession, parseSession, startPersistence } = await import("../session/persist.ts");
 const { SESSION_DOCUMENT } = await import("../session/sessionDocument.ts");
 const { noteScroll, useToolbarAutoHide } = await import("./toolbarAutoHide.ts");
+const { takeAutoHideTabsChoices } = await import("../telemetry/autoHideTabsChoices.ts");
 const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -154,5 +155,47 @@ test("hidden or shown survives a quit and relaunch, and the saved windows say th
   S().toggleSidebar(b);
   S().reopenClosedWindow();
   assert.deepEqual(S().windowOrder.map(shown), [true, true], "a reopened window follows the setting, not how it was closed");
+  stop();
+});
+
+test("a closed window is saved with the setting's value too, so an older build reopens it one way, not half shown and half hidden", () => {
+  stub.docs.clear();
+  S().hydrate({});
+  const stop = startPersistence();
+  const a = S().createWindow({ url: "https://a.example" });
+  S().createWindow({ url: "https://b.example" });
+  const savedClosed = () => JSON.parse(stub.docs.get(SESSION_DOCUMENT)).closedWindows.map((c) => c.window.sidebarOpen);
+  S().closeWindow(a);
+  flushPersistence();
+  assert.deepEqual(savedClosed(), [true]);
+  S().updateSettings({ autoHideTabs: true });
+  flushPersistence();
+  assert.deepEqual(savedClosed(), [false]);
+  const relaunched = loadSession();
+  assert.equal("sidebarOpen" in relaunched.closedWindows[0].window, false, "read back without a copy");
+  stop();
+});
+
+test("the toggle count is this Mac's choices: ⌘S and Settings count, a value arriving by sync or one that changes nothing doesn't", () => {
+  const w = fresh();
+  takeAutoHideTabsChoices();
+  S().toggleSidebar(w);
+  S().updateSettings({ autoHideTabs: false });
+  S().updateSettings({ autoHideTabs: false });
+  S().updateSettings({ autoHideTabs: true }, { fromSync: true });
+  S().updateSettings({ autoHideTabs: false }, { fromSync: true });
+  S().updateSettings({ tabLayout: "top" });
+  assert.equal(takeAutoHideTabsChoices(), 2);
+  assert.equal(takeAutoHideTabsChoices(), 0);
+});
+
+test("a saved session that disagreed with the setting is written back in line at launch, before anything else changes", () => {
+  stub.docs.clear();
+  stub.docs.set(SESSION_DOCUMENT, session({ tabLayout: "top", autoHideTabs: false }, [false, true]));
+  const stop = startPersistence();
+  flushPersistence();
+  const saved = JSON.parse(stub.docs.get(SESSION_DOCUMENT));
+  assert.deepEqual(saved.windows.map((w) => w.sidebarOpen), [true, true]);
+  assert.equal(saved.settings.autoHideTabs, false);
   stop();
 });

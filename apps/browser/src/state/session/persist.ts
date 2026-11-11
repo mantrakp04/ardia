@@ -93,7 +93,9 @@ const SESSION_FIELDS = {
     return Object.values(s.splits).filter((v) => kept.has(v.windowId));
   }),
   closedTabs: field(["closedTabs"], (s) => s.closedTabs.filter((c) => publicTab(c.tab))),
-  closedWindows: field(["closedWindows"], (s) => s.closedWindows.filter((c) => c.tabs.every(publicTab))),
+  closedWindows: field(["closedWindows", "settings"], (s) =>
+    s.closedWindows.filter((c) => c.tabs.every(publicTab)).map((c) => ({ ...c, window: { ...c.window, sidebarOpen: !s.settings.autoHideTabs } })),
+  ),
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
   pinSync: field(["pinSync"], (s) => publicProfiles(s.pinSync)),
@@ -141,6 +143,12 @@ function settingsWithAutoHideTabs(settings: unknown, windows: SavedObject[]): Hy
   return { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } as HydrateData["settings"];
 }
 
+function withoutSavedTabsShown(closed: ClosedWindow): ClosedWindow {
+  if (!isFields(closed.window)) return closed;
+  const { sidebarOpen: _, ...window } = closed.window as ClosedWindow["window"] & { sidebarOpen?: unknown };
+  return { ...closed, window };
+}
+
 function windowsAgainstAutoHideTabs(settings: HydrateData["settings"], windows: SavedObject[]): number {
   const hidden = !!settings?.autoHideTabs;
   return windows.filter((w) => typeof w.sidebarOpen === "boolean" && w.sidebarOpen === hidden).length;
@@ -166,7 +174,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     groups: byId(rows(raw.groups, groupOk)),
     splits: byId(rows<SplitView>(raw.splits, splitOk).map((v) => ({ ...v, slots: slotsFromDisk(v.slots)! }))),
     closedTabs: rows(raw.closedTabs, closedTabOk),
-    closedWindows: rows<ClosedWindow>(raw.closedWindows, tabListOk).map(splitsChecked),
+    closedWindows: rows<ClosedWindow>(raw.closedWindows, tabListOk).map(splitsChecked).map(withoutSavedTabsShown),
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, splitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
@@ -334,6 +342,10 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
   if (droppedPrivateDownloads) {
     droppedPrivateDownloads = false;
     dirty.add(DOCS.find((d) => d.name === "downloads.json")!);
+    timer ??= setTimeout(save, SAVE_DELAY_MS);
+  }
+  if (realignedAtLaunch) {
+    dirty.add(DOCS.find((d) => d.name === SESSION_DOCUMENT)!);
     timer ??= setTimeout(save, SAVE_DELAY_MS);
   }
   resume = () => {
