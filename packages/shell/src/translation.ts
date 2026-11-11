@@ -9,7 +9,8 @@ export type TranslationModule = {
   supportedLanguages(): Promise<string[]>;
   prepare(source: string, target: string): Promise<void>;
   translate(source: string, target: string, texts: string[]): Promise<(string | null)[]>;
-  translateBlocks(source: string, target: string, blocks: string[][]): Promise<(string[] | null)[]>;
+  translateBlocks(source: string, target: string, blocks: string[][], owner: string): Promise<(string[] | null)[]>;
+  cancel(owner: string): Promise<void>;
 };
 const TranslationNative = nativeModule("ArdiaTranslate");
 

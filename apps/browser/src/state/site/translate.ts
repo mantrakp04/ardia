@@ -112,14 +112,18 @@ async function detect(tabId: string) {
   setSource(tabId, source);
 }
 
-async function translatePassage(source: string, target: string, [, pieces]: Passage): Promise<Translated[]> {
-  const [parts] = await translation!.translateBlocks(source, target, [pieces.map(([, text]) => text)]);
+async function translatePassage(source: string, target: string, [, pieces]: Passage, token: string, progress: Progress, live: () => boolean): Promise<Translated[]> {
+  const texts = pieces.map(([, text]) => text);
+  const [parts] = await translation!.translateBlocks(source, target, [texts], token);
   if (parts && parts.length === pieces.length) return pieces.map(([id], j) => [id, parts[j] ?? ""]);
-  const texts = await translation!.translate(source, target, pieces.map(([, text]) => text));
-  return pieces.map(([id], i) => [id, texts[i] ?? null]);
+  if (!live()) return pieces.map(([id]) => [id, null]);
+  if (pieces.length > 1) progress.unlinked++;
+  const single = await translation!.translateBlocks(source, target, texts.map((text) => [text]), token);
+  if (live() && single.every((part) => !part)) throw new Error("the Mac's translation model didn't answer");
+  return pieces.map(([id], i) => [id, single[i]?.[0] ?? null]);
 }
 
-type Progress = { applied: number; firstAppliedAt: number | null };
+type Progress = { applied: number; unlinked: number; firstAppliedAt: number | null };
 
 function untilReleased(tabId: string, token: string) {
   let stop = () => {};
@@ -132,7 +136,7 @@ function untilReleased(tabId: string, token: string) {
   return { promise, stop: () => stop() };
 }
 
-async function drain(tabId: string, token: string, onProgress?: (done: number, total: number) => void, progress: Progress = { applied: 0, firstAppliedAt: null }): Promise<boolean> {
+async function drain(tabId: string, token: string, onProgress?: (done: number, total: number) => void, progress: Progress = { applied: 0, unlinked: 0, firstAppliedAt: null }): Promise<boolean> {
   const current = stateOf(tabId);
   if (current.status === "idle" || current.token !== token) return false;
   const { source, target } = current;
@@ -148,7 +152,7 @@ async function drain(tabId: string, token: string, onProgress?: (done: number, t
       holds: () => holds(tabId, token) && !!webviews.get(tabId),
       released: released.promise,
       next: (max) => page().evaluate<PageBatch>(translatorCall("next", token, max, BATCH_CHARS)),
-      translate: (passage) => translatePassage(source, target, passage),
+      translate: (passage) => translatePassage(source, target, passage, token, progress, () => holds(tabId, token)),
       apply: (results) => page().evaluate(translatorCall("apply", token, results)),
       onStage: (stage) => atStage(tabId, stage),
       onApplied: (total) => {
@@ -158,6 +162,7 @@ async function drain(tabId: string, token: string, onProgress?: (done: number, t
     });
   } finally {
     released.stop();
+    void translation?.cancel(token).catch(() => {});
   }
 }
 
@@ -199,7 +204,7 @@ export async function translatePage(tabId: string, target = defaultTarget()) {
   let shown = false;
   let started = 0;
   let token: string | null = null;
-  const progress: Progress = { applied: 0, firstAppliedAt: null };
+  const progress: Progress = { applied: 0, unlinked: 0, firstAppliedAt: null };
   try {
     const status = await translation.status(source, target);
     if (status === "unsupported") return toast(tabId, `Translation error (${languageName(source)} to ${languageName(target)} isn't available)`);
@@ -245,6 +250,7 @@ function reportFirstPass(outcome: "done" | "stopped" | "failed", started: number
     first_pass_ms: Date.now() - started,
     first_text_ms: progress.firstAppliedAt === null ? null : progress.firstAppliedAt - started,
     passages: progress.applied,
+    unlinked_passages: progress.unlinked,
   });
 }
 
@@ -286,6 +292,11 @@ function watchTabDocument(tabId: string) {
     },
     DOCUMENT_POLL_MS,
   ).catch(() => {});
+}
+
+export function releaseTranslation(tabId: string) {
+  stopDocumentWatch(tabId);
+  if (stateOf(tabId).status !== "idle") toIdle(tabId);
 }
 
 export function startTranslate() {

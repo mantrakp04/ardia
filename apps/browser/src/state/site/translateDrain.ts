@@ -45,7 +45,7 @@ export async function drainPassages(port: DrainPort): Promise<boolean> {
           if (!live()) return;
           port.onStage?.("apply");
           await port.apply(results);
-          port.onApplied?.(total);
+          if (live()) port.onApplied?.(total);
         },
         async (error: unknown) => {
           if (!live()) return;

@@ -112,3 +112,23 @@ test("a failure recorded before the translation was replaced is dropped once the
   await tick();
   assert.deepEqual(page.applied, [[1000, null]]);
 });
+
+test("an answer whose apply finishes after the translation was released reports no progress", async () => {
+  const page = fakePage([{ passages: [passage(1)], more: false, gone: false, done: 1, total: 1 }]);
+  const applying = deferred();
+  const progress = [];
+  page.port.apply = async (results) => {
+    page.applied.push(...results);
+    await applying.promise;
+  };
+  page.port.onApplied = (total) => progress.push(total);
+  const drained = drainPassages(page.port);
+  for (let i = 0; i < 4; i++) await tick();
+  assert.equal(page.applied.length, 1);
+  page.holding = false;
+  page.release.resolve();
+  applying.resolve();
+  assert.equal(await drained, false);
+  await tick();
+  assert.deepEqual(progress, []);
+});

@@ -263,6 +263,7 @@ const translate: Modules["ArdiaTranslate"] = {
   prepare: () => Promise.resolve(),
   translate: (_source, _target, texts) => Promise.resolve(texts),
   translateBlocks: (_source, _target, blocks) => Promise.resolve(blocks),
+  cancel: () => Promise.resolve(),
 };
 
 const magnifyArea: Modules["ArdiaMagnifyArea"] = { devMagnify: () => unfaked("ArdiaMagnifyArea", "devMagnify") };

@@ -13,6 +13,7 @@ enum PassageDispatch {
     guard pieces.reduce(0, { $0 + $1.count }) > limit else { return await linked(pieces) }
     var out: [String] = []
     for group in groups(pieces, limit: limit) {
+      if Task.isCancelled { return nil }
       let slice = Array(pieces[group])
       if slice.count == 1 {
         guard let translated = await runs(slice[0], limit: limit, plain) else { return nil }
@@ -45,6 +46,7 @@ enum PassageDispatch {
   private static func runs(_ text: String, limit: Int, _ plain: (String) async -> String?) async -> String? {
     var out = ""
     for piece in SentenceRuns.split(text, limit: limit) {
+      if Task.isCancelled { return nil }
       guard !piece.text.isEmpty else {
         out += piece.gap
         continue
