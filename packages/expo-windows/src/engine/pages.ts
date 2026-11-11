@@ -70,14 +70,24 @@ function listen() {
   });
 }
 
+const offeredByEngine = (adopt: string | undefined) => (adopt?.startsWith("ardiacore:") ? adopt : "");
+
 function start(key: string, from: PageStart): Promise<boolean> {
-  return hostCall("tab.create", { key, url: from.url ?? "", profile: from.profile ?? "", adopt: from.adopt ?? "" }, from.windowId).then(
-    () => true,
-    (error: unknown) => {
-      console.warn(`[ardia windows] the page for ${key} did not open: ${String((error as Error)?.message ?? error)}`);
-      return false;
-    },
-  );
+  const url = from.url ?? "";
+  const create = (adopt: string) => hostCall("tab.create", { key, url, profile: from.profile ?? "", adopt }, from.windowId);
+  const offered = offeredByEngine(from.adopt);
+  return create(offered)
+    .catch((error: unknown) => {
+      if (!offered || !url) throw error;
+      return create("");
+    })
+    .then(
+      () => true,
+      (error: unknown) => {
+        console.warn(`[ardia windows] the page for ${key} did not open: ${String((error as Error)?.message ?? error)}`);
+        return false;
+      },
+    );
 }
 
 export function mountPage(key: string, from: PageStart, listener: PageListener): () => void {
