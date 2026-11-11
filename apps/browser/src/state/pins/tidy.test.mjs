@@ -435,3 +435,25 @@ test("Tidy on tabs leaves a live folder's open items alone and doesn't count the
   assert.equal(innermost(live2), undefined);
   assert.equal(S().tabs[live1].liveItem.itemId, "1");
 });
+
+test("Tidy on tabs leaves a split that shows a live folder's item where it is", () => {
+  reset();
+  const { w, ids: [a1, a2, live] } = windowWith("https://a.com/1", "https://a.com/2", "https://github.com/o/r/pull/1");
+  S().updateTab(live, { liveItem: { folderId: "f", itemId: "1" } });
+  S().createSplit([a2, live]);
+  tidy(w, "tabs");
+  assert.equal(innermost(live), undefined);
+  assert.equal(innermost(a2), undefined);
+  assert.equal(innermost(a1), undefined, "a single loose tab of a site stays loose");
+});
+
+test("a hidden empty card doesn't count towards Tidy's six", () => {
+  reset();
+  S().updateSettings({ newTabOpens: "commandBar" });
+  const w = S().createWindow({});
+  for (let i = 0; i < 6; i++) S().newTab(w, { url: `https://s${i % 2}.com/${i}`, background: true });
+  assert.equal(offersTidyTabs(S(), w), false, "six tabs past the empty card");
+  S().newTab(w, { url: "https://s0.com/9", background: true });
+  assert.equal(offersTidyTabs(S(), w), true);
+  S().updateSettings({ newTabOpens: "page" });
+});

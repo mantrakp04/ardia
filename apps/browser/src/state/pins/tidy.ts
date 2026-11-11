@@ -10,6 +10,7 @@ import { activated, apply, removeTabs } from "../tabs/tabs";
 import type { ClosedTab, Tab, TabGroup } from "../browser/types";
 import { samePage } from "../../lib/url";
 import { isRegularWindow } from "../windows/small";
+import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
 
 export type TidyPlan = {
   closes: { tabId: string; keeperId: string }[];
@@ -87,6 +88,7 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
   for (const t of kept) {
     const panes = splitRowPanes(s, splitOf(s, t.id));
     if (panes.includes(t.id) && panes.find((id) => keptIds.has(id)) !== t.id) continue;
+    if (scope === "tabs" && panes.some((id) => s.tabs[id]?.liveItem)) continue;
     const site = siteKey(homeOf(t));
     if (!site) continue;
     const groupId = folderFor.get(site);
@@ -116,12 +118,12 @@ export function canTidy(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "s
 
 export const TIDY_TABS_AFTER = 6;
 
-function unpinnedTabCount(s: Pick<BrowserState, "tabs" | "groups">, tabIds: string[], profileId: string): number {
+function unpinnedTabCount(s: BrowserState, tabIds: string[], profileId: string): number {
   const inPinnedGroup = new Set(Object.values(s.groups).flatMap((g) => (g.pinned ? g.tabIds : [])));
-  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && isUnpinnedTab(s.tabs[id]) && !inPinnedGroup.has(id)).length;
+  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && isUnpinnedTab(s.tabs[id]) && !inPinnedGroup.has(id) && !hiddenEmptyCard(s, s.tabs[id]!)).length;
 }
 
-export function offersTidyTabs(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {
+export function offersTidyTabs(s: BrowserState, windowId: string, profileId?: string): boolean {
   const w = s.windows[windowId];
   if (!w || unpinnedTabCount(s, w.tabIds, profileId ?? w.profileId) <= TIDY_TABS_AFTER) return false;
   return canTidy(s, windowId, profileId, "tabs");
