@@ -250,7 +250,7 @@ index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04e
    if ((commandSelector == @selector(insertNewline:) || commandSelector == @selector(insertNewlineIgnoringFieldEditor:))) {
      if ([textInputDelegate textInputShouldSubmitOnReturn]) {
 diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.mm b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123b2eb3f03 100644
+index cac171e70c9fa225cdec45b205086342a0d50f06..01854f1cd659dd2611b6046482af927db8f1d8e3 100644
 --- a/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 +++ b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 @@ -47,6 +47,11 @@ @implementation RCTBaseTextInputView {
@@ -277,7 +277,20 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  - (instancetype)initWithBridge:(RCTBridge *)bridge
  {
    RCTAssertParam(bridge);
-@@ -238,7 +248,15 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
+@@ -224,6 +234,12 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
+ 
+   textNeedsUpdate = ([self textOf:attributedTextCopy equals:backedTextInputViewTextCopy] == NO);
+ 
++#if TARGET_OS_OSX // [Ardia: text from JS never replaces an input method's marked text: Korean commits a syllable and marks the next consonant in one keystroke, JS only knew the committed syllable, and setting that here unmarked the consonant and reset the composition (3-set typing came out as loose letters, #863); JS hears the text once the input method commits
++  if (textNeedsUpdate && [self.backedTextInputView hasMarkedText]) {
++    return;
++  }
++#endif // Ardia]
++
+   if ((eventLag == 0 || self.backedTextInputView.ghostTextChanging) && textNeedsUpdate) { // [macOS]
+ #if !TARGET_OS_OSX // [macOS]
+     UITextRange *selection = self.backedTextInputView.selectedTextRange;
+@@ -238,7 +254,15 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
        // If there was ghost text previously, we don't want it showing up if we undo.
        // If something goes wrong when trying to remove it, just stick with oldAttributedText.
        NSAttributedString *oldAttributedTextWithoutGhostText = [self removingGhostTextFromString:oldAttributedText strict:YES] ?: oldAttributedText;
@@ -294,7 +307,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
          strongSelf.attributedText = oldAttributedTextWithoutGhostText;
          [strongSelf textInputDidChange];
        }];
-@@ -521,6 +539,11 @@ - (void)textInputDidBeginEditing
+@@ -521,6 +545,11 @@ - (void)textInputDidBeginEditing
      return;
    }
    _isCurrentlyEditing = YES;
@@ -306,7 +319,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  #endif // macOS]
    
    [_eventDispatcher sendTextEventWithType:RCTTextEventTypeFocus
-@@ -894,8 +917,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
+@@ -894,8 +923,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
  
  #pragma mark - Focus Control
  
@@ -356,7 +369,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
    [self.backedTextInputView reactFocus];
  
    if (_clearTextOnFocus) {
-@@ -909,6 +973,9 @@ - (void)reactFocus
+@@ -909,6 +979,9 @@ - (void)reactFocus
      [self.backedTextInputView setSelectedTextRange:NSMakeRange(NSNotFound, 0) notifyDelegate:NO];
  #endif // macOS]
    }
