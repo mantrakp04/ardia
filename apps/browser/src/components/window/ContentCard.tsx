@@ -119,7 +119,7 @@ export function ContentCard() {
         if (size.width > 0 && dockMoving(windowId) && !split) {
           settleMeasure.cancel();
           settled.current = { width, height };
-        } else if (size.width > 0 && !split) {
+        } else if (size.width > 0 && !split && !peekId) {
           noteCardResizeLayout(false);
           settleMeasure({ width, height });
         } else {

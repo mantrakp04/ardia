@@ -12,6 +12,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var managed: [String: ManagedWindow] = [:]
   private var pending: [PendingOpen] = []
   private var lightsCenters: [String: (center: NSPoint, trailing: Bool)] = [:]
+  private var unreportedFrames = Set<ObjectIdentifier>()
   private weak var lastPlaced: NSWindow?
   private static let lastFrameKey = "ArdiaLastWindowFrame"
   private var lastFrame = UserDefaults.standard.string(forKey: WindowManager.lastFrameKey) ?? UserDefaults.standard.string(forKey: "NSWindow Frame BrowserWindow")
@@ -392,6 +393,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     guard isBrowserWindow(sender), let id = id(of: sender), ShellEvents.isAttached(.app) else { return true }
+    flushFrameReport(sender)
     return !ShellEvents.send(.window, ["type": "closeRequest", "id": id])
   }
 
@@ -404,6 +406,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   func windowWillClose(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window), let entry = managed[id] else { return }
     let closedByJS = entry.closingFromJS
+    flushFrameReport(window)
     managed[id] = nil
     NotificationCenter.default.removeObserver(self, name: nil, object: window)
     if !entry.kind.isBrowser {
@@ -444,10 +447,22 @@ final class WindowManager: NSObject, NSWindowDelegate {
     guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
     relayoutRoot(window)
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
+    unreportedFrames.insert(ObjectIdentifier(window))
     perform(#selector(reportResized(_:)), with: window, afterDelay: Self.resizeReportDelay)
   }
 
   @objc private func reportResized(_ window: NSWindow) {
+    reportFrame(window)
+  }
+
+  func flushFrameReports() {
+    for entry in managed.values { flushFrameReport(entry.window) }
+  }
+
+  private func flushFrameReport(_ window: NSWindow) {
+    guard unreportedFrames.remove(ObjectIdentifier(window)) != nil else { return }
+    NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
+    NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
     reportFrame(window)
   }
 
@@ -462,6 +477,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
     let delay = notification.name == NSWindow.didEndLiveResizeNotification ? 0 : Self.resizeReportDelay
+    unreportedFrames.insert(ObjectIdentifier(window))
     perform(#selector(reportMoved(_:)), with: window, afterDelay: delay, inModes: [.default])
   }
 
@@ -470,6 +486,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func reportFrame(_ window: NSWindow) {
+    unreportedFrames.remove(ObjectIdentifier(window))
     guard let id = id(of: window), !window.styleMask.contains(.fullScreen), window.parent == nil else { return }
     if isMainWindow(window) {
       lastFrame = window.frameDescriptor

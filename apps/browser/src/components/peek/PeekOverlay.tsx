@@ -163,7 +163,7 @@ function PeekCard({
       <Animated.View
         style={
           fullscreen
-            ? { position: "absolute", left: 0, top: 0, width, height }
+            ? StyleSheet.absoluteFill
             : { position: "absolute", ...frame, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }
         }
       >

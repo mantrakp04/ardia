@@ -21,6 +21,7 @@ import { splitTabIds } from "../splits/splits";
 import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 import { takeAutoHideTabsChoices } from "./autoHideTabsChoices";
 import { useToolbarAutoHide } from "../windows/toolbarAutoHide";
+import { toolbarBounces } from "./toolbarBounces";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -226,21 +227,13 @@ function watchStore() {
   });
 }
 
-const TOOLBAR_BOUNCE_MS = 1000;
-
 function watchToolbarAutoHide() {
-  const shownAt = new Map<string, number>();
+  const bounces = toolbarBounces((id) => !!useBrowser.getState().tabs[id]);
   useToolbarAutoHide.subscribe((s, prev) => {
     if (s.scrolledDown === prev.scrolledDown) return;
-    const now = Date.now();
-    for (const id in prev.scrolledDown) if (!s.scrolledDown[id]) shownAt.set(id, now);
-    for (const id in s.scrolledDown) {
-      if (prev.scrolledDown[id]) continue;
-      counts.toolbarScrollHides++;
-      const shown = shownAt.get(id);
-      if (shown !== undefined && now - shown < TOOLBAR_BOUNCE_MS) counts.toolbarScrollHideBounces++;
-      shownAt.delete(id);
-    }
+    const seen = bounces.note(s.scrolledDown, prev.scrolledDown);
+    counts.toolbarScrollHides += seen.hides;
+    counts.toolbarScrollHideBounces += seen.bounces;
   });
 }
 
