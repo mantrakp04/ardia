@@ -11,6 +11,7 @@ import { SourceBadge } from "@/components/source-badge";
 import { compareLabel, compareSentence, rangeSentence } from "@/lib/compare";
 import { formatAgo, formatExact, formatMs, formatPercent } from "@/lib/format";
 import { windowFor } from "@/lib/range";
+import { viewerZone, zoneLabel } from "@/lib/zone";
 import { THRESHOLDS } from "@/lib/thresholds";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,7 @@ function SitePage() {
 
   return (
     <>
-      <PageHeader title="Site" description={`ardia.dev, from always-on, anonymous site analytics. ${rangeSentence(range)}${compareSentence(range)}. Times in UTC.`} />
+      <PageHeader title="Site" description={`ardia.dev, from always-on, anonymous site analytics. ${rangeSentence(range)}${compareSentence(range)}. Times in ${zoneLabel(viewerZone())}.`} />
 
       <Card className="relative px-4 py-4 shadow-none sm:px-5">
         <div className="absolute top-3 right-3"><SourceBadge source="site" /></div>
@@ -65,7 +66,7 @@ function SitePage() {
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-5">
         <Panel source="site" className="xl:col-span-3" title="Visitors over time" description={`Distinct visitors per ${w.step === "hour" ? "hour" : "day"}.`}>
           <Loaded query={traffic} skeleton={<ChartSkeleton height={260} legend />}>
-            {(d) => <TimeSeriesChart buckets={d.window.buckets} series={d.trend} step={d.window.step} height={260} />}
+            {(d) => <TimeSeriesChart buckets={d.window.buckets} series={d.trend} step={d.window.step} zone={d.window.zone} height={260} />}
           </Loaded>
         </Panel>
         <Panel source="site" className="xl:col-span-2" title="Where they clicked Download" description="Download clicks by the button's place on the page. The Mac funnel is on Funnels.">
@@ -215,7 +216,7 @@ function Friction({ data }: { data: FrictionData }) {
         </div>
         <div className="min-w-0">
           <div className="mb-2 label-mono text-muted-foreground">People per 100 visitors, per {data.window.step}</div>
-          <TimeSeriesChart buckets={data.window.buckets} step={data.window.step} height={170} format={(n) => n.toFixed(1)} series={[{ key: "rate", label: "Per 100 visitors", values: data.series, color: "var(--chart-3)" }]} />
+          <TimeSeriesChart buckets={data.window.buckets} step={data.window.step} zone={data.window.zone} height={170} format={(n) => n.toFixed(1)} series={[{ key: "rate", label: "Per 100 visitors", values: data.series, color: "var(--chart-3)" }]} />
         </div>
       </div>
       <DataTable
