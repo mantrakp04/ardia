@@ -2,6 +2,7 @@ import { useBrowser } from "../browser/store";
 import { plural } from "../browser/model";
 import { tidying, untidying, type Tidied, type TidyScope } from "../pins/tidy";
 import { showToast } from "../app/toasts";
+import { noteTidyTabsRun, noteTidyTabsUndo } from "../telemetry/tidyTabsCounts";
 
 export function tidy(windowId: string, scope: TidyScope, profileId?: string) {
   let tidied: Tidied | null = null;
@@ -12,11 +13,18 @@ export function tidy(windowId: string, scope: TidyScope, profileId?: string) {
   });
   const done = tidied as Tidied | null;
   if (!done) return;
+  if (scope === "tabs") noteTidyTabsRun(done.moved);
   const duplicates = done.duplicates ? `Closed ${plural(done.duplicates, done.moved ? "duplicate" : "Duplicate Pin")}` : "";
   const moved = scope === "pins" ? `Tidied ${plural(done.moved, "Pin")} into ${plural(done.groups, "Folder")}` : `Tidied ${plural(done.moved, "Tab")} into ${plural(done.groups, "Group")}`;
   const title = done.moved ? moved : duplicates;
   showToast(windowId, title, done.moved && duplicates ? duplicates : undefined, {
     icon: "sparkles",
-    action: { title: "Undo", run: () => useBrowser.setState((s) => untidying(s, done)) },
+    action: {
+      title: "Undo",
+      run: () => {
+        useBrowser.setState((s) => untidying(s, done));
+        if (scope === "tabs") noteTidyTabsUndo();
+      },
+    },
   });
 }
