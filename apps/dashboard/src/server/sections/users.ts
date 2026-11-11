@@ -293,6 +293,7 @@ const NAMES: Record<string, string> = {
   tab_presses: "Tab presses",
   settings_section_opened: "Settings section opened",
   command_bar_opened: "Command bar opened",
+  calendar_connect: "Connect Calendar pressed",
   usage_counts: "Usage counts",
   perf_journeys: "Journey timings",
   perf_omnibox: "Omnibox timings",

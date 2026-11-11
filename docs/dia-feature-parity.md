@@ -477,7 +477,7 @@ own sign-ins instead.
 | Outlook, Teams, SharePoint | ✓ | ⏸ | |
 | Zoom, Loom, Granola, Amplitude, Salesforce, LinkedIn | ✓ | ⏸ | |
 | Write actions with approval ("Always allow for this chat") | ✓ | ⏸ | |
-| Live Calendar pinned‑tab hover, next‑meeting alerts, one‑click join | ✓ | ✅ | from macOS Calendar (EventKit), not a Google connection; alerts as notifications and in-window; beyond Dia: the pinned tile's countdown starts 5, 10, 15, 30 or 60 minutes before a meeting (Settings › Calendar, 60 by default), and its context menu hides "Now" for the current meeting until it ends (#546) |
+| Live Calendar pinned‑tab hover, next‑meeting alerts, one‑click join | ✓ | ✅ | from macOS Calendar (EventKit), not a Google connection; alerts as notifications and in-window; beyond Dia: the pinned tile's countdown starts 5, 10, 15, 30 or 60 minutes before a meeting (Settings › Calendar, 60 by default), and its context menu hides "Now" for the current meeting until it ends (#546). Connect (Settings › Calendar, the pinned calendar's hover card, its menu) asks macOS once; when access is denied or add-only it opens System Settings › Privacy & Security › Calendars instead, and when macOS answers without asking it opens that pane and says why (an EventKit error, or that macOS asked the app that launched Ardia); the hover card and the pane show the reason with an Open System Settings link, and access granted there connects as soon as an Ardia window takes focus again (2026-11-10, #731). Dashboard: `calendar_connect` (`before`, `after`, `responsible`, `errored`, `settings_opened`, `ms`); a share of `before=notDetermined, after=notDetermined` presses is macOS refusing to ask, and `responsible=other` says why |
 
 ## 12. Bookmarks
 | Feature | Dia | Ardia | Gap |
