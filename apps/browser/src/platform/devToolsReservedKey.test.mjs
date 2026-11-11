@@ -19,6 +19,30 @@ test("a reserved key goes to the main menu only when a focused Developer Tools d
   assert.ok(keeps < menu, "KeepsReservedKeyInDevTools must be asked before the main menu runs the key");
 });
 
+test("a key Developer Tools keeps is refused at the hook and counted once, never handled", () => {
+  const hook = bodyOf(read(`${core}ArdiaWindowController.mm`), "- (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:");
+  const kept = hook.match(/if \(KeepsReservedKeyInDevTools\(window\.window, event\)\) \{([\s\S]*?)\n  \}/);
+  assert.ok(kept, "the Developer Tools branch must be a block that counts the handoff");
+  assert.match(kept[1], /\[ArdiaEvents emit:@"engine\.devToolsKeyKept" data:@\{\}\];/, "the handoff is reported to the app");
+  assert.match(kept[1], /NSEventTypeKeyDown && !event\.isARepeat/, "only the first key down counts");
+  assert.match(kept[1], /\n    return NO;$/, "a key Developer Tools keeps must return NO so the page and Developer Tools get it");
+  assert.doesNotMatch(kept[1], /return YES|performKeyEquivalent/, "the main menu never runs a key Developer Tools keeps");
+  assert.ok(hook.indexOf("return NO;") < hook.indexOf("performKeyEquivalent"), "the refusal comes before the main menu runs");
+});
+
+test("the kept-key handoff travels from the hook to a capped, property-free telemetry event", () => {
+  const api = read("../../../../packages/ardiacore/src/engine/api.ts");
+  assert.match(api, /"engine\.devToolsKeyKept": Record<string, never>;/);
+  assert.match(read("./performance.ts"), /onDevToolsKeyKept = \(listener: \(\) => void\) => on\("engine\.devToolsKeyKept", listener\);/);
+  const keys = read("../state/telemetry/devToolsKeys.ts");
+  assert.match(keys, /const MAX_DEVTOOLS_KEY_EVENTS = 20;/);
+  assert.match(keys, /if \(sent >= MAX_DEVTOOLS_KEY_EVENTS\) return;/);
+  assert.match(keys, /capture\("devtools_key_kept"\);/);
+  assert.match(keys, /watchDevToolsKeys = \(\) => onDevToolsKeyKept\(trackDevToolsKeyKept\);/);
+  assert.match(read("../state/telemetry/index.ts"), /startUsage\(\);\s*watchDevToolsKeys\(\);/);
+  assert.match(read("../state/telemetry/copy.ts"), /Developer Tools took ⇧⌘C to turn its element picker on or off/);
+});
+
 test("Developer Tools keeps only Copy URL's key, and only when the focus is inside a tab's Developer Tools view", () => {
   const header = read(`${core}ArdiaChromeWindowInternal.h`);
   assert.match(header, /bool KeepsReservedKeyInDevTools\(NSWindow \*window, NSEvent \*event\);/, "declare KeepsReservedKeyInDevTools beside KeepsUnhandledSidebarKeyInPage");

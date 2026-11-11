@@ -8,6 +8,7 @@ import { devJourneys, emitJourneys } from "./journeys";
 import { devOmniboxSampler } from "./track";
 import { hardwareProperties, recordContext } from "./diagnostics";
 import { devTabPresses } from "./tabPresses";
+import { watchDevToolsKeys } from "./devToolsKeys";
 import { devHourly, sessionEnding, startUsage } from "./usage";
 import { devLocalStore, exportLocalCopy, flushLocal, localEventsSince, pruneLocalStore } from "./localStore";
 import { reportLocalStore } from "./localStoreReport";
@@ -24,6 +25,7 @@ export { diagnosticsSnapshot, type DiagnosticsSnapshot } from "./diagnosticsSnap
 
 export function startTelemetry() {
   startUsage();
+  watchDevToolsKeys();
   startWatchNotice();
   startDaily(onboardingCompletedAt() !== null);
   if (__DEV__) {
