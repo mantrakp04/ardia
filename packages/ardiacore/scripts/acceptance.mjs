@@ -5547,7 +5547,7 @@ try {
     await pressQuit(windowId);
     await until("the quit", async () => exited, 30000);
     const layout = JSON.parse(readFileSync(join(data, "launch-layout.json"), "utf8"));
-    if (layout.version !== 3 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
+    if (layout.version !== 4 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
     const before = served.get(path) ?? 0;
     await appUp("app-launch-tab-2.out.log");
     const tab = await until("the launch tab restored", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 20000);
