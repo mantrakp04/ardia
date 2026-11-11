@@ -25,6 +25,17 @@ test("page frame zero options are off by default and synced", () => {
   }
 });
 
+test("turning on Zero in full screen also turns on Zero in full screen when tabs are hidden", async () => {
+  const { choose } = await import("./settings.ts");
+  const base = { settings: { ...DEFAULT_SETTINGS }, settingsMeta: { chosen: [], inferred: [] } };
+  const onlyFs = choose(base, { pageFrameZeroInFullScreen: true });
+  assert.equal(onlyFs.settings.pageFrameZeroInFullScreen, true);
+  assert.equal(onlyFs.settings.pageFrameZeroWhenTabsHidden, true);
+  const offFs = choose({ ...base, settings: onlyFs.settings, settingsMeta: onlyFs.settingsMeta }, { pageFrameZeroInFullScreen: false });
+  assert.equal(offFs.settings.pageFrameZeroInFullScreen, false);
+  assert.equal(offFs.settings.pageFrameZeroWhenTabsHidden, true);
+});
+
 test("a saved value of the wrong kind reads as the default, and the rest is kept", () => {
   const settings = parseSettings({
     tabLayout: "diagonal",

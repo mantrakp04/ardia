@@ -5,7 +5,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader, SettingToggle } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -164,6 +164,8 @@ const FRAME_CONTROL = { alignItems: "center" } as const;
 
 function PageFramePicker() {
   const frame = useSettings((s) => s.pageFrame);
+  const zeroInFullScreen = useSettings((s) => s.pageFrameZeroInFullScreen);
+  const zeroWhenTabsHidden = useSettings((s) => s.pageFrameZeroWhenTabsHidden);
   return (
     <>
       <SectionHeader title="Page Frame" />
@@ -178,8 +180,21 @@ function PageFramePicker() {
             </Text>
           </Box>
         </Row>
-        <SettingToggle anchor="appearance.pageFrameZeroInFullScreen" />
-        <SettingToggle anchor="appearance.pageFrameZeroWhenTabsHidden" />
+        <Row anchor="appearance.pageFrameZeroInFullScreen">
+          <Toggle
+            value={zeroInFullScreen}
+            accessibilityLabel="Zero in full screen"
+            onChange={(on) => updateSettings(on ? { pageFrameZeroInFullScreen: true, pageFrameZeroWhenTabsHidden: true } : { pageFrameZeroInFullScreen: false })}
+          />
+        </Row>
+        <Row anchor="appearance.pageFrameZeroWhenTabsHidden">
+          <Toggle
+            value={zeroInFullScreen || zeroWhenTabsHidden}
+            disabled={zeroInFullScreen}
+            accessibilityLabel="Zero in full screen when tabs are hidden"
+            onChange={(on) => updateSettings({ pageFrameZeroWhenTabsHidden: on })}
+          />
+        </Row>
       </Group>
     </>
   );

@@ -20,14 +20,19 @@ test("full screen with Zero in full screen off keeps the slider", () => {
   assert.equal(pageFrameInsetOf(5, { ...off, fullScreen: true }), 5);
 });
 
-test("tabs hidden with Zero when tabs are hidden on is edge to edge", () => {
-  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, zeroWhenTabsHidden: true, tabsHidden: true }), 0);
-  assert.equal(pageFrameInsetOf(5, { ...off, zeroWhenTabsHidden: true, tabsHidden: true }), 0);
+test("full screen and tabs hidden with Zero in full screen when tabs are hidden on is edge to edge", () => {
+  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, zeroWhenTabsHidden: true, fullScreen: true, tabsHidden: true }), 0);
+  assert.equal(pageFrameInsetOf(5, { ...off, zeroWhenTabsHidden: true, fullScreen: true, tabsHidden: true }), 0);
 });
 
-test("tabs hidden with Zero when tabs are hidden off keeps the slider", () => {
-  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, tabsHidden: true }), PAGE_FRAME.default);
-  assert.equal(pageFrameInsetOf(5, { ...off, tabsHidden: true }), 5);
+test("tabs hidden alone with Zero in full screen when tabs are hidden on keeps the slider", () => {
+  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, zeroWhenTabsHidden: true, tabsHidden: true }), PAGE_FRAME.default);
+  assert.equal(pageFrameInsetOf(5, { ...off, zeroWhenTabsHidden: true, tabsHidden: true }), 5);
+});
+
+test("full screen alone with Zero in full screen when tabs are hidden on keeps the slider", () => {
+  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, zeroWhenTabsHidden: true, fullScreen: true }), PAGE_FRAME.default);
+  assert.equal(pageFrameInsetOf(5, { ...off, zeroWhenTabsHidden: true, fullScreen: true }), 5);
 });
 
 test("a zero frame is square; a positive frame follows the window radius minus the inset", () => {

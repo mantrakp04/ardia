@@ -370,9 +370,9 @@ export const generalRows = {
           keywords: ["fullscreen", "full screen", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
         },
         pageFrameZeroWhenTabsHidden: {
-          title: "Zero when tabs are hidden",
-          description: "With Auto-Hide Tabs, the page goes edge to edge with square corners. Show the sidebar or top strip again and the frame comes back.",
-          keywords: ["auto hide", "autohide", "sidebar", "tabs hidden", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
+          title: "Zero in full screen when tabs are hidden",
+          description: "In macOS full screen with Auto-Hide Tabs, the page goes edge to edge with square corners. Show the sidebar or top strip, or leave full screen, and the frame comes back.",
+          keywords: ["auto hide", "autohide", "sidebar", "tabs hidden", "fullscreen", "full screen", "borderless", "edge to edge", "zero", "none", "frame", "inset", "margin"],
         },
       },
     },

@@ -230,10 +230,15 @@ function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?:
 export function choose(s: Pick<BrowserState, "settings" | "settingsMeta">, patch: Partial<Settings>): Pick<BrowserState, "settings" | "settingsMeta"> {
   const { chosen, inferred } = s.settingsMeta;
   if (patch.autoHideTabs !== undefined && patch.autoHideTabs !== s.settings.autoHideTabs) noteAutoHideTabsChosen();
+  const next = { ...s.settings, ...patch };
+  if (next.pageFrameZeroInFullScreen && !next.pageFrameZeroWhenTabsHidden) {
+    next.pageFrameZeroWhenTabsHidden = true;
+    if (!("pageFrameZeroWhenTabsHidden" in patch)) patch = { ...patch, pageFrameZeroWhenTabsHidden: true };
+  }
   const added = Object.keys(patch).filter((k) => !chosen.includes(k));
   const left = inferred.filter((k) => !(k in patch));
   const settingsMeta = added.length || left.length !== inferred.length ? { chosen: added.length ? [...chosen, ...added] : chosen, inferred: left } : s.settingsMeta;
-  return { settings: { ...s.settings, ...patch }, settingsMeta };
+  return { settings: next, settingsMeta };
 }
 
 export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {

@@ -14,7 +14,7 @@ export function pageFrameInsetOf(
   opts: { zeroInFullScreen: boolean; fullScreen: boolean; zeroWhenTabsHidden: boolean; tabsHidden: boolean },
 ): number {
   if (opts.fullScreen && opts.zeroInFullScreen) return 0;
-  if (opts.tabsHidden && opts.zeroWhenTabsHidden) return 0;
+  if (opts.fullScreen && opts.tabsHidden && opts.zeroWhenTabsHidden) return 0;
   return inset;
 }
 
