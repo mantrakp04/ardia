@@ -53,8 +53,10 @@ function folderSites(s: Pick<BrowserState, "tabs" | "groups">, g: TabGroup): str
   return [...counts].filter(([, n]) => n === most).map(([site]) => site);
 }
 
+const isUnpinnedTab = (t: Tab | undefined) => !!t && !t.pin && !t.liveItem;
+
 const isLoose = (s: Pick<BrowserState, "tabs" | "groups">, id: string, scope: TidyScope) =>
-  scope === "pins" ? isPinnedRow(s.tabs[id]) : !s.tabs[id]?.pin && !innermostGroupOf(s.groups, id);
+  scope === "pins" ? isPinnedRow(s.tabs[id]) : isUnpinnedTab(s.tabs[id]) && !innermostGroupOf(s.groups, id);
 
 export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string, scope: TidyScope = "pins"): TidyPlan | null {
   const w = s.windows[windowId];
@@ -116,7 +118,7 @@ export const TIDY_TABS_AFTER = 6;
 
 function unpinnedTabCount(s: Pick<BrowserState, "tabs" | "groups">, tabIds: string[], profileId: string): number {
   const inPinnedGroup = new Set(Object.values(s.groups).flatMap((g) => (g.pinned ? g.tabIds : [])));
-  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && !s.tabs[id]!.pin && !inPinnedGroup.has(id)).length;
+  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && isUnpinnedTab(s.tabs[id]) && !inPinnedGroup.has(id)).length;
 }
 
 export function offersTidyTabs(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {

@@ -414,3 +414,24 @@ test("the divider offers Tidy only past six unpinned tabs, as in Arc; pins and t
   assert.equal(unpinnedList(w).length, 7);
   assert.equal(offersTidyTabs(S(), w), false, "seven tabs of seven sites have nothing to tidy");
 });
+
+test("Tidy on tabs leaves a live folder's open items alone and doesn't count them towards the six", () => {
+  reset();
+  const { w, ids } = windowWith("https://github.com/a/1", "https://github.com/a/2", "https://github.com/b/3", "https://c.com/", "https://d.com/", "https://e.com/");
+  const [live1, live2] = ids;
+  S().updateTab(live1, { liveItem: { folderId: "f", itemId: "1" } });
+  S().updateTab(live2, { liveItem: { folderId: "f", itemId: "2" } });
+  S().newTab(w, { url: "https://f.com/", background: true });
+  assert.equal(offersTidyTabs(S(), w), false, "five plain tabs past the two live ones");
+  S().newTab(w, { url: "https://github.com/b/4", background: true });
+  S().newTab(w, { url: "https://g.com/", background: true });
+  assert.equal(offersTidyTabs(S(), w), true);
+  const plan = tidyPlan(S(), w, undefined, "tabs");
+  const planned = [...plan.files.map((f) => f.tabId), ...plan.newGroups.flatMap((g) => g.tabIds)];
+  assert.equal(planned.includes(live1), false);
+  assert.equal(planned.includes(live2), false);
+  tidy(w, "tabs");
+  assert.equal(innermost(live1), undefined);
+  assert.equal(innermost(live2), undefined);
+  assert.equal(S().tabs[live1].liveItem.itemId, "1");
+});
