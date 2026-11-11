@@ -2,11 +2,13 @@ import { hostCall, onEngineTopic } from "./host";
 
 export type PageListener = (name: string, data: unknown) => void;
 export type PageRect = { x: number; y: number; width: number; height: number };
+export type PageShape = PageRect & { radius: number; holes: number[][] };
 export type PageStart = { url?: string; profile?: string; adopt?: string; windowId: string };
 
 type Page = {
   key: string;
   windowId: string;
+  started: { url: string; at: number };
   ready: Promise<boolean>;
   listeners: Set<PageListener>;
   mounts: number;
@@ -17,8 +19,16 @@ type Page = {
 type OpenedTab = { adopt?: unknown; url?: unknown; foreground?: unknown; window?: unknown; opener?: unknown; profile?: unknown };
 type TabEvent = { key?: unknown; name?: unknown; data?: unknown };
 
+const SAME_LOAD_MS = 2000;
+
 const pages = new Map<string, Page>();
 let listening = false;
+
+const shaped = (name: string, data: unknown) => {
+  if (name !== "media") return data ?? {};
+  const media = (data ?? {}) as { audible?: unknown; muted?: unknown };
+  return { playing: media.audible === true, muted: media.muted === true };
+};
 
 const quietly = (work: Promise<unknown>) => void work.catch(() => {});
 
@@ -29,7 +39,8 @@ function listen() {
     if (typeof event.key !== "string" || typeof event.name !== "string") return;
     const page = pages.get(event.key);
     if (!page) return;
-    for (const listener of [...page.listeners]) listener(event.name, event.data ?? {});
+    const data = shaped(event.name, event.data);
+    for (const listener of [...page.listeners]) listener(event.name, data);
   });
   onEngineTopic("tab.opened", (opened: OpenedTab) => {
     if (typeof opened.adopt !== "string") return;
@@ -65,7 +76,7 @@ export function mountPage(key: string, from: PageStart, listener: PageListener):
   listen();
   let page = pages.get(key);
   if (!page || page.closed) {
-    page = { key, windowId: from.windowId, ready: start(key, from), listeners: new Set(), mounts: 0, parked: false, closed: false };
+    page = { key, windowId: from.windowId, started: { url: from.url ?? "", at: Date.now() }, ready: start(key, from), listeners: new Set(), mounts: 0, parked: false, closed: false };
     pages.set(key, page);
   } else if (page.windowId !== from.windowId) {
     page.windowId = from.windowId;
@@ -97,10 +108,10 @@ function closePage(page: Page) {
   quietly(page.ready.then(() => hostCall("tab.close", { key: page.key })));
 }
 
-export function showPage(key: string, visible: boolean, rect: PageRect | null) {
+export function showPage(key: string, visible: boolean, shape: PageShape | null) {
   const page = pages.get(key);
   if (!page || page.closed) return;
-  const args = visible && rect ? { key, visible: true, ...rect } : { key, visible: false };
+  const args = visible && shape ? { key, visible: true, ...shape } : { key, visible: false };
   quietly(
     page.ready.then((opened) => {
       if (opened && !page.closed) return hostCall("tab.show", args, page.windowId);
@@ -111,6 +122,7 @@ export function showPage(key: string, visible: boolean, rect: PageRect | null) {
 export function callPage<Result = unknown>(key: string, method: string, args: Record<string, unknown> = {}): Promise<Result | null> {
   const page = pages.get(key);
   if (!page || page.closed) return Promise.resolve(null);
+  if (method === "loadUrl" && args.url === page.started.url && Date.now() - page.started.at < SAME_LOAD_MS) return Promise.resolve(null);
   return page.ready.then((opened) => (opened && !page.closed ? hostCall<Result>("tab.call", { key, method, ...args }) : null));
 }
 

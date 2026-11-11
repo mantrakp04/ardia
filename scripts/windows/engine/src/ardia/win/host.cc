@@ -117,6 +117,39 @@ int Integer(const base::DictValue& args, std::string_view key) {
   return static_cast<int>(args.FindDouble(key).value_or(0));
 }
 
+void Shape(HWND window,
+           int x,
+           int y,
+           int width,
+           int height,
+           int radius,
+           const base::ListValue* holes) {
+  if (radius <= 0 && (!holes || holes->empty())) {
+    ::SetWindowRgn(window, nullptr, TRUE);
+    return;
+  }
+  HRGN region = radius > 0
+                    ? ::CreateRoundRectRgn(0, 0, width + 1, height + 1,
+                                           radius * 2, radius * 2)
+                    : ::CreateRectRgn(0, 0, width, height);
+  if (holes) {
+    for (const base::Value& entry : *holes) {
+      const base::ListValue* hole = entry.GetIfList();
+      if (!hole || hole->size() < 4) {
+        continue;
+      }
+      int left = static_cast<int>((*hole)[0].GetIfDouble().value_or(0)) - x;
+      int top = static_cast<int>((*hole)[1].GetIfDouble().value_or(0)) - y;
+      int right = left + static_cast<int>((*hole)[2].GetIfDouble().value_or(0));
+      int bottom = top + static_cast<int>((*hole)[3].GetIfDouble().value_or(0));
+      HRGN cut = ::CreateRectRgn(left, top, right, bottom);
+      ::CombineRgn(region, region, cut, RGN_DIFF);
+      ::DeleteObject(cut);
+    }
+  }
+  ::SetWindowRgn(window, region, TRUE);
+}
+
 std::string Text(const base::DictValue& args, std::string_view key) {
   const std::string* value = args.FindString(key);
   return value ? *value : std::string();
@@ -329,6 +362,8 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   int width = Integer(args, "width");
   int height = Integer(args, "height");
   ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);
+  Shape(window, x, y, width, height, Integer(args, "radius"),
+        args.FindList("holes"));
   if (!::IsWindowVisible(window)) {
     browser->GetWindow()->ShowInactive();
     ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);

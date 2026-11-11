@@ -1,7 +1,8 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
 import { PixelRatio, View, type LayoutChangeEvent } from "react-native";
 import { noteMissing } from "../missing";
-import { callPage, mountPage, showPage, type PageRect } from "./pages";
+import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
+import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { WindowIdContext } from "./windowId";
 
 type PageEvent = { nativeEvent: { name: string; data: unknown } };
@@ -33,7 +34,7 @@ const SETTLE_MS = [0, 50, 200, 500];
 
 let unnamed = 0;
 
-const samePlace = (a: PageRect | null, b: PageRect | null) => !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(props, ref) {
   const windowId = useContext(WindowIdContext);
@@ -42,13 +43,13 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   const latest = useRef(props);
   latest.current = props;
   const visible = props.visible !== false;
-  const shown = useRef<{ visible: boolean; rect: PageRect | null }>({ visible: false, rect: null });
+  const shown = useRef<{ visible: boolean; placed: string }>({ visible: false, placed: "" });
 
   const place = useCallback(() => {
     const wanted = latest.current.visible !== false;
     if (!wanted) {
       if (shown.current.visible) {
-        shown.current = { visible: false, rect: null };
+        shown.current = { visible: false, placed: "" };
         showPage(key, false, null);
       }
       return;
@@ -56,12 +57,24 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
     view.current?.measureInWindow((x, y, width, height) => {
       if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
       const scale = PixelRatio.get();
-      const rect = { x: Math.round(x * scale), y: Math.round(y * scale), width: Math.round(width * scale), height: Math.round(height * scale) };
-      if (shown.current.visible && samePlace(shown.current.rect, rect)) return;
-      shown.current = { visible: true, rect };
-      showPage(key, true, rect);
+      const pixels = (rect: PageRect) => ({ x: Math.round(rect.x * scale), y: Math.round(rect.y * scale), width: Math.round(rect.width * scale), height: Math.round(rect.height * scale) });
+      const page = { x, y, width, height };
+      const shape: PageShape = {
+        ...pixels(page),
+        radius: Math.round(pageRadiusIn(windowId) * scale),
+        holes: coversIn(windowId)
+          .filter((cover) => overlaps(cover, page))
+          .map(pixels)
+          .map((hole) => [hole.x, hole.y, hole.width, hole.height]),
+      };
+      const placed = JSON.stringify(shape);
+      if (shown.current.visible && shown.current.placed === placed) return;
+      shown.current = { visible: true, placed };
+      showPage(key, true, shape);
     });
-  }, [key]);
+  }, [key, windowId]);
+
+  useEffect(() => onCoversChange((changed) => changed === windowId && place()), [windowId, place]);
 
   useEffect(() => {
     const first = latest.current;
@@ -72,7 +85,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       now.onPageEvent?.({ nativeEvent: { name, data } });
     });
     return () => {
-      shown.current = { visible: false, rect: null };
+      shown.current = { visible: false, placed: "" };
       unmount();
     };
   }, [key, windowId, place]);
