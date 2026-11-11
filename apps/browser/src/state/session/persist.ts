@@ -2,7 +2,7 @@ import { removeDownloadStaging, type Download } from "../../platform/downloads";
 import { documentSaved, readDocument, writeDocument } from "../../platform/documents";
 import { SESSION_DOCUMENT } from "./sessionDocument";
 import { useBrowser, type BrowserState, type HydrateData } from "../browser/store";
-import { inPinnedContainer, isIncognitoProfile, snapshotTab } from "../browser/model";
+import { inPinnedContainer, isIncognitoProfile, snapshotTab, tabsShownIn } from "../browser/model";
 import { earlyLaunchTabOn, launchTab, linkProfile } from "../tabs/launchTab";
 import { launchBackdrop } from "../windows/launchBackdrop";
 import { restoreLaunchLook, saveLaunchLook } from "../windows/launchLook";
@@ -57,6 +57,7 @@ const publicProfiles = <T,>(byProfile: Record<string, T>) => Object.fromEntries(
 const persistedTab = (t: Tab) => ({ ...t, page: savedPage(t) });
 const savedWindows = (s: Pick<BrowserState, "windows">) =>
   Object.values(s.windows).filter(isRegularWindow).map(({ chromeWindow: _c, kind: _k, ...w }) => ({ ...w, incognito: false }));
+const savedWindowsWithTabsShown = (s: Pick<BrowserState, "windows" | "settings">) => savedWindows(s).map((w) => ({ ...w, sidebarOpen: tabsShownIn(s, w.id) }));
 const savedWindowIds = (s: Pick<BrowserState, "windows">) => new Set(savedWindows(s).map((w) => w.id));
 const savedFocus = (s: Pick<BrowserState, "windows" | "ui">) => {
   const kept = savedWindowIds(s);
@@ -69,7 +70,7 @@ const SESSION_FIELDS = {
   orphanedProfileData: field(["orphanedProfileData"], (s) => s.orphanedProfileData),
   settings: field(["settings"], (s) => s.settings),
   settingsMeta: field(["settingsMeta"], (s) => s.settingsMeta),
-  windows: field(["windows"], savedWindows),
+  windows: field(["windows", "settings"], savedWindowsWithTabsShown),
   windowOrder: field(["windows", "windowOrder"], (s) => {
     const kept = savedWindowIds(s);
     return s.windowOrder.filter((id) => kept.has(id));
@@ -92,7 +93,9 @@ const SESSION_FIELDS = {
     return Object.values(s.splits).filter((v) => kept.has(v.windowId));
   }),
   closedTabs: field(["closedTabs"], (s) => s.closedTabs.filter((c) => publicTab(c.tab))),
-  closedWindows: field(["closedWindows"], (s) => s.closedWindows.filter((c) => c.tabs.every(publicTab))),
+  closedWindows: field(["closedWindows", "settings"], (s) =>
+    s.closedWindows.filter((c) => c.tabs.every(publicTab)).map((c) => ({ ...c, window: { ...c.window, sidebarOpen: !s.settings.autoHideTabs } })),
+  ),
   parkedPins: field(["parkedPins"], (s) => publicProfiles(s.parkedPins)),
   pinChoices: field(["pinChoices"], (s) => publicProfiles(s.pinChoices)),
   pinSync: field(["pinSync"], (s) => publicProfiles(s.pinSync)),
@@ -131,6 +134,7 @@ const parkedOk = (o: SavedObject) => Array.isArray(o.tabs) && o.tabs.every(snaps
 type SavedSession = Omit<HydrateData, "history" | "bookmarks" | "downloads"> & {
   windows: Record<string, BrowserWindow>;
   tabs: Record<string, Tab>;
+  windowsAgainstAutoHideTabs: number;
 };
 
 function settingsWithAutoHideTabs(settings: unknown, windows: SavedObject[]): HydrateData["settings"] {
@@ -139,16 +143,30 @@ function settingsWithAutoHideTabs(settings: unknown, windows: SavedObject[]): Hy
   return { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } as HydrateData["settings"];
 }
 
+function withoutSavedTabsShown(closed: ClosedWindow): ClosedWindow {
+  if (!isFields(closed.window)) return closed;
+  const { sidebarOpen: _, ...window } = closed.window as ClosedWindow["window"] & { sidebarOpen?: unknown };
+  return { ...closed, window };
+}
+
+function windowsAgainstAutoHideTabs(settings: HydrateData["settings"], windows: SavedObject[]): number {
+  const hidden = !!settings?.autoHideTabs;
+  return windows.filter((w) => typeof w.sidebarOpen === "boolean" && w.sidebarOpen === hidden).length;
+}
+
 export function parseSession(json: string | null | undefined): SavedSession | null {
   const raw = parseSaved(json, SESSION_VERSION, SESSION_MIGRATIONS);
   if (!raw) return null;
+  const savedWindowRows = rows<SavedObject>(raw.windows, windowOk);
+  const settings = settingsWithAutoHideTabs(raw.settings, savedWindowRows);
   return {
+    windowsAgainstAutoHideTabs: windowsAgainstAutoHideTabs(settings, savedWindowRows),
     profiles: byProfile(raw.profiles, profileOk),
     profileOrder: strings(raw.profileOrder),
     orphanedProfileData: strings(raw.orphanedProfileData),
-    settings: settingsWithAutoHideTabs(raw.settings, rows(raw.windows, windowOk)),
+    settings,
     settingsMeta: parseSettingsMeta(raw.settingsMeta),
-    windows: byId(rows<BrowserWindow & { incognito?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, ...w }): BrowserWindow => ({ ...w, kind: "main" }))),
+    windows: byId(rows<BrowserWindow & { incognito?: unknown; sidebarOpen?: unknown }>(raw.windows, windowOk).map(({ incognito: _i, sidebarOpen: _s, ...w }): BrowserWindow => ({ ...w, kind: "main" }))),
     windowOrder: strings(raw.windowOrder),
     focusedWindowId: nullableString(raw.focusedWindowId),
     lastProfileId: nullableString(raw.lastProfileId),
@@ -156,7 +174,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     groups: byId(rows(raw.groups, groupOk)),
     splits: byId(rows<SplitView>(raw.splits, splitOk).map((v) => ({ ...v, slots: slotsFromDisk(v.slots)! }))),
     closedTabs: rows(raw.closedTabs, closedTabOk),
-    closedWindows: rows<ClosedWindow>(raw.closedWindows, tabListOk).map(splitsChecked),
+    closedWindows: rows<ClosedWindow>(raw.closedWindows, tabListOk).map(splitsChecked).map(withoutSavedTabsShown),
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, splitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
@@ -237,13 +255,13 @@ function closedForLaunch(session: SavedSession): HydrateData {
 
 export type LaunchOverrides = { restoreSession?: boolean };
 
-export function loadSession({ restoreSession }: LaunchOverrides = {}): HydrateData | null {
+export function loadSession({ restoreSession }: LaunchOverrides = {}): (HydrateData & { windowsAgainstAutoHideTabs: number }) | null {
   const session = parseSession(read(SESSION_DOCUMENT));
   if (!session) return null;
   const downloads = savedDownloads({ profiles: session.profiles ?? {} });
   const restore = restoreSession ?? session.settings?.restoreSession !== false;
   const data = restore ? session : closedForLaunch(session);
-  return { ...data, downloads };
+  return { ...data, downloads, windowsAgainstAutoHideTabs: restore ? session.windowsAgainstAutoHideTabs : 0 };
 }
 
 let flush: () => void = () => {};
@@ -275,12 +293,15 @@ export function resumePersistence() {
 }
 
 let restoredAtLaunch = false;
+let realignedAtLaunch = 0;
 
 export const sessionRestoredAtLaunch = () => restoredAtLaunch;
+export const windowsRealignedToAutoHideTabsAtLaunch = () => realignedAtLaunch;
 
 export function startPersistence(overrides: LaunchOverrides = {}) {
   const loaded = loadSession(overrides);
   restoredAtLaunch = !!loaded?.windowOrder?.length;
+  realignedAtLaunch = loaded?.windowsAgainstAutoHideTabs ?? 0;
   useBrowser.getState().hydrate(loaded ?? {});
   restoreLaunchLook();
 
@@ -321,6 +342,10 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
   if (droppedPrivateDownloads) {
     droppedPrivateDownloads = false;
     dirty.add(DOCS.find((d) => d.name === "downloads.json")!);
+    timer ??= setTimeout(save, SAVE_DELAY_MS);
+  }
+  if (realignedAtLaunch) {
+    dirty.add(DOCS.find((d) => d.name === SESSION_DOCUMENT)!);
     timer ??= setTimeout(save, SAVE_DELAY_MS);
   }
   resume = () => {

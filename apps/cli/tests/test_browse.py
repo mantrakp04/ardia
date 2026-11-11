@@ -815,6 +815,25 @@ class RenderTest(unittest.TestCase):
         self.assertIn("isn't allowed for the ardia command", error.message)
         self.assertEqual(error.code, "policy_refused")
 
+    def test_a_conditional_refusal_keeps_the_engines_reason(self):
+        from ardia_cli.browse.errors import refusal_reason
+
+        said = "Command failed: ardia: Target.attachToTarget to that target isn't allowed for the ardia command (code -32000)"
+        self.assertEqual(refusal_reason(said, "Target.attachToTarget"), "to that target")
+        self.assertEqual(refusal_reason("ardia: Network.getCookies isn't allowed for the ardia command", "Network.getCookies"), "")
+        self.assertEqual(refusal_reason("ardia: Target.getTargetInfo on that target isn't allowed for the ardia command", "Target.getTargetInfo"),
+                         "on that target")
+        error = Gated("Target.attachToTarget", reason="to that target")
+        self.assertIn("which Ardia allows for the ardia command, but not to that target", error.message)
+        self.assertIn("(Target.attachToTarget to that target isn't allowed for the ardia command)", error.message)
+        self.assertNotIn("once the engine's token policy allows it", error.message)
+        self.assertEqual((error.code, error.data), ("policy_refused", {"method": "Target.attachToTarget", "reason": "to that target"}))
+        named = error.during("open", "Ardia has it open as tab-1 at chrome://settings/")
+        self.assertTrue(named.message.startswith("`open` needs Target.attachToTarget, which Ardia allows"))
+        self.assertTrue(named.message.endswith("(Ardia has it open as tab-1 at chrome://settings/)"))
+        self.assertEqual(named.reason, "to that target")
+        self.assertEqual(Gated("Fetch.enable").data, {"method": "Fetch.enable", "reason": ""})
+
     def test_every_documented_command_is_registered_or_skipped(self):
         daemon.load_commands()
         for name in ("open", "snapshot", "click", "dblclick", "type", "fill", "press", "keyboard", "hover", "focus", "check", "uncheck",

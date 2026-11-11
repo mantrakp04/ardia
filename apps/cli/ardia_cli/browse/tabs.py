@@ -72,6 +72,20 @@ def pair_by_target(app_rows: list[dict], target_infos: dict) -> dict[str, dict]:
             if isinstance(row.get("targetId"), str) and row["targetId"] in target_infos}
 
 
+async def where_app_has(state, target_id: str) -> str | None:
+    windows = await app_windows(state)
+    if windows is None:
+        return None
+    rows = app_tab_rows(windows)
+    if not reports_targets(rows):
+        return None
+    row = next((row for row in rows if row.get("targetId") == target_id), None)
+    if row is None:
+        return ("`ardia windows` lists no tab with that page: Ardia closed it, unloaded it, or keeps it in a private window "
+                "or one of its own")
+    return f"Ardia has it open as {row['id']} at {row.get('url') or 'no address yet'}"
+
+
 async def app_tab_map(state) -> dict[str, str]:
     windows = await app_windows(state)
     if windows is None:

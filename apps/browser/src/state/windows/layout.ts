@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sidebarSideOf, tabLayoutOf } from "../browser/model";
+import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import type { LightsPlace } from "../../platform/windows";
@@ -24,7 +24,7 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   return (
     !!w &&
     s.settings.addressBar === "sidebar" &&
-    (w.sidebarOpen || switchOn("sidebarSlide")) &&
+    (tabsShownIn(s, windowId) || switchOn("sidebarSlide")) &&
     tabLayoutOf(s, w.id) === "sidebar"
   );
 }
@@ -41,7 +41,7 @@ export function useAddressBarInSidebar(): boolean {
 export function openingLightsCenter(s: BrowserState, windowId: string): LightsPlace | null {
   const w = s.windows[windowId];
   if (!w) return null;
-  const open = w.sidebarOpen ?? true;
+  const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
   const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);
@@ -55,12 +55,12 @@ export const usePageFrameInset = (): number => useSettingValue(pageFrameSetting)
 function cardReachesCaption(s: BrowserState, windowId: string, chrome: WindowChrome): boolean {
   const w = s.windows[windowId];
   if (!chrome.trailingWidth || !w || w.fullScreen || w.kind === "small") return false;
-  return tabLayoutOf(s, windowId) === "top" || sidebarSideOf(s, windowId) !== "right" || w.sidebarOpen === false;
+  return tabLayoutOf(s, windowId) === "top" || sidebarSideOf(s, windowId) !== "right" || !tabsShownIn(s, windowId);
 }
 
 export function cardCaptionRoom(s: BrowserState, windowId: string, frame: number, chrome: WindowChrome = WINDOW_CHROME): number {
   if (!cardReachesCaption(s, windowId, chrome)) return 0;
-  const strip = tabLayoutOf(s, windowId) === "top" && s.windows[windowId]!.sidebarOpen !== false;
+  const strip = tabLayoutOf(s, windowId) === "top" && tabsShownIn(s, windowId);
   return strip ? 0 : captionRoom(frame, 0, chrome);
 }
 
@@ -84,8 +84,8 @@ export function windowControlsPlace(s: BrowserState, windowId: string, frame: nu
   if (!chrome.trailingWidth || !w || w.fullScreen) return null;
   if (w.kind === "small") return { centerY: Math.max(SMALL_BAR_HEIGHT, chrome.titleBarHeight) / 2, size: WINDOW_CONTROLS.small, host: "strip" };
   const top = tabLayoutOf(s, windowId) === "top";
-  if (top && w.sidebarOpen !== false) return { centerY: TOP_STRIP_LIGHTS_CENTER[1], size: WINDOW_CONTROLS.regular, host: "strip" };
-  const inSidebar = !top && sidebarSideOf(s, windowId) === "right" && w.sidebarOpen !== false;
+  if (top && tabsShownIn(s, windowId)) return { centerY: TOP_STRIP_LIGHTS_CENTER[1], size: WINDOW_CONTROLS.regular, host: "strip" };
+  const inSidebar = !top && sidebarSideOf(s, windowId) === "right" && tabsShownIn(s, windowId);
   if (addressBarInSidebar(s, windowId)) {
     if (inSidebar) return { centerY: ARC_LIGHTS_CENTER[1], size: WINDOW_CONTROLS.regular, host: "sidebar" };
     return { centerY: chrome.titleBarHeight / 2, size: WINDOW_CONTROLS.band, host: "band" };

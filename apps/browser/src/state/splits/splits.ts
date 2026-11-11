@@ -37,6 +37,15 @@ export type OpenPaneResult = { ok: true; tabId: string; splitId: string } | { ok
 
 export const MAX_SPLIT_PANES = 3;
 
+export function paneChunks(ids: string[]): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += MAX_SPLIT_PANES) {
+    const chunk = ids.slice(i, i + MAX_SPLIT_PANES);
+    if (chunk.length >= 2) out.push(chunk);
+  }
+  return out;
+}
+
 const flatIds = new WeakMap<SplitSlot[], string[]>();
 
 export const slotTabIds = (slot: SplitSlot): string[] => ("stack" in slot ? slot.stack : [slot.tabId]);

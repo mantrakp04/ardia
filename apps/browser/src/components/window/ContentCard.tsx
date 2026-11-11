@@ -27,6 +27,8 @@ import { cardChrome } from "./paneChrome";
 import { TabPane } from "./TabPane";
 import { BesidePeekPopovers, PeekPage } from "./PageOverlays";
 import { splitTabIdsOf } from "../../state/splits/splits";
+import { sameSize, useSettled, type Size } from "../ui/useSettled";
+import { noteCardResizeLayout } from "../../state/telemetry/usage";
 
 export function ContentCard() {
   const windowId = useWindowId();
@@ -88,9 +90,13 @@ export function ContentCard() {
 
   const settled = useRef<{ width: number; height: number } | null>(null);
   const measure = (width: number, height: number) => {
-    setSize({ width, height });
-    container.current?.measureInWindow((x, y) => setOrigin({ x, y }));
+    setSize((prev) => (sameSize(prev, { width, height }) ? prev : { width, height }));
+    container.current?.measureInWindow((x, y) => setOrigin((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y })));
   };
+  const settleMeasure = useSettled(({ width, height }: Size) => {
+    noteCardResizeLayout(true);
+    measure(width, height);
+  });
   useEffect(
     () =>
       whenDockStill(windowId, () => {
@@ -112,8 +118,16 @@ export function ContentCard() {
       style={{ flex: 1 }}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
-        if (size.width > 0 && dockMoving(windowId) && !split) settled.current = { width, height };
-        else measure(width, height);
+        if (size.width > 0 && dockMoving(windowId) && !split) {
+          settleMeasure.cancel();
+          settled.current = { width, height };
+        } else if (size.width > 0 && !split && !peekId) {
+          noteCardResizeLayout(false);
+          settleMeasure({ width, height });
+        } else {
+          settleMeasure.cancel();
+          measure(width, height);
+        }
       }}
     >
       {size.width > 0 &&

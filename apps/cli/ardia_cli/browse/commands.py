@@ -174,8 +174,8 @@ async def new_tab(ctx: Ctx, url: str | None, label: str | None = None, window: b
         params["newWindow"] = True
     try:
         result = await state.browser.send("Target.createTarget", params)
-    except Gated:
-        raise BrowseError("Ardia's policy refused to open a tab for the ardia command") from None
+    except Gated as error:
+        raise BrowseError(f"Ardia's policy refused to open a tab for the ardia command ({error.refusal})") from None
     target_id = result["targetId"]
     state.opened.add(target_id)
     state.registry.note_opened(state.instance, target_id)
@@ -708,8 +708,8 @@ async def cmd_upload(ctx: Ctx, argv):
     async def run():
         try:
             await page.send("DOM.setFileInputFiles", {"files": files, "backendNodeId": element.backend_id})
-        except Gated:
-            raise Gated("DOM.setFileInputFiles", "upload") from None
+        except Gated as error:
+            raise error.during("upload") from None
 
     _, report = await changes.observe(ctx, page, run)
     return changes.attach(Result({"uploaded": files}), report)
@@ -1336,7 +1336,7 @@ async def cmd_cookies(ctx: Ctx, argv):
                 raise BrowseError("The browser refused that cookie")
             return Result({"set": args[1]})
     except Gated as error:
-        raise Gated(error.method, f"cookies {action}") from None
+        raise error.during(f"cookies {action}") from None
     raise Usage(f"Unknown cookies operation: {action} (get, set, clear)")
 
 
@@ -1428,7 +1428,7 @@ async def cmd_set(ctx: Ctx, argv):
             ctx.state.leases.add("emulation")
             return Result({"features": features})
     except Gated as error:
-        raise Gated(error.method, f"set {setting}", error.data.get("detail") if error.data else None) from None
+        raise error.during(f"set {setting}", error.data.get("detail") if error.data else None) from None
     raise Usage(f"Unknown setting: {setting}")
 
 
@@ -1460,7 +1460,7 @@ async def cmd_state(ctx: Ctx, argv):
                         await page.call("(k, v) => ardiaBrowse.storage('local', 'set', k, v)", item["name"], item["value"], frame=page.main_frame)
             return Result({"path": args[1]}, f"✓ State loaded from {args[1]}")
     except Gated as error:
-        raise Gated(error.method, f"state {args[0]}") from None
+        raise error.during(f"state {args[0]}") from None
     raise Usage("Usage: ardia browse state save|load <path>")
 
 
@@ -1471,8 +1471,8 @@ async def wait_download(ctx: Ctx, trigger, destination: str | None, timeout: flo
     folder = os.path.dirname(destination) if destination else tempfile.mkdtemp(prefix="ardia-browse-download-")
     try:
         await ctx.state.browser.send("Browser.setDownloadBehavior", {"behavior": "allowAndName", "downloadPath": folder, "eventsEnabled": True})
-    except Gated:
-        raise Gated("Browser.setDownloadBehavior", "download" if trigger else "wait --download") from None
+    except Gated as error:
+        raise error.during("download" if trigger else "wait --download") from None
     done = asyncio.get_running_loop().create_future()
     seen = {}
 
@@ -1522,7 +1522,7 @@ async def cmd_highlight(ctx: Ctx, argv):
         await page.send("Overlay.highlightNode", {"backendNodeId": element.backend_id, "highlightConfig": {
             "contentColor": {"r": 111, "g": 168, "b": 220, "a": 0.66}, "borderColor": {"r": 255, "g": 0, "b": 0, "a": 1}, "showInfo": True}})
     except Gated as error:
-        raise Gated(error.method, "highlight") from None
+        raise error.during("highlight") from None
     return Result({"highlighted": args[0]})
 
 
@@ -1552,7 +1552,7 @@ async def cmd_clipboard(ctx: Ctx, argv):
             return Result({"written": True})
     except Gated as error:
         detail = f"the {action} editing command" if action in ("copy", "paste") else None
-        raise Gated(error.method, f"clipboard {action}", detail) from None
+        raise error.during(f"clipboard {action}", detail) from None
     raise Usage(f"Unknown clipboard operation: {action}")
 
 

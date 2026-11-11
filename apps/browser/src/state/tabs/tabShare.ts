@@ -5,7 +5,7 @@ import { familyKeyOf, IDLE_LIVE, inPinnedContainer, newId, pinKeyOf } from "../b
 import { frozenOn, hasOwnOrSharedPage, hasPage, holderOfPage, IDLE, isAsleep, wakeOf, withNavigationAt, withWake } from "./pageSession";
 import { chainOf, copyOf, hasDuplicates, keyField, profilesOf, sectionOf, signature, treeOrder, union } from "../pins/pinMirror";
 import { removeTabs, withNewTab } from "./tabs";
-import type { BrowserWindow, Tab, TabGroup } from "../browser/types";
+import type { Tab, TabGroup } from "../browser/types";
 import { pinnedGroupMembers } from "../browser/structure";
 import { isRegularWindow } from "../windows/small";
 import { splitTabIds, withPaneIds } from "../splits/splits";
@@ -310,18 +310,6 @@ export function unshareTabs(s: BrowserState, prev: BrowserState): BrowserState |
   let next: BrowserState = { ...s, tabs, groups };
   for (const w of Object.values(s.windows)) next = keepShownProfile(next, w.id, gone);
   return gone.length ? removeTabs(next, gone, false) : next;
-}
-
-type KeepsTabs = (w: BrowserWindow | undefined) => boolean;
-
-export function sharedElsewhere(s: BrowserState, t: Tab, keepsTabs: KeepsTabs = isRegularWindow): boolean {
-  if (!sharedListTab(s, t)) return false;
-  const key = pinKeyOf(t);
-  return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && keepsTabs(s.windows[x.windowId]));
-}
-
-export function tabsClosedWithWindow(s: BrowserState, windowId: string, keepsTabs: KeepsTabs = isRegularWindow): Tab[] {
-  return (s.windows[windowId]?.tabIds ?? []).map((id) => s.tabs[id]).filter((t): t is Tab => !!t && !inPinnedContainer(s, t.id) && !sharedElsewhere(s, t, keepsTabs));
 }
 
 export function sharedLastUsed(s: BrowserState): Map<string, number> | null {

@@ -25,6 +25,11 @@ function suggestionType(s: SuggestionLike): SuggestionType {
 
 export const trackSuggestionChosen = (s: SuggestionLike) => capture("suggestion_chosen", { type: suggestionType(s) });
 
+export type CalendarConnectReport = { before: string; after: string; responsible: string; errored: boolean; settingsOpened: boolean; ms: number };
+
+export const trackCalendarConnect = (r: CalendarConnectReport) =>
+  capture("calendar_connect", { before: r.before, after: r.after, responsible: r.responsible, errored: r.errored, settings_opened: r.settingsOpened, ms: Math.min(Math.max(0, Math.round(r.ms)), 600_000) });
+
 export const trackSettingsSection = (section: string) => capture("settings_section_opened", { section });
 
 const SAMPLE_EVERY = 5;

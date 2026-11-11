@@ -2,7 +2,7 @@ import { confirm } from "../../platform/dialogs";
 import { onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
 import { inPinnedContainer, plural, profileFor } from "../browser/model";
-import { tabsClosedWithWindow } from "../tabs/tabShare";
+import { tabsLostWithWindow } from "../tabs/sharedWindowClose";
 import { isLastRegularWindow, isOpenRegularWindow, isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
@@ -35,7 +35,7 @@ async function requestClose(windowId: string) {
     if (!now.windows[windowId]) return;
     last = isLastRegularWindow(now, windowId);
     if (last) break;
-    const closing = tabsClosedWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
+    const closing = tabsLostWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
     if (!now.settings.warnBeforeClosingWindow || closing.length < MIN_TABS || closing.every((id) => asked.has(id))) break;
     const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
     if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });

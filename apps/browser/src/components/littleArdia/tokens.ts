@@ -20,3 +20,5 @@ export const SMALL_FIELD_MAX_WIDTH = 520;
 export const SMALL_BAR_ROW: ToolbarRow = { ...TOOLBAR_ROWS.regular, button: SMALL_BAR_BUTTON, buttonRadius: radius.toolbar };
 
 export const SMALL_PROGRESS = { left: space.m, share: "96%" } as const;
+
+export const LITTLE_ARDIA_PINCH = { smallest: 0.6, largest: 1.04 } as const;

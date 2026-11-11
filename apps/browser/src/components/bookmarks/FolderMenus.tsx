@@ -12,6 +12,7 @@ import { FolderMenu } from "./FolderMenu";
 import { useBarSize } from "./barSize";
 import { bookmarksBar } from "./tokens";
 import { overSidebar } from "../../state/bookmarks/sidebarEdge";
+import { useSettled, type Size } from "../ui/useSettled";
 
 type Shown = { panel: FolderMenuPanel; closing: boolean };
 
@@ -22,6 +23,9 @@ export function FolderMenus() {
   const panels = useFolderMenus(useShallow((s) => (s.windowId === windowId ? s.panels : NO_PANELS)));
   const root = useRef<View | null>(null);
   const [layer, setLayer] = useState<MenuRect>({ x: 0, y: 0, width: 0, height: 0 });
+  const settleLayer = useSettled(({ width, height }: Size) =>
+    root.current?.measureInWindow((x, y) => setLayer((prev) => (prev.x === x && prev.y === y && prev.width === width && prev.height === height ? prev : { x, y, width, height }))),
+  );
   const shown = usePresence(panels);
   const activeTab = useActiveTabId();
   const open = panels.length > 0;
@@ -39,7 +43,7 @@ export function FolderMenus() {
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         if (open && (width !== layer.width || height !== layer.height)) closeFolderMenus();
-        root.current?.measureInWindow((x, y) => setLayer({ x, y, width, height }));
+        settleLayer({ width, height });
       }}
     >
       {shown.length > 0 && (

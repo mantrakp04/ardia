@@ -18,6 +18,8 @@ public class MediaModule: Module {
 
   static let calls = CallTable(domain: "media", handlers: [
     "displayMediaSources": { _, reply in reply.ok(ArdiaHost.displayMediaSources) },
+    "screenRecordingAllowed": { _, reply in reply.ok(ArdiaHost.screenRecordingAllowed) },
+    "requestScreenRecording": { _, reply in reply.ok(ArdiaHost.requestScreenRecording()) },
     "selectDevice": { args, reply in
       ArdiaHost.deviceChooser(try args.int32("id"), select: try args.int32("index"))
       reply.ok()

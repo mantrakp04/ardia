@@ -76,7 +76,7 @@ export function pinnedAdapter(profileId: string): Adapter {
       if (!home) return false;
       const PARK = `park:${profileId}`;
       if (s.parkedPins[profileId]) {
-        const stand: Window = { id: PARK, profileId, kind: "main", tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 };
+        const stand: Window = { id: PARK, profileId, kind: "main", tabIds: [], activeTabIds: {}, frame: null, createdAt: 0 };
         s = adoptParkedPins({ ...s, windows: { ...s.windows, [PARK]: stand } }, PARK, profileId);
       }
       const scope = new Set([home.id, PARK]);

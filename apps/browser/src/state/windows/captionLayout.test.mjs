@@ -11,10 +11,10 @@ const { syncCaptionRegions } = await import("./captionRegions.ts");
 const macFeatures = (await import("../../lib/platformFeatures.ts")).PLATFORM_FEATURES;
 const windowsFeatures = (await import("../../lib/platformFeatures.windows.ts")).PLATFORM_FEATURES;
 
-const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false };
+const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false, autoHideTabs: false };
 function state(settings = {}, window = {}, extra = {}) {
   return {
-    windows: { w: { id: "w", kind: "main", profileId: "p", sidebarOpen: true, fullScreen: false, ...window } },
+    windows: { w: { id: "w", kind: "main", profileId: "p", fullScreen: false, ...window } },
     windowOrder: ["w"],
     ui: { focusOrder: ["w"] },
     profiles: { p: { id: "p", name: "Personal" } },
@@ -31,7 +31,7 @@ const LAYOUTS = [
   [{ compactToolbar: true }, {}],
   [{ addressBar: "sidebar" }, {}],
   [{ sidebarSide: "right" }, {}],
-  [{ sidebarSide: "right" }, { sidebarOpen: false }],
+  [{ sidebarSide: "right", autoHideTabs: true }, {}],
   [{ tabLayout: "top" }, {}],
   [{ hideToolbarWhileScrolling: true }, {}],
   [{}, { fullScreen: true }],
@@ -57,9 +57,9 @@ test("on Windows the card's top row makes room for the window buttons wherever t
   assert.equal(room({}, {}), 129);
   assert.equal(room({}, {}, 0), 138);
   assert.equal(room({ tabLayout: "top" }, {}), 0);
-  assert.equal(room({ tabLayout: "top" }, { sidebarOpen: false }), 129);
+  assert.equal(room({ tabLayout: "top", autoHideTabs: true }, {}), 129);
   assert.equal(room({ sidebarSide: "right" }, {}), 0);
-  assert.equal(room({ sidebarSide: "right" }, { sidebarOpen: false }), 129);
+  assert.equal(room({ sidebarSide: "right", autoHideTabs: true }, {}), 129);
   assert.equal(room({}, { fullScreen: true }), 0);
   assert.equal(room({}, { kind: "small" }), 0);
 });
@@ -76,7 +76,7 @@ test("on Windows the card starts at the page frame whenever it has a toolbar, al
   assert.equal(top({ compactToolbar: true }, {}), 9);
   assert.equal(top({ hideToolbarWhileScrolling: true }, {}), 9);
   assert.equal(top({ hideToolbarWhileScrolling: true, compactToolbar: true }, {}), 9);
-  assert.equal(top({ hideToolbarWhileScrolling: true }, { sidebarOpen: false }), 9);
+  assert.equal(top({ hideToolbarWhileScrolling: true, autoHideTabs: true }, {}), 9);
   assert.equal(top({ addressBar: "sidebar", sidebarSide: "right" }, {}), 9);
   assert.equal(top({ tabLayout: "top" }, {}), 9);
   assert.equal(top({ addressBar: "sidebar" }, { fullScreen: true }), 9);
@@ -100,13 +100,13 @@ test("on Windows the window buttons sit in the row that reaches the window's top
   assert.deepEqual(place({ hideToolbarWhileScrolling: true }), { centerY: 30.2, size: 30, host: "toolbar" });
   assert.deepEqual(place({ compactToolbar: true }), { centerY: 23, size: 22, host: "toolbar" });
   assert.deepEqual(place({}, {}, 0), { centerY: 21.2, size: 30, host: "toolbar" });
-  assert.deepEqual(place({}, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ autoHideTabs: true }, {}), { centerY: 30.2, size: 30, host: "toolbar" });
   assert.deepEqual(place({ sidebarSide: "right" }), { centerY: 30, size: 30, host: "sidebar" });
-  assert.deepEqual(place({ sidebarSide: "right" }, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ sidebarSide: "right", autoHideTabs: true }, {}), { centerY: 30.2, size: 30, host: "toolbar" });
   assert.deepEqual(place({ sidebarSide: "right", addressBar: "sidebar" }), { centerY: 24, size: 30, host: "sidebar" });
   assert.deepEqual(place({ addressBar: "sidebar" }), { centerY: 16, size: 26, host: "band" });
   assert.deepEqual(place({ tabLayout: "top" }), { centerY: 20.75, size: 30, host: "strip" });
-  assert.deepEqual(place({ tabLayout: "top" }, { sidebarOpen: false }), { centerY: 30.2, size: 30, host: "toolbar" });
+  assert.deepEqual(place({ tabLayout: "top", autoHideTabs: true }, {}), { centerY: 30.2, size: 30, host: "toolbar" });
   assert.deepEqual(place({}, { kind: "small" }), { centerY: 19, size: 28, host: "strip" });
   assert.equal(place({}, { fullScreen: true }), null);
   assert.equal(windowControlsPlace(state(), "missing", 9, windows), null);
@@ -171,7 +171,7 @@ test("on Windows an empty sidebar header on the left collapses to the page frame
   const collapsed = (settings = {}, window = {}, extra = {}) => sidebarHeaderCollapsed(state(settings, window, extra), "w", windows);
   assert.equal(collapsed(), true);
   assert.equal(collapsed({ compactToolbar: true }), true);
-  assert.equal(collapsed({}, { sidebarOpen: false }), true);
+  assert.equal(collapsed({ autoHideTabs: true }, {}), true);
   assert.equal(collapsed({ sidebarSide: "right" }), false, "the window buttons sit in a right sidebar's header");
   assert.equal(collapsed({ addressBar: "sidebar" }), false, "the address row and header tools");
   assert.equal(collapsed({ tabLayout: "top" }), false);

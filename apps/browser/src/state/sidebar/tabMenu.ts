@@ -7,7 +7,7 @@ import { activeTabId, inPinnedContainer, isIncognitoProfile, pinnedSectionTitle,
 import { awayFromPin, selectedTabIds } from "../pins/organize";
 import { groupOf } from "../pins/tabGrouping";
 import { splitOf, splitRowPanes } from "../splits/splits";
-import { openSplitPane } from "../splits/actions";
+import { closeSplitView, openSplitPane } from "../splits/actions";
 import type { Tab } from "../browser/types";
 import { bookmarkTabs, copyUrls, editPinnedPage, newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { isCalendarUrl } from "../live/meetings";
@@ -129,6 +129,7 @@ function closeItems(f: Facts): MenuItem[] {
   if (f.housed) return [];
   return [
     { id: "close", title: "Close", symbol: "xmark", ...hintWhen(f.active, "closeTab") },
+    ...(f.split ? [{ id: "closeSplit", title: "Close Split View" }] : []),
     { id: "closeOthers", title: "Close Other Tabs", enabled: f.others.length > 0 },
     ...withAlternate(
       { id: "closeBelow", title: f.across ? "Close Tabs to the Right" : "Close Tabs Below", enabled: f.below.length > 0 },
@@ -232,6 +233,7 @@ function runTabChoice(windowId: string, tab: Tab, f: Facts, choice: string | Des
   else if (choice === "copyMd") copyUrls([tab.id], true);
   else if (choice === "bookmark") bookmarkTab(windowId, tab.id);
   else if (choice === "close") void closeTab(tab.id);
+  else if (choice === "closeSplit" && f.split) closeSplitView(f.split.id);
   else if (choice === "closeOthers") s.closeTabs(f.others);
   else if (choice === "closeAbove") s.closeTabs(f.above);
   else if (choice === "closeBelow") s.closeTabs(f.below);

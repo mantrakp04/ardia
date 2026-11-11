@@ -1,4 +1,4 @@
-import { SIDEBAR_GROUP, SIDEBAR_ROW } from "../../lib/sidebarMetrics";
+import { GROUP_MEMBERS_PAD_BOTTOM, SIDEBAR_GROUP, SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { live } from "../live/store";
 import { ancestorIds } from "../groups/groups";
@@ -18,7 +18,7 @@ export type Section = "pinnedGroups" | "list";
 export const headGap = (first: string | null | undefined): number => (first && entryId(first, "group") !== null ? GAP : 0);
 
 function stackHeight(s: BrowserState, windowId: string, profileId: string, entries: string[]): number {
-  return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) : 0;
+  return entries.length ? headGap(entries[0]) + entriesHeight(s, windowId, profileId, entries) + GROUP_MEMBERS_PAD_BOTTOM : 0;
 }
 
 function membersHeight(s: BrowserState, windowId: string, profileId: string, groupId: string): number {
