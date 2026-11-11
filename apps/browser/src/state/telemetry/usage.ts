@@ -27,7 +27,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, sidebarPeeksWithAutoHideOff: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, sidebarPeeksWithAutoHideOff: 0, importedPinnedRows: 0, importedSplits: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -61,6 +61,8 @@ function emitCounts() {
       auto_hide_tabs_toggles: counts.autoHideTabsToggles,
       windows_realigned_to_auto_hide_tabs: counts.windowsRealignedToAutoHideTabs,
       sidebar_peeks_with_auto_hide_off: counts.sidebarPeeksWithAutoHideOff,
+      imported_pinned_rows: counts.importedPinnedRows,
+      imported_splits: counts.importedSplits,
       sync_snapshots_written: snapshots.count,
       sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
@@ -68,6 +70,11 @@ function emitCounts() {
   }
   counts = { ...NO_COUNTS };
   countsSince = Date.now();
+}
+
+export function noteImportedPins(made: { rows: number; splits: number }) {
+  counts.importedPinnedRows += made.rows;
+  counts.importedSplits += made.splits;
 }
 
 export function noteCaptureIndicatorCleared() {
