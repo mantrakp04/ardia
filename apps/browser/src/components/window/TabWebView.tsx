@@ -45,7 +45,7 @@ import { forgetUnreadIfGone, noteAppBadge, noteUnreadFavicon, noteUnreadLoading,
 import { trackPageProcessGone } from "../../state/telemetry/diagnostics";
 import { releaseTranslation, translateCrashContext } from "../../state/site/translate";
 import { notePagePress } from "../../state/telemetry/tabPresses";
-import { notePageOverlay, noteReopenedPage } from "../../state/telemetry/usage";
+import { notePageOverlay, noteReopenedPage, noteWebKitPageKeptHidden } from "../../state/telemetry/usage";
 import { isAdoptKind } from "../../state/tabs/adoptIds";
 import { STATUS_FLIP_BAND } from "./tokens";
 
@@ -108,6 +108,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       forgetUnreadIfGone(tabId);
     };
   }, []);
+  const waitsOffScreen = engine === "webkit" && warm && !visible;
+  useEffect(() => {
+    if (waitsOffScreen) noteWebKitPageKeptHidden();
+  }, [waitsOffScreen]);
   const mountedProfile = useRef(profileId);
   useLayoutEffect(
     () => () => {

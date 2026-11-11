@@ -15,7 +15,6 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   var transferKey: String?
   var visible = true { didSet { updateHidden(); updateSight() } }
   var autoPictureInPicture = false
-  var warm = false { didSet { updateHidden() } }
   var pageBackgroundColor: NSColor? { didSet { if let color = pageBackgroundColor { webView?.underPageBackgroundColor = color } } }
   let browserId = WebKitHub.shared.nextBrowserId()
 
@@ -148,7 +147,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
 
   private func updateHidden() {
-    webView?.isHidden = !(visible || warm)
+    webView?.isHidden = !visible
   }
 
   func close() {
