@@ -123,18 +123,18 @@ class Rendering(unittest.TestCase):
         records = [{"url": f"http://s/p/{n}", "title": f"P{n}", "text": "\n".join(f"spec {n}.{k}: value" for k in range(400))} for n in range(10)]
         records[3]["text"] = "short page"
         text = readpages.render(records, {})
-        self.assertLessEqual(len(text), daemon.OUTPUT_CAP)
+        self.assertLessEqual(len(text), readpages.pages_cap(10))
         for n in range(10):
             self.assertIn(f"=== [{n + 1}/10] P{n}\nhttp://s/p/{n}\n", text)
         self.assertIn("short page", text)
         self.assertIn("Narrow it instead: -s <css> (one region per page)", text)
         self.assertNotIn("--full", text)
         self.assertIn(" characters]\n\n=== [", text)
-        _, out, _ = daemon.render({}, result=commands.Result({}, text))
+        _, out, _ = daemon.render({}, result=readpages.result_for(records, {}, {}))
         self.assertNotIn("output capped", out)
         full = readpages.render(records, {"full": True})
         self.assertNotIn("pages cut", full)
-        self.assertGreater(len(text), daemon.OUTPUT_CAP - 400)
+        self.assertGreater(len(text), readpages.pages_cap(10) - 400)
         self.assertEqual(readpages.render(records, {"max_output": 0}), full)
 
     def test_shares_give_short_pages_their_length_and_split_the_rest(self):
@@ -915,7 +915,8 @@ class Redaction(unittest.TestCase):
 class Budget(unittest.TestCase):
     def test_a_hundred_pages_fit_the_cap_and_say_what_was_left_out(self):
         records = [{"url": f"http://s/p/{n}", "finalUrl": f"http://s/p/{n}", "title": f"Product {n}", "text": "spec: value\n" * 160} for n in range(100)]
-        text = readpages.render(records, {})
+        self.assertNotIn("pages not shown", readpages.render(records, {}))
+        text = readpages.render(records, {"max_output": daemon.OUTPUT_CAP})
         self.assertLessEqual(len(text), daemon.OUTPUT_CAP)
         shown = [n for n in range(100) if f"=== [{n + 1}/100] Product {n}\n" in text]
         self.assertEqual(shown, list(range(len(shown))))

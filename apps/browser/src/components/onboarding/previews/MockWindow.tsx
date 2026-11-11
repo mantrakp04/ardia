@@ -11,6 +11,7 @@ import { DEMOS } from "./demos";
 import { Pill } from "./Floating";
 import { CHIP, CRUMB_X, FIELD, fill, geo, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
 import { CARD_INSET, pageFrameOf } from "../../../lib/windowLayout";
+import { windowCornerRadius } from "../../../state/windows/layout";
 import { font, radius as radii } from "../../ui/tokens";
 import { Backdrop, Card, Crumb, FieldPlate, Glyph, Label, Lights, NavIcons, Rows, TabRow, ToolbarBand, TopTabPlate, WindowFrame } from "./Kit";
 import { lookFor, type Look } from "./look";
@@ -105,7 +106,7 @@ function Window({ width, height, settings, accent, theme: custom, focus, switche
   const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent, palette)} accent={accent} custom={custom ?? null} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} frame={shape.frame} />;
   return (
     <View style={{ width, height }}>
-      <WindowFrame g={g} look={look} edge={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light} style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
+      <WindowFrame g={g} look={look} edge={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light} cornerRadius={windowCornerRadius()} style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
         <Animated.View style={[fill, { opacity: focusShown.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
           {theme.layers.below !== null ? <View style={fill}>{layer(theme.layers.below)}</View> : null}
           <Animated.View style={[fill, { opacity: theme.layers.below !== null ? theme.fade : 1 }]}>{layer(theme.layers.above)}</Animated.View>
@@ -167,7 +168,7 @@ const WindowState = memo(function WindowState({ g, look, accent, custom, lay, ad
   const s = g.s;
   const sideCardX = SIDEBAR_W + Math.max(0, frame - ROW.x);
   const lightsY = LIGHTS_Y.toolbar - CARD_INSET + frame;
-  const cardRadius = pageFrameOf(frame, radii.chrome, radii.panel).radius * s;
+  const cardRadius = pageFrameOf(frame, windowCornerRadius(), radii.panel).radius * s;
   const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a * s, b * s] });
   const fade = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
   const sideCardW = g.W - sideCardX - frame;

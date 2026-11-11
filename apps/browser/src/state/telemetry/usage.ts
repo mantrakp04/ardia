@@ -2,7 +2,7 @@ import { listTasks, type EngineTask } from "../../platform/performance";
 import { onExtensionsChanged } from "../../platform/extensions";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
-import { useBrowser } from "../browser/store";
+import { useBrowser, type BrowserState } from "../browser/store";
 import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
@@ -26,7 +26,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -50,6 +50,8 @@ function emitCounts() {
       approval_notices_deferred: counts.approvalNoticesDeferred,
       reopened_pages: counts.reopenedPages,
       reopened_pages_with_back: counts.reopenedPagesWithBack,
+      group_tabs_kept: counts.groupTabsKept,
+      group_header_hides: counts.groupHeaderHides,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -90,6 +92,20 @@ export function noteReopenedPage(canGoBack: boolean) {
   if (canGoBack) counts.reopenedPagesWithBack++;
 }
 
+export function noteGroupHeaderHide() {
+  counts.groupHeaderHides++;
+}
+
+export function keptTabsAdded(groups: BrowserState["groups"], prev: BrowserState["groups"]): number {
+  const added = new Set<string>();
+  for (const id in groups) {
+    const shown = groups[id]!.shownTabIds;
+    if (!shown || shown === prev[id]?.shownTabIds) continue;
+    for (const tabId of shown) if (!prev[id]?.shownTabIds?.includes(tabId)) added.add(tabId);
+  }
+  return added.size;
+}
+
 export function noteSidebarPeek(bounce: boolean) {
   counts.sidebarPeeks++;
   if (bounce) counts.sidebarPeekBounces++;
@@ -117,6 +133,7 @@ function watchStore() {
         if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
+    if (s.groups !== prev.groups) counts.groupTabsKept += keptTabsAdded(s.groups, prev.groups);
     if (s.splits !== prev.splits) {
       for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: splitTabIds(s.splits[id]!).length });
     }

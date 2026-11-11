@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 54 }
+    Constant("apiVersion") { () -> Int in 55 }
 
     OnCreate {
       DispatchQueue.main.async { AppIcons.restore() }

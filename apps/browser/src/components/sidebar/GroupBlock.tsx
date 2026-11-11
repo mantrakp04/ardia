@@ -3,10 +3,11 @@ import { Animated, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
+import { noteGroupHeaderHide } from "../../state/telemetry/usage";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
-import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntry } from "../../state/sidebar/hooks";
+import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntries, useShowsExtraTabs } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Button, ContextMenuArea, FadeLabel, font, ink, space, Symbol, Text, weight, withAlpha } from "../ui";
@@ -90,7 +91,7 @@ export const GroupBlock = memo(function GroupBlock({
   const entries = useCapturedGroupEntries(groupId, captured);
   const selectedInside = useSelectionInGroup(windowId, groupId);
   const profileId = usePageProfileId();
-  const activeEntry = useKeptEntry(windowId, profileId, entries);
+  const keptEntries = useKeptEntries(windowId, profileId, groupId);
   const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
   const { wrapper, handle, headerRef } = useDragItem(entryKey("group", groupId), { kind: "group", tabIds, section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
   const tail = useDragItem(tailKey({ group: groupId }), { kind: "tail", tabIds: [], section, parentGroup: groupId });
@@ -105,7 +106,7 @@ export const GroupBlock = memo(function GroupBlock({
   const boxOpacity = useBoxOpacity(nested.innermost || dropInto || groupBoxAtRest(color));
 
   const { fill, stroke } = groupSurface(color, tokens);
-  const lastEntry = collapsed ? activeEntry : entries[entries.length - 1];
+  const lastEntry = collapsed ? keptEntries[keptEntries.length - 1] : entries[entries.length - 1];
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
@@ -131,9 +132,9 @@ export const GroupBlock = memo(function GroupBlock({
                     ),
                   },
             )}
-            keep={activeEntry}
+            keep={keptEntries}
             rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
+            padTop={headGap(collapsed && keptEntries.length ? keptEntries[0] : entries[0])}
             indent={GROUP_INDENT}
             mountClosed={selectedInside}
             footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
@@ -181,6 +182,8 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
   const countdown = useMeetingCountdown(groupId);
   const closeControl = useGroupCloseControlWhile(groupId, hovered && !renaming);
+  const profileId = usePageProfileId();
+  const showsExtra = useShowsExtraTabs(windowId, profileId, groupId);
   if (!group) return null;
   const target = { kind: "group" as const, id: groupId };
 
@@ -195,7 +198,10 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
         <Pressable
           onPress={() => {
             dismissHover();
-            if (!renaming) updateGroup(groupId, { collapsed: !collapsed });
+            if (renaming) return;
+            if (!collapsed || !showsExtra) return updateGroup(groupId, { collapsed: !collapsed });
+            noteGroupHeaderHide();
+            updateGroup(groupId, { shownTabIds: [] });
           }}
         >
           {({ pressed }) => (

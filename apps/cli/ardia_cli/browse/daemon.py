@@ -126,10 +126,11 @@ def _render(options: dict, result=None, error: BrowseError | None = None, name: 
     text = result.text
     if text is None:
         return code, "", ""
-    text = cap(redact_text(text), options, name)
+    text = cap(redact_text(text), options, name, getattr(result, "output_cap", None))
+    notice = cap_notice(text)
     if result.page_content and options.get("content_boundaries"):
         text = boundary(text)
-    return code, inert(text) + "\n", ""
+    return code, inert(text) + "\n", inert(notice) + "\n" if notice else ""
 
 
 NARROWER = {
@@ -137,21 +138,29 @@ NARROWER = {
     "get": "get text <css> or read -s <css> (one region)",
     "read": "read -s <css> (one region per page), or fewer pages",
     "eval": "return less from the script, or get text <css> / read -s <css> for one region",
+    "script": "return fewer fields or rows from the script",
 }
+CAP_NOTICE = "[output capped at "
 NARROW_ANY = "snapshot -i, snapshot -s <css>, get text <css>, read -s <css>, find role <role> <action> --name <text>"
 
 
-def cap(text: str, options: dict, name: str = "") -> str:
+def cap(text: str, options: dict, name: str = "", default: int | None = None) -> str:
     if options.get("full"):
         return text
     limit = options.get("max_output")
-    limit = OUTPUT_CAP if limit is None else int(limit)
+    limit = (default or OUTPUT_CAP) if limit is None else int(limit)
     if limit <= 0 or len(text) <= limit:
         return text
     cut = text.rfind("\n", 0, limit + 1)
     cut = cut if cut >= limit * 0.8 else limit
-    return text[:cut] + (f"\n[output capped at {cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
+    return text[:cut] + (f"\n{CAP_NOTICE}{cut:,} of {len(text):,} characters. Narrow it instead: {NARROWER.get(name, NARROW_ANY)}. "
                          f"Only if you need every line: --max-output {len(text)}]")
+
+
+def cap_notice(text: str) -> str:
+    last = text.rpartition("\n")[2]
+    cut_short = last.startswith("[") and "Narrow it instead: " in last and "--max-output " in last
+    return last if last.startswith(CAP_NOTICE) or cut_short else ""
 
 
 class Daemon:

@@ -50,7 +50,7 @@ export function Fold({
   fold: FoldState;
   collapsed: boolean;
   entries: FoldEntry[];
-  keep?: string | null;
+  keep?: string | string[] | null;
   rowHeight?: number | ((key: string) => number);
   estimate?: (key: string) => number;
   padTop?: number;
@@ -65,8 +65,8 @@ export function Fold({
   const measuring = rowHeight === undefined;
   const [measured, setMeasured] = useState<Record<string, number>>({});
   const styles = useRef(new Map<number, object>()).current;
-  const kept = keep && entries.some((e) => e.key === keep) ? keep : null;
-  const folding = !!kept && (collapsed || moving);
+  const kept = new Set([keep ?? []].flat().filter((key) => entries.some((e) => e.key === key)));
+  const folding = kept.size > 0 && (collapsed || moving);
   const state = useRef({ moving, folding, kept });
   state.current = { moving, folding, kept };
   const heightOf = (key: string) => (typeof rowHeight === "function" ? rowHeight(key) : (rowHeight ?? measured[key] ?? estimate?.(key) ?? 0));
@@ -99,7 +99,7 @@ export function Fold({
     <Animated.View style={outer} pointerEvents={collapsed ? "box-none" : "auto"}>
       <View style={[{ gap, paddingTop: padTop, paddingBottom: padBottom, paddingLeft: indent }, measuring && outer && !moving ? { position: "absolute", left: 0, right: 0, top: 0 } : null]}>
         {entries.map(({ key, node }) => {
-          const stays = key === kept;
+          const stays = kept.has(key);
           if (!stays && !mountAll) return null;
           return (
             <FoldedAway.Provider key={key} value={parentAway || ((collapsed || moving) && !stays)}>
@@ -107,7 +107,7 @@ export function Fold({
                 {measuring ? (
                   <View
                     onLayout={(e) => {
-                      if (state.current.moving || (state.current.folding && key !== state.current.kept)) return;
+                      if (state.current.moving || (state.current.folding && !state.current.kept.has(key))) return;
                       const height = e.nativeEvent.layout.height;
                       setMeasured((all) => (all[key] === height ? all : { ...all, [key]: height }));
                     }}

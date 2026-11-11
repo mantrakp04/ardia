@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 const dm = { ...(await import("./dockMotion.ts")), ...(await import("./tokens.ts")), ...(await import("../../state/windows/dockMotion.ts")), ...(await import("./cardFrame.ts")) };
-const { PAGE_FRAME } = await import("../../lib/windowLayout.ts");
+const { PAGE_FRAME, pageFrameOf } = await import("../../lib/windowLayout.ts");
 const DEFAULT_PEEK = dm.cardFrameOf(PAGE_FRAME.default).peek;
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
@@ -48,10 +48,14 @@ test("the traffic lights go with the sidebar: at their place when it's shown, pa
   }
 });
 
-test("at every frame thickness the peek panel's ends line up with the card's and its corners cover the card's, so no sliver of the page shows round its own", () => {
-  for (let inset = PAGE_FRAME.min; inset <= PAGE_FRAME.max; inset++) checkPeekCoversCard(dm.cardFrameOf(inset));
-  assert.equal(DEFAULT_PEEK.left, 5, "Arc's 5 pt from the window's edge at the default frame");
-  assert.equal(DEFAULT_PEEK.radius, dm.PEEK_RADIUS);
+test("the peek keeps the same gap on every edge, with a 4 pt minimum", () => {
+  for (let inset = PAGE_FRAME.min; inset <= PAGE_FRAME.max; inset++) {
+    const frame = dm.cardFrameOf(inset);
+    const gap = Math.max(4, inset);
+    assert.deepEqual([frame.peek.left, frame.peek.top, frame.peek.bottom], [gap, gap, gap]);
+    if (inset >= 4) checkPeekCoversCard(frame);
+  }
+  assert.equal(DEFAULT_PEEK.left, PAGE_FRAME.default);
 });
 
 function checkPeekCoversCard(frame) {
@@ -98,11 +102,12 @@ test("the sidebar's rows sit 9 pt from the window's edge and 9 pt from the card 
   assert.equal(dm.cardInsetAt(0.5, 190, 9), 99.5);
 });
 
-test("the frame's corners shrink with it: Dia's 10 pt at the default, square edge to edge, and the toolbar's lights stay 21 pt into the card", () => {
+test("the card radius follows the native window radius minus the frame, and the toolbar's lights stay 21 pt into the card", () => {
   assert.equal(dm.cardFrameOf(9).radius, 10);
-  assert.equal(dm.cardFrameOf(0).radius, 0);
-  assert.equal(dm.cardFrameOf(12).radius, 10);
-  assert.ok(dm.cardFrameOf(4).radius > 0 && dm.cardFrameOf(4).radius < 10);
+  assert.equal(dm.cardFrameOf(0).radius, 19);
+  assert.equal(dm.cardFrameOf(12).radius, 7);
+  assert.equal(dm.cardFrameOf(4).radius, 15);
+  assert.equal(pageFrameOf(18, 19, dm.PEEK_RADIUS).radius, 2);
   assert.ok(dm.cardFrameOf(0).splitGap > 0, "split panes keep a hairline gap edge to edge, so they still read as two pages");
   assert.deepEqual(dm.toolbarLightsCenter(false, 0), [25, 21]);
   assert.deepEqual(dm.toolbarLightsCenter(false), [...dm.LIGHTS_CENTER]);
@@ -252,13 +257,11 @@ test("Arc's peek slides in on its measured spring and leaves on its ease-in-out;
   assert.ok(Math.abs(peak - arcPeak) < 0.002, `the panel's overshoot ${peak}, Arc's ${arcPeak}`);
 });
 
-test("flush with the window's edge, the peek's fill runs on past it, so the spring's overshoot moves the panel without opening a gap of page at the window's edge", async () => {
-  const { SIDEBAR_MAX_WIDTH } = await import("../sidebar/tokens.ts");
-  const overshoot = Math.max(...Array.from({ length: 400 }, (_, i) => springAt(i / 1000, dm.ARC_PEEK_SPRING))) - 1;
-  const flush = dm.cardFrameOf(PAGE_FRAME.min).peek;
-  assert.equal(flush.left, 0);
-  assert.ok(dm.peekBleed(flush.left) > overshoot * (SIDEBAR_MAX_WIDTH + 12), `bleed ${dm.peekBleed(flush.left)} against ${overshoot * (SIDEBAR_MAX_WIDTH + 12)} pt`);
-  assert.equal(dm.peekBleed(DEFAULT_PEEK.left), 0, "an inset card keeps its own rounded edge and moves as Arc's does");
+test("the peek stays off the window edge even when the page frame is zero", () => {
+  const frameZero = dm.cardFrameOf(PAGE_FRAME.min).peek;
+  assert.deepEqual([frameZero.left, frameZero.top, frameZero.bottom], [4, 4, 4]);
+  assert.equal(dm.peekBleed(frameZero.left), 0);
+  assert.equal(dm.peekBleed(DEFAULT_PEEK.left), 0);
 });
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {

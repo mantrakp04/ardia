@@ -74,6 +74,7 @@ const shell: Modules["ArdiaShell"] = {
 };
 
 const windowsModule: Modules["ArdiaAppWindows"] = {
+  windowCornerRadius: () => 19,
   addListener: shellEvents.addListener,
   openWindow: (id, options) => {
     windows.open.set(id, { ...options });

@@ -11,6 +11,8 @@ import { captionClearTop, captionRoom, WINDOW_CHROME, type WindowChrome } from "
 import { toolbarRowOf } from "../../lib/toolbarRow";
 import { downloadsIn } from "../downloads/downloadsSlice";
 
+export { windowCornerRadius } from "../../platform/windows";
+
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
   return useBrowser((s) => tabLayoutOf(s, windowId));
