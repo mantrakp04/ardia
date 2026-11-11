@@ -1,4 +1,4 @@
-import { listTasks, type EngineTask } from "../../platform/performance";
+import { sampleMemory } from "./memorySample";
 import { onExtensionsChanged } from "../../platform/extensions";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
@@ -13,7 +13,7 @@ import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
-import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
+import { contextProperties, contextSamples, hardwareProperties, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
@@ -288,37 +288,6 @@ function watchExtensions() {
   });
 }
 
-const mb = (bytes: number) => Math.round(bytes / 1_048_576);
-
-async function sampleMemory() {
-  try {
-    await listTasks().catch((): EngineTask[] => []);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const tasks = await listTasks().catch((): EngineTask[] => []);
-    let total = 0;
-    let browser = 0;
-    let gpu = 0;
-    let renderers = 0;
-    for (const t of tasks) {
-      const m = Math.max(0, t.memory);
-      total += m;
-      if (t.type === "browser") browser += m;
-      else if (t.type === "gpu") gpu += m;
-      else if (t.type === "renderer") renderers++;
-    }
-    if (!total) return;
-    noteAppMemory(mb(total));
-    capture("perf_memory", {
-      total_mb: mb(total),
-      browser_mb: mb(browser),
-      gpu_mb: mb(gpu),
-      renderer_processes: renderers,
-      tabs: size(useBrowser.getState().tabs),
-      uptime_hours: Math.round((Date.now() - startedAt) / HOUR_MS),
-    });
-  } catch {}
-}
-
 function emitOmniboxLatency() {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
   if (!samples.length) return;
@@ -346,7 +315,7 @@ function hourly() {
   emitOmniboxLatency();
   emitJourneys();
   emitTabPresses();
-  void sampleMemory();
+  void sampleMemory(startedAt);
   void reportNativeCrashes([previousContext, ...contextSamples()]).then(() => recordContext());
   void reportLocalStore();
 }
@@ -379,7 +348,7 @@ export function startUsage() {
   watchTranslate();
   watchExtensions();
   watchHoverLost();
-  setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
+  setTimeout(() => void sampleMemory(startedAt), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
   onAppEvent((e) => {
