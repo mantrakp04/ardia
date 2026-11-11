@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -38,11 +39,13 @@ final class WindowDragRegion: ExpoView {
       if event.type == .leftMouseUp {
         guard let down = self.doubleClickDown, event.window === self.window else { return event }
         self.doubleClickDown = nil
+        ArdiaHost.notePointer(event, swallowedBy: "windowDragRegion")
         if event.clickCount == 2 { self.doubleClick(event, down) }
         return nil
       }
       self.doubleClickDown = nil
       guard let place = self.pressPlace(event) else { return event }
+      ArdiaHost.notePointer(event, swallowedBy: "windowDragRegion")
       OutsidePressArea.tellAreas(event)
       self.press(event, place, releaseFollows: true)
       return nil
@@ -101,10 +104,14 @@ final class WindowDragRegion: ExpoView {
       if releaseFollows { doubleClickDown = place } else { doubleClick(event, place) }
       return
     }
+    ArdiaHost.beginPressLoop("windowDragRegion")
+    defer { ArdiaHost.endPressLoop() }
     window.performDrag(with: event)
   }
 
   private func clickOrDrag(_ down: NSEvent, in window: NSWindow) {
+    ArdiaHost.beginPressLoop("windowDragRegion")
+    defer { ArdiaHost.endPressLoop() }
     let until: Date = NSEvent.pressedMouseButtons & 1 == 0 ? Date() : .distantFuture
     let start = down.locationInWindow
     while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: until, inMode: .eventTracking, dequeue: true),
