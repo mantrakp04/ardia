@@ -322,6 +322,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   func animateClose(id: String, after replacement: String?, done: @escaping () -> Void) {
     guard let entry = managed[id] else { return done() }
+    flushFrameReport(entry.window)
     if entry.exit != nil { return entry.exit!.append(done) }
     let window = entry.window
     guard entry.kind.isBrowser, window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), !entry.isWaitingToReveal
@@ -363,6 +364,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
     managed[id] = nil
     NotificationCenter.default.removeObserver(self, name: nil, object: window)
+    dropFrameReport(window)
     window.animationBehavior = .none
     window.orderOut(nil)
     CATransaction.flush()
@@ -460,10 +462,15 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func flushFrameReport(_ window: NSWindow) {
-    guard unreportedFrames.remove(ObjectIdentifier(window)) != nil else { return }
+    guard unreportedFrames.contains(ObjectIdentifier(window)) else { return }
+    dropFrameReport(window)
+    reportFrame(window)
+  }
+
+  private func dropFrameReport(_ window: NSWindow) {
+    unreportedFrames.remove(ObjectIdentifier(window))
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportMoved(_:)), object: window)
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
-    reportFrame(window)
   }
 
   private func relayoutRoot(_ window: NSWindow) {

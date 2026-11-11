@@ -271,3 +271,21 @@ test("a closing window that gains a second row of a tab it already shows stays o
     assert.ok(S().tabs[mail] && S().tabs[copy], "with both of its pages");
   });
 });
+
+test("⌘W right after moving a window: the frame the native close flushes is the one Reopen Closed Window restores", async () => {
+  S().hydrate({});
+  S().updateSettings({ warnBeforeClosingLastTab: false });
+  const a = S().createWindow({ url: "https://a.com" });
+  const b = S().createWindow({ url: "https://b.com" });
+  S().setWindowFrame(b, [200, 150, 1100, 700]);
+  await withHeldAnimations(async (finish) => {
+    void closeTab(S().windows[b].tabIds[0]);
+    await tick();
+    assert.ok(S().windows[b], "B is still animating out");
+    S().setWindowFrame(b, [444, 333, 1100, 700]);
+    await finish(b);
+  });
+  assert.equal(S().windows[b], undefined, "B closed");
+  assert.deepEqual(S().closedWindows.at(-1).window.frame, [444, 333, 1100, 700]);
+  assert.ok(S().windows[a]);
+});
