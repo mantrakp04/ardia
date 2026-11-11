@@ -10,6 +10,7 @@ $notShipped = @(".pdb", ".lib", ".exp", ".ilk", ".iobj", ".ipdb", ".winmd")
 $launcher = "Ardia.exe"
 $engineLauncher = "chrome.exe"
 $library = "ArdiaApp.dll"
+$engineNotes = "RUN.txt"
 
 function Resolve-Folder([string]$path, [string]$what, [string]$marker) {
   if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "$what '$path' is not a folder" }
@@ -38,7 +39,7 @@ if (Test-Path -LiteralPath $Out) {
 }
 $outRoot = (Resolve-Path -LiteralPath $Out).Path
 
-$engineFiles = @(Get-RelativeFiles $engineRoot)
+$engineFiles = @(Get-RelativeFiles $engineRoot | Where-Object { $_ -ine $engineNotes })
 foreach ($relative in $engineFiles) {
   $target = Join-Path $outRoot $relative
   New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
