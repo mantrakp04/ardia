@@ -209,10 +209,14 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
   over a 0.16 hover fill. It sits one row gap (3 pt) under the tab above it, background to background.
 - Pinned tile hover: a custom tooltip showing the title and URL.
 - Groups (GitHub issue #154's Dia capture): at rest no box; the header sits on the sidebar like a row (icon at x 15) and
-  the group's tabs 16 pt further in (icon at x 31), their right edge with the other rows'. The box appears while the pointer
-  is over the group: `TabGroupNeutralBackground` (white 0.10 dark / black 0.05 light), edge `TabGroupSidebarStroke`
-  (white / black 0.10), header hover `TabGroupNeutralBackgroundHovered` (white 0.12 dark / 0.40 light). Fade time not
-  recovered; Ardia uses the hover card's 0.1 s curve.
+  the group's tabs 16 pt further in (icon at x 31). The box spans the list's width, and the group's rows end 3 pt inside
+  its right and bottom edges, at rest too (issue #154's 2× capture: pinned tiles end at x 221, the selected grouped row at
+  x 218; the owner's hovered capture of 2026-11-10, 4.15 px per pt from the 34 pt row: right 11 px, bottom 10–11 px, so
+  2.7 pt from the box's outer edge, read as 3 pt, the row gap). The box appears while the pointer is over the group:
+  `TabGroupNeutralBackground` (white 0.10 dark / black 0.05 light), edge `TabGroupSidebarStroke` (white / black 0.10).
+  The header gets no hover fill (owner's capture, 2026-11-10), although the binary carries a
+  `TabGroupNeutralBackgroundHovered` colour (white 0.12 dark / 0.40 light). Fade time not recovered; Ardia uses the hover
+  card's 0.1 s curve.
 
 ### Tab hover card motion (Dia's binary, 2026-10-20)
 

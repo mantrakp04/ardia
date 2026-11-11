@@ -44,6 +44,7 @@ export function Fold({
   padTop = 0,
   padBottom = 0,
   indent = 0,
+  indentEnd = 0,
   mountClosed = false,
   footer,
 }: {
@@ -56,6 +57,7 @@ export function Fold({
   padTop?: number;
   padBottom?: number;
   indent?: number;
+  indentEnd?: number;
   mountClosed?: boolean;
   footer?: ReactNode;
 }) {
@@ -97,7 +99,7 @@ export function Fold({
 
   return (
     <Animated.View style={outer} pointerEvents={collapsed ? "box-none" : "auto"}>
-      <View style={[{ gap, paddingTop: padTop, paddingBottom: padBottom, paddingLeft: indent }, measuring && outer && !moving ? { position: "absolute", left: 0, right: 0, top: 0 } : null]}>
+      <View style={[{ gap, paddingTop: padTop, paddingBottom: padBottom, paddingLeft: indent, paddingRight: indentEnd }, measuring && outer && !moving ? { position: "absolute", left: 0, right: 0, top: 0 } : null]}>
         {entries.map(({ key, node }) => {
           const stays = kept.has(key);
           if (!stays && !mountAll) return null;

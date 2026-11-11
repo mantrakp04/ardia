@@ -3,6 +3,7 @@ import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const entries = await import("./entries.ts");
 const { entriesHeight, entryHeight, rowSpan } = await import("./geometry.ts");
+const { GROUP_MEMBERS_PAD_BOTTOM } = await import("../../lib/sidebarMetrics.ts");
 await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
@@ -36,7 +37,7 @@ test("tabs opened from a collapsed group stay under its header after focus moves
   S().activate("t3");
   S().activate("t5");
   S().activate("t0");
-  assert.equal(height(), bare + 2 * height("t:t0") + rowGap());
+  assert.equal(height(), bare + 2 * height("t:t0") + rowGap() + GROUP_MEMBERS_PAD_BOTTOM);
   assert.deepEqual(kept(), ["t:t3", "t:t5"]);
   assert.equal(S().groups.g.collapsed, true);
 });
