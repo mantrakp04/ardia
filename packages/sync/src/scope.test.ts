@@ -322,7 +322,7 @@ test("an old snapshot put back after its tombstones were collected doesn't bring
   assert.equal(b.store.has("x:secret"), false, "B");
   const c = new Device("devC", folder, opts);
   const entries = [...folder.scope("s")];
-  folder.scopes.set("s", new Map([...entries.filter(([id]) => id !== oldId), [oldId, folder.scope("s").get(oldId)!]]));
+  folder.scopes.set("s", new Map([...entries.filter(([id]) => id !== oldId), [oldId, { ...old, hiddenFrom: new Set<string>(), partialFor: new Set<string>() }]]));
   await c.sync();
   assert.equal(c.store.has("x:secret"), false, "C");
   assert.deepEqual(snapshot(c), snapshot(a));
@@ -505,4 +505,51 @@ test("an apply held while quitting leaves what it pulled unapplied, and a joinin
   assert.equal(b.store.get("x:1"), "one");
   assert.equal(b.settings.get("set:theme"), "dark", "joining takes the synced setting");
   assert.equal(b.state.joined, true);
+});
+
+test("steady browsing doesn't rewrite a large snapshot every few minutes", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder, { pruneGrace: 60 * 60_000 });
+  for (let i = 0; i < 3000; i++) a.store.set(`x:h${i}`, { t: `https://example.com/page/${i}`, n: 3, vt: Array.from({ length: 20 }, (_, j) => 1_790_000_000_000 + i * 1000 + j) });
+  await a.sync();
+  let snapshots = 0;
+  let snapshotBytes = 0;
+  let logBytes = 0;
+  const seen = new Set(folder.scope("s").keys());
+  for (let step = 0; step < 8 * 240; step++) {
+    folder.now += 15_000;
+    a.store.set(`x:h${step % 3000}`, { t: `https://example.com/page/${step % 3000}`, n: 4 + step, vt: [folder.now] });
+    await a.sync();
+    for (const [id, e] of folder.scope("s")) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (e.payload.includes('"kind":"snapshot"')) {
+        snapshots++;
+        snapshotBytes += e.payload.length;
+      } else logBytes += e.payload.length;
+    }
+  }
+  assert.ok(snapshots <= 6, `${snapshots} snapshots, ${snapshotBytes} bytes for ${logBytes} bytes of changes`);
+  assert.ok(folder.fileCount() <= 600, `${folder.fileCount()} files left`);
+});
+
+test("an idle Mac writes nothing and still clears the files its snapshot covers", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder, { pruneGrace: 60 * 60_000 });
+  let compactions = 0;
+  for (let step = 0; step < 60; step++) {
+    folder.now += 15_000;
+    a.store.set(`x:${step}`, step);
+    if ((await a.sync()).compacted) compactions++;
+  }
+  folder.now += 10 * 60_000;
+  if ((await a.sync()).compacted) compactions++;
+  assert.equal(compactions, 1);
+  const written = folder.counter;
+  for (let step = 0; step < 24 * 60; step++) {
+    folder.now += 60_000;
+    assert.equal((await a.sync()).compacted, false);
+  }
+  assert.equal(folder.counter, written);
+  assert.equal(folder.fileCount(), 20);
 });

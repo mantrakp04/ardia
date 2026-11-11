@@ -3,7 +3,7 @@ import { onExtensionsChanged } from "../../platform/extensions";
 import { currentAppIcon, onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { useSync } from "../sync/engine";
+import { takeSnapshotWrites, useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
 import { reportLocalStore, startLocalStore } from "./localStoreReport";
 import { startWatchChecks } from "./watch";
@@ -32,7 +32,8 @@ let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (Object.values(counts).some(Boolean)) {
+  const snapshots = takeSnapshotWrites();
+  if (Object.values(counts).some(Boolean) || snapshots.count) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -60,6 +61,8 @@ function emitCounts() {
       auto_hide_tabs_toggles: counts.autoHideTabsToggles,
       windows_realigned_to_auto_hide_tabs: counts.windowsRealignedToAutoHideTabs,
       sidebar_peeks_with_auto_hide_off: counts.sidebarPeeksWithAutoHideOff,
+      sync_snapshots_written: snapshots.count,
+      sync_snapshot_kb_written: Math.round(snapshots.bytes / 1024),
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }

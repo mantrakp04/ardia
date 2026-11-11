@@ -67,6 +67,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
+      "How many full copies sync wrote to your sync folder and their total size, summed up once an hour. Never what's in them",
       "Opening Report a Problem, and when Send was pressed before the report was ready, which field held it back (title, description or contact) and the report's kind. Never what you wrote",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, how much tint, and whether text adjusts to your colour), which app icon you picked, each with its default, and how many of your profiles use a custom colour. Never addresses, names, colours, search engines or anything you typed",
       "Bringing your last window back from the Dock or at launch: how many tabs came back and how long it was closed, in rough ranges, and whether a pinned tab was showing",

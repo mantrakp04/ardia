@@ -195,12 +195,20 @@ Each scope holds a replica: `key → { h: HLC, v: value | null, o: [device, seq]
 
 ### Compaction
 
-- **When.** A device writes a snapshot of its replica when a scope has more than 40 files and no
-  snapshot has been written in 10 minutes.
+- **When.** A device writes a snapshot of its replica when no snapshot has been written in 10 minutes
+  and the logs it would newly cover (applied here, not covered by the newest snapshot in the folder) number
+  more than 40 and either reach 400 or weigh a quarter of that snapshot. Files an earlier snapshot already
+  covers, waiting out their hour, don't count, nor do logs past a gap that no snapshot can retire. A snapshot
+  is the whole replica (a profile with full history is about 3 MB), so this keeps a day of browsing, a log
+  per 15-second cycle, to a few snapshots instead of one every 10 minutes (#1118; tested in
+  `scope.test.ts`: 8 hours of steady edits write 5, not 48). With no snapshot yet, 40 logs are enough.
+  Each snapshot goes to the folder once, under a new file name.
 - **What it leaves out.** Tombstones older than 45 days are dropped from the snapshot, and so are
   history records older than 90 days.
 - **What it removes.** Then it removes, once they're an hour old, the files the snapshot covers:
-  logs `(d, s)` with `s ≤ vv[d]`, and snapshots whose `vv` it dominates.
+  logs `(d, s)` with `s ≤ vv[d]`, and snapshots whose `vv` it dominates. A cycle that writes no snapshot
+  removes, the same way, what this device's newest snapshot covers once it's an hour old, so covered files
+  don't wait for the next snapshot.
 - **Why that's safe.** A snapshot is self-contained, so any device can start from it, and
   concurrent compactions only remove files covered by their own snapshot.
 - **Missing logs keep tombstones.** While a replica is missing a log that a later one from the

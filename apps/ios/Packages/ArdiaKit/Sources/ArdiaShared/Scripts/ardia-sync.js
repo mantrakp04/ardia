@@ -180,6 +180,7 @@ __define("packages/sync/src/scope.ts", function (exports, __require) {
   __export(exports, "restoreJournal", () => restoreJournal);
   __export(exports, "writtenSeq", () => writtenSeq);
   __export(exports, "pull", () => pull);
+  __export(exports, "compactionDue", () => compactionDue);
   __export(exports, "compact", () => compact);
   __export(exports, "syncScope", () => syncScope);
 const { canonical } = __require("packages/sync/src/canon.ts");
@@ -191,6 +192,8 @@ const DEFAULTS                                                        = {
   expired: () => false,
   tombstoneTTL: 45 * 86_400_000,
   compactAfterFiles: 40,
+  compactAfterLogs: 400,
+  compactLogShare: 0.25,
   compactInterval: 10 * 60_000,
   pruneGrace: 60 * 60_000,
   damagedGiveUp: 86_400_000,
@@ -373,8 +376,9 @@ async function flush(state            , transport           , scope        , dev
   }
   while (state.journal.length) {
     const file = state.journal[0] ;
-    const id = await transport.write(scope, JSON.stringify(file));
-    state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
+    const payload = JSON.stringify(file);
+    const id = await transport.write(scope, payload);
+    state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at, b: payload.length };
     state.journal.shift();
     markApplied(state, file.device, file.seq);
     see(state, file.device, now);
@@ -406,21 +410,21 @@ async function pull(state            , transport           , scope        , cloc
   const { damagedGiveUp } = { ...DEFAULTS, ...options };
   const listing = await transport.read(scope, Object.keys(state.files).filter((id) => state.files[id] .k !== "bad"));
   const changed = new Set        ();
-  const parsed                                   = [];
+  const parsed                                              = [];
   const unreadable = listing.damaged.map(({ id }) => id);
   for (const { id, payload } of listing.files) {
     const file = parseSyncFile(payload);
-    if (file) parsed.push({ id, file });
+    if (file) parsed.push({ id, file, b: payload.length });
     else unreadable.push(id);
   }
   parsed.sort((a, b) => (a.file.kind === b.file.kind ? 0 : a.file.kind === "snapshot" ? -1 : 1));
-  for (const { id, file } of parsed) {
+  for (const { id, file, b } of parsed) {
     if (file.kind === "snapshot") {
       ingestSnapshot(state, file, clock, changed);
-      state.files[id] = { d: file.device, k: "snapshot", vv: file.vv, at: file.at };
+      state.files[id] = { d: file.device, k: "snapshot", vv: file.vv, at: file.at, b };
     } else {
       ingestLog(state, file, clock, changed);
-      state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at };
+      state.files[id] = { d: file.device, k: "log", s: file.seq, at: file.at, b };
     }
   }
   const present = new Set(listing.present);
@@ -460,11 +464,57 @@ async function applyAdapter(state            , adapter         , keys           
   return true;
 }
 
+                                                       
+
+const dominates = (vv                        , other                        ) => Object.entries(other).every(([d, s]) => (vv[d] ?? 0) >= s);
+
+function newestSnapshot(entries             , device         ) {
+  let newest                       ;
+  for (const entry of entries) if (entry[1].k === "snapshot" && (!device || entry[1].d === device) && (!newest || entry[1].at > newest[1].at)) newest = entry;
+  return newest;
+}
+
+function retiredBy(entries             , snapshotId        , vv                        , now        , pruneGrace        ) {
+  return entries
+    .filter(([fileId, f]) => {
+      if (fileId === snapshotId || now - f.at < pruneGrace) return false;
+      if (f.k === "log") return covered(vv, [f.d, f.s ?? Infinity]);
+      if (f.k === "snapshot") return dominates(vv, f.vv ?? {});
+      return false;
+    })
+    .map(([fileId]) => fileId);
+}
+
+async function prune(state            , transport           , scope        , ids          ) {
+  if (!ids.length) return;
+  await transport.remove(scope, ids);
+  for (const fileId of ids) delete state.files[fileId];
+}
+
+function compactionDue(state            , now        , options               = {}) {
+  const o = { ...DEFAULTS, ...options };
+  const entries = Object.entries(state.files);
+  const latest = newestSnapshot(entries);
+  if (now - Math.max(state.snapshotAt, latest?.[1].at ?? 0) < o.compactInterval) return false;
+  const base = latest?.[1].vv ?? {};
+  let logs = 0;
+  let logBytes = 0;
+  for (const [, f] of entries) {
+    if (f.k !== "log" || covered(base, [f.d, f.s ?? Infinity]) || !covered(state.vv, [f.d, f.s ?? Infinity])) continue;
+    logs++;
+    logBytes += f.b ?? 0;
+  }
+  if (logs <= o.compactAfterFiles) return false;
+  return logs >= o.compactAfterLogs || logBytes >= o.compactLogShare * (latest?.[1].b ?? 0);
+}
+
 async function compact(state            , transport           , scope        , device        , now        , options               = {}, force = false) {
   const o = { ...DEFAULTS, ...options };
-  const count = Object.keys(state.files).length;
-  const newestSnapshot = Math.max(state.snapshotAt, ...Object.values(state.files).filter((f) => f.k === "snapshot").map((f) => f.at));
-  if (!force && (count <= o.compactAfterFiles || now - newestSnapshot < o.compactInterval)) return false;
+  if (!force && !compactionDue(state, now, o)) {
+    const own = newestSnapshot(Object.entries(state.files), device);
+    if (own) await prune(state, transport, scope, retiredBy(Object.entries(state.files), own[0], own[1].vv ?? {}, now, o.pruneGrace)).catch((error) => console.warn("[sync] removing covered files failed", error));
+    return false;
+  }
   await flush(state, transport, scope, device, now, options);
   const records                             = {};
   const tombstoneTTL = Object.keys(state.extra).length ? 2 * o.tombstoneTTL : o.tombstoneTTL;
@@ -475,26 +525,15 @@ async function compact(state            , transport           , scope        , d
   }
   const vv = { ...state.vv };
   const file               = { v: 1, kind: "snapshot", device, at: now, vv, seen: { ...state.seen }, records };
-  const id = await transport.write(scope, JSON.stringify(file));
-  state.files[id] = { d: device, k: "snapshot", vv, at: now };
+  const payload = JSON.stringify(file);
+  const id = await transport.write(scope, payload);
+  state.files[id] = { d: device, k: "snapshot", vv, at: now, b: payload.length };
   state.snapshotAt = now;
-  const dominated = (other                        ) => Object.entries(other).every(([d, s]) => (vv[d] ?? 0) >= s);
-  const prune = Object.entries(state.files)
-    .filter(([fileId, f]) => {
-      if (fileId === id || now - f.at < o.pruneGrace) return false;
-      if (f.k === "log") return covered(vv, [f.d, f.s ?? Infinity]);
-      if (f.k === "snapshot") return dominated(f.vv ?? {});
-      return false;
-    })
-    .map(([fileId]) => fileId);
-  if (prune.length) {
-    await transport.remove(scope, prune);
-    for (const fileId of prune) delete state.files[fileId];
-  }
+  await prune(state, transport, scope, retiredBy(Object.entries(state.files), id, vv, now, o.pruneGrace));
   return true;
 }
 
-                                                                                                      
+                                                                                                                             
 
 async function syncScope(args   
                 
@@ -537,7 +576,8 @@ async function syncScope(args
   }
   await flush(state, transport, scope, device, now(), options);
   const compacted = await compact(state, transport, scope, device, now(), options);
-  return { published, changed: changed.size, pending: state.pending, compacted };
+  const snapshotBytes = compacted ? (newestSnapshot(Object.entries(state.files), device)?.[1].b ?? 0) : 0;
+  return { published, changed: changed.size, pending: state.pending, compacted, snapshotBytes };
 }
 
 });
@@ -596,7 +636,7 @@ __define("packages/sync/src/scopeState.ts", function (exports, __require) {
   
                                               
 
-                                                                                                                  
+                                                                                                                              
 
                           
                                       
@@ -683,6 +723,8 @@ const emptyScope = ()             => ({
                                                                   
                         
                              
+                            
+                           
                            
                       
                          
