@@ -1,6 +1,8 @@
-import { useSyncExternalStore } from "react";
+import { useContext, useSyncExternalStore } from "react";
 import { useColorScheme } from "react-native";
+import { WindowIdContext } from "../engine/windowId";
 import { requireNativeModule } from "../modules";
+import { isWindowDark } from "../windowDark";
 
 type AppEvent = { type?: unknown; dark?: unknown };
 
@@ -58,6 +60,8 @@ export function appDarkNow(): boolean | null {
 export function useAppDark(explicit?: unknown): boolean {
   const scheme = useColorScheme();
   const dark = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const windowId = useContext(WindowIdContext);
   if (typeof explicit === "boolean") return explicit;
+  if (isWindowDark(windowId)) return true;
   return dark ?? scheme === "dark";
 }

@@ -4,11 +4,23 @@ import { moduleDefaults } from "./defaults";
 import { engineAvailable } from "./engine/host";
 import { engineModules } from "./engine/modules";
 import { noteMissing } from "./missing";
+import { setWindowDark } from "./windowDark";
 
 type Listener = (payload: unknown) => void;
 type NativeModule = TurboModule & Record<string, unknown>;
 
+type Call = (...values: unknown[]) => unknown;
+
 const modules = new Map<string, object>();
+
+const around: Record<string, Record<string, (native: Call) => Call>> = {
+  ArdiaAppWindows: {
+    openWindow: (native) => (id, options) => {
+      setWindowDark(String(id), !!(options as { incognito?: unknown } | null)?.incognito);
+      return native(id, options);
+    },
+  },
+};
 
 const inert = (module: string, key: string) => () => {
   noteMissing(`${module}.${key}`);
@@ -27,6 +39,8 @@ function moduleOnWindows(name: string): object {
       get(_target, key) {
         if (typeof key !== "string" || key === "then" || key === "$$typeof") return undefined;
         const fromNative = native?.[key];
+        const wrap = around[name]?.[key];
+        if (wrap && typeof fromNative === "function") return wrap(fromNative as Call);
         if (fromNative !== undefined) return fromNative;
         if (Object.hasOwn(constants, key)) return constants[key];
         const withEngine = engineModules[name];
