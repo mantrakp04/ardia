@@ -3,7 +3,7 @@ import { after, test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const { openLiveItem, refreshFolder, startLiveEngine } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
-const { setNowPlaying } = await import("../media/media.ts");
+const { setNowPlaying, useMedia } = await import("../media/media.ts");
 const { createFolder, finishCompleting, hideItems, live, removeFolder, updateFolder } = await import("./store.ts");
 
 const S = () => useBrowser.getState();
@@ -197,5 +197,14 @@ test("a merged pull request's tab whose video plays through a silent passage sta
   useBrowser.setState((s) => ({ live: { ...s.live, [tab]: { ...s.live[tab], playingAudio: false } } }));
   assert.ok(S().tabs[tab], "silence isn't the end of playback");
   setNowPlaying(tab, session("paused"));
+  assert.equal(S().tabs[tab], undefined);
+});
+
+test("a merged pull request's tab another tab is sharing stays until the share ends", async () => {
+  const { id, tab, merging } = await mergeWithTabOpen(false);
+  useMedia.setState({ tabShares: { [start]: { capturedTabId: tab, origin: "https://meet.example", dismissed: {} } } });
+  finishCompleting(id, [merging.id]);
+  assert.ok(S().tabs[tab], "closing it would end the share");
+  useMedia.setState({ tabShares: {} });
   assert.equal(S().tabs[tab], undefined);
 });

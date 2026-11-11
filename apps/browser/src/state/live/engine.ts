@@ -212,9 +212,9 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
   closeCompletedTabs();
 }
 
-const playing = (s: BrowserState, id: string) => {
+const inUse = (s: BrowserState, id: string) => {
   const media = useMedia.getState();
-  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]);
+  return !!s.live[id]?.playingAudio || !!media.pipOpen[id] || isPlaying(media.sessions[id]) || Object.values(media.tabShares).some((share) => share.capturedTabId === id);
 };
 
 const playbackEnded = (s: BrowserState, prev: BrowserState) => s.live !== prev.live && Object.keys(prev.live).some((id) => prev.live[id]?.playingAudio && !s.live[id]?.playingAudio);
@@ -224,7 +224,7 @@ function closeCompletedTabs() {
   const { folders, items } = live();
   const shown = shownTabIds(s);
   const tabs = Object.values(s.tabs)
-    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !inPinnedContainer(s, id) && !playing(s, id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
+    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !inPinnedContainer(s, id) && !inUse(s, id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
     .map((t) => t.id);
   if (!tabs.length) return;
   s.closeTabs(tabs);
@@ -280,7 +280,7 @@ export function startLiveEngine() {
     if (s.windows !== prev.windows || s.splits !== prev.splits || s.peeks !== prev.peeks || playbackEnded(s, prev)) closeCompletedTabs();
   });
   useMedia.subscribe((m, prev) => {
-    if (m.pipOpen !== prev.pipOpen || m.sessions !== prev.sessions) closeCompletedTabs();
+    if (m.pipOpen !== prev.pipOpen || m.sessions !== prev.sessions || m.tabShares !== prev.tabShares) closeCompletedTabs();
   });
 
   useBrowser.subscribe((s, prev) => {
