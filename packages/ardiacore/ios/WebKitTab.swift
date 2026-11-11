@@ -13,7 +13,8 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   var initialURL: String?
   var adoptId: String?
   var transferKey: String?
-  var visible = true { didSet { updateHidden() } }
+  var visible = true { didSet { updateHidden(); updateSight() } }
+  var autoPictureInPicture = false
   var warm = false { didSet { updateHidden() } }
   var pageBackgroundColor: NSColor? { didSet { if let color = pageBackgroundColor { webView?.underPageBackgroundColor = color } } }
   let browserId = WebKitHub.shared.nextBrowserId()
@@ -21,17 +22,18 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   private(set) var webView: WebKitWebView?
   private var observations: [NSKeyValueObservation] = []
   private var started = false
-  private var closed = false
+  private(set) var closed = false { didSet { if closed { stopWatchingSight() } } }
   private var navigationQueued = false
   private var mediaFrames: [String: WKFrameInfo] {
     get { webView?.mediaFrames ?? [:] }
     set { webView?.mediaFrames = newValue }
   }
-  private var playingFrames: Set<String> {
+  var playingFrames: Set<String> {
     get { webView?.playingFrames ?? [] }
     set { webView?.playingFrames = newValue }
   }
   private var muted = false
+  var sightObserver: NSObjectProtocol?
   private var errorURL: URL?
   private var committedAt: Double = 0
   private var respondedStatus = 0
@@ -48,6 +50,8 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     super.setFrameSize(newSize)
     webView?.frame = bounds
   }
+
+  override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); watchSight() }
 
   func emit(_ name: String, _ payload: [String: Any] = [:]) {
     delegate?.webKitTab(self, event: name, payload: payload)
@@ -122,6 +126,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     updateHidden()
     observe(view)
     WebKitHub.shared.permissions.reconcileCapture(view, profile: profile)
+    updateSight()
   }
 
   private func observe(_ view: WKWebView) {
@@ -249,7 +254,6 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
 
   private var muteScript: String { "window.__ardia && window.__ardia.mute(\(muted ? "true" : "false"))" }
-
 
   private func runInWorld(_ code: String, frame: WKFrameInfo? = nil, completion: ((Any?) -> Void)? = nil) {
     guard let view = webView else {
@@ -437,7 +441,9 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
       if let dict, !dict.isEmpty { mediaFrames[frame] = frameInfo }
       emit("nowPlaying", ["state": view.nowPlaying.noteFrame(frame, page: data, main: main) ?? NSNull()])
     case "pip":
-      emit("pictureInPicture", ["kind": "video", "active": dict?["active"] as? Bool ?? false])
+      let active = dict?["active"] as? Bool ?? false
+      autoPictureInPictureRule.reported(active: active)
+      emit("pictureInPicture", ["kind": "video", "active": active])
     case "status":
       emit("status", ["text": data as? String ?? ""])
     case "icons":

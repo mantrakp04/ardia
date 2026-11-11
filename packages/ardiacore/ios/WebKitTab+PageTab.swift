@@ -11,7 +11,6 @@ extension WebKitTab: PageTab {
   var pageColor: String? { get { nil } set {} }
   var contentsBackgroundColor: NSColor? { get { nil } set {} }
   var shownURL: String? { get { nil } set {} }
-  var autoPictureInPicture: Bool { get { false } set {} }
   var frozen: Bool { get { false } set {} }
   var mediaCaptureSourceId: String? { nil }
 
