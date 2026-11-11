@@ -12,7 +12,7 @@ export const CONFIG_SETTING_KEYS: readonly SettingKey[] = [
   "memorySaverMode", "loadProfilesWhenOpened", "keepActiveSites", "extensionSidePanelWidth", "showFullUrl", "showBookmarks", "bookmarksBar", "bookmarksBarSize",
   "hideBookmarksBarImport", "appearance", "addressBar", "compactToolbar", "pageFrame", "commandBarPlacement", "spacesFollowAppearance", "adaptTextToColor",
   "profileSwitcherIcons", "shortcuts", "openLinksInLittleArdia", "littleArdiaOpensNewTabLinks", "littleArdiaSize",
-  "omniboxProviders", "launchActions",
+  "omniboxProviders", "launchActions", "commandBarStart",
 ];
 
 export const CONFIG_EXCLUDED_KEYS: readonly SettingKey[] = [
