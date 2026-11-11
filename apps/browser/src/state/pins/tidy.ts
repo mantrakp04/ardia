@@ -88,7 +88,7 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
   for (const t of kept) {
     const panes = splitRowPanes(s, splitOf(s, t.id));
     if (panes.includes(t.id) && panes.find((id) => keptIds.has(id)) !== t.id) continue;
-    if (scope === "tabs" && panes.some((id) => s.tabs[id]?.liveItem)) continue;
+    if (scope === "tabs" && panes.some((id) => !isLoose(s, id, scope))) continue;
     const site = siteKey(homeOf(t));
     if (!site) continue;
     const groupId = folderFor.get(site);

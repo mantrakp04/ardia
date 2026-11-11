@@ -457,3 +457,15 @@ test("a hidden empty card doesn't count towards Tidy's six", () => {
   assert.equal(offersTidyTabs(S(), w), true);
   S().updateSettings({ newTabOpens: "page" });
 });
+
+test("Tidy on tabs leaves a split alone when one of its panes is in a pinned folder", () => {
+  reset();
+  const { w, ids: [a1, a2, b, pinnedC] } = windowWith("https://a.com/1", "https://a.com/2", "https://b.com/1", "https://c.com/1");
+  S().groupTabs([pinnedC], { pinned: true, name: "Pins" });
+  const folderId = innermost(pinnedC).id;
+  S().createSplit([a2, b]);
+  useBrowser.setState((s) => ({ groups: { ...s.groups, [folderId]: { ...s.groups[folderId], tabIds: [...s.groups[folderId].tabIds, b] } } }));
+  tidy(w, "tabs");
+  assert.ok(S().groups[folderId].tabIds.includes(b), "the pinned folder keeps its pane");
+  assert.equal(innermost(a1), undefined);
+});
