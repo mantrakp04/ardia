@@ -217,7 +217,7 @@ function Test-Snap([System.Diagnostics.Process]$Process, [string]$Log) {
   $grab = Get-GrabPoint $client
   $fromX = $grab.X
   $fromY = $grab.Y
-  Send-Drag $fromX $fromY ([int]($screen.Width * 0.5) - $fromX) (0 - $fromY) 600
+  Send-Drag $fromX $fromY ([int]($screen.Width * 0.15) - $fromX) (0 - $fromY) 600
   Start-Sleep -Milliseconds 700
   Save-Screenshot (Join-Path $Out "browser-maximized.png")
   if ([ArdiaInput]::IsZoomed($handle)) { Write-Host "Input: dragging the gap beside the window buttons to the top edge of the screen maximized the window." }
@@ -342,13 +342,13 @@ function Test-Input([System.Diagnostics.Process]$Process, [string]$Log) {
   if (-not $client) { return @("input: the window could not be measured before the first drag") }
   $grab = Get-GrabPoint $client
   $counts = Get-MoveCounts $Log
-  Send-Drag $grab.X $grab.Y 70 50
+  Send-Drag $grab.X $grab.Y -70 50
   $after = Get-WindowRect $Process
   if ($after) {
     $movedX = $after.Left - $before.Left
     $movedY = $after.Top - $before.Top
-    if ([Math]::Abs($movedX - 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the gap beside the window buttons moved the window by $movedX, $movedY." }
-    else { $notes += "input: dragging the gap beside the window buttons by 70, 50 moved the window by $movedX, $movedY" }
+    if ([Math]::Abs($movedX + 70) -le 12 -and [Math]::Abs($movedY - 50) -le 12) { Write-Host "Input: dragging the gap beside the window buttons moved the window by $movedX, $movedY." }
+    else { $notes += "input: dragging the gap beside the window buttons by -70, 50 moved the window by $movedX, $movedY" }
   } else {
     $notes += "input: the window was gone after the drag"
     return $notes

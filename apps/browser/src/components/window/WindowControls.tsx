@@ -12,7 +12,7 @@ const B = WINDOW_BUTTONS;
 type Ink = { icon: string; hover: string; pressed: string };
 type Kind = "minimize" | "maximize" | "restore" | "close";
 
-const TOOLTIP: Record<Kind, string> = { minimize: "Minimize", maximize: "Maximize", restore: "Restore Down", close: "Close" };
+const LABEL: Record<Kind, string> = { minimize: "Minimize", maximize: "Maximize", restore: "Restore Down", close: "Close" };
 
 function Glyph({ kind, color, box }: { kind: Kind; color: string; box: number }) {
   if (kind === "minimize") return <View style={{ width: box, height: 1, backgroundColor: color }} />;
@@ -33,8 +33,8 @@ function ControlButton({ kind, width, height, radius, ink, onPress }: { kind: Ki
   const { hovered, hoverProps } = useHover();
   const close = kind === "close";
   return (
-    <View {...hoverProps} tooltip={TOOLTIP[kind]}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={TOOLTIP[kind]}>
+    <View {...hoverProps}>
+      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={LABEL[kind]}>
         {({ pressed }) => (
           <View
             style={{
