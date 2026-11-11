@@ -1,11 +1,11 @@
 import type { ConfirmOptions, DialogsNative } from "@ardia-real/shell";
 import type { ManagedCloseReason } from "../../browser/src/platform/windowClose";
 import type { WindowCloseDecision } from "../../browser/src/state/windows/windowClose";
+import type { DialogSuspension } from "./hostDialogs";
 import { validCloseRequest, closeIdentity, type WindowCloseRequest } from "./utilityClose";
 
 type CloseAnswer = Awaited<ReturnType<DialogsNative["confirm"]>>;
 export type AbortableAsk = (options: ConfirmOptions, signal: AbortSignal) => Promise<CloseAnswer>;
-export type DialogSuspension = { readonly settled: Promise<void> };
 export type DrainReply = { accepted?: boolean; endsSession?: boolean } | null | undefined;
 export type DecideClose = (windowId: string, reason: ManagedCloseReason, ask?: DialogsNative["confirm"]) => Promise<WindowCloseDecision>;
 

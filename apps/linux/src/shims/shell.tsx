@@ -1,7 +1,7 @@
 import type { CommandEvent, ConfirmOptions, PromptOptions } from "@ardia-real/shell";
 import { emitCommand as emitWebCommand, confirm as webConfirm, prompt as webPrompt } from "./shellBase";
 import { provideNativeModuleProvider } from "./expo-modules-core";
-import { linuxHostDialogs } from "../hostDialogs";
+import { linuxHostDialogs, type DialogSuspension } from "../hostDialogs";
 import { ardiaHost, hostModuleMethod, reportHostError } from "../host";
 import { flushLinuxSession, isLinuxUtility, linuxWindowDeparture } from "../session";
 import { createWindowCloseBarrier, type WindowCloseRequest } from "../utilityClose";
@@ -10,7 +10,7 @@ import { quiesceLinuxDocuments, resumeLinuxDocuments, flushLinuxDocuments } from
 import { linuxMenuShortcuts } from "../shortcuts";
 import { useBrowser } from "../../../browser/src/state/browser/store";
 import { setManagedWindowClose } from "../../../browser/src/platform/windowClose";
-import { createWindowCloseCoordinator, type DecideClose, type DialogSuspension, type DrainReply } from "../windowCloseCoordinator";
+import { createWindowCloseCoordinator, type DecideClose, type DrainReply } from "../windowCloseCoordinator";
 import { reopenTelemetry, settleTelemetry } from "../telemetrySettle";
 
 export * from "./shellBase";
