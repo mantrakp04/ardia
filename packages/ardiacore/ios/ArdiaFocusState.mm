@@ -1,5 +1,6 @@
 #import "ArdiaInternal.h"
 #import "ArdiaContentBlockerInternal.h"
+#import "ArdiaChromeWindowHost.h"
 #import "ArdiaWindowController.h"
 
 #import <objc/message.h>
@@ -42,7 +43,7 @@ NSString *DescribeFocusResponder(NSResponder *responder) {
   return [chain componentsJoinedByString:@" > "];
 }
 
-constexpr NSUInteger kFocusHistoryLength = 16;
+constexpr NSUInteger kFocusHistoryLength = 40;
 
 NSMutableArray<NSString *> *FocusHistory() {
   static NSMutableArray<NSString *> *history = [NSMutableArray array];
@@ -61,6 +62,57 @@ void NoteFocusChange(NSString *what, NSWindow *window) {
   if (history.count > kFocusHistoryLength) [history removeObjectAtIndex:0];
 }
 
+bool IsBrowserWindow(NSWindow *window) {
+  ArdiaWindowController *controller = [ArdiaWindowController forNSWindow:window];
+  return controller.root && !ardia_content_blocker::IsHiddenPageWindow(window) &&
+         !(controller.standalone || controller.stray || controller.coreWindow.internal);
+}
+
+NSPoint WindowCentre(NSWindow *window) {
+  NSView *content = window.contentView;
+  NSRect bounds = content ? [content convertRect:content.bounds toView:nil] : NSMakeRect(0, 0, NSWidth(window.frame), NSHeight(window.frame));
+  return NSMakePoint(NSMidX(bounds), NSMidY(bounds));
+}
+
+NSString *PageMoveResult(NSWindow *window, NSPoint point, BOOL sendMove) {
+  Class pageClass = NSClassFromString(@"RenderWidgetHostViewCocoa");
+  SEL ignores = NSSelectorFromString(@"shouldIgnoreMouseEvent:");
+  NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0
+                                     timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+                                       context:nil eventNumber:0 clickCount:0 pressure:0];
+  NSMutableArray<NSString *> *results = [NSMutableArray array];
+  NSMutableArray<NSView *> *queue = [NSMutableArray arrayWithObject:window.contentView.superview ?: [NSView new]];
+  while (queue.count) {
+    NSView *v = queue.lastObject;
+    [queue removeLastObject];
+    [queue addObjectsFromArray:v.subviews];
+    if (!pageClass || ![v isKindOfClass:pageClass] || v.isHiddenOrHasHiddenAncestor) continue;
+    if (!NSPointInRect(point, [v convertRect:v.bounds toView:nil])) continue;
+    const BOOL ignored = [v respondsToSelector:ignores] && ((BOOL(*)(id, SEL, NSEvent *))objc_msgSend)(v, ignores, event);
+    if (sendMove) [v mouseMoved:event];
+    [results addObject:ignored ? @"ignored" : @"accepted"];
+  }
+  return [results componentsJoinedByString:@","];
+}
+
+NSArray<NSString *> *BrowserWindowLines(NSWindow *window) {
+  NSString *prefix = [NSString stringWithFormat:@"browser #%ld ", (long)window.windowNumber];
+  NSString *move = PageMoveResult(window, WindowCentre(window), NO);
+  NSMutableArray<NSString *> *lines = [NSMutableArray array];
+  [lines addObject:[prefix stringByAppendingFormat:@"page move at centre %@", move.length ? move : @"no page view"]];
+  NSString *(^handoff)(NSWindow *) = ArdiaChromeWindowHost.focusHandoffSummaryHandler;
+  if (handoff) [lines addObject:[prefix stringByAppendingString:handoff(window)]];
+  ArdiaCoreWindow *core = [ArdiaWindowController forNSWindow:window].coreWindow;
+  if ([core respondsToSelector:@selector(activeSummary)])
+    for (NSString *line in [core.activeSummary componentsSeparatedByString:@"\n"])
+      [lines addObject:[prefix stringByAppendingFormat:@"engine %@", line]];
+  return lines;
+}
+
+}
+
+void NoteProfileSwitch(ArdiaCoreProfile *profile, NSWindow *window) {
+  NoteFocusChange([@"profile switch " stringByAppendingString:profile.name ?: @"unknown"], window);
 }
 
 void WatchFocusChanges() {
@@ -103,29 +155,14 @@ NSString *FocusState() {
       line = [line stringByAppendingFormat:@", responder %@", DescribeFocusResponder(window.firstResponder)];
     [lines addObject:line];
   }
+  for (NSWindow *window in NSApp.windows)
+    if (IsBrowserWindow(window)) [lines addObjectsFromArray:BrowserWindowLines(window)];
   for (NSString *change in FocusHistory()) [lines addObject:[@"was " stringByAppendingString:change]];
   return [lines componentsJoinedByString:@"\n"];
 }
 
 NSString *PageMoveAt(NSWindow *window, NSPoint point) {
-  Class pageClass = NSClassFromString(@"RenderWidgetHostViewCocoa");
-  SEL ignores = NSSelectorFromString(@"shouldIgnoreMouseEvent:");
-  NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:0
-                                     timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
-                                       context:nil eventNumber:0 clickCount:0 pressure:0];
-  NSMutableArray<NSString *> *results = [NSMutableArray array];
-  NSMutableArray<NSView *> *queue = [NSMutableArray arrayWithObject:window.contentView.superview ?: [NSView new]];
-  while (queue.count) {
-    NSView *v = queue.lastObject;
-    [queue removeLastObject];
-    [queue addObjectsFromArray:v.subviews];
-    if (!pageClass || ![v isKindOfClass:pageClass] || v.isHiddenOrHasHiddenAncestor) continue;
-    if (!NSPointInRect(point, [v convertRect:v.bounds toView:nil])) continue;
-    const BOOL ignored = [v respondsToSelector:ignores] && ((BOOL(*)(id, SEL, NSEvent *))objc_msgSend)(v, ignores, event);
-    [v mouseMoved:event];
-    [results addObject:ignored ? @"ignored" : @"accepted"];
-  }
-  return [results componentsJoinedByString:@","];
+  return PageMoveResult(window, point, YES);
 }
 
 }

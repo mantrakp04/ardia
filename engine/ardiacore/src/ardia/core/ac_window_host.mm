@@ -355,6 +355,32 @@ bool WindowHost::IsActiveBrowser(const Browser* browser) const {
          ExistingBrowserFor(active_profile_) == browser;
 }
 
+namespace {
+
+const char* YesNo(bool value) {
+  return value ? "yes" : "no";
+}
+
+}
+
+std::string WindowHost::ActiveSummary() const {
+  auto* last_active = GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
+  Profile* last_used = ProfileManager::GetLastUsedProfileIfLoaded();
+  std::string summary = std::string("profile ") +
+                        (active_profile_ ? active_profile_->GetBaseName().value()
+                                         : std::string("none")) +
+                        ", widget active " +
+                        YesNo(widget_ && widget_->IsActive());
+  for (const auto& [profile, browser] : browsers_) {
+    summary += "\n" + profile->GetBaseName().value() + ": browser active " +
+               YesNo(BrowserActiveStateManager::From(browser.get())->IsActive()) +
+               ", host's active browser " + YesNo(IsActiveBrowser(browser.get())) +
+               ", last active browser " + YesNo(last_active == browser.get()) +
+               ", last used profile " + YesNo(last_used == profile);
+  }
+  return summary;
+}
+
 void WindowHost::ShowInactive() {
   if (widget_ && !widget_close_allowed_ && !widget_->IsVisible()) {
     widget_->ShowInactive();
