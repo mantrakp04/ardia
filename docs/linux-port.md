@@ -713,6 +713,9 @@ Linux reads calendars from Evolution Data Server, which GNOME Online Accounts, G
   reported, not dropped.
 - **Without EDS or a session bus.** The calendar is `restricted`, and Settings › Calendar says how to set it up. It
   recovers by itself when EDS appears.
+- **Connect Calendar's answer.** `requestAccess` answers the shared `CalendarAccessRequest` with `responsible: "self"`.
+  There is no system privacy pane to open: `calendarWording.ts` turns every "Open System Settings" into Try Again,
+  makes `openCalendarPrivacy` do nothing and rewrites `calendarRequestFailure` in EDS terms.
 
 ### Extensions
 
@@ -1028,6 +1031,12 @@ These were open at the time of the PR.
   a fullscreen window to another output can save the old output.
 - **Closing the last window during a download** shows Chromium's own download dialog, not an Ardia dialog.
 - **Window menu.** It has no Arrange in Front, Keep on Top or Profiles submenu.
+- **Window corner radius.** `ArdiaAppWindows.windowCornerRadius` answers a fixed 19 (`shellMethods.ts`), the Mac's
+  default, so the page card keeps its 10 pt radius at the default inset. Linux doesn't measure the compositor's
+  rounding.
+- **Auto-hide tabs** is one setting, as upstream made it. Linux saves no `sidebarOpen` per window: `linuxSessionShape`
+  reads an older session's copies to set the setting, then drops them from saved and closed windows. The launch-time
+  `windows_realigned_to_auto_hide_tabs` count stays 0 on Linux, which doesn't load through `loadSession`.
 - **Small UI bugs.**
   - A sidebar hover card stays open when the pointer moves straight from the sidebar into the page.
   - In the top-strip layout, the sidebar peek isn't cut out of the page.

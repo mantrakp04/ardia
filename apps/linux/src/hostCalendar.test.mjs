@@ -115,12 +115,12 @@ test("the Linux calendar reports explicit states instead of a hardcoded denial",
 
 test("connecting asks the native service and adopts its answer", async () => {
   const granted = fixture();
-  assert.equal(await granted.calendar("requestAccess")(), true);
+  assert.deepEqual({ ...(await granted.calendar("requestAccess")()), ms: 0 }, { granted: true, status: "fullAccess", error: null, responsible: "self", ms: 0 });
   assert.equal(granted.calendar("authorizationStatus")(), "fullAccess");
   const missing = fixture({ replies: { requestAccess: () => ({ granted: false, status: "restricted", message: "Evolution Data Server isn't installed or running in this session" }) } });
-  assert.equal(await missing.calendar("requestAccess")(), false);
+  assert.equal((await missing.calendar("requestAccess")()).granted, false);
   assert.equal(missing.calendar("authorizationStatus")(), "restricted");
-  assert.equal(await fixture({ capabilities: [] }).calendar("requestAccess")(), false);
+  assert.deepEqual(await fixture({ capabilities: [] }).calendar("requestAccess")(), { granted: false, status: "restricted", error: null, responsible: "self", ms: 0 });
 });
 
 test("a status broadcast is adopted before the shared refresh listener reads it", () => {

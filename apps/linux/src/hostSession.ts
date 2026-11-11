@@ -17,7 +17,7 @@ import type { SavedObject } from "../../browser/src/lib/savedDocument";
 import { unclaimedAdoptId } from "./unclaimedTabs.ts";
 import { adoptedPage } from "../../browser/src/state/tabs/pageSession";
 
-type StoredWindow = Partial<BrowserWindow> & { incognito?: unknown; originalProfileId?: unknown };
+type StoredWindow = Partial<BrowserWindow> & { incognito?: unknown; originalProfileId?: unknown; sidebarOpen?: unknown };
 
 const windowKind = (w: StoredWindow): BrowserWindow["kind"] => w.kind === "small" || w.kind === "private" || w.kind === "main" ? w.kind : w.incognito === true ? "private" : "main";
 const shapedWindow = ({ incognito: _i, originalProfileId: _o, ...w }: StoredWindow) => ({ ...w, kind: windowKind(w) }) as BrowserWindow;
@@ -93,12 +93,29 @@ const withAutoHideTabsSetting = (session: HydrateData): HydrateData => {
   const windows = Object.values(session.windows ?? {});
   const settings = session.settings;
   if (!settings || Object.hasOwn(settings, "autoHideTabs") || !windows.length) return session;
-  return { ...session, settings: { ...settings, autoHideTabs: windows.every((w) => w.sidebarOpen === false) } };
+  return { ...session, settings: { ...settings, autoHideTabs: windows.every((w) => (w as StoredWindow).sidebarOpen === false) } };
+};
+
+const withoutTabsShown = <T extends object>(w: T): T => {
+  if (!("sidebarOpen" in w)) return w;
+  const { sidebarOpen: _, ...rest } = w as T & { sidebarOpen?: unknown };
+  return rest as T;
+};
+
+const withoutWindowTabsShown = (session: HydrateData): HydrateData => {
+  const savedWindows = Object.values(session.windows ?? {}).some((w) => "sidebarOpen" in w);
+  const closedWindows = (session.closedWindows ?? []).some((c) => !!c.window && "sidebarOpen" in c.window);
+  if (!savedWindows && !closedWindows) return session;
+  return {
+    ...session,
+    ...(savedWindows ? { windows: Object.fromEntries(Object.entries(session.windows!).map(([id, w]) => [id, withoutTabsShown(w)])) } : {}),
+    ...(closedWindows ? { closedWindows: session.closedWindows!.map((c) => (c.window ? { ...c, window: withoutTabsShown(c.window) } : c)) } : {}),
+  };
 };
 
 export const linuxSessionShape = (saved: HydrateData): HydrateData => {
   const settled = settledSession(saved);
-  return withAutoHideTabsSetting(withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled));
+  return withoutWindowTabsShown(withAutoHideTabsSetting(withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled)));
 };
 
 const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-MAX_CLOSED_WINDOWS);
@@ -187,7 +204,7 @@ export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | 
   }));
   const activeTab = tabs[Math.max(0, seeds.findIndex((seed) => seed.active))]!;
   const browserWindow: BrowserWindow = {
-    id: windowId, profileId, kind: "main", tabIds: tabs.map((tab) => tab.id), activeTabIds: { [profileId]: activeTab.id }, sidebarOpen: !saved?.settings?.autoHideTabs, frame: null, createdAt: now,
+    id: windowId, profileId, kind: "main", tabIds: tabs.map((tab) => tab.id), activeTabIds: { [profileId]: activeTab.id }, frame: null, createdAt: now,
   };
   return {
     ...saved, profiles, profileOrder: [...new Set([...(saved?.profileOrder ?? []), profileId])],

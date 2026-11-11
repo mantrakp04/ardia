@@ -294,6 +294,7 @@ function refreshSendTargets() {
 }
 
 export const onTabsReceived = engine.onTabsReceived;
+export const takeSnapshotWrites = engine.takeSnapshotWrites;
 
 export function sendTargets(profileId: string): SendTarget[] {
   return leading() ? engine.sendTargets(profileId) : relayedTargets[profileId] ?? [];

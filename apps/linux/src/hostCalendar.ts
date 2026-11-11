@@ -214,10 +214,11 @@ export function createLinuxCalendar(host: ArdiaHost): LinuxCalendar {
     message: () => message,
     lastRefresh: () => report,
     async requestAccess() {
-      if (!supported) return false;
+      const started = Date.now();
+      if (!supported) return { granted: false, status, error: null, responsible: "self", ms: 0 };
       const reply = await invoke<{ granted?: unknown; status?: unknown; message?: unknown }>("requestAccess", []).catch(fail);
       adopt(reply?.status, reply?.message);
-      return reply?.granted === true;
+      return { granted: reply?.granted === true, status, error: null, responsible: "self", ms: Date.now() - started };
     },
     async calendars() {
       if (status !== "fullAccess") return [];

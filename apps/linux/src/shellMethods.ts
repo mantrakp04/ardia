@@ -72,7 +72,10 @@ const unavailable = (feature: string) => (..._args: unknown[]): Promise<never> =
 
 export const fetchBangList: (etag: string | null) => Promise<BangListReply> = unavailable("Bang list fetching");
 
+export const LINUX_WINDOW_CORNER_RADIUS = 19;
+
 const LINUX_SHELL_METHODS: Record<string, ShellMethod> = {
+  windowCornerRadius: () => LINUX_WINDOW_CORNER_RADIUS,
   watchSidebarEdge: (id: string, on: boolean, hold = 0, right = false) => {
     watchSidebarEdge(id, on, hold, right);
     return Promise.resolve();

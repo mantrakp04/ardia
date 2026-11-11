@@ -24,6 +24,9 @@ Hosted CI never runs `gclient sync`, GN or a Chromium build.
   `apps/browser/assets/offline-game` and `apps/browser/assets/offline-game-pipeline`, because the Linux build packs
   the offline game too (`game-resource.sh`). Uncommitted changes in any of those paths stop the fetcher and the
   publisher.
+  The key doesn't cover `packages/ardiacore/ios/page_script.js`, which the Linux layer compiles into the engine
+  (`engine/ardiacore-linux/apply.sh`, `page_script.h`): a commit that changes only that file keeps its key while the
+  published engine still carries the old script. Check it after every upstream sync, and rebuild if it changed.
 - **Archive.** `ArdiaCore-<key12>-linux-x64.tar.xz` holds one directory, `ardiacore-linux-x64/`. It contains the
   allowlisted runtime files and a `manifest.json` (format 2): engine key, source commit, Chromium version, `args.gn` hash,
   chrome hash and build ID, and build and packaging times.

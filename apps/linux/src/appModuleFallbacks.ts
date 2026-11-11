@@ -67,7 +67,7 @@ const MODULE_FALLBACKS: Record<string, Record<string, Fallback>> = {
   ArdiaTranslate: {
     userLanguages: () => [],
     languageName: (identifier) => identifier,
-    ...Object.fromEntries(["detect", "status", "supportedLanguages", "prepare", "translate", "translateBlocks"].map((method) => [method, refuse("Translation")])),
+    ...Object.fromEntries(["detect", "status", "supportedLanguages", "prepare", "open", "translate", "translateBlocks", "cancel"].map((method) => [method, refuse("Translation")])),
   },
   ArdiaInlineCompletion: { complete: refuse("Inline completion") },
   ArdiaDockSelection: { iconTheme: refuse("Icon themes"), iconAccent: linuxIconAccent },

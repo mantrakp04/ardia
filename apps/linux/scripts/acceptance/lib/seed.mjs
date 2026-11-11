@@ -28,7 +28,7 @@ export function sessionSeed({ windows = [{ id: "main", urls: [""] }], settings =
       const id = tabIds[tabIndex];
       seed.tabs[id] = { id, windowId: window.id, profileId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "idle" }, openerId: null, createdAt: 1 + tabIndex, lastActiveAt: 1 + tabIndex };
     });
-    seed.windows[window.id] = { id: window.id, profileId, kind: "main", tabIds, activeTabIds: { [profileId]: tabIds[tabIds.length - 1] }, sidebarOpen: true, frame: window.frame ?? [24 + windowIndex * 40, 24 + windowIndex * 40, 1280, 800], createdAt: 1 + windowIndex };
+    seed.windows[window.id] = { id: window.id, profileId, kind: "main", tabIds, activeTabIds: { [profileId]: tabIds[tabIds.length - 1] }, frame: window.frame ?? [24 + windowIndex * 40, 24 + windowIndex * 40, 1280, 800], createdAt: 1 + windowIndex };
     seed.windowOrder.push(window.id);
   });
   return seed;

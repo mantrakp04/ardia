@@ -56,12 +56,23 @@ test("a session saved before auto-hide tabs existed starts it on only when every
   assert.equal(linuxSessionShape(chosen).settings.autoHideTabs, false);
 });
 
-test("a new Linux window opens with its tabs as the auto-hide tabs setting says", () => {
+test("a new Linux window keeps no copy of whether its tabs show, so the auto-hide tabs setting decides", () => {
   const saved = browserSession();
-  saved.settings.autoHideTabs = true;
-  assert.equal(initialLinuxSession(host("window-2"), saved).windows["window-2"].sidebarOpen, false);
-  saved.settings.autoHideTabs = false;
-  assert.equal(initialLinuxSession(host("window-2"), saved).windows["window-2"].sidebarOpen, true);
+  for (const autoHideTabs of [true, false]) {
+    saved.settings.autoHideTabs = autoHideTabs;
+    assert.equal(Object.hasOwn(initialLinuxSession(host("window-2"), saved).windows["window-2"], "sidebarOpen"), false);
+  }
+});
+
+test("saved and closed windows lose their per-window tabs-shown copy once the setting has read it", () => {
+  const saved = browserSession();
+  const windowIds = Object.keys(saved.windows);
+  const { autoHideTabs: _, ...olderSettings } = saved.settings;
+  const closedWindows = [{ kind: "window", id: "cw", window: { profileId: "default", sidebarOpen: false, frame: null }, tabs: [], groups: [], closedAt: 1 }];
+  const shaped = linuxSessionShape({ ...saved, settings: olderSettings, closedWindows, windows: Object.fromEntries(windowIds.map((id) => [id, { ...saved.windows[id], sidebarOpen: false }])) });
+  assert.equal(shaped.settings.autoHideTabs, true);
+  assert.ok(Object.values(shaped.windows).every((w) => !Object.hasOwn(w, "sidebarOpen")));
+  assert.equal(Object.hasOwn(shaped.closedWindows[0].window, "sidebarOpen"), false);
 });
 
 test("legacy tab fields left beside current ones never override them, so a saved session settles", async () => {

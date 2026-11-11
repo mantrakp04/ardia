@@ -63,6 +63,11 @@ export const LINUX_WORDING: readonly Wording[] = [
     replacements: [
       ["Sent to ardia.dev with a random ID made on this Mac, and kept", "Sent to ardia.dev with a random ID made on this computer, and kept"],
       [`keptOnThisMac: "Kept on this Mac"`, `keptOnThisMac: "Kept on this computer"`],
+      ["switched Auto-hide tabs on or off on this Mac,", "switched Auto-hide tabs on or off on this computer,"],
+      [
+        "whether macOS returned an error, whether Ardia or the app that opened it was asked, whether System Settings opened, and how long it took.",
+        "whether Evolution Data Server returned an error, and how long it took.",
+      ],
       ["app version, update channel, macOS version, chip,", "app version, update channel, operating system version, chip,"],
       [
         `dailyCountShort: "Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID."`,
