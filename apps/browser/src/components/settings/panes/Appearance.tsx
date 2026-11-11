@@ -5,7 +5,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -168,6 +168,7 @@ function PageFramePicker() {
     <>
       <SectionHeader title="Page Frame" />
       <Group>
+        <SettingToggle anchor="appearance.borderlessMode" />
         <Row anchor="appearance.pageFrame">
           <Box row gap="m" style={FRAME_CONTROL}>
             <View style={{ width: FRAME_SLIDER_WIDTH }}>

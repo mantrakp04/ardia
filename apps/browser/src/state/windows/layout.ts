@@ -3,7 +3,7 @@ import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import type { LightsPlace } from "../../platform/windows";
-import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { DEFAULT_SIDEBAR_WIDTH, pageFrameInset } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
 import { useSettingValue } from "../tabs/tabWatch";
@@ -40,13 +40,11 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
-  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);
+  const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, pageFrameInset(s.settings));
   return sidebarLightsCenter(sidebarSideOf(s, w.id) === "right", width, open ? 0 : width, 0, base);
 }
 
-const pageFrameSetting = (settings: BrowserState["settings"]) => settings.pageFrame;
-
-export const usePageFrameInset = (): number => useSettingValue(pageFrameSetting);
+export const usePageFrameInset = (): number => useSettingValue(pageFrameInset);
 
 export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar), usePageFrameInset());
 

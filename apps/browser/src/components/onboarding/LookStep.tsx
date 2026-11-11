@@ -15,7 +15,7 @@ import { OptionCard } from "./OptionCard";
 import { OptionRow } from "./Parts";
 import { Slider } from "../settings/ThemeControls";
 import { Text } from "../ui";
-import { PAGE_FRAME } from "../../lib/windowLayout";
+import { PAGE_FRAME, pageFrameInset } from "../../lib/windowLayout";
 
 const LOOK_KEYS = keysOf("look");
 
@@ -53,6 +53,7 @@ const framePicked = (frame: number) => (frame === PAGE_FRAME.default ? [] : fram
 export function LookStep() {
   const { id, focus } = useQuestion("look");
   const { values, mock } = useScreen(LOOK_KEYS);
+  const frame = pageFrameInset(values);
   const windowId = useOnboarding((s) => s.windowId) ?? "";
   const appIcon = useOnboarding((s) => s.extras.appIcon);
   const color = useWindowProfileValue(windowId, (p) => p?.color);
@@ -113,18 +114,18 @@ export function LookStep() {
         id={id}
         title="How much frame?"
         subtitle="The room between the page and the window. Change it any time in Settings › Appearance."
-        patch={{ pageFrame: values.pageFrame }}
-        picked={framePicked(values.pageFrame)}
+        patch={{ pageFrame: values.pageFrame, borderlessMode: values.borderlessMode }}
+        picked={framePicked(frame)}
         preview={preview}
       >
         <View style={{ gap: space.ml }}>
           {FRAME_CHOICES.map((c) => (
-            <OptionCard key={c.value} control="radio" title={c.title} subtitle={c.subtitle} selected={values.pageFrame === c.value} onPress={() => change({ pageFrame: c.value }, true)} />
+            <OptionCard key={c.value} control="radio" title={c.title} subtitle={c.subtitle} selected={frame === c.value} onPress={() => change({ pageFrame: c.value, borderlessMode: false }, true)} />
           ))}
           <View style={{ marginTop: space.m }}>
-            <Slider stacked label="Thickness" value={values.pageFrame / PAGE_FRAME.max} onChange={(v) => change({ pageFrame: Math.round(v * PAGE_FRAME.max) }, true)}>
+            <Slider stacked label="Thickness" value={frame / PAGE_FRAME.max} onChange={(v) => change({ pageFrame: Math.round(v * PAGE_FRAME.max), borderlessMode: false }, true)}>
               <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
-                {`${values.pageFrame} pt`}
+                {`${frame} pt`}
               </Text>
             </Slider>
           </View>

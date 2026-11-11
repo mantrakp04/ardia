@@ -10,7 +10,7 @@ import { tab } from "./content";
 import { DEMOS } from "./demos";
 import { Pill } from "./Floating";
 import { CHIP, CRUMB_X, FIELD, fill, geo, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
-import { CARD_INSET, pageFrameOf } from "../../../lib/windowLayout";
+import { CARD_INSET, pageFrameInset, pageFrameOf } from "../../../lib/windowLayout";
 import { windowCornerRadius } from "../../../state/windows/layout";
 import { font, radius as radii } from "../../ui/tokens";
 import { Backdrop, Card, Crumb, FieldPlate, Glyph, Label, Lights, NavIcons, Rows, TabRow, ToolbarBand, TopTabPlate, WindowFrame } from "./Kit";
@@ -33,7 +33,7 @@ function shapeOf(settings: Partial<Settings>): Shape {
     addressInSidebar: !top && (settings.addressBar ?? DEFAULT_SETTINGS.addressBar) === "sidebar",
     appearance: settings.appearance ?? DEFAULT_SETTINGS.appearance,
     siteColor: settings.extendWebsiteColor ?? DEFAULT_SETTINGS.extendWebsiteColor,
-    frame: settings.pageFrame ?? DEFAULT_SETTINGS.pageFrame,
+    frame: pageFrameInset({ pageFrame: settings.pageFrame ?? DEFAULT_SETTINGS.pageFrame, borderlessMode: settings.borderlessMode }),
   };
 }
 

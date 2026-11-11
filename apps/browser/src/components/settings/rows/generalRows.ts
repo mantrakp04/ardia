@@ -354,10 +354,16 @@ export const generalRows = {
     {
       section: "Page Frame",
       rows: {
+        borderlessMode: {
+          title: "Borderless mode",
+          description: "Remove the page frame and rounded corners. Turn off to restore your frame thickness.",
+          keywords: ["border", "borderless", "edge to edge", "no borders", "frameless", "full bleed"],
+        },
         pageFrame: {
           title: "Frame around the page",
           description: "The room between the page and the window's edges, the sidebar and split panes. At 0 the page goes edge to edge with square corners; 9 pt is the default.",
           keywords: ["border", "borderless", "edge to edge", "margin", "inset", "padding", "rounded corners", "corner radius", "frame", "gap", "full bleed", "arc", "compact"],
+          shown: (s) => !s.borderlessMode,
         },
       },
     },

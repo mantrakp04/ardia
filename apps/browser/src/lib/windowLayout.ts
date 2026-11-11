@@ -9,6 +9,8 @@ const MIN_PEEK_GAP = 4;
 
 export const validPageFrame = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= PAGE_FRAME.min && v <= PAGE_FRAME.max;
 
+export const pageFrameInset = (settings: { pageFrame: number; borderlessMode?: boolean }): number => settings.borderlessMode ? 0 : settings.pageFrame;
+
 export type PageFrame = {
   inset: number;
   radius: number;
@@ -21,7 +23,7 @@ export function pageFrameOf(inset: number, windowRadius: number, peekRadius: num
   const peekGap = Math.max(MIN_PEEK_GAP, inset);
   return {
     inset,
-    radius,
+    radius: inset === 0 ? 0 : radius,
     splitGap: Math.max(inset, SPLIT_MIN_GAP),
     peek: { left: peekGap, top: peekGap, bottom: peekGap, radius: Math.min(peekRadius, radius + inset - peekGap) },
   };

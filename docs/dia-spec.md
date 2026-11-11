@@ -91,6 +91,7 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
   9 pt from the card. Dia's own inset is 6 with the card at the sidebar's width. The traffic lights
   and the sidebar's header row follow the toolbar down to y 30 (`LIGHTS_CENTER`). One constant: `CARD_INSET` in
   `apps/browser/src/lib/windowLayout.ts`. Radius stays 10.
+- Settings › Appearance › Page Frame also has a `borderlessMode` switch. It overrides the effective inset to 0, removes the page's own rounded corners, and leaves `pageFrame` saved so turning it off restores the chosen thickness. The setting is synced and available in config files. Split dividers retain a 2 pt gap, and the floating sidebar keeps its 4 pt minimum inset. Native early-window layouts include the mode in their cache key.
 - The frame is a setting (issue #66, 2026-11-07): `pageFrame`, 0–12 pt, default `CARD_INSET` (9), so the default look
   is the one above. Settings › Appearance › Page Frame and onboarding's "How much frame?" (`pageFrameOf` in
   `windowLayout.ts`, `components/window/cardFrame.ts`). The inset applies at the window's edges, below the top strip's
