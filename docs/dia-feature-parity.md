@@ -716,7 +716,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Developer Tools / F12 / View Source / Console / Inspect | ⌥⌘I, F12 / ⌥⌘U / ⌥⌘J / ⌥⌘C | same | same | ✓ ✓ ✓ ✓ (and in DevTools) | ✅ |
 | Caret browsing | — | F7 | F7 (hidden) | ✓ ✓ ✓ ✓ | ✅ new |
 | Back / Forward | ⌘[ / ⌘], ⌘← / ⌘→ | same | same (⌘← / ⌘→ hidden; a text field keeps them) | ○ ○ ○/– ○/– (no history) | ✅ ⌘←/→ new |
-| Next / Previous Tab | ⇧⌘] / ⇧⌘[, ⌥⌘→ / ⌥⌘←, ⌥⌘↓ / ⌥⌘↑ | ⇧⌘] / ⇧⌘[, ⌥⌘→ / ⌥⌘←, ⌃⇟ / ⌃⇞ | all of them (alternates hidden); whatever is bound to them is reserved, so it wins over the page as ⌘W does, except a ⌘ or ⇧⌘ arrow binding, which a text field keeps for the caret | ✓ ✓ ✓ ✓; selects: checked | ✅ |
+| Next / Previous Tab | ⇧⌘] / ⇧⌘[, ⌥⌘↓ / ⌥⌘↑ | ⇧⌘] / ⇧⌘[, ⌥⌘→ / ⌥⌘←, ⌃⇟ / ⌃⇞ | all of them but Chrome's ⌥⌘→ / ⌥⌘←, which are Dia's Next / Previous Profile (alternates hidden); whatever is bound to them is reserved, so it wins over the page as ⌘W does, except a ⌘ or ⇧⌘ arrow binding, which a text field keeps for the caret | ✓ ✓ ✓ ✓; selects: checked | ✅ |
 | Tab Switcher | ⌃Tab / ⌃⇧Tab | ⌃Tab / ⌃⇧Tab = next / previous tab | Dia's switcher | ✓ ✓ ✓ ✓ | ✅ |
 | Move Tab Down / Up | — | ⌃⇧⇟ / ⌃⇧⇞ | same (hidden) | ✓ ✓ ✓ ✓ | ✅ new |
 | Select Tab 1–8 / Last Tab | ⌘1–⌘8 / ⌘9 (sidebar order) | same (tab strip) | the sidebar's rows: pinned tiles, pinned groups, then the list (a split view is one row) | ✓ ✓ ✓ ✓; selects: checked in each focus | ✅ fixed |
@@ -727,6 +727,7 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Show History / Clear Browsing Data | ⌘Y / ⇧⌘⌫ | same | same | ✓ ✓ –/✓ ✓ (a page's field keeps ⇧⌘⌫, as in Chrome) | ✅ |
 | Minimize / Minimize All | ⌘M / ⌥⌘M | ⌘M | same | n/t ✓ n/t n/t | ✅ |
 | Downloads | ⇧⌘J | ⇧⌘J, ⌥⌘L | ⇧⌘J (+ hidden ⌥⌘L) | ✓ ✓ ✓ ✓ | ✅ |
+| Next / Previous Profile | ⌥⌘→ / ⌥⌘← (Dia's Settings › Shortcuts; Arc's next / previous Space) | — (⌥⌘→ / ⌥⌘← are its Next / Previous Tab) | ⌥⌘→ / ⌥⌘← (Profiles menu), reserved like Next Tab so they win over the page and DevTools; until 2026-11-10 they were Chrome's Next / Previous Tab and the profile commands had no key | ✓ ✓ ✓ ✓; switches: checked | ✅ |
 | Switch to Profile 1–9 / profile menu | ⌃1–⌃9 / profile switcher | ⇧⌘M profile menu | ⌃1–⌃9, ⇧⌘M (hidden) | ✓ ✓ ✓ ✓; switches: checked | ✅ ⇧⌘M new |
 | Report a Problem | — | ⌥⇧⌘I | ⌥⇧⌘I (Help menu) | ✓ ✓ ✓ ✓ | ✅ new |
 | Chat / Focus Chat / bar → Chat | ⌘E / ⌃⌘E / ⌃⌘↩ | — | — (no AI; ⌘E is Use Selection for Find) | — | ⏸ |

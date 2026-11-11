@@ -14,6 +14,7 @@ NSSet<NSString *> *ReservedIdentifiers() {
   static NSSet<NSString *> *reserved = [NSSet setWithArray:@[
     @"ardia.command.closeTab", @"ardia.shortcut.std:closeWindow:", @"ardia.command.newIncognitoWindow", @"ardia.command.newTab",
     @"ardia.command.newWindow", @"ardia.command.reopenClosedTab", @"ardia.command.nextTab", @"ardia.command.previousTab",
+    @"ardia.command.nextProfile", @"ardia.command.previousProfile",
     @"ardia.command.tabSwitcher", kQuitIdentifier, @"ardia.command.copyUrl", @"ardia.command.devTools", @"ardia.command.toggleDevTools",
     @"ardia.command.searchTabs"
   ]];
