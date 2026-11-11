@@ -57,6 +57,10 @@ void Call(const char* label, const char* verb, const std::string& args) {
                      &LogReply, const_cast<char*>(label));
 }
 
+void EngineCall(const char* label, const char* name, const char* args) {
+  g_engine->engineCall(name, "", args, &LogReply, const_cast<char*>(label));
+}
+
 std::string ShowArgs(const char* key) {
   RECT client = {};
   ::GetClientRect(g_window, &client);
@@ -103,6 +107,11 @@ void Step() {
       Call("reply close two", "tab.close", "{\"key\":\"two\"}");
       break;
     case 5:
+      EngineCall("reply history", "ac_history_query",
+                 "{\"maxUrls\":10,\"maxVisits\":3}");
+      EngineCall("reply bookmarks", "ac_bookmarks_tree", "{}");
+      EngineCall("reply downloads", "ac_downloads_settings", "{}");
+      EngineCall("reply unknown", "ac_no_such_call", "{}");
       Call("reply list", "tabs.list", "{}");
       Call("reply hide one", "tab.show", "{\"key\":\"one\",\"visible\":false}");
       break;
