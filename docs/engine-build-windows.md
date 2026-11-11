@@ -134,7 +134,7 @@ On the Windows tree (2026-11-10): `pins` and `guard` pass, 356 patches applied w
 `04-series.sh` applies every `chromium` line of `engine/patches/series`, minus the `skip` lines of
 `scripts/windows/engine/series-win`, then that file's own `chromium` lines (patches in `scripts/windows/engine/patches/`),
 strictly with `git apply` and else with `patch`'s fuzz. It records a failure and goes on, and writes
-`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and eleven Windows-only patches (the table).
+`~/chromium-build-win/logs/series-win.tsv`. `series-win` today: one skip and twelve Windows-only patches (the table).
 The layers:
 
 - `engine/chromium/apply.sh` runs as is. Its `chrome/browser/ardia` (the `ac_*` C API) then builds on Windows from a
@@ -236,6 +236,7 @@ a Windows build needs.
 | `chromium-win-install-names.patch` | applies (Windows only, `series-win`) | Windows only | The install is named Ardia (`%LOCALAPPDATA%\Ardia\User Data`), and `ARDIA_DATA_DIR` moves Chromium's data |
 | `chromium-win-hosted-page-fills-window.patch` | applies (Windows only, `series-win`) | Windows only | A hosted window has no rounded page frame or insets: the page fills it |
 | `chromium-win-hosted-no-browser-shortcuts.patch` | applies (Windows only, `series-win`) | Windows only | Chrome's own accelerators are off in hosted windows, so Ctrl+L and the rest reach the app |
+| `chromium-win-relaunch-to-app.patch` | applies (Windows only, `series-win`) | Windows only | A second launch's command line goes to `//ardia/win` instead of Chrome's startup, which would open nothing under `--no-startup-window` |
 
 Every patch that applies does so strictly (`git apply`, no fuzz). 72 of the Mac series' 73 apply; the one left out is a
 Mac-only keychain patch. Four Windows-only patches follow them (`series-win`). The file classes above come from paths, so a

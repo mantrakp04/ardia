@@ -17,8 +17,11 @@
 #include "ardia/win/host.h"
 #include "base/base_switches.h"
 #include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/values.h"
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
@@ -26,8 +29,10 @@
 #include "chrome/common/chrome_switches.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
+#include "components/url_formatter/url_fixer.h"
 #include "content/public/common/content_switches.h"
 #include "media/base/media_switches.h"
+#include "url/gurl.h"
 
 namespace base {
 extern bool (*g_ardia_pre_translate_message)(const MSG& msg);
@@ -281,6 +286,26 @@ bool KeepsWindowWithoutTabs(const BrowserWindowInterface* browser) {
   return Host::Get()->Keeps(browser);
 }
 
+bool Relaunched(const base::CommandLine& command_line,
+                const base::FilePath& cur_dir) {
+  base::ListValue urls;
+  for (const base::CommandLine::StringType& argument :
+       command_line.GetArgs()) {
+    GURL url(base::WideToUTF8(argument));
+    if (!url.is_valid()) {
+      url = url_formatter::FixupRelativeFile(cur_dir,
+                                             base::FilePath(argument));
+    }
+    if (url.is_valid() && (url.SchemeIsHTTPOrHTTPS() || url.SchemeIsFile())) {
+      urls.Append(url.spec());
+    }
+  }
+  base::DictValue payload;
+  payload.Set("urls", std::move(urls));
+  Emit("relaunch", std::move(payload));
+  return true;
+}
+
 }
 
 void BeforeChromeMain() {
@@ -293,6 +318,7 @@ void BeforeChromeMain() {
   g_ardia_win_hosts_normal_windows = true;
   g_ardia_win_frame_view = &CreateHostedFrameView;
   g_ardia_win_add_main_parts = &AddMainParts;
+  g_ardia_win_relaunched = &Relaunched;
   g_ardia_keeps_window_without_tabs = &KeepsWindowWithoutTabs;
 }
 

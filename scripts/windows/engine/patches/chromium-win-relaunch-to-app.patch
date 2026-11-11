@@ -1,0 +1,44 @@
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -6,6 +6,12 @@
+ 
+ #include <stddef.h>
+ 
++#include "build/build_config.h"
++
++#if BUILDFLAG(IS_WIN)
++#include "ardia/win/hooks.h"  // nogncheck
++#endif
++
+ #include <optional>
+ #include <set>
+ #include <string>
+@@ -1578,12 +1584,28 @@
+       command_line, cur_dir, chrome::startup::IsProcessStartup::kNo,
+       {profile, mode}, last_opened_profiles);
+ }
++
++#if BUILDFLAG(IS_WIN)
++// Ardia: set by //ardia/win when the browser process runs the app.
++bool (*g_ardia_win_relaunched)(const base::CommandLine& command_line,
++                               const base::FilePath& cur_dir) = nullptr;
++#endif
+ 
+ // static
+ void StartupBrowserCreator::ProcessCommandLineAlreadyRunning(
+     const base::CommandLine& command_line,
+     const base::FilePath& cur_dir,
+     const StartupProfilePathInfo& profile_path_info) {
++#if BUILDFLAG(IS_WIN)
++  // Ardia: a second launch goes to the app, which opens its links in its own
++  // tabs or brings its window forward. Chrome would open nothing, because
++  // the app's launches carry --no-startup-window.
++  if (g_ardia_win_relaunched &&
++      g_ardia_win_relaunched(command_line, cur_dir)) {
++    return;
++  }
++#endif
++
+   if (profile_path_info.mode == StartupProfileMode::kError) {
+     return;
+   }

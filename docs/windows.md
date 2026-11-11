@@ -178,6 +178,14 @@ is plain Chromium.
   The page window has no system backdrop: Chromium asks for Mica on its top-level windows, and Windows paints that
   into the holes. A press in the page counts
   as a press outside every popover of its window.
+- A second launch reaches the running app: Chromium's process singleton hands it the command line, and
+  `chromium-win-relaunch-to-app.patch` gives that to `//ardia/win`, which sends the topic `relaunch` with the web and
+  file addresses on it. The app treats them as links from another app (`onOpenURLs`: a Little Ardia window or a tab,
+  as Settings says) and a launch with none as `reopen` (the last window comes forward).
+- A page that goes full screen takes its window full screen (`setPageFullScreen`, which puts the window back as it
+  was when the page leaves), and nothing is cut out of the page while it is.
+- A tab restored from the last session, or duplicated, loads its address: the Windows engine keeps no saved page
+  state yet, so only tabs the engine itself offered are adopted.
 - Chromium's own UI still shows where the app has none on Windows yet: the page's right-click menu, JavaScript
   dialogs, the status bubble for a hovered link, and popup windows a page opens.
 - CI takes its engine from a GitHub release: `scripts/windows/engine/prebuilt.json` names the release and each

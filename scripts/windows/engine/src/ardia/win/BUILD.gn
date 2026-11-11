@@ -44,6 +44,7 @@ source_set("win") {
     "//components/policy/core/common",
     "//components/prefs",
     "//components/sessions",
+    "//components/url_formatter",
     "//components/version_info",
     "//components/web_modal",
     "//components/zoom",
