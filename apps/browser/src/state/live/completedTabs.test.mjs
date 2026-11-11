@@ -176,3 +176,13 @@ test("a merged pull request's tab you moved into a pinned group stays there, on 
   assert.ok(Object.values(S().groups).some((g) => g.pinned && g.tabIds.includes(tab)));
   assert.equal(S().tabs[tab].url, "https://elsewhere.example/", "the page you went to isn't reset to the pull request");
 });
+
+test("a merged pull request's tab that's playing sound stays until it stops", async () => {
+  const { id, tab, merging } = await mergeWithTabOpen(false);
+  const playing = (on) => useBrowser.setState((s) => ({ live: { ...s.live, [tab]: { ...s.live[tab], playingAudio: on } } }));
+  playing(true);
+  finishCompleting(id, [merging.id]);
+  assert.ok(S().tabs[tab], "closing it would stop the sound");
+  playing(false);
+  assert.equal(S().tabs[tab], undefined);
+});
