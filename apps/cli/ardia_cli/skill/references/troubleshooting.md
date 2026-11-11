@@ -62,7 +62,8 @@ line succeeded. On `stale_ref`, the answer has the new refs.
 Ardia's policy doesn't allow the browser methods behind cookies, `state`, `set …`, `network route`, `upload`,
 `download`, `highlight`, `clipboard`, `trace`, `profiler`, `record` and `stream`. They fail with exit 1 and name the
 refused method (`code: "policy_refused"` in `--json`). Use `storage local|session`, `eval`, or ask the user to do that
-step. Not here at all: `connect`, `install`, `upgrade`, `doctor`, `dashboard`, `chat`, `mcp`, `profiles`,
+step. A refusal that says "which Ardia allows for the ardia command, but not …" is about the tab or address, not the
+command: it gives the reason (`data.reason`) and, for a tab, what Ardia has there. Pick another tab or `open` a web page. Not here at all: `connect`, `install`, `upgrade`, `doctor`, `dashboard`, `chat`, `mcp`, `profiles`,
 `confirm`/`deny`, iOS, cloud providers and launch flags (`--headed`, `--profile`, `--proxy`, …).
 
 ## Tabs and sessions

@@ -911,10 +911,10 @@ class DragInterception:
         self.cleaned = False
         try:
             await self.page.send("Input.setInterceptDrags", {"enabled": True})
-        except Gated:
+        except Gated as error:
             self.page.drag_intercepted = None
             self.cleaned = True
-            raise Gated("Input.setInterceptDrags", "drag", DRAG_GATED) from None
+            raise error.during("drag", DRAG_GATED) from None
         except BaseException:
             await self.finish()
             raise

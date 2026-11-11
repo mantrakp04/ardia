@@ -185,6 +185,13 @@ logger=""
 kill -KILL "$pid" 2>/dev/null || true
 pid=""
 node "$root/packages/ardiacore/scripts/popup-check.mjs" "$app" "$work/popup-check" || status=1
+cli_tarball="$dist/ardia-cli-$version-macos-arm64.tar.gz"
+if [ -f "$cli_tarball" ]; then
+  mkdir -p "$work/cli" && tar -xzf "$cli_tarball" -C "$work/cli"
+  ARDIA_CLI_HOME="$work/cli-home" "$root/apps/cli/scripts/token-smoke.sh" "$app" "$(ls "$work"/cli/*/bin/ardia)" || status=1
+elif [ -z "${SMOKE_APP:-}" ]; then
+  check "the release has $(basename "$cli_tarball")" 0
+fi
 codesign --verify --deep --strict "$app" && echo "PASS  bundle still sealed after running" || { echo "FAIL  running the app changed its bundle"; status=1; }
 "$here/feed.sh" "$version" --before-publish "$app" || status=1
 exit $status
