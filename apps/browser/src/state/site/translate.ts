@@ -112,13 +112,15 @@ async function detect(tabId: string) {
   setSource(tabId, source);
 }
 
-async function translatePassage(source: string, target: string, [, pieces]: Passage, token: string, progress: Progress, live: () => boolean): Promise<Translated[]> {
+type BlockTranslator = Pick<NonNullable<typeof translation>, "translateBlocks">;
+
+export async function translatePassage(model: BlockTranslator, source: string, target: string, [, pieces]: Passage, token: string, progress: { unlinked: number }, live: () => boolean): Promise<Translated[]> {
   const texts = pieces.map(([, text]) => text);
-  const [parts] = await translation!.translateBlocks(source, target, [texts], token);
+  const [parts] = await model.translateBlocks(source, target, [texts], token);
   if (parts && parts.length === pieces.length) return pieces.map(([id], j) => [id, parts[j] ?? ""]);
   if (!live()) return pieces.map(([id]) => [id, null]);
   if (pieces.length > 1) progress.unlinked++;
-  const single = await translation!.translateBlocks(source, target, texts.map((text) => [text]), token);
+  const single = await model.translateBlocks(source, target, texts.map((text) => [text]), token);
   if (live() && single.every((part) => !part)) throw new Error("the Mac's translation model didn't answer");
   return pieces.map(([id], i) => [id, single[i]?.[0] ?? null]);
 }
@@ -152,7 +154,7 @@ async function drain(tabId: string, token: string, onProgress?: (done: number, t
       holds: () => holds(tabId, token) && !!webviews.get(tabId),
       released: released.promise,
       next: (max) => page().evaluate<PageBatch>(translatorCall("next", token, max, BATCH_CHARS)),
-      translate: (passage) => translatePassage(source, target, passage, token, progress, () => holds(tabId, token)),
+      translate: (passage) => translatePassage(translation!, source, target, passage, token, progress, () => holds(tabId, token)),
       apply: (results) => page().evaluate(translatorCall("apply", token, results)),
       onStage: (stage) => atStage(tabId, stage),
       onApplied: (total) => {
@@ -162,7 +164,7 @@ async function drain(tabId: string, token: string, onProgress?: (done: number, t
     });
   } finally {
     released.stop();
-    void translation?.cancel(token).catch(() => {});
+    if (!holds(tabId, token)) void translation?.cancel(token).catch(() => {});
   }
 }
 

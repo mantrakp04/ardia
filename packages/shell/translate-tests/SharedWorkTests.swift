@@ -59,6 +59,27 @@ final class SharedWorkTests: XCTestCase {
     XCTAssertEqual(work.count, 0)
   }
 
+  func testAPassageThatRegistersAfterItsOwnerWasCancelledNeverStartsOrJoinsOtherWork() async {
+    let work = SharedWork<String, String>()
+    let gate = Gate()
+    let start: @MainActor () async -> String? = {
+      await gate.wait()
+      return Task.isCancelled ? nil : "done"
+    }
+    async let live = work.value(for: "shared", owner: "live", start: start)
+    await settle()
+    work.cancel(owner: "dead")
+    let late = await work.value(for: "own", owner: "dead", start: start)
+    let joined = await work.value(for: "shared", owner: "dead", start: start)
+    XCTAssertNil(late)
+    XCTAssertNil(joined)
+    XCTAssertEqual(gate.starts, 1)
+    work.cancel(owner: "dead")
+    gate.open()
+    let kept = await live
+    XCTAssertEqual(kept, "done")
+  }
+
   func testACancelledDispatchStopsSendingRuns() async {
     var sent = 0
     let long = String(repeating: "A full sentence sits here. ", count: 200)

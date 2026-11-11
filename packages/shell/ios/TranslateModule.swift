@@ -46,7 +46,7 @@ public class TranslateModule: Module {
     }
 
     AsyncFunction("translateBlocks") { (source: String, target: String, blocks: [[String]], owner: String) async -> [[String]?] in
-      guard #available(macOS 26.4, *) else { return blocks.map { _ in nil } }
+      guard #available(macOS 26.0, *) else { return blocks.map { _ in nil } }
       return await TranslationSessions.translateBlocks(source: source, target: target, owner: owner, blocks)
     }
 

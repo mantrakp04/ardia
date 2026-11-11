@@ -73,6 +73,22 @@ final class PassageDispatchTests: XCTestCase {
     XCTAssertNil(parts)
   }
 
+  func testWithoutAttributedTranslationAStyledPassageFailsSoItsPiecesGoOneByOne() async {
+    let model = Model()
+    let parts = await PassageDispatch.translate(["Read the ", "notes"], plain: { await model.plain($0) }, linked: nil)
+    XCTAssertNil(parts)
+    XCTAssertTrue(model.plainCalls.isEmpty)
+  }
+
+  func testWithoutAttributedTranslationALongPieceStillGoesInBoundedPlainRuns() async {
+    let model = Model()
+    let prose = String(repeating: "word another longer word without any stop ", count: 450)
+    let parts = await PassageDispatch.translate([prose], plain: { await model.plain($0) }, linked: nil)
+    XCTAssertEqual(parts, [prose.uppercased()])
+    XCTAssertLessThanOrEqual(model.largestRequest, 800)
+    XCTAssertTrue(model.linkedCalls.isEmpty)
+  }
+
   func testGroupsCoverEveryPieceInOrder() {
     XCTAssertEqual(PassageDispatch.groups(["aaaa", "bb", "cccccc", "d"], limit: 6), [0..<2, 2..<3, 3..<4])
     XCTAssertEqual(PassageDispatch.groups(["a"], limit: 6), [0..<1])

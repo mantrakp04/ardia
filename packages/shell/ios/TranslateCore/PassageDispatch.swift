@@ -6,10 +6,11 @@ enum PassageDispatch {
     _ pieces: [String],
     limit: Int = SentenceRuns.defaultLimit,
     plain: (String) async -> String?,
-    linked: ([String]) async -> [String]?
+    linked: (([String]) async -> [String]?)?
   ) async -> [String]? {
     guard !pieces.isEmpty else { return [] }
     if pieces.count == 1 { return await runs(pieces[0], limit: limit, plain).map { [$0] } }
+    guard let linked else { return nil }
     guard pieces.reduce(0, { $0 + $1.count }) > limit else { return await linked(pieces) }
     var out: [String] = []
     for group in groups(pieces, limit: limit) {

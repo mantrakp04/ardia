@@ -37,7 +37,6 @@ enum TranslationSessions {
     return out
   }
 
-  @available(macOS 26.4, *)
   static func translateBlocks(source: String, target: String, owner: String, _ blocks: [[String]]) async -> [[String]?] {
     let keys = blocks.map { PassageKey(source: source, target: target, pieces: $0) }
     var found: [PassageKey: [String]] = [:]
@@ -48,11 +47,15 @@ enum TranslationSessions {
     return keys.map { found[$0] }
   }
 
+  private static var attributedAvailable: Bool {
+    if #available(macOS 26.4, *) { return true }
+    return false
+  }
+
   static func cancel(owner: String) {
     work.cancel(owner: owner)
   }
 
-  @available(macOS 26.4, *)
   private static func passage(_ key: PassageKey, owner: String) async -> [String]? {
     if let known = memo[key] { return known }
     let parts = await work.value(for: key, owner: owner) { await translateFresh(key) }
@@ -60,7 +63,6 @@ enum TranslationSessions {
     return parts
   }
 
-  @available(macOS 26.4, *)
   private static func translateFresh(_ key: PassageKey) async -> [String]? {
     let first = await translateOnce(key, standard: false)
     if let first, !TranslateModule.isUnchanged(first, from: key.pieces) { return first }
@@ -71,19 +73,19 @@ enum TranslationSessions {
     return first == nil || !TranslateModule.isUnchanged(again, from: key.pieces) ? again : first
   }
 
-  @available(macOS 26.4, *)
   private static func translateOnce(_ key: PassageKey, standard: Bool) async -> [String]? {
     await PassageDispatch.translate(
       key.pieces,
       plain: { text in
         try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).targetText })
       },
-      linked: { pieces in
+      linked: attributedAvailable ? { pieces in
+        guard #available(macOS 26.4, *) else { return nil }
         let text = LinkedPieces.text(pieces)
         guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
         else { return nil }
         return LinkedPieces.parts(of: translated, over: pieces)
-      }
+      } : nil
     )
   }
 

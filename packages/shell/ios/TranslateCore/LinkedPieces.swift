@@ -13,42 +13,25 @@ enum LinkedPieces {
 
   static func parts(of translated: AttributedString, over pieces: [String]) -> [String]? {
     var parts = Array(repeating: "", count: pieces.count)
-    var order: [Int] = []
+    var tagged = Array(repeating: false, count: pieces.count)
+    var last: Int?
+    var lead = ""
     for run in translated.runs {
       let words = String(translated[run.range].characters)
-      if let link = run.link {
-        guard link.scheme == "ac-piece", let i = Int(link.absoluteString.dropFirst("ac-piece:".count)), parts.indices.contains(i) else { return nil }
-        if order.last != i { order.append(i) }
-        parts[i] += words
-      } else {
-        parts[order.last ?? 0] += words
+      guard let link = run.link else {
+        if let last { parts[last] += words } else { lead += words }
+        continue
       }
-    }
-    guard Set(order).count == pieces.count else { return nil }
-    guard order != Array(order.sorted()) || order.count != pieces.count else { return parts }
-    let shared = distribute(String(translated.characters), over: pieces)
-    return shared.contains(where: \.isEmpty) ? nil : shared
-  }
-
-  static func distribute(_ text: String, over pieces: [String]) -> [String] {
-    let chars = Array(text)
-    let total = max(1, pieces.reduce(0) { $0 + $1.count })
-    var out: [String] = []
-    var start = 0
-    var seen = 0
-    for (i, piece) in pieces.enumerated() {
-      seen += piece.count
-      var end = i == pieces.count - 1 ? chars.count : min(chars.count, Int((Double(seen) / Double(total) * Double(chars.count)).rounded()))
-      if end < chars.count, end > start {
-        let window = 12
-        if let space = (0...window).lazy.flatMap({ [end + $0, end - $0] }).first(where: { $0 > start && $0 < chars.count && chars[$0] == " " }) {
-          end = space + 1
-        }
+      guard link.scheme == "ac-piece", let i = Int(link.absoluteString.dropFirst("ac-piece:".count)), parts.indices.contains(i) else { return nil }
+      if last == nil {
+        parts[i] += lead
+        lead = ""
       }
-      end = max(start, end)
-      out.append(String(chars[start..<end]))
-      start = end
+      tagged[i] = true
+      parts[i] += words
+      last = i
     }
-    return out
+    guard !tagged.contains(false), !parts.contains(where: { $0.allSatisfy(\.isWhitespace) }) else { return nil }
+    return parts
   }
 }

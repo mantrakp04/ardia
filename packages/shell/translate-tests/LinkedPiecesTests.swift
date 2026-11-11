@@ -25,22 +25,28 @@ final class LinkedPiecesTests: XCTestCase {
     XCTAssertNil(LinkedPieces.parts(of: answer([("bonjour ", 0), ("monde", 5)]), over: ["hello ", "world"]))
   }
 
-  func testAPieceTheModelSplitsAroundAnotherIsSharedOutInReadingOrder() {
+  func testAPieceTaggedTwiceGetsExactlyItsOwnRunsInReadingOrder() {
+    let parts = LinkedPieces.parts(of: answer([("Klicken ", 0), ("hier", 1), (" zum Fortfahren", 2), (" Sie.", 0)]), over: ["Click ", "here", " to continue."])
+    XCTAssertEqual(parts, ["Klicken  Sie.", "hier", " zum Fortfahren"])
+  }
+
+  func testAGermanAnswerThatSplitsAPieceKeepsEachRunInItsOwnNode() {
     let answer = answer([("Dies ist Absatz ", 0), ("Nummer 3", 1), (", geschrieben, um den ", 2), ("Übersetzer ", 3), ("beschäftigt ", 4), ("zu halten", 2), (".", 4)])
     let parts = LinkedPieces.parts(of: answer, over: ["This is paragraph ", "number 3", ", written to keep the ", "translator", " busy."])
-    XCTAssertEqual(parts?.count, 5)
-    XCTAssertEqual(parts?.joined(), "Dies ist Absatz Nummer 3, geschrieben, um den Übersetzer beschäftigt zu halten.")
-    XCTAssertTrue(parts?.allSatisfy { !$0.isEmpty } ?? false)
+    XCTAssertEqual(parts, ["Dies ist Absatz ", "Nummer 3", ", geschrieben, um den zu halten", "Übersetzer ", "beschäftigt ."])
   }
 
-  func testAReorderedAnswerIsSharedOutWithoutEmptyParts() {
+  func testAJapaneseReorderPutsTheSettingsWordInTheSettingsNode() {
     let parts = LinkedPieces.parts(of: answer([("設定", 1), ("を開いて", 0), ("変更してください。", 2)]), over: ["Open ", "the settings", " to change it."])
-    XCTAssertEqual(parts?.count, 3)
-    XCTAssertEqual(parts?.joined(), "設定を開いて変更してください。")
-    XCTAssertTrue(parts?.allSatisfy { !$0.isEmpty } ?? false)
+    XCTAssertEqual(parts, ["を開いて", "設定", "変更してください。"])
   }
 
-  func testAReorderTooShortToShareOutFails() {
-    XCTAssertNil(LinkedPieces.parts(of: answer([("Y", 1), ("X", 0), ("Z", 2)]), over: ["a", "b", "a much longer third piece"]))
+  func testUntaggedTextFollowsTheRunBeforeIt() {
+    let parts = LinkedPieces.parts(of: answer([("« ", nil), ("Lisez", 0), (" les ", nil), ("notes", 1)]), over: ["Read the ", "notes"])
+    XCTAssertEqual(parts, ["« Lisez les ", "notes"])
+  }
+
+  func testAPieceLeftWithOnlySpaceFails() {
+    XCTAssertNil(LinkedPieces.parts(of: answer([("Bonjour", 0), (" ", 1)]), over: ["Hello ", "world"]))
   }
 }
