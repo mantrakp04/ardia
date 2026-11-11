@@ -40,6 +40,10 @@ export function settleShownTabs(s: BrowserState, prev: BrowserState): Pick<Brows
   };
   const toggled = Object.values(s.groups).filter((g) => prev.groups[g.id] && prev.groups[g.id]!.collapsed !== g.collapsed);
   let groups = toggled.reduce((next, g) => withoutShownTabs(next, descendantIds(s.groups, g.id)), s.groups);
+  for (const g of toggled) {
+    const active = activeTabId(s, g.windowId, g.profileId);
+    if (g.collapsed && active && g.tabIds.includes(active)) groups = withShownTab(groups, active);
+  }
   for (const g of Object.values(groups)) {
     if (!g.shownTabIds) continue;
     if (!g.collapsed) {
