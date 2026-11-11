@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$App,
   [Parameter(Mandatory = $true)][string]$Out,
-  [int]$LaunchSeconds = 60
+  [int]$LaunchSeconds = 60,
+  [string[]]$Only = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -296,8 +297,10 @@ function Send-Escape {
 
 function Send-Text([string]$Text) {
   foreach ($character in $Text.ToUpperInvariant().ToCharArray()) {
-    Send-Key ([byte][char]$character) 0
-    Send-Key ([byte][char]$character) 2
+    $key = [byte][char]$character
+    if ($character -eq '.') { $key = 0xBE }
+    Send-Key $key 0
+    Send-Key $key 2
     Start-Sleep -Milliseconds 60
   }
   Start-Sleep -Milliseconds 300
@@ -1202,6 +1205,97 @@ function Invoke-MainTour {
   Stop-Ardia $session
 }
 
+function Wait-Title($Session, [string]$Pattern, [int]$Milliseconds = 25000) {
+  return Wait-Until $Session { [ArdiaTour]::TitleOf($Session.Main) -match $Pattern } $Milliseconds
+}
+
+function Open-Page($Session, $Stop, [string]$Address, [string]$TitlePattern) {
+  Focus-Window $Session $Session.Main $Stop | Out-Null
+  $mark = Get-LogCount $Session
+  Send-Chord @(0x11) 0x54
+  $opened = Wait-Command $Session $mark "newTab"
+  Start-Sleep -Milliseconds 700
+  Send-Text $Address
+  Start-Sleep -Milliseconds 500
+  Send-Key 0x0D 0
+  Send-Key 0x0D 2
+  $loaded = Wait-Title $Session $TitlePattern
+  Start-Sleep -Milliseconds 1200
+  $Stop.Facts.Add("newTab command logged: $opened")
+  $Stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($Session.Main))'")
+  return $loaded
+}
+
+function Invoke-PagesTour {
+  $session = Start-Ardia "pages" -Onboarded
+  Invoke-Stop $session "page-loads" "A page loads in a tab" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+T, typed example.com and pressed Enter."
+    $stop.Expected = "the window's title names the page's site, and the page shows in the card."
+    if (-not (Test-Usable $session)) { $stop.Seen = "no"; return }
+    $loaded = Open-Page $session $stop "example.com" "example\.com"
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $loaded
+    $stop.Facts.Add("windows: $(Format-Windows (Get-TopWindows $session))")
+  } | Out-Null
+  if (-not (Test-Usable $session)) { Stop-Ardia $session; return }
+
+  Invoke-Stop $session "page-find" "Find in the page" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+F with the page showing and typed 'domain'."
+    $stop.Expected = "a findInPage command in the log, and the find bar over the page."
+    $mark = Get-LogCount $session
+    Send-Chord @(0x11) 0x46
+    $commanded = Wait-Command $session $mark "findInPage"
+    Start-Sleep -Milliseconds 600
+    Send-Text "domain"
+    Start-Sleep -Milliseconds 1200
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $commanded
+    $stop.Facts.Add("command findInPage logged: $commanded")
+    Send-Escape
+    Start-Sleep -Milliseconds 500
+  } | Out-Null
+
+  Invoke-Stop $session "page-command-bar" "The command bar over a page" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+L with the page showing."
+    $stop.Expected = "a focusCommandBar command in the log, and the command bar drawn over the page."
+    $mark = Get-LogCount $session
+    Send-Chord @(0x11) 0x4C
+    $commanded = Wait-Command $session $mark "focusCommandBar"
+    Start-Sleep -Milliseconds 1200
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $commanded
+    $stop.Facts.Add("command focusCommandBar logged: $commanded")
+    Send-Escape
+    Send-Escape
+    Start-Sleep -Milliseconds 500
+  } | Out-Null
+
+  Invoke-Stop $session "page-second-tab" "A second page in a second tab" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+T, typed wikipedia.org and pressed Enter."
+    $stop.Expected = "the window's title names the second page's site."
+    $loaded = Open-Page $session $stop "wikipedia.org" "wikipedia\.org"
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $loaded
+  } | Out-Null
+
+  Invoke-Stop $session "page-back-to-first" "Back to the first tab" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+Tab to go to the tab used before this one."
+    $stop.Expected = "the window's title names the first page's site again."
+    Send-Chord @(0x11) 0x09
+    $back = Wait-Title $session "example\.com" 8000
+    Start-Sleep -Milliseconds 800
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $back
+    $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($session.Main))'")
+  } | Out-Null
+  Stop-Ardia $session
+}
+
 function Invoke-LayoutTour([string]$Name, [hashtable]$Settings, [string]$Title, [string]$Expected) {
   $session = Start-Ardia $Name -Onboarded -Settings $Settings
   Invoke-Stop $session $Name $Title {
@@ -1266,6 +1360,15 @@ $tours = @(
   @{ Name = "sidebar on the right"; Run = { Invoke-LayoutTour "sidebar-right" @{ sidebarSide = "right" } "Sidebar on the right" "the window buttons sit in the sidebar's header, and the gap beside them is a caption region." } },
   @{ Name = "dark"; Run = { Invoke-DarkTour } }
 )
+
+if (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $App) "chrome.dll")) {
+  $tours += @{ Name = "pages"; Run = { Invoke-PagesTour } }
+}
+
+if ($Only.Count) {
+  $tours = @($tours | Where-Object { $Only -contains $_.Name })
+  if (-not $tours.Count) { throw "no part of the tour is named $($Only -join ', ')" }
+}
 
 foreach ($tour in $tours) {
   Write-Host "[tour] === $($tour.Name) ==="

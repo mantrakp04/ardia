@@ -16,7 +16,7 @@ function assign<Node>(target: Ref<Node> | undefined, node: Node | null) {
   else if (target) (target as { current: Node | null }).current = node;
 }
 
-export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: unknown) {
+export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: unknown, radius = 0) {
   const windowId = useContext(WindowIdContext);
   const above = useContext(CoverAncestry);
   const id = useRef(`cover-${++covers}`).current;
@@ -27,9 +27,9 @@ export function usePageCover<Node>(forwarded: Ref<Node> | undefined, onLayout: u
   const measure = useCallback(() => {
     if (!live) return;
     node.current?.measureInWindow((x, y, width, height) => {
-      if (node.current) setCover(windowId, id, { x, y, width, height });
+      if (node.current) setCover(windowId, id, { x, y, width, height, radius });
     });
-  }, [live, windowId, id]);
+  }, [live, windowId, id, radius]);
 
   const ref = useCallback(
     (value: Node | null) => {

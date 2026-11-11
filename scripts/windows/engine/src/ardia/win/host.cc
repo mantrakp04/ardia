@@ -90,6 +90,9 @@ void MakeBare(HWND window) {
   const BOOL no_transitions = TRUE;
   ::DwmSetWindowAttribute(window, DWMWA_TRANSITIONS_FORCEDISABLED,
                           &no_transitions, sizeof(no_transitions));
+  const DWM_SYSTEMBACKDROP_TYPE no_backdrop = DWMSBT_NONE;
+  ::DwmSetWindowAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, &no_backdrop,
+                          sizeof(no_backdrop));
   ::SetWindowPos(window, nullptr, kParkedAt, kParkedAt, 0, 0,
                  SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                      SWP_FRAMECHANGED);
@@ -152,9 +155,20 @@ void Shape(HWND window,
       double top = (*hole)[1].GetIfDouble().value_or(0);
       double wide = (*hole)[2].GetIfDouble().value_or(0);
       double high = (*hole)[3].GetIfDouble().value_or(0);
-      HRGN cut = ::CreateRectRgn(Scaled(left, scale) - x, Scaled(top, scale) - y,
-                                 Scaled(left + wide, scale) - x,
-                                 Scaled(top + high, scale) - y);
+      const int round =
+          hole->size() > 4
+              ? Scaled((*hole)[4].GetIfDouble().value_or(0), scale)
+              : 0;
+      const int cut_left = Scaled(left, scale) - x;
+      const int cut_top = Scaled(top, scale) - y;
+      const int cut_right = Scaled(left + wide, scale) - x;
+      const int cut_bottom = Scaled(top + high, scale) - y;
+      HRGN cut = round > 0
+                     ? ::CreateRoundRectRgn(cut_left, cut_top, cut_right + 1,
+                                            cut_bottom + 1, round * 2,
+                                            round * 2)
+                     : ::CreateRectRgn(cut_left, cut_top, cut_right,
+                                       cut_bottom);
       ::CombineRgn(region, region, cut, RGN_DIFF);
       ::DeleteObject(cut);
     }

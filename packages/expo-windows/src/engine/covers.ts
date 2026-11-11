@@ -1,4 +1,4 @@
-export type CoverRect = { x: number; y: number; width: number; height: number };
+export type CoverRect = { x: number; y: number; width: number; height: number; radius: number };
 
 type Listener = (windowId: string) => void;
 
@@ -11,7 +11,7 @@ const changed = (windowId: string) => {
   for (const listener of [...listeners]) listener(windowId);
 };
 
-const same = (a: CoverRect | undefined, b: CoverRect) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+const same = (a: CoverRect | undefined, b: CoverRect) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height && a.radius === b.radius;
 
 export function setCover(windowId: string, id: string, rect: CoverRect | null) {
   let inWindow = covers.get(windowId);

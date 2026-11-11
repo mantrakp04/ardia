@@ -3,7 +3,7 @@ import { setCover, setPageRadius } from "./covers";
 import { discardOffered, parkPage, releasePage } from "./pages";
 
 const pageCovers = {
-  set: (windowId: string, id: string, x: number, y: number, width: number, height: number) => setCover(windowId, id, { x, y, width, height }),
+  set: (windowId: string, id: string, x: number, y: number, width: number, height: number, radius = 0) => setCover(windowId, id, { x, y, width, height, radius }),
   clear: (windowId: string, id: string) => setCover(windowId, id, null),
   setRadius: (radius: number, windowId?: string) => setPageRadius(radius, windowId ?? ""),
 };

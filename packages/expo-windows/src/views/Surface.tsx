@@ -17,14 +17,15 @@ export const Surface = forwardRef<View, AnyProps>(function Surface(
   ref,
 ) {
   useFirstWindow();
-  const cover = usePageCover(ref, onLayout);
+  const corner = Math.max(0, finite(cornerRadius, 0));
+  const cover = usePageCover(ref, onLayout, corner);
   const width = Math.max(0, finite(borderWidth, 0));
   const offset = Array.isArray(surfaceShadowOffset) ? surfaceShadowOffset : [0, 0];
   const gradient = width > 0 ? gradientBorderSides(borderColors) : null;
   const solid = width > 0 && !gradient ? colorOrUndefined(borderColor) : undefined;
   const surface: ViewStyle = {
     backgroundColor: colorOrUndefined(fill),
-    borderRadius: Math.max(0, finite(cornerRadius, 0)),
+    borderRadius: corner,
     ...(gradient ? { borderWidth: width, ...gradient } : solid ? { borderWidth: width, borderColor: solid } : null),
     ...dropShadow(surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, offset[0], offset[1]),
   };

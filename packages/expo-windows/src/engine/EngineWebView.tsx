@@ -95,7 +95,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         radius: pageRadiusIn(windowId),
         holes: coversIn(windowId, above.current)
           .filter((cover) => overlaps(cover, page))
-          .map((hole) => [hole.x, hole.y, hole.width, hole.height]),
+          .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
       };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;

@@ -190,7 +190,7 @@ export const PopoverBubble = forwardRef<View, AnyProps>(function PopoverBubble(
   };
   const showsArrow = edge !== "none" && half > 0 && lift > 0 && size.width >= 2 * (radius + half);
   const center = Math.min(Math.max(finite(arrowX, 0), radius + half), size.width - radius - half);
-  const cover = usePageCover(ref, measure);
+  const cover = usePageCover(ref, measure, radius);
   return (
     <View {...rest} ref={cover.ref} onLayout={cover.onLayout} pointerEvents="none" style={style as ViewStyle}>
       {size.width > 0 ? (

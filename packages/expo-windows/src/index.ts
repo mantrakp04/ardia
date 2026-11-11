@@ -1,4 +1,5 @@
 import { TurboModuleRegistry, type TurboModule } from "react-native";
+import { installAnimatedEndValue } from "./animatedEndValue";
 import { requireNativeModule } from "./modules";
 import { runSelfCheck } from "./selfCheck";
 import { viewOnWindows } from "./views/registry";
@@ -18,6 +19,7 @@ type WindowsHost = TurboModule & { secureRandomHex(byteCount: number): string };
 
 const SELF_CHECK_AFTER_MS = 4000;
 
+installAnimatedEndValue();
 installWindowRoot();
 
 const windowsHost = () => TurboModuleRegistry.getEnforcing<WindowsHost>("ArdiaWindowsHost");
