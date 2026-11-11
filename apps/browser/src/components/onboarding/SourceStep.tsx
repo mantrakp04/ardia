@@ -22,6 +22,7 @@ const CANDIDATES: Candidate[][] = [
   [{ id: "arc", name: "Arc", app: "/Applications/Arc.app" }],
   [{ id: "dia", name: "Dia", app: "/Applications/Dia.app" }],
   [{ id: "chrome", name: "Chrome", app: "/Applications/Google Chrome.app" }],
+  [{ id: "helium", name: "Helium", app: "/Applications/Helium.app" }],
   [
     { id: "safari", name: "Safari", app: "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app" },
     { id: "safari", name: "Safari", app: "/Applications/Safari.app" },

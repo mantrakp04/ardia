@@ -1,6 +1,6 @@
 import type { Settings } from "../settings/settings";
 
-export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
+export type BrowserSourceId = "arc" | "dia" | "chrome" | "helium" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
 
 export type Preset = BrowserSourceId;
 
@@ -8,6 +8,7 @@ export const PRESET_NAMES: Record<Preset, string> = {
   arc: "Arc",
   dia: "Dia",
   chrome: "Chrome",
+  helium: "Helium",
   safari: "Safari",
   firefox: "Firefox",
   zen: "Zen",
@@ -119,6 +120,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     newTabLinksOpenIn: "peek",
   },
   chrome: CLASSIC_TABS,
+  helium: CLASSIC_TABS,
   firefox: CLASSIC_TABS,
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },

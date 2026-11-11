@@ -15,7 +15,7 @@ reflects every choice so far and animates from one state to the next.
 | # | Screen | Choices |
 |---|---|---|
 | 1 | Intro | unchanged |
-| 2 | Where are you coming from? | Arc · Dia · Chrome · Safari · Firefox · Brave/Edge · Starting fresh. Browsers found on this Mac come first ("Found on this Mac"). Picking one sets that browser's preset (see Presets) and, unless it's "Starting fresh", offers the import for that browser, which runs while the next screens are shown. |
+| 2 | Where are you coming from? | Arc · Dia · Chrome · Helium · Safari · Firefox · Brave/Edge · Starting fresh. Browsers found on this Mac come first ("Found on this Mac"). Picking one sets that browser's preset (see Presets) and, unless it's "Starting fresh", offers the import for that browser, which runs while the next screens are shown. |
 | 3 | Layout | Tabs: Sidebar / Top · Address bar: Toolbar / Sidebar (hidden with top tabs) · ⌘L: Under the address / Centred. A tag shows "Arc-style", "Dia-style" or "Your mix". |
 | 4 | Tabs | ⌘T: New Tab page / Command bar · New tabs: Bottom / Top · Old tabs: Keep / Tidy after 12 h, 1 day, 1 week · On quit: Restore / Start fresh · Windows: Separate / Shared tabs. More options: Top Apps grid, peek modifier, ⌘Z reopens closed tab, ⌘-click tab groups. |
 | 5 | Look | Theme color · Auto / Light / Dark · Page frame: Framed / Thin / Edge to edge and a slider (asked with every preset) · Website color in the tab bar on / off. More options: app icon, hide toolbar while scrolling, bookmarks bar. |
@@ -31,7 +31,8 @@ CLI step leaves onboarding and stays in Settings › Advanced.
 
 Every browser on the "Where are you coming from?" screen has its own preset (`PRESETS` in
 `state/onboarding/onboarding.ts`), so each screen starts out the way that browser behaves. "Starting fresh" keeps
-Ardia's defaults except where its column says otherwise. Chrome, Firefox, Safari, Brave and Edge share one classic-tabs base.
+Ardia's defaults except where its column says otherwise. Chrome, Helium, Firefox, Safari, Brave and Edge share one
+classic-tabs base, so Helium has Chrome's column.
 
 Picking a browser applies its whole preset when you press Continue and skips every question the preset answers, so
 the flow is Source → Color → Crash reports → Pins → Default browser → Outro (6 steps). Everything stays in

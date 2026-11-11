@@ -5,6 +5,7 @@ const BUNDLED: Partial<Record<BrowserSourceId, ImageSourcePropType>> = {
   arc: require("../../../assets/browsers/arc.png"),
   dia: require("../../../assets/browsers/dia.png"),
   chrome: require("../../../assets/browsers/chrome.png"),
+  helium: require("../../../assets/browsers/helium.png"),
   safari: require("../../../assets/browsers/safari.png"),
   firefox: require("../../../assets/browsers/firefox.png"),
   zen: require("../../../assets/browsers/zen.png"),
