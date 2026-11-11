@@ -81,7 +81,7 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
   const opened = s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background, gated });
-  if (background) noteBackgroundTab(w.id, opened, from.tabId);
+  if (background) noteBackgroundTab(w.id, opened, page.tabId);
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {
