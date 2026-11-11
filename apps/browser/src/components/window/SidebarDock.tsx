@@ -45,7 +45,8 @@ import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
 import { useSidebarLights, useTopStripLights } from "./useDockLights";
 import { useCardFrame } from "./cardFrame";
-import { countFullscreenSidebarPeek } from "../../state/telemetry/usage";
+import { useFullscreenTab } from "../../state/tabs/pageState";
+import { usePeeks } from "../../state/peek/hooks";
 
 const SPRING = spring(DOCK_SPRING);
 
@@ -194,7 +195,10 @@ function SidebarDock({
   const windowId = useWindowId();
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const edgeOver = useRef(false);
-  const peek = usePeek((fullscreen || !open) && !moving, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId), noteSidebarPeek);
+  const fullscreenTab = useFullscreenTab(windowId);
+  const peekCardFullscreen = usePeeks((p) => !!fullscreenTab && p[windowId]?.tabId === fullscreenTab);
+  const canPeek = fullscreen ? !peekCardFullscreen : !open;
+  const peek = usePeek(canPeek && !moving, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId), (bounce) => noteSidebarPeek(bounce, fullscreen));
   const latestPeek = useRef(peek);
   latestPeek.current = peek;
   useEffect(() => (peek.live ? watchHolds("peek", () => latestPeek.current.recheck()) : undefined), [peek.live]);
@@ -232,9 +236,6 @@ function SidebarDock({
   }, [windowId, watching, nativeHold, right, holding || draggingTab]);
   useEffect(() => setPeekLeaving(windowId, state === "leaving"), [windowId, state]);
   useEffect(() => () => setPeekLeaving(windowId, false), [windowId]);
-  useEffect(() => {
-    if (peek.live && fullscreen) countFullscreenSidebarPeek();
-  }, [peek.live]);
   useEffect(() => setPeekShown(windowId, peek.live, peekSpan(width, right, windowWidth, peekAt.left)), [windowId, peek.live, width, right, windowWidth, peekAt.left]);
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
