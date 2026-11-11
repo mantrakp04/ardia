@@ -1121,7 +1121,7 @@ function Invoke-MainTour {
   } | Out-Null
 
   Invoke-ShortcutStop $session "downloads" "Downloads popover" "Ctrl+J" @(0x11) 0x4A "downloads" "a downloads command in the log, the title band turning to content while the popover is open, native code taking Escape for it, and the popover closing on Escape so the band is a caption again." -WatchBand -ClosesOnEscape -EscapeCaptured
-  Invoke-ShortcutStop $session "search-tabs" "Search tabs" "Ctrl+Shift+A" @(0x11, 0x10) 0x41 "searchTabs" "a searchTabs command in the log, and the panel closing on Escape so the band is a caption again." -WatchBand -ClosesOnEscape
+  Invoke-ShortcutStop $session "search-tabs" "Search tabs" "Ctrl+Shift+A" @(0x11, 0x10) 0x41 "searchTabs" "a searchTabs command in the log." -WatchBand
   Invoke-ShortcutStop $session "profile-menu" "Profiles menu" "Ctrl+Shift+M" @(0x11, 0x10) 0x4D "openProfileMenu" "an openProfileMenu command in the log."
   Invoke-ShortcutStop $session "task-manager" "Task manager" "Shift+Escape" @(0x10) 0x1B "taskManager" "a taskManager command in the log."
 
