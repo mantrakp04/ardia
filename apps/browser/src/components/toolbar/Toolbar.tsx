@@ -45,6 +45,7 @@ export const urlFieldRight = (inSplit: boolean, extensionsWidth: number, row: To
 const LOCK = { left: 7, width: 18, gap: space.xs } as const;
 const SIDEBAR_TEXT_GAP = 6;
 export const urlTextLeft = (insecure: boolean) => (insecure ? LOCK.left + LOCK.width + LOCK.gap : 8);
+export const CENTRED_URL_MIN_FIELD = 240;
 export const insecureLevel = (p: PageState) =>
   p.security && (p.security.level === "insecure" || p.security.level === "certificateError") ? p.security.level : null;
 
@@ -176,7 +177,10 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const theme = useTheme();
   const row = useToolbarRow();
   const splitHint = useShortcutHint("openSplitPane");
-  const centred = useSettings((s) => s.centredUrl);
+  const centredUrl = useSettings((s) => s.centredUrl);
+  const [roomy, setRoomy] = useState(true);
+  const centred = centredUrl && roomy;
+  const measureField = (e: LayoutChangeEvent) => setRoomy(e.nativeEvent.layout.width >= CENTRED_URL_MIN_FIELD);
   const field = useUrlField(tab, windowId, onFocus, !centred);
   const { insecure, hovered, popover, toggleSiteControls } = field;
   const glass = useGlass();
@@ -196,7 +200,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   );
 
   return (
-    <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
+    <View {...field.hoverProps} onLayout={measureField} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
       {glass ? (
         <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}

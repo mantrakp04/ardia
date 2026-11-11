@@ -1,5 +1,5 @@
 import type { SearchScope } from "@ardia/core";
-import type { ComponentProps, RefObject } from "react";
+import { useState, type ComponentProps, type RefObject } from "react";
 import { TextInput } from "react-native";
 import { useTheme } from "../ui";
 import { PASTED_TYPES } from "./omniboxKeys";
@@ -29,10 +29,15 @@ export function BarField({
 } & Pick<InputProps, "value" | "onLayout" | "onChangeText" | "onSubmitEditing" | "onFocus" | "onBlur" | "keyDownEvents" | "onKeyDown">) {
   const theme = useTheme();
   const type = variant === "hero" ? BAR_TYPE.heroField : variant === "sidebar" || floating ? BAR_TYPE.floatingField : BAR_TYPE.panelField;
+  const [inset, setInset] = useState(BAR.panel.iconLeft + BAR.iconSlot + BAR.panel.gap);
   return (
     <TextInput
       ref={inputRef}
       {...events}
+      onLayout={(e) => {
+        if (centred) setInset(e.nativeEvent.layout.x);
+        events.onLayout?.(e);
+      }}
       onSelectionChange={(e) => {
         const next = e.nativeEvent.selection;
         const length = events.value?.length ?? 0;
@@ -57,7 +62,7 @@ export function BarField({
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? BAR.panelFieldLift : 0,
-        ...(centred ? { textAlign: "center" as const, marginRight: BAR.panel.centredBalance } : null),
+        ...(centred ? { textAlign: "center" as const, marginRight: Math.max(0, inset - BAR.panel.right) } : null),
       }}
     />
   );

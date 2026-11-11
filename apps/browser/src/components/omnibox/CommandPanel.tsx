@@ -14,7 +14,7 @@ import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
 import { BAR, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
-import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
+import { CENTRED_URL_MIN_FIELD, insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
 import { radius, shadow, space } from "../ui/tokens";
@@ -44,7 +44,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
   const toolbarRow = useToolbarRow();
   const sidebarRight = useSidebarSide(windowId) === "right";
-  const centredUrl = useSettings((s) => s.centredUrl);
+  const centredSetting = useSettings((s) => s.centredUrl);
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -88,6 +88,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const textLeft = Math.max(WINDOW_MARGIN, anchor.left + urlTextLeft(insecure) - PANEL_TEXT_LEFT);
   const top = Math.max(0.5, anchor.top - ABOVE_PANE);
   const covering = anchor.left + anchor.width + RIGHT_OF_URL - textLeft;
+  const centredUrl = centredSetting && anchor.width >= CENTRED_URL_MIN_FIELD;
   const { left, width } = centredUrl
     ? centredOver(anchor, Math.max(anchor.width, MIN_WIDTH), windowWidth)
     : { left: textLeft, width: Math.min(Math.max(covering, MIN_WIDTH), room(textLeft, covering)) };

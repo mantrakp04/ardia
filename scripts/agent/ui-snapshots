@@ -306,6 +306,8 @@ const STATES = [
   main("dia-dark-centred-url-hover", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); return settle(300).then(() => ac.shell.devSetPointer(W, { x: 640, y: 21 })).then(() => settle(400));`),
   main("dia-dark-centred-url-compact", `st().updateSettings({ centredUrl: true, compactToolbar: true }); st().activate("t1"); st().toggleSidebar(W);`),
   main("dia-light-centred-url", `st().updateSettings({ appearance: "light" }); st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-dark-centred-url-scope", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().openPanel(W, ""); return settle(400).then(() => { const id = ac.omnibox.ids().find((i) => i.includes("panel") || i.includes(W)) || ac.omnibox.ids()[0]; const bar = ac.omnibox.get(id); bar.type("youtube"); return settle(400).then(() => { bar.key("Tab"); return settle(400).then(() => { bar.type("cats"); return settle(500); }); }); });`),
+  main("dia-dark-centred-url-narrow-split", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().createSplit(["t1", "t2", "r1"]);`),
   main("dia-dark-centred-url-command-bar", `st().updateSettings({ centredUrl: true }); st().activate("t1"); st().toggleSidebar(W); st().openPanel(W, "https://example.com/notes");`),
   main("dia-dark-work-profile", `st().switchProfile(W, "work");`),
   main("dia-light-work-profile", `st().updateSettings({ appearance: "light" }); st().switchProfile(W, "work");`),
