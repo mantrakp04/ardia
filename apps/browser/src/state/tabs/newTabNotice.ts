@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { activeTabId } from "../browser/model";
 import { useBrowser } from "../browser/store";
-import { noteNewTabNotice } from "../telemetry/usage";
+import { notePageOverlay } from "../telemetry/usage";
 
 export type NewTabNotice = { id: number; tabId: string; sourceId: string };
 
@@ -16,7 +16,7 @@ export function noteBackgroundTab(windowId: string, tabId: string, sourceId: str
   const notice = { id: ++noticeSeq, tabId, sourceId };
   useNewTabNotices.setState((s) => ({ notices: { ...s.notices, [windowId]: notice } }));
   scheduleHide(windowId, notice.id);
-  noteNewTabNotice("shown");
+  notePageOverlay("newTabShown");
 }
 
 const hideTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -38,7 +38,7 @@ export function clearNewTabNotice(windowId: string, id: number) {
 
 export function goToNoticedTab(windowId: string, notice: NewTabNotice) {
   clearNewTabNotice(windowId, notice.id);
-  noteNewTabNotice("pressed");
+  notePageOverlay("newTabPressed");
   if (useBrowser.getState().tabs[notice.tabId]) useBrowser.getState().activate(notice.tabId);
 }
 
