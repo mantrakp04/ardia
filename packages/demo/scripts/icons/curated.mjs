@@ -224,6 +224,7 @@ export const CURATED = {
   pin: "L:pin T:pin P:push-pin M:pin-outline I:pin",
   "pin.fill": "PF:push-pin-fill M:pin TF:pin L:pin",
   "pin.slash": "L:pin-off T:pinned-off P:push-pin-slash M:pin-off-outline",
+  pip: "L:picture-in-picture T:picture-in-picture P:picture-in-picture M:picture-in-picture-bottom-right-outline",
   "pip.enter": "L:picture-in-picture T:picture-in-picture-on P:picture-in-picture M:picture-in-picture-bottom-right-outline",
   "pip.exit": "L:picture-in-picture-2 T:picture-in-picture-off P:picture-in-picture M:picture-in-picture-bottom-right-outline",
   "pip.fill": "TF:picture-in-picture PF:picture-in-picture-fill M:picture-in-picture-bottom-right",
