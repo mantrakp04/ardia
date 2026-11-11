@@ -4,6 +4,8 @@ export const profileColors = {
   unknownSwatch: "#888888",
 } as const;
 
+export const profileBadge = { nudge: 0.031, initialScale: 0.425, initialTracking: -0.019 } as const;
+
 export const SHARE_ROW_HEIGHT = 32;
 
 export const profileSwitcher = {
