@@ -4,6 +4,7 @@
 #include "ConfigModule.h"
 #include "DialogsModule.h"
 #include "DocumentsModule.h"
+#include "EngineHostModule.h"
 #include "FileDropModule.h"
 #include "FocusModule.h"
 #include "KeychainModule.h"

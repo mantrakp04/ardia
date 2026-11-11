@@ -1080,11 +1080,18 @@ struct WindowManager {
     try {
       auto unloading = Host::Current()->reactHost.UnloadInstance();
       unloading.Completed([](auto const &, auto const &) noexcept {
-        Host::Current()->queue.DispatcherQueue().TryEnqueue([]() noexcept { PostQuitMessage(0); });
+        Host::Current()->queue.DispatcherQueue().TryEnqueue([]() noexcept { EndLoop(); });
       });
     } catch (...) {
-      PostQuitMessage(0);
+      EndLoop();
     }
+  }
+
+  static void EndLoop() noexcept {
+    const ArdiaEngineApi *engine = Host::Engine();
+    if (!engine) return PostQuitMessage(0);
+    LaunchLog::Write(L"launch", L"asking the engine to quit");
+    engine->hostCall("app.quit", "{}", 0, nullptr, nullptr);
   }
 
   winrt::Microsoft::ReactNative::ReactContext m_context{nullptr};

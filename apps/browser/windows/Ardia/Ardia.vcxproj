@@ -7,6 +7,12 @@
     <MinimalCoreWin>true</MinimalCoreWin>
     <ProjectGuid>{45D7EC94-15E4-4D88-B4A4-9065B50DD86A}</ProjectGuid>
     <ProjectName>Ardia</ProjectName>
+    <TargetName>ArdiaApp</TargetName>
+    <ProjectPriIndexName>Ardia</ProjectPriIndexName>
+    <ProjectPriFileName>Ardia.pri</ProjectPriFileName>
+    <ShouldComputeInputPris>true</ShouldComputeInputPris>
+    <PrependPriInitialPath>false</PrependPriInitialPath>
+    <GenerateLibraryLayout>false</GenerateLibraryLayout>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Ardia</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
@@ -48,7 +54,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
     <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
   </PropertyGroup>
@@ -100,7 +106,10 @@
   </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClInclude Include="AppImage.h" />
     <ClInclude Include="AppModule.h" />
+    <ClInclude Include="EngineApi.h" />
+    <ClInclude Include="EngineHostModule.h" />
     <ClInclude Include="CommandTable.h" />
     <ClInclude Include="MenuKeyboard.h" />
     <ClInclude Include="MenuKeys.h" />
@@ -161,6 +170,21 @@
   <ImportGroup Label="ReactNativeWindowsTargets">
     <Import Project="$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets" Condition="Exists('$(ReactNativeWindowsDir)\PropertySheets\External\Microsoft.ReactNative.Composition.CppApp.targets')" />
   </ImportGroup>
+  <ItemDefinitionGroup>
+    <Reference>
+      <Private />
+    </Reference>
+  </ItemDefinitionGroup>
+  <Target Name="PublishWinRTRegistration" AfterTargets="CreateWinRTRegistration">
+    <Error Condition="'$(ApplicationManifest)' == '' Or !Exists('$(ApplicationManifest)')" Text="The Windows App SDK wrote no registration manifest for ArdiaApp.dll ('$(ApplicationManifest)'), so Ardia.exe would start without its WinRT classes." />
+    <Copy SourceFiles="$(ApplicationManifest)" DestinationFiles="$(OutDir)ArdiaApp.winrt.manifest" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyBundleBesideLibrary" AfterTargets="Build" Condition="'$(UseBundle)' == 'true' And '$(BundleContentRoot)' != ''">
+    <ItemGroup>
+      <BundleBesideLibrary Include="$(BundleContentRoot)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BundleBesideLibrary)" DestinationFiles="@(BundleBesideLibrary->'$(OutDir)Bundle\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="EnsureReactNativeWindowsTargets" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references targets in your node_modules\react-native-windows folder. The missing file is {0}.</ErrorText>

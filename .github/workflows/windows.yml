@@ -70,6 +70,13 @@ jobs:
         run: |
           scripts/windows/tour.ps1 -App apps/browser/windows/x64/Release/Ardia.exe -Out "${{ runner.temp }}/tour"
           if (Test-Path "${{ runner.temp }}/tour/tour.md") { Get-Content "${{ runner.temp }}/tour/tour.md" >> $env:GITHUB_STEP_SUMMARY }
+      - name: Host manifest
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
+          Copy-Item apps/browser/windows/x64/Release/Ardia.exe $copy
+          scripts/windows/host-manifest.ps1 -From apps/browser/windows/x64/Release/ArdiaApp.dll -To $copy
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -127,6 +134,13 @@ jobs:
       - name: Launch it
         shell: pwsh
         run: scripts/windows/launch-smoke.ps1 -App apps/browser/windows/ARM64/Release/Ardia.exe -Out "${{ runner.temp }}/launch" -NoInput
+      - name: Host manifest
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $copy = Join-Path "${{ runner.temp }}" "host-manifest-check.exe"
+          Copy-Item apps/browser/windows/ARM64/Release/Ardia.exe $copy
+          scripts/windows/host-manifest.ps1 -From apps/browser/windows/ARM64/Release/ArdiaApp.dll -To $copy
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

@@ -35,6 +35,23 @@ Logic is written once. Only code that calls the OS is written per platform.
 
   The log, and `ardiaWindowsMissing()` in the JS console, list what the app has reached so far that has no Windows
   version, not everything left to port.
+- The app is a library, `ArdiaApp.dll` (the `Ardia` project), because Chromium's sandbox needs Chromium's own launcher
+  to be the process. It runs in two modes, chosen by who calls it (`EngineApi.h` has the types):
+  - Standalone: `Ardia.exe` is a stub (`ArdiaLauncher`) that loads `ArdiaApp.dll` from its own folder and calls
+    `ArdiaAppRun`, which sets the app up and runs its own event loop. This is what CI builds and tests.
+  - In the engine: Chromium's launcher loads the library on its UI thread and calls `ArdiaAppStart` with its API table.
+    The app sets up and returns; Chromium runs the loop, hands each message to `ArdiaAppPreTranslateMessage` first, and
+    calls `ArdiaAppStop` when the loop ends. Quitting asks the engine (`app.quit`) instead of ending the loop.
+  - `ArdiaEngineHost` (`EngineHostModule.h`) is the bridge: `available()`, `hostCall`, `engineCall`, and the engine's
+    events as `ArdiaEngineHost:event`. Other native code reaches the engine through `Host::Engine()`.
+  - What belongs to the app comes from the library (`AppImage.h`: the bundle folder, dialogs, window classes, the
+    version); what is about the process stays with the executable (launch at login).
+  - Windows finds the Windows App SDK's classes through the manifest of the process's executable, not the library's.
+    The `Ardia` project writes that list to `ArdiaApp.winrt.manifest` in the output folder, and the stub links it in
+    with its own entries (`ArdiaLauncher/Ardia.exe.manifest`: Windows 10 and 11, per-monitor DPI, common controls 6).
+    `scripts/windows/host-manifest.ps1 -From ArdiaApp.dll -To <exe>` writes the same list into another executable,
+    keeping what it already declares: the engine's launcher needs it. The library, its DLLs and `Ardia.pri` have to sit
+    next to that executable.
 - Native code is C++ in `apps/browser/windows/Ardia`, header-only, one module per header, named as on the Mac
   (`ArdiaApp` in `AppModule.h`), all included from `Modules.h`. Events reach JS as the device event
   `<Module>:<event>` (`Events.h`). Folders come from `Paths.h`: data in `%LOCALAPPDATA%\Ardia` or `ARDIA_DATA_DIR`,
@@ -134,6 +151,8 @@ Logic is written once. Only code that calls the OS is written per platform.
   button does not do so; a drag of the toolbar's empty middle is not the app's own move; Ctrl+T matches no command; the sidebar button does not take its click; or the pointer just outside the
   window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by
   Windows' own first-run screen, so its screenshots show that screen and it skips the input.
+- Both runs then write the library's WinRT list into a copy of `Ardia.exe` with `scripts/windows/host-manifest.ps1`
+  and read it back, so the script the engine's launcher depends on is exercised on every build.
 - `scripts/windows/tour.ps1` drives a full screenshot tour and writes `tour.md`, one line per stop with the facts it
   read. Among them: Downloads and Search Tabs must close on Escape (the caption regions go away while one is open and
   come back, and for Downloads the log shows the native Escape capture taking the key), and Little Ardia's command

@@ -19,6 +19,7 @@
 
 #include "NativeModules.h"
 
+#include "AppImage.h"
 #include "LaunchLog.h"
 #include "Paths.h"
 
@@ -251,17 +252,7 @@ bool RunOnShellThread(TWork &&work) noexcept {
 }
 
 inline std::wstring ExecutablePath() noexcept {
-  std::wstring path(MAX_PATH, L'\0');
-  while (true) {
-    DWORD written = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
-    if (written == 0) return {};
-    if (written < path.size()) {
-      path.resize(written);
-      return path;
-    }
-    if (path.size() >= 32768) return {};
-    path.resize(path.size() * 2);
-  }
+  return AppImage::PathOf(nullptr);
 }
 
 inline bool Execute(std::wstring const &target) noexcept {
@@ -322,7 +313,7 @@ struct ExecutableVersion {
 
 inline ExecutableVersion ReadExecutableVersion() noexcept {
   ExecutableVersion found;
-  std::wstring path = AppShell::ExecutablePath();
+  std::wstring path = AppImage::Path();
   if (path.empty()) return found;
   DWORD ignored = 0;
   DWORD size = GetFileVersionInfoSizeW(path.c_str(), &ignored);
@@ -511,7 +502,7 @@ struct SystemInfo {
 REACT_MODULE(AppModule, L"ArdiaApp")
 struct AppModule {
   REACT_CONSTANT(windowsApiVersion)
-  const int windowsApiVersion = 4;
+  const int windowsApiVersion = 5;
 
   REACT_SYNC_METHOD(systemInfo)
   SystemInfo systemInfo() noexcept {

@@ -16,6 +16,7 @@
 #include <wtsapi32.h>
 
 #include "NativeModules.h"
+#include "AppImage.h"
 #include "DialogsModule.h"
 #include "Events.h"
 #include "LaunchLog.h"
@@ -134,7 +135,7 @@ inline LRESULT CALLBACK WatcherProcedure(HWND hwnd, UINT message, WPARAM wParam,
 }
 
 inline HWND CreateWatcher(std::shared_ptr<ShellState> const &state) noexcept {
-  HINSTANCE instance = GetModuleHandleW(nullptr);
+  HINSTANCE instance = AppImage::Handle();
   WNDCLASSEXW windowClass{};
   windowClass.cbSize = sizeof(windowClass);
   windowClass.lpfnWndProc = WatcherProcedure;

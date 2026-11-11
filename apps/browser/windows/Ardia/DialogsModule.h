@@ -16,6 +16,7 @@
 #include <shobjidl.h>
 
 #include "NativeModules.h"
+#include "AppImage.h"
 #include "Events.h"
 #include "LaunchLog.h"
 #include "Paths.h"
@@ -311,7 +312,7 @@ inline DialogConfirmReply ShowConfirm(HWND owner, std::wstring const &title, std
     TASKDIALOGCONFIG config{};
     config.cbSize = sizeof(config);
     config.hwndParent = owner;
-    config.hInstance = GetModuleHandleW(nullptr);
+    config.hInstance = AppImage::Handle();
     config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | (owner ? TDF_POSITION_RELATIVE_TO_WINDOW : 0);
     config.pszWindowTitle = L"Ardia";
     config.pszMainInstruction = title.c_str();
@@ -450,7 +451,7 @@ inline std::optional<std::wstring> ShowPrompt(HWND owner, PromptState &state) no
   builder.Item(BS_PUSHBUTTON | WS_TABSTOP, width - margin - 50, buttonsY, 50, 14, IDCANCEL, 0x0080, L"Cancel");
   builder.Align();
 
-  INT_PTR result = DialogBoxIndirectParamW(GetModuleHandleW(nullptr), reinterpret_cast<LPCDLGTEMPLATEW>(builder.words.data()), owner, PromptProcedure, reinterpret_cast<LPARAM>(&state));
+  INT_PTR result = DialogBoxIndirectParamW(AppImage::Handle(), reinterpret_cast<LPCDLGTEMPLATEW>(builder.words.data()), owner, PromptProcedure, reinterpret_cast<LPARAM>(&state));
   if (result != IDOK) return std::nullopt;
   return state.answer;
 }
