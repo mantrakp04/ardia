@@ -82,6 +82,14 @@ test("a request macOS sent to the app that opened Ardia says to reopen Ardia, wi
   assert.match(useCalendar.getState().requestError ?? "", /open it from the Dock or Finder/);
 });
 
+test("a launcher-attributed request macOS refused keeps its error and only suggests reopening", async () => {
+  stage({ status: "notDetermined", responsible: "other", error: "Missing entitlement" });
+  await connectCalendar();
+  const message = useCalendar.getState().requestError ?? "";
+  assert.match(message, /Missing entitlement/);
+  assert.match(message, /may have checked the app that opened Ardia/);
+});
+
 test("a denial just chosen in macOS's prompt explains it but leaves System Settings closed", async () => {
   stage({ status: "notDetermined", after: "denied" });
   await connectCalendar();

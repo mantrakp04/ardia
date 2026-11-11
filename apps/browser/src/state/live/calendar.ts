@@ -54,8 +54,9 @@ export function calendarRequestFailure(access: CalendarAuthorization, request: P
   if (access === "restricted") return `Calendar access is restricted on this Mac, by Screen Time or your organization. If you can change it, allow Ardia in ${CALENDARS_PRIVACY}.`;
   if (access === "writeOnly") return `Ardia can only add events to your calendars. Choose Full Access for Ardia in ${CALENDARS_PRIVACY}.`;
   if (access === "denied") return `Ardia isn't allowed to read your calendars. Turn on Ardia in ${CALENDARS_PRIVACY}.`;
-  if (request?.responsible === "other") return "macOS asked the app that opened Ardia for calendar access instead of Ardia. Quit Ardia, open it from the Dock or Finder, then connect again.";
-  if (request?.error) return `macOS couldn't give Ardia calendar access (${request.error}). Check ${CALENDARS_PRIVACY}.`;
+  const launcherHint = request?.responsible === "other" ? " macOS may have checked the app that opened Ardia instead of Ardia: quit Ardia, open it from the Dock or Finder, then connect again." : "";
+  if (request?.error) return `macOS couldn't give Ardia calendar access (${request.error}). Check ${CALENDARS_PRIVACY}.${launcherHint}`;
+  if (launcherHint) return `macOS didn't ask Ardia for calendar access.${launcherHint}`;
   return `macOS didn't ask for calendar access. Allow Ardia in ${CALENDARS_PRIVACY}.`;
 }
 
