@@ -57,7 +57,6 @@ export const NEW_TAB_NOTICE = {
   height: 28,
   rise: 6,
   pressedOpacity: 0.7,
-  arrowNudge: 3,
   motion: { show: { duration: duration.base, easing: curve.enter }, hide: { duration: duration.base, easing: curve.exit } },
 } as const;
 

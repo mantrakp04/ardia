@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { goToNoticedTab, holdNewTabNotice, usePaneNewTabNotice } from "../../state/tabs/newTabNotice";
-import { capsule, duration, space, Symbol, Text, useHover, usePresence } from "../ui";
+import { capsule, space, Symbol, Text, useHover, usePresence } from "../ui";
 import { useTheme } from "../ui/theme";
 import { Hud } from "./Hud";
 import { NEW_TAB_NOTICE, windowColors } from "./tokens";
@@ -12,13 +12,11 @@ export function NewTabNotice({ windowId, tabId, right, top }: { windowId: string
   const { shown, appear } = usePresence(live, NEW_TAB_NOTICE.motion);
   const { hovered, hoverProps } = useHover();
   const hover = !!live && hovered;
-  const slide = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (live) holdNewTabNotice(windowId, live, hover);
-    const run = Animated.timing(slide, { toValue: hover ? 1 : 0, duration: duration.fast, useNativeDriver: true });
-    run.start();
-    return () => run.stop();
-  }, [hover]);
+    if (!live || !hover) return;
+    holdNewTabNotice(windowId, live, true);
+    return () => holdNewTabNotice(windowId, live, false);
+  }, [hover, live, windowId]);
   if (!shown) return null;
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", right, top }}>
@@ -39,9 +37,7 @@ export function NewTabNotice({ windowId, tabId, right, top }: { windowId: string
                     <Text size="small" weight="semibold" numberOfLines={1}>
                       New tab opened
                     </Text>
-                    <Animated.View style={{ transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, NEW_TAB_NOTICE.arrowNudge] }) }] }}>
-                      <Symbol name="arrow.right" size={10} weight="semibold" color={hover ? theme.textPrimary : theme.textSecondary} style={ICON} />
-                    </Animated.View>
+                    <Symbol name="arrow.right" size={10} weight="semibold" color={hover ? theme.textPrimary : theme.textSecondary} style={ICON} />
                   </View>
                 </Hud>
               </View>
