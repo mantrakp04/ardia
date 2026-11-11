@@ -13,6 +13,7 @@ import { curve } from "../ui/motion";
 import { SIDEBAR_MOTION } from "./tokens";
 import { entryId, entryKey, parseEntry } from "../../state/sidebar/entryKey";
 import { splitTabIdsOf } from "../../state/splits/splits";
+import { noteSidebarMotionMerge } from "../../state/telemetry/usage";
 
 export const SLIDE_MS = SIDEBAR_MOTION.listSlide;
 export const FADE_MS = SIDEBAR_MOTION.listFade;
@@ -130,6 +131,16 @@ function buildPlan({ before, after, old, next, removed, added, slides, ghosts, t
   return { moves, ghosts: born, clipped, below: 0 };
 }
 
+function mergePlans(first: Plan, then: Plan): Plan {
+  const later = new Set(then.moves.map((m) => m.key));
+  return {
+    moves: [...first.moves.filter((m) => !later.has(m.key)), ...then.moves],
+    ghosts: [...first.ghosts, ...then.ghosts],
+    clipped: [...new Set([...first.clipped, ...then.clipped])],
+    below: first.below + then.below,
+  };
+}
+
 type GroupChange = "same" | "grown" | "extended" | "other";
 
 function groupGrowsAtEnd(before: BrowserState, after: BrowserState, groupId: string): boolean {
@@ -213,9 +224,12 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
   const prepare = (plan: Plan, at: number) => {
     for (const m of plan.moves) if (!slides.has(m.key)) slides.set(m.key, { value: new Animated.Value(m.from), from: m.from, at, until: 0, landed: false });
     ghosts.current = [...ghosts.current, ...plan.ghosts];
+    const pending = queued.current;
+    const next = pending ? mergePlans(pending, plan) : plan;
+    if (pending) noteSidebarMotionMerge();
     clipped.clear();
-    for (const key of plan.clipped) clipped.add(key);
-    queued.current = plan;
+    for (const key of next.clipped) clipped.add(key);
+    queued.current = next;
   };
 
   const before = from.pending;
