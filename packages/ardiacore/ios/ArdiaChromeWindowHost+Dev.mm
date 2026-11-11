@@ -449,6 +449,7 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
     @"mouse" : ^NSString *(NSWindow *w, NSString *a) { return MouseEvent(w, a); },
     @"pageMove" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::PageMoveAt(w, WindowPoint(w, a)); },
     @"focusState" : ^NSString *(NSWindow *, NSString *) { return ardia_host::FocusState(); },
+    @"hoverProbe" : ^NSString *(NSWindow *w, NSString *a) { return ardia_host::HoverProbeDev(w, a); },
     @"drag" : ^NSString *(NSWindow *w, NSString *a) { return Drag(w, a); },
     @"type" : ^NSString *(NSWindow *w, NSString *a) { return TypeText(w, a); },
     @"reserved" : ^NSString *(NSWindow *w, NSString *a) { return Reserved(w, a); },

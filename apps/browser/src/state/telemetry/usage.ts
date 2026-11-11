@@ -13,7 +13,7 @@ import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
-import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples } from "./diagnostics";
+import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
@@ -30,7 +30,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, tabStripPeeks: 0, tabPeeksWithAutoHideOff: 0, toolbarScrollHides: 0, toolbarScrollHideBounces: 0, cardResizeLayouts: 0, cardResizeLayoutsApplied: 0, importedPinnedRows: 0, importedSplits: 0, splitPaneCloses: 0, splitViewCloses: 0, windowCloseTabsKept: 0, sharesPickedTab: 0, sharesPickedWindow: 0, sharesPickedScreen: 0, screenRecordingMissing: 0, screenRecordingAsked: 0, extensionInstallPrompts: 0, privateWindowExtensionOpens: 0, contentBlockerUnavailable: 0, contentBlockerWriteFailures: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -84,6 +84,8 @@ function emitCounts() {
       share_picker_screen_recording_asked: counts.screenRecordingAsked,
       extension_install_prompts: counts.extensionInstallPrompts,
       private_window_extension_opens: counts.privateWindowExtensionOpens,
+      content_blocker_unavailable: counts.contentBlockerUnavailable,
+      content_blocker_write_failures: counts.contentBlockerWriteFailures,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -125,6 +127,14 @@ export function noteExtensionInstallPrompt() {
 
 export function notePrivateWindowExtensionOpen() {
   counts.privateWindowExtensionOpens++;
+}
+
+export function noteContentBlockerUnavailable() {
+  counts.contentBlockerUnavailable++;
+}
+
+export function noteContentBlockerWriteFailure() {
+  counts.contentBlockerWriteFailures++;
 }
 
 export function noteCaptureIndicatorCleared() {
@@ -355,6 +365,7 @@ export function startUsage() {
   watchSync();
   watchTranslate();
   watchExtensions();
+  watchHoverLost();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
