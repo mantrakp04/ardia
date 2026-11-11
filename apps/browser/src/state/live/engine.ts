@@ -160,7 +160,7 @@ export function openLiveItem(windowId: string, folderId: string, item: LiveItem,
     return existing;
   }
   const id = s.newTab(windowId, { url: item.url, background: options.background });
-  const completed = live().completed[folderId]?.some((c) => c.item.id === item.id);
+  const completed = live().completed[folderId]?.some((c) => c.item.id === item.id && ended(c.state));
   useBrowser.getState().updateTab(id, { liveItem: completed ? { folderId, itemId: item.id, completed } : { folderId, itemId: item.id }, pinnedUrl: home });
   return id;
 }
@@ -196,13 +196,15 @@ export function syncLiveHomes() {
   }
 }
 
+const ended = (state: CompletionState | undefined) => state === "merged" || state === "closed";
+
 function markCompletedTabs(folderId: string, gone: Record<string, CompletionState>, listed: Set<string>) {
   const s = useBrowser.getState();
   const hidden = new Set((live().hidden[folderId] ?? []).map((it) => it.id));
   for (const t of Object.values(s.tabs)) {
     const ref = t.liveItem;
     if (ref?.folderId !== folderId) continue;
-    if (gone[ref.itemId] && !hidden.has(ref.itemId) && !ref.completed) s.updateTab(t.id, { liveItem: { ...ref, completed: true } });
+    if (ended(gone[ref.itemId]) && !hidden.has(ref.itemId) && !ref.completed) s.updateTab(t.id, { liveItem: { ...ref, completed: true } });
     else if (ref.completed && listed.has(ref.itemId)) s.updateTab(t.id, { liveItem: { folderId, itemId: ref.itemId } });
   }
   closeCompletedTabs();

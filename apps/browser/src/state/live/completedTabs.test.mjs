@@ -22,8 +22,10 @@ const pr = (id, number) => ({
 
 const listed = new Map();
 const merged = new Set();
+const reviewed = new Set();
 SOURCES.github.fetch = async (folder) => listed.get(folder.id) ?? [];
-SOURCES.github.resolveGone = async (items) => Object.fromEntries(items.filter((it) => merged.has(it.id)).map((it) => [it.id, "merged"]));
+SOURCES.github.resolveGone = async (items) =>
+  Object.fromEntries(items.flatMap((it) => (merged.has(it.id) ? [[it.id, "merged"]] : reviewed.has(it.id) ? [[it.id, "reviewed"]] : [])));
 
 S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
 const w = S().createWindow({ url: "https://start.example/" });
@@ -148,4 +150,16 @@ test("a tab opened from the Completed list closes when Show Completed is turned 
   assert.ok(inFolder(tab, id));
   updateFolder(id, { showCompleted: false });
   assert.equal(S().tabs[tab], undefined);
+});
+
+test("an open pull request that leaves Review Requests keeps its tab, even with Show Completed off", async () => {
+  const { id, prs } = await folderOf(false);
+  const tab = openLiveItem(w, id, prs[0], { background: true });
+  reviewed.add(prs[0].id);
+  listed.set(id, listed.get(id).filter((it) => it.id !== prs[0].id));
+  await refreshFolder(id);
+  finishCompleting(id, [prs[0].id]);
+  assert.ok(S().tabs[tab], "a reviewed pull request is still open");
+  const again = openLiveItem(w, id, prs[0], { background: true });
+  assert.equal(S().tabs[again].liveItem?.completed, undefined);
 });
