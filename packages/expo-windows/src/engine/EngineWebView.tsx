@@ -1,6 +1,7 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import { noteMissing } from "../missing";
+import { requireNativeModule } from "../modules";
 import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
 import { CoverAncestry } from "./usePageCover";
@@ -63,6 +64,12 @@ const ANSWERS: Record<string, unknown> = {
 };
 const SETTLE_MS = [0, 50, 200, 500];
 
+type AppWindows = { setPageFullScreen(windowId: string, on: boolean): Promise<unknown> };
+
+const setWindowFullScreen = (windowId: string, on: boolean) => {
+  void Promise.resolve(requireNativeModule<AppWindows>("ArdiaAppWindows").setPageFullScreen(windowId, on)).catch(() => {});
+};
+
 let unnamed = 0;
 
 const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -77,6 +84,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
   latest.current = props;
   const visible = props.visible !== false;
   const shown = useRef<{ visible: boolean; placed: string }>({ visible: false, placed: "" });
+  const fullScreen = useRef(false);
 
   const place = useCallback(() => {
     const wanted = latest.current.visible !== false;
@@ -90,13 +98,15 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
     view.current?.measureInWindow((x, y, width, height) => {
       if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
       const page = { x, y, width, height };
-      const shape: PageShape = {
-        ...page,
-        radius: pageRadiusIn(windowId),
-        holes: coversIn(windowId, above.current)
-          .filter((cover) => overlaps(cover, page))
-          .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
-      };
+      const shape: PageShape = fullScreen.current
+        ? { ...page, radius: 0, holes: [] }
+        : {
+            ...page,
+            radius: pageRadiusIn(windowId),
+            holes: coversIn(windowId, above.current)
+              .filter((cover) => overlaps(cover, page))
+              .map((hole) => [hole.x, hole.y, hole.width, hole.height, hole.radius]),
+          };
       const placed = JSON.stringify(shape);
       if (shown.current.visible && shown.current.placed === placed) return;
       shown.current = { visible: true, placed };
@@ -110,12 +120,24 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
     const first = latest.current;
     const unmount = mountPage(key, { url: first.url, profile: first.profile, adopt: first.adoptId, windowId }, (name, data) => {
       if (name === "ready") place();
+      if (name === "fullscreen") {
+        const on = !!(data as { fullscreen?: unknown } | null)?.fullscreen;
+        if (on !== fullScreen.current) {
+          fullScreen.current = on;
+          setWindowFullScreen(windowId, on);
+          place();
+        }
+      }
       const now = latest.current;
       if (now.pageEvents && !now.pageEvents.includes(name)) return;
       now.onPageEvent?.({ nativeEvent: { name, data } });
     });
     return () => {
       shown.current = { visible: false, placed: "" };
+      if (fullScreen.current) {
+        fullScreen.current = false;
+        setWindowFullScreen(windowId, false);
+      }
       unmount();
     };
   }, [key, windowId, place]);

@@ -52,6 +52,11 @@ struct WindowsModule {
     OnUI(promise, [ids, focused]() noexcept { WindowManager::Shared().RestoreFullScreen(ids, focused); });
   }
 
+  REACT_METHOD(setPageFullScreen)
+  void setPageFullScreen(std::string id, bool on, Promise promise) noexcept {
+    OnUI(promise, [id, on]() noexcept { WindowManager::Shared().SetPageFullScreen(id, on); });
+  }
+
   REACT_METHOD(setTrafficLightsCenter)
   void setTrafficLightsCenter(std::string, JSValue, bool, Promise promise) noexcept {
     promise.Resolve();

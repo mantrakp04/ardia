@@ -45,6 +45,8 @@ struct ManagedWindow {
   winrt::event_token closing{};
   winrt::event_token destroying{};
   bool fullScreen{false};
+  bool pageFullScreen{false};
+  bool fullScreenBeforePage{false};
   winrt::Microsoft::UI::Input::InputNonClientPointerSource nonClient{nullptr};
   bool captionBand{false};
   bool maximized{false};
@@ -208,6 +210,23 @@ struct WindowManager {
       }
     }
     if (focus) Focus(*focus);
+  }
+
+  void SetPageFullScreen(std::string const &id, bool on) noexcept {
+    ManagedWindow *entry = Find(id);
+    if (!entry || Background() || entry->pageFullScreen == on) return;
+    using winrt::Microsoft::UI::Windowing::AppWindowPresenterKind;
+    try {
+      bool full = entry->appWindow.Presenter().Kind() == AppWindowPresenterKind::FullScreen;
+      entry->pageFullScreen = on;
+      if (on) {
+        entry->fullScreenBeforePage = full;
+        if (!full) entry->appWindow.SetPresenter(AppWindowPresenterKind::FullScreen);
+      } else if (full && !entry->fullScreenBeforePage) {
+        entry->appWindow.SetPresenter(AppWindowPresenterKind::Overlapped);
+      }
+    } catch (...) {
+    }
   }
 
   void SetDark(bool dark) noexcept {
