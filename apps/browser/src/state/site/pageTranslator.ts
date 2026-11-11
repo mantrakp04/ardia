@@ -1,6 +1,4 @@
 
-export type Passage = [number, [number, string][]];
-
 const INSTALL = String.raw`
 const KEY = Symbol.for("ardia.translator");
 if (!window[KEY]) {
@@ -45,6 +43,9 @@ if (!window[KEY]) {
     watchedCount: 0,
     observer: null,
     visibility: null,
+    holds(token) {
+      return this.active && this.token === token;
+    },
     sample() {
       const w = document.createTreeWalker(root(), NodeFilter.SHOW_TEXT);
       let text = "";
@@ -151,6 +152,11 @@ if (!window[KEY]) {
         if (!block.isConnected) continue;
         const nodes = this.pieces(block);
         for (let i = 0; i < nodes.length; i += MAX_PIECES) {
+          if (passages.length >= max) {
+            this.queue.unshift(block);
+            this.queued.add(block);
+            break;
+          }
           const pieces = [];
           let previous = null;
           for (const { node, gap } of nodes.slice(i, i + MAX_PIECES)) {
@@ -169,7 +175,8 @@ if (!window[KEY]) {
       this.done += passages.length;
       return { passages, more: this.queue.length > 0, gone: false, done: this.done, total: this.done + this.queue.length };
     },
-    apply(results) {
+    apply(token, results) {
+      if (!this.active || this.token !== token) return false;
       for (const [id, text] of results) {
         const node = this.byId.get(id);
         this.byId.delete(id);
@@ -208,6 +215,6 @@ if (!window[KEY]) {
 }
 `;
 
-export function translatorCall(op: "sample" | "start" | "next" | "apply" | "revert", ...args: unknown[]): string {
+export function translatorCall(op: "sample" | "holds" | "start" | "next" | "apply" | "revert", ...args: unknown[]): string {
   return `${INSTALL}\npost("result", JSON.stringify(window[Symbol.for("ardia.translator")].${op}(...${JSON.stringify(args)})));`;
 }

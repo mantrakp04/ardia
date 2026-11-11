@@ -75,10 +75,15 @@ enum TranslationSessions {
   private static func translateOnce(_ key: PassageKey, standard: Bool) async -> [String]? {
     if key.pieces.count == 1 {
       var out = ""
-      for (text, gap) in sentenceRuns(key.pieces[0]) {
+      for piece in SentenceRuns.split(key.pieces[0]) {
+        guard !piece.text.isEmpty else {
+          out += piece.gap
+          continue
+        }
+        let text = piece.text
         guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).targetText })
         else { return nil }
-        out += translated + gap
+        out += translated + piece.gap
       }
       return [out]
     }
@@ -86,31 +91,6 @@ enum TranslationSessions {
     guard let translated = try? await run(source: key.source, target: key.target, standard: standard, { try await $0.translate(text).attributedTargetText })
     else { return nil }
     return TranslateModule.parts(of: translated, over: key.pieces)
-  }
-
-  private static let runChars = 800
-
-  private static func sentenceRuns(_ text: String) -> [(String, String)] {
-    guard text.count > runChars else { return [(text, "")] }
-    let tokenizer = NLTokenizer(unit: .sentence)
-    tokenizer.string = text
-    var runs: [(String, String)] = []
-    var current = ""
-    for range in tokenizer.tokens(for: text.startIndex..<text.endIndex) {
-      let sentence = text[range]
-      if !current.isEmpty, current.count + sentence.count > runChars {
-        runs.append(split(current))
-        current = ""
-      }
-      current += sentence
-    }
-    if !current.isEmpty { runs.append(split(current)) }
-    return runs.isEmpty ? [(text, "")] : runs
-  }
-
-  private static func split(_ run: String) -> (String, String) {
-    let body = run.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
-    return (body, String(run.dropFirst(body.count)))
   }
 
   private static func worthAskingAgain(_ pieces: [String]) -> Bool {

@@ -6,7 +6,8 @@ import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { incognitoOriginal, isIncognitoProfile } from "../browser/model";
 import { hideKeyedToast, showToast } from "../app/toasts";
-import { translatorCall, type Passage } from "./pageTranslator";
+import { translatorCall } from "./pageTranslator";
+import { drainPassages, type PageBatch, type Passage, type Translated } from "./translateDrain";
 import { errorText } from "../../lib/errors";
 import { capture } from "../telemetry/client";
 
@@ -32,6 +33,7 @@ export const useTranslateState = (tabId: string) => useTranslate((s) => s[tabId]
 const IN_FLIGHT = 2;
 const BATCH_CHARS = 2000;
 const FOLLOW_MS = 600;
+const DOCUMENT_POLL_MS = 250;
 const PROGRESS_AFTER_MS = 1200;
 const PROGRESS_TOAST = "translate-progress";
 
@@ -98,19 +100,16 @@ async function pageLanguage(tabId: string): Promise<{ language: string | null; a
 async function detect(tabId: string) {
   const tab = useBrowser.getState().tabs[tabId];
   if (!translation || !tab || !translatableHost(tab.url)) return set(tabId, IDLE);
+  const before = stateOf(tabId);
   const page = await pageLanguage(tabId);
   if (!page) return;
-  if (!page.active && stateOf(tabId).status === "translated") toIdle(tabId);
+  if (!page.active && before.status !== "idle" && holds(tabId, before.token)) toIdle(tabId);
   if (isNeverTranslated(tab.profileId, tab.url)) return setSource(tabId, null);
   const mine = new Set(languages().map(baseLanguage));
   const source = page.language && !mine.has(baseLanguage(page.language)) ? page.language : null;
   if (source && (await translation.status(source, defaultTarget())) === "unsupported") return setSource(tabId, null);
   setSource(tabId, source);
 }
-
-type Batch = { passages: Passage[]; more: boolean; gone: boolean; done: number; total: number };
-
-type Translated = [number, string | null];
 
 async function translatePassage(source: string, target: string, [, pieces]: Passage): Promise<Translated[]> {
   const [parts] = await translation!.translateBlocks(source, target, [pieces.map(([, text]) => text)]);
@@ -119,69 +118,45 @@ async function translatePassage(source: string, target: string, [, pieces]: Pass
   return pieces.map(([id], i) => [id, texts[i] ?? null]);
 }
 
-const cleanPassages = (passages: unknown[]): Passage[] =>
-  passages
-    .slice(0, IN_FLIGHT * 4)
-    .filter((p): p is Passage => Array.isArray(p) && Array.isArray(p[1]))
-    .map(([id, pieces]): Passage => [id, pieces.filter((x) => Array.isArray(x) && typeof x[1] === "string").slice(0, 40)]);
-
 type Progress = { applied: number; firstAppliedAt: number | null };
 
+function untilReleased(tabId: string, token: string) {
+  let stop = () => {};
+  const promise = new Promise<void>((resolve) => {
+    if (!holds(tabId, token)) return resolve();
+    stop = useTranslate.subscribe(() => {
+      if (!holds(tabId, token)) resolve();
+    });
+  });
+  return { promise, stop: () => stop() };
+}
+
 async function drain(tabId: string, token: string, onProgress?: (done: number, total: number) => void, progress: Progress = { applied: 0, firstAppliedAt: null }): Promise<boolean> {
-  const running = new Set<Promise<void>>();
-  let failure: { error: unknown } | null = null;
-  let total = 0;
-  let exhausted = false;
-  const settle = async () => {
-    await Promise.allSettled(running);
-    if (failure) throw failure.error;
-  };
-  for (;;) {
-    const current = stateOf(tabId);
+  const current = stateOf(tabId);
+  if (current.status === "idle" || current.token !== token) return false;
+  const { source, target } = current;
+  const released = untilReleased(tabId, token);
+  const page = () => {
     const web = webviews.get(tabId);
-    if (current.status === "idle" || current.token !== token || !web) return false;
-    if (failure) {
-      await settle();
-      return false;
-    }
-    if (!exhausted && running.size < IN_FLIGHT) {
-      atStage(tabId, "collect");
-      const batch = await web.evaluate<Batch>(translatorCall("next", token, IN_FLIGHT - running.size, BATCH_CHARS));
-      if (!batch || batch.gone || !Array.isArray(batch.passages)) return false;
-      total = batch.total;
-      exhausted = !batch.more;
-      const { source, target } = current;
-      for (const passage of cleanPassages(batch.passages)) {
-        const job = translatePassage(source, target, passage)
-          .then(
-            async (results) => {
-              if (!holds(tabId, token)) return;
-              atStage(tabId, "apply");
-              await webviews.get(tabId)?.evaluate(translatorCall("apply", results));
-              progress.firstAppliedAt ??= Date.now();
-              onProgress?.(++progress.applied, total);
-            },
-            async (error) => {
-              failure ??= { error };
-              const untranslated: Translated[] = passage[1].map(([id]): Translated => [id, null]);
-              await webviews.get(tabId)?.evaluate(translatorCall("apply", untranslated)).catch(() => {});
-            },
-          )
-          .catch((error: unknown) => void (failure ??= { error }))
-          .finally(() => running.delete(job));
-        running.add(job);
-      }
-      if (batch.passages.length) {
-        atStage(tabId, "model");
-        continue;
-      }
-    }
-    if (!running.size) {
-      await settle();
-      return true;
-    }
-    await Promise.race(running);
-    exhausted = false;
+    if (!web) throw new Error("the tab closed");
+    return web;
+  };
+  try {
+    return await drainPassages({
+      inFlight: IN_FLIGHT,
+      holds: () => holds(tabId, token) && !!webviews.get(tabId),
+      released: released.promise,
+      next: (max) => page().evaluate<PageBatch>(translatorCall("next", token, max, BATCH_CHARS)),
+      translate: (passage) => translatePassage(source, target, passage),
+      apply: (results) => page().evaluate(translatorCall("apply", token, results)),
+      onStage: (stage) => atStage(tabId, stage),
+      onApplied: (total) => {
+        progress.firstAppliedAt ??= Date.now();
+        onProgress?.(++progress.applied, total);
+      },
+    });
+  } finally {
+    released.stop();
   }
 }
 
@@ -291,11 +266,23 @@ export async function otherLanguages(): Promise<{ id: string; name: string }[]> 
   return [...best.values()].map((id) => ({ id, name: languageName(id) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function watchDocument(tabId: string) {
+  const current = stateOf(tabId);
+  if (current.status === "idle") return;
+  const { token } = current;
+  while (holds(tabId, token) && useBrowser.getState().live[tabId]?.isLoading) {
+    const same = await webviews.get(tabId)?.evaluate<boolean>(translatorCall("holds", token));
+    if (same === false && holds(tabId, token)) return toIdle(tabId);
+    await new Promise((r) => setTimeout(r, DOCUMENT_POLL_MS));
+  }
+}
+
 export function startTranslate() {
   if (!translation) return () => {};
   return useBrowser.subscribe((s, prev) => {
     for (const id of changedIds(s.live, prev.live)) {
       if (s.live[id] && prev.live[id]?.isLoading && !s.live[id].isLoading) void detect(id).catch(() => {});
+      if (s.live[id]?.isLoading && prev.live[id] && !prev.live[id].isLoading) void watchDocument(id).catch(() => {});
     }
     if (s.tabs === prev.tabs) return;
     const gone = Object.keys(useTranslate.getState()).filter((id) => !s.tabs[id]);
