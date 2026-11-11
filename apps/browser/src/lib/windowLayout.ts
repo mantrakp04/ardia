@@ -26,12 +26,12 @@ export type PageFrame = {
 };
 
 export function pageFrameOf(inset: number, windowRadius: number, peekRadius: number): PageFrame {
-  const radius = Math.max(windowRadius - inset, 2);
+  const radius = inset <= 0 ? 0 : Math.max(windowRadius - inset, 2);
   const peekGap = Math.max(MIN_PEEK_GAP, inset);
   return {
     inset,
     radius,
     splitGap: Math.max(inset, SPLIT_MIN_GAP),
-    peek: { left: peekGap, top: peekGap, bottom: peekGap, radius: Math.min(peekRadius, radius + inset - peekGap) },
+    peek: { left: peekGap, top: peekGap, bottom: peekGap, radius: Math.max(0, Math.min(peekRadius, radius + inset - peekGap)) },
   };
 }

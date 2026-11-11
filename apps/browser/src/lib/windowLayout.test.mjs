@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-const { PAGE_FRAME, pageFrameInsetOf } = await import("./windowLayout.ts");
+const { PAGE_FRAME, pageFrameInsetOf, pageFrameOf } = await import("./windowLayout.ts");
 
 const off = { zeroInFullScreen: false, fullScreen: false, zeroWhenTabsHidden: false, tabsHidden: false };
 
@@ -28,4 +28,11 @@ test("tabs hidden with Zero when tabs are hidden on is edge to edge", () => {
 test("tabs hidden with Zero when tabs are hidden off keeps the slider", () => {
   assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, tabsHidden: true }), PAGE_FRAME.default);
   assert.equal(pageFrameInsetOf(5, { ...off, tabsHidden: true }), 5);
+});
+
+test("a zero frame is square; a positive frame follows the window radius minus the inset", () => {
+  assert.equal(pageFrameOf(0, 19, 12).radius, 0);
+  assert.equal(pageFrameOf(9, 19, 12).radius, 10);
+  assert.equal(pageFrameOf(12, 19, 12).radius, 7);
+  assert.equal(pageFrameOf(0, 19, 12).peek.radius, 0);
 });
