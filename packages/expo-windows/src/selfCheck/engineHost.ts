@@ -10,6 +10,7 @@ type EngineHost = TurboModule & {
   engineCall(name: string, profileDir: string, argsJson: string): Promise<string>;
 };
 
+type DomainModule = { call(verb: string, profile: string, argsJson: string): Promise<string> };
 type TabEvent = { key?: unknown; name?: unknown; data?: { title?: unknown; isLoading?: unknown } };
 type ListedTab = { key: string; title: string; shown: boolean; windowVisible: boolean; width: number; height: number };
 
@@ -122,6 +123,18 @@ const withEngine: Check[] = [
       const tree = JSON.parse(await engineCallJson("ac_bookmarks_tree", "", "{}")) as { bar?: { k?: unknown }; error?: unknown };
       expectEqual(tree.error, undefined, "ac_bookmarks_tree's error");
       expectEqual(tree.bar?.k, "f", "the bookmarks bar's kind");
+    },
+  },
+  {
+    name: "engine: clearing browsing data reaches the engine",
+    async run() {
+      const profiles = requireNativeModule<DomainModule>("ArdiaProfiles");
+      expectEqual(await profiles.call("clearBrowsingData", "", JSON.stringify({ types: ["cache"], since: Date.now() - 60000 })), "null", "the reply to clearing a minute of cache");
+      const refused = await profiles.call("clearBrowsingData", "", JSON.stringify({ types: ["no such data"], since: 0 })).then(
+        () => false,
+        () => true,
+      );
+      expectTrue(refused, "a data type the engine does not know was not refused");
     },
   },
   {

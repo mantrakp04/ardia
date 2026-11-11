@@ -64,7 +64,7 @@
     ],
     "passwords": ["export", "autofillEnabled", "setAutofillEnabled"],
     "permissions": ["resolve", "resolveExternalApp", "externalAppAllowances", "removeExternalAppAllowance", "devExternalLaunches"],
-    "profiles": ["loaded", "release", "deleteData", "clearBrowsingData"],
+    "profiles": ["loaded", "release", "deleteData"],
     "search": ["setEngineName"],
     "tabs": [
       "routeLinkTabs",

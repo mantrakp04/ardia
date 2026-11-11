@@ -4,6 +4,7 @@ import { downloadCalls, downloadChanged } from "./downloads";
 import { engineCalls, searchCalls } from "./engineCalls";
 import { extensionCalls } from "./extensions";
 import { passwordCalls, savePassword, updatePassword } from "./passwords";
+import { profileCalls } from "./profiles";
 import { siteCalls } from "./sites";
 
 export type Rows = {
@@ -20,6 +21,7 @@ export const reproduced: Record<string, Handlers> = {
   engine: engineCalls,
   extensions: extensionCalls,
   passwords: passwordCalls,
+  profiles: profileCalls,
   search: searchCalls,
   sites: siteCalls,
 };
