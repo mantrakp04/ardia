@@ -1220,7 +1220,7 @@ function Open-Page($Session, $Stop, [string]$Address, [string]$TitlePattern) {
   Send-Key 0x0D 0
   Send-Key 0x0D 2
   $loaded = Wait-Title $Session $TitlePattern
-  Start-Sleep -Milliseconds 1200
+  Start-Sleep -Milliseconds 3500
   $Stop.Facts.Add("newTab command logged: $opened")
   $Stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($Session.Main))'")
   return $loaded
@@ -1292,6 +1292,47 @@ function Invoke-PagesTour {
     Save-Shot $stop $session.Main | Out-Null
     Set-Seen $stop $back
     $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($session.Main))'")
+  } | Out-Null
+
+  Invoke-Stop $session "page-history" "History lists the pages" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+H."
+    $stop.Expected = "the window's title names History, and the page lists the two sites."
+    Focus-Window $session $session.Main $stop | Out-Null
+    Send-Chord @(0x11) 0x48
+    $shown = Wait-Title $session "History" 8000
+    Start-Sleep -Milliseconds 1500
+    Save-Shot $stop $session.Main | Out-Null
+    Set-Seen $stop $shown
+    $stop.Facts.Add("window title: '$([ArdiaTour]::TitleOf($session.Main))'")
+  } | Out-Null
+
+  Invoke-Stop $session "page-private" "A page in a private window" {
+    param($stop)
+    $stop.Did = "Pressed Ctrl+Shift+N, typed example.com in the new window and pressed Enter."
+    $stop.Expected = "a second window of ours, dark, whose title names the page's site."
+    Focus-Window $session $session.Main $stop | Out-Null
+    $before = @(Get-TopWindows $session)
+    Send-Chord @(0x11, 0x10) 0x4E
+    $ours = { @(Get-NewWindows $session $before | Where-Object { $_.ClassName -notmatch "^(#32768|Chrome_)" -and $_.Width -ge 300 -and $_.Height -ge 200 }) }
+    $opened = Wait-Until $session { (& $ours).Count -gt 0 } 8000
+    if (-not $opened) {
+      $stop.Facts.Add("windows: $(Format-Windows (Get-TopWindows $session))")
+      Set-Seen $stop $false
+      return
+    }
+    $private = (& $ours)[0].Handle
+    Focus-Window $session $private $stop | Out-Null
+    Start-Sleep -Milliseconds 1200
+    Send-Text "example.com"
+    Start-Sleep -Milliseconds 500
+    Send-Key 0x0D 0
+    Send-Key 0x0D 2
+    $loaded = Wait-Until $session { [ArdiaTour]::TitleOf($private) -match "example\.com" } 25000
+    Start-Sleep -Milliseconds 3500
+    Save-Shot $stop $private | Out-Null
+    Set-Seen $stop $loaded
+    $stop.Facts.Add("the new window is titled '$([ArdiaTour]::TitleOf($private))'")
   } | Out-Null
   Stop-Ardia $session
 }
