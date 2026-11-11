@@ -90,6 +90,9 @@ public class AppWindowsModule: Module {
     AsyncFunction("setWindowTitle") { (id: String, title: String) in
       WindowManager.shared.setTitle(id: id, title: title)
     }.runOnQueue(.main)
+    AsyncFunction("setWindowTitleOverride") { (id: String, title: String?) in
+      WindowManager.shared.setTitleOverride(id: id, title: title)
+    }.runOnQueue(.main)
     AsyncFunction("windowIds") { () -> [String] in WindowManager.shared.windowIds }.runOnQueue(.main)
     AsyncFunction("replyToTerminate") { (ok: Bool) in QuitFlow.shared.replyToTerminate(ok) }.runOnQueue(.main)
 

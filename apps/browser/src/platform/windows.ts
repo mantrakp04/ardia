@@ -13,6 +13,7 @@ export const animateWindowClose = (id: string, after: string | null = null) => W
 export const restoreFullScreen = (ids: string[], focus: string | null) => Windows.restoreFullScreen(ids, focus);
 export const focusWindow = (id: string) => Windows.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Windows.setWindowTitle(id, title);
+export const setWindowTitleOverride = (id: string, title: string | null) => Windows.setWindowTitleOverride(id, title);
 export type LightsPlace = readonly [x: number, y: number] | readonly [fromRight: number, y: number, edge: "right"];
 export const setTrafficLightsCenter = (id: string, center: LightsPlace | null) =>
   Windows.setTrafficLightsCenter(id, center && [center[0], center[1]], center?.[2] === "right");

@@ -14,6 +14,7 @@ export type OpenWindowOptions = {
   frame?: [number, number, number, number] | null;
   incognito?: boolean;
   title?: string;
+  titleOverride?: string;
   focus?: boolean;
   kind?: "browser" | "small" | "settings" | "import";
   profile?: string;
@@ -46,6 +47,7 @@ export type WindowsNative = {
   raiseView(tag: number, levels: number, raised: boolean): Promise<void>;
   windowFrame(id: string): Promise<Rect4 | null>;
   setWindowTitle(id: string, title: string): Promise<void>;
+  setWindowTitleOverride(id: string, title: string | null): Promise<void>;
   windowIds(): Promise<string[]>;
   replyToTerminate(ok: boolean): Promise<void>;
 };

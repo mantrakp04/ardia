@@ -5,6 +5,7 @@ import { engineProfile, windowTitle } from "../browser/model";
 import { windowOpens } from "./windowOpenOrder";
 import { focusedWindowOf } from "./ui";
 import { adoptOf } from "../tabs/pageSession";
+import { windowTitleOverride } from "./windowTitleOverride";
 
 export type LightsCenter = LightsPlace | null;
 
@@ -12,6 +13,7 @@ export type WindowPort = {
   open(id: string, options: OpenWindowOptions, lightsCenter: LightsCenter): void;
   close(id: string): void;
   setTitle(id: string, title: string): void;
+  setTitleOverride(id: string, title: string | null): void;
   windowIds(): Promise<string[]>;
   restoreFullScreen(ids: string[], focus: string | null): void;
   onEvent(listener: (e: WindowEvent) => void): void;
@@ -29,9 +31,16 @@ export type WindowSyncSetup = {
 export function createWindowSync({ port, getState, isQuitting, lightsCenter, isUtilityWindow }: WindowSyncSetup) {
   const open = new Set<string>();
   const titles = new Map<string, string>();
+  const overrides = new Map<string, string | null>();
 
   const releaseIfIncognito = (w: BrowserState["windows"][string] | undefined) => {
     if (w?.kind === "private") port.releaseProfile(engineProfile(useBrowser.getState(), w.profileId));
+  };
+
+  const forget = (id: string) => {
+    open.delete(id);
+    titles.delete(id);
+    overrides.delete(id);
   };
 
   const listen = () =>
@@ -42,7 +51,7 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
       if (e.type === "fullScreen" && !isQuitting()) s.setWindowFullScreen(e.id, e.on);
       if (e.type === "close") {
         if (isQuitting()) return;
-        open.delete(e.id);
+        forget(e.id);
         s.closeWindow(e.id);
         releaseIfIncognito(s.windows[e.id]);
       }
@@ -60,25 +69,31 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
         ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}) }
         : {};
       const made = w.kind !== "small" && w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
+      const override = windowTitleOverride(s, id);
+      overrides.set(id, override);
       port.open(
         id,
-        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), focus, profile, ...(behind ? { behind } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
+        { frame: w.frame, incognito: w.kind === "private", title: titles.get(id), ...(override === null ? {} : { titleOverride: override }), focus, profile, ...(behind ? { behind } : {}), ...(prev && w.kind !== "small" && !w.chromeWindow ? { animated: true } : {}), ...small, ...made },
         lightsCenter(s, id),
       );
     }
     for (const id of [...open]) {
       if (s.windows[id]) continue;
-      open.delete(id);
-      titles.delete(id);
+      forget(id);
       port.close(id);
       releaseIfIncognito(prev?.windows[id]);
     }
-    if (prev && s.tabs === prev.tabs && s.windows === prev.windows && s.profiles === prev.profiles) return;
+    if (prev && s.tabs === prev.tabs && s.windows === prev.windows && s.profiles === prev.profiles && s.settings === prev.settings) return;
     for (const id of open) {
       const title = windowTitle(s, id);
       if (titles.get(id) !== title) {
         titles.set(id, title);
         port.setTitle(id, title);
+      }
+      const override = windowTitleOverride(s, id);
+      if ((overrides.get(id) ?? null) !== override) {
+        overrides.set(id, override);
+        port.setTitleOverride(id, override);
       }
     }
   };
@@ -100,6 +115,9 @@ export function createWindowSync({ port, getState, isQuitting, lightsCenter, isU
         const title = windowTitle(s, id);
         titles.set(id, title);
         port.setTitle(id, title);
+        const override = windowTitleOverride(s, id);
+        overrides.set(id, override);
+        port.setTitleOverride(id, override);
       }
     });
 

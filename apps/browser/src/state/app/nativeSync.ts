@@ -1,7 +1,7 @@
 import { lastTabClosesWindow } from "../../platform/tabs";
 import { onDownload } from "../../platform/downloads";
 import { releaseProfile } from "../../platform/profiles";
-import { closeWindow, onWindowEvent, openWindow, restoreFullScreen, setTrafficLightsCenter, setWindowTitle, windowIds } from "../../platform/windows";
+import { closeWindow, onWindowEvent, openWindow, restoreFullScreen, setTrafficLightsCenter, setWindowTitle, setWindowTitleOverride, windowIds } from "../../platform/windows";
 import { isDarkAppearance, onAppEvent, onOpenURLs, replyToTerminate } from "../../platform/app";
 import { startNativeSettings } from "../settings/nativeSettings";
 import { menuShortcuts, onCommand, setMenuStateParts } from "../../platform/commands";
@@ -37,6 +37,7 @@ export const shellWindowPort: WindowPort = {
   },
   close: (id) => void closeWindow(id),
   setTitle: (id, title) => void setWindowTitle(id, title),
+  setTitleOverride: (id, title) => void setWindowTitleOverride(id, title),
   windowIds,
   restoreFullScreen: (ids, focus) => void restoreFullScreen(ids, focus),
   onEvent: (listener) => void onWindowEvent(listener),

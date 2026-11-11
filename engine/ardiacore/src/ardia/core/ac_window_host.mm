@@ -4,6 +4,7 @@
 
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
+#include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
@@ -35,6 +36,8 @@ std::vector<WindowHost*>& Hosts() {
 }
 
 namespace {
+
+constexpr char16_t kBrandTitle[] = u"Ardia";
 
 class HostClientView : public views::ClientView {
  public:
@@ -88,7 +91,7 @@ WindowHost::WindowHost(ArdiaCoreWindow* owner, const gfx::Rect& bounds)
   widget_delegate_->SetCanResize(true);
   widget_delegate_->SetCanMaximize(true);
   widget_delegate_->SetCanMinimize(true);
-  widget_delegate_->SetTitle(u"Ardia");
+  widget_delegate_->SetTitle(kBrandTitle);
   widget_delegate_->SetClientViewFactory(base::BindOnce(
       [](base::WeakPtr<WindowHost> host, views::Widget* widget,
          views::View* contents) -> std::unique_ptr<views::ClientView> {
@@ -241,6 +244,30 @@ Browser* WindowHost::ExistingBrowserFor(Profile* profile) const {
   return it == browsers_.end() ? nullptr : it->second.get();
 }
 
+void WindowHost::UpdateTitle() {
+  std::u16string title = title_override_;
+  if (title.empty()) {
+    if (Browser* browser = ExistingBrowserFor(active_profile_)) {
+      if (content::WebContents* contents =
+              browser->GetTabStripModel()->GetActiveWebContents()) {
+        title = contents->GetTitle();
+      }
+    }
+  }
+  std::u16string trimmed;
+  base::TrimWhitespace(title, base::TRIM_ALL, &trimmed);
+  widget_delegate_->SetTitle(trimmed.empty() ? std::u16string(kBrandTitle)
+                                             : std::move(trimmed));
+}
+
+void WindowHost::SetTitleOverride(const std::u16string& title) {
+  if (title_override_ == title) {
+    return;
+  }
+  title_override_ = title;
+  UpdateTitle();
+}
+
 std::vector<Browser*> WindowHost::browsers() const {
   std::vector<Browser*> list;
   for (const auto& [profile, browser] : browsers_) {
@@ -341,6 +368,7 @@ void WindowHost::SetActiveProfile(Profile* profile) {
   Browser* old_browser =
       active_profile_ ? ExistingBrowserFor(active_profile_) : nullptr;
   active_profile_ = profile;
+  UpdateTitle();
   VideoUpscalingInputsChanged();
   if (old_browser) {
     BrowserActiveStateManager::From(old_browser)->DidBecomeInactive();
