@@ -50,6 +50,7 @@ NSMenuItem *ReservedMenuItemForEvent(NSEvent *event);
 bool IsReservedKey(NSEvent *event);
 bool IsSecondSidebarKeyPress(NSEvent *event);
 bool KeepsUnhandledSidebarKeyInPage(NSWindow *window, NSEvent *event);
+bool KeepsReservedKeyInDevTools(NSWindow *window, NSEvent *event);
 
 extern const void *kActedFullScreenKey;
 extern const void *kWindowFullScreenKey;

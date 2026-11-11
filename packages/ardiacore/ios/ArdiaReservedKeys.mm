@@ -1,4 +1,5 @@
 #import "ArdiaChromeWindowInternal.h"
+#import "ArdiaWebView.h"
 #import "ArdiaWindowController.h"
 
 #import <objc/message.h>
@@ -8,6 +9,7 @@ using namespace ardia_window;
 namespace {
 
 NSString *const kQuitIdentifier = @"ardia.shortcut.std:quit:";
+NSString *const kCopyUrlIdentifier = @"ardia.command.copyUrl";
 NSString *const kFullScreenIdentifier = @"ardia.shortcut.std:toggleFullScreen:";
 
 NSSet<NSString *> *ReservedIdentifiers() {
@@ -15,7 +17,7 @@ NSSet<NSString *> *ReservedIdentifiers() {
     @"ardia.command.closeTab", @"ardia.shortcut.std:closeWindow:", @"ardia.command.newIncognitoWindow", @"ardia.command.newTab",
     @"ardia.command.newWindow", @"ardia.command.reopenClosedTab", @"ardia.command.nextTab", @"ardia.command.previousTab",
     @"ardia.command.nextProfile", @"ardia.command.previousProfile",
-    @"ardia.command.tabSwitcher", kQuitIdentifier, @"ardia.command.copyUrl", @"ardia.command.devTools", @"ardia.command.toggleDevTools",
+    @"ardia.command.tabSwitcher", kQuitIdentifier, kCopyUrlIdentifier, @"ardia.command.devTools", @"ardia.command.toggleDevTools",
     @"ardia.command.searchTabs"
   ]];
   return reserved;
@@ -101,6 +103,15 @@ bool IsSidebarKey(NSEvent *event) {
   return event.type == NSEventTypeKeyDown && MenuItemForEvent(event, sidebar) != nil;
 }
 
+bool IsInDevTools(NSView *view) {
+  for (NSView *ancestor = view.superview; ancestor; ancestor = ancestor.superview) {
+    if (![ancestor isKindOfClass:ArdiaWebView.class]) continue;
+    NSView *devTools = ((ArdiaWebView *)ancestor).devtoolsView;
+    return devTools && [view isDescendantOf:devTools];
+  }
+  return false;
+}
+
 }
 
 namespace ardia_window {
@@ -127,6 +138,12 @@ bool KeepsUnhandledSidebarKeyInPage(NSWindow *window, NSEvent *event) {
   const bool typing = [focused isKindOfClass:NSView.class] && [ArdiaCorePageView isEditingText:(NSView *)focused];
   if (!typing) gSidebarKeyPressForPage = SidebarKeyPress{};
   return typing;
+}
+
+bool KeepsReservedKeyInDevTools(NSWindow *window, NSEvent *event) {
+  if (![ReservedMenuItemForEvent(event).identifier isEqualToString:kCopyUrlIdentifier]) return false;
+  NSResponder *focused = window.firstResponder;
+  return [focused isKindOfClass:NSView.class] && IsInDevTools((NSView *)focused);
 }
 
 }

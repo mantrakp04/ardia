@@ -125,7 +125,7 @@ const shortcuts = [
   ["⇧⌘Z", cmd("Z", 6, "shift"), { title: "Redo" }, "⇧⌘Z"],
   ["⌘X", cmd("x", 7), { title: "Cut" }, "⌘X", "clipboard"],
   ["⌘C", cmd("c", 8), { title: "Copy" }, "⌘C", "clipboard"],
-  ["⇧⌘C", cmd("C", 8, "shift"), { command: "copyUrl" }, "⇧⌘C"],
+  ["⇧⌘C", cmd("C", 8, "shift"), { command: "copyUrl" }, "⇧⌘C", "devtools-own"],
   ["⌥⇧⌘C", cmd("C", 8, "shift", "option"), { command: "copyUrlAsMarkdown" }, "⌥⇧⌘C"],
   ["⌘V", cmd("v", 9), { title: "Paste" }, "⌘V", "clipboard"],
   ["⇧⌘V", cmd("V", 9, "shift"), { title: "Paste and Match Style" }, "⇧⌘V", "clipboard"],

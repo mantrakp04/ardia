@@ -357,6 +357,7 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
+  if (KeepsReservedKeyInDevTools(window.window, event)) return NO;
   return (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event];
 }
 
