@@ -75,7 +75,7 @@ const NO_CELLS: string[] = [];
 export const useSidebarCells = (windowId: string, profileId: string, offScreen: boolean) =>
   useBrowser((s) => (offScreen ? NO_CELLS : sidebarEntries(s, windowId, profileId).cells));
 
-export const useOffersTidyTabs = (windowId: string, profileId: string, offScreen: boolean) => useBrowser((s) => !offScreen && offersTidyTabs(s, windowId, profileId));
+export const useOffersTidyTabs = (windowId: string, profileId: string, skip: boolean) => useBrowser((s) => !skip && offersTidyTabs(s, windowId, profileId));
 
 export const useCleanedCount = (windowId: string) => useBrowser((s) => cleanedTabsFor(s, windowId).length);
 

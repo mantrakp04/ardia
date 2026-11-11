@@ -61,8 +61,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const showClear = useSettings((s) => s.showClearButton);
   const clearable = showClear && !offScreen && all.length > 0;
   const tidyTabs = useSettings((s) => s.tidyTabs);
-  const tidyOffered = useOffersTidyTabs(windowId, profileId, offScreen);
-  const tidy = tidyTabs && tidyOffered;
+  const tidy = useOffersTidyTabs(windowId, profileId, offScreen || !tidyTabs);
   const pinned = usePinnedSequence(windowId, profileId, offScreen);
   const pinnedSection = pinned.length > 0;
   const divided = clearable || tidy || pinnedSection;
