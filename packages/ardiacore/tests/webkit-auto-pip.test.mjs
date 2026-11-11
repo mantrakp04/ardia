@@ -39,6 +39,8 @@ test("WebKit tabs keep the autoPictureInPicture flag instead of a stub that read
 test("WebKit tabs follow the user's sight of their window the way Chromium views do", () => {
   assert.match(sight, /let seen = visible && ArdiaChromeWindowHost\.userSees\(window\)/);
   assert.match(sight, /forName: (?:NSNotification\.Name\.)?ArdiaWindowSeenDidChange, object: window/);
+  assert.match(sight, /let activeCapture = webView\?\.cameraCaptureState == \.active \|\| webView\?\.microphoneCaptureState == \.active/);
+  assert.match(sight, /playing: !playingFrames\.isEmpty \|\| activeCapture/);
   assert.match(tab, /override func viewDidMoveToWindow\(\) \{ super\.viewDidMoveToWindow\(\); watchSight\(\) \}/);
   assert.match(tab, /var visible = true \{ didSet \{ updateHidden\(\); updateSight\(\) \} \}/);
 });
@@ -46,7 +48,7 @@ test("WebKit tabs follow the user's sight of their window the way Chromium views
 test("leaving opens picture in picture and returning closes it through the page's own player call", () => {
   assert.match(sight, /case \.open: setPictureInPicture\(true\) \{ _ in \}/);
   assert.match(sight, /case \.close: setPictureInPicture\(false\) \{ _ in \}/);
-  assert.match(sight, /autoPictureInPictureRule\.sight\(seen, enabled: autoPictureInPicture, playing: !playingFrames\.isEmpty\)/);
+  assert.match(sight, /autoPictureInPictureRule\.sight\(seen, enabled: autoPictureInPicture, playing: !playingFrames\.isEmpty \|\| activeCapture\)/);
 });
 
 test("the page's picture in picture reports reach the rule", () => {

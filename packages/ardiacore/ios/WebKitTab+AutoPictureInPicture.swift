@@ -23,7 +23,8 @@ extension WebKitTab {
   func updateSight() {
     guard !closed, let window else { return }
     let seen = visible && ArdiaChromeWindowHost.userSees(window)
-    switch autoPictureInPictureRule.sight(seen, enabled: autoPictureInPicture, playing: !playingFrames.isEmpty) {
+    let activeCapture = webView?.cameraCaptureState == .active || webView?.microphoneCaptureState == .active
+    switch autoPictureInPictureRule.sight(seen, enabled: autoPictureInPicture, playing: !playingFrames.isEmpty || activeCapture) {
     case .open: setPictureInPicture(true) { _ in }
     case .close: setPictureInPicture(false) { _ in }
     case .none: break
