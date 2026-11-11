@@ -666,8 +666,9 @@ Ardia runs no AI and never reads them itself.
 ### Gated by the token policy
 
 The engine's ardia-command policy (`ac_cli_token_policy_methods.cc`) refuses these methods, so on the real connection
-these commands fail with exit 1, naming the method and the command (`code: "policy_refused"`, `data.method`). Each is
-implemented and works against a plain `--port` test server, so allowing the method is the only change needed.
+these commands fail with exit 1, naming the method and the command (`code: "policy_refused"`, `data.method`, and
+`data.reason` empty). Each is implemented and works against a plain `--port` test server, so allowing the method is the
+only change needed.
 
 | Command | Needs |
 | --- | --- |
@@ -687,6 +688,22 @@ implemented and works against a plain `--port` test server, so allowing the meth
 
 On the token path Ardia also strips `Cookie`, `Set-Cookie` and `Authorization` from network events, so
 `network requests` and HAR files never contain them.
+
+The policy also refuses some uses of methods it allows (`ac_cli_token_policy.cc`), and says which in its reply:
+`ardia: <method> <reason> isn't allowed for the ardia command`. The command keeps that reason (`data.reason`, same
+`code`) and words the error around it, so it never reads as a method that is off the list:
+
+| Reason | Methods | Means |
+| --- | --- | --- |
+| `to that target`, `on that target` | `Target.attachToTarget`, `activateTarget`, `closeTarget`, `getTargetInfo` | The tab is gone, isn't a web page (an Ardia or extension page), or sits in a window Ardia keeps for itself |
+| `without flatten` | `Target.attachToTarget`, `setAutoAttach` | The command always sends `flatten`, so this is a bug in it |
+| `to that URL`, `in another browser context` | `Target.createTarget`, `Page.navigate` | Only http, https, data and about:blank pages, in the user's own profile |
+| `in that execution context`, `on that object` | `Runtime.*`, `DOM.*` | A context or object the connection didn't make |
+| `in a named world`, `as a stream`, `with the command line API`, `without a button`, `with those editing commands` | `Page.addScriptToEvaluateOnNewDocument`, `Page.printToPDF`, `Runtime.evaluate`, `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent` | That option isn't allowed |
+
+A refused `Target.attachToTarget` also says what Ardia's own tab list has for that page (`ardia windows`): the tab and
+its address, or that no tab holds it. The command used to print the off-the-list sentence for every refusal, which hid
+the reason.
 
 ### Skipped
 
@@ -749,6 +766,15 @@ built app (never `/Applications`):
 ```sh
 ARDIA_BROWSE_E2E_APP=<build>/Ardia.app python -m unittest apps/cli/tests/test_browse_e2e.py
 ```
+
+A Debug build takes its JavaScript from Metro, and the token instance has no DevTools port to find it by, so name it:
+`ARDIA_BROWSE_E2E_JS=localhost:8081`. Without it that instance never turns control on and `BrowseTokenPath` times out
+waiting for `ArdiaControl.json`.
+
+`apps/cli/scripts/token-smoke.sh <Ardia.app> <ardia command> [metro host:port]` is the short version: one hidden
+instance on the token connection, then `read <url>`, `open <url>`, `read` and a refused `cookies`. The release smoke
+test runs it with the release's own CLI tarball against the release candidate, since nothing else runs the command
+against a real token connection.
 
 It serves `tests/fixtures/browse` on 127.0.0.1, launches one hidden instance with a DevTools port (`ac launch
 --no-wait`) and one on the token path (`open -g -n`, `ARDIA_BACKGROUND=1`, control on in `session.json`), both under
@@ -950,7 +976,7 @@ from a checkout), `$geoip_disable`, `$process_person_profile: false` and `$sessi
   `snapshot`, `eval_ms` for `eval` or `action_ms` for the rest (the daemon's time less connect, attach and settle),
   `settle_ms` (the wait for the change report's network to settle, `changes.observe`), `snapshot_nodes` and
   `snapshot_chars`, `network_writes_count` and `unsettled` from the change report,
-  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
+  `output_chars` and `output_truncated`, `humanize`, `followed_redrawn_ref` (a stale ref followed its redrawn node), `attach_refused` (the policy refused the attach to a tab; watch it with `error_code` `policy_refused` on `read` and `open`, where it should stay at zero), `cell_edits` (grid cells `fill` edited through their editor; watch `error_code` `rejected` and `not_editable` on `fill`), `fill_picked_option` (`fill` picked a `<select>` option), `fill_inserted_text` (`fill` put the text in with one `Input.insertText`), `waited_for_enabled` (a `click`, `fill`, `select` or `check` target was disabled and was waited for; `error_code` `disabled` when it stayed so), `drag_side_given` (`drag --before`/`--after`) and `drag_list_position` (the drag answer named the new place in a list), `script_eval_alias` (a script called `page.eval`), `script_page_world_hint` (a script's error got the page-world hint), `read_scrolled` with `read_rows` (a `read --scroll` and the rows it read) and `read_matched` (it had `--match`), `read_pages` (the pages a multi-page `read` read; watch `output_truncated` on those), `read_virtualized_grid` (a read printed the virtualized-grid note), `change_text` with `change_text_chars` (a change report carried `text:` lines, and their length), `change_run_choices` (a mixed run listed its enabled members), `open_report` (`open` printed a change report), `open_moved_tab` (`open` moved the session off the user's tab to its own and named the way back), `snapshot_disabled_folded` (`snapshot -i` folded disabled members into a count), `names_clipped` (a name was cut at 100 characters), `daemon_answer_timed_out` (the client gave up waiting for the
   daemon's answer: the queue wait plus the command's own limit plus 30 s, `browse/limits.py`), `batch_steps` (also the operations an `ardia apply`, `tabs …`
   or `groups …` call sent), and `cdp_calls` with `cdp_ms_total` (the
   command's own DevTools calls, counted in `connection.py`). The daemon returns its share as `metrics` in its answer

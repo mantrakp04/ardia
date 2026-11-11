@@ -15,6 +15,7 @@ import { radius } from "../ui/tokens";
 import { ProfileSwipeArea } from "../window/ProfileSwipe";
 import { TabDropArea, type TabDropTarget } from "../window/TabDropArea";
 import { usePeek } from "../window/usePeek";
+import { noteTabStripPeek } from "../../state/telemetry/usage";
 import { FloatingStrip } from "./context";
 import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { StripPage } from "./StripPage";
@@ -110,7 +111,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
   const theme = useTheme();
   const windowId = useWindowId();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
-  const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => downloadsOpenIn(windowId));
+  const { slide, live, show, hide, recheck, cancelPending } = usePeek(enabled, false, () => downloadsOpenIn(windowId), undefined, noteTabStripPeek);
   useEffect(() => {
     if (!downloadsOpen) recheck();
   }, [downloadsOpen]);

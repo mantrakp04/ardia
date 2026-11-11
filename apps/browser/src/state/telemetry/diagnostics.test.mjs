@@ -138,7 +138,7 @@ test("a recorded context is saved for the next launch and holds only counts and 
 });
 
 test("a page process that goes away sends its reason, exit code, visibility and counts, capped per session", async () => {
-  diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true);
+  diagnostics.trackPageProcessGone({ reason: "oom", code: 9 }, true, { translate: "translating", translate_stage: "model", translating_tabs: 2, translated_tabs: 1 });
   diagnostics.trackPageProcessGone({ reason: "https://private.example", code: 1.5 }, false);
   await new Promise((resolve) => setTimeout(resolve, 1100));
   await client.saveQueueNow();
@@ -147,6 +147,11 @@ test("a page process that goes away sends its reason, exit code, visibility and 
   assert.equal(oom.exit_code, 9);
   assert.equal(oom.visible, true);
   assert.equal(oom.gone_this_session, 1);
+  assert.equal(oom.translate, "translating");
+  assert.equal(oom.translate_stage, "model");
+  assert.equal(oom.translating_tabs, 2);
+  assert.equal(oom.translated_tabs, 1);
+  assert.equal(odd.translate, undefined);
   assert.equal(odd.reason, "unknown");
   assert.equal(odd.exit_code, null);
   for (let i = 0; i < 40; i++) diagnostics.trackPageProcessGone({ reason: "crashed", code: 11 }, false);

@@ -298,6 +298,39 @@ class ReadingTabs(unittest.TestCase):
         self.assertEqual(code, 1)
 
 
+class RefusedAttach(unittest.TestCase):
+    def refused(self, windows):
+        from unittest import mock
+
+        from ardia_cli.browse import tabs
+        from ardia_cli.browse.errors import Gated
+        from ardia_cli.browse.page import Page
+
+        async def refuse(method, params=None, session=None, timeout=30):
+            raise Gated(method, reason="to that target")
+
+        async def listed(_state):
+            return windows
+
+        with mock.patch.object(tabs, "app_windows", listed), self.assertRaises(Gated) as caught:
+            run(Page(reader_state(), "T1").attach(SimpleNamespace(send=refuse)))
+        return caught.exception
+
+    def test_it_names_the_tab_ardia_has_for_that_page(self):
+        error = self.refused([{"tabs": [{"id": "tab-1", "targetId": "T1", "url": "chrome://settings/"}]}])
+        self.assertEqual(error.data, {"method": "Target.attachToTarget", "reason": "to that target"})
+        self.assertIn("Target.attachToTarget to that target isn't allowed for the ardia command", error.message)
+        self.assertTrue(error.message.endswith("(Ardia has it open as tab-1 at chrome://settings/)"))
+
+    def test_it_says_when_ardia_lists_no_tab_for_that_page(self):
+        error = self.refused([{"tabs": [{"id": "tab-2", "targetId": "T2", "url": "https://example.com/"}]}])
+        self.assertIn("`ardia windows` lists no tab with that page", error.message)
+
+    def test_it_adds_nothing_when_ardia_cant_say(self):
+        self.assertTrue(self.refused(None).message.endswith("or is in a window Ardia keeps for itself"))
+        self.assertTrue(self.refused([{"tabs": [{"id": "tab-1", "url": ""}]}]).message.endswith("or is in a window Ardia keeps for itself"))
+
+
 class TempTabRecovery(unittest.TestCase):
     def test_a_reader_tab_is_owned_by_its_exact_id_and_closed_through_a_reservation(self):
         from ardia_cli.browse import temptabs

@@ -14,6 +14,8 @@ export { KeyCap } from "./KeyCap";
 export { ListRow, type ListRowState } from "./ListRow";
 export { MenuRow, menuRowFill, MenuSeparator } from "./Menu";
 export { Panel, type PanelProps, type PanelShadow } from "./Panel";
+export { PinchArea, pinchSettle } from "./PinchArea";
+export { pinchFollow, pinchScale, type PinchMotion } from "./pinch";
 export { ProgressTrack } from "./ProgressTrack";
 export { curve, duration, period, spring, springs, springSpec, usePresence, type Fade, type SpringSpec } from "./motion";
 export { reduceMotion, reduceMotionKnown } from "./reduceMotion";

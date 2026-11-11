@@ -105,8 +105,8 @@ export const BarItem = memo(function BarItem({
           <BarButton
             favicon={node.kind === "url" ? node : undefined}
             icon={folder ? "folder" : undefined}
-            title={node.title || (node.kind === "url" ? node.url : "")}
-            tooltip={node.kind === "url" ? `${node.title}\n${node.url}` : node.title}
+            title={node.title.trim()}
+            tooltip={node.kind === "url" && node.title.trim() ? `${node.title}\n${node.url}` : node.kind === "url" ? node.url : node.title}
             active={menuOpen}
             dropRing={dropInto}
             onPress={open}
@@ -131,7 +131,7 @@ export const BarButton = forwardRef<View, {
   const size = useBarSize();
   return (
     <View ref={ref} collapsable={false} {...hoverProps} tooltip={tooltip}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title ?? tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title || tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
         {({ pressed }) => (
           <Chip size={size} width={width} padded={!!title} hovered={hovered || active || dropRing} pressed={pressed || !!active} dropRing={dropRing}>
             <ChipIcon size={size} favicon={favicon} icon={icon} />

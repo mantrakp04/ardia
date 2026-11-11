@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, OutcomeUnknown
+from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, Gated, OutcomeUnknown
 from ardia_cli.browse.inputs import Input
 from ardia_cli.browse.js import LIBRARY
 
@@ -133,7 +133,14 @@ class Page:
     async def attach(self, browser):
         self.browser = browser
         self.worlds.clear()
-        result = await browser.send("Target.attachToTarget", {"targetId": self.target_id, "flatten": True})
+        try:
+            result = await browser.send("Target.attachToTarget", {"targetId": self.target_id, "flatten": True})
+        except Gated as error:
+            from ardia_cli import command_metrics
+            from ardia_cli.browse import tabs
+
+            command_metrics.flag("attach_refused", True)
+            raise error.during(None, await tabs.where_app_has(self.state, self.target_id) if error.reason else None) from None
         self.session_id = result["sessionId"]
         self.state.sessions[self.session_id] = self
         await self.send("Page.enable")

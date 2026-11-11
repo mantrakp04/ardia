@@ -54,7 +54,20 @@ let cycle: Promise<void> | null = null;
 let again = false;
 let forcePasswordsNext = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let snapshotWrites = { count: 0, bytes: 0 };
 const { read, loadState, persistJournal, watchScope, save, startOver, checkpoint } = syncFiles(() => doc);
+
+function noteSnapshot({ snapshotBytes }: { snapshotBytes: number }) {
+  if (!snapshotBytes) return;
+  snapshotWrites.count++;
+  snapshotWrites.bytes += snapshotBytes;
+}
+
+export function takeSnapshotWrites() {
+  const taken = snapshotWrites;
+  snapshotWrites = { count: 0, bytes: 0 };
+  return taken;
+}
 
 function load() {
   const loaded = read();
@@ -125,7 +138,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
     const app = appScopeOf(doc);
     const appSettled = watchScope(APP_SCOPE, app, clock);
     try {
-      await syncScope({
+      noteSnapshot(await syncScope({
         scope: APP_SCOPE,
         state: app,
         transport,
@@ -133,7 +146,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
         clock,
         device,
         options: { persist: persistJournal(APP_SCOPE), holdApply: isQuitting },
-      });
+      }));
     } finally {
       await appSettled();
     }
@@ -149,7 +162,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
       const state = (doc.scopes[scope] ??= emptyScope());
       const settled = watchScope(scope, state, clock);
       try {
-        await syncScope({
+        noteSnapshot(await syncScope({
           scope,
           state,
           transport,
@@ -157,7 +170,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
           clock,
           device,
           options: { expired: historyExpired, persist: persistJournal(scope), holdApply: isQuitting },
-        });
+        }));
       } finally {
         await settled();
       }

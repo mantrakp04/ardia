@@ -8,6 +8,7 @@ const DEFAULT_PEEK = dm.cardFrameOf(PAGE_FRAME.default).peek;
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
+const { tabsShownIn } = await import("../../state/browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../../state/session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 
@@ -185,24 +186,23 @@ test("in window full screen the sidebar's button sits at Arc's 29 pt, with no ro
   }
 });
 
-test("hidden or shown is each window's own, and survives a quit and relaunch; new windows open as the last choice left them", () => {
+test("hidden or shown is one setting for every window, and survives a quit and relaunch; new and reopened windows follow it", () => {
   stub.docs.clear();
   S().hydrate({});
   const stop = startPersistence();
+  const shown = (id) => tabsShownIn(S(), id);
   const a = S().createWindow({ url: "a.com" });
   const b = S().createWindow({ url: "b.com" });
   S().toggleSidebar(a);
-  assert.equal(S().windows[a].sidebarOpen, false);
-  assert.equal(S().windows[b].sidebarOpen, true, "the other window keeps its sidebar");
+  assert.deepEqual([shown(a), shown(b)], [false, false], "every window hides its tabs");
   flushPersistence();
   S().hydrate(loadSession());
-  assert.equal(S().windows[a].sidebarOpen, false, "relaunch: still hidden");
-  assert.equal(S().windows[b].sidebarOpen, true, "relaunch: still shown");
+  assert.deepEqual([shown(a), shown(b)], [false, false], "relaunch: still hidden");
 
-  S().toggleSidebar(a);
+  S().toggleSidebar(b);
   flushPersistence();
   S().hydrate(loadSession());
-  assert.equal(S().windows[a].sidebarOpen, true);
+  assert.deepEqual([shown(a), shown(b)], [true, true], "relaunch: still shown");
 
   S().toggleSidebar(a);
   S().closeWindow(a);
@@ -212,9 +212,9 @@ test("hidden or shown is each window's own, and survives a quit and relaunch; ne
   S().reopenClosedWindow();
   const reopened = S().windowOrder.find((id) => id !== b);
   assert.ok(reopened, "the closed window came back");
-  assert.equal(S().windows[reopened].sidebarOpen, false, "reopened as it was closed");
+  assert.equal(shown(reopened), false, "reopened as the setting says");
   const c = S().createWindow({ url: "c.com" });
-  assert.equal(S().windows[c].sidebarOpen, false, "the last choice was hidden");
+  assert.equal(shown(c), false, "the last choice was hidden");
   stop();
 });
 

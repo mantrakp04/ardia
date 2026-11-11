@@ -266,8 +266,8 @@ async def network_route(ctx, argv):
     async def enable():
         try:
             await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}]})
-        except Gated:
-            raise Gated("Fetch.enable", "network route") from None
+        except Gated as error:
+            raise error.during("network route") from None
 
     await activate(ctx, page, "route", enable)
     routes.append(route)
@@ -280,8 +280,8 @@ async def enable_credentials(ctx, page, username, password):
     async def enable():
         try:
             await page.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "requestStage": "Request"}], "handleAuthRequests": True})
-        except Gated:
-            raise Gated("Fetch.enable", "set credentials", "HTTP auth answers Fetch.authRequired") from None
+        except Gated as error:
+            raise error.during("set credentials", "HTTP auth answers Fetch.authRequired") from None
 
     await activate(ctx, page, "route", enable)
     ctx.state.extras["credentials"] = {"username": username, "password": password}
@@ -387,8 +387,8 @@ async def tracing(ctx, argv, kind):
                 await page.send("Tracing.start", {"traceConfig": {"includedCategories": [c for c in categories if not c.startswith("-")],
                                                                    "excludedCategories": [c[1:] for c in categories if c.startswith("-") and c != "-*"]},
                                                    "transferMode": "ReportEvents"})
-            except Gated:
-                raise Gated("Tracing.start", f"{kind} start") from None
+            except Gated as error:
+                raise error.during(f"{kind} start") from None
 
         await activate(ctx, page, "trace", enable)
         ctx.state.listeners.append(listener)
@@ -503,8 +503,8 @@ async def cmd_record(ctx, argv):
     async def enable():
         try:
             await cast.start(ctx.state)
-        except Gated:
-            raise Gated("Page.startScreencast", "record start") from None
+        except Gated as error:
+            raise error.during("record start") from None
 
     await activate(ctx, page, "record", enable)
     path = ctx.path(args[1])
@@ -594,8 +594,8 @@ async def cmd_stream(ctx, argv):
     async def enable():
         try:
             await cast.start(ctx.state)
-        except Gated:
-            raise Gated("Page.startScreencast", "stream enable") from None
+        except Gated as error:
+            raise error.during("stream enable") from None
 
     await activate(ctx, page, "stream", enable)
     port = int(options.get("port") or ctx.env.get("AGENT_BROWSER_STREAM_PORT") or 0)
