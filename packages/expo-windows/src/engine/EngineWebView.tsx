@@ -3,6 +3,7 @@ import { View, type LayoutChangeEvent } from "react-native";
 import { noteMissing } from "../missing";
 import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
+import { CoverAncestry } from "./usePageCover";
 import { WindowIdContext } from "./windowId";
 
 type PageEvent = { nativeEvent: { name: string; data: unknown } };
@@ -20,13 +21,43 @@ type Props = {
 
 type Measured = { measureInWindow(callback: (x: number, y: number, width: number, height: number) => void): void };
 
-const ENGINE_METHODS = new Set(["loadUrl", "goBack", "goForward", "goToOffset", "reload", "forceReload", "stopLoading", "focus", "setMuted"]);
-const ARGUMENTS: Record<string, string[]> = { loadUrl: ["url", "userInitiated"], goToOffset: ["offset"], setMuted: ["muted"] };
-const ANSWERS: Record<string, unknown> = {
+const ARGUMENTS: Record<string, string[]> = {
+  loadUrl: ["url", "userInitiated"],
+  goBack: [],
+  goForward: [],
+  goToOffset: ["offset"],
+  reload: [],
+  forceReload: [],
+  stopLoading: [],
+  focus: [],
+  setMuted: ["muted"],
+  find: ["text", "forward", "findNext"],
+  stopFinding: ["clear"],
+  zoomStep: ["direction"],
+  executeJavaScript: ["code"],
+  evaluate: ["code"],
   navigationEntries: [],
-  pageCookies: [],
-  discard: "refused",
-  clearSiteData: { cookies: false, storage: false },
+  showDevTools: ["panel"],
+  print: [],
+  runPageCommand: ["name"],
+  getSecurityInfo: [],
+  mediaCommand: ["action", "seconds"],
+  clearSiteData: [],
+  pageCookies: ["urls"],
+  openBlockedPopup: ["id", "always"],
+  discard: ["unload"],
+  setFrozen: ["frozen"],
+  resolveUnresponsive: ["terminate"],
+};
+const UNWRAPPED: Record<string, (reply: Record<string, unknown> | null) => unknown> = {
+  evaluate: (reply) => reply?.result ?? null,
+  navigationEntries: (reply) => reply?.entries ?? [],
+  pageCookies: (reply) => reply?.cookies ?? [],
+  discard: (reply) => reply?.outcome ?? "refused",
+  getSecurityInfo: (reply) => (!reply || reply.info === null ? null : reply),
+  clearSiteData: (reply) => reply ?? { cookies: false, storage: false },
+};
+const ANSWERS: Record<string, unknown> = {
   requestPictureInPicture: false,
   takeControlPress: false,
 };
@@ -38,6 +69,8 @@ const overlaps = (a: PageRect, b: PageRect) => a.x < b.x + b.width && b.x < a.x 
 
 export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(props, ref) {
   const windowId = useContext(WindowIdContext);
+  const above = useRef(useContext(CoverAncestry));
+  above.current = useContext(CoverAncestry);
   const key = useRef(props.tabId || `page-${++unnamed}`).current;
   const view = useRef<Measured | null>(null);
   const latest = useRef(props);
@@ -60,7 +93,7 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
       const shape: PageShape = {
         ...page,
         radius: pageRadiusIn(windowId),
-        holes: coversIn(windowId)
+        holes: coversIn(windowId, above.current)
           .filter((cover) => overlaps(cover, page))
           .map((hole) => [hole.x, hole.y, hole.width, hole.height]),
       };
@@ -100,10 +133,12 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
         {
           get(_target, method) {
             if (typeof method !== "string" || method === "then" || method === "$$typeof") return undefined;
-            if (ENGINE_METHODS.has(method)) {
-              return (...values: unknown[]) => {
-                const names = ARGUMENTS[method] ?? [];
-                return callPage(key, method, Object.fromEntries(names.map((name, index) => [name, values[index] ?? null])));
+            const names = ARGUMENTS[method];
+            if (names) {
+              const unwrap = UNWRAPPED[method];
+              return async (...values: unknown[]) => {
+                const reply = await callPage<Record<string, unknown>>(key, method, Object.fromEntries(names.map((name, index) => [name, values[index] ?? null])));
+                return unwrap ? unwrap(reply) : undefined;
               };
             }
             return async () => {

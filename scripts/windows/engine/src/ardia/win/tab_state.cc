@@ -4,6 +4,7 @@
 
 #include "ardia/win/api.h"
 #include "ardia/win/host.h"
+#include "ardia/win/tab_events.h"
 #include "base/functional/bind.h"
 #include "base/process/kill.h"
 #include "base/strings/stringprintf.h"
@@ -98,10 +99,7 @@ void TabState::SendMedia() {
   if (!contents) {
     return;
   }
-  base::DictValue data;
-  data.Set("audible", contents->IsCurrentlyAudible());
-  data.Set("muted", contents->IsAudioMuted());
-  Send("media", std::move(data));
+  Send("media", TabEvents::MediaState(contents));
 }
 
 void TabState::DidStartNavigation(content::NavigationHandle* handle) {
@@ -159,9 +157,7 @@ void TabState::NavigationEntriesDeleted() {
   NoteNavigation();
 }
 
-void TabState::OnAudioStateChanged(bool audible) {
-  SendMedia();
-}
+void TabState::OnAudioStateChanged(bool audible) {}
 
 void TabState::DidUpdateAudioMutingState(bool muted) {
   SendMedia();

@@ -1,5 +1,6 @@
 import { forwardRef, type ReactNode } from "react";
 import { View, type ViewStyle } from "react-native";
+import { usePageCover } from "../engine/usePageCover";
 import { parseColor, rgbaString, sampleStops, type Rgba } from "./color";
 import { colorOrUndefined, dropShadow, finite, useFirstWindow, type AnyProps } from "./shared";
 
@@ -12,10 +13,11 @@ function gradientBorderSides(colors: unknown): ViewStyle | null {
 }
 
 export const Surface = forwardRef<View, AnyProps>(function Surface(
-  { fill, cornerRadius, borderColor, borderWidth, borderColors, surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, surfaceShadowOffset, style, children, ...rest },
+  { fill, cornerRadius, borderColor, borderWidth, borderColors, surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, surfaceShadowOffset, style, onLayout, children, ...rest },
   ref,
 ) {
   useFirstWindow();
+  const cover = usePageCover(ref, onLayout);
   const width = Math.max(0, finite(borderWidth, 0));
   const offset = Array.isArray(surfaceShadowOffset) ? surfaceShadowOffset : [0, 0];
   const gradient = width > 0 ? gradientBorderSides(borderColors) : null;
@@ -27,8 +29,8 @@ export const Surface = forwardRef<View, AnyProps>(function Surface(
     ...dropShadow(surfaceShadowColor, surfaceShadowOpacity, surfaceShadowRadius, offset[0], offset[1]),
   };
   return (
-    <View {...rest} ref={ref} style={[surface, style as ViewStyle]}>
-      {children as ReactNode}
+    <View {...rest} ref={cover.ref} onLayout={cover.onLayout} style={[surface, style as ViewStyle]}>
+      {cover.within(children as ReactNode)}
     </View>
   );
 });

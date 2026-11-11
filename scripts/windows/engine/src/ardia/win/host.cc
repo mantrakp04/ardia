@@ -10,6 +10,8 @@
 
 #include "ardia/win/main.h"
 #include "ardia/win/profiles.h"
+#include "ardia/win/tab_calls.h"
+#include "ardia/win/tab_events.h"
 #include "ardia/win/tab_state.h"
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
@@ -191,13 +193,26 @@ void Host::Call(const std::string& verb,
     CreateTab(std::move(args), window, std::move(reply));
     return;
   }
+  if (verb == "tab.call") {
+    content::WebContents* contents = Find(Text(args, "key"));
+    if (!contents) {
+      std::move(reply).Run(Error("no such tab"));
+      return;
+    }
+    if (std::optional<base::DictValue> done = CallTab(contents, args)) {
+      std::move(reply).Run(std::move(*done));
+      return;
+    }
+    if (!CallTabMethod(contents, Text(args, "method"), args, reply)) {
+      std::move(reply).Run(Error("unknown method"));
+    }
+    return;
+  }
   base::DictValue result;
   if (verb == "tab.show") {
     result = ShowTab(args, window);
   } else if (verb == "tab.close") {
     result = CloseTab(args);
-  } else if (verb == "tab.call") {
-    result = CallTab(args);
   } else if (verb == "tab.discard") {
     result = DiscardOffered(args);
   } else if (verb == "tabs.list") {
@@ -261,6 +276,7 @@ void Host::CreateTab(base::DictValue args, HWND parent, Reply reply) {
     }
     tabs_[key] = existing;
     TabState::Bind(existing, key)->NoteNavigation();
+    TabEvents::Attach(existing);
   }
   if (existing) {
     if (!PlaceTab(existing, parent)) {
@@ -319,6 +335,7 @@ void Host::CreateTabInProfile(std::string key,
   }
   tabs_[key] = contents;
   TabState::Bind(contents, key)->NoteNavigation();
+  TabEvents::Attach(contents);
   base::DictValue result;
   result.Set("tab", TabState::IdOf(contents));
   std::move(reply).Run(std::move(result));
@@ -439,11 +456,8 @@ base::DictValue Host::DiscardOffered(const base::DictValue& args) {
   return Ok();
 }
 
-base::DictValue Host::CallTab(const base::DictValue& args) {
-  content::WebContents* contents = Find(Text(args, "key"));
-  if (!contents) {
-    return Error("no such tab");
-  }
+std::optional<base::DictValue> Host::CallTab(content::WebContents* contents,
+                                             const base::DictValue& args) {
   std::string method = Text(args, "method");
   content::NavigationController& controller = contents->GetController();
   if (method == "loadUrl") {
@@ -486,7 +500,7 @@ base::DictValue Host::CallTab(const base::DictValue& args) {
       contents->Focus();
     }
   } else {
-    return Error("unknown method");
+    return std::nullopt;
   }
   return Ok();
 }
@@ -707,6 +721,16 @@ void Host::FocusFor(ui::Event* event) {
   HWND focus = ::GetFocus();
   if (focus != window && !(focus && ::IsChild(window, focus))) {
     ::SetFocus(window);
+  }
+  for (const auto& entry : hosted_) {
+    if (entry.second.shown.empty() || WindowOf(entry.first) != window) {
+      continue;
+    }
+    if (content::WebContents* contents = Find(entry.second.shown)) {
+      if (TabState* state = TabState::FromWebContents(contents)) {
+        state->Send("pagePress", base::DictValue());
+      }
+    }
   }
 }
 

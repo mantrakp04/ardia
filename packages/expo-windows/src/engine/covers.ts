@@ -27,8 +27,8 @@ export function setCover(windowId: string, id: string, rect: CoverRect | null) {
   changed(windowId);
 }
 
-export function coversIn(windowId: string): CoverRect[] {
-  return [...(covers.get(windowId)?.values() ?? [])];
+export function coversIn(windowId: string, except: readonly string[] = []): CoverRect[] {
+  return [...(covers.get(windowId) ?? [])].filter(([id]) => !except.includes(id)).map(([, rect]) => rect);
 }
 
 export function setPageRadius(radius: number, windowId = "") {

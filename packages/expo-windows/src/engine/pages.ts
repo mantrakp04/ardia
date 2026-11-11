@@ -26,8 +26,8 @@ let listening = false;
 
 const shaped = (name: string, data: unknown) => {
   if (name !== "media") return data ?? {};
-  const media = (data ?? {}) as { audible?: unknown; muted?: unknown };
-  return { playing: media.audible === true, muted: media.muted === true };
+  const media = (data ?? {}) as { audible?: unknown; playing?: unknown; muted?: unknown };
+  return { playing: media.playing === true || media.audible === true, muted: media.muted === true };
 };
 
 const quietly = (work: Promise<unknown>) => void work.catch(() => {});

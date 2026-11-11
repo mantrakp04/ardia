@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -80,7 +81,8 @@ class Host : public TabStripModelObserver,
                           Profile* profile);
   base::DictValue ShowTab(const base::DictValue& args, HWND parent);
   base::DictValue CloseTab(const base::DictValue& args);
-  base::DictValue CallTab(const base::DictValue& args);
+  std::optional<base::DictValue> CallTab(content::WebContents* contents,
+                                         const base::DictValue& args);
   base::DictValue DiscardOffered(const base::DictValue& args);
   base::DictValue Info();
   base::DictValue ListTabs();
