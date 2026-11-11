@@ -1275,9 +1275,9 @@ function Invoke-PagesTour {
 
   Invoke-Stop $session "page-second-tab" "A second page in a second tab" {
     param($stop)
-    $stop.Did = "Pressed Ctrl+T, typed wikipedia.org and pressed Enter."
+    $stop.Did = "Pressed Ctrl+T, typed developer.mozilla.org and pressed Enter."
     $stop.Expected = "the window's title names the second page's site."
-    $loaded = Open-Page $session $stop "wikipedia.org" "wikipedia\.org"
+    $loaded = Open-Page $session $stop "developer.mozilla.org" "developer\.mozilla\.org"
     Save-Shot $stop $session.Main | Out-Null
     Set-Seen $stop $loaded
   } | Out-Null
