@@ -163,3 +163,16 @@ test("an open pull request that leaves Review Requests keeps its tab, even with 
   const again = openLiveItem(w, id, prs[0], { background: true });
   assert.equal(S().tabs[again].liveItem?.completed, undefined);
 });
+
+test("a merged pull request's tab you moved into a pinned group stays there, on the page you left it on", async () => {
+  const { id, prs } = await folderOf(false);
+  const tab = openLiveItem(w, id, prs[0], { background: true });
+  S().groupTabs([tab], { pinned: true, name: "Mine" });
+  S().updateTab(tab, { url: "https://elsewhere.example/" });
+  await merge(id, [prs[0]]);
+  finishCompleting(id, [prs[0].id]);
+  S().activate(start);
+  assert.ok(S().tabs[tab], "the tab is the user's pin now");
+  assert.ok(Object.values(S().groups).some((g) => g.pinned && g.tabIds.includes(tab)));
+  assert.equal(S().tabs[tab].url, "https://elsewhere.example/", "the page you went to isn't reset to the pull request");
+});

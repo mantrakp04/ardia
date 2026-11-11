@@ -216,7 +216,7 @@ function closeCompletedTabs() {
   const { folders, items } = live();
   const shown = shownTabIds(s);
   const tabs = Object.values(s.tabs)
-    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
+    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !inPinnedContainer(s, id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
     .map((t) => t.id);
   if (!tabs.length) return;
   s.closeTabs(tabs);
