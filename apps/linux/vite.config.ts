@@ -12,6 +12,7 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const replacements = new Map([
   ...inputAdapters,
   [here("../browser/src/platform/livePersistence.ts"), here("./src/livePersistence.ts")],
+  [here("../browser/src/platform/fieldTiming.ts"), here("./src/fieldTiming.ts")],
   [here("../../packages/core/src/suggestFetcher.ts"), here("./src/suggestFetcher.ts")],
   [here("../browser/src/components/settings/settingsIndex.ts"), here("./src/settingsIndex.ts")],
   [here("../browser/src/components/settings/Form.tsx"), here("./src/settingsForm.tsx")],

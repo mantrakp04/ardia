@@ -1037,6 +1037,14 @@ These were open at the time of the PR.
 - **Auto-hide tabs** is one setting, as upstream made it. Linux saves no `sidebarOpen` per window: `linuxSessionShape`
   reads an older session's copies to set the setting, then drops them from saved and closed windows. The launch-time
   `windows_realigned_to_auto_hide_tabs` count stays 0 on Linux, which doesn't load through `loadSession`.
+- **Field timing.** `platform/fieldTiming.ts` binds the macOS-only `NativeModules.ACFieldTiming`, which is undefined
+  on Linux, so `journeys.ts` threw `Cannot read properties of undefined (reading 'lastInput')` from a store update and
+  Enter in a new tab's address bar did nothing (Fedora 44, wlroots). Linux replaces the module with
+  `apps/linux/src/fieldTiming.ts`, which reports no timing data (`lastInput` is `[0, 0]`, `drain` is empty), so the
+  field journeys send no samples from Linux. UI only; the engine key is unchanged.
+- **Auto-hide tabs with the sidebar on the right.** The strip can't be revealed, because the engine only provides
+  `watchLeftEdge`, and the window controls stay anchored on the left. It needs an engine-side right-edge watcher and is
+  deferred.
 - **Small UI bugs.**
   - A sidebar hover card stays open when the pointer moves straight from the sidebar into the page.
   - In the top-strip layout, the sidebar peek isn't cut out of the page.

@@ -97,6 +97,8 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(!dock.importedIds.includes(`${browser}components/sidebar/Sidebar.tsx`));
   assert.ok(graph.get(`${linux}SidebarPeekMark.tsx`).importedIds.includes(`${browser}components/sidebar/Sidebar.tsx`));
 
+  assert.ok(!graph.has(`${browser}platform/fieldTiming.ts`), "the macOS-only field timing module stays out of the Linux bundle");
+  assert.ok(graph.get(`${browser}state/telemetry/journeys.ts`).importedIds.includes(`${linux}fieldTiming.ts`), "journeys reads the Linux field timing stub");
   for (const shared of ["state/live/sources.ts", "state/live/net.ts"]) assert.ok(!graph.has(`${browser}${shared}`), `${shared} and its renderer fetch stay out of the Linux bundle`);
   const liveImporters = [
     [`${browser}state/live/engine.ts`, `${linux}liveSources.ts`],
