@@ -11,3 +11,7 @@ export function captionClearTop(top: number, rowHeight: number, fromRight: numbe
   if (!captionRoom(fromRight, top, chrome)) return top;
   return Math.max(top, chrome.titleBarHeight - rowHeight);
 }
+
+export function trailingClearance(top: number, margin: number, chrome: WindowChrome = WINDOW_CHROME): number {
+  return Math.max(margin, captionRoom(0, top, chrome));
+}

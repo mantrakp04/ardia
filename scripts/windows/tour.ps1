@@ -895,7 +895,7 @@ function Invoke-TabClickStop($Session) {
   } | Out-Null
 }
 
-function Invoke-ShortcutStop($Session, [string]$Slug, [string]$Title, [string]$Keys, [byte[]]$Modifiers, [byte]$Key, [string]$Command, [string]$Expected, [switch]$WatchBand) {
+function Invoke-ShortcutStop($Session, [string]$Slug, [string]$Title, [string]$Keys, [byte[]]$Modifiers, [byte]$Key, [string]$Command, [string]$Expected, [switch]$WatchBand, [switch]$ClosesOnEscape, [switch]$EscapeCaptured) {
   Invoke-Stop $Session $Slug $Title {
     param($stop)
     $stop.Did = "Pressed $Keys."
@@ -913,7 +913,11 @@ function Invoke-ShortcutStop($Session, [string]$Slug, [string]$Title, [string]$K
     $stop.Facts.Add("command $Command logged: $commanded")
     if ($new.Count) { $stop.Facts.Add("new windows: $(Format-Windows $new)") }
     if ($WatchBand) { $stop.Facts.Add("title band is now $(Get-TitleBand $Session) (a popover or panel makes it content)") }
+    $bandBefore = Get-TitleBand $Session
+    $captureOn = (Get-LinesSince $Session $mark '^keys \d+ escape capture on$').Count -gt 0
+    if ($EscapeCaptured) { $stop.Facts.Add("native Escape capture turned on: $captureOn") }
     Close-Menus $Session
+    $escapeMark = Get-LogCount $Session
     Send-Escape
     Start-Sleep -Milliseconds 500
     foreach ($window in $new) {
@@ -923,6 +927,18 @@ function Invoke-ShortcutStop($Session, [string]$Slug, [string]$Title, [string]$K
     }
     Start-Sleep -Milliseconds 400
     if ($WatchBand) { $stop.Facts.Add("after Escape the title band is $(Get-TitleBand $Session)") }
+    if ($ClosesOnEscape) {
+      $bandAfter = Get-TitleBand $Session
+      $closed = $bandBefore -eq "content" -and $bandAfter -eq "caption"
+      $stop.Facts.Add("closed by Escape (the band went from content back to caption): $closed")
+      $seen = $commanded -and $closed
+      if ($EscapeCaptured) {
+        $sent = (Get-LinesSince $Session $escapeMark '^keys \d+ escape sent to the open popover or drag$').Count -gt 0
+        $stop.Facts.Add("native code took the Escape and sent it to the popover: $sent")
+        $seen = $seen -and $captureOn -and $sent
+      }
+      Set-Seen $stop $seen
+    }
   } | Out-Null
 }
 
@@ -1104,8 +1120,8 @@ function Invoke-MainTour {
     Set-Seen $stop $shown
   } | Out-Null
 
-  Invoke-ShortcutStop $session "downloads" "Downloads popover" "Ctrl+J" @(0x11) 0x4A "downloads" "a downloads command in the log, and the title band turning to content while the popover is open." -WatchBand
-  Invoke-ShortcutStop $session "search-tabs" "Search tabs" "Ctrl+Shift+A" @(0x11, 0x10) 0x41 "searchTabs" "a searchTabs command in the log." -WatchBand
+  Invoke-ShortcutStop $session "downloads" "Downloads popover" "Ctrl+J" @(0x11) 0x4A "downloads" "a downloads command in the log, the title band turning to content while the popover is open, native code taking Escape for it, and the popover closing on Escape so the band is a caption again." -WatchBand -ClosesOnEscape -EscapeCaptured
+  Invoke-ShortcutStop $session "search-tabs" "Search tabs" "Ctrl+Shift+A" @(0x11, 0x10) 0x41 "searchTabs" "a searchTabs command in the log, and the panel closing on Escape so the band is a caption again." -WatchBand -ClosesOnEscape
   Invoke-ShortcutStop $session "profile-menu" "Profiles menu" "Ctrl+Shift+M" @(0x11, 0x10) 0x4D "openProfileMenu" "an openProfileMenu command in the log."
   Invoke-ShortcutStop $session "task-manager" "Task manager" "Shift+Escape" @(0x10) 0x1B "taskManager" "a taskManager command in the log."
 
@@ -1114,7 +1130,7 @@ function Invoke-MainTour {
   Invoke-Stop $session "little-ardia" "Little Ardia window" {
     param($stop)
     $stop.Did = "Pressed Ctrl+Alt+N."
-    $stop.Expected = "a newLittleArdia command and a new top-level window of ours."
+    $stop.Expected = "a newLittleArdia command, a new top-level window of ours, and its command panel drawn whole below the bar's field rather than cut off 24 points down, with the caption buttons on the bare title band."
     Focus-Window $session $session.Main $stop | Out-Null
     $mark = Get-LogCount $session
     $before = @(Get-BigWindows $session)
@@ -1129,6 +1145,18 @@ function Invoke-MainTour {
     Set-Seen $stop $opened
     $stop.Facts.Add("command newLittleArdia logged: $commanded")
     $stop.Facts.Add("new windows: $(Format-Windows $new)")
+    $client = $null
+    if ($new.Count) { $client = Get-Client $target }
+    if ($client) {
+      $scale = $client.Scale
+      $panel = Get-RegionBrightness ($client.X + [int](400 * $scale)) ($client.Y + [int](25 * $scale)) ([int](240 * $scale)) ([int](10 * $scale))
+      $caption = Get-RegionBrightness ($client.X + $client.Width - [int](128 * $scale)) ($client.Y + [int](4 * $scale)) ([int](118 * $scale)) ([int](24 * $scale))
+      $whole = $null -ne $panel -and $panel -ge 240
+      $bare = $null -ne $caption -and $caption -lt 240
+      $stop.Facts.Add("command panel brightness at 400 to 640 by 25 to 35 points: $panel (240 or more is the panel; the bare band is darker)")
+      $stop.Facts.Add("caption buttons' area brightness: $caption (under 240 is the bare band)")
+      Set-Seen $stop ($opened -and $whole -and $bare)
+    }
     foreach ($window in $new) { [ArdiaTour]::PostMessageW($window.Handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null }
     Start-Sleep -Milliseconds 800
   } | Out-Null

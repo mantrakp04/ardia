@@ -3,6 +3,12 @@ import { test } from "node:test";
 const { cardCaptionRoom, cardTopInset, sidebarCaptionRoom, titleBandFree } = await import("./layout.ts");
 const { SMALL_BAR_HEIGHT, SMALL_WINDOW_BAR_HEIGHT } = await import("./small.ts");
 const windows = (await import("../../lib/platformChrome.windows.ts")).WINDOW_CHROME;
+const mac = (await import("../../lib/platformChrome.ts")).WINDOW_CHROME;
+const { littleArdiaBarLayout } = await import("../../components/littleArdia/barLayout.ts");
+const { SMALL_FIELD_HEIGHT, SMALL_BAR_BUTTON } = await import("../../components/littleArdia/tokens.ts");
+const { trailingClearance } = await import("../../lib/windowChrome.ts");
+const macFeatures = (await import("../../lib/platformFeatures.ts")).PLATFORM_FEATURES;
+const windowsFeatures = (await import("../../lib/platformFeatures.windows.ts")).PLATFORM_FEATURES;
 
 const SETTINGS = { tabLayout: "sidebar", sidebarSide: "left", addressBar: "toolbar", compactToolbar: false, hideToolbarWhileScrolling: false };
 function state(settings = {}, window = {}, extra = {}) {
@@ -105,4 +111,34 @@ test("on Windows any layout that puts a control in the title band keeps the band
   assert.equal(bandFree({}, {}, { windowUi: { w: { panel: { open: false, initialText: "" }, downloadsOpen: true } } }), false, "the downloads popover");
   assert.equal(bandFree({}, {}, {}, true), false, "an overlay such as onboarding covers the band");
   assert.equal(titleBandFree(state(DEFAULT_LAYOUT), "missing", false, windows), false, "a window that does not exist");
+});
+
+test("on the Mac Little Ardia's bar keeps its numbers", () => {
+  const bar = { height: 38, navLeft: 79, navPitch: 30, fieldLeft: 143, fieldTop: 5, buttonTop: 5, trailingRoom: 0, controlsRight: 9 };
+  assert.deepEqual(littleArdiaBarLayout(mac), bar);
+  assert.deepEqual(littleArdiaBarLayout(), bar);
+  assert.equal(SMALL_FIELD_HEIGHT, 28);
+  assert.equal(SMALL_BAR_BUTTON, 28);
+});
+
+test("on Windows Little Ardia's bar starts at the window's left edge and its controls end before the caption buttons", () => {
+  const bar = littleArdiaBarLayout(windows);
+  assert.deepEqual(bar, { height: 38, navLeft: 9, navPitch: 30, fieldLeft: 73, fieldTop: 5, buttonTop: 5, trailingRoom: 138, controlsRight: 147 });
+  assert.ok(bar.controlsRight >= windows.trailingWidth, "the copy, open and profile buttons stay left of minimize, maximize and close");
+  assert.ok(bar.fieldTop >= 0 && bar.fieldTop + SMALL_FIELD_HEIGHT <= bar.height, "the field sits inside the bar");
+  assert.ok(bar.height >= windows.titleBarHeight, "the bar covers the whole title band");
+});
+
+test("the command panel keeps the Mac's 16 pt right margin and clears Windows' caption buttons while it sits in the title band", () => {
+  for (const top of [0.5, 5, 31, 32, 60]) assert.equal(trailingClearance(top, 16, mac), 16);
+  assert.equal(trailingClearance(0.5, 16, windows), 138);
+  assert.equal(trailingClearance(5, 16, windows), 138);
+  assert.equal(trailingClearance(31.5, 16, windows), 138);
+  assert.equal(trailingClearance(32, 16, windows), 16);
+  assert.equal(trailingClearance(60, 16, windows), 16);
+});
+
+test("the command panel grows from its field on the Mac and opens in place on Windows", () => {
+  assert.equal(macFeatures.panelGrowsFromField, true);
+  assert.equal(windowsFeatures.panelGrowsFromField, false);
 });

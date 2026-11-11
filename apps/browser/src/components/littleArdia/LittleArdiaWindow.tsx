@@ -18,24 +18,19 @@ import { copyPageUrl } from "../../state/site/selection";
 import { ProfileBadge } from "../profiles/ProfileIcons";
 import { openInMainWindow, openLittleArdiaProfileMenu } from "../../state/littleArdia/actions";
 import { startLittleArdiaNewTabLinks } from "../../state/littleArdia/newTabLinks";
-import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_FIELD_GAP, SMALL_INSET, SmallBar } from "./SmallChrome";
-import { SMALL_LIGHTS_CENTER, SMALL_WINDOW_BAR_HEIGHT } from "../../state/windows/small";
-import { captionRoom, WINDOW_CHROME } from "../../lib/windowChrome";
+import { PageLabel, SMALL_BAR_BUTTON, SmallBar } from "./SmallChrome";
+import { SMALL_LIGHTS_CENTER } from "../../state/windows/small";
+import { littleArdiaBarLayout } from "./barLayout";
 import { HistoryButton } from "../toolbar/NavButtons";
 import { toolbarPalette } from "../ui/toolbarColors";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
-import { NAV_CENTER_PAST_ZOOM, SMALL_BAR_ROW, TRAFFIC_LIGHT_PITCH } from "./tokens";
+import { SMALL_BAR_ROW, SMALL_FIELD_MAX_WIDTH } from "./tokens";
 import { keyText } from "../../state/commands/keyText";
 
-const NAV_LEFT = WINDOW_CHROME.leadingWidth ? SMALL_LIGHTS_CENTER[0] + 2 * TRAFFIC_LIGHT_PITCH + NAV_CENTER_PAST_ZOOM - SMALL_BAR_BUTTON / 2 : SMALL_INSET;
-const BAR_TRAILING_ROOM = captionRoom(0);
-const NAV_PITCH = SMALL_BAR_BUTTON + SMALL_BAR_GAP;
-const FIELD_LEFT = NAV_LEFT + NAV_PITCH + SMALL_BAR_BUTTON + SMALL_FIELD_GAP;
-const FIELD_MAX_WIDTH = 520;
+const BAR = littleArdiaBarLayout();
 const NAV_HIT = { width: SMALL_BAR_BUTTON, height: SMALL_BAR_BUTTON, plateX: 0, plateY: 0, box: SMALL_BAR_ROW.button, radius: SMALL_BAR_ROW.buttonRadius };
-const BUTTON_TOP = (SMALL_WINDOW_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2;
-const BACK_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT }, hit: NAV_HIT };
-const FORWARD_AT = { style: { position: "absolute" as const, top: BUTTON_TOP, left: NAV_LEFT + NAV_PITCH }, hit: NAV_HIT };
+const BACK_AT = { style: { position: "absolute" as const, top: BAR.buttonTop, left: BAR.navLeft }, hit: NAV_HIT };
+const FORWARD_AT = { style: { position: "absolute" as const, top: BAR.buttonTop, left: BAR.navLeft + BAR.navPitch }, hit: NAV_HIT };
 const alreadyFocused = () => {};
 
 export function LittleArdiaWindow() {
@@ -46,7 +41,7 @@ export function LittleArdiaWindow() {
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
-      <View style={{ flex: 1, flexDirection: "row", paddingTop: SMALL_WINDOW_BAR_HEIGHT, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
+      <View style={{ flex: 1, flexDirection: "row", paddingTop: BAR.height, paddingLeft: frame, paddingRight: frame, paddingBottom: frame }}>
         <ContentCard />
       </View>
       <View style={{ position: "absolute", left: 0, right: 0, top: 0 }}>
@@ -81,10 +76,10 @@ function LittleArdiaBar() {
 
   return (
     <SmallBar
-      height={SMALL_WINDOW_BAR_HEIGHT}
-      trailingRoom={BAR_TRAILING_ROOM}
-      fieldLeft={FIELD_LEFT}
-      fieldMaxWidth={FIELD_MAX_WIDTH}
+      height={BAR.height}
+      trailingRoom={BAR.trailingRoom}
+      fieldLeft={BAR.fieldLeft}
+      fieldMaxWidth={SMALL_FIELD_MAX_WIDTH}
       field={tab ? <PageField tab={tab} windowId={windowId} hidden={panelOpen} /> : null}
       buttons={[
         { icon: copied ? "checkmark" : "link", disabled: !tab?.url, tooltip: `Copy Link (${keyText("⇧⌘C")})`, onPress: copy },
@@ -94,7 +89,7 @@ function LittleArdiaBar() {
     >
       <WindowDragRegion style={StyleSheet.absoluteFill} />
       {tab ? <HistoryButtons tabId={tab.id} windowId={windowId} /> : null}
-      {tab ? <ToolbarPopupAnchor windowId={windowId} tabId={tab.id} top={BUTTON_TOP} right={SMALL_INSET + BAR_TRAILING_ROOM} /> : null}
+      {tab ? <ToolbarPopupAnchor windowId={windowId} tabId={tab.id} top={BAR.buttonTop} right={BAR.controlsRight} /> : null}
     </SmallBar>
   );
 }

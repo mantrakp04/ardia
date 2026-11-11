@@ -60,7 +60,7 @@ Logic is written once. Only code that calls the OS is written per platform.
 - What has a C++ version: windows, documents, config files and their watcher, secrets (Credential Manager), local
   telemetry, launch config and system info, file actions and icons, launch at login, the theme, lock and sleep
   signals, the clipboard, the bang list, confirm, prompt and file dialogs, the command table with its shortcuts and
-  context menus, icons, file and link drops, and notifications.
+  context menus, the Escape and tab switcher key captures, icons, file and link drops, and notifications.
 - File and link drops: each browser window's top-level window and its child windows take OLE drops (`FileDropTarget.h`).
   Every `FileDropArea` reports its frame in the window to native as it mounts, lays out and changes, and again when a
   drag enters the window; native picks the innermost enabled area under the pointer, so the cursor shows copy or no
@@ -79,6 +79,21 @@ Logic is written once. Only code that calls the OS is written per platform.
   press it takes the press, finds the context menu or middle click area under the real target, and acts on release.
 - Shortcuts are the Mac's with Command as Ctrl and Option as Alt, except where Windows has its own convention;
   `CommandTable.h` holds both columns. The JS command catalog still shows the Mac keys in Settings.
+- Escape reaches a focused field or dialog through React Native's own key events, which is how the command bar and
+  Search Tabs close. A popover with nothing focused in it needs the key captured, as the Mac's key monitor does:
+  while the UI holds Escape (`captureEscape` in `platform/focus.ts`, for a page popover, a sidebar or bookmarks bar
+  drag, and on Windows the Downloads popover too), `ArdiaFocus.setDragEscapeCapture` (`FocusModule.h`) has the
+  keyboard hook in `MenuKeyboard.h` take a bare Escape in an Ardia window and send `dragEscape`. While the tab
+  switcher is open the hook takes every key, as on the Mac: Escape and the left and right arrows go to the switcher
+  and its own shortcut still runs. The launch log says `keys escape capture on|off` and
+  `keys escape sent to the open popover or drag`. The Mac's Downloads popover does not close on Escape yet
+  (`PLATFORM_FEATURES.escapeClosesDownloads` is off there).
+- The command panel opens in place on Windows instead of growing out of its field
+  (`PLATFORM_FEATURES.panelGrowsFromField`): React Native for Windows scales a view around its top-left corner, not
+  its centre, so the grow's first frame landed 68 points left of Little Ardia's field and above the window, and the
+  panel stayed there, cut off 24 points down. While the panel sits in the title band it keeps the caption buttons'
+  138 points free at the right (`trailingClearance` in `lib/windowChrome.ts`). Little Ardia's bar numbers for both
+  systems are in `components/littleArdia/barLayout.ts`.
 - Icons are the web demo's set (`packages/demo/src/shims/web/symbols`), resolved in TypeScript and drawn natively as
   Direct2D geometry in Composition shapes.
 - Materials are native views (`MaterialViews.h`, the `ArdiaMaterials` module in `MaterialsModule.h`), each with the old
@@ -109,6 +124,11 @@ Logic is written once. Only code that calls the OS is written per platform.
   not the app's own move, the shortcut matches no command, the sidebar button does not take its click, or the
   pointer just outside the window's left edge does not bring the hidden sidebar's edge over and away. The ARM runner's desktop is covered by Windows' own
   first-run screen, so its screenshots show that screen and it skips the input.
+- `scripts/windows/tour.ps1` drives a full screenshot tour and writes `tour.md`, one line per stop with the facts it
+  read. Among them: Downloads and Search Tabs must close on Escape (the title band goes from content back to a
+  caption, and for Downloads the log shows the native Escape capture taking the key), and Little Ardia's command
+  panel must be drawn whole below its field, with the caption buttons on the bare band (screen brightness where the
+  panel used to be cut off, and under the caption buttons).
 - The self-check (`--self-check`, only in an instance with its own `ARDIA_DATA_DIR`) runs
   `packages/expo-windows/src/selfCheck`: each area exercises its native code from inside the real app, and the
   launch fails if any check does. A new native method gets a check there.

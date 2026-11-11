@@ -121,6 +121,7 @@
     <ClInclude Include="FileDropItems.h" />
     <ClInclude Include="FileDropModule.h" />
     <ClInclude Include="FileDropTarget.h" />
+    <ClInclude Include="FocusModule.h" />
     <ClInclude Include="NotificationCenter.h" />
     <ClInclude Include="NotificationJson.h" />
     <ClInclude Include="NotificationsModule.h" />

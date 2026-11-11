@@ -45,6 +45,8 @@ struct MenuKeyboard {
   bool trackingMenu = false;
   unsigned switcherHeld = 0;
   bool consumedWithAlt = false;
+  bool escapeCaptured = false;
+  bool switcherCaptured = false;
   std::set<UINT> swallowedKeyUps;
   std::optional<winrt::Microsoft::ReactNative::ReactPromise<winrt::Microsoft::ReactNative::JSValue>> recording;
 
@@ -77,6 +79,39 @@ struct MenuKeyboard {
 
   void EmitSwitcherReleased() noexcept {
     EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherReleased"}});
+  }
+
+  void SetEscapeCapture(bool active) noexcept {
+    if (escapeCaptured == active) return;
+    escapeCaptured = active;
+    LaunchLog::Write(L"keys", active ? L"escape capture on" : L"escape capture off");
+  }
+
+  void SetSwitcherCapture(bool active) noexcept {
+    if (switcherCaptured == active) return;
+    switcherCaptured = active;
+    LaunchLog::Write(L"keys", active ? L"switcher capture on" : L"switcher capture off");
+  }
+
+  static bool BareEscape(KeyPress const &press) noexcept {
+    return press.virtualKey == VK_ESCAPE && (press.modifiers & (ModifierControl | ModifierOption | ModifierShift | ModifierCommand)) == 0;
+  }
+
+  bool CaptureEscape() noexcept {
+    EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "dragEscape"}});
+    LaunchLog::Write(L"keys", L"escape sent to the open popover or drag");
+    return true;
+  }
+
+  bool CaptureSwitcherKey(KeyPress const &press) noexcept {
+    CommandEntry const *entry = MenuStore::Shared().Match(press);
+    if (entry && entry->command == "tabSwitcher") return Dispatch(press);
+    const char *key = nullptr;
+    if (press.virtualKey == VK_ESCAPE) key = "escape";
+    else if (press.virtualKey == VK_RIGHT) key = "next";
+    else if (press.virtualKey == VK_LEFT) key = "previous";
+    if (key) EmitEvent(context, L"ArdiaShell", L"onAppEvent", winrt::Microsoft::ReactNative::JSValueObject{{"type", "switcherKey"}, {"key", key}});
+    return true;
   }
 
   static unsigned HeldModifiersOf(Combo const &combo) noexcept {
@@ -221,7 +256,9 @@ struct MenuKeyboard {
       handled = Record(press);
     } else {
       if (!ActiveArdiaWindow().hwnd) return false;
-      handled = Dispatch(press);
+      if (switcherCaptured) handled = CaptureSwitcherKey(press);
+      else if (escapeCaptured && BareEscape(press)) handled = CaptureEscape();
+      else handled = Dispatch(press);
     }
     if (handled) {
       swallowedKeyUps.insert(virtualKey);
