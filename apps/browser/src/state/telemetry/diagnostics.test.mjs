@@ -160,6 +160,41 @@ test("a page process that goes away sends its reason, exit code, visibility and 
   assert.equal(events("page_process_gone").length, 30);
 });
 
+test("a lost-hover episode sends only its enums, flags and duration, capped per session", async () => {
+  const episode = { reason: "halfActive", halfActive: true, appActive: false, runningActive: true, frontmost: true, menuActive: true, trigger: "click", keyWindow: "blockerPage", mainWindow: "none", preventKey: true, canKey: false, windowMain: true, overPage: true, cover: "none", coverClear: false, healed: true, healWorked: true, endedBy: "heal", seconds: 3.4, episode: 1 };
+  diagnostics.trackHoverLost(episode);
+  diagnostics.trackHoverLost({ ...episode, reason: "https://private.example", keyWindow: "Title of a page", endedBy: 7, healWorked: null, seconds: -5, trigger: "drag" });
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  await client.saveQueueNow();
+  const [healed, odd] = events("page_hover_lost").map((e) => e.properties);
+  assert.equal(healed.reason, "halfActive");
+  assert.equal(healed.half_active, true);
+  assert.equal(healed.app_active, false);
+  assert.equal(healed.running_active, true);
+  assert.equal(healed.frontmost, true);
+  assert.equal(healed.menu_active, true);
+  assert.equal(healed.trigger, "click");
+  assert.equal(healed.key_window, "blockerPage");
+  assert.equal(healed.main_window, "none");
+  assert.equal(healed.prevent_key, true);
+  assert.equal(healed.can_key, false);
+  assert.equal(healed.window_main, true);
+  assert.equal(healed.healed, true);
+  assert.equal(healed.heal_worked, true);
+  assert.equal(healed.ended_by, "heal");
+  assert.equal(healed.lost_seconds, 3);
+  assert.equal(odd.reason, "unknown");
+  assert.equal(odd.key_window, "unknown");
+  assert.equal(odd.ended_by, "unknown");
+  assert.equal(odd.heal_worked, null);
+  assert.equal(odd.lost_seconds, 0);
+  assert.equal(odd.trigger, "move");
+  for (let i = 0; i < 30; i++) diagnostics.trackHoverLost(episode);
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  await client.saveQueueNow();
+  assert.equal(events("page_hover_lost").length, 20);
+});
+
 test("tab presses count clicks, drags turned into clicks, drags and presses that got no answer", async () => {
   presses.notePressStarted();
   presses.notePressEnded("click", "t1");
