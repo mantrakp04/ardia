@@ -6,6 +6,7 @@ import { closingGroup, nestedSnapshot, rebuildNested, restoreSnapshots } from ".
 import { groupLabel, movingGroup, withGroup, withRowsGrouped } from "../pins/tabGrouping";
 import { withSplitRows } from "../splits/splits";
 import { withNewTab } from "../tabs/tabs";
+import { newTabToasts } from "../tabs/newTabToasts";
 import type { BrowserWindow, ClosedGroup, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
 import { depthOf, descendantIds, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
 import { withShownTab, withoutShownTabs } from "./shownTabs";
@@ -253,6 +254,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     };
     const groups = nestGroups({ ...next.groups, [parentId]: { ...p, collapsed: false }, [group.id]: group });
     set(withGroupsPlaced(next, w.id, groups));
+    newTabToasts.add(get().tabs[tabId]);
     return group.id;
   },
 
@@ -298,6 +300,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       s = rebuildNested(s, groupId2, g.id, ids, nestedSnapshot(get(), g));
     }
     set(s);
+    for (const id of ids) newTabToasts.add(get().tabs[id]);
     return groupId2;
   },
 
@@ -309,6 +312,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
     const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
     set(withGroupsPlaced(next, w.id, groups));
+    newTabToasts.add(get().tabs[id]);
     return id;
   },
 

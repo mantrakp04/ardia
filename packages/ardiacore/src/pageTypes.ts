@@ -22,6 +22,8 @@ export type AppBadge = { origin: string; count: number | null; flag: boolean };
 
 export type MediaState = { playing: boolean; muted: boolean };
 
+export type PageLayout = { x: number; y: number; width: number; height: number; containerWidth: number; containerHeight: number };
+
 export type NowPlaying = {
   title: string;
   artist: string;
@@ -208,6 +210,7 @@ export type WebViewProps = ViewProps & {
   onScroll?: (state: ScrollState) => void;
   onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
+  onPageLayout?: (layout: PageLayout | null) => void;
   onDiscarded?: (url: string) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;

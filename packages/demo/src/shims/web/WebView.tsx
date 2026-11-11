@@ -119,7 +119,10 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
   const frame = useRef<HTMLIFrameElement | null>(null);
   const framedUrl = page && isFrameable(page.url) ? page.url : null;
   const unmounting = useRef(false);
-  useLayoutEffect(() => () => void (unmounting.current = true), []);
+  useLayoutEffect(() => () => {
+    unmounting.current = true;
+    latest.current.onPageLayout?.(null);
+  }, []);
 
   useLayoutEffect(() => {
     const into = frameHost.current;
@@ -159,7 +162,14 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
 
   const visible = props.visible !== false;
   return (
-    <View style={[props.style, { overflow: "hidden", backgroundColor: "#FFFFFF" }, !visible && { opacity: 0, pointerEvents: "none" }]}>
+    <View
+      style={[props.style, { overflow: "hidden", backgroundColor: "#FFFFFF" }, !visible && { opacity: 0, pointerEvents: "none" }]}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        latest.current.onPageLayout?.({ x: 0, y: 0, width, height, containerWidth: width, containerHeight: height });
+        props.onLayout?.(event);
+      }}
+    >
       <div ref={frameHost} inert={!visible} style={{ position: "absolute", inset: 0, display: framedUrl ? "block" : "none" }} />
       {page && !framedUrl ? <RefusedPage host={hostOf(page.url) || page.url} /> : null}
     </View>

@@ -18,6 +18,7 @@ import type {
   NowPlaying,
   OpenWindowRequest,
   PageCommand,
+  PageLayout,
   PageSelection,
   PasswordPrompt,
   PictureInPictureState,
@@ -62,6 +63,7 @@ type NativeEvents = {
   onScroll: { state: ScrollState };
   onProtectedMedia: ProtectedMediaRequest;
   onReady: object;
+  onPageLayout: { layout: PageLayout | null };
   onDiscarded: { url: string };
   onPasswordPrompt: PasswordPrompt;
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
@@ -107,6 +109,7 @@ const PAGE_EVENTS = {
   onScroll: "scroll",
   onProtectedMedia: "protectedMedia",
   onReady: "ready",
+  onPageLayout: "pageLayout",
   onDiscarded: "discarded",
   onPasswordPrompt: "passwordPrompt",
   onAutofillPrompt: "autofillPrompt",
@@ -152,6 +155,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onScroll: (e) => [e.state],
   onProtectedMedia: (e) => [e],
   onReady: () => [],
+  onPageLayout: (e) => [e.layout],
   onDiscarded: (e) => [toAppUrl(e.url)],
   onPasswordPrompt: (e) => [e],
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),

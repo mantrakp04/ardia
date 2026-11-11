@@ -15,6 +15,7 @@ struct ArdiaRequests {
 struct ArdiaSentReports {
   BOOL navigationQueued{};
   NSDictionary *navigation;
+  NSDictionary *pageLayout;
   NSString *favicon;
   NSUInteger blockedGeneration{};
   BOOL blockedEmitQueued{};
@@ -192,6 +193,7 @@ typedef NS_ENUM(NSInteger, ArdiaTransfer) {
 + (void)noteShown:(ArdiaCoreTab *)tab;
 + (void)drainPainting;
 - (void)layoutPage;
+- (void)emitPageLayout;
 - (BOOL)paints;
 - (BOOL)neighbourPageAsleep;
 - (void)holdLittlePage;

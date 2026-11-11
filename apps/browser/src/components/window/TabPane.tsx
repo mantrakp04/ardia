@@ -14,7 +14,8 @@ import { SplitEmptyState } from "../split/SplitEmptyState";
 import { NewTabPage } from "../ntp/NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { NewTabDropArea } from "./NewTabDropArea";
-import { InternalPage } from "../pages";
+import { InternalPage, isInternalTab } from "../pages";
+import { NewTabCreatedToasts } from "./NewTabCreatedToasts";
 import { ShareBar } from "../media/ShareBar";
 import { Toolbar, ToolbarBackdrop } from "../toolbar/Toolbar";
 import { AutoHideBackdrop, AutoHideToolbar, useToolbarMode, useToolbarMotion } from "../toolbar/AutoHideToolbar";
@@ -137,6 +138,7 @@ export const TabPane = memo(function TabPane({
               </NewTabDropArea>
             )}
             {visible && <InternalPage tabId={tabId} />}
+            {visible && focused && !fullscreen && !covered && !small && <NewTabCreatedToasts windowId={windowId} tabId={tabId} nativePage={!isNewTab && !own.internal && !newTabShown} />}
             {visible && (
               <PageOverlays
                 tabId={tabId}
@@ -159,4 +161,4 @@ export const TabPane = memo(function TabPane({
   );
 });
 
-const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", profileId: t?.profileId ?? "" });
+const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", profileId: t?.profileId ?? "", internal: !!t && isInternalTab(t) });

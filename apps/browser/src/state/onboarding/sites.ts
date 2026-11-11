@@ -52,7 +52,7 @@ export function pinSites(windowId: string, ids: string[]) {
   const selectedTab = activeTabId(s, w.id);
   for (const site of PINNABLE_SITES) {
     if (ids.includes(site.id) && !pinned.has(hostOf(site.url))) {
-      useBrowser.getState().newTab(w.id, { url: site.url, pinned: true, background: true, snapshot: { title: site.title } });
+      useBrowser.getState().newTab(w.id, { url: site.url, pinned: true, background: true, snapshot: { title: site.title }, notify: false });
     }
   }
   if (selectedTab) useBrowser.getState().activate(selectedTab);

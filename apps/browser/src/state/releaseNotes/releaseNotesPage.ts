@@ -7,13 +7,13 @@ function releaseNotesUrl(version = systemInfo().appVersion): string | null {
   return version ? `${page}#${version}` : page;
 }
 
-export function openReleaseNotesPage(windowId?: string | null) {
+export function openReleaseNotesPage(windowId?: string | null, options: { notify?: boolean } = {}) {
   const url = releaseNotesUrl();
-  if (url) openUrls([url], windowId);
+  if (url) openUrls([url], windowId, options);
 }
 
 export function openReleaseNotesAfterUpdate() {
   const info = systemInfo();
   if (!info.forceReleaseNotes && (__DEV__ || info.isolatedInstance !== false)) return;
-  openReleaseNotesPage();
+  openReleaseNotesPage(undefined, { notify: false });
 }

@@ -28,11 +28,11 @@ function adoptStrayTab(request: Request<"adopt">) {
   const windowId = s.ui.focusOrder.find(ofProfile) ?? s.ui.focusOrder.find((id) => s.windows[id]);
   const profileId = windowId && ofProfile(windowId) ? s.windows[windowId]!.profileId : s.profileOrder.find((p) => engineProfile(s, p) === profile);
   if (profileId) {
-    if (windowId && ofProfile(windowId)) s.newTab(windowId, { url, adoptId, profileId, background: false });
+    if (windowId && ofProfile(windowId)) s.newTab(windowId, { url, adoptId, profileId, background: false, notify: false });
     else openWindow({ url, adoptId, profileId });
     return;
   }
-  if (windowId) s.newTab(windowId, { url, background: false });
+  if (windowId) s.newTab(windowId, { url, background: false, notify: false });
   else openWindow({ url });
 }
 
@@ -41,7 +41,7 @@ function openChromeMadeTab(request: Request<"adoptInto">) {
   const adoptId = asAdoptId(request.adoptId);
   const s = useBrowser.getState();
   const made = Object.values(s.windows).find((w) => w.kind !== "small" && w.chromeWindow === chromeWindow);
-  if (made) return void s.newTab(made.id, { url, adoptId, profileId: made.profileId, background: !active });
+  if (made) return void s.newTab(made.id, { url, adoptId, profileId: made.profileId, background: !active, notify: false });
   const profileId = s.profileOrder.find((p) => engineProfile(s, p) === profile);
   if (!profileId) return void openWindow({ url, adoptId });
   openWindow({ url, adoptId, profileId, chromeWindow, background: !focused });
