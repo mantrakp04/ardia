@@ -27,6 +27,8 @@ final class SharedWorkTests: XCTestCase {
       await gate.wait()
       return Task.isCancelled ? nil : "done"
     }
+    work.open(owner: "old")
+    work.open(owner: "live")
     async let old = work.value(for: "p", owner: "old", start: start)
     async let live = work.value(for: "p", owner: "live", start: start)
     await settle()
@@ -45,6 +47,8 @@ final class SharedWorkTests: XCTestCase {
       await gate.wait()
       return Task.isCancelled ? nil : "done"
     }
+    work.open(owner: "old")
+    work.open(owner: "new")
     async let old = work.value(for: "p", owner: "old", start: start)
     await settle()
     work.cancel(owner: "old")
@@ -66,6 +70,8 @@ final class SharedWorkTests: XCTestCase {
       await gate.wait()
       return Task.isCancelled ? nil : "done"
     }
+    work.open(owner: "live")
+    work.open(owner: "dead")
     async let live = work.value(for: "shared", owner: "live", start: start)
     await settle()
     work.cancel(owner: "dead")
@@ -78,6 +84,45 @@ final class SharedWorkTests: XCTestCase {
     gate.open()
     let kept = await live
     XCTAssertEqual(kept, "done")
+  }
+
+  func testAnOwnerCancelledLongAgoStaysRefusedHoweverManyCameAfter() async {
+    let work = SharedWork<String, String>()
+    var starts = 0
+    work.open(owner: "A")
+    work.cancel(owner: "A")
+    for i in 0..<300 {
+      work.open(owner: "other-\(i)")
+      work.cancel(owner: "other-\(i)")
+    }
+    let late = await work.value(for: "p", owner: "A") {
+      starts += 1
+      return "done"
+    }
+    XCTAssertNil(late)
+    XCTAssertEqual(starts, 0)
+    XCTAssertEqual(work.openOwners, 0)
+  }
+
+  func testAnOwnerThatWasNeverOpenedIsRefused() async {
+    let work = SharedWork<String, String>()
+    var starts = 0
+    let value = await work.value(for: "p", owner: "stranger") {
+      starts += 1
+      return "done"
+    }
+    XCTAssertNil(value)
+    XCTAssertEqual(starts, 0)
+  }
+
+  func testCancellingTwiceIsHarmless() async {
+    let work = SharedWork<String, String>()
+    work.open(owner: "A")
+    work.cancel(owner: "A")
+    work.cancel(owner: "A")
+    work.open(owner: "B")
+    let value = await work.value(for: "p", owner: "B") { "done" }
+    XCTAssertEqual(value, "done")
   }
 
   func testACancelledDispatchStopsSendingRuns() async {

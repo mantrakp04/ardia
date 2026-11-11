@@ -164,7 +164,6 @@ async function drain(tabId: string, token: string, onProgress?: (done: number, t
     });
   } finally {
     released.stop();
-    if (!holds(tabId, token)) void translation?.cancel(token).catch(() => {});
   }
 }
 
@@ -211,7 +210,8 @@ export async function translatePage(tabId: string, target = defaultTarget()) {
     const status = await translation.status(source, target);
     if (status === "unsupported") return toast(tabId, `Translation error (${languageName(source)} to ${languageName(target)} isn't available)`);
     if (status === "supported") await translation.prepare(source, target);
-    const mine = (token = Math.random().toString(36).slice(2));
+    const mine = (token = newToken());
+    await translation.open(mine);
     set(tabId, { status: "translating", source, target, token: mine });
     atStage(tabId, "start");
     if (!(await webviews.get(tabId)?.evaluate<boolean>(translatorCall("start", mine)))) throw new Error("the page isn't ready");
@@ -301,9 +301,25 @@ export function releaseTranslation(tabId: string) {
   if (stateOf(tabId).status !== "idle") toIdle(tabId);
 }
 
+let tokens = 0;
+const newToken = () => `${Date.now().toString(36)}-${++tokens}`;
+
+const tokenOf = (state: TranslateState | undefined) => (state && state.status !== "idle" ? state.token : null);
+
+export function cancelEndedTranslations(cancel: (token: string) => void) {
+  return useTranslate.subscribe((s, prev) => {
+    for (const id in prev) {
+      const ended = tokenOf(prev[id]);
+      if (ended && tokenOf(s[id]) !== ended) cancel(ended);
+    }
+  });
+}
+
 export function startTranslate() {
   if (!translation) return () => {};
-  return useBrowser.subscribe((s, prev) => {
+  const model = translation;
+  const stopCancelling = cancelEndedTranslations((token) => void model.cancel(token).catch(() => {}));
+  const stopWatching = useBrowser.subscribe((s, prev) => {
     for (const id of changedIds(s.live, prev.live)) {
       if (s.live[id] && prev.live[id]?.isLoading && !s.live[id].isLoading) {
         stopDocumentWatch(id);
@@ -319,4 +335,8 @@ export function startTranslate() {
     }
     if (gone.length) useTranslate.setState(Object.fromEntries(gone.map((id) => [id, undefined])));
   });
+  return () => {
+    stopCancelling();
+    stopWatching();
+  };
 }

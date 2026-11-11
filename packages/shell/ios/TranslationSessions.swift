@@ -52,6 +52,10 @@ enum TranslationSessions {
     return false
   }
 
+  static func open(owner: String) {
+    work.open(owner: owner)
+  }
+
   static func cancel(owner: String) {
     work.cancel(owner: owner)
   }

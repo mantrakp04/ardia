@@ -50,6 +50,11 @@ public class TranslateModule: Module {
       return await TranslationSessions.translateBlocks(source: source, target: target, owner: owner, blocks)
     }
 
+    AsyncFunction("open") { (owner: String) async in
+      guard #available(macOS 26.0, *) else { return }
+      await TranslationSessions.open(owner: owner)
+    }
+
     AsyncFunction("cancel") { (owner: String) async in
       guard #available(macOS 26.0, *) else { return }
       await TranslationSessions.cancel(owner: owner)
