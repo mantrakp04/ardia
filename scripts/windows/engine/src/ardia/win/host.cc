@@ -2,6 +2,7 @@
 
 #include <commctrl.h>
 
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -117,13 +118,18 @@ int Integer(const base::DictValue& args, std::string_view key) {
   return static_cast<int>(args.FindDouble(key).value_or(0));
 }
 
+int Scaled(double value, double scale) {
+  return static_cast<int>(std::lround(value * scale));
+}
+
 void Shape(HWND window,
            int x,
            int y,
            int width,
            int height,
            int radius,
-           const base::ListValue* holes) {
+           const base::ListValue* holes,
+           double scale) {
   if (radius <= 0 && (!holes || holes->empty())) {
     ::SetWindowRgn(window, nullptr, TRUE);
     return;
@@ -138,11 +144,13 @@ void Shape(HWND window,
       if (!hole || hole->size() < 4) {
         continue;
       }
-      int left = static_cast<int>((*hole)[0].GetIfDouble().value_or(0)) - x;
-      int top = static_cast<int>((*hole)[1].GetIfDouble().value_or(0)) - y;
-      int right = left + static_cast<int>((*hole)[2].GetIfDouble().value_or(0));
-      int bottom = top + static_cast<int>((*hole)[3].GetIfDouble().value_or(0));
-      HRGN cut = ::CreateRectRgn(left, top, right, bottom);
+      double left = (*hole)[0].GetIfDouble().value_or(0);
+      double top = (*hole)[1].GetIfDouble().value_or(0);
+      double wide = (*hole)[2].GetIfDouble().value_or(0);
+      double high = (*hole)[3].GetIfDouble().value_or(0);
+      HRGN cut = ::CreateRectRgn(Scaled(left, scale) - x, Scaled(top, scale) - y,
+                                 Scaled(left + wide, scale) - x,
+                                 Scaled(top + high, scale) - y);
       ::CombineRgn(region, region, cut, RGN_DIFF);
       ::DeleteObject(cut);
     }
@@ -357,13 +365,23 @@ base::DictValue Host::ShowTab(const base::DictValue& args, HWND parent) {
   if (::GetParent(window) != parent) {
     ::SetParent(window, parent);
   }
-  int x = Integer(args, "x");
-  int y = Integer(args, "y");
-  int width = Integer(args, "width");
-  int height = Integer(args, "height");
+  double scale = Text(args, "unit") == "px"
+                     ? 1.0
+                     : ::GetDpiForWindow(parent) / 96.0;
+  int x = Scaled(args.FindDouble("x").value_or(0), scale);
+  int y = Scaled(args.FindDouble("y").value_or(0), scale);
+  int width = Scaled(args.FindDouble("x").value_or(0) +
+                         args.FindDouble("width").value_or(0),
+                     scale) -
+              x;
+  int height = Scaled(args.FindDouble("y").value_or(0) +
+                          args.FindDouble("height").value_or(0),
+                      scale) -
+               y;
   ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);
-  Shape(window, x, y, width, height, Integer(args, "radius"),
-        args.FindList("holes"));
+  Shape(window, x, y, width, height,
+        Scaled(args.FindDouble("radius").value_or(0), scale),
+        args.FindList("holes"), scale);
   if (!::IsWindowVisible(window)) {
     browser->GetWindow()->ShowInactive();
     ::SetWindowPos(window, HWND_TOP, x, y, width, height, SWP_NOACTIVATE);

@@ -4,9 +4,11 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "ardia/core/ac_hooks.h"
+#include "ardia/core/ac_launch_switches.h"
 #include "ardia/win/api.h"
 #include "ardia/win/frame_view.h"
 #include "ardia/win/hooks.h"
@@ -23,6 +25,7 @@
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/common/content_switches.h"
+#include "media/base/media_switches.h"
 
 namespace base {
 extern bool (*g_ardia_pre_translate_message)(const MSG& msg);
@@ -67,6 +70,80 @@ bool AppLibraryPresent() {
   std::wstring path = AppLibraryPath();
   return !path.empty() &&
          ::GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
+std::wstring Environment(const wchar_t* name) {
+  std::wstring value(32768, L'\0');
+  DWORD length = ::GetEnvironmentVariableW(name, value.data(),
+                                          static_cast<DWORD>(value.size()));
+  if (length == 0 || length >= value.size()) {
+    return std::wstring();
+  }
+  value.resize(length);
+  return value;
+}
+
+bool Set(const std::wstring& value) {
+  return !value.empty() && value != L"0";
+}
+
+void AddFeatures(base::CommandLine* command_line,
+                 const char* switch_name,
+                 std::string_view features) {
+  std::string all = command_line->GetSwitchValueASCII(switch_name);
+  if (!all.empty()) {
+    all.push_back(',');
+  }
+  all.append(features);
+  command_line->AppendSwitchASCII(switch_name, all);
+}
+
+void AddLaunchSwitches(base::CommandLine* command_line) {
+  command_line->AppendSwitch(switches::kNoStartupWindow);
+  command_line->AppendSwitch(switches::kNoFirstRun);
+  command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
+  command_line->AppendSwitch(switches::kHideCrashRestoreBubble);
+  AddFeatures(command_line, switches::kDisableFeatures,
+              "CalculateNativeWinOcclusion");
+  for (const char* forbidden : {switches::kRemoteDebuggingPort,
+                                switches::kRemoteDebuggingPipe,
+                                "remote-allow-origins"}) {
+    command_line->RemoveSwitch(forbidden);
+  }
+  std::wstring data_dir = Environment(L"ARDIA_DATA_DIR");
+  while (!data_dir.empty() &&
+         (data_dir.back() == L'\\' || data_dir.back() == L'/')) {
+    data_dir.pop_back();
+  }
+  const bool scratch = !data_dir.empty();
+  const bool background = Set(Environment(L"ARDIA_BACKGROUND"));
+  if (scratch) {
+    command_line->AppendSwitchNative(ardiacore::kDataDirSwitch, data_dir);
+    command_line->AppendSwitchNative(switches::kUserDataDir,
+                                     data_dir + L"\\Chromium");
+    std::wstring port = Environment(L"ARDIA_REMOTE_DEBUGGING_PORT");
+    if (!port.empty()) {
+      command_line->AppendSwitchNative(switches::kRemoteDebuggingPort, port);
+      command_line->AppendSwitchASCII("remote-allow-origins", "*");
+    }
+    std::wstring test = Environment(L"ARDIA_TEST");
+    if (!test.empty()) {
+      command_line->AppendSwitchNative(ardiacore::kTestSwitch, test);
+    }
+    std::wstring trace = Environment(L"ARDIA_TRACE");
+    if (!trace.empty()) {
+      command_line->AppendSwitchNative(ardiacore::kTraceSwitch, trace);
+    }
+  }
+  if (background) {
+    command_line->AppendSwitch(ardiacore::kBackgroundSwitch);
+    command_line->AppendSwitch(switches::kMuteAudio);
+    command_line->AppendSwitch(switches::kUseFakeDeviceForMediaStream);
+  }
+  std::wstring app_switches = Environment(L"ARDIA_SWITCHES");
+  if (!app_switches.empty()) {
+    command_line->AppendSwitchNative(ardiacore::kSwitchesSwitch, app_switches);
+  }
 }
 
 bool PreTranslate(const MSG& msg) {
@@ -155,16 +232,7 @@ void BeforeChromeMain() {
       !AppLibraryPresent()) {
     return;
   }
-  command_line->AppendSwitch(switches::kNoStartupWindow);
-  command_line->AppendSwitch(switches::kNoFirstRun);
-  command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
-  std::string disabled =
-      command_line->GetSwitchValueASCII(switches::kDisableFeatures);
-  if (!disabled.empty()) {
-    disabled.push_back(',');
-  }
-  disabled.append("CalculateNativeWinOcclusion");
-  command_line->AppendSwitchASCII(switches::kDisableFeatures, disabled);
+  AddLaunchSwitches(command_line);
   g_ardia_win_hosts_normal_windows = true;
   g_ardia_win_frame_view = &CreateHostedFrameView;
   g_ardia_win_add_main_parts = &AddMainParts;

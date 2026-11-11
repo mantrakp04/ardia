@@ -30,6 +30,7 @@ function Test-SameFile([string]$one, [string]$other) {
 
 $appRoot = Resolve-Folder $App "The app's build output" $library
 $engineRoot = Resolve-Folder $Engine "The engine" $engineLauncher
+if (Test-Path -LiteralPath (Join-Path $engineRoot $library)) { throw "The engine '$Engine' already holds a $library" }
 if (Test-Path -LiteralPath $Out) {
   if (Get-ChildItem -LiteralPath $Out -Force | Select-Object -First 1) { throw "'$Out' is not empty" }
 } else {

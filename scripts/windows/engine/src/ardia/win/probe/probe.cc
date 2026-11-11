@@ -66,8 +66,8 @@ std::string ShowArgs(const char* key) {
   ::GetClientRect(g_window, &client);
   char args[256];
   snprintf(args, sizeof(args),
-           "{\"key\":\"%s\",\"visible\":true,\"x\":%d,\"y\":%d,\"width\":%d,"
-           "\"height\":%d}",
+           "{\"key\":\"%s\",\"visible\":true,\"unit\":\"px\",\"x\":%d,"
+           "\"y\":%d,\"width\":%d,\"height\":%d}",
            key, kPageLeft, kPageTop,
            static_cast<int>(client.right) - kPageLeft - kPageMargin,
            static_cast<int>(client.bottom) - kPageTop - kPageMargin);

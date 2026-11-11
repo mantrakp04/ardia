@@ -106,7 +106,7 @@ const withEngine: Check[] = [
     name: "engine: the page shows inside the window where it is placed",
     async run() {
       const windowId = await firstWindow();
-      await hostCall("tab.show", { key: PAGE_KEY, visible: true, x: 40, y: 60, width: 320, height: 240 }, windowId);
+      await hostCall("tab.show", { key: PAGE_KEY, visible: true, unit: "px", x: 40, y: 60, width: 320, height: 240 }, windowId);
       const listed = await hostCall<{ tabs: ListedTab[] }>("tabs.list");
       const page = listed.tabs.find((tab) => tab.key === PAGE_KEY);
       expectTrue(page, "the page is not listed");

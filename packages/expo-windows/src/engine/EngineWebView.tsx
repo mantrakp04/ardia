@@ -1,5 +1,5 @@
 import { createElement, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, type ComponentType } from "react";
-import { PixelRatio, View, type LayoutChangeEvent } from "react-native";
+import { View, type LayoutChangeEvent } from "react-native";
 import { noteMissing } from "../missing";
 import { coversIn, onCoversChange, pageRadiusIn } from "./covers";
 import { callPage, mountPage, showPage, type PageRect, type PageShape } from "./pages";
@@ -56,15 +56,12 @@ export const EngineWebView = forwardRef<unknown, Props>(function EngineWebView(p
     }
     view.current?.measureInWindow((x, y, width, height) => {
       if (latest.current.visible === false || !(width > 0) || !(height > 0)) return;
-      const scale = PixelRatio.get();
-      const pixels = (rect: PageRect) => ({ x: Math.round(rect.x * scale), y: Math.round(rect.y * scale), width: Math.round(rect.width * scale), height: Math.round(rect.height * scale) });
       const page = { x, y, width, height };
       const shape: PageShape = {
-        ...pixels(page),
-        radius: Math.round(pageRadiusIn(windowId) * scale),
+        ...page,
+        radius: pageRadiusIn(windowId),
         holes: coversIn(windowId)
           .filter((cover) => overlaps(cover, page))
-          .map(pixels)
           .map((hole) => [hole.x, hole.y, hole.width, hole.height]),
       };
       const placed = JSON.stringify(shape);

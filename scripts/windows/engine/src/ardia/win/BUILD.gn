@@ -21,6 +21,7 @@ source_set("win") {
   ]
 
   deps = [
+    ":launch_switches",
     "//base",
     "//chrome/browser",
     "//chrome/browser/ardia",
@@ -33,6 +34,7 @@ source_set("win") {
     "//components/version_info",
     "//content/public/browser",
     "//content/public/common",
+    "//media",
     "//net",
     "//skia",
     "//ui/aura",
