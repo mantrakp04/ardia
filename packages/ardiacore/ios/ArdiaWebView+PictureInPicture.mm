@@ -98,6 +98,19 @@ void InstallControlPressMonitor() {
                                                   }];
 }
 
+void WatchAppActivationForPictureInPicture() {
+  static BOOL watching;
+  if (watching) return;
+  watching = YES;
+  NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+  [center addObserverForName:NSApplicationDidResignActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+    for (ArdiaWebView *view in LiveViews().allObjects) [view leaveAppInPictureInPicture:YES];
+  }];
+  [center addObserverForName:NSApplicationDidBecomeActiveNotification object:nil queue:nil usingBlock:^(NSNotification *) {
+    for (ArdiaWebView *view in LiveViews().allObjects) [view leaveAppInPictureInPicture:NO];
+  }];
+}
+
 BOOL TracingPictureInPicture() {
   static const BOOL tracing = [ArdiaLaunchConfig.shared traced:@"pip"];
   return tracing;
@@ -174,11 +187,26 @@ BOOL TracingPictureInPicture() {
   });
 }
 
+- (BOOL)playsForAutoPictureInPicture {
+  NSDictionary *np = _reports.nowPlaying.selected;
+  return _autoPictureInPicture && ([np[@"playbackState"] isEqual:@"playing"] || _reports.capturing);
+}
+
+- (BOOL)leftAppInPictureInPicture {
+  return _reports.leftAppInPictureInPicture;
+}
+
+- (void)leaveAppInPictureInPicture:(BOOL)leaving {
+  if (leaving == _reports.leftAppInPictureInPicture) return;
+  if (leaving && (!_tab || _reports.inPictureInPicture || !self.seenByUser || !self.playsForAutoPictureInPicture)) return;
+  _reports.leftAppInPictureInPicture = leaving;
+  [self traceAutoPictureInPicture:leaving ? @"app: the user left Ardia" : @"app: the user came back to Ardia"];
+  [self userSightChanged];
+}
+
 - (void)updateAutoPictureInPicture {
   if (!_tab) return;
-  NSDictionary *np = _reports.nowPlaying.selected;
-  const BOOL playing = [np[@"playbackState"] isEqual:@"playing"] || _reports.capturing;
-  if (!_reports.seenByUser && _autoPictureInPicture && playing) {
+  if (!_reports.seenByUser && self.playsForAutoPictureInPicture) {
     [self traceAutoPictureInPicture:@"app: auto PiP left to Chrome"];
   } else if (_reports.seenByUser && (_reports.autoPictureInPictureActive || _reports.inPictureInPicture)) {
     _reports.autoPictureInPictureActive = NO;

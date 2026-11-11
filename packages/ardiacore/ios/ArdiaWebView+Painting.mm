@@ -258,7 +258,7 @@ BOOL Above(NSView *a, NSView *b) {
 }
 
 - (BOOL)seenByUser {
-  return _visible && [ArdiaWindowController userSees:self.window];
+  return _visible && !_reports.leftAppInPictureInPicture && [ArdiaWindowController userSees:self.window];
 }
 
 - (void)userSightChanged {

@@ -63,7 +63,7 @@ const usesPageA = [
   "private-windows-create", "extension-private-window", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "external-app-from-extension",
-  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "picture-in-picture-opt-out", "pip-window", "page-focus",
+  "notifications", "now-playing", "media-state", "auto-picture-in-picture", "auto-picture-in-picture-app-switch", "picture-in-picture-opt-out", "pip-window", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-system-title-bar", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
@@ -3499,6 +3499,53 @@ try {
     }
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     return results;
+  });
+
+  await check("auto-picture-in-picture-app-switch", async () => {
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const appActive = async (on) => {
+      const r = await engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
+      if (r !== (on ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)}`);
+    };
+    const pipEvents = async (tabId) => (await eventsOf(tabId)).filter((x) => x.name === "pictureInPicture");
+    const visibility = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
+    const tab = await openTab(`${secureBase}/video?auto&file`, "Video");
+    try {
+      const t = await startVideo(tab.id, true);
+      await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      await appActive(false);
+      await sleep(100);
+      await appActive(true);
+      await sleep(800);
+      await until("no PiP left open after a quick app switch", async () => {
+        const e = await lastEvent(tab.id, "pictureInPicture");
+        return !e || !e.payload.active ? true : null;
+      }, 8000);
+      await appActive(false);
+      const out = await until("auto PiP on leaving the app", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active && p.fullScreenSpaces !== undefined), 8000);
+      if (out.payload.leftApp !== true) throw new Error(`pip_shown left_app: ${JSON.stringify(out.payload)}`);
+      const away = await visibility(t);
+      await appActive(true);
+      const back = await until("auto PiP ended on coming back", async () => {
+        const e = await lastEvent(tab.id, "pictureInPicture");
+        return e && e.payload.kind === "video" && !e.payload.active ? e : null;
+      }, 8000);
+      await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').pause()" });
+      await until("onNowPlaying paused", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.playbackState === "paused"), 5000);
+      const paused = (await pipEvents(tab.id)).length;
+      await appActive(false);
+      await sleep(1500);
+      const pausedPopped = (await pipEvents(tab.id)).length !== paused;
+      await appActive(true);
+      if (pausedPopped) throw new Error("a paused video popped out on leaving the app");
+      return { out: out.payload, back: back.payload, visibilityWhileAway: away };
+    } finally {
+      await appActive(true).catch(() => null);
+      await closeTab(tab.id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
   });
 
   await check("picture-in-picture-opt-out", async () => {
