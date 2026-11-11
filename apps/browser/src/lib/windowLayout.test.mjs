@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { PAGE_FRAME, pageFrameInsetOf, pageFrameOf } = await import("./windowLayout.ts");
 
-const off = { zeroInFullScreen: false, fullScreen: false, zeroWhenTabsHidden: false, tabsHidden: false };
+const off = { borderlessMode: false, zeroInFullScreen: false, fullScreen: false, zeroWhenTabsHidden: false, tabsHidden: false };
 
 test("with neither option the page frame slider still applies", () => {
   assert.equal(pageFrameInsetOf(PAGE_FRAME.default, off), PAGE_FRAME.default);
@@ -33,6 +33,11 @@ test("tabs hidden alone with Zero in full screen when tabs are hidden on keeps t
 test("full screen alone with Zero in full screen when tabs are hidden on keeps the slider", () => {
   assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, zeroWhenTabsHidden: true, fullScreen: true }), PAGE_FRAME.default);
   assert.equal(pageFrameInsetOf(5, { ...off, zeroWhenTabsHidden: true, fullScreen: true }), 5);
+});
+
+test("borderless mode zeros the inset whatever the other options are", () => {
+  assert.equal(pageFrameInsetOf(PAGE_FRAME.default, { ...off, borderlessMode: true }), 0);
+  assert.equal(pageFrameInsetOf(9, { ...off, borderlessMode: true, fullScreen: true, tabsHidden: true }), 0);
 });
 
 test("a zero frame is square; a positive frame follows the window radius minus the inset", () => {

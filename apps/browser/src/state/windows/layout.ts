@@ -40,6 +40,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): LightsPl
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
   const frame = pageFrameInsetOf(s.settings.pageFrame, {
+    borderlessMode: s.settings.borderlessMode,
     zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
     fullScreen: !!w.fullScreen,
     zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,
@@ -53,6 +54,7 @@ export function usePageFrameInset(): number {
   const windowId = useWindowId();
   return useBrowser((s) =>
     pageFrameInsetOf(s.settings.pageFrame, {
+      borderlessMode: s.settings.borderlessMode,
       zeroInFullScreen: s.settings.pageFrameZeroInFullScreen,
       fullScreen: !!s.windows[windowId]?.fullScreen,
       zeroWhenTabsHidden: s.settings.pageFrameZeroWhenTabsHidden,

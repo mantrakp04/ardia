@@ -164,12 +164,16 @@ const FRAME_CONTROL = { alignItems: "center" } as const;
 
 function PageFramePicker() {
   const frame = useSettings((s) => s.pageFrame);
+  const borderless = useSettings((s) => s.borderlessMode);
   const zeroInFullScreen = useSettings((s) => s.pageFrameZeroInFullScreen);
   const zeroWhenTabsHidden = useSettings((s) => s.pageFrameZeroWhenTabsHidden);
   return (
     <>
       <SectionHeader title="Page Frame" />
       <Group>
+        <Row anchor="appearance.borderlessMode">
+          <Toggle value={borderless} accessibilityLabel="Borderless mode" onChange={(on) => updateSettings({ borderlessMode: on })} />
+        </Row>
         <Row anchor="appearance.pageFrame">
           <Box row gap="m" style={FRAME_CONTROL}>
             <View style={{ width: FRAME_SLIDER_WIDTH }}>
@@ -183,6 +187,7 @@ function PageFramePicker() {
         <Row anchor="appearance.pageFrameZeroInFullScreen">
           <Toggle
             value={zeroInFullScreen}
+            disabled={borderless}
             accessibilityLabel="Zero in full screen"
             onChange={(on) => updateSettings(on ? { pageFrameZeroInFullScreen: true, pageFrameZeroWhenTabsHidden: true } : { pageFrameZeroInFullScreen: false })}
           />
@@ -190,7 +195,7 @@ function PageFramePicker() {
         <Row anchor="appearance.pageFrameZeroWhenTabsHidden">
           <Toggle
             value={zeroInFullScreen || zeroWhenTabsHidden}
-            disabled={zeroInFullScreen}
+            disabled={borderless || zeroInFullScreen}
             accessibilityLabel="Zero in full screen when tabs are hidden"
             onChange={(on) => updateSettings({ pageFrameZeroWhenTabsHidden: on })}
           />
