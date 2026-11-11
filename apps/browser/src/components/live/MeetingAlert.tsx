@@ -3,7 +3,7 @@ import { Animated, Text as Span, View } from "react-native";
 import { dismiss, joinEvent, useMeetingAlert } from "../../state/live/alerts";
 import { useCalendar, useNow } from "../../state/live/calendar";
 import { attendeesLabel, guestsLabel, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../state/live/meetings";
-import { useSidebarSide, useWindow } from "../../state/browser/hooks";
+import { useSidebarSide, useTabsShown } from "../../state/browser/hooks";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { useCalendarTabIn } from "../../state/live/hooks";
 import { activate } from "../../state/tabs/actions";
@@ -29,7 +29,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const colors = useLiveColors();
   const now = useNow(15_000);
   const calendarTab = useCalendarTabIn(windowId);
-  const sidebarShown = useWindow(windowId, (w) => !!w?.sidebarOpen);
+  const sidebarShown = useTabsShown(windowId);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
   const right = useSidebarSide(windowId) === "right";
   const sidebarWidth = useSidebarWidth(windowId);

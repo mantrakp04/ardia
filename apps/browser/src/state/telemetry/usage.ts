@@ -18,6 +18,7 @@ import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
 import { splitTabIds } from "../splits/splits";
+import { windowsRealignedToAutoHideTabsAtLaunch } from "../session/persist";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -26,7 +27,7 @@ const EXTENSION_SETTLE_MS = 20_000;
 const LOCAL_STORE_LAUNCH_DELAY_MS = 20_000;
 
 const startedAt = Date.now();
-const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0 };
+const NO_COUNTS = { tabs: 0, windows: 0, captureIndicatorsCleared: 0, fullScreens: 0, sidebarPeeks: 0, sidebarPeekBounces: 0, cliTabEdits: 0, cliGroupEdits: 0, cliEditFailures: 0, cliPillShows: 0, popoverPressCloses: 0, popoverEscapeCloses: 0, tabSwitcherOpens: 0, tabSwitcherClosedLeftOut: 0, approvalNoticesDeferred: 0, reopenedPages: 0, reopenedPagesWithBack: 0, groupTabsKept: 0, groupHeaderHides: 0, peekPinchOpens: 0, peekPinchCloses: 0, littleArdiaPinchOpens: 0, littleArdiaPinchCloses: 0, autoHideTabsToggles: 0, windowsRealignedToAutoHideTabs: 0, sidebarPeeksWithAutoHideOff: 0 };
 let counts = { ...NO_COUNTS };
 let countsSince = Date.now();
 
@@ -56,6 +57,9 @@ function emitCounts() {
       peek_pinch_closes: counts.peekPinchCloses,
       little_ardia_pinch_opens: counts.littleArdiaPinchOpens,
       little_ardia_pinch_closes: counts.littleArdiaPinchCloses,
+      auto_hide_tabs_toggles: counts.autoHideTabsToggles,
+      windows_realigned_to_auto_hide_tabs: counts.windowsRealignedToAutoHideTabs,
+      sidebar_peeks_with_auto_hide_off: counts.sidebarPeeksWithAutoHideOff,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
@@ -118,6 +122,7 @@ export function keptTabsAdded(groups: BrowserState["groups"], prev: BrowserState
 export function noteSidebarPeek(bounce: boolean) {
   counts.sidebarPeeks++;
   if (bounce) counts.sidebarPeekBounces++;
+  if (!useBrowser.getState().settings.autoHideTabs) counts.sidebarPeeksWithAutoHideOff++;
 }
 
 const size = (o: object) => Object.keys(o).length;
@@ -142,6 +147,7 @@ function watchStore() {
         if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles), switcherSwitchProperties(id, w.profileId));
       }
     }
+    if (s.settings.autoHideTabs !== prev.settings.autoHideTabs) counts.autoHideTabsToggles++;
     if (s.groups !== prev.groups) counts.groupTabsKept += keptTabsAdded(s.groups, prev.groups);
     if (s.splits !== prev.splits) {
       for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: splitTabIds(s.splits[id]!).length });
@@ -264,6 +270,7 @@ export function startUsage() {
   startLocalStore(LOCAL_STORE_LAUNCH_DELAY_MS);
   startContextSamples();
   startJourneys(isSharing() ? session : null);
+  counts.windowsRealignedToAutoHideTabs = windowsRealignedToAutoHideTabsAtLaunch();
   watchStore();
   watchSync();
   watchTranslate();

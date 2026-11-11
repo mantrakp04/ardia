@@ -159,3 +159,19 @@ test("page reports, reveals and peeks", () => {
   useBrowser.getState().closeTab(tabId);
   assert.equal(st().scrolledDown[tabId], undefined);
 });
+
+test("with Hide toolbar while scrolling off, a page's scrolling is not kept, and turning it off shows every toolbar", () => {
+  useBrowser.getState().hydrate({});
+  const w = useBrowser.getState().createWindow({ url: "https://a.com" });
+  const tabId = useBrowser.getState().newTab(w, { url: "https://example.com" });
+  const st = () => useToolbarAutoHide.getState();
+  noteScroll(tabId, "down");
+  setToolbarPeek(tabId, true);
+  useBrowser.getState().updateSettings({ hideToolbarWhileScrolling: false });
+  assert.deepEqual(st(), { scrolledDown: {}, peek: {} });
+  noteScroll(tabId, "down");
+  assert.deepEqual(st().scrolledDown, {});
+  useBrowser.getState().updateSettings({ hideToolbarWhileScrolling: true });
+  noteScroll(tabId, "down");
+  assert.equal(st().scrolledDown[tabId], true);
+});

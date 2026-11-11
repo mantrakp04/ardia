@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sidebarSideOf, tabLayoutOf } from "../browser/model";
+import { sidebarSideOf, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, sidebarLightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import type { LightsPlace } from "../../platform/windows";
@@ -20,7 +20,7 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   return (
     !!w &&
     s.settings.addressBar === "sidebar" &&
-    (w.sidebarOpen || switchOn("sidebarSlide")) &&
+    (tabsShownIn(s, windowId) || switchOn("sidebarSlide")) &&
     tabLayoutOf(s, w.id) === "sidebar"
   );
 }
@@ -37,7 +37,7 @@ export function useAddressBarInSidebar(): boolean {
 export function openingLightsCenter(s: BrowserState, windowId: string): LightsPlace | null {
   const w = s.windows[windowId];
   if (!w) return null;
-  const open = w.sidebarOpen ?? true;
+  const open = tabsShownIn(s, windowId);
   if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
   const width = s.settings.sidebarWidth;
   const base = s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar, s.settings.pageFrame);

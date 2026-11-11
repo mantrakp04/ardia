@@ -146,7 +146,7 @@ export const requestClearData = (windowId: string | null) => useClearDataRequest
 `getState()`:
 
 - A hook keeps the selector as narrow as the component needs: `useSettings((s) => s.tabLayout)`,
-  `useTab(id, (t) => t?.title)`, `useWindow(id, (w) => w?.sidebarOpen)`. Pass `useShallow(…)` through when the
+  `useTab(id, (t) => t?.title)`, `useWindow(id, (w) => w?.frame)`. Pass `useShallow(…)` through when the
   selector builds an array or object. Moving a selector into a hook never widens it: a component re-renders exactly
   when it did before.
 - A selector that combines domains, or that two components share, becomes a named hook (`useWindowProfile`,

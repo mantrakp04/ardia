@@ -151,6 +151,10 @@ export function tabLayoutOf(s: BrowserState, windowId?: string | null): "sidebar
   return (id && s.windows[id]!.tabLayout) || s.settings.tabLayout;
 }
 
+export function tabsShownIn(s: Pick<BrowserState, "windows" | "settings">, windowId?: string | null): boolean {
+  return !s.settings.autoHideTabs && !(windowId && s.windows[windowId]?.kind === "small");
+}
+
 export type SidebarSide = "left" | "right";
 
 export function sidebarSideOf(s: BrowserState, windowId?: string | null): SidebarSide {

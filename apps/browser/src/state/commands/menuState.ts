@@ -1,7 +1,7 @@
 import type { MenuBookmark, MenuState } from "../../platform/commands";
 import { engineBookmarkRoots, folderChildren, isBookmarked, isWithin, ROOT_TITLES } from "../bookmarks/bookmarks";
 import type { BrowserState } from "../browser/store";
-import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf } from "../browser/model";
+import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { canSwitchEngine, tabEngine } from "../engines/engines";
 import { peekTabId } from "../peek/peek";
 import { splitOf } from "../splits/splits";
@@ -88,7 +88,7 @@ export function menuState(s: BrowserState): MenuState {
   if (s.settings.addressBar === "sidebar") checked.push("toggleAddressBar");
   if (s.settings.sidebarSide === "right") checked.push("toggleSidebarSide");
   if (tabLayoutOf(s, windowId) === "sidebar") checked.push("toggleTabLayout");
-  if (w && !w.sidebarOpen) checked.push("toggleSidebar");
+  if (w && !tabsShownIn(s, w.id)) checked.push("toggleSidebar");
 
   const titles: Record<string, string> = {};
   if (tab?.pin) titles.togglePin = togglePinTitle(tab);
