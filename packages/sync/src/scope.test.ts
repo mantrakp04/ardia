@@ -49,6 +49,7 @@ class Device {
   clock: Clock;
   offset = 0;
   onRead?: () => void;
+  afterRead?: () => Promise<void>;
   failWrite?: "before" | "after";
   readonly id: string;
   readonly folder: Folder;
@@ -96,6 +97,7 @@ class Device {
       read: async (scope, known) => {
         const listing = await base.read(scope, known);
         this.onRead?.();
+        await this.afterRead?.();
         return listing;
       },
     };
@@ -552,4 +554,56 @@ test("an idle Mac writes nothing and still clears the files its snapshot covers"
   }
   assert.equal(folder.counter, written);
   assert.equal(folder.fileCount(), 20);
+});
+
+function barrier(count: number) {
+  let arrived = 0;
+  let release!: () => void;
+  const all = new Promise<void>((resolve) => (release = resolve));
+  return async () => {
+    if (++arrived === count) release();
+    await all;
+  };
+}
+
+async function concurrently(devices: Device[]) {
+  const gate = barrier(devices.length);
+  for (const d of devices) d.afterRead = gate;
+  const results = await Promise.all(devices.map((d) => d.sync()));
+  for (const d of devices) delete d.afterRead;
+  return results;
+}
+
+test("Macs compacting and pruning at the same moment never empty the folder, with equal snapshot vectors", async () => {
+  const folder = new Folder();
+  const hour = 60 * 60_000;
+  const opts: ScopeOptions = { pruneGrace: hour };
+  const [a, b] = ["devA", "devB"].map((id) => new Device(id, folder, opts)) as [Device, Device];
+  const snapshots = () => [...folder.scope("s").values()].filter((e) => e.payload.includes('"kind":"snapshot"')).map((e) => JSON.parse(e.payload) as { device: string; vv: Record<string, number> });
+  let n = 0;
+  for (let round = 0; round < 2; round++) {
+    opts.compactAfterFiles = 1000;
+    for (let i = 0; i < 41; i++) {
+      folder.now += 1000;
+      for (const d of [a, b]) {
+        d.store.set(`x:${d.id}-${n++}`, n);
+        await d.sync();
+      }
+    }
+    delete opts.compactAfterFiles;
+    folder.now += 11 * 60_000;
+    assert.deepEqual((await concurrently([a, b])).map((r) => r.compacted), [true, true], `round ${round}`);
+    const fresh = snapshots().filter((f) => f.vv.devA === 41 * (round + 1));
+    assert.equal(fresh.length, 2, `round ${round}`);
+    assert.deepEqual(fresh[0]!.vv, fresh[1]!.vv);
+    folder.now += hour + 60_000;
+    assert.deepEqual((await concurrently([a, b])).map((r) => r.compacted), [false, false], `round ${round}`);
+    assert.ok(snapshots().length >= 2, `round ${round}: ${snapshots().length} snapshots left`);
+    for (let i = 0; i < 3; i++) await concurrently([a, b]);
+    const c = new Device(`devC${round}`, folder, opts);
+    await c.sync();
+    assert.equal(c.store.size, n, `round ${round}`);
+    assert.deepEqual(snapshot(c), snapshot(a));
+    assert.deepEqual(snapshot(c), snapshot(b));
+  }
 });

@@ -207,8 +207,11 @@ Each scope holds a replica: `key → { h: HLC, v: value | null, o: [device, seq]
   history records older than 90 days.
 - **What it removes.** Then it removes, once they're an hour old, the files the snapshot covers:
   logs `(d, s)` with `s ≤ vv[d]`, and snapshots whose `vv` it dominates. A cycle that writes no snapshot
-  removes, the same way, what this device's newest snapshot covers once it's an hour old, so covered files
-  don't wait for the next snapshot.
+  removes the logs this device's newest snapshot covers once they're an hour old, so covered logs don't wait
+  for the next snapshot. It never removes a snapshot: only a cycle that has just written a replacement does,
+  since two Macs' snapshots with equal vectors dominate each other and pruning each other's without a
+  replacement would empty the folder for a Mac joining later (tested: concurrent compaction, then concurrent
+  idle cycles an hour later, then a new Mac joins and gets every record).
 - **Why that's safe.** A snapshot is self-contained, so any device can start from it, and
   concurrent compactions only remove files covered by their own snapshot.
 - **Missing logs keep tombstones.** While a replica is missing a log that a later one from the

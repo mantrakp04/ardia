@@ -289,12 +289,12 @@ function newestSnapshot(entries: FileEntry[], device?: string) {
   return newest;
 }
 
-function retiredBy(entries: FileEntry[], snapshotId: string, vv: Record<string, number>, now: number, pruneGrace: number) {
+function retiredBy(entries: FileEntry[], snapshotId: string, vv: Record<string, number>, now: number, pruneGrace: number, kinds: "logs" | "logsAndSnapshots") {
   return entries
     .filter(([fileId, f]) => {
       if (fileId === snapshotId || now - f.at < pruneGrace) return false;
       if (f.k === "log") return covered(vv, [f.d, f.s ?? Infinity]);
-      if (f.k === "snapshot") return dominates(vv, f.vv ?? {});
+      if (f.k === "snapshot") return kinds === "logsAndSnapshots" && dominates(vv, f.vv ?? {});
       return false;
     })
     .map(([fileId]) => fileId);
@@ -327,7 +327,7 @@ export async function compact(state: ScopeState, transport: Transport, scope: st
   const o = { ...DEFAULTS, ...options };
   if (!force && !compactionDue(state, now, o)) {
     const own = newestSnapshot(Object.entries(state.files), device);
-    if (own) await prune(state, transport, scope, retiredBy(Object.entries(state.files), own[0], own[1].vv ?? {}, now, o.pruneGrace)).catch((error) => console.warn("[sync] removing covered files failed", error));
+    if (own) await prune(state, transport, scope, retiredBy(Object.entries(state.files), own[0], own[1].vv ?? {}, now, o.pruneGrace, "logs")).catch((error) => console.warn("[sync] removing covered files failed", error));
     return false;
   }
   await flush(state, transport, scope, device, now, options);
@@ -344,7 +344,7 @@ export async function compact(state: ScopeState, transport: Transport, scope: st
   const id = await transport.write(scope, payload);
   state.files[id] = { d: device, k: "snapshot", vv, at: now, b: payload.length };
   state.snapshotAt = now;
-  await prune(state, transport, scope, retiredBy(Object.entries(state.files), id, vv, now, o.pruneGrace));
+  await prune(state, transport, scope, retiredBy(Object.entries(state.files), id, vv, now, o.pruneGrace, "logsAndSnapshots"));
   return true;
 }
 
