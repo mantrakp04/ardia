@@ -318,7 +318,7 @@ const server = createServer((req, res) => {
   if (url.pathname === "/drag")
     return res.end(page("Drag", `<div id="card" draggable="true" style="position: absolute; left: 40px; top: 40px; width: 180px; height: 60px; background: #ccd">card</div>
       <div id="clicker" style="position: absolute; left: 300px; top: 40px; width: 120px; height: 60px; background: #dcc">click</div>
-      <script>window.__events = []; for (const t of ["mousedown", "click", "dragstart", "dragend"]) addEventListener(t, (e) => __events.push([t, e.target.id || "", e.clientX, e.clientY]), true);
+      <script>window.__events = []; for (const t of ["mousedown", "click", "dragstart", "dragend"]) addEventListener(t, (e) => __events.push([t, e.target.id || "", e.clientX, e.clientY, Date.now()]), true);
       card.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "card"));</script>`));
   if (url.pathname === "/capture-target") return res.end(page("Capture Target", "the tab that tab capture picks"));
   if (url.pathname === "/solid")
@@ -3722,7 +3722,40 @@ try {
       const clicksBefore = await clickerClicks();
       await press(at(360, 70));
       await until("a new click on the page after the drag", async () => (await clickerClicks()) > clicksBefore, 4000);
-      return { spot, events: (await events()).map((e) => `${e[0]}:${e[1]}`) };
+      const command = 1048576;
+      const ofType = async (type) => (await events()).filter((e) => e[0] === type);
+      const clickerEvents = async () => (await ofType("click")).filter((e) => e[1] === "clicker");
+      const dragendsBefore = (await ofType("dragend")).length;
+      const clicksAfterDrag = (await clickerEvents()).length;
+      const [cardX, cardY] = at(130, 70);
+      await act(`mouse:down:${cardX},${cardY},1,${command}`);
+      for (const step of [2, 4, 6]) {
+        await act(`mouse:dragged:${cardX + step},${cardY + step},1,${command}`);
+        await sleep(30);
+      }
+      const releasedAt = Date.now();
+      await act(`mouse:up:${cardX + 6},${cardY + 6},1,${command}`);
+      const [clickerX, clickerY] = at(360, 70);
+      const pressedAt = [];
+      for (let i = 0; i < 5; i++) {
+        await act(`mouse:down:${clickerX},${clickerY},1,${command}`);
+        await sleep(40);
+        pressedAt.push(Date.now());
+        await act(`mouse:up:${clickerX},${clickerY},1,${command}`);
+      }
+      await until("the clicks after the moved ⌘-click", async () => (await clickerEvents()).length >= clicksAfterDrag + pressedAt.length, 6000);
+      await sleep(800);
+      const movedDragend = (await ofType("dragend"))[dragendsBefore];
+      if (!movedDragend) throw new Error("the moved ⌘-click never started a page drag");
+      const sinceRelease = movedDragend[4] - releasedAt;
+      if (sinceRelease > 250) throw new Error(`the page drag ended ${sinceRelease} ms after mouse-up: AppKit's slide-back kept the session open`);
+      const burst = (await clickerEvents()).slice(clicksAfterDrag).map((e) => e[4]);
+      if (burst.length !== pressedAt.length) throw new Error(`${pressedAt.length} clicks were made and ${burst.length} reached the page`);
+      const late = burst.map((t, i) => t - pressedAt[i]);
+      if (late.some((ms) => ms > 300)) throw new Error(`clicks reached the page late, ${JSON.stringify(late)} ms after each was made`);
+      const gaps = burst.slice(1).map((t, i) => t - burst[i]);
+      if (gaps.some((ms, i) => ms < 20 && late[i] > 100)) throw new Error(`clicks queued and reached the page together: ${JSON.stringify({ late, gaps })} ms`);
+      return { spot, sinceRelease, late, gaps, events: (await events()).map((e) => `${e[0]}:${e[1]}`) };
     } finally {
       await closeTab(tab).catch(() => null);
     }
