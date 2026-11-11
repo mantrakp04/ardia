@@ -17,7 +17,7 @@
  
 --- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
 +++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
-@@ -50,6 +50,8 @@
+@@ -52,6 +52,8 @@
  bool g_ardia_auto_picture_in_picture_off = false;
  extern int (*g_ardia_linux_tab_shown)(content::WebContents*);
  void (*g_ardia_linux_auto_pip_requested)(content::WebContents*) = nullptr;
@@ -26,7 +26,7 @@
  
  using OcclusionState =
      AutoPictureInPictureWindowOcclusionHelperBase::OcclusionState;
-@@ -590,6 +592,10 @@
+@@ -627,6 +629,10 @@
      MaybeReportAutoPictureInPictureInfoChanged();
      return;
    }
@@ -37,7 +37,7 @@
    auto_picture_in_picture_activation_time_ =
        clock_->NowTicks() + blink::kActivationLifespan;
    auto_pip_trigger_reason_ = GetAutoPipReason();
-@@ -652,6 +658,10 @@
+@@ -689,6 +695,10 @@
    }
    is_in_auto_picture_in_picture_ = false;
  
@@ -60,7 +60,7 @@
  #endif
  
  namespace {
-@@ -775,6 +778,13 @@
+@@ -794,6 +797,13 @@
              url)) {
        return nullptr;
      }

@@ -66,7 +66,7 @@ companion or a host.
      tab_restore_service->BrowserClosing(BrowserLiveTabContext::From(browser_));
    }
  
-@@ -1243,7 +1248,7 @@ UnloadController::MaybeWarnBeforeClosing(
+@@ -1250,7 +1255,7 @@ UnloadController::MaybeWarnBeforeClosing(
    // before-unload handlers by setting `force_skip_warning_user_on_close_` to
    // true or there are no pending downloads we need to prompt about) then
    // there's no need to warn.
@@ -75,7 +75,7 @@ companion or a host.
      return WarnBeforeClosingResult::kOkToClose;
    }
  
-@@ -1354,7 +1359,14 @@ bool UnloadController::CanCloseWithMultipleTabs() {
+@@ -1361,7 +1366,14 @@ bool UnloadController::CanCloseWithMultipleTabs() {
    if (!base::CommandLine::ForCurrentProcess()->HasSwitch("close-confirmation"))
      return true;
  
@@ -91,7 +91,7 @@ companion or a host.
      return true;
  
    // If we've prompted, we need to hear from the user before we
-@@ -1373,7 +1385,8 @@ bool UnloadController::CanCloseWithMultipleTabs() {
+@@ -1380,7 +1392,8 @@ bool UnloadController::CanCloseWithMultipleTabs() {
      // Don't count this browser window or any other in the process of closing.
      // Window closing may be delayed, and windows that are in the process of
      // closing don't count against our totals.
@@ -101,7 +101,7 @@ companion or a host.
        total_window_count++;
      }
      return true;
-@@ -1383,7 +1396,7 @@ bool UnloadController::CanCloseWithMultipleTabs() {
+@@ -1390,7 +1403,7 @@ bool UnloadController::CanCloseWithMultipleTabs() {
    bool show_confirmation_last_window = flag_value == "last";
  
    if (show_confirmation_last_window) {
@@ -194,7 +194,7 @@ companion or a host.
    browser_widget_->FlashFrame(flash);
  }
  
-@@ -2916,14 +2949,26 @@ bool BrowserView::IsMinimized() const {
+@@ -2913,14 +2946,26 @@ bool BrowserView::IsMinimized() const {
  }
  
  void BrowserView::Maximize() {
@@ -221,7 +221,7 @@ companion or a host.
    browser_widget_->Restore();
  }
  
-@@ -4133,11 +4178,30 @@ std::unique_ptr<FindBar> BrowserView::CreateFindBar() {
+@@ -4130,11 +4175,30 @@ std::unique_ptr<FindBar> BrowserView::CreateFindBar() {
  }
  
  WebContentsModalDialogHost* BrowserView::GetWebContentsModalDialogHost() {
@@ -252,7 +252,7 @@ companion or a host.
    ContentsContainerView* const contents_container_view =
        multi_contents_view_->GetContentsContainerViewFor(web_contents);
    // `contents_container_view` can be null in cases where a modal dialog is
-@@ -6313,6 +6377,10 @@ void BrowserView::PrepareFullscreen(bool fullscreen) {
+@@ -6299,6 +6363,10 @@ void BrowserView::PrepareFullscreen(bool fullscreen) {
  
  void BrowserView::ProcessFullscreen(bool fullscreen, const int64_t display_id) {
    CHECK(!base::FeatureList::IsEnabled(features::kAsyncFullscreenWindowState));
@@ -263,7 +263,7 @@ companion or a host.
  
    if (in_process_fullscreen_) {
      return;
-@@ -6357,6 +6425,10 @@ void BrowserView::ProcessFullscreen(bool fullscreen, const int64_t display_id) {
+@@ -6343,6 +6411,10 @@ void BrowserView::ProcessFullscreen(bool fullscreen, const int64_t display_id) {
  }
  
  void BrowserView::RequestFullscreen(bool fullscreen, int64_t display_id) {

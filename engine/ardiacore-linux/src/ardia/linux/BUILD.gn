@@ -309,7 +309,6 @@ source_set("linux") {
     "//chrome/browser/resource_coordinator",
     "//chrome/browser/search_engines",
     "//chrome/browser/tab_list",
-    "//chrome/browser/ui",
     "//chrome/browser/ui:browser_window_state",
     "//chrome/browser/ui/browser_window:create_browser_window",
     "//chrome/browser/ui/browser_window",

@@ -50,6 +50,7 @@
 #include "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #include "content/public/browser/web_contents.h"
+#include "crypto/process_bound_string.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "url/gurl.h"
@@ -305,10 +306,11 @@ class PasswordWriter : public ProfileObserver {
     if (!presenter) return Fail("ERR_PASSWORDS_UNAVAILABLE", "The password store is unavailable");
     for (password_manager::CredentialUIEntry& entry : presenter->GetSavedPasswords()) {
       std::string username = base::UTF16ToUTF8(entry.username);
-      std::string password = base::UTF16ToUTF8(entry.password);
+      crypto::SecureU16String stored = entry.password.secure_value();
+      entry.password.clear();
+      std::string password = base::UTF16ToUTF8(std::u16string_view(stored.data(), stored.size()));
       existing_.insert(li::ExistingKey(entry.GetURL().spec(), username, password));
       li::Wipe(password);
-      std::fill(entry.password.begin(), entry.password.end(), u'\0');
     }
     importer_ = std::make_unique<password_manager::PasswordImporter>(*presenter);
     NextChunk();

@@ -16,7 +16,7 @@ StartLinuxHost.
  #endif
  #include "chrome/common/buildflags.h"
  #include "chrome/common/channel_info.h"
-@@ -1192,6 +1193,7 @@
+@@ -1209,6 +1210,7 @@
  std::optional<int> ChromeMainDelegate::BasicStartupComplete() {
  #if BUILDFLAG(IS_LINUX)
    g_ardia_restricted_component_extension = &IsArdiaLinuxContentBlocker;
