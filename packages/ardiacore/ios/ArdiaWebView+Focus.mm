@@ -77,6 +77,16 @@ static BOOL InTabPage(NSView *view) {
   if (_focus.onActivate) [self schedulePainting];
 }
 
+- (void)settleFirstShowFocus {
+  NSWindow *window = self.window;
+  NSView *page = _tab.view;
+  if (!_tab || !_visible || !window || _standalone || !page || page.superview != self || page.isHiddenOrHasHiddenAncestor) return;
+  ArdiaWindowController *controller = self.controller;
+  if (!controller || [ArdiaTabStrip activeTabInWindow:controller profile:_tab.profile] != _tab) return;
+  if (![ArdiaTabRegistry takeFirstShowFocusOfTab:_tab]) return;
+  [self requestFocusRestoreIn:window];
+}
+
 - (void)restoreFocusIfDue {
   if (!_focus.onActivate) return;
   NSWindow *window = self.window;

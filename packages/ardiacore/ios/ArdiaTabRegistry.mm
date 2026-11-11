@@ -15,6 +15,11 @@ NSMutableDictionary<NSString *, ArdiaCoreTab *> *Offered() {
   return offered;
 }
 
+NSHashTable<ArdiaCoreTab *> *AwaitingFirstShowFocus() {
+  static NSHashTable *tabs = [NSHashTable weakObjectsHashTable];
+  return tabs;
+}
+
 constexpr int64_t kOfferSeconds = 30;
 
 }
@@ -55,8 +60,20 @@ constexpr int64_t kOfferSeconds = 30;
   return tab;
 }
 
++ (void)expectFirstShowFocus:(BOOL)expects forTab:(ArdiaCoreTab *)tab {
+  if (expects) [AwaitingFirstShowFocus() addObject:tab];
+  else [AwaitingFirstShowFocus() removeObject:tab];
+}
+
++ (BOOL)takeFirstShowFocusOfTab:(ArdiaCoreTab *)tab {
+  if (![AwaitingFirstShowFocus() containsObject:tab]) return NO;
+  [AwaitingFirstShowFocus() removeObject:tab];
+  return YES;
+}
+
 + (void)forget:(ArdiaCoreTab *)tab {
   [Views() removeObjectForKey:tab];
+  [AwaitingFirstShowFocus() removeObject:tab];
   for (NSString *key in [Offered() allKeysForObject:tab]) [Offered() removeObjectForKey:key];
 }
 

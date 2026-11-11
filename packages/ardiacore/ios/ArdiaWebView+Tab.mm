@@ -124,6 +124,7 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   if (_tabIndex >= 0) [self placeTab];
   if (ArdiaWindowController *controller = self.controller)
     [ArdiaTabStrip changedInWindow:controller profile:tab.profile cause:NSNull.null];
+  [self settleFirstShowFocus];
 }
 
 - (void)detach {

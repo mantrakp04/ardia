@@ -72,7 +72,7 @@ const usesPageA = [
   "window-close-before-reveal", "window-close-during-exit", "window-close-while-full-screen-restore-waits",
   "webkit-clearing-keeps-zoom", "webkit-private-session-ends-mid-transfer", "webkit-now-playing-frames",
   "page-view-calls", "tab-close-then-load", "tab-close-before-create", "tab-load-before-attach", "tab-create-interrupted-by-move", "tab-close-while-lent",
-  "page-reports-follow-the-tab",
+  "page-reports-follow-the-tab", "link-tab-focus",
 ];
 const needs = {
   ...Object.fromEntries([...usesPageA, "task-manager", "internal-pages-not-history", "second-profile"].map((name) => [name, ["open-url"]])),
@@ -964,6 +964,36 @@ try {
     const later = (await state()).tabs.find((x) => x.id === s.c.id);
     if (!later) throw new Error("the popup's tab went away");
     return { tabs: s.s.tabs.length, adoptId: s.c.adoptId ?? null, stays: !!later };
+  });
+
+  await check("link-tab-focus", async () => {
+    const hasFocus = async (id, urlPart) =>
+      (await cdp(await pageFor(id, urlPart), "Runtime.evaluate", { expression: "document.hasFocus()", returnByValue: true })).result.value;
+    const showFirst = async () => {
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+      await until("A shown", async () => (await state()).active === first.id);
+    };
+    await showFirst();
+    const switchedTo = await until("A's page to report focus after switching to it", async () => (await hasFocus(first.id, `${base}/a`)) || null, 5000);
+    const opened = {};
+    for (const [how, open] of [
+      ["target-blank", "document.getElementById('blank').click()"],
+      ["window-open", `window.open("${base}/c?link-focus", "_blank")`],
+    ]) {
+      await showFirst();
+      const before = new Set((await state()).tabs.map((x) => x.id));
+      const openedByCheck = (x) => !before.has(x.id) && x.url?.startsWith(`${base}/c`);
+      try {
+        await cdp(await pageFor(first.id, `${base}/a`), "Runtime.evaluate", { expression: open, userGesture: true });
+        const tab = await until(`the ${how} tab`, async () => (await state()).tabs.find((x) => openedByCheck(x) && x.title === "Page C" && !x.loading), 10000);
+        await until(`the ${how} tab in front`, async () => (await state()).active === tab.id);
+        opened[how] = await until(`the ${how} page to have focus without a click`, async () => (await hasFocus(tab.id, `${base}/c`)) || null, 5000);
+      } finally {
+        for (const left of (await state()).tabs.filter(openedByCheck)) await closeTab(left.id);
+      }
+    }
+    await showFirst();
+    return { switchedTo, opened };
   });
 
   await check("window-open", async () => {
